@@ -22,5 +22,11 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --root ../.. --project @qcms/core",
     "lint": "eslint src"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "fast-check": "^4.9.0"
   }
 }

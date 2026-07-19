@@ -146,7 +146,7 @@ const FormDefinition = z.object({
 
 ### 2.4 Canonical AnswerValue encodings
 
-Decided at design time because they freeze into snapshots, ledger rows, exports, and rule comparisons (task 002 implements; this is the contract):
+Decided at design time because they freeze into snapshots, ledger rows, exports, and rule comparisons. **Implemented by task 002 in `@qcms/core` (`answer-value.ts`); this is the contract:**
 
 | Question type | Canonical encoding |
 |---|---|
@@ -160,6 +160,10 @@ Decided at design time because they freeze into snapshots, ledger rows, exports,
 `Comparable` (for `gt/gte/lt/lte`) = number \| date string; cross-type comparison is a typed error and unreachable post-publish (rule type-checking, §3).
 
 **Value equality (ADR-21).** `equals`/`notEquals`/`in` compare canonical encodings: strict equality for scalars (strings after NFC normalization; numbers by IEEE-double equality — authoring guidance warns against `equals` on non-integer number questions), and **set equality** for `multiChoice` arrays (order- and duplicate-insensitive; the canonical encoding is already deduplicated). `in` is membership by this same equality. Containment *within* a multiChoice answer is expressed with `contains`/`containsAny` (§3), never with `equals`. Implemented and exported as `valuesEqual` (task 002).
+
+**Ordered comparison (task 002).** `compareValues(a, b)` implements the DSL's `gt/gte/lt/lte` over `Comparable`: numbers compare numerically; dates compare **lexicographically on the canonical `YYYY-MM-DD` encoding**, which is equivalent to calendar order for this fixed-width form. Number-vs-date returns a typed `COMPARE_TYPE_MISMATCH` error; any operand outside `Comparable` (boolean, array, non-date string, non-finite number) returns `NOT_COMPARABLE`. Both are unreachable post-publish (rule type-checking) but defined, typed, and never thrown.
+
+**Parse surface (task 002).** Each encoding exports a Zod schema (source of truth; types via `z.infer`) plus a `parseX` helper returning a typed `Result` — `INVALID_TEXT_ANSWER`, `INVALID_NUMBER_ANSWER`, `INVALID_DATE_ANSWER`, `INVALID_BOOLEAN_ANSWER`, `INVALID_SINGLE_CHOICE_ANSWER`, `INVALID_MULTI_CHOICE_ANSWER`, `INVALID_ANSWER_VALUE` (union), `INVALID_COMPARABLE`. Parsing normalizes rather than rejects where the contract says so: text is NFC-normalized on parse; multiChoice arrays are deduplicated preserving first-occurrence order. Error messages never echo answer values (SECURITY_DESIGN: answer values are never logged).
 
 ## 3. Rules DSL (ADR-03, semantics per ADR-16)
 
