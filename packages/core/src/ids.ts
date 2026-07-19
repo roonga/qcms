@@ -4,8 +4,9 @@ import type { Result } from "./errors.js";
 import { parseWithCode } from "./internal/parse.js";
 
 /**
- * Branded ID types (task 002, R6). Prefixes are settled project-wide
- * (`q_ frm_ stp_ opt_ rul_ ses_`) and an ID is never reused with a different
+ * Branded ID types (task 002, R6; `lnk_` added in task 010). Prefixes are
+ * settled project-wide (`q_ frm_ stp_ opt_ rul_ ses_ lnk_`) and an ID is
+ * never reused with a different
  * meaning. Branding makes the IDs nominal at compile time — a FormId cannot be
  * passed where a QuestionId is expected even though both are strings.
  * .NET mapping: strongly-typed IDs, like `record struct QuestionId(string Value)`.
@@ -29,6 +30,9 @@ export type RuleId = z.infer<typeof RuleId>;
 
 export const SessionId = z.string().regex(idPattern("ses")).brand<"SessionId">();
 export type SessionId = z.infer<typeof SessionId>;
+
+export const LinkId = z.string().regex(idPattern("lnk")).brand<"LinkId">();
+export type LinkId = z.infer<typeof LinkId>;
 
 export function parseQuestionId(value: unknown): Result<QuestionId> {
   return parseWithCode(QuestionId, "INVALID_QUESTION_ID", "QuestionId", value);
@@ -70,4 +74,11 @@ export function parseSessionId(value: unknown): Result<SessionId> {
 }
 export function isSessionId(value: unknown): value is SessionId {
   return SessionId.safeParse(value).success;
+}
+
+export function parseLinkId(value: unknown): Result<LinkId> {
+  return parseWithCode(LinkId, "INVALID_LINK_ID", "LinkId", value);
+}
+export function isLinkId(value: unknown): value is LinkId {
+  return LinkId.safeParse(value).success;
 }

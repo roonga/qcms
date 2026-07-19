@@ -2,18 +2,21 @@ import { describe, expect, it } from "vitest";
 
 import {
   FormId,
+  LinkId,
   OptionId,
   QuestionId,
   RuleId,
   SessionId,
   StepId,
   isFormId,
+  isLinkId,
   isOptionId,
   isQuestionId,
   isRuleId,
   isSessionId,
   isStepId,
   parseFormId,
+  parseLinkId,
   parseOptionId,
   parseQuestionId,
   parseRuleId,
@@ -70,6 +73,14 @@ const KINDS = [
     valid: "ses_abc123",
     code: "INVALID_SESSION_ID",
   },
+  {
+    name: "LinkId",
+    schema: LinkId,
+    parse: parseLinkId,
+    is: isLinkId,
+    valid: "lnk_batch_2026_07",
+    code: "INVALID_LINK_ID",
+  },
 ] as const;
 
 describe.each(KINDS)("$name", ({ schema, parse, is, valid, code }) => {
@@ -109,5 +120,6 @@ describe("id kinds are mutually exclusive", () => {
     expect(isOptionId("q_smoker")).toBe(false);
     expect(isRuleId("q_smoker")).toBe(false);
     expect(isSessionId("q_smoker")).toBe(false);
+    expect(isLinkId("q_smoker")).toBe(false);
   });
 });
