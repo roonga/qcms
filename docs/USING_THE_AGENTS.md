@@ -30,6 +30,17 @@ Modes: the repo's `.claude/settings.json` sets **acceptEdits** (file edits and a
 - **Manual a11y pass (030):** you (or a tester) run NVDA/VoiceOver from the prepared script; results are logged to `docs/a11y-pass-<date>.md`.
 - **Security review sign-off (040)** and the **external-tester launch gate (038)**: prepared by agents, executed by humans.
 
+## Surviving usage limits (true unattended runs)
+
+An in-session `/loop` dies when your Claude usage window closes and **won't self-restart** — nothing inside a session can wake itself hours later. For runs that should outlast limit windows, use the supervisor instead:
+
+```powershell
+pwsh scripts/agent-loop.ps1                 # one task at a time
+pwsh scripts/agent-loop.ps1 -Parallel 3     # up to 3 independent tasks per batch
+```
+
+It runs `/next-task` in a **fresh headless session per iteration** (safe because the repo is the memory: claims, branches, HANDOFFs), reads the `NEXT-TASK:` sentinel each session emits, and: continues immediately on `LANDED`/`RESUMED`, stops on `AWAITING-HUMAN`/`BLOCKED`/`NOTHING`, and on *no sentinel* (usage limit or crash) waits `-RetryMinutes` (default 30) and retries — the next session's stale-claim recovery picks up whatever the killed one left mid-flight. Progress is in `agent-loop.log` and, as always, the ledger.
+
 ## Monitoring and control
 
 - **State:** `docs/features/README.md` (the ledger) is always current; `git log --oneline` shows what landed; `git worktree list` shows live executors.
