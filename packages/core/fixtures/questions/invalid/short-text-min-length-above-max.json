@@ -1,0 +1,10 @@
+{
+  "description": "minLength must not exceed maxLength",
+  "expected": { "code": "MIN_LENGTH_ABOVE_MAX_LENGTH", "path": ["constraints", "minLength"] },
+  "definition": {
+    "type": "shortText",
+    "questionId": "q_full_name",
+    "label": { "en": "Full name" },
+    "constraints": { "minLength": 10, "maxLength": 5 }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "type": "date",
+  "questionId": "q_dob",
+  "label": { "en": "Date of birth" },
+  "required": true,
+  "constraints": { "min": "1900-01-01", "max": "2100-12-31" }
+}

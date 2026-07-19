@@ -1,0 +1,14 @@
+{
+  "description": "maxSelected must not exceed the number of options",
+  "expected": { "code": "MAX_SELECTED_ABOVE_OPTION_COUNT", "path": ["constraints", "maxSelected"] },
+  "definition": {
+    "type": "multiChoice",
+    "questionId": "q_preexisting_conditions",
+    "label": { "en": "Do any of these conditions apply to you?" },
+    "options": [
+      { "optionId": "opt_diabetes", "label": { "en": "Diabetes" } },
+      { "optionId": "opt_asthma", "label": { "en": "Asthma" } }
+    ],
+    "constraints": { "maxSelected": 5 }
+  }
+}

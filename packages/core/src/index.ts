@@ -1,7 +1,7 @@
 /**
  * @qcms/core public surface (task 002: IDs, LocalizedText, canonical
- * AnswerValue, error primitives). Pure functions over immutable data — no
- * I/O, no dependencies beyond zod (R3).
+ * AnswerValue, error primitives · task 003: question definitions). Pure
+ * functions over immutable data — no I/O, no dependencies beyond zod (R3).
  */
 export { QcmsError, ok, err, qcmsError, type Result } from "./errors.js";
 
@@ -61,3 +61,29 @@ export {
   compareValues,
   valuesEqual,
 } from "./answer-value.js";
+
+export {
+  SAFE_PATTERN_MAX_LENGTH,
+  SAFE_PATTERN_MAX_BOUND,
+  SAFE_PATTERN_MAX_COMPOSITE_BOUND,
+  type SafePatternIssue,
+  type SafePatternIssueCode,
+  checkSafePattern,
+  isSafePattern,
+} from "./safe-pattern.js";
+
+export {
+  ChoiceOption,
+  QuestionBase,
+  QuestionDefinition,
+  QuestionDefinitionError,
+  QuestionDefinitionErrorCode,
+  QuestionVersionRecord,
+  QUESTION_TYPES,
+  type QuestionType,
+  optionIdsOf,
+  parseQuestionDefinition,
+  parseQuestionVersionRecord,
+  isQuestionDefinition,
+  isQuestionVersionRecord,
+} from "./question-definition.js";

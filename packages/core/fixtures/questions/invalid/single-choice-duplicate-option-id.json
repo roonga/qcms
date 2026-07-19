@@ -1,0 +1,13 @@
+{
+  "description": "duplicate optionId within one question is rejected (duplicates across questions are fine)",
+  "expected": { "code": "DUPLICATE_OPTION_ID", "path": ["options", 1, "optionId"] },
+  "definition": {
+    "type": "singleChoice",
+    "questionId": "q_coverage_level",
+    "label": { "en": "Which coverage level would you like?" },
+    "options": [
+      { "optionId": "opt_basic", "label": { "en": "Basic" } },
+      { "optionId": "opt_basic", "label": { "en": "Basic again" } }
+    ]
+  }
+}

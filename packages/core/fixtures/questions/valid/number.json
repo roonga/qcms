@@ -1,0 +1,8 @@
+{
+  "type": "number",
+  "questionId": "q_cigs_daily",
+  "label": { "en": "How many cigarettes do you smoke per day?" },
+  "help": { "en": "An average across the last 12 months" },
+  "required": true,
+  "constraints": { "min": 0, "max": 200, "integer": true }
+}

@@ -1,0 +1,12 @@
+{
+  "type": "singleChoice",
+  "questionId": "q_coverage_level",
+  "label": { "en": "Which coverage level would you like?" },
+  "required": true,
+  "options": [
+    { "optionId": "opt_basic", "label": { "en": "Basic" } },
+    { "optionId": "opt_standard", "label": { "en": "Standard" } },
+    { "optionId": "opt_premium", "label": { "en": "Premium" } },
+    { "optionId": "opt_none", "label": { "en": "No cover for now" } }
+  ]
+}

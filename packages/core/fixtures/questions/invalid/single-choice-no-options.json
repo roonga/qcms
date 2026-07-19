@@ -1,0 +1,10 @@
+{
+  "description": "choice questions need at least one option (structural failure)",
+  "expected": { "code": "INVALID_QUESTION_DEFINITION", "path": ["options"] },
+  "definition": {
+    "type": "singleChoice",
+    "questionId": "q_coverage_level",
+    "label": { "en": "Which coverage level would you like?" },
+    "options": []
+  }
+}

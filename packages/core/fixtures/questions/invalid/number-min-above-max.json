@@ -1,0 +1,10 @@
+{
+  "description": "number min must not exceed max",
+  "expected": { "code": "MIN_ABOVE_MAX", "path": ["constraints", "min"] },
+  "definition": {
+    "type": "number",
+    "questionId": "q_cigs_daily",
+    "label": { "en": "How many cigarettes do you smoke per day?" },
+    "constraints": { "min": 10, "max": 1 }
+  }
+}

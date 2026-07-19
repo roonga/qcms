@@ -1,0 +1,10 @@
+{
+  "description": "date min must not exceed max",
+  "expected": { "code": "MIN_ABOVE_MAX", "path": ["constraints", "min"] },
+  "definition": {
+    "type": "date",
+    "questionId": "q_dob",
+    "label": { "en": "Date of birth" },
+    "constraints": { "min": "2030-01-01", "max": "2020-12-31" }
+  }
+}

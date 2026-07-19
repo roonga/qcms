@@ -1,0 +1,15 @@
+{
+  "description": "minSelected must not exceed maxSelected",
+  "expected": { "code": "MIN_SELECTED_ABOVE_MAX_SELECTED", "path": ["constraints", "minSelected"] },
+  "definition": {
+    "type": "multiChoice",
+    "questionId": "q_preexisting_conditions",
+    "label": { "en": "Do any of these conditions apply to you?" },
+    "options": [
+      { "optionId": "opt_diabetes", "label": { "en": "Diabetes" } },
+      { "optionId": "opt_asthma", "label": { "en": "Asthma" } },
+      { "optionId": "opt_heart_disease", "label": { "en": "Heart disease" } }
+    ],
+    "constraints": { "minSelected": 3, "maxSelected": 2 }
+  }
+}

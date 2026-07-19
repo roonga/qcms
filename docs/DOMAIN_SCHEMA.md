@@ -3,6 +3,7 @@
 **Status:** v1.2 · supersedes Draft v1 · companion to `ARCHITECTURE.md` §3–4 and `IMPLEMENTATION_PLAN.md` Stages 1–3
 **Changes from v1:** evaluation semantics rewritten per **ADR-16** (forward pass replaces fixpoint); `ChoiceOption` declaration order fixed; `VisibilityRule` semantics comment cleaned; §2.4 canonical `AnswerValue` encodings added (resolving the open item, finalized by task 002); nesting depth cap resolved (8); `show`-targets question resolved (forward-only); invariants I10–I11 added (ADR-16/17).
 **Changes from v1.1 (ADR-21, 2026-07-19):** canonical value equality defined per type (§2.4 — multiChoice is set equality); `contains`/`containsAny` operators added (§3); erasure shown from any session state (§4.3).
+**Changes from v1.2 (task 003, 2026-07-19):** §2.2 safe `pattern` subset finalized (implemented in `@qcms/core` `safe-pattern.ts`); cross-field refinements and their typed error codes listed; `QuestionVersionRecord` shape added to §4.2.
 **Owner package:** `@qcms/core` (all types are Zod schemas; TypeScript types are inferred, never hand-written)
 
 This document defines the domain model — the layer that governs *meaning*. Nothing here knows about A2UI, HTTP, or Postgres. Storage shapes live in `@qcms/db`; rendered shapes live in `@qcms/a2ui-compiler`; both derive from this model and never feed back into it.
@@ -99,25 +100,34 @@ const QuestionDefinition = z.discriminatedUnion("type", [
   QuestionBase.extend({ type: z.literal("shortText"),
     constraints: z.object({ minLength: z.number().int().optional(),
                             maxLength: z.number().int().optional(),
-                            pattern: z.string().optional() }).default({}) }),
+                            pattern: z.string().optional() }).prefault({}) }),
   QuestionBase.extend({ type: z.literal("longText"),
-    constraints: z.object({ maxLength: z.number().int().optional() }).default({}) }),
+    constraints: z.object({ maxLength: z.number().int().optional() }).prefault({}) }),
   QuestionBase.extend({ type: z.literal("number"),
     constraints: z.object({ min: z.number().optional(), max: z.number().optional(),
-                            integer: z.boolean().default(false) }).default({}) }),
+                            integer: z.boolean().default(false) }).prefault({}) }),
   QuestionBase.extend({ type: z.literal("date"),
-    constraints: z.object({ min: ISODate.optional(), max: ISODate.optional() }).default({}) }),
+    constraints: z.object({ min: ISODate.optional(), max: ISODate.optional() }).prefault({}) }),
   QuestionBase.extend({ type: z.literal("boolean") }),
   QuestionBase.extend({ type: z.literal("singleChoice"),
     options: z.array(ChoiceOption).min(1) }),
   QuestionBase.extend({ type: z.literal("multiChoice"),
     options: z.array(ChoiceOption).min(1),
     constraints: z.object({ minSelected: z.number().int().optional(),
-                            maxSelected: z.number().int().optional() }).default({}) }),
+                            maxSelected: z.number().int().optional() }).prefault({}) }),
 ]);
 ```
 
-`pattern` accepts a documented safe subset (compilability validated at parse; catastrophic constructs rejected — task 003 finalizes the subset).
+Constraints objects use `.prefault({})` (Zod 4: `.default` returns its value verbatim, `.prefault` parses it so inner defaults like `integer: false` apply).
+
+**Cross-field refinements (task 003).** Parsing reports *all* violations, each as a typed error with code and path: `minLength ≤ maxLength` (`MIN_LENGTH_ABOVE_MAX_LENGTH`) · `min ≤ max` for number and date (`MIN_ABOVE_MAX`) · `minSelected ≤ maxSelected ≤ options.length`, incl. the transitive `minSelected ≤ options.length` when `maxSelected` is absent (`MIN_SELECTED_ABOVE_MAX_SELECTED`, `MAX_SELECTED_ABOVE_OPTION_COUNT`, `MIN_SELECTED_ABOVE_OPTION_COUNT`) · unique `optionId`s within a question — across questions they may repeat, `optionId` is question-scoped (`DUPLICATE_OPTION_ID`) · option labels non-empty for at least one locale (`OPTION_LABEL_EMPTY`) · pattern safety below (`PATTERN_INVALID`, `PATTERN_UNSUPPORTED`). Structural failures carry `INVALID_QUESTION_DEFINITION`.
+
+**Safe `pattern` subset (task 003, implemented in `@qcms/core` `safe-pattern.ts`).** qcms bundles no RE2; patterns run on the JavaScript backtracking engine when answers are validated (task 009), so definitions accept only a subset that cannot backtrack catastrophically. Compilability is validated at parse under the `u` flag (`PATTERN_INVALID` if it does not compile). Within the subset (`PATTERN_UNSUPPORTED` otherwise):
+
+- **Supported:** literals and escaped metacharacters; `.`; anchors `^` `$` and `\b` `\B`; character classes `[...]`/`[^...]` with ranges; class escapes `\d \D \w \W \s \S`; unicode escapes `\uXXXX`/`\u{...}` and properties `\p{...}`/`\P{...}`; alternation `|`; groups `(...)`, `(?:...)`, `(?<name>...)`; quantifiers `* + ? {n} {n,} {n,m}` (greedy or lazy).
+- **Rejected:** backreferences (`\1`…`\9`, `\k<name>`) and lookahead/lookbehind assertions (the constructs RE2 excludes); unbounded quantifiers (`*`, `+`, `{n,}`) applied to a group whose body contains a quantifier or an alternation (the `(a+)+` / `(a|ab)*` shapes — bounded repetition of such groups is capped at `{..32}`); finite quantifier bounds above 1000; patterns longer than 256 characters.
+
+The composite-group rules are deliberately conservative: some rejected patterns are harmless, but every accepted pattern is linear-time-safe on a backtracking engine.
 
 ### 2.3 Form definition
 
@@ -249,6 +259,16 @@ flowchart LR
 ```
 
 ### 4.2 Question versions
+
+The stored shape per version (task 003) — `questionId` is identity, `version` is content; immutability of published versions is enforced by storage + publish (tasks 013/021), not by the schema:
+
+```ts
+const QuestionVersionRecord = z.object({
+  questionId: QuestionId,
+  version: z.number().int().positive(),
+  definition: QuestionDefinition,        // §2.2
+});
+```
 
 ```mermaid
 stateDiagram-v2

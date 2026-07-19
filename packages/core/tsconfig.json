@@ -2,7 +2,10 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": "src",
-    "outDir": "dist"
+    "outDir": "dist",
+    // Node ambient types are for tests only (fixture loading); the build
+    // config resets this so shipped core code cannot lean on Node APIs (R3).
+    "types": ["node"]
   },
   "include": ["src"]
 }

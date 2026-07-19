@@ -1,0 +1,12 @@
+{
+  "type": "shortText",
+  "questionId": "q_full_name",
+  "label": { "en": "Full name" },
+  "help": { "en": "As shown on your photo ID" },
+  "required": true,
+  "constraints": {
+    "minLength": 1,
+    "maxLength": 100,
+    "pattern": "^[A-Za-z][A-Za-z .,'-]{0,99}$"
+  }
+}

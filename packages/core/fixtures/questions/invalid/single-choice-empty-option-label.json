@@ -1,0 +1,13 @@
+{
+  "description": "option labels must be non-empty for at least one locale",
+  "expected": { "code": "OPTION_LABEL_EMPTY", "path": ["options", 0, "label"] },
+  "definition": {
+    "type": "singleChoice",
+    "questionId": "q_coverage_level",
+    "label": { "en": "Which coverage level would you like?" },
+    "options": [
+      { "optionId": "opt_basic", "label": {} },
+      { "optionId": "opt_standard", "label": { "en": "Standard" } }
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "description": "minSelected must not exceed the number of options (transitive bound of the chain minSelected <= maxSelected <= options.length)",
+  "expected": { "code": "MIN_SELECTED_ABOVE_OPTION_COUNT", "path": ["constraints", "minSelected"] },
+  "definition": {
+    "type": "multiChoice",
+    "questionId": "q_preexisting_conditions",
+    "label": { "en": "Do any of these conditions apply to you?" },
+    "options": [
+      { "optionId": "opt_diabetes", "label": { "en": "Diabetes" } },
+      { "optionId": "opt_asthma", "label": { "en": "Asthma" } }
+    ],
+    "constraints": { "minSelected": 5 }
+  }
+}

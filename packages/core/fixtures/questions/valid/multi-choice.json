@@ -1,0 +1,14 @@
+{
+  "type": "multiChoice",
+  "questionId": "q_preexisting_conditions",
+  "label": { "en": "Do any of these conditions apply to you?" },
+  "help": { "en": "Select all that apply" },
+  "required": true,
+  "options": [
+    { "optionId": "opt_diabetes", "label": { "en": "Diabetes" } },
+    { "optionId": "opt_asthma", "label": { "en": "Asthma" } },
+    { "optionId": "opt_heart_disease", "label": { "en": "Heart disease" } },
+    { "optionId": "opt_none", "label": { "en": "None of the above" } }
+  ],
+  "constraints": { "minSelected": 1, "maxSelected": 3 }
+}

@@ -1,0 +1,10 @@
+{
+  "description": "catastrophic backtracking shapes are outside the safe pattern subset",
+  "expected": { "code": "PATTERN_UNSUPPORTED", "path": ["constraints", "pattern"] },
+  "definition": {
+    "type": "shortText",
+    "questionId": "q_reference_code",
+    "label": { "en": "Reference code" },
+    "constraints": { "pattern": "^(a+)+$" }
+  }
+}

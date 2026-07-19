@@ -1,0 +1,6 @@
+{
+  "type": "longText",
+  "questionId": "q_medical_history",
+  "label": { "en": "Relevant medical history" },
+  "constraints": { "maxLength": 2000 }
+}

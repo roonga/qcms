@@ -1,0 +1,6 @@
+{
+  "type": "boolean",
+  "questionId": "q_smoker",
+  "label": { "en": "Do you currently smoke?" },
+  "required": true
+}

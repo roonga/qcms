@@ -1,0 +1,10 @@
+{
+  "description": "pattern must compile as a regular expression",
+  "expected": { "code": "PATTERN_INVALID", "path": ["constraints", "pattern"] },
+  "definition": {
+    "type": "shortText",
+    "questionId": "q_reference_code",
+    "label": { "en": "Reference code" },
+    "constraints": { "pattern": "^(unclosed$" }
+  }
+}
