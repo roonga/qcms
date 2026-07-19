@@ -41,6 +41,10 @@ pwsh scripts/agent-loop.ps1 -Parallel 3     # up to 3 independent tasks per batc
 
 It runs `/next-task` in a **fresh headless session per iteration** (safe because the repo is the memory: claims, branches, HANDOFFs), reads the `NEXT-TASK:` sentinel each session emits, and: continues immediately on `LANDED`/`RESUMED`, stops on `AWAITING-HUMAN`/`BLOCKED`/`NOTHING`, and on *no sentinel* (usage limit or crash) waits `-RetryMinutes` (default 30) and retries — the next session's stale-claim recovery picks up whatever the killed one left mid-flight. Progress is in `agent-loop.log` and, as always, the ledger.
 
+## Editing skills/agents while a loop is running
+
+A long-lived session follows the instructions it already read — edits to `.claude/skills/` or `.claude/agents/` land on disk but a running conductor may keep executing the old flow from memory. After changing any skill or agent file: **restart running sessions**, or (better) run via `scripts/agent-loop.ps1`, whose fresh-session-per-task model picks up the current files on every iteration by construction.
+
 ## Monitoring and control
 
 - **State:** `docs/features/README.md` (the ledger) is always current; `git log --oneline` shows what landed; `git worktree list` shows live executors.
