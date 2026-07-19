@@ -1,8 +1,9 @@
 /**
  * @qcms/core public surface (task 002: IDs, LocalizedText, canonical
  * AnswerValue, error primitives · task 003: question definitions · task 004:
- * form definitions and the typed publish error model). Pure functions over
- * immutable data — no I/O, no dependencies beyond zod (R3).
+ * form definitions and the typed publish error model · task 005: rules DSL
+ * and dependency-graph analysis). Pure functions over immutable data — no
+ * I/O, no dependencies beyond zod (R3).
  */
 export { QcmsError, ok, err, qcmsError, type Result } from "./errors.js";
 
@@ -90,9 +91,33 @@ export {
 } from "./question-definition.js";
 
 export {
+  CONDITION_MAX_DEPTH,
+  Condition,
+  VisibilityRule,
+  VisibilityRuleError,
+  VisibilityRuleErrorCode,
+  conditionDepth,
+  parseCondition,
+  parseVisibilityRule,
+  isCondition,
+  isVisibilityRule,
+} from "./visibility-rule.js";
+
+export {
+  type DocumentPosition,
+  type ResolveQuestion,
+  type RuleGraphFinding,
+  type RuleTypeFinding,
+  documentOrder,
+  ruleReferences,
+  ruleTargets,
+  analyzeRuleGraph,
+  checkRuleTypes,
+} from "./rule-graph.js";
+
+export {
   QuestionRef,
   Step,
-  VisibilityRule,
   FormDefinition,
   FormDefinitionError,
   FormDefinitionErrorCode,

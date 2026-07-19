@@ -61,9 +61,11 @@ empty option labels, unsafe/uncompilable patterns, empty option lists).
 
 Form fixtures only pin questionIds that exist in `questions/valid/` (tested),
 so publish-time resolution against the question fixtures (task 008) works out
-of the box. Rule entries are opaque at parse in task 004; they are written to
-be valid under the rules DSL (`DOMAIN_SCHEMA.md` §3) so tasks 005/008 can
-validate the same files unchanged.
+of the box. Since task 005 rule entries are validated by the real DSL schema
+at parse; regression tests (`visibility-rule.test.ts`, `rule-graph.test.ts`)
+assert that `kitchen-sink.json` and `insurance.json` rules parse under
+`VisibilityRule`, pass `analyzeRuleGraph` clean, and type-check against the
+question fixtures.
 
 ## Forms (`forms/invalid/`, task 004)
 
@@ -75,6 +77,7 @@ One per parse-level refinement of `FormDefinition`:
 | `duplicate-question-across-steps.json` | `DUPLICATE_QUESTION_IN_FORM` |
 | `duplicate-question-same-step.json` | `DUPLICATE_QUESTION_IN_FORM` |
 | `missing-rules.json` | `INVALID_FORM_DEFINITION` (`rules` must be present, even if empty) |
+| `rule-depth-exceeded.json` | `RULE_DEPTH_EXCEEDED` (condition nested past the cap of 8 — task 005) |
 | `no-steps.json` | `INVALID_FORM_DEFINITION` (`steps` min 1) |
 | `step-no-items.json` | `INVALID_FORM_DEFINITION` (`items` min 1) |
 

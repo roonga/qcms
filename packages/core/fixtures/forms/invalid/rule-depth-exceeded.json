@@ -1,0 +1,50 @@
+{
+  "description": "A rule condition nested 9 levels deep exceeds the cap of 8 (RULE_DEPTH_EXCEEDED, DOMAIN_SCHEMA §3).",
+  "expected": {
+    "code": "RULE_DEPTH_EXCEEDED",
+    "path": ["rules", 0, "when"]
+  },
+  "definition": {
+    "formId": "frm_minimal",
+    "defaultLocale": "en",
+    "title": { "en": "Minimal" },
+    "steps": [
+      {
+        "stepId": "stp_only",
+        "title": { "en": "The only step" },
+        "items": [{ "questionId": "q_full_name", "version": 1 }]
+      }
+    ],
+    "rules": [
+      {
+        "ruleId": "rul_too_deep",
+        "when": {
+          "op": "not",
+          "condition": {
+            "op": "not",
+            "condition": {
+              "op": "not",
+              "condition": {
+                "op": "not",
+                "condition": {
+                  "op": "not",
+                  "condition": {
+                    "op": "not",
+                    "condition": {
+                      "op": "not",
+                      "condition": {
+                        "op": "not",
+                        "condition": { "op": "answered", "questionId": "q_full_name" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "show": ["q_dob"]
+      }
+    ]
+  }
+}

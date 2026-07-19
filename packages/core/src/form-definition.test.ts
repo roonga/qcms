@@ -201,9 +201,9 @@ describe("invalid fixtures", () => {
   });
 });
 
-describe("rules are opaque at parse (task 005 owns the DSL)", () => {
-  it("passes arbitrary rule entries through unvalidated", () => {
-    const result = parseFormDefinition({
+describe("rules are validated at parse (task 005 DSL)", () => {
+  function withRules(rules: unknown[]) {
+    return parseFormDefinition({
       formId: "frm_minimal",
       defaultLocale: "en",
       title: { en: "Minimal" },
@@ -214,11 +214,27 @@ describe("rules are opaque at parse (task 005 owns the DSL)", () => {
           items: [{ questionId: "q_full_name", version: 1 }],
         },
       ],
-      rules: [{ anything: "goes" }, 42, "not a rule"],
+      rules,
     });
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.value.rules).toEqual([{ anything: "goes" }, 42, "not a rule"]);
+  }
+
+  it("rejects arbitrary rule entries", () => {
+    const result = withRules([{ anything: "goes" }, 42, "not a rule"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.every((error) => error.code === "INVALID_FORM_DEFINITION")).toBe(true);
+      expect(result.error.some((error) => error.path[0] === "rules")).toBe(true);
     }
+  });
+
+  it("accepts a DSL-valid rule inline", () => {
+    const result = withRules([
+      {
+        ruleId: "rul_inline",
+        when: { op: "answered", questionId: "q_full_name" },
+        show: ["q_dob"],
+      },
+    ]);
+    expect(result.ok).toBe(true);
   });
 });

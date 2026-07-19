@@ -4,6 +4,7 @@ import { QcmsError, err, ok, type Result } from "./errors.js";
 import { FormId, QuestionId, StepId } from "./ids.js";
 import { addCodedIssue as addSharedCodedIssue, toCodedErrors } from "./internal/coded-issues.js";
 import { LocaleCode, LocalizedText } from "./localized-text.js";
+import { VisibilityRule } from "./visibility-rule.js";
 
 /**
  * Form definitions (task 004, DOMAIN_SCHEMA §2.3, ADR-02, ADR-11).
@@ -14,23 +15,26 @@ import { LocaleCode, LocalizedText } from "./localized-text.js";
  * snapshots never do.
  *
  * Parsing enforces *parse-level* refinements only: unique `stepId`s, a
- * question pinned at most once per form, and the rules array being present.
- * Rule content is deliberately opaque here — the rules DSL schema is task
- * 005, and cross-entity publish invariants (dangling refs, locale
- * completeness, rule graph checks) are task 008's `compileDraft`.
+ * question pinned at most once per form, and every rule entry being valid
+ * under the rules DSL (task 005, `visibility-rule.ts` — including the
+ * condition nesting-depth cap, RULE_DEPTH_EXCEEDED). Cross-entity publish
+ * invariants (dangling refs, locale completeness, rule graph checks) are
+ * task 008's `compileDraft`.
  */
 
 /**
  * Closed union of typed error codes for form-definition parsing. Validators
  * are all-errors-not-first (CONTRIBUTING): a parse failure carries every
- * issue, each with its code and path. The duplicate codes are shared strings
- * with `PublishErrorCode` — `compileDraft` (008) surfaces the same violations
- * verbatim in its publish report when handed a raw draft.
+ * issue, each with its code and path. The duplicate codes and
+ * RULE_DEPTH_EXCEEDED are shared strings with `PublishErrorCode` —
+ * `compileDraft` (008) surfaces the same violations verbatim in its publish
+ * report when handed a raw draft.
  */
 export const FormDefinitionErrorCode = z.enum([
   "INVALID_FORM_DEFINITION",
   "DUPLICATE_STEP_ID",
   "DUPLICATE_QUESTION_IN_FORM",
+  "RULE_DEPTH_EXCEEDED",
 ]);
 export type FormDefinitionErrorCode = z.infer<typeof FormDefinitionErrorCode>;
 
@@ -66,15 +70,6 @@ export const Step = z.object({
   items: z.array(QuestionRef).min(1),
 });
 export type Step = z.infer<typeof Step>;
-
-/**
- * Placeholder for the rules DSL (DOMAIN_SCHEMA §3). Rule entries pass
- * through parsing opaque and unvalidated at this stage — parse only
- * guarantees the `rules` array is present. Task 005 replaces this with the
- * closed condition language; task 008 validates rule content at publish.
- */
-export const VisibilityRule = z.unknown();
-export type VisibilityRule = z.infer<typeof VisibilityRule>;
 
 /**
  * The form aggregate (DOMAIN_SCHEMA §2.3). Parse-level refinements: unique

@@ -207,6 +207,8 @@ const VisibilityRule = z.object({
 
 **Visibility semantics:** targets listed in *any* rule are **conditional** — hidden by default, shown when at least one targeting rule matches. Items never targeted by a rule are unconditionally visible. A `StepId` target expands to all its questions.
 
+**Implementation (task 005, `@qcms/core`).** `Condition`/`VisibilityRule` are exported with typed parse helpers; the depth cap (`CONDITION_MAX_DEPTH = 8`) is validated at parse with `RULE_DEPTH_EXCEEDED`, and `parseFormDefinition` validates every rule entry in place. The publish-time graph machinery lives alongside as pure functions over a `FormDefinition`: `documentOrder`, `ruleReferences`, `ruleTargets` (a `StepId` target expands to the step's questions), `analyzeRuleGraph` (typed `RULE_BACKWARD_TARGET`/`RULE_CYCLE` findings, invariant I10), and `checkRuleTypes(form, resolveQuestion)` (typed `RULE_TYPE_MISMATCH`/`DANGLING_OPTION_REF` findings; the injected lookup keeps the kernel I/O-free, R3). `compileDraft` (008) runs them at publish; the admin editor (033) runs them live.
+
 **Evaluation semantics (ADR-16, frozen with each snapshot as `semanticsVersion = 1`):**
 
 1. Evaluation is a **single forward pass in document order** — not a fixpoint. This is well-defined because publish rejects any rule whose targets do not appear strictly *after* every question its condition references (`RULE_BACKWARD_TARGET`) and any cycle in the reads→shows graph (`RULE_CYCLE`).
