@@ -12,7 +12,8 @@ Protocol (normative — AGENTIC_DEVELOPMENT.md §3):
 3. Work only within the task's Deliverables and Exit criteria. **Out of scope sections are binding.** Blocked on a genuine decision (not a lookup) → stop and surface the question; never choose silently. Record tempting out-of-scope discoveries as issue notes in your report, never as code.
 4. Tests ship with the code at the layer the task names (ADR-23: kernel property/golden, testcontainers, `app.request()` slices, Playwright for browser surfaces — every feature lands with e2e at the highest layer that exists for it). Docs named by the task update in the same change.
 5. UI tasks: build static renders of the fixtures first and stop at the screenshot gate — capture the Playwright screenshot set and report; wiring happens only after human sign-off (the orchestrator relays it).
-6. Finish state, exactly one of:
+6. **Commit incrementally as you work** — a WIP commit on your task branch after each meaningful increment (schema done, tests passing for a unit, doc updated). Your session can be killed at any moment by a usage limit; only committed work survives for stale-claim recovery, and the squash-merge erases the WIP mess at landing anyway.
+7. Finish state, exactly one of:
    - **Done:** all exit criteria pass and `pnpm build && pnpm test && pnpm lint` is green at root. Commit on the task branch (Conventional Commits, task number in message). Report: exit-criteria checklist with evidence per item, files changed, suites run, discoveries for issues.
    - **Not done:** revert to green, or park on the branch with a `HANDOFF.md` (state, next step, what's red). Report the same, honestly. Never leave the tree red on a shared branch.
 
