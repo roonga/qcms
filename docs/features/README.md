@@ -23,7 +23,7 @@ Status values: `todo` · `in-progress (branch)` · `blocked (issue #)` · `done 
 
 | # | Task | Stage | Status |
 |---|---|---|---|
-| 001 | Repository bootstrap | 0 | in-progress (feat/001-repo-bootstrap) |
+| 001 | Repository bootstrap | 0 | done |
 | 002 | Core IDs, LocalizedText, canonical AnswerValue | 1 | todo |
 | 003 | Question-type definitions | 1 | todo |
 | 004 | FormDefinition and typed publish errors | 1 | todo |

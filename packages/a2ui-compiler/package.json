@@ -1,0 +1,25 @@
+{
+  "name": "@qcms/a2ui-compiler",
+  "version": "0.0.0",
+  "private": false,
+  "description": "qcms FormDefinition-to-A2UI compiler (placeholder, task 001)",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --root ../.. --project @qcms/a2ui-compiler",
+    "lint": "eslint src"
+  }
+}

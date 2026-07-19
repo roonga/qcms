@@ -1,0 +1,13 @@
+# Build and dependency output
+node_modules/
+dist/
+.turbo/
+coverage/
+pnpm-lock.yaml
+
+# Prose and the committed plan bundle are not Prettier-owned (verbatim per task 001)
+*.md
+docs/
+
+# Harness configuration
+.claude/

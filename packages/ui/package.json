@@ -1,0 +1,25 @@
+{
+  "name": "@qcms/ui",
+  "version": "0.0.0",
+  "private": false,
+  "description": "qcms A2UI renderer and vendored a2ra components (placeholder, task 001)",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --root ../.. --project @qcms/ui",
+    "lint": "eslint src"
+  }
+}

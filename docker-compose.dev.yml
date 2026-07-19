@@ -1,0 +1,21 @@
+# Dev database only. Copy .env.example to .env first (compose reads .env for
+# variable substitution); the defaults below match .env.example's DATABASE_URL.
+services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "${QCMS_DB_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${QCMS_DB_USER:-qcms}
+      POSTGRES_PASSWORD: ${QCMS_DB_PASSWORD:-qcms}
+      POSTGRES_DB: ${QCMS_DB_NAME:-qcms}
+    volumes:
+      - qcms-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${QCMS_DB_USER:-qcms} -d ${QCMS_DB_NAME:-qcms}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  qcms-pgdata:
