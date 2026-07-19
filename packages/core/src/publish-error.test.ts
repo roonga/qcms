@@ -198,7 +198,12 @@ describe("PublishResult contract", () => {
     if (!parsed.ok) {
       throw new Error("minimal fixture did not parse");
     }
-    const snapshot: FrozenSnapshot = { definition: parsed.value, semanticsVersion: 1 };
+    const snapshot: FrozenSnapshot = {
+      definition: parsed.value,
+      questions: [],
+      semanticsVersion: 1,
+      schemaVersion: 1,
+    };
     const result: PublishResult = ok(snapshot);
     expect(result.ok).toBe(true);
     if (result.ok) {

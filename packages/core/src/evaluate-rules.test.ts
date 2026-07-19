@@ -650,7 +650,12 @@ describe("totality — typed errors on malformed input", () => {
 
   it("a snapshot with an unknown semanticsVersion is a typed error", () => {
     const { form, resolve } = wellFormed();
-    const snapshot = { definition: form, semanticsVersion: 2 };
+    const snapshot: FrozenSnapshot = {
+      definition: form,
+      questions: [],
+      semanticsVersion: 2,
+      schemaVersion: 1,
+    };
     const result = evaluateRules(snapshot, answersOf([]), resolve);
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -660,7 +665,14 @@ describe("totality — typed errors on malformed input", () => {
 
   it("a version-1 snapshot evaluates identically to its bare definition", () => {
     const { form, resolve } = wellFormed();
-    const snapshot: FrozenSnapshot = { definition: form, semanticsVersion: SEMANTICS_VERSION };
+    // `questions` is empty on purpose: evaluateRules resolves pins through its
+    // injected lookup, not the snapshot's embedded records.
+    const snapshot: FrozenSnapshot = {
+      definition: form,
+      questions: [],
+      semanticsVersion: SEMANTICS_VERSION,
+      schemaVersion: 1,
+    };
     const answers = answersOf([["q_a", true]]);
     expect(evaluateRules(snapshot, answers, resolve)).toEqual(
       evaluateRules(form, answers, resolve),
@@ -1027,7 +1039,9 @@ describe("properties (fast-check)", () => {
         // A version-1 snapshot wrapper changes nothing.
         const snapshot: FrozenSnapshot = {
           definition: setup.form,
+          questions: [],
           semanticsVersion: SEMANTICS_VERSION,
+          schemaVersion: 1,
         };
         expect(evaluateRules(snapshot, answersOf(generated.entries), setup.resolve)).toEqual(
           result,

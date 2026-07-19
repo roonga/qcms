@@ -4,6 +4,7 @@ import type { Result } from "./errors.js";
 import type { FormDefinition } from "./form-definition.js";
 import { OptionId, QuestionId, RuleId, StepId } from "./ids.js";
 import { LocaleCode } from "./localized-text.js";
+import type { QuestionVersionRecord } from "./question-definition.js";
 
 /**
  * The typed publish error model (task 004, DOMAIN_SCHEMA §4.1). This is the
@@ -127,16 +128,21 @@ export type PublishError = z.infer<typeof PublishError>;
 export type PublishErrorOf<C extends PublishErrorCode> = Extract<PublishError, { code: C }>;
 
 /**
- * Type-level contract for what `compileDraft` (008) returns on success
- * (DOMAIN_SCHEMA §4.1): the validated definition, deep-frozen, stamped with
- * the evaluation-semantics version it was validated under (ADR-16). Kept
- * minimal and forward-compatible on purpose — the implementation (freezing,
- * stamping) is task 008's, and the storage row (013) adds compiled A2UI and
- * version stamps around it.
+ * What `compileDraft` (008, `compile-draft.ts`) returns on success
+ * (DOMAIN_SCHEMA §4.1): the validated definition *plus* the resolved
+ * `QuestionVersionRecord` per pin (in document order — the snapshot is
+ * self-contained, R1), deep-frozen, stamped with the evaluation-semantics
+ * version it was validated under (ADR-16) and the snapshot schema version.
+ * The storage row (013) adds compiled A2UI and its version stamps around it;
+ * core never attaches compiled output (011/022's job).
  */
 export type FrozenSnapshot = {
   readonly definition: FormDefinition;
+  /** The pinned question versions the definition resolved against, one per
+   * distinct pin, in document order. */
+  readonly questions: readonly QuestionVersionRecord[];
   readonly semanticsVersion: number;
+  readonly schemaVersion: number;
 };
 
 /**

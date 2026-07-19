@@ -278,17 +278,19 @@ The `Validating → Compiling → Published` path is one atomic core call, `comp
 ```mermaid
 flowchart LR
     A[FormDraft] --> B{Invariants}
-    B -->|"rules resolve against pinned\nquestion versions (types + optionIds)"| B
-    B -->|"no dangling questionId /\noptionId / stepId refs"| B
-    B -->|"defaultLocale complete\nfor every LocalizedText"| B
-    B -->|"pins reference published\nquestion versions only"| B
-    B -->|"rule graph acyclic and\nforward-only (ADR-16)"| B
+    B -->|"pins resolve and reference\npublished question versions only\n(DANGLING_QUESTION_REF /\nUNPUBLISHED_QUESTION_PIN)"| B
+    B -->|"rule refs/targets resolve, incl.\noptionIds against the pinned version\n(DANGLING_QUESTION_REF / _STEP_REF /\n_OPTION_REF)"| B
+    B -->|"rule graph forward-only + acyclic —\nanalyzeRuleGraph (ADR-16, I10:\nRULE_BACKWARD_TARGET / RULE_CYCLE)"| B
+    B -->|"condition types check against pinned\nversions — checkRuleTypes (ADR-21:\nRULE_TYPE_MISMATCH); nesting depth\ncap (RULE_DEPTH_EXCEEDED)"| B
+    B -->|"defaultLocale complete for every\nLocalizedText in form and pinned\nversions (LOCALE_INCOMPLETE)"| B
     B -- any fail --> E["PublishResult.err\nPublishError[] (all errors, not first)"]
-    B -- all hold --> C["Freeze FormDefinition\n(deep-frozen snapshot + semanticsVersion)"]
+    B -- all hold --> C["FrozenSnapshot: FormDefinition +\nresolved QuestionVersionRecords\n(deep-frozen clone)\n+ semanticsVersion + schemaVersion"]
     C --> D["@qcms/a2ui-compiler\nFormDefinition → A2UI docs/step\n+ compilerVersion + a2uiSpecVersion"]
     D --> F["FormVersion vN\ndefinition + compiled + stamps + publishedAt"]
     F --> G["outbox: form.published"]
 ```
+
+**Implementation (task 008, `@qcms/core` `compile-draft.ts`).** The implemented signature is `compileDraft(draft: DraftInput): PublishResult` with `DraftInput = { definition: FormDefinition, resolveQuestion: (questionId, version) => QuestionVersionRecord | undefined, publishedQuestionVersions: ReadonlyMap<QuestionId, ReadonlySet<number>> }` — the caller supplies both lookups; core never does I/O (R3). On success the `FrozenSnapshot` carries the definition plus the resolved `QuestionVersionRecord` per pin (document order), deep-frozen as a clone (the caller's draft stays editable), stamped `{ semanticsVersion: SEMANTICS_VERSION, schemaVersion: SNAPSHOT_SCHEMA_VERSION }`. Compiled A2UI and its stamps are attached by the API slice using 011's compiler (nodes D/F above are 011/013/022) — core does not import the compiler. Parse-level refinements (duplicate step/question pins, the condition depth cap) are re-checked with structured domain paths, so a hand-built definition still yields a complete publish report.
 
 ### 4.2 Question versions
 
