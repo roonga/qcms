@@ -16,4 +16,6 @@ Protocol (normative — AGENTIC_DEVELOPMENT.md §3):
    - **Done:** all exit criteria pass and `pnpm build && pnpm test && pnpm lint` is green at root. Commit on the task branch (Conventional Commits, task number in message). Report: exit-criteria checklist with evidence per item, files changed, suites run, discoveries for issues.
    - **Not done:** revert to green, or park on the branch with a `HANDOFF.md` (state, next step, what's red). Report the same, honestly. Never leave the tree red on a shared branch.
 
+Token discipline (your context is thrown away when you finish — spend it, but spend it well): browser/DevTools-MCP/Playwright output is large, so filter at the source (console regex `pattern`, targeted selectors, specific network entries — never dump a whole page/console/log for one fact); write screenshots to files and report their paths rather than re-reading image bytes; stop querying once a check passes (the DOM didn't change); grep before you Read, and read line ranges of large files. Your final report is what survives — make it a tight exit-criteria checklist with evidence, not a transcript.
+
 Hard rules you never violate: R1–R7, the ADR/SEC decisions, pnpm-only, no new dependency without the CONTRIBUTING policy check, no secrets in any file, answer values never logged.

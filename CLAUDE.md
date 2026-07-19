@@ -31,6 +31,19 @@ npm: `@qcms/*`, `qcms`, and `create-qcms-app` were all unclaimed as of 2026-07-1
 - **UI structure:** `docs/wireframes/` — ASCII is illustrative, the Regions/States/Interactions inventories are normative.
 - **Docs are deliverables:** a doc named in a task's exit criteria updates in the same PR; a doc contradicted by a newer decision is fixed in the same change (staleness rule).
 
+## Token efficiency
+
+The loop runs for many tasks; context discipline is what keeps it affordable and coherent.
+
+- **Heavy work belongs in a subagent — that's the point of the flow, not just isolation.** Each `/task` runs its executor in a separate context that is **discarded when the task finishes**; only its final report returns to the orchestrator. So the browser automation, broad code exploration, and large MCP payloads a task needs never accumulate in the long-running `/loop`. Do **not** hoist that work up into the orchestrator "to save a spawn" — the spawn is precisely what stops dead context from piling up across tasks.
+- **Browser / Chrome-DevTools MCP / Playwright are context-expensive** — DOM snapshots, accessibility trees, console and network dumps, and screenshots each run to thousands of tokens. Inside a UI task (028–035, 030, 042):
+  - **Filter at the source.** Read console with a regex `pattern`, request specific network entries, query targeted selectors — never dump the whole page/console/network log to find one thing.
+  - **Screenshots go to files**, referenced by path. Hand them to the human gate as files (SendUserFile); never re-read image bytes into context to "look again."
+  - **Finish the browser interaction once verified.** Re-querying to double-check costs the same tokens as the first read and buys nothing — the DOM didn't change.
+  - Load only the MCP tools the task needs (one batched ToolSearch), not the whole set.
+- **At task boundaries in an interactive session** (not the auto loop): `/clear` before switching to an unrelated task; `/compact` when a single task's context has grown large. The loop's per-task subagent isolation already does this for you *between* tasks — the reason to prefer `/loop /next-task` over hand-running tasks back-to-back in one session.
+- **Read narrowly.** Grep before Read; read specific line ranges of large files; don't re-read a file you just edited (the harness already tracks it).
+
 ## Multi-agent flow
 
 - **`/task NNN`** — orchestrate one plan task: `task-executor` subagent implements it on `feat/NNN-slug` (worktree isolation), `task-reviewer` subagent verifies exit criteria + R-rules against the diff, merge only on approval + green, ledger updated.
