@@ -30,7 +30,7 @@ Status values: `todo` · `in-progress (branch)` · `blocked (issue #)` · `done 
 | 005 | Rules DSL schemas and dependency graph | 2 | done |
 | 006 | Rules evaluator (forward pass) | 2 | done |
 | 007 | Evaluator test corpus | 2 | done |
-| 008 | compileDraft publish aggregate | 3 | todo |
+| 008 | compileDraft publish aggregate | 3 | in-progress (feat/008-compiledraft-publish-aggregate) |
 | 009 | Answer validation and submission lock | 3 | todo |
 | 010 | Secure-link tokens (core) | 3 | todo |
 | 011 | A2UI compiler | 4 | todo |
