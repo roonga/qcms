@@ -24,7 +24,7 @@ Status values: `todo` · `in-progress (branch)` · `blocked (issue #)` · `done 
 | # | Task | Stage | Status |
 |---|---|---|---|
 | 001 | Repository bootstrap | 0 | done |
-| 002 | Core IDs, LocalizedText, canonical AnswerValue | 1 | todo |
+| 002 | Core IDs, LocalizedText, canonical AnswerValue | 1 | in-progress (feat/002-core-ids-localizedtext-answervalue) |
 | 003 | Question-type definitions | 1 | todo |
 | 004 | FormDefinition and typed publish errors | 1 | todo |
 | 005 | Rules DSL schemas and dependency graph | 2 | todo |
