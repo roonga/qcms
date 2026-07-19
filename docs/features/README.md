@@ -31,7 +31,7 @@ Status values: `todo` · `in-progress (branch)` · `blocked (issue #)` · `done 
 | 006 | Rules evaluator (forward pass) | 2 | done |
 | 007 | Evaluator test corpus | 2 | done |
 | 008 | compileDraft publish aggregate | 3 | done |
-| 009 | Answer validation and submission lock | 3 | todo |
+| 009 | Answer validation and submission lock | 3 | in-progress (feat/009-answer-validation-submission-lock) |
 | 010 | Secure-link tokens (core) | 3 | todo |
 | 011 | A2UI compiler | 4 | todo |
 | 012 | A2UI golden corpus and agent seam | 4 | todo |
