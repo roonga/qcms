@@ -26,7 +26,7 @@ Status values: `todo` · `in-progress (branch)` · `blocked (issue #)` · `done 
 | 001 | Repository bootstrap | 0 | done |
 | 002 | Core IDs, LocalizedText, canonical AnswerValue | 1 | done |
 | 003 | Question-type definitions | 1 | done |
-| 004 | FormDefinition and typed publish errors | 1 | todo |
+| 004 | FormDefinition and typed publish errors | 1 | in-progress (feat/004-formdefinition-publish-errors) |
 | 005 | Rules DSL schemas and dependency graph | 2 | todo |
 | 006 | Rules evaluator (forward pass) | 2 | todo |
 | 007 | Evaluator test corpus | 2 | todo |
