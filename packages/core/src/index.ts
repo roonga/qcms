@@ -2,8 +2,9 @@
  * @qcms/core public surface (task 002: IDs, LocalizedText, canonical
  * AnswerValue, error primitives · task 003: question definitions · task 004:
  * form definitions and the typed publish error model · task 005: rules DSL
- * and dependency-graph analysis). Pure functions over immutable data — no
- * I/O, no dependencies beyond zod (R3).
+ * and dependency-graph analysis · task 006: the forward-pass rules evaluator,
+ * ADR-16). Pure functions over immutable data — no I/O, no dependencies
+ * beyond zod (R3).
  */
 export { QcmsError, ok, err, qcmsError, type Result } from "./errors.js";
 
@@ -124,6 +125,15 @@ export {
   parseFormDefinition,
   isFormDefinition,
 } from "./form-definition.js";
+
+export {
+  SEMANTICS_VERSION,
+  EvalErrorCode,
+  EvalError,
+  FlowState,
+  type AnswerMap,
+  evaluateRules,
+} from "./evaluate-rules.js";
 
 export {
   PublishErrorCode,

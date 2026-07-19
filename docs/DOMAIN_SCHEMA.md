@@ -218,6 +218,36 @@ const VisibilityRule = z.object({
 
 *(v1 of this document described evaluation as a "pure fixpoint"; that formulation was unsound under hidden-answer exclusion — visibility could oscillate with no unique fixpoint. ADR-16 records the analysis and decision.)*
 
+**Evaluator (task 006, `@qcms/core` `evaluate-rules.ts`).** `SEMANTICS_VERSION = 1` is exported and stamped into snapshots by `compileDraft` (008). The implemented signature is:
+
+```ts
+evaluateRules(
+  snapshot: FrozenSnapshot | FormDefinition,
+  answers: AnswerMap,                     // ReadonlyMap<QuestionId, AnswerValue> — current answers,
+                                          // latest-per-question resolution happens in storage (I5)
+  resolveQuestion: ResolveQuestion,       // questionId → pinned QuestionDefinition
+): Result<FlowState, EvalError>
+```
+
+`resolveQuestion` is the same injected-lookup pattern as `checkRuleTypes` (005): `required` lives on `QuestionDefinition`, not on the form, and the kernel stays I/O-free (R3) — the caller owns loading the pinned versions. It must be a pure lookup; determinism (I7) is over `(snapshot, answers, resolved definitions)`.
+
+```ts
+const FlowState = z.object({
+  visible: z.array(z.object({ stepId: StepId, questionId: QuestionId })), // document order
+  visibleSteps: z.array(StepId),   // steps contributing ≥1 visible question (derived from `visible`;
+                                   // a step whose questions are all rule-hidden renders nothing and is not listed)
+  currentStep: StepId.nullable(),  // semantic: first visible step with a visible unanswered *required*
+                                   // question, else first with any visible unanswered question, else null
+  answeredRequired: z.array(QuestionId), // visible required questions with an answer, document order
+  missingRequired: z.array(QuestionId),  // visible required questions without one, document order
+  complete: z.boolean(),                 // missingRequired is empty (I9's precondition; the sweep is 009)
+});
+```
+
+Step-level and question-level targeting are separate layers that **AND** together: a `StepId` in a rule's `show` conditions the *step* (settled at step entry; a hidden step contributes no visible questions regardless of per-question rules), a `QuestionId` conditions only that question (settled at its document position, within a visible step). A question is answered iff the answer map has an entry for it; `answered` is therefore true for falsy answers (`false`, `""`, `[]`).
+
+Totality: the evaluator never throws. Malformed input returns a typed `EvalError` — `INVALID_FORM_DEFINITION`, `UNSUPPORTED_SEMANTICS_VERSION` (a snapshot recording a version this evaluator does not implement), `UNRESOLVED_QUESTION_PIN`, `MALFORMED_ANSWER_VALUE`, `CONDITION_TYPE_MISMATCH` (an operator over incompatible runtime types) — every one unreachable on publish-validated input, and none ever echoes an answer value. Deterministic extensions for unvalidated input: a reference whose visibility is not yet settled at the point of evaluation (backward/self reference, or an id not pinned in the form) reads as unanswered; answer-map keys not pinned in the form are ignored.
+
 ## 4. Lifecycles
 
 ### 4.1 Form: draft → publish (the aggregate, ADR-01/02/14/16)
@@ -357,7 +387,18 @@ A fragment of the insurance fixture: smokers get a follow-up.
 }
 ```
 
-The rule is valid under ADR-16: its target (`q_cigs_daily`) appears after its referenced question (`q_smoker`) in document order. Publish freezes this with `q_smoker@2` / `q_cigs_daily@1`, compiles the step's A2UI document, and stores both with version stamps. A session answering `q_smoker=true`, then `q_smoker=false` leaves two ledger rows; the forward pass sees the latest (`false`), hides `q_cigs_daily`, and the eventual submission excludes any orphaned `q_cigs_daily` answer from the locked set — while the ledger still shows it was once given, which is the audit property working as designed.
+The rule is valid under ADR-16: its target (`q_cigs_daily`) appears after its referenced question (`q_smoker`) in document order. Publish freezes this with `q_smoker@2` / `q_cigs_daily@1`, compiles the step's A2UI document, and stores both with version stamps. Both questions are `required` in their pinned definitions.
+
+Evaluating (task 006) as answers arrive — `evaluateRules(snapshot, answers, resolveQuestion)`:
+
+| answers (latest per question) | visible | currentStep | missingRequired | complete |
+|---|---|---|---|---|
+| `{}` | `q_smoker` | `stp_health` | `q_smoker` | `false` |
+| `q_smoker=true` | `q_smoker`, `q_cigs_daily` | `stp_health` | `q_cigs_daily` | `false` |
+| `q_smoker=true, q_cigs_daily=20` | `q_smoker`, `q_cigs_daily` | `null` | — | `true` |
+| `q_smoker=false, q_cigs_daily=20` (stale) | `q_smoker` | `null` | — | `true` |
+
+The last row is hidden-answer exclusion (I6) at work: a session answering `q_smoker=true`, then `q_cigs_daily=20`, then `q_smoker=false` leaves three ledger rows; the forward pass sees the latest per question, hides `q_cigs_daily`, excludes its stale `20` from every later condition, and does not count it against completeness. The eventual submission excludes the orphaned answer from the locked set — while the ledger still shows it was once given, which is the audit property working as designed.
 
 ---
 
