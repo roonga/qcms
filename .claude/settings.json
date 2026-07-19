@@ -1,5 +1,6 @@
 {
   "permissions": {
+    "defaultMode": "acceptEdits",
     "allow": [
       "Bash(pnpm build:*)",
       "Bash(pnpm test:*)",
@@ -10,11 +11,18 @@
       "Bash(git log:*)",
       "Bash(git diff:*)",
       "Bash(git branch:*)",
-      "Bash(git show:*)"
+      "Bash(git show:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git checkout:*)",
+      "Bash(git switch:*)",
+      "Bash(git merge:*)",
+      "Bash(git worktree:*)"
     ],
     "deny": [
       "Bash(npm *)",
       "Bash(yarn *)",
+      "Bash(git push --force:*)",
       "Read(.env)",
       "Read(.env.*)"
     ]
