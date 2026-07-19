@@ -14,5 +14,6 @@ docker compose -f docker-compose.dev.yml up -d   # dev Postgres (copy .env.examp
 ## Documentation
 
 - Plan and progress ledger: [`docs/features/README.md`](docs/features/README.md)
+- Driving the agentic workflow (human guide): [`docs/USING_THE_AGENTS.md`](docs/USING_THE_AGENTS.md)
 - Read-first for contributors and agents: [`PROJECT_INSTRUCTIONS.md`](PROJECT_INSTRUCTIONS.md) · [`CONTRIBUTING.md`](CONTRIBUTING.md)
 - Architecture and decisions: [`docs/`](docs/) — [`ARCHITECTURE.md`](docs/ARCHITECTURE.md) · [`PROJECT_GOAL.md`](docs/PROJECT_GOAL.md) (ADR-01…25)

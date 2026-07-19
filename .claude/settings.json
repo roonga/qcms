@@ -2,29 +2,24 @@
   "permissions": {
     "defaultMode": "acceptEdits",
     "allow": [
-      "Bash(pnpm build:*)",
-      "Bash(pnpm test:*)",
-      "Bash(pnpm lint:*)",
-      "Bash(pnpm typecheck:*)",
-      "Bash(pnpm install:*)",
-      "Bash(git status:*)",
-      "Bash(git log:*)",
-      "Bash(git diff:*)",
-      "Bash(git branch:*)",
-      "Bash(git show:*)",
-      "Bash(git add:*)",
-      "Bash(git commit:*)",
-      "Bash(git checkout:*)",
-      "Bash(git switch:*)",
-      "Bash(git merge:*)",
-      "Bash(git worktree:*)"
+      "Bash(pnpm:*)",
+      "Bash(git:*)",
+      "Bash(node:*)",
+      "Bash(npx:*)",
+      "Bash(docker:*)",
+      "PowerShell(pnpm:*)",
+      "PowerShell(git:*)",
+      "PowerShell(node:*)",
+      "PowerShell(npx:*)",
+      "PowerShell(docker:*)"
     ],
     "deny": [
-      "Bash(npm *)",
-      "Bash(yarn *)",
+      "Bash(npm:*)",
+      "Bash(yarn:*)",
+      "PowerShell(npm:*)",
+      "PowerShell(yarn:*)",
       "Bash(git push --force:*)",
-      "Read(.env)",
-      "Read(.env.*)"
+      "PowerShell(git push --force:*)"
     ]
   }
 }
