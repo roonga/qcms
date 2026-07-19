@@ -18,6 +18,7 @@ fixtures/
   questions/invalid/   one failing definition per parse refinement (task 003)
   forms/valid/         parseable FormDefinitions (task 004)
   forms/invalid/       one failing form per parse-level refinement (task 004)
+  submissions/         golden LockedSubmission content hashes (task 009)
 ```
 
 ### Invalid-fixture format
@@ -85,3 +86,9 @@ Publish-time failures (dangling refs, unpublished pins, locale gaps, rule
 graph violations — the `PublishError` codes) are **not** fixture-driven here:
 they need a question repository to resolve against and belong to task 008's
 `compileDraft` tests.
+
+## Submissions (`submissions/`, task 009)
+
+| File | What it pins |
+|---|---|
+| `insurance-golden.json` | The `contentHash` of the DOMAIN_SCHEMA §6 complete insurance submission (`q_smoker=true, q_cigs_daily=20`). Guards the canonical-JSON hashing contract across machines and Node versions — a mismatch is canonicalization drift, never re-record casually. |

@@ -3,8 +3,10 @@
  * AnswerValue, error primitives · task 003: question definitions · task 004:
  * form definitions and the typed publish error model · task 005: rules DSL
  * and dependency-graph analysis · task 006: the forward-pass rules evaluator,
- * ADR-16 · task 008: `compileDraft`, the publish aggregate). Pure functions
- * over immutable data — no I/O, no dependencies beyond zod (R3).
+ * ADR-16 · task 008: `compileDraft`, the publish aggregate · task 009:
+ * `validateAnswer` and `prepareSubmission`, the submission lock). Pure
+ * functions over immutable data — no I/O beyond WebCrypto hashing, no
+ * dependencies beyond zod (R3).
  */
 export { QcmsError, ok, err, qcmsError, type Result } from "./errors.js";
 
@@ -150,3 +152,20 @@ export {
   type ResolveQuestionVersion,
   compileDraft,
 } from "./compile-draft.js";
+
+export {
+  ValidationConstraint,
+  ValidationErrorCode,
+  ValidationError,
+  validateAnswer,
+} from "./validate-answer.js";
+
+export {
+  SubmissionErrorCode,
+  SubmissionError,
+  LockedAnswer,
+  LockedSubmission,
+  canonicalJson,
+  computeContentHash,
+  prepareSubmission,
+} from "./prepare-submission.js";

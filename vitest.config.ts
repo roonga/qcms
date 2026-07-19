@@ -6,5 +6,16 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     projects: ["packages/*", "apps/*"],
+    // Coverage is a root-level concern in Vitest 4 (projects cannot carry
+    // their own). Scope: the kernel (task 009 exit criterion 4 - lines
+    // >= 95% across tasks 002-009, `pnpm --filter @qcms/core coverage`).
+    // Test files are excluded by Vitest's defaults.
+    coverage: {
+      provider: "v8",
+      include: ["packages/core/src/**"],
+      thresholds: {
+        lines: 95,
+      },
+    },
   },
 });

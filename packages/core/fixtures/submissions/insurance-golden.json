@@ -1,0 +1,6 @@
+{
+  "description": "Golden LockedSubmission contentHash for the insurance fixture (task 009): the DOMAIN_SCHEMA §6 complete flow, q_smoker=true revealing the required follow-up. The hash is SHA-256 (lowercase hex) over canonicalJson({ answers, flowState }) — see prepare-submission.ts for the canonicalization contract. Committed once; any drift across machines or Node versions is a canonicalization break, never re-record without an ADR-level decision.",
+  "form": "forms/valid/insurance.json",
+  "answers": { "q_smoker": true, "q_cigs_daily": 20 },
+  "contentHash": "41afdea175fffc50089cd73da34005f64cd02b9e41d0c36597c4d462ac4da2d2"
+}

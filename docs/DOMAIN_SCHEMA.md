@@ -348,6 +348,8 @@ stateDiagram-v2
     end note
 ```
 
+**Answer validation and the submission lock (task 009, `@qcms/core` `validate-answer.ts` / `prepare-submission.ts`).** `validateAnswer(question, value)` parses the value against the canonical encoding for the question's type (§2.4), then checks **every** constraint (§2.2) and returns all failures — errors carry `{ code, constraint, message }` (codes are the localization contract; messages may quote constraint bounds but never the submitted value). `required` is not checked there: presence is the submission sweep's concern. `prepareSubmission(snapshot, answers)` performs the I9 sweep over the evaluated flow: every visible required question must hold a valid answer (`MISSING_REQUIRED`), present answers for visible questions are re-validated (`INVALID_ANSWER`), hidden questions' answers are excluded from the locked set (I6), and answer keys not pinned in the form are rejected (`UNKNOWN_QUESTION`, ledger-drift defense). The resulting `LockedSubmission` is `{ answers, flowState, contentHash }` — answers in document order, values canonical — where `contentHash` is the lowercase-hex SHA-256 (WebCrypto, fetch-pure) of `canonicalJson({ answers, flowState })`: JSON with object keys sorted lexicographically at every depth, arrays in order, no whitespace, primitives exactly as `JSON.stringify`. The golden hash for the §6 insurance submission is committed in the core fixture set (`fixtures/submissions/insurance-golden.json`); a mismatch on any machine or Node version is canonicalization drift.
+
 ## 5. Invariants → owning core function
 
 | # | Invariant | Enforced by | Task |

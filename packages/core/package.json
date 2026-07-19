@@ -21,6 +21,7 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --root ../.. --project @qcms/core",
+    "coverage": "vitest run --root ../.. --project @qcms/core --coverage",
     "lint": "eslint src"
   },
   "dependencies": {
