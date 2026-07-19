@@ -1,0 +1,18 @@
+{
+  "description": "Insurance flow, step 1 of the sequence: nothing answered — only the branch question is visible and required.",
+  "form": "fixtures/forms/valid/insurance.json",
+  "answers": [],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_health",
+        "questionId": "q_smoker"
+      }
+    ],
+    "visibleSteps": ["stp_health"],
+    "currentStep": "stp_health",
+    "answeredRequired": [],
+    "missingRequired": ["q_smoker"],
+    "complete": false
+  }
+}

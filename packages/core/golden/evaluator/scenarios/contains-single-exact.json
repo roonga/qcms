@@ -1,0 +1,31 @@
+{
+  "description": "With exactly {asthma}: contains(asthma) fires, containsAny({diabetes, heart_disease}) does not, and equals({asthma}) fires too — equality and containment coincide only on the exact set.",
+  "form": "golden/evaluator/forms/ops-contains.json",
+  "answers": [
+    {
+      "questionId": "q_preexisting_conditions",
+      "value": ["opt_asthma"]
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_src",
+        "questionId": "q_preexisting_conditions"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_a"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_c"
+      }
+    ],
+    "visibleSteps": ["stp_src", "stp_gates"],
+    "currentStep": "stp_gates",
+    "answeredRequired": ["q_preexisting_conditions"],
+    "missingRequired": [],
+    "complete": true
+  }
+}

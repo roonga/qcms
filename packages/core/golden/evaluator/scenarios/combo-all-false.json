@@ -1,0 +1,39 @@
+{
+  "description": "and with one false child, or with all false children, not over a true child, and the nested combination all evaluate false: no gate shows.",
+  "form": "golden/evaluator/forms/combinators.json",
+  "answers": [
+    {
+      "questionId": "q_smoker",
+      "value": true
+    },
+    {
+      "questionId": "q_cigs_daily",
+      "value": 3
+    },
+    {
+      "questionId": "q_coverage_level",
+      "value": "opt_basic"
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_src",
+        "questionId": "q_smoker"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_cigs_daily"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_coverage_level"
+      }
+    ],
+    "visibleSteps": ["stp_src"],
+    "currentStep": null,
+    "answeredRequired": ["q_smoker", "q_cigs_daily", "q_coverage_level"],
+    "missingRequired": [],
+    "complete": true
+  }
+}

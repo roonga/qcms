@@ -1,0 +1,61 @@
+{
+  "description": "Kitchen-sink answered so that neither branch triggers (non-smoker, no listed condition): the follow-ups stay hidden and the response is complete without them.",
+  "form": "fixtures/forms/valid/kitchen-sink.json",
+  "answers": [
+    {
+      "questionId": "q_full_name",
+      "value": "Ada Lovelace"
+    },
+    {
+      "questionId": "q_dob",
+      "value": "1990-05-17"
+    },
+    {
+      "questionId": "q_smoker",
+      "value": false
+    },
+    {
+      "questionId": "q_preexisting_conditions",
+      "value": ["opt_none"]
+    },
+    {
+      "questionId": "q_coverage_level",
+      "value": "opt_premium"
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_about",
+        "questionId": "q_full_name"
+      },
+      {
+        "stepId": "stp_about",
+        "questionId": "q_dob"
+      },
+      {
+        "stepId": "stp_health",
+        "questionId": "q_smoker"
+      },
+      {
+        "stepId": "stp_health",
+        "questionId": "q_preexisting_conditions"
+      },
+      {
+        "stepId": "stp_cover",
+        "questionId": "q_coverage_level"
+      }
+    ],
+    "visibleSteps": ["stp_about", "stp_health", "stp_cover"],
+    "currentStep": null,
+    "answeredRequired": [
+      "q_full_name",
+      "q_dob",
+      "q_smoker",
+      "q_preexisting_conditions",
+      "q_coverage_level"
+    ],
+    "missingRequired": [],
+    "complete": true
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "description": "Only the second targeting rule fires (smoker = false, cigs = 5 passes gt 0) and the target still shows — OR, not AND.",
+  "form": "golden/evaluator/forms/multi-rule-target.json",
+  "answers": [
+    {
+      "questionId": "q_smoker",
+      "value": false
+    },
+    {
+      "questionId": "q_cigs_daily",
+      "value": 5
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_src",
+        "questionId": "q_smoker"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_cigs_daily"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_a"
+      }
+    ],
+    "visibleSteps": ["stp_src", "stp_gates"],
+    "currentStep": "stp_gates",
+    "answeredRequired": ["q_smoker", "q_cigs_daily"],
+    "missingRequired": [],
+    "complete": true
+  }
+}

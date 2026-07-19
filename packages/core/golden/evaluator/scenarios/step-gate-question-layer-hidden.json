@@ -1,0 +1,43 @@
+{
+  "description": "The step shows but the question-level rule inside it does not fire (cigs = 5 is not > 20): step-level and question-level visibility AND together.",
+  "form": "golden/evaluator/forms/step-gate.json",
+  "answers": [
+    {
+      "questionId": "q_smoker",
+      "value": true
+    },
+    {
+      "questionId": "q_full_name",
+      "value": "Ada Lovelace"
+    },
+    {
+      "questionId": "q_cigs_daily",
+      "value": 5
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_intro",
+        "questionId": "q_smoker"
+      },
+      {
+        "stepId": "stp_intro",
+        "questionId": "q_full_name"
+      },
+      {
+        "stepId": "stp_followup",
+        "questionId": "q_cigs_daily"
+      },
+      {
+        "stepId": "stp_final",
+        "questionId": "q_coverage_level"
+      }
+    ],
+    "visibleSteps": ["stp_intro", "stp_followup", "stp_final"],
+    "currentStep": "stp_final",
+    "answeredRequired": ["q_smoker", "q_full_name", "q_cigs_daily"],
+    "missingRequired": ["q_coverage_level"],
+    "complete": false
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "description": "A StepId target shows the whole step when its rule fires; a question-level rule inside the shown step ANDs on top (cigs > 20 shows the history question) and a later step's gate reads the now-visible answer.",
+  "form": "golden/evaluator/forms/step-gate.json",
+  "answers": [
+    {
+      "questionId": "q_smoker",
+      "value": true
+    },
+    {
+      "questionId": "q_full_name",
+      "value": "Ada Lovelace"
+    },
+    {
+      "questionId": "q_cigs_daily",
+      "value": 25
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_intro",
+        "questionId": "q_smoker"
+      },
+      {
+        "stepId": "stp_intro",
+        "questionId": "q_full_name"
+      },
+      {
+        "stepId": "stp_followup",
+        "questionId": "q_cigs_daily"
+      },
+      {
+        "stepId": "stp_followup",
+        "questionId": "q_medical_history"
+      },
+      {
+        "stepId": "stp_final",
+        "questionId": "q_coverage_level"
+      },
+      {
+        "stepId": "stp_final",
+        "questionId": "q_gate_a"
+      }
+    ],
+    "visibleSteps": ["stp_intro", "stp_followup", "stp_final"],
+    "currentStep": "stp_final",
+    "answeredRequired": ["q_smoker", "q_full_name", "q_cigs_daily"],
+    "missingRequired": ["q_coverage_level"],
+    "complete": false
+  }
+}

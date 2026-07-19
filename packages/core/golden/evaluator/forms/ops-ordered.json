@@ -1,0 +1,139 @@
+{
+  "formId": "frm_g_ops_ordered",
+  "defaultLocale": "en",
+  "title": {
+    "en": "frm_g_ops_ordered"
+  },
+  "steps": [
+    {
+      "stepId": "stp_src",
+      "title": {
+        "en": "stp_src"
+      },
+      "items": [
+        {
+          "questionId": "q_cigs_daily",
+          "version": 1
+        },
+        {
+          "questionId": "q_dob",
+          "version": 1
+        }
+      ]
+    },
+    {
+      "stepId": "stp_gates",
+      "title": {
+        "en": "stp_gates"
+      },
+      "items": [
+        {
+          "questionId": "q_gate_a",
+          "version": 1
+        },
+        {
+          "questionId": "q_gate_b",
+          "version": 1
+        },
+        {
+          "questionId": "q_gate_c",
+          "version": 1
+        },
+        {
+          "questionId": "q_gate_d",
+          "version": 1
+        },
+        {
+          "questionId": "q_gate_e",
+          "version": 1
+        },
+        {
+          "questionId": "q_gate_f",
+          "version": 1
+        },
+        {
+          "questionId": "q_gate_g",
+          "version": 1
+        },
+        {
+          "questionId": "q_gate_h",
+          "version": 1
+        }
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "ruleId": "rul_gt_number",
+      "when": {
+        "op": "gt",
+        "questionId": "q_cigs_daily",
+        "value": 10
+      },
+      "show": ["q_gate_a"]
+    },
+    {
+      "ruleId": "rul_gte_number",
+      "when": {
+        "op": "gte",
+        "questionId": "q_cigs_daily",
+        "value": 10
+      },
+      "show": ["q_gate_b"]
+    },
+    {
+      "ruleId": "rul_lt_number",
+      "when": {
+        "op": "lt",
+        "questionId": "q_cigs_daily",
+        "value": 10
+      },
+      "show": ["q_gate_c"]
+    },
+    {
+      "ruleId": "rul_lte_number",
+      "when": {
+        "op": "lte",
+        "questionId": "q_cigs_daily",
+        "value": 10
+      },
+      "show": ["q_gate_d"]
+    },
+    {
+      "ruleId": "rul_gt_date",
+      "when": {
+        "op": "gt",
+        "questionId": "q_dob",
+        "value": "2000-01-01"
+      },
+      "show": ["q_gate_e"]
+    },
+    {
+      "ruleId": "rul_gte_date",
+      "when": {
+        "op": "gte",
+        "questionId": "q_dob",
+        "value": "2000-01-01"
+      },
+      "show": ["q_gate_f"]
+    },
+    {
+      "ruleId": "rul_lt_date",
+      "when": {
+        "op": "lt",
+        "questionId": "q_dob",
+        "value": "2000-01-01"
+      },
+      "show": ["q_gate_g"]
+    },
+    {
+      "ruleId": "rul_lte_date",
+      "when": {
+        "op": "lte",
+        "questionId": "q_dob",
+        "value": "2000-01-01"
+      },
+      "show": ["q_gate_h"]
+    }
+  ]
+}

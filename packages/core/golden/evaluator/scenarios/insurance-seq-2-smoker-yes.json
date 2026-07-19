@@ -1,0 +1,27 @@
+{
+  "description": "Insurance flow, step 2: smoker = true appended — the follow-up becomes visible and required, so the response is no longer submittable until it is answered.",
+  "form": "fixtures/forms/valid/insurance.json",
+  "answers": [
+    {
+      "questionId": "q_smoker",
+      "value": true
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_health",
+        "questionId": "q_smoker"
+      },
+      {
+        "stepId": "stp_health",
+        "questionId": "q_cigs_daily"
+      }
+    ],
+    "visibleSteps": ["stp_health"],
+    "currentStep": "stp_health",
+    "answeredRequired": ["q_smoker"],
+    "missingRequired": ["q_cigs_daily"],
+    "complete": false
+  }
+}

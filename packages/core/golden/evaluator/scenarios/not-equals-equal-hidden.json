@@ -1,0 +1,78 @@
+{
+  "description": "notEquals is false when the answer equals the rule value; the multiChoice answer is reordered but set-equal (ADR-21), so its gate stays hidden.",
+  "form": "golden/evaluator/forms/ops-not-equals.json",
+  "answers": [
+    {
+      "questionId": "q_full_name",
+      "value": "Ada Lovelace"
+    },
+    {
+      "questionId": "q_medical_history",
+      "value": "None"
+    },
+    {
+      "questionId": "q_cigs_daily",
+      "value": 10
+    },
+    {
+      "questionId": "q_dob",
+      "value": "1990-05-17"
+    },
+    {
+      "questionId": "q_smoker",
+      "value": false
+    },
+    {
+      "questionId": "q_coverage_level",
+      "value": "opt_standard"
+    },
+    {
+      "questionId": "q_preexisting_conditions",
+      "value": ["opt_asthma", "opt_diabetes"]
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_src",
+        "questionId": "q_full_name"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_medical_history"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_cigs_daily"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_dob"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_smoker"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_coverage_level"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_preexisting_conditions"
+      }
+    ],
+    "visibleSteps": ["stp_src"],
+    "currentStep": null,
+    "answeredRequired": [
+      "q_full_name",
+      "q_cigs_daily",
+      "q_dob",
+      "q_smoker",
+      "q_coverage_level",
+      "q_preexisting_conditions"
+    ],
+    "missingRequired": [],
+    "complete": true
+  }
+}

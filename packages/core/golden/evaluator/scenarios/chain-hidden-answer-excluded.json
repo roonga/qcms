@@ -1,0 +1,27 @@
+{
+  "description": "Exclusion chain, broken at A: smoker = false hides B, so B's stale answer (cigs = 15) is excluded and C's rule reads B as unanswered — C stays hidden (ADR-16 semantic 3).",
+  "form": "golden/evaluator/forms/exclusion-chain.json",
+  "answers": [
+    {
+      "questionId": "q_smoker",
+      "value": false
+    },
+    {
+      "questionId": "q_cigs_daily",
+      "value": 15
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_one",
+        "questionId": "q_smoker"
+      }
+    ],
+    "visibleSteps": ["stp_one"],
+    "currentStep": null,
+    "answeredRequired": ["q_smoker"],
+    "missingRequired": [],
+    "complete": true
+  }
+}

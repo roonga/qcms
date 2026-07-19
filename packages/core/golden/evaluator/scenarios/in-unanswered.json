@@ -1,0 +1,49 @@
+{
+  "description": "in over an unanswered question is false for every type.",
+  "form": "golden/evaluator/forms/ops-in.json",
+  "answers": [],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_src",
+        "questionId": "q_full_name"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_medical_history"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_cigs_daily"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_dob"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_smoker"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_coverage_level"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_preexisting_conditions"
+      }
+    ],
+    "visibleSteps": ["stp_src"],
+    "currentStep": "stp_src",
+    "answeredRequired": [],
+    "missingRequired": [
+      "q_full_name",
+      "q_cigs_daily",
+      "q_dob",
+      "q_smoker",
+      "q_coverage_level",
+      "q_preexisting_conditions"
+    ],
+    "complete": false
+  }
+}

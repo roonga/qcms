@@ -1,0 +1,137 @@
+{
+  "formId": "frm_g_combinators",
+  "defaultLocale": "en",
+  "title": {
+    "en": "frm_g_combinators"
+  },
+  "steps": [
+    {
+      "stepId": "stp_src",
+      "title": {
+        "en": "stp_src"
+      },
+      "items": [
+        {
+          "questionId": "q_smoker",
+          "version": 2
+        },
+        {
+          "questionId": "q_cigs_daily",
+          "version": 1
+        },
+        {
+          "questionId": "q_coverage_level",
+          "version": 1
+        }
+      ]
+    },
+    {
+      "stepId": "stp_gates",
+      "title": {
+        "en": "stp_gates"
+      },
+      "items": [
+        {
+          "questionId": "q_gate_a",
+          "version": 1
+        },
+        {
+          "questionId": "q_gate_b",
+          "version": 1
+        },
+        {
+          "questionId": "q_gate_c",
+          "version": 1
+        },
+        {
+          "questionId": "q_gate_d",
+          "version": 1
+        }
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "ruleId": "rul_and",
+      "when": {
+        "op": "and",
+        "conditions": [
+          {
+            "op": "equals",
+            "questionId": "q_smoker",
+            "value": true
+          },
+          {
+            "op": "gt",
+            "questionId": "q_cigs_daily",
+            "value": 5
+          }
+        ]
+      },
+      "show": ["q_gate_a"]
+    },
+    {
+      "ruleId": "rul_or",
+      "when": {
+        "op": "or",
+        "conditions": [
+          {
+            "op": "equals",
+            "questionId": "q_coverage_level",
+            "value": "opt_premium"
+          },
+          {
+            "op": "lt",
+            "questionId": "q_cigs_daily",
+            "value": 1
+          }
+        ]
+      },
+      "show": ["q_gate_b"]
+    },
+    {
+      "ruleId": "rul_not",
+      "when": {
+        "op": "not",
+        "condition": {
+          "op": "equals",
+          "questionId": "q_smoker",
+          "value": true
+        }
+      },
+      "show": ["q_gate_c"]
+    },
+    {
+      "ruleId": "rul_mixed",
+      "when": {
+        "op": "and",
+        "conditions": [
+          {
+            "op": "or",
+            "conditions": [
+              {
+                "op": "equals",
+                "questionId": "q_coverage_level",
+                "value": "opt_premium"
+              },
+              {
+                "op": "equals",
+                "questionId": "q_coverage_level",
+                "value": "opt_standard"
+              }
+            ]
+          },
+          {
+            "op": "not",
+            "condition": {
+              "op": "equals",
+              "questionId": "q_smoker",
+              "value": false
+            }
+          }
+        ]
+      },
+      "show": ["q_gate_d"]
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "description": "Kitchen-sink with no answers: both rule-targeted questions are hidden, every untargeted question is visible, all visible required questions are missing.",
+  "form": "fixtures/forms/valid/kitchen-sink.json",
+  "answers": [],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_about",
+        "questionId": "q_full_name"
+      },
+      {
+        "stepId": "stp_about",
+        "questionId": "q_dob"
+      },
+      {
+        "stepId": "stp_health",
+        "questionId": "q_smoker"
+      },
+      {
+        "stepId": "stp_health",
+        "questionId": "q_preexisting_conditions"
+      },
+      {
+        "stepId": "stp_cover",
+        "questionId": "q_coverage_level"
+      }
+    ],
+    "visibleSteps": ["stp_about", "stp_health", "stp_cover"],
+    "currentStep": "stp_about",
+    "answeredRequired": [],
+    "missingRequired": [
+      "q_full_name",
+      "q_dob",
+      "q_smoker",
+      "q_preexisting_conditions",
+      "q_coverage_level"
+    ],
+    "complete": false
+  }
+}

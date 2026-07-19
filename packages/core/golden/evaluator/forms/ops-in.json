@@ -1,0 +1,146 @@
+{
+  "formId": "frm_g_ops_in",
+  "defaultLocale": "en",
+  "title": {
+    "en": "frm_g_ops_in"
+  },
+  "steps": [
+    {
+      "stepId": "stp_src",
+      "title": {
+        "en": "stp_src"
+      },
+      "items": [
+        {
+          "questionId": "q_full_name",
+          "version": 1
+        },
+        {
+          "questionId": "q_medical_history",
+          "version": 1
+        },
+        {
+          "questionId": "q_cigs_daily",
+          "version": 1
+        },
+        {
+          "questionId": "q_dob",
+          "version": 1
+        },
+        {
+          "questionId": "q_smoker",
+          "version": 2
+        },
+        {
+          "questionId": "q_coverage_level",
+          "version": 1
+        },
+        {
+          "questionId": "q_preexisting_conditions",
+          "version": 1
+        }
+      ]
+    },
+    {
+      "stepId": "stp_gates",
+      "title": {
+        "en": "stp_gates"
+      },
+      "items": [
+        {
+          "questionId": "q_gate_a",
+          "version": 1
+        },
+        {
+          "questionId": "q_gate_b",
+          "version": 1
+        },
+        {
+          "questionId": "q_gate_c",
+          "version": 1
+        },
+        {
+          "questionId": "q_gate_d",
+          "version": 1
+        },
+        {
+          "questionId": "q_gate_e",
+          "version": 1
+        },
+        {
+          "questionId": "q_gate_f",
+          "version": 1
+        },
+        {
+          "questionId": "q_gate_g",
+          "version": 1
+        }
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "ruleId": "rul_in_short_text",
+      "when": {
+        "op": "in",
+        "questionId": "q_full_name",
+        "values": ["Ada Lovelace", "Grace Hopper"]
+      },
+      "show": ["q_gate_a"]
+    },
+    {
+      "ruleId": "rul_in_long_text",
+      "when": {
+        "op": "in",
+        "questionId": "q_medical_history",
+        "values": ["None", "N/A"]
+      },
+      "show": ["q_gate_b"]
+    },
+    {
+      "ruleId": "rul_in_number",
+      "when": {
+        "op": "in",
+        "questionId": "q_cigs_daily",
+        "values": [5, 10, 20]
+      },
+      "show": ["q_gate_c"]
+    },
+    {
+      "ruleId": "rul_in_date",
+      "when": {
+        "op": "in",
+        "questionId": "q_dob",
+        "values": ["1990-05-17", "2000-01-01"]
+      },
+      "show": ["q_gate_d"]
+    },
+    {
+      "ruleId": "rul_in_boolean",
+      "when": {
+        "op": "in",
+        "questionId": "q_smoker",
+        "values": [true]
+      },
+      "show": ["q_gate_e"]
+    },
+    {
+      "ruleId": "rul_in_single_choice",
+      "when": {
+        "op": "in",
+        "questionId": "q_coverage_level",
+        "values": ["opt_basic", "opt_premium"]
+      },
+      "show": ["q_gate_f"]
+    },
+    {
+      "ruleId": "rul_in_multi_choice",
+      "when": {
+        "op": "in",
+        "questionId": "q_preexisting_conditions",
+        "values": [["opt_diabetes"], ["opt_asthma", "opt_none"]]
+      },
+      "show": ["q_gate_g"]
+    }
+  ]
+}

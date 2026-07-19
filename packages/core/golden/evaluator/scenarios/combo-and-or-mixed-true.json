@@ -1,0 +1,51 @@
+{
+  "description": "and(equals, gt) with both children true fires; or fires on its first disjunct; not(equals true) is false when the answer is true; the nested and(or(...), not(...)) fires.",
+  "form": "golden/evaluator/forms/combinators.json",
+  "answers": [
+    {
+      "questionId": "q_smoker",
+      "value": true
+    },
+    {
+      "questionId": "q_cigs_daily",
+      "value": 10
+    },
+    {
+      "questionId": "q_coverage_level",
+      "value": "opt_premium"
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_src",
+        "questionId": "q_smoker"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_cigs_daily"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_coverage_level"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_a"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_b"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_d"
+      }
+    ],
+    "visibleSteps": ["stp_src", "stp_gates"],
+    "currentStep": "stp_gates",
+    "answeredRequired": ["q_smoker", "q_cigs_daily", "q_coverage_level"],
+    "missingRequired": [],
+    "complete": true
+  }
+}

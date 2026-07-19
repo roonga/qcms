@@ -1,0 +1,23 @@
+{
+  "description": "Insurance flow, alternative branch after step 1: smoker = false — the follow-up stays hidden and the response is already complete.",
+  "form": "fixtures/forms/valid/insurance.json",
+  "answers": [
+    {
+      "questionId": "q_smoker",
+      "value": false
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_health",
+        "questionId": "q_smoker"
+      }
+    ],
+    "visibleSteps": ["stp_health"],
+    "currentStep": null,
+    "answeredRequired": ["q_smoker"],
+    "missingRequired": [],
+    "complete": true
+  }
+}

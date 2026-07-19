@@ -1,0 +1,133 @@
+{
+  "formId": "frm_g_depth_8",
+  "defaultLocale": "en",
+  "title": {
+    "en": "frm_g_depth_8"
+  },
+  "steps": [
+    {
+      "stepId": "stp_src",
+      "title": {
+        "en": "stp_src"
+      },
+      "items": [
+        {
+          "questionId": "q_full_name",
+          "version": 1
+        },
+        {
+          "questionId": "q_cigs_daily",
+          "version": 1
+        },
+        {
+          "questionId": "q_dob",
+          "version": 1
+        },
+        {
+          "questionId": "q_smoker",
+          "version": 2
+        },
+        {
+          "questionId": "q_coverage_level",
+          "version": 1
+        },
+        {
+          "questionId": "q_preexisting_conditions",
+          "version": 1
+        }
+      ]
+    },
+    {
+      "stepId": "stp_gates",
+      "title": {
+        "en": "stp_gates"
+      },
+      "items": [
+        {
+          "questionId": "q_gate_a",
+          "version": 1
+        }
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "ruleId": "rul_depth_8",
+      "when": {
+        "op": "and",
+        "conditions": [
+          {
+            "op": "or",
+            "conditions": [
+              {
+                "op": "and",
+                "conditions": [
+                  {
+                    "op": "or",
+                    "conditions": [
+                      {
+                        "op": "and",
+                        "conditions": [
+                          {
+                            "op": "or",
+                            "conditions": [
+                              {
+                                "op": "and",
+                                "conditions": [
+                                  {
+                                    "op": "equals",
+                                    "questionId": "q_smoker",
+                                    "value": true
+                                  },
+                                  {
+                                    "op": "gt",
+                                    "questionId": "q_cigs_daily",
+                                    "value": 0
+                                  }
+                                ]
+                              },
+                              {
+                                "op": "equals",
+                                "questionId": "q_coverage_level",
+                                "value": "opt_none"
+                              }
+                            ]
+                          },
+                          {
+                            "op": "answered",
+                            "questionId": "q_dob"
+                          }
+                        ]
+                      },
+                      {
+                        "op": "contains",
+                        "questionId": "q_preexisting_conditions",
+                        "value": "opt_none"
+                      }
+                    ]
+                  },
+                  {
+                    "op": "notEquals",
+                    "questionId": "q_full_name",
+                    "value": "Nobody"
+                  }
+                ]
+              },
+              {
+                "op": "in",
+                "questionId": "q_cigs_daily",
+                "values": [999]
+              }
+            ]
+          },
+          {
+            "op": "lte",
+            "questionId": "q_cigs_daily",
+            "value": 200
+          }
+        ]
+      },
+      "show": ["q_gate_a"]
+    }
+  ]
+}

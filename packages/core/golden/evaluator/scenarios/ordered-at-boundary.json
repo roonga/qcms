@@ -1,0 +1,47 @@
+{
+  "description": "At the exact comparison value only the inclusive operators fire: gte/lte gates show, gt/lt gates stay hidden, for both number and date.",
+  "form": "golden/evaluator/forms/ops-ordered.json",
+  "answers": [
+    {
+      "questionId": "q_cigs_daily",
+      "value": 10
+    },
+    {
+      "questionId": "q_dob",
+      "value": "2000-01-01"
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_src",
+        "questionId": "q_cigs_daily"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_dob"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_b"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_d"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_f"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_h"
+      }
+    ],
+    "visibleSteps": ["stp_src", "stp_gates"],
+    "currentStep": "stp_gates",
+    "answeredRequired": ["q_cigs_daily", "q_dob"],
+    "missingRequired": [],
+    "complete": true
+  }
+}

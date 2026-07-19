@@ -1,0 +1,47 @@
+{
+  "description": "Below the comparison value lt and lte fire for both number and date.",
+  "form": "golden/evaluator/forms/ops-ordered.json",
+  "answers": [
+    {
+      "questionId": "q_cigs_daily",
+      "value": 9
+    },
+    {
+      "questionId": "q_dob",
+      "value": "1999-12-31"
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_src",
+        "questionId": "q_cigs_daily"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_dob"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_c"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_d"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_g"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_h"
+      }
+    ],
+    "visibleSteps": ["stp_src", "stp_gates"],
+    "currentStep": "stp_gates",
+    "answeredRequired": ["q_cigs_daily", "q_dob"],
+    "missingRequired": [],
+    "complete": true
+  }
+}

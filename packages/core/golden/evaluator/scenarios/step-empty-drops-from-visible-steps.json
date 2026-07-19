@@ -1,0 +1,27 @@
+{
+  "description": "An untargeted step whose only question is rule-hidden contributes no visible questions and is not listed in visibleSteps (derived from `visible`).",
+  "form": "golden/evaluator/forms/step-empty.json",
+  "answers": [
+    {
+      "questionId": "q_smoker",
+      "value": false
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_a",
+        "questionId": "q_smoker"
+      },
+      {
+        "stepId": "stp_c",
+        "questionId": "q_coverage_level"
+      }
+    ],
+    "visibleSteps": ["stp_a", "stp_c"],
+    "currentStep": "stp_c",
+    "answeredRequired": ["q_smoker"],
+    "missingRequired": ["q_coverage_level"],
+    "complete": false
+  }
+}

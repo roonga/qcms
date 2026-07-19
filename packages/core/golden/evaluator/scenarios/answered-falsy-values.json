@@ -1,0 +1,106 @@
+{
+  "description": "answered is the existence test: falsy answers (false, empty string, 0, empty multiChoice selection) still count as answered for every type. Constraints (e.g. minLength) are validation, not evaluation.",
+  "form": "golden/evaluator/forms/ops-answered.json",
+  "answers": [
+    {
+      "questionId": "q_full_name",
+      "value": ""
+    },
+    {
+      "questionId": "q_medical_history",
+      "value": ""
+    },
+    {
+      "questionId": "q_cigs_daily",
+      "value": 0
+    },
+    {
+      "questionId": "q_dob",
+      "value": "1970-01-01"
+    },
+    {
+      "questionId": "q_smoker",
+      "value": false
+    },
+    {
+      "questionId": "q_coverage_level",
+      "value": "opt_none"
+    },
+    {
+      "questionId": "q_preexisting_conditions",
+      "value": []
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_src",
+        "questionId": "q_full_name"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_medical_history"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_cigs_daily"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_dob"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_smoker"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_coverage_level"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_preexisting_conditions"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_a"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_b"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_c"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_d"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_e"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_f"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_g"
+      }
+    ],
+    "visibleSteps": ["stp_src", "stp_gates"],
+    "currentStep": "stp_gates",
+    "answeredRequired": [
+      "q_full_name",
+      "q_cigs_daily",
+      "q_dob",
+      "q_smoker",
+      "q_coverage_level",
+      "q_preexisting_conditions"
+    ],
+    "missingRequired": [],
+    "complete": true
+  }
+}

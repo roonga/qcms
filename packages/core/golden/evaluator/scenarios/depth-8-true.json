@@ -1,0 +1,74 @@
+{
+  "description": "A condition nested at exactly depth 8 (the cap) mixing and/or/not-free chain of and/or wrappers over 8 leaf operators evaluates true end to end.",
+  "form": "golden/evaluator/forms/depth-8.json",
+  "answers": [
+    {
+      "questionId": "q_full_name",
+      "value": "Ada Lovelace"
+    },
+    {
+      "questionId": "q_cigs_daily",
+      "value": 20
+    },
+    {
+      "questionId": "q_dob",
+      "value": "1990-05-17"
+    },
+    {
+      "questionId": "q_smoker",
+      "value": true
+    },
+    {
+      "questionId": "q_coverage_level",
+      "value": "opt_basic"
+    },
+    {
+      "questionId": "q_preexisting_conditions",
+      "value": ["opt_diabetes"]
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_src",
+        "questionId": "q_full_name"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_cigs_daily"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_dob"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_smoker"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_coverage_level"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_preexisting_conditions"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_a"
+      }
+    ],
+    "visibleSteps": ["stp_src", "stp_gates"],
+    "currentStep": "stp_gates",
+    "answeredRequired": [
+      "q_full_name",
+      "q_cigs_daily",
+      "q_dob",
+      "q_smoker",
+      "q_coverage_level",
+      "q_preexisting_conditions"
+    ],
+    "missingRequired": [],
+    "complete": true
+  }
+}

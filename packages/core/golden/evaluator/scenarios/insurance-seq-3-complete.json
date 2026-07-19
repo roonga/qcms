@@ -1,0 +1,31 @@
+{
+  "description": "Insurance flow, step 3: the follow-up answer appended on top of smoker = true — everything visible is answered and the response is complete.",
+  "form": "fixtures/forms/valid/insurance.json",
+  "answers": [
+    {
+      "questionId": "q_smoker",
+      "value": true
+    },
+    {
+      "questionId": "q_cigs_daily",
+      "value": 12
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_health",
+        "questionId": "q_smoker"
+      },
+      {
+        "stepId": "stp_health",
+        "questionId": "q_cigs_daily"
+      }
+    ],
+    "visibleSteps": ["stp_health"],
+    "currentStep": null,
+    "answeredRequired": ["q_smoker", "q_cigs_daily"],
+    "missingRequired": [],
+    "complete": true
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "description": "contains and containsAny are membership tests: {asthma, diabetes} contains asthma and contains one of {diabetes, heart_disease}, but does NOT equal {asthma} — containment fires where set equality does not (ADR-21).",
+  "form": "golden/evaluator/forms/ops-contains.json",
+  "answers": [
+    {
+      "questionId": "q_preexisting_conditions",
+      "value": ["opt_asthma", "opt_diabetes"]
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_src",
+        "questionId": "q_preexisting_conditions"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_a"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_b"
+      }
+    ],
+    "visibleSteps": ["stp_src", "stp_gates"],
+    "currentStep": "stp_gates",
+    "answeredRequired": ["q_preexisting_conditions"],
+    "missingRequired": [],
+    "complete": true
+  }
+}

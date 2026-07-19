@@ -1,0 +1,78 @@
+{
+  "description": "equals is false on answered-but-different values for every type; the multiChoice answer is a strict superset of the rule value and stays hidden — set equality is not containment (ADR-21).",
+  "form": "golden/evaluator/forms/ops-equals.json",
+  "answers": [
+    {
+      "questionId": "q_full_name",
+      "value": "Grace Hopper"
+    },
+    {
+      "questionId": "q_medical_history",
+      "value": "Asthma in childhood"
+    },
+    {
+      "questionId": "q_cigs_daily",
+      "value": 11
+    },
+    {
+      "questionId": "q_dob",
+      "value": "1990-05-18"
+    },
+    {
+      "questionId": "q_smoker",
+      "value": true
+    },
+    {
+      "questionId": "q_coverage_level",
+      "value": "opt_basic"
+    },
+    {
+      "questionId": "q_preexisting_conditions",
+      "value": ["opt_diabetes", "opt_asthma", "opt_heart_disease"]
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_src",
+        "questionId": "q_full_name"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_medical_history"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_cigs_daily"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_dob"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_smoker"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_coverage_level"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_preexisting_conditions"
+      }
+    ],
+    "visibleSteps": ["stp_src"],
+    "currentStep": null,
+    "answeredRequired": [
+      "q_full_name",
+      "q_cigs_daily",
+      "q_dob",
+      "q_smoker",
+      "q_coverage_level",
+      "q_preexisting_conditions"
+    ],
+    "missingRequired": [],
+    "complete": true
+  }
+}

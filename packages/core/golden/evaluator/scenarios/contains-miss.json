@@ -1,0 +1,23 @@
+{
+  "description": "No membership: {none} contains neither asthma nor any of {diabetes, heart_disease}, and does not equal {asthma}.",
+  "form": "golden/evaluator/forms/ops-contains.json",
+  "answers": [
+    {
+      "questionId": "q_preexisting_conditions",
+      "value": ["opt_none"]
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_src",
+        "questionId": "q_preexisting_conditions"
+      }
+    ],
+    "visibleSteps": ["stp_src"],
+    "currentStep": null,
+    "answeredRequired": ["q_preexisting_conditions"],
+    "missingRequired": [],
+    "complete": true
+  }
+}

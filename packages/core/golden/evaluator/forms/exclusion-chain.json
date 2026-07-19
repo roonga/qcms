@@ -1,0 +1,65 @@
+{
+  "formId": "frm_g_exclusion_chain",
+  "defaultLocale": "en",
+  "title": {
+    "en": "frm_g_exclusion_chain"
+  },
+  "steps": [
+    {
+      "stepId": "stp_one",
+      "title": {
+        "en": "stp_one"
+      },
+      "items": [
+        {
+          "questionId": "q_smoker",
+          "version": 2
+        }
+      ]
+    },
+    {
+      "stepId": "stp_two",
+      "title": {
+        "en": "stp_two"
+      },
+      "items": [
+        {
+          "questionId": "q_cigs_daily",
+          "version": 1
+        }
+      ]
+    },
+    {
+      "stepId": "stp_three",
+      "title": {
+        "en": "stp_three"
+      },
+      "items": [
+        {
+          "questionId": "q_gate_a",
+          "version": 1
+        }
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "ruleId": "rul_show_b",
+      "when": {
+        "op": "equals",
+        "questionId": "q_smoker",
+        "value": true
+      },
+      "show": ["q_cigs_daily"]
+    },
+    {
+      "ruleId": "rul_show_c",
+      "when": {
+        "op": "gte",
+        "questionId": "q_cigs_daily",
+        "value": 10
+      },
+      "show": ["q_gate_a"]
+    }
+  ]
+}

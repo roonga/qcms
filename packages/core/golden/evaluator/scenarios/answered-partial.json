@@ -1,0 +1,64 @@
+{
+  "description": "answered tracks exactly the answered subset: only the gates for the two answered questions show; required accounting reflects the partial state.",
+  "form": "golden/evaluator/forms/ops-answered.json",
+  "answers": [
+    {
+      "questionId": "q_dob",
+      "value": "1985-03-02"
+    },
+    {
+      "questionId": "q_smoker",
+      "value": false
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_src",
+        "questionId": "q_full_name"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_medical_history"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_cigs_daily"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_dob"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_smoker"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_coverage_level"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_preexisting_conditions"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_d"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_e"
+      }
+    ],
+    "visibleSteps": ["stp_src", "stp_gates"],
+    "currentStep": "stp_src",
+    "answeredRequired": ["q_dob", "q_smoker"],
+    "missingRequired": [
+      "q_full_name",
+      "q_cigs_daily",
+      "q_coverage_level",
+      "q_preexisting_conditions"
+    ],
+    "complete": false
+  }
+}

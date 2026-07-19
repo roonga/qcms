@@ -1,0 +1,47 @@
+{
+  "description": "Above the comparison value gt and gte fire for both number and date (date ordering is calendar order on the canonical YYYY-MM-DD encoding).",
+  "form": "golden/evaluator/forms/ops-ordered.json",
+  "answers": [
+    {
+      "questionId": "q_cigs_daily",
+      "value": 11
+    },
+    {
+      "questionId": "q_dob",
+      "value": "2000-01-02"
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_src",
+        "questionId": "q_cigs_daily"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_dob"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_a"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_b"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_e"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_f"
+      }
+    ],
+    "visibleSteps": ["stp_src", "stp_gates"],
+    "currentStep": "stp_gates",
+    "answeredRequired": ["q_cigs_daily", "q_dob"],
+    "missingRequired": [],
+    "complete": true
+  }
+}

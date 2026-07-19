@@ -1,0 +1,23 @@
+{
+  "description": "Minimal form, answered: complete with no current step.",
+  "form": "fixtures/forms/valid/minimal.json",
+  "answers": [
+    {
+      "questionId": "q_full_name",
+      "value": "Ada Lovelace"
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_only",
+        "questionId": "q_full_name"
+      }
+    ],
+    "visibleSteps": ["stp_only"],
+    "currentStep": null,
+    "answeredRequired": ["q_full_name"],
+    "missingRequired": [],
+    "complete": true
+  }
+}

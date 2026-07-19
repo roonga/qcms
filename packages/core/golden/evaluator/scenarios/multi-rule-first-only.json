@@ -1,0 +1,35 @@
+{
+  "description": "Two rules target the same question; only the first fires (smoker = true, cigs = 0 fails gt 0) and the target shows — multiple rules OR together.",
+  "form": "golden/evaluator/forms/multi-rule-target.json",
+  "answers": [
+    {
+      "questionId": "q_smoker",
+      "value": true
+    },
+    {
+      "questionId": "q_cigs_daily",
+      "value": 0
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_src",
+        "questionId": "q_smoker"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_cigs_daily"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_a"
+      }
+    ],
+    "visibleSteps": ["stp_src", "stp_gates"],
+    "currentStep": "stp_gates",
+    "answeredRequired": ["q_smoker", "q_cigs_daily"],
+    "missingRequired": [],
+    "complete": true
+  }
+}

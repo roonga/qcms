@@ -1,0 +1,23 @@
+{
+  "description": "An empty multiChoice selection is answered (required satisfied) but contains nothing: all containment gates stay hidden while complete is true.",
+  "form": "golden/evaluator/forms/ops-contains.json",
+  "answers": [
+    {
+      "questionId": "q_preexisting_conditions",
+      "value": []
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_src",
+        "questionId": "q_preexisting_conditions"
+      }
+    ],
+    "visibleSteps": ["stp_src"],
+    "currentStep": null,
+    "answeredRequired": ["q_preexisting_conditions"],
+    "missingRequired": [],
+    "complete": true
+  }
+}

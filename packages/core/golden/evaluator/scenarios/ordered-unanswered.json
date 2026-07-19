@@ -1,0 +1,22 @@
+{
+  "description": "All four ordered operators are false over unanswered questions.",
+  "form": "golden/evaluator/forms/ops-ordered.json",
+  "answers": [],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_src",
+        "questionId": "q_cigs_daily"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_dob"
+      }
+    ],
+    "visibleSteps": ["stp_src"],
+    "currentStep": "stp_src",
+    "answeredRequired": [],
+    "missingRequired": ["q_cigs_daily", "q_dob"],
+    "complete": false
+  }
+}

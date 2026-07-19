@@ -1,0 +1,47 @@
+{
+  "description": "An answered false is not unanswered: not(equals smoker true) fires because the answer is false, and or fires via its second disjunct lt(cigs, 1) at cigs = 0.",
+  "form": "golden/evaluator/forms/combinators.json",
+  "answers": [
+    {
+      "questionId": "q_smoker",
+      "value": false
+    },
+    {
+      "questionId": "q_cigs_daily",
+      "value": 0
+    },
+    {
+      "questionId": "q_coverage_level",
+      "value": "opt_none"
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_src",
+        "questionId": "q_smoker"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_cigs_daily"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_coverage_level"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_b"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_c"
+      }
+    ],
+    "visibleSteps": ["stp_src", "stp_gates"],
+    "currentStep": "stp_gates",
+    "answeredRequired": ["q_smoker", "q_cigs_daily", "q_coverage_level"],
+    "missingRequired": [],
+    "complete": true
+  }
+}

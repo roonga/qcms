@@ -1,0 +1,18 @@
+{
+  "description": "contains and containsAny over an unanswered question are false.",
+  "form": "golden/evaluator/forms/ops-contains.json",
+  "answers": [],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_src",
+        "questionId": "q_preexisting_conditions"
+      }
+    ],
+    "visibleSteps": ["stp_src"],
+    "currentStep": "stp_src",
+    "answeredRequired": [],
+    "missingRequired": ["q_preexisting_conditions"],
+    "complete": false
+  }
+}

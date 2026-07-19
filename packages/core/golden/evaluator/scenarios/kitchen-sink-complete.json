@@ -1,0 +1,78 @@
+{
+  "description": "Kitchen-sink fully answered with both branches triggered (smoker follow-up and condition details): everything visible, everything answered, complete.",
+  "form": "fixtures/forms/valid/kitchen-sink.json",
+  "answers": [
+    {
+      "questionId": "q_full_name",
+      "value": "Ada Lovelace"
+    },
+    {
+      "questionId": "q_dob",
+      "value": "1990-05-17"
+    },
+    {
+      "questionId": "q_smoker",
+      "value": true
+    },
+    {
+      "questionId": "q_cigs_daily",
+      "value": 10
+    },
+    {
+      "questionId": "q_preexisting_conditions",
+      "value": ["opt_diabetes", "opt_asthma"]
+    },
+    {
+      "questionId": "q_medical_history",
+      "value": "Diagnosed 2010"
+    },
+    {
+      "questionId": "q_coverage_level",
+      "value": "opt_standard"
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_about",
+        "questionId": "q_full_name"
+      },
+      {
+        "stepId": "stp_about",
+        "questionId": "q_dob"
+      },
+      {
+        "stepId": "stp_health",
+        "questionId": "q_smoker"
+      },
+      {
+        "stepId": "stp_health",
+        "questionId": "q_cigs_daily"
+      },
+      {
+        "stepId": "stp_health",
+        "questionId": "q_preexisting_conditions"
+      },
+      {
+        "stepId": "stp_health",
+        "questionId": "q_medical_history"
+      },
+      {
+        "stepId": "stp_cover",
+        "questionId": "q_coverage_level"
+      }
+    ],
+    "visibleSteps": ["stp_about", "stp_health", "stp_cover"],
+    "currentStep": null,
+    "answeredRequired": [
+      "q_full_name",
+      "q_dob",
+      "q_smoker",
+      "q_cigs_daily",
+      "q_preexisting_conditions",
+      "q_coverage_level"
+    ],
+    "missingRequired": [],
+    "complete": true
+  }
+}

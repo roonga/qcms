@@ -1,0 +1,39 @@
+{
+  "description": "A hidden step contributes no visible questions regardless of per-question rules; its required questions are excluded from the required accounting.",
+  "form": "golden/evaluator/forms/step-gate.json",
+  "answers": [
+    {
+      "questionId": "q_smoker",
+      "value": false
+    },
+    {
+      "questionId": "q_full_name",
+      "value": "Ada Lovelace"
+    },
+    {
+      "questionId": "q_coverage_level",
+      "value": "opt_basic"
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_intro",
+        "questionId": "q_smoker"
+      },
+      {
+        "stepId": "stp_intro",
+        "questionId": "q_full_name"
+      },
+      {
+        "stepId": "stp_final",
+        "questionId": "q_coverage_level"
+      }
+    ],
+    "visibleSteps": ["stp_intro", "stp_final"],
+    "currentStep": null,
+    "answeredRequired": ["q_smoker", "q_full_name", "q_coverage_level"],
+    "missingRequired": [],
+    "complete": true
+  }
+}

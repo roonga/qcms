@@ -1,0 +1,51 @@
+{
+  "description": "Kitchen-sink partially answered: smoker = true reveals the required follow-up, which joins the missing-required set; currentStep advances to the first step with a missing required question.",
+  "form": "fixtures/forms/valid/kitchen-sink.json",
+  "answers": [
+    {
+      "questionId": "q_full_name",
+      "value": "Ada Lovelace"
+    },
+    {
+      "questionId": "q_dob",
+      "value": "1990-05-17"
+    },
+    {
+      "questionId": "q_smoker",
+      "value": true
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_about",
+        "questionId": "q_full_name"
+      },
+      {
+        "stepId": "stp_about",
+        "questionId": "q_dob"
+      },
+      {
+        "stepId": "stp_health",
+        "questionId": "q_smoker"
+      },
+      {
+        "stepId": "stp_health",
+        "questionId": "q_cigs_daily"
+      },
+      {
+        "stepId": "stp_health",
+        "questionId": "q_preexisting_conditions"
+      },
+      {
+        "stepId": "stp_cover",
+        "questionId": "q_coverage_level"
+      }
+    ],
+    "visibleSteps": ["stp_about", "stp_health", "stp_cover"],
+    "currentStep": "stp_health",
+    "answeredRequired": ["q_full_name", "q_dob", "q_smoker"],
+    "missingRequired": ["q_cigs_daily", "q_preexisting_conditions", "q_coverage_level"],
+    "complete": false
+  }
+}

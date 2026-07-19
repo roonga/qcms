@@ -1,0 +1,30 @@
+{
+  "description": "not over a condition on an unanswered question is TRUE (the child equals is false per ADR-16 semantic 2, and not negates it): with an empty answer map only the not-gate shows.",
+  "form": "golden/evaluator/forms/combinators.json",
+  "answers": [],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_src",
+        "questionId": "q_smoker"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_cigs_daily"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_coverage_level"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_c"
+      }
+    ],
+    "visibleSteps": ["stp_src", "stp_gates"],
+    "currentStep": "stp_src",
+    "answeredRequired": [],
+    "missingRequired": ["q_smoker", "q_cigs_daily", "q_coverage_level"],
+    "complete": false
+  }
+}

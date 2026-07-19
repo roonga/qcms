@@ -1,0 +1,86 @@
+{
+  "formId": "frm_g_step_gate",
+  "defaultLocale": "en",
+  "title": {
+    "en": "frm_g_step_gate"
+  },
+  "steps": [
+    {
+      "stepId": "stp_intro",
+      "title": {
+        "en": "stp_intro"
+      },
+      "items": [
+        {
+          "questionId": "q_smoker",
+          "version": 2
+        },
+        {
+          "questionId": "q_full_name",
+          "version": 1
+        }
+      ]
+    },
+    {
+      "stepId": "stp_followup",
+      "title": {
+        "en": "stp_followup"
+      },
+      "items": [
+        {
+          "questionId": "q_cigs_daily",
+          "version": 1
+        },
+        {
+          "questionId": "q_medical_history",
+          "version": 1
+        }
+      ]
+    },
+    {
+      "stepId": "stp_final",
+      "title": {
+        "en": "stp_final"
+      },
+      "items": [
+        {
+          "questionId": "q_coverage_level",
+          "version": 1
+        },
+        {
+          "questionId": "q_gate_a",
+          "version": 1
+        }
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "ruleId": "rul_show_followup",
+      "when": {
+        "op": "equals",
+        "questionId": "q_smoker",
+        "value": true
+      },
+      "show": ["stp_followup"]
+    },
+    {
+      "ruleId": "rul_show_history",
+      "when": {
+        "op": "gt",
+        "questionId": "q_cigs_daily",
+        "value": 20
+      },
+      "show": ["q_medical_history"]
+    },
+    {
+      "ruleId": "rul_show_gate",
+      "when": {
+        "op": "gt",
+        "questionId": "q_cigs_daily",
+        "value": 20
+      },
+      "show": ["q_gate_a"]
+    }
+  ]
+}

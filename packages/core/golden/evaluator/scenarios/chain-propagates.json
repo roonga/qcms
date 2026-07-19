@@ -1,0 +1,35 @@
+{
+  "description": "Exclusion chain, all links visible: A (smoker) shows B (cigs), B's answer satisfies the rule for C (gate).",
+  "form": "golden/evaluator/forms/exclusion-chain.json",
+  "answers": [
+    {
+      "questionId": "q_smoker",
+      "value": true
+    },
+    {
+      "questionId": "q_cigs_daily",
+      "value": 15
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_one",
+        "questionId": "q_smoker"
+      },
+      {
+        "stepId": "stp_two",
+        "questionId": "q_cigs_daily"
+      },
+      {
+        "stepId": "stp_three",
+        "questionId": "q_gate_a"
+      }
+    ],
+    "visibleSteps": ["stp_one", "stp_two", "stp_three"],
+    "currentStep": "stp_three",
+    "answeredRequired": ["q_smoker", "q_cigs_daily"],
+    "missingRequired": [],
+    "complete": true
+  }
+}

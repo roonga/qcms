@@ -1,0 +1,106 @@
+{
+  "description": "equals fires on every question type when the answer matches; the multiChoice answer is authored reordered with a duplicate and still matches by set equality (ADR-21).",
+  "form": "golden/evaluator/forms/ops-equals.json",
+  "answers": [
+    {
+      "questionId": "q_full_name",
+      "value": "Ada Lovelace"
+    },
+    {
+      "questionId": "q_medical_history",
+      "value": "None"
+    },
+    {
+      "questionId": "q_cigs_daily",
+      "value": 10
+    },
+    {
+      "questionId": "q_dob",
+      "value": "1990-05-17"
+    },
+    {
+      "questionId": "q_smoker",
+      "value": false
+    },
+    {
+      "questionId": "q_coverage_level",
+      "value": "opt_standard"
+    },
+    {
+      "questionId": "q_preexisting_conditions",
+      "value": ["opt_asthma", "opt_diabetes", "opt_asthma"]
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_src",
+        "questionId": "q_full_name"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_medical_history"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_cigs_daily"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_dob"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_smoker"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_coverage_level"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_preexisting_conditions"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_a"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_b"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_c"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_d"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_e"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_f"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_g"
+      }
+    ],
+    "visibleSteps": ["stp_src", "stp_gates"],
+    "currentStep": "stp_gates",
+    "answeredRequired": [
+      "q_full_name",
+      "q_cigs_daily",
+      "q_dob",
+      "q_smoker",
+      "q_coverage_level",
+      "q_preexisting_conditions"
+    ],
+    "missingRequired": [],
+    "complete": true
+  }
+}

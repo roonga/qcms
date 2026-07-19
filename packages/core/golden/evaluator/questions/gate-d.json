@@ -1,0 +1,8 @@
+{
+  "type": "boolean",
+  "questionId": "q_gate_d",
+  "label": {
+    "en": "Gate D (corpus rule target)"
+  },
+  "required": false
+}

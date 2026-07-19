@@ -1,0 +1,78 @@
+{
+  "description": "in is false when the answer equals none of the listed values; the multiChoice answer is a proper subset of a listed element and does not match (set equality per element, not containment).",
+  "form": "golden/evaluator/forms/ops-in.json",
+  "answers": [
+    {
+      "questionId": "q_full_name",
+      "value": "Alan Turing"
+    },
+    {
+      "questionId": "q_medical_history",
+      "value": "Some history"
+    },
+    {
+      "questionId": "q_cigs_daily",
+      "value": 7
+    },
+    {
+      "questionId": "q_dob",
+      "value": "1999-12-31"
+    },
+    {
+      "questionId": "q_smoker",
+      "value": false
+    },
+    {
+      "questionId": "q_coverage_level",
+      "value": "opt_none"
+    },
+    {
+      "questionId": "q_preexisting_conditions",
+      "value": ["opt_asthma"]
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_src",
+        "questionId": "q_full_name"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_medical_history"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_cigs_daily"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_dob"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_smoker"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_coverage_level"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_preexisting_conditions"
+      }
+    ],
+    "visibleSteps": ["stp_src"],
+    "currentStep": null,
+    "answeredRequired": [
+      "q_full_name",
+      "q_cigs_daily",
+      "q_dob",
+      "q_smoker",
+      "q_coverage_level",
+      "q_preexisting_conditions"
+    ],
+    "missingRequired": [],
+    "complete": true
+  }
+}

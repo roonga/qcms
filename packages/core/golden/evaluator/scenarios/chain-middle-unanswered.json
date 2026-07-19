@@ -1,0 +1,27 @@
+{
+  "description": "Exclusion chain, B visible but unanswered: C's gte condition over the unanswered B is false, so C stays hidden.",
+  "form": "golden/evaluator/forms/exclusion-chain.json",
+  "answers": [
+    {
+      "questionId": "q_smoker",
+      "value": true
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_one",
+        "questionId": "q_smoker"
+      },
+      {
+        "stepId": "stp_two",
+        "questionId": "q_cigs_daily"
+      }
+    ],
+    "visibleSteps": ["stp_one", "stp_two"],
+    "currentStep": "stp_two",
+    "answeredRequired": ["q_smoker"],
+    "missingRequired": ["q_cigs_daily"],
+    "complete": false
+  }
+}
