@@ -1,0 +1,22 @@
+{
+  "formId": "frm_life_signup",
+  "defaultLocale": "en",
+  "title": { "en": "Life insurance sign-up" },
+  "steps": [
+    {
+      "stepId": "stp_health",
+      "title": { "en": "Health" },
+      "items": [
+        { "questionId": "q_smoker", "version": 2 },
+        { "questionId": "q_cigs_daily", "version": 1 }
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "ruleId": "rul_smoker_followup",
+      "when": { "op": "equals", "questionId": "q_smoker", "value": true },
+      "show": ["q_cigs_daily"]
+    }
+  ]
+}

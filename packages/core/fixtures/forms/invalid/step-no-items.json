@@ -1,0 +1,20 @@
+{
+  "description": "A step needs at least one pinned question (INVALID_FORM_DEFINITION).",
+  "expected": {
+    "code": "INVALID_FORM_DEFINITION",
+    "path": ["steps", 0, "items"]
+  },
+  "definition": {
+    "formId": "frm_minimal",
+    "defaultLocale": "en",
+    "title": { "en": "Minimal" },
+    "steps": [
+      {
+        "stepId": "stp_only",
+        "title": { "en": "The only step" },
+        "items": []
+      }
+    ],
+    "rules": []
+  }
+}

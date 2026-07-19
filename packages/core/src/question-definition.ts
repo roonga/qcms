@@ -3,6 +3,7 @@ import { z } from "zod";
 import { DateAnswerValue } from "./answer-value.js";
 import { QcmsError, err, ok, type Result } from "./errors.js";
 import { OptionId, QuestionId } from "./ids.js";
+import { addCodedIssue as addSharedCodedIssue, toCodedErrors } from "./internal/coded-issues.js";
 import { LocalizedText } from "./localized-text.js";
 import { checkSafePattern } from "./safe-pattern.js";
 
@@ -40,15 +41,15 @@ export type QuestionDefinitionError = z.infer<typeof QuestionDefinitionError>;
 
 type IssuePath = readonly (string | number)[];
 
-/** Attach a typed qcms code to a Zod custom issue so the parse helpers can
- * surface it instead of the generic structural code. */
+/** Module-typed wrapper over the shared coded-issue plumbing: only members of
+ * QuestionDefinitionErrorCode can be attached here (typos are compile errors). */
 function addCodedIssue(
   ctx: z.core.$RefinementCtx,
   code: QuestionDefinitionErrorCode,
   message: string,
   path: IssuePath,
 ): void {
-  ctx.addIssue({ code: "custom", message, path: [...path], params: { qcms: code } });
+  addSharedCodedIssue(ctx, code, message, path);
 }
 
 /**
@@ -312,29 +313,11 @@ export const QuestionVersionRecord = z.object({
 });
 export type QuestionVersionRecord = z.infer<typeof QuestionVersionRecord>;
 
-/** Extract the typed qcms code from a custom issue, if one was attached. */
-function qcmsCodeOf(issue: z.core.$ZodIssue): QuestionDefinitionErrorCode | undefined {
-  if (issue.code !== "custom") {
-    return undefined;
-  }
-  const params: unknown = issue.params;
-  if (params === null || typeof params !== "object") {
-    return undefined;
-  }
-  const raw: unknown = (params as Record<string, unknown>)["qcms"];
-  const parsed = QuestionDefinitionErrorCode.safeParse(raw);
-  return parsed.success ? parsed.data : undefined;
-}
-
 function toDefinitionErrors(
   error: z.ZodError,
   fallback: QuestionDefinitionErrorCode,
 ): readonly QuestionDefinitionError[] {
-  return error.issues.map((issue) => ({
-    code: qcmsCodeOf(issue) ?? fallback,
-    message: issue.message,
-    path: issue.path.map((segment) => (typeof segment === "number" ? segment : String(segment))),
-  }));
+  return toCodedErrors(QuestionDefinitionErrorCode, error, fallback);
 }
 
 /**

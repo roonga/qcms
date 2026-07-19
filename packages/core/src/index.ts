@@ -1,7 +1,8 @@
 /**
  * @qcms/core public surface (task 002: IDs, LocalizedText, canonical
- * AnswerValue, error primitives · task 003: question definitions). Pure
- * functions over immutable data — no I/O, no dependencies beyond zod (R3).
+ * AnswerValue, error primitives · task 003: question definitions · task 004:
+ * form definitions and the typed publish error model). Pure functions over
+ * immutable data — no I/O, no dependencies beyond zod (R3).
  */
 export { QcmsError, ok, err, qcmsError, type Result } from "./errors.js";
 
@@ -87,3 +88,23 @@ export {
   isQuestionDefinition,
   isQuestionVersionRecord,
 } from "./question-definition.js";
+
+export {
+  QuestionRef,
+  Step,
+  VisibilityRule,
+  FormDefinition,
+  FormDefinitionError,
+  FormDefinitionErrorCode,
+  parseFormDefinition,
+  isFormDefinition,
+} from "./form-definition.js";
+
+export {
+  PublishErrorCode,
+  PublishError,
+  type PublishErrorOf,
+  type FrozenSnapshot,
+  type PublishResult,
+  publishErrorLocation,
+} from "./publish-error.js";

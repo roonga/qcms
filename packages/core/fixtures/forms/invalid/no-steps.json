@@ -1,0 +1,14 @@
+{
+  "description": "A form needs at least one step (INVALID_FORM_DEFINITION).",
+  "expected": {
+    "code": "INVALID_FORM_DEFINITION",
+    "path": ["steps"]
+  },
+  "definition": {
+    "formId": "frm_minimal",
+    "defaultLocale": "en",
+    "title": { "en": "Minimal" },
+    "steps": [],
+    "rules": []
+  }
+}

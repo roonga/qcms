@@ -1,0 +1,25 @@
+{
+  "description": "Two steps share stepId stp_health; the later occurrence is flagged (DUPLICATE_STEP_ID).",
+  "expected": {
+    "code": "DUPLICATE_STEP_ID",
+    "path": ["steps", 1, "stepId"]
+  },
+  "definition": {
+    "formId": "frm_life_signup",
+    "defaultLocale": "en",
+    "title": { "en": "Life insurance sign-up" },
+    "steps": [
+      {
+        "stepId": "stp_health",
+        "title": { "en": "Health" },
+        "items": [{ "questionId": "q_smoker", "version": 2 }]
+      },
+      {
+        "stepId": "stp_health",
+        "title": { "en": "Health again" },
+        "items": [{ "questionId": "q_cigs_daily", "version": 1 }]
+      }
+    ],
+    "rules": []
+  }
+}

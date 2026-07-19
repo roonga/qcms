@@ -1,0 +1,19 @@
+{
+  "description": "The rules array must be present even when empty; a draft without it is structurally malformed (INVALID_FORM_DEFINITION).",
+  "expected": {
+    "code": "INVALID_FORM_DEFINITION",
+    "path": ["rules"]
+  },
+  "definition": {
+    "formId": "frm_minimal",
+    "defaultLocale": "en",
+    "title": { "en": "Minimal" },
+    "steps": [
+      {
+        "stepId": "stp_only",
+        "title": { "en": "The only step" },
+        "items": [{ "questionId": "q_full_name", "version": 1 }]
+      }
+    ]
+  }
+}

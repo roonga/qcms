@@ -1,0 +1,23 @@
+{
+  "description": "q_smoker is pinned twice within one step; the uniqueness refinement is form-wide, so same-step duplicates are caught too (DUPLICATE_QUESTION_IN_FORM).",
+  "expected": {
+    "code": "DUPLICATE_QUESTION_IN_FORM",
+    "path": ["steps", 0, "items", 1, "questionId"]
+  },
+  "definition": {
+    "formId": "frm_life_signup",
+    "defaultLocale": "en",
+    "title": { "en": "Life insurance sign-up" },
+    "steps": [
+      {
+        "stepId": "stp_health",
+        "title": { "en": "Health" },
+        "items": [
+          { "questionId": "q_smoker", "version": 2 },
+          { "questionId": "q_smoker", "version": 2 }
+        ]
+      }
+    ],
+    "rules": []
+  }
+}
