@@ -8,9 +8,10 @@
 #         run's stale-claim recovery picks up.
 
 param(
-    [int]$Parallel = 1,        # executors per batch (pairwise-independent tasks only)
-    [int]$RetryMinutes = 30,   # wait between retries when usage-limited / crashed
-    [int]$MaxIterations = 100  # hard stop so a logic bug can't loop forever
+    [int]$Parallel = 1,         # executors per batch (pairwise-independent tasks only)
+    [int]$RetryMinutes = 30,    # wait between retries when usage-limited / crashed
+    [int]$MaxIterations = 100,  # hard stop so a logic bug can't loop forever
+    [string]$StopAfterTask = "" # e.g. "010" — stop once this task lands (stage-boundary runs)
 )
 
 Set-Location (Join-Path $PSScriptRoot "..")
@@ -26,7 +27,14 @@ for ($i = 1; $i -le $MaxIterations; $i++) {
     Add-Content $log $out
     $sentinel = ($out -split "`n" | Where-Object { $_ -match '^NEXT-TASK:' } | Select-Object -Last 1)
 
-    if     ($sentinel -match 'NEXT-TASK: (LANDED|RESUMED)') { Log $sentinel; continue }
+    if     ($sentinel -match 'NEXT-TASK: (LANDED|RESUMED)') {
+        Log $sentinel
+        if ($StopAfterTask -and $sentinel -match "(LANDED|RESUMED)\s+0*$([int]$StopAfterTask)\b") {
+            Log "task $StopAfterTask landed — stop-after target reached, stopping."
+            break
+        }
+        continue
+    }
     elseif ($sentinel -match 'NEXT-TASK: NOTHING')          { Log "$sentinel — ledger exhausted, stopping."; break }
     elseif ($sentinel -match 'NEXT-TASK: AWAITING-HUMAN')   { Log "$sentinel — human gate reached, stopping. See ledger for what's needed."; break }
     elseif ($sentinel -match 'NEXT-TASK: BLOCKED')          { Log "$sentinel — needs a decision, stopping."; break }
