@@ -35,7 +35,8 @@ npm: `@qcms/*`, `qcms`, and `create-qcms-app` were all unclaimed as of 2026-07-1
 
 - **`/task NNN`** — orchestrate one plan task: `task-executor` subagent implements it on `feat/NNN-slug` (worktree isolation), `task-reviewer` subagent verifies exit criteria + R-rules against the diff, merge only on approval + green, ledger updated.
 - **`/next-task`** — pick the next executable `todo` from the ledger (numeric order; exceptions: 040 after 036 before 038 · 041 after 034, never gating 038 · 042 after 027 before 029/031–035) and run the `/task` flow on it. Stops at human gates instead of simulating them.
-- **`/loop /next-task`** — autonomous multi-task run; halts when blocked, at a human gate, or when nothing is executable.
+- **`/loop /next-task`** — autonomous multi-task run; halts when blocked, at a human gate, or when nothing is executable. **`/loop /next-task 3`** — same, with up to 3 parallel executors per batch.
+- **Parallel work rules (one conductor, N executors):** executors run in isolated **worktrees** and never touch `main` or the ledger; the conductor is the **only merger**, and merges are strictly serialized (rebase onto current main → re-run all gates → squash-merge). Tasks may run concurrently only when **pairwise independent** — no dependency path between them and disjoint file footprints — and never across a stage boundary. The **ledger row is the claim lock**: `in-progress (branch)` committed to main claims a task; anyone selecting work treats claimed rows as taken. If you run a second human-driven session on this machine, give it its own `git worktree` — never two sessions in one checkout.
 - **Human gates (never automate):** wireframe + screenshot sign-offs (042 and every UI task's static-render gate), the manual screen-reader pass (030), security review sign-off (040), the external-tester launch gate (038), and any `.archive`/destructive operation.
 
 ## Commit / PR conventions (full rules: CONTRIBUTING.md)
