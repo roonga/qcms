@@ -56,4 +56,56 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    // @qcms/a2ui-compiler shipped source is a pure projection (task 011): its
+    // runtime stays React-free and never imports the renderer/spec package
+    // (`@a2ra/*` is a *test-only* devDependency, used to validate compiled
+    // output against the Zod schemas), never the db, and no Node built-ins.
+    // Tests may use Node ambient imports (fixture loading) and @a2ra/core; the
+    // shipped source may not — keep both honest.
+    files: ["packages/a2ui-compiler/src/**/*.ts"],
+    ignores: ["packages/a2ui-compiler/src/**/*.test.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                "node:*",
+                "crypto",
+                "fs",
+                "path",
+                "os",
+                "util",
+                "stream",
+                "buffer",
+                "child_process",
+                "worker_threads",
+                "events",
+                "url",
+              ],
+              message:
+                "@qcms/a2ui-compiler runtime is I/O-free: no Node built-ins in shipped source.",
+            },
+            {
+              group: ["react", "react-*", "react/*"],
+              message:
+                "@qcms/a2ui-compiler runtime is React-free (it emits plain-data A2UI nodes): no React imports in shipped source.",
+            },
+            {
+              group: ["@a2ra/*"],
+              message:
+                "@a2ra/core is a test-only devDependency (schema validation): never import it from shipped compiler source — the runtime stays React-free (ADR-22).",
+            },
+            {
+              group: ["@qcms/db", "@qcms/db/*"],
+              message:
+                "The compiler depends on @qcms/core types only — never @qcms/db (ARCHITECTURE §3).",
+            },
+          ],
+        },
+      ],
+    },
+  },
 );

@@ -33,7 +33,7 @@ Status values: `todo` · `in-progress (branch)` · `blocked (issue #)` · `done 
 | 008 | compileDraft publish aggregate | 3 | done |
 | 009 | Answer validation and submission lock | 3 | done |
 | 010 | Secure-link tokens (core) | 3 | done |
-| 011 | A2UI compiler | 4 | in-progress (feat/011-a2ui-compiler — unblocked by @a2ra/core@1.0.0-preview.7; resume from HANDOFF) |
+| 011 | A2UI compiler | 4 | done |
 | 012 | A2UI golden corpus and agent seam | 4 | todo |
 | 013 | DB schema, migrations, test harness | 5 | todo |
 | 014 | Query helpers | 5 | todo |

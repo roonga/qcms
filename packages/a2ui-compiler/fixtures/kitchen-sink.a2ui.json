@@ -1,0 +1,232 @@
+{
+  "documents": [
+    {
+      "stepId": "stp_about",
+      "root": {
+        "type": "Form",
+        "children": [
+          {
+            "type": "Flex",
+            "props": {
+              "direction": "column",
+              "gap": "md"
+            },
+            "children": [
+              {
+                "type": "Text",
+                "props": {
+                  "as": "h1"
+                },
+                "children": "Kitchen-sink questionnaire"
+              },
+              {
+                "type": "Text",
+                "props": {
+                  "as": "h2"
+                },
+                "children": "About you"
+              },
+              {
+                "type": "TextField",
+                "props": {
+                  "label": "Full name",
+                  "description": "As it appears on your ID.",
+                  "name": "q_full_name",
+                  "isRequired": true,
+                  "minLength": 2,
+                  "maxLength": 100,
+                  "pattern": "^[a-zA-Z ]+$"
+                }
+              },
+              {
+                "type": "TextArea",
+                "props": {
+                  "label": "Short bio",
+                  "name": "q_bio",
+                  "maxLength": 500
+                }
+              },
+              {
+                "type": "NumberField",
+                "props": {
+                  "label": "Age",
+                  "description": "In whole years.",
+                  "name": "q_age",
+                  "isRequired": true,
+                  "minValue": 0,
+                  "maxValue": 120,
+                  "step": 1
+                }
+              },
+              {
+                "type": "DatePicker",
+                "props": {
+                  "label": "Date of birth",
+                  "name": "q_dob",
+                  "granularity": "day",
+                  "minValue": "1900-01-01",
+                  "maxValue": "2025-12-31"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "stepId": "stp_health",
+      "root": {
+        "type": "Form",
+        "children": [
+          {
+            "type": "Flex",
+            "props": {
+              "direction": "column",
+              "gap": "md"
+            },
+            "children": [
+              {
+                "type": "Text",
+                "props": {
+                  "as": "h2"
+                },
+                "children": "Health details"
+              },
+              {
+                "type": "RadioGroup",
+                "props": {
+                  "label": "Do you smoke?",
+                  "name": "q_smoker",
+                  "isRequired": true
+                },
+                "children": [
+                  {
+                    "type": "Radio",
+                    "props": {
+                      "value": "true",
+                      "label": "Yes"
+                    }
+                  },
+                  {
+                    "type": "Radio",
+                    "props": {
+                      "value": "false",
+                      "label": "No"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "RadioGroup",
+                "props": {
+                  "label": "Coverage level",
+                  "name": "q_coverage",
+                  "isRequired": true
+                },
+                "children": [
+                  {
+                    "type": "Radio",
+                    "props": {
+                      "value": "opt_basic",
+                      "label": "Basic"
+                    }
+                  },
+                  {
+                    "type": "Radio",
+                    "props": {
+                      "value": "opt_standard",
+                      "label": "Standard"
+                    }
+                  },
+                  {
+                    "type": "Radio",
+                    "props": {
+                      "value": "opt_premium",
+                      "label": "Premium"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "Select",
+                "props": {
+                  "label": "Country of residence",
+                  "description": "Where you currently live.",
+                  "name": "q_country",
+                  "items": [
+                    {
+                      "label": "United States",
+                      "value": "opt_us"
+                    },
+                    {
+                      "label": "Canada",
+                      "value": "opt_ca"
+                    },
+                    {
+                      "label": "United Kingdom",
+                      "value": "opt_gb"
+                    },
+                    {
+                      "label": "Australia",
+                      "value": "opt_au"
+                    },
+                    {
+                      "label": "Germany",
+                      "value": "opt_de"
+                    },
+                    {
+                      "label": "France",
+                      "value": "opt_fr"
+                    },
+                    {
+                      "label": "Japan",
+                      "value": "opt_jp"
+                    },
+                    {
+                      "label": "India",
+                      "value": "opt_in"
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "CheckboxGroup",
+                "props": {
+                  "label": "Pre-existing conditions",
+                  "description": "Select all that apply.",
+                  "name": "q_conditions",
+                  "orientation": "vertical"
+                },
+                "children": [
+                  {
+                    "type": "Checkbox",
+                    "props": {
+                      "value": "opt_diabetes",
+                      "label": "Diabetes"
+                    }
+                  },
+                  {
+                    "type": "Checkbox",
+                    "props": {
+                      "value": "opt_hypertension",
+                      "label": "Hypertension"
+                    }
+                  },
+                  {
+                    "type": "Checkbox",
+                    "props": {
+                      "value": "opt_asthma",
+                      "label": "Asthma"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "compilerVersion": "0.0.0",
+  "a2uiSpecVersion": "1.0.0-preview.7"
+}

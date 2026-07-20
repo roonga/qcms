@@ -2,7 +2,11 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": "src",
-    "outDir": "dist"
+    "outDir": "dist",
+    // Node ambient types are for tests only (fixture loading + @a2ra/core
+    // schema validation); the build config resets this so shipped compiler
+    // code cannot lean on Node APIs (runtime stays React-free and I/O-free).
+    "types": ["node"]
   },
   "include": ["src"]
 }

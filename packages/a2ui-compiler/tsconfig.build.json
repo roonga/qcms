@@ -1,5 +1,10 @@
 {
   "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // No Node ambient types in the shipped build — the compiler runtime is
+    // React-free and I/O-free; only the test-inclusive tsconfig.json enables them.
+    "types": []
+  },
   "include": ["src"],
   "exclude": ["**/*.test.ts"]
 }
