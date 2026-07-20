@@ -19,13 +19,18 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
+// On Windows, Node's execFile does not resolve `git` -> `git.exe` from PATH
+// (unlike a shell), so a bare "git" ENOENTs even when git is installed — the
+// local gate then can't run, only Linux CI. Resolve the platform binary name.
+const GIT = process.platform === "win32" ? "git.exe" : "git";
+
 const SOURCE_GLOBS = ["*.ts", "*.tsx", "*.mjs", "*.mts", "*.js", "*.jsx", "*.json", "*.md"];
 const ALLOWED = new Set([0x09, 0x0a, 0x0d]);
 // eslint-disable-next-line no-control-regex
 const DISALLOWED = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/;
 
 function tracked() {
-  const out = execFileSync("git", ["ls-files", "-z", ...SOURCE_GLOBS], { encoding: "utf8" });
+  const out = execFileSync(GIT, ["ls-files", "-z", ...SOURCE_GLOBS], { encoding: "utf8" });
   return out.split("\0").filter((p) => p !== "");
 }
 

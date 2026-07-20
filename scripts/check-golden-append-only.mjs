@@ -19,8 +19,14 @@
 
 import { execFileSync } from "node:child_process";
 
-/** Directories under which every committed file is append-only. */
-const GUARDED_PREFIXES = ["packages/a2ui-compiler/golden/"];
+/**
+ * Path prefixes under which every committed file is append-only. This guards the
+ * versioned corpus directories (`golden/v1/`, `golden/v2/`, …) — the immutable
+ * data — but deliberately NOT `golden/README.md`, whose own prose must stay
+ * editable to record each new spec version (workshop retro, Stage 6: the guard
+ * froze the README it tells you to update).
+ */
+const GUARDED_PREFIXES = ["packages/a2ui-compiler/golden/v"];
 
 const DEFAULT_BRANCH = process.env.DEFAULT_BRANCH ?? "main";
 

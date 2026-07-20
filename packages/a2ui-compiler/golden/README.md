@@ -50,11 +50,12 @@ prescribes, then commit. Never seed and commit blind.
 
 ## Spec-bump procedure (a breaking A2UI change)
 
-The current spec version lives in `v1/`. When a genuinely breaking A2UI change
-arrives (a node/prop rename or removal in a new `@a2ra/core`, a mapping change
-that alters existing documents):
+Committed spec versions live in `v1/`, `v2/`, … (the latest is the current
+target). When a genuinely breaking A2UI change arrives (a node/prop rename or
+removal in a new `@a2ra/core`, a mapping change that alters existing documents):
 
-1. Create a **new** directory `v2/` alongside `v1/`. Do not touch `v1/`.
+1. Create a **new** directory (the next `vN/`) alongside the existing ones. Do
+   not touch any existing `vN/`.
 2. Seed the corpus forms' `v2/` goldens from the new compiler output and
    hand-review them.
 3. Point the corpus runner at the new version for the current compiler while
@@ -62,10 +63,12 @@ that alters existing documents):
    any store — old stored snapshots still resolve against their original spec
    version (ADR-18, the stored copy is served forever).
 
-`v1/` documents remain in the tree and remain rendered forever; a spec bump is
+Every `vN/` directory remains in the tree and rendered forever; a spec bump is
 purely additive. The machinery to _select_ a version per stored snapshot is
-built when the first breaking change actually arrives (task 012 out of scope) —
-until then there is exactly one version, `v1`.
+built when a real per-snapshot dispatch need arrives. Current versions on disk:
+`v1/` and `v2/` (v2 added by task 026's honeypot node). New goldens are always a
+**fresh file add** — never a rename/move into a `vN/` directory (the append-only
+guard reads a rename as a deletion of the old path and fails).
 
 ## Layout
 
