@@ -2,7 +2,7 @@
   "name": "@qcms/db",
   "version": "0.0.0",
   "private": false,
-  "description": "qcms Drizzle schema, migrations, and query helpers (placeholder, task 001)",
+  "description": "qcms Drizzle schema, migrations, and the Testcontainers test harness (task 013)",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -15,12 +15,25 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "migrations"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --root ../.. --project @qcms/db",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "db:generate": "drizzle-kit generate"
+  },
+  "dependencies": {
+    "@qcms/a2ui-compiler": "workspace:*",
+    "@qcms/core": "workspace:*",
+    "drizzle-orm": "^0.45.2",
+    "pg": "^8.22.0"
+  },
+  "devDependencies": {
+    "@testcontainers/postgresql": "^12.0.4",
+    "@types/pg": "^8.20.0",
+    "drizzle-kit": "^0.31.10"
   }
 }

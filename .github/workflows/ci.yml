@@ -35,6 +35,10 @@ jobs:
 
       - run: pnpm lint
 
+      # Includes @qcms/db's integration tests (task 013), which boot a
+      # Testcontainers Postgres per test file. The Docker daemon is available on
+      # ubuntu-latest, so no extra service wiring is needed; the harness forces
+      # anonymous image pulls (no registry credentials required).
       - run: pnpm test
 
       # The golden-corpus drift guard (task 007): fails if any golden
