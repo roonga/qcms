@@ -45,7 +45,7 @@ Status values: `todo` · `in-progress (branch)` · `blocked (issue #)` · `done 
 | 020 | submit slice (lock + outbox) | 6 | done |
 | 021 | Question authoring slices | 6 | done |
 | 022 | Form authoring and publish slices | 6 | done |
-| 023 | Response listing, export, erasure slices | 6 | todo |
+| 023 | Response listing, export, erasure slices | 6 | in-progress (feat/023-responses-export-erase-slices) |
 | 024 | Secure-link minting and webhook config slices | 6 | todo |
 | 025 | Webhook deliverer worker | 6 | todo |
 | 026 | Abuse controls | 6 | todo |
