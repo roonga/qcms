@@ -192,7 +192,7 @@ function SelectField(props: SelectProps) {
     <FieldBlur onBlur={field.blur}>
       <Select
         {...props}
-        // undefined (not "") when unselected — "" is not a valid option key and
+        // undefined (not "") when unselected - "" is not a valid option key and
         // breaks RAC's selection manager.
         value={typeof field.value === "string" ? field.value : undefined}
         isInvalid={field.error != null}
@@ -204,7 +204,7 @@ function SelectField(props: SelectProps) {
 }
 
 /**
- * The lean, explicit registry — only the components the compiler emits
+ * The lean, explicit registry - only the components the compiler emits
  * (a2ui-mapping.md) plus the qcms `Honeypot` node (task 026). Never
  * `defaultRegistry` (ADR-22): a smaller, auditable surface. `strict` means the
  * a2ra renderer validates every node against its schema before rendering.
@@ -240,7 +240,7 @@ const V1_REGISTRY = buildV1Registry();
  * `specVersion` dispatch seam (ADR-18). Every A2UI spec version ever published
  * must keep rendering; today the corpus is a single generation (schemas of the
  * pinned `@a2ra/core`), so all versions resolve to the v1 registry. A future
- * breaking spec version branches here — rendered alongside v1, never migrating
+ * breaking spec version branches here - rendered alongside v1, never migrating
  * stored snapshots.
  */
 export function registryForSpecVersion(specVersion?: string): ComponentRegistry {

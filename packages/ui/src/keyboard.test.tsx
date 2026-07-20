@@ -13,7 +13,7 @@ function isChecked(element: HTMLElement): boolean {
 
 // Keyboard walkthrough (exit criterion 4) over the kitchen-sink document:
 // forward Tab order across every control, radio arrow-key selection, checkbox
-// Space toggle — the interactions component libraries "usually" supply but this
+// Space toggle - the interactions component libraries "usually" supply but this
 // task conformance-verifies rather than assumes (a2ui-mapping.md / ADR-22).
 const kitchen = loadGoldenForms().find((f) => f.version === "v2" && f.form === "kitchen-sink");
 if (!kitchen) throw new Error("kitchen-sink v2 golden not found");

@@ -11,7 +11,7 @@ jobs:
       fail-fast: false
       # Cross-version drift check (e.g. contentHash / encoding stability,
       # task 009): 24 is our pinned LTS floor (engines >=24) and is required;
-      # 26 is the incoming LTS line — non-blocking early warning only.
+      # 26 is the incoming LTS line - non-blocking early warning only.
       matrix:
         node-version: [24, 26]
     continue-on-error: ${{ matrix.node-version == 26 }}
@@ -43,7 +43,7 @@ jobs:
 
       # The golden-corpus drift guard (task 007): fails if any golden
       # scenario's expected FlowState differs from live evaluator output.
-      # Also part of `pnpm test` — kept as a named step so semantic drift is
+      # Also part of `pnpm test` - kept as a named step so semantic drift is
       # visible as its own gate.
       - run: pnpm test:golden-drift
 
@@ -61,7 +61,7 @@ jobs:
       # Runtime dependency licenses must be permissive/MIT-compatible (deny-by-default).
       - run: pnpm check:licenses
 
-      # Em dash (—) is banned in prose/comments/UI strings (AI tell; public repo).
+      # Em dash (U+2014) is banned in prose/comments/UI strings (AI tell; public repo).
       - run: pnpm check:no-em-dash
 
       - run: pnpm build
@@ -70,7 +70,7 @@ jobs:
   # this is red, a product scenario broke (not a unit test). It drives the whole
   # product over HTTP against a Testcontainers Postgres per scenario file (Docker
   # is available on ubuntu-latest; the harness forces anonymous image pulls).
-  # Single Node version — the scenarios exercise runtime behaviour, not the
+  # Single Node version - the scenarios exercise runtime behaviour, not the
   # cross-version encoding drift the unit matrix guards. The files parallelise
   # (isolated DBs) so the suite stays well under the 5-minute budget.
   e2e:

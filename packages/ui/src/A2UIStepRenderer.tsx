@@ -31,7 +31,7 @@ export interface A2UIStepRendererProps {
   readonly onBlur?: (name: string) => void;
   /** BCP-47 locale for react-aria formatting/announcements. Text is already resolved at compile time. */
   readonly locale?: string;
-  /** The document's `a2uiSpecVersion` — selects the render generation (ADR-18 seam). */
+  /** The document's `a2uiSpecVersion` - selects the render generation (ADR-18 seam). */
   readonly specVersion?: string;
 }
 
@@ -40,7 +40,7 @@ const NO_ERRORS: A2UIErrors = Object.freeze({});
 const noop = (): void => {};
 
 /**
- * The shared, controlled A2UI step renderer (task 028) — the *only* renderer,
+ * The shared, controlled A2UI step renderer (task 028) - the *only* renderer,
  * so admin preview fidelity equals what the respondent gets (ARCHITECTURE §6).
  *
  * Controlled: the parent owns `values` and `errors`; this component owns no

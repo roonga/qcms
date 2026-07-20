@@ -2,7 +2,7 @@
   "name": "qcms-api",
   "version": "0.0.0",
   "private": true,
-  "description": "qcms API composition root (Hono, vertical slices) — task 017",
+  "description": "qcms API composition root (Hono, vertical slices), task 017",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",

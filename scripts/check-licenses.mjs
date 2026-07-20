@@ -7,13 +7,13 @@
  * packages, so every **runtime** dependency must carry a permissive,
  * MIT-compatible license. Copyleft (GPL/AGPL/LGPL/SSPL/EUPL), source-available
  * (BUSL/Elastic), and unlicensed/proprietary deps are forbidden in the runtime
- * tree — they'd impose obligations MIT redistribution can't honor.
+ * tree - they'd impose obligations MIT redistribution can't honor.
  *
  * Deny-by-default: any license NOT on the allow-list fails the build, so a new
  * or unusual license gets a human decision instead of silently shipping. Dev
  * dependencies are not checked (not redistributed).
  *
- * Uses `pnpm licenses list --prod --json` — no extra dependency.
+ * Uses `pnpm licenses list --prod --json` - no extra dependency.
  * Usage:  node scripts/check-licenses.mjs
  */
 
@@ -37,7 +37,7 @@ const ALLOWED = new Set([
 ]);
 
 function normalize(license) {
-  // pnpm may report SPDX expressions like "(MIT OR Apache-2.0)" — allow if ANY
+  // pnpm may report SPDX expressions like "(MIT OR Apache-2.0)" - allow if ANY
   // disjunct is allowed; for "AND" every part must be allowed.
   const expr = license.replace(/[()]/g, "").trim();
   if (/\bOR\b/i.test(expr)) return expr.split(/\bOR\b/i).map((s) => s.trim());
@@ -84,5 +84,5 @@ if (violations.length > 0) {
 
 const count = Object.values(byLicense).reduce((n, p) => n + (p?.length ?? 0), 0);
 console.log(
-  `check-licenses: OK — ${count} runtime deps, all permissive (${Object.keys(byLicense).sort().join(", ")}).`,
+  `check-licenses: OK - ${count} runtime deps, all permissive (${Object.keys(byLicense).sort().join(", ")}).`,
 );

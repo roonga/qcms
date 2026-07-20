@@ -16,7 +16,7 @@ import { ControlledHost, useChanges } from "./test-support/host.tsx";
 
 // Controlled round-trip (exit criterion 3): typing into each control fires the
 // canonical AnswerValue shape for its question type. The emitted value is
-// asserted with task 002's own parsers — reusing the canonical schemas as the
+// asserted with task 002's own parsers - reusing the canonical schemas as the
 // oracle, not a re-implementation. A stateful host makes the controls genuinely
 // controlled (values flow back down), proving the full loop.
 
@@ -32,7 +32,7 @@ const stepHealth = stepById("stp_health");
 const stepCover = stepById("stp_cover");
 
 // The one question type no golden document exercises: singleChoice with > 7
-// options (Select). A tiny synthetic fixture — not a golden, just a test input.
+// options (Select). A tiny synthetic fixture - not a golden, just a test input.
 const selectStep: A2UIStepDocument = {
   stepId: "stp_select",
   root: {

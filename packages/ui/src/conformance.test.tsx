@@ -7,7 +7,7 @@ import { loadGoldenSteps } from "./test-support/golden.ts";
 
 // The conformance contract (ADR-18, risk #3): every golden document, every spec
 // generation, renders correctly. Cases are generated from the append-only
-// corpus — v1 (task 012) and v2 (task 026, honeypot) — so a new golden file or
+// corpus - v1 (task 012) and v2 (task 026, honeypot) - so a new golden file or
 // generation is covered automatically.
 const steps = loadGoldenSteps();
 const cases = steps.map((step) => [`${step.version}/${step.form}/${step.stepId}`, step] as const);

@@ -1,7 +1,7 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    // No Node ambient types in the shipped build — core is pure and I/O-free
+    // No Node ambient types in the shipped build: core is pure and I/O-free
     // (R3); only the test-inclusive tsconfig.json enables them.
     "types": []
   },

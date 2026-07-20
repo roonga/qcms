@@ -4,7 +4,7 @@
  * Reject control characters in tracked text source (workshop retro, Stage 4).
  *
  * A NUL byte (0x00) once shipped in a `.ts` file and passed build, typecheck,
- * test, lint, and prettier — every gate tolerated it because it was used as a
+ * test, lint, and prettier - every gate tolerated it because it was used as a
  * *consistent* delimiter. Only `git diff` flagging the file as binary caught it,
  * and only by luck in review. A control char in source is unreviewable (git
  * renders the file as `Bin`) and a latent correctness hazard. This guard closes
@@ -20,7 +20,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
 // On Windows, Node's execFile does not resolve `git` -> `git.exe` from PATH
-// (unlike a shell), so a bare "git" ENOENTs even when git is installed — the
+// (unlike a shell), so a bare "git" ENOENTs even when git is installed - the
 // local gate then can't run, only Linux CI. Resolve the platform binary name.
 const GIT = process.platform === "win32" ? "git.exe" : "git";
 
@@ -62,4 +62,4 @@ if (violations.length > 0) {
   process.exit(1);
 }
 
-console.log("check-no-control-chars: OK — no disallowed control characters in tracked source.");
+console.log("check-no-control-chars: OK - no disallowed control characters in tracked source.");

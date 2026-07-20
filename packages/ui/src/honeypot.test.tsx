@@ -6,7 +6,7 @@ import { A2UIStepRenderer } from "./A2UIStepRenderer.tsx";
 import { loadGoldenForms } from "./test-support/golden.ts";
 
 // The honeypot decoy contract (task 026): every v2 step ends with a Honeypot
-// node the renderer must emit as a visually-hidden, AT-invisible input — no
+// node the renderer must emit as a visually-hidden, AT-invisible input - no
 // label, off-screen, aria-hidden, tabindex=-1. Its axe pass rides on the
 // conformance suite (v2 documents all carry it); here we assert the DOM shape
 // and its absence from the accessibility tree.
