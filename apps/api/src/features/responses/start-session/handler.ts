@@ -83,26 +83,6 @@ interface StartResult {
   expiresAt: Date;
 }
 
-// @qcms/db's row types for its enum-bearing tables (`forms`, `sessions`) resolve
-// to a TypeScript *error* type when consumed through the package's emitted
-// `.d.ts` - a drizzle `$inferSelect` + `PgEnumColumn` interaction that
-// `skipLibCheck` hides from `tsc` but typed-lint surfaces as unsafe. (The
-// enum-free rows - `form_versions`, `secure_links` - are unaffected.) Reading
-// them through a narrow local view of the fields this slice uses keeps the code
-// fully typed; a follow-up should give @qcms/db explicit row interfaces so every
-// responses slice (019, 020, …) doesn't repeat this.
-interface FormView {
-  readonly formId: FormId;
-  readonly status: "open" | "closed";
-  readonly challengeRequired: boolean;
-}
-interface SessionView {
-  readonly sessionId: SessionId;
-  readonly status: "created" | "in_progress" | "submitted" | "expired";
-  readonly formVersion: number;
-  readonly expiresAt: Date;
-}
-
 /**
  * `POST /sessions`. Delegates to the anonymous or secure-link script by which
  * field the (already-validated: exactly one) body carries, then mints the
@@ -162,7 +142,7 @@ async function startAnonymous(
   now: Date,
   challenge: ChallengeContext,
 ): Promise<StartResult> {
-  const form = (await getFormBySlug(deps.db, formSlug)) as FormView | undefined;
+  const form = await getFormBySlug(deps.db, formSlug);
   if (form === undefined) throw fail.formNotFound();
   if (form.status === "closed") throw fail.formClosed();
   await enforceChallenge(deps, form.challengeRequired, challenge);
@@ -207,7 +187,7 @@ async function startFromSecureLink(
 
   // A form may require a challenge even for invited (secure-link) entry; the
   // setting is per-form (task 026). Read the identity row for its flag.
-  const form = (await getForm(deps.db, formId)) as FormView | undefined;
+  const form = await getForm(deps.db, formId);
   await enforceChallenge(deps, form?.challengeRequired ?? false, challenge);
 
   // Session expiry never outlives the link, nor the anonymous TTL ceiling.
@@ -306,7 +286,7 @@ export function makeGetSessionHandler(deps: Deps): RouteHandler<typeof getSessio
       throw new ApiError("unauthorized", 401, "Session token does not match this session");
     }
 
-    const session = (await getSession(deps.db, authedSessionId)) as SessionView | undefined;
+    const session = await getSession(deps.db, authedSessionId);
     if (session === undefined) throw new ApiError("SESSION_NOT_FOUND", 404, "No such session");
 
     return c.json(

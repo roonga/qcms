@@ -15,11 +15,11 @@ import type { AccessMode } from "./sessions.js";
  * pagination, no business logic.
  *
  * The view is SQL-only (no Drizzle table object), so these helpers issue raw
- * `sql` fragments through the caller's {@link Executor}. Every value is
- * interpolated (parameterized), never string-concatenated, and every column is
- * aliased to camelCase so the returned rows are ready for the API layer without
- * a per-caller launder (the branded-id/enum `.d.ts` error type - issue #5 -
- * never reaches consumers because these helpers own explicit row interfaces).
+ * `sql` fragments through the caller's {@link Executor} and hand-author explicit
+ * row interfaces for the results (a raw `execute<T>` has no table to infer from).
+ * Every value is interpolated (parameterized), never string-concatenated, and
+ * every column is aliased to camelCase so the returned rows are ready for the API
+ * layer to consume directly.
  */
 
 /**

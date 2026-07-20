@@ -23,7 +23,6 @@ import {
   type FormDefinition,
   FormId,
   parseQuestionDefinition,
-  type QuestionId as QuestionIdType,
   QuestionId,
   type QuestionVersionRecord,
   SessionId,
@@ -373,7 +372,7 @@ describe("stored compiled deep-equals a fresh compile (exit criterion 4)", () =>
       const rows = await listQuestionVersions(testDb.db, QuestionId.parse(id));
       const row = rows.find((r) => r.version === 1)!;
       records.push({
-        questionId: row.questionId as QuestionIdType,
+        questionId: row.questionId,
         version: row.version,
         definition: row.definition,
       });

@@ -32,11 +32,9 @@ import type { RouteHandler } from "@hono/zod-openapi";
 import {
   type AnswerMap,
   type FormDefinition,
-  type FormId,
   type FrozenSnapshot,
   parseSessionId,
   prepareSubmission,
-  type QuestionDefinition,
   type QuestionId,
   type QuestionVersionRecord,
   type SessionId,
@@ -53,6 +51,7 @@ import {
   insertSubmission,
   latestAnswers,
   markSubmitted,
+  type SessionRow,
 } from "@qcms/db";
 import { sql } from "drizzle-orm";
 import type { Context } from "hono";
@@ -80,30 +79,11 @@ const fail = {
     new ApiError("unauthorized", 401, "Session token does not match this session"),
 } as const;
 
-// @qcms/db's row types for its enum-bearing tables (`sessions`,
-// `question_versions`) resolve to a TypeScript *error* type when consumed
-// through the package's emitted `.d.ts` - a drizzle `$inferSelect` +
-// `PgEnumColumn` interaction that `skipLibCheck` hides from `tsc` but typed-lint
-// surfaces as unsafe (issue #5). The enum-free `form_versions` and `submissions`
-// rows are unaffected. Reading the enum-bearing rows through a narrow local view
-// of the fields this slice uses keeps the code fully typed; the same launder as
-// start-session (018) and serve-step (019), pending explicit row interfaces on
-// @qcms/db.
-interface SessionView {
-  readonly sessionId: SessionId;
-  readonly formId: FormId;
-  readonly status: "created" | "in_progress" | "submitted" | "expired";
-  readonly formVersion: number;
-  readonly expiresAt: Date;
-  readonly createdAt: Date;
-}
-interface QuestionVersionView {
-  readonly definition: QuestionDefinition;
-}
-/** The per-form abuse setting this slice reads (026); same #5 launder as above. */
-interface FormAbuseView {
-  readonly minSubmitMs: number | null;
-}
+// The enum-bearing `sessions`, `forms`, and `question_versions` rows are
+// hand-authored and sound across @qcms/db's package boundary (issue #5), so this
+// slice consumes `SessionRow` and the inferred `forms`/`question_versions` rows
+// directly - no local view or cast for the row types. (`forms.min_submit_ms` is
+// the per-form abuse floor this slice reads, task 026.)
 
 /**
  * The pinned snapshot for a submission, shaped as the kernel's `FrozenSnapshot`
@@ -112,7 +92,7 @@ interface FormAbuseView {
  * each pinned `question_versions` row - a missing row is an internal
  * inconsistency in a *published* snapshot (I2), not client input, so it throws.
  */
-async function loadFrozenSnapshot(deps: Deps, session: SessionView): Promise<FrozenSnapshot> {
+async function loadFrozenSnapshot(deps: Deps, session: SessionRow): Promise<FrozenSnapshot> {
   const version = await getFormVersion(deps.db, session.formId, session.formVersion);
   if (version === undefined) {
     throw new Error(
@@ -124,8 +104,7 @@ async function loadFrozenSnapshot(deps: Deps, session: SessionView): Promise<Fro
   const questions: QuestionVersionRecord[] = [];
   for (const step of definition.steps) {
     for (const ref of step.items) {
-      const record = (await getQuestionVersion(deps.db, ref.questionId, ref.version)) as
-        QuestionVersionView | undefined;
+      const record = await getQuestionVersion(deps.db, ref.questionId, ref.version);
       if (record === undefined) {
         throw new Error(
           `submit: pinned question ${ref.questionId}@${String(ref.version)} is missing for form ${session.formId}@${String(session.formVersion)} (snapshot not self-contained)`,
@@ -174,7 +153,7 @@ function receiptFrom(row: { submittedAt: Date; contentHash: string }): SubmitRes
  */
 function detectAbuse(
   deps: Deps,
-  session: SessionView,
+  session: SessionRow,
   body: Record<string, unknown>,
   minTimeFloorMs: number,
 ): FlagReason | undefined {
@@ -225,7 +204,7 @@ export function makeSubmitHandler(deps: Deps): RouteHandler<typeof submitRoute, 
     const body = c.req.valid("json") as Record<string, unknown>;
     const now = deps.clock.now();
 
-    const session = (await getSession(deps.db, sessionId)) as SessionView | undefined;
+    const session = await getSession(deps.db, sessionId);
     if (session === undefined) throw fail.sessionNotFound();
 
     // Already submitted → idempotent: return the *existing* receipt unchanged
@@ -263,7 +242,7 @@ export function makeSubmitHandler(deps: Deps): RouteHandler<typeof submitRoute, 
     // default as fallback (task 026). A missing form row here would be an
     // internal inconsistency (the session pins a formId), so fall back to the
     // default rather than fail the submission.
-    const form = (await getForm(deps.db, session.formId)) as FormAbuseView | undefined;
+    const form = await getForm(deps.db, session.formId);
     const minTimeFloorMs = form?.minSubmitMs ?? deps.config.antiAbuse.minSubmitMs;
 
     // Anti-abuse decision is pure over the (validated) submission; it changes
@@ -276,7 +255,7 @@ export function makeSubmitHandler(deps: Deps): RouteHandler<typeof submitRoute, 
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${sessionId}))`);
 
       // Re-check under the lock: a concurrent submit may have won the race.
-      const current = (await getSession(tx, sessionId)) as SessionView | undefined;
+      const current = await getSession(tx, sessionId);
       if (current !== undefined && current.status === "submitted") {
         const existing = await getSubmission(tx, sessionId);
         if (existing === undefined) {

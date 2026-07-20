@@ -15,12 +15,11 @@
  * `TextEncoder` (no `node:*`), so the export never buffers the whole table - it
  * pulls bounded keyset pages. Answer **values are never logged** (SEC-8).
  *
- * **issue #5 launder.** `@qcms/db`'s `sessions` row (enum `access_mode`, branded
- * ids) resolves to a TypeScript *error* type through the package's emitted
- * `.d.ts`; reading it through a narrow local view with a single cast on an
- * *unannotated* const keeps this slice typed - the same pattern as the other
- * response slices. The reporting helpers already return clean, explicit row
- * types, so their rows need no launder.
+ * Row types come straight from `@qcms/db`: the enum-bearing `sessions` row is
+ * now hand-authored and sound across the package boundary (issue #5), and the
+ * enum-free `answers` ledger row was always sound (branded ids on `text`
+ * columns do not degrade). Both are consumed directly with no local view or
+ * cast, alongside the reporting helpers' explicit row types.
  */
 
 import type { RouteHandler } from "@hono/zod-openapi";
@@ -69,19 +68,6 @@ const EXPORT_PAGE_SIZE = 500;
 /** Default and maximum list page sizes. */
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 200;
-
-// --- issue #5 laundered view (sessions row only) ----------------------------
-
-interface SessionView {
-  readonly sessionId: SessionId;
-  readonly formId: FormId;
-  readonly formVersion: number;
-}
-interface LedgerRowView {
-  readonly questionId: string;
-  readonly value: unknown;
-  readonly answeredAt: Date;
-}
 
 // --- typed failures ---------------------------------------------------------
 
@@ -206,10 +192,7 @@ export function makeGetResponseHandler(deps: Deps): RouteHandler<typeof getRespo
 
     // The append-only answer ledger - the audit history (every revision, oldest
     // first). Present because the session is non-erased (erasure deletes it).
-    // Laundered: `answers` rows carry branded ids that read as an error type
-    // through @qcms/db's emitted `.d.ts` (issue #5); a single cast on an
-    // unannotated const keeps this typed.
-    const ledger = (await answerLedger(deps.db, sessionId)) as LedgerRowView[];
+    const ledger = await answerLedger(deps.db, sessionId);
 
     return c.json(
       {
@@ -473,7 +456,7 @@ export function makeUnflagHandler(deps: Deps): RouteHandler<typeof unflagRoute, 
     const submission = await getSubmission(deps.db, sessionId);
     if (submission === undefined) throw fail.submissionNotFound();
 
-    const session = (await getSession(deps.db, sessionId)) as SessionView | undefined;
+    const session = await getSession(deps.db, sessionId);
     if (session === undefined) throw fail.sessionNotFound();
 
     // One transaction: the conditional flag-clear and the released event commit

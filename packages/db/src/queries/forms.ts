@@ -3,10 +3,41 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import type { CompiledForm } from "@qcms/a2ui-compiler";
 import type { FormDefinition, FormId } from "@qcms/core";
 
-import { formDrafts, formVersions, forms } from "../schema/index.js";
+import { formDrafts, formStatus, formVersions, forms } from "../schema/index.js";
 import type { Executor } from "./executor.js";
+import type { AssignableTo } from "./schema-drift.js";
 
-export type FormRow = typeof forms.$inferSelect;
+/**
+ * Form lifecycle status. Derived from the `formStatus` pgEnum (schema/enums.ts)
+ * so the union tracks the DB enum automatically - never re-typed as literals.
+ */
+export type FormStatus = (typeof formStatus.enumValues)[number];
+
+/**
+ * The `forms` identity row. Hand-authored (issue #5) because `forms` is
+ * enum-bearing (`status`), and Drizzle's `$inferSelect` degrades to a TypeScript
+ * `error` type across this package's emitted `.d.ts` boundary - see
+ * `schema-drift.ts`. Keep every field in lockstep with the `forms` table in
+ * `schema/forms.ts`; the drift guard below fails the build if they diverge.
+ */
+export interface FormRow {
+  formId: FormId;
+  slug: string;
+  defaultLocale: string;
+  status: FormStatus;
+  challengeRequired: boolean;
+  minSubmitMs: number | null;
+}
+
+// Drift guard (issue #5): assert FormRow is structurally identical to what
+// Drizzle infers from the `forms` table. `$inferSelect` resolves soundly here in
+// the package source; it only degrades through the emitted `.d.ts`. Both
+// directions must hold, so any column added, dropped, or retyped in
+// schema/forms.ts breaks this instantiation until FormRow is updated to match.
+export type _FormRowMatchesTable = AssignableTo<FormRow, typeof forms.$inferSelect> &
+  AssignableTo<typeof forms.$inferSelect, FormRow>;
+
+// Enum-free tables: `$inferSelect` is sound through the package boundary.
 export type FormDraftRow = typeof formDrafts.$inferSelect;
 export type FormVersionRow = typeof formVersions.$inferSelect;
 

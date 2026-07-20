@@ -5,8 +5,30 @@ import type { AnswerValue, QuestionId, SessionId } from "@qcms/core";
 
 import { answers } from "../schema/index.js";
 import type { Executor } from "./executor.js";
+import type { AssignableTo } from "./schema-drift.js";
 
-export type AnswerRow = typeof answers.$inferSelect;
+/**
+ * One row of the append-only answer ledger. Hand-authored (issue #5) because its
+ * branded-id columns (`session_id`, `question_id`) resolve to a TypeScript
+ * `error` type through this package's emitted `.d.ts` when consumed via
+ * `$inferSelect` - the same declaration-emit degradation the enum columns hit -
+ * so consumers would see unsafe member access. Keep every field in lockstep with
+ * the `answers` table in `schema/answers.ts`; the drift guard below fails the
+ * build if they diverge.
+ */
+export interface AnswerRow {
+  id: string;
+  sessionId: SessionId;
+  questionId: QuestionId;
+  value: AnswerValue;
+  answeredAt: Date;
+}
+
+// Drift guard (issue #5): assert AnswerRow is structurally identical to what
+// Drizzle infers from the `answers` table. `$inferSelect` resolves soundly here
+// in the package source; it only degrades through the emitted `.d.ts`.
+export type _AnswerRowMatchesTable = AssignableTo<AnswerRow, typeof answers.$inferSelect> &
+  AssignableTo<typeof answers.$inferSelect, AnswerRow>;
 
 /**
  * Append one answer to the ledger. INSERT only - the ledger is append-only

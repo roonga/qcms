@@ -13,9 +13,9 @@
  * stored column holds AES-256-GCM ciphertext under `QCMS_APP_KEY`; 025 decrypts
  * it to sign deliveries.
  *
- * The `webhooks` row is enum-free, so its `$inferSelect` type is used directly
- * (unlike the enum-bearing `forms`/`sessions` rows that need the issue #5
- * launder). The `forms` existence read *does* need that launder.
+ * Row types come straight from `@qcms/db`: the `webhooks` row is enum-free and
+ * the enum-bearing `forms` row is now hand-authored and sound across the package
+ * boundary (issue #5), so both are consumed directly with no local launder.
  */
 
 import type { RouteHandler } from "@hono/zod-openapi";
@@ -66,11 +66,6 @@ function urlRejectionMessage(reason: WebhookUrlRejection): string {
   }
 }
 
-/** Enum-free `forms` fields this slice needs (issue #5 launder on the read). */
-interface FormRowView {
-  readonly formId: FormId;
-}
-
 // --- shared helpers ---------------------------------------------------------
 
 function requireFormId(id: string): FormId {
@@ -80,7 +75,7 @@ function requireFormId(id: string): FormId {
 }
 
 async function requireForm(deps: Deps, formId: FormId): Promise<void> {
-  const form = (await getForm(deps.db, formId)) as FormRowView | undefined;
+  const form = await getForm(deps.db, formId);
   if (form === undefined) throw fail.formNotFound();
 }
 

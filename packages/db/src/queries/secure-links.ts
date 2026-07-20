@@ -4,8 +4,35 @@ import type { FormId, LinkId } from "@qcms/core";
 
 import { secureLinks } from "../schema/index.js";
 import type { Executor } from "./executor.js";
+import type { AssignableTo } from "./schema-drift.js";
 
-export type SecureLinkRow = typeof secureLinks.$inferSelect;
+/**
+ * Server-side state for one secure link. Hand-authored (issue #5) because its
+ * branded-id columns (`link_id`, `form_id`) resolve to a TypeScript `error` type
+ * through this package's emitted `.d.ts` when consumed via `$inferSelect` - the
+ * same declaration-emit degradation the enum columns hit - so consumers reading
+ * `linkId` would see unsafe member access. Keep every field in lockstep with the
+ * `secure_links` table in `schema/secure-links.ts`; the drift guard below fails
+ * the build if they diverge.
+ */
+export interface SecureLinkRow {
+  linkId: LinkId;
+  formId: FormId;
+  expiresAt: Date;
+  oneTime: boolean;
+  consumedAt: Date | null;
+  revokedAt: Date | null;
+  createdAt: Date;
+}
+
+// Drift guard (issue #5): assert SecureLinkRow is structurally identical to what
+// Drizzle infers from the `secure_links` table. `$inferSelect` resolves soundly
+// here in the package source; it only degrades through the emitted `.d.ts`.
+export type _SecureLinkRowMatchesTable = AssignableTo<
+  SecureLinkRow,
+  typeof secureLinks.$inferSelect
+> &
+  AssignableTo<typeof secureLinks.$inferSelect, SecureLinkRow>;
 
 /** Insert server-side state for a secure link (SEC-2). */
 export async function insertSecureLink(

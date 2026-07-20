@@ -2,11 +2,42 @@ import { and, eq, inArray, lte } from "drizzle-orm";
 
 import type { FormId, LinkId, SessionId } from "@qcms/core";
 
-import { sessions } from "../schema/index.js";
+import { accessMode, sessionStatus, sessions } from "../schema/index.js";
 import type { Executor } from "./executor.js";
+import type { AssignableTo } from "./schema-drift.js";
 
-export type SessionRow = typeof sessions.$inferSelect;
-export type AccessMode = SessionRow["accessMode"];
+/**
+ * How a respondent reached a session, and the session lifecycle status. Both
+ * unions are derived from their pgEnum definitions (schema/enums.ts) so they
+ * track the DB enums automatically - never re-typed as literals.
+ */
+export type AccessMode = (typeof accessMode.enumValues)[number];
+export type SessionStatus = (typeof sessionStatus.enumValues)[number];
+
+/**
+ * The `sessions` row. Hand-authored (issue #5) because `sessions` is enum-bearing
+ * (`access_mode`, `status`), and Drizzle's `$inferSelect` degrades to a
+ * TypeScript `error` type across this package's emitted `.d.ts` boundary - see
+ * `schema-drift.ts`. Keep every field in lockstep with the `sessions` table in
+ * `schema/sessions.ts`; the drift guard below fails the build if they diverge.
+ */
+export interface SessionRow {
+  sessionId: SessionId;
+  formId: FormId;
+  formVersion: number;
+  accessMode: AccessMode;
+  linkId: LinkId | null;
+  status: SessionStatus;
+  expiresAt: Date;
+  createdAt: Date;
+}
+
+// Drift guard (issue #5): assert SessionRow is structurally identical to what
+// Drizzle infers from the `sessions` table. Both directions must hold, so any
+// column added, dropped, or retyped in schema/sessions.ts breaks this
+// instantiation until SessionRow is updated to match.
+export type _SessionRowMatchesTable = AssignableTo<SessionRow, typeof sessions.$inferSelect> &
+  AssignableTo<typeof sessions.$inferSelect, SessionRow>;
 
 /**
  * Create a respondent session, **pinning** `(formId, formVersion)` at creation.

@@ -32,7 +32,6 @@ import {
   evaluateRules,
   type FlowState,
   type FormDefinition,
-  type FormId,
   parseQuestionId,
   parseSessionId,
   type QuestionDefinition,
@@ -49,6 +48,7 @@ import {
   getSession,
   latestAnswers,
   markInProgress,
+  type SessionRow,
 } from "@qcms/db";
 import { sql } from "drizzle-orm";
 import type { Context } from "hono";
@@ -76,24 +76,10 @@ const fail = {
     new ApiError("unauthorized", 401, "Session token does not match this session"),
 } as const;
 
-// @qcms/db's row types for its enum-bearing tables (`sessions`,
-// `question_versions`) resolve to a TypeScript *error* type when consumed
-// through the package's emitted `.d.ts` - a drizzle `$inferSelect` +
-// `PgEnumColumn` interaction that `skipLibCheck` hides from `tsc` but typed-lint
-// surfaces as unsafe (issue #5). The enum-free `form_versions` row is
-// unaffected. Reading the enum-bearing rows through a narrow local view of the
-// fields this slice uses keeps the code fully typed; the same launder as
-// start-session (018), pending explicit row interfaces on @qcms/db.
-interface SessionView {
-  readonly sessionId: SessionId;
-  readonly formId: FormId;
-  readonly status: "created" | "in_progress" | "submitted" | "expired";
-  readonly formVersion: number;
-  readonly expiresAt: Date;
-}
-interface QuestionVersionView {
-  readonly definition: QuestionDefinition;
-}
+// The enum-bearing `sessions` and `question_versions` rows are hand-authored and
+// sound across @qcms/db's package boundary (issue #5), so this slice consumes
+// `SessionRow` and the inferred `question_versions` row directly - no local view
+// or cast for the row types.
 
 // The stored compiled A2UI, viewed structurally so apps/api keeps 018's boundary
 // (it does not depend on @qcms/a2ui-compiler): one document per step, `root` the
@@ -124,7 +110,7 @@ interface LoadedSnapshot {
   readonly questionById: ReadonlyMap<QuestionId, QuestionDefinition>;
 }
 
-async function loadSnapshot(deps: Deps, session: SessionView): Promise<LoadedSnapshot> {
+async function loadSnapshot(deps: Deps, session: SessionRow): Promise<LoadedSnapshot> {
   const version = await getFormVersion(deps.db, session.formId, session.formVersion);
   if (version === undefined) {
     // A session is pinned at creation to a published version that is immutable
@@ -139,8 +125,7 @@ async function loadSnapshot(deps: Deps, session: SessionView): Promise<LoadedSna
   const questionById = new Map<QuestionId, QuestionDefinition>();
   for (const step of definition.steps) {
     for (const ref of step.items) {
-      const record = (await getQuestionVersion(deps.db, ref.questionId, ref.version)) as
-        QuestionVersionView | undefined;
+      const record = await getQuestionVersion(deps.db, ref.questionId, ref.version);
       if (record === undefined) {
         throw new Error(
           `serve-step: pinned question ${ref.questionId}@${String(ref.version)} is missing for form ${session.formId}@${String(session.formVersion)} (snapshot not self-contained)`,
@@ -225,8 +210,8 @@ async function authorizedSessionId(c: Context<ApiEnv>, deps: Deps, id: string): 
 }
 
 /** Load a session for a request, rejecting a missing / submitted / expired one. */
-async function loadActiveSession(deps: Deps, id: SessionId, now: Date): Promise<SessionView> {
-  const session = (await getSession(deps.db, id)) as SessionView | undefined;
+async function loadActiveSession(deps: Deps, id: SessionId, now: Date): Promise<SessionRow> {
+  const session = await getSession(deps.db, id);
   if (session === undefined) throw fail.sessionNotFound();
   if (session.status === "submitted") throw fail.sessionSubmitted();
   if (session.status === "expired" || session.expiresAt.getTime() <= now.getTime()) {

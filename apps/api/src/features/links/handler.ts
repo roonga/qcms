@@ -18,7 +18,13 @@
 import type { RouteHandler } from "@hono/zod-openapi";
 import { importCompactTokenKey, LinkId, mintSecureLink, parseFormId } from "@qcms/core";
 import type { FormId } from "@qcms/core";
-import { getForm, insertSecureLink, listSecureLinks, revokeSecureLink } from "@qcms/db";
+import {
+  getForm,
+  insertSecureLink,
+  listSecureLinks,
+  revokeSecureLink,
+  type SecureLinkRow,
+} from "@qcms/db";
 
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
@@ -37,26 +43,6 @@ const fail = {
     new ApiError("LINK_EXPIRY_INVALID", 400, "expiresAt must be a future ISO datetime"),
 } as const;
 
-/** Enum-free `forms` fields this slice needs (issue #5 launder on the read). */
-interface FormRowView {
-  readonly formId: FormId;
-}
-
-/**
- * `secure_links` fields this slice reads back. The `link_id` column is a branded
- * `LinkId` that reads as an error type through @qcms/db's emitted `.d.ts` (issue
- * #5 - the same launder the forms/sessions rows need); a narrow local view with
- * `linkId` as a plain string keeps the slice fully typed.
- */
-interface SecureLinkRowView {
-  readonly linkId: string;
-  readonly oneTime: boolean;
-  readonly expiresAt: Date;
-  readonly consumedAt: Date | null;
-  readonly revokedAt: Date | null;
-  readonly createdAt: Date;
-}
-
 // --- shared helpers ---------------------------------------------------------
 
 function requireFormId(id: string): FormId {
@@ -66,7 +52,7 @@ function requireFormId(id: string): FormId {
 }
 
 async function requireForm(deps: Deps, formId: FormId): Promise<void> {
-  const form = (await getForm(deps.db, formId)) as FormRowView | undefined;
+  const form = await getForm(deps.db, formId);
   if (form === undefined) throw fail.formNotFound();
 }
 
@@ -84,10 +70,7 @@ function linkUrl(deps: Deps, token: string): string {
 }
 
 /** Derive display state from the row against the request clock (order matters). */
-function linkState(
-  row: SecureLinkRowView,
-  now: Date,
-): "active" | "consumed" | "expired" | "revoked" {
+function linkState(row: SecureLinkRow, now: Date): "active" | "consumed" | "expired" | "revoked" {
   if (row.revokedAt !== null) return "revoked";
   if (row.consumedAt !== null) return "consumed";
   if (row.expiresAt.getTime() <= now.getTime()) return "expired";
@@ -140,7 +123,7 @@ export function makeListLinksHandler(deps: Deps): RouteHandler<typeof listLinksR
     const now = deps.clock.now();
     await requireForm(deps, formId);
 
-    const rows = (await listSecureLinks(deps.db, formId)) as unknown as SecureLinkRowView[];
+    const rows = await listSecureLinks(deps.db, formId);
     return c.json(
       {
         links: rows.map((row) => ({
@@ -166,8 +149,7 @@ export function makeRevokeLinkHandler(deps: Deps): RouteHandler<typeof revokeLin
     if (!linkId.success) throw fail.invalidLinkId();
 
     const now = deps.clock.now();
-    const row = (await revokeSecureLink(deps.db, linkId.data, now)) as
-      SecureLinkRowView | undefined;
+    const row = await revokeSecureLink(deps.db, linkId.data, now);
     // Idempotency choice: a link that does not exist *or* is already revoked
     // returns 404 - the caller learns the link is not in a revocable state.
     if (row === undefined) throw fail.linkNotFound();

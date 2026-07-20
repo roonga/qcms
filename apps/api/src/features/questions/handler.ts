@@ -45,7 +45,7 @@ import {
   publishQuestionVersion,
   updateDraftDefinition,
 } from "@qcms/db";
-import type { Executor } from "@qcms/db";
+import type { Executor, QuestionRow, QuestionStatus, QuestionVersionRow } from "@qcms/db";
 
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
@@ -60,35 +60,6 @@ import type {
   publishVersionRoute,
 } from "./route.js";
 import type { QuestionVersionView } from "./schema.js";
-
-// --- issue #5 launder --------------------------------------------------------
-// `@qcms/db`'s row types resolve to a TypeScript *error* type through the
-// package's emitted `.d.ts` - the `$inferSelect` + `PgEnumColumn` interaction
-// that `skipLibCheck` hides from `tsc` but typed-lint surfaces as unsafe (issue
-// #5). Reading each row through a narrow local view with a single cast on an
-// *unannotated* const keeps this slice fully typed - the identical pattern to
-// responses' `SessionView` (018/019/020). Do not "fix" @qcms/db here.
-type VersionStatus = "draft" | "published" | "deprecated";
-interface VersionRowView {
-  readonly questionId: QuestionId;
-  readonly version: number;
-  readonly status: VersionStatus;
-  readonly definition: QuestionDefinition;
-  readonly publishedAt: Date | null;
-}
-interface QuestionRowView {
-  readonly questionId: QuestionId;
-  readonly slug: string;
-  readonly createdAt: Date;
-}
-interface SummaryView {
-  readonly questionId: QuestionId;
-  readonly slug: string;
-  readonly createdAt: Date;
-  readonly latestVersion: number;
-  readonly latestStatus: VersionStatus;
-  readonly publishedAt: Date | null;
-}
 
 // --- typed failures (envelope codes the admin app keys off, 032) -------------
 
@@ -120,7 +91,7 @@ const fail = {
       409,
       "Only draft versions can be edited; publish creates immutable content (R1/I1)",
     ),
-  invalidState: (from: VersionStatus, action: string): ApiError =>
+  invalidState: (from: QuestionStatus, action: string): ApiError =>
     new ApiError("INVALID_VERSION_STATE", 409, `Cannot ${action} a ${from} version`),
 } as const;
 
@@ -148,7 +119,7 @@ function requireDefinition(value: unknown): QuestionDefinition {
 }
 
 /** Shape a stored version row into its response view. */
-function toVersionView(row: VersionRowView): QuestionVersionView {
+function toVersionView(row: QuestionVersionRow): QuestionVersionView {
   return {
     questionId: row.questionId,
     version: row.version,
@@ -178,9 +149,9 @@ async function insertQuestionRow(
   exec: Executor,
   questionId: QuestionId,
   slug: string,
-): Promise<QuestionRowView> {
+): Promise<QuestionRow> {
   try {
-    const row = (await createQuestion(exec, { questionId, slug })) as QuestionRowView;
+    const row = await createQuestion(exec, { questionId, slug });
     return row;
   } catch (err: unknown) {
     if (isUniqueViolation(err)) throw fail.slugTaken();
@@ -205,10 +176,10 @@ export function makeCreateQuestionHandler(
       // R6 passed: insert the identity (slug collision → clean 409) then its
       // first draft version.
       const question = await insertQuestionRow(tx, questionId, body.slug);
-      const version = (await createQuestionVersion(tx, {
+      const version = await createQuestionVersion(tx, {
         questionId,
         definition,
-      })) as VersionRowView;
+      });
 
       return { question, version };
     });
@@ -234,16 +205,16 @@ export function makeCreateVersionHandler(
     const questionId = requireQuestionId(c.req.valid("param").id);
 
     const created = await deps.db.transaction(async (tx) => {
-      const versions = (await listQuestionVersions(tx, questionId)) as VersionRowView[];
+      const versions = await listQuestionVersions(tx, questionId);
       const latest = versions.at(-1);
       if (latest === undefined) throw fail.questionNotFound();
 
       // Seed the new draft from the latest version's definition (the author
       // then edits it via PUT). A fresh draft is always editable.
-      const row = (await createQuestionVersion(tx, {
+      const row = await createQuestionVersion(tx, {
         questionId,
         definition: latest.definition,
-      })) as VersionRowView;
+      });
       return row;
     });
 
@@ -264,14 +235,12 @@ export function makeEditVersionHandler(deps: Deps): RouteHandler<typeof editVers
     if (definition.questionId !== questionId) throw fail.idMismatch();
 
     const updated = await deps.db.transaction(async (tx) => {
-      const current = (await getQuestionVersion(tx, questionId, version)) as
-        VersionRowView | undefined;
+      const current = await getQuestionVersion(tx, questionId, version);
       if (current === undefined) throw fail.versionNotFound();
       // Return the typed immutability error *before* the freeze trigger fires.
       if (current.status !== "draft") throw fail.immutable();
 
-      const row = (await updateDraftDefinition(tx, { questionId, version, definition })) as
-        VersionRowView | undefined;
+      const row = await updateDraftDefinition(tx, { questionId, version, definition });
       return row;
     });
 
@@ -292,15 +261,13 @@ export function makePublishVersionHandler(
     const version = requireVersion(v);
 
     const published = await deps.db.transaction(async (tx) => {
-      const current = (await getQuestionVersion(tx, questionId, version)) as
-        VersionRowView | undefined;
+      const current = await getQuestionVersion(tx, questionId, version);
       if (current === undefined) throw fail.versionNotFound();
       // Only a draft can be published (§4.2). A published/deprecated version is
       // a no-op-or-worse: report the invalid transition rather than re-stamping.
       if (current.status !== "draft") throw fail.invalidState(current.status, "publish");
 
-      const row = (await publishQuestionVersion(tx, { questionId, version })) as
-        VersionRowView | undefined;
+      const row = await publishQuestionVersion(tx, { questionId, version });
       return row;
     });
 
@@ -320,15 +287,13 @@ export function makeDeprecateVersionHandler(
     const version = requireVersion(v);
 
     const deprecated = await deps.db.transaction(async (tx) => {
-      const current = (await getQuestionVersion(tx, questionId, version)) as
-        VersionRowView | undefined;
+      const current = await getQuestionVersion(tx, questionId, version);
       if (current === undefined) throw fail.versionNotFound();
       // Deprecation soft-retires a published version (§4.2). A draft has nothing
       // to retire; an already-deprecated version is a no-op.
       if (current.status !== "published") throw fail.invalidState(current.status, "deprecate");
 
-      const row = (await deprecateQuestionVersion(tx, { questionId, version })) as
-        VersionRowView | undefined;
+      const row = await deprecateQuestionVersion(tx, { questionId, version });
       return row;
     });
 
@@ -344,7 +309,7 @@ export function makeListQuestionsHandler(
 ): RouteHandler<typeof listQuestionsRoute, ApiEnv> {
   return async (c) => {
     const { status, search } = c.req.valid("query");
-    const summaries = (await listQuestions(deps.db)) as SummaryView[];
+    const summaries = await listQuestions(deps.db);
 
     const byStatus =
       status === undefined ? summaries : summaries.filter((s) => s.latestStatus === status);
@@ -355,8 +320,7 @@ export function makeListQuestionsHandler(
     // never overlap on a shared connection handle.
     const items = [];
     for (const s of byStatus) {
-      const latest = (await getQuestionVersion(deps.db, s.questionId, s.latestVersion)) as
-        VersionRowView | undefined;
+      const latest = await getQuestionVersion(deps.db, s.questionId, s.latestVersion);
       const label = latest === undefined ? null : labelOf(latest.definition);
       items.push({
         questionId: s.questionId,
@@ -395,10 +359,10 @@ export function makeGetQuestionHandler(deps: Deps): RouteHandler<typeof getQuest
   return async (c) => {
     const questionId = requireQuestionId(c.req.valid("param").id);
 
-    const identity = (await getQuestion(deps.db, questionId)) as QuestionRowView | undefined;
+    const identity = await getQuestion(deps.db, questionId);
     if (identity === undefined) throw fail.questionNotFound();
 
-    const versions = (await listQuestionVersions(deps.db, questionId)) as VersionRowView[];
+    const versions = await listQuestionVersions(deps.db, questionId);
 
     return c.json(
       {

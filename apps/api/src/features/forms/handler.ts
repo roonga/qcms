@@ -18,14 +18,11 @@
  * Fetch-pure (R4): time is `deps.clock`, no `node:*`. Answer values are never
  * handled here, so nothing content-bearing is ever logged (SEC-8).
  *
- * **issue #5 launder.** `@qcms/db`'s enum-bearing row types (`forms.status`,
- * `question_versions.status`) resolve to a TypeScript *error* type through the
- * package's emitted `.d.ts` (`skipLibCheck` hides it from `tsc`; typed-lint
- * surfaces it). Reading those rows through a narrow local view with a single
- * cast on an *unannotated* const keeps this slice fully typed - the identical
- * pattern to questions (021) and responses (018/019/020). The enum-free
- * `form_drafts`/`form_versions` rows are unaffected and used directly. Do not
- * "fix" @qcms/db here.
+ * Row types come straight from `@qcms/db`: the enum-bearing `forms` and
+ * `question_versions` rows are now hand-authored and sound across the package
+ * boundary (issue #5), so this slice reads them by inference with no local view
+ * or cast. The enum-free `form_drafts`/`form_versions` rows are used directly as
+ * well.
  */
 
 import type { RouteHandler } from "@hono/zod-openapi";
@@ -40,7 +37,6 @@ import {
   parseFormId,
   parseLocaleCode,
   type PublishError,
-  type QuestionDefinition,
   type QuestionId,
   type QuestionVersionRecord,
   type ResolveQuestionVersion,
@@ -59,6 +55,7 @@ import {
   listForms,
   listFormVersions,
   listQuestionVersions,
+  type QuestionStatus,
   reopenForm,
   upsertDraft,
 } from "@qcms/db";
@@ -80,23 +77,6 @@ import type {
 
 /** The outbox event type for a completed publish (ARCHITECTURE §5.3, §11). */
 const FORM_PUBLISHED = "form.published" as const;
-
-// --- issue #5 laundered views (enum-bearing rows only) ----------------------
-
-type FormStatus = "open" | "closed";
-interface FormRowView {
-  readonly formId: FormId;
-  readonly slug: string;
-  readonly defaultLocale: string;
-  readonly status: FormStatus;
-}
-type VersionStatus = "draft" | "published" | "deprecated";
-interface QuestionVersionRowView {
-  readonly questionId: QuestionId;
-  readonly version: number;
-  readonly status: VersionStatus;
-  readonly definition: QuestionDefinition;
-}
 
 /**
  * A publish issue: the kernel's typed `PublishError` (008) *or* the slice-level
@@ -189,14 +169,14 @@ async function loadQuestionLookups(
 ): Promise<{
   resolveQuestion: ResolveQuestionVersion;
   publishedQuestionVersions: Map<QuestionId, Set<number>>;
-  statusByPin: Map<string, VersionStatus>;
+  statusByPin: Map<string, QuestionStatus>;
 }> {
   const recordByPin = new Map<string, QuestionVersionRecord>();
-  const statusByPin = new Map<string, VersionStatus>();
+  const statusByPin = new Map<string, QuestionStatus>();
   const publishedQuestionVersions = new Map<QuestionId, Set<number>>();
 
   for (const questionId of pinnedQuestionIds(definition)) {
-    const rows = (await listQuestionVersions(deps.db, questionId)) as QuestionVersionRowView[];
+    const rows = await listQuestionVersions(deps.db, questionId);
     const published = new Set<number>();
     for (const row of rows) {
       const key = pinKey(row.questionId, row.version);
@@ -233,7 +213,7 @@ async function loadQuestionLookups(
 function deprecatedPinGate(
   definition: FormDefinition,
   previousDefinition: FormDefinition | undefined,
-  statusByPin: ReadonlyMap<string, VersionStatus>,
+  statusByPin: ReadonlyMap<string, QuestionStatus>,
   publishedQuestionVersions: Map<QuestionId, Set<number>>,
 ): DeprecatedPinIssue[] {
   const carried = new Set<string>();
@@ -351,7 +331,7 @@ export function makeCreateFormHandler(deps: Deps): RouteHandler<typeof createFor
 
 export function makeListFormsHandler(deps: Deps): RouteHandler<typeof listFormsRoute, ApiEnv> {
   return async (c) => {
-    const rows = (await listForms(deps.db)) as FormRowView[];
+    const rows = await listForms(deps.db);
 
     // One draft/version read per row is fine at launch admin scale (R7); a
     // denormalized status column is a Phase-4 optimization, not a launch need.
@@ -380,7 +360,7 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
   return async (c) => {
     const formId = requireFormId(c.req.valid("param").id);
 
-    const form = (await getForm(deps.db, formId)) as FormRowView | undefined;
+    const form = await getForm(deps.db, formId);
     if (form === undefined) throw fail.formNotFound();
 
     const versions = await listFormVersions(deps.db, formId);
@@ -429,7 +409,7 @@ export function makePutDraftHandler(deps: Deps): RouteHandler<typeof putDraftRou
     // Identity is fixed: a draft save cannot repoint the form's id.
     if (definition.formId !== formId) throw fail.idMismatch();
 
-    const form = (await getForm(deps.db, formId)) as FormRowView | undefined;
+    const form = await getForm(deps.db, formId);
     if (form === undefined) throw fail.formNotFound();
 
     // Save first (drafts may be temporarily inconsistent), then advise. Advisory
@@ -451,7 +431,7 @@ export function makeValidateDraftHandler(
     const definition = requireDefinition(c.req.valid("json").definition);
     if (definition.formId !== formId) throw fail.idMismatch();
 
-    const form = (await getForm(deps.db, formId)) as FormRowView | undefined;
+    const form = await getForm(deps.db, formId);
     if (form === undefined) throw fail.formNotFound();
 
     const { issues } = await validateDraft(deps, definition);
@@ -466,7 +446,7 @@ export function makePublishFormHandler(deps: Deps): RouteHandler<typeof publishF
     const formId = requireFormId(c.req.valid("param").id);
     const now = deps.clock.now();
 
-    const form = (await getForm(deps.db, formId)) as FormRowView | undefined;
+    const form = await getForm(deps.db, formId);
     if (form === undefined) throw fail.formNotFound();
 
     const draft = await getDraft(deps.db, formId);
@@ -526,7 +506,7 @@ export function makeCloseFormHandler(deps: Deps): RouteHandler<typeof closeFormR
     const formId = requireFormId(c.req.valid("param").id);
     // Closing stops *new* sessions (018 checks status at start); in-flight
     // sessions finish on their pinned version (R1) - status is the only change.
-    const row = (await closeForm(deps.db, formId)) as FormRowView | undefined;
+    const row = await closeForm(deps.db, formId);
     if (row === undefined) throw fail.formNotFound();
     return c.json({ formId: row.formId, status: row.status }, 200);
   };
@@ -537,7 +517,7 @@ export function makeCloseFormHandler(deps: Deps): RouteHandler<typeof closeFormR
 export function makeReopenFormHandler(deps: Deps): RouteHandler<typeof reopenFormRoute, ApiEnv> {
   return async (c) => {
     const formId = requireFormId(c.req.valid("param").id);
-    const row = (await reopenForm(deps.db, formId)) as FormRowView | undefined;
+    const row = await reopenForm(deps.db, formId);
     if (row === undefined) throw fail.formNotFound();
     return c.json({ formId: row.formId, status: row.status }, 200);
   };
@@ -558,9 +538,8 @@ export function makeGetFormVersionHandler(
 
     return c.json(
       {
-        // `formId`/`version` come from the parsed path params, not the row: the
-        // `forms.form_id` branded column reads as an error type through @qcms/db's
-        // emitted `.d.ts` (issue #5), and these locals are the same values.
+        // `formId`/`version` come from the parsed, validated path params; they are
+        // the same values the row carries, so there is no need to read them back.
         formId,
         version,
         publishedAt: row.publishedAt.toISOString(),

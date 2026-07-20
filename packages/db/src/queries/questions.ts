@@ -2,11 +2,61 @@ import { and, desc, eq, sql } from "drizzle-orm";
 
 import type { QuestionDefinition, QuestionId } from "@qcms/core";
 
-import { questions, questionVersions } from "../schema/index.js";
+import { questionStatus, questions, questionVersions } from "../schema/index.js";
 import type { Executor } from "./executor.js";
+import type { AssignableTo } from "./schema-drift.js";
 
-export type QuestionRow = typeof questions.$inferSelect;
-export type QuestionVersionRow = typeof questionVersions.$inferSelect;
+/**
+ * The `questions` library-identity row. Hand-authored (issue #5) because its
+ * branded-id column (`question_id`) resolves to a TypeScript `error` type through
+ * this package's emitted `.d.ts` when consumed via `$inferSelect` - the same
+ * declaration-emit degradation the enum columns hit. Keep every field in lockstep
+ * with the `questions` table in `schema/questions.ts`; the drift guard below
+ * fails the build if they diverge.
+ */
+export interface QuestionRow {
+  questionId: QuestionId;
+  slug: string;
+  createdAt: Date;
+}
+
+// Drift guard (issue #5): assert QuestionRow is structurally identical to what
+// Drizzle infers from the `questions` table.
+export type _QuestionRowMatchesTable = AssignableTo<QuestionRow, typeof questions.$inferSelect> &
+  AssignableTo<typeof questions.$inferSelect, QuestionRow>;
+
+/**
+ * Question version lifecycle. Derived from the `questionStatus` pgEnum
+ * (schema/enums.ts) so the union tracks the DB enum automatically - never
+ * re-typed as literals.
+ */
+export type QuestionStatus = (typeof questionStatus.enumValues)[number];
+
+/**
+ * The `question_versions` row. Hand-authored (issue #5) because the table is
+ * enum-bearing (`status`), and Drizzle's `$inferSelect` degrades to a TypeScript
+ * `error` type across this package's emitted `.d.ts` boundary - see
+ * `schema-drift.ts`. Keep every field in lockstep with the `question_versions`
+ * table in `schema/questions.ts`; the drift guard below fails the build if they
+ * diverge.
+ */
+export interface QuestionVersionRow {
+  questionId: QuestionId;
+  version: number;
+  definition: QuestionDefinition;
+  status: QuestionStatus;
+  publishedAt: Date | null;
+}
+
+// Drift guard (issue #5): assert QuestionVersionRow is structurally identical to
+// what Drizzle infers from the `question_versions` table. Both directions must
+// hold, so any column added, dropped, or retyped in schema/questions.ts breaks
+// this instantiation until QuestionVersionRow is updated to match.
+export type _QuestionVersionRowMatchesTable = AssignableTo<
+  QuestionVersionRow,
+  typeof questionVersions.$inferSelect
+> &
+  AssignableTo<typeof questionVersions.$inferSelect, QuestionVersionRow>;
 
 /** The latest-version summary of one question, for the library list view. */
 export interface QuestionSummary {

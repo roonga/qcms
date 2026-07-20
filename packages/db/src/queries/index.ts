@@ -11,6 +11,7 @@ export type { Executor } from "./executor.js";
 export {
   type QuestionRow,
   type QuestionVersionRow,
+  type QuestionStatus,
   type QuestionSummary,
   createQuestion,
   createQuestionVersion,
@@ -26,6 +27,7 @@ export {
 
 export {
   type FormRow,
+  type FormStatus,
   type FormDraftRow,
   type FormVersionRow,
   getFormBySlug,
@@ -45,6 +47,7 @@ export {
 
 export {
   type SessionRow,
+  type SessionStatus,
   type AccessMode,
   createSession,
   getSession,
