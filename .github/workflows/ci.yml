@@ -7,6 +7,11 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
+    strategy:
+      # Two Node LTS lines: cross-version drift (e.g. contentHash / encoding
+      # stability, task 009) is directly checkable instead of assumed.
+      matrix:
+        node-version: [22, 24]
     steps:
       - uses: actions/checkout@v4
 
@@ -15,7 +20,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version-file: .nvmrc
+          node-version: ${{ matrix.node-version }}
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile

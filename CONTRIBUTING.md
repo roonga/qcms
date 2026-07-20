@@ -23,7 +23,7 @@ The reference documents in `docs/` are authoritative; the discipline rules R1–
 - **Functional core:** `packages/*` are pure functions over immutable data — no classes for domain logic, no internal state, no I/O in `core`/`a2ui-compiler` (R3/R4). Dependencies are explicit parameters; no DI container, no service locator (.NET mapping: think static pure methods + explicit `deps` records, not `IServiceCollection`).
 - Naming: files kebab-case; types/schemas PascalCase (schema and inferred type share a name); functions/variables camelCase; module-level constants SCREAMING_SNAKE only when truly global (`SEMANTICS_VERSION`).
 - Imports: packages expose a public API via their index; no deep imports across package boundaries; no circular dependencies (enforced by lint); `apps/*` never import each other.
-- Formatting is owned by Prettier and never discussed in review. Lint rules are the standard — if a convention matters, encode it as a rule or import-surface test, don't police it by hand.
+- Lint rules live in the **root flat config** (`eslint.config.js`); per-package additions only for package-specific import-surface rules (e.g. core's no-db-import). Formatting is owned by Prettier and never discussed in review. Lint rules are the standard — if a convention matters, encode it as a rule or import-surface test, don't police it by hand.
 - Comments explain *why*, not *what*. JSDoc on exported package APIs. Every `TODO` references an issue number; free-floating TODOs fail review.
 
 ### Dependencies (mirrors `a2-react-aria`'s approval policy)

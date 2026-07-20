@@ -10,10 +10,10 @@ Seed entries (from the 2026-07-19/20 manual improvement pass, recorded retroacti
 - Usage-limit kills lost uncommitted work and stalled the loop → incremental WIP commits, stale-claim recovery, NEXT-TASK sentinel + scripts/agent-loop.ps1 supervisor.
 - Skill edits didn't affect the running session → restart guidance; supervisor preferred for long runs.
 
-## 009 — Answer validation and submission lock (2026-07-20)
+## 009 — Answer validation and submission lock (2026-07-20) [processed 2026-07-20]
 - Reviewer: exit criterion "contentHash stable across Node versions" is only indirectly verifiable on one machine — the committed golden hash is the cross-version tripwire; a CI matrix over Node versions would make it directly checkable.
 
-## 010 — Secure-link tokens (core) (2026-07-20)
+## 010 — Secure-link tokens (core) (2026-07-20) [processed 2026-07-20]
 - Executor: no repo convention for where package-scoped lint rules live (root flat config vs per-package) — a one-line note in CONTRIBUTING or the eslint config header would have saved an ad-hoc decision. Also, root `pnpm lint` includes a Prettier check but nothing tells executors to format new files first — cost one red-green cycle; a "format new files before lint" note in the executor protocol would prevent it.
 - Reviewer: the v8 text coverage reporter silently omits 100%-covered files, so per-file coverage evidence needs `--coverage.reporter=json-summary`; and `turbo lint` cache hits can replay green logs without exercising a changed `eslint.config.js` — list it in `turbo.json` globalDependencies (or run `eslint src` uncached when the config changed).
 
