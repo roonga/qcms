@@ -10,6 +10,7 @@ export * from "./enums.js";
 export * from "./questions.js";
 export * from "./forms.js";
 export * from "./secure-links.js";
+export * from "./webhooks.js";
 export * from "./sessions.js";
 export * from "./answers.js";
 export * from "./submissions.js";

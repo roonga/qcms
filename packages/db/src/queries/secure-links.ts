@@ -1,4 +1,4 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 
 import type { FormId, LinkId } from "@qcms/core";
 
@@ -35,6 +35,20 @@ export async function getSecureLink(
     .where(eq(secureLinks.linkId, linkId))
     .limit(1);
   return row;
+}
+
+/**
+ * List every secure link minted for a form, newest first (task 024). Returns
+ * the raw rows — the admin slice derives display state
+ * (active/consumed/expired/revoked) from `consumedAt`/`revokedAt`/`expiresAt`
+ * against the request clock; storage stays shape-preserving (R5).
+ */
+export async function listSecureLinks(exec: Executor, formId: FormId): Promise<SecureLinkRow[]> {
+  return exec
+    .select()
+    .from(secureLinks)
+    .where(eq(secureLinks.formId, formId))
+    .orderBy(desc(secureLinks.createdAt));
 }
 
 /**

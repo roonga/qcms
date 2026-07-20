@@ -18,11 +18,17 @@ import {
   createQuestion,
   createQuestionVersion,
   createSession,
+  deactivateWebhook,
   deleteDraft,
   deprecateQuestionVersion,
   enqueue,
   expireSessions,
   getDraft,
+  getWebhook,
+  insertWebhook,
+  listSecureLinks,
+  listWebhooks,
+  updateWebhook,
   getFormVersion,
   getLatestPublishedVersion,
   getQuestion,
@@ -337,6 +343,78 @@ describe("secure links helpers", () => {
     const now = new Date();
     expect(await consumeSecureLink(testDb.db, linkId, now)).toBeDefined();
     expect(await consumeSecureLink(testDb.db, linkId, now)).toBeUndefined();
+  });
+
+  it("lists a form's links newest-first (task 024)", async () => {
+    const formId = FormId.parse("frm_link_list");
+    await createForm(testDb.db, { formId, slug: "frm-link-list-slug", defaultLocale: "en" });
+    for (const [i, tag] of ["a", "b", "c"].entries()) {
+      await insertSecureLink(testDb.db, {
+        linkId: LinkId.parse(`lnk_list_${tag}`),
+        formId,
+        // Distinct createdAt ordering is defaultNow(); insert order is a→b→c, so
+        // the list should surface them newest-first (c, b, a). Space the inserts
+        // enough that defaultNow() differs.
+        expiresAt: new Date(Date.now() + (i + 1) * 3_600_000),
+      });
+      await new Promise((r) => setTimeout(r, 5));
+    }
+    const rows = await listSecureLinks(testDb.db, formId);
+    expect(rows).toHaveLength(3);
+    expect(rows.every((r) => r.formId === formId)).toBe(true);
+    // Another form's links never leak in.
+    expect(await listSecureLinks(testDb.db, FormId.parse("frm_link"))).not.toContainEqual(
+      expect.objectContaining({ linkId: "lnk_list_a" }),
+    );
+  });
+});
+
+describe("webhooks helpers (task 024, SEC-6)", () => {
+  it("inserts, lists, reads, rotates the encrypted secret, and soft-deactivates", async () => {
+    const formId = FormId.parse("frm_webhook");
+    await createForm(testDb.db, { formId, slug: "frm-webhook-slug", defaultLocale: "en" });
+
+    const created = await insertWebhook(testDb.db, {
+      webhookId: "whk_one",
+      formId,
+      url: "https://consumer.example.test/hook",
+      secretEncrypted: "v1.CIPHERTEXT_ONE",
+    });
+    expect(created.active).toBe(true);
+    expect(created.deactivatedAt).toBeNull();
+    expect(created.secretEncrypted).toBe("v1.CIPHERTEXT_ONE");
+
+    // A second webhook on the same form — multiple webhooks per form allowed.
+    await insertWebhook(testDb.db, {
+      webhookId: "whk_two",
+      formId,
+      url: "https://consumer.example.test/hook2",
+      secretEncrypted: "v1.CIPHERTEXT_TWO",
+    });
+
+    const listed = await listWebhooks(testDb.db, formId);
+    expect(listed).toHaveLength(2);
+
+    // Scoped read: an id under the wrong form is not found.
+    expect(await getWebhook(testDb.db, FormId.parse("frm_link"), "whk_one")).toBeUndefined();
+    expect((await getWebhook(testDb.db, formId, "whk_one"))?.url).toBe(
+      "https://consumer.example.test/hook",
+    );
+
+    // Rotate the encrypted secret + change url; updatedAt advances.
+    const rotated = await updateWebhook(testDb.db, formId, "whk_one", {
+      secretEncrypted: "v1.CIPHERTEXT_ROTATED",
+      url: "https://consumer.example.test/hook-v2",
+      now: new Date(),
+    });
+    expect(rotated?.secretEncrypted).toBe("v1.CIPHERTEXT_ROTATED");
+    expect(rotated?.url).toBe("https://consumer.example.test/hook-v2");
+
+    // Soft-deactivate: active flips false, deactivatedAt stamped, row survives.
+    const deactivated = await deactivateWebhook(testDb.db, formId, "whk_one", new Date());
+    expect(deactivated?.active).toBe(false);
+    expect(deactivated?.deactivatedAt).toBeInstanceOf(Date);
+    expect(await listWebhooks(testDb.db, formId)).toHaveLength(2);
   });
 });
 

@@ -50,6 +50,23 @@ export interface Flags {
 export interface Config {
   readonly databaseUrl: string;
   readonly mount: MountFlags;
+  /**
+   * Public base URL of the respondent portal (`QCMS_PORTAL_BASE_URL`), used to
+   * build secure-link URLs authors copy/share (024). An absolute http(s) URL;
+   * links are minted as `${portalBaseUrl}/l/<token>`.
+   */
+  readonly portalBaseUrl: string;
+  readonly webhooks: {
+    /**
+     * SSRF override (`QCMS_WEBHOOK_ALLOW_PRIVATE`, default false). When false
+     * (the safe default) webhook target URLs must be HTTPS and must not resolve
+     * to private/reserved/loopback/link-local hosts. Set true **only** for
+     * on-prem topologies that legitimately post to internal systems (SEC-6);
+     * it also permits plain HTTP. Full DNS-rebinding protection is a
+     * delivery-time concern (025); this is the config-time host/scheme guard.
+     */
+    readonly allowPrivateTargets: boolean;
+  };
   readonly keys: {
     /** Secure-link signing keys (`QCMS_LINK_KEYS`); first signs, all verify. */
     readonly link: readonly string[];
@@ -198,6 +215,42 @@ function parseOptionalString(env: Env, name: string, fallback: string): string {
   return raw.trim();
 }
 
+/**
+ * A required absolute http(s) URL knob (e.g. the portal base URL). Records an
+ * issue — by env-var name only, never echoing the value — when absent or not a
+ * parseable absolute http/https URL.
+ */
+function parseRequiredHttpUrl(env: Env, name: string, issues: string[]): string {
+  const raw = env[name];
+  if (raw === undefined || raw.trim() === "") {
+    issues.push(`${name} is required (absolute http(s) URL of the respondent portal)`);
+    return "";
+  }
+  const value = raw.trim();
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    issues.push(`${name} must be an absolute URL`);
+    return value;
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    issues.push(`${name} must use the http or https scheme`);
+  }
+  return value;
+}
+
+/** An optional boolean knob: accepts true/false/1/0/yes/no (case-insensitive). */
+function parseBool(env: Env, name: string, fallback: boolean, issues: string[]): boolean {
+  const raw = env[name];
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const normalized = raw.trim().toLowerCase();
+  if (["true", "1", "yes", "on"].includes(normalized)) return true;
+  if (["false", "0", "no", "off"].includes(normalized)) return false;
+  issues.push(`${name} must be a boolean (true/false)`);
+  return fallback;
+}
+
 function parseInt_(
   env: Env,
   name: string,
@@ -318,12 +371,16 @@ export function loadConfig(env: Env): Config {
   const session = parseKeyList(env, "QCMS_SESSION_KEYS", MIN_SECRET_LENGTH, issues);
   const internal = parseKeyList(env, "QCMS_INTERNAL_TOKEN", MIN_SECRET_LENGTH, issues);
   const app = parseRequiredString(env, "QCMS_APP_KEY", APP_KEY_MIN_LENGTH, issues);
+  const portalBaseUrl = parseRequiredHttpUrl(env, "QCMS_PORTAL_BASE_URL", issues);
+  const allowPrivateTargets = parseBool(env, "QCMS_WEBHOOK_ALLOW_PRIVATE", false, issues);
   const flags = parseFlags(env, issues);
   const challenge = parseChallenge(env, flags, issues);
 
   const config: Config = {
     databaseUrl,
     mount,
+    portalBaseUrl,
+    webhooks: { allowPrivateTargets },
     keys: { link, session, internal, app },
     ttl: {
       anonymousSessionMs: parseInt_(

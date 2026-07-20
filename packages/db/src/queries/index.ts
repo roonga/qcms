@@ -57,9 +57,19 @@ export {
   type SecureLinkRow,
   insertSecureLink,
   getSecureLink,
+  listSecureLinks,
   consumeSecureLink,
   revokeSecureLink,
 } from "./secure-links.js";
+
+export {
+  type WebhookRow,
+  insertWebhook,
+  listWebhooks,
+  getWebhook,
+  updateWebhook,
+  deactivateWebhook,
+} from "./webhooks.js";
 
 export { type AnswerRow, appendAnswer, latestAnswers, answerLedger } from "./answers.js";
 

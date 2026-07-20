@@ -33,6 +33,7 @@ export function validEnv(
     QCMS_SESSION_KEYS: synthSecret(),
     QCMS_INTERNAL_TOKEN: synthSecret(),
     QCMS_APP_KEY: synthSecret(),
+    QCMS_PORTAL_BASE_URL: "https://forms.example.test",
     ...overrides,
   };
 }

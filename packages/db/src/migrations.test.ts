@@ -5,7 +5,7 @@ import { applyMigrations, startTestDb, type TestDb } from "./testing/harness.js"
 // Testcontainers boots a real Postgres; give container startup room.
 const BOOT_TIMEOUT = 120_000;
 
-/** Every table the schema declares (11 domain + 5 better-auth). */
+/** Every table the schema declares (12 domain + 5 better-auth). */
 const EXPECTED_TABLES = [
   "questions",
   "question_versions",
@@ -13,6 +13,7 @@ const EXPECTED_TABLES = [
   "form_drafts",
   "form_versions",
   "secure_links",
+  "webhooks",
   "sessions",
   "answers",
   "submissions",

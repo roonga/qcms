@@ -100,6 +100,44 @@ Rotation model — *first entry signs, all entries verify, tried newest first*:
 Compromise response is the same procedure without step 2's grace: drop the
 compromised key immediately and accept that outstanding links die; re-mint.
 
+## Admin operations (task 024)
+
+Authors mint, list, and revoke links from the admin surface (all routes carry
+the `links:mint` SEC-5 scope, inert at launch; guarded by the internal
+service-token gate and admin-auth — a public-only process has no admin group, so
+these paths 404, ADR-09):
+
+| Route | Body / effect |
+|---|---|
+| `POST /admin/forms/:id/links` | `{ expiresAt, oneTime?, count? }` → inserts `secure_links` rows and mints a token per row with the **current** signing key (`QCMS_LINK_KEYS[0]`); returns `[{ linkId, url, expiresAt }]`. |
+| `GET /admin/forms/:id/links` | Lists the form's links with derived `state` (`active` / `consumed` / `expired` / `revoked`) and the `consumedAt` / `revokedAt` / `createdAt` stamps. |
+| `POST /admin/links/:linkId/revoke` | Sets `revokedAt`; 018 rejects the link thereafter. A link that does not exist or is already revoked → 404. |
+
+- **Link URL format:** `${QCMS_PORTAL_BASE_URL}/l/<token>` — the portal's `/l/`
+  entry redeems the token by calling `POST /sessions { token }` (018). The base
+  URL is validated at boot (`config.portalBaseUrl`, an absolute http(s) URL).
+- **Batch cap:** `count` defaults to `1` and is capped at **100**
+  (`MAX_LINK_BATCH`); a larger `count` is rejected `400` before any row is
+  written. Batch generation shares one imported signing key across the batch.
+- **Expiry:** `expiresAt` must be a future ISO datetime (checked against the
+  request clock); a past/invalid expiry → `400`.
+
+### Rotation runbook (operational — newest signs, all verify)
+
+`QCMS_LINK_KEYS` is a comma/whitespace-separated list; **the first entry signs
+new mints, every entry verifies** (010). To rotate:
+
+1. Generate a new key (`openssl rand -base64 32`) and **prepend** it:
+   `QCMS_LINK_KEYS="<new>,<old>"`. Redeploy. New links now sign with `<new>`;
+   links already minted under `<old>` keep verifying because `<old>` is still in
+   the list. (Proven by the 024 rotation test: a token minted under the old key
+   still starts a session after the prepend.)
+2. Keep `<old>` listed until every link signed with it has passed its longest
+   `expiresAt`.
+3. Drop `<old>`. Anything still signed with it now fails `BAD_SIGNATURE` — the
+   point of rotation. For a **compromise**, skip step 2's grace: drop the
+   compromised key immediately, accept that outstanding links die, and re-mint.
+
 ## Non-goals (explicit)
 
 - **No PII in tokens, ever** (SEC-2). Claims are opaque branded IDs and an

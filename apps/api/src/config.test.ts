@@ -69,6 +69,35 @@ describe("loadConfig — presence and shape (SEC-7, SEC-8)", () => {
   });
 });
 
+// Task 024: portal base URL + webhook SSRF override.
+describe("loadConfig — portal base URL and webhook targets (task 024)", () => {
+  it("parses the portal base URL and defaults the SSRF override to false", () => {
+    const config = loadConfig(validEnv());
+    expect(config.portalBaseUrl).toBe("https://forms.example.test");
+    expect(config.webhooks.allowPrivateTargets).toBe(false);
+  });
+
+  it("requires QCMS_PORTAL_BASE_URL", () => {
+    expect(() => loadConfig(validEnv({ QCMS_PORTAL_BASE_URL: undefined }))).toThrow(ConfigError);
+  });
+
+  it("rejects a portal base URL that is not an absolute http(s) URL", () => {
+    expect(() => loadConfig(validEnv({ QCMS_PORTAL_BASE_URL: "not-a-url" }))).toThrow(ConfigError);
+    expect(() => loadConfig(validEnv({ QCMS_PORTAL_BASE_URL: "ftp://x.example" }))).toThrow(
+      ConfigError,
+    );
+  });
+
+  it("reads the webhook SSRF override flag", () => {
+    expect(
+      loadConfig(validEnv({ QCMS_WEBHOOK_ALLOW_PRIVATE: "true" })).webhooks.allowPrivateTargets,
+    ).toBe(true);
+    expect(() => loadConfig(validEnv({ QCMS_WEBHOOK_ALLOW_PRIVATE: "maybe" }))).toThrow(
+      ConfigError,
+    );
+  });
+});
+
 // Exit criterion 6 (second half): config-failure output contains no secret values.
 describe("SEC-8 redaction — errors never echo secret values", () => {
   it("names the offending var but never prints any secret value", () => {

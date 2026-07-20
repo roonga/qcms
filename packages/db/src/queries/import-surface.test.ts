@@ -52,8 +52,16 @@ describe("query helper import surface", () => {
     // secure links
     "insertSecureLink",
     "getSecureLink",
+    "listSecureLinks",
     "consumeSecureLink",
     "revokeSecureLink",
+    // webhooks (task 024) — per-form config rows; the secret is opaque
+    // ciphertext at this layer, never handled in plaintext here.
+    "insertWebhook",
+    "listWebhooks",
+    "getWebhook",
+    "updateWebhook",
+    "deactivateWebhook",
     // answers
     "appendAnswer",
     "latestAnswers",
