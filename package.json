@@ -17,7 +17,8 @@
     "typecheck": "turbo run typecheck",
     "lint": "turbo run lint && prettier --check .",
     "format": "prettier --write .",
-    "changeset": "changeset"
+    "changeset": "changeset",
+    "check:no-control-chars": "node scripts/check-no-control-chars.mjs"
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.1",

@@ -277,7 +277,7 @@ export function checkRuleTypes(
   const findings = new Map<string, RuleTypeFinding>();
 
   const addMismatch = (rule: VisibilityRule, questionId: QuestionId, message: string): void => {
-    const key = `RULE_TYPE_MISMATCH ${rule.ruleId} ${questionId} ${message}`;
+    const key = JSON.stringify(["RULE_TYPE_MISMATCH", rule.ruleId, questionId, message]);
     findings.set(key, {
       code: "RULE_TYPE_MISMATCH",
       message,
@@ -290,7 +290,7 @@ export function checkRuleTypes(
     questionId: QuestionId,
     option: OptionId,
   ): void => {
-    const key = `DANGLING_OPTION_REF ${rule.ruleId} ${questionId} ${option}`;
+    const key = JSON.stringify(["DANGLING_OPTION_REF", rule.ruleId, questionId, option]);
     findings.set(key, {
       code: "DANGLING_OPTION_REF",
       message: `Rule "${rule.ruleId}" references optionId "${option}" which question "${questionId}" does not declare`,

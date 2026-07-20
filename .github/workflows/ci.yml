@@ -50,4 +50,8 @@ jobs:
         env:
           DEFAULT_BRANCH: ${{ github.event.pull_request.base.ref || 'main' }}
 
+      # A NUL byte once shipped in a .ts and passed every gate (workshop retro,
+      # Stage 4); this rejects control chars (except tab/LF/CR) in tracked source.
+      - run: pnpm check:no-control-chars
+
       - run: pnpm build

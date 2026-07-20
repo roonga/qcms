@@ -82,3 +82,9 @@ golden/
 | `v1/minimal.a2ui.json` | `forms/valid/minimal.json` | Smallest form: one step, one control. |
 | `v1/constraints-heavy.a2ui.json` | `forms/valid/constraints-heavy.json` | Every constraint-bearing control in a single dense step. |
 | `v1/deep-nesting-rules.a2ui.json` | `forms/valid/deep-nesting-rules.json` | A depth-8 rule form; proves the compiled A2UI is a plain projection (rules apply at serve time, not in the document). |
+
+## Adding a golden
+
+Introduce a new golden as a **fresh file add**, never by moving/renaming an existing
+tracked file into `golden/` — the append-only guard detects renames (`R`) as a
+deletion of the old path and fails the build. Create the file in place.

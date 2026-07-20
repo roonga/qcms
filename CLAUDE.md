@@ -21,7 +21,7 @@ npm: `@qcms/*`, `qcms`, and `create-qcms-app` were all unclaimed as of 2026-07-1
 
 ## Toolchain — hard rules
 
-- **pnpm only.** Never npm or yarn (the `packageManager` field pins it from 001). CI uses `--frozen-lockfile`.
+- **pnpm only.** Never npm or yarn (the `packageManager` field pins it from 001). CI uses `--frozen-lockfile`. Registry/version queries: `pnpm view <pkg>` (bare `npm view` is denied by the pnpm-only permission rules).
 - **Vitest below the browser, Playwright for e2e** (ADR-23). No other test frameworks, ever.
 - Gate for every merge: `pnpm build && pnpm typecheck && pnpm test && pnpm lint` green at root (**green-or-clean** — never merge red; park unfinished work on its branch with a `HANDOFF.md`).
 - New dependencies follow `CONTRIBUTING.md`'s approval policy (thresholds + risk assessment in the PR).
