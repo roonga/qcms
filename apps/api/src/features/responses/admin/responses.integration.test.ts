@@ -35,6 +35,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../../app.js";
 import type { Deps } from "../../../deps.js";
+import { FLAG_REASONS, FlagReason } from "../flag-reasons.js";
 import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../../../middleware/admin-auth.js";
 import { internalTokenFor, makeDeps, validEnv } from "../../../test-support.js";
 import { registerAdminResponses } from "./route.js";
@@ -186,7 +187,7 @@ describe("list, detail, and filters (exit criterion 1)", () => {
       sessionId: "ses_api_flagged",
       entries: [{ questionId: "q_name", value: "Bad Actor" }],
       submittedAt: new Date("2026-02-10T00:00:00.000Z"),
-      flaggedReason: "honeypot",
+      flaggedReason: FlagReason.HONEYPOT,
     });
 
     const all = (await (await get("/forms/frm_list_api/responses")).json()) as ListBody;
@@ -199,13 +200,36 @@ describe("list, detail, and filters (exit criterion 1)", () => {
       await get("/forms/frm_list_api/responses?flagged=true")
     ).json()) as ListBody;
     expect(flagged.responses.map((r) => r.sessionId)).toEqual(["ses_api_flagged"]);
-    expect(flagged.responses[0]!.flaggedReason).toBe("honeypot");
+    expect(flagged.responses[0]!.flaggedReason).toBe("HONEYPOT");
 
     // Date-range filter.
     const windowed = (await (
       await get("/forms/frm_list_api/responses?from=2026-02-05T00:00:00.000Z")
     ).json()) as ListBody;
     expect(windowed.responses.map((r) => r.sessionId)).toEqual(["ses_api_flagged"]);
+  });
+
+  it("surfaces every enumerated flag reason in the listing (task 026)", async () => {
+    // The canonical anti-abuse vocabulary (HONEYPOT, MIN_TIME, RATE_ANOMALY) is
+    // stored verbatim in flagged_reason and must be queryable via 023's listing.
+    const formId = await seedForm("frm_reasons_api", [["stp_a", ["q_name"]]]);
+    let i = 0;
+    for (const reason of FLAG_REASONS) {
+      await seedSubmitted({
+        formId,
+        sessionId: `ses_reason_${reason.toLowerCase()}`,
+        entries: [{ questionId: "q_name", value: "x" }],
+        submittedAt: new Date(`2026-03-0${String(++i)}T00:00:00.000Z`),
+        flaggedReason: reason,
+      });
+    }
+    const flagged = (await (
+      await get("/forms/frm_reasons_api/responses?flagged=true")
+    ).json()) as ListBody;
+    const reasons = new Set(flagged.responses.map((r) => r.flaggedReason));
+    expect(reasons).toEqual(
+      new Set([FlagReason.HONEYPOT, FlagReason.MIN_TIME, FlagReason.RATE_ANOMALY]),
+    );
   });
 
   it("returns full detail with the answer ledger and content hash", async () => {

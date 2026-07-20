@@ -17,7 +17,7 @@
                 "props": {
                   "as": "h1"
                 },
-                "children": "Kitchen-sink questionnaire"
+                "children": "Kitchen sink"
               },
               {
                 "type": "Text",
@@ -30,32 +30,12 @@
                 "type": "TextField",
                 "props": {
                   "label": "Full name",
-                  "description": "As it appears on your ID.",
+                  "description": "As shown on your photo ID",
                   "name": "q_full_name",
                   "isRequired": true,
-                  "minLength": 2,
+                  "minLength": 1,
                   "maxLength": 100,
-                  "pattern": "^[a-zA-Z ]+$"
-                }
-              },
-              {
-                "type": "TextArea",
-                "props": {
-                  "label": "Short bio",
-                  "name": "q_bio",
-                  "maxLength": 500
-                }
-              },
-              {
-                "type": "NumberField",
-                "props": {
-                  "label": "Age",
-                  "description": "In whole years.",
-                  "name": "q_age",
-                  "isRequired": true,
-                  "minValue": 0,
-                  "maxValue": 120,
-                  "step": 1
+                  "pattern": "^[A-Za-z][A-Za-z .,'-]{0,99}$"
                 }
               },
               {
@@ -63,9 +43,10 @@
                 "props": {
                   "label": "Date of birth",
                   "name": "q_dob",
+                  "isRequired": true,
                   "granularity": "day",
                   "minValue": "1900-01-01",
-                  "maxValue": "2025-12-31"
+                  "maxValue": "2100-12-31"
                 }
               },
               {
@@ -99,12 +80,12 @@
                 "props": {
                   "as": "h2"
                 },
-                "children": "Health details"
+                "children": "Health"
               },
               {
                 "type": "RadioGroup",
                 "props": {
-                  "label": "Do you smoke?",
+                  "label": "Do you currently smoke?",
                   "name": "q_smoker",
                   "isRequired": true
                 },
@@ -126,10 +107,103 @@
                 ]
               },
               {
+                "type": "NumberField",
+                "props": {
+                  "label": "How many cigarettes do you smoke per day?",
+                  "description": "An average across the last 12 months",
+                  "name": "q_cigs_daily",
+                  "isRequired": true,
+                  "minValue": 0,
+                  "maxValue": 200,
+                  "step": 1
+                }
+              },
+              {
+                "type": "CheckboxGroup",
+                "props": {
+                  "label": "Do any of these conditions apply to you?",
+                  "description": "Select all that apply",
+                  "name": "q_preexisting_conditions",
+                  "isRequired": true,
+                  "orientation": "vertical"
+                },
+                "children": [
+                  {
+                    "type": "Checkbox",
+                    "props": {
+                      "value": "opt_diabetes",
+                      "label": "Diabetes"
+                    }
+                  },
+                  {
+                    "type": "Checkbox",
+                    "props": {
+                      "value": "opt_asthma",
+                      "label": "Asthma"
+                    }
+                  },
+                  {
+                    "type": "Checkbox",
+                    "props": {
+                      "value": "opt_heart_disease",
+                      "label": "Heart disease"
+                    }
+                  },
+                  {
+                    "type": "Checkbox",
+                    "props": {
+                      "value": "opt_none",
+                      "label": "None of the above"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "TextArea",
+                "props": {
+                  "label": "Relevant medical history",
+                  "name": "q_medical_history",
+                  "maxLength": 2000
+                }
+              },
+              {
+                "type": "Honeypot",
+                "props": {
+                  "name": "website",
+                  "autoComplete": "off",
+                  "ariaHidden": true,
+                  "tabIndex": -1
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "stepId": "stp_cover",
+      "root": {
+        "type": "Form",
+        "children": [
+          {
+            "type": "Flex",
+            "props": {
+              "direction": "column",
+              "gap": "md"
+            },
+            "children": [
+              {
+                "type": "Text",
+                "props": {
+                  "as": "h2"
+                },
+                "children": "Your cover"
+              },
+              {
                 "type": "RadioGroup",
                 "props": {
-                  "label": "Coverage level",
-                  "name": "q_coverage",
+                  "label": "Which coverage level would you like?",
+                  "name": "q_coverage_level",
                   "isRequired": true
                 },
                 "children": [
@@ -153,79 +227,12 @@
                       "value": "opt_premium",
                       "label": "Premium"
                     }
-                  }
-                ]
-              },
-              {
-                "type": "Select",
-                "props": {
-                  "label": "Country of residence",
-                  "description": "Where you currently live.",
-                  "name": "q_country",
-                  "items": [
-                    {
-                      "label": "United States",
-                      "value": "opt_us"
-                    },
-                    {
-                      "label": "Canada",
-                      "value": "opt_ca"
-                    },
-                    {
-                      "label": "United Kingdom",
-                      "value": "opt_gb"
-                    },
-                    {
-                      "label": "Australia",
-                      "value": "opt_au"
-                    },
-                    {
-                      "label": "Germany",
-                      "value": "opt_de"
-                    },
-                    {
-                      "label": "France",
-                      "value": "opt_fr"
-                    },
-                    {
-                      "label": "Japan",
-                      "value": "opt_jp"
-                    },
-                    {
-                      "label": "India",
-                      "value": "opt_in"
-                    }
-                  ]
-                }
-              },
-              {
-                "type": "CheckboxGroup",
-                "props": {
-                  "label": "Pre-existing conditions",
-                  "description": "Select all that apply.",
-                  "name": "q_conditions",
-                  "orientation": "vertical"
-                },
-                "children": [
-                  {
-                    "type": "Checkbox",
-                    "props": {
-                      "value": "opt_diabetes",
-                      "label": "Diabetes"
-                    }
                   },
                   {
-                    "type": "Checkbox",
+                    "type": "Radio",
                     "props": {
-                      "value": "opt_hypertension",
-                      "label": "Hypertension"
-                    }
-                  },
-                  {
-                    "type": "Checkbox",
-                    "props": {
-                      "value": "opt_asthma",
-                      "label": "Asthma"
+                      "value": "opt_none",
+                      "label": "No cover for now"
                     }
                   }
                 ]

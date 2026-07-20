@@ -7,6 +7,8 @@
  */
 export { compileForm, compileFormWith } from "./compile.js";
 
+export { HONEYPOT_FIELD_NAME, HONEYPOT_NODE_TYPE, honeypotNode } from "./honeypot.js";
+
 export {
   BOOLEAN_AFFIRMATION,
   BOOLEAN_FALSE_VALUE,

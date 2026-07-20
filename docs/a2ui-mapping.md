@@ -97,6 +97,58 @@ Each step compiles to one A2UI document:
   it is the per-question error slot the renderer (028) fills from server validation
   results. The `name` prop (= questionId) is the key the renderer uses to route errors.
 
+## Honeypot decoy (task 026, abuse controls)
+
+Every step document ends with one **`Honeypot`** node — a visually-hidden decoy
+field. A real respondent never sees, focuses, or fills it; an automated
+form-filler that blindly populates inputs trips it, and the submit slice (020)
+silently flags that session (`HONEYPOT`) with the same success-shaped response
+(no tell). It is appended **last** in the `Flex(column)`, after all controls.
+
+`Honeypot` is a **qcms-specific node type**, not an `@a2ra/core` registry
+component — no real control is rendered off-screen with `aria-hidden`, and the
+`TextField` schema is `strict` and carries none of the hiding props. A dedicated
+type makes the decoy unmistakable (it can never be confused with a real field)
+and self-describing. It is a **renderer-compat contract**: the renderer (028)
+must recognize the type and emit the hidden wrapper below.
+
+| Node | Props | Renderer contract (028) |
+| --- | --- | --- |
+| `Honeypot` | `name` (the submit key, `"website"`), `autoComplete: "off"`, `ariaHidden: true`, `tabIndex: -1` | An `<input>` with that `name`/`autocomplete`/`tabindex`, wrapped in an `aria-hidden` off-screen container; **no** `<label>` and no accessible name. |
+
+Reference rendering (the a11y contract asserted at the node/DOM level here; the
+live axe pass is 028/030):
+
+```html
+<div aria-hidden="true"
+     style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;">
+  <input name="website" autocomplete="off" tabindex="-1" />
+</div>
+```
+
+### The field-name contract (compiler ↔ API)
+
+The decoy submits under one well-known key, `HONEYPOT_FIELD_NAME = "website"`
+(exported from `@qcms/a2ui-compiler`). The API submit handler reads the same key
+off the request body (`config.antiAbuse.honeypotField`, defaulted from that
+constant), so compiler and API agree on exactly one string. The name is
+deliberately **not** a qcms question id (`q_…`, R6), so it can never collide with
+a real control's `name`.
+
+### Golden generations (the maintainable log)
+
+The golden corpus is append-only (ADR-18), and its `golden/README.md` is itself
+under the append-only guard — so this list, not that README, is the living
+record of compiled-output generations:
+
+- **`golden/v1/`** — compiler `0.0.0`: the task-011 launch mapping (no honeypot).
+  Retained untouched and still asserted a valid `@a2ra/core` document forever
+  (old stored snapshots render against it).
+- **`golden/v2/`** — compiler `0.1.0` (task 026): adds the `Honeypot` decoy last
+  in every step. The current generation the corpus runner recompiles against.
+
+A future breaking change adds `golden/v3/` and appends here.
+
 ## Locale
 
 Text reaching the document is resolved via `resolveText(text, locale, defaultLocale)` with

@@ -114,7 +114,7 @@ describe("StepResolver seam is implementable from the public surface", () => {
       { stepId: "stp_two", root: { type: "Text", props: { as: "h2" }, children: "rest:Two" } },
     ]);
     // The compiler owns the version stamps, not the resolver.
-    expect(compiled.compilerVersion).toBe("0.0.0");
+    expect(compiled.compilerVersion).toBe("0.1.0");
     expect(compiled.a2uiSpecVersion).toBe("1.0.0-preview.7");
   });
 

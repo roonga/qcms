@@ -37,14 +37,34 @@ export async function listForms(exec: Executor): Promise<FormRow[]> {
   return exec.select().from(forms).orderBy(forms.formId);
 }
 
-/** Create a form identity. Defaults to `open` (accepting new sessions). */
+/**
+ * Create a form identity. Defaults to `open` (accepting new sessions) with no
+ * abuse-control gates. The optional per-form abuse settings (task 026) may be
+ * set here or left to their column defaults (`challengeRequired = false`,
+ * `minSubmitMs = NULL` → use the config default floor); the admin builder (034)
+ * is their normal authoring path.
+ */
 export async function createForm(
   exec: Executor,
-  input: { formId: FormId; slug: string; defaultLocale: string },
+  input: {
+    formId: FormId;
+    slug: string;
+    defaultLocale: string;
+    challengeRequired?: boolean;
+    minSubmitMs?: number | null;
+  },
 ): Promise<FormRow> {
   const [row] = await exec
     .insert(forms)
-    .values({ formId: input.formId, slug: input.slug, defaultLocale: input.defaultLocale })
+    .values({
+      formId: input.formId,
+      slug: input.slug,
+      defaultLocale: input.defaultLocale,
+      ...(input.challengeRequired !== undefined
+        ? { challengeRequired: input.challengeRequired }
+        : {}),
+      ...(input.minSubmitMs !== undefined ? { minSubmitMs: input.minSubmitMs } : {}),
+    })
     .returning();
   return row!;
 }

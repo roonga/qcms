@@ -24,6 +24,7 @@ import {
   enqueue,
   expireSessions,
   getDraft,
+  getFormBySlug,
   getWebhook,
   insertWebhook,
   listSecureLinks,
@@ -251,6 +252,32 @@ describe("forms helpers", () => {
     await createForm(testDb.db, { formId, slug: "frm-status-slug", defaultLocale: "en" });
     expect((await closeForm(testDb.db, formId))?.status).toBe("closed");
     expect((await reopenForm(testDb.db, formId))?.status).toBe("open");
+  });
+
+  it("defaults the per-form abuse settings and round-trips overrides (task 026)", async () => {
+    // Column defaults: challenge off, no min-time override (config default applies).
+    const plainId = FormId.parse("frm_abuse_default");
+    await createForm(testDb.db, {
+      formId: plainId,
+      slug: "frm-abuse-default",
+      defaultLocale: "en",
+    });
+    const plain = await getFormBySlug(testDb.db, "frm-abuse-default");
+    expect(plain?.challengeRequired).toBe(false);
+    expect(plain?.minSubmitMs).toBeNull();
+
+    // Overrides set at create time survive the read.
+    const gatedId = FormId.parse("frm_abuse_gated");
+    await createForm(testDb.db, {
+      formId: gatedId,
+      slug: "frm-abuse-gated",
+      defaultLocale: "en",
+      challengeRequired: true,
+      minSubmitMs: 3_000,
+    });
+    const gated = await getFormBySlug(testDb.db, "frm-abuse-gated");
+    expect(gated?.challengeRequired).toBe(true);
+    expect(gated?.minSubmitMs).toBe(3_000);
   });
 });
 

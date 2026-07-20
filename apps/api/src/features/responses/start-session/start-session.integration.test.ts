@@ -31,6 +31,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../../app.js";
 import type { Deps } from "../../../deps.js";
+import type { ChallengeVerifier } from "../challenge.js";
 import { fixedClock, internalTokenFor, makeDeps, validEnv } from "../../../test-support.js";
 import { registerStartSession } from "./route.js";
 
@@ -99,10 +100,15 @@ interface ErrBody {
 async function seedForm(
   id: string,
   slug: string,
-  opts: { versions?: number; closed?: boolean } = {},
+  opts: { versions?: number; closed?: boolean; challengeRequired?: boolean } = {},
 ): Promise<FormId> {
   const formId = FormId.parse(id);
-  await createForm(testDb.db, { formId, slug, defaultLocale: "en" });
+  await createForm(testDb.db, {
+    formId,
+    slug,
+    defaultLocale: "en",
+    ...(opts.challengeRequired !== undefined ? { challengeRequired: opts.challengeRequired } : {}),
+  });
   for (let i = 0; i < (opts.versions ?? 0); i++) {
     await insertFormVersion(testDb.db, {
       formId,
@@ -341,5 +347,67 @@ describe("session-token gate (exit criterion 3, SEC-2)", () => {
   it("GET with the correct token → 200", async () => {
     const res = await get(sessionId, { authorization: `Bearer ${sessionToken}` });
     expect(res.status).toBe(200);
+  });
+});
+
+// --- challenge adapter seam (task 026, exit criterion 4) --------------------
+
+describe("challenge seam for challengeRequired forms", () => {
+  // A test verifier standing in for a real provider (Turnstile is 029): only the
+  // exact solution "good-token" passes; a missing/other token fails.
+  const testVerifier: ChallengeVerifier = {
+    verify: (token) => Promise.resolve({ ok: token === "good-token" }),
+  };
+
+  /** A second app whose deps carry the test verifier (same DB, same signing keys). */
+  function appWithVerifier(verifier: ChallengeVerifier): ReturnType<typeof createApp> {
+    const d = makeDeps({
+      db: testDb.db,
+      clock: fixedClock(NOW),
+      config: deps.config,
+      challenge: verifier,
+    });
+    return createApp(d, PUBLIC_ONLY, { groups: { public: [registerStartSession] } });
+  }
+
+  async function postTo(targetApp: ReturnType<typeof createApp>, body: unknown): Promise<Response> {
+    return targetApp.request("/sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-qcms-internal-token": internalToken },
+      body: JSON.stringify(body),
+    });
+  }
+
+  it("rejects start-session without a challenge token for a challengeRequired form (403)", async () => {
+    await seedForm("frm_challenge", "challenge-form", { versions: 1, challengeRequired: true });
+    const gated = appWithVerifier(testVerifier);
+    const res = await postTo(gated, { formSlug: "challenge-form" });
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as ErrBody).error.code).toBe("CHALLENGE_REQUIRED");
+  });
+
+  it("rejects an invalid challenge token (403)", async () => {
+    const gated = appWithVerifier(testVerifier);
+    const res = await postTo(gated, { formSlug: "challenge-form", challengeToken: "nope" });
+    expect(res.status).toBe(403);
+  });
+
+  it("admits a valid challenge token (201)", async () => {
+    const gated = appWithVerifier(testVerifier);
+    const res = await postTo(gated, { formSlug: "challenge-form", challengeToken: "good-token" });
+    expect(res.status).toBe(201);
+  });
+
+  it("the null verifier (provider none) no-ops: challengeRequired form admits with no token (201)", async () => {
+    // `deps`/`app` from the outer suite use the default null verifier.
+    const res = await post({ formSlug: "challenge-form" });
+    expect(res.status).toBe(201);
+  });
+
+  it("does not challenge a form that does not require it", async () => {
+    await seedForm("frm_nochallenge", "no-challenge-form", { versions: 1 });
+    const gated = appWithVerifier(testVerifier);
+    const res = await postTo(gated, { formSlug: "no-challenge-form" });
+    expect(res.status).toBe(201);
   });
 });

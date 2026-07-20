@@ -10,6 +10,7 @@
 import type { Config, MountFlags } from "./config.js";
 import { loadConfig } from "./config.js";
 import type { Deps } from "./deps.js";
+import { type ChallengeVerifier, nullChallengeVerifier } from "./features/responses/challenge.js";
 import { createJsonLogger, createNullLogger, type Logger } from "./logger.js";
 import { InMemoryRateLimitStore } from "./rate-limit.js";
 import type { Clock } from "./clock.js";
@@ -48,6 +49,7 @@ export interface TestDepsOverrides {
   readonly config?: Config;
   readonly logger?: Logger;
   readonly clock?: Clock;
+  readonly challenge?: ChallengeVerifier;
   readonly env?: Record<string, string | undefined>;
 }
 
@@ -64,6 +66,7 @@ export function makeDeps(overrides: TestDepsOverrides = {}): Deps {
     clock,
     logger: overrides.logger ?? createNullLogger(),
     rateLimitStore: new InMemoryRateLimitStore(clock),
+    challenge: overrides.challenge ?? nullChallengeVerifier,
     flags: config.flags,
   };
 }

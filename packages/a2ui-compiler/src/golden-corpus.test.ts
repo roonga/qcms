@@ -20,11 +20,20 @@ import { compileForm } from "./compile.js";
 import type { A2UINode, CompiledForm } from "./types.js";
 
 /**
- * A2UI golden corpus runner (task 012, ADR-18). Each corpus form is a
- * `@qcms/core` fixture; the runner rebuilds its published {@link FrozenSnapshot}
- * through the real publish path (`compileDraft`, task 008), compiles it with the
- * launch compiler (`compileForm`, task 011), and asserts the output equals the
- * committed golden document under `golden/v1/`.
+ * A2UI golden corpus runner (task 012, ADR-18; generation bumped in 026). Each
+ * corpus form is a `@qcms/core` fixture; the runner rebuilds its published
+ * {@link FrozenSnapshot} through the real publish path (`compileDraft`, task
+ * 008), compiles it with the launch compiler (`compileForm`, task 011), and
+ * asserts the output equals the committed golden document under the **current**
+ * generation directory `golden/v2/`.
+ *
+ * `golden/v2/` is the second frozen generation: task 026 taught the compiler to
+ * emit a honeypot decoy in every step document (a mapping change that alters
+ * existing output), which under the append-only policy (ADR-18) is handled by a
+ * new directory rather than editing `golden/v1/`. `golden/v1/` stays committed
+ * as the faithful record of what compiler `0.0.0` produced and is still
+ * asserted spec-valid below — old stored snapshots resolve against it forever
+ * (`golden/README.md` spec-bump procedure).
  *
  * These goldens are three contracts at once (`golden/README.md`): the
  * compiler's regression net, the renderer's conformance input (028), and the
@@ -36,7 +45,8 @@ import type { A2UINode, CompiledForm } from "./types.js";
  */
 
 const CORE_FIXTURES = fileURLToPath(new URL("../../core/fixtures/", import.meta.url));
-const GOLDEN_DIR = fileURLToPath(new URL("../golden/v1/", import.meta.url));
+const GOLDEN_DIR = fileURLToPath(new URL("../golden/v2/", import.meta.url));
+const GOLDEN_V1_DIR = fileURLToPath(new URL("../golden/v1/", import.meta.url));
 
 /** Corpus membership: `@qcms/core` form fixture → golden document filename. */
 const CORPUS: readonly { readonly fixture: string; readonly golden: string }[] = [
@@ -134,7 +144,7 @@ function assertValidA2uiNode(node: A2UINode): void {
   parseNode(node);
 }
 
-describe("A2UI golden corpus (v1)", () => {
+describe("A2UI golden corpus (v2 — current generation)", () => {
   for (const { fixture, golden } of CORPUS) {
     describe(golden, () => {
       const compiled = compileForm(buildSnapshot(fixture), {});
@@ -178,6 +188,46 @@ describe("A2UI golden corpus (v1)", () => {
         // Then byte-exact, so formatting/key-order drift is caught too.
         expect(serialized).toBe(goldenText);
       });
+
+      it("appends a honeypot decoy as the last field of each step (task 026)", () => {
+        for (const doc of compiled.documents) {
+          // root: Form → Flex(column) → [headings…, controls…, Honeypot].
+          const flex = childNodes(doc.root)[0];
+          expect(flex).toBeDefined();
+          const fields = childNodes(flex!);
+          const last = fields[fields.length - 1];
+          expect(last?.type).toBe("Honeypot");
+          // Exactly one honeypot per document (no stray duplicates).
+          expect(fields.filter((n) => n.type === "Honeypot").length).toBe(1);
+        }
+      });
+    });
+  }
+});
+
+/**
+ * The frozen `v1/` generation remains a valid contract forever (ADR-18, the
+ * stored copy is served for the life of any snapshot compiled under it). We do
+ * *not* recompile it — the live compiler now emits v2 — but every committed v1
+ * document must still parse as a spec-valid `@a2ra/core` document so the
+ * vendored renderer keeps rendering old stored snapshots.
+ */
+describe("A2UI golden corpus (v1 — retained, still spec-valid)", () => {
+  for (const { golden } of CORPUS) {
+    it(`${golden} remains a valid @a2ra/core document`, () => {
+      const text = readFileSync(path.join(GOLDEN_V1_DIR, golden), "utf8");
+      const doc = JSON.parse(text) as CompiledForm;
+      for (const document of doc.documents) {
+        for (const node of walk(document.root)) {
+          expect(() => {
+            assertValidA2uiNode(node);
+          }).not.toThrow();
+        }
+      }
+      // v1 predates the honeypot: no decoy node in the retained generation.
+      for (const document of doc.documents) {
+        expect(walk(document.root).some((n) => n.type === "Honeypot")).toBe(false);
+      }
     });
   }
 });

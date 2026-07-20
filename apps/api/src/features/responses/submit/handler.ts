@@ -45,6 +45,7 @@ import {
 } from "@qcms/core";
 import {
   enqueue,
+  getForm,
   getFormVersion,
   getQuestionVersion,
   getSession,
@@ -59,6 +60,7 @@ import type { Context } from "hono";
 import type { Deps } from "../../../deps.js";
 import { ApiError } from "../../../errors.js";
 import type { ApiEnv } from "../../../openapi.js";
+import { FlagReason } from "../flag-reasons.js";
 import { authenticateSession } from "../session-token.js";
 // Type-only (erased at runtime, so no import cycle with route.ts).
 import type { submitRoute } from "./route.js";
@@ -97,6 +99,10 @@ interface SessionView {
 }
 interface QuestionVersionView {
   readonly definition: QuestionDefinition;
+}
+/** The per-form abuse setting this slice reads (026); same #5 launder as above. */
+interface FormAbuseView {
+  readonly minSubmitMs: number | null;
 }
 
 /**
@@ -159,17 +165,20 @@ function receiptFrom(row: { submittedAt: Date; contentHash: string }): SubmitRes
 }
 
 /**
- * Anti-abuse hooks (wired here, tuned in 026). Both are **silent**: a triggered
- * signal returns a reason string that flags the submission and withholds its
- * webhook event, while the response stays the usual success shape. Returns the
- * flag reason, or `undefined` for a clean submission.
+ * Anti-abuse hooks (finalized in 026). Both are **silent**: a triggered signal
+ * returns a {@link FlagReason} that flags the submission and withholds its
+ * webhook event, while the response stays the usual success shape (the tell
+ * never leaks — SECURITY). `minTimeFloorMs` is the *effective* floor for this
+ * form (the per-form `min_submit_ms` override, else the config default); `0`
+ * disables the min-time check. Returns the reason, or `undefined` when clean.
  */
 function detectAbuse(
   deps: Deps,
   session: SessionView,
   body: Record<string, unknown>,
-): string | undefined {
-  const { honeypotField, minSubmitMs } = deps.config.antiAbuse;
+  minTimeFloorMs: number,
+): FlagReason | undefined {
+  const { honeypotField } = deps.config.antiAbuse;
 
   // A legitimate client leaves the decoy empty/absent. A string value counts as
   // filled only when non-blank; any non-string, non-null value (a bot sending a
@@ -179,11 +188,11 @@ function detectAbuse(
     typeof honeypot === "string"
       ? honeypot.trim() !== ""
       : honeypot !== undefined && honeypot !== null;
-  if (honeypotFilled) return "honeypot";
+  if (honeypotFilled) return FlagReason.HONEYPOT;
 
-  if (minSubmitMs > 0) {
+  if (minTimeFloorMs > 0) {
     const elapsedMs = deps.clock.now().getTime() - session.createdAt.getTime();
-    if (elapsedMs < minSubmitMs) return "too_fast";
+    if (elapsedMs < minTimeFloorMs) return FlagReason.MIN_TIME;
   }
 
   return undefined;
@@ -250,9 +259,16 @@ export function makeSubmitHandler(deps: Deps): RouteHandler<typeof submitRoute, 
     }
     const locked = prepared.value;
 
+    // The min-time floor is per-form (`forms.min_submit_ms`) with the config
+    // default as fallback (task 026). A missing form row here would be an
+    // internal inconsistency (the session pins a formId), so fall back to the
+    // default rather than fail the submission.
+    const form = (await getForm(deps.db, session.formId)) as FormAbuseView | undefined;
+    const minTimeFloorMs = form?.minSubmitMs ?? deps.config.antiAbuse.minSubmitMs;
+
     // Anti-abuse decision is pure over the (validated) submission; it changes
     // whether the outbox event is enqueued, never the response shape.
-    const flaggedReason = detectAbuse(deps, session, body);
+    const flaggedReason = detectAbuse(deps, session, body, minTimeFloorMs);
 
     const receipt = await deps.db.transaction(async (tx) => {
       // Serialize with concurrent submits/answers on this session (I5) so the

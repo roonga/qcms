@@ -1,5 +1,6 @@
 import type { FrozenSnapshot, LocaleCode, QuestionDefinition, QuestionRef, Step } from "@qcms/core";
 
+import { honeypotNode } from "./honeypot.js";
 import { questionToNode, type TextResolver } from "./mapping.js";
 import type { A2UIDocument, A2UINode } from "./types.js";
 
@@ -50,8 +51,9 @@ function heading(as: "h1" | "h2", text: string): A2UINode {
 /**
  * The launch resolver: a pure, deterministic projection. Each step compiles to
  * `Form → Flex(column)` carrying the heading structure (form title `h1` on the
- * first step, step title `h2` on every step) followed by one control node per
- * pinned question (`docs/a2ui-mapping.md`).
+ * first step, step title `h2` on every step), one control node per pinned
+ * question, and — last — one visually-hidden honeypot decoy (abuse controls,
+ * task 026; `docs/a2ui-mapping.md`).
  */
 export const staticStepResolver: StepResolver = {
   resolveStep(step, context) {
@@ -65,6 +67,10 @@ export const staticStepResolver: StepResolver = {
         questionToNode(context.resolveQuestion(item), context.resolveText, context.locale),
       );
     }
+    // The honeypot decoy is the last child of every step (task 026): a real
+    // respondent never reaches it; a blind form-filler trips it and 020 flags
+    // the session. Appending last keeps it out of the natural field order.
+    children.push(honeypotNode());
     const root: A2UINode = {
       type: "Form",
       children: [{ type: "Flex", props: { direction: "column", gap: "md" }, children }],

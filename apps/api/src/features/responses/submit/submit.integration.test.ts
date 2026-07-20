@@ -23,6 +23,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { HONEYPOT_FIELD_NAME } from "@qcms/a2ui-compiler";
 import { FormId, type LockedSubmission, QuestionId, SessionId } from "@qcms/core";
 import {
   answerLedger,
@@ -412,7 +413,11 @@ describe("silent anti-abuse flags (exit criterion 5)", () => {
   it("a honeypot-filled submit succeeds, is flagged, and withholds the outbox event", async () => {
     const { sessionId, sessionToken } = await completeValidSession();
 
-    const res = await submit(sessionId, sessionToken, { website: "http://spam.example" });
+    // Key off the compiler's shared honeypot field name (the compiler↔API
+    // contract): the decoy the compiler emits posts under exactly this key.
+    const res = await submit(sessionId, sessionToken, {
+      [HONEYPOT_FIELD_NAME]: "http://spam.example",
+    });
     // Same success shape as a clean submission — the tell never leaks.
     expect(res.status).toBe(200);
     const receipt = (await res.json()) as Receipt;
@@ -420,7 +425,7 @@ describe("silent anti-abuse flags (exit criterion 5)", () => {
 
     const submission = await loadSubmission(sessionId);
     expect(submission).toBeDefined();
-    expect(submission?.flaggedReason).toBe("honeypot");
+    expect(submission?.flaggedReason).toBe("HONEYPOT");
     // Flagged → session still submitted, but NO webhook event enqueued.
     expect(await sessionStatus(sessionId)).toBe("submitted");
     expect(await outboxCount(sessionId)).toBe(0);
@@ -449,9 +454,46 @@ describe("silent anti-abuse flags (exit criterion 5)", () => {
     expect(res.status).toBe(200);
 
     const submission = await loadSubmission(sessionId);
-    expect(submission?.flaggedReason).toBe("too_fast");
+    expect(submission?.flaggedReason).toBe("MIN_TIME");
     expect(await sessionStatus(sessionId)).toBe("submitted");
     expect(await outboxCount(sessionId)).toBe(0);
+  });
+
+  it("a per-form min_submit_ms override flags a below-floor submit (task 026)", async () => {
+    // A form whose own floor (3s) is the authority — no global config floor set,
+    // so this proves the per-form override path, not the config default.
+    const gatedFormId = FormId.parse("frm_minfloor");
+    await createForm(testDb.db, {
+      formId: gatedFormId,
+      slug: "minfloor",
+      defaultLocale: "en",
+      minSubmitMs: 3_000,
+    });
+    await insertFormVersion(testDb.db, {
+      formId: gatedFormId,
+      definition: INSURANCE_DEF,
+      compiled: GOLDEN as unknown as VersionInput["compiled"],
+      compilerVersion: GOLDEN.compilerVersion,
+      a2uiSpecVersion: GOLDEN.a2uiSpecVersion,
+      semanticsVersion: "1",
+    });
+
+    // Default app: global antiAbuse.minSubmitMs is 0 (off) — only the form floor bites.
+    const started = await startSession("minfloor");
+    expect(
+      (await postAnswer(started.sessionId, started.sessionToken, "q_smoker", false)).status,
+    ).toBe(200);
+    // createdAt = NOW so elapsed = 0 < 3s form floor → flagged MIN_TIME.
+    await testDb.client.query(`update sessions set created_at = $1 where session_id = $2`, [
+      NOW.toISOString(),
+      started.sessionId,
+    ]);
+
+    const res = await submit(started.sessionId, started.sessionToken);
+    expect(res.status).toBe(200);
+    const submission = await loadSubmission(started.sessionId);
+    expect(submission?.flaggedReason).toBe("MIN_TIME");
+    expect(await outboxCount(started.sessionId)).toBe(0);
   });
 });
 

@@ -29,6 +29,7 @@ import type { FormId, LinkId, SessionId } from "@qcms/core";
 import {
   consumeSecureLink,
   createSession,
+  getForm,
   getFormBySlug,
   getLatestPublishedVersion,
   getSecureLink,
@@ -40,6 +41,7 @@ import type { Config } from "../../../config.js";
 import type { Deps } from "../../../deps.js";
 import { ApiError } from "../../../errors.js";
 import type { ApiEnv } from "../../../openapi.js";
+import { clientIp } from "../rate-limits.js";
 import { authenticateSession, importSessionKeys, mintSessionToken } from "../session-token.js";
 // Type-only (erased at runtime, so no import cycle with route.ts): binds each
 // handler to its route so `c.json(...)` yields the route's typed response.
@@ -57,6 +59,8 @@ const fail = {
   linkConsumed: (): ApiError =>
     new ApiError("LINK_CONSUMED", 409, "This link has already been used"),
   linkRevoked: (): ApiError => new ApiError("LINK_REVOKED", 403, "This link has been revoked"),
+  challengeFailed: (): ApiError =>
+    new ApiError("CHALLENGE_REQUIRED", 403, "A valid challenge is required to start this session"),
 } as const;
 
 /** A fresh, branded session id: `ses_` + 16 random hex bytes (matches `^ses_[a-z0-9_]+$`). */
@@ -90,6 +94,7 @@ interface StartResult {
 interface FormView {
   readonly formId: FormId;
   readonly status: "open" | "closed";
+  readonly challengeRequired: boolean;
 }
 interface SessionView {
   readonly sessionId: SessionId;
@@ -109,11 +114,12 @@ export function makeStartSessionHandler(
   return async (c) => {
     const body = c.req.valid("json");
     const now = deps.clock.now();
+    const challenge: ChallengeContext = { token: body.challengeToken, ip: clientIp(c) };
 
     const result =
       body.token !== undefined
-        ? await startFromSecureLink(deps, body.token, now)
-        : await startAnonymous(deps, body.formSlug ?? "", now);
+        ? await startFromSecureLink(deps, body.token, now, challenge)
+        : await startAnonymous(deps, body.formSlug ?? "", now, challenge);
 
     return c.json(
       {
@@ -127,10 +133,39 @@ export function makeStartSessionHandler(
   };
 }
 
-async function startAnonymous(deps: Deps, formSlug: string, now: Date): Promise<StartResult> {
+/** The challenge inputs threaded from the request: the client's solution + IP. */
+interface ChallengeContext {
+  readonly token: string | undefined;
+  readonly ip: string | undefined;
+}
+
+/**
+ * Enforce a form's `challengeRequired` setting (task 026). When set, the
+ * configured {@link Deps.challenge} verifier must pass for the request's
+ * challenge token; a failure rejects start-session with 403. With provider
+ * `none` the null verifier accepts everything, so the setting no-ops — the
+ * check still runs (structurally honored) but never blocks.
+ */
+async function enforceChallenge(
+  deps: Deps,
+  challengeRequired: boolean,
+  challenge: ChallengeContext,
+): Promise<void> {
+  if (!challengeRequired) return;
+  const result = await deps.challenge.verify(challenge.token, challenge.ip);
+  if (!result.ok) throw fail.challengeFailed();
+}
+
+async function startAnonymous(
+  deps: Deps,
+  formSlug: string,
+  now: Date,
+  challenge: ChallengeContext,
+): Promise<StartResult> {
   const form = (await getFormBySlug(deps.db, formSlug)) as FormView | undefined;
   if (form === undefined) throw fail.formNotFound();
   if (form.status === "closed") throw fail.formClosed();
+  await enforceChallenge(deps, form.challengeRequired, challenge);
 
   const version = await getLatestPublishedVersion(deps.db, form.formId);
   if (version === undefined) throw fail.noPublishedVersion();
@@ -148,7 +183,12 @@ async function startAnonymous(deps: Deps, formSlug: string, now: Date): Promise<
   return finish(deps, sessionId, version.version, expiresAt);
 }
 
-async function startFromSecureLink(deps: Deps, token: string, now: Date): Promise<StartResult> {
+async function startFromSecureLink(
+  deps: Deps,
+  token: string,
+  now: Date,
+  challenge: ChallengeContext,
+): Promise<StartResult> {
   const keys = await importLinkKeys(deps.config);
   const verified = await verifySecureLink(token, keys, now);
   if (!verified.ok) {
@@ -164,6 +204,11 @@ async function startFromSecureLink(deps: Deps, token: string, now: Date): Promis
   // as invalid rather than trusting the token alone (SEC-2).
   if (row === undefined) throw fail.linkInvalid();
   assertLinkUsable(row, now);
+
+  // A form may require a challenge even for invited (secure-link) entry; the
+  // setting is per-form (task 026). Read the identity row for its flag.
+  const form = (await getForm(deps.db, formId)) as FormView | undefined;
+  await enforceChallenge(deps, form?.challengeRequired ?? false, challenge);
 
   // Session expiry never outlives the link, nor the anonymous TTL ceiling.
   const expiresAt = new Date(

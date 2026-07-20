@@ -1,6 +1,6 @@
 {
   "name": "@qcms/a2ui-compiler",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": false,
   "description": "qcms FormDefinition-to-A2UI compiler: the pure projection from a published snapshot to A2UI documents (task 011)",
   "license": "MIT",

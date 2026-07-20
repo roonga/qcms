@@ -12,8 +12,16 @@
  * version — so bumping either package without updating the stamp fails the gate.
  */
 
-/** This package's version (mirrors `package.json`; guarded by `version.test.ts`). */
-export const COMPILER_VERSION = "0.0.0";
+/**
+ * This package's version (mirrors `package.json`; guarded by `version.test.ts`).
+ *
+ * Bumped 0.0.0 → 0.1.0 in task 026: the compiler now emits a honeypot decoy in
+ * every step document (a mapping change that alters existing output), so the
+ * stamp changes and the frozen goldens move to a new generation directory
+ * (`golden/v2/`, `golden/README.md` spec-bump procedure). `golden/v1/` stays a
+ * faithful record of what `0.0.0` produced (ADR-18, append-only).
+ */
+export const COMPILER_VERSION = "0.1.0";
 
 /**
  * The pinned `@a2ra/core` package version whose Zod schemas the compiled output

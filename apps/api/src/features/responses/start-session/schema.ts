@@ -23,6 +23,14 @@ export const StartSessionBody = z
     token: z.string().min(1).optional().openapi({
       description: "Secure-link token for invited entry.",
     }),
+    challengeToken: z
+      .string()
+      .optional()
+      .openapi({
+        description:
+          "Challenge solution (e.g. Turnstile token) for a form with challengeRequired set. " +
+          "Verified by the configured provider; ignored when the provider is `none` (task 026).",
+      }),
   })
   .refine((b) => (b.formSlug === undefined) !== (b.token === undefined), {
     message: "Provide exactly one of formSlug or token",

@@ -21,12 +21,19 @@
  * and testable. `serve.ts` calls `loadConfig(process.env)`.
  */
 
+import { HONEYPOT_FIELD_NAME } from "@qcms/a2ui-compiler";
 import { z } from "zod";
 
 /** Minimum bytes for signing/secret material (SEC-4/SEC-7: >= 32 random bytes). */
 export const MIN_SECRET_LENGTH = 32;
 /** AES-256-GCM key length for `QCMS_APP_KEY` (SEC-6/SEC-8); 32 bytes = 256 bits. */
 export const APP_KEY_MIN_LENGTH = 32;
+
+/** One rate-limit class: at most `max` requests per fixed `windowMs` per key. */
+export interface RateLimitClass {
+  readonly windowMs: number;
+  readonly max: number;
+}
 
 /** Which route groups a process mounts (ADR-09: admin does not exist in public). */
 export interface MountFlags {
@@ -93,9 +100,24 @@ export interface Config {
     /** Anonymous session TTL in ms (`QCMS_SESSION_TTL_MS`). */
     readonly anonymousSessionMs: number;
   };
+  /**
+   * Per-endpoint-class rate limits (task 026), each a fixed window enforced by
+   * 017's pluggable store. Respondent traffic is bucketed by the natural abuse
+   * unit: session creation by client IP (no session exists yet), the serving
+   * loop by session (the sustained-rate + burst ceiling) *and* by IP (a wide
+   * backstop against many-session floods from one source), and submit by
+   * session. All are configurable; the defaults are documented on {@link
+   * DEFAULTS}. Multi-instance deployments swap the store for a shared one (017).
+   */
   readonly rateLimit: {
-    readonly windowMs: number;
-    readonly max: number;
+    /** `POST /sessions` — per client IP (e.g. 20/hour). */
+    readonly sessionCreate: RateLimitClass;
+    /** `POST /sessions/{id}/answers` — per session (≈2/s sustained, burst 10). */
+    readonly answersPerSession: RateLimitClass;
+    /** `POST /sessions/{id}/answers` — per client IP (a wider flood backstop). */
+    readonly answersPerIp: RateLimitClass;
+    /** `POST /sessions/{id}/submit` — per session (e.g. 5/min). */
+    readonly submitPerSession: RateLimitClass;
   };
   readonly scheduler: {
     readonly outboxIntervalMs: number;
@@ -115,16 +137,18 @@ export interface Config {
    */
   readonly antiAbuse: {
     /**
-     * Minimum ms between session creation and submit. A submit faster than this
-     * is flagged `too_fast`. `0` disables the check (the conservative default
-     * until 026 tunes a real threshold — a wrong value silently drops real
-     * submissions, so the wire ships inert).
+     * Global default minimum ms between session creation and submit. A submit
+     * faster than the effective floor is silently flagged `MIN_TIME`. `0`
+     * disables the global check; a form may set its own floor
+     * (`forms.min_submit_ms`) that overrides this default (task 026).
      */
     readonly minSubmitMs: number;
     /**
-     * Honeypot field name on the submit body. A non-empty value flags the
-     * submission `honeypot`. A legitimate client never fills it, so the check is
-     * always on; 026 may rename the field.
+     * Honeypot field name on the submit body — the compiler↔API contract
+     * (`HONEYPOT_FIELD_NAME`, `@qcms/a2ui-compiler`). A non-empty value flags the
+     * submission `HONEYPOT`. A legitimate client never fills it, so the check is
+     * always on. Overridable only for operators who also change the compiler
+     * constant; the default keeps both sides in lockstep.
      */
     readonly honeypotField: string;
   };
@@ -358,8 +382,11 @@ function parseChallenge(env: Env, flags: Flags, issues: string[]): Config["chall
 /** Sensible defaults for the tunable, non-secret knobs. */
 const DEFAULTS = {
   anonymousSessionMs: 24 * 60 * 60 * 1000, // 24h (matches @qcms/db retention default)
-  rateLimitWindowMs: 60_000,
-  rateLimitMax: 120,
+  // Per-class rate limits (task 026). Each pair is [windowMs, max].
+  rlSessionCreate: { windowMs: 60 * 60 * 1000, max: 20 }, // 20 new sessions / hour / IP
+  rlAnswersPerSession: { windowMs: 5_000, max: 10 }, // ≈2/s sustained, burst 10 / session
+  rlAnswersPerIp: { windowMs: 60_000, max: 300 }, // wide per-IP flood backstop
+  rlSubmitPerSession: { windowMs: 60_000, max: 5 }, // 5 submit attempts / min / session
   outboxIntervalMs: 5_000,
   outboxJitterMs: 1_000,
   retentionSweepIntervalMs: 60 * 60 * 1000, // 1h
@@ -367,9 +394,26 @@ const DEFAULTS = {
   webhookTimeoutMs: 10_000, // 10s per delivery attempt (025)
   webhookBatchSize: 20, // deliveries processed per pass (025)
   bodyLimitBytes: 1_000_000, // 1MB (SEC-9)
-  antiAbuseMinSubmitMs: 0, // off until 026 tunes it (see antiAbuse.minSubmitMs)
-  antiAbuseHoneypotField: "website", // conventional decoy field name
+  antiAbuseMinSubmitMs: 0, // global floor off by default; forms may override (min_submit_ms)
+  // The decoy field name is the compiler↔API contract (single source of truth).
+  antiAbuseHoneypotField: HONEYPOT_FIELD_NAME,
 } as const;
+
+/**
+ * Parse one rate-limit class from its `<PREFIX>_WINDOW_MS` / `<PREFIX>_MAX` env
+ * knobs, falling back to `fallback`. Both must be positive integers.
+ */
+function parseRateClass(
+  env: Env,
+  prefix: string,
+  fallback: RateLimitClass,
+  issues: string[],
+): RateLimitClass {
+  return {
+    windowMs: parseInt_(env, `${prefix}_WINDOW_MS`, fallback.windowMs, 1, issues),
+    max: parseInt_(env, `${prefix}_MAX`, fallback.max, 1, issues),
+  };
+}
 
 /**
  * Validate an environment record into a {@link Config}, failing fast with a
@@ -422,8 +466,25 @@ export function loadConfig(env: Env): Config {
       ),
     },
     rateLimit: {
-      windowMs: parseInt_(env, "QCMS_RATE_LIMIT_WINDOW_MS", DEFAULTS.rateLimitWindowMs, 1, issues),
-      max: parseInt_(env, "QCMS_RATE_LIMIT_MAX", DEFAULTS.rateLimitMax, 1, issues),
+      sessionCreate: parseRateClass(
+        env,
+        "QCMS_RL_SESSION_CREATE",
+        DEFAULTS.rlSessionCreate,
+        issues,
+      ),
+      answersPerSession: parseRateClass(
+        env,
+        "QCMS_RL_ANSWERS_SESSION",
+        DEFAULTS.rlAnswersPerSession,
+        issues,
+      ),
+      answersPerIp: parseRateClass(env, "QCMS_RL_ANSWERS_IP", DEFAULTS.rlAnswersPerIp, issues),
+      submitPerSession: parseRateClass(
+        env,
+        "QCMS_RL_SUBMIT_SESSION",
+        DEFAULTS.rlSubmitPerSession,
+        issues,
+      ),
     },
     scheduler: {
       outboxIntervalMs: parseInt_(

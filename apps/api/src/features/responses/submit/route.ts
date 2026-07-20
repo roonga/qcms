@@ -16,6 +16,7 @@ import { createRoute } from "@hono/zod-openapi";
 import type { SliceRegistrar } from "../../../app.js";
 import type { Deps } from "../../../deps.js";
 import { errorResponses, withScopes } from "../../../openapi.js";
+import { submitPerSessionLimiter } from "../rate-limits.js";
 import { makeSubmitHandler } from "./handler.js";
 import { SessionParams, SubmitBody, SubmitResponse } from "./schema.js";
 
@@ -45,5 +46,8 @@ export const submitRoute = createRoute({
 
 /** Register the submit route on a public surface group. */
 export const registerSubmit: SliceRegistrar = (group, deps: Deps): void => {
+  // Submit is rate-limited per session (task 026): repeated submit attempts on
+  // one session are bounded. Scoped to the submit path only.
+  group.use("/sessions/:id/submit", submitPerSessionLimiter(deps));
   group.openapi(submitRoute, makeSubmitHandler(deps));
 };

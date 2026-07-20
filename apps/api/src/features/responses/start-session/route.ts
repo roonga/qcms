@@ -18,6 +18,7 @@ import { createRoute } from "@hono/zod-openapi";
 import type { SliceRegistrar } from "../../../app.js";
 import type { Deps } from "../../../deps.js";
 import { errorResponses, withScopes } from "../../../openapi.js";
+import { sessionCreateLimiter } from "../rate-limits.js";
 import { makeGetSessionHandler, makeStartSessionHandler } from "./handler.js";
 import {
   SessionParams,
@@ -65,6 +66,10 @@ export const getSessionRoute = createRoute({
 
 /** Register the start-session routes on a public surface group. */
 export const registerStartSession: SliceRegistrar = (group, deps: Deps): void => {
+  // Session creation is rate-limited per client IP (task 026): no session
+  // exists yet, so IP is the only available bucket. Scoped to exactly the
+  // `POST /sessions` path (Hono matches the bare path, not sub-paths).
+  group.use("/sessions", sessionCreateLimiter(deps));
   group.openapi(startSessionRoute, makeStartSessionHandler(deps));
   group.openapi(getSessionRoute, makeGetSessionHandler(deps));
 };

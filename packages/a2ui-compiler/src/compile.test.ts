@@ -255,7 +255,7 @@ describe("compileForm (kitchen-sink)", () => {
 
   it("stamps the compiler and A2UI-spec versions (ADR-18)", () => {
     const compiled = compileForm(snapshot, {});
-    expect(compiled.compilerVersion).toBe("0.0.0");
+    expect(compiled.compilerVersion).toBe("0.1.0");
     expect(compiled.a2uiSpecVersion).toBe("1.0.0-preview.7");
   });
 
@@ -425,6 +425,6 @@ describe("compileFormWith (step-resolver seam)", () => {
       },
     ]);
     // Version stamps still come from the compiler, not the resolver.
-    expect(compiled.compilerVersion).toBe("0.0.0");
+    expect(compiled.compilerVersion).toBe("0.1.0");
   });
 });

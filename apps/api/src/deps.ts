@@ -13,6 +13,7 @@ import type { Executor } from "@qcms/db";
 
 import type { Clock } from "./clock.js";
 import type { Config, Flags } from "./config.js";
+import type { ChallengeVerifier } from "./features/responses/challenge.js";
 import type { Logger } from "./logger.js";
 import type { RateLimitStore } from "./rate-limit.js";
 
@@ -27,6 +28,8 @@ export interface Deps {
   readonly logger: Logger;
   /** Rate-limit store (in-memory default; swappable for Redis). */
   readonly rateLimitStore: RateLimitStore;
+  /** Challenge verifier for `challengeRequired` forms (026); null verifier when provider `none`. */
+  readonly challenge: ChallengeVerifier;
   /** Typed feature flags (ADR-24); a convenience alias of `config.flags`. */
   readonly flags: Flags;
 }

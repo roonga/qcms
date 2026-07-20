@@ -18,6 +18,7 @@ import { createRoute } from "@hono/zod-openapi";
 import type { SliceRegistrar } from "../../../app.js";
 import type { Deps } from "../../../deps.js";
 import { errorResponses, withScopes } from "../../../openapi.js";
+import { answersPerIpLimiter, answersPerSessionLimiter } from "../rate-limits.js";
 import { makeGetStepHandler, makeSubmitAnswerHandler } from "./handler.js";
 import { SessionParams, StepResponse, SubmitAnswerBody } from "./schema.js";
 
@@ -62,6 +63,12 @@ export const submitAnswerRoute = createRoute({
 
 /** Register the serving-loop routes on a public surface group. */
 export const registerServeStep: SliceRegistrar = (group, deps: Deps): void => {
+  // Answer submission is rate-limited per session (sustained + burst) and per
+  // client IP (a wider flood backstop) — task 026. Both mount only on the
+  // answers path; get-step is not throttled (idempotent read of stored UI).
+  // This is the sole change to the 019 slice; its handler logic is untouched.
+  group.use("/sessions/:id/answers", answersPerSessionLimiter(deps));
+  group.use("/sessions/:id/answers", answersPerIpLimiter(deps));
   group.openapi(getStepRoute, makeGetStepHandler(deps));
   group.openapi(submitAnswerRoute, makeSubmitAnswerHandler(deps));
 };

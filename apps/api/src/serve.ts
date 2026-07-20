@@ -32,6 +32,7 @@ import { registerStartSession } from "./features/responses/start-session/route.j
 import { registerSubmit } from "./features/responses/submit/route.js";
 import { registerOutboxOps } from "./features/outbox/route.js";
 import { registerWebhooks } from "./features/webhooks/route.js";
+import { selectChallengeVerifier } from "./features/responses/challenge.js";
 import { registerAdminAuth } from "./middleware/admin-auth.js";
 import { loadConfig } from "./config.js";
 import type { Deps } from "./deps.js";
@@ -82,6 +83,7 @@ function main(): void {
     clock: systemClock,
     logger,
     rateLimitStore: new InMemoryRateLimitStore(systemClock),
+    challenge: selectChallengeVerifier(config, logger),
     flags: config.flags,
   };
 

@@ -1,5 +1,14 @@
 import { sql } from "drizzle-orm";
-import { check, integer, jsonb, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  check,
+  integer,
+  jsonb,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+} from "drizzle-orm/pg-core";
 
 import type { CompiledForm } from "@qcms/a2ui-compiler";
 import type { FormDefinition, FormId } from "@qcms/core";
@@ -10,12 +19,21 @@ import { formStatus } from "./enums.js";
  * Form identity. `status` carries the §4.1 lifecycle flag: `open` accepts new
  * sessions, `closed` stops them (in-flight sessions finish on their pinned
  * version, R1). Reopening is via a new draft/version.
+ *
+ * `challengeRequired` and `minSubmitMs` are per-form abuse-control settings
+ * (task 026) — operational domain config that lives on the mutable identity
+ * row, not in the immutable published definition and not a deployment flag
+ * (ADR-24). `challengeRequired` gates start-session (018) behind the configured
+ * challenge; `minSubmitMs` overrides the config-default min-time floor the
+ * submit slice (020) enforces (`NULL` = use the config default).
  */
 export const forms = pgTable("forms", {
   formId: text("form_id").$type<FormId>().primaryKey(),
   slug: text("slug").notNull(),
   defaultLocale: text("default_locale").notNull(),
   status: formStatus("status").notNull().default("open"),
+  challengeRequired: boolean("challenge_required").notNull().default(false),
+  minSubmitMs: integer("min_submit_ms"),
 });
 
 /**
