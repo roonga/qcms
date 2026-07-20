@@ -1,4 +1,4 @@
-# Question CMS — Security Design
+# QCMS — Security Design
 
 **Status:** v1.1 (formal) · companion to `ARCHITECTURE.md` (§5.1, §7, §8) and `PROJECT_GOAL.md` (ADR-16…25) · v1.1: ingress language per ADR-20; task-file fold-back note (§10)
 **Decisions here are numbered SEC-1…SEC-12** and carry ADR weight; conflicts are flagged, not silently overridden.

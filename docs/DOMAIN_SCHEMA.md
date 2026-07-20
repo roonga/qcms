@@ -1,4 +1,4 @@
-# Question CMS — Domain Schema Design
+# QCMS — Domain Schema Design
 
 **Status:** v1.2 · supersedes Draft v1 · companion to `ARCHITECTURE.md` §3–4 and `IMPLEMENTATION_PLAN.md` Stages 1–3
 **Changes from v1:** evaluation semantics rewritten per **ADR-16** (forward pass replaces fixpoint); `ChoiceOption` declaration order fixed; `VisibilityRule` semantics comment cleaned; §2.4 canonical `AnswerValue` encodings added (resolving the open item, finalized by task 002); nesting depth cap resolved (8); `show`-targets question resolved (forward-only); invariants I10–I11 added (ADR-16/17).

@@ -1,4 +1,4 @@
-# Question CMS — Architecture
+# QCMS — Architecture
 
 **Status:** v1.2 (formal) · supersedes `HLA.md` Draft v1 · incorporates ADR-16…25
 **License:** MIT · **Runtime:** Node LTS · **Language:** TypeScript end to end
@@ -7,7 +7,7 @@
 
 ## 1. System overview
 
-Question CMS is an open-source engine for questionnaires, surveys, and registration flows with deeply conditional logic — answers to earlier questions determine which questions follow. It is distributed in the shadcn ethos: adopters scaffold the application into their own repository and own the source, while the invariant machinery (domain model, rules engine, compiler, migrations) ships as versioned packages they upgrade like any dependency.
+QCMS is an open-source engine for questionnaires, surveys, and registration flows with deeply conditional logic — answers to earlier questions determine which questions follow. It is distributed in the shadcn ethos: adopters scaffold the application into their own repository and own the source, while the invariant machinery (domain model, rules engine, compiler, migrations) ships as versioned packages they upgrade like any dependency.
 
 The system serves three audiences. **Form authors** curate questions and workflows, publish, and version them through an admin portal. **Respondents** complete flows through an SSR end-user portal, accessing forms anonymously or via signed secure links (OTP and social auth arrive post-launch). **Downstream systems** receive submissions via a signed webhook, CSV/JSON export, or a documented read-only reporting view in Postgres; a versioned pull API (`/api/v1`) is a reserved seam, not a launch surface.
 

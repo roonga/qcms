@@ -1,8 +1,8 @@
-# Question CMS — Project Instructions (read first, every session)
+# QCMS — Project Instructions (read first, every session)
 
 **Status:** v2.5 · supersedes v1 · reflects the formal plan set (2026-07-18, amended 2026-07-19) including ADR-16…25 and SEC-1…12
 
-You are working on **Question CMS**: an MIT-licensed, TypeScript, open-source engine for questionnaires, surveys, and registration flows with conditional logic, distributed in the shadcn ethos (owned scaffolded shell + versioned core packages).
+You are working on **QCMS**: an MIT-licensed, TypeScript, open-source engine for questionnaires, surveys, and registration flows with conditional logic, distributed in the shadcn ethos (owned scaffolded shell + versioned core packages).
 
 ## Reference documents (authoritative set — nothing outside it wins)
 

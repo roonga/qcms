@@ -1,6 +1,6 @@
-# qcms — Claude Code guide
+# QCMS — Claude Code guide
 
-Question CMS (**qcms**): an MIT-licensed TypeScript engine for questionnaires with deeply conditional logic, distributed shadcn-style (owned scaffolded shell + versioned `@qcms/*` packages).
+**QCMS** (expanded once as "Question CMS"): an MIT-licensed TypeScript engine for questionnaires with deeply conditional logic, distributed shadcn-style (owned scaffolded shell + versioned `@qcms/*` packages).
 
 **Read first, every session: `PROJECT_INSTRUCTIONS.md`** — the binding rules (R1–R7), decisions (ADR-01…25, SEC-1…12), and session protocol. This file adds only harness wiring; where they overlap, PROJECT_INSTRUCTIONS wins.
 
@@ -8,9 +8,11 @@ Question CMS (**qcms**): an MIT-licensed TypeScript engine for questionnaires wi
 
 ## Naming (settled)
 
+**Brand:** the product is **QCMS**. Use "QCMS" in prose, titles, and UI. "Question CMS" is the expansion — write it at most once per document as a first-use gloss (`QCMS (Question CMS)`), never as the running name. Lowercase `qcms` is only the repo/dir/package-scope identifier.
+
 | Thing | Name |
 |---|---|
-| Repo / product | `qcms` (Question CMS) |
+| Repo / product | **QCMS** (dir/scope: `qcms`, `@qcms/*`) |
 | Publishable packages | `@qcms/core` · `@qcms/a2ui-compiler` · `@qcms/db` · `@qcms/ui` |
 | Apps (private) | `qcms-api` · `qcms-portal` · `qcms-admin` |
 | Scaffolding CLI | `create-qcms-app` |

@@ -1,4 +1,4 @@
-# Question CMS — Project Goal
+# QCMS — Project Goal
 
 **Status:** v1.5 (formal) · supersedes the prose description in project metadata · v1.1–v1.5 add ADR-20…25 (2026-07-19 review)
 **License:** MIT · **Companion documents:** `ARCHITECTURE.md` · `IMPLEMENTATION_PLAN.md` · `DOMAIN_SCHEMA.md` · Scope v2 decision record (ADR-01…25)
@@ -7,7 +7,7 @@
 
 ## 1. Vision
 
-Question CMS is an MIT-licensed, TypeScript, open-source engine for questionnaires, surveys, and registration flows with **deeply conditional logic** — the answer to one question determines which questions follow (the motivating example: insurance sign-up, where "are you a smoker?" opens a follow-up branch).
+QCMS is an MIT-licensed, TypeScript, open-source engine for questionnaires, surveys, and registration flows with **deeply conditional logic** — the answer to one question determines which questions follow (the motivating example: insurance sign-up, where "are you a smoker?" opens a follow-up branch).
 
 It is distributed in the **shadcn ethos**: adopters do not install a product, they scaffold an application into their own repository and own the source. The invariant machinery — domain model, rules engine, publish compiler, migrations — ships as versioned npm packages they upgrade like any dependency.
 

@@ -1,6 +1,6 @@
 # QCMS
 
-**Question CMS** — an MIT-licensed, TypeScript engine for questionnaires, surveys, and registration flows with **deeply conditional logic**, where the answer to one question determines which questions follow.
+**QCMS** (Question CMS) — an MIT-licensed, TypeScript engine for questionnaires, surveys, and registration flows with **deeply conditional logic**, where the answer to one question determines which questions follow.
 
 > ### ⚠️ Pre-release — under active development
 >

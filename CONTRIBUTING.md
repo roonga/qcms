@@ -1,4 +1,4 @@
-# Contributing to Question CMS
+# Contributing to QCMS
 
 **Status:** v1.0 · applies to human and agent contributors alike · committed to the repo root at bootstrap (task 001)
 **Companions:** `PROJECT_INSTRUCTIONS.md` (read first) · `AGENTIC_DEVELOPMENT.md` §3 (session protocol) · `SECURITY_DESIGN.md` · `apps/api/CONTRIBUTING.md` (slice-level conventions, task 017)

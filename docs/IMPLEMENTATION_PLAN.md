@@ -1,4 +1,4 @@
-# Question CMS — Implementation Plan
+# QCMS — Implementation Plan
 
 **Status:** v2.2 (formal) · supersedes Draft v1 · incorporates ADR-16…25 and the 2026-07-18 / 2026-07-19 review resolutions
 **Cadence:** single developer with agentic AI leverage, part-time to full-time. Stages are sequential; each lands a meaningful, testable increment. **Exit criteria gate stages, not dates.**
