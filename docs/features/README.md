@@ -36,7 +36,7 @@ Status values: `todo` · `in-progress (branch)` · `blocked (issue #)` · `done 
 | 011 | A2UI compiler | 4 | done |
 | 012 | A2UI golden corpus and agent seam | 4 | done |
 | 013 | DB schema, migrations, test harness | 5 | done |
-| 014 | Query helpers | 5 | in-progress (feat/014-db-query-helpers) |
+| 014 | Query helpers | 5 | done |
 | 015 | Reporting view and retention sweep | 5 | todo |
 | 016 | Erasure (ADR-17) | 5 | todo |
 | 017 | API composition root | 6 | todo |

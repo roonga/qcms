@@ -4,11 +4,18 @@ import { check, integer, jsonb, pgTable, primaryKey, text, timestamp } from "dri
 import type { CompiledForm } from "@qcms/a2ui-compiler";
 import type { FormDefinition, FormId } from "@qcms/core";
 
-/** Form identity. */
+import { formStatus } from "./enums.js";
+
+/**
+ * Form identity. `status` carries the §4.1 lifecycle flag: `open` accepts new
+ * sessions, `closed` stops them (in-flight sessions finish on their pinned
+ * version, R1). Reopening is via a new draft/version.
+ */
 export const forms = pgTable("forms", {
   formId: text("form_id").$type<FormId>().primaryKey(),
   slug: text("slug").notNull(),
   defaultLocale: text("default_locale").notNull(),
+  status: formStatus("status").notNull().default("open"),
 });
 
 /**

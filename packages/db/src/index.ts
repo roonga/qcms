@@ -15,3 +15,8 @@ export * from "./schema/index.js";
 
 // Aggregate namespace for `drizzle(client, { schema })`.
 export * as schema from "./schema/index.js";
+
+// Query helpers (task 014): the loading/persisting vocabulary the API slices
+// call — every helper takes a Drizzle handle or transaction as its first
+// argument. Shape-preserving reads and writes only (R3, R5).
+export * from "./queries/index.js";

@@ -17,7 +17,7 @@ shipped; add a new one.
 | Table                             | Purpose                                                                                                                            |
 | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | `questions`, `question_versions`  | Question library; a version's `definition` is frozen once `status = 'published'` (I1)                                             |
-| `forms`, `form_drafts`            | Form identity and mutable working state; **at most one open draft per form** (the draft's `form_id` primary key)                  |
+| `forms`, `form_drafts`            | Form identity + lifecycle `status` (`open`/`closed`, §4.1) and mutable working state; **at most one open draft per form** (the draft's `form_id` primary key) |
 | `form_versions`                   | Immutable published snapshots: domain JSONB + compiled A2UI JSONB + `compiler_version` + `a2ui_spec_version` + `semantics_version` |
 | `sessions`                        | Respondent sessions; pinned `(form_id, form_version)`, access mode, expiry (I4)                                                   |
 | `secure_links`                    | Server-side state for secure-link tokens (SEC-2, task 010): revocation and one-time consumption — a signature alone is never enough |
