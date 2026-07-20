@@ -11,3 +11,6 @@ docs/
 
 # Harness configuration
 .claude/
+
+# drizzle-kit generates these in a non-Prettier format (task 014 friction)
+packages/db/migrations/meta/

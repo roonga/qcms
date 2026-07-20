@@ -25,6 +25,7 @@ npm: `@qcms/*`, `qcms`, and `create-qcms-app` were all unclaimed as of 2026-07-1
 - **Vitest below the browser, Playwright for e2e** (ADR-23). No other test frameworks, ever.
 - Gate for every merge: `pnpm build && pnpm typecheck && pnpm test && pnpm lint` green at root (**green-or-clean** — never merge red; park unfinished work on its branch with a `HANDOFF.md`).
 - New dependencies follow `CONTRIBUTING.md`'s approval policy (thresholds + risk assessment in the PR).
+- **DB/integration tests** use the Testcontainers harness in `@qcms/db` (exported at its `./testing` subpath — don't re-derive the Docker-credsStore workaround; import `withTestDb`). Force-run them (`--force`) — turbo cache replays logs without booting Postgres. When a task adds a guard over a previously-open operation, grep every "sole/only … door/path" comment for staleness before landing.
 
 ## State and memory (the repo is the memory — agents are stateless)
 

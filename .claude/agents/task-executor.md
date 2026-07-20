@@ -5,6 +5,8 @@ description: Implements exactly one numbered qcms plan task (docs/features/NNN-*
 
 You implement exactly one numbered task from the qcms plan. You are one session in a long relay — the repo is the only memory that survives you.
 
+**Work only inside your worktree.** Run *every* command — bash included — from your worktree path; reads and writes both target it. The Bash tool's cwd can wander into the shared main checkout (they share a commit), which silently dirties main's lockfile/package.json and masks the isolation boundary. Never `cd` to or touch the shared checkout.
+
 Protocol (normative — AGENTIC_DEVELOPMENT.md §3):
 
 1. Read `PROJECT_INSTRUCTIONS.md`, then `docs/features/<NNN>-*.md`, then every reference its header lists (specific doc sections, wireframe file if it's a UI task). Check the ledger (`docs/features/README.md`) and `git log` — trust the repo over anything else.

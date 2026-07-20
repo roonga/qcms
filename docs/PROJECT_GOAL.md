@@ -74,6 +74,8 @@ ADR-01…15 are recorded in Scope v2. The following decisions were added after t
 
 **Consequences.** Erasure lands with storage (Stage 5) and admin exposure (Stage 8a). Webhook consumers are documented as independent data controllers — erasure does not propagate downstream.
 
+**Amendment (2026-07-20, from Stage 5 implementation — issue #4).** Retention purge (`purgeExpired`, task 015) is a **second sanctioned whole-session DELETE path**, distinct from GDPR erasure: it deletes expired-never-submitted sessions at whole-session granularity, preserves I5 (no partial delete, no UPDATE), and writes **no** tombstone (nothing was ever submitted to attest). The earlier "the sole DELETE door is whole-session erasure" language is superseded — there are **two** sanctioned whole-session DELETE doors (`eraseSession`, `purgeExpired`), enforced by the same scoped trigger mechanism, and there is still **no UPDATE path, ever**. GDPR erasure remains the only door that leaves a tombstone.
+
 ### ADR-18 — Serving uses the audit copy; snapshots stamp compiler and spec versions
 
 **Decision.** The portal serves the **stored compiled A2UI documents** — exactly what was frozen at publish. Every `FormVersion` records `compilerVersion` and `a2uiSpecVersion` alongside the compiled output. The renderer maintains backward compatibility with every spec version ever published, enforced by the golden-document conformance suite: golden documents are **never deleted**, only added.
