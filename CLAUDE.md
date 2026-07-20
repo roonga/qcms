@@ -21,7 +21,7 @@ npm: `@qcms/*`, `qcms`, and `create-qcms-app` were all unclaimed as of 2026-07-1
 
 - **pnpm only.** Never npm or yarn (the `packageManager` field pins it from 001). CI uses `--frozen-lockfile`.
 - **Vitest below the browser, Playwright for e2e** (ADR-23). No other test frameworks, ever.
-- Gate for every merge: `pnpm build && pnpm test && pnpm lint` green at root (**green-or-clean** — never merge red; park unfinished work on its branch with a `HANDOFF.md`).
+- Gate for every merge: `pnpm build && pnpm typecheck && pnpm test && pnpm lint` green at root (**green-or-clean** — never merge red; park unfinished work on its branch with a `HANDOFF.md`).
 - New dependencies follow `CONTRIBUTING.md`'s approval policy (thresholds + risk assessment in the PR).
 
 ## State and memory (the repo is the memory — agents are stateless)

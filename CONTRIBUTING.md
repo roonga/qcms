@@ -80,4 +80,4 @@ No secrets in code, fixtures, or logs; answer values never logged; queries param
 
 ## Quick pre-PR checklist
 
-`pnpm build && pnpm test && pnpm lint` green at root · exit criteria checked · tests ship with the change · docs named by the task updated · Changeset added if packages changed · ledger updated · no unexplained `as`/`any`/`eslint-disable` · no new dependency without justification.
+`pnpm build && pnpm typecheck && pnpm test && pnpm lint` green at root · exit criteria checked · tests ship with the change · docs named by the task updated · Changeset added if packages changed · ledger updated · no unexplained `as`/`any`/`eslint-disable` · no new dependency without justification.

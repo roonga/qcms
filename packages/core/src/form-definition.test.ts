@@ -223,7 +223,7 @@ describe("rules are validated at parse (task 005 DSL)", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.every((error) => error.code === "INVALID_FORM_DEFINITION")).toBe(true);
-      expect(result.error.some((error) => error.path[0] === "rules")).toBe(true);
+      expect(result.error.some((error) => error.path?.[0] === "rules")).toBe(true);
     }
   });
 
