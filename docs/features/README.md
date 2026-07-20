@@ -46,7 +46,7 @@ Status values: `todo` · `in-progress (branch)` · `blocked (issue #)` · `done 
 | 021 | Question authoring slices | 6 | done |
 | 022 | Form authoring and publish slices | 6 | done |
 | 023 | Response listing, export, erasure slices | 6 | done |
-| 024 | Secure-link minting and webhook config slices | 6 | todo |
+| 024 | Secure-link minting and webhook config slices | 6 | in-progress (feat/024-secure-links-webhook-config) |
 | 025 | Webhook deliverer worker | 6 | todo |
 | 026 | Abuse controls | 6 | todo |
 | 027 | API end-to-end suite | 6 | todo |
