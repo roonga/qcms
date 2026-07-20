@@ -1,9 +1,9 @@
 /**
- * Scenario 3 — version pinning across a publish (task 027, exit criterion 1; I4).
+ * Scenario 3 - version pinning across a publish (task 027, exit criterion 1; I4).
  *
  * A session pins the form version it started on and never migrates: it completes
  * on v1 even after v2 is published mid-flight, while a session started *after*
- * the publish binds to v2. The pin is proven end to end — the old session still
+ * the publish binds to v2. The pin is proven end to end - the old session still
  * submits, and the admin export records it at v1 while the new session reports v2.
  */
 

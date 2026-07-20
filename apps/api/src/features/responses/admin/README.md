@@ -4,7 +4,7 @@ The launch-scope **data-out** surface for authors, on the **admin** surface:
 browse submitted responses, export them (CSV/JSON), erase a response, and manage
 anti-abuse flags. Honest transaction scripts (R5) over the reporting view (015)
 and `@qcms/db` helpers (014/016/023). This is **not** the deferred `/api/v1`
-(R7) — these are internal admin endpoints with no stability contract.
+(R7) - these are internal admin endpoints with no stability contract.
 
 ## Routes
 
@@ -17,25 +17,25 @@ and `@qcms/db` helpers (014/016/023). This is **not** the deferred `/api/v1`
 | `GET /admin/erasures`                        | `responses:read`    | Tombstone list (compliance evidence). Filter: `formId`.                                        |
 | `POST /admin/responses/:sessionId/unflag`   | `responses:erase`   | Release a withheld (flagged, 020) response: clear the flag and enqueue `response.submitted`.   |
 
-Scopes are **inert at launch** — the `/api/v1` surface is reserved (R7). They
+Scopes are **inert at launch** - the `/api/v1` surface is reserved (R7). They
 ride in the generated OpenAPI document so Phase-4 activation is wiring, not
 archaeology. The three response scopes are deliberately narrow and **never
 bundled into a preset**: `responses:erase` (destructive) is granted on its own.
 
 ### The unflag scope (a documented judgement call)
 
-Unflag is a per-response **disposition mutation** — it releases a response that
+Unflag is a per-response **disposition mutation** - it releases a response that
 anti-abuse withheld from webhook delivery. There is no `responses:write` /
 `responses:moderate` scope in the launch taxonomy (SEC-5, fixed in 017), so it is
 annotated with `responses:erase`: the two per-response disposition mutations
 (release vs. destroy) share one deliberately-narrow scope, keeping mutating
 authority out of the read/export scopes. A dedicated `responses:moderate` scope
 is the right Phase-4 refinement (filed as a discovery), at which point unflag
-moves to it — a one-line annotation change, since scopes enforce nothing today.
+moves to it - a one-line annotation change, since scopes enforce nothing today.
 
 ## Erasure safety (SEC / ADR-17)
 
-Every read path — list, detail, export — goes through `reporting.responses`,
+Every read path - list, detail, export - goes through `reporting.responses`,
 whose **tombstone anti-join** excludes erased (and non-submitted) sessions by
 construction. `getResponse` returns `undefined` for an erased session, so detail
 404s; the export pages the same view, so an erased response can never leak. No
@@ -49,7 +49,7 @@ Erasure is idempotent (016): a repeat erase returns the existing tombstone with
 ## Export (streamed, fetch-pure)
 
 The export **streams** (never buffers the whole table) using a web
-`ReadableStream` and `TextEncoder` — no Node streams (R4) — pulling bounded
+`ReadableStream` and `TextEncoder` - no Node streams (R4) - pulling bounded
 keyset pages (`fetchResponsePage`, ordered by `session_id`). Memory is O(page),
 not O(table); the 10k-response test asserts the document arrives in many chunks,
 none near the whole size.
@@ -59,9 +59,9 @@ none near the whole size.
 - **CSV** (`format=csv`): one column per `questionId` of the **requested
   version's** form, in **document order** (walk `steps` then `items`), preceded
   by the metadata columns `session_id, form_version, submitted_at, access_mode`.
-  A `version` is **required** — the column set depends on it.
+  A `version` is **required** - the column set depends on it.
   - **multiChoice** serializes as option ids joined by `;` (e.g.
-    `opt_a;opt_b;opt_c`) — a single field, so the `,` delimiter is unambiguous.
+    `opt_a;opt_b;opt_c`) - a single field, so the `,` delimiter is unambiguous.
   - **RFC 4180 quoting**: a field is quoted when it contains `,`, `"`, CR, or LF;
     embedded quotes are doubled. Records end with **CRLF**.
   - **UTF-8 BOM** is prefixed once. Excel assumes the legacy codepage for a
@@ -98,5 +98,5 @@ never 403 (ADR-09).
   its one session read through a narrow view with a single cast on an unannotated
   const. The 023 reporting helpers return explicit clean row types, so their rows
   need no launder.
-- Scheduled/automated exports are **out of scope** (Phase 4, R7) — filed as a
+- Scheduled/automated exports are **out of scope** (Phase 4, R7) - filed as a
   discovery, not built here.

@@ -36,7 +36,7 @@ export const MOUNT = {
  * Build the shared environment **once**. Enables private webhook targets so the
  * in-test loopback receiver is reachable (SEC-6 on-prem override); every other
  * secret is synthetic. Reuse the returned object across compositions that must
- * share tokens — never call this twice for one topology.
+ * share tokens - never call this twice for one topology.
  */
 export function buildEnv(
   overrides: Record<string, string | undefined> = {},

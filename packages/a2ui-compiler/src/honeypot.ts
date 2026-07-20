@@ -7,19 +7,19 @@ import type { A2UINode } from "./types.js";
  * respondent never sees or fills it (it is off-screen, removed from the
  * accessibility tree, and outside the tab order); an automated form-filler that
  * blindly populates every input by `name`/`type` fills it, and the submit slice
- * (020) silently flags that session (`HONEYPOT`) — same success-shaped response,
+ * (020) silently flags that session (`HONEYPOT`) - same success-shaped response,
  * no tell (SECURITY: the flag must never leak to the caller).
  *
  * **The field contract shared with the API.** The decoy submits under
  * {@link HONEYPOT_FIELD_NAME}; the submit handler reads the same well-known name
  * off the request body (`config.antiAbuse.honeypotField`, defaulted to this
- * constant). Compiler and API therefore agree on exactly one string — change it
+ * constant). Compiler and API therefore agree on exactly one string - change it
  * in one place. It deliberately does *not* look like a qcms question id
  * (`q_…`, R6), so it can never collide with a real control's `name`.
  *
  * **Why a dedicated `Honeypot` node type, not a `TextField`.** A honeypot must
- * be rendered specially — off-screen, `aria-hidden`, `tabindex="-1"`,
- * `autocomplete="off"` — which no real form control does; and the `@a2ra/core`
+ * be rendered specially - off-screen, `aria-hidden`, `tabindex="-1"`,
+ * `autocomplete="off"` - which no real form control does; and the `@a2ra/core`
  * `TextField` schema is `strict` and carries none of those hiding props. A
  * dedicated node makes the intent unmistakable (it can never be confused with a
  * real field) and self-describing. The renderer (028) recognizes the type and
@@ -48,15 +48,15 @@ export const HONEYPOT_NODE_TYPE = "Honeypot";
 
 /**
  * The single decoy node appended (last) to every step document's field list.
- * Deterministic and side-effect free — the same node every time, so it is
+ * Deterministic and side-effect free - the same node every time, so it is
  * frozen into the compiled snapshot via `compilerVersion` like every other
  * mapping constant. The hiding props travel with the node so the renderer needs
  * no out-of-band knowledge:
  *
- * - `name` — the shared honeypot field name (the submit key).
- * - `autoComplete: "off"` — password managers / browsers never prefill it.
- * - `ariaHidden: true` — removed from the accessibility tree (screen-reader invisible).
- * - `tabIndex: -1` — skipped by keyboard tabbing.
+ * - `name` - the shared honeypot field name (the submit key).
+ * - `autoComplete: "off"` - password managers / browsers never prefill it.
+ * - `ariaHidden: true` - removed from the accessibility tree (screen-reader invisible).
+ * - `tabIndex: -1` - skipped by keyboard tabbing.
  */
 export function honeypotNode(): A2UINode {
   return {

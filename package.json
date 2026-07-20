@@ -21,7 +21,8 @@
     "check:no-control-chars": "node scripts/check-no-control-chars.mjs",
     "openapi:generate": "pnpm --filter qcms-api build && node apps/api/scripts/generate-openapi.mjs",
     "openapi:check": "vitest run --project qcms-api openapi-document.test.ts",
-    "check:licenses": "node scripts/check-licenses.mjs"
+    "check:licenses": "node scripts/check-licenses.mjs",
+    "check:no-em-dash": "node scripts/check-no-em-dash.mjs"
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.1",

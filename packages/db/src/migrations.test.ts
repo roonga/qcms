@@ -45,7 +45,7 @@ describe("@qcms/db migrations", () => {
 
     beforeEach(async () => {
       // Fresh container, then the full package-owned migration set via the
-      // official Drizzle migrator — the exact path adopters run.
+      // official Drizzle migrator - the exact path adopters run.
       testDb = await startTestDb();
     }, BOOT_TIMEOUT);
 
@@ -72,7 +72,7 @@ describe("@qcms/db migrations", () => {
     let testDb: TestDb;
 
     beforeEach(async () => {
-      // No migrations yet — we apply them incrementally below.
+      // No migrations yet - we apply them incrementally below.
       testDb = await startTestDb({ migrate: false });
     }, BOOT_TIMEOUT);
 

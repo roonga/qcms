@@ -1,18 +1,18 @@
 /**
  * Admin form-authoring handlers (task 022, DOMAIN_SCHEMA §4.1).
  *
- * Draft CRUD is honest transaction script (R5); **publish is the aggregate** —
+ * Draft CRUD is honest transaction script (R5); **publish is the aggregate** -
  * the one slice that loads the pinned question versions, calls `compileDraft`
  * (008) to freeze an immutable snapshot, projects it to A2UI with `compileForm`
  * (011), and persists version + compiled + stamps in **one transaction**
  * alongside the `form.published` outbox event and the draft's deletion. This is
  * where the kernel, the compiler, and storage meet for the first time.
  *
- * Immutability (R1, I1, ADR-18): a published `form_versions` row is frozen — the
+ * Immutability (R1, I1, ADR-18): a published `form_versions` row is frozen - the
  * `form_versions_reject_update` trigger (migration 0001) is the storage
  * backstop, and this slice never issues an UPDATE against it. Publish compiles
  * **once** and stores the result; the serve path (019) reads the stored compiled
- * A2UI and must never recompile (ADR-18) — this slice is the *only* caller of
+ * A2UI and must never recompile (ADR-18) - this slice is the *only* caller of
  * `compileForm`.
  *
  * Fetch-pure (R4): time is `deps.clock`, no `node:*`. Answer values are never
@@ -22,7 +22,7 @@
  * `question_versions.status`) resolve to a TypeScript *error* type through the
  * package's emitted `.d.ts` (`skipLibCheck` hides it from `tsc`; typed-lint
  * surfaces it). Reading those rows through a narrow local view with a single
- * cast on an *unannotated* const keeps this slice fully typed — the identical
+ * cast on an *unannotated* const keeps this slice fully typed - the identical
  * pattern to questions (021) and responses (018/019/020). The enum-free
  * `form_drafts`/`form_versions` rows are unaffected and used directly. Do not
  * "fix" @qcms/db here.
@@ -100,7 +100,7 @@ interface QuestionVersionRowView {
 
 /**
  * A publish issue: the kernel's typed `PublishError` (008) *or* the slice-level
- * `DEPRECATED_PIN` — a new-or-moved pin to a deprecated question version, which
+ * `DEPRECATED_PIN` - a new-or-moved pin to a deprecated question version, which
  * publish rejects but the kernel does not model (it only knows published/not).
  * The admin UI (034) renders the union verbatim; `DEPRECATED_PIN` carries the
  * same structured-path shape so it renders uniformly.
@@ -219,14 +219,14 @@ async function loadQuestionLookups(
 /**
  * The deprecated-pin gate (DOMAIN_SCHEMA §4.1/§4.2 lifecycle). A deprecated
  * question version may **stay** pinned only if the exact placement
- * `(step, question, version)` was already in the previous published version — a
+ * `(step, question, version)` was already in the previous published version - a
  * carried-over pin the author did not touch. A *new* pin (no prior published
  * version, or this placement is not in it) or a *moved* pin (same version, but
  * now in a different step) to a deprecated version is rejected `DEPRECATED_PIN`.
  *
  * Every pinned deprecated version is added to `publishedQuestionVersions` so
  * `compileDraft` treats it as resolvable published-once content (a deprecated
- * version is real, immutable content — not an unpublished draft), leaving this
+ * version is real, immutable content - not an unpublished draft), leaving this
  * gate the sole author of the deprecation verdict: a rejected pin is reported
  * once, as `DEPRECATED_PIN`, never doubled as `UNPUBLISHED_QUESTION_PIN`.
  */
@@ -312,7 +312,7 @@ export function makeCreateFormHandler(deps: Deps): RouteHandler<typeof createFor
     if (!locale.ok) throw fail.invalidLocale();
 
     // An empty draft: the minimal working state an author fills in via PUT. It
-    // is deliberately not a *publishable* FormDefinition (no steps yet) — publish
+    // is deliberately not a *publishable* FormDefinition (no steps yet) - publish
     // re-parses it (004) and rejects until real content is saved.
     const emptyDraft: FormDefinition = {
       formId,
@@ -388,7 +388,7 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
 
     // The draft the editor opens: the open draft if one exists, otherwise seeded
     // from the latest published version (§4.1 "new draft opened, seeded from vN")
-    // — a read-time convenience, not persisted until the author saves (PUT).
+    // - a read-time convenience, not persisted until the author saves (PUT).
     let draft: FormDefinition | null = null;
     let draftSource: "open" | "seeded" | "none" = "none";
     if (openDraft !== undefined) {
@@ -478,7 +478,7 @@ export function makePublishFormHandler(deps: Deps): RouteHandler<typeof publishF
     const definition = requireDefinition(draft.definition);
     if (definition.formId !== formId) throw fail.idMismatch();
 
-    // The aggregate: validate every publish invariant (all errors, not first) —
+    // The aggregate: validate every publish invariant (all errors, not first) -
     // deprecated-pin gate + compileDraft (008). Nothing is persisted on failure.
     const { issues, snapshot } = await validateDraft(deps, definition);
     if (issues.length > 0 || snapshot === undefined) throw fail.publishRejected(issues);
@@ -489,7 +489,7 @@ export function makePublishFormHandler(deps: Deps): RouteHandler<typeof publishF
 
     const inserted = await deps.db.transaction(async (tx) => {
       // Freeze the immutable version with all stamps, delete the draft, and emit
-      // the publish event — one transaction, so a version is never observed
+      // the publish event - one transaction, so a version is never observed
       // without its event and the draft never lingers past its publish (§11).
       const version = await insertFormVersion(tx, {
         formId,
@@ -525,7 +525,7 @@ export function makeCloseFormHandler(deps: Deps): RouteHandler<typeof closeFormR
   return async (c) => {
     const formId = requireFormId(c.req.valid("param").id);
     // Closing stops *new* sessions (018 checks status at start); in-flight
-    // sessions finish on their pinned version (R1) — status is the only change.
+    // sessions finish on their pinned version (R1) - status is the only change.
     const row = (await closeForm(deps.db, formId)) as FormRowView | undefined;
     if (row === undefined) throw fail.formNotFound();
     return c.json({ formId: row.formId, status: row.status }, 200);

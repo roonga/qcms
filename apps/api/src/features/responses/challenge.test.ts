@@ -20,7 +20,7 @@ function configWith(provider: "none" | "turnstile"): Config {
 }
 
 describe("nullChallengeVerifier (provider none)", () => {
-  it("accepts everything, including a missing token — the no-op path", async () => {
+  it("accepts everything, including a missing token - the no-op path", async () => {
     expect(await nullChallengeVerifier.verify(undefined, undefined)).toEqual({ ok: true });
     expect(await nullChallengeVerifier.verify("anything", "1.2.3.4")).toEqual({ ok: true });
   });

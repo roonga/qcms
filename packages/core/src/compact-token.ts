@@ -12,7 +12,7 @@ import { canonicalJson } from "./prepare-submission.js";
  *
  * The HMAC is computed over the UTF-8 bytes of the encoded payload segment
  * (like a JWT signs its encoded segments), with WebCrypto `crypto.subtle`
- * only — fetch-pure (R4), so the same code runs in Node and on edge runtimes.
+ * only - fetch-pure (R4), so the same code runs in Node and on edge runtimes.
  *
  * ## Why not a JWT library
  *
@@ -20,14 +20,14 @@ import { canonicalJson } from "./prepare-submission.js";
  * mainstream JWT libraries pull Node-only dependencies (`node:crypto`,
  * `Buffer`) which would break R4's fetch-purity, and they ship algorithm
  * agility (`alg` headers, RSA/ECDSA paths, `none`) that this kernel must
- * never accept — the qcms token inventory (SEC-7) is HMAC-SHA256 only, so
+ * never accept - the qcms token inventory (SEC-7) is HMAC-SHA256 only, so
  * there is no header segment and no algorithm negotiation surface at all.
  *
  * ## Purposes and keys (SEC-7)
  *
  * Every token carries a `purpose` claim baked into the signed payload;
  * verification demands an exact match and each purpose gets its **own** key
- * list (`QCMS_LINK_KEYS` vs `QCMS_SESSION_KEYS` — supplied by the shell,
+ * list (`QCMS_LINK_KEYS` vs `QCMS_SESSION_KEYS` - supplied by the shell,
  * task 024). Both controls hold independently: even if an operator reuses a
  * key across purposes, the purpose claim still rejects cross-use
  * (`WRONG_PURPOSE`).
@@ -42,9 +42,9 @@ import { canonicalJson } from "./prepare-submission.js";
  * `CryptoKey`s.
  *
  * .NET mapping: like hand-rolling `JwtSecurityTokenHandler`'s HS256 path with
- * `IncrementalHash`-free, misuse-resistant primitives — except signature
+ * `IncrementalHash`-free, misuse-resistant primitives - except signature
  * comparison is delegated to `crypto.subtle.verify`, which is constant-time
- * (never compare digest bytes manually — timing side channel).
+ * (never compare digest bytes manually - timing side channel).
  */
 
 /**
@@ -73,7 +73,7 @@ export type CompactTokenError = z.infer<typeof CompactTokenError>;
 
 /**
  * Claims a caller supplies when signing: any JSON-serializable record.
- * `purpose` is reserved — the machinery writes it, callers never do.
+ * `purpose` is reserved - the machinery writes it, callers never do.
  * `expiresAt`, when present, is the standard expiry claim (ISO 8601 UTC)
  * checked by `verifyCompactToken`.
  */
@@ -89,7 +89,7 @@ const CompactTokenPayload = z.looseObject({
   expiresAt: z.iso.datetime().optional(),
 });
 
-/** HMAC-SHA256 — the only algorithm compact tokens ever use (SEC-7). */
+/** HMAC-SHA256 - the only algorithm compact tokens ever use (SEC-7). */
 export const COMPACT_TOKEN_KEY_ALGORITHM = { name: "HMAC", hash: "SHA-256" } as const;
 
 /** SEC-7 floor: signing keys are ≥ 32 random bytes. */
@@ -98,7 +98,7 @@ export const COMPACT_TOKEN_MIN_KEY_BYTES = 32;
 /**
  * Import raw key bytes (from the shell's key-list env, task 024) as a
  * non-extractable HMAC-SHA256 `CryptoKey` usable with the sign/verify
- * functions here. Throws on keys shorter than 32 bytes — a weak key is a
+ * functions here. Throws on keys shorter than 32 bytes - a weak key is a
  * deployment bug, not an expected failure.
  */
 export async function importCompactTokenKey(
@@ -149,7 +149,7 @@ function fromBase64Url(segment: string): Uint8Array<ArrayBuffer> | undefined {
 /**
  * Sign `claims` for `purpose` with the current signing key. The purpose is
  * written into the payload before signing, so it is covered by the HMAC and
- * cannot be re-tagged. Claims must not carry their own `purpose` (reserved —
+ * cannot be re-tagged. Claims must not carry their own `purpose` (reserved -
  * a collision is a programming bug, hence throw not Result). Claims are
  * serialized with the package-wide `canonicalJson`, so signing is
  * deterministic regardless of input key order.
@@ -175,7 +175,7 @@ export async function signCompactToken(
 
 /**
  * Verify a compact token for an expected purpose against a key list (newest
- * first — rotation, SEC-7). Check order: shape → signature (constant-time,
+ * first - rotation, SEC-7). Check order: shape → signature (constant-time,
  * via `crypto.subtle.verify`, over every key until one matches) → purpose →
  * expiry. Nothing decoded from the payload is trusted before the signature
  * check passes. A token is valid strictly *before* `expiresAt`; at or after
@@ -206,7 +206,7 @@ export async function verifyCompactToken(
   let signatureValid = false;
   for (const key of keys) {
     // crypto.subtle.verify recomputes the HMAC and compares in constant time
-    // — never compare digest bytes manually (timing side channel).
+    // - never compare digest bytes manually (timing side channel).
     if (
       await crypto.subtle.verify(COMPACT_TOKEN_KEY_ALGORITHM.name, key, signatureBytes, message)
     ) {

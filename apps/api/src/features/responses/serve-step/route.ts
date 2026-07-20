@@ -9,7 +9,7 @@
  * nothing at launch.
  *
  * Both routes live on the **public** (respondent-facing) surface behind the
- * internal service-token guard (SEC-4) — only the portal BFF calls the API —
+ * internal service-token guard (SEC-4) - only the portal BFF calls the API -
  * while the per-session credential is the session token both handlers verify.
  */
 
@@ -64,7 +64,7 @@ export const submitAnswerRoute = createRoute({
 /** Register the serving-loop routes on a public surface group. */
 export const registerServeStep: SliceRegistrar = (group, deps: Deps): void => {
   // Answer submission is rate-limited per session (sustained + burst) and per
-  // client IP (a wider flood backstop) — task 026. Both mount only on the
+  // client IP (a wider flood backstop) - task 026. Both mount only on the
   // answers path; get-step is not throttled (idempotent read of stored UI).
   // This is the sole change to the 019 slice; its handler logic is untouched.
   group.use("/sessions/:id/answers", answersPerSessionLimiter(deps));

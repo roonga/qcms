@@ -1,6 +1,6 @@
 /**
  * Shared response shapes the scenarios read (task 027). These mirror the slices'
- * response schemas at the field level the suite asserts on — a consumer's view,
+ * response schemas at the field level the suite asserts on - a consumer's view,
  * not an import of the slice's Zod types.
  */
 

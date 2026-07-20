@@ -19,7 +19,7 @@ export const questions = pgTable("questions", {
  * Versioned question definitions. `definition` is opaque domain JSONB (§2.2 of
  * `DOMAIN_SCHEMA.md`) that Postgres stores and indexes but never interprets.
  *
- * Immutability (I1): once `status = 'published'`, `definition` is frozen — a
+ * Immutability (I1): once `status = 'published'`, `definition` is frozen - a
  * BEFORE UPDATE trigger (`question_versions_freeze_published`, migration 0001)
  * rejects any change to it. See `packages/db/README.md` for the rationale
  * behind trigger-over-CHECK.

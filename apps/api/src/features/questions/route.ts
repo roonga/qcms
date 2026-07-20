@@ -4,7 +4,7 @@
  * The headless question library, exposed on the **admin** surface. Every route
  * is declared with `@hono/zod-openapi` `createRoute` (017's mandatory
  * convention) so the generated OpenAPI documents (027) cannot drift, and each
- * carries its SEC-5 scope intent via `withScopes` — `questions:read` for the
+ * carries its SEC-5 scope intent via `withScopes` - `questions:read` for the
  * reads, `questions:write` for the authoring mutations. Scopes are inert at
  * launch (the `/api/v1` surface is reserved); annotating them now makes Phase-4
  * activation wiring, not archaeology.
@@ -13,7 +13,7 @@
  * internal service-token gate (SEC-4, applied to every mounted group by the
  * composition root) and the admin-auth gate (`registerAdminAuth`, this task).
  * In a public-only process the admin group is not mounted at all, so these
- * paths simply do not exist — a request 404s, never 403s (ADR-09).
+ * paths simply do not exist - a request 404s, never 403s (ADR-09).
  *
  * There is **no delete route**: a question is deprecated, never removed (R6).
  */

@@ -13,7 +13,7 @@ import type { A2UINode } from "./types.js";
  *
  * Accessibility groundwork (028 contract): every control carries `label`, a
  * `description` when the question has help text, and a `name` = questionId. No
- * control sets `errorMessage` — that is the per-question error slot the renderer
+ * control sets `errorMessage` - that is the per-question error slot the renderer
  * fills from server validation, routed by `name`.
  */
 
@@ -35,7 +35,7 @@ export const BOOLEAN_FALSE_VALUE = "false";
  * Yes/No child-label lexicon for boolean radios, keyed by the active locale's
  * language subtag with an English fallback (`docs/a2ui-mapping.md`). A compiler
  * constant frozen into output; gains entries alongside each new launch locale
- * (R7 — no second locale before Phase 4).
+ * (R7 - no second locale before Phase 4).
  */
 type Affirmation = { readonly yes: string; readonly no: string };
 
@@ -85,7 +85,7 @@ function checkboxChild(value: string, label: string): A2UINode {
 
 /**
  * Compile one pinned question to its A2UI control node. The switch is
- * exhaustive over the seven-type union with a `never` default — adding a
+ * exhaustive over the seven-type union with a `never` default - adding a
  * question type without mapping it here is a build error, not a runtime
  * surprise.
  */

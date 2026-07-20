@@ -1,6 +1,6 @@
 /**
  * Request/response schemas for the submit slice (task 020): `POST
- * /sessions/{id}/submit` — the audit boundary.
+ * /sessions/{id}/submit` - the audit boundary.
  *
  * Zod is the single schema language (017's convention); these drive both
  * runtime validation and the generated OpenAPI documents (027).
@@ -8,7 +8,7 @@
  * The response is the respondent's **receipt**: the submit timestamp and the
  * `contentHash` sealing the locked answer set (the audit anchor, task 009). It
  * is deliberately identical whether the submission was clean or silently flagged
- * by an anti-abuse hook — a flagged submission must be indistinguishable from a
+ * by an anti-abuse hook - a flagged submission must be indistinguishable from a
  * clean one to the caller (SECURITY: do not teach bots the tells).
  */
 

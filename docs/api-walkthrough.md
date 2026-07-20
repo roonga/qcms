@@ -1,6 +1,6 @@
 # qcms API walkthrough
 
-The whole product, end to end, at the curl level — the same path scenario 1 of the
+The whole product, end to end, at the curl level - the same path scenario 1 of the
 e2e suite (`apps/api/e2e/01-full-loop.e2e.ts`) drives. An operator authors the
 canonical **insurance** form, wires a webhook, and mints a secure link; a
 respondent walks the branching flow through that link; the signed webhook lands;
@@ -17,7 +17,7 @@ description of every route lives in the generated OpenAPI documents
 - **Respondent (public)** routes mount at the root: `POST /sessions`,
   `GET /sessions/{id}/step`, `POST /sessions/{id}/answers`, `POST /sessions/{id}/submit`.
 - **Admin** routes mount under `/admin`. In a public-only process the admin group
-  is not mounted at all — those paths 404, never 403 (ADR-09).
+  is not mounted at all - those paths 404, never 403 (ADR-09).
 - Every mounted request carries the internal service token:
   `x-qcms-internal-token: <token>` (SEC-4).
 - Admin requests add a session marker: `x-qcms-admin-session: <marker>` (a launch
@@ -52,7 +52,7 @@ curl -sX POST "$API/admin/questions/q_cigs_daily/versions/1/publish" -H "x-qcms-
 
 ## 2. Create, draft, and publish the form (admin)
 
-The draft is plain JSON — steps that pin question versions, plus a `rules` array.
+The draft is plain JSON - steps that pin question versions, plus a `rules` array.
 The server compiles the A2UI at **publish** time (never at serve time, ADR-18). A
 draft with a rule error still saves (issues are advisory); publish rejects it with
 `422 PUBLISH_REJECTED`.
@@ -77,7 +77,7 @@ curl -sX POST "$API/admin/forms/frm_life_signup/publish" -H "x-qcms-internal-tok
 ## 3. Wire a webhook and mint a secure link (admin)
 
 ```sh
-# Configure a webhook. The plaintext secret is returned exactly once — store it.
+# Configure a webhook. The plaintext secret is returned exactly once - store it.
 curl -sX POST "$API/admin/forms/frm_life_signup/webhooks" \
   -H "x-qcms-internal-token: $INT" -H "x-qcms-admin-session: $ADM" -H 'content-type: application/json' \
   -d '{"url":"https://consumer.example.com/qcms-hook","secret":"whsec_your_secret_value"}'

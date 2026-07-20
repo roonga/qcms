@@ -1,10 +1,10 @@
 /**
- * Admin question-authoring handlers (task 021) — honest transaction scripts (R5).
+ * Admin question-authoring handlers (task 021) - honest transaction scripts (R5).
  *
  * The question library, headless: create a question with a first draft version,
  * seed new draft versions, edit drafts, publish, deprecate, and read. The kernel
  * (`QuestionDefinition`, 003) validates every definition; the `@qcms/db` helpers
- * (014) persist. There is no domain aggregate here — the version lifecycle
+ * (014) persist. There is no domain aggregate here - the version lifecycle
  * (draft → published → deprecated, `DOMAIN_SCHEMA.md` §4.2) is a set of
  * single-row state checks the slice owns, each wrapped in a transaction so the
  * check and the write are one atomic decision.
@@ -16,11 +16,11 @@
  * **Immutability is returned before the DB trigger fires.** Editing or
  * transitioning a non-draft version is rejected with the typed
  * `VERSION_IMMUTABLE` / `INVALID_VERSION_STATE` after reading the current
- * status — the `question_versions_freeze_published` trigger (013) is only the
+ * status - the `question_versions_freeze_published` trigger (013) is only the
  * backstop, never the first line, so a client sees a clean 409, not a 500.
  *
- * **R6:** a `questionId` is stable forever. Create rejects any id ever used —
- * including for a deleted or deprecated question — via `isQuestionIdTaken`
+ * **R6:** a `questionId` is stable forever. Create rejects any id ever used -
+ * including for a deleted or deprecated question - via `isQuestionIdTaken`
  * (`QUESTION_ID_REUSED`). There is deliberately no delete endpoint: questions
  * are deprecated, never removed (see this slice's README).
  */
@@ -63,10 +63,10 @@ import type { QuestionVersionView } from "./schema.js";
 
 // --- issue #5 launder --------------------------------------------------------
 // `@qcms/db`'s row types resolve to a TypeScript *error* type through the
-// package's emitted `.d.ts` — the `$inferSelect` + `PgEnumColumn` interaction
+// package's emitted `.d.ts` - the `$inferSelect` + `PgEnumColumn` interaction
 // that `skipLibCheck` hides from `tsc` but typed-lint surfaces as unsafe (issue
 // #5). Reading each row through a narrow local view with a single cast on an
-// *unannotated* const keeps this slice fully typed — the identical pattern to
+// *unannotated* const keeps this slice fully typed - the identical pattern to
 // responses' `SessionView` (018/019/020). Do not "fix" @qcms/db here.
 type VersionStatus = "draft" | "published" | "deprecated";
 interface VersionRowView {
@@ -165,7 +165,7 @@ function labelOf(definition: QuestionDefinition): unknown {
 
 /**
  * True for a Postgres unique-violation (SQLSTATE 23505). drizzle wraps the pg
- * error, so the code can sit on the error or on its `cause` — check both.
+ * error, so the code can sit on the error or on its `cause` - check both.
  */
 function isUniqueViolation(err: unknown): boolean {
   const codeOf = (e: unknown): string | undefined =>
@@ -199,7 +199,7 @@ export function makeCreateQuestionHandler(
     const questionId = definition.questionId;
 
     const created = await deps.db.transaction(async (tx) => {
-      // R6: reject any id ever used — including a deprecated/erased one.
+      // R6: reject any id ever used - including a deprecated/erased one.
       if (await isQuestionIdTaken(tx, questionId)) throw fail.idReused();
 
       // R6 passed: insert the identity (slug collision → clean 409) then its

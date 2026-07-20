@@ -1,17 +1,17 @@
 /**
  * Route definitions for the response listing / export / erasure admin slices
- * (task 023) — the launch-scope **data-out** surface for authors: browse,
+ * (task 023) - the launch-scope **data-out** surface for authors: browse,
  * export, erase.
  *
  * Every route is declared with `@hono/zod-openapi` `createRoute` (017's
  * convention) and carries its SEC-5 scope intent via `withScopes`, kept
  * deliberately narrow and **never bundled**:
- *   - `responses:read`   — list + detail (answer data, admin-only reads)
- *   - `responses:export` — CSV/JSON export (bulk answer egress)
- *   - `responses:erase`  — erasure (destructive) *and* the flag-release (unflag),
+ *   - `responses:read`   - list + detail (answer data, admin-only reads)
+ *   - `responses:export` - CSV/JSON export (bulk answer egress)
+ *   - `responses:erase`  - erasure (destructive) *and* the flag-release (unflag),
  *     the two per-response disposition mutations; grouping unflag here keeps
  *     response-mutating authority out of the read/export scopes. (A dedicated
- *     `responses:moderate` scope is a Phase-4 refinement — see the README.)
+ *     `responses:moderate` scope is a Phase-4 refinement - see the README.)
  * Scopes are inert at launch (the `/api/v1` surface is reserved, R7); annotating
  * them now makes Phase-4 activation wiring, not archaeology.
  *

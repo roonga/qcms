@@ -1,6 +1,6 @@
 # @qcms/ui
 
-The A2UI renderer for qcms — the **single** renderer that both the portal (serving
+The A2UI renderer for qcms - the **single** renderer that both the portal (serving
 respondents) and the admin (previewing forms) go through, so what an author
 previews is exactly what a respondent gets (ARCHITECTURE §6, ADR-18).
 
@@ -34,14 +34,14 @@ import "@qcms/ui/theme.css"; // or set the --color-* tokens in your own globals
 - **Advisory hints vs. authority.** Constraint props compiled into the document
   are advisory client-side UX; the authoritative errors are the server ones the
   parent passes, surfaced in each control's error slot.
-- **`specVersion`** selects the render generation — the ADR-18 seam. Today the
+- **`specVersion`** selects the render generation - the ADR-18 seam. Today the
   corpus is one generation, so every version resolves to the same registry.
 
 ## Vendored components (ADR-22)
 
 This package imports **only** the a2-react-aria stack: `@a2ra/core`,
 `react-aria-components` (+ `@internationalized/date`, `zod`), React, and its own
-vendored sources. No other component library — enforced by the import-surface
+vendored sources. No other component library - enforced by the import-surface
 test and an eslint rule.
 
 The a2ra components are **vendored source**, not imported from `@a2ra/core`:
@@ -49,8 +49,8 @@ The a2ra components are **vendored source**, not imported from `@a2ra/core`:
 - `a2ra.json` pins the registry (an immutable commit of `roonga/a2-react-aria`).
 - Sources live under `src/components/a2ui/` and are kept **byte-for-byte
   upstream** (excluded from qcms lint/prettier) so `npx @a2ra/cli diff` stays
-  clean. qcms wiring — the controlled adapters that inject `value`/`onChange`/
-  `errorMessage` by field `name` — lives in `src/registry.tsx`, not in the
+  clean. qcms wiring - the controlled adapters that inject `value`/`onChange`/
+  `errorMessage` by field `name` - lives in `src/registry.tsx`, not in the
   vendored files.
 - Upgrades are deliberate events: pull with `@a2ra/cli diff`, then the
   conformance suite must stay green.

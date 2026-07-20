@@ -93,7 +93,7 @@ function record(definition: QuestionDefinition, version = 1): QuestionVersionRec
 
 /** In-memory question store: resolution plus the published-version set the
  * caller would load (versions listed in `unpublished` resolve but are not
- * published — the §4.2 QDraft case). */
+ * published - the §4.2 QDraft case). */
 function makeStore(
   records: readonly QuestionVersionRecord[],
   unpublished: readonly string[] = [],
@@ -172,7 +172,7 @@ const showBWhenA = {
   show: ["q_b"],
 };
 
-describe("compileDraft — success path", () => {
+describe("compileDraft - success path", () => {
   it("compiles the kitchen-sink, insurance, and minimal fixtures", () => {
     const store = fixtureStore();
     for (const file of ["kitchen-sink.json", "insurance.json", "minimal.json"]) {
@@ -241,7 +241,7 @@ describe("compileDraft — success path", () => {
   });
 });
 
-describe("compileDraft — each invariant violated alone yields only its error", () => {
+describe("compileDraft - each invariant violated alone yields only its error", () => {
   it("DANGLING_QUESTION_REF: a pin that does not resolve", () => {
     const draft = twoStepDraft([showBWhenA]);
     const errors = errorsOf(
@@ -562,7 +562,7 @@ describe("compileDraft — each invariant violated alone yields only its error",
   });
 });
 
-describe("compileDraft — error accumulation", () => {
+describe("compileDraft - error accumulation", () => {
   it("a draft violating three invariants reports all three in one result", () => {
     // I2 (dangling pin) + I2 (dangling step target) + I3 (locale) at once.
     const draft = twoStepDraft(

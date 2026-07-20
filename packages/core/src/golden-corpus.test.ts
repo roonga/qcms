@@ -23,7 +23,7 @@ import {
 /**
  * Golden evaluator corpus runner (task 007). Loads every scenario under
  * `golden/evaluator/scenarios/` and asserts the live evaluator's `FlowState`
- * equals the committed `expected` — the regression net for the frozen
+ * equals the committed `expected` - the regression net for the frozen
  * `SEMANTICS_VERSION = 1` semantics (I7). Format and change policy:
  * `golden/evaluator/CORPUS.md`. The root `pnpm test:golden-drift` script runs
  * exactly this file as the CI drift guard.
@@ -35,9 +35,9 @@ import {
 const PACKAGE_DIR = fileURLToPath(new URL("../", import.meta.url));
 const CORPUS_DIR = path.join(PACKAGE_DIR, "golden", "evaluator");
 
-/** Scenario file schema — `answers` values are validated as canonical
+/** Scenario file schema - `answers` values are validated as canonical
  * AnswerValue encodings here, but the *raw* JSON values are what get handed to
- * the evaluator (its own canonicalization — NFC, multiChoice dedup — is part
+ * the evaluator (its own canonicalization - NFC, multiChoice dedup - is part
  * of the surface under test). */
 const Scenario = z.object({
   description: z.string().min(1),
@@ -145,13 +145,13 @@ describe("golden evaluator corpus", () => {
 
   describe("scenarios", () => {
     for (const { file, scenario, answers } of scenarios) {
-      it(`${file} — ${scenario.description}`, () => {
+      it(`${file} - ${scenario.description}`, () => {
         const form = loadForm(scenario.form, formCache);
         const result = evaluateRules(form, answers, resolve);
         if (!result.ok) {
           throw new Error(`evaluator returned an error: ${JSON.stringify(result.error)}`);
         }
-        // toEqual prints the structural FlowState diff on mismatch — the
+        // toEqual prints the structural FlowState diff on mismatch - the
         // per-scenario readable failure the corpus exists to produce.
         expect(result.value).toEqual(scenario.expected);
       });

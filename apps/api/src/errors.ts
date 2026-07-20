@@ -6,7 +6,7 @@
  * `{ error: { code, message, details? } }` at the carried status. Anything the
  * handler does *not* wrap in `ApiError` (a programming bug, a driver throw) is
  * treated as unexpected: the middleware logs it with a stack and an id and
- * returns an opaque 500 — internals never reach the body (SEC-8 hygiene).
+ * returns an opaque 500 - internals never reach the body (SEC-8 hygiene).
  */
 
 /** HTTP status codes the error model uses; kept as a plain number union. */
@@ -26,7 +26,7 @@ export class ApiError extends Error {
   readonly code: string;
   /** HTTP status to respond with. */
   readonly status: ApiErrorStatus;
-  /** Optional, client-safe structured detail — never secrets. */
+  /** Optional, client-safe structured detail - never secrets. */
   readonly details?: unknown;
 
   constructor(code: string, status: ApiErrorStatus, message: string, details?: unknown) {

@@ -1,5 +1,5 @@
 /**
- * Start-session handlers (task 018) — the respondent's front door.
+ * Start-session handlers (task 018) - the respondent's front door.
  *
  * This is a **transaction script** (R5): the only kernel calls are token
  * verify/mint (`verifySecureLink`, `mintSessionToken`); everything else is
@@ -14,12 +14,12 @@
  *   version, TTL from config.
  * - **Secure link** (`{ token }`): the token verifies under `QCMS_LINK_KEYS`,
  *   the `secure_links` row must agree (not revoked; one-time links are consumed
- *   atomically — a signature alone is never sufficient) → a session pinned to
+ *   atomically - a signature alone is never sufficient) → a session pinned to
  *   the *link's* form's newest published version, expiring at
  *   `min(link expiry, session TTL)` so it never outlives the token (SEC-2).
  *
  * Every pinning insert goes through `createSession`, whose `(formId,
- * formVersion)` write is the sole path that sets a session's version — that
+ * formVersion)` write is the sole path that sets a session's version - that
  * absence of a re-pin path is how I4 (a session never migrates versions) holds.
  */
 
@@ -85,9 +85,9 @@ interface StartResult {
 
 // @qcms/db's row types for its enum-bearing tables (`forms`, `sessions`) resolve
 // to a TypeScript *error* type when consumed through the package's emitted
-// `.d.ts` — a drizzle `$inferSelect` + `PgEnumColumn` interaction that
+// `.d.ts` - a drizzle `$inferSelect` + `PgEnumColumn` interaction that
 // `skipLibCheck` hides from `tsc` but typed-lint surfaces as unsafe. (The
-// enum-free rows — `form_versions`, `secure_links` — are unaffected.) Reading
+// enum-free rows - `form_versions`, `secure_links` - are unaffected.) Reading
 // them through a narrow local view of the fields this slice uses keeps the code
 // fully typed; a follow-up should give @qcms/db explicit row interfaces so every
 // responses slice (019, 020, …) doesn't repeat this.
@@ -143,7 +143,7 @@ interface ChallengeContext {
  * Enforce a form's `challengeRequired` setting (task 026). When set, the
  * configured {@link Deps.challenge} verifier must pass for the request's
  * challenge token; a failure rejects start-session with 403. With provider
- * `none` the null verifier accepts everything, so the setting no-ops — the
+ * `none` the null verifier accepts everything, so the setting no-ops - the
  * check still runs (structurally honored) but never blocks.
  */
 async function enforceChallenge(
@@ -200,7 +200,7 @@ async function startFromSecureLink(
   const linkExpiresAt = new Date(linkExpiresAtIso);
 
   const row = await getSecureLink(deps.db, linkId);
-  // A validly-signed link with no server row was never minted here — reject it
+  // A validly-signed link with no server row was never minted here - reject it
   // as invalid rather than trusting the token alone (SEC-2).
   if (row === undefined) throw fail.linkInvalid();
   assertLinkUsable(row, now);
@@ -293,7 +293,7 @@ async function importLinkKeys(config: Config): Promise<CryptoKey[]> {
 }
 
 /**
- * `GET /sessions/{id}` — the resume/status view. Session-token authed: the
+ * `GET /sessions/{id}` - the resume/status view. Session-token authed: the
  * bearer token must verify (`purpose: "session"`) *and* bind the `id` in the
  * path (possession of an id alone grants nothing, SEC-2 §3).
  */
@@ -302,7 +302,7 @@ export function makeGetSessionHandler(deps: Deps): RouteHandler<typeof getSessio
     const { id } = c.req.valid("param");
     const authedSessionId = await authenticateSession(c, deps);
     if (authedSessionId !== id) {
-      // Token is valid but for a different session — no cross-session read.
+      // Token is valid but for a different session - no cross-session read.
       throw new ApiError("unauthorized", 401, "Session token does not match this session");
     }
 

@@ -195,7 +195,7 @@ describe("reporting.answers_flat view", () => {
   });
 });
 
-describe("reporting contract — no column drift", () => {
+describe("reporting contract - no column drift", () => {
   // The documented contract in docs/reporting-view.md. Assert the live view
   // column lists (ordinal order) match, so the doc can never silently drift.
   const EXPECTED: Record<string, string[]> = {
@@ -252,7 +252,7 @@ describe("sweepExpiredSessions", () => {
     const { formId, version } = await seedForm("frm_sweep_submit");
     const now = new Date("2026-04-01T00:00:00.000Z");
 
-    // A submitted session whose expiry is in the past — must stay submitted.
+    // A submitted session whose expiry is in the past - must stay submitted.
     const submitted = SessionId.parse("ses_sweep_submitted");
     await createSession(testDb.db, {
       sessionId: submitted,

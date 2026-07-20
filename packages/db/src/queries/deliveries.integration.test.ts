@@ -3,8 +3,8 @@
  * Testcontainers harness DB. Requires Docker.
  *
  * Proves the fan-out unit's independent state machine: idempotent materialization,
- * the joined due-claim, backoff/dead-letter/reset, and — via genuine concurrent
- * pooled transactions — that `FOR UPDATE OF webhook_deliveries SKIP LOCKED` never
+ * the joined due-claim, backoff/dead-letter/reset, and - via genuine concurrent
+ * pooled transactions - that `FOR UPDATE OF webhook_deliveries SKIP LOCKED` never
  * hands the same delivery to two claimers (the multi-instance-safety guarantee).
  */
 

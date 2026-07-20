@@ -10,7 +10,7 @@ export type AccessMode = SessionRow["accessMode"];
 
 /**
  * Create a respondent session, **pinning** `(formId, formVersion)` at creation.
- * There is deliberately no helper that mutates `formVersion` after this — the
+ * There is deliberately no helper that mutates `formVersion` after this - the
  * pin is structural, which is how Invariant I4 ("a session never migrates form
  * versions") is enforced: the only write path that sets `form_version` is this
  * insert, so a session can never move to another version (R1).
@@ -53,7 +53,7 @@ export async function getSession(
   return row;
 }
 
-/** Transition a session to `in_progress` (status only — the pin is untouched). */
+/** Transition a session to `in_progress` (status only - the pin is untouched). */
 export async function markInProgress(
   exec: Executor,
   sessionId: SessionId,
@@ -66,7 +66,7 @@ export async function markInProgress(
   return row;
 }
 
-/** Transition a session to `submitted` (status only — the pin is untouched). */
+/** Transition a session to `submitted` (status only - the pin is untouched). */
 export async function markSubmitted(
   exec: Executor,
   sessionId: SessionId,

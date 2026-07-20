@@ -4,9 +4,9 @@
  * Both are mounted in every process shape and require no credential (they are
  * liveness/readiness signals for orchestrators and monitors):
  *
- * - `/health` — static `ok`. The process is up and serving.
- * - `/ready` — probes the database with a bounded timeout. Ready → 200; a DB
- *   that is down or slow → **503 with a clean body** (never a 500 — a failing
+ * - `/health` - static `ok`. The process is up and serving.
+ * - `/ready` - probes the database with a bounded timeout. Ready → 200; a DB
+ *   that is down or slow → **503 with a clean body** (never a 500 - a failing
  *   dependency is an expected state, not a crash).
  *
  * Declared with `createRoute` (017's convention); the handlers are fetch-pure.

@@ -1,11 +1,11 @@
-# Webhooks — configuration (task 024) and delivery (task 025)
+# Webhooks - configuration (task 024) and delivery (task 025)
 
 Per-form webhook endpoints qcms POSTs a signed `response.submitted` event to on
 submission. Design authority: `SECURITY_DESIGN.md` §2.5 (SEC-6) and §4 (SEC-7);
 `ARCHITECTURE.md` §5.3 (the in-process outbox deliverer) and §11 (egress
-reliability). **Configuration** — the admin CRUD and at-rest secret encryption —
-is task 024; **delivery** — the background pass that signs, sends, retries, and
-dead-letters — is task 025, documented from ["Delivery"](#delivery-task-025) down.
+reliability). **Configuration** - the admin CRUD and at-rest secret encryption -
+is task 024; **delivery** - the background pass that signs, sends, retries, and
+dead-letters - is task 025, documented from ["Delivery"](#delivery-task-025) down.
 
 ## Admin surface
 
@@ -16,21 +16,21 @@ process has no admin group, so these paths 404 (ADR-09).
 | Route | Effect |
 |---|---|
 | `POST /admin/forms/:id/webhooks` | `{ url, secret?, active? }` → configure a webhook. The secret is **generated** if omitted, and shown **exactly once** in the response `secret` field. |
-| `GET /admin/forms/:id/webhooks` | List the form's webhooks. Secrets are **masked** — never returned; each row reports `hasSecret: true`. |
+| `GET /admin/forms/:id/webhooks` | List the form's webhooks. Secrets are **masked** - never returned; each row reports `hasSecret: true`. |
 | `PUT /admin/forms/:id/webhooks/:webhookId` | Update `url` / `active`, or rotate the secret. Rotation is explicit (`rotateSecret: true` or an explicit `secret`) and the new secret is shown once; a plain update never re-reveals it. |
 | `DELETE /admin/forms/:id/webhooks/:webhookId` | **Soft-deactivate**: sets `active = false`, stamps `deactivated_at`; the row is retained so delivery history survives. |
 
 Multiple webhooks per form are allowed; 025 delivers to every `active` one.
 
-## Secret storage — encrypted at rest, not hashed (SEC-6/SEC-8)
+## Secret storage - encrypted at rest, not hashed (SEC-6/SEC-8)
 
 The per-webhook secret is the HMAC key 025 uses to sign each delivery
 (`X-QCMS-Signature: v1=HMAC-SHA256(secret, timestamp + "." + body)`). Signing
-needs the **plaintext**, so the secret must be *recoverable* — it is
+needs the **plaintext**, so the secret must be *recoverable* - it is
 **encrypted at rest, never hashed** (a one-way hash would make signing
 impossible).
 
-- **Algorithm:** AES-256-GCM via WebCrypto (`crypto.subtle`) only — R4
+- **Algorithm:** AES-256-GCM via WebCrypto (`crypto.subtle`) only - R4
   fetch-pure, no `node:crypto`. Implementation:
   `apps/api/src/features/webhooks/crypto.ts`.
 - **Key:** derived from `QCMS_APP_KEY` (validated ≥32 chars at boot) by SHA-256
@@ -51,13 +51,13 @@ impossible).
 ## SSRF guardrail (SEC-6)
 
 Webhook target URLs are validated **at config time** on the literal URL
-(`apps/api/src/features/webhooks/ssrf.ts`) — no DNS resolution (a Node concern;
+(`apps/api/src/features/webhooks/ssrf.ts`) - no DNS resolution (a Node concern;
 full DNS-rebinding protection is delivery-time, 025). By **default** the policy
 is deny:
 
 - scheme must be **https** (plain http rejected);
 - host must not be `localhost` / `*.localhost`, nor an IP literal in a
-  private/reserved/loopback/link-local range — `127.0.0.0/8`, `10.0.0.0/8`,
+  private/reserved/loopback/link-local range - `127.0.0.0/8`, `10.0.0.0/8`,
   `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16` (link-local, incl. the
   cloud metadata endpoint `169.254.169.254`), `100.64.0.0/10` (CGNAT),
   `0.0.0.0/8`, multicast/reserved `≥224.0.0.0`, and the IPv6 equivalents `::1`,
@@ -68,7 +68,7 @@ A rejected URL returns `422 WEBHOOK_URL_REJECTED` with a `reason` in `details`.
 ### On-prem override
 
 Set **`QCMS_WEBHOOK_ALLOW_PRIVATE=true`** to permit private/reserved hosts and
-plain http — for enterprise topologies that legitimately post to internal
+plain http - for enterprise topologies that legitimately post to internal
 systems. It is `false` by default; non-http(s) schemes are rejected even under
 the override. This is the single documented escape hatch for SSRF.
 
@@ -86,7 +86,7 @@ best-effort.** Implementation: `apps/api/src/schedulers/outbox-delivery.ts`.
    `webhook_deliveries` row per *active* webhook (idempotent via the `(outbox_id,
    webhook_id)` unique key), then mark the event consumed. The outbox is the
    fan-out source; each delivery row is an independent delivery with its **own**
-   retry/backoff/dead-letter state — so one webhook failing never stalls another.
+   retry/backoff/dead-letter state - so one webhook failing never stalls another.
 2. **Deliver.** Claim a due delivery row in its own transaction (which holds the
    row lock across the POST), sign and send, then record the outcome and commit.
 
@@ -124,34 +124,34 @@ Headers:
 | `X-QCMS-Timestamp` | Unix seconds when the request was signed |
 | `X-QCMS-Signature` | `v1=<hex HMAC-SHA256(secret, timestamp + "." + body)>` |
 
-The signature covers `` `${timestamp}.${body}` `` — the exact `X-QCMS-Timestamp`
+The signature covers `` `${timestamp}.${body}` `` - the exact `X-QCMS-Timestamp`
 and the raw body bytes. Because the timestamp is signed, a consumer that also
 checks its freshness gets **replay protection**: a captured request replayed
 outside the acceptance window fails the timestamp check, and it cannot be
 re-timestamped without invalidating the signature. Signing is **WebCrypto only**
-(`crypto.subtle` HMAC-SHA256, R4 — never `node:crypto`); the plaintext secret is
+(`crypto.subtle` HMAC-SHA256, R4 - never `node:crypto`); the plaintext secret is
 recovered from its at-rest ciphertext (024) only in memory, only to sign, and is
 never logged (SEC-8).
 
 ### Success, retries, dead-letter
 
 A delivery **succeeds** on any `2xx` within the timeout
-(`QCMS_WEBHOOK_TIMEOUT_MS`, default 10 s). Anything else — non-2xx, timeout,
-network error, or a delivery-time SSRF rejection — is a failed attempt: the
+(`QCMS_WEBHOOK_TIMEOUT_MS`, default 10 s). Anything else - non-2xx, timeout,
+network error, or a delivery-time SSRF rejection - is a failed attempt: the
 delivery is rescheduled with capped exponential backoff (shared with the outbox:
 1 m → 5 m → 25 m → … capped at 6 h) and, after 10 failed attempts, **dead-lettered**
 (`dead_lettered_at` set, `last_error` recorded) and surfaced for manual
 redelivery. `last_error` is a value-free code (`http_500`, `timeout`,
-`network_error`, `ssrf_rejected:<reason>`, `secret_decrypt_failed`) — never a
+`network_error`, `ssrf_rejected:<reason>`, `secret_decrypt_failed`) - never a
 secret or answer value.
 
 Per-pass counts (`materialized`, `claimed`, `delivered`, `failed`,
 `deadLettered`) are logged as structured fields for observability; ids and counts
 only, never payloads (SEC-8).
 
-### At-least-once — consumers must be idempotent
+### At-least-once - consumers must be idempotent
 
-Delivery is at-least-once, so a consumer **can** receive a duplicate — from a
+Delivery is at-least-once, so a consumer **can** receive a duplicate - from a
 crash after send but before commit, or from a manual redelivery. Consumers must
 de-duplicate: **`eventId`** (stable per outbox event) and **`contentHash`**
 (stable per submission) are the idempotency keys. Processing the same `eventId`
@@ -163,13 +163,13 @@ responsibility; qcms documents it but does not implement it.)
 The target URL is re-checked against the SSRF policy (same rules and
 `QCMS_WEBHOOK_ALLOW_PRIVATE` override as config time) immediately before every
 POST. This is **defense-in-depth on the literal URL** and does **not** fully close
-DNS rebinding — a hostname that passed can resolve to a private address at fetch
+DNS rebinding - a hostname that passed can resolve to a private address at fetch
 time. Fully closing it requires resolving the host and pinning the delivery
 socket to the vetted IP, which is out of scope for launch; the config-time check,
 the delivery-time re-check, and the `QCMS_WEBHOOK_ALLOW_PRIVATE=false` default are
 the shipped controls.
 
-## Verifying a delivery — consumer recipe
+## Verifying a delivery - consumer recipe
 
 Recompute the HMAC over `` `${X-QCMS-Timestamp}.${rawBody}` `` with your webhook
 secret and compare (constant-time) to the hex after `v1=`. Verify against the
@@ -210,10 +210,10 @@ static bool Verify(string secret, string timestamp, string signature, string raw
 }
 ```
 
-## Operations — dead-letters and redelivery (task 025)
+## Operations - dead-letters and redelivery (task 025)
 
 Delivery failures are visible and recoverable through the admin surface (035
-renders this). Both routes carry the `webhooks:manage` SEC-5 scope — the launch
+renders this). Both routes carry the `webhooks:manage` SEC-5 scope - the launch
 taxonomy has no dedicated operations scope, so delivery-ops reuse the same
 authority that configures the webhooks (a `webhooks:operate` split is Phase 4).
 They sit behind the internal service-token gate (SEC-4) and admin-auth; a
@@ -222,7 +222,7 @@ public-only process has no admin group, so they 404 (ADR-09).
 | Route | Effect |
 |---|---|
 | `GET /admin/outbox/dead-letters` | List dead-lettered deliveries newest-first, each with its `eventId`, `eventType`, `webhookId`, `url`, `attempts`, and `lastError` (attempt history). |
-| `POST /admin/outbox/:id/redeliver` | Reset one dead-lettered **delivery** (`:id` is a delivery id) to due-now — clears the dead-letter flag, resets attempts, and the next pass re-attempts it. `404` if unknown. |
+| `POST /admin/outbox/:id/redeliver` | Reset one dead-lettered **delivery** (`:id` is a delivery id) to due-now - clears the dead-letter flag, resets attempts, and the next pass re-attempts it. `404` if unknown. |
 
 A dead-letter is a single `(event, webhook)` delivery, not the whole event:
 redelivering one webhook does not touch its siblings for the same event.

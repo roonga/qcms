@@ -1,7 +1,7 @@
 /**
  * Webhook signing (task 025). Pure, no Docker. Cross-checks the WebCrypto
  * (`crypto.subtle`, R4) HMAC against the independent `node:crypto` reference the
- * consumer recipe in docs/webhooks.md documents — if the two ever diverge, either
+ * consumer recipe in docs/webhooks.md documents - if the two ever diverge, either
  * the implementation or the published recipe is wrong.
  *
  * `node:crypto` is used **here in the test only** as an oracle; the production
@@ -42,7 +42,7 @@ describe("signWebhookBody", () => {
     expect(tampered).not.toBe(original);
   });
 
-  it("changes when the timestamp changes (binds the signature to its timestamp — replay defense)", async () => {
+  it("changes when the timestamp changes (binds the signature to its timestamp - replay defense)", async () => {
     const atT = await signWebhookBody(secret, timestamp, body);
     const atT2 = await signWebhookBody(secret, "1753056999", body);
     expect(atT2).not.toBe(atT);

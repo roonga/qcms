@@ -2,7 +2,7 @@
  * Webhook target URL guard (task 024, SEC-6 SSRF).
  *
  * Config-time, R4-pure validation of an author-supplied webhook URL: it runs on
- * the literal URL string (no DNS resolution — that is a Node/composition concern
+ * the literal URL string (no DNS resolution - that is a Node/composition concern
  * and full DNS-rebinding protection is delivery-time, 025). By default it
  * demands HTTPS and rejects hosts that are loopback / private / reserved /
  * link-local IP literals or obvious internal names (`localhost`). The
@@ -57,7 +57,7 @@ function isPrivateIpv6(host: string): boolean {
   if (h.startsWith("fe8") || h.startsWith("fe9") || h.startsWith("fea") || h.startsWith("feb")) {
     return true; // fe80::/10 link-local
   }
-  // IPv4-mapped (::ffff:a.b.c.d) — reuse the v4 test on the trailing literal.
+  // IPv4-mapped (::ffff:a.b.c.d) - reuse the v4 test on the trailing literal.
   const mapped = /^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/.exec(h);
   if (mapped) return isPrivateIpv4(mapped[1]!);
   return false;

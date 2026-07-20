@@ -3,7 +3,7 @@
  *
  * Honest transaction scripts (R5): the slice validates the target URL against
  * the SSRF policy, encrypts the secret at rest, and reads/writes `webhooks` rows
- * through `@qcms/db` — no cross-row invariant lives in the kernel here. Handlers
+ * through `@qcms/db` - no cross-row invariant lives in the kernel here. Handlers
  * are fetch-pure (R4): time via `deps.clock`, crypto via WebCrypto
  * (`./crypto.js`), no `node:*`.
  *

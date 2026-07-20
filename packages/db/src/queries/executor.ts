@@ -6,7 +6,7 @@ import type * as schema from "../schema/index.js";
 
 /**
  * The transaction/connection handle every query helper takes as its **first
- * argument** so the calling slice — never the helper — owns transaction
+ * argument** so the calling slice - never the helper - owns transaction
  * boundaries (R3: slices load state, pass it to the kernel, persist results).
  *
  * `PgDatabase<…>` is the common supertype of both the top-level Drizzle handle

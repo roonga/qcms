@@ -8,7 +8,7 @@
  *     creates a session pinned to the link's form; a revoked link is rejected;
  *     batch mint respects the documented cap.
  *  2. Rotation: a link minted under the old key still verifies after a new key
- *     is prepended to `QCMS_LINK_KEYS` (newest signs, all verify — 010).
+ *     is prepended to `QCMS_LINK_KEYS` (newest signs, all verify - 010).
  */
 
 import { FormId, importCompactTokenKey, verifySecureLink } from "@qcms/core";
@@ -46,7 +46,7 @@ let app: ReturnType<typeof createApp>;
 let internalToken: string;
 let linkKeyA: string;
 // A fixed base env so every rebuilt app (rotation) shares the internal token,
-// session keys, and app key — only QCMS_LINK_KEYS varies across builds.
+// session keys, and app key - only QCMS_LINK_KEYS varies across builds.
 let baseEnv: Record<string, string | undefined>;
 
 /** Build an app over the shared db with a given link-key list. */

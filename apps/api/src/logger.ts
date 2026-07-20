@@ -4,7 +4,7 @@
  * Logging is an **injected interface**, never a concrete Node logger reached
  * from handler scope: API handlers stay fetch-pure (R4), so they call this
  * `Logger` interface and the composition root (`serve.ts`) supplies the
- * concrete sink. `createJsonLogger` takes a plain `write(line)` function — the
+ * concrete sink. `createJsonLogger` takes a plain `write(line)` function - the
  * server passes one that writes JSON lines to stdout; tests pass a capturing
  * sink. Nothing here imports `node:*`.
  *
@@ -31,7 +31,7 @@ export interface Logger {
 /**
  * Field-name fragments that mark a value as a secret or as respondent content.
  * Matched case-insensitively as substrings, so `sessionToken`, `QCMS_APP_KEY`,
- * `authorization`, and `answerValue` are all caught. Kept deliberately broad —
+ * `authorization`, and `answerValue` are all caught. Kept deliberately broad -
  * over-redaction in a log line is harmless; a leaked secret is not.
  */
 const REDACT_FRAGMENTS = [
@@ -118,7 +118,7 @@ export function createJsonLogger(options: JsonLoggerOptions): Logger {
   };
 }
 
-/** A logger that discards everything — the default for tests that ignore logs. */
+/** A logger that discards everything - the default for tests that ignore logs. */
 export function createNullLogger(): Logger {
   const noop = (): void => undefined;
   const logger: Logger = {

@@ -6,7 +6,7 @@ Emit a visually-hidden honeypot decoy in every compiled step document (abuse
 controls, task 026). Each step's `Form → Flex(column)` now ends with a dedicated
 `Honeypot` node (`name: "website"`, `autoComplete: "off"`, `ariaHidden: true`,
 `tabIndex: -1`) that a real respondent never reaches but a blind form-filler
-trips — the submit slice (020) then silently flags the session. New public
+trips - the submit slice (020) then silently flags the session. New public
 exports: `HONEYPOT_FIELD_NAME`, `HONEYPOT_NODE_TYPE`, `honeypotNode`.
 
 This changes existing compiled output, so under the append-only golden policy

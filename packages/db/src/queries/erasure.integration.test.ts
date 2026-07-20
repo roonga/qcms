@@ -130,7 +130,7 @@ async function inAnswersFlat(sessionId: SessionId): Promise<boolean> {
   return (res.rowCount ?? 0) > 0;
 }
 
-describe("eraseSession — post-erasure state (I11, exit criterion 2)", () => {
+describe("eraseSession - post-erasure state (I11, exit criterion 2)", () => {
   it("removes ledger, submission, and reporting rows; leaves a tombstone", async () => {
     const { formId, version } = await seedForm("frm_erase_post");
     const sessionId = SessionId.parse("ses_erase_post");
@@ -171,7 +171,7 @@ describe("eraseSession — post-erasure state (I11, exit criterion 2)", () => {
     expect(await inAnswersFlat(sessionId)).toBe(false);
   });
 
-  it("erases a never-submitted (in_progress) session — any state may erase", async () => {
+  it("erases a never-submitted (in_progress) session - any state may erase", async () => {
     const { formId, version } = await seedForm("frm_erase_inprogress");
     const sessionId = SessionId.parse("ses_erase_inprogress");
     await createSession(testDb.db, {
@@ -195,7 +195,7 @@ describe("eraseSession — post-erasure state (I11, exit criterion 2)", () => {
   });
 });
 
-describe("eraseSession — idempotency and nonexistent session (exit criterion 3)", () => {
+describe("eraseSession - idempotency and nonexistent session (exit criterion 3)", () => {
   it("is idempotent: re-erasing returns the existing tombstone unchanged", async () => {
     const { formId, version } = await seedForm("frm_erase_idem");
     const sessionId = SessionId.parse("ses_erase_idem");
@@ -230,7 +230,7 @@ describe("eraseSession — idempotency and nonexistent session (exit criterion 3
   });
 });
 
-describe("eraseSession — transactionality (I11, exit criterion 1)", () => {
+describe("eraseSession - transactionality (I11, exit criterion 1)", () => {
   it("rolls everything back when the tombstone insert fails after the answer delete", async () => {
     const { formId, version } = await seedForm("frm_erase_rollback");
     const sessionId = SessionId.parse("ses_erase_rollback");
@@ -250,7 +250,7 @@ describe("eraseSession — transactionality (I11, exit criterion 1)", () => {
     try {
       // The induced pg error ('induced failure') is wrapped by drizzle as a
       // "Failed query" error and surfaced on `.cause`; asserting it rejects at
-      // all is enough — the rollback-state checks below are the real proof.
+      // all is enough - the rollback-state checks below are the real proof.
       await expect(eraseSession(testDb.db, sessionId, "subject_request")).rejects.toThrow();
     } finally {
       await testDb.client.query(`drop trigger __fail_tombstone on erasure_tombstones`);

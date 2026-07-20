@@ -2,7 +2,7 @@
  * Route definitions for the webhook-config admin slices (task 024).
  *
  * Every route is declared with `@hono/zod-openapi` `createRoute` (017's
- * convention) and carries its SEC-5 scope intent via `withScopes` —
+ * convention) and carries its SEC-5 scope intent via `withScopes` -
  * `webhooks:manage` for all of them (inert at launch; annotated so `/api/v1`
  * activation is wiring, not archaeology). The admin group is guarded by the
  * internal service-token gate (SEC-4) and the admin-auth gate

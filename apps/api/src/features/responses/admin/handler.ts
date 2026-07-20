@@ -3,7 +3,7 @@
  * §4.3). The launch-scope **data-out** surface: transaction scripts (R5) over the
  * reporting view and `@qcms/db` helpers.
  *
- * Erasure safety (SEC / ADR-17). Every read path — list, detail, and export —
+ * Erasure safety (SEC / ADR-17). Every read path - list, detail, and export -
  * goes through `reporting.responses`, whose tombstone anti-join excludes erased
  * (and non-submitted) sessions **by construction**. `getResponse` returns
  * `undefined` for an erased session, so detail 404s; the export stream pages the
@@ -12,13 +12,13 @@
  * `submissions` only to release a flag, never to render answers outward).
  *
  * Fetch-pure (R4): time is `deps.clock`, streams are the web `ReadableStream` and
- * `TextEncoder` (no `node:*`), so the export never buffers the whole table — it
+ * `TextEncoder` (no `node:*`), so the export never buffers the whole table - it
  * pulls bounded keyset pages. Answer **values are never logged** (SEC-8).
  *
  * **issue #5 launder.** `@qcms/db`'s `sessions` row (enum `access_mode`, branded
  * ids) resolves to a TypeScript *error* type through the package's emitted
  * `.d.ts`; reading it through a narrow local view with a single cast on an
- * *unannotated* const keeps this slice typed — the same pattern as the other
+ * *unannotated* const keeps this slice typed - the same pattern as the other
  * response slices. The reporting helpers already return clean, explicit row
  * types, so their rows need no launder.
  */
@@ -63,7 +63,7 @@ import type {
 /** The outbox event released when a withheld (flagged) response is unflagged (020). */
 const RESPONSE_SUBMITTED = "response.submitted" as const;
 
-/** Keyset page size for export streaming — bounds the export's working set. */
+/** Keyset page size for export streaming - bounds the export's working set. */
 const EXPORT_PAGE_SIZE = 500;
 
 /** Default and maximum list page sizes. */
@@ -204,7 +204,7 @@ export function makeGetResponseHandler(deps: Deps): RouteHandler<typeof getRespo
     const detail = await getResponse(deps.db, formId, sessionId);
     if (detail === undefined) throw fail.responseNotFound();
 
-    // The append-only answer ledger — the audit history (every revision, oldest
+    // The append-only answer ledger - the audit history (every revision, oldest
     // first). Present because the session is non-erased (erasure deletes it).
     // Laundered: `answers` rows carry branded ids that read as an error type
     // through @qcms/db's emitted `.d.ts` (issue #5); a single cast on an
@@ -385,7 +385,7 @@ function nextPage(
   });
 }
 
-/** The last (highest) session id in a keyset page — the next page's cursor. */
+/** The last (highest) session id in a keyset page - the next page's cursor. */
 function lastSessionId(rows: ReportingResponseRow[]): SessionId {
   return rows[rows.length - 1]!.sessionId;
 }
@@ -477,7 +477,7 @@ export function makeUnflagHandler(deps: Deps): RouteHandler<typeof unflagRoute, 
     if (session === undefined) throw fail.sessionNotFound();
 
     // One transaction: the conditional flag-clear and the released event commit
-    // together (transactional outbox, §11). `clearSubmissionFlag` is race-safe —
+    // together (transactional outbox, §11). `clearSubmissionFlag` is race-safe -
     // only the caller that actually flips the flag gets `true`, so the event is
     // enqueued exactly once even under concurrent unflags (idempotent).
     const released = await deps.db.transaction(async (tx) => {
@@ -491,7 +491,7 @@ export function makeUnflagHandler(deps: Deps): RouteHandler<typeof unflagRoute, 
             formVersion: session.formVersion,
             submittedAt: submission.submittedAt.toISOString(),
             contentHash: submission.contentHash,
-            // Locked (hidden-excluded, I6) answers — never the raw ledger.
+            // Locked (hidden-excluded, I6) answers - never the raw ledger.
             answers: submission.lockedAnswers.answers,
           },
         });

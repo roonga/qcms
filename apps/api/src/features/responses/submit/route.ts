@@ -1,6 +1,6 @@
 /**
  * Route definition for the submit slice (task 020): `POST
- * /sessions/{id}/submit` — validate every visible-required answer through the
+ * /sessions/{id}/submit` - validate every visible-required answer through the
  * kernel, lock the answer set, and write the `response.submitted` outbox event
  * in one transaction (the audit boundary).
  *

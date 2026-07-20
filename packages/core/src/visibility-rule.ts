@@ -14,7 +14,7 @@ import { addCodedIssue as addSharedCodedIssue, toCodedErrors } from "./internal/
  * format later (ADR-19). New operators are versioned core changes.
  *
  * Visibility semantics (ADR-16): targets listed in *any* rule are
- * **conditional** — hidden by default, shown when at least one targeting rule
+ * **conditional** - hidden by default, shown when at least one targeting rule
  * matches. Items never targeted by a rule are unconditionally visible. A
  * `StepId` target expands to all its questions. Evaluation itself is task
  * 006; the publish-time graph checks live in `rule-graph.ts`.
@@ -25,13 +25,13 @@ import { addCodedIssue as addSharedCodedIssue, toCodedErrors } from "./internal/
 export const CONDITION_MAX_DEPTH = 8;
 
 /**
- * The condition tree. Declared explicitly because the schema is recursive —
+ * The condition tree. Declared explicitly because the schema is recursive -
  * `z.lazy` needs the annotation (the one place `z.infer` cannot be the
  * source); the `z.ZodType<Condition>` annotation on the schema keeps the two
  * from drifting.
  *
  * Leaf operators reference a `questionId`; `equals`/`notEquals`/`in` compare
- * canonical `AnswerValue` encodings (§2.4, ADR-21 — multiChoice `equals` is
+ * canonical `AnswerValue` encodings (§2.4, ADR-21 - multiChoice `equals` is
  * whole-answer set equality, never containment), `gt/gte/lt/lte` order
  * `Comparable` values (number | date), `answered` is the explicit existence
  * test, and `contains`/`containsAny` are multiChoice membership (ADR-21).
@@ -53,7 +53,7 @@ export type Condition =
 
 /**
  * Closed union of typed error codes for rule parsing. `RULE_DEPTH_EXCEEDED`
- * is a shared string with `PublishErrorCode` — `compileDraft` (008) surfaces
+ * is a shared string with `PublishErrorCode` - `compileDraft` (008) surfaces
  * the same violation verbatim in its publish report.
  */
 export const VisibilityRuleErrorCode = z.enum([
@@ -90,7 +90,7 @@ const ConditionNode: z.ZodType<Condition> = z.lazy(() =>
     z.object({ op: z.literal("lt"), questionId: QuestionId, value: Comparable }),
     z.object({ op: z.literal("lte"), questionId: QuestionId, value: Comparable }),
     z.object({ op: z.literal("answered"), questionId: QuestionId }),
-    // multiChoice only (ADR-21) — enforced against resolved question
+    // multiChoice only (ADR-21) - enforced against resolved question
     // definitions by checkRuleTypes (rule-graph.ts), not at parse.
     z.object({ op: z.literal("contains"), questionId: QuestionId, value: OptionId }),
     z.object({
@@ -139,12 +139,12 @@ export const Condition: z.ZodType<Condition> = ConditionNode.superRefine((condit
 
 /**
  * A visibility rule (DOMAIN_SCHEMA §3): when the condition matches, the
- * listed targets are shown. Targets are conditional — hidden by default,
+ * listed targets are shown. Targets are conditional - hidden by default,
  * shown when at least one targeting rule matches (ADR-16); a `StepId` target
  * expands to all of the step's questions. Whether targets resolve, sit
  * forward of the condition's references, and type-check against pinned
  * question versions are publish invariants (rule-graph.ts here, wired up by
- * 008) — not parse concerns.
+ * 008) - not parse concerns.
  */
 export const VisibilityRule = z.object({
   ruleId: RuleId,

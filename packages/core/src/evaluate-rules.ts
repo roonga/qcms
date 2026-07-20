@@ -14,20 +14,20 @@ import type { Condition, VisibilityRule } from "./visibility-rule.js";
  * deterministic function: same `(snapshot, answers)` → same `FlowState`,
  * forever. Semantics (DOMAIN_SCHEMA §3, frozen as {@link SEMANTICS_VERSION}):
  *
- * 1. **Single forward pass in document order** — never a fixpoint. Steps in
+ * 1. **Single forward pass in document order** - never a fixpoint. Steps in
  *    order; within a step, items in order. Untargeted items are visible; a
  *    targeted item is visible iff at least one rule targeting it evaluates
  *    true *at that point in the walk*.
  * 2. Conditions over unanswered questions are `false`, except `answered`
- *    (the explicit existence test — including `notEquals`, which is `false`
+ *    (the explicit existence test - including `notEquals`, which is `false`
  *    on unanswered). A referenced question currently *hidden* is treated as
- *    unanswered — well-defined because a referenced question's visibility was
+ *    unanswered - well-defined because a referenced question's visibility was
  *    settled earlier in the walk (forward-only, publish-enforced).
  * 3. `equals`/`notEquals`/`in` compare via `valuesEqual` (set equality for
  *    multiChoice, ADR-21); `contains`/`containsAny` test optionId membership
  *    in the multiChoice answer; `gt/gte/lt/lte` order via `compareValues`.
  *    Incompatible types are unreachable post-publish (checkRuleTypes) but
- *    return a typed `CONDITION_TYPE_MISMATCH` on unvalidated input — never a
+ *    return a typed `CONDITION_TYPE_MISMATCH` on unvalidated input - never a
  *    throw.
  * 4. A hidden step contributes no visible questions regardless of
  *    per-question rules (step-level visibility is settled at step entry and
@@ -46,13 +46,13 @@ import type { Condition, VisibilityRule } from "./visibility-rule.js";
 /**
  * The evaluation-semantics version (ADR-16): stamped into snapshots by
  * `compileDraft` (008). Any change to the numbered semantics above increments
- * this — old snapshots evaluate under their recorded version, never silently
+ * this - old snapshots evaluate under their recorded version, never silently
  * under new rules.
  */
 export const SEMANTICS_VERSION = 1;
 
 /**
- * The *current* answers, latest-per-question — resolution from the
+ * The *current* answers, latest-per-question - resolution from the
  * append-only ledger happens in storage (I5), not here. A map, not a ledger:
  * evaluation never depends on insertion order.
  */
@@ -63,7 +63,7 @@ export type AnswerMap = ReadonlyMap<QuestionId, AnswerValue>;
  * publish-validated input (the totality contract: schema-valid input never
  * throws *and* never errs post-publish); on unvalidated input they return
  * instead of throwing. `INVALID_FORM_DEFINITION` is a shared string with
- * `FormDefinitionErrorCode`. Error messages and paths name ids only — never
+ * `FormDefinitionErrorCode`. Error messages and paths name ids only - never
  * answer values (SECURITY_DESIGN: answer values are never logged).
  */
 export const EvalErrorCode = z.enum([
@@ -83,15 +83,15 @@ export type EvalError = z.infer<typeof EvalError>;
  * respondent should be, and whether the response is submittable. All arrays
  * are in document order.
  *
- * - `visible` — every visible `(stepId, questionId)` pair.
- * - `visibleSteps` — the steps contributing at least one visible question
+ * - `visible` - every visible `(stepId, questionId)` pair.
+ * - `visibleSteps` - the steps contributing at least one visible question
  *   (derived from `visible`; a step-visible step whose questions are all
  *   rule-hidden renders nothing and is therefore not listed).
- * - `currentStep` — semantic 5 above; `null` when nothing is unanswered.
- * - `answeredRequired` / `missingRequired` — visible required questions with
+ * - `currentStep` - semantic 5 above; `null` when nothing is unanswered.
+ * - `answeredRequired` / `missingRequired` - visible required questions with
  *   and without an answer (required-ness comes from the resolved
  *   `QuestionDefinition`, task 003).
- * - `complete` — `missingRequired` is empty (I9's precondition; the
+ * - `complete` - `missingRequired` is empty (I9's precondition; the
  *   submission sweep itself is task 009).
  */
 export const FlowState = z.object({
@@ -105,7 +105,7 @@ export const FlowState = z.object({
 export type FlowState = z.infer<typeof FlowState>;
 
 /** Typed eval error for an operator applied over incompatible runtime types.
- * Names the rule, operator, and question — never the compared values. */
+ * Names the rule, operator, and question - never the compared values. */
 function typeMismatch(rule: VisibilityRule, op: string, questionId: QuestionId): EvalError {
   return {
     code: "CONDITION_TYPE_MISMATCH",
@@ -160,7 +160,7 @@ function assertNeverCondition(condition: never): never {
  * `SEMANTICS_VERSION`).
  *
  * `resolveQuestion` maps each pinned `questionId` to the definition its pin
- * resolves to — the same injected-lookup pattern as `checkRuleTypes` (005),
+ * resolves to - the same injected-lookup pattern as `checkRuleTypes` (005),
  * keeping the kernel I/O-free (R3). It supplies the `required` flags that
  * live on `QuestionDefinition`, not on the form; the caller (008's publish
  * check, 009's submission sweep, the serving slices) owns loading the pinned
@@ -205,7 +205,7 @@ export function evaluateRules(
 
   // Canonicalize answers for pinned questions (NFC text, deduplicated
   // multiChoice); unknown keys are ignored. Malformed values are reported
-  // all-at-once, in document order — again independent of map order.
+  // all-at-once, in document order - again independent of map order.
   const canonical = new Map<QuestionId, AnswerValue>();
   const malformed: QuestionId[] = [];
   for (const { questionId } of order) {
@@ -230,7 +230,7 @@ export function evaluateRules(
 
   // Which rules target each step / each question directly. A StepId target
   // conditions the *step* (semantic 4); it does not make the step's questions
-  // individually targeted — step-level and question-level visibility are
+  // individually targeted - step-level and question-level visibility are
   // separate layers that AND together.
   const stepRules = new Map<StepId, VisibilityRule[]>();
   const questionRules = new Map<QuestionId, VisibilityRule[]>();
@@ -246,7 +246,7 @@ export function evaluateRules(
 
   // The forward walk. `settled` holds questions already walked and visible;
   // an answer participates in condition evaluation only once its question is
-  // settled visible (semantic 2 / I6 — hidden answers are excluded, and
+  // settled visible (semantic 2 / I6 - hidden answers are excluded, and
   // not-yet-walked references read as unanswered).
   const settled = new Set<QuestionId>();
   const effective = (questionId: QuestionId): AnswerValue | undefined =>
@@ -334,7 +334,7 @@ export function evaluateRules(
   };
 
   /** True when at least one of the targeting rules matches, in declaration
-   * order ("at that point in the walk" — evaluated against `settled`). */
+   * order ("at that point in the walk" - evaluated against `settled`). */
   const anyRuleTrue = (rules: readonly VisibilityRule[]): Result<boolean, EvalError> => {
     for (const rule of rules) {
       const outcome = evalCondition(rule, rule.when);

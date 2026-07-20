@@ -21,7 +21,7 @@ import { formStatus } from "./enums.js";
  * version, R1). Reopening is via a new draft/version.
  *
  * `challengeRequired` and `minSubmitMs` are per-form abuse-control settings
- * (task 026) — operational domain config that lives on the mutable identity
+ * (task 026) - operational domain config that lives on the mutable identity
  * row, not in the immutable published definition and not a deployment flag
  * (ADR-24). `challengeRequired` gates start-session (018) behind the configured
  * challenge; `minSubmitMs` overrides the config-default min-time floor the

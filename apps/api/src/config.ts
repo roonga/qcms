@@ -5,14 +5,14 @@
  * dominate:
  *
  * 1. **Validate presence *and* shape.** A secret that is present but too short
- *    is a misconfiguration, caught at boot — not at first use.
+ *    is a misconfiguration, caught at boot - not at first use.
  * 2. **Never echo values (SEC-8).** Every error names the offending env var and
  *    what was wrong; it never prints the value. This is a testable property
  *    (the redaction test), so `ConfigError.message` is built only from env-var
  *    names and generic reasons.
  *
  * Key-list envs (`QCMS_LINK_KEYS`, `QCMS_SESSION_KEYS`, `QCMS_INTERNAL_TOKEN`)
- * accept a comma/whitespace-separated list — the **first entry signs, all
+ * accept a comma/whitespace-separated list - the **first entry signs, all
  * entries verify** (010's rotation model). Webhook signing does *not* use a
  * global env key: per-webhook secrets are stored encrypted under
  * `QCMS_APP_KEY` (SEC-6), handled in later tasks.
@@ -81,7 +81,7 @@ export interface Config {
     readonly deliveryTimeoutMs: number;
     /**
      * Max deliveries a single pass processes (`QCMS_WEBHOOK_BATCH_SIZE`, default
-     * 20). Bounds the work — and the outbox/delivery row locks held — per tick;
+     * 20). Bounds the work - and the outbox/delivery row locks held - per tick;
      * the scheduler interval drains the rest.
      */
     readonly deliveryBatchSize: number;
@@ -110,13 +110,13 @@ export interface Config {
    * DEFAULTS}. Multi-instance deployments swap the store for a shared one (017).
    */
   readonly rateLimit: {
-    /** `POST /sessions` — per client IP (e.g. 20/hour). */
+    /** `POST /sessions` - per client IP (e.g. 20/hour). */
     readonly sessionCreate: RateLimitClass;
-    /** `POST /sessions/{id}/answers` — per session (≈2/s sustained, burst 10). */
+    /** `POST /sessions/{id}/answers` - per session (≈2/s sustained, burst 10). */
     readonly answersPerSession: RateLimitClass;
-    /** `POST /sessions/{id}/answers` — per client IP (a wider flood backstop). */
+    /** `POST /sessions/{id}/answers` - per client IP (a wider flood backstop). */
     readonly answersPerIp: RateLimitClass;
-    /** `POST /sessions/{id}/submit` — per session (e.g. 5/min). */
+    /** `POST /sessions/{id}/submit` - per session (e.g. 5/min). */
     readonly submitPerSession: RateLimitClass;
   };
   readonly scheduler: {
@@ -144,7 +144,7 @@ export interface Config {
      */
     readonly minSubmitMs: number;
     /**
-     * Honeypot field name on the submit body — the compiler↔API contract
+     * Honeypot field name on the submit body - the compiler↔API contract
      * (`HONEYPOT_FIELD_NAME`, `@qcms/a2ui-compiler`). A non-empty value flags the
      * submission `HONEYPOT`. A legitimate client never fills it, so the check is
      * always on. Overridable only for operators who also change the compiler
@@ -153,7 +153,7 @@ export interface Config {
     readonly honeypotField: string;
   };
   readonly flags: Flags;
-  /** Challenge-provider secrets — present iff `flags.challengeProvider !== "none"`. */
+  /** Challenge-provider secrets - present iff `flags.challengeProvider !== "none"`. */
   readonly challenge:
     | { readonly provider: "none" }
     | {
@@ -175,8 +175,8 @@ export class ConfigError extends Error {
 type Env = Record<string, string | undefined>;
 
 /**
- * Feature-flag registry (ADR-24). Every flag is declared here — name, env var,
- * value schema, default, description — and nothing else is a flag. `env` names
+ * Feature-flag registry (ADR-24). Every flag is declared here - name, env var,
+ * value schema, default, description - and nothing else is a flag. `env` names
  * carrying the `QCMS_FLAG_` prefix participate in unknown-flag detection;
  * `QCMS_ADMIN_2FA` is folded in without the prefix (it predates the registry).
  */
@@ -253,7 +253,7 @@ function parseOptionalString(env: Env, name: string, fallback: string): string {
 
 /**
  * A required absolute http(s) URL knob (e.g. the portal base URL). Records an
- * issue — by env-var name only, never echoing the value — when absent or not a
+ * issue - by env-var name only, never echoing the value - when absent or not a
  * parseable absolute http/https URL.
  */
 function parseRequiredHttpUrl(env: Env, name: string, issues: string[]): string {

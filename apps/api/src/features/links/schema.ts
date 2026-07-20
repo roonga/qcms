@@ -3,7 +3,7 @@
  * the single schema language (017); these drive both request validation and the
  * generated OpenAPI documents (027).
  *
- * A minted token appears in exactly one place — the returned link URL (the sole
+ * A minted token appears in exactly one place - the returned link URL (the sole
  * deliberate case of a token in a URL, SEC-8, mitigated by expiry + the
  * `secure_links` row). The token itself is never persisted server-side; only the
  * link's state row is.
@@ -16,12 +16,12 @@ export const MAX_LINK_BATCH = 100;
 
 // --- params -----------------------------------------------------------------
 
-/** `:id` path param — a `frm_…` form id (validated as a FormId in-handler). */
+/** `:id` path param - a `frm_…` form id (validated as a FormId in-handler). */
 export const FormIdParam = z.object({
   id: z.string().openapi({ param: { name: "id", in: "path" }, example: "frm_intake" }),
 });
 
-/** `:linkId` path param — an `lnk_…` link id (validated in-handler). */
+/** `:linkId` path param - an `lnk_…` link id (validated in-handler). */
 export const LinkIdParam = z.object({
   linkId: z.string().openapi({ param: { name: "linkId", in: "path" }, example: "lnk_ab12cd34" }),
 });
@@ -29,7 +29,7 @@ export const LinkIdParam = z.object({
 // --- request bodies ---------------------------------------------------------
 
 /**
- * `POST /admin/forms/:id/links` — mint one or a batch of secure links. `count`
+ * `POST /admin/forms/:id/links` - mint one or a batch of secure links. `count`
  * defaults to 1 and is capped at {@link MAX_LINK_BATCH}. `expiresAt` is a future
  * ISO datetime (validated against the request clock in-handler).
  */

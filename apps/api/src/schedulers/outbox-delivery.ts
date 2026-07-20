@@ -7,7 +7,7 @@
  * capped exponential backoff, and dead-lettering. **At-least-once, never
  * best-effort.** Fetch-pure (R4): time via `deps.clock`, HTTP via the web `fetch`,
  * HMAC via WebCrypto (`./signing`), secret decryption via WebCrypto (`../features/
- * webhooks/crypto`) — no `node:*`.
+ * webhooks/crypto`) - no `node:*`.
  *
  * ## Two phases, each `FOR UPDATE SKIP LOCKED` (multi-instance safe)
  *
@@ -16,28 +16,28 @@
  *    `(outbox_id, webhook_id)` unique key), then mark the outbox row consumed. The
  *    outbox is the fan-out source; the delivery rows are the per-endpoint queue,
  *    each with its own independent retry state (so one webhook failing never
- *    stalls another — exit criterion 5). Event types with no launch subscriber
+ *    stalls another - exit criterion 5). Event types with no launch subscriber
  *    (e.g. `form.published`) are consumed without fan-out.
- * 2. **Deliver.** Claim a due delivery row in its own transaction — which holds
- *    the row lock across the POST — sign and send, then record the outcome and
+ * 2. **Deliver.** Claim a due delivery row in its own transaction - which holds
+ *    the row lock across the POST - sign and send, then record the outcome and
  *    commit. Holding the lock across the POST is what makes it *exclusive* across
  *    concurrent deliverers (`SKIP LOCKED`: a second instance skips the locked row)
  *    and *crash-safe* (a crash between send and commit rolls back to a
- *    redeliverable state — the consumer may see a duplicate; `eventId` +
+ *    redeliverable state - the consumer may see a duplicate; `eventId` +
  *    `contentHash` are the idempotency keys).
  *
  * ## SSRF defense-in-depth
  *
  * The target URL was checked at config time (024); it is re-checked here on the
- * literal URL before every POST. This still cannot fully close DNS rebinding —
- * the hostname could resolve to a private address at fetch time — which is an
+ * literal URL before every POST. This still cannot fully close DNS rebinding -
+ * the hostname could resolve to a private address at fetch time - which is an
  * inherent limitation of URL-based SSRF guards; closing it fully needs
  * resolve-then-pin-the-IP at the socket layer, out of scope for launch (documented
  * in docs/webhooks.md).
  *
  * ## Logging (SEC-8)
  *
- * Only ids and per-pass counts are logged — never the payload, answer values, the
+ * Only ids and per-pass counts are logged - never the payload, answer values, the
  * secret, or the signature. The event/webhook/delivery ids are safe correlators.
  */
 
@@ -80,7 +80,7 @@ export interface DeliveryPassOptions {
   /**
    * TEST-ONLY seam: invoked after a successful send but before the delivery is
    * marked delivered, inside the delivery transaction. A throw here rolls the
-   * transaction back — exactly the crash-between-send-and-commit the at-least-once
+   * transaction back - exactly the crash-between-send-and-commit the at-least-once
    * contract must survive. Never set in production.
    */
   readonly afterSend?: (deliveryId: string) => void | Promise<void>;
@@ -115,7 +115,7 @@ export async function runDeliveryPass(
 
 /**
  * Phase 1: claim due outbox events and fan `response.submitted` out to active
- * webhooks as delivery rows, consuming each event. One transaction — a crash
+ * webhooks as delivery rows, consuming each event. One transaction - a crash
  * rolls back to un-fanned events, never to half-created deliveries.
  */
 async function materialize(deps: Deps, options: DeliveryPassOptions): Promise<number> {
@@ -205,7 +205,7 @@ type DeliveryResult = { readonly ok: true } | { readonly ok: false; readonly err
 /**
  * Sign and POST one delivery. Re-checks SSRF, decrypts the secret, builds the
  * enveloped body, signs it, and sends with a timeout. Never throws for a delivery
- * failure — a non-2xx, timeout, network error, decrypt failure, or SSRF rejection
+ * failure - a non-2xx, timeout, network error, decrypt failure, or SSRF rejection
  * all return `{ ok: false, error }` for {@link recordDeliveryFailure} to schedule.
  */
 async function deliverOne(
@@ -222,7 +222,7 @@ async function deliverOne(
   try {
     secret = await decryptWebhookSecret(due.secretEncrypted, deps.config.keys.app);
   } catch {
-    // The secret envelope is corrupt or the app key rotated away — retryable only
+    // The secret envelope is corrupt or the app key rotated away - retryable only
     // by fixing config, but recorded as a failure so it dead-letters visibly.
     return { ok: false, error: "secret_decrypt_failed" };
   }

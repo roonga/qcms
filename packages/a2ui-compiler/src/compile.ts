@@ -17,11 +17,11 @@ import type { A2UIDocument, CompiledForm } from "./types.js";
 import { A2UI_SPEC_VERSION, COMPILER_VERSION } from "./version.js";
 
 /**
- * `compileForm` — the pure projection from meaning to view (task 011,
+ * `compileForm` - the pure projection from meaning to view (task 011,
  * ARCHITECTURE §3): a published {@link FrozenSnapshot} → one A2UI document per
  * step, stamped with the compiler and A2UI-spec versions (ADR-18, the stored
  * copy is served forever). Deterministic and side-effect free; depends on
- * `@qcms/core` types only — never `db`, never React, never a runtime
+ * `@qcms/core` types only - never `db`, never React, never a runtime
  * `@a2ra/core` import.
  *
  * Preconditions (a valid snapshot from `compileDraft`, task 008): every pinned
@@ -45,7 +45,7 @@ function questionResolver(snapshot: FrozenSnapshot): (ref: QuestionRef) => Quest
     const definition = byPin.get(pinKey(ref.questionId, ref.version));
     if (definition === undefined) {
       throw new Error(
-        `compileForm: pin "${ref.questionId}"@${String(ref.version)} is not in the snapshot's questions — the snapshot is not self-contained (publish invariant I2)`,
+        `compileForm: pin "${ref.questionId}"@${String(ref.version)} is not in the snapshot's questions - the snapshot is not self-contained (publish invariant I2)`,
       );
     }
     return definition;
@@ -57,7 +57,7 @@ function textResolver(locale: LocaleCode, defaultLocale: LocaleCode): TextResolv
     const result = resolveText(text, locale, defaultLocale);
     if (!result.ok) {
       throw new Error(
-        `compileForm: ${result.error.message} — the snapshot is missing the default locale (publish invariant I3)`,
+        `compileForm: ${result.error.message} - the snapshot is missing the default locale (publish invariant I3)`,
       );
     }
     return result.value;
@@ -65,7 +65,7 @@ function textResolver(locale: LocaleCode, defaultLocale: LocaleCode): TextResolv
 }
 
 /**
- * Compile a snapshot through an explicit {@link StepResolver} — the seam entry
+ * Compile a snapshot through an explicit {@link StepResolver} - the seam entry
  * point. `compileForm` is this with the {@link staticStepResolver}; a Phase-4
  * adaptive resolver (or a test double) is injected here (`docs/agent-seam.md`).
  */

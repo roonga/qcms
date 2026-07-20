@@ -15,12 +15,12 @@ Report privately via **GitHub Security Advisories**:
 (repo → **Security** tab → **Report a vulnerability**).
 
 Include: affected component/version, reproduction steps, and impact. We aim to
-acknowledge within a few business days. Coordinated disclosure is appreciated —
+acknowledge within a few business days. Coordinated disclosure is appreciated -
 we will work with you on a fix and timeline before any public detail.
 
 ## Supported versions
 
-None yet — qcms is pre-1.0 and unreleased. Every published package is a
+None yet - qcms is pre-1.0 and unreleased. Every published package is a
 pre-release preview; APIs, schemas, and storage shapes may change without
 notice until 1.0. Security patches are not backported during pre-release.
 
@@ -28,7 +28,7 @@ notice until 1.0. Security patches are not backported during pre-release.
 
 In scope: the qcms packages (`@qcms/*`) and apps (portal, admin, api) in this
 repository. Out of scope (documented operator responsibility): host/OS/Postgres
-hardening, TLS/ingress, VPN configuration, and DDoS absorption — see
+hardening, TLS/ingress, VPN configuration, and DDoS absorption - see
 `docs/SECURITY_DESIGN.md` §1.
 
 The security model, threat model, and controls are documented in

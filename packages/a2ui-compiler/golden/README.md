@@ -1,8 +1,8 @@
 # A2UI golden corpus
 
 The reviewed, compiled A2UI output for the `@qcms/core` reference forms (task
-012, ADR-18). Each document is a genuine `compileForm` result — never
-hand-forged — captured once, hand-reviewed, and then frozen. The corpus is
+012, ADR-18). Each document is a genuine `compileForm` result - never
+hand-forged - captured once, hand-reviewed, and then frozen. The corpus is
 three contracts at once:
 
 1. **The compiler's regression net.** `src/golden-corpus.test.ts` recompiles
@@ -18,14 +18,14 @@ three contracts at once:
    Auditing the renderer against a new upstream version means diffing it against
    this corpus.
 
-## Append-only — the policy (ADR-18)
+## Append-only - the policy (ADR-18)
 
 **A committed golden document is never edited or deleted.** The stored compiled
 A2UI is immutable (R1) and served forever, so its golden must stay a faithful
 record of what that compiler version produced. Consequences:
 
 - If a compiler change alters any corpus form's output, the golden test fails.
-  That is the signal working as intended — **do not "fix" the golden to match
+  That is the signal working as intended - **do not "fix" the golden to match
   new output.** Either the change is a bug (revert it) or it is a deliberate,
   breaking A2UI change, which is handled by a spec bump (below).
 - Adding a _new_ golden (a new corpus form, or a new spec version's directory)
@@ -60,14 +60,14 @@ removal in a new `@a2ra/core`, a mapping change that alters existing documents):
    hand-review them.
 3. Point the corpus runner at the new version for the current compiler while
    keeping `v1/` rendered and asserted for as long as `v1` documents remain in
-   any store — old stored snapshots still resolve against their original spec
+   any store - old stored snapshots still resolve against their original spec
    version (ADR-18, the stored copy is served forever).
 
 Every `vN/` directory remains in the tree and rendered forever; a spec bump is
 purely additive. The machinery to _select_ a version per stored snapshot is
 built when a real per-snapshot dispatch need arrives. Current versions on disk:
 `v1/` and `v2/` (v2 added by task 026's honeypot node). New goldens are always a
-**fresh file add** — never a rename/move into a `vN/` directory (the append-only
+**fresh file add** - never a rename/move into a `vN/` directory (the append-only
 guard reads a rename as a deletion of the old path and fails).
 
 ## Layout
@@ -89,5 +89,5 @@ golden/
 ## Adding a golden
 
 Introduce a new golden as a **fresh file add**, never by moving/renaming an existing
-tracked file into `golden/` — the append-only guard detects renames (`R`) as a
+tracked file into `golden/` - the append-only guard detects renames (`R`) as a
 deletion of the old path and fails the build. Create the file in place.

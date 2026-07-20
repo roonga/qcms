@@ -1,5 +1,5 @@
 /**
- * Pure CSV serialization tests (task 023, exit criterion 2). No DB, no app —
+ * Pure CSV serialization tests (task 023, exit criterion 2). No DB, no app -
  * these pin the byte-level contract: RFC 4180 quoting, CRLF records, the UTF-8
  * BOM, multiChoice `a;b;c`, and column order (document order). The live golden
  * export (through `app.request`) is asserted in `responses.integration.test.ts`;

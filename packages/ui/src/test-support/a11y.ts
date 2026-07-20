@@ -6,7 +6,7 @@ import { computeAccessibleName } from "dom-accessibility-api";
  * A deterministic accessibility-tree outline built from testing-library role
  * queries (NOT a DOM snapshot): every landmark role a step exposes, paired with
  * its computed accessible name, grouped by role in a fixed order. This is the
- * conformance snapshot — it regresses if a control loses its label, a heading
+ * conformance snapshot - it regresses if a control loses its label, a heading
  * level changes, or a role disappears.
  */
 const ROLE_ORDER = [
@@ -60,7 +60,7 @@ export async function axeViolations(container: HTMLElement): Promise<axe.Result[
       type: "tag",
       values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"],
     },
-    // color-contrast needs real layout/canvas (unavailable in jsdom) — it is a
+    // color-contrast needs real layout/canvas (unavailable in jsdom) - it is a
     // browser-only check that rides on Playwright + the Lighthouse gate (030).
     rules: { "color-contrast": { enabled: false } },
   });

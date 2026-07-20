@@ -6,7 +6,7 @@ import { forms } from "./forms.js";
 
 /**
  * Server-side state for secure-link tokens (SEC-2, task 010). A valid signature
- * is never sufficient on its own — consumption and revocation are checked here,
+ * is never sufficient on its own - consumption and revocation are checked here,
  * so a leaked one-time link cannot be replayed and a revoked link stops working
  * immediately. `consumedAt` / `revokedAt` being null means "still usable".
  */

@@ -11,12 +11,12 @@ import type { QuestionVersionRecord } from "./question-definition.js";
  * contract `compileDraft` (008) returns and the admin UI (034) renders
  * verbatim: a closed discriminated union on `code`, each variant carrying a
  * human `message` and a *structured* path (domain locations like
- * `{ step, question }`, not positional indices — the draft may be re-ordered
+ * `{ step, question }`, not positional indices - the draft may be re-ordered
  * between validate and render, the IDs still resolve).
  *
  * Publish reports are always complete: `PublishResult.err` carries **all**
  * errors, never first-only. The checks that *produce* these errors are tasks
- * 005 (rule content) and 008 (publish invariants) — out of scope here.
+ * 005 (rule content) and 008 (publish invariants) - out of scope here.
  */
 export const PublishErrorCode = z.enum([
   "DANGLING_QUESTION_REF",
@@ -130,7 +130,7 @@ export type PublishErrorOf<C extends PublishErrorCode> = Extract<PublishError, {
 /**
  * What `compileDraft` (008, `compile-draft.ts`) returns on success
  * (DOMAIN_SCHEMA §4.1): the validated definition *plus* the resolved
- * `QuestionVersionRecord` per pin (in document order — the snapshot is
+ * `QuestionVersionRecord` per pin (in document order - the snapshot is
  * self-contained, R1), deep-frozen, stamped with the evaluation-semantics
  * version it was validated under (ADR-16) and the snapshot schema version.
  * The storage row (013) adds compiled A2UI and its version stamps around it;
@@ -147,7 +147,7 @@ export type FrozenSnapshot = {
 
 /**
  * The publish contract (DOMAIN_SCHEMA §4.1): `ok(frozenSnapshot)` when every
- * invariant holds, otherwise `err` with **all** publish errors — atomic,
+ * invariant holds, otherwise `err` with **all** publish errors - atomic,
  * nothing persisted, never first-only.
  */
 export type PublishResult = Result<FrozenSnapshot, readonly PublishError[]>;
@@ -160,7 +160,7 @@ function assertNeverPublishError(error: never): never {
 /**
  * Human-readable location of a publish error, rendered from its structured
  * path (the admin UI's default presentation next to the message). The switch
- * is exhaustive over the code union with a `never` default — adding a code
+ * is exhaustive over the code union with a `never` default - adding a code
  * without handling it here is a build error, not a runtime surprise.
  */
 export function publishErrorLocation(error: PublishError): string {

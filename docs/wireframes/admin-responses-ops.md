@@ -1,8 +1,8 @@
-# Wireframe — Admin responses, erasure, webhook operations
+# Wireframe - Admin responses, erasure, webhook operations
 
 **Status:** Draft (pre-027) · **Consumed by:** 035 · **Renders:** 023 (responses/export/erase), 024 (webhook config), 025 (delivery state, redeliver)
 
-## ASCII sketch — response browser + detail
+## ASCII sketch - response browser + detail
 
 ```
 ┌─ Responses: Life insurance ─────────────────────────┐
@@ -23,13 +23,13 @@
 
 ## Regions (normative)
 
-- **browser toolbar**: version `select` · date range `date-picker` ×2 · flagged `select` · Export `menu` (CSV — version required; JSON).
+- **browser toolbar**: version `select` · date range `date-picker` ×2 · flagged `select` · Export `menu` (CSV - version required; JSON).
 - **browser `table`**: sessionId, formVersion, submittedAt, accessMode, flagged `tag`, answer preview. Pagination `[upstream gap]`. Row → detail.
-- **detail**: locked answers with question labels resolved from the pinned version · **ledger timeline** (every change with timestamps — the audit view; matches `answerLedger` exactly, 035 exit criterion) · contentHash (`text`, copyable) · link state if secure-link · flag reason + **unflag** action (`dialog` confirm explaining the withheld webhook releases — 023).
-- **erasure**: "Erase respondent data" `button` (danger) → **type-to-confirm `dialog`** (explains ADR-17: irreversible, tombstone remains, webhook consumers unaffected; requires typing the sessionId — no single-click path, 035 exit criterion). Post-erasure: detail shows the tombstone (`card`: erasedAt, reason). **Erasure log** screen: `table` of tombstones (023 `GET /admin/erasures`) — compliance evidence.
+- **detail**: locked answers with question labels resolved from the pinned version · **ledger timeline** (every change with timestamps - the audit view; matches `answerLedger` exactly, 035 exit criterion) · contentHash (`text`, copyable) · link state if secure-link · flag reason + **unflag** action (`dialog` confirm explaining the withheld webhook releases - 023).
+- **erasure**: "Erase respondent data" `button` (danger) → **type-to-confirm `dialog`** (explains ADR-17: irreversible, tombstone remains, webhook consumers unaffected; requires typing the sessionId - no single-click path, 035 exit criterion). Post-erasure: detail shows the tombstone (`card`: erasedAt, reason). **Erasure log** screen: `table` of tombstones (023 `GET /admin/erasures`) - compliance evidence.
 - **export UI**: format choice, version `select` (required for CSV, disabled-with-hint for JSON), date range; streams the download; empty-result message.
-- **webhook config** (per form): create `dialog` — url `text-field` (https enforced outside dev), active `switch`; **secret shown exactly once** on creation (`alert` + copy `button`, "will not be shown again"); list `table` with masked secrets, rotate (new secret shown once) and deactivate actions.
-- **delivery dashboard**: recent deliveries `table` — status `tag`, attempts, latency · **dead-letter list** — lastError, attempt history, per-item **redeliver** `button` + bulk redeliver · delivery detail (`accordion`): request headers (signature masked), response code/body snippet.
+- **webhook config** (per form): create `dialog` - url `text-field` (https enforced outside dev), active `switch`; **secret shown exactly once** on creation (`alert` + copy `button`, "will not be shown again"); list `table` with masked secrets, rotate (new secret shown once) and deactivate actions.
+- **delivery dashboard**: recent deliveries `table` - status `tag`, attempts, latency · **dead-letter list** - lastError, attempt history, per-item **redeliver** `button` + bulk redeliver · delivery detail (`accordion`): request headers (signature masked), response code/body snippet.
 
 ## States (normative)
 

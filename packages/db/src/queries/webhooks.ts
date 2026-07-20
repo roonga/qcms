@@ -9,7 +9,7 @@ export type WebhookRow = typeof webhooks.$inferSelect;
 
 /**
  * Insert a configured webhook (SEC-6, task 024). `secretEncrypted` is opaque
- * AES-GCM ciphertext produced by the shell — this layer never sees the plaintext
+ * AES-GCM ciphertext produced by the shell - this layer never sees the plaintext
  * secret and never logs the row.
  */
 export async function insertWebhook(
@@ -92,7 +92,7 @@ export async function updateWebhook(
 
 /**
  * Soft-deactivate a webhook: clear `active` and stamp `deactivatedAt`/`updatedAt`
- * without deleting the row (delivery history survives). Idempotent — a second
+ * without deleting the row (delivery history survives). Idempotent - a second
  * deactivate of an already-inactive webhook still matches the row and re-stamps.
  * Returns the row, or `undefined` when no such webhook exists for the form.
  */

@@ -1,6 +1,6 @@
-# QCMS — Developer Guide
+# QCMS - Developer Guide
 
-> **Methodology vs. runbook:** this is the *operator's runbook* — how to drive the build day-to-day. For the *why* (principles, task-design rules, the session protocol, the audit checklist) see [`AGENTIC_DEVELOPMENT.md`](AGENTIC_DEVELOPMENT.md).
+> **Methodology vs. runbook:** this is the *operator's runbook* - how to drive the build day-to-day. For the *why* (principles, task-design rules, the session protocol, the audit checklist) see [`AGENTIC_DEVELOPMENT.md`](AGENTIC_DEVELOPMENT.md).
 
 How to drive the QCMS multi-agent development flow as the human in the loop. (What the *agents* must do lives in `CLAUDE.md` + `PROJECT_INSTRUCTIONS.md`; this file is for you.)
 
@@ -8,11 +8,11 @@ How to drive the QCMS multi-agent development flow as the human in the loop. (Wh
 
 ```sh
 cd H:\source\agent3\qcms
-claude                                      # normal session — repo defaults to acceptEdits mode
-claude --permission-mode bypassPermissions  # fully unattended (overnight loops) — per-run choice, deliberately not the repo default
+claude                                      # normal session - repo defaults to acceptEdits mode
+claude --permission-mode bypassPermissions  # fully unattended (overnight loops) - per-run choice, deliberately not the repo default
 ```
 
-Modes: the repo's `.claude/settings.json` sets **acceptEdits** (file edits and allowlisted commands run without prompting; anything unusual still asks). Shift+Tab cycles modes mid-session. For zero prompts, use the bypass flag above — only in a checkout you trust the agent with.
+Modes: the repo's `.claude/settings.json` sets **acceptEdits** (file edits and allowlisted commands run without prompting; anything unusual still asks). Shift+Tab cycles modes mid-session. For zero prompts, use the bypass flag above - only in a checkout you trust the agent with.
 
 ## Running work
 
@@ -28,35 +28,35 @@ Modes: the repo's `.claude/settings.json` sets **acceptEdits** (file edits and a
 ## Your gates (the agent stops and waits for you)
 
 - **Wireframe sign-off (042):** review `docs/wireframes/*.md`, then flip each file's status line to `Signed off: <you>, <date>`.
-- **Screenshot gate (every UI task):** the agent presents static-render screenshots (screen × state × theme); reply with approval or corrections — wiring starts only after your OK.
+- **Screenshot gate (every UI task):** the agent presents static-render screenshots (screen × state × theme); reply with approval or corrections - wiring starts only after your OK.
 - **Manual a11y pass (030):** you (or a tester) run NVDA/VoiceOver from the prepared script; results are logged to `docs/a11y-pass-<date>.md`.
 - **Security review sign-off (040)** and the **external-tester launch gate (038)**: prepared by agents, executed by humans.
 
 ## Surviving usage limits (true unattended runs)
 
-An in-session `/loop` dies when your Claude usage window closes and **won't self-restart** — nothing inside a session can wake itself hours later. For runs that should outlast limit windows, use the supervisor instead:
+An in-session `/loop` dies when your Claude usage window closes and **won't self-restart** - nothing inside a session can wake itself hours later. For runs that should outlast limit windows, use the supervisor instead:
 
 ```powershell
 pwsh scripts/agent-loop.ps1                 # one task at a time
 pwsh scripts/agent-loop.ps1 -Parallel 3     # up to 3 independent tasks per batch
 ```
 
-It runs `/next-task` in a **fresh headless session per iteration** (safe because the repo is the memory: claims, branches, HANDOFFs), reads the `NEXT-TASK:` sentinel each session emits, and: continues immediately on `LANDED`/`RESUMED`, stops on `AWAITING-HUMAN`/`BLOCKED`/`NOTHING`, and on *no sentinel* (usage limit or crash) waits `-RetryMinutes` (default 30) and retries — the next session's stale-claim recovery picks up whatever the killed one left mid-flight. Progress is in `agent-loop.log` and, as always, the ledger.
+It runs `/next-task` in a **fresh headless session per iteration** (safe because the repo is the memory: claims, branches, HANDOFFs), reads the `NEXT-TASK:` sentinel each session emits, and: continues immediately on `LANDED`/`RESUMED`, stops on `AWAITING-HUMAN`/`BLOCKED`/`NOTHING`, and on *no sentinel* (usage limit or crash) waits `-RetryMinutes` (default 30) and retries - the next session's stale-claim recovery picks up whatever the killed one left mid-flight. Progress is in `agent-loop.log` and, as always, the ledger.
 
 ## Editing skills/agents while a loop is running
 
-A long-lived session follows the instructions it already read — edits to `.claude/skills/` or `.claude/agents/` land on disk but a running conductor may keep executing the old flow from memory. After changing any skill or agent file: **restart running sessions**, or (better) run via `scripts/agent-loop.ps1`, whose fresh-session-per-task model picks up the current files on every iteration by construction.
+A long-lived session follows the instructions it already read - edits to `.claude/skills/` or `.claude/agents/` land on disk but a running conductor may keep executing the old flow from memory. After changing any skill or agent file: **restart running sessions**, or (better) run via `scripts/agent-loop.ps1`, whose fresh-session-per-task model picks up the current files on every iteration by construction.
 
 ## Monitoring and control
 
 - **State:** `docs/features/README.md` (the ledger) is always current; `git log --oneline` shows what landed; `git worktree list` shows live executors.
-- **Interrupt safely:** Esc stops the current session; in-flight executor branches survive. A stopped task should end `blocked (…)`, `in-progress` with a committed `HANDOFF.md`, or be resumed later — `/next-task` prefers resuming handoffs over starting fresh.
+- **Interrupt safely:** Esc stops the current session; in-flight executor branches survive. A stopped task should end `blocked (…)`, `in-progress` with a committed `HANDOFF.md`, or be resumed later - `/next-task` prefers resuming handoffs over starting fresh.
 - **Stale claim cleanup** (a session died mid-task): check the branch for a `HANDOFF.md`; either resume via `/task NNN`, or reset the ledger row to `todo`, delete the branch, and `git worktree remove` any leftover under `.claude/worktrees/`.
 
 ## Permissions tuning
 
-- Allowlist lives in `.claude/settings.json` — **both** `Bash(...)` and `PowerShell(...)` families must be listed (rules are per-tool; this was the main cause of early prompt noise on Windows).
-- Getting prompted for something routine? Run `/fewer-permission-prompts` — it scans real transcripts and proposes evidence-based allowlist additions.
+- Allowlist lives in `.claude/settings.json` - **both** `Bash(...)` and `PowerShell(...)` families must be listed (rules are per-tool; this was the main cause of early prompt noise on Windows).
+- Getting prompted for something routine? Run `/fewer-permission-prompts` - it scans real transcripts and proposes evidence-based allowlist additions.
 - Denied on purpose (don't relax): `npm`/`yarn` (pnpm-only), `git push --force`.
 
 ## Conventions the agents follow (so you can spot violations)

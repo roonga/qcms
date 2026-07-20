@@ -5,7 +5,7 @@ import type { LockedSubmission, SessionId } from "@qcms/core";
 import { sessions } from "./sessions.js";
 
 /**
- * The submission lock — the audit boundary (I6, I9). One row per session; holds
+ * The submission lock - the audit boundary (I6, I9). One row per session; holds
  * the locked answer set, its content hash (canonicalization contract, task 009),
  * and the submit timestamp. Immutable by convention (the domain never re-submits
  * a session); the kernel owns the lock.
@@ -14,7 +14,7 @@ import { sessions } from "./sessions.js";
  * `NULL` is a clean submission, a non-null reason (e.g. `"honeypot"`,
  * `"too_fast"`) means the submission was accepted with the same success-shaped
  * response the respondent always sees but is **withheld from webhook delivery**
- * pending review — the `response.submitted` outbox event is not enqueued for a
+ * pending review - the `response.submitted` outbox event is not enqueued for a
  * flagged submission (revisited in 035; released by the admin unflag in 023).
  */
 export const submissions = pgTable("submissions", {

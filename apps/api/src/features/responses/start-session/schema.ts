@@ -3,8 +3,8 @@
  *
  * Zod is the single schema language (017's convention): these drive both
  * runtime validation and the generated OpenAPI documents (027). The request is
- * an exclusive choice — anonymous (`formSlug`) *or* secure link (`token`),
- * never both, never neither — expressed with a refinement so a malformed body
+ * an exclusive choice - anonymous (`formSlug`) *or* secure link (`token`),
+ * never both, never neither - expressed with a refinement so a malformed body
  * is a clean 400 before the handler runs.
  */
 
@@ -60,7 +60,7 @@ export const SessionParams = z.object({
 
 /**
  * Session status view (`GET /sessions/{id}`). `position` is the respondent's
- * current place in the flow for resume — computed by the forward-pass evaluator
+ * current place in the flow for resume - computed by the forward-pass evaluator
  * in **019** (get-step). Until 019 wires the evaluator there is no flow to
  * resume into, so this slice returns `null` and marks the seam; the field's
  * shape is reserved so 019 fills it without a response-schema change.

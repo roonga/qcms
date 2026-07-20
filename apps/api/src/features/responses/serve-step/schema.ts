@@ -8,7 +8,7 @@
  * The response is a deliberately **narrow projection** of the kernel's
  * `FlowState` (ADR-18, SEC): clients receive the current step's stored compiled
  * A2UI document plus which of that step's questions are currently visible and
- * which required ones are still missing — never the full rule graph, never the
+ * which required ones are still missing - never the full rule graph, never the
  * inventory of hidden questions. `step` is served verbatim from the pinned
  * `form_versions.compiled` JSONB, so it is modelled as an opaque document the
  * API does not re-shape (`root` is the A2UI node tree, passed through untouched).
@@ -23,7 +23,7 @@ export const SessionParams = z.object({
 
 /**
  * One stored compiled A2UI document (a `CompiledForm` document, task 011): the
- * step's id and its A2UI node tree. Served verbatim from the pinned snapshot —
+ * step's id and its A2UI node tree. Served verbatim from the pinned snapshot -
  * `root` is opaque to the API (the renderer, 028, interprets it), so it is
  * `unknown` rather than a recursive schema the API would have to keep in step
  * with the compiler.
@@ -88,7 +88,7 @@ export type StepResponse = z.infer<typeof StepResponse>;
 /**
  * Submit-answer request body. `value` is validated by the kernel
  * (`validateAnswer`, 009) against the pinned question version, so it is accepted
- * as `unknown` here and never re-shaped by the transport schema — the canonical
+ * as `unknown` here and never re-shaped by the transport schema - the canonical
  * form the ledger stores is the kernel's output.
  */
 export const SubmitAnswerBody = z

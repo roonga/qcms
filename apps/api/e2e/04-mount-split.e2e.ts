@@ -1,9 +1,9 @@
 /**
- * Scenario 4 — the split enterprise topology (task 027, exit criterion 1).
+ * Scenario 4 - the split enterprise topology (task 027, exit criterion 1).
  *
  * Two separate compositions over **one** database and **one** environment prove
  * the deployment shape from ARCHITECTURE §5.1: a public-only respondent process
- * (admin routes simply do not exist — 404, not 403, per ADR-09) and a separate
+ * (admin routes simply do not exist - 404, not 403, per ADR-09) and a separate
  * internal/admin authoring process. The admin process mints a link and reads the
  * response back; the public process runs the respondent through that link. It
  * only works because both share the DB (data is visible across processes) and
@@ -87,8 +87,8 @@ describe("scenario 4: public-only + admin-only over one db/env", () => {
     expect(minted.status).toBe(201);
     const token = tokenFromLinkUrl(minted.body.links[0]!.url);
 
-    // Respondent surface (separate process): the link — signed with the shared
-    // env's link key — verifies here.
+    // Respondent surface (separate process): the link - signed with the shared
+    // env's link key - verifies here.
     const start = await respondent.start<StartBody>({ token });
     expect(start.status).toBe(201);
     const { sessionId, sessionToken } = start.body;
@@ -98,7 +98,7 @@ describe("scenario 4: public-only + admin-only over one db/env", () => {
     expect((await respondent.submit<Receipt>(sessionId, sessionToken)).status).toBe(200);
 
     // Back on the admin process: the submission written by the public process is
-    // visible — the two compositions share the database.
+    // visible - the two compositions share the database.
     const json = await admin.export(formId, { format: "json" });
     expect(json.status).toBe(200);
     const rows = JSON.parse(json.text) as { sessionId: string; accessMode: string }[];

@@ -1,7 +1,7 @@
 /**
  * Admin-group mount + auth-seam tests (task 021, exit criterion 4).
  *
- * These assert the surface guarantees without a database — the admin-auth gate
+ * These assert the surface guarantees without a database - the admin-auth gate
  * rejects an unauthenticated request before any handler runs, and a public-only
  * process has no admin group at all (a 404, not a 403). The full lifecycle
  * (create/edit/publish/deprecate, R6, malformed) is exercised against the real
@@ -55,7 +55,7 @@ describe("admin auth seam (exit criterion 4)", () => {
 });
 
 describe("admin group is absent in a public-only process (exit criterion 4, ADR-09)", () => {
-  it("an admin route 404s — the group is not mounted, not merely forbidden", async () => {
+  it("an admin route 404s - the group is not mounted, not merely forbidden", async () => {
     const deps = makeDeps();
     const app = createApp(deps, PUBLIC_ONLY, adminGroups);
 
@@ -70,7 +70,7 @@ describe("admin group is absent in a public-only process (exit criterion 4, ADR-
       body: JSON.stringify({ slug: "x", definition: {} }),
     });
 
-    // Not 403, not 401 — the admin surface simply does not exist in this shape.
+    // Not 403, not 401 - the admin surface simply does not exist in this shape.
     expect(res.status).toBe(404);
   });
 });

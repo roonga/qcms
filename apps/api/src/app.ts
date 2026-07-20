@@ -4,17 +4,17 @@
  * `createApp(deps, flags)` assembles the Hono application every slice mounts
  * into: cross-cutting middleware (error envelope, request logging, body limit),
  * the always-on health/ready routes, and the flag-gated route groups. There is
- * no DI container and no pipeline framework — middleware is ordinary Hono
+ * no DI container and no pipeline framework - middleware is ordinary Hono
  * middleware and dependencies arrive as the explicit `deps` object.
  *
  * **Mount flags are a build-time isolation guarantee (ADR-09).** A group that
- * is not mounted has *no routes registered* — a request to an admin path in a
+ * is not mounted has *no routes registered* - a request to an admin path in a
  * public-only process is a plain 404, not a 403. Admin simply does not exist
  * there.
  *
  * Feature slices (018–026) are not defined here; they are `SliceRegistrar`s the
  * server entry collects into the surface buckets and passes via `groups`. 017
- * owns the contract, not the slices — so `createApp` with no `groups` composes
+ * owns the contract, not the slices - so `createApp` with no `groups` composes
  * an app with just health/ready plus (empty) guarded surfaces, which is exactly
  * what the middleware/mount tests exercise.
  */

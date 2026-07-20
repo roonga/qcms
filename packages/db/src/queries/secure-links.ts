@@ -39,7 +39,7 @@ export async function getSecureLink(
 
 /**
  * List every secure link minted for a form, newest first (task 024). Returns
- * the raw rows — the admin slice derives display state
+ * the raw rows - the admin slice derives display state
  * (active/consumed/expired/revoked) from `consumedAt`/`revokedAt`/`expiresAt`
  * against the request clock; storage stays shape-preserving (R5).
  */
@@ -54,11 +54,11 @@ export async function listSecureLinks(exec: Executor, formId: FormId): Promise<S
 /**
  * Atomically consume a one-time secure link. The compare-and-set on
  * `consumed_at` (set only where it is still `NULL` and the link is not revoked)
- * means that under two concurrent consumers **exactly one** wins — the row-level
+ * means that under two concurrent consumers **exactly one** wins - the row-level
  * lock serializes the two UPDATEs and the second re-checks the `WHERE` after
  * acquiring the lock, matching no row. The winner gets the updated row; every
  * loser (already consumed, or revoked) gets `undefined`. A valid signature is
- * never sufficient on its own (SEC-2) — this is where replay is stopped.
+ * never sufficient on its own (SEC-2) - this is where replay is stopped.
  *
  * Intended for one-time links; callers gate on `oneTime` before calling.
  */

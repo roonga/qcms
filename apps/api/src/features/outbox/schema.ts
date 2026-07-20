@@ -12,7 +12,7 @@
 
 import { z } from "@hono/zod-openapi";
 
-/** `:id` path param — a `webhook_deliveries` row id (uuid). */
+/** `:id` path param - a `webhook_deliveries` row id (uuid). */
 export const DeliveryIdParam = z.object({
   id: z.string().openapi({
     param: { name: "id", in: "path" },
@@ -24,7 +24,7 @@ export const DeliveryIdParam = z.object({
 export const DeadLetterItem = z
   .object({
     deliveryId: z.string().openapi({ example: "d290f1ee-6c54-4b01-90e6-d701748f0851" }),
-    /** The outbox event that fanned out to this delivery — an idempotency key. */
+    /** The outbox event that fanned out to this delivery - an idempotency key. */
     eventId: z.string().openapi({ example: "a1b2c3d4-0000-0000-0000-000000000000" }),
     eventType: z.string().openapi({ example: "response.submitted" }),
     webhookId: z.string().openapi({ example: "whk_ab12cd34" }),
@@ -42,7 +42,7 @@ export const DeadLettersResponse = z
   .object({ deadLetters: z.array(DeadLetterItem) })
   .openapi("DeadLettersResponse");
 
-/** `POST /admin/outbox/:id/redeliver` response — the reset delivery, now due. */
+/** `POST /admin/outbox/:id/redeliver` response - the reset delivery, now due. */
 export const RedeliverResponse = z
   .object({
     deliveryId: z.string().openapi({ example: "d290f1ee-6c54-4b01-90e6-d701748f0851" }),

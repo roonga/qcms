@@ -7,7 +7,7 @@ import { parseWithCode } from "./internal/parse.js";
  * Branded ID types (task 002, R6; `lnk_` added in task 010). Prefixes are
  * settled project-wide (`q_ frm_ stp_ opt_ rul_ ses_ lnk_`) and an ID is
  * never reused with a different
- * meaning. Branding makes the IDs nominal at compile time — a FormId cannot be
+ * meaning. Branding makes the IDs nominal at compile time - a FormId cannot be
  * passed where a QuestionId is expected even though both are strings.
  * .NET mapping: strongly-typed IDs, like `record struct QuestionId(string Value)`.
  */

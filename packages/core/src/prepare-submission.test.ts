@@ -46,7 +46,7 @@ function makeQuestion(definition: unknown): QuestionDefinition {
 }
 
 /** Compile a form fixture against the task-003 question fixtures (published
- * at versions 1 and 2 — the forms pin q_smoker@2, everything else @1). */
+ * at versions 1 and 2 - the forms pin q_smoker@2, everything else @1). */
 function fixtureSnapshot(file: string): FrozenSnapshot {
   const records: QuestionVersionRecord[] = [];
   const published = new Map<QuestionId, Set<number>>();
@@ -106,7 +106,7 @@ const insurance = () => fixtureSnapshot("insurance.json");
 const idOf = (error: SubmissionError): string | null =>
   "questionId" in error ? error.questionId : null;
 
-describe("prepareSubmission — the I9 sweep on the insurance fixture", () => {
+describe("prepareSubmission - the I9 sweep on the insurance fixture", () => {
   it("locks a complete valid submission (canonical ordered answers)", async () => {
     const locked = await lockedOf(
       insurance(),
@@ -140,7 +140,7 @@ describe("prepareSubmission — the I9 sweep on the insurance fixture", () => {
 
   it("a hidden required question does NOT block submit (I6 beats I9)", async () => {
     // q_cigs_daily is required in its pinned definition, but q_smoker=false
-    // hides it — the sweep only covers *visible* required questions.
+    // hides it - the sweep only covers *visible* required questions.
     const locked = await lockedOf(insurance(), answersOf([["q_smoker", false]]));
     expect(locked.answers).toEqual([{ questionId: "q_smoker", value: false }]);
     expect(locked.flowState.complete).toBe(true);
@@ -235,7 +235,7 @@ describe("prepareSubmission — the I9 sweep on the insurance fixture", () => {
   });
 });
 
-describe("prepareSubmission — kitchen-sink (all seven types lock canonically)", () => {
+describe("prepareSubmission - kitchen-sink (all seven types lock canonically)", () => {
   it("locks a full submission in document order with canonical values", async () => {
     const locked = await lockedOf(
       fixtureSnapshot("kitchen-sink.json"),
@@ -284,7 +284,7 @@ describe("canonicalJson", () => {
   });
 });
 
-describe("contentHash — stability (exit criterion 3)", () => {
+describe("contentHash - stability (exit criterion 3)", () => {
   it("computeContentHash of {} is the well-known SHA-256 of the two bytes '{}'", async () => {
     // A cross-implementation anchor: independently verifiable with any
     // sha256 tool. Guards both the canonicalization and the hex encoding.

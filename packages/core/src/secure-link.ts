@@ -6,10 +6,10 @@ import { FormId, LinkId } from "./ids.js";
 
 /**
  * Secure links (task 010, SEC-2, ARCHITECTURE §7): signed, expiring,
- * single-form tokens — the first purpose (`"link"`) on the compact-token
+ * single-form tokens - the first purpose (`"link"`) on the compact-token
  * machinery. The kernel mints and verifies over supplied key material only;
  * key storage/rotation is the shell's (024), and one-time consumption and
- * revocation are storage's (013/018) — *a signature alone is never
+ * revocation are storage's (013/018) - *a signature alone is never
  * sufficient; the `secure_links` row must agree*. Token format documented in
  * `docs/secure-links.md`.
  *
@@ -18,7 +18,7 @@ import { FormId, LinkId } from "./ids.js";
  */
 
 /**
- * What a secure link asserts (Zod is the source of truth — SEC-2):
+ * What a secure link asserts (Zod is the source of truth - SEC-2):
  * which form it opens, which minted-link row it is (`linkId`, so storage can
  * revoke and enforce one-time use), when it stops working, and whether it is
  * single-use. `oneTime` is carried in the token for the verifier's UX; the
@@ -49,7 +49,7 @@ export type LinkError = z.infer<typeof LinkError>;
 /**
  * Mint a secure-link token for a form (admin feature; the shell supplies the
  * current `QCMS_LINK_KEYS` signing key). The payload is validated against
- * `LinkClaims` first — minting takes trusted author input, so an invalid
+ * `LinkClaims` first - minting takes trusted author input, so an invalid
  * payload is a programming bug and throws rather than returning a Result.
  */
 export async function mintSecureLink(payload: LinkClaims, key: CryptoKey): Promise<string> {
@@ -64,7 +64,7 @@ export async function mintSecureLink(payload: LinkClaims, key: CryptoKey): Promi
 
 /**
  * Verify a secure-link token against the `QCMS_LINK_KEYS` list (newest
- * first — rotation) at time `now`. Failure order: `MALFORMED` →
+ * first - rotation) at time `now`. Failure order: `MALFORMED` →
  * `BAD_SIGNATURE` → `WRONG_PURPOSE` (SEC-7 cross-purpose rejection) →
  * `EXPIRED` → `MALFORMED` (signed claims that are not `LinkClaims`) →
  * `WRONG_FORM` (only when the caller passes `expectedFormId`).

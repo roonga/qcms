@@ -1,5 +1,5 @@
 /**
- * The insurance seed toolkit (task 027) — shared with the portal e2e tests (029).
+ * The insurance seed toolkit (task 027) - shared with the portal e2e tests (029).
  *
  * These helpers stand up the canonical `insurance` form directly through the
  * `@qcms/db` helpers (the fast, deterministic path), so scenarios that are about
@@ -9,7 +9,7 @@
  *
  * Seeding is not a slice-internal reach: it uses only the published `@qcms/db`
  * and `@qcms/core` APIs. The compiled A2UI stored here is the committed golden
- * document (ADR-18) — the serve path replays those exact bytes, never recompiles.
+ * document (ADR-18) - the serve path replays those exact bytes, never recompiles.
  */
 
 import {

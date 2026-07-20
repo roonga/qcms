@@ -34,7 +34,7 @@ export async function createQuestion(
  * Append the next draft version of a question. The version number is assigned
  * atomically by a scalar subquery in the same INSERT statement, so it is
  * correct within (or without) an outer transaction; the composite primary key
- * `(questionId, version)` is the backstop — a concurrent duplicate fails the PK
+ * `(questionId, version)` is the backstop - a concurrent duplicate fails the PK
  * rather than double-assigning. Concurrent version creation for the *same*
  * question is a rare authoring race; on the PK conflict the caller retries.
  */
@@ -137,7 +137,7 @@ export async function listQuestionVersions(
  * persistence only (R5): the caller enforces the draft-only rule and validates
  * the definition through the kernel before calling. The
  * `question_versions_freeze_published` trigger (migration 0001) is the storage
- * backstop — updating a *published* version's definition raises there — but a
+ * backstop - updating a *published* version's definition raises there - but a
  * caller must return its typed `VERSION_IMMUTABLE` before reaching it. Returns
  * the updated row, or `undefined` when `(questionId, version)` does not exist.
  */
@@ -182,7 +182,7 @@ export async function listQuestions(exec: Executor): Promise<QuestionSummary[]> 
  * Whether a `questionId` has ever been used (R6: an id is stable forever and
  * never reused with a different meaning). Checks the library **and** historic
  * answer rows, so an id that survives only in the answer ledger of an erased
- * question still counts as taken — reuse can never silently change its meaning.
+ * question still counts as taken - reuse can never silently change its meaning.
  */
 export async function isQuestionIdTaken(exec: Executor, questionId: QuestionId): Promise<boolean> {
   const result = await exec.execute<{ taken: boolean }>(sql`

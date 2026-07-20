@@ -2,7 +2,7 @@
  * Query helpers (task 014): the loading/persisting vocabulary the API slices
  * call. Every helper takes an {@link Executor} (a Drizzle handle or a
  * transaction) as its **first argument** so slices own transaction boundaries
- * (R3). These are shape-preserving reads and writes only — no business logic,
+ * (R3). These are shape-preserving reads and writes only - no business logic,
  * no validation, no rule evaluation (that is `@qcms/core`'s job, R5).
  */
 
@@ -101,8 +101,8 @@ export {
 
 // `eraseSession` is the public erasure door; `SessionNotFoundError` is its typed
 // throw. The scoped-guard mechanics (`openAnswerDeleteDoor`,
-// `ANSWER_DELETE_GUARD_SETTING`) stay internal to the package — retention imports
-// them by module path — so the sanctioned DELETE door cannot be opened by callers
+// `ANSWER_DELETE_GUARD_SETTING`) stay internal to the package - retention imports
+// them by module path - so the sanctioned DELETE door cannot be opened by callers
 // outside `eraseSession`/`purgeExpired`.
 export { SessionNotFoundError, eraseSession } from "./erasure.js";
 

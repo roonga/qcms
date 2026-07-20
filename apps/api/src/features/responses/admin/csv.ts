@@ -1,5 +1,5 @@
 /**
- * CSV export serialization (task 023) — pure, fetch-pure (R4) string helpers.
+ * CSV export serialization (task 023) - pure, fetch-pure (R4) string helpers.
  *
  * The CSV export projects `reporting.responses` rows onto **one column per
  * questionId of the requested form version**, in **document order** (the order
@@ -17,7 +17,7 @@
  *   contains a comma, a double quote, CR, or LF; embedded double quotes are
  *   doubled. Other fields are emitted bare.
  * - **multiChoice** is serialized as its option ids joined by `;` (e.g.
- *   `opt_a;opt_b;opt_c`) — a single CSV field, documented, so the `,` delimiter
+ *   `opt_a;opt_b;opt_c`) - a single CSV field, documented, so the `,` delimiter
  *   is never ambiguous with a selection separator.
  * - A question with **no answer** in a given response is an empty field.
  *
@@ -26,7 +26,7 @@
 
 import type { FormDefinition } from "@qcms/core";
 
-/** UTF-8 byte-order mark — see the module note on Excel interop. */
+/** UTF-8 byte-order mark - see the module note on Excel interop. */
 export const UTF8_BOM = "﻿";
 
 /** RFC 4180 record separator. */

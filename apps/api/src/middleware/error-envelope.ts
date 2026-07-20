@@ -8,7 +8,7 @@
  *   at its status.
  * - Anything else is unexpected (a bug, a driver throw) → an opaque **500 with a
  *   correlation id**. The full error (with stack) is logged; the body carries
- *   only the id, never internals (SEC-8 hygiene — internals never leak).
+ *   only the id, never internals (SEC-8 hygiene - internals never leak).
  *
  * Hono's own `HTTPException` (e.g. a body-limit rejection) is honoured with its
  * status but rendered through the same envelope.

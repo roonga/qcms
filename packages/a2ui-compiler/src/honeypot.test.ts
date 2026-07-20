@@ -6,7 +6,7 @@ import type { A2UINode } from "./types.js";
 /**
  * Honeypot decoy contract + accessibility assertions (task 026, exit criteria
  * 2 & 5). The live axe/screen-reader pass is 028/030 against the real renderer;
- * here — before that renderer exists — we assert the node carries the hiding
+ * here - before that renderer exists - we assert the node carries the hiding
  * intent and that its documented reference rendering is invisible to assistive
  * technology (a DOM-level assertion, which the task states suffices for now).
  */
@@ -59,7 +59,7 @@ describe("honeypot node contract (exit criterion 2)", () => {
 describe("honeypot is invisible to assistive tech (exit criterion 5)", () => {
   const html = renderHoneypotReference(honeypotNode());
 
-  it("is aria-hidden — excluded from the accessibility tree", () => {
+  it("is aria-hidden - excluded from the accessibility tree", () => {
     expect(html).toContain('aria-hidden="true"');
   });
 

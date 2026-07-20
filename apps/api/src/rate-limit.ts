@@ -3,13 +3,13 @@
  *
  * The composition root defines the *interface* and ships an in-memory default;
  * Redis (or any shared store) is an adopter swap that implements the same
- * `RateLimitStore` — documented in `apps/api/CONTRIBUTING.md`, not a dependency
+ * `RateLimitStore` - documented in `apps/api/CONTRIBUTING.md`, not a dependency
  * here. Per-group limits are wired by later tasks (026); 017 provides the store
  * and a middleware factory, and does not apply a global limit.
  *
  * The store is a fixed-window counter: `hit(key, windowMs)` increments the
  * count for the current window and returns the running count plus when the
- * window resets. Fetch-pure — no `node:*`; the clock is injected.
+ * window resets. Fetch-pure - no `node:*`; the clock is injected.
  */
 
 import type { Clock } from "./clock.js";
@@ -35,7 +35,7 @@ interface Bucket {
 }
 
 /**
- * In-memory fixed-window store — the single-process default. State is a `Map`;
+ * In-memory fixed-window store - the single-process default. State is a `Map`;
  * expired buckets are lazily reset on next hit and periodically nothing else
  * touches them (a single process, bounded key space per window). Multi-instance
  * deployments swap in a shared store (Redis) implementing this interface.

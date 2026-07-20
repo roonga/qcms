@@ -1,5 +1,5 @@
 /**
- * Serving-loop handlers (task 019) — the respondent's read/answer loop.
+ * Serving-loop handlers (task 019) - the respondent's read/answer loop.
  *
  * `GET /sessions/{id}/step` serves the current step's **stored** compiled A2UI
  * document plus a narrow flow projection; `POST /sessions/{id}/answers`
@@ -8,7 +8,7 @@
  *
  * These are **transaction scripts** (R5): load state (`@qcms/db`) → call the
  * kernel (`evaluateRules` 006, `validateAnswer` 009) → persist. The GET **never
- * recompiles** — it serves the audit copy stored at publish (ADR-18); the only
+ * recompiles** - it serves the audit copy stored at publish (ADR-18); the only
  * flow authority is the kernel. Handlers are fetch-pure (R4): time via
  * `deps.clock`, no `node:*`.
  *
@@ -16,7 +16,7 @@
  *
  * - **No leak of the hidden flow.** The client projection carries only the
  *   *visible* questions of the current step and the *visible* missing-required
- *   set — never the full rule graph or the inventory of hidden questions (SEC).
+ *   set - never the full rule graph or the inventory of hidden questions (SEC).
  * - **Answer values are never logged** (SEC-8): errors and the append path name
  *   `questionId`s and counts, never content.
  *
@@ -78,7 +78,7 @@ const fail = {
 
 // @qcms/db's row types for its enum-bearing tables (`sessions`,
 // `question_versions`) resolve to a TypeScript *error* type when consumed
-// through the package's emitted `.d.ts` — a drizzle `$inferSelect` +
+// through the package's emitted `.d.ts` - a drizzle `$inferSelect` +
 // `PgEnumColumn` interaction that `skipLibCheck` hides from `tsc` but typed-lint
 // surfaces as unsafe (issue #5). The enum-free `form_versions` row is
 // unaffected. Reading the enum-bearing rows through a narrow local view of the
@@ -237,7 +237,7 @@ async function loadActiveSession(deps: Deps, id: SessionId, now: Date): Promise<
 
 /**
  * `GET /sessions/{id}/step`. Session-token authed. Serves the stored compiled
- * document for the current step and the flow projection — never a recompilation
+ * document for the current step and the flow projection - never a recompilation
  * (ADR-18).
  */
 export function makeGetStepHandler(deps: Deps): RouteHandler<typeof getStepRoute, ApiEnv> {

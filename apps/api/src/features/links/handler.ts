@@ -8,7 +8,7 @@
  *
  * Minting is the mirror of 018's verification: a `secure_links` state row is
  * inserted **and** a token is signed with the current `QCMS_LINK_KEYS` signing
- * key (`config.keys.link[0]` — "first signs, all verify", 010's rotation model),
+ * key (`config.keys.link[0]` - "first signs, all verify", 010's rotation model),
  * so the token 018 later verifies always has an agreeing server row. Rotation is
  * operational and needs no code change: prepend a new key to `QCMS_LINK_KEYS` and
  * new mints sign with it while links minted under the old key still verify
@@ -45,7 +45,7 @@ interface FormRowView {
 /**
  * `secure_links` fields this slice reads back. The `link_id` column is a branded
  * `LinkId` that reads as an error type through @qcms/db's emitted `.d.ts` (issue
- * #5 — the same launder the forms/sessions rows need); a narrow local view with
+ * #5 - the same launder the forms/sessions rows need); a narrow local view with
  * `linkId` as a plain string keeps the slice fully typed.
  */
 interface SecureLinkRowView {
@@ -169,7 +169,7 @@ export function makeRevokeLinkHandler(deps: Deps): RouteHandler<typeof revokeLin
     const row = (await revokeSecureLink(deps.db, linkId.data, now)) as
       SecureLinkRowView | undefined;
     // Idempotency choice: a link that does not exist *or* is already revoked
-    // returns 404 — the caller learns the link is not in a revocable state.
+    // returns 404 - the caller learns the link is not in a revocable state.
     if (row === undefined) throw fail.linkNotFound();
 
     return c.json(

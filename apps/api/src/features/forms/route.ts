@@ -4,7 +4,7 @@
  * The form library, exposed on the **admin** surface. Every route is declared
  * with `@hono/zod-openapi` `createRoute` (017's mandatory convention) so the
  * generated OpenAPI documents (027) cannot drift, and each carries its SEC-5
- * scope intent via `withScopes` — `forms:read` for the reads, `forms:write` for
+ * scope intent via `withScopes` - `forms:read` for the reads, `forms:write` for
  * the authoring mutations (draft, publish, close/reopen). Scopes are inert at
  * launch (the `/api/v1` surface is reserved); annotating them now makes Phase-4
  * activation wiring, not archaeology.
@@ -13,7 +13,7 @@
  * internal service-token gate (SEC-4, applied to every mounted group by the
  * composition root) and the admin-auth gate (`registerAdminAuth`, 021). In a
  * public-only process the admin group is not mounted at all, so these paths
- * simply do not exist — a request 404s, never 403s (ADR-09).
+ * simply do not exist - a request 404s, never 403s (ADR-09).
  */
 
 import { createRoute } from "@hono/zod-openapi";

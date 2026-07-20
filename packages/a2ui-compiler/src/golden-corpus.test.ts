@@ -32,12 +32,12 @@ import type { A2UINode, CompiledForm } from "./types.js";
  * existing output), which under the append-only policy (ADR-18) is handled by a
  * new directory rather than editing `golden/v1/`. `golden/v1/` stays committed
  * as the faithful record of what compiler `0.0.0` produced and is still
- * asserted spec-valid below — old stored snapshots resolve against it forever
+ * asserted spec-valid below - old stored snapshots resolve against it forever
  * (`golden/README.md` spec-bump procedure).
  *
  * These goldens are three contracts at once (`golden/README.md`): the
  * compiler's regression net, the renderer's conformance input (028), and the
- * audit contract with `a2-react-aria`. They are **append-only** — a committed
+ * audit contract with `a2-react-aria`. They are **append-only** - a committed
  * golden is never edited, so a shape change must fail here, never be "fixed" by
  * rewriting the golden. Seed a *new* golden with `UPDATE_GOLDEN=1`; the
  * append-only CI guard (`scripts/check-golden-append-only.mjs`) rejects any edit
@@ -71,7 +71,7 @@ function loadForm(file: string): FormDefinition {
 
 /**
  * Question store over the canonical fixtures, each published at versions 1 and
- * 2 (the form fixtures pin `q_smoker@2` and everything else `@1`) — the same
+ * 2 (the form fixtures pin `q_smoker@2` and everything else `@1`) - the same
  * store `compile-draft.test.ts` builds. Pure lookups, no I/O in the kernel (R3);
  * the reads here are the test harness, not the compiler.
  */
@@ -144,7 +144,7 @@ function assertValidA2uiNode(node: A2UINode): void {
   parseNode(node);
 }
 
-describe("A2UI golden corpus (v2 — current generation)", () => {
+describe("A2UI golden corpus (v2 - current generation)", () => {
   for (const { fixture, golden } of CORPUS) {
     describe(golden, () => {
       const compiled = compileForm(buildSnapshot(fixture), {});
@@ -162,7 +162,7 @@ describe("A2UI golden corpus (v2 — current generation)", () => {
         }
       });
 
-      it("matches the committed golden document (append-only — never edit to fit)", () => {
+      it("matches the committed golden document (append-only - never edit to fit)", () => {
         const serialized = serialize(compiled);
 
         if (process.env.UPDATE_GOLDEN === "1") {
@@ -173,7 +173,7 @@ describe("A2UI golden corpus (v2 — current generation)", () => {
 
         if (!existsSync(goldenPath)) {
           throw new Error(
-            `golden ${golden} is missing — a corpus form has no committed golden. ` +
+            `golden ${golden} is missing - a corpus form has no committed golden. ` +
               `Seed it once, hand-review, and commit: UPDATE_GOLDEN=1 pnpm exec vitest run --project @qcms/a2ui-compiler golden-corpus`,
           );
         }
@@ -208,11 +208,11 @@ describe("A2UI golden corpus (v2 — current generation)", () => {
 /**
  * The frozen `v1/` generation remains a valid contract forever (ADR-18, the
  * stored copy is served for the life of any snapshot compiled under it). We do
- * *not* recompile it — the live compiler now emits v2 — but every committed v1
+ * *not* recompile it - the live compiler now emits v2 - but every committed v1
  * document must still parse as a spec-valid `@a2ra/core` document so the
  * vendored renderer keeps rendering old stored snapshots.
  */
-describe("A2UI golden corpus (v1 — retained, still spec-valid)", () => {
+describe("A2UI golden corpus (v1 - retained, still spec-valid)", () => {
   for (const { golden } of CORPUS) {
     it(`${golden} remains a valid @a2ra/core document`, () => {
       const text = readFileSync(path.join(GOLDEN_V1_DIR, golden), "utf8");

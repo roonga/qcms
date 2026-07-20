@@ -17,16 +17,16 @@ import { optionIdsOf, type QuestionDefinition } from "./question-definition.js";
  *
  * `validateAnswer` pairs an unknown value with its question: first the value
  * is parsed against the canonical encoding for the question's type (task 002
- * — text is NFC-normalized, multiChoice deduplicated), then **every**
+ * - text is NFC-normalized, multiChoice deduplicated), then **every**
  * constraint on the definition (task 003) is checked. All failed constraints
- * are returned, never just the first — the portal renders the full list next
+ * are returned, never just the first - the portal renders the full list next
  * to the input.
  *
  * `required` is deliberately *not* checked here: presence is a flow/submission
  * concern (`prepareSubmission`, invariant I9), not a property of a value.
  *
  * Error contract: `{ code, constraint, message }`. `code` is the stable
- * localization key (the portal's shell catalog maps it later — codes are the
+ * localization key (the portal's shell catalog maps it later - codes are the
  * contract, messages are the built-in fallback); `constraint` names which
  * constraint failed (`"encoding"` for the parse stage). Messages may quote
  * constraint bounds (definition content) but never the submitted value
@@ -50,7 +50,7 @@ export const ValidationConstraint = z.enum([
 export type ValidationConstraint = z.infer<typeof ValidationConstraint>;
 
 /**
- * Closed union of validation error codes — the UI localization contract.
+ * Closed union of validation error codes - the UI localization contract.
  * The `INVALID_*_ANSWER` members are the task-002 parse codes (the encoding
  * stage reuses them so a value that fails the same schema fails with the same
  * code everywhere); the rest map one-to-one onto the §2.2 constraints.
@@ -123,7 +123,7 @@ function encodingError(question: QuestionDefinition): ValidationError {
 
 /**
  * Length constraints count UTF-16 code units of the NFC-normalized canonical
- * string — the same unit as JS `String.length` and HTML `maxlength`, so what
+ * string - the same unit as JS `String.length` and HTML `maxlength`, so what
  * the kernel enforces is what the portal input shows.
  */
 function checkTextConstraints(
@@ -164,9 +164,9 @@ function checkTextConstraints(
 
 /**
  * Patterns run under the `u` flag, exactly as validated by the safe-pattern
- * subset at definition parse (task 003 — every accepted pattern is
+ * subset at definition parse (task 003 - every accepted pattern is
  * linear-time-safe on the backtracking engine, so `.test` here cannot be a
- * ReDoS vector). Patterns are tested as authored — not implicitly anchored;
+ * ReDoS vector). Patterns are tested as authored - not implicitly anchored;
  * authors write `^...$` when they mean the whole value.
  *
  * An uncompilable pattern is unreachable through `parseQuestionDefinition`

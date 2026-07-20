@@ -7,19 +7,19 @@ import type { Condition, VisibilityRule } from "./visibility-rule.js";
 
 /**
  * Rule dependency-graph machinery (task 005, ADR-16, invariant I10). Pure
- * functions over a parsed `FormDefinition` — no I/O (R3). `compileDraft`
+ * functions over a parsed `FormDefinition` - no I/O (R3). `compileDraft`
  * (008) runs these at publish; the admin editor (033) runs them live.
  *
  * ADR-16 makes single-forward-pass evaluation sound by rejecting at publish:
- * - `RULE_BACKWARD_TARGET` — a rule target at or before any question its
+ * - `RULE_BACKWARD_TARGET` - a rule target at or before any question its
  *   condition references, in document order (targets must appear strictly
  *   after every referenced question);
- * - `RULE_CYCLE` — a cycle in the reads→shows digraph.
+ * - `RULE_CYCLE` - a cycle in the reads→shows digraph.
  *
  * Dangling references (a rule reading or targeting a question/step not in the
  * form, or an optionId a pinned question version does not carry) are publish
  * invariants of 008 (`DANGLING_QUESTION_REF`/`DANGLING_STEP_REF`); the graph
- * functions here skip unresolvable ids rather than double-report them —
+ * functions here skip unresolvable ids rather than double-report them -
  * except `DANGLING_OPTION_REF`, which is this module's to find because only
  * the type check looks inside option references.
  */
@@ -100,10 +100,10 @@ interface Edge {
  * Publish-time graph analysis (ADR-16, I10). Returns **all** findings, never
  * first-only:
  *
- * - `RULE_BACKWARD_TARGET` — one finding per offending `show` entry (the raw
+ * - `RULE_BACKWARD_TARGET` - one finding per offending `show` entry (the raw
  *   target, a step target being backward when any of its questions is at or
  *   before any referenced question);
- * - `RULE_CYCLE` — one finding per strongly connected component of the
+ * - `RULE_CYCLE` - one finding per strongly connected component of the
  *   reads→shows digraph containing a cycle, listing the rules on it in
  *   declaration order.
  *
@@ -250,7 +250,7 @@ export type RuleTypeFinding = PublishErrorOf<"RULE_TYPE_MISMATCH" | "DANGLING_OP
 /** Lookup from questionId to the definition its pin resolves to. Passed in so
  * this package stays I/O-free (R3): the caller (008's compileDraft, 033's
  * editor) owns resolving pins against its question store. Return `undefined`
- * for an unresolvable id — the reference is skipped here and reported as
+ * for an unresolvable id - the reference is skipped here and reported as
  * `DANGLING_QUESTION_REF` by 008. */
 export type ResolveQuestion = (questionId: QuestionId) => QuestionDefinition | undefined;
 
@@ -259,16 +259,16 @@ export type ResolveQuestion = (questionId: QuestionId) => QuestionDefinition | u
  * definitions (DOMAIN_SCHEMA §3, ADR-21). Returns all findings, deduplicated:
  *
  * - `gt/gte/lt/lte` only against `number`/`date` questions, with a value of
- *   the question's type (cross-type ordering is unreachable post-publish —
+ *   the question's type (cross-type ordering is unreachable post-publish -
  *   §2.4);
  * - `equals`/`notEquals`/`in` values must match the referenced question's
  *   canonical `AnswerValue` type; on choice questions the value(s) must be
- *   declared `optionId`s (multiChoice `equals` compares whole answers — an
- *   `OptionId[]` — by set equality, never containment);
+ *   declared `optionId`s (multiChoice `equals` compares whole answers - an
+ *   `OptionId[]` - by set equality, never containment);
  * - `contains`/`containsAny` only against `multiChoice` questions and only
  *   with declared `optionId`s (ADR-21).
  *
- * Messages name ids, operators, and types — never the compared values.
+ * Messages name ids, operators, and types - never the compared values.
  */
 export function checkRuleTypes(
   form: FormDefinition,

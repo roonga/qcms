@@ -1,7 +1,7 @@
 /**
  * RE2-safe `pattern` subset for shortText constraints (task 003).
  *
- * qcms has no RE2 runtime (no new dependencies — R3); patterns ultimately run
+ * qcms has no RE2 runtime (no new dependencies - R3); patterns ultimately run
  * on the JavaScript backtracking engine when answers are validated (task 009).
  * So instead of trusting authors, the kernel accepts only a documented subset
  * that cannot backtrack catastrophically, and rejects everything else at
@@ -17,7 +17,7 @@
  *
  * Rejected as PATTERN_UNSUPPORTED (catastrophic or non-RE2 constructs):
  * - backreferences (`\1`…`\9`, `\k<name>`) and lookahead/lookbehind
- *   assertions — RE2 excludes these because they force backtracking
+ *   assertions - RE2 excludes these because they force backtracking
  * - unbounded quantifiers (`*`, `+`, `{n,}`) applied to a group whose body
  *   contains a quantifier or an alternation (the `(a+)+` / `(a|ab)*` shapes);
  *   bounded repetition of such groups is capped at {..32}

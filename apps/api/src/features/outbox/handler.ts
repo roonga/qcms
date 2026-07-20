@@ -4,12 +4,12 @@
  * Two operator actions over the dead-letter surface (§5.3, ARCHITECTURE §10):
  * list dead-lettered deliveries with their attempt history, and manually redeliver
  * one (reset it to due-now so the next pass re-attempts it). Honest transaction
- * scripts (R5) over the `@qcms/db` delivery helpers — no cross-row invariant, no
+ * scripts (R5) over the `@qcms/db` delivery helpers - no cross-row invariant, no
  * signing/HTTP here (that is the delivery pass). Fetch-pure (R4): time via
  * `deps.clock`, no `node:*`.
  *
  * SEC-8: responses carry ids, urls, event types, attempt counts, and value-free
- * error codes only — never a secret, a payload, or an answer value.
+ * error codes only - never a secret, a payload, or an answer value.
  */
 
 import type { RouteHandler } from "@hono/zod-openapi";

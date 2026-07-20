@@ -21,7 +21,7 @@ export type OutboxRow = typeof outbox.$inferSelect;
  * | 4               | 2h 5m (125m)              |
  * | 5               | 6h (capped from 10h 25m)  |
  * | 6–9             | 6h (capped)               |
- * | 10              | dead-lettered — no retry  |
+ * | 10              | dead-lettered - no retry  |
  */
 export const OUTBOX_BACKOFF_BASE_MS = 60_000;
 /** Geometric growth factor between attempts. */
@@ -54,7 +54,7 @@ export function computeBackoff(
 }
 
 /**
- * Enqueue a domain event. **Must be called inside the caller's transaction** —
+ * Enqueue a domain event. **Must be called inside the caller's transaction** -
  * the transactional-outbox contract (`ARCHITECTURE.md` §5.3): the event is
  * written in the same transaction as the state change it describes, so the two
  * commit or roll back together. At-least-once, never best-effort.
@@ -71,14 +71,14 @@ export async function enqueue(
 }
 
 /**
- * Claim up to `limit` outbox rows that are due for delivery — undelivered, live
+ * Claim up to `limit` outbox rows that are due for delivery - undelivered, live
  * (not dead-lettered), and past their `next_attempt_at`. Uses
  * `FOR UPDATE SKIP LOCKED` so concurrent deliverers never claim the same row:
  * each claimer locks its rows and the others skip them.
  *
  * **Must be called inside the caller's transaction**, which holds the row locks
  * while the events are delivered and their outcome recorded (via
- * {@link markDelivered} / {@link recordFailure}) before commit — that is what
+ * {@link markDelivered} / {@link recordFailure}) before commit - that is what
  * makes the claim exclusive across concurrent deliverers.
  */
 export async function claimDue(exec: Executor, limit: number, now?: Date): Promise<OutboxRow[]> {
@@ -152,7 +152,7 @@ export async function listDeadLetters(exec: Executor, limit?: number): Promise<O
 }
 
 /**
- * Reset a dead-lettered (or any) row for immediate redelivery — the admin
+ * Reset a dead-lettered (or any) row for immediate redelivery - the admin
  * manual-redeliver action (§5.3): clear the dead-letter flag and delivery
  * timestamp, reset attempts, and make it due now.
  */

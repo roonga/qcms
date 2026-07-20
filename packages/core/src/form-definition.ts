@@ -10,13 +10,13 @@ import { VisibilityRule } from "./visibility-rule.js";
  * Form definitions (task 004, DOMAIN_SCHEMA §2.3, ADR-02, ADR-11).
  *
  * A form is ordered steps of pinned question references plus visibility
- * rules. Pins are `{questionId, version}` pairs — question-level versioning
+ * rules. Pins are `{questionId, version}` pairs - question-level versioning
  * (ADR-02) with launch-minimal UX (manual pinning): drafts may float,
  * snapshots never do.
  *
  * Parsing enforces *parse-level* refinements only: unique `stepId`s, a
  * question pinned at most once per form, and every rule entry being valid
- * under the rules DSL (task 005, `visibility-rule.ts` — including the
+ * under the rules DSL (task 005, `visibility-rule.ts` - including the
  * condition nesting-depth cap, RULE_DEPTH_EXCEEDED). Cross-entity publish
  * invariants (dangling refs, locale completeness, rule graph checks) are
  * task 008's `compileDraft`.
@@ -26,7 +26,7 @@ import { VisibilityRule } from "./visibility-rule.js";
  * Closed union of typed error codes for form-definition parsing. Validators
  * are all-errors-not-first (CONTRIBUTING): a parse failure carries every
  * issue, each with its code and path. The duplicate codes and
- * RULE_DEPTH_EXCEEDED are shared strings with `PublishErrorCode` —
+ * RULE_DEPTH_EXCEEDED are shared strings with `PublishErrorCode` -
  * `compileDraft` (008) surfaces the same violations verbatim in its publish
  * report when handed a raw draft.
  */
@@ -73,7 +73,7 @@ export type Step = z.infer<typeof Step>;
 
 /**
  * The form aggregate (DOMAIN_SCHEMA §2.3). Parse-level refinements: unique
- * `stepId`s and a `questionId` pinned at most once across all steps —
+ * `stepId`s and a `questionId` pinned at most once across all steps -
  * duplicates make rule targeting and answer keying ambiguous, so they are
  * malformed input, not merely unpublishable.
  */

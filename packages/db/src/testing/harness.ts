@@ -43,7 +43,7 @@ interface StartOptions {
  * Boot an isolated Postgres in a throwaway container and connect to it.
  *
  * With `migrate: true` (default) the database is migrated to head via the
- * package-owned migration set — the same path adopters run with
+ * package-owned migration set - the same path adopters run with
  * `drizzle-kit migrate`. Intended for one container per test file (call in
  * `beforeAll`, `teardown()` in `afterAll`); tests within a file share the
  * migrated database and isolate by using distinct IDs.
@@ -99,7 +99,7 @@ interface JournalEntry {
  * Read the migration journal and apply the SQL files whose index falls within
  * `[from, to]` (inclusive; defaults to the whole set), in order. Bypasses
  * Drizzle's own migration tracker so a test can apply migrations one at a time
- * and observe the schema *between* them — the "apply N, then N+1" forward path.
+ * and observe the schema *between* them - the "apply N, then N+1" forward path.
  * Not for production use; adopters use `drizzle-kit migrate`.
  */
 export async function applyMigrations(

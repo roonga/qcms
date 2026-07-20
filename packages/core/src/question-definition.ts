@@ -11,7 +11,7 @@ import { checkSafePattern } from "./safe-pattern.js";
  * Question definitions (task 003, DOMAIN_SCHEMA §2.2, ADR-02, R6).
  *
  * `questionId` is identity (stable forever, never reused); `version` is
- * content. The seven-type union is closed per core release — adding a type is
+ * content. The seven-type union is closed per core release - adding a type is
  * a versioned core change, and the exhaustive helpers below make sure the
  * build breaks until every switch handles it.
  */
@@ -54,7 +54,7 @@ function addCodedIssue(
 
 /**
  * Declared before the union that references it (v1 of the schema doc had the
- * order reversed — a temporal-dead-zone error if transcribed literally).
+ * order reversed - a temporal-dead-zone error if transcribed literally).
  * `optionId` is stable within the question; rules reference these (R6).
  */
 export const ChoiceOption = z
@@ -81,7 +81,7 @@ export const QuestionBase = z.object({
 export type QuestionBase = z.infer<typeof QuestionBase>;
 
 /** Reject duplicate optionIds within one question. Duplicates across
- * questions are fine — optionIds are scoped to their question. */
+ * questions are fine - optionIds are scoped to their question. */
 function checkUniqueOptionIds(options: readonly ChoiceOption[], ctx: z.core.$RefinementCtx): void {
   const seen = new Set<string>();
   options.forEach((option, index) => {
@@ -281,7 +281,7 @@ function assertNeverQuestionType(definition: never): never {
 
 /**
  * OptionIds carried by a definition ([] for non-choice types). The switch is
- * exhaustive over the discriminant with a `never` default — adding a question
+ * exhaustive over the discriminant with a `never` default - adding a question
  * type without handling it here is a build error, not a runtime surprise.
  */
 export function optionIdsOf(definition: QuestionDefinition): readonly OptionId[] {

@@ -8,7 +8,7 @@ export interface Clock {
   now(): Date;
 }
 
-/** The real clock — the only place production reads wall time. */
+/** The real clock - the only place production reads wall time. */
 export const systemClock: Clock = {
   now: () => new Date(),
 };

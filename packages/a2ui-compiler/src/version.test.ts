@@ -22,7 +22,7 @@ describe("version stamps", () => {
   });
 
   it("A2UI_SPEC_VERSION mirrors the installed @a2ra/core package version", () => {
-    // The pinned schema package (a test-only devDependency) — resolved through
+    // The pinned schema package (a test-only devDependency) - resolved through
     // the package's own node_modules link, so this reflects what the schema
     // validation in compile.test.ts actually ran against.
     expect(A2UI_SPEC_VERSION).toBe(readJson("node_modules/@a2ra/core/package.json").version);

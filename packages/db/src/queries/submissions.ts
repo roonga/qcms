@@ -8,7 +8,7 @@ import type { Executor } from "./executor.js";
 export type SubmissionRow = typeof submissions.$inferSelect;
 
 /**
- * Write the submission lock for a session — the audit boundary (I6, I9). One
+ * Write the submission lock for a session - the audit boundary (I6, I9). One
  * row per session (the `session_id` primary key); the kernel owns building the
  * locked set and its content hash (task 009), this helper only persists it.
  */

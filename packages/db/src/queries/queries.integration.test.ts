@@ -411,7 +411,7 @@ describe("webhooks helpers (task 024, SEC-6)", () => {
     expect(created.deactivatedAt).toBeNull();
     expect(created.secretEncrypted).toBe("v1.CIPHERTEXT_ONE");
 
-    // A second webhook on the same form — multiple webhooks per form allowed.
+    // A second webhook on the same form - multiple webhooks per form allowed.
     await insertWebhook(testDb.db, {
       webhookId: "whk_two",
       formId,

@@ -1,7 +1,7 @@
 /**
  * Admin-group mount + auth-seam tests for the forms slices (task 022).
  *
- * These assert the surface guarantees without a database — the admin-auth gate
+ * These assert the surface guarantees without a database - the admin-auth gate
  * (021, reused) rejects an unauthenticated request before any handler runs, and
  * a public-only process has no admin group at all (a 404, not a 403; ADR-09).
  * The full authoring/publish lifecycle is exercised against the real DB in
@@ -52,7 +52,7 @@ describe("forms admin auth seam", () => {
 });
 
 describe("forms admin group is absent in a public-only process (ADR-09)", () => {
-  it("an admin form route 404s — the group is not mounted, not merely forbidden", async () => {
+  it("an admin form route 404s - the group is not mounted, not merely forbidden", async () => {
     const deps = makeDeps();
     const app = createApp(deps, PUBLIC_ONLY, adminGroups);
 

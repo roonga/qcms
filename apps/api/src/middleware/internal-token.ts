@@ -7,7 +7,7 @@
  * accepted list (`QCMS_INTERNAL_TOKEN`, comma-separated) exists for zero-downtime
  * rotation: sign new, accept old+new, drop old.
  *
- * The token authenticates the **channel**, never the user — end-user
+ * The token authenticates the **channel**, never the user - end-user
  * authorization always comes from the forwarded user credential (admin session
  * or session token), handled by later auth middleware (021+/031). Comparison is
  * constant-time over the whole list so neither a match nor a length leaks via

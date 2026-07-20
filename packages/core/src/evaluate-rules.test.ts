@@ -154,7 +154,7 @@ const showWhenSmokerTrue = {
   show: ["q_b"],
 };
 
-describe("semantic 1 — forward walk, targeting", () => {
+describe("semantic 1 - forward walk, targeting", () => {
   it("untargeted items are visible with no answers at all", () => {
     const setup = build(
       [
@@ -230,7 +230,7 @@ describe("semantic 1 — forward walk, targeting", () => {
   });
 });
 
-describe("semantic 2 — unanswered and hidden references", () => {
+describe("semantic 2 - unanswered and hidden references", () => {
   it("equals on an unanswered question is false; answered is the existence test", () => {
     const equalsGate = gate([showWhenSmokerTrue]);
     expect(visibleIds(evalOk(equalsGate, answersOf([])))).toEqual(["q_a"]);
@@ -313,7 +313,7 @@ describe("semantic 2 — unanswered and hidden references", () => {
   });
 });
 
-describe("semantic 3 — operator evaluation", () => {
+describe("semantic 3 - operator evaluation", () => {
   const multi: TestQuestion = {
     id: "q_a",
     type: "multiChoice",
@@ -448,7 +448,7 @@ describe("semantic 3 — operator evaluation", () => {
   });
 });
 
-describe("semantic 4 — step-level visibility", () => {
+describe("semantic 4 - step-level visibility", () => {
   const twoStep = (rules: unknown[]): TestSetup =>
     build(
       [
@@ -557,7 +557,7 @@ describe("semantic 4 — step-level visibility", () => {
   });
 });
 
-describe("semantic 5 — currentStep, required accounting, completeness", () => {
+describe("semantic 5 - currentStep, required accounting, completeness", () => {
   const threeStep = (): TestSetup =>
     build(
       [
@@ -633,7 +633,7 @@ describe("semantic 5 — currentStep, required accounting, completeness", () => 
   });
 });
 
-describe("totality — typed errors on malformed input", () => {
+describe("totality - typed errors on malformed input", () => {
   const wellFormed = (): TestSetup => gate([showWhenSmokerTrue]);
 
   it("junk input is INVALID_FORM_DEFINITION, not a throw", () => {
@@ -714,7 +714,7 @@ describe("totality — typed errors on malformed input", () => {
   });
 
   it("a backward (publish-invalid) reference reads as unanswered, deterministically", () => {
-    // q_b's rule reads q_c which sits *after* it — publish rejects this
+    // q_b's rule reads q_c which sits *after* it - publish rejects this
     // (RULE_BACKWARD_TARGET), but evaluation stays total: the unsettled
     // reference is unanswered, so the rule is false.
     const setup = build(
@@ -780,7 +780,7 @@ describe("insurance fixture (exit criterion 3)", () => {
 
   it("the stale hidden answer does not affect any later condition", () => {
     // The fixture extended with a downstream question gated on q_cigs_daily
-    // (fixture file untouched — extension happens in-memory).
+    // (fixture file untouched - extension happens in-memory).
     const raw = readJson("forms", "valid", "insurance.json") as {
       steps: { items: { questionId: string; version: number }[] }[];
       rules: unknown[];

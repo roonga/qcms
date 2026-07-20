@@ -3,14 +3,14 @@ import { boolean, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 /**
  * better-auth tables (`ARCHITECTURE.md` §7, admin identity with TOTP 2FA at
  * launch). These mirror the default Drizzle schema that better-auth's Drizzle
- * adapter expects for its core models plus the `twoFactor` plugin — camelCase
+ * adapter expects for its core models plus the `twoFactor` plugin - camelCase
  * column names, `text` primary keys, `timestamp` (no timezone), exactly as
  * `@better-auth/cli generate` emits them.
  *
  * They live here because migration history is package-owned: the admin's users,
  * sessions, and accounts share the deployment's one Postgres. When the auth
  * instance is wired in owned shell code (task 031), regenerate this file with
- * `@better-auth/cli generate` against the configured plugin set and diff — it is
+ * `@better-auth/cli generate` against the configured plugin set and diff - it is
  * the source of truth for the exact columns; this hand-written mirror keeps the
  * schema and migrations self-contained until then.
  *

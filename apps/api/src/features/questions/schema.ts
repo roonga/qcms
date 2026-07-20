@@ -4,7 +4,7 @@
  * Zod is the single schema language (017's convention); these drive both the
  * request validation the routes perform and the generated OpenAPI documents
  * (027). The **question definition** itself is validated by the kernel
- * (`QuestionDefinition`, task 003) inside the handlers — not re-declared here —
+ * (`QuestionDefinition`, task 003) inside the handlers - not re-declared here -
  * so a malformed definition returns the kernel's coded issues through the error
  * envelope (422) with its paths intact. The request bodies therefore carry the
  * definition as an opaque object; the route schema guards only the envelope
@@ -15,12 +15,12 @@ import { z } from "@hono/zod-openapi";
 
 // --- params -----------------------------------------------------------------
 
-/** `:id` path param — a `q_…` question id (validated as a QuestionId in-handler). */
+/** `:id` path param - a `q_…` question id (validated as a QuestionId in-handler). */
 export const QuestionIdParam = z.object({
   id: z.string().openapi({ param: { name: "id", in: "path" }, example: "q_favourite_colour" }),
 });
 
-/** `:id`/`:v` path params — version is parsed to a positive integer in-handler. */
+/** `:id`/`:v` path params - version is parsed to a positive integer in-handler. */
 export const VersionParam = z.object({
   id: z.string().openapi({ param: { name: "id", in: "path" }, example: "q_favourite_colour" }),
   v: z.string().openapi({ param: { name: "v", in: "path" }, example: "1" }),
@@ -50,7 +50,7 @@ const OpaqueDefinition = z
   .record(z.string(), z.unknown())
   .openapi("QuestionDefinitionInput", { description: "A question definition (kernel-validated)." });
 
-/** `POST /admin/questions` — the library slug plus the first draft's definition. */
+/** `POST /admin/questions` - the library slug plus the first draft's definition. */
 export const CreateQuestionBody = z
   .object({
     slug: z.string().min(1).openapi({ example: "favourite-colour" }),
@@ -58,7 +58,7 @@ export const CreateQuestionBody = z
   })
   .openapi("CreateQuestionBody");
 
-/** `PUT /admin/questions/:id/versions/:v` — the replacement draft definition. */
+/** `PUT /admin/questions/:id/versions/:v` - the replacement draft definition. */
 export const EditVersionBody = z
   .object({ definition: OpaqueDefinition })
   .openapi("EditVersionBody");

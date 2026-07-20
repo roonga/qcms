@@ -1,4 +1,4 @@
-// The package's public barrel — the exact surface an external consumer imports.
+// The package's public barrel - the exact surface an external consumer imports.
 // No deep reach into ./compile.js or ./step-resolver.js internals.
 import {
   compileForm,
@@ -22,7 +22,7 @@ import { describe, expect, it } from "vitest";
 /**
  * Step-resolver seam conformance (task 012). Proves the `StepResolver` seam
  * from task 011 (ARCHITECTURE §12) is implementable **from outside the package**
- * — everything here imports from the published `@qcms/a2ui-compiler` surface, no
+ * - everything here imports from the published `@qcms/a2ui-compiler` surface, no
  * deep `./compile.js`/`./step-resolver.js` reach into compiler internals. A
  * Phase-4 adaptive/agent resolver (ADR-25, authoring-time only) would sit
  * exactly where this test double sits: implement the interface, hand it to
@@ -94,7 +94,7 @@ describe("StepResolver seam is implementable from the public surface", () => {
     const stub: StepResolver = {
       resolveStep: (step: Step, context: StepResolverContext): A2UIDocument => {
         seen.push(step.stepId);
-        // The context carries everything a resolver needs — no I/O of its own.
+        // The context carries everything a resolver needs - no I/O of its own.
         return {
           stepId: step.stepId,
           root: {

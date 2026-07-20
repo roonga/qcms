@@ -1,6 +1,6 @@
 /**
  * Start-session slice tests (task 018), driven through `app.request()` against
- * the **real** kernel and the 013 Testcontainers harness DB — never a mock of
+ * the **real** kernel and the 013 Testcontainers harness DB - never a mock of
  * our own packages (CONTRIBUTING). Requires Docker.
  *
  * Covers every exit criterion: the anonymous happy path, each typed failure,
@@ -40,7 +40,7 @@ const NOW = new Date("2026-07-20T00:00:00.000Z");
 const TTL_MS = 24 * 60 * 60 * 1000;
 const PUBLIC_ONLY = { public: true, internal: false, admin: false } as const;
 
-// Opaque domain JSONB — Postgres does not interpret it; tests store empties.
+// Opaque domain JSONB - Postgres does not interpret it; tests store empties.
 // Types derived from the helper so apps/api needn't depend on @qcms/a2ui-compiler.
 type VersionInput = Parameters<typeof insertFormVersion>[1];
 const emptyDef = {} as unknown as VersionInput["definition"];
@@ -292,7 +292,7 @@ describe("version pinning (exit criterion 2) and newest-version selection (exit 
     const status = await get(body.sessionId, { authorization: `Bearer ${body.sessionToken}` });
     expect(status.status).toBe(200);
     const view = (await status.json()) as { formVersion: number; status: string; position: null };
-    expect(view.formVersion).toBe(1); // still v1 — never migrates
+    expect(view.formVersion).toBe(1); // still v1 - never migrates
     expect(view.status).toBe("created");
     expect(view.position).toBeNull();
 

@@ -2,14 +2,14 @@
  * The scheduling shell (task 017; ARCHITECTURE §5.3).
  *
  * The API process hosts background schedulers, started by the server entry
- * (`serve.ts`), never by a handler — so fetch-purity is untouched. This is the
+ * (`serve.ts`), never by a handler - so fetch-purity is untouched. This is the
  * generic shell: a self-rescheduling interval with jitter, idempotent
  * start/stop, and graceful stop that waits for an in-flight run to finish.
  * The *work* each scheduler does is supplied as `task`; the outbox deliverer's
  * actual delivery logic lands in 025.
  *
  * Self-rescheduling (a `setTimeout` chain) rather than `setInterval` so runs
- * never overlap and each interval can carry independent jitter — several API
+ * never overlap and each interval can carry independent jitter - several API
  * instances polling the same tables spread their load instead of stampeding.
  */
 

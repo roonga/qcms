@@ -1,7 +1,7 @@
 /**
- * Webhook delivery pass — end-to-end integration (task 025). Boots the 013
+ * Webhook delivery pass - end-to-end integration (task 025). Boots the 013
  * Testcontainers harness DB and a real in-test HTTP receiver (node:http, test
- * only — the deliverer itself uses the web `fetch`, R4), and proves all five exit
+ * only - the deliverer itself uses the web `fetch`, R4), and proves all five exit
  * criteria against live infrastructure. Requires Docker.
  *
  * 1. submit → a signed request arrives; the signature verifies against the
@@ -9,10 +9,10 @@
  * 2. failure path: 500 → retries with advancing backoff → dead-lettered with
  *    lastError; the redeliver endpoint → successful delivery → marked delivered.
  * 3. two deliverer instances against one outbox never double-deliver a single
- *    (event, webhook) — `FOR UPDATE SKIP LOCKED`.
+ *    (event, webhook) - `FOR UPDATE SKIP LOCKED`.
  * 4. crash between send and mark-delivered → redelivered on the next pass
  *    (at-least-once; the duplicate is expected).
- * 5. fan-out: two webhooks on one form, one failing — states independent.
+ * 5. fan-out: two webhooks on one form, one failing - states independent.
  *
  * `node:crypto` appears here only as the verification oracle (the consumer
  * recipe); the production signer never imports it.
@@ -342,7 +342,7 @@ describe("exit 2: failure → advancing backoff → dead-letter → redeliver �
 
 // --- exit criterion 3 -------------------------------------------------------
 
-describe("exit 3: two instances, one outbox — no double-delivery (SKIP LOCKED)", () => {
+describe("exit 3: two instances, one outbox - no double-delivery (SKIP LOCKED)", () => {
   let pool: pg.Pool;
   let pooledDeps: Deps;
 
@@ -402,9 +402,9 @@ describe("exit 4: crash between send and mark-delivered → redelivered (at-leas
 
     expect(receiver.received.filter((r) => r.path === "/crash")).toHaveLength(1);
     let [delivery] = await deliveriesFor(outboxId);
-    expect(delivery?.deliveredAt).toBeNull(); // rolled back — still pending
+    expect(delivery?.deliveredAt).toBeNull(); // rolled back - still pending
 
-    // Next pass redelivers (the consumer sees a duplicate — at-least-once).
+    // Next pass redelivers (the consumer sees a duplicate - at-least-once).
     await runDeliveryPass(deps, { now: soon() });
     expect(receiver.received.filter((r) => r.path === "/crash")).toHaveLength(2);
     [delivery] = await deliveriesFor(outboxId);
@@ -414,7 +414,7 @@ describe("exit 4: crash between send and mark-delivered → redelivered (at-leas
 
 // --- exit criterion 5 -------------------------------------------------------
 
-describe("exit 5: fan-out — two webhooks, one failing, states independent", () => {
+describe("exit 5: fan-out - two webhooks, one failing, states independent", () => {
   it("delivers to the healthy webhook while the failing one retries independently", async () => {
     receiver.reset();
     receiver.status.set("/bad", 500);
@@ -438,7 +438,7 @@ describe("exit 5: fan-out — two webhooks, one failing, states independent", ()
     const good = rows.find((r) => r.webhookId === webhookIds[0]);
     const bad = rows.find((r) => r.webhookId === webhookIds[1]);
     // Independent states: healthy delivered, failing one pending with a recorded
-    // error and no dead-letter yet — neither affects the other.
+    // error and no dead-letter yet - neither affects the other.
     expect(good?.deliveredAt).toBeInstanceOf(Date);
     expect(good?.attempts).toBe(0);
     expect(bad?.deliveredAt).toBeNull();

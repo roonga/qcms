@@ -1,6 +1,6 @@
 /**
  * Admin-group mount + auth-seam tests for the response data-out slices (task
- * 023). No database — these assert the surface guarantees: the admin-auth gate
+ * 023). No database - these assert the surface guarantees: the admin-auth gate
  * (021, reused) rejects an unauthenticated request before any handler, and a
  * public-only process has no admin group at all (a 404, not a 403; ADR-09). The
  * full lifecycle runs against the real DB in `responses.integration.test.ts`.
@@ -53,7 +53,7 @@ describe("responses admin auth seam (401 before any handler)", () => {
 });
 
 describe("responses admin group is absent in a public-only process (ADR-09)", () => {
-  it("an admin export route 404s — the group is not mounted, not merely forbidden", async () => {
+  it("an admin export route 404s - the group is not mounted, not merely forbidden", async () => {
     const deps = makeDeps();
     const app = createApp(deps, PUBLIC_ONLY, adminGroups);
     const res = await app.request("/admin/forms/frm_x/export?format=json&version=1", {

@@ -1,6 +1,6 @@
 /**
  * Per-endpoint-class rate-limit tests (task 026, exit criterion 1). Drives each
- * limiter through `app.request()` on its real route path — no DB (the limiter
+ * limiter through `app.request()` on its real route path - no DB (the limiter
  * runs before the handler; an over-limit request 429s without touching it), and
  * no mock of our own code. Asserts: under the limit passes, over 429s with
  * `Retry-After`, the window resets, keys isolate the right unit, and the limits

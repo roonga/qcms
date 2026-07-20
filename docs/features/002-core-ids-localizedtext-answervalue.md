@@ -1,11 +1,11 @@
-# 002 — Core IDs, LocalizedText, canonical AnswerValue
+# 002 - Core IDs, LocalizedText, canonical AnswerValue
 
 **Stage:** 1 · **Package:** `@qcms/core` · **Depends on:** 001
 **References:** `DOMAIN_SCHEMA.md` §2 · `ARCHITECTURE.md` §4.1 · ADR-11 · R6
 
 ## Context
 
-These are the atoms every other schema builds on. The canonical `AnswerValue` encoding is decided **here** — before the evaluator exists — because `gt/lt` comparisons, storage, and exports all depend on it and it freezes into snapshots (review resolution: originally deferred too late).
+These are the atoms every other schema builds on. The canonical `AnswerValue` encoding is decided **here** - before the evaluator exists - because `gt/lt` comparisons, storage, and exports all depend on it and it freezes into snapshots (review resolution: originally deferred too late).
 
 ## Deliverables
 
@@ -13,14 +13,14 @@ In `packages/core/src/`:
 
 - **Branded ID types** (Zod `.brand()`): `QuestionId` (`q_[a-z0-9_]+`), `FormId` (`frm_`), `StepId` (`stp_`), `OptionId` (`opt_`), `RuleId` (`rul_`), `SessionId` (`ses_`), plus `LocaleCode` (BCP-47 subset: `xx` or `xx-XX`). Export type + schema + `parse`/`is` helpers for each.
 - **`LocalizedText`**: `z.record(LocaleCode, z.string().min(1))`, plus `resolveText(text, locale, defaultLocale)` (exact → default → typed error) and `isCompleteFor(text, locale)`.
-- **Canonical `AnswerValue`** — one discriminated encoding per question type, documented in code and in `DOMAIN_SCHEMA.md`:
+- **Canonical `AnswerValue`** - one discriminated encoding per question type, documented in code and in `DOMAIN_SCHEMA.md`:
   - `shortText`/`longText`: NFC-normalized string (normalize on parse).
   - `number`: finite IEEE double (`z.number().finite()`); `integer` constraint checked at validation, not encoding.
-  - `date`: timezone-less ISO `YYYY-MM-DD` string, validated as a real calendar date (reject `2026-02-30`). No time, no offset — respondent-local dates by design.
+  - `date`: timezone-less ISO `YYYY-MM-DD` string, validated as a real calendar date (reject `2026-02-30`). No time, no offset - respondent-local dates by design.
   - `boolean`: JSON boolean.
   - `singleChoice`: `OptionId`. `multiChoice`: `OptionId[]`, deduplicated, order-preserving.
-  - Export `AnswerValue` union + `Comparable` (number | date string) for the DSL's ordered operators; define date comparison as lexicographic on the canonical encoding (correct for ISO dates) — implement and export `compareValues`.
-  - Implement and export `valuesEqual(a, b)` — canonical equality used by `equals`/`notEquals`/`in` (ADR-21): strict equality on scalars, **set equality** for `multiChoice` arrays (order- and duplicate-insensitive).
+  - Export `AnswerValue` union + `Comparable` (number | date string) for the DSL's ordered operators; define date comparison as lexicographic on the canonical encoding (correct for ISO dates) - implement and export `compareValues`.
+  - Implement and export `valuesEqual(a, b)` - canonical equality used by `equals`/`notEquals`/`in` (ADR-21): strict equality on scalars, **set equality** for `multiChoice` arrays (order- and duplicate-insensitive).
 - **Typed error primitives**: `QcmsError` base shape `{ code, message, path? }` used by all later error models.
 
 ## Implementation notes

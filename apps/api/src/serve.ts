@@ -3,12 +3,12 @@
  *
  * The composition root's *outermost* layer: read the environment, build the
  * real dependencies (a Postgres pool, the stdout JSON logger, the system
- * clock), create the app for this process shape, bind the port, and — only
- * here, never in `createApp` — start the background schedulers. Tests compose
+ * clock), create the app for this process shape, bind the port, and - only
+ * here, never in `createApp` - start the background schedulers. Tests compose
  * apps without any of this; that separation is the point.
  *
  * This file is allowed Node built-ins (it is the process boundary, not handler
- * scope) — the fetch-purity rule (R4) governs handlers, which reach Node
+ * scope) - the fetch-purity rule (R4) governs handlers, which reach Node
  * capabilities only through injected interfaces (the logger, the clock, the db
  * handle built here).
  *
@@ -105,7 +105,7 @@ try {
   main();
 } catch (err: unknown) {
   // Boot failure (invalid config): report and exit non-zero. ConfigError
-  // messages name env vars only — never secret values (SEC-8).
+  // messages name env vars only - never secret values (SEC-8).
   process.stderr.write(
     `qcms-api failed to start: ${err instanceof Error ? err.message : String(err)}\n`,
   );

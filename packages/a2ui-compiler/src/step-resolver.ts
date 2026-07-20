@@ -5,12 +5,12 @@ import { questionToNode, type TextResolver } from "./mapping.js";
 import type { A2UIDocument, A2UINode } from "./types.js";
 
 /**
- * The step-resolver seam (task 011, ARCHITECTURE §12 — "Step-resolver /
+ * The step-resolver seam (task 011, ARCHITECTURE §12 - "Step-resolver /
  * compiler swap"). `compileForm` produces every step's document through a
  * {@link StepResolver}; the {@link staticStepResolver} is the launch
  * implementation (a deterministic projection of the pinned domain model). The
  * reserved Phase-4 extension is an agent/adaptive resolver implementing the
- * same interface to produce documents that respond to prior answers — see
+ * same interface to produce documents that respond to prior answers - see
  * `docs/agent-seam.md`. The seam is *authoring/compile-time*; the serving path
  * never sees an LLM (ADR-25) and serves the stored document (ADR-18).
  */
@@ -18,7 +18,7 @@ import type { A2UIDocument, A2UINode } from "./types.js";
 /**
  * Everything a resolver needs to compile one step, assembled by `compileForm`
  * from the frozen snapshot. The resolver does no I/O and no lookups of its own
- * (mirrors the kernel's R3 discipline — state is passed in).
+ * (mirrors the kernel's R3 discipline - state is passed in).
  */
 export interface StepResolverContext {
   /** The published snapshot being compiled (source of form title, default locale). */
@@ -29,7 +29,7 @@ export interface StepResolverContext {
   readonly resolveText: TextResolver;
   /** Resolve a step's pinned {@link QuestionRef} to its {@link QuestionDefinition}. */
   readonly resolveQuestion: (ref: QuestionRef) => QuestionDefinition;
-  /** True for the form's first step — only then is the form-title `h1` emitted. */
+  /** True for the form's first step - only then is the form-title `h1` emitted. */
   readonly isFirstStep: boolean;
 }
 
@@ -43,7 +43,7 @@ export interface StepResolver {
   readonly resolveStep: (step: Step, context: StepResolverContext) => A2UIDocument;
 }
 
-/** A `Text` heading node (`h1` form title, `h2` step title) — the page outline. */
+/** A `Text` heading node (`h1` form title, `h2` step title) - the page outline. */
 function heading(as: "h1" | "h2", text: string): A2UINode {
   return { type: "Text", props: { as }, children: text };
 }
@@ -52,7 +52,7 @@ function heading(as: "h1" | "h2", text: string): A2UINode {
  * The launch resolver: a pure, deterministic projection. Each step compiles to
  * `Form → Flex(column)` carrying the heading structure (form title `h1` on the
  * first step, step title `h2` on every step), one control node per pinned
- * question, and — last — one visually-hidden honeypot decoy (abuse controls,
+ * question, and - last - one visually-hidden honeypot decoy (abuse controls,
  * task 026; `docs/a2ui-mapping.md`).
  */
 export const staticStepResolver: StepResolver = {

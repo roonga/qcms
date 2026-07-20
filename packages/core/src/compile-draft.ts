@@ -9,14 +9,14 @@ import { analyzeRuleGraph, checkRuleTypes, documentOrder, ruleReferences } from 
 import { CONDITION_MAX_DEPTH, conditionDepth } from "./visibility-rule.js";
 
 /**
- * `compileDraft` — the publish aggregate (task 008, DOMAIN_SCHEMA §4.1,
+ * `compileDraft` - the publish aggregate (task 008, DOMAIN_SCHEMA §4.1,
  * ADR-01/02/14/16/18, invariants I1–I3, I10, R1).
  *
  * Publish is the single true aggregate: one atomic, pure call that either
- * returns an immutable deep-frozen snapshot or a complete typed error list —
+ * returns an immutable deep-frozen snapshot or a complete typed error list -
  * **all** errors, never first-only, nothing persisted on failure (persistence
  * is not reachable from here; the API slice calls this in 022). The caller
- * supplies every lookup — core never does I/O (R3).
+ * supplies every lookup - core never does I/O (R3).
  *
  * Compiled A2UI and its version stamps are attached by the API slice using
  * 011's compiler; core does not import the compiler.
@@ -25,7 +25,7 @@ import { CONDITION_MAX_DEPTH, conditionDepth } from "./visibility-rule.js";
 /**
  * The structural version of the {@link FrozenSnapshot} shape itself, stamped
  * into every snapshot alongside {@link SEMANTICS_VERSION}. Increment when the
- * snapshot's *shape* changes (fields added/renamed/re-keyed) — stored
+ * snapshot's *shape* changes (fields added/renamed/re-keyed) - stored
  * snapshots are immutable (R1), so readers use this stamp to interpret old
  * rows, never migrations.
  */
@@ -33,7 +33,7 @@ export const SNAPSHOT_SCHEMA_VERSION = 1;
 
 /**
  * Resolve a `{questionId, version}` pin to the stored question version
- * (DOMAIN_SCHEMA §4.2). Return `undefined` when no such version exists — the
+ * (DOMAIN_SCHEMA §4.2). Return `undefined` when no such version exists - the
  * pin is reported as `DANGLING_QUESTION_REF`. Must be a pure lookup over
  * state the caller loaded up front: determinism is over
  * `(definition, resolved records, published set)`.
@@ -45,7 +45,7 @@ export type ResolveQuestionVersion = (
 
 /**
  * Everything publish needs, supplied by the caller (R3: slices load state,
- * pass it in, persist results — core never reaches for a database).
+ * pass it in, persist results - core never reaches for a database).
  */
 export interface DraftInput {
   /** The parsed draft form (task 004's `FormDefinition`). */
@@ -122,7 +122,7 @@ function checkStructure(definition: FormDefinition): PublishError[] {
  * Pin resolution (invariant I2 half one): every `QuestionRef` must resolve to
  * a stored version (`DANGLING_QUESTION_REF`) that is published
  * (`UNPUBLISHED_QUESTION_PIN`, R1). A record whose identity does not match
- * the requested pin is treated as unresolvable — a misbehaving lookup must
+ * the requested pin is treated as unresolvable - a misbehaving lookup must
  * not smuggle the wrong content into an immutable snapshot.
  */
 function resolvePins(
@@ -205,7 +205,7 @@ function checkRuleResolution(definition: FormDefinition): PublishError[] {
 /**
  * Default-locale completeness (invariant I3): every `LocalizedText` in the
  * form *and* in every pinned question version must carry the form's
- * `defaultLocale`. Only the default locale is checked at launch (ADR-11) —
+ * `defaultLocale`. Only the default locale is checked at launch (ADR-11) -
  * other locales resolve through it.
  */
 function checkLocaleCompleteness(
@@ -274,7 +274,7 @@ function checkLocaleCompleteness(
  * Checks, in report order:
  * 1. structural re-checks with domain paths (duplicate steps/pins, condition
  *    depth cap);
- * 2. pin resolution — every `QuestionRef` resolves to a *published* version
+ * 2. pin resolution - every `QuestionRef` resolves to a *published* version
  *    (I2, R1);
  * 3. rule reference/target resolution within the form (I2);
  * 4. rule graph forward-only and acyclic (`analyzeRuleGraph`, ADR-16, I10);
@@ -282,7 +282,7 @@ function checkLocaleCompleteness(
  *    including option references (`checkRuleTypes`, ADR-21);
  * 6. default-locale completeness across form and pinned content (I3).
  *
- * The snapshot is a deep-frozen *clone* — the caller's draft stays mutable
+ * The snapshot is a deep-frozen *clone* - the caller's draft stays mutable
  * (it is still a draft; only the snapshot is immutable, I1). Pure and
  * deterministic: the same draft and lookups produce a structurally identical
  * snapshot (I7 starts here).

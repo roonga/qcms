@@ -8,11 +8,11 @@
  * surfaced verbatim in the admin response listing (023), which filters on
  * `flagged_reason is [not] null`.
  *
- * This is the canonical, closed set of reasons. Keep the values stable — they
+ * This is the canonical, closed set of reasons. Keep the values stable - they
  * are persisted in the database and shown to operators.
  */
 export const FlagReason = {
-  /** The honeypot decoy field was filled — an automated form-filler (compiler decoy, 011). */
+  /** The honeypot decoy field was filled - an automated form-filler (compiler decoy, 011). */
   HONEYPOT: "HONEYPOT",
   /** The submission arrived faster than the (per-form or global) min-time floor. */
   MIN_TIME: "MIN_TIME",

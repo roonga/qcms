@@ -2,10 +2,10 @@
  * Request logging + correlation id (task 017).
  *
  * Assigns each request a correlation id (honouring an inbound `x-request-id`,
- * else generating one via WebCrypto — fetch-pure, R4), stores it on the context
+ * else generating one via WebCrypto - fetch-pure, R4), stores it on the context
  * for handlers and the error envelope, echoes it as a response header, and logs
  * one structured line per request: id, method, path, status, duration. Answer
- * content is never touched — only method/path/status/timing.
+ * content is never touched - only method/path/status/timing.
  */
 
 import type { MiddlewareHandler } from "hono";

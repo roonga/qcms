@@ -4,7 +4,7 @@
  * The app is a private application, not a published package; this barrel exists
  * so slices (018–026) and tests import the composition contracts from one place.
  * The server entry is `serve.ts` (run via `pnpm start`), intentionally not
- * re-exported here — importing this module must never bind a port.
+ * re-exported here - importing this module must never bind a port.
  */
 
 export { createApp, type RouteGroups, type SliceRegistrar, type CreateAppOptions } from "./app.js";

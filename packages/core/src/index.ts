@@ -6,7 +6,7 @@
  * ADR-16 · task 008: `compileDraft`, the publish aggregate · task 009:
  * `validateAnswer` and `prepareSubmission`, the submission lock · task 010:
  * purpose-tagged compact tokens and secure links, SEC-2/SEC-7). Pure
- * functions over immutable data — no I/O beyond WebCrypto, no dependencies
+ * functions over immutable data - no I/O beyond WebCrypto, no dependencies
  * beyond zod (R3).
  */
 export { QcmsError, ok, err, qcmsError, type Result } from "./errors.js";

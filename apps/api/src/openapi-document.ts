@@ -3,14 +3,14 @@
  *
  * The routes in this codebase are all declared with `@hono/zod-openapi`
  * `createRoute` (017's convention), so the OpenAPI description of the API is a
- * *derived artifact* of the same Zod schemas the handlers validate against — it
+ * *derived artifact* of the same Zod schemas the handlers validate against - it
  * cannot drift from the implementation. This module composes the app exactly as
  * `serve.ts` does (via the shared {@link appGroups}) and emits one document per
  * surface:
  *
- * - **respondent** — the public loop a form filler's client talks to, plus the
+ * - **respondent** - the public loop a form filler's client talks to, plus the
  *   always-on `/health` and `/ready` ops probes.
- * - **admin** — the authoring / response-ops / webhook-config surface, mounted
+ * - **admin** - the authoring / response-ops / webhook-config surface, mounted
  *   under `/admin`. The ops probes are omitted here (they belong to the
  *   respondent document) so **every mounted route appears in exactly one
  *   document** (027 exit criterion 4).
@@ -51,7 +51,7 @@ export interface ApiDocuments {
 const OPS_PATHS = ["/health", "/ready"] as const;
 
 /**
- * Placeholder environment for code generation. These are **not secrets** — they
+ * Placeholder environment for code generation. These are **not secrets** - they
  * are fixed, obviously-synthetic strings that only exist to satisfy the config
  * validator's shape checks (min length, url scheme). No handler runs during
  * generation, so nothing here reaches the wire.
@@ -66,7 +66,7 @@ const CODEGEN_ENV: Record<string, string> = {
   QCMS_PORTAL_BASE_URL: "https://forms.example.test",
 };
 
-/** A database handle that rejects any use — generation never queries. */
+/** A database handle that rejects any use - generation never queries. */
 function inertDb(): Executor {
   return new Proxy(
     {},

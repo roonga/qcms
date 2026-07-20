@@ -1,13 +1,13 @@
 # @qcms/core fixtures
 
 The canonical fixture set for the domain kernel. **Later tasks reference these
-files — never fork them.** Additions are fine (they are how the set grows, e.g.
+files - never fork them.** Additions are fine (they are how the set grows, e.g.
 task 012 adds a constraints-heavy and a deep-nesting-rules form); renaming,
 re-keying IDs, or changing existing semantics is a breaking change to every
 consumer listed below.
 
 Fixtures are plain JSON read by tests (and by dev seeding, task 032's
-`pnpm qcms:seed-fixtures`). Shipped `@qcms/core` code never reads them — no
+`pnpm qcms:seed-fixtures`). Shipped `@qcms/core` code never reads them - no
 I/O in the kernel (R3).
 
 ## Layout
@@ -36,7 +36,7 @@ assertion, and the fixture-driven tests check exactly that:
 
 ## Questions (`questions/valid/`, task 003)
 
-One fixture per question type — together they seed the kitchen-sink form.
+One fixture per question type - together they seed the kitchen-sink form.
 
 | File | Type | questionId | Notes |
 |---|---|---|---|
@@ -46,7 +46,7 @@ One fixture per question type — together they seed the kitchen-sink form.
 | `date.json` | `date` | `q_dob` | canonical `YYYY-MM-DD` min/max |
 | `boolean.json` | `boolean` | `q_smoker` | the insurance branch question |
 | `single-choice.json` | `singleChoice` | `q_coverage_level` | carries `opt_none` (optionId scoping, R6) |
-| `multi-choice.json` | `multiChoice` | `q_preexisting_conditions` | also carries `opt_none` — optionIds are question-scoped |
+| `multi-choice.json` | `multiChoice` | `q_preexisting_conditions` | also carries `opt_none` - optionIds are question-scoped |
 
 `questions/invalid/` holds one fixture per parse refinement of
 `QuestionDefinition` (min/max ordering, selection bounds, duplicate optionIds,
@@ -60,7 +60,7 @@ empty option labels, unsafe/uncompilable patterns, empty option lists).
 | `insurance.json` | `frm_life_signup` | The motivating flow from `DOMAIN_SCHEMA.md` §6: `q_smoker@2` → rule `rul_smoker_followup` shows `q_cigs_daily@1` |
 | `minimal.json` | `frm_minimal` | Smallest valid form: one step, one question, empty rules array |
 | `constraints-heavy.json` | `frm_constraints_heavy` | Added by task 012 for the A2UI golden corpus: one step pinning all seven question fixtures so **every constraint-bearing control** (length/pattern, number min/max/integer, date min/max, multiChoice selection bounds) compiles in a single document. No rules. |
-| `deep-nesting-rules.json` | `frm_deep_nesting_rules` | Added by task 012: a single `and/or/not` rule nested to the depth-8 cap (`RULE_DEPTH_EXCEEDED` boundary — task 005) whose `show` reveals `q_medical_history`. Exercises the publish path's rule-graph/type checks under maximal nesting; the compiled A2UI is unaffected by rules (visibility is applied at serve time), so its golden pins the plain projection. |
+| `deep-nesting-rules.json` | `frm_deep_nesting_rules` | Added by task 012: a single `and/or/not` rule nested to the depth-8 cap (`RULE_DEPTH_EXCEEDED` boundary - task 005) whose `show` reveals `q_medical_history`. Exercises the publish path's rule-graph/type checks under maximal nesting; the compiled A2UI is unaffected by rules (visibility is applied at serve time), so its golden pins the plain projection. |
 
 Form fixtures only pin questionIds that exist in `questions/valid/` (tested),
 so publish-time resolution against the question fixtures (task 008) works out
@@ -80,12 +80,12 @@ One per parse-level refinement of `FormDefinition`:
 | `duplicate-question-across-steps.json` | `DUPLICATE_QUESTION_IN_FORM` |
 | `duplicate-question-same-step.json` | `DUPLICATE_QUESTION_IN_FORM` |
 | `missing-rules.json` | `INVALID_FORM_DEFINITION` (`rules` must be present, even if empty) |
-| `rule-depth-exceeded.json` | `RULE_DEPTH_EXCEEDED` (condition nested past the cap of 8 — task 005) |
+| `rule-depth-exceeded.json` | `RULE_DEPTH_EXCEEDED` (condition nested past the cap of 8 - task 005) |
 | `no-steps.json` | `INVALID_FORM_DEFINITION` (`steps` min 1) |
 | `step-no-items.json` | `INVALID_FORM_DEFINITION` (`items` min 1) |
 
 Publish-time failures (dangling refs, unpublished pins, locale gaps, rule
-graph violations — the `PublishError` codes) are **not** fixture-driven here:
+graph violations - the `PublishError` codes) are **not** fixture-driven here:
 they need a question repository to resolve against and belong to task 008's
 `compileDraft` tests.
 
@@ -93,4 +93,4 @@ they need a question repository to resolve against and belong to task 008's
 
 | File | What it pins |
 |---|---|
-| `insurance-golden.json` | The `contentHash` of the DOMAIN_SCHEMA §6 complete insurance submission (`q_smoker=true, q_cigs_daily=20`). Guards the canonical-JSON hashing contract across machines and Node versions — a mismatch is canonicalization drift, never re-record casually. |
+| `insurance-golden.json` | The `contentHash` of the DOMAIN_SCHEMA §6 complete insurance submission (`q_smoker=true, q_cigs_daily=20`). Guards the canonical-JSON hashing contract across machines and Node versions - a mismatch is canonicalization drift, never re-record casually. |

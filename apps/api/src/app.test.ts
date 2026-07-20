@@ -17,7 +17,7 @@ import {
 
 const { Pool } = pg;
 
-// A real Drizzle handle over a dead port: a genuine "database is down" — the
+// A real Drizzle handle over a dead port: a genuine "database is down" - the
 // query rejects. Not a mock of our package; the external DB is simply absent.
 const deadPool = new Pool({
   host: "127.0.0.1",
@@ -86,7 +86,7 @@ describe("mount flags (exit criterion 2, ADR-09)", () => {
     const res = await app.request("/admin/ping", {
       headers: { "x-qcms-internal-token": internalTokenFor(deps.config) },
     });
-    // Not 403 — the route does not exist at all in this process.
+    // Not 403 - the route does not exist at all in this process.
     expect(res.status).toBe(404);
   });
 

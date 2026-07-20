@@ -1,5 +1,5 @@
 /**
- * Scenario 1 — the full loop (task 027, exit criterion 1).
+ * Scenario 1 - the full loop (task 027, exit criterion 1).
  *
  * One scripted consumer drives the entire product over HTTP against the real
  * Testcontainers database: an admin authors the insurance question library and
@@ -9,7 +9,7 @@
  * erasure removes it from every export and lists a tombstone.
  *
  * The suite is a *consumer*: it speaks only `app.request()` (via the support
- * clients) and the seed toolkit — no slice internals. This file authors purely
+ * clients) and the seed toolkit - no slice internals. This file authors purely
  * over the admin HTTP API (the server compiles the draft at publish time).
  */
 

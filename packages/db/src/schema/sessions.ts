@@ -8,7 +8,7 @@ import { secureLinks } from "./secure-links.js";
 
 /**
  * A respondent session. The `(formId, formVersion)` pair is pinned at creation
- * against `form_versions` and never migrates (I4) — there is no update path for
+ * against `form_versions` and never migrates (I4) - there is no update path for
  * it. `linkId` is set only for `secure_link` access.
  */
 export const sessions = pgTable(

@@ -3,10 +3,10 @@
  * middleware. One limiter per endpoint class, each keyed by the natural abuse
  * unit and namespaced so classes never share a bucket:
  *
- * - **session-create** — per client IP (no session exists yet).
- * - **answers (per session)** — the sustained-rate + burst ceiling on one flow.
- * - **answers (per IP)** — a wide backstop against many-session floods.
- * - **submit (per session)** — the per-session submit ceiling.
+ * - **session-create** - per client IP (no session exists yet).
+ * - **answers (per session)** - the sustained-rate + burst ceiling on one flow.
+ * - **answers (per IP)** - a wide backstop against many-session floods.
+ * - **submit (per session)** - the per-session submit ceiling.
  *
  * Over a class's limit the shared `rateLimit` middleware throws a 429 with
  * `Retry-After` and the `x-ratelimit-*` headers, and leaks no internal state
@@ -39,7 +39,7 @@ function sessionParam(c: Context): string {
   return c.req.param("id") ?? "unknown-session";
 }
 
-/** `POST /sessions` — per client IP. */
+/** `POST /sessions` - per client IP. */
 export function sessionCreateLimiter(deps: Deps): MiddlewareHandler {
   const { windowMs, max } = deps.config.rateLimit.sessionCreate;
   return rateLimit({
@@ -50,7 +50,7 @@ export function sessionCreateLimiter(deps: Deps): MiddlewareHandler {
   });
 }
 
-/** `POST /sessions/{id}/answers` — per session (sustained + burst). */
+/** `POST /sessions/{id}/answers` - per session (sustained + burst). */
 export function answersPerSessionLimiter(deps: Deps): MiddlewareHandler {
   const { windowMs, max } = deps.config.rateLimit.answersPerSession;
   return rateLimit({
@@ -61,7 +61,7 @@ export function answersPerSessionLimiter(deps: Deps): MiddlewareHandler {
   });
 }
 
-/** `POST /sessions/{id}/answers` — per client IP (flood backstop). */
+/** `POST /sessions/{id}/answers` - per client IP (flood backstop). */
 export function answersPerIpLimiter(deps: Deps): MiddlewareHandler {
   const { windowMs, max } = deps.config.rateLimit.answersPerIp;
   return rateLimit({
@@ -72,7 +72,7 @@ export function answersPerIpLimiter(deps: Deps): MiddlewareHandler {
   });
 }
 
-/** `POST /sessions/{id}/submit` — per session. */
+/** `POST /sessions/{id}/submit` - per session. */
 export function submitPerSessionLimiter(deps: Deps): MiddlewareHandler {
   const { windowMs, max } = deps.config.rateLimit.submitPerSession;
   return rateLimit({

@@ -2,8 +2,8 @@
 
 The regression net for the rules evaluator's frozen semantics (task 007,
 ADR-16, invariant I7). Each scenario describes *behavior as data*: a form, a
-set of answers, and the exact `FlowState` the evaluator must produce — under
-`SEMANTICS_VERSION = 1` — forever. The corpus survives refactors, doubles as
+set of answers, and the exact `FlowState` the evaluator must produce - under
+`SEMANTICS_VERSION = 1` - forever. The corpus survives refactors, doubles as
 executable documentation of DOMAIN_SCHEMA §3, and is append-only in spirit.
 
 ## The rule for changing goldens
@@ -11,15 +11,15 @@ executable documentation of DOMAIN_SCHEMA §3, and is append-only in spirit.
 **A committed `expected` block changes only together with a
 `SEMANTICS_VERSION` bump** (and the ADR that justifies it). If an evaluator
 change makes any scenario fail, that change altered the frozen semantics:
-either revert it, or treat it as a new semantics version — never "fix the
+either revert it, or treat it as a new semantics version - never "fix the
 golden" to match new behavior. Adding *new* scenarios (or new corpus forms and
 questions for them) is always welcome and is how the corpus grows.
 
 CI enforces drift two ways with the same runner
 (`packages/core/src/golden-corpus.test.ts`):
 
-- `pnpm test` — the corpus is part of the `@qcms/core` suite;
-- `pnpm test:golden-drift` (root) — runs only the corpus, as the named guard:
+- `pnpm test` - the corpus is part of the `@qcms/core` suite;
+- `pnpm test:golden-drift` (root) - runs only the corpus, as the named guard:
   it fails if any golden's `expected` differs from live evaluator output.
 
 Failures report the scenario file by name with a structural diff of the two
@@ -32,13 +32,13 @@ golden/evaluator/
   CORPUS.md          this file
   questions/         corpus-local QuestionDefinitions (the q_gate_* rule targets)
   forms/             corpus-local FormDefinitions (operator/step/chain shapes)
-  scenarios/         the golden scenario files — one scenario per file
+  scenarios/         the golden scenario files - one scenario per file
 ```
 
 Corpus forms pin questions from `fixtures/questions/valid/` (the canonical
 seven, one per type) plus the corpus-local gates; the fixture forms
 (`kitchen-sink`, `insurance`, `minimal`) are referenced directly and never
-forked. Every referenced form must be publish-shaped — the runner asserts
+forked. Every referenced form must be publish-shaped - the runner asserts
 `analyzeRuleGraph` and `checkRuleTypes` come back clean.
 
 ## Scenario format
@@ -59,13 +59,13 @@ forked. Every referenced form must be publish-shaped — the runner asserts
 }
 ```
 
-- `form` — path relative to `packages/core/`: either a canonical fixture
+- `form` - path relative to `packages/core/`: either a canonical fixture
   (`fixtures/forms/valid/...`) or a corpus form (`golden/evaluator/forms/...`).
-- `answers` — the *raw* authored values; the runner hands them to the
+- `answers` - the *raw* authored values; the runner hands them to the
   evaluator uncanonicalized, so NFC normalization and multiChoice
   deduplication stay part of the asserted surface. Each `questionId` may
   appear once.
-- `expected` — the full `FlowState`, all arrays in document order.
+- `expected` - the full `FlowState`, all arrays in document order.
 
 ## Coverage matrix
 
@@ -91,9 +91,9 @@ forked. Every referenced form must be publish-shaped — the runner asserts
 
 1. If the shape you need does not exist, add a corpus form under `forms/`
    (pin existing question fixtures and `q_gate_*` targets; keep it
-   forward-only — the hygiene tests will hold you to it).
+   forward-only - the hygiene tests will hold you to it).
 2. Add the scenario file with `description`, `form`, `answers`, and the
-   `expected` FlowState you derive **from DOMAIN_SCHEMA §3** — not from
+   `expected` FlowState you derive **from DOMAIN_SCHEMA §3** - not from
    running the evaluator and pasting.
 3. `pnpm test:golden-drift` must pass; if it fails, reconcile your reading of
    the semantics before touching anything. A genuine disagreement between the

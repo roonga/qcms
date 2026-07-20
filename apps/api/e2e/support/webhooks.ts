@@ -82,7 +82,7 @@ export class WebhookReceiver {
 }
 
 /**
- * Run one delivery pass — materialize due outbox events into per-webhook delivery
+ * Run one delivery pass - materialize due outbox events into per-webhook delivery
  * rows and POST them. `now` defaults a minute ahead of the host clock so freshly
  * enqueued rows are reliably "due" despite Testcontainers clock skew.
  */

@@ -1,9 +1,9 @@
-# Erasure (right-to-erasure) — operator guide
+# Erasure (right-to-erasure) - operator guide
 
 Erasure is qcms's answer to a data-subject erasure request (GDPR Art. 17 and
 equivalents). It **hard-deletes** a single respondent session's content and
-leaves a **tombstone** proving that a response existed — against which form
-version, and when it was erased — without preserving any of the content.
+leaves a **tombstone** proving that a response existed - against which form
+version, and when it was erased - without preserving any of the content.
 
 Design decision: **ADR-17** (hard delete + tombstone; crypto-shredding rejected
 for launch). Invariant **I11**. Semantics are owned by `@qcms/core`
@@ -14,14 +14,14 @@ for launch). Invariant **I11**. Semantics are owned by `@qcms/core`
 Given a `sessionId` and an operator `reason`, `eraseSession` runs one
 transaction that:
 
-1. **Deletes the answer ledger** — every `answers` row for the session (all
+1. **Deletes the answer ledger** - every `answers` row for the session (all
    revisions, not just the latest).
-2. **Deletes the submission lock** — the `submissions` row, if the session was
+2. **Deletes the submission lock** - the `submissions` row, if the session was
    submitted.
-3. **Scrubs respondent-linkable session columns** — see
+3. **Scrubs respondent-linkable session columns** - see
    [What is retained](#what-is-retained). In the launch schema this set is
    empty; the (now content-free) session row is retained as an audit shell.
-4. **Writes a tombstone** — one `erasure_tombstones` row
+4. **Writes a tombstone** - one `erasure_tombstones` row
    `(session_id, form_id, form_version, erased_at, reason)`.
 
 It is **idempotent**: erasing an already-erased session is a no-op that returns
@@ -29,7 +29,7 @@ the existing tombstone. Erasing a session that never existed throws a typed
 `SessionNotFoundError` (`code: "SESSION_NOT_FOUND"`).
 
 All four steps are one transaction: an induced failure at any point (e.g. a
-constraint or trigger error on the tombstone insert) rolls the deletes back —
+constraint or trigger error on the tombstone insert) rolls the deletes back -
 the ledger stays intact and no tombstone is written.
 
 ## What is retained
@@ -48,9 +48,9 @@ the ledger stays intact and no tombstone is written.
 
 ### Scrubbed session columns
 
-The launch `sessions` table holds **no free-form respondent PII** — its columns
+The launch `sessions` table holds **no free-form respondent PII** - its columns
 are structural (`session_id`, `form_id`, `form_version`, `access_mode`,
-`status`, `expires_at`, `created_at`) — so **the scrub set is currently empty**.
+`status`, `expires_at`, `created_at`) - so **the scrub set is currently empty**.
 If you extend the `sessions` table with respondent-identifying columns, you must
 extend the scrub in `eraseSession` to null them; otherwise they will survive
 erasure.
@@ -70,7 +70,7 @@ Either alone is sufficient; both hold after `eraseSession`.
 ## The sanctioned DELETE door (why DELETE on `answers` is guarded)
 
 The answer ledger is append-only (I5): there is no UPDATE path, and migration
-`0001` rejects UPDATE at the database level. Erasure is the *only* amendment —
+`0001` rejects UPDATE at the database level. Erasure is the *only* amendment -
 whole-session DELETE. To keep that door narrow, migration `0004` installs a
 `BEFORE DELETE` trigger (`answers_reject_delete`) that **rejects any DELETE on
 `answers`** unless the transaction-local setting `qcms.allow_answer_delete` is
@@ -79,8 +79,8 @@ whole-session DELETE. To keep that door narrow, migration `0004` installs a
 Only the **two sanctioned whole-session delete paths** set that flag (via
 `set_config('qcms.allow_answer_delete', 'on', true)` inside their transaction):
 
-- **`eraseSession`** (task 016) — this erasure path.
-- **`purgeExpired`** (task 015) — the optional retention hard-cleanup of
+- **`eraseSession`** (task 016) - this erasure path.
+- **`purgeExpired`** (task 015) - the optional retention hard-cleanup of
   expired, never-submitted sessions.
 
 `SET LOCAL` reverts when the transaction ends, so the door is never left open

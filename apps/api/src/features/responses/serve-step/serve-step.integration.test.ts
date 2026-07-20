@@ -1,6 +1,6 @@
 /**
  * Serving-loop slice tests (task 019), driven through `app.request()` against
- * the **real** kernel and the 013 Testcontainers harness DB — never a mock of
+ * the **real** kernel and the 013 Testcontainers harness DB - never a mock of
  * our own packages (CONTRIBUTING). Requires Docker.
  *
  * The fixture is the canonical `insurance` form (`@qcms/core` fixtures): one
@@ -8,10 +8,10 @@
  * (number, required), the follow-up shown only when `q_smoker = true`. Its
  * published `form_versions` row stores the committed golden compiled A2UI
  * document, so exit criterion 2 asserts the served step equals the *stored*
- * bytes — the handler has no compiler dependency and cannot recompile (ADR-18).
+ * bytes - the handler has no compiler dependency and cannot recompile (ADR-18).
  *
  * Covers every exit criterion: the branching answer loop (1), served step
- * equals the stored compiled document (2), the typed rejects — invalid value,
+ * equals the stored compiled document (2), the typed rejects - invalid value,
  * hidden question, unknown question, submitted/expired session (3), and
  * concurrent answers serialized by the advisory lock (4).
  */
@@ -223,7 +223,7 @@ describe("get-step serves the stored compiled document (exit criterion 2)", () =
     const body = (await res.json()) as StepBody;
 
     // Deep-equals the STORED golden document for stp_health (JSONB does not
-    // preserve key order, so structural equality — not byte-exact).
+    // preserve key order, so structural equality - not byte-exact).
     expect(body.step).toEqual(GOLDEN.documents[0]);
     expect(body.a2uiSpecVersion).toBe(GOLDEN.a2uiSpecVersion);
     // Initially only q_smoker is visible (q_cigs_daily's rule is unsatisfied).
@@ -288,7 +288,7 @@ describe("branching answer loop (exit criterion 1)", () => {
     expect(b3.step).toBeNull();
 
     // Ledger holds all three appended rows (append-only, I5). The row type is
-    // laundered through a local view — `answers` references the enum-bearing
+    // laundered through a local view - `answers` references the enum-bearing
     // `sessions` table, so its `$inferSelect` resolves to a TS error type through
     // @qcms/db's emitted .d.ts (issue #5); only `questionId` is read here.
     const ledger = (await answerLedger(testDb.db, SessionId.parse(sessionId))) as {
@@ -345,7 +345,7 @@ describe("typed rejects (exit criterion 3)", () => {
   });
 
   it("an expired session is rejected with a valid token (SESSION_EXPIRED)", async () => {
-    // Valid (future-expiry) token binding a session row whose expiry is past —
+    // Valid (future-expiry) token binding a session row whose expiry is past -
     // so the token verifies but the session is expired-by-time.
     const sessionId = SessionId.parse("ses_expired00000000");
     await createSession(testDb.db, {

@@ -398,7 +398,7 @@ describe("checkRuleTypes", () => {
 
   it("treats multiChoice equals as whole-answer set equality (ADR-21)", () => {
     expect(check({ op: "equals", questionId: "q_multi", value: ["opt_x", "opt_y"] })).toEqual([]);
-    // A single optionId is not a multiChoice answer — use contains.
+    // A single optionId is not a multiChoice answer - use contains.
     expect(check({ op: "equals", questionId: "q_multi", value: "opt_x" })).toEqual([
       expect.objectContaining({ code: "RULE_TYPE_MISMATCH" }),
     ]);

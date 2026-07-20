@@ -4,7 +4,7 @@
  * Zod is the single schema language (017's convention); these drive both the
  * request validation the routes perform and the generated OpenAPI documents
  * (027). The **form definition** itself is validated by the kernel
- * (`FormDefinition`, task 004) inside the handlers — not re-declared here — so a
+ * (`FormDefinition`, task 004) inside the handlers - not re-declared here - so a
  * malformed definition returns the kernel's coded issues through the error
  * envelope (422) with its paths intact. The request bodies therefore carry the
  * definition as an opaque object; the route schema guards only the envelope
@@ -20,12 +20,12 @@ import { z } from "@hono/zod-openapi";
 
 // --- params -----------------------------------------------------------------
 
-/** `:id` path param — a `frm_…` form id (validated as a FormId in-handler). */
+/** `:id` path param - a `frm_…` form id (validated as a FormId in-handler). */
 export const FormIdParam = z.object({
   id: z.string().openapi({ param: { name: "id", in: "path" }, example: "frm_signup" }),
 });
 
-/** `:id`/`:v` path params — version is parsed to a positive integer in-handler. */
+/** `:id`/`:v` path params - version is parsed to a positive integer in-handler. */
 export const FormVersionParam = z.object({
   id: z.string().openapi({ param: { name: "id", in: "path" }, example: "frm_signup" }),
   v: z.string().openapi({ param: { name: "v", in: "path" }, example: "1" }),
@@ -43,7 +43,7 @@ const OpaqueDefinition = z
   .record(z.string(), z.unknown())
   .openapi("FormDefinitionInput", { description: "A form definition (kernel-validated)." });
 
-/** `POST /admin/forms` — the identity to create with its empty first draft. */
+/** `POST /admin/forms` - the identity to create with its empty first draft. */
 export const CreateFormBody = z
   .object({
     formId: z.string().min(1).openapi({ example: "frm_signup" }),
@@ -52,7 +52,7 @@ export const CreateFormBody = z
   })
   .openapi("CreateFormBody");
 
-/** `PUT /admin/forms/:id/draft` and `POST .../draft/validate` — a full definition. */
+/** `PUT /admin/forms/:id/draft` and `POST .../draft/validate` - a full definition. */
 export const DraftBody = z.object({ definition: OpaqueDefinition }).openapi("DraftBody");
 
 // --- responses --------------------------------------------------------------
@@ -94,7 +94,7 @@ export const ListFormsResponse = z
   .object({ forms: z.array(FormListItem) })
   .openapi("ListFormsResponse");
 
-/** A version summary row (no full snapshot — see the versions/:v route). */
+/** A version summary row (no full snapshot - see the versions/:v route). */
 export const FormVersionSummary = z
   .object({
     version: z.number().int().positive().openapi({ example: 1 }),

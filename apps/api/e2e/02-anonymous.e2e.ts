@@ -1,5 +1,5 @@
 /**
- * Scenario 2 — the anonymous respondent path (task 027, exit criterion 1).
+ * Scenario 2 - the anonymous respondent path (task 027, exit criterion 1).
  *
  * The same respondent loop as scenario 1 but with no secure link: an anonymous
  * session started by form slug walks the branch (this time keeping the follow-up

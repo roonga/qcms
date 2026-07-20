@@ -4,13 +4,13 @@
  * These run in the ordinary unit project (`pnpm test`, no Docker) and enforce
  * three properties of the committed `docs/openapi/*.json`:
  *
- * 1. **Drift** — the committed files deep-equal freshly generated output. A
+ * 1. **Drift** - the committed files deep-equal freshly generated output. A
  *    route schema change that is not regenerated (`pnpm openapi:generate`) fails
  *    here, the same guard shape as the golden corpora and the env reference.
- * 2. **Validity** — each document validates against the OpenAPI spec via a
+ * 2. **Validity** - each document validates against the OpenAPI spec via a
  *    third-party validator (`@seriousme/openapi-schema-validator`), so a
  *    structurally invalid document cannot be committed.
- * 3. **Partition** — every route the composed app mounts appears in exactly one
+ * 3. **Partition** - every route the composed app mounts appears in exactly one
  *    document; the two documents never overlap.
  */
 
@@ -80,7 +80,7 @@ describe("committed OpenAPI documents (exit criterion 4)", () => {
   });
 });
 
-describe("route partition — every mounted route in exactly one document", () => {
+describe("route partition - every mounted route in exactly one document", () => {
   // The full enterprise composition (all surfaces): the ground-truth route set.
   const fullApp = createApp(
     makeDeps({ env: validEnv() }),

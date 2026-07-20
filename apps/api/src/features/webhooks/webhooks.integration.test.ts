@@ -5,7 +5,7 @@
  * Covers exit criterion 3: webhook CRUD; the secret is shown exactly once (create
  * + explicit rotate) and masked on reads; SSRF cases (localhost, 10.x,
  * link-local) rejected by default and allowed under the override flag; and the
- * at-rest round-trip — the stored ciphertext decrypts back to the shown secret
+ * at-rest round-trip - the stored ciphertext decrypts back to the shown secret
  * (proving 025 can recover it to sign deliveries). Every app key is synthetic.
  */
 
@@ -30,7 +30,7 @@ let deps: Deps;
 let app: ReturnType<typeof createApp>;
 let internalToken: string;
 // A fixed base env so the on-prem-override app shares the internal token and app
-// key with the default app — only QCMS_WEBHOOK_ALLOW_PRIVATE varies.
+// key with the default app - only QCMS_WEBHOOK_ALLOW_PRIVATE varies.
 let baseEnv: Record<string, string | undefined>;
 
 /** Build an admin app over the shared db with the given env overrides. */
@@ -99,7 +99,7 @@ describe("webhook CRUD, secret reveal/mask, and at-rest round-trip", () => {
     expect(created.secret.startsWith("whsec_")).toBe(true);
 
     // At-rest round-trip: the stored ciphertext is NOT the plaintext, and it
-    // decrypts under QCMS_APP_KEY back to exactly the shown secret (SEC-6 — 025
+    // decrypts under QCMS_APP_KEY back to exactly the shown secret (SEC-6 - 025
     // recovers it to sign). This proves encryption, not a one-way hash.
     const row = await getWebhook(testDb.db, FORM_ID, created.webhookId);
     expect(row?.secretEncrypted.startsWith("v1.")).toBe(true);

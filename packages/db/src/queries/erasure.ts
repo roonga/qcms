@@ -10,7 +10,7 @@ import type { Executor } from "./executor.js";
  * The `answers_reject_delete` trigger (migration 0004) rejects any DELETE unless
  * this is set to `'on'` for the current transaction. Set it with
  * {@link openAnswerDeleteDoor} immediately before deleting answers, inside a
- * transaction — `SET LOCAL` reverts automatically when the transaction ends, so
+ * transaction - `SET LOCAL` reverts automatically when the transaction ends, so
  * the door is never left open across statements or connections.
  */
 export const ANSWER_DELETE_GUARD_SETTING = "qcms.allow_answer_delete";
@@ -18,8 +18,8 @@ export const ANSWER_DELETE_GUARD_SETTING = "qcms.allow_answer_delete";
 /**
  * Open the scoped `answers` DELETE door for the current transaction. This is the
  * *only* mechanism permitted to authorize an `answers` DELETE (ADR-17): the two
- * sanctioned doors — {@link eraseSession} (this task, 016) and `purgeExpired`
- * (retention, 015) — call it before their delete; every other DELETE is rejected
+ * sanctioned doors - {@link eraseSession} (this task, 016) and `purgeExpired`
+ * (retention, 015) - call it before their delete; every other DELETE is rejected
  * by the trigger. Must run inside a transaction.
  */
 export async function openAnswerDeleteDoor(exec: Executor): Promise<void> {
@@ -29,7 +29,7 @@ export async function openAnswerDeleteDoor(exec: Executor): Promise<void> {
 /**
  * Thrown by {@link eraseSession} when the target session does not exist and has
  * no tombstone. Typed via {@link EraseErrorCode} from `@qcms/core` (core owns the
- * meaning; db throws). The message carries only the opaque session id — never
+ * meaning; db throws). The message carries only the opaque session id - never
  * respondent data (SEC: answer values are never logged).
  */
 export class SessionNotFoundError extends Error {
@@ -47,21 +47,21 @@ export class SessionNotFoundError extends Error {
  * Erase one session (ADR-17, I11). In a single transaction:
  *
  * 1. **Idempotency first.** If a tombstone already exists for the session,
- *    return it unchanged (`alreadyErased: true`) — a no-op. The already-erased
+ *    return it unchanged (`alreadyErased: true`) - a no-op. The already-erased
  *    session row (a scrubbed shell) and its absent ledger are left as they are.
  * 2. Otherwise the session must exist, or throw {@link SessionNotFoundError}.
  * 3. Open the scoped DELETE door ({@link openAnswerDeleteDoor}), then delete
  *    every `answers` row for the session and the `submissions` lock if present.
  * 4. Scrub any session column that could hold respondent-linkable data. The
  *    launch `sessions` schema holds **none** (all columns are structural and
- *    `linkId` is retained by design — see `@qcms/core` erasure semantics and
+ *    `linkId` is retained by design - see `@qcms/core` erasure semantics and
  *    `docs/erasure.md`), so the scrub set is empty today; the session row is
  *    retained as an audit shell.
  * 5. Insert the `erasure_tombstones` row `(sessionId, formId, formVersion,
  *    erasedAt, reason)` and return it (`alreadyErased: false`).
  *
  * All five steps share one transaction, so an induced failure at any point
- * (e.g. the tombstone insert) rolls the deletes back — the ledger stays intact
+ * (e.g. the tombstone insert) rolls the deletes back - the ledger stays intact
  * and no tombstone is written (I11 transactionality).
  */
 export async function eraseSession(

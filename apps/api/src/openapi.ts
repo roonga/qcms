@@ -2,7 +2,7 @@
  * Route-definition convention (task 017; ARCHITECTURE §5.1–5.2; SEC-5).
  *
  * Every route in this codebase is declared with `@hono/zod-openapi`'s
- * `createRoute` — request/response Zod schemas and typed error responses — and
+ * `createRoute` - request/response Zod schemas and typed error responses - and
  * **never** as a bare Hono route. Zod stays the single schema language and the
  * implementation's source of truth, so the OpenAPI documents 027 generates are
  * derived artifacts that cannot drift.
@@ -19,7 +19,7 @@ import { z } from "@hono/zod-openapi";
 /**
  * The authenticated admin principal an admin-group request carries once the
  * admin-auth middleware (021) has verified its session. The `scopes` list is
- * SEC-5 metadata — reserved for `/api/v1` activation (Phase 4), inert at launch.
+ * SEC-5 metadata - reserved for `/api/v1` activation (Phase 4), inert at launch.
  * Today a permissive stub establishes it; 031 swaps in real better-auth session
  * verification without changing this shape.
  */
@@ -38,7 +38,7 @@ export interface ApiEnv {
   };
 }
 
-/** The error-envelope body schema — mirrors {@link ErrorEnvelope} in errors.ts. */
+/** The error-envelope body schema - mirrors {@link ErrorEnvelope} in errors.ts. */
 export const ErrorEnvelopeSchema = z
   .object({
     error: z.object({

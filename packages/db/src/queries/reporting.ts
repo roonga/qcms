@@ -10,7 +10,7 @@ import type { AccessMode } from "./sessions.js";
  * Reporting-view reads (task 023): the data-out vocabulary the admin response
  * slices call. These read the erasure-safe `reporting.responses` view (migration
  * 0003), so **in-progress, expired, and erased sessions are excluded by
- * construction** — the tombstone anti-join lives in the view, and no read here
+ * construction** - the tombstone anti-join lives in the view, and no read here
  * can bypass it. Shape-preserving reads only (R5): filtering, ordering, and
  * pagination, no business logic.
  *
@@ -18,15 +18,15 @@ import type { AccessMode } from "./sessions.js";
  * `sql` fragments through the caller's {@link Executor}. Every value is
  * interpolated (parameterized), never string-concatenated, and every column is
  * aliased to camelCase so the returned rows are ready for the API layer without
- * a per-caller launder (the branded-id/enum `.d.ts` error type — issue #5 —
+ * a per-caller launder (the branded-id/enum `.d.ts` error type - issue #5 -
  * never reaches consumers because these helpers own explicit row interfaces).
  */
 
 /**
- * One row of `reporting.responses` — the erasure-safe response projection. A
+ * One row of `reporting.responses` - the erasure-safe response projection. A
  * `type` (not an `interface`) so it satisfies the Drizzle `execute<T>` row
  * constraint (`T extends Record<string, unknown>`, which named interfaces do not
- * meet — they lack an implicit index signature).
+ * meet - they lack an implicit index signature).
  */
 export type ReportingResponseRow = {
   readonly sessionId: SessionId;
@@ -63,7 +63,7 @@ export interface ResponseFilter {
 /**
  * Normalize a `timestamptz` read back from a raw `execute` to a `Date`. Drizzle's
  * query builder applies `mode: "date"` column mapping, but a raw `sql` read
- * returns the driver's value (a string), so reporting rows are normalized here —
+ * returns the driver's value (a string), so reporting rows are normalized here -
  * the helpers' public types promise a `Date`.
  */
 function toDate(value: Date | string): Date {
@@ -121,7 +121,7 @@ export async function listResponses(
  * non-erased submitted response for this form. Reading through
  * `reporting.responses` is the erasure guarantee: an erased session is absent
  * from the view (tombstone anti-join), so this returns `undefined` and the
- * caller 404s — detail cannot bypass the exclusion.
+ * caller 404s - detail cannot bypass the exclusion.
  */
 export async function getResponse(
   exec: Executor,
@@ -145,7 +145,7 @@ export async function getResponse(
  * A keyset page of reporting rows for export streaming, ordered by `session_id`
  * ascending and starting strictly after `afterSessionId`. Bounded by `limit`, so
  * a caller streaming a large export holds only one page in memory at a time
- * (never the whole table). Reads `reporting.responses` directly — erased and
+ * (never the whole table). Reads `reporting.responses` directly - erased and
  * non-submitted sessions are excluded by the view, so an export never leaks an
  * erased response. JSON export emits these rows verbatim; CSV projects them to
  * the requested version's columns.
@@ -171,7 +171,7 @@ export async function fetchResponsePage(
   return res.rows.map(normalizeRow);
 }
 
-/** A tombstone row — existence of an erased response without its content (I11). */
+/** A tombstone row - existence of an erased response without its content (I11). */
 export interface TombstoneRow {
   readonly sessionId: SessionId;
   readonly formId: FormId;
@@ -182,7 +182,7 @@ export interface TombstoneRow {
 
 /**
  * The erasure tombstones (compliance evidence), newest first, optionally scoped
- * to one form. Reads the `erasure_tombstones` table directly — tombstones are
+ * to one form. Reads the `erasure_tombstones` table directly - tombstones are
  * the audit record of erasure and are never themselves excluded.
  */
 export async function listTombstones(
@@ -206,13 +206,13 @@ export async function listTombstones(
 }
 
 /**
- * Release a submission's anti-abuse flag — set `flagged_reason` to `NULL` — and
+ * Release a submission's anti-abuse flag - set `flagged_reason` to `NULL` - and
  * report whether *this* call performed the transition. The clear is conditional
  * (`... and flagged_reason is not null`), so the row lock lets exactly one caller
  * win the flip: `true` means this call released a genuinely-flagged submission
  * and the caller must now enqueue the withheld `response.submitted` event (020),
  * inside the same transaction; `false` means the submission was already clean (or
- * a concurrent unflag won) and no event is due — the idempotency the unflag route
+ * a concurrent unflag won) and no event is due - the idempotency the unflag route
  * relies on. Shape-preserving write (R5); the caller owns the transaction and the
  * event (R3).
  */

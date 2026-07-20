@@ -1,9 +1,9 @@
 /**
  * Outbox-deliverer scheduler shell (task 017; ARCHITECTURE §5.3).
  *
- * **Scheduling shell only.** The actual webhook delivery — claiming due rows
+ * **Scheduling shell only.** The actual webhook delivery - claiming due rows
  * with `FOR UPDATE SKIP LOCKED`, HMAC request signing, exponential backoff,
- * dead-lettering — lands in task 025. Here we own the loop: a jittered interval
+ * dead-lettering - lands in task 025. Here we own the loop: a jittered interval
  * that invokes a `deliver` callback. 025 supplies the real callback; until then
  * the default is a no-op, so composing and starting the scheduler is safe and
  * testable now.

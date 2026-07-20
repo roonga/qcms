@@ -1,7 +1,7 @@
 /**
  * Thin HTTP clients for the e2e suite (task 027).
  *
- * Scenarios drive the product only through these — `app.request(...)` under the
+ * Scenarios drive the product only through these - `app.request(...)` under the
  * hood, one method per product action, so a scenario reads as a story ("admin
  * publishes the form; respondent walks the branch; admin exports") rather than a
  * pile of fetch plumbing. They are the *consumer's* view: HTTP verbs, headers,
@@ -26,7 +26,7 @@ export interface JsonResult<T = unknown> {
   readonly body: T;
 }
 
-/** The outcome of a raw (non-JSON) request — used for exports. */
+/** The outcome of a raw (non-JSON) request - used for exports. */
 export interface RawResult {
   readonly status: number;
   readonly contentType: string | null;

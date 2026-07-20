@@ -10,7 +10,7 @@ export const questionStatus = pgEnum("question_status", ["draft", "published", "
 
 /**
  * Form lifecycle status (`DOMAIN_SCHEMA.md` §4.1). `open` accepts new sessions;
- * `closed` is "closed to new sessions" — in-flight sessions still finish on the
+ * `closed` is "closed to new sessions" - in-flight sessions still finish on the
  * version they started (R1). Reopening happens via a new draft/version. This is
  * a single-field state (not a cross-row invariant), so the transition is a plain
  * query helper, not a kernel concern (R5).

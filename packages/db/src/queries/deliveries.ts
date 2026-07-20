@@ -9,7 +9,7 @@ export type DeliveryRow = typeof webhookDeliveries.$inferSelect;
 /**
  * One claimed, due delivery joined to everything the deliverer needs to POST it:
  * the outbox event (id, type, payload) and the target webhook (url, encrypted
- * secret). The secret stays opaque ciphertext at this layer — the API decrypts it
+ * secret). The secret stays opaque ciphertext at this layer - the API decrypts it
  * under `QCMS_APP_KEY` at signing time (SEC-6).
  */
 export interface DueDelivery {
@@ -43,7 +43,7 @@ export interface DeadLetterDelivery {
 
 /**
  * Materialize one fan-out target: insert a delivery row for `(outboxId,
- * webhookId)`, due at `now`. **Idempotent** — the `(outbox_id, webhook_id)` unique
+ * webhookId)`, due at `now`. **Idempotent** - the `(outbox_id, webhook_id)` unique
  * key means a repeated materialize (or a concurrent deliverer) is a no-op via
  * `ON CONFLICT DO NOTHING`, so an event never double-fans-out.
  */
@@ -65,15 +65,15 @@ export async function insertDelivery(
 }
 
 /**
- * Claim up to `limit` delivery rows that are due — undelivered, live (not
- * dead-lettered), past `next_attempt_at` — joined to their outbox event and
+ * Claim up to `limit` delivery rows that are due - undelivered, live (not
+ * dead-lettered), past `next_attempt_at` - joined to their outbox event and
  * webhook. Uses `FOR UPDATE OF webhook_deliveries SKIP LOCKED` so concurrent
  * deliverers never claim the same delivery: each locks its rows and the others
  * skip them (locking *only* the delivery rows, not the shared event/webhook rows).
  *
  * **Must be called inside the caller's transaction**, which holds the locks while
  * the requests are POSTed and their outcome recorded (via
- * {@link markDeliveryDelivered} / {@link recordDeliveryFailure}) before commit —
+ * {@link markDeliveryDelivered} / {@link recordDeliveryFailure}) before commit -
  * that is what makes the claim exclusive across concurrent deliverers, and what
  * makes a crash between POST and commit roll back to a redeliverable state.
  */
@@ -186,7 +186,7 @@ export async function listDeadLetterDeliveries(
 }
 
 /**
- * Reset a dead-lettered (or any) delivery for immediate redelivery — the admin
+ * Reset a dead-lettered (or any) delivery for immediate redelivery - the admin
  * manual-redeliver action (§5.3): clear the dead-letter flag and delivery
  * timestamp, reset attempts, and make it due now. Returns the updated row, or
  * `undefined` when no such delivery exists.

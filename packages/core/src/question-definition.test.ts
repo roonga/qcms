@@ -151,7 +151,7 @@ describe("optionId scoping (R6)", () => {
     expect(single.ok).toBe(true);
     expect(multi.ok).toBe(true);
     if (single.ok && multi.ok) {
-      // Both fixtures deliberately carry opt_none — scoped per question.
+      // Both fixtures deliberately carry opt_none - scoped per question.
       expect(optionIdsOf(single.value)).toContain("opt_none");
       expect(optionIdsOf(multi.value)).toContain("opt_none");
     }

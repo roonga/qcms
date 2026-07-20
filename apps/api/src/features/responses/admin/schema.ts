@@ -5,7 +5,7 @@
  *
  * Answer *values* ride through opaque (`z.unknown()`): they are canonical
  * encodings the reporting view already froze (015), echoed as-is. The export
- * route declares no `200` body schema — it streams `text/csv` / `application/json`
+ * route declares no `200` body schema - it streams `text/csv` / `application/json`
  * as a raw `Response`, which a content-typed response would forbid.
  */
 
@@ -13,7 +13,7 @@ import { z } from "@hono/zod-openapi";
 
 // --- params -----------------------------------------------------------------
 
-/** `:id` path param — a `frm_…` form id (validated as a FormId in-handler). */
+/** `:id` path param - a `frm_…` form id (validated as a FormId in-handler). */
 export const FormIdParam = z.object({
   id: z.string().openapi({ param: { name: "id", in: "path" }, example: "frm_intake" }),
 });
@@ -101,7 +101,7 @@ export const ListErasuresQuery = z.object({
 
 // --- request bodies ---------------------------------------------------------
 
-/** `POST /admin/sessions/:sessionId/erase` — the erasure reason (audit). */
+/** `POST /admin/sessions/:sessionId/erase` - the erasure reason (audit). */
 export const EraseBody = z
   .object({ reason: z.string().min(1).openapi({ example: "subject_request" }) })
   .openapi("EraseBody");
@@ -142,7 +142,7 @@ export const LedgerEntry = z
   })
   .openapi("LedgerEntry");
 
-/** `GET /admin/forms/:id/responses/:sessionId` — full detail + audit ledger. */
+/** `GET /admin/forms/:id/responses/:sessionId` - full detail + audit ledger. */
 export const ResponseDetailResponse = z
   .object({
     sessionId: z.string().openapi({ example: "ses_abc123" }),
@@ -155,7 +155,7 @@ export const ResponseDetailResponse = z
     contentHash: z.string().openapi({ example: "a1b2c3…" }),
     /** The locked answers keyed by questionId (canonical encodings). */
     answers: z.record(z.string(), z.unknown()),
-    /** The append-only answer ledger, oldest first — the audit history. */
+    /** The append-only answer ledger, oldest first - the audit history. */
     ledger: z.array(LedgerEntry),
   })
   .openapi("ResponseDetailResponse");
@@ -175,7 +175,7 @@ export const ErasuresResponse = z
   .object({ erasures: z.array(TombstoneItem) })
   .openapi("ErasuresResponse");
 
-/** `POST /admin/sessions/:sessionId/erase` — the resulting tombstone (idempotent). */
+/** `POST /admin/sessions/:sessionId/erase` - the resulting tombstone (idempotent). */
 export const EraseResponse = z
   .object({
     sessionId: z.string().openapi({ example: "ses_abc123" }),
@@ -188,7 +188,7 @@ export const EraseResponse = z
   })
   .openapi("EraseResponse");
 
-/** `POST /admin/responses/:sessionId/unflag` — whether a withheld response was released. */
+/** `POST /admin/responses/:sessionId/unflag` - whether a withheld response was released. */
 export const UnflagResponse = z
   .object({
     sessionId: z.string().openapi({ example: "ses_abc123" }),

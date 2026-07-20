@@ -1,12 +1,12 @@
 /**
- * Scenario 5 — the failure tour (task 027, exit criterion 1).
+ * Scenario 5 - the failure tour (task 027, exit criterion 1).
  *
  * Every guard surfaces a *typed* code through the shared error envelope, end to
  * end over HTTP: a publish with a backward rule (422 PUBLISH_REJECTED), an
  * out-of-range answer (422 INVALID_ANSWER), an expired link (403 LINK_EXPIRED), a
  * consumed one-time link (409 LINK_CONSUMED), and an answer to an
  * already-submitted session (409 SESSION_SUBMITTED). The suite proves the API
- * fails in the contracted, machine-readable way — not just that it fails.
+ * fails in the contracted, machine-readable way - not just that it fails.
  */
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -54,7 +54,7 @@ function shortText(id: string, label: string): Record<string, unknown> {
 describe("scenario 5: failure tour (typed codes through the envelope)", () => {
   it("publish with a backward rule target → 422 PUBLISH_REJECTED", async () => {
     // Two published questions; a rule that reads a later question and shows an
-    // earlier one is a backward target (ADR-16) — valid to draft, rejected to publish.
+    // earlier one is a backward target (ADR-16) - valid to draft, rejected to publish.
     for (const [id, label] of [
       ["q_bw_a", "A"],
       ["q_bw_b", "B"],

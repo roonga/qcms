@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 // Import-surface guard (exit criterion 5, ADR-22): the shipped renderer bundle
-// — the qcms code AND the vendored a2-react-aria sources — imports ONLY the
+// - the qcms code AND the vendored a2-react-aria sources - imports ONLY the
 // a2ra stack. No second component library, ever. Test files are exempt (they
 // legitimately use @qcms/core, testing-library, axe, node); everything else is
 // scanned. This is the exhaustive allow-list; the eslint rule is the fast fence.
@@ -76,7 +76,7 @@ describe("@qcms/ui import surface (ADR-22)", () => {
     expect(files.length).toBeGreaterThan(20);
   });
 
-  it("imports only the a2-react-aria stack — no other component library", () => {
+  it("imports only the a2-react-aria stack - no other component library", () => {
     const offenders: Array<{ file: string; spec: string }> = [];
     for (const file of files) {
       for (const spec of bareSpecifiers(readFileSync(file, "utf8"))) {

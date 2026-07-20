@@ -13,18 +13,18 @@ import { validateAnswer, ValidationError } from "./validate-answer.js";
  * The submission lock (task 009, DOMAIN_SCHEMA §4.3, ADR-07, invariants
  * I6/I9). `prepareSubmission` is the audit boundary: it evaluates the flow
  * (task 006), sweeps every **visible required** question for a valid answer
- * (I9), excludes hidden questions' answers from the locked set (I6 — they
+ * (I9), excludes hidden questions' answers from the locked set (I6 - they
  * remain in the append-only ledger, never in the submission), and seals the
  * result under a content hash.
  *
- * Pure over its inputs (R3 — the caller loads the snapshot and the
- * latest-per-question answers) and fetch-pure (R4 — hashing uses WebCrypto
+ * Pure over its inputs (R3 - the caller loads the snapshot and the
+ * latest-per-question answers) and fetch-pure (R4 - hashing uses WebCrypto
  * `crypto.subtle`, hence the async signature; no Node-only APIs).
  *
  * ## contentHash canonicalization (the documented contract)
  *
  * `contentHash` is the lowercase-hex SHA-256 of the UTF-8 bytes of
- * `canonicalJson({ answers, flowState })` — the LockedSubmission minus the
+ * `canonicalJson({ answers, flowState })` - the LockedSubmission minus the
  * hash itself, so any holder can re-derive and verify it. `canonicalJson` is
  * JSON with one degree of freedom removed:
  *
@@ -32,7 +32,7 @@ import { validateAnswer, ValidationError } from "./validate-answer.js";
  *   depth; keys whose value is `undefined` are omitted (as in JSON.stringify);
  * - arrays keep their order (order is meaning: `answers` is document order,
  *   multiChoice selections are canonical first-occurrence order);
- * - strings/numbers/booleans/null serialize exactly as `JSON.stringify` —
+ * - strings/numbers/booleans/null serialize exactly as `JSON.stringify` -
  *   deterministic across platforms and Node versions because ECMAScript fully
  *   specifies Number::toString (shortest round-trip form) and string escaping;
  * - no whitespace.
@@ -42,7 +42,7 @@ import { validateAnswer, ValidationError } from "./validate-answer.js";
  * input key order or non-canonical spellings.
  */
 
-/** Codes for the submission sweep — the closed contract the submit slice
+/** Codes for the submission sweep - the closed contract the submit slice
  * (020) returns to the portal. */
 export const SubmissionErrorCode = z.enum([
   "MISSING_REQUIRED",
@@ -58,7 +58,7 @@ const message = z.string().min(1);
  * One submission failure. Reported complete (all errors, never first-only),
  * in document order for visible questions, then `UNKNOWN_QUESTION` entries
  * sorted by questionId (unknown ids have no document position). Messages name
- * ids only — never answer values (SECURITY_DESIGN).
+ * ids only - never answer values (SECURITY_DESIGN).
  */
 export const SubmissionError = z.discriminatedUnion("code", [
   // A visible required question with no answer (I9).
@@ -71,7 +71,7 @@ export const SubmissionError = z.discriminatedUnion("code", [
     questionId: QuestionId,
     errors: z.array(ValidationError).min(1),
   }),
-  // An answer for a questionId not pinned in the form at all — defense
+  // An answer for a questionId not pinned in the form at all - defense
   // against ledger drift.
   z.object({ code: z.literal("UNKNOWN_QUESTION"), message, questionId: QuestionId }),
   // The flow evaluation itself failed (unreachable on a compileDraft
@@ -88,8 +88,8 @@ export const LockedAnswer = z.object({
 export type LockedAnswer = z.infer<typeof LockedAnswer>;
 
 /**
- * What submit locks (§4.3): the canonical answer set in document order —
- * visible questions only (I6), values in canonical encoding — the flow state
+ * What submit locks (§4.3): the canonical answer set in document order -
+ * visible questions only (I6), values in canonical encoding - the flow state
  * it was validated under, and the content hash sealing both (canonicalization
  * documented in the module doc above).
  */
@@ -141,7 +141,7 @@ export async function computeContentHash(content: unknown): Promise<string> {
  * 3. Every visible required question must have an answer
  *    (`MISSING_REQUIRED`); every present answer for a *visible* question is
  *    re-validated with `validateAnswer` (`INVALID_ANSWER`).
- * 4. Hidden questions' answers are excluded from the locked set (I6) —
+ * 4. Hidden questions' answers are excluded from the locked set (I6) -
  *    they are not validated either; an orphaned answer never blocks submit.
  *
  * Errors are complete (all of them, never first-only). On success the

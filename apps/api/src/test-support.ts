@@ -1,6 +1,6 @@
 /**
  * Test-only fixtures (task 017). Excluded from the published build
- * (`tsconfig.build.json`) — never shipped, never imported by runtime code.
+ * (`tsconfig.build.json`) - never shipped, never imported by runtime code.
  *
  * Secrets here are **synthetic, generated in-test** (SEC: no real secret ever
  * enters a fixture). `synthSecret()` returns fresh random base64url material at

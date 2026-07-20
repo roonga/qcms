@@ -1,19 +1,19 @@
 /**
  * Admin form-authoring + publish slice tests (task 022), driven through
  * `app.request()` against the **real** kernel, the real A2UI compiler, and the
- * 013 Testcontainers harness DB — never a mock of our own packages
+ * 013 Testcontainers harness DB - never a mock of our own packages
  * (CONTRIBUTING). Requires Docker.
  *
  * Covers every exit criterion:
  *  1. the full loop (create → draft → publish → seeded new draft → publish v2)
  *     with a v1-pinned session left unaffected (R1, I4);
- *  2. publish failure — a backward rule target → 422 `RULE_BACKWARD_TARGET`
+ *  2. publish failure - a backward rule target → 422 `RULE_BACKWARD_TARGET`
  *     with its path, and nothing persisted (no version, draft intact, no event);
- *  3. deprecated-pin — a moved pin to a deprecated version rejected
+ *  3. deprecated-pin - a moved pin to a deprecated version rejected
  *     (`DEPRECATED_PIN`), a carried-over (unchanged) pin allowed;
- *  4. snapshot integrity — the stored compiled JSONB deep-equals a fresh
+ *  4. snapshot integrity - the stored compiled JSONB deep-equals a fresh
  *     `compileForm` of the publish-time snapshot, with all version stamps;
- *  5. atomicity — an induced failure between the version insert and the draft
+ *  5. atomicity - an induced failure between the version insert and the draft
  *     delete rolls the whole publish back (no version, draft intact, no event).
  */
 
@@ -107,8 +107,8 @@ function shortText(id: string, labelText = "Field"): Record<string, unknown> {
 /**
  * Seed a published question (version 1) straight through the db helpers. The
  * definition is parsed through the kernel first (as the authoring route would),
- * so schema defaults — e.g. shortText's `constraints` (`.prefault({})`) the A2UI
- * compiler reads — are applied exactly as a real published version carries them.
+ * so schema defaults - e.g. shortText's `constraints` (`.prefault({})`) the A2UI
+ * compiler reads - are applied exactly as a real published version carries them.
  */
 async function seedPublishedQuestion(id: string, labelText = "Field"): Promise<void> {
   const questionId = QuestionId.parse(id);
@@ -174,7 +174,7 @@ describe("full authoring loop (exit criterion 1)", () => {
     expect(created.formId).toBe("frm_loop");
     expect(created.status).toBe("open");
 
-    // draft (valid, single question) — advisory issues empty
+    // draft (valid, single question) - advisory issues empty
     const v1Def = formDefinition("frm_loop", [["stp_one", ["q_loop_name"]]]);
     const draftRes = await put("/forms/frm_loop/draft", { definition: v1Def });
     expect(draftRes.status).toBe(200);
@@ -291,7 +291,7 @@ describe("deprecated-pin gate (exit criterion 3)", () => {
     expect((await put("/forms/frm_dep/draft", { definition: v1Def })).status).toBe(200);
     expect((await post("/forms/frm_dep/publish")).status).toBe(200);
 
-    // now deprecate q_dep@1 — no longer a valid target for *new* pins
+    // now deprecate q_dep@1 - no longer a valid target for *new* pins
     await deprecateQuestionVersion(testDb.db, {
       questionId: QuestionId.parse("q_dep"),
       version: 1,
@@ -367,7 +367,7 @@ describe("stored compiled deep-equals a fresh compile (exit criterion 4)", () =>
     };
 
     // Independently rebuild the fresh compile: compileDraft over the same pinned
-    // records, then compileForm — the exact path publish took at publish time.
+    // records, then compileForm - the exact path publish took at publish time.
     const records: QuestionVersionRecord[] = [];
     for (const [id] of [["q_snap_a"], ["q_snap_b"]] as [string][]) {
       const rows = await listQuestionVersions(testDb.db, QuestionId.parse(id));
@@ -414,7 +414,7 @@ describe("publish is all-or-nothing (exit criterion 5)", () => {
     const def = formDefinition("frm_atom", [["stp_one", ["q_atom"]]]);
     expect((await put("/forms/frm_atom/draft", { definition: def })).status).toBe(200);
 
-    // Induce a real failure on the draft DELETE — which runs *after* the version
+    // Induce a real failure on the draft DELETE - which runs *after* the version
     // insert inside the same transaction (the fault-trigger technique 020 uses).
     await testDb.client.query(
       `create function __fail_draft_delete() returns trigger as $$

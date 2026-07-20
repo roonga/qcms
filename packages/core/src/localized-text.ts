@@ -39,7 +39,7 @@ export function isLocalizedText(value: unknown): value is LocalizedText {
 
 /**
  * Resolve a display string: exact locale → default locale → typed error.
- * No language-only fallback (`en-AU` does not fall back to `en`) — the launch
+ * No language-only fallback (`en-AU` does not fall back to `en`) - the launch
  * subset keeps resolution deterministic and dumb by design.
  */
 export function resolveText(

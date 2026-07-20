@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { ConfigError, loadConfig, MIN_SECRET_LENGTH } from "./config.js";
 import { synthSecret, validEnv } from "./test-support.js";
 
-describe("loadConfig — presence and shape (SEC-7, SEC-8)", () => {
+describe("loadConfig - presence and shape (SEC-7, SEC-8)", () => {
   it("accepts a complete environment and parses mount + keys + flags", () => {
     const config = loadConfig(validEnv({ QCMS_MOUNT: "public,internal" }));
     expect(config.mount).toEqual({ public: true, internal: true, admin: false });
@@ -70,7 +70,7 @@ describe("loadConfig — presence and shape (SEC-7, SEC-8)", () => {
 });
 
 // Task 024: portal base URL + webhook SSRF override.
-describe("loadConfig — portal base URL and webhook targets (task 024)", () => {
+describe("loadConfig - portal base URL and webhook targets (task 024)", () => {
   it("parses the portal base URL and defaults the SSRF override to false", () => {
     const config = loadConfig(validEnv());
     expect(config.portalBaseUrl).toBe("https://forms.example.test");
@@ -116,7 +116,7 @@ describe("loadConfig — portal base URL and webhook targets (task 024)", () => 
 });
 
 // Exit criterion 6 (second half): config-failure output contains no secret values.
-describe("SEC-8 redaction — errors never echo secret values", () => {
+describe("SEC-8 redaction - errors never echo secret values", () => {
   it("names the offending var but never prints any secret value", () => {
     const secrets = {
       QCMS_LINK_KEYS: synthSecret(),

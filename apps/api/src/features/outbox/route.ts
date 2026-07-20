@@ -1,5 +1,5 @@
 /**
- * Route definitions for the outbox delivery-operations admin slices (task 025) —
+ * Route definitions for the outbox delivery-operations admin slices (task 025) -
  * the operator surface for webhook dead-letters: inspect and manually redeliver.
  * 035 renders this.
  *

@@ -67,7 +67,7 @@ function expectErrors(
   }
 }
 
-describe("validateAnswer — shortText", () => {
+describe("validateAnswer - shortText", () => {
   const constrained = question("shortText", {
     minLength: 3,
     maxLength: 5,
@@ -88,7 +88,7 @@ describe("validateAnswer — shortText", () => {
   });
 
   it("counts length in UTF-16 code units of the NFC form", () => {
-    // NFD é is 2 code units, NFC é is 1 — the canonical form is measured.
+    // NFD é is 2 code units, NFC é is 1 - the canonical form is measured.
     const decomposed = "ééé"; // three NFD e-acutes: 6 units raw, 3 canonical
     expectErrors(errorsOf(question("shortText", { minLength: 4, pattern: "^.+$" }), decomposed), [
       ["LENGTH_BELOW_MIN", "minLength"],
@@ -140,7 +140,7 @@ describe("validateAnswer — shortText", () => {
   });
 });
 
-describe("validateAnswer — longText", () => {
+describe("validateAnswer - longText", () => {
   const constrained = question("longText", { maxLength: 10 });
 
   it("accepts within bounds and normalizes to NFC", () => {
@@ -156,7 +156,7 @@ describe("validateAnswer — longText", () => {
   });
 });
 
-describe("validateAnswer — number", () => {
+describe("validateAnswer - number", () => {
   const constrained = question("number", { min: 0, max: 100, integer: true });
 
   it("accepts a conforming value", () => {
@@ -204,7 +204,7 @@ describe("validateAnswer — number", () => {
   });
 });
 
-describe("validateAnswer — date", () => {
+describe("validateAnswer - date", () => {
   const constrained = question("date", { min: "2000-01-01", max: "2020-12-31" });
 
   it("accepts a conforming canonical date", () => {
@@ -231,7 +231,7 @@ describe("validateAnswer — date", () => {
   });
 });
 
-describe("validateAnswer — boolean", () => {
+describe("validateAnswer - boolean", () => {
   it("accepts both values", () => {
     expect(valueOf(question("boolean"), true)).toBe(true);
     expect(valueOf(question("boolean"), false)).toBe(false);
@@ -243,7 +243,7 @@ describe("validateAnswer — boolean", () => {
   });
 });
 
-describe("validateAnswer — singleChoice", () => {
+describe("validateAnswer - singleChoice", () => {
   const choice = question("singleChoice", undefined, OPTIONS);
 
   it("accepts a declared option", () => {
@@ -262,7 +262,7 @@ describe("validateAnswer — singleChoice", () => {
   });
 });
 
-describe("validateAnswer — multiChoice", () => {
+describe("validateAnswer - multiChoice", () => {
   const choice = question("multiChoice", { minSelected: 1, maxSelected: 2 }, OPTIONS);
 
   it("accepts a conforming selection, deduplicated preserving order", () => {
@@ -289,7 +289,7 @@ describe("validateAnswer — multiChoice", () => {
   });
 
   it("selection counts apply to the deduplicated canonical selection", () => {
-    // Three raw entries, two distinct — within maxSelected 2.
+    // Three raw entries, two distinct - within maxSelected 2.
     expect(valueOf(choice, ["opt_a", "opt_a", "opt_b"])).toEqual(["opt_a", "opt_b"]);
   });
 

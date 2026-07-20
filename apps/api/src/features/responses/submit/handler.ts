@@ -1,9 +1,9 @@
 /**
- * Submit handler (task 020) — the audit boundary.
+ * Submit handler (task 020) - the audit boundary.
  *
  * `POST /sessions/{id}/submit` validates every visible-required answer through
  * the kernel (`prepareSubmission`, 009), locks the answer set under a content
- * hash, and — in **one transaction** — persists the lock, flips the session to
+ * hash, and - in **one transaction** - persists the lock, flips the session to
  * `submitted`, and writes the `response.submitted` outbox event. The single
  * transaction is the whole point (ARCHITECTURE §11 egress reliability): an
  * integration can never observe a submission that isn't durable, and a durable
@@ -25,7 +25,7 @@
  *   append-only ledger but never cross into the submission.
  * - **Silent anti-abuse flag**: a honeypot-filled or too-fast submit returns the
  *   *same* success-shaped receipt as a clean one while flagging the row and
- *   withholding its outbox event — the tell never leaks to the caller.
+ *   withholding its outbox event - the tell never leaks to the caller.
  */
 
 import type { RouteHandler } from "@hono/zod-openapi";
@@ -82,7 +82,7 @@ const fail = {
 
 // @qcms/db's row types for its enum-bearing tables (`sessions`,
 // `question_versions`) resolve to a TypeScript *error* type when consumed
-// through the package's emitted `.d.ts` — a drizzle `$inferSelect` +
+// through the package's emitted `.d.ts` - a drizzle `$inferSelect` +
 // `PgEnumColumn` interaction that `skipLibCheck` hides from `tsc` but typed-lint
 // surfaces as unsafe (issue #5). The enum-free `form_versions` and `submissions`
 // rows are unaffected. Reading the enum-bearing rows through a narrow local view
@@ -109,7 +109,7 @@ interface FormAbuseView {
  * The pinned snapshot for a submission, shaped as the kernel's `FrozenSnapshot`
  * so `prepareSubmission` re-validates against the exact frozen definitions the
  * session is pinned to (I1/I4). Reconstructed from the `form_versions` row plus
- * each pinned `question_versions` row — a missing row is an internal
+ * each pinned `question_versions` row - a missing row is an internal
  * inconsistency in a *published* snapshot (I2), not client input, so it throws.
  */
 async function loadFrozenSnapshot(deps: Deps, session: SessionView): Promise<FrozenSnapshot> {
@@ -168,7 +168,7 @@ function receiptFrom(row: { submittedAt: Date; contentHash: string }): SubmitRes
  * Anti-abuse hooks (finalized in 026). Both are **silent**: a triggered signal
  * returns a {@link FlagReason} that flags the submission and withholds its
  * webhook event, while the response stays the usual success shape (the tell
- * never leaks — SECURITY). `minTimeFloorMs` is the *effective* floor for this
+ * never leaks - SECURITY). `minTimeFloorMs` is the *effective* floor for this
  * form (the per-form `min_submit_ms` override, else the config default); `0`
  * disables the min-time check. Returns the reason, or `undefined` when clean.
  */
@@ -229,7 +229,7 @@ export function makeSubmitHandler(deps: Deps): RouteHandler<typeof submitRoute, 
     if (session === undefined) throw fail.sessionNotFound();
 
     // Already submitted → idempotent: return the *existing* receipt unchanged
-    // (one submission, one outbox row — nothing re-runs).
+    // (one submission, one outbox row - nothing re-runs).
     if (session.status === "submitted") {
       const existing = await getSubmission(deps.db, sessionId);
       if (existing === undefined) {
@@ -297,7 +297,7 @@ export function makeSubmitHandler(deps: Deps): RouteHandler<typeof submitRoute, 
       // A flagged submission is withheld from webhooks (documented choice,
       // revisited in 035; released by the admin unflag, 023): its outbox event
       // is not enqueued. A clean submission emits `response.submitted` in this
-      // same transaction — durable with the lock, never lost (§11).
+      // same transaction - durable with the lock, never lost (§11).
       if (flaggedReason === undefined) {
         await enqueue(tx, {
           eventType: RESPONSE_SUBMITTED,
@@ -307,7 +307,7 @@ export function makeSubmitHandler(deps: Deps): RouteHandler<typeof submitRoute, 
             formVersion: session.formVersion,
             submittedAt: now.toISOString(),
             contentHash: locked.contentHash,
-            // Locked (hidden-excluded, I6) answers — never the raw ledger.
+            // Locked (hidden-excluded, I6) answers - never the raw ledger.
             answers: locked.answers,
           },
         });

@@ -9,7 +9,7 @@ import type { Executor } from "./executor.js";
 export type AnswerRow = typeof answers.$inferSelect;
 
 /**
- * Append one answer to the ledger. INSERT only — the ledger is append-only
+ * Append one answer to the ledger. INSERT only - the ledger is append-only
  * (I5, R3); there is no update path here and a `BEFORE UPDATE` trigger rejects
  * UPDATE at the database level as a backstop. `answeredAt` may be supplied to
  * control ordering (tests, backfills); it defaults to `now()`.
@@ -38,7 +38,7 @@ export async function appendAnswer(
 /**
  * The current answer for every question in a session: the latest row per
  * `questionId` by `answeredAt` (I5). `DISTINCT ON (question_id)` with a
- * `answered_at DESC, id DESC` ordering picks exactly one row per question — the
+ * `answered_at DESC, id DESC` ordering picks exactly one row per question - the
  * `id` tiebreaker keeps the choice deterministic when two rows share a
  * timestamp. Returns an `AnswerMap` (`ReadonlyMap<QuestionId, AnswerValue>`),
  * the shape the kernel's evaluator consumes.
@@ -56,7 +56,7 @@ export async function latestAnswers(exec: Executor, sessionId: SessionId): Promi
 }
 
 /**
- * The full answer history for a session, oldest first — for audit and export.
+ * The full answer history for a session, oldest first - for audit and export.
  * Every revision is preserved (the ledger is append-only); use `latestAnswers`
  * for the current value per question.
  */

@@ -1,8 +1,8 @@
 /**
  * Webhook-secret encryption at rest (task 024, SEC-6/SEC-8).
  *
- * The per-webhook signing secret must be **recoverable** — 025 decrypts it to
- * compute each delivery's `X-QCMS-Signature` HMAC — so it is *encrypted*, never
+ * The per-webhook signing secret must be **recoverable** - 025 decrypts it to
+ * compute each delivery's `X-QCMS-Signature` HMAC - so it is *encrypted*, never
  * hashed. Encryption is AES-256-GCM under a key derived from `QCMS_APP_KEY`,
  * using WebCrypto only (R4: `crypto.subtle`, never `node:crypto`), so it runs
  * identically in Node and edge runtimes.
@@ -10,7 +10,7 @@
  * Key derivation: `QCMS_APP_KEY` is validated at boot as ≥32 characters, but its
  * byte length is not fixed, whereas AES-256 needs exactly 32 bytes. We derive a
  * stable 32-byte key with SHA-256 over the app-key UTF-8 bytes. This is a
- * deterministic single-key derivation (no per-secret salt) — acceptable here
+ * deterministic single-key derivation (no per-secret salt) - acceptable here
  * because AES-GCM's per-encryption random IV already guarantees distinct
  * ciphertexts for identical plaintexts, and the threat model is at-rest DB
  * disclosure, not offline key-stretching of a low-entropy password (the app key
@@ -76,7 +76,7 @@ export class WebhookSecretDecryptError extends Error {
 /**
  * Decrypt a stored webhook secret back to plaintext (for 025's delivery
  * signing). Throws {@link WebhookSecretDecryptError} on a malformed envelope or
- * a failed GCM authentication (wrong app key, or tampered ciphertext) — the
+ * a failed GCM authentication (wrong app key, or tampered ciphertext) - the
  * error message never contains key or secret material (SEC-8).
  */
 export async function decryptWebhookSecret(stored: string, appKey: string): Promise<string> {

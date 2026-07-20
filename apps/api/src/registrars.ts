@@ -2,13 +2,13 @@
  * The canonical slice-registrar buckets (task 027; the composition-root seam).
  *
  * `serve.ts` (the process entry) and the derived artifacts that must reflect the
- * *exact same* mounted surface — the 027 end-to-end suite and the generated
- * OpenAPI documents — all read the route groups from here, so there is one
+ * *exact same* mounted surface - the 027 end-to-end suite and the generated
+ * OpenAPI documents - all read the route groups from here, so there is one
  * source of truth for "what the API mounts". Adding a slice to a bucket here
  * makes it appear in the running server, the e2e composition, and the OpenAPI
  * document in lockstep; nothing can silently drift.
  *
- * This module registers *no* routes and reads *no* environment — it is a static
+ * This module registers *no* routes and reads *no* environment - it is a static
  * list of the `SliceRegistrar`s per surface. `createApp(deps, flags, { groups })`
  * is what actually mounts them for a given process shape.
  */

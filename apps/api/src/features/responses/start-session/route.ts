@@ -8,8 +8,8 @@
  * document and enforces nothing at launch.
  *
  * Both routes live on the **public** (respondent-facing) surface. That surface
- * still sits behind the internal service-token guard (SEC-4) — only the portal
- * BFF calls the API — while the per-session credential is the session token the
+ * still sits behind the internal service-token guard (SEC-4) - only the portal
+ * BFF calls the API - while the per-session credential is the session token the
  * `GET` route verifies.
  */
 

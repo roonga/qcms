@@ -23,7 +23,7 @@ import { parseWithCode } from "./internal/parse.js";
 
 /**
  * shortText / longText: NFC-normalized string. Non-NFC input is normalized on
- * parse, never rejected — equality and storage always see one byte form.
+ * parse, never rejected - equality and storage always see one byte form.
  */
 export const TextAnswerValue = z.string().transform((value) => value.normalize("NFC"));
 export type TextAnswerValue = z.infer<typeof TextAnswerValue>;
@@ -56,7 +56,7 @@ function isRealCalendarDate(iso: string): boolean {
 
 /**
  * date: timezone-less ISO `YYYY-MM-DD`, validated as a real calendar date.
- * No time, no offset — respondent-local dates by design. Ordering over this
+ * No time, no offset - respondent-local dates by design. Ordering over this
  * encoding is lexicographic, which is correct for fixed-width ISO dates.
  */
 export const DateAnswerValue = z
@@ -82,10 +82,10 @@ export const MultiChoiceAnswerValue = z.array(OptionId).transform((ids) => [...n
 export type MultiChoiceAnswerValue = z.infer<typeof MultiChoiceAnswerValue>;
 
 /**
- * The union of canonical encodings. Untagged by design — the wire/storage form
+ * The union of canonical encodings. Untagged by design - the wire/storage form
  * is the raw JSON value; pairing a value with its question type is the job of
  * `validateAnswer` (task 009). Date and singleChoice values are strings and
- * thus indistinguishable from text without the question — that is expected.
+ * thus indistinguishable from text without the question - that is expected.
  */
 export const AnswerValue = z.union([
   TextAnswerValue,

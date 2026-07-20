@@ -9,19 +9,19 @@ import { webhooks } from "./webhooks.js";
  *
  * The `outbox` row is a single domain event; a `response.submitted` event fans
  * out to every `active` webhook a form has. Each fan-out target needs its **own**
- * independent retry/backoff/dead-letter state — one webhook failing must not stall
- * or dead-letter the others — so the unit of *delivery* is this row, not the
+ * independent retry/backoff/dead-letter state - one webhook failing must not stall
+ * or dead-letter the others - so the unit of *delivery* is this row, not the
  * outbox row. The deliverer's two-phase pass:
  *
- *  1. **materialize** — claim a due outbox event (`FOR UPDATE SKIP LOCKED`),
+ *  1. **materialize** - claim a due outbox event (`FOR UPDATE SKIP LOCKED`),
  *     insert one `webhook_deliveries` row per active webhook (idempotent via the
  *     `(outbox_id, webhook_id)` unique key), then mark the outbox row consumed.
- *  2. **deliver** — claim a due, live delivery row (`FOR UPDATE SKIP LOCKED`),
+ *  2. **deliver** - claim a due, live delivery row (`FOR UPDATE SKIP LOCKED`),
  *     POST the signed request, and record the outcome on *this* row.
  *
  * The lifecycle columns mirror `outbox` deliberately (attempts / next_attempt_at
  * / delivered_at / dead_lettered_at / last_error) and share the same backoff math
- * (`computeBackoff`), so the derived status — pending, delivered, dead-lettered —
+ * (`computeBackoff`), so the derived status - pending, delivered, dead-lettered -
  * is a function of the timestamps, never a redundant stored enum that could drift.
  * At-least-once, never best-effort (a crash between POST and `delivered_at` rolls
  * back and the row is redelivered).

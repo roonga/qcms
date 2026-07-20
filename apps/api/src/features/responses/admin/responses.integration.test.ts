@@ -1,14 +1,14 @@
 /**
  * Response listing / export / erasure slice tests (task 023), driven through
  * `app.request()` against the **real** kernel and the 013 Testcontainers harness
- * DB — never a mock of our own packages (CONTRIBUTING). Requires Docker.
+ * DB - never a mock of our own packages (CONTRIBUTING). Requires Docker.
  *
  * Covers every exit criterion:
  *  1. list / detail / filter over seeded fixtures, with erased sessions absent;
- *  2. CSV — a byte-for-byte golden export for the insurance fixture (BOM,
+ *  2. CSV - a byte-for-byte golden export for the insurance fixture (BOM,
  *     RFC 4180 quoting, multiChoice `a;b;c`, document-order columns); JSON
  *     round-trips canonical values;
- *  3. streaming — a 10k-response CSV export completes without buffering the whole
+ *  3. streaming - a 10k-response CSV export completes without buffering the whole
  *     table (delivered in bounded chunks, no chunk near the document size);
  *  4. erase → list/detail/export exclude the session, the tombstone is listed,
  *     and unflag releases the withheld `response.submitted` outbox event.
@@ -315,7 +315,7 @@ describe("CSV golden export + JSON round-trip (exit criterion 2)", () => {
       'ses_ins_001,1,2026-03-15T09:00:00.000Z,anonymous,"Doe, Jane",34,false,opt_gold,opt_diabetes;opt_asthma\r\n' +
       "ses_ins_002,1,2026-03-15T09:00:00.000Z,anonymous,Ada,29,true,opt_silver,\r\n";
     expect(text).toBe(expected);
-    // The BOM is the first three bytes (EF BB BF) — present, exactly once.
+    // The BOM is the first three bytes (EF BB BF) - present, exactly once.
     expect([bytes[0], bytes[1], bytes[2]]).toEqual([0xef, 0xbb, 0xbf]);
   });
 
@@ -360,7 +360,7 @@ describe("large export streams without buffering the whole table (exit criterion
     await seedForm("frm_bulk", [["stp_a", ["q_t"]]]);
 
     // Bulk-seed 10k submitted sessions + submissions via generate_series (one
-    // statement each) — far faster than 30k helper calls, and enough to prove
+    // statement each) - far faster than 30k helper calls, and enough to prove
     // the export never materializes the whole table in memory.
     await testDb.client.query(
       `insert into sessions (session_id, form_id, form_version, access_mode, status, expires_at, created_at)

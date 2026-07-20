@@ -25,8 +25,8 @@ interface StepResolver {
 }
 ```
 
-`compileForm` owns the whole-form concerns — locale resolution, pin-to-question
-resolution, per-step context assembly, and the version stamps — and delegates
+`compileForm` owns the whole-form concerns - locale resolution, pin-to-question
+resolution, per-step context assembly, and the version stamps - and delegates
 the **projection of one step to one document** to a `StepResolver`. A resolver
 does no I/O and no lookups of its own; everything it needs is passed in through
 the context (the kernel's R3 discipline, applied to the compiler).
@@ -52,7 +52,7 @@ The default resolver is a deterministic projection of the pinned domain model
 `StepResolver` and every step routes through it. Two intended substitutes:
 
 1. **A Phase-4 adaptive/agent resolver** (out of scope now, R7). It would
-   implement `resolveStep` to branch on prior answers — producing documents that
+   implement `resolveStep` to branch on prior answers - producing documents that
    respond to what a respondent has already entered. Note the seam is
    **authoring/compile-time**: agents assist authoring only (ADR-25); the
    serving path serves the stored document and never sees an LLM (ADR-18). A
@@ -78,7 +78,7 @@ The default resolver is a deterministic projection of the pinned domain model
 - **One document per step, keyed by `stepId`, in form order.** `compileForm`
   drives the iteration; a resolver returns exactly one `A2UIDocument` per call.
 - **Spec conformance.** Every emitted document must validate against the pinned
-  `@a2ra/core` Zod schemas (`a2uiSpecVersion`) — the compiler stamps the version;
+  `@a2ra/core` Zod schemas (`a2uiSpecVersion`) - the compiler stamps the version;
   the renderer keeps backward compatibility with every version ever published,
   enforced by the append-only golden corpus (012, ADR-18).
 - **Determinism** for any non-adaptive resolver: the same snapshot and options

@@ -1,12 +1,12 @@
 /**
  * Admin question-authoring slice tests (task 021), driven through `app.request()`
- * against the **real** kernel and the 013 Testcontainers harness DB — never a
+ * against the **real** kernel and the 013 Testcontainers harness DB - never a
  * mock of our own packages (CONTRIBUTING). Requires Docker.
  *
  * Covers every exit criterion:
  *  1. the version lifecycle walk (create → edit draft → publish → edit rejected
  *     → new version → deprecate) and every invalid transition;
- *  2. R6 — recreate-after-deprecate with the same id is rejected, a new id is fine;
+ *  2. R6 - recreate-after-deprecate with the same id is rejected, a new id is fine;
  *  3. malformed definitions return 422 with the kernel's coded issues and paths;
  *  4. (the auth-seam 401 and public-only 404 are the no-DB `admin-mount.test.ts`).
  */
@@ -119,14 +119,14 @@ describe("version lifecycle walk (exit criterion 1)", () => {
     expect(published.status).toBe("published");
     expect(published.publishedAt).not.toBeNull();
 
-    // edit rejected — published is immutable (before the DB trigger)
+    // edit rejected - published is immutable (before the DB trigger)
     const rejectRes = await put("/questions/q_walk_colour/versions/1", {
       definition: shortText("q_walk_colour", "Sneaky edit"),
     });
     expect(rejectRes.status).toBe(409);
     expect(((await rejectRes.json()) as ErrBody).error.code).toBe("VERSION_IMMUTABLE");
 
-    // new version — seeded from the latest (carries "Best colour")
+    // new version - seeded from the latest (carries "Best colour")
     const newVerRes = await post("/questions/q_walk_colour/versions");
     expect(newVerRes.status).toBe(201);
     const v2 = (await newVerRes.json()) as VersionBody;
@@ -219,7 +219,7 @@ describe("invalid transitions (exit criterion 1)", () => {
 
 // --- exit criterion 2: R6 (ids never reused) --------------------------------
 
-describe("R6 — questionId is never reused (exit criterion 2)", () => {
+describe("R6 - questionId is never reused (exit criterion 2)", () => {
   it("recreating a deprecated question's id is rejected; a fresh id is fine", async () => {
     // create → publish → deprecate the whole lifecycle for q_reuse
     expect(
@@ -323,7 +323,7 @@ describe("malformed definitions → 422 with kernel issues (exit criterion 3)", 
 
 // --- list: status filter + slug/label search --------------------------------
 
-describe("GET /admin/questions — summary, status filter, search", () => {
+describe("GET /admin/questions - summary, status filter, search", () => {
   beforeAll(async () => {
     await post("/questions", {
       slug: "list-apple",

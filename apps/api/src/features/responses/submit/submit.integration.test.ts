@@ -1,6 +1,6 @@
 /**
  * Submit-slice tests (task 020), driven through `app.request()` against the
- * **real** kernel and the 013 Testcontainers harness DB — never a mock of our
+ * **real** kernel and the 013 Testcontainers harness DB - never a mock of our
  * own packages (CONTRIBUTING). Requires Docker.
  *
  * The fixture is the canonical `insurance` form (`@qcms/core` fixtures): one
@@ -9,14 +9,14 @@
  *
  * - `q_smoker = false` → only `q_smoker` visible, flow complete → a valid
  *   submission whose locked set is `[q_smoker]` (the hidden `q_cigs_daily` never
- *   enters the lock, even if stale in the ledger — I6).
+ *   enters the lock, even if stale in the ledger - I6).
  * - `q_smoker = true` with `q_cigs_daily` unanswered → a visible required gap →
  *   the submission sweep fails (422); a *hidden* required question never blocks.
  *
  * Covers every exit criterion: happy path + all-or-nothing under an induced
  * mid-transaction failure (1), idempotency (2), hidden-answer exclusion (3),
  * missing visible-required vs hidden-required (4), and the silent anti-abuse
- * flags — honeypot and too-fast — that succeed but withhold the outbox event (5).
+ * flags - honeypot and too-fast - that succeed but withhold the outbox event (5).
  */
 
 import { readFileSync } from "node:fs";
@@ -418,7 +418,7 @@ describe("silent anti-abuse flags (exit criterion 5)", () => {
     const res = await submit(sessionId, sessionToken, {
       [HONEYPOT_FIELD_NAME]: "http://spam.example",
     });
-    // Same success shape as a clean submission — the tell never leaks.
+    // Same success shape as a clean submission - the tell never leaks.
     expect(res.status).toBe(200);
     const receipt = (await res.json()) as Receipt;
     expect(receipt.contentHash).toMatch(/^[0-9a-f]{64}$/);
@@ -460,7 +460,7 @@ describe("silent anti-abuse flags (exit criterion 5)", () => {
   });
 
   it("a per-form min_submit_ms override flags a below-floor submit (task 026)", async () => {
-    // A form whose own floor (3s) is the authority — no global config floor set,
+    // A form whose own floor (3s) is the authority - no global config floor set,
     // so this proves the per-form override path, not the config default.
     const gatedFormId = FormId.parse("frm_minfloor");
     await createForm(testDb.db, {
@@ -478,7 +478,7 @@ describe("silent anti-abuse flags (exit criterion 5)", () => {
       semanticsVersion: "1",
     });
 
-    // Default app: global antiAbuse.minSubmitMs is 0 (off) — only the form floor bites.
+    // Default app: global antiAbuse.minSubmitMs is 0 (off) - only the form floor bites.
     const started = await startSession("minfloor");
     expect(
       (await postAnswer(started.sessionId, started.sessionToken, "q_smoker", false)).status,

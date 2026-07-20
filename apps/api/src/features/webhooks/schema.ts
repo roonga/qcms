@@ -13,7 +13,7 @@ import { z } from "@hono/zod-openapi";
 
 // --- params -----------------------------------------------------------------
 
-/** `:id` path param — a `frm_…` form id (validated as a FormId in-handler). */
+/** `:id` path param - a `frm_…` form id (validated as a FormId in-handler). */
 export const FormIdParam = z.object({
   id: z.string().openapi({ param: { name: "id", in: "path" }, example: "frm_intake" }),
 });
@@ -28,7 +28,7 @@ export const WebhookParams = z.object({
 
 // --- request bodies ---------------------------------------------------------
 
-/** `POST /admin/forms/:id/webhooks` — configure a webhook. */
+/** `POST /admin/forms/:id/webhooks` - configure a webhook. */
 export const CreateWebhookBody = z
   .object({
     url: z.string().openapi({ example: "https://consumer.example.com/qcms-hook" }),
@@ -38,7 +38,7 @@ export const CreateWebhookBody = z
   })
   .openapi("CreateWebhookBody");
 
-/** `PUT /admin/forms/:id/webhooks/:webhookId` — update url/active, rotate secret. */
+/** `PUT /admin/forms/:id/webhooks/:webhookId` - update url/active, rotate secret. */
 export const UpdateWebhookBody = z
   .object({
     url: z.string().optional().openapi({ example: "https://consumer.example.com/qcms-hook-v2" }),
@@ -52,7 +52,7 @@ export const UpdateWebhookBody = z
 
 // --- responses --------------------------------------------------------------
 
-/** A webhook in a listing/detail — the secret is masked (never included). */
+/** A webhook in a listing/detail - the secret is masked (never included). */
 export const WebhookSummary = z
   .object({
     webhookId: z.string().openapi({ example: "whk_ab12cd34" }),
@@ -73,7 +73,7 @@ export const CreatedWebhookResponse = z
     formId: z.string().openapi({ example: "frm_intake" }),
     url: z.string().openapi({ example: "https://consumer.example.com/qcms-hook" }),
     active: z.boolean().openapi({ example: true }),
-    /** Shown exactly once, here. Store it now — it is masked on every later read. */
+    /** Shown exactly once, here. Store it now - it is masked on every later read. */
     secret: z.string().openapi({ example: "whsec_…" }),
     createdAt: z.string().openapi({ example: "2026-07-20T00:00:00.000Z" }),
   })

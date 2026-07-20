@@ -2,14 +2,14 @@
  * Challenge adapter seam (task 026).
  *
  * A per-form `challengeRequired` setting (domain config on the `forms` row, NOT
- * a deployment flag — ADR-24) can gate `POST /sessions` behind a human-verification
+ * a deployment flag - ADR-24) can gate `POST /sessions` behind a human-verification
  * challenge (e.g. Cloudflare Turnstile). The *provider* is a deployment flag
  * (`QCMS_FLAG_CHALLENGE_PROVIDER`, ADR-24): `none` (the default) ships a null
  * verifier that accepts everything, so a `challengeRequired` form no-ops until
  * an operator wires a real provider.
  *
  * This module is the seam and the null implementation only. The Turnstile
- * verifier itself is shell code delivered with the portal (029) — here it is a
+ * verifier itself is shell code delivered with the portal (029) - here it is a
  * placeholder that fails closed, so an operator who sets the flag to `turnstile`
  * without 029 present blocks challenged forms rather than silently letting bots
  * through. Fetch-pure (R4): a real verifier calls the provider over `fetch`, no
@@ -27,7 +27,7 @@ export interface ChallengeResult {
 /**
  * Verifies a respondent's challenge solution. `token` is the opaque solution the
  * client obtained from the provider widget; `ip` is the client IP (providers
- * bind a solution to the solver's address). Returns `{ ok }` — the caller maps a
+ * bind a solution to the solver's address). Returns `{ ok }` - the caller maps a
  * failure to a rejected start-session; the verifier never throws for a *failed*
  * challenge (only for an infrastructure fault).
  */
@@ -38,7 +38,7 @@ export interface ChallengeVerifier {
 /**
  * The `provider: none` implementation: every challenge passes, including a
  * missing token. This is what makes a `challengeRequired` form a no-op when no
- * provider is configured — the setting is honored structurally (the check runs)
+ * provider is configured - the setting is honored structurally (the check runs)
  * but always succeeds.
  */
 export const nullChallengeVerifier: ChallengeVerifier = {
@@ -48,7 +48,7 @@ export const nullChallengeVerifier: ChallengeVerifier = {
 };
 
 /**
- * Turnstile verifier — **shell only (029)**. Fails closed: until the real
+ * Turnstile verifier - **shell only (029)**. Fails closed: until the real
  * siteverify call lands, a deployment that opts into `turnstile` rejects every
  * challenged start-session rather than accepting unverified traffic. Logs once
  * per call at warn so the misconfiguration is visible.

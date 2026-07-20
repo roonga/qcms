@@ -6,7 +6,7 @@ import type { A2UIStepDocument } from "../A2UIStepRenderer.tsx";
 /**
  * Loads the append-only golden corpus (task 012 `v1/`, task 026 `v2/`) that is
  * this renderer's conformance contract (ADR-18): every golden document, every
- * spec version, must render correctly. The corpus is the single source — the
+ * spec version, must render correctly. The corpus is the single source - the
  * suite never hand-writes step documents (except a tiny Select fixture for the
  * one question type no golden exercises, see round-trip).
  */

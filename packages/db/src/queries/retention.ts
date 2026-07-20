@@ -10,16 +10,16 @@ import { type AccessMode, expireSessions, type SessionRow } from "./sessions.js"
 /**
  * Retention (task 015). Two policy operations over the session lifecycle:
  *
- * - **Sweep** — {@link sweepExpiredSessions}: the default, non-destructive
+ * - **Sweep** - {@link sweepExpiredSessions}: the default, non-destructive
  *   retention limit. Non-terminal sessions past their expiry become `expired`;
  *   the session ledger row (the audit record) is kept. This is the sweep the
- *   API's retention scheduler (017) runs periodically — scheduling itself is
+ *   API's retention scheduler (017) runs periodically - scheduling itself is
  *   the API's job, not this package's.
- * - **Purge** — {@link purgeExpired}: the optional hard-cleanup an adopter opts
+ * - **Purge** - {@link purgeExpired}: the optional hard-cleanup an adopter opts
  *   into for expired sessions that were **never submitted**. It removes the
  *   ledger rows (session + its append-only answers) outright.
  *
- * Erasure (ADR-17, task 016) is a separate door — a per-subject GDPR request
+ * Erasure (ADR-17, task 016) is a separate door - a per-subject GDPR request
  * that hard-deletes content and writes a tombstone. Retention here is the
  * time-based default; erasure is on-request. Neither touches submitted content
  * except through its own explicit path.
@@ -29,7 +29,7 @@ import { type AccessMode, expireSessions, type SessionRow } from "./sessions.js"
  * Default TTL for **anonymous** sessions: 24 hours. An anonymous session with no
  * activity for a day is treated as abandoned and swept to `expired`.
  *
- * `secure_link` sessions have no independent TTL — a session opened from a
+ * `secure_link` sessions have no independent TTL - a session opened from a
  * secure link expires when its link expires (SEC-2: the session never outlives
  * the token that authorized it), so its `expiresAt` is the link's `expiresAt`.
  * See {@link sessionExpiresAt}.
@@ -48,7 +48,7 @@ export const DEFAULT_SESSION_TTL: SessionTtlConfig = {
 };
 
 /**
- * Compute a new session's `expiresAt` from its access mode — the single place
+ * Compute a new session's `expiresAt` from its access mode - the single place
  * the launch TTL policy lives, so the API's start-session slice (017) never
  * hardcodes it:
  *
@@ -90,7 +90,7 @@ export interface SweepResult {
  *
  * Boundary (consistent with the token convention, task 010): a session is valid
  * *strictly before* `expiresAt`; at the exact instant `now === expiresAt` it is
- * already expired. `submitted` sessions are terminal and are never swept —
+ * already expired. `submitted` sessions are terminal and are never swept -
  * submission is an audit boundary the sweep must not cross. Idempotent: a second
  * run over the same clock finds nothing left to expire and returns an empty set.
  */
@@ -115,23 +115,23 @@ export interface PurgeResult {
  * atomically.
  *
  * Scope, by construction:
- * - Only `status = 'expired'` rows — `submitted` sessions are a different status
+ * - Only `status = 'expired'` rows - `submitted` sessions are a different status
  *   and are never touched (their content is the audit record).
  * - An explicit anti-join on `submissions` is belt-and-suspenders: even an
  *   expired session that somehow carried a submission lock is excluded.
  * - Erased sessions (ADR-17) have already had their answers and submission
  *   hard-deleted and a tombstone written; their scrubbed session row is
  *   retained. If such a shell is expired and never-submitted it may be picked up
- *   here — harmless: it holds no content, and the tombstone is independent of the
+ *   here - harmless: it holds no content, and the tombstone is independent of the
  *   session row (no FK), so it survives the purge.
  *
  * Purging answers requires the sanctioned DELETE door (ADR-17): the
  * `answers_reject_delete` trigger rejects any `answers` DELETE unless the
- * transaction-local guard is set, so this — a sanctioned whole-session delete
- * path alongside `eraseSession` — opens it via {@link openAnswerDeleteDoor}
+ * transaction-local guard is set, so this - a sanctioned whole-session delete
+ * path alongside `eraseSession` - opens it via {@link openAnswerDeleteDoor}
  * before deleting.
  *
- * Boundary: strictly-before `olderThan` — a session exactly `olderThan` old is
+ * Boundary: strictly-before `olderThan` - a session exactly `olderThan` old is
  * retained (it is not yet *older than* the horizon). Idempotent: a second run
  * finds no matching rows. Returns the purged session ids (possibly empty).
  */

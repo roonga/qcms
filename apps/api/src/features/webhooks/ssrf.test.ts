@@ -7,7 +7,7 @@ import { checkWebhookUrl } from "./ssrf.js";
  * link-local hosts rejected. The `allowPrivate` override unlocks HTTP + private
  * ranges for on-prem targets.
  */
-describe("checkWebhookUrl — default policy (allowPrivate = false)", () => {
+describe("checkWebhookUrl - default policy (allowPrivate = false)", () => {
   it("accepts a public HTTPS URL", () => {
     expect(checkWebhookUrl("https://hooks.example.com/inbox", false)).toEqual({
       ok: true,
@@ -48,7 +48,7 @@ describe("checkWebhookUrl — default policy (allowPrivate = false)", () => {
   });
 });
 
-describe("checkWebhookUrl — on-prem override (allowPrivate = true)", () => {
+describe("checkWebhookUrl - on-prem override (allowPrivate = true)", () => {
   it("allows private HTTPS hosts", () => {
     expect(checkWebhookUrl("https://10.1.2.3/hook", true).ok).toBe(true);
     expect(checkWebhookUrl("https://localhost:8443/hook", true).ok).toBe(true);

@@ -32,7 +32,7 @@ describe("createIntervalScheduler (exit criterion 5, first half)", () => {
     await s.stop();
   });
 
-  it("start() is idempotent — a second call does not double-schedule", async () => {
+  it("start() is idempotent - a second call does not double-schedule", async () => {
     let runs = 0;
     const s = createIntervalScheduler({
       name: "t",
@@ -146,7 +146,7 @@ describe("createIntervalScheduler (exit criterion 5, first half)", () => {
     });
     s.start();
     await vi.advanceTimersByTimeAsync(124);
-    expect(runs).toBe(0); // not yet — first tick is at 125ms
+    expect(runs).toBe(0); // not yet - first tick is at 125ms
     await vi.advanceTimersByTimeAsync(2);
     expect(runs).toBe(1);
     await s.stop();
