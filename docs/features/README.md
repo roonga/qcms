@@ -40,7 +40,7 @@ Status values: `todo` · `in-progress (branch)` · `blocked (issue #)` · `done 
 | 015 | Reporting view and retention sweep | 5 | done |
 | 016 | Erasure (ADR-17) | 5 | done |
 | 017 | API composition root | 6 | done |
-| 018 | start-session slice | 6 | in-progress (feat/018-start-session-slice) |
+| 018 | start-session slice | 6 | done |
 | 019 | get-step and submit-answer slices | 6 | todo |
 | 020 | submit slice (lock + outbox) | 6 | todo |
 | 021 | Question authoring slices | 6 | todo |

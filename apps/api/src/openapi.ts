@@ -98,7 +98,10 @@ export const PAT_SECURITY_SCHEME = "MachineToken";
  * anything at launch.
  */
 export function withScopes(...scopes: readonly Scope[]): {
-  security: Array<Record<string, readonly Scope[]>>;
+  security: Array<Record<string, Scope[]>>;
 } {
-  return { security: [{ [PAT_SECURITY_SCHEME]: scopes }] };
+  // A mutable copy: `createRoute`'s `security` (OpenAPI `SecurityRequirementObject[]`)
+  // types its scope lists as mutable `string[]`, so a `readonly` array is rejected
+  // where the fragment is spread into a route (018 is the first consumer).
+  return { security: [{ [PAT_SECURITY_SCHEME]: [...scopes] }] };
 }

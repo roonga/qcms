@@ -10,6 +10,18 @@ export type FormRow = typeof forms.$inferSelect;
 export type FormDraftRow = typeof formDrafts.$inferSelect;
 export type FormVersionRow = typeof formVersions.$inferSelect;
 
+/**
+ * Read a form identity by its public `slug`, or `undefined`. The anonymous
+ * start-session path (018) resolves the respondent-supplied slug to a form here
+ * before checking status and picking the newest published version. Shape-
+ * preserving read only (R5); `limit(1)` because a slug addresses at most one
+ * form (uniqueness is an authoring-time concern, not a DB constraint yet).
+ */
+export async function getFormBySlug(exec: Executor, slug: string): Promise<FormRow | undefined> {
+  const [row] = await exec.select().from(forms).where(eq(forms.slug, slug)).limit(1);
+  return row;
+}
+
 /** Create a form identity. Defaults to `open` (accepting new sessions). */
 export async function createForm(
   exec: Executor,
