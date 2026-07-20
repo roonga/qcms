@@ -2,7 +2,7 @@
   "name": "qcms-api",
   "version": "0.0.0",
   "private": true,
-  "description": "qcms API (Hono, vertical slices) (placeholder, task 001)",
+  "description": "qcms API composition root (Hono, vertical slices) — task 017",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -20,6 +20,22 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --root ../.. --project qcms-api",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "start": "node dist/serve.js"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.0.10",
+    "@hono/zod-openapi": "^1.5.1",
+    "@qcms/core": "workspace:*",
+    "@qcms/db": "workspace:*",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.12.31",
+    "pg": "^8.22.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@testcontainers/postgresql": "^12.0.4",
+    "@types/node": "^24.13.3",
+    "@types/pg": "^8.20.0"
   }
 }

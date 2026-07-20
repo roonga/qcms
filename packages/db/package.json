@@ -11,6 +11,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./src/testing/harness.ts",
+      "default": "./src/testing/harness.ts"
     }
   },
   "files": [
