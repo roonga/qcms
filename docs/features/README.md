@@ -59,7 +59,7 @@ Status values: `todo` · `in-progress (branch)` · `blocked (issue #)` · `done 
 | 034 | Admin publish, preview, versions, secure links | 8a | todo |
 | 035 | Admin responses, erasure, webhook operations | 8a | todo |
 | 041 | Agent-assisted form building (flag-gated; off the launch gate — ADR-25) | 8a | todo |
-| 042 | UI wireframes (lo-fi pass; runs after 027, before 029/031–035) | 7 | todo |
+| 042 | UI wireframes (lo-fi pass; runs after 027, before 029/031–035) | 7 | in-progress (feat/042-ui-wireframes — prep done, awaiting Ravi sign-off) |
 | 036 | Production images, compose, ops docs | 8b | todo |
 | 037 | create-qcms-app CLI | 8b | todo |
 | 040 | Security review and hardening (runs after 036, before 038) | 8b | todo |
