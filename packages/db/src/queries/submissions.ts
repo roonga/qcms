@@ -19,6 +19,8 @@ export async function insertSubmission(
     contentHash: string;
     lockedAnswers: LockedSubmission;
     submittedAt?: Date;
+    /** Anti-abuse flag reason (task 020); omit/undefined for a clean submission. */
+    flaggedReason?: string;
   },
 ): Promise<SubmissionRow> {
   const [row] = await exec
@@ -28,6 +30,7 @@ export async function insertSubmission(
       contentHash: input.contentHash,
       lockedAnswers: input.lockedAnswers,
       ...(input.submittedAt ? { submittedAt: input.submittedAt } : {}),
+      ...(input.flaggedReason !== undefined ? { flaggedReason: input.flaggedReason } : {}),
     })
     .returning();
   return row!;

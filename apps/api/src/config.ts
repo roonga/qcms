@@ -79,6 +79,26 @@ export interface Config {
   };
   /** Max request body size in bytes (SEC-9), enforced by middleware. */
   readonly bodyLimitBytes: number;
+  /**
+   * Anti-abuse hooks wired at submit (task 020), tuned in 026. Both are silent:
+   * a triggered signal flags the submission and withholds its webhook event
+   * while returning the same success-shaped response, so the tells never leak.
+   */
+  readonly antiAbuse: {
+    /**
+     * Minimum ms between session creation and submit. A submit faster than this
+     * is flagged `too_fast`. `0` disables the check (the conservative default
+     * until 026 tunes a real threshold — a wrong value silently drops real
+     * submissions, so the wire ships inert).
+     */
+    readonly minSubmitMs: number;
+    /**
+     * Honeypot field name on the submit body. A non-empty value flags the
+     * submission `honeypot`. A legitimate client never fills it, so the check is
+     * always on; 026 may rename the field.
+     */
+    readonly honeypotField: string;
+  };
   readonly flags: Flags;
   /** Challenge-provider secrets — present iff `flags.challengeProvider !== "none"`. */
   readonly challenge:
@@ -169,6 +189,13 @@ function parseRequiredString(env: Env, name: string, minLength: number, issues: 
     issues.push(`${name} must be at least ${minLength} characters`);
   }
   return raw;
+}
+
+/** A non-secret optional string knob: trimmed value, or `fallback` when unset. */
+function parseOptionalString(env: Env, name: string, fallback: string): string {
+  const raw = env[name];
+  if (raw === undefined || raw.trim() === "") return fallback;
+  return raw.trim();
 }
 
 function parseInt_(
@@ -273,6 +300,8 @@ const DEFAULTS = {
   retentionSweepIntervalMs: 60 * 60 * 1000, // 1h
   readyDbTimeoutMs: 2_000,
   bodyLimitBytes: 1_000_000, // 1MB (SEC-9)
+  antiAbuseMinSubmitMs: 0, // off until 026 tunes it (see antiAbuse.minSubmitMs)
+  antiAbuseHoneypotField: "website", // conventional decoy field name
 } as const;
 
 /**
@@ -330,6 +359,20 @@ export function loadConfig(env: Env): Config {
       dbTimeoutMs: parseInt_(env, "QCMS_READY_DB_TIMEOUT_MS", DEFAULTS.readyDbTimeoutMs, 1, issues),
     },
     bodyLimitBytes: parseInt_(env, "QCMS_BODY_LIMIT_BYTES", DEFAULTS.bodyLimitBytes, 1, issues),
+    antiAbuse: {
+      minSubmitMs: parseInt_(
+        env,
+        "QCMS_ANTIABUSE_MIN_SUBMIT_MS",
+        DEFAULTS.antiAbuseMinSubmitMs,
+        0,
+        issues,
+      ),
+      honeypotField: parseOptionalString(
+        env,
+        "QCMS_ANTIABUSE_HONEYPOT_FIELD",
+        DEFAULTS.antiAbuseHoneypotField,
+      ),
+    },
     flags,
     challenge,
   };
