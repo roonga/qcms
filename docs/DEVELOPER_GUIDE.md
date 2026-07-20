@@ -1,6 +1,8 @@
-# Using the agents — developer guide
+# QCMS — Developer Guide
 
-How to drive the qcms multi-agent development flow as the human in the loop. (What the *agents* must do lives in `CLAUDE.md` + `PROJECT_INSTRUCTIONS.md`; this file is for you.)
+> **Methodology vs. runbook:** this is the *operator's runbook* — how to drive the build day-to-day. For the *why* (principles, task-design rules, the session protocol, the audit checklist) see [`AGENTIC_DEVELOPMENT.md`](AGENTIC_DEVELOPMENT.md).
+
+How to drive the QCMS multi-agent development flow as the human in the loop. (What the *agents* must do lives in `CLAUDE.md` + `PROJECT_INSTRUCTIONS.md`; this file is for you.)
 
 ## Launching
 

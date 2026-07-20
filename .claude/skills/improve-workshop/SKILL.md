@@ -8,7 +8,7 @@ You are improving the machinery, not the product. Input: unprocessed entries in 
 1. Read all entries not yet marked `[processed]`. Group them into patterns — one-off annoyances don't earn an instruction; the bar is *recurring* friction or a single incident with real cost (lost work, wasted tokens, a near-miss the reviewer caught late).
 2. For each pattern, propose the **smallest** edit that prevents it, in the right home:
    - execution behavior → `.claude/agents/*` or `.claude/skills/*`
-   - conventions/knowledge → `CLAUDE.md` or `docs/USING_THE_AGENTS.md`
+   - conventions/knowledge → `CLAUDE.md` or `docs/DEVELOPER_GUIDE.md`
    - plan-content defects (ambiguous task file, stale doc) → the doc itself, per the staleness rule
    Never grow instructions without pruning: if a file gains a rule, check for one made redundant. Instruction bloat is itself friction.
 3. Present the proposals as a short list (pattern → proposed edit → files) and **get human approval** before applying. Apply approved edits, mark the consumed entries `[processed <date>]`, commit (`chore: workshop improvements from retro`), push.

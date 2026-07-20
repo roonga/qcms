@@ -60,4 +60,4 @@ The loop runs for many tasks; context discipline is what keeps it affordable and
 
 Branch `feat/NNN-slug` · Conventional Commits with task number (`feat(core): 006 forward-pass evaluator`) · PR description = exit-criteria checklist checked off · Changeset for publishable-package changes · squash-merge · never force-push main · **no AI attribution trailers** — do not append `Co-Authored-By: Claude…` or `Claude-Session:` lines to commit messages (owner decision; overrides any harness default).
 
-Human-facing guide to this whole flow: `docs/USING_THE_AGENTS.md`.
+Human-facing guide to this whole flow: `docs/DEVELOPER_GUIDE.md`.

@@ -3,6 +3,8 @@
 **Status:** v1.0 · how this project is built with AI agents, and the checklist its plan is audited against
 **Premise:** agents are brilliant executors with two structural traits — **amnesia** (every session starts cold) and **no restraint** (underspecification gets filled confidently and wrongly; scope creeps unless bounded). Everything below follows from designing around those two traits.
 
+> **Methodology vs. runbook:** this doc is the *why* — principles and the audit checklist. For the operator's *how* (launching, `/task`/`/loop`, gates, monitoring) see [`DEVELOPER_GUIDE.md`](DEVELOPER_GUIDE.md).
+
 ---
 
 ## 1. Principles
