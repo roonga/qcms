@@ -55,6 +55,11 @@ describe("query helper import surface", () => {
     // submissions
     "insertSubmission",
     "getSubmission",
+    // retention (task 015) — sweep/purge are named for their action, not as
+    // session mutators; sessionExpiresAt is a pure TTL-policy helper.
+    "sweepExpiredSessions",
+    "purgeExpired",
+    "sessionExpiresAt",
     // outbox
     "backoffDelayMs",
     "computeBackoff",

@@ -60,6 +60,17 @@ export { type AnswerRow, appendAnswer, latestAnswers, answerLedger } from "./ans
 export { type SubmissionRow, insertSubmission, getSubmission } from "./submissions.js";
 
 export {
+  type SessionTtlConfig,
+  type SweepResult,
+  type PurgeResult,
+  DEFAULT_ANONYMOUS_SESSION_TTL_MS,
+  DEFAULT_SESSION_TTL,
+  sessionExpiresAt,
+  sweepExpiredSessions,
+  purgeExpired,
+} from "./retention.js";
+
+export {
   type OutboxRow,
   OUTBOX_BACKOFF_BASE_MS,
   OUTBOX_BACKOFF_FACTOR,
