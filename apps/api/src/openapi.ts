@@ -16,11 +16,25 @@
 
 import { z } from "@hono/zod-openapi";
 
+/**
+ * The authenticated admin principal an admin-group request carries once the
+ * admin-auth middleware (021) has verified its session. The `scopes` list is
+ * SEC-5 metadata — reserved for `/api/v1` activation (Phase 4), inert at launch.
+ * Today a permissive stub establishes it; 031 swaps in real better-auth session
+ * verification without changing this shape.
+ */
+export interface AdminPrincipal {
+  readonly userId: string;
+  readonly scopes: readonly Scope[];
+}
+
 /** Per-request context set by middleware and read by handlers/error envelope. */
 export interface ApiEnv {
   readonly Variables: {
     /** Correlation id for this request (echoed as `x-request-id`). */
     requestId: string;
+    /** Authenticated admin principal, set by the admin-auth middleware (021). */
+    adminPrincipal?: AdminPrincipal;
   };
 }
 

@@ -24,6 +24,9 @@ describe("query helper import surface", () => {
     "publishQuestionVersion",
     "deprecateQuestionVersion",
     "getQuestionVersion",
+    "getQuestion",
+    "listQuestionVersions",
+    "updateDraftDefinition",
     "listQuestions",
     "isQuestionIdTaken",
     // forms

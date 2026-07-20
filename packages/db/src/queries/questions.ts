@@ -107,6 +107,57 @@ export async function getQuestionVersion(
   return row;
 }
 
+/** Read one question library identity (id + slug), or `undefined`. */
+export async function getQuestion(
+  exec: Executor,
+  questionId: QuestionId,
+): Promise<QuestionRow | undefined> {
+  const [row] = await exec
+    .select()
+    .from(questions)
+    .where(eq(questions.questionId, questionId))
+    .limit(1);
+  return row;
+}
+
+/** Every stored version of one question, oldest first (the detail view). */
+export async function listQuestionVersions(
+  exec: Executor,
+  questionId: QuestionId,
+): Promise<QuestionVersionRow[]> {
+  return exec
+    .select()
+    .from(questionVersions)
+    .where(eq(questionVersions.questionId, questionId))
+    .orderBy(questionVersions.version);
+}
+
+/**
+ * Overwrite a draft version's `definition` in place. Shape-preserving
+ * persistence only (R5): the caller enforces the draft-only rule and validates
+ * the definition through the kernel before calling. The
+ * `question_versions_freeze_published` trigger (migration 0001) is the storage
+ * backstop — updating a *published* version's definition raises there — but a
+ * caller must return its typed `VERSION_IMMUTABLE` before reaching it. Returns
+ * the updated row, or `undefined` when `(questionId, version)` does not exist.
+ */
+export async function updateDraftDefinition(
+  exec: Executor,
+  input: { questionId: QuestionId; version: number; definition: QuestionDefinition },
+): Promise<QuestionVersionRow | undefined> {
+  const [row] = await exec
+    .update(questionVersions)
+    .set({ definition: input.definition })
+    .where(
+      and(
+        eq(questionVersions.questionId, input.questionId),
+        eq(questionVersions.version, input.version),
+      ),
+    )
+    .returning();
+  return row;
+}
+
 /**
  * List every question with a summary of its latest version (highest `version`).
  * Questions with no version yet are omitted (there is nothing to summarize).

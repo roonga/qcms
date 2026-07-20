@@ -25,7 +25,10 @@ import {
   getDraft,
   getFormVersion,
   getLatestPublishedVersion,
+  getQuestion,
   getQuestionVersion,
+  listQuestionVersions,
+  updateDraftDefinition,
   getSecureLink,
   getSession,
   getSubmission,
@@ -104,6 +107,58 @@ describe("questions helpers", () => {
     const fetched = await getQuestionVersion(testDb.db, questionId, 2);
     expect(fetched?.version).toBe(2);
     expect(await getQuestionVersion(testDb.db, questionId, 99)).toBeUndefined();
+  });
+
+  it("reads an identity and lists a question's versions oldest-first", async () => {
+    const questionId = QuestionId.parse("q_detail");
+    await createQuestion(testDb.db, { questionId, slug: "q-detail-slug" });
+    await createQuestionVersion(testDb.db, { questionId, definition: emptyQuestionDef });
+    await createQuestionVersion(testDb.db, { questionId, definition: emptyQuestionDef });
+
+    const identity = await getQuestion(testDb.db, questionId);
+    expect(identity?.slug).toBe("q-detail-slug");
+    expect(await getQuestion(testDb.db, QuestionId.parse("q_absent"))).toBeUndefined();
+
+    const versions = await listQuestionVersions(testDb.db, questionId);
+    expect(versions.map((v) => v.version)).toEqual([1, 2]);
+    expect(await listQuestionVersions(testDb.db, QuestionId.parse("q_absent"))).toEqual([]);
+  });
+
+  it("updates a draft definition in place, but the freeze trigger rejects a published one", async () => {
+    const questionId = QuestionId.parse("q_editdraft");
+    await createQuestion(testDb.db, { questionId, slug: "q-editdraft-slug" });
+    await createQuestionVersion(testDb.db, { questionId, definition: emptyQuestionDef });
+
+    const nextDef = { edited: true } as unknown as Parameters<
+      typeof updateDraftDefinition
+    >[1]["definition"];
+    const updated = await updateDraftDefinition(testDb.db, {
+      questionId,
+      version: 1,
+      definition: nextDef,
+    });
+    expect(updated?.definition).toEqual({ edited: true });
+    expect(
+      await updateDraftDefinition(testDb.db, { questionId, version: 99, definition: nextDef }),
+    ).toBeUndefined();
+
+    // Publishing freezes the definition (I1): the trigger backstops any later edit.
+    // drizzle wraps the pg error, so the trigger's "immutable" text is on the cause.
+    await publishQuestionVersion(testDb.db, { questionId, version: 1 });
+    let thrown: unknown;
+    try {
+      await updateDraftDefinition(testDb.db, {
+        questionId,
+        version: 1,
+        definition: emptyQuestionDef,
+      });
+    } catch (err: unknown) {
+      thrown = err;
+    }
+    const message = `${(thrown as Error | undefined)?.message ?? ""} ${
+      (thrown as { cause?: Error } | undefined)?.cause?.message ?? ""
+    }`;
+    expect(message).toMatch(/immutable/i);
   });
 
   it("summarizes the latest version per question in listQuestions", async () => {

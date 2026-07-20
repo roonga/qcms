@@ -23,9 +23,11 @@ import pg from "pg";
 
 import { createApp, type RouteGroups } from "./app.js";
 import { systemClock } from "./clock.js";
+import { registerQuestions } from "./features/questions/route.js";
 import { registerServeStep } from "./features/responses/serve-step/route.js";
 import { registerStartSession } from "./features/responses/start-session/route.js";
 import { registerSubmit } from "./features/responses/submit/route.js";
+import { registerAdminAuth } from "./middleware/admin-auth.js";
 import { loadConfig } from "./config.js";
 import type { Deps } from "./deps.js";
 import { createJsonLogger } from "./logger.js";
@@ -43,7 +45,10 @@ const { Pool } = pg;
 const groups: RouteGroups = {
   public: [registerStartSession, registerServeStep, registerSubmit],
   internal: [],
-  admin: [],
+  // `registerAdminAuth` MUST be first: it installs the admin session gate that
+  // every question route below sits behind (021; 031 swaps the stub for real
+  // better-auth verification).
+  admin: [registerAdminAuth, registerQuestions],
 };
 
 function main(): void {

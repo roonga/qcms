@@ -17,6 +17,9 @@ export {
   publishQuestionVersion,
   deprecateQuestionVersion,
   getQuestionVersion,
+  getQuestion,
+  listQuestionVersions,
+  updateDraftDefinition,
   listQuestions,
   isQuestionIdTaken,
 } from "./questions.js";
