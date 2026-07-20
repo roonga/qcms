@@ -1,0 +1,49 @@
+{
+  "documents": [
+    {
+      "stepId": "stp_only",
+      "root": {
+        "type": "Form",
+        "children": [
+          {
+            "type": "Flex",
+            "props": {
+              "direction": "column",
+              "gap": "md"
+            },
+            "children": [
+              {
+                "type": "Text",
+                "props": {
+                  "as": "h1"
+                },
+                "children": "Minimal"
+              },
+              {
+                "type": "Text",
+                "props": {
+                  "as": "h2"
+                },
+                "children": "The only step"
+              },
+              {
+                "type": "TextField",
+                "props": {
+                  "label": "Full name",
+                  "description": "As shown on your photo ID",
+                  "name": "q_full_name",
+                  "isRequired": true,
+                  "minLength": 1,
+                  "maxLength": 100,
+                  "pattern": "^[A-Za-z][A-Za-z .,'-]{0,99}$"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "compilerVersion": "0.0.0",
+  "a2uiSpecVersion": "1.0.0-preview.7"
+}

@@ -13,6 +13,7 @@
     "build": "turbo run build",
     "test": "turbo run test",
     "test:golden-drift": "vitest run --project @qcms/core packages/core/src/golden-corpus.test.ts",
+    "check:golden-append-only": "node scripts/check-golden-append-only.mjs",
     "typecheck": "turbo run typecheck",
     "lint": "turbo run lint && prettier --check .",
     "format": "prettier --write .",

@@ -16,7 +16,10 @@ jobs:
         node-version: [24, 26]
     continue-on-error: ${{ matrix.node-version == 26 }}
     steps:
+      # fetch-depth: 0 so the append-only guard can diff against origin/main.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # Reads the pnpm version from the packageManager field in package.json.
       - uses: pnpm/action-setup@v4
@@ -39,5 +42,12 @@ jobs:
       # Also part of `pnpm test` — kept as a named step so semantic drift is
       # visible as its own gate.
       - run: pnpm test:golden-drift
+
+      # The A2UI golden corpus is append-only (task 012, ADR-18): fail the build
+      # if any committed golden document is modified or deleted vs the default
+      # branch. Additions are allowed. Runs on the default branch too (empty diff).
+      - run: pnpm check:golden-append-only
+        env:
+          DEFAULT_BRANCH: ${{ github.event.pull_request.base.ref || 'main' }}
 
       - run: pnpm build

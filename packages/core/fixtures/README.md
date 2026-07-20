@@ -59,6 +59,8 @@ empty option labels, unsafe/uncompilable patterns, empty option lists).
 | `kitchen-sink.json` | `frm_kitchen_sink` | **The canonical reference form** (tasks 007, 011, 012, 028, 030, 038): pins every question fixture above (all seven types), 3 steps, 2 rules (`equals` branch + `containsAny` branch) |
 | `insurance.json` | `frm_life_signup` | The motivating flow from `DOMAIN_SCHEMA.md` §6: `q_smoker@2` → rule `rul_smoker_followup` shows `q_cigs_daily@1` |
 | `minimal.json` | `frm_minimal` | Smallest valid form: one step, one question, empty rules array |
+| `constraints-heavy.json` | `frm_constraints_heavy` | Added by task 012 for the A2UI golden corpus: one step pinning all seven question fixtures so **every constraint-bearing control** (length/pattern, number min/max/integer, date min/max, multiChoice selection bounds) compiles in a single document. No rules. |
+| `deep-nesting-rules.json` | `frm_deep_nesting_rules` | Added by task 012: a single `and/or/not` rule nested to the depth-8 cap (`RULE_DEPTH_EXCEEDED` boundary — task 005) whose `show` reveals `q_medical_history`. Exercises the publish path's rule-graph/type checks under maximal nesting; the compiled A2UI is unaffected by rules (visibility is applied at serve time), so its golden pins the plain projection. |
 
 Form fixtures only pin questionIds that exist in `questions/valid/` (tested),
 so publish-time resolution against the question fixtures (task 008) works out
