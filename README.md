@@ -58,7 +58,7 @@ docker compose -f docker-compose.dev.yml up -d   # local Postgres — copy .env.
 
 ## Contributing
 
-QCMS is built with an agentic development workflow that merges directly to `main`. **External pull requests are not being accepted yet** (pre-release) — but **issues, bug reports, and discussion are very welcome**. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for standards and [`docs/USING_THE_AGENTS.md`](docs/USING_THE_AGENTS.md) for the development flow. Security issues: follow [`SECURITY.md`](SECURITY.md) — never a public issue.
+QCMS is built with an agentic development workflow. **External pull requests are not being accepted yet** (pre-release) — but **issues, bug reports, and discussion are very welcome**. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for standards and [`docs/USING_THE_AGENTS.md`](docs/USING_THE_AGENTS.md) for the development flow. Security issues: follow [`SECURITY.md`](SECURITY.md) — never a public issue.
 
 ## License
 

@@ -73,7 +73,7 @@ No secrets in code, fixtures, or logs; answer values never logged; queries param
 
 ## External contributions
 
-> **Not accepting external pull requests yet.** QCMS is pre-release and built through an agentic workflow that merges directly to `main`; unsolicited PRs will be declined for now. **Issues, bug reports, and discussion are welcome** — and are the most useful thing you can contribute at this stage. Security reports go through [`SECURITY.md`](SECURITY.md), never a public issue. The rules below apply once external PRs open (post-launch).
+> **Not accepting external pull requests yet.** QCMS is pre-release and built through an agentic workflow by the maintainers; **external** (unsolicited) PRs will be declined for now. **Issues, bug reports, and discussion are welcome** — and are the most useful thing you can contribute at this stage. Security reports go through [`SECURITY.md`](SECURITY.md), never a public issue. The rules below apply once external PRs open (post-launch).
 
 - **Talk first for anything non-trivial:** open an issue before a PR; design-affecting proposals sketch an ADR (context, decision, consequences). Typo/docs/small-fix PRs are welcome directly.
 - **Licensing:** MIT, inbound = outbound — submitting a PR licenses your contribution under MIT. Sign-off (`git commit -s`, DCO) required.
