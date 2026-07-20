@@ -66,6 +66,19 @@ export { type AnswerRow, appendAnswer, latestAnswers, answerLedger } from "./ans
 export { type SubmissionRow, insertSubmission, getSubmission } from "./submissions.js";
 
 export {
+  type ReportingResponseRow,
+  type ResponseListRow,
+  type ResponseDetailRow,
+  type ResponseFilter,
+  type TombstoneRow,
+  listResponses,
+  getResponse,
+  fetchResponsePage,
+  listTombstones,
+  clearSubmissionFlag,
+} from "./reporting.js";
+
+export {
   type SessionTtlConfig,
   type SweepResult,
   type PurgeResult,

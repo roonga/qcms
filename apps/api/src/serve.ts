@@ -25,6 +25,7 @@ import { createApp, type RouteGroups } from "./app.js";
 import { systemClock } from "./clock.js";
 import { registerForms } from "./features/forms/route.js";
 import { registerQuestions } from "./features/questions/route.js";
+import { registerAdminResponses } from "./features/responses/admin/route.js";
 import { registerServeStep } from "./features/responses/serve-step/route.js";
 import { registerStartSession } from "./features/responses/start-session/route.js";
 import { registerSubmit } from "./features/responses/submit/route.js";
@@ -49,7 +50,7 @@ const groups: RouteGroups = {
   // `registerAdminAuth` MUST be first: it installs the admin session gate that
   // every admin route below sits behind (021; 031 swaps the stub for real
   // better-auth verification).
-  admin: [registerAdminAuth, registerQuestions, registerForms],
+  admin: [registerAdminAuth, registerQuestions, registerForms, registerAdminResponses],
 };
 
 function main(): void {

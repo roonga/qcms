@@ -61,6 +61,14 @@ describe("query helper import surface", () => {
     // submissions
     "insertSubmission",
     "getSubmission",
+    // reporting reads (task 023) — erasure-safe view reads for the data-out
+    // admin surface. `clearSubmissionFlag` is a flag-release write (unflag); it
+    // sets no form version, so it does not widen the version-mutation surface.
+    "listResponses",
+    "getResponse",
+    "fetchResponsePage",
+    "listTombstones",
+    "clearSubmissionFlag",
     // retention (task 015) — sweep/purge are named for their action, not as
     // session mutators; sessionExpiresAt is a pure TTL-policy helper.
     "sweepExpiredSessions",
