@@ -47,7 +47,7 @@ Status values: `todo` · `in-progress (branch)` · `blocked (issue #)` · `done 
 | 022 | Form authoring and publish slices | 6 | done |
 | 023 | Response listing, export, erasure slices | 6 | done |
 | 024 | Secure-link minting and webhook config slices | 6 | done |
-| 025 | Webhook deliverer worker | 6 | in-progress (feat/025-webhook-deliverer) |
+| 025 | Webhook deliverer worker | 6 | done |
 | 026 | Abuse controls | 6 | todo |
 | 027 | API end-to-end suite | 6 | todo |
 | 028 | A2UI renderer (`packages/ui`) | 7 | todo |

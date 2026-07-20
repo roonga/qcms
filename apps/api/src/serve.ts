@@ -30,6 +30,7 @@ import { registerAdminResponses } from "./features/responses/admin/route.js";
 import { registerServeStep } from "./features/responses/serve-step/route.js";
 import { registerStartSession } from "./features/responses/start-session/route.js";
 import { registerSubmit } from "./features/responses/submit/route.js";
+import { registerOutboxOps } from "./features/outbox/route.js";
 import { registerWebhooks } from "./features/webhooks/route.js";
 import { registerAdminAuth } from "./middleware/admin-auth.js";
 import { loadConfig } from "./config.js";
@@ -37,6 +38,7 @@ import type { Deps } from "./deps.js";
 import { createJsonLogger } from "./logger.js";
 import { InMemoryRateLimitStore } from "./rate-limit.js";
 import { createOutboxScheduler } from "./schedulers/outbox.js";
+import { runDeliveryPass } from "./schedulers/outbox-delivery.js";
 import { createRetentionSweepScheduler } from "./schedulers/retention-sweep.js";
 import type { Scheduler } from "./schedulers/scheduler.js";
 
@@ -59,6 +61,7 @@ const groups: RouteGroups = {
     registerAdminResponses,
     registerLinks,
     registerWebhooks,
+    registerOutboxOps,
   ],
 };
 
@@ -88,7 +91,11 @@ function main(): void {
   // one all-surface process which includes internal).
   const schedulers: Scheduler[] = [];
   if (config.mount.internal) {
-    schedulers.push(createRetentionSweepScheduler(deps), createOutboxScheduler(deps));
+    schedulers.push(
+      createRetentionSweepScheduler(deps),
+      // 025 supplies the real delivery pass to the 017 scheduler shell.
+      createOutboxScheduler(deps, (d) => runDeliveryPass(d).then(() => undefined)),
+    );
     for (const scheduler of schedulers) scheduler.start();
   }
 

@@ -96,6 +96,14 @@ describe("query helper import surface", () => {
     "recordFailure",
     "listDeadLetters",
     "resetForRedelivery",
+    // webhook deliveries (task 025) — the per-(event, webhook) fan-out unit;
+    // shape-preserving claim/record/reset helpers, no signing or HTTP here.
+    "insertDelivery",
+    "claimDueDeliveries",
+    "markDeliveryDelivered",
+    "recordDeliveryFailure",
+    "listDeadLetterDeliveries",
+    "resetDeliveryForRedelivery",
   ];
 
   it("exposes exactly the intended query-helper surface", () => {

@@ -16,4 +16,5 @@ export * from "./answers.js";
 export * from "./submissions.js";
 export * from "./erasure.js";
 export * from "./outbox.js";
+export * from "./deliveries.js";
 export * from "./auth.js";

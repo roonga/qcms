@@ -121,3 +121,18 @@ export {
   listDeadLetters,
   resetForRedelivery,
 } from "./outbox.js";
+
+// Per-(event, webhook) delivery state (task 025): the fan-out unit. One outbox
+// event becomes N delivery rows (one per active webhook), each with independent
+// retry/backoff/dead-letter state, sharing the outbox's `computeBackoff` schedule.
+export {
+  type DeliveryRow,
+  type DueDelivery,
+  type DeadLetterDelivery,
+  insertDelivery,
+  claimDueDeliveries,
+  markDeliveryDelivered,
+  recordDeliveryFailure,
+  listDeadLetterDeliveries,
+  resetDeliveryForRedelivery,
+} from "./deliveries.js";

@@ -96,6 +96,23 @@ describe("loadConfig — portal base URL and webhook targets (task 024)", () => 
       ConfigError,
     );
   });
+
+  // Task 025: delivery timeout + batch size knobs.
+  it("defaults the delivery timeout (10s) and batch size (20), and reads overrides", () => {
+    const defaults = loadConfig(validEnv()).webhooks;
+    expect(defaults.deliveryTimeoutMs).toBe(10_000);
+    expect(defaults.deliveryBatchSize).toBe(20);
+
+    const overridden = loadConfig(
+      validEnv({ QCMS_WEBHOOK_TIMEOUT_MS: "3000", QCMS_WEBHOOK_BATCH_SIZE: "5" }),
+    ).webhooks;
+    expect(overridden.deliveryTimeoutMs).toBe(3000);
+    expect(overridden.deliveryBatchSize).toBe(5);
+  });
+
+  it("rejects a delivery batch size below 1", () => {
+    expect(() => loadConfig(validEnv({ QCMS_WEBHOOK_BATCH_SIZE: "0" }))).toThrow(ConfigError);
+  });
 });
 
 // Exit criterion 6 (second half): config-failure output contains no secret values.

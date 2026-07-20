@@ -66,6 +66,18 @@ export interface Config {
      * delivery-time concern (025); this is the config-time host/scheme guard.
      */
     readonly allowPrivateTargets: boolean;
+    /**
+     * Per-request delivery timeout in ms (`QCMS_WEBHOOK_TIMEOUT_MS`, default
+     * 10_000). A webhook POST that does not respond `2xx` within this window is a
+     * failed attempt (backoff + eventual dead-letter, task 025).
+     */
+    readonly deliveryTimeoutMs: number;
+    /**
+     * Max deliveries a single pass processes (`QCMS_WEBHOOK_BATCH_SIZE`, default
+     * 20). Bounds the work — and the outbox/delivery row locks held — per tick;
+     * the scheduler interval drains the rest.
+     */
+    readonly deliveryBatchSize: number;
   };
   readonly keys: {
     /** Secure-link signing keys (`QCMS_LINK_KEYS`); first signs, all verify. */
@@ -352,6 +364,8 @@ const DEFAULTS = {
   outboxJitterMs: 1_000,
   retentionSweepIntervalMs: 60 * 60 * 1000, // 1h
   readyDbTimeoutMs: 2_000,
+  webhookTimeoutMs: 10_000, // 10s per delivery attempt (025)
+  webhookBatchSize: 20, // deliveries processed per pass (025)
   bodyLimitBytes: 1_000_000, // 1MB (SEC-9)
   antiAbuseMinSubmitMs: 0, // off until 026 tunes it (see antiAbuse.minSubmitMs)
   antiAbuseHoneypotField: "website", // conventional decoy field name
@@ -380,7 +394,23 @@ export function loadConfig(env: Env): Config {
     databaseUrl,
     mount,
     portalBaseUrl,
-    webhooks: { allowPrivateTargets },
+    webhooks: {
+      allowPrivateTargets,
+      deliveryTimeoutMs: parseInt_(
+        env,
+        "QCMS_WEBHOOK_TIMEOUT_MS",
+        DEFAULTS.webhookTimeoutMs,
+        100,
+        issues,
+      ),
+      deliveryBatchSize: parseInt_(
+        env,
+        "QCMS_WEBHOOK_BATCH_SIZE",
+        DEFAULTS.webhookBatchSize,
+        1,
+        issues,
+      ),
+    },
     keys: { link, session, internal, app },
     ttl: {
       anonymousSessionMs: parseInt_(
