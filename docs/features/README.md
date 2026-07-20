@@ -42,7 +42,7 @@ Status values: `todo` · `in-progress (branch)` · `blocked (issue #)` · `done 
 | 017 | API composition root | 6 | done |
 | 018 | start-session slice | 6 | done |
 | 019 | get-step and submit-answer slices | 6 | done |
-| 020 | submit slice (lock + outbox) | 6 | todo |
+| 020 | submit slice (lock + outbox) | 6 | in-progress (feat/020-submit-slice) |
 | 021 | Question authoring slices | 6 | todo |
 | 022 | Form authoring and publish slices | 6 | todo |
 | 023 | Response listing, export, erasure slices | 6 | todo |
