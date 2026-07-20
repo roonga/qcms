@@ -23,6 +23,7 @@ import pg from "pg";
 
 import { createApp, type RouteGroups } from "./app.js";
 import { systemClock } from "./clock.js";
+import { registerServeStep } from "./features/responses/serve-step/route.js";
 import { registerStartSession } from "./features/responses/start-session/route.js";
 import { loadConfig } from "./config.js";
 import type { Deps } from "./deps.js";
@@ -39,7 +40,7 @@ const { Pool } = pg;
  * 018–026 add their registrars to the matching bucket.
  */
 const groups: RouteGroups = {
-  public: [registerStartSession],
+  public: [registerStartSession, registerServeStep],
   internal: [],
   admin: [],
 };
