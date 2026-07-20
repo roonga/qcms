@@ -4,6 +4,8 @@ Question CMS (**qcms**): an MIT-licensed TypeScript engine for questionnaires wi
 
 **Read first, every session: `PROJECT_INSTRUCTIONS.md`** — the binding rules (R1–R7), decisions (ADR-01…25, SEC-1…12), and session protocol. This file adds only harness wiring; where they overlap, PROJECT_INSTRUCTIONS wins.
 
+**Roles:** sessions in this checkout are **implementation** sessions (this file governs them). The product-owner role exists separately, seated outside this checkout — its charter is `docs/PRODUCT_OWNER.md`. Never assume the PO role in a session here.
+
 ## Naming (settled)
 
 | Thing | Name |
