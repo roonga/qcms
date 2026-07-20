@@ -1,0 +1,705 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`A2UIStepRenderer conformance over the golden corpus > renders v1/constraints-heavy/stp_every_constraint and matches its accessibility tree 1`] = `
+[
+  {
+    "name": "Constraints heavy",
+    "role": "heading1",
+  },
+  {
+    "name": "Every constraint variant",
+    "role": "heading2",
+  },
+  {
+    "name": "Do you currently smoke?",
+    "role": "radiogroup",
+  },
+  {
+    "name": "Which coverage level would you like?",
+    "role": "radiogroup",
+  },
+  {
+    "name": "Yes",
+    "role": "radio",
+  },
+  {
+    "name": "No",
+    "role": "radio",
+  },
+  {
+    "name": "Basic",
+    "role": "radio",
+  },
+  {
+    "name": "Standard",
+    "role": "radio",
+  },
+  {
+    "name": "Premium",
+    "role": "radio",
+  },
+  {
+    "name": "No cover for now",
+    "role": "radio",
+  },
+  {
+    "name": "Date of birth",
+    "role": "group",
+  },
+  {
+    "name": "Do any of these conditions apply to you?",
+    "role": "group",
+  },
+  {
+    "name": "Diabetes",
+    "role": "checkbox",
+  },
+  {
+    "name": "Asthma",
+    "role": "checkbox",
+  },
+  {
+    "name": "Heart disease",
+    "role": "checkbox",
+  },
+  {
+    "name": "None of the above",
+    "role": "checkbox",
+  },
+  {
+    "name": "Full name",
+    "role": "textbox",
+  },
+  {
+    "name": "Relevant medical history",
+    "role": "textbox",
+  },
+  {
+    "name": "How many cigarettes do you smoke per day? *",
+    "role": "textbox",
+  },
+  {
+    "name": "month, Date of birth",
+    "role": "spinbutton",
+  },
+  {
+    "name": "day, Date of birth",
+    "role": "spinbutton",
+  },
+  {
+    "name": "year, Date of birth",
+    "role": "spinbutton",
+  },
+]
+`;
+
+exports[`A2UIStepRenderer conformance over the golden corpus > renders v1/deep-nesting-rules/stp_source and matches its accessibility tree 1`] = `
+[
+  {
+    "name": "Deep nesting rules",
+    "role": "heading1",
+  },
+  {
+    "name": "Source answers",
+    "role": "heading2",
+  },
+  {
+    "name": "Do you currently smoke?",
+    "role": "radiogroup",
+  },
+  {
+    "name": "Which coverage level would you like?",
+    "role": "radiogroup",
+  },
+  {
+    "name": "Yes",
+    "role": "radio",
+  },
+  {
+    "name": "No",
+    "role": "radio",
+  },
+  {
+    "name": "Basic",
+    "role": "radio",
+  },
+  {
+    "name": "Standard",
+    "role": "radio",
+  },
+  {
+    "name": "Premium",
+    "role": "radio",
+  },
+  {
+    "name": "No cover for now",
+    "role": "radio",
+  },
+  {
+    "name": "Date of birth",
+    "role": "group",
+  },
+  {
+    "name": "Do any of these conditions apply to you?",
+    "role": "group",
+  },
+  {
+    "name": "Diabetes",
+    "role": "checkbox",
+  },
+  {
+    "name": "Asthma",
+    "role": "checkbox",
+  },
+  {
+    "name": "Heart disease",
+    "role": "checkbox",
+  },
+  {
+    "name": "None of the above",
+    "role": "checkbox",
+  },
+  {
+    "name": "Full name",
+    "role": "textbox",
+  },
+  {
+    "name": "How many cigarettes do you smoke per day? *",
+    "role": "textbox",
+  },
+  {
+    "name": "month, Date of birth",
+    "role": "spinbutton",
+  },
+  {
+    "name": "day, Date of birth",
+    "role": "spinbutton",
+  },
+  {
+    "name": "year, Date of birth",
+    "role": "spinbutton",
+  },
+]
+`;
+
+exports[`A2UIStepRenderer conformance over the golden corpus > renders v1/deep-nesting-rules/stp_target and matches its accessibility tree 1`] = `
+[
+  {
+    "name": "Conditional detail",
+    "role": "heading2",
+  },
+  {
+    "name": "Relevant medical history",
+    "role": "textbox",
+  },
+]
+`;
+
+exports[`A2UIStepRenderer conformance over the golden corpus > renders v1/insurance/stp_health and matches its accessibility tree 1`] = `
+[
+  {
+    "name": "Life insurance sign-up",
+    "role": "heading1",
+  },
+  {
+    "name": "Health",
+    "role": "heading2",
+  },
+  {
+    "name": "Do you currently smoke?",
+    "role": "radiogroup",
+  },
+  {
+    "name": "Yes",
+    "role": "radio",
+  },
+  {
+    "name": "No",
+    "role": "radio",
+  },
+  {
+    "name": "How many cigarettes do you smoke per day? *",
+    "role": "textbox",
+  },
+]
+`;
+
+exports[`A2UIStepRenderer conformance over the golden corpus > renders v1/kitchen-sink/stp_about and matches its accessibility tree 1`] = `
+[
+  {
+    "name": "Kitchen sink",
+    "role": "heading1",
+  },
+  {
+    "name": "About you",
+    "role": "heading2",
+  },
+  {
+    "name": "Date of birth",
+    "role": "group",
+  },
+  {
+    "name": "Full name",
+    "role": "textbox",
+  },
+  {
+    "name": "month, Date of birth",
+    "role": "spinbutton",
+  },
+  {
+    "name": "day, Date of birth",
+    "role": "spinbutton",
+  },
+  {
+    "name": "year, Date of birth",
+    "role": "spinbutton",
+  },
+]
+`;
+
+exports[`A2UIStepRenderer conformance over the golden corpus > renders v1/kitchen-sink/stp_cover and matches its accessibility tree 1`] = `
+[
+  {
+    "name": "Your cover",
+    "role": "heading2",
+  },
+  {
+    "name": "Which coverage level would you like?",
+    "role": "radiogroup",
+  },
+  {
+    "name": "Basic",
+    "role": "radio",
+  },
+  {
+    "name": "Standard",
+    "role": "radio",
+  },
+  {
+    "name": "Premium",
+    "role": "radio",
+  },
+  {
+    "name": "No cover for now",
+    "role": "radio",
+  },
+]
+`;
+
+exports[`A2UIStepRenderer conformance over the golden corpus > renders v1/kitchen-sink/stp_health and matches its accessibility tree 1`] = `
+[
+  {
+    "name": "Health",
+    "role": "heading2",
+  },
+  {
+    "name": "Do you currently smoke?",
+    "role": "radiogroup",
+  },
+  {
+    "name": "Yes",
+    "role": "radio",
+  },
+  {
+    "name": "No",
+    "role": "radio",
+  },
+  {
+    "name": "Do any of these conditions apply to you?",
+    "role": "group",
+  },
+  {
+    "name": "Diabetes",
+    "role": "checkbox",
+  },
+  {
+    "name": "Asthma",
+    "role": "checkbox",
+  },
+  {
+    "name": "Heart disease",
+    "role": "checkbox",
+  },
+  {
+    "name": "None of the above",
+    "role": "checkbox",
+  },
+  {
+    "name": "How many cigarettes do you smoke per day? *",
+    "role": "textbox",
+  },
+  {
+    "name": "Relevant medical history",
+    "role": "textbox",
+  },
+]
+`;
+
+exports[`A2UIStepRenderer conformance over the golden corpus > renders v1/minimal/stp_only and matches its accessibility tree 1`] = `
+[
+  {
+    "name": "Minimal",
+    "role": "heading1",
+  },
+  {
+    "name": "The only step",
+    "role": "heading2",
+  },
+  {
+    "name": "Full name",
+    "role": "textbox",
+  },
+]
+`;
+
+exports[`A2UIStepRenderer conformance over the golden corpus > renders v2/constraints-heavy/stp_every_constraint and matches its accessibility tree 1`] = `
+[
+  {
+    "name": "Constraints heavy",
+    "role": "heading1",
+  },
+  {
+    "name": "Every constraint variant",
+    "role": "heading2",
+  },
+  {
+    "name": "Do you currently smoke?",
+    "role": "radiogroup",
+  },
+  {
+    "name": "Which coverage level would you like?",
+    "role": "radiogroup",
+  },
+  {
+    "name": "Yes",
+    "role": "radio",
+  },
+  {
+    "name": "No",
+    "role": "radio",
+  },
+  {
+    "name": "Basic",
+    "role": "radio",
+  },
+  {
+    "name": "Standard",
+    "role": "radio",
+  },
+  {
+    "name": "Premium",
+    "role": "radio",
+  },
+  {
+    "name": "No cover for now",
+    "role": "radio",
+  },
+  {
+    "name": "Date of birth",
+    "role": "group",
+  },
+  {
+    "name": "Do any of these conditions apply to you?",
+    "role": "group",
+  },
+  {
+    "name": "Diabetes",
+    "role": "checkbox",
+  },
+  {
+    "name": "Asthma",
+    "role": "checkbox",
+  },
+  {
+    "name": "Heart disease",
+    "role": "checkbox",
+  },
+  {
+    "name": "None of the above",
+    "role": "checkbox",
+  },
+  {
+    "name": "Full name",
+    "role": "textbox",
+  },
+  {
+    "name": "Relevant medical history",
+    "role": "textbox",
+  },
+  {
+    "name": "How many cigarettes do you smoke per day? *",
+    "role": "textbox",
+  },
+  {
+    "name": "month, Date of birth",
+    "role": "spinbutton",
+  },
+  {
+    "name": "day, Date of birth",
+    "role": "spinbutton",
+  },
+  {
+    "name": "year, Date of birth",
+    "role": "spinbutton",
+  },
+]
+`;
+
+exports[`A2UIStepRenderer conformance over the golden corpus > renders v2/deep-nesting-rules/stp_source and matches its accessibility tree 1`] = `
+[
+  {
+    "name": "Deep nesting rules",
+    "role": "heading1",
+  },
+  {
+    "name": "Source answers",
+    "role": "heading2",
+  },
+  {
+    "name": "Do you currently smoke?",
+    "role": "radiogroup",
+  },
+  {
+    "name": "Which coverage level would you like?",
+    "role": "radiogroup",
+  },
+  {
+    "name": "Yes",
+    "role": "radio",
+  },
+  {
+    "name": "No",
+    "role": "radio",
+  },
+  {
+    "name": "Basic",
+    "role": "radio",
+  },
+  {
+    "name": "Standard",
+    "role": "radio",
+  },
+  {
+    "name": "Premium",
+    "role": "radio",
+  },
+  {
+    "name": "No cover for now",
+    "role": "radio",
+  },
+  {
+    "name": "Date of birth",
+    "role": "group",
+  },
+  {
+    "name": "Do any of these conditions apply to you?",
+    "role": "group",
+  },
+  {
+    "name": "Diabetes",
+    "role": "checkbox",
+  },
+  {
+    "name": "Asthma",
+    "role": "checkbox",
+  },
+  {
+    "name": "Heart disease",
+    "role": "checkbox",
+  },
+  {
+    "name": "None of the above",
+    "role": "checkbox",
+  },
+  {
+    "name": "Full name",
+    "role": "textbox",
+  },
+  {
+    "name": "How many cigarettes do you smoke per day? *",
+    "role": "textbox",
+  },
+  {
+    "name": "month, Date of birth",
+    "role": "spinbutton",
+  },
+  {
+    "name": "day, Date of birth",
+    "role": "spinbutton",
+  },
+  {
+    "name": "year, Date of birth",
+    "role": "spinbutton",
+  },
+]
+`;
+
+exports[`A2UIStepRenderer conformance over the golden corpus > renders v2/deep-nesting-rules/stp_target and matches its accessibility tree 1`] = `
+[
+  {
+    "name": "Conditional detail",
+    "role": "heading2",
+  },
+  {
+    "name": "Relevant medical history",
+    "role": "textbox",
+  },
+]
+`;
+
+exports[`A2UIStepRenderer conformance over the golden corpus > renders v2/insurance/stp_health and matches its accessibility tree 1`] = `
+[
+  {
+    "name": "Life insurance sign-up",
+    "role": "heading1",
+  },
+  {
+    "name": "Health",
+    "role": "heading2",
+  },
+  {
+    "name": "Do you currently smoke?",
+    "role": "radiogroup",
+  },
+  {
+    "name": "Yes",
+    "role": "radio",
+  },
+  {
+    "name": "No",
+    "role": "radio",
+  },
+  {
+    "name": "How many cigarettes do you smoke per day? *",
+    "role": "textbox",
+  },
+]
+`;
+
+exports[`A2UIStepRenderer conformance over the golden corpus > renders v2/kitchen-sink/stp_about and matches its accessibility tree 1`] = `
+[
+  {
+    "name": "Kitchen sink",
+    "role": "heading1",
+  },
+  {
+    "name": "About you",
+    "role": "heading2",
+  },
+  {
+    "name": "Date of birth",
+    "role": "group",
+  },
+  {
+    "name": "Full name",
+    "role": "textbox",
+  },
+  {
+    "name": "month, Date of birth",
+    "role": "spinbutton",
+  },
+  {
+    "name": "day, Date of birth",
+    "role": "spinbutton",
+  },
+  {
+    "name": "year, Date of birth",
+    "role": "spinbutton",
+  },
+]
+`;
+
+exports[`A2UIStepRenderer conformance over the golden corpus > renders v2/kitchen-sink/stp_cover and matches its accessibility tree 1`] = `
+[
+  {
+    "name": "Your cover",
+    "role": "heading2",
+  },
+  {
+    "name": "Which coverage level would you like?",
+    "role": "radiogroup",
+  },
+  {
+    "name": "Basic",
+    "role": "radio",
+  },
+  {
+    "name": "Standard",
+    "role": "radio",
+  },
+  {
+    "name": "Premium",
+    "role": "radio",
+  },
+  {
+    "name": "No cover for now",
+    "role": "radio",
+  },
+]
+`;
+
+exports[`A2UIStepRenderer conformance over the golden corpus > renders v2/kitchen-sink/stp_health and matches its accessibility tree 1`] = `
+[
+  {
+    "name": "Health",
+    "role": "heading2",
+  },
+  {
+    "name": "Do you currently smoke?",
+    "role": "radiogroup",
+  },
+  {
+    "name": "Yes",
+    "role": "radio",
+  },
+  {
+    "name": "No",
+    "role": "radio",
+  },
+  {
+    "name": "Do any of these conditions apply to you?",
+    "role": "group",
+  },
+  {
+    "name": "Diabetes",
+    "role": "checkbox",
+  },
+  {
+    "name": "Asthma",
+    "role": "checkbox",
+  },
+  {
+    "name": "Heart disease",
+    "role": "checkbox",
+  },
+  {
+    "name": "None of the above",
+    "role": "checkbox",
+  },
+  {
+    "name": "How many cigarettes do you smoke per day? *",
+    "role": "textbox",
+  },
+  {
+    "name": "Relevant medical history",
+    "role": "textbox",
+  },
+]
+`;
+
+exports[`A2UIStepRenderer conformance over the golden corpus > renders v2/minimal/stp_only and matches its accessibility tree 1`] = `
+[
+  {
+    "name": "Minimal",
+    "role": "heading1",
+  },
+  {
+    "name": "The only step",
+    "role": "heading2",
+  },
+  {
+    "name": "Full name",
+    "role": "textbox",
+  },
+]
+`;

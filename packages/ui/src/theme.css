@@ -1,0 +1,87 @@
+/*
+ * qcms reference design tokens — the shadcn-convention CSS custom properties the
+ * vendored a2-react-aria components reference (var(--color-*)). These are the
+ * tokens upstream ships (a2-react-aria styling guide); qcms adds no palette of
+ * its own (ADR-22 "expose, don't opine"). Shells (portal/admin) either import
+ * this file or set the same token names in their own globals to theme the
+ * renderer. Tailwind is wired in the consuming apps' builds; the vendored
+ * *.styles.ts utilities resolve these variables at runtime.
+ */
+
+:root {
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-primary-active: #1e40af;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #64748b;
+  --color-secondary-hover: #475569;
+  --color-secondary-active: #334155;
+  --color-secondary-foreground: #ffffff;
+  --color-danger: #dc2626;
+  --color-danger-hover: #b91c1c;
+  --color-danger-active: #991b1b;
+  --color-danger-foreground: #ffffff;
+  --color-danger-subtle: #fef2f2;
+  --color-danger-fg: #991b1b;
+  --color-ghost: transparent;
+  --color-ghost-hover: #f1f5f9;
+  --color-ghost-active: #e2e8f0;
+  --color-info: #2563eb;
+  --color-info-subtle: #eff6ff;
+  --color-info-fg: #1e40af;
+  --color-success: #16a34a;
+  --color-success-subtle: #f0fdf4;
+  --color-success-fg: #14532d;
+  --color-warning: #d97706;
+  --color-warning-subtle: #fffbeb;
+  --color-warning-fg: #92400e;
+  --color-text: #1f2937;
+  --color-text-muted: #6b7280;
+  --color-border: #e5e7eb;
+  --color-border-strong: #9ca3af;
+  --color-background: #ffffff;
+  --color-background-muted: #f9fafb;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f9fafb;
+  --color-focus-ring: #2563eb;
+  --color-overlay: rgb(0 0 0 / 0.5);
+}
+
+:root.dark {
+  --color-primary: #3b82f6;
+  --color-primary-hover: #2563eb;
+  --color-primary-active: #1d4ed8;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #94a3b8;
+  --color-secondary-hover: #cbd5e1;
+  --color-secondary-active: #e2e8f0;
+  --color-secondary-foreground: #ffffff;
+  --color-danger: #ef4444;
+  --color-danger-hover: #dc2626;
+  --color-danger-active: #b91c1c;
+  --color-danger-foreground: #ffffff;
+  --color-danger-subtle: #450a0a;
+  --color-danger-fg: #fca5a5;
+  --color-ghost: transparent;
+  --color-ghost-hover: #1f2937;
+  --color-ghost-active: #374151;
+  --color-info: #3b82f6;
+  --color-info-subtle: #1e3a5f;
+  --color-info-fg: #93c5fd;
+  --color-success: #22c55e;
+  --color-success-subtle: #052e16;
+  --color-success-fg: #86efac;
+  --color-warning: #f59e0b;
+  --color-warning-subtle: #451a03;
+  --color-warning-fg: #fcd34d;
+  --color-text: #f3f4f6;
+  --color-text-muted: #9ca3af;
+  --color-border: #374151;
+  --color-border-strong: #6b7280;
+  --color-background: #111827;
+  --color-background-muted: #1f2937;
+  --color-surface: #1f2937;
+  --color-surface-hover: #374151;
+  --color-focus-ring: #3b82f6;
+  --color-overlay: rgb(0 0 0 / 0.5);
+}

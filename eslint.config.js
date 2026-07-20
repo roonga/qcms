@@ -5,7 +5,17 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: ["**/dist/**", "**/node_modules/**", "**/.turbo/**", "**/coverage/**"],
+    ignores: [
+      "**/dist/**",
+      "**/node_modules/**",
+      "**/.turbo/**",
+      "**/coverage/**",
+      // Vendored a2-react-aria component sources (task 028) are upstream-owned —
+      // kept byte-for-byte for a clean `a2ra diff` (ADR-22) and tested upstream.
+      // qcms lint rules apply to the qcms renderer code, not the vendored copy.
+      "packages/ui/src/components/**",
+      "**/__snapshots__/**",
+    ],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
@@ -102,6 +112,48 @@ export default tseslint.config(
               group: ["@qcms/db", "@qcms/db/*"],
               message:
                 "The compiler depends on @qcms/core types only — never @qcms/db (ARCHITECTURE §3).",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // @qcms/ui import-surface rule (ADR-22): the renderer imports ONLY the a2ra
+    // stack — @a2ra/core, react-aria-components (+ its @internationalized/date
+    // and zod), React, and its own vendored sources. No other component library,
+    // ever. Vendored sources (ignored above) and test files are exempt; the
+    // exhaustive allow-list is asserted by the import-surface test. This lint
+    // block is the fast fence against a future "just add a widget library".
+    files: ["packages/ui/src/**/*.{ts,tsx}"],
+    ignores: ["packages/ui/src/**/*.test.{ts,tsx}", "packages/ui/src/test-support/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                "@mui/*",
+                "@material-ui/*",
+                "antd",
+                "antd/*",
+                "@chakra-ui/*",
+                "@mantine/*",
+                "@radix-ui/*",
+                "react-bootstrap",
+                "bootstrap",
+                "@headlessui/*",
+                "@fluentui/*",
+                "flowbite",
+                "flowbite-react",
+                "@nextui-org/*",
+                "@ariakit/*",
+                "@base-ui-components/*",
+                "@shadcn/*",
+              ],
+              message:
+                "@qcms/ui builds only on the a2-react-aria stack (ADR-22): use the vendored components (src/components/a2ui) or react-aria-components — never a second component library.",
             },
           ],
         },

@@ -2,7 +2,25 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": "src",
-    "outDir": "dist"
+    "outDir": "dist",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    // Node globals are needed only by the test-support corpus loader; React/DOM
+    // types come from `lib` + explicit imports. Listing `node` keeps it in the
+    // program under Bundler resolution.
+    "types": ["node"],
+    "module": "Preserve",
+    "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
+    // The vendored a2-react-aria sources are authored without
+    // exactOptionalPropertyTypes / noUncheckedIndexedAccess (upstream's own
+    // tsconfig), and pass `prop={undefined}` to react-aria props freely. Relax
+    // these two base flags for this vendored-heavy package so the vendored files
+    // stay byte-for-byte upstream (clean `a2ra diff`, ADR-22). All other strict
+    // checks remain on.
+    "exactOptionalPropertyTypes": false,
+    "noUncheckedIndexedAccess": false
   },
   "include": ["src"]
 }
