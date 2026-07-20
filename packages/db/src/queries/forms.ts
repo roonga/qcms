@@ -22,6 +22,21 @@ export async function getFormBySlug(exec: Executor, slug: string): Promise<FormR
   return row;
 }
 
+/** Read a form identity by its `formId`, or `undefined`. */
+export async function getForm(exec: Executor, formId: FormId): Promise<FormRow | undefined> {
+  const [row] = await exec.select().from(forms).where(eq(forms.formId, formId)).limit(1);
+  return row;
+}
+
+/**
+ * Every form identity, newest-created first is not meaningful (no created stamp
+ * on the identity row), so ordered by `formId` for a stable listing. The admin
+ * library list (022) joins each row against its draft/latest-version state.
+ */
+export async function listForms(exec: Executor): Promise<FormRow[]> {
+  return exec.select().from(forms).orderBy(forms.formId);
+}
+
 /** Create a form identity. Defaults to `open` (accepting new sessions). */
 export async function createForm(
   exec: Executor,

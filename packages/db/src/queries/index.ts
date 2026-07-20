@@ -29,6 +29,8 @@ export {
   type FormDraftRow,
   type FormVersionRow,
   getFormBySlug,
+  getForm,
+  listForms,
   createForm,
   upsertDraft,
   getDraft,

@@ -46,6 +46,9 @@ importers:
       '@hono/zod-openapi':
         specifier: ^1.5.1
         version: 1.5.1(hono@4.12.31)(zod@4.4.3)
+      '@qcms/a2ui-compiler':
+        specifier: workspace:*
+        version: link:../../packages/a2ui-compiler
       '@qcms/core':
         specifier: workspace:*
         version: link:../../packages/core

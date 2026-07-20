@@ -26,6 +26,7 @@
   "dependencies": {
     "@hono/node-server": "^2.0.10",
     "@hono/zod-openapi": "^1.5.1",
+    "@qcms/a2ui-compiler": "workspace:*",
     "@qcms/core": "workspace:*",
     "@qcms/db": "workspace:*",
     "drizzle-orm": "^0.45.2",

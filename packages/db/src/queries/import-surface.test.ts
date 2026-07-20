@@ -31,6 +31,8 @@ describe("query helper import surface", () => {
     "isQuestionIdTaken",
     // forms
     "getFormBySlug",
+    "getForm",
+    "listForms",
     "createForm",
     "upsertDraft",
     "getDraft",
