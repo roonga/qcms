@@ -58,6 +58,9 @@ jobs:
       # Stage 4); this rejects control chars (except tab/LF/CR) in tracked source.
       - run: pnpm check:no-control-chars
 
+      # Runtime dependency licenses must be permissive/MIT-compatible (deny-by-default).
+      - run: pnpm check:licenses
+
       - run: pnpm build
 
   # The 027 consumer-level e2e suite, as its OWN job for signal clarity: when

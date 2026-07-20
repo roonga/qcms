@@ -38,6 +38,7 @@ The reference documents in `docs/` are authoritative; the discipline rules R1–
 
   Do not assume popularity — check stars/downloads. Below every threshold: stop, state the concern, and ask before proceeding.
 - **Runtime dependencies carry a risk assessment in their PR:** maintenance health (bus factor, release cadence), governance (who funds it; paid-pivot risk), and the exit path if it is abandoned or rug-pulled. Dev/test-only dependencies need only the threshold check.
+- **License compatibility (enforced):** every **runtime** dependency must carry a permissive, MIT-compatible license (MIT, ISC, BSD, Apache-2.0, 0BSD, …). Copyleft (GPL/AGPL/LGPL/SSPL/EUPL), source-available (BUSL/Elastic), and unlicensed/proprietary licenses are forbidden in the runtime tree — QCMS is MIT and redistributed. The `check:licenses` gate (deny-by-default over `pnpm licenses --prod`) fails CI on anything not allow-listed; dev-only deps are exempt (not redistributed).
 - **Minimal-dependency policy stands:** prefer the platform (WebCrypto over a JWT library — task 010 is the reference pattern). A dependency that saves under a hundred lines is a liability, not a convenience.
 - **Accepted-with-noted-risk list** (deliberate acceptances; the watch items of risk register #5):
 
@@ -70,7 +71,9 @@ No secrets in code, fixtures, or logs; answer values never logged; queries param
 - **Review:** the reviewer (human, or a second agent session given only the task file + diff) verifies exit criteria, R1–R7, cut-line, and security standards — and never extends the work. Author responds to every comment (fix or reasoned pushback); style nits that aren't lint rules are suggestions, not blockers.
 - **Never merge red; never leave `main` broken.** Incomplete work parks on its branch with a `HANDOFF.md` (state, next step, what's red).
 
-## External contributions (post-launch)
+## External contributions
+
+> **Not accepting external pull requests yet.** QCMS is pre-release and built through an agentic workflow that merges directly to `main`; unsolicited PRs will be declined for now. **Issues, bug reports, and discussion are welcome** — and are the most useful thing you can contribute at this stage. Security reports go through [`SECURITY.md`](SECURITY.md), never a public issue. The rules below apply once external PRs open (post-launch).
 
 - **Talk first for anything non-trivial:** open an issue before a PR; design-affecting proposals sketch an ADR (context, decision, consequences). Typo/docs/small-fix PRs are welcome directly.
 - **Licensing:** MIT, inbound = outbound — submitting a PR licenses your contribution under MIT. Sign-off (`git commit -s`, DCO) required.
