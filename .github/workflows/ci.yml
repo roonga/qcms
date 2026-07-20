@@ -59,3 +59,31 @@ jobs:
       - run: pnpm check:no-control-chars
 
       - run: pnpm build
+
+  # The 027 consumer-level e2e suite, as its OWN job for signal clarity: when
+  # this is red, a product scenario broke (not a unit test). It drives the whole
+  # product over HTTP against a Testcontainers Postgres per scenario file (Docker
+  # is available on ubuntu-latest; the harness forces anonymous image pulls).
+  # Single Node version — the scenarios exercise runtime behaviour, not the
+  # cross-version encoding drift the unit matrix guards. The files parallelise
+  # (isolated DBs) so the suite stays well under the 5-minute budget.
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # @qcms/db's `.` export resolves to dist, so build the workspace first.
+      - run: pnpm build
+
+      # The dedicated e2e project (the five scenario files). The OpenAPI drift +
+      # validation guard rides in the unit job (part of `pnpm test`), no Docker.
+      - run: pnpm --filter qcms-api exec vitest run --root ../.. --project qcms-api-e2e

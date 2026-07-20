@@ -1,0 +1,760 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "qcms respondent API",
+    "version": "0.0.0",
+    "description": "The public respondent loop: start a session, walk the branching flow, submit. Plus the always-on liveness/readiness probes."
+  },
+  "x-stability": "internal",
+  "components": {
+    "schemas": {
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "ReadyResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "unavailable"
+            ]
+          },
+          "checks": {
+            "type": "object",
+            "properties": {
+              "db": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "down"
+                ]
+              }
+            },
+            "required": [
+              "db"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "checks"
+        ]
+      },
+      "StartSessionResponse": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "example": "ses_9f3a2b1c"
+          },
+          "sessionToken": {
+            "type": "string"
+          },
+          "formVersion": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "example": 1
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-07-21T00:00:00.000Z"
+          }
+        },
+        "required": [
+          "sessionId",
+          "sessionToken",
+          "formVersion",
+          "expiresAt"
+        ]
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "example": "unauthorized"
+              },
+              "message": {
+                "type": "string",
+                "example": "Missing or invalid internal service token"
+              },
+              "details": {
+                "nullable": true
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "StartSessionBody": {
+        "type": "object",
+        "properties": {
+          "formSlug": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Public form slug for anonymous entry.",
+            "example": "customer-feedback"
+          },
+          "token": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Secure-link token for invited entry."
+          },
+          "challengeToken": {
+            "type": "string",
+            "description": "Challenge solution (e.g. Turnstile token) for a form with challengeRequired set. Verified by the configured provider; ignored when the provider is `none` (task 026)."
+          }
+        }
+      },
+      "SessionStatusResponse": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "example": "ses_9f3a2b1c"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "created",
+              "in_progress",
+              "submitted",
+              "expired"
+            ]
+          },
+          "formVersion": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "position": {
+            "nullable": true,
+            "description": "Reserved for the current flow position (filled by 019)."
+          }
+        },
+        "required": [
+          "sessionId",
+          "status",
+          "formVersion",
+          "expiresAt",
+          "position"
+        ]
+      },
+      "StepResponse": {
+        "type": "object",
+        "properties": {
+          "step": {
+            "$ref": "#/components/schemas/StepDocument"
+          },
+          "a2uiSpecVersion": {
+            "type": "string",
+            "description": "The pinned snapshot's A2UI spec version, so the renderer selects the right handling (ADR-18).",
+            "example": "1.0.0-preview.7"
+          },
+          "flowState": {
+            "$ref": "#/components/schemas/FlowStateProjection"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/StepProgress"
+          }
+        },
+        "required": [
+          "step",
+          "a2uiSpecVersion",
+          "flowState",
+          "progress"
+        ]
+      },
+      "StepDocument": {
+        "type": "object",
+        "nullable": true,
+        "properties": {
+          "stepId": {
+            "type": "string",
+            "example": "stp_health"
+          },
+          "root": {
+            "nullable": true
+          }
+        },
+        "required": [
+          "stepId"
+        ]
+      },
+      "FlowStateProjection": {
+        "type": "object",
+        "properties": {
+          "currentStep": {
+            "type": "string",
+            "nullable": true,
+            "example": "stp_health"
+          },
+          "visibleQuestions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "q_smoker",
+              "q_cigs_daily"
+            ]
+          },
+          "missingRequired": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "q_cigs_daily"
+            ]
+          },
+          "readyToSubmit": {
+            "type": "boolean",
+            "description": "True when no visible required question is unanswered (the flow may be submitted)."
+          }
+        },
+        "required": [
+          "currentStep",
+          "visibleQuestions",
+          "missingRequired",
+          "readyToSubmit"
+        ]
+      },
+      "StepProgress": {
+        "type": "object",
+        "properties": {
+          "stepIndex": {
+            "type": "integer",
+            "description": "0-based index of the current step within the visible steps; equals totalVisibleSteps when complete."
+          },
+          "totalVisibleSteps": {
+            "type": "integer",
+            "example": 1
+          }
+        },
+        "required": [
+          "stepIndex",
+          "totalVisibleSteps"
+        ]
+      },
+      "SubmitAnswerBody": {
+        "type": "object",
+        "properties": {
+          "questionId": {
+            "type": "string",
+            "minLength": 1,
+            "example": "q_smoker"
+          },
+          "value": {
+            "nullable": true,
+            "description": "The answer value; validated against the pinned question."
+          }
+        },
+        "required": [
+          "questionId"
+        ]
+      },
+      "SubmitResponse": {
+        "type": "object",
+        "properties": {
+          "submittedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-07-20T00:00:00.000Z"
+          },
+          "contentHash": {
+            "type": "string",
+            "description": "Lowercase-hex SHA-256 over the canonical locked submission (the audit anchor).",
+            "example": "3b0c…"
+          }
+        },
+        "required": [
+          "submittedAt",
+          "contentHash"
+        ]
+      },
+      "SubmitBody": {
+        "type": "object",
+        "properties": {
+          "website": {
+            "type": "string",
+            "description": "Honeypot field; must be empty. A non-empty value is flagged."
+          }
+        },
+        "additionalProperties": {
+          "nullable": true
+        }
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Liveness probe",
+        "tags": [
+          "ops"
+        ],
+        "responses": {
+          "200": {
+            "description": "Process is up",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ready": {
+      "get": {
+        "summary": "Readiness probe (checks the database)",
+        "tags": [
+          "ops"
+        ],
+        "responses": {
+          "200": {
+            "description": "Dependencies reachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadyResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A dependency is unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadyResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sessions": {
+      "post": {
+        "summary": "Start a respondent session (anonymous or via a secure link)",
+        "tags": [
+          "responses"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "responses:read"
+            ]
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartSessionBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Session created; the token authorizes every later respondent call",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartSessionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sessions/{id}": {
+      "get": {
+        "summary": "Read a session's status and pinned version (session-token authed)",
+        "tags": [
+          "responses"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "responses:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "ses_9f3a2b1c"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The session's current status view",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionStatusResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sessions/{id}/step": {
+      "get": {
+        "summary": "Serve the current step's stored compiled UI and flow projection (session-token authed)",
+        "tags": [
+          "responses"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "responses:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "ses_9f3a2b1c"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The current step document and client-safe flow projection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StepResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sessions/{id}/answers": {
+      "post": {
+        "summary": "Submit one answer; validated, appended to the ledger, flow re-evaluated (session-token authed)",
+        "tags": [
+          "responses"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "responses:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "ses_9f3a2b1c"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitAnswerBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The answer was recorded; the updated flow projection follows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StepResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sessions/{id}/submit": {
+      "post": {
+        "summary": "Submit the session: validate visible-required answers, lock the set, emit the outbox event (session-token authed)",
+        "tags": [
+          "responses"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "responses:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "ses_9f3a2b1c"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The submission receipt (also returned idempotently on re-submit)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmitResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -8,6 +8,8 @@
  */
 
 export { createApp, type RouteGroups, type SliceRegistrar, type CreateAppOptions } from "./app.js";
+export { appGroups } from "./registrars.js";
+export { buildApiDocuments, type ApiDocuments, type OpenApiDocument } from "./openapi-document.js";
 export type { Deps } from "./deps.js";
 export {
   loadConfig,

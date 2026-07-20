@@ -1,0 +1,3705 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "qcms admin API",
+    "version": "0.0.0",
+    "description": "The internal authoring surface (mounted under /admin): questions, forms, secure links, responses/export/erasure, webhooks, and outbox delivery ops."
+  },
+  "x-stability": "internal",
+  "components": {
+    "schemas": {
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "ReadyResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "unavailable"
+            ]
+          },
+          "checks": {
+            "type": "object",
+            "properties": {
+              "db": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "down"
+                ]
+              }
+            },
+            "required": [
+              "db"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "checks"
+        ]
+      },
+      "CreatedQuestionResponse": {
+        "type": "object",
+        "properties": {
+          "questionId": {
+            "type": "string",
+            "example": "q_favourite_colour"
+          },
+          "slug": {
+            "type": "string",
+            "example": "favourite-colour"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "$ref": "#/components/schemas/QuestionVersionView"
+          }
+        },
+        "required": [
+          "questionId",
+          "slug",
+          "createdAt",
+          "version"
+        ]
+      },
+      "QuestionVersionView": {
+        "type": "object",
+        "properties": {
+          "questionId": {
+            "type": "string",
+            "example": "q_favourite_colour"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "example": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "published",
+              "deprecated"
+            ],
+            "example": "draft"
+          },
+          "definition": {
+            "nullable": true
+          },
+          "publishedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "example": null
+          }
+        },
+        "required": [
+          "questionId",
+          "version",
+          "status",
+          "publishedAt"
+        ]
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "example": "unauthorized"
+              },
+              "message": {
+                "type": "string",
+                "example": "Missing or invalid internal service token"
+              },
+              "details": {
+                "nullable": true
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "CreateQuestionBody": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string",
+            "minLength": 1,
+            "example": "favourite-colour"
+          },
+          "definition": {
+            "$ref": "#/components/schemas/QuestionDefinitionInput"
+          }
+        },
+        "required": [
+          "slug",
+          "definition"
+        ]
+      },
+      "QuestionDefinitionInput": {
+        "type": "object",
+        "additionalProperties": {
+          "nullable": true
+        },
+        "description": "A question definition (kernel-validated)."
+      },
+      "EditVersionBody": {
+        "type": "object",
+        "properties": {
+          "definition": {
+            "$ref": "#/components/schemas/QuestionDefinitionInput"
+          }
+        },
+        "required": [
+          "definition"
+        ]
+      },
+      "ListQuestionsResponse": {
+        "type": "object",
+        "properties": {
+          "questions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuestionListItem"
+            }
+          }
+        },
+        "required": [
+          "questions"
+        ]
+      },
+      "QuestionListItem": {
+        "type": "object",
+        "properties": {
+          "questionId": {
+            "type": "string",
+            "example": "q_favourite_colour"
+          },
+          "slug": {
+            "type": "string",
+            "example": "favourite-colour"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "latestVersion": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "example": 2
+          },
+          "latestStatus": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "published",
+              "deprecated"
+            ],
+            "example": "published"
+          },
+          "publishedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "label": {
+            "nullable": true
+          }
+        },
+        "required": [
+          "questionId",
+          "slug",
+          "createdAt",
+          "latestVersion",
+          "latestStatus",
+          "publishedAt"
+        ]
+      },
+      "QuestionDetailResponse": {
+        "type": "object",
+        "properties": {
+          "questionId": {
+            "type": "string",
+            "example": "q_favourite_colour"
+          },
+          "slug": {
+            "type": "string",
+            "example": "favourite-colour"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "versions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuestionVersionView"
+            }
+          }
+        },
+        "required": [
+          "questionId",
+          "slug",
+          "createdAt",
+          "versions"
+        ]
+      },
+      "CreatedFormResponse": {
+        "type": "object",
+        "properties": {
+          "formId": {
+            "type": "string",
+            "example": "frm_signup"
+          },
+          "slug": {
+            "type": "string",
+            "example": "signup"
+          },
+          "defaultLocale": {
+            "type": "string",
+            "example": "en"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "closed"
+            ],
+            "example": "open"
+          },
+          "draft": {
+            "nullable": true
+          }
+        },
+        "required": [
+          "formId",
+          "slug",
+          "defaultLocale",
+          "status"
+        ]
+      },
+      "CreateFormBody": {
+        "type": "object",
+        "properties": {
+          "formId": {
+            "type": "string",
+            "minLength": 1,
+            "example": "frm_signup"
+          },
+          "slug": {
+            "type": "string",
+            "minLength": 1,
+            "example": "signup"
+          },
+          "defaultLocale": {
+            "type": "string",
+            "minLength": 1,
+            "example": "en"
+          }
+        },
+        "required": [
+          "formId",
+          "slug",
+          "defaultLocale"
+        ]
+      },
+      "ListFormsResponse": {
+        "type": "object",
+        "properties": {
+          "forms": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FormListItem"
+            }
+          }
+        },
+        "required": [
+          "forms"
+        ]
+      },
+      "FormListItem": {
+        "type": "object",
+        "properties": {
+          "formId": {
+            "type": "string",
+            "example": "frm_signup"
+          },
+          "slug": {
+            "type": "string",
+            "example": "signup"
+          },
+          "defaultLocale": {
+            "type": "string",
+            "example": "en"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "closed"
+            ],
+            "example": "open"
+          },
+          "hasDraft": {
+            "type": "boolean",
+            "example": true
+          },
+          "latestVersion": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "example": 2
+          },
+          "publishedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "formId",
+          "slug",
+          "defaultLocale",
+          "status",
+          "hasDraft",
+          "latestVersion",
+          "publishedAt"
+        ]
+      },
+      "FormDetailResponse": {
+        "type": "object",
+        "properties": {
+          "formId": {
+            "type": "string",
+            "example": "frm_signup"
+          },
+          "slug": {
+            "type": "string",
+            "example": "signup"
+          },
+          "defaultLocale": {
+            "type": "string",
+            "example": "en"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "closed"
+            ],
+            "example": "open"
+          },
+          "draft": {
+            "nullable": true
+          },
+          "draftSource": {
+            "type": "string",
+            "enum": [
+              "open",
+              "seeded",
+              "none"
+            ],
+            "example": "open"
+          },
+          "versions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FormVersionSummary"
+            }
+          }
+        },
+        "required": [
+          "formId",
+          "slug",
+          "defaultLocale",
+          "status",
+          "draftSource",
+          "versions"
+        ]
+      },
+      "FormVersionSummary": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "example": 1
+          },
+          "publishedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "compilerVersion": {
+            "type": "string",
+            "example": "0.1.0"
+          },
+          "a2uiSpecVersion": {
+            "type": "string",
+            "example": "0.1.0"
+          },
+          "semanticsVersion": {
+            "type": "string",
+            "example": "1"
+          }
+        },
+        "required": [
+          "version",
+          "publishedAt",
+          "compilerVersion",
+          "a2uiSpecVersion",
+          "semanticsVersion"
+        ]
+      },
+      "SavedDraftResponse": {
+        "type": "object",
+        "properties": {
+          "draft": {
+            "nullable": true
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "nullable": true
+            }
+          }
+        },
+        "required": [
+          "issues"
+        ]
+      },
+      "DraftBody": {
+        "type": "object",
+        "properties": {
+          "definition": {
+            "$ref": "#/components/schemas/FormDefinitionInput"
+          }
+        },
+        "required": [
+          "definition"
+        ]
+      },
+      "FormDefinitionInput": {
+        "type": "object",
+        "additionalProperties": {
+          "nullable": true
+        },
+        "description": "A form definition (kernel-validated)."
+      },
+      "ValidateDraftResponse": {
+        "type": "object",
+        "properties": {
+          "valid": {
+            "type": "boolean",
+            "example": false
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "nullable": true
+            }
+          }
+        },
+        "required": [
+          "valid",
+          "issues"
+        ]
+      },
+      "PublishedResponse": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "example": 1
+          },
+          "publishedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "version",
+          "publishedAt"
+        ]
+      },
+      "FormStatusResponse": {
+        "type": "object",
+        "properties": {
+          "formId": {
+            "type": "string",
+            "example": "frm_signup"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "closed"
+            ],
+            "example": "closed"
+          }
+        },
+        "required": [
+          "formId",
+          "status"
+        ]
+      },
+      "FormVersionSnapshotResponse": {
+        "type": "object",
+        "properties": {
+          "formId": {
+            "type": "string",
+            "example": "frm_signup"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "example": 1
+          },
+          "publishedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "compilerVersion": {
+            "type": "string",
+            "example": "0.1.0"
+          },
+          "a2uiSpecVersion": {
+            "type": "string",
+            "example": "0.1.0"
+          },
+          "semanticsVersion": {
+            "type": "string",
+            "example": "1"
+          },
+          "definition": {
+            "nullable": true
+          },
+          "compiled": {
+            "nullable": true
+          }
+        },
+        "required": [
+          "formId",
+          "version",
+          "publishedAt",
+          "compilerVersion",
+          "a2uiSpecVersion",
+          "semanticsVersion"
+        ]
+      },
+      "ResponseListResponse": {
+        "type": "object",
+        "properties": {
+          "responses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ResponseListItem"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "example": 1
+          },
+          "pageSize": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "example": 50
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "example": 3
+          }
+        },
+        "required": [
+          "responses",
+          "page",
+          "pageSize",
+          "total"
+        ]
+      },
+      "ResponseListItem": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "example": "ses_abc123"
+          },
+          "formVersion": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "example": 2
+          },
+          "submittedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "accessMode": {
+            "type": "string",
+            "enum": [
+              "anonymous",
+              "secure_link"
+            ]
+          },
+          "flaggedReason": {
+            "type": "string",
+            "nullable": true,
+            "example": null
+          },
+          "answers": {
+            "type": "object",
+            "additionalProperties": {
+              "nullable": true
+            }
+          }
+        },
+        "required": [
+          "sessionId",
+          "formVersion",
+          "submittedAt",
+          "accessMode",
+          "flaggedReason",
+          "answers"
+        ]
+      },
+      "ResponseDetailResponse": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "example": "ses_abc123"
+          },
+          "formId": {
+            "type": "string",
+            "example": "frm_intake"
+          },
+          "formVersion": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "example": 2
+          },
+          "submittedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "accessMode": {
+            "type": "string",
+            "enum": [
+              "anonymous",
+              "secure_link"
+            ]
+          },
+          "flaggedReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "contentHash": {
+            "type": "string",
+            "example": "a1b2c3…"
+          },
+          "answers": {
+            "type": "object",
+            "additionalProperties": {
+              "nullable": true
+            }
+          },
+          "ledger": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LedgerEntry"
+            }
+          }
+        },
+        "required": [
+          "sessionId",
+          "formId",
+          "formVersion",
+          "submittedAt",
+          "accessMode",
+          "flaggedReason",
+          "contentHash",
+          "answers",
+          "ledger"
+        ]
+      },
+      "LedgerEntry": {
+        "type": "object",
+        "properties": {
+          "questionId": {
+            "type": "string",
+            "example": "q_full_name"
+          },
+          "value": {
+            "nullable": true
+          },
+          "answeredAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "questionId",
+          "answeredAt"
+        ]
+      },
+      "EraseResponse": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "example": "ses_abc123"
+          },
+          "formId": {
+            "type": "string",
+            "example": "frm_intake"
+          },
+          "formVersion": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "example": 2
+          },
+          "erasedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "type": "string",
+            "example": "subject_request"
+          },
+          "alreadyErased": {
+            "type": "boolean",
+            "example": false
+          }
+        },
+        "required": [
+          "sessionId",
+          "formId",
+          "formVersion",
+          "erasedAt",
+          "reason",
+          "alreadyErased"
+        ]
+      },
+      "EraseBody": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "example": "subject_request"
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "ErasuresResponse": {
+        "type": "object",
+        "properties": {
+          "erasures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TombstoneItem"
+            }
+          }
+        },
+        "required": [
+          "erasures"
+        ]
+      },
+      "TombstoneItem": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "example": "ses_abc123"
+          },
+          "formId": {
+            "type": "string",
+            "example": "frm_intake"
+          },
+          "formVersion": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "example": 2
+          },
+          "erasedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "type": "string",
+            "example": "subject_request"
+          }
+        },
+        "required": [
+          "sessionId",
+          "formId",
+          "formVersion",
+          "erasedAt",
+          "reason"
+        ]
+      },
+      "UnflagResponse": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "example": "ses_abc123"
+          },
+          "released": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "required": [
+          "sessionId",
+          "released"
+        ]
+      },
+      "MintLinksResponse": {
+        "type": "object",
+        "properties": {
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MintedLink"
+            }
+          }
+        },
+        "required": [
+          "links"
+        ]
+      },
+      "MintedLink": {
+        "type": "object",
+        "properties": {
+          "linkId": {
+            "type": "string",
+            "example": "lnk_ab12cd34"
+          },
+          "url": {
+            "type": "string",
+            "example": "https://forms.example.com/l/eyJ…"
+          },
+          "expiresAt": {
+            "type": "string",
+            "example": "2026-12-31T23:59:59.000Z"
+          }
+        },
+        "required": [
+          "linkId",
+          "url",
+          "expiresAt"
+        ]
+      },
+      "MintLinksBody": {
+        "type": "object",
+        "properties": {
+          "expiresAt": {
+            "type": "string",
+            "example": "2026-12-31T23:59:59.000Z"
+          },
+          "oneTime": {
+            "type": "boolean",
+            "default": false,
+            "example": true
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 1,
+            "example": 1
+          }
+        },
+        "required": [
+          "expiresAt"
+        ]
+      },
+      "LinkListResponse": {
+        "type": "object",
+        "properties": {
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LinkListItem"
+            }
+          }
+        },
+        "required": [
+          "links"
+        ]
+      },
+      "LinkListItem": {
+        "type": "object",
+        "properties": {
+          "linkId": {
+            "type": "string",
+            "example": "lnk_ab12cd34"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "active",
+              "consumed",
+              "expired",
+              "revoked"
+            ],
+            "example": "active"
+          },
+          "oneTime": {
+            "type": "boolean",
+            "example": true
+          },
+          "expiresAt": {
+            "type": "string",
+            "example": "2026-12-31T23:59:59.000Z"
+          },
+          "consumedAt": {
+            "type": "string",
+            "nullable": true,
+            "example": null
+          },
+          "revokedAt": {
+            "type": "string",
+            "nullable": true,
+            "example": null
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2026-07-20T00:00:00.000Z"
+          }
+        },
+        "required": [
+          "linkId",
+          "state",
+          "oneTime",
+          "expiresAt",
+          "consumedAt",
+          "revokedAt",
+          "createdAt"
+        ]
+      },
+      "RevokedLinkResponse": {
+        "type": "object",
+        "properties": {
+          "linkId": {
+            "type": "string",
+            "example": "lnk_ab12cd34"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "revoked"
+            ],
+            "example": "revoked"
+          },
+          "revokedAt": {
+            "type": "string",
+            "example": "2026-07-20T00:00:00.000Z"
+          }
+        },
+        "required": [
+          "linkId",
+          "state",
+          "revokedAt"
+        ]
+      },
+      "CreatedWebhookResponse": {
+        "type": "object",
+        "properties": {
+          "webhookId": {
+            "type": "string",
+            "example": "whk_ab12cd34"
+          },
+          "formId": {
+            "type": "string",
+            "example": "frm_intake"
+          },
+          "url": {
+            "type": "string",
+            "example": "https://consumer.example.com/qcms-hook"
+          },
+          "active": {
+            "type": "boolean",
+            "example": true
+          },
+          "secret": {
+            "type": "string",
+            "example": "whsec_…"
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2026-07-20T00:00:00.000Z"
+          }
+        },
+        "required": [
+          "webhookId",
+          "formId",
+          "url",
+          "active",
+          "secret",
+          "createdAt"
+        ]
+      },
+      "CreateWebhookBody": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "example": "https://consumer.example.com/qcms-hook"
+          },
+          "secret": {
+            "type": "string",
+            "minLength": 16,
+            "example": "whsec_…"
+          },
+          "active": {
+            "type": "boolean",
+            "default": true,
+            "example": true
+          }
+        },
+        "required": [
+          "url"
+        ]
+      },
+      "WebhookListResponse": {
+        "type": "object",
+        "properties": {
+          "webhooks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WebhookSummary"
+            }
+          }
+        },
+        "required": [
+          "webhooks"
+        ]
+      },
+      "WebhookSummary": {
+        "type": "object",
+        "properties": {
+          "webhookId": {
+            "type": "string",
+            "example": "whk_ab12cd34"
+          },
+          "url": {
+            "type": "string",
+            "example": "https://consumer.example.com/qcms-hook"
+          },
+          "active": {
+            "type": "boolean",
+            "example": true
+          },
+          "hasSecret": {
+            "type": "boolean",
+            "enum": [
+              true
+            ],
+            "example": true
+          },
+          "deactivatedAt": {
+            "type": "string",
+            "nullable": true,
+            "example": null
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2026-07-20T00:00:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "example": "2026-07-20T00:00:00.000Z"
+          }
+        },
+        "required": [
+          "webhookId",
+          "url",
+          "active",
+          "hasSecret",
+          "deactivatedAt",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "UpdatedWebhookResponse": {
+        "type": "object",
+        "properties": {
+          "webhookId": {
+            "type": "string",
+            "example": "whk_ab12cd34"
+          },
+          "url": {
+            "type": "string",
+            "example": "https://consumer.example.com/qcms-hook-v2"
+          },
+          "active": {
+            "type": "boolean",
+            "example": true
+          },
+          "deactivatedAt": {
+            "type": "string",
+            "nullable": true,
+            "example": null
+          },
+          "updatedAt": {
+            "type": "string",
+            "example": "2026-07-20T00:00:00.000Z"
+          },
+          "secret": {
+            "type": "string",
+            "example": "whsec_…"
+          }
+        },
+        "required": [
+          "webhookId",
+          "url",
+          "active",
+          "deactivatedAt",
+          "updatedAt"
+        ]
+      },
+      "UpdateWebhookBody": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "example": "https://consumer.example.com/qcms-hook-v2"
+          },
+          "active": {
+            "type": "boolean",
+            "example": false
+          },
+          "rotateSecret": {
+            "type": "boolean",
+            "example": true
+          },
+          "secret": {
+            "type": "string",
+            "minLength": 16,
+            "example": "whsec_…"
+          }
+        }
+      },
+      "DeactivatedWebhookResponse": {
+        "type": "object",
+        "properties": {
+          "webhookId": {
+            "type": "string",
+            "example": "whk_ab12cd34"
+          },
+          "active": {
+            "type": "boolean",
+            "enum": [
+              false
+            ],
+            "example": false
+          },
+          "deactivatedAt": {
+            "type": "string",
+            "example": "2026-07-20T00:00:00.000Z"
+          }
+        },
+        "required": [
+          "webhookId",
+          "active",
+          "deactivatedAt"
+        ]
+      },
+      "DeadLettersResponse": {
+        "type": "object",
+        "properties": {
+          "deadLetters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeadLetterDelivery"
+            }
+          }
+        },
+        "required": [
+          "deadLetters"
+        ]
+      },
+      "DeadLetterDelivery": {
+        "type": "object",
+        "properties": {
+          "deliveryId": {
+            "type": "string",
+            "example": "d290f1ee-6c54-4b01-90e6-d701748f0851"
+          },
+          "eventId": {
+            "type": "string",
+            "example": "a1b2c3d4-0000-0000-0000-000000000000"
+          },
+          "eventType": {
+            "type": "string",
+            "example": "response.submitted"
+          },
+          "webhookId": {
+            "type": "string",
+            "example": "whk_ab12cd34"
+          },
+          "url": {
+            "type": "string",
+            "example": "https://consumer.example.com/qcms-hook"
+          },
+          "attempts": {
+            "type": "integer",
+            "example": 10
+          },
+          "lastError": {
+            "type": "string",
+            "nullable": true,
+            "example": "http_500"
+          },
+          "deadLetteredAt": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-07-20T02:00:00.000Z"
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2026-07-20T00:00:00.000Z"
+          }
+        },
+        "required": [
+          "deliveryId",
+          "eventId",
+          "eventType",
+          "webhookId",
+          "url",
+          "attempts",
+          "lastError",
+          "deadLetteredAt",
+          "createdAt"
+        ]
+      },
+      "RedeliverResponse": {
+        "type": "object",
+        "properties": {
+          "deliveryId": {
+            "type": "string",
+            "example": "d290f1ee-6c54-4b01-90e6-d701748f0851"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending"
+            ],
+            "example": "pending"
+          },
+          "attempts": {
+            "type": "number",
+            "enum": [
+              0
+            ],
+            "example": 0
+          },
+          "nextAttemptAt": {
+            "type": "string",
+            "example": "2026-07-20T02:05:00.000Z"
+          }
+        },
+        "required": [
+          "deliveryId",
+          "status",
+          "attempts",
+          "nextAttemptAt"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/admin/questions": {
+      "post": {
+        "summary": "Create a question with its first draft version (admin)",
+        "tags": [
+          "questions"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "questions:write"
+            ]
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateQuestionBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created question and its first draft version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedQuestionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "List questions with a latest-version summary; filter by status, search slug/label (admin)",
+        "tags": [
+          "questions"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "questions:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "draft",
+                "published",
+                "deprecated"
+              ],
+              "example": "published"
+            },
+            "required": false,
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "colour"
+            },
+            "required": false,
+            "name": "search",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The question library",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListQuestionsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/questions/{id}/versions": {
+      "post": {
+        "summary": "Append a new draft version, seeded from the latest (admin)",
+        "tags": [
+          "questions"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "questions:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "q_favourite_colour"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "The new draft version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionVersionView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/questions/{id}/versions/{v}": {
+      "put": {
+        "summary": "Edit a draft version's definition (admin); published/deprecated are immutable",
+        "tags": [
+          "questions"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "questions:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "q_favourite_colour"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "1"
+            },
+            "required": true,
+            "name": "v",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditVersionBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated draft version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionVersionView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/questions/{id}/versions/{v}/publish": {
+      "post": {
+        "summary": "Publish a draft version, freezing its definition (admin)",
+        "tags": [
+          "questions"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "questions:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "q_favourite_colour"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "1"
+            },
+            "required": true,
+            "name": "v",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The published version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionVersionView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/questions/{id}/versions/{v}/deprecate": {
+      "post": {
+        "summary": "Deprecate a published version, blocking new pins (admin)",
+        "tags": [
+          "questions"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "questions:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "q_favourite_colour"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "1"
+            },
+            "required": true,
+            "name": "v",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The deprecated version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionVersionView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/questions/{id}": {
+      "get": {
+        "summary": "Read one question with all its versions (admin)",
+        "tags": [
+          "questions"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "questions:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "q_favourite_colour"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The question and every version, oldest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionDetailResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/forms": {
+      "post": {
+        "summary": "Create a form identity with an empty first draft (admin)",
+        "tags": [
+          "forms"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFormBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created form and its empty draft",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedFormResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "List forms with draft/published status (admin)",
+        "tags": [
+          "forms"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:read"
+            ]
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The form library",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListFormsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/forms/{id}": {
+      "get": {
+        "summary": "Read one form: identity, current draft (open or seeded), version summary (admin)",
+        "tags": [
+          "forms"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_signup"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The form detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormDetailResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/forms/{id}/draft": {
+      "put": {
+        "summary": "Replace the draft definition; returns advisory publish issues (admin)",
+        "tags": [
+          "forms"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_signup"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The saved draft and advisory validation issues",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedDraftResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/forms/{id}/draft/validate": {
+      "post": {
+        "summary": "Dry-run publish validation of a definition; no save (admin)",
+        "tags": [
+          "forms"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_signup"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The validation issues (empty when publishable)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidateDraftResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/forms/{id}/publish": {
+      "post": {
+        "summary": "Publish the draft: freeze a snapshot, compile A2UI, persist a version (admin)",
+        "tags": [
+          "forms"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_signup"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The new published version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/forms/{id}/close": {
+      "post": {
+        "summary": "Close a form to new sessions; in-flight sessions finish (admin)",
+        "tags": [
+          "forms"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_signup"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The form's new lifecycle status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormStatusResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/forms/{id}/reopen": {
+      "post": {
+        "summary": "Reopen a closed form to new sessions (admin)",
+        "tags": [
+          "forms"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_signup"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The form's new lifecycle status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormStatusResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/forms/{id}/versions/{v}": {
+      "get": {
+        "summary": "Read one published version's full snapshot (definition + compiled) (admin)",
+        "tags": [
+          "forms"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_signup"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "1"
+            },
+            "required": true,
+            "name": "v",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The frozen version snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormVersionSnapshotResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/forms/{id}/responses": {
+      "get": {
+        "summary": "List submitted responses for a form (paginated, filterable) (admin)",
+        "tags": [
+          "responses"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "responses:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_intake"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "2"
+            },
+            "required": false,
+            "name": "version",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "2026-01-01T00:00:00.000Z"
+            },
+            "required": false,
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "2026-12-31T23:59:59.999Z"
+            },
+            "required": false,
+            "name": "to",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "example": "true"
+            },
+            "required": false,
+            "name": "flagged",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "1"
+            },
+            "required": false,
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "50"
+            },
+            "required": false,
+            "name": "pageSize",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of submitted responses (erased sessions excluded)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/forms/{id}/responses/{sessionId}": {
+      "get": {
+        "summary": "Read one response: locked answers, audit ledger, content hash (admin)",
+        "tags": [
+          "responses"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "responses:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_intake"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "ses_abc123"
+            },
+            "required": true,
+            "name": "sessionId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The response detail with its append-only answer ledger",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseDetailResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/forms/{id}/export": {
+      "get": {
+        "summary": "Export submitted responses as CSV or JSON (streamed) (admin)",
+        "tags": [
+          "responses"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "responses:export"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_intake"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "csv",
+                "json"
+              ],
+              "example": "csv"
+            },
+            "required": false,
+            "name": "format",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "2"
+            },
+            "required": false,
+            "name": "version",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "to",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The export stream (text/csv or application/json; erased sessions excluded)"
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/sessions/{sessionId}/erase": {
+      "post": {
+        "summary": "Erase a session's response (ADR-17); returns the tombstone (idempotent) (admin)",
+        "tags": [
+          "responses"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "responses:erase"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "ses_abc123"
+            },
+            "required": true,
+            "name": "sessionId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EraseBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The erasure tombstone (existence without content)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EraseResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/erasures": {
+      "get": {
+        "summary": "List erasure tombstones (compliance evidence) (admin)",
+        "tags": [
+          "responses"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "responses:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_intake"
+            },
+            "required": false,
+            "name": "formId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "1"
+            },
+            "required": false,
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "50"
+            },
+            "required": false,
+            "name": "pageSize",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The erasure tombstones, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErasuresResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/responses/{sessionId}/unflag": {
+      "post": {
+        "summary": "Release a withheld (flagged) response's outbox event (admin)",
+        "tags": [
+          "responses"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "responses:erase"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "ses_abc123"
+            },
+            "required": true,
+            "name": "sessionId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Whether this call released the withheld response.submitted event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnflagResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/forms/{id}/links": {
+      "post": {
+        "summary": "Mint one or a batch of secure links for a form (admin)",
+        "tags": [
+          "links"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "links:mint"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_intake"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MintLinksBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The minted links, each with its shareable URL and expiry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MintLinksResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "List a form's secure links with lifecycle state (admin)",
+        "tags": [
+          "links"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "links:mint"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_intake"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The minted links with derived state (active/consumed/expired/revoked)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/links/{linkId}/revoke": {
+      "post": {
+        "summary": "Revoke a secure link; start-session rejects it thereafter (admin)",
+        "tags": [
+          "links"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "links:mint"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "lnk_ab12cd34"
+            },
+            "required": true,
+            "name": "linkId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The revoked link",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevokedLinkResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/forms/{id}/webhooks": {
+      "post": {
+        "summary": "Configure a webhook for a form; the secret is shown once (admin)",
+        "tags": [
+          "webhooks"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "webhooks:manage"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_intake"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWebhookBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created webhook; `secret` is shown exactly once here",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedWebhookResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "List a form's webhooks (secrets masked) (admin)",
+        "tags": [
+          "webhooks"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "webhooks:manage"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_intake"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The configured webhooks (secrets never included)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/forms/{id}/webhooks/{webhookId}": {
+      "put": {
+        "summary": "Update a webhook (url/active) or rotate its secret; new secret shown once (admin)",
+        "tags": [
+          "webhooks"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "webhooks:manage"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_intake"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "whk_ab12cd34"
+            },
+            "required": true,
+            "name": "webhookId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWebhookBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated webhook; `secret` present only when this call rotated it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdatedWebhookResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Soft-deactivate a webhook (stops delivery; row retained) (admin)",
+        "tags": [
+          "webhooks"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "webhooks:manage"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_intake"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "whk_ab12cd34"
+            },
+            "required": true,
+            "name": "webhookId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The deactivated webhook",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeactivatedWebhookResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/outbox/dead-letters": {
+      "get": {
+        "summary": "List dead-lettered webhook deliveries with attempt history (admin)",
+        "tags": [
+          "outbox"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "webhooks:manage"
+            ]
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The dead-lettered deliveries, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeadLettersResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/outbox/{id}/redeliver": {
+      "post": {
+        "summary": "Reset a dead-lettered delivery for immediate redelivery (admin)",
+        "tags": [
+          "outbox"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "webhooks:manage"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "d290f1ee-6c54-4b01-90e6-d701748f0851"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The delivery, reset to due-now; the next pass re-attempts it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RedeliverResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

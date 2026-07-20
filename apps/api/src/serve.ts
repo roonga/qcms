@@ -21,19 +21,10 @@ import { schema } from "@qcms/db";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 
-import { createApp, type RouteGroups } from "./app.js";
+import { createApp } from "./app.js";
 import { systemClock } from "./clock.js";
-import { registerForms } from "./features/forms/route.js";
-import { registerLinks } from "./features/links/route.js";
-import { registerQuestions } from "./features/questions/route.js";
-import { registerAdminResponses } from "./features/responses/admin/route.js";
-import { registerServeStep } from "./features/responses/serve-step/route.js";
-import { registerStartSession } from "./features/responses/start-session/route.js";
-import { registerSubmit } from "./features/responses/submit/route.js";
-import { registerOutboxOps } from "./features/outbox/route.js";
-import { registerWebhooks } from "./features/webhooks/route.js";
 import { selectChallengeVerifier } from "./features/responses/challenge.js";
-import { registerAdminAuth } from "./middleware/admin-auth.js";
+import { appGroups } from "./registrars.js";
 import { loadConfig } from "./config.js";
 import type { Deps } from "./deps.js";
 import { createJsonLogger } from "./logger.js";
@@ -44,27 +35,6 @@ import { createRetentionSweepScheduler } from "./schedulers/retention-sweep.js";
 import type { Scheduler } from "./schedulers/scheduler.js";
 
 const { Pool } = pg;
-
-/**
- * Slice registrars per surface. Empty at 017 (no feature slices yet); tasks
- * 018–026 add their registrars to the matching bucket.
- */
-const groups: RouteGroups = {
-  public: [registerStartSession, registerServeStep, registerSubmit],
-  internal: [],
-  // `registerAdminAuth` MUST be first: it installs the admin session gate that
-  // every admin route below sits behind (021; 031 swaps the stub for real
-  // better-auth verification).
-  admin: [
-    registerAdminAuth,
-    registerQuestions,
-    registerForms,
-    registerAdminResponses,
-    registerLinks,
-    registerWebhooks,
-    registerOutboxOps,
-  ],
-};
 
 function main(): void {
   const config = loadConfig(process.env);
@@ -87,7 +57,7 @@ function main(): void {
     flags: config.flags,
   };
 
-  const app = createApp(deps, config.mount, { groups });
+  const app = createApp(deps, config.mount, { groups: appGroups });
 
   // Schedulers run in the internal process only (enterprise topology; solo runs
   // one all-surface process which includes internal).

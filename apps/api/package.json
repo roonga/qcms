@@ -19,8 +19,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run --root ../.. --project qcms-api",
-    "lint": "eslint src",
+    "test": "vitest run --root ../.. --project qcms-api --project qcms-api-e2e",
+    "lint": "eslint src e2e",
     "start": "node dist/serve.js"
   },
   "dependencies": {
@@ -35,6 +35,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@seriousme/openapi-schema-validator": "^2.9.0",
     "@testcontainers/postgresql": "^12.0.4",
     "@types/node": "^24.13.3",
     "@types/pg": "^8.20.0"

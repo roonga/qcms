@@ -18,7 +18,9 @@
     "lint": "turbo run lint && prettier --check .",
     "format": "prettier --write .",
     "changeset": "changeset",
-    "check:no-control-chars": "node scripts/check-no-control-chars.mjs"
+    "check:no-control-chars": "node scripts/check-no-control-chars.mjs",
+    "openapi:generate": "pnpm --filter qcms-api build && node apps/api/scripts/generate-openapi.mjs",
+    "openapi:check": "vitest run --project qcms-api openapi-document.test.ts"
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.1",
