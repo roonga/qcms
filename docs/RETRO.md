@@ -17,5 +17,9 @@ Seed entries (from the 2026-07-19/20 manual improvement pass, recorded retroacti
 - Executor: no repo convention for where package-scoped lint rules live (root flat config vs per-package) — a one-line note in CONTRIBUTING or the eslint config header would have saved an ad-hoc decision. Also, root `pnpm lint` includes a Prettier check but nothing tells executors to format new files first — cost one red-green cycle; a "format new files before lint" note in the executor protocol would prevent it.
 - Reviewer: the v8 text coverage reporter silently omits 100%-covered files, so per-file coverage evidence needs `--coverage.reporter=json-summary`; and `turbo lint` cache hits can replay green logs without exercising a changed `eslint.config.js` — list it in `turbo.json` globalDependencies (or run `eslint src` uncached when the config changed).
 
+## 011 — A2UI compiler (2026-07-20, parked blocked)
+- Executor: the task file's own header predicted this exact blocker ("candidates known today: multiline text for `longText`") — a pre-flight upstream check at planning time (or filing the upstream issue when 011 was authored) would have saved the session spin-up entirely.
+- Executor: `npm view` is denied by the pnpm-only permission rules even for read-only registry metadata; `pnpm view` works — a CLAUDE.md note ("use pnpm view/dlx for registry queries") would prevent one wasted denial round-trip.
+
 ## Stage 3 boundary — CI red streak (2026-07-20) [processed 2026-07-20]
 - CI failed on every push since ~008 while local gates stayed green: the canonical gate omitted `pnpm typecheck` (CI runs it; `build` doesn't cover test-file types). One real TS18048 in form-definition.test.ts rode along for 10 landings. Fixed: error patched, typecheck added to the gate in /task, executor, reviewer, CLAUDE.md, CONTRIBUTING. Lesson: the gate definition must be a superset of CI, verified by comparing against ci.yml whenever either changes.
