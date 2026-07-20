@@ -41,7 +41,7 @@ export type SubmitBody = z.infer<typeof SubmitBody>;
  */
 export const SubmitResponse = z
   .object({
-    submittedAt: z.string().datetime().openapi({ example: "2026-07-20T00:00:00.000Z" }),
+    submittedAt: z.iso.datetime().openapi({ example: "2026-07-20T00:00:00.000Z" }),
     contentHash: z.string().openapi({
       description: "Lowercase-hex SHA-256 over the canonical locked submission (the audit anchor).",
       example: "3b0c…",

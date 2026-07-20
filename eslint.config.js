@@ -1,6 +1,7 @@
 // Root ESLint flat config - the single lint configuration for the whole workspace.
 // Per-package `lint` scripts run `eslint src`; ESLint resolves this file by walking up.
 import eslint from "@eslint/js";
+import sonarjs from "eslint-plugin-sonarjs";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
@@ -19,6 +20,42 @@ export default tseslint.config(
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
+  // SonarSource's JS/TS analyzer rules (bugs, code smells, cognitive
+  // complexity) as a per-commit gate: "SonarQube without a server" (issue #14).
+  sonarjs.configs.recommended,
+  {
+    // Project-level sonarjs tuning (rationale required for every entry; these
+    // are conventions, not silencing). Applies workspace-wide.
+    rules: {
+      // OFF by design. Determinism is a non-negotiable: the engine sorts ASCII
+      // ids/keys where Array.prototype.sort's default UTF-16 code-unit order is
+      // stable and locale-independent. This rule pushes String.localeCompare,
+      // which is locale-DEPENDENT - the opposite of the guarantee we want.
+      "sonarjs/no-alphabetical-sort": "off",
+    },
+  },
+  {
+    // Test files legitimately trip several sonarjs rules by design: fixture IPs
+    // (1.2.3.4, 1.1.1.1) exercise rate-limit/audit paths; the SSRF guard tests
+    // MUST feed http/ftp URLs to prove they are rejected; and generic length
+    // assertions read fine in a test. None of these are code smells in tests.
+    files: ["**/*.test.ts", "**/*.test.tsx", "**/*.integration.test.ts", "**/e2e/**/*.ts"],
+    rules: {
+      "sonarjs/no-hardcoded-ip": "off",
+      "sonarjs/no-clear-text-protocols": "off",
+      "sonarjs/prefer-specific-assertions": "off",
+      "sonarjs/no-trivial-assertions": "off",
+    },
+  },
+  {
+    // The pure kernel concentrates essential-complexity algorithms by design
+    // (regex-safety scanner, rule evaluator, answer validator). Correctness is
+    // guaranteed by the golden corpus and property tests, not a line-count
+    // heuristic; fragmenting them would relocate complexity and add bug surface
+    // in determinism-critical code. Rule stays an error for app code (api/ui/db).
+    files: ["packages/core/src/**/*.ts"],
+    rules: { "sonarjs/cognitive-complexity": "off" },
+  },
   {
     languageOptions: {
       parserOptions: {

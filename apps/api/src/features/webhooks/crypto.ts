@@ -112,6 +112,7 @@ export function generateWebhookSecret(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
+  // eslint-disable-next-line sonarjs/super-linear-regex -- anchored single character-class; linear, no backtracking blowup
   const base64url = btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
   return `whsec_${base64url}`;
 }

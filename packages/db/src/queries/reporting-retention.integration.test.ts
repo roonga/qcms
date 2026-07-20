@@ -212,7 +212,9 @@ describe("reporting contract - no column drift", () => {
     );
     const live: Record<string, string[]> = {};
     for (const row of res.rows) {
-      (live[row.table_name] ??= []).push(row.column_name);
+      const cols = live[row.table_name] ?? [];
+      cols.push(row.column_name);
+      live[row.table_name] = cols;
     }
     expect(live).toEqual(EXPECTED);
   });

@@ -21,7 +21,7 @@ const HIDDEN_CONTAINER_STYLE: CSSProperties = {
   whiteSpace: "nowrap",
 };
 
-export function Honeypot({ name = "website" }: HoneypotProps) {
+export function Honeypot({ name = "website" }: Readonly<HoneypotProps>) {
   return (
     <div aria-hidden="true" style={HIDDEN_CONTAINER_STYLE}>
       <input name={name} autoComplete="off" tabIndex={-1} />

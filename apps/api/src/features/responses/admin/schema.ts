@@ -115,7 +115,7 @@ export const ResponseListItem = z
   .object({
     sessionId: z.string().openapi({ example: "ses_abc123" }),
     formVersion: z.number().int().positive().openapi({ example: 2 }),
-    submittedAt: z.string().datetime(),
+    submittedAt: z.iso.datetime(),
     accessMode: AccessMode,
     /** `null` = clean; a reason string = flagged and withheld from webhooks (020). */
     flaggedReason: z.string().nullable().openapi({ example: null }),
@@ -138,7 +138,7 @@ export const LedgerEntry = z
   .object({
     questionId: z.string().openapi({ example: "q_full_name" }),
     value: z.unknown(),
-    answeredAt: z.string().datetime(),
+    answeredAt: z.iso.datetime(),
   })
   .openapi("LedgerEntry");
 
@@ -148,7 +148,7 @@ export const ResponseDetailResponse = z
     sessionId: z.string().openapi({ example: "ses_abc123" }),
     formId: z.string().openapi({ example: "frm_intake" }),
     formVersion: z.number().int().positive().openapi({ example: 2 }),
-    submittedAt: z.string().datetime(),
+    submittedAt: z.iso.datetime(),
     accessMode: AccessMode,
     flaggedReason: z.string().nullable(),
     /** The audit anchor (009): any holder can re-derive and verify the locked set. */
@@ -166,7 +166,7 @@ export const TombstoneItem = z
     sessionId: z.string().openapi({ example: "ses_abc123" }),
     formId: z.string().openapi({ example: "frm_intake" }),
     formVersion: z.number().int().positive().openapi({ example: 2 }),
-    erasedAt: z.string().datetime(),
+    erasedAt: z.iso.datetime(),
     reason: z.string().openapi({ example: "subject_request" }),
   })
   .openapi("TombstoneItem");
@@ -181,7 +181,7 @@ export const EraseResponse = z
     sessionId: z.string().openapi({ example: "ses_abc123" }),
     formId: z.string().openapi({ example: "frm_intake" }),
     formVersion: z.number().int().positive().openapi({ example: 2 }),
-    erasedAt: z.string().datetime(),
+    erasedAt: z.iso.datetime(),
     reason: z.string().openapi({ example: "subject_request" }),
     /** `true` when this call was a no-op over an already-erased session (016). */
     alreadyErased: z.boolean().openapi({ example: false }),

@@ -67,17 +67,22 @@ function parseBraceQuantifier(
     return undefined;
   }
   const body = pattern.slice(start + 1, close);
-  const match = /^(\d+)(,(\d*)?)?$/.exec(body);
+  const match = /^(\d+)(,(\d*))?$/.exec(body);
   if (match === null) {
     return undefined;
   }
   const min = Number(match[1]);
-  const max =
-    match[2] === undefined
-      ? min
-      : match[3] === undefined || match[3] === ""
-        ? Number.POSITIVE_INFINITY
-        : Number(match[3]);
+  let max: number;
+  if (match[2] === undefined) {
+    // Bare `{n}`: exact count.
+    max = min;
+  } else if (match[3] === undefined || match[3] === "") {
+    // Open-ended `{n,}`: no upper bound.
+    max = Number.POSITIVE_INFINITY;
+  } else {
+    // Bounded `{n,m}`.
+    max = Number(match[3]);
+  }
   return { end: close + 1, max };
 }
 

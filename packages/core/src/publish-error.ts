@@ -166,12 +166,12 @@ function assertNeverPublishError(error: never): never {
 export function publishErrorLocation(error: PublishError): string {
   switch (error.code) {
     case "DANGLING_QUESTION_REF": {
-      const via =
-        error.path.step !== undefined
-          ? ` in step "${error.path.step}"`
-          : error.path.rule !== undefined
-            ? ` in rule "${error.path.rule}"`
-            : "";
+      let via = "";
+      if (error.path.step !== undefined) {
+        via = ` in step "${error.path.step}"`;
+      } else if (error.path.rule !== undefined) {
+        via = ` in rule "${error.path.rule}"`;
+      }
       return `question "${error.path.question}"${via}`;
     }
     case "DANGLING_OPTION_REF":
@@ -181,20 +181,24 @@ export function publishErrorLocation(error: PublishError): string {
     case "UNPUBLISHED_QUESTION_PIN":
       return `question "${error.path.question}"@${String(error.path.version)} in step "${error.path.step}"`;
     case "LOCALE_INCOMPLETE": {
-      const at =
-        error.path.option !== undefined && error.path.question !== undefined
-          ? `option "${error.path.option}" of question "${error.path.question}"`
-          : error.path.question !== undefined
-            ? `question "${error.path.question}"`
-            : error.path.step !== undefined
-              ? `step "${error.path.step}"`
-              : "form title";
+      let at: string;
+      if (error.path.option !== undefined && error.path.question !== undefined) {
+        at = `option "${error.path.option}" of question "${error.path.question}"`;
+      } else if (error.path.question !== undefined) {
+        at = `question "${error.path.question}"`;
+      } else if (error.path.step !== undefined) {
+        at = `step "${error.path.step}"`;
+      } else {
+        at = "form title";
+      }
       return `locale "${error.path.locale}" missing on ${at}`;
     }
     case "RULE_BACKWARD_TARGET":
       return `target "${error.path.target}" of rule "${error.path.rule}"`;
-    case "RULE_CYCLE":
-      return `rules ${error.path.rules.map((rule) => `"${rule}"`).join(" -> ")}`;
+    case "RULE_CYCLE": {
+      const quotedRules = error.path.rules.map((rule) => `"${rule}"`).join(" -> ");
+      return `rules ${quotedRules}`;
+    }
     case "RULE_DEPTH_EXCEEDED":
       return `rule "${error.path.rule}"`;
     case "RULE_TYPE_MISMATCH":

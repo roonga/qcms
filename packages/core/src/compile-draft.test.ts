@@ -209,16 +209,16 @@ describe("compileDraft - success path", () => {
 
     expect(() => {
       (snapshot as { semanticsVersion: number }).semanticsVersion = 99;
-    }).toThrowError(TypeError);
+    }).toThrow(TypeError);
     expect(() => {
       (snapshot.definition.title as Record<string, string>)["en"] = "mutated";
-    }).toThrowError(TypeError);
+    }).toThrow(TypeError);
     expect(() => {
       (snapshot.definition.steps as unknown as unknown[]).push({});
-    }).toThrowError(TypeError);
+    }).toThrow(TypeError);
     expect(() => {
       (at(snapshot.questions, 0).definition.label as Record<string, string>)["en"] = "mutated";
-    }).toThrowError(TypeError);
+    }).toThrow(TypeError);
   });
 
   it("freezes a clone: the caller's draft definition stays editable", () => {

@@ -80,20 +80,23 @@ function main(): void {
   });
 
   let shuttingDown = false;
+  // Post-drain cleanup, hoisted out of the `server.close` callback so the
+  // scheduler-stop map does not nest functions more than four levels deep.
+  const finishShutdown = async (signal: string): Promise<void> => {
+    // 2. Stop schedulers (each waits for its in-flight run).
+    await Promise.all(schedulers.map((s) => s.stop()));
+    // 3. Close the database pool.
+    await pool.end();
+    logger.info("shutdown complete", { signal });
+    process.exit(0);
+  };
   const shutdown = (signal: string): void => {
     if (shuttingDown) return;
     shuttingDown = true;
     logger.info("shutting down", { signal });
     // 1. Stop intake and finish in-flight requests.
     server.close(() => {
-      void (async () => {
-        // 2. Stop schedulers (each waits for its in-flight run).
-        await Promise.all(schedulers.map((s) => s.stop()));
-        // 3. Close the database pool.
-        await pool.end();
-        logger.info("shutdown complete", { signal });
-        process.exit(0);
-      })();
+      void finishShutdown(signal);
     });
   };
 

@@ -74,7 +74,7 @@ export const QuestionVersionView = z
     version: z.number().int().positive().openapi({ example: 1 }),
     status: QuestionStatus.openapi({ example: "draft" }),
     definition: z.unknown(),
-    publishedAt: z.string().datetime().nullable().openapi({ example: null }),
+    publishedAt: z.iso.datetime().nullable().openapi({ example: null }),
   })
   .openapi("QuestionVersionView");
 export type QuestionVersionView = z.infer<typeof QuestionVersionView>;
@@ -84,7 +84,7 @@ export const CreatedQuestionResponse = z
   .object({
     questionId: z.string().openapi({ example: "q_favourite_colour" }),
     slug: z.string().openapi({ example: "favourite-colour" }),
-    createdAt: z.string().datetime(),
+    createdAt: z.iso.datetime(),
     version: QuestionVersionView,
   })
   .openapi("CreatedQuestionResponse");
@@ -94,10 +94,10 @@ export const QuestionListItem = z
   .object({
     questionId: z.string().openapi({ example: "q_favourite_colour" }),
     slug: z.string().openapi({ example: "favourite-colour" }),
-    createdAt: z.string().datetime(),
+    createdAt: z.iso.datetime(),
     latestVersion: z.number().int().positive().openapi({ example: 2 }),
     latestStatus: QuestionStatus.openapi({ example: "published" }),
-    publishedAt: z.string().datetime().nullable(),
+    publishedAt: z.iso.datetime().nullable(),
     /** The latest version's localized label (locale → text); [] of loading only. */
     label: z.unknown(),
   })
@@ -112,7 +112,7 @@ export const QuestionDetailResponse = z
   .object({
     questionId: z.string().openapi({ example: "q_favourite_colour" }),
     slug: z.string().openapi({ example: "favourite-colour" }),
-    createdAt: z.string().datetime(),
+    createdAt: z.iso.datetime(),
     versions: z.array(QuestionVersionView),
   })
   .openapi("QuestionDetailResponse");

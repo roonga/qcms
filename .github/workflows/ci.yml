@@ -64,6 +64,10 @@ jobs:
       # Em dash (U+2014) is banned in prose/comments/UI strings (AI tell; public repo).
       - run: pnpm check:no-em-dash
 
+      # Copy-paste detection (jscpd, issue #14). Threshold 3% accepts the
+      # deliberate vertical-slice repetition (R5); fails on real regression.
+      - run: pnpm check:duplication
+
       - run: pnpm build
 
   # The 027 consumer-level e2e suite, as its OWN job for signal clarity: when

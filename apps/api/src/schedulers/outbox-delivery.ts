@@ -51,6 +51,8 @@ import {
   markDeliveryDelivered,
   recordDeliveryFailure,
   type DueDelivery,
+  type Executor,
+  type OutboxRow,
 } from "@qcms/db";
 
 import type { Deps } from "../deps.js";
@@ -124,27 +126,37 @@ async function materialize(deps: Deps, options: DeliveryPassOptions): Promise<nu
     const events = await claimDue(tx, deps.config.webhooks.deliveryBatchSize, now);
     let created = 0;
     for (const event of events) {
-      if (event.eventType === RESPONSE_SUBMITTED) {
-        const formId = resolveFormId(event.payload);
-        if (formId !== undefined) {
-          const hooks = await listWebhooks(tx, formId);
-          for (const hook of hooks) {
-            if (!hook.active) continue;
-            await insertDelivery(tx, { outboxId: event.id, webhookId: hook.webhookId }, now);
-            created += 1;
-          }
-        } else {
-          deps.logger.warn("outbox event has no resolvable formId; consuming without fan-out", {
-            eventId: event.id,
-          });
-        }
-      }
+      created += await fanOutEvent(deps, tx, event, now);
       // Consume the event regardless of type: the outbox is drained exactly once;
       // delivery rows now own the per-endpoint retry state.
       await markDelivered(tx, event.id, now);
     }
     return created;
   });
+}
+
+/**
+ * Fan one claimed outbox event out to a `webhook_deliveries` row per *active*
+ * webhook. Returns the number of delivery rows created (0 for event types with
+ * no launch subscriber, or a `response.submitted` with no resolvable formId).
+ */
+async function fanOutEvent(deps: Deps, tx: Executor, event: OutboxRow, now: Date): Promise<number> {
+  if (event.eventType !== RESPONSE_SUBMITTED) return 0;
+  const formId = resolveFormId(event.payload);
+  if (formId === undefined) {
+    deps.logger.warn("outbox event has no resolvable formId; consuming without fan-out", {
+      eventId: event.id,
+    });
+    return 0;
+  }
+  const hooks = await listWebhooks(tx, formId);
+  let created = 0;
+  for (const hook of hooks) {
+    if (!hook.active) continue;
+    await insertDelivery(tx, { outboxId: event.id, webhookId: hook.webhookId }, now);
+    created += 1;
+  }
+  return created;
 }
 
 /** Extract and validate the branded `formId` from a `response.submitted` payload. */

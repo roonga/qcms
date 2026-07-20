@@ -171,7 +171,12 @@ describe("compareValues", () => {
     const finite = fc.double({ noNaN: true, noDefaultInfinity: true });
     fc.assert(
       fc.property(finite, finite, (a, b) => {
-        const expected = a < b ? -1 : a > b ? 1 : 0;
+        let expected = 0;
+        if (a < b) {
+          expected = -1;
+        } else if (a > b) {
+          expected = 1;
+        }
         expect(unwrap(compareValues(a, b))).toBe(expected);
       }),
       { numRuns: 1000 },

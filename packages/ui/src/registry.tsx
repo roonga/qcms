@@ -72,7 +72,7 @@ function FieldBlur({
 }
 
 type TextFieldProps = NonNullable<TextFieldNode["props"]>;
-function TextFieldField(props: TextFieldProps) {
+function TextFieldField(props: Readonly<TextFieldProps>) {
   const field = useQcmsField(props.name);
   return (
     <FieldBlur onBlur={field.blur}>
@@ -88,7 +88,7 @@ function TextFieldField(props: TextFieldProps) {
 }
 
 type TextAreaProps = NonNullable<TextAreaNode["props"]>;
-function TextAreaField(props: TextAreaProps) {
+function TextAreaField(props: Readonly<TextAreaProps>) {
   const field = useQcmsField(props.name);
   return (
     <FieldBlur onBlur={field.blur}>
@@ -104,7 +104,7 @@ function TextAreaField(props: TextAreaProps) {
 }
 
 type NumberFieldProps = NonNullable<NumberFieldNode["props"]>;
-function NumberFieldField(props: NumberFieldProps) {
+function NumberFieldField(props: Readonly<NumberFieldProps>) {
   const field = useQcmsField(props.name);
   return (
     <FieldBlur onBlur={field.blur}>
@@ -120,7 +120,7 @@ function NumberFieldField(props: NumberFieldProps) {
 }
 
 type DatePickerProps = NonNullable<DatePickerNode["props"]>;
-function DatePickerField(props: DatePickerProps) {
+function DatePickerField(props: Readonly<DatePickerProps>) {
   const field = useQcmsField(props.name);
   return (
     <FieldBlur onBlur={field.blur}>
@@ -144,14 +144,23 @@ function RadioGroupField(props: RadioGroupProps) {
   // onChange emits a JSON boolean for the former and an OptionId for the latter.
   // No selection → `undefined` (not ""), so RAC's roving tabindex keeps the
   // first radio in the tab order; a bare "" would leave the group unreachable.
-  const controlValue =
-    field.value === undefined
-      ? undefined
-      : typeof field.value === "boolean"
-        ? field.value
-          ? "true"
-          : "false"
-        : String(field.value);
+  let controlValue: string | undefined;
+  if (field.value === undefined) {
+    controlValue = undefined;
+  } else if (typeof field.value === "boolean") {
+    controlValue = field.value ? "true" : "false";
+  } else {
+    controlValue = String(field.value);
+  }
+  const emitChange = (v: string): void => {
+    if (v === "true") {
+      field.setValue(true);
+    } else if (v === "false") {
+      field.setValue(false);
+    } else {
+      field.setValue(v);
+    }
+  };
   return (
     <FieldBlur onBlur={field.blur}>
       <RadioGroup
@@ -159,7 +168,7 @@ function RadioGroupField(props: RadioGroupProps) {
         value={controlValue}
         isInvalid={field.error != null}
         errorMessage={field.error}
-        onChange={(v) => field.setValue(v === "true" ? true : v === "false" ? false : v)}
+        onChange={emitChange}
       />
     </FieldBlur>
   );
@@ -186,7 +195,7 @@ function CheckboxGroupField(props: CheckboxGroupProps) {
 }
 
 type SelectProps = NonNullable<SelectNode["props"]>;
-function SelectField(props: SelectProps) {
+function SelectField(props: Readonly<SelectProps>) {
   const field = useQcmsField(props.name);
   return (
     <FieldBlur onBlur={field.blur}>
@@ -244,6 +253,7 @@ const V1_REGISTRY = buildV1Registry();
  * stored snapshots.
  */
 export function registryForSpecVersion(specVersion?: string): ComponentRegistry {
+  // eslint-disable-next-line sonarjs/void-use -- intentional discard of an as-yet-unused parameter; the ADR-18 spec-version dispatch seam
   void specVersion; // single generation today; the parameter is the ADR-18 seam
   return V1_REGISTRY;
 }

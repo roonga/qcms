@@ -25,6 +25,7 @@ function decodePayload(token: string): Record<string, unknown> {
 }
 
 function toBase64Url(text: string): string {
+  // eslint-disable-next-line sonarjs/super-linear-regex -- anchored single character-class; linear, no backtracking blowup
   return btoa(text).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
 }
 

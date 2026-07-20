@@ -168,9 +168,10 @@ export function analyzeRuleGraph(form: FormDefinition): readonly RuleGraphFindin
     );
     /* v8 ignore next -- a cyclic component always has at least one edge/rule */
     const rules = onCycle.length > 0 ? onCycle.map((rule) => rule.ruleId) : [];
+    const quotedRules = rules.map((ruleId) => `"${ruleId}"`).join(", ");
     findings.push({
       code: "RULE_CYCLE",
-      message: `Rules ${rules.map((ruleId) => `"${ruleId}"`).join(", ")} form a cycle in the reads→shows graph (ADR-16)`,
+      message: `Rules ${quotedRules} form a cycle in the reads→shows graph (ADR-16)`,
       path: { rules },
     });
   }

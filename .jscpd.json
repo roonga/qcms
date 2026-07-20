@@ -1,0 +1,19 @@
+{
+  "minTokens": 50,
+  "format": ["typescript", "tsx", "javascript"],
+  "reporters": ["console"],
+  "ignore": [
+    "**/dist/**",
+    "**/node_modules/**",
+    "**/.turbo/**",
+    "**/coverage/**",
+    "packages/ui/src/components/**",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.integration.test.ts",
+    "**/e2e/**",
+    "**/golden/**",
+    "**/fixtures/**",
+    "**/__snapshots__/**"
+  ]
+}

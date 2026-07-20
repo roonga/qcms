@@ -64,6 +64,7 @@ export interface DraftInput {
 
 /** Recursively `Object.freeze` a plain-data tree (arrays included) in place. */
 function deepFreeze<T>(value: T): T {
+  // eslint-disable-next-line sonarjs/different-types-comparison -- typeof null === "object", explicit null guard required
   if (typeof value === "object" && value !== null && !Object.isFrozen(value)) {
     Object.freeze(value);
     for (const key of Object.getOwnPropertyNames(value)) {

@@ -130,12 +130,14 @@ export class AdminClient {
     query: Record<string, string> = {},
   ): Promise<JsonResult<T>> {
     const qs = new URLSearchParams(query).toString();
-    return parse<T>(await this.req("GET", `/forms/${formId}/responses${qs ? `?${qs}` : ""}`));
+    const suffix = qs ? `?${qs}` : "";
+    return parse<T>(await this.req("GET", `/forms/${formId}/responses${suffix}`));
   }
 
   async export(formId: string, query: Record<string, string>): Promise<RawResult> {
     const qs = new URLSearchParams(query).toString();
-    const res = await this.req("GET", `/forms/${formId}/export${qs ? `?${qs}` : ""}`);
+    const suffix = qs ? `?${qs}` : "";
+    const res = await this.req("GET", `/forms/${formId}/export${suffix}`);
     return {
       status: res.status,
       contentType: res.headers.get("content-type"),
@@ -150,7 +152,8 @@ export class AdminClient {
 
   async listTombstones<T = unknown>(query: Record<string, string> = {}): Promise<JsonResult<T>> {
     const qs = new URLSearchParams(query).toString();
-    return parse<T>(await this.req("GET", `/erasures${qs ? `?${qs}` : ""}`));
+    const suffix = qs ? `?${qs}` : "";
+    return parse<T>(await this.req("GET", `/erasures${suffix}`));
   }
 }
 

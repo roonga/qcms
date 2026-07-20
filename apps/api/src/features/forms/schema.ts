@@ -86,7 +86,7 @@ export const FormListItem = z
     /** The newest published version number, or `null` if never published. */
     latestVersion: z.number().int().positive().nullable().openapi({ example: 2 }),
     /** When the newest version was published, or `null`. */
-    publishedAt: z.string().datetime().nullable(),
+    publishedAt: z.iso.datetime().nullable(),
   })
   .openapi("FormListItem");
 
@@ -98,7 +98,7 @@ export const ListFormsResponse = z
 export const FormVersionSummary = z
   .object({
     version: z.number().int().positive().openapi({ example: 1 }),
-    publishedAt: z.string().datetime(),
+    publishedAt: z.iso.datetime(),
     compilerVersion: z.string().openapi({ example: "0.1.0" }),
     a2uiSpecVersion: z.string().openapi({ example: "0.1.0" }),
     semanticsVersion: z.string().openapi({ example: "1" }),
@@ -141,7 +141,7 @@ export const ValidateDraftResponse = z
 export const PublishedResponse = z
   .object({
     version: z.number().int().positive().openapi({ example: 1 }),
-    publishedAt: z.string().datetime(),
+    publishedAt: z.iso.datetime(),
   })
   .openapi("PublishedResponse");
 
@@ -158,7 +158,7 @@ export const FormVersionSnapshotResponse = z
   .object({
     formId: z.string().openapi({ example: "frm_signup" }),
     version: z.number().int().positive().openapi({ example: 1 }),
-    publishedAt: z.string().datetime(),
+    publishedAt: z.iso.datetime(),
     compilerVersion: z.string().openapi({ example: "0.1.0" }),
     a2uiSpecVersion: z.string().openapi({ example: "0.1.0" }),
     semanticsVersion: z.string().openapi({ example: "1" }),

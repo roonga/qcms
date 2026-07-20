@@ -32,7 +32,9 @@ export type TextAnswerValue = z.infer<typeof TextAnswerValue>;
  * number: finite IEEE double. NaN and ±Infinity are rejected at the encoding;
  * the `integer` constraint is validation (task 009), not encoding.
  */
-export const NumberAnswerValue = z.number().finite();
+// `z.number()` already rejects NaN and ±Infinity in Zod 4, so the previous
+// `.finite()` refinement (now deprecated) was a redundant no-op.
+export const NumberAnswerValue = z.number();
 export type NumberAnswerValue = z.infer<typeof NumberAnswerValue>;
 
 /** Gregorian leap-year rule (proleptic). */
@@ -169,6 +171,14 @@ function orderingOf<T extends number | string>(a: T, b: T): Ordering {
  * Comparable (booleans, arrays, non-date strings, non-finite numbers) is
  * `NOT_COMPARABLE`. Error messages never echo answer values (SEC).
  */
+/** The ordered kind of a comparable operand, or `undefined` if not comparable. */
+function comparableKind(value: AnswerValue): "number" | "date" | undefined {
+  if (!isComparable(value)) {
+    return undefined;
+  }
+  return typeof value === "number" ? "number" : "date";
+}
+
 export function compareValues(a: AnswerValue, b: AnswerValue): Result<Ordering> {
   if (typeof a === "number" && typeof b === "number") {
     if (!Number.isFinite(a) || !Number.isFinite(b)) {
@@ -184,8 +194,8 @@ export function compareValues(a: AnswerValue, b: AnswerValue): Result<Ordering> 
     }
     return ok(orderingOf(a, b));
   }
-  const aKind = isComparable(a) ? (typeof a === "number" ? "number" : "date") : undefined;
-  const bKind = isComparable(b) ? (typeof b === "number" ? "number" : "date") : undefined;
+  const aKind = comparableKind(a);
+  const bKind = comparableKind(b);
   if (aKind !== undefined && bKind !== undefined) {
     return err(qcmsError("COMPARE_TYPE_MISMATCH", `Cannot order ${aKind} against ${bKind}`));
   }

@@ -211,14 +211,7 @@ export function validateAnswer(
   value: unknown,
 ): Result<AnswerValue, readonly ValidationError[]> {
   switch (question.type) {
-    case "shortText": {
-      const parsed = TextAnswerValue.safeParse(value);
-      if (!parsed.success) {
-        return err([encodingError(question)]);
-      }
-      const errors = checkTextConstraints(parsed.data, question.constraints);
-      return errors.length > 0 ? err(errors) : ok(parsed.data);
-    }
+    case "shortText":
     case "longText": {
       const parsed = TextAnswerValue.safeParse(value);
       if (!parsed.success) {

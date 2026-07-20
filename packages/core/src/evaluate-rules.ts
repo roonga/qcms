@@ -75,8 +75,12 @@ export const EvalErrorCode = z.enum([
 ]);
 export type EvalErrorCode = z.infer<typeof EvalErrorCode>;
 
-export const EvalError = QcmsError.extend({ code: EvalErrorCode });
-export type EvalError = z.infer<typeof EvalError>;
+// The declared binding is lowercase to avoid shadowing the `EvalError` global
+// error constructor; the schema and its inferred type are still exported under
+// the domain name `EvalError` (public API unchanged).
+const evalError = QcmsError.extend({ code: EvalErrorCode });
+export { evalError as EvalError };
+export type EvalError = z.infer<typeof evalError>;
 
 /**
  * The evaluator's output (DOMAIN_SCHEMA §3): what is visible, where the

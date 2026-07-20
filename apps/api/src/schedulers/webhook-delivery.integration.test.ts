@@ -208,7 +208,8 @@ function soon(): Date {
 
 /** The documented Node consumer verification recipe. */
 function verify(secret: string, timestamp: string, body: string, signature: string): boolean {
-  const expected = `v1=${createHmac("sha256", secret).update(`${timestamp}.${body}`).digest("hex")}`;
+  const digest = createHmac("sha256", secret).update(`${timestamp}.${body}`).digest("hex");
+  const expected = `v1=${digest}`;
   return expected === signature;
 }
 
