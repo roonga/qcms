@@ -194,3 +194,5 @@ export {
   mintSecureLink,
   verifySecureLink,
 } from "./secure-link.js";
+
+export { EraseRequest, EraseOutcome, EraseErrorCode } from "./erasure.js";

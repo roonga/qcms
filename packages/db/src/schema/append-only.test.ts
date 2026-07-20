@@ -49,7 +49,7 @@ describe("answers ledger is append-only (I5, R3)", () => {
     ).rejects.toThrow(/append-only/i);
   });
 
-  it("permits DELETE (the erasure door stays open for ADR-17)", async () => {
+  it("rejects ad-hoc DELETE outside the sanctioned door (ADR-17, migration 0004)", async () => {
     const formId = "frm_answers_delete";
     const sessionId = "ses_answers_delete";
     await seedForm(formId);
@@ -58,13 +58,41 @@ describe("answers ledger is append-only (I5, R3)", () => {
        values ($1, $2, 1, 'anonymous', now() + interval '1 day')`,
       [sessionId, formId],
     );
-    const inserted = await testDb.client.query<{ id: string }>(
+    await testDb.client.query(
       `insert into answers (session_id, question_id, value) values ($1, 'q_a', '"x"'::jsonb) returning id`,
       [sessionId],
     );
-    const answerId = inserted.rows[0]!.id;
 
-    const del = await testDb.client.query(`delete from answers where id = $1`, [answerId]);
+    // No transaction-local guard set → the trigger rejects the DELETE.
+    await expect(
+      testDb.client.query(`delete from answers where session_id = $1`, [sessionId]),
+    ).rejects.toThrow(/sanctioned/i);
+    // The row survives.
+    const survived = await testDb.client.query(`select 1 from answers where session_id = $1`, [
+      sessionId,
+    ]);
+    expect(survived.rowCount).toBe(1);
+  });
+
+  it("permits DELETE through the sanctioned door when the guard is set", async () => {
+    const formId = "frm_answers_delete_ok";
+    const sessionId = "ses_answers_delete_ok";
+    await seedForm(formId);
+    await testDb.client.query(
+      `insert into sessions (session_id, form_id, form_version, access_mode, expires_at)
+       values ($1, $2, 1, 'anonymous', now() + interval '1 day')`,
+      [sessionId, formId],
+    );
+    await testDb.client.query(
+      `insert into answers (session_id, question_id, value) values ($1, 'q_a', '"x"'::jsonb)`,
+      [sessionId],
+    );
+
+    // The sanctioned path: open the door for the transaction, then delete.
+    await testDb.client.query("begin");
+    await testDb.client.query("select set_config('qcms.allow_answer_delete', 'on', true)");
+    const del = await testDb.client.query(`delete from answers where session_id = $1`, [sessionId]);
+    await testDb.client.query("commit");
     expect(del.rowCount).toBe(1);
   });
 });

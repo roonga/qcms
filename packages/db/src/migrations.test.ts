@@ -60,6 +60,7 @@ describe("@qcms/db migrations", () => {
 
     it("installs the append-only and immutability triggers", async () => {
       expect(await triggerExists(testDb, "answers_reject_update")).toBe(true);
+      expect(await triggerExists(testDb, "answers_reject_delete")).toBe(true);
       expect(await triggerExists(testDb, "question_versions_freeze_published")).toBe(true);
       expect(await triggerExists(testDb, "form_versions_reject_update")).toBe(true);
     });

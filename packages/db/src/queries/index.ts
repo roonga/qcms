@@ -70,6 +70,13 @@ export {
   purgeExpired,
 } from "./retention.js";
 
+// `eraseSession` is the public erasure door; `SessionNotFoundError` is its typed
+// throw. The scoped-guard mechanics (`openAnswerDeleteDoor`,
+// `ANSWER_DELETE_GUARD_SETTING`) stay internal to the package — retention imports
+// them by module path — so the sanctioned DELETE door cannot be opened by callers
+// outside `eraseSession`/`purgeExpired`.
+export { SessionNotFoundError, eraseSession } from "./erasure.js";
+
 export {
   type OutboxRow,
   OUTBOX_BACKOFF_BASE_MS,

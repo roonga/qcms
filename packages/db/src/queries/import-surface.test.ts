@@ -60,6 +60,11 @@ describe("query helper import surface", () => {
     "sweepExpiredSessions",
     "purgeExpired",
     "sessionExpiresAt",
+    // erasure (task 016, ADR-17) — the sanctioned whole-session delete door;
+    // SessionNotFoundError is the typed throw. The scoped-guard mechanics stay
+    // internal (imported by module path), not on the public surface.
+    "eraseSession",
+    "SessionNotFoundError",
     // outbox
     "backoffDelayMs",
     "computeBackoff",

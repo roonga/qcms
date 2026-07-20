@@ -3,6 +3,7 @@ import { and, eq, inArray, isNull, lt } from "drizzle-orm";
 import type { SessionId } from "@qcms/core";
 
 import { answers, sessions, submissions } from "../schema/index.js";
+import { openAnswerDeleteDoor } from "./erasure.js";
 import type { Executor } from "./executor.js";
 import { type AccessMode, expireSessions, type SessionRow } from "./sessions.js";
 
@@ -118,8 +119,17 @@ export interface PurgeResult {
  *   and are never touched (their content is the audit record).
  * - An explicit anti-join on `submissions` is belt-and-suspenders: even an
  *   expired session that somehow carried a submission lock is excluded.
- * - Erased sessions (ADR-17) have already had their session row hard-deleted, so
- *   there is nothing here to purge — the tombstone outlives them.
+ * - Erased sessions (ADR-17) have already had their answers and submission
+ *   hard-deleted and a tombstone written; their scrubbed session row is
+ *   retained. If such a shell is expired and never-submitted it may be picked up
+ *   here — harmless: it holds no content, and the tombstone is independent of the
+ *   session row (no FK), so it survives the purge.
+ *
+ * Purging answers requires the sanctioned DELETE door (ADR-17): the
+ * `answers_reject_delete` trigger rejects any `answers` DELETE unless the
+ * transaction-local guard is set, so this — a sanctioned whole-session delete
+ * path alongside `eraseSession` — opens it via {@link openAnswerDeleteDoor}
+ * before deleting.
  *
  * Boundary: strictly-before `olderThan` — a session exactly `olderThan` old is
  * retained (it is not yet *older than* the horizon). Idempotent: a second run
@@ -142,6 +152,8 @@ export async function purgeExpired(exec: Executor, olderThan: Date): Promise<Pur
     if (ids.length === 0) {
       return { purgedSessionIds: [], purgedCount: 0 };
     }
+    // Sanctioned DELETE door: authorize the answers delete for this transaction.
+    await openAnswerDeleteDoor(tx);
     await tx.delete(answers).where(inArray(answers.sessionId, ids));
     await tx.delete(sessions).where(inArray(sessions.sessionId, ids));
     return { purgedSessionIds: ids, purgedCount: ids.length };

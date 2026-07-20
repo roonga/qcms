@@ -9,8 +9,11 @@ import { sessions } from "./sessions.js";
  * value for a question is the latest row by `answered_at`. There is no UPDATE
  * path in any query helper, and a BEFORE UPDATE trigger (`answers_reject_update`,
  * migration 0001) rejects UPDATE at the database level as a backstop. DELETE is
- * intentionally left permitted — the sole DELETE door is whole-session erasure
- * (ADR-17, task 016).
+ * guarded by a BEFORE DELETE trigger (`answers_reject_delete`, migration 0004)
+ * that rejects any delete unless a transaction-local setting is opened by one of
+ * the two sanctioned whole-session delete doors: GDPR erasure (`eraseSession`,
+ * ADR-17, task 016) and retention purge of expired-never-submitted sessions
+ * (`purgeExpired`, task 015). No partial or ad-hoc answer deletion is possible.
  *
  * `questionId` is not a foreign key: an answer references the question pinned in
  * the session's form version, not a mutable row in the question library.
