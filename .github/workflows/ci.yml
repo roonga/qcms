@@ -8,10 +8,13 @@ jobs:
   ci:
     runs-on: ubuntu-latest
     strategy:
-      # Two Node LTS lines: cross-version drift (e.g. contentHash / encoding
-      # stability, task 009) is directly checkable instead of assumed.
+      fail-fast: false
+      # Cross-version drift check (e.g. contentHash / encoding stability,
+      # task 009): 24 is our pinned LTS floor (engines >=24) and is required;
+      # 26 is the incoming LTS line — non-blocking early warning only.
       matrix:
-        node-version: [22, 24]
+        node-version: [24, 26]
+    continue-on-error: ${{ matrix.node-version == 26 }}
     steps:
       - uses: actions/checkout@v4
 
