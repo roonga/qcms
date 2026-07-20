@@ -50,7 +50,7 @@ Status values: `todo` · `in-progress (branch)` · `blocked (issue #)` · `done 
 | 025 | Webhook deliverer worker | 6 | done |
 | 026 | Abuse controls | 6 | done |
 | 027 | API end-to-end suite | 6 | done |
-| 028 | A2UI renderer (`packages/ui`) | 7 | todo |
+| 028 | A2UI renderer (`packages/ui`) | 7 | in-progress (feat/028-a2ui-renderer) |
 | 029 | Portal app (SSR + BFF) | 7 | todo |
 | 030 | Portal accessibility pass | 7 | todo |
 | 031 | Admin shell and 2FA auth | 8a | todo |
