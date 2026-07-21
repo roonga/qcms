@@ -1,6 +1,6 @@
 # features/ - Ordered task files
 
-Each file is a self-contained work order for one agent session (or one focused human session). Execute in numeric order (exceptions: 040 runs after 036, before 038; 041 runs any time after 034 and **never gates 038** - ADR-25; 042 runs after 027, before 029 and 031–035 - the wireframe pass); the **Depends on** header lists hard prerequisites. Files never expand their own scope - discoveries become issues.
+Each file is a self-contained work order for one agent session (or one focused human session). Execute in numeric order (exceptions: 040 runs after 036, before 038; 041 runs any time after 034 and **never gates 038** - ADR-25; 042 runs after 027, before 029 and 031–035 - the wireframe pass; 043 runs after 029, before 030 and 031–035 - the neutral-domain rename); the **Depends on** header lists hard prerequisites. Files never expand their own scope - discoveries become issues.
 
 **Self-containedness convention:** a task is self-contained *given the repo's `docs/` set* - task files carry the what/why/done, and point at the specific doc sections that carry contracts (schemas, semantics, layouts) so those live in one place and can't drift. 001 bootstraps the docs into the repo, so every later session finds its references locally. If a referenced section is missing or contradicts the task, that's a blocking issue - stop and surface it, don't improvise. Tasks needing anything *outside* the repo (e.g. the `a2-react-aria` repo in 011/028) declare it in an **External input required** header.
 
@@ -60,6 +60,7 @@ Status values: `todo` · `in-progress (branch)` · `blocked (issue #)` · `done 
 | 035 | Admin responses, erasure, webhook operations | 8a | todo |
 | 041 | Agent-assisted form building (flag-gated; off the launch gate - ADR-25) | 8a | todo |
 | 042 | UI wireframes (lo-fi pass; runs after 027, before 029/031–035) | 7 | done (signed off 2026-07-21) |
+| 043 | Rename example domain to vehicle insurance (runs after 029, before 030/031–035) | 7 | todo |
 | 036 | Production images, compose, ops docs | 8b | todo |
 | 037 | create-qcms-app CLI | 8b | todo |
 | 040 | Security review and hardening (runs after 036, before 038) | 8b | todo |

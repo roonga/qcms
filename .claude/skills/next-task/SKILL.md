@@ -11,6 +11,7 @@ Select and execute the next task - or, with a count argument N, up to N **pairwi
    - 040 runs after 036 and before 038.
    - 041 runs any time after 034 and never gates 038.
    - 042 runs after 027 and before 029 and 031–035.
+   - 043 (neutral-domain rename, #16) runs after 029 and before 030 and 031–035.
 2. Skip (and report as awaiting-human) tasks that are human gates end to end: 038; 042 if its remaining work is only sign-off; 030's manual screen-reader portion (its automated portion may run). If the only remaining candidates are human gates or `blocked` rows, report exactly what the human must do and **stop the loop** (if running under /loop, end it - do not idle).
 3. **Stale-claim recovery (interrupted sessions - usage limits, crashes).** If a task is `in-progress` and no live session owns it, resume it before starting anything new:
    - Branch has a committed `HANDOFF.md` → dispatch the executor with the handoff.
