@@ -1,87 +1,94 @@
 /*
- * qcms reference design tokens — the shadcn-convention CSS custom properties the
- * vendored a2-react-aria components reference (var(--color-*)). These are the
- * tokens upstream ships (a2-react-aria styling guide); qcms adds no palette of
- * its own (ADR-22 "expose, don't opine"). Shells (portal/admin) either import
- * this file or set the same token names in their own globals to theme the
- * renderer. Tailwind is wired in the consuming apps' builds; the vendored
- * *.styles.ts utilities resolve these variables at runtime.
+ * QCMS design tokens - the shadcn-convention CSS custom properties the vendored
+ * a2-react-aria components resolve at runtime (var(--color-*)). QCMS ships a
+ * brand token set (ADR-26). The values below are the *portal / respondent*
+ * default: a refined, brand-neutral Slate Teal baseline that adopters re-skin by
+ * overriding these same token names in the portal shell globals. The admin app
+ * (031) sets its own globals to QCMS's fixed Cobalt identity; `--color-info`
+ * here is that Cobalt. This supersedes the earlier "expose, don't opine / no
+ * palette of its own" note: QCMS opines for its own admin surface and provides a
+ * themeable default for the adopter-branded portal. ADR-22 permits theming by
+ * token value; ADR-26 records the two-surface mandate. Every text/background
+ * pair here meets WCAG 2.2 AA in both light and dark. Tailwind is wired in the
+ * consuming apps' builds; shells import this file or redefine the token names.
  */
 
 :root {
-  --color-primary: #2563eb;
-  --color-primary-hover: #1d4ed8;
-  --color-primary-active: #1e40af;
+  /* Primary: portal Slate Teal (themeable baseline; white text is 5.8:1 AA). */
+  --color-primary: #2c6e63;
+  --color-primary-hover: #245a51;
+  --color-primary-active: #1e4a43;
   --color-primary-foreground: #ffffff;
-  --color-secondary: #64748b;
-  --color-secondary-hover: #475569;
-  --color-secondary-active: #334155;
+  --color-secondary: #4f5b70;
+  --color-secondary-hover: #414c60;
+  --color-secondary-active: #343d4e;
   --color-secondary-foreground: #ffffff;
-  --color-danger: #dc2626;
-  --color-danger-hover: #b91c1c;
-  --color-danger-active: #991b1b;
+  --color-danger: #c0271f;
+  --color-danger-hover: #a81f18;
+  --color-danger-active: #8f1912;
   --color-danger-foreground: #ffffff;
-  --color-danger-subtle: #fef2f2;
-  --color-danger-fg: #991b1b;
+  --color-danger-subtle: #f9e7e5;
+  --color-danger-fg: #8f1d18;
   --color-ghost: transparent;
-  --color-ghost-hover: #f1f5f9;
-  --color-ghost-active: #e2e8f0;
-  --color-info: #2563eb;
-  --color-info-subtle: #eff6ff;
-  --color-info-fg: #1e40af;
-  --color-success: #16a34a;
-  --color-success-subtle: #f0fdf4;
-  --color-success-fg: #14532d;
-  --color-warning: #d97706;
-  --color-warning-subtle: #fffbeb;
-  --color-warning-fg: #92400e;
-  --color-text: #1f2937;
-  --color-text-muted: #6b7280;
-  --color-border: #e5e7eb;
-  --color-border-strong: #9ca3af;
-  --color-background: #ffffff;
-  --color-background-muted: #f9fafb;
+  --color-ghost-hover: #eef1f6;
+  --color-ghost-active: #e1e6ef;
+  /* Info: the QCMS Cobalt brand accent (admin identity). */
+  --color-info: #2456c6;
+  --color-info-subtle: #e9effb;
+  --color-info-fg: #1b44a0;
+  --color-success: #1e7a46;
+  --color-success-subtle: #e4f1ea;
+  --color-success-fg: #16603a;
+  --color-warning: #8a5a00;
+  --color-warning-subtle: #f6eeda;
+  --color-warning-fg: #6e4700;
+  --color-text: #0f1729;
+  --color-text-muted: #55617a;
+  --color-border: #dde2ea;
+  --color-border-strong: #838ca4;
+  --color-background: #fbfcfd;
+  --color-background-muted: #eef1f6;
   --color-surface: #ffffff;
-  --color-surface-hover: #f9fafb;
-  --color-focus-ring: #2563eb;
+  --color-surface-hover: #f4f6fa;
+  --color-focus-ring: #2456c6;
   --color-overlay: rgb(0 0 0 / 0.5);
 }
 
 :root.dark {
-  --color-primary: #3b82f6;
-  --color-primary-hover: #2563eb;
-  --color-primary-active: #1d4ed8;
-  --color-primary-foreground: #ffffff;
-  --color-secondary: #94a3b8;
-  --color-secondary-hover: #cbd5e1;
-  --color-secondary-active: #e2e8f0;
-  --color-secondary-foreground: #ffffff;
-  --color-danger: #ef4444;
-  --color-danger-hover: #dc2626;
-  --color-danger-active: #b91c1c;
-  --color-danger-foreground: #ffffff;
-  --color-danger-subtle: #450a0a;
-  --color-danger-fg: #fca5a5;
+  --color-primary: #5fb8ac;
+  --color-primary-hover: #74c4b9;
+  --color-primary-active: #8ad0c6;
+  --color-primary-foreground: #0b0f1a;
+  --color-secondary: #97a2b8;
+  --color-secondary-hover: #b0b9cc;
+  --color-secondary-active: #c8cfdd;
+  --color-secondary-foreground: #0b0f1a;
+  --color-danger: #ff7b80;
+  --color-danger-hover: #ff9599;
+  --color-danger-active: #ffafb2;
+  --color-danger-foreground: #0b0f1a;
+  --color-danger-subtle: #2b1615;
+  --color-danger-fg: #ffb3b5;
   --color-ghost: transparent;
-  --color-ghost-hover: #1f2937;
-  --color-ghost-active: #374151;
-  --color-info: #3b82f6;
-  --color-info-subtle: #1e3a5f;
-  --color-info-fg: #93c5fd;
-  --color-success: #22c55e;
-  --color-success-subtle: #052e16;
-  --color-success-fg: #86efac;
-  --color-warning: #f59e0b;
-  --color-warning-subtle: #451a03;
-  --color-warning-fg: #fcd34d;
-  --color-text: #f3f4f6;
-  --color-text-muted: #9ca3af;
-  --color-border: #374151;
-  --color-border-strong: #6b7280;
-  --color-background: #111827;
-  --color-background-muted: #1f2937;
-  --color-surface: #1f2937;
-  --color-surface-hover: #374151;
-  --color-focus-ring: #3b82f6;
-  --color-overlay: rgb(0 0 0 / 0.5);
+  --color-ghost-hover: #1a2130;
+  --color-ghost-active: #242c3d;
+  --color-info: #7aa2ff;
+  --color-info-subtle: #16233a;
+  --color-info-fg: #a9c4ff;
+  --color-success: #46c08a;
+  --color-success-subtle: #0e2419;
+  --color-success-fg: #7cd9ae;
+  --color-warning: #e0a93b;
+  --color-warning-subtle: #2a2113;
+  --color-warning-fg: #e9c77e;
+  --color-text: #e6eaf2;
+  --color-text-muted: #97a2b8;
+  --color-border: #262e3d;
+  --color-border-strong: #626c88;
+  --color-background: #0b0f1a;
+  --color-background-muted: #10151f;
+  --color-surface: #141a26;
+  --color-surface-hover: #1b2230;
+  --color-focus-ring: #7aa2ff;
+  --color-overlay: rgb(0 0 0 / 0.6);
 }
