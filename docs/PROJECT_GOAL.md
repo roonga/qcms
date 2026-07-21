@@ -1,7 +1,7 @@
 # QCMS - Project Goal
 
 **Status:** v1.5 (formal) · supersedes the prose description in project metadata · v1.1–v1.5 add ADR-20…25 (2026-07-19 review)
-**License:** MIT · **Companion documents:** `ARCHITECTURE.md` · `IMPLEMENTATION_PLAN.md` · `DOMAIN_SCHEMA.md` · Scope v2 decision record (ADR-01…25)
+**License:** MIT · **Companion documents:** `ARCHITECTURE.md` · `IMPLEMENTATION_PLAN.md` · `DOMAIN_SCHEMA.md`
 
 ---
 
@@ -56,7 +56,7 @@ Launch **excludes** (recorded as `phase-4` issues, never built early): impact an
 
 ## 6. Decision record - additions
 
-ADR-01…15 are recorded in Scope v2. The following decisions were added after the plan reviews (ADR-16…19: 2026-07-18; ADR-20…25: 2026-07-19; ADR-26: 2026-07-21) to resolve identified underspecifications. They carry the same weight.
+ADR-01…15 are the project's foundational scope decisions. The following decisions were added after the plan reviews (ADR-16…19: 2026-07-18; ADR-20…25: 2026-07-19; ADR-26: 2026-07-21) to resolve identified underspecifications. They carry the same weight.
 
 ### ADR-16 - Rules evaluation: forward-pass with publish-time cycle rejection
 
@@ -179,7 +179,7 @@ ADR-01…15 are recorded in Scope v2. The following decisions were added after t
 - **Team:** one developer, part-time to full-time, using agentic AI workflows for leverage. Every stage must land a meaningful, testable increment; exit criteria gate stages, not dates.
 - **Stack (fixed by ADRs):** Node LTS · pnpm + Turborepo · Zod as the single schema language · Hono (vertical slices, fetch-pure handlers) · Next.js portal (SSR + strict BFF) · Next.js admin (separate app) · Postgres + Drizzle · better-auth · a2-react-aria as the only UI component stack (`@a2ra/core` pinned + vendored components + Tailwind for their token-based styles, ADR-22) · TanStack Query (admin server-state, ADR-26) · Vitest · Docker. All components open source, vendor-agnostic, multi-cloud.
 - **Operability budget:** the solo deployment is four containers including the database (portal, admin, API, Postgres - ADR-20; TLS/ingress is operator infrastructure). If a feature demands a fifth standing service, it is probably out of scope.
-- **Discipline rules R1–R7** (Scope v2 §04, restated in `PROJECT_INSTRUCTIONS.md`) are never violated and never relitigated. R3's append-only clause is amended by ADR-17 as noted.
+- **Discipline rules R1–R7** (defined in `PROJECT_INSTRUCTIONS.md`) are never violated and never relitigated. R3's append-only clause is amended by ADR-17 as noted.
 
 ## 8. What this project is not
 

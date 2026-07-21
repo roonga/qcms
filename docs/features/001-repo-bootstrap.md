@@ -61,7 +61,7 @@ On push + PR: checkout → pnpm/action-setup (version from packageManager) → s
 
 ### 5. Documents and README
 
-- Verify the bundle is present and current (`docs/*.md`, `docs/features/`, `docs/wireframes/`, root `PROJECT_INSTRUCTIONS.md` + `CONTRIBUTING.md` + `CLAUDE.md`) - committed at workshop setup; sync from `qcms-plan` if the plan changed since. Add the scope-v2 HTML to `docs/` when the owner supplies it (not in the bundle yet).
+- Verify the bundle is present and current (`docs/*.md`, `docs/features/`, `docs/wireframes/`, root `PROJECT_INSTRUCTIONS.md` + `CONTRIBUTING.md` + `CLAUDE.md`) - committed at workshop setup; sync from `qcms-plan` if the plan changed since.
 - `README.md` stub: one-paragraph project description (crib from PROJECT_GOAL §1), the two-command quickstart (`pnpm install && pnpm test`; `docker compose -f docker-compose.dev.yml up -d`), a pointer to `docs/` and to `docs/features/README.md` (the plan + ledger). The full README is a launch deliverable (036/038) - keep the stub honest about status.
 
 ## Implementation notes

@@ -239,7 +239,7 @@ qcms/
 │
 ├── docs/
 │   ├── PROJECT_GOAL.md · ARCHITECTURE.md · IMPLEMENTATION_PLAN.md
-│   ├── DOMAIN_SCHEMA.md · SECURITY_DESIGN.md · scope-v2.html
+│   ├── DOMAIN_SCHEMA.md · SECURITY_DESIGN.md
 │   ├── features/                 # the numbered task files (this plan)
 │   ├── wireframes/               # UI wireframes: ASCII + normative inventories (042)
 │   ├── a2ui-mapping.md (011) · agent-seam.md (011) · secure-links.md (010, 024)

@@ -14,7 +14,6 @@ You are working on **QCMS**: an MIT-licensed, TypeScript, open-source engine for
 - `AGENTIC_DEVELOPMENT.md` - methodology and the **session protocol you follow (§3)**
 - `CONTRIBUTING.md` - **coding standards, testing conventions, git/PR rules** (binding for every change)
 - `features/` - numbered task files: your work orders. `features/README.md` holds the index, progress ledger, and execution protocol.
-- Scope v2 HTML - the original ADR-01…15 decision record
 
 Consult before proposing designs; **never silently contradict an ADR or SEC decision - flag conflicts instead.** Where an older doc conflicts with a newer one, the newer wins and the older gets fixed in the same change.
 
