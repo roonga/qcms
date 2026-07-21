@@ -51,7 +51,7 @@ Status values: `todo` · `in-progress (branch)` · `blocked (issue #)` · `done 
 | 026 | Abuse controls | 6 | done |
 | 027 | API end-to-end suite | 6 | done |
 | 028 | A2UI renderer (`packages/ui`) | 7 | done |
-| 029 | Portal app (SSR + BFF) | 7 | todo |
+| 029 | Portal app (SSR + BFF) | 7 | in-progress (feat/029-portal-app) |
 | 030 | Portal accessibility pass | 7 | todo |
 | 031 | Admin shell and 2FA auth | 8a | todo |
 | 032 | Admin question library | 8a | todo |
