@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -131,7 +132,7 @@ describe("questions helpers", () => {
     expect(await listQuestionVersions(testDb.db, QuestionId.parse("q_absent"))).toEqual([]);
   });
 
-  it("updates a draft definition in place, but the freeze trigger rejects a published one", async () => {
+  it("updates a draft in place but the WHERE status='draft' guard refuses published and deprecated rows (issue #8)", async () => {
     const questionId = QuestionId.parse("q_editdraft");
     await createQuestion(testDb.db, { questionId, slug: "q-editdraft-slug" });
     await createQuestionVersion(testDb.db, { questionId, definition: emptyQuestionDef });
@@ -145,20 +146,63 @@ describe("questions helpers", () => {
       definition: nextDef,
     });
     expect(updated?.definition).toEqual({ edited: true });
+    // No such (questionId, version) → no match → undefined.
     expect(
       await updateDraftDefinition(testDb.db, { questionId, version: 99, definition: nextDef }),
     ).toBeUndefined();
 
-    // Publishing freezes the definition (I1): the trigger backstops any later edit.
-    // drizzle wraps the pg error, so the trigger's "immutable" text is on the cause.
+    // Published row: the storage guard matches no draft, so the helper is a no-op
+    // that returns undefined and never reaches the freeze trigger; the stored
+    // definition is unchanged.
     await publishQuestionVersion(testDb.db, { questionId, version: 1 });
+    const overwriteDef = { edited: "again" } as unknown as Parameters<
+      typeof updateDraftDefinition
+    >[1]["definition"];
+    expect(
+      await updateDraftDefinition(testDb.db, { questionId, version: 1, definition: overwriteDef }),
+    ).toBeUndefined();
+    expect((await getQuestionVersion(testDb.db, questionId, 1))?.definition).toEqual({
+      edited: true,
+    });
+
+    // Deprecated row: the exact gap issue #8 closes (the trigger only fires on
+    // published, so before the guard this silently overwrote). Now: no match,
+    // undefined, definition untouched.
+    const questionId2 = QuestionId.parse("q_editdeprecated");
+    await createQuestion(testDb.db, { questionId: questionId2, slug: "q-editdeprecated-slug" });
+    await createQuestionVersion(testDb.db, {
+      questionId: questionId2,
+      definition: emptyQuestionDef,
+    });
+    await deprecateQuestionVersion(testDb.db, { questionId: questionId2, version: 1 });
+    expect(
+      await updateDraftDefinition(testDb.db, {
+        questionId: questionId2,
+        version: 1,
+        definition: overwriteDef,
+      }),
+    ).toBeUndefined();
+    expect((await getQuestionVersion(testDb.db, questionId2, 1))?.definition).toEqual(
+      emptyQuestionDef,
+    );
+  });
+
+  it("the freeze trigger still backstops a raw definition write to a published row (SEC storage backstop)", async () => {
+    // The helper now guards with WHERE status='draft', so the freeze trigger is
+    // unreachable through it. It remains the storage backstop for any *other*
+    // write path: prove it still fires on a direct UPDATE of a published row's
+    // definition. drizzle wraps the pg error, so "immutable" is on the cause.
+    const questionId = QuestionId.parse("q_rawfreeze");
+    await createQuestion(testDb.db, { questionId, slug: "q-rawfreeze-slug" });
+    await createQuestionVersion(testDb.db, { questionId, definition: emptyQuestionDef });
+    await publishQuestionVersion(testDb.db, { questionId, version: 1 });
+
     let thrown: unknown;
     try {
-      await updateDraftDefinition(testDb.db, {
-        questionId,
-        version: 1,
-        definition: emptyQuestionDef,
-      });
+      await testDb.db.execute(
+        sql`update question_versions set definition = '{"raw":true}'::jsonb
+            where question_id = ${questionId} and version = 1`,
+      );
     } catch (err: unknown) {
       thrown = err;
     }

@@ -183,13 +183,20 @@ export async function listQuestionVersions(
 }
 
 /**
- * Overwrite a draft version's `definition` in place. Shape-preserving
+ * Overwrite a **draft** version's `definition` in place. Shape-preserving
  * persistence only (R5): the caller enforces the draft-only rule and validates
- * the definition through the kernel before calling. The
- * `question_versions_freeze_published` trigger (migration 0001) is the storage
- * backstop - updating a *published* version's definition raises there - but a
- * caller must return its typed `VERSION_IMMUTABLE` before reaching it. Returns
- * the updated row, or `undefined` when `(questionId, version)` does not exist.
+ * the definition through the kernel before calling. The `WHERE status = 'draft'`
+ * predicate is the storage-layer guard (defense-in-depth, issue #8): the write
+ * matches only a draft row, so a `published` **or** `deprecated` version is left
+ * untouched and the call returns `undefined` - the helper's name is truthful and
+ * the deprecated-row gap is closed at the storage layer, not just in the handler.
+ *
+ * This is stricter than, and sits in front of, the
+ * `question_versions_freeze_published` trigger (migration 0001): that trigger
+ * only fires on `OLD.status = 'published'`, so it never covered `deprecated`
+ * rows; it remains the backstop for any *other* write path that bypasses this
+ * helper. Returns the updated row, or `undefined` when no **draft**
+ * `(questionId, version)` matched (nonexistent, published, or deprecated).
  */
 export async function updateDraftDefinition(
   exec: Executor,
@@ -202,6 +209,7 @@ export async function updateDraftDefinition(
       and(
         eq(questionVersions.questionId, input.questionId),
         eq(questionVersions.version, input.version),
+        eq(questionVersions.status, "draft"),
       ),
     )
     .returning();
