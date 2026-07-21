@@ -56,7 +56,7 @@ Launch **excludes** (recorded as `phase-4` issues, never built early): impact an
 
 ## 6. Decision record - additions
 
-ADR-01…15 are recorded in Scope v2. The following decisions were added after the plan reviews (ADR-16…19: 2026-07-18; ADR-20…25: 2026-07-19) to resolve identified underspecifications. They carry the same weight.
+ADR-01…15 are recorded in Scope v2. The following decisions were added after the plan reviews (ADR-16…19: 2026-07-18; ADR-20…25: 2026-07-19; ADR-26: 2026-07-21) to resolve identified underspecifications. They carry the same weight.
 
 ### ADR-16 - Rules evaluation: forward-pass with publish-time cycle rejection
 
@@ -161,10 +161,23 @@ ADR-01…15 are recorded in Scope v2. The following decisions were added after t
 
 **Consequences.** §5's cut-line moves: agent-assisted *authoring* is launch scope (flag-gated); runtime agent *flows* remain excluded. §8's "not an LLM-at-runtime product" stands verbatim - serving is untouched. 039 item 5 narrows to adaptive serving. `ARCHITECTURE.md` §12 gains the `DraftAssistant` seam row. The provider key joins the SEC-7 inventory.
 
+### ADR-26 - Admin/portal UI stack: client data/state, and the two-surface design mandate (extends ADR-22)
+
+**Decision.** ADR-22 fixed the component layer; this resolves what it left open for the UI apps (029, 031-035, 041).
+
+- **Server-state:** **TanStack Query in the admin only** (query cache, mutations, optimistic updates, invalidation) over the admin app's same-origin BFF routes. The **portal stays fetch-only** (SSR-first, minimal client state). The strict BFF (R2) keeps the API internal on both surfaces regardless of client library.
+- **Client editor state (builder):** a scoped `useReducer`/context store for the draft, dirty-tracking, and undo - **not** a new global-state dependency (Zustand/Redux/Jotai) unless the builder proves it needs one. Inputs use **react-aria's form primitives**, not a separate form library.
+- **Design mandate, by surface:** the **portal is adopter-themeable** - a refined, brand-neutral default that adopters re-skin (fonts + tokens) at deploy time through one documented override point, and it is **mobile-first** (respondents are on phones). The **admin is an internal tool with QCMS's own fixed identity** - designed screens/patterns on the a2ra primitives, not adopter-re-branded.
+- **Theming:** light + dark, both **WCAG 2.2 AA**, on both surfaces, via the a2ra shadcn token convention; semantic color is separate from the brand accent.
+
+**Why.** The admin is client-heavy (autosave, live validation, optimistic updates, cross-view cache invalidation) - exactly where a query cache beats hand-rolled server-state, and where the minimal-dependency rule favors the library (the builder's server-state is well over a hundred lines of liability). The portal is SSR-first with trivial client state, so it pays for none of it. The two surfaces serve different masters: respondents see the *adopter's* brand (the portal must flex), authors see *ours* (the admin can be opinionated and fixed).
+
+**Consequences.** One new runtime dependency, **admin-only**: `@tanstack/react-query` (clears the CONTRIBUTING thresholds - major org, open source, vendor-agnostic; exit path bounded, it is a cache over `fetch`). 031-035 build against this stack. The design pass (`docs/wireframes` + the design brief) produces the token set and admin designs; the first pass validated **Cobalt** as the QCMS brand accent with a themeable portal baseline (2026-07-21). Portal fonts + tokens are the single adopter override surface.
+
 ## 7. Constraints
 
 - **Team:** one developer, part-time to full-time, using agentic AI workflows for leverage. Every stage must land a meaningful, testable increment; exit criteria gate stages, not dates.
-- **Stack (fixed by ADRs):** Node LTS · pnpm + Turborepo · Zod as the single schema language · Hono (vertical slices, fetch-pure handlers) · Next.js portal (SSR + strict BFF) · Next.js admin (separate app) · Postgres + Drizzle · better-auth · a2-react-aria as the only UI component stack (`@a2ra/core` pinned + vendored components + Tailwind for their token-based styles, ADR-22) · Vitest · Docker. All components open source, vendor-agnostic, multi-cloud.
+- **Stack (fixed by ADRs):** Node LTS · pnpm + Turborepo · Zod as the single schema language · Hono (vertical slices, fetch-pure handlers) · Next.js portal (SSR + strict BFF) · Next.js admin (separate app) · Postgres + Drizzle · better-auth · a2-react-aria as the only UI component stack (`@a2ra/core` pinned + vendored components + Tailwind for their token-based styles, ADR-22) · TanStack Query (admin server-state, ADR-26) · Vitest · Docker. All components open source, vendor-agnostic, multi-cloud.
 - **Operability budget:** the solo deployment is four containers including the database (portal, admin, API, Postgres - ADR-20; TLS/ingress is operator infrastructure). If a feature demands a fifth standing service, it is probably out of scope.
 - **Discipline rules R1–R7** (Scope v2 §04, restated in `PROJECT_INSTRUCTIONS.md`) are never violated and never relitigated. R3's append-only clause is amended by ADR-17 as noted.
 
