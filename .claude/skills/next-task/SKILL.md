@@ -5,6 +5,8 @@ description: Pick the next executable todo task(s) from the qcms ledger and run 
 
 Select and execute the next task - or, with a count argument N, up to N **pairwise-independent** tasks in parallel. One batch per invocation; /loop provides the repetition.
 
+**Housekeeping first (self-healing worktree cleanup).** Before selecting, reclaim orphaned worktrees: run `git worktree prune`, then `rm -rf` any `.claude/worktrees/agent-*` directory that does **not** appear in `git worktree list`. On Windows, `git worktree remove` (task step 8) commonly deregisters a worktree but leaves its folder behind (locked `node_modules`/`.turbo`, long paths), so orphaned dirs accumulate and waste disk; this sweep is the backstop that keeps the loop self-healing. Never remove a dir that IS a live registered worktree.
+
 1. Read the ledger (`docs/features/README.md`). Candidate = lowest-numbered `todo` task whose **Depends on** rows are all `done`, honoring the ordering exceptions:
    - 040 runs after 036 and before 038.
    - 041 runs any time after 034 and never gates 038.
