@@ -62,6 +62,7 @@ De-scoped at launch (ADR-10), **designed now** so the seam is real:
 | `forms:write` | Draft CRUD, publish |
 | `questions:read` / `questions:write` | Library read / library authoring |
 | `responses:read` | List and read submissions |
+| `responses:write` | Respondent write endpoints: start a session (`POST /sessions`), submit an answer (`POST /sessions/{id}/answers`). Does not imply `responses:read` (grant both explicitly) |
 | `responses:export` | Bulk export endpoints |
 | `responses:erase` | Erasure (never bundled into broad grants; must be explicit) |
 | `links:mint` | Mint/revoke secure links |

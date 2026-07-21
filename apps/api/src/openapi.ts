@@ -95,6 +95,7 @@ export const SCOPES = [
   "questions:read",
   "questions:write",
   "responses:read",
+  "responses:write",
   "responses:export",
   "responses:erase",
   "links:mint",

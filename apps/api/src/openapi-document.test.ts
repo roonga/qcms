@@ -80,6 +80,35 @@ describe("committed OpenAPI documents (exit criterion 4)", () => {
   });
 });
 
+describe("respondent write endpoints carry responses:write (SEC-5, issue #7)", () => {
+  /** The `MachineToken` scopes annotated on a `"METHOD path"` operation. */
+  function scopesFor(doc: OpenApiDocument, method: string, path: string): string[] {
+    const op = (doc.paths?.[path] as Record<string, unknown> | undefined)?.[method] as
+      { security?: Array<Record<string, string[]>> } | undefined;
+    const requirement = op?.security?.find((r) => "MachineToken" in r);
+    return requirement?.MachineToken ?? [];
+  }
+
+  it("POST /sessions requires responses:write, not responses:read", () => {
+    const scopes = scopesFor(generated.respondent, "post", "/sessions");
+    expect(scopes).toContain("responses:write");
+    expect(scopes).not.toContain("responses:read");
+  });
+
+  it("POST /sessions/{id}/answers requires responses:write, not responses:read", () => {
+    const scopes = scopesFor(generated.respondent, "post", "/sessions/{id}/answers");
+    expect(scopes).toContain("responses:write");
+    expect(scopes).not.toContain("responses:read");
+  });
+
+  it("the respondent read endpoints keep responses:read (no scope widening)", () => {
+    expect(scopesFor(generated.respondent, "get", "/sessions/{id}")).toEqual(["responses:read"]);
+    expect(scopesFor(generated.respondent, "get", "/sessions/{id}/step")).toEqual([
+      "responses:read",
+    ]);
+  });
+});
+
 describe("route partition - every mounted route in exactly one document", () => {
   // The full enterprise composition (all surfaces): the ground-truth route set.
   const fullApp = createApp(

@@ -58,7 +58,9 @@ export const submitAnswerRoute = createRoute({
     },
     ...errorResponses(401, 404, 409, 422),
   },
-  ...withScopes("responses:read"),
+  // A respondent *write* endpoint (appends an answer): SEC-5 `responses:write`,
+  // not the `responses:read` it borrowed before the scope existed (issue #7).
+  ...withScopes("responses:write"),
 });
 
 /** Register the serving-loop routes on a public surface group. */

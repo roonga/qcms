@@ -45,7 +45,9 @@ export const startSessionRoute = createRoute({
     },
     ...errorResponses(400, 401, 403, 404, 409),
   },
-  ...withScopes("responses:read"),
+  // A respondent *write* endpoint (creates a session): SEC-5 `responses:write`,
+  // not the `responses:read` it borrowed before the scope existed (issue #7).
+  ...withScopes("responses:write"),
 });
 
 export const getSessionRoute = createRoute({

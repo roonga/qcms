@@ -376,7 +376,7 @@
         "security": [
           {
             "MachineToken": [
-              "responses:read"
+              "responses:write"
             ]
           }
         ],
@@ -589,7 +589,7 @@
         "security": [
           {
             "MachineToken": [
-              "responses:read"
+              "responses:write"
             ]
           }
         ],
