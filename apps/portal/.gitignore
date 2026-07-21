@@ -1,0 +1,12 @@
+# Next.js
+/.next/
+/next-env.d.ts
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# Playwright
+/.playwright/
+
+# Captured static-render screenshots (screenshot-gate artifacts, not source)
+/screenshots/

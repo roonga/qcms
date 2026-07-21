@@ -5,6 +5,12 @@ dist/
 coverage/
 pnpm-lock.yaml
 
+# Next.js build output, generated ambient types, and captured screenshots (029)
+.next/
+**/next-env.d.ts
+apps/portal/.playwright/
+apps/portal/screenshots/
+
 # Prose and the committed plan bundle are not Prettier-owned (verbatim per task 001)
 *.md
 docs/

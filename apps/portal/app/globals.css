@@ -1,0 +1,54 @@
+/*
+ * Portal global stylesheet (task 029).
+ *
+ * Layering (ADR-26, two-surface design mandate):
+ *   1. Tailwind v4 - the utility engine the vendored a2-react-aria components
+ *      (rendered through @qcms/ui) style themselves with.
+ *   2. @qcms/ui theme.css - the brand-NEUTRAL portal default token set (a refined
+ *      Slate Teal baseline, WCAG 2.2 AA in light and dark). This is the shipped
+ *      default, never the QCMS Cobalt admin identity.
+ *   3. adopter-theme.css - THE single documented override surface. Adopters re-skin
+ *      the portal (fonts + token values) by editing that one file and nothing else.
+ *
+ * `@source` tells Tailwind where the utility-class strings live: the portal's own
+ * files are auto-detected; the @qcms/ui renderer sources are declared explicitly
+ * because they sit under node_modules-equivalent workspace paths.
+ */
+@import "tailwindcss";
+@import "../../../packages/ui/src/theme.css";
+@import "./adopter-theme.css";
+
+@source "../app";
+@source "../components";
+@source "../../../packages/ui/src";
+
+/* Base page surface - mobile-first; respondents are on phones (ADR-26). */
+html {
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background-color: var(--color-background);
+  color: var(--color-text);
+  font-family: var(--font-portal, ui-sans-serif, system-ui, sans-serif);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Visible-on-focus skip link (structure sound for 030's a11y deep-pass). */
+.skip-link {
+  position: absolute;
+  left: 0.5rem;
+  top: -3rem;
+  z-index: 50;
+  border-radius: 0.375rem;
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  padding: 0.5rem 0.75rem;
+  box-shadow: 0 1px 2px var(--color-overlay);
+  transition: top 0.15s ease;
+}
+.skip-link:focus {
+  top: 0.5rem;
+}

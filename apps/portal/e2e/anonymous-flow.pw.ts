@@ -1,0 +1,105 @@
+/**
+ * Anonymous entry -> branching walkthrough -> submit -> completion (task 029,
+ * exit criteria 1 and 5). Drives the portal against the composed API booted in
+ * globalSetup, on Playwright's Pixel 7 mobile emulation.
+ *
+ * Branch model note (as-built): the API serves the full compiled step document
+ * for the step (ADR-18: it never prunes the stored A2UI), and the @qcms/ui
+ * renderer renders exactly that document, so both questions are always in the DOM.
+ * The insurance branch is therefore observable through the *flow projection*, not
+ * field mount/unmount: choosing "Yes" makes q_cigs_daily a visible required
+ * question (the primary action stays "Continue" until it is answered), while
+ * choosing "No" leaves it not-required and the form immediately ready ("Submit").
+ * We assert the branch through that primary-action label, which is the honest
+ * signal this build exposes.
+ *
+ * The "Yes" path additionally throttles the network (CDP
+ * Network.emulateNetworkConditions) to prove the insurance fixture still completes
+ * on a slow mobile connection (exit criterion 5).
+ */
+
+import { expect, test, type Page } from "@playwright/test";
+
+import { readFixtures } from "./support/fixtures.js";
+
+const SMOKE_LABEL = "Do you currently smoke?";
+const CIGS_LABEL = "How many cigarettes do you smoke per day?";
+
+/** Start anonymously at `/f/:slug`, click Start, land on the SSR flow page. */
+async function startAnonymousFlow(page: Page, slug: string): Promise<void> {
+  await page.goto(`/f/${slug}`);
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.waitForURL(/\/s\/ses_/);
+  await expect(page.getByText(SMOKE_LABEL)).toBeVisible();
+}
+
+/**
+ * Choose a smoker answer and wait for the answer to be recorded server-side.
+ *
+ * Two details: the react-aria radio's real `<input>` sits under a decorative
+ * indicator that intercepts pointer events, so we click the option's visible label
+ * (the enclosing pressable), exactly as a respondent would. And the answer posts
+ * fire-and-forget, so we wait for the `/answers` response before continuing:
+ * otherwise a follow-up answer can race ahead of this one and the API rejects it
+ * as not-yet-visible (409).
+ */
+async function chooseSmoker(page: Page, answer: "Yes" | "No"): Promise<void> {
+  const recorded = page.waitForResponse(
+    (r) => r.url().includes("/answers") && r.request().method() === "POST" && r.status() === 200,
+  );
+  await page.getByText(answer, { exact: true }).click();
+  await recorded;
+}
+
+/** Submit, then assert the completion page shows a 64-hex content hash. */
+async function submitAndExpectReceipt(page: Page): Promise<void> {
+  await expect(page.getByTestId("primary-action")).toHaveText("Submit");
+  await page.getByTestId("primary-action").click();
+  await page.waitForURL(/\/done/);
+  await expect(page.getByTestId("content-hash")).toHaveText(/^[0-9a-f]{64}$/);
+}
+
+test("anonymous smoker branch completes on a throttled mobile connection", async ({ page }) => {
+  const { slug } = readFixtures();
+
+  // Throttle to a slow mobile profile before navigating (exit criterion 5).
+  const client = await page.context().newCDPSession(page);
+  await client.send("Network.emulateNetworkConditions", {
+    offline: false,
+    latency: 200,
+    downloadThroughput: (500 * 1024) / 8,
+    uploadThroughput: (500 * 1024) / 8,
+  });
+
+  await startAnonymousFlow(page, slug);
+
+  // Choosing "Yes" makes the follow-up number question required: the branch keeps
+  // the primary action on "Continue" until it is answered.
+  await chooseSmoker(page, "Yes");
+  await expect(page.getByText(CIGS_LABEL)).toBeVisible();
+  await expect(page.getByTestId("primary-action")).toHaveText("Continue");
+
+  // Answer the number, then blur to post it (the branch is then satisfied ->
+  // "Submit"). Type key-by-key: the react-aria NumberField is a controlled input
+  // that commits per keystroke, so a real type registers where a one-shot fill
+  // does not. The answer posts on the field's blur, and Tab would only move focus
+  // to the field's own stepper button (still inside the field), so blur by
+  // clicking a neutral heading to move focus fully out of the control.
+  const cigs = page.getByRole("textbox", { name: /cigarettes/i });
+  await cigs.click();
+  await cigs.pressSequentially("10");
+  await page.getByRole("heading", { name: "Life insurance sign-up" }).click();
+
+  await submitAndExpectReceipt(page);
+});
+
+test("anonymous non-smoker branch is ready to submit directly", async ({ page }) => {
+  const { slug } = readFixtures();
+  await startAnonymousFlow(page, slug);
+
+  // Choosing "No" leaves the follow-up not-required, so the form is immediately
+  // ready: the primary action flips to "Submit" with no further answers.
+  await chooseSmoker(page, "No");
+
+  await submitAndExpectReceipt(page);
+});
