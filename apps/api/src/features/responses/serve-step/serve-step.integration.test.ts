@@ -4,8 +4,8 @@
  * our own packages (CONTRIBUTING). Requires Docker.
  *
  * The fixture is the canonical `insurance` form (`@qcms/core` fixtures): one
- * step `stp_health` with `q_smoker` (boolean, required) and `q_cigs_daily`
- * (number, required), the follow-up shown only when `q_smoker = true`. Its
+ * step `stp_history` with `q_at_fault_accident` (boolean, required) and `q_accident_count`
+ * (number, required), the follow-up shown only when `q_at_fault_accident = true`. Its
  * published `form_versions` row stores the committed golden compiled A2UI
  * document, so exit criterion 2 asserts the served step equals the *stored*
  * bytes - the handler has no compiler dependency and cannot recompile (ADR-18).
@@ -61,7 +61,7 @@ const INSURANCE_DEF = readFixture(
   "valid",
   "insurance.json",
 ) as VersionInput["definition"];
-const Q_SMOKER_DEF = readFixture(
+const Q_ACCIDENT_DEF = readFixture(
   "packages",
   "core",
   "fixtures",
@@ -69,7 +69,7 @@ const Q_SMOKER_DEF = readFixture(
   "valid",
   "boolean.json",
 ) as Parameters<typeof createQuestionVersion>[1]["definition"];
-const Q_CIGS_DEF = readFixture(
+const Q_ACCIDENT_COUNT_DEF = readFixture(
   "packages",
   "core",
   "fixtures",
@@ -116,22 +116,28 @@ afterAll(async () => {
 
 // --- seed helpers -----------------------------------------------------------
 
-/** Seed the two library questions the insurance form pins (q_smoker@2, q_cigs@1). */
+/** Seed the two library questions the insurance form pins (q_at_fault_accident@2, q_accident_count@1). */
 async function seedQuestions(): Promise<void> {
-  await createQuestion(testDb.db, { questionId: QuestionId.parse("q_smoker"), slug: "smoker" });
-  // q_smoker is pinned @2 by the form; create v1 then v2 (identical definition).
+  await createQuestion(testDb.db, {
+    questionId: QuestionId.parse("q_at_fault_accident"),
+    slug: "accident",
+  });
+  // q_at_fault_accident is pinned @2 by the form; create v1 then v2 (identical definition).
   await createQuestionVersion(testDb.db, {
-    questionId: QuestionId.parse("q_smoker"),
-    definition: Q_SMOKER_DEF,
+    questionId: QuestionId.parse("q_at_fault_accident"),
+    definition: Q_ACCIDENT_DEF,
   });
   await createQuestionVersion(testDb.db, {
-    questionId: QuestionId.parse("q_smoker"),
-    definition: Q_SMOKER_DEF,
+    questionId: QuestionId.parse("q_at_fault_accident"),
+    definition: Q_ACCIDENT_DEF,
   });
-  await createQuestion(testDb.db, { questionId: QuestionId.parse("q_cigs_daily"), slug: "cigs" });
+  await createQuestion(testDb.db, {
+    questionId: QuestionId.parse("q_accident_count"),
+    slug: "accident-count",
+  });
   await createQuestionVersion(testDb.db, {
-    questionId: QuestionId.parse("q_cigs_daily"),
-    definition: Q_CIGS_DEF,
+    questionId: QuestionId.parse("q_accident_count"),
+    definition: Q_ACCIDENT_COUNT_DEF,
   });
 }
 
@@ -213,23 +219,23 @@ async function postAnswer(
 describe("get-step serves the stored compiled document (exit criterion 2)", () => {
   beforeAll(async () => {
     await seedQuestions();
-    await seedForm("frm_life_signup", "life", GOLDEN as unknown as VersionInput["compiled"]);
+    await seedForm("frm_auto_quote", "auto", GOLDEN as unknown as VersionInput["compiled"]);
   });
 
   it("serves the current step's stored golden document, never a recompilation", async () => {
-    const { sessionId, sessionToken } = await startSession("life");
+    const { sessionId, sessionToken } = await startSession("auto");
     const res = await getStep(sessionId, sessionToken);
     expect(res.status).toBe(200);
     const body = (await res.json()) as StepBody;
 
-    // Deep-equals the STORED golden document for stp_health (JSONB does not
+    // Deep-equals the STORED golden document for stp_history (JSONB does not
     // preserve key order, so structural equality - not byte-exact).
     expect(body.step).toEqual(GOLDEN.documents[0]);
     expect(body.a2uiSpecVersion).toBe(GOLDEN.a2uiSpecVersion);
-    // Initially only q_smoker is visible (q_cigs_daily's rule is unsatisfied).
-    expect(body.flowState.currentStep).toBe("stp_health");
-    expect(body.flowState.visibleQuestions).toEqual(["q_smoker"]);
-    expect(body.flowState.missingRequired).toEqual(["q_smoker"]);
+    // Initially only q_at_fault_accident is visible (q_accident_count's rule is unsatisfied).
+    expect(body.flowState.currentStep).toBe("stp_history");
+    expect(body.flowState.visibleQuestions).toEqual(["q_at_fault_accident"]);
+    expect(body.flowState.missingRequired).toEqual(["q_at_fault_accident"]);
     expect(body.flowState.readyToSubmit).toBe(false);
     expect(body.progress).toEqual({ stepIndex: 0, totalVisibleSteps: 1 });
   });
@@ -239,7 +245,7 @@ describe("get-step serves the stored compiled document (exit criterion 2)", () =
     // the handler recompiled it would produce the Form/Flex tree, not this.
     const sentinelRoot = { type: "Text", props: { as: "h1" }, children: "SENTINEL-STORED-19" };
     const sentinel = {
-      documents: [{ stepId: "stp_health", root: sentinelRoot }],
+      documents: [{ stepId: "stp_history", root: sentinelRoot }],
       compilerVersion: "0.0.0",
       a2uiSpecVersion: "1.0.0-preview.7",
     };
@@ -249,27 +255,27 @@ describe("get-step serves the stored compiled document (exit criterion 2)", () =
     const res = await getStep(sessionId, sessionToken);
     expect(res.status).toBe(200);
     const body = (await res.json()) as StepBody;
-    expect(body.step).toEqual({ stepId: "stp_health", root: sentinelRoot });
+    expect(body.step).toEqual({ stepId: "stp_history", root: sentinelRoot });
   });
 });
 
 // --- exit criterion 1: branching answer loop --------------------------------
 
 describe("branching answer loop (exit criterion 1)", () => {
-  it("q_smoker=true reveals q_cigs_daily; q_smoker=false hides it; ledger keeps all rows", async () => {
-    const { sessionId, sessionToken } = await startSession("life");
+  it("q_at_fault_accident=true reveals q_accident_count; q_at_fault_accident=false hides it; ledger keeps all rows", async () => {
+    const { sessionId, sessionToken } = await startSession("auto");
 
-    // 1) q_smoker = true → the follow-up q_cigs_daily becomes visible.
-    const r1 = await postAnswer(sessionId, sessionToken, "q_smoker", true);
+    // 1) q_at_fault_accident = true → the follow-up q_accident_count becomes visible.
+    const r1 = await postAnswer(sessionId, sessionToken, "q_at_fault_accident", true);
     expect(r1.status).toBe(200);
     const b1 = (await r1.json()) as StepBody;
-    expect(b1.flowState.currentStep).toBe("stp_health");
-    expect(b1.flowState.visibleQuestions).toEqual(["q_smoker", "q_cigs_daily"]);
-    expect(b1.flowState.missingRequired).toEqual(["q_cigs_daily"]);
+    expect(b1.flowState.currentStep).toBe("stp_history");
+    expect(b1.flowState.visibleQuestions).toEqual(["q_at_fault_accident", "q_accident_count"]);
+    expect(b1.flowState.missingRequired).toEqual(["q_accident_count"]);
     expect(b1.flowState.readyToSubmit).toBe(false);
 
-    // 2) answer q_cigs_daily → flow complete, no current step.
-    const r2 = await postAnswer(sessionId, sessionToken, "q_cigs_daily", 10);
+    // 2) answer q_accident_count → flow complete, no current step.
+    const r2 = await postAnswer(sessionId, sessionToken, "q_accident_count", 10);
     expect(r2.status).toBe(200);
     const b2 = (await r2.json()) as StepBody;
     expect(b2.step).toBeNull();
@@ -279,11 +285,11 @@ describe("branching answer loop (exit criterion 1)", () => {
     expect(b2.flowState.missingRequired).toEqual([]);
     expect(b2.progress).toEqual({ stepIndex: 1, totalVisibleSteps: 1 });
 
-    // 3) q_smoker = false → the follow-up disappears again.
-    const r3 = await postAnswer(sessionId, sessionToken, "q_smoker", false);
+    // 3) q_at_fault_accident = false → the follow-up disappears again.
+    const r3 = await postAnswer(sessionId, sessionToken, "q_at_fault_accident", false);
     expect(r3.status).toBe(200);
     const b3 = (await r3.json()) as StepBody;
-    expect(b3.flowState.visibleQuestions).not.toContain("q_cigs_daily");
+    expect(b3.flowState.visibleQuestions).not.toContain("q_accident_count");
     expect(b3.flowState.readyToSubmit).toBe(true);
     expect(b3.step).toBeNull();
 
@@ -294,11 +300,15 @@ describe("branching answer loop (exit criterion 1)", () => {
     const ledger = (await answerLedger(testDb.db, SessionId.parse(sessionId))) as {
       questionId: string;
     }[];
-    expect(ledger.map((row) => row.questionId)).toEqual(["q_smoker", "q_cigs_daily", "q_smoker"]);
+    expect(ledger.map((row) => row.questionId)).toEqual([
+      "q_at_fault_accident",
+      "q_accident_count",
+      "q_at_fault_accident",
+    ]);
     // latestAnswers reflects the latest per question.
     const latest = await latestAnswers(testDb.db, SessionId.parse(sessionId));
-    expect(latest.get(QuestionId.parse("q_smoker"))).toBe(false);
-    expect(latest.get(QuestionId.parse("q_cigs_daily"))).toBe(10);
+    expect(latest.get(QuestionId.parse("q_at_fault_accident"))).toBe(false);
+    expect(latest.get(QuestionId.parse("q_accident_count"))).toBe(10);
   });
 });
 
@@ -306,9 +316,9 @@ describe("branching answer loop (exit criterion 1)", () => {
 
 describe("typed rejects (exit criterion 3)", () => {
   it("invalid value → 422 with the kernel's error codes", async () => {
-    const { sessionId, sessionToken } = await startSession("life");
-    await postAnswer(sessionId, sessionToken, "q_smoker", true); // reveal q_cigs_daily
-    const res = await postAnswer(sessionId, sessionToken, "q_cigs_daily", -1); // below min 0
+    const { sessionId, sessionToken } = await startSession("auto");
+    await postAnswer(sessionId, sessionToken, "q_at_fault_accident", true); // reveal q_accident_count
+    const res = await postAnswer(sessionId, sessionToken, "q_accident_count", -1); // below min 0
     expect(res.status).toBe(422);
     const body = (await res.json()) as ErrBody;
     expect(body.error.code).toBe("INVALID_ANSWER");
@@ -317,29 +327,29 @@ describe("typed rejects (exit criterion 3)", () => {
   });
 
   it("answering a hidden question → 409 QUESTION_NOT_VISIBLE", async () => {
-    const { sessionId, sessionToken } = await startSession("life");
-    // q_cigs_daily is hidden until q_smoker = true.
-    const res = await postAnswer(sessionId, sessionToken, "q_cigs_daily", 5);
+    const { sessionId, sessionToken } = await startSession("auto");
+    // q_accident_count is hidden until q_at_fault_accident = true.
+    const res = await postAnswer(sessionId, sessionToken, "q_accident_count", 5);
     expect(res.status).toBe(409);
     expect(((await res.json()) as ErrBody).error.code).toBe("QUESTION_NOT_VISIBLE");
   });
 
   it("answering a question not in the form → 404 UNKNOWN_QUESTION", async () => {
-    const { sessionId, sessionToken } = await startSession("life");
+    const { sessionId, sessionToken } = await startSession("auto");
     const res = await postAnswer(sessionId, sessionToken, "q_not_in_form", "x");
     expect(res.status).toBe(404);
     expect(((await res.json()) as ErrBody).error.code).toBe("UNKNOWN_QUESTION");
   });
 
   it("a submitted session is rejected on both endpoints (SESSION_SUBMITTED)", async () => {
-    const { sessionId, sessionToken } = await startSession("life");
+    const { sessionId, sessionToken } = await startSession("auto");
     await markSubmitted(testDb.db, SessionId.parse(sessionId));
 
     const stepRes = await getStep(sessionId, sessionToken);
     expect(stepRes.status).toBe(409);
     expect(((await stepRes.json()) as ErrBody).error.code).toBe("SESSION_SUBMITTED");
 
-    const answerRes = await postAnswer(sessionId, sessionToken, "q_smoker", true);
+    const answerRes = await postAnswer(sessionId, sessionToken, "q_at_fault_accident", true);
     expect(answerRes.status).toBe(409);
     expect(((await answerRes.json()) as ErrBody).error.code).toBe("SESSION_SUBMITTED");
   });
@@ -350,7 +360,7 @@ describe("typed rejects (exit criterion 3)", () => {
     const sessionId = SessionId.parse("ses_expired00000000");
     await createSession(testDb.db, {
       sessionId,
-      formId: FormId.parse("frm_life_signup"),
+      formId: FormId.parse("frm_auto_quote"),
       formVersion: 1,
       accessMode: "anonymous",
       expiresAt: new Date(NOW.getTime() - 1000),
@@ -365,7 +375,7 @@ describe("typed rejects (exit criterion 3)", () => {
   });
 
   it("get-step without a session token → 401", async () => {
-    const { sessionId } = await startSession("life");
+    const { sessionId } = await startSession("auto");
     const res = await getStep(sessionId);
     expect(res.status).toBe(401);
   });
@@ -375,14 +385,14 @@ describe("typed rejects (exit criterion 3)", () => {
 
 describe("concurrent answers are serialized by the advisory lock (exit criterion 4)", () => {
   it("two simultaneous answers to one session both land; ledger order is well-formed", async () => {
-    const { sessionId, sessionToken } = await startSession("life");
-    await postAnswer(sessionId, sessionToken, "q_smoker", true); // reveal q_cigs_daily
+    const { sessionId, sessionToken } = await startSession("auto");
+    await postAnswer(sessionId, sessionToken, "q_at_fault_accident", true); // reveal q_accident_count
 
-    // Two concurrent revisions of q_cigs_daily; the per-session advisory lock
+    // Two concurrent revisions of q_accident_count; the per-session advisory lock
     // serializes the transactions so both commit fully (no lost update).
     const [a, b] = await Promise.all([
-      postAnswer(sessionId, sessionToken, "q_cigs_daily", 10),
-      postAnswer(sessionId, sessionToken, "q_cigs_daily", 20),
+      postAnswer(sessionId, sessionToken, "q_accident_count", 10),
+      postAnswer(sessionId, sessionToken, "q_accident_count", 20),
     ]);
     expect(a.status).toBe(200);
     expect(b.status).toBe(200);
@@ -390,13 +400,13 @@ describe("concurrent answers are serialized by the advisory lock (exit criterion
     const ledger = (await answerLedger(testDb.db, SessionId.parse(sessionId))) as {
       questionId: string;
     }[];
-    // q_smoker first, then both q_cigs_daily rows landed (append-only order).
+    // q_at_fault_accident first, then both q_accident_count rows landed (append-only order).
     expect(ledger.map((row) => row.questionId)).toEqual([
-      "q_smoker",
-      "q_cigs_daily",
-      "q_cigs_daily",
+      "q_at_fault_accident",
+      "q_accident_count",
+      "q_accident_count",
     ]);
     const latest = await latestAnswers(testDb.db, SessionId.parse(sessionId));
-    expect([10, 20]).toContain(latest.get(QuestionId.parse("q_cigs_daily")));
+    expect([10, 20]).toContain(latest.get(QuestionId.parse("q_accident_count")));
   });
 });

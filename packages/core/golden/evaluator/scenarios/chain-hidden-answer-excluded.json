@@ -1,13 +1,13 @@
 {
-  "description": "Exclusion chain, broken at A: smoker = false hides B, so B's stale answer (cigs = 15) is excluded and C's rule reads B as unanswered — C stays hidden (ADR-16 semantic 3).",
+  "description": "Exclusion chain, broken at A: accident = false hides B, so B's stale answer (count = 15) is excluded and C's rule reads B as unanswered — C stays hidden (ADR-16 semantic 3).",
   "form": "golden/evaluator/forms/exclusion-chain.json",
   "answers": [
     {
-      "questionId": "q_smoker",
+      "questionId": "q_at_fault_accident",
       "value": false
     },
     {
-      "questionId": "q_cigs_daily",
+      "questionId": "q_accident_count",
       "value": 15
     }
   ],
@@ -15,12 +15,12 @@
     "visible": [
       {
         "stepId": "stp_one",
-        "questionId": "q_smoker"
+        "questionId": "q_at_fault_accident"
       }
     ],
     "visibleSteps": ["stp_one"],
     "currentStep": null,
-    "answeredRequired": ["q_smoker"],
+    "answeredRequired": ["q_at_fault_accident"],
     "missingRequired": [],
     "complete": true
   }

@@ -14,10 +14,10 @@ test("reloading the flow page resumes the session from the cookie", async ({ pag
   await page.goto(`/f/${slug}`);
   await page.getByRole("button", { name: "Start" }).click();
   await page.waitForURL(/\/s\/ses_/);
-  await expect(page.getByText("Do you currently smoke?")).toBeVisible();
+  await expect(page.getByText("Any at-fault accident in the last 3 years?")).toBeVisible();
 
   // A full reload re-runs the SSR flow page; the session cookie resumes the step.
   await page.reload();
   await expect(page).toHaveURL(/\/s\/ses_/);
-  await expect(page.getByText("Do you currently smoke?")).toBeVisible();
+  await expect(page.getByText("Any at-fault accident in the last 3 years?")).toBeVisible();
 });

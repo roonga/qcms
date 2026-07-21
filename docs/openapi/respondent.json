@@ -199,7 +199,7 @@
         "properties": {
           "stepId": {
             "type": "string",
-            "example": "stp_health"
+            "example": "stp_history"
           },
           "root": {
             "nullable": true
@@ -215,7 +215,7 @@
           "currentStep": {
             "type": "string",
             "nullable": true,
-            "example": "stp_health"
+            "example": "stp_history"
           },
           "visibleQuestions": {
             "type": "array",
@@ -223,8 +223,8 @@
               "type": "string"
             },
             "example": [
-              "q_smoker",
-              "q_cigs_daily"
+              "q_at_fault_accident",
+              "q_accident_count"
             ]
           },
           "missingRequired": {
@@ -233,7 +233,7 @@
               "type": "string"
             },
             "example": [
-              "q_cigs_daily"
+              "q_accident_count"
             ]
           },
           "readyToSubmit": {
@@ -271,7 +271,7 @@
           "questionId": {
             "type": "string",
             "minLength": 1,
-            "example": "q_smoker"
+            "example": "q_at_fault_accident"
           },
           "value": {
             "nullable": true,

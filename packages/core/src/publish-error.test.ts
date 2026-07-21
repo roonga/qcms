@@ -29,17 +29,17 @@ const samples: { raw: unknown; location: string }[] = [
     raw: {
       code: "DANGLING_QUESTION_REF",
       message: "Step pins a question that does not exist",
-      path: { step: "stp_health", question: "q_smoker" },
+      path: { step: "stp_history", question: "q_at_fault_accident" },
     },
-    location: 'question "q_smoker" in step "stp_health"',
+    location: 'question "q_at_fault_accident" in step "stp_history"',
   },
   {
     raw: {
       code: "DANGLING_QUESTION_REF",
       message: "Rule condition references a question that is not in the form",
-      path: { rule: "rul_smoker_followup", question: "q_smoker" },
+      path: { rule: "rul_accident_followup", question: "q_at_fault_accident" },
     },
-    location: 'question "q_smoker" in rule "rul_smoker_followup"',
+    location: 'question "q_at_fault_accident" in rule "rul_accident_followup"',
   },
   {
     raw: {
@@ -58,17 +58,17 @@ const samples: { raw: unknown; location: string }[] = [
     raw: {
       code: "DANGLING_STEP_REF",
       message: "Rule shows a step that is not in the form",
-      path: { rule: "rul_smoker_followup", step: "stp_gone" },
+      path: { rule: "rul_accident_followup", step: "stp_gone" },
     },
-    location: 'step "stp_gone" in rule "rul_smoker_followup"',
+    location: 'step "stp_gone" in rule "rul_accident_followup"',
   },
   {
     raw: {
       code: "UNPUBLISHED_QUESTION_PIN",
       message: "Pinned question version is not published",
-      path: { step: "stp_health", question: "q_smoker", version: 3 },
+      path: { step: "stp_history", question: "q_at_fault_accident", version: 3 },
     },
-    location: 'question "q_smoker"@3 in step "stp_health"',
+    location: 'question "q_at_fault_accident"@3 in step "stp_history"',
   },
   {
     raw: {
@@ -90,9 +90,9 @@ const samples: { raw: unknown; location: string }[] = [
     raw: {
       code: "RULE_BACKWARD_TARGET",
       message: "Rule target does not appear after the questions its condition reads",
-      path: { rule: "rul_smoker_followup", target: "q_smoker" },
+      path: { rule: "rul_accident_followup", target: "q_at_fault_accident" },
     },
-    location: 'target "q_smoker" of rule "rul_smoker_followup"',
+    location: 'target "q_at_fault_accident" of rule "rul_accident_followup"',
   },
   {
     raw: {
@@ -114,25 +114,25 @@ const samples: { raw: unknown; location: string }[] = [
     raw: {
       code: "RULE_TYPE_MISMATCH",
       message: "contains is only valid against multiChoice questions",
-      path: { rule: "rul_smoker_followup", question: "q_smoker" },
+      path: { rule: "rul_accident_followup", question: "q_at_fault_accident" },
     },
-    location: 'question "q_smoker" in rule "rul_smoker_followup"',
+    location: 'question "q_at_fault_accident" in rule "rul_accident_followup"',
   },
   {
     raw: {
       code: "DUPLICATE_QUESTION_IN_FORM",
       message: "Question is pinned more than once",
-      path: { step: "stp_lifestyle", question: "q_smoker" },
+      path: { step: "stp_lifestyle", question: "q_at_fault_accident" },
     },
-    location: 'question "q_smoker" in step "stp_lifestyle"',
+    location: 'question "q_at_fault_accident" in step "stp_lifestyle"',
   },
   {
     raw: {
       code: "DUPLICATE_STEP_ID",
       message: "Duplicate stepId",
-      path: { step: "stp_health" },
+      path: { step: "stp_history" },
     },
-    location: 'step "stp_health"',
+    location: 'step "stp_history"',
   },
 ];
 
@@ -174,14 +174,14 @@ describe("PublishError", () => {
       PublishError.safeParse({
         code: "DUPLICATE_STEP_ID",
         message: "not a step id",
-        path: { step: "q_smoker" },
+        path: { step: "q_at_fault_accident" },
       }).success,
     ).toBe(false);
     expect(
       PublishError.safeParse({
         code: "DANGLING_QUESTION_REF",
         message: "empty message is rejected too",
-        path: { question: "q_smoker" },
+        path: { question: "q_at_fault_accident" },
       }).success,
     ).toBe(true);
   });

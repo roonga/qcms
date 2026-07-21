@@ -11,7 +11,7 @@
       "value": "Asthma in childhood"
     },
     {
-      "questionId": "q_cigs_daily",
+      "questionId": "q_accident_count",
       "value": 11
     },
     {
@@ -19,7 +19,7 @@
       "value": "1990-05-18"
     },
     {
-      "questionId": "q_smoker",
+      "questionId": "q_at_fault_accident",
       "value": true
     },
     {
@@ -43,7 +43,7 @@
       },
       {
         "stepId": "stp_src",
-        "questionId": "q_cigs_daily"
+        "questionId": "q_accident_count"
       },
       {
         "stepId": "stp_src",
@@ -51,7 +51,7 @@
       },
       {
         "stepId": "stp_src",
-        "questionId": "q_smoker"
+        "questionId": "q_at_fault_accident"
       },
       {
         "stepId": "stp_src",
@@ -66,9 +66,9 @@
     "currentStep": null,
     "answeredRequired": [
       "q_full_name",
-      "q_cigs_daily",
+      "q_accident_count",
       "q_dob",
-      "q_smoker",
+      "q_at_fault_accident",
       "q_coverage_level",
       "q_preexisting_conditions"
     ],

@@ -30,7 +30,7 @@ const KINDS = [
     schema: QuestionId,
     parse: parseQuestionId,
     is: isQuestionId,
-    valid: "q_smoker",
+    valid: "q_at_fault_accident",
     code: "INVALID_QUESTION_ID",
   },
   {
@@ -38,7 +38,7 @@ const KINDS = [
     schema: FormId,
     parse: parseFormId,
     is: isFormId,
-    valid: "frm_life_signup",
+    valid: "frm_auto_quote",
     code: "INVALID_FORM_ID",
   },
   {
@@ -46,7 +46,7 @@ const KINDS = [
     schema: StepId,
     parse: parseStepId,
     is: isStepId,
-    valid: "stp_health",
+    valid: "stp_history",
     code: "INVALID_STEP_ID",
   },
   {
@@ -62,7 +62,7 @@ const KINDS = [
     schema: RuleId,
     parse: parseRuleId,
     is: isRuleId,
-    valid: "rul_smoker_followup",
+    valid: "rul_accident_followup",
     code: "INVALID_RULE_ID",
   },
   {
@@ -114,12 +114,12 @@ describe.each(KINDS)("$name", ({ schema, parse, is, valid, code }) => {
 
 describe("id kinds are mutually exclusive", () => {
   it("a QuestionId is not accepted by the other kinds", () => {
-    expect(isQuestionId("q_smoker")).toBe(true);
-    expect(isFormId("q_smoker")).toBe(false);
-    expect(isStepId("q_smoker")).toBe(false);
-    expect(isOptionId("q_smoker")).toBe(false);
-    expect(isRuleId("q_smoker")).toBe(false);
-    expect(isSessionId("q_smoker")).toBe(false);
-    expect(isLinkId("q_smoker")).toBe(false);
+    expect(isQuestionId("q_at_fault_accident")).toBe(true);
+    expect(isFormId("q_at_fault_accident")).toBe(false);
+    expect(isStepId("q_at_fault_accident")).toBe(false);
+    expect(isOptionId("q_at_fault_accident")).toBe(false);
+    expect(isRuleId("q_at_fault_accident")).toBe(false);
+    expect(isSessionId("q_at_fault_accident")).toBe(false);
+    expect(isLinkId("q_at_fault_accident")).toBe(false);
   });
 });

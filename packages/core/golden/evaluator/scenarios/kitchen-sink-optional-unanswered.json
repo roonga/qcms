@@ -11,11 +11,11 @@
       "value": "1990-05-17"
     },
     {
-      "questionId": "q_smoker",
+      "questionId": "q_at_fault_accident",
       "value": true
     },
     {
-      "questionId": "q_cigs_daily",
+      "questionId": "q_accident_count",
       "value": 10
     },
     {
@@ -38,19 +38,19 @@
         "questionId": "q_dob"
       },
       {
-        "stepId": "stp_health",
-        "questionId": "q_smoker"
+        "stepId": "stp_history",
+        "questionId": "q_at_fault_accident"
       },
       {
-        "stepId": "stp_health",
-        "questionId": "q_cigs_daily"
+        "stepId": "stp_history",
+        "questionId": "q_accident_count"
       },
       {
-        "stepId": "stp_health",
+        "stepId": "stp_history",
         "questionId": "q_preexisting_conditions"
       },
       {
-        "stepId": "stp_health",
+        "stepId": "stp_history",
         "questionId": "q_medical_history"
       },
       {
@@ -58,13 +58,13 @@
         "questionId": "q_coverage_level"
       }
     ],
-    "visibleSteps": ["stp_about", "stp_health", "stp_cover"],
-    "currentStep": "stp_health",
+    "visibleSteps": ["stp_about", "stp_history", "stp_cover"],
+    "currentStep": "stp_history",
     "answeredRequired": [
       "q_full_name",
       "q_dob",
-      "q_smoker",
-      "q_cigs_daily",
+      "q_at_fault_accident",
+      "q_accident_count",
       "q_preexisting_conditions",
       "q_coverage_level"
     ],

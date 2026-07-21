@@ -1,23 +1,23 @@
 {
-  "description": "Two steps share stepId stp_health; the later occurrence is flagged (DUPLICATE_STEP_ID).",
+  "description": "Two steps share stepId stp_history; the later occurrence is flagged (DUPLICATE_STEP_ID).",
   "expected": {
     "code": "DUPLICATE_STEP_ID",
     "path": ["steps", 1, "stepId"]
   },
   "definition": {
-    "formId": "frm_life_signup",
+    "formId": "frm_auto_quote",
     "defaultLocale": "en",
-    "title": { "en": "Life insurance sign-up" },
+    "title": { "en": "Vehicle insurance quote" },
     "steps": [
       {
-        "stepId": "stp_health",
-        "title": { "en": "Health" },
-        "items": [{ "questionId": "q_smoker", "version": 2 }]
+        "stepId": "stp_history",
+        "title": { "en": "Driving history" },
+        "items": [{ "questionId": "q_at_fault_accident", "version": 2 }]
       },
       {
-        "stepId": "stp_health",
-        "title": { "en": "Health again" },
-        "items": [{ "questionId": "q_cigs_daily", "version": 1 }]
+        "stepId": "stp_history",
+        "title": { "en": "Driving history again" },
+        "items": [{ "questionId": "q_accident_count", "version": 1 }]
       }
     ],
     "rules": []

@@ -46,7 +46,7 @@ function makeQuestion(definition: unknown): QuestionDefinition {
 }
 
 /** Compile a form fixture against the task-003 question fixtures (published
- * at versions 1 and 2 - the forms pin q_smoker@2, everything else @1). */
+ * at versions 1 and 2 - the forms pin q_at_fault_accident@2, everything else @1). */
 function fixtureSnapshot(file: string): FrozenSnapshot {
   const records: QuestionVersionRecord[] = [];
   const published = new Map<QuestionId, Set<number>>();
@@ -111,13 +111,13 @@ describe("prepareSubmission - the I9 sweep on the insurance fixture", () => {
     const locked = await lockedOf(
       insurance(),
       answersOf([
-        ["q_cigs_daily", 20], // reversed input order: output is document order
-        ["q_smoker", true],
+        ["q_accident_count", 20], // reversed input order: output is document order
+        ["q_at_fault_accident", true],
       ]),
     );
     expect(locked.answers).toEqual([
-      { questionId: "q_smoker", value: true },
-      { questionId: "q_cigs_daily", value: 20 },
+      { questionId: "q_at_fault_accident", value: true },
+      { questionId: "q_accident_count", value: 20 },
     ]);
     expect(locked.flowState.complete).toBe(true);
     expect(locked.contentHash).toMatch(/^[0-9a-f]{64}$/);
@@ -128,37 +128,37 @@ describe("prepareSubmission - the I9 sweep on the insurance fixture", () => {
   it("visible required missing blocks with the correct id list", async () => {
     const empty = await errorsOf(insurance(), answersOf([]));
     expect(empty.map((error) => [error.code, idOf(error)])).toEqual([
-      ["MISSING_REQUIRED", "q_smoker"],
+      ["MISSING_REQUIRED", "q_at_fault_accident"],
     ]);
 
-    // q_smoker=true reveals the required follow-up.
-    const partial = await errorsOf(insurance(), answersOf([["q_smoker", true]]));
+    // q_at_fault_accident=true reveals the required follow-up.
+    const partial = await errorsOf(insurance(), answersOf([["q_at_fault_accident", true]]));
     expect(partial.map((error) => [error.code, idOf(error)])).toEqual([
-      ["MISSING_REQUIRED", "q_cigs_daily"],
+      ["MISSING_REQUIRED", "q_accident_count"],
     ]);
   });
 
   it("a hidden required question does NOT block submit (I6 beats I9)", async () => {
-    // q_cigs_daily is required in its pinned definition, but q_smoker=false
+    // q_accident_count is required in its pinned definition, but q_at_fault_accident=false
     // hides it - the sweep only covers *visible* required questions.
-    const locked = await lockedOf(insurance(), answersOf([["q_smoker", false]]));
-    expect(locked.answers).toEqual([{ questionId: "q_smoker", value: false }]);
+    const locked = await lockedOf(insurance(), answersOf([["q_at_fault_accident", false]]));
+    expect(locked.answers).toEqual([{ questionId: "q_at_fault_accident", value: false }]);
     expect(locked.flowState.complete).toBe(true);
   });
 
   it("a hidden answered question is excluded from the locked set (I6)", async () => {
     // The DOMAIN_SCHEMA §6 stale-answer story: answered while visible, then
-    // hidden by changing q_smoker. The orphaned answer stays in the input
+    // hidden by changing q_at_fault_accident. The orphaned answer stays in the input
     // (and the ledger) but never reaches the submission.
     const input = answersOf([
-      ["q_smoker", false],
-      ["q_cigs_daily", 20],
+      ["q_at_fault_accident", false],
+      ["q_accident_count", 20],
     ]);
-    expect(input.has(asQuestionId("q_cigs_daily"))).toBe(true); // assertable in input
+    expect(input.has(asQuestionId("q_accident_count"))).toBe(true); // assertable in input
     const locked = await lockedOf(insurance(), input);
-    expect(locked.answers.map((entry) => entry.questionId)).toEqual(["q_smoker"]);
+    expect(locked.answers.map((entry) => entry.questionId)).toEqual(["q_at_fault_accident"]);
     // A hidden answer also does not perturb the hash: same as never given.
-    const withoutOrphan = await lockedOf(insurance(), answersOf([["q_smoker", false]]));
+    const withoutOrphan = await lockedOf(insurance(), answersOf([["q_at_fault_accident", false]]));
     expect(locked.contentHash).toBe(withoutOrphan.contentHash);
   });
 
@@ -166,8 +166,8 @@ describe("prepareSubmission - the I9 sweep on the insurance fixture", () => {
     const errors = await errorsOf(
       insurance(),
       answersOf([
-        ["q_smoker", true],
-        ["q_cigs_daily", -1.5], // violates min 0 AND integer
+        ["q_at_fault_accident", true],
+        ["q_accident_count", -1.5], // violates min 0 AND integer
       ]),
     );
     expect(errors).toHaveLength(1);
@@ -176,7 +176,7 @@ describe("prepareSubmission - the I9 sweep on the insurance fixture", () => {
     if (error?.code !== "INVALID_ANSWER") {
       throw new Error("unreachable");
     }
-    expect(error.questionId).toBe("q_cigs_daily");
+    expect(error.questionId).toBe("q_accident_count");
     expect(error.errors.map((nested) => nested.code)).toEqual([
       "VALUE_BELOW_MIN",
       "NOT_AN_INTEGER",
@@ -189,8 +189,8 @@ describe("prepareSubmission - the I9 sweep on the insurance fixture", () => {
     const errors = await errorsOf(
       insurance(),
       answersOf([
-        ["q_smoker", true],
-        ["q_cigs_daily", 20],
+        ["q_at_fault_accident", true],
+        ["q_accident_count", 20],
         ["q_zz_drifted", 1],
         ["q_aa_drifted", 2],
       ]),
@@ -206,8 +206,8 @@ describe("prepareSubmission - the I9 sweep on the insurance fixture", () => {
     const errors = await errorsOf(
       insurance(),
       answersOf([
-        ["q_smoker", true],
-        ["q_cigs_daily", 0.5],
+        ["q_at_fault_accident", true],
+        ["q_accident_count", 0.5],
         ["q_drifted", 1],
       ]),
     );
@@ -243,8 +243,8 @@ describe("prepareSubmission - kitchen-sink (all seven types lock canonically)", 
         ["q_coverage_level", "opt_standard"],
         ["q_medical_history", "Asthma since childhood"],
         ["q_preexisting_conditions", opts("opt_asthma", "opt_asthma")],
-        ["q_cigs_daily", 5],
-        ["q_smoker", true],
+        ["q_accident_count", 5],
+        ["q_at_fault_accident", true],
         ["q_dob", "1990-05-04"],
         ["q_full_name", "Ada Lovelace"],
       ]),
@@ -252,8 +252,8 @@ describe("prepareSubmission - kitchen-sink (all seven types lock canonically)", 
     expect(locked.answers).toEqual([
       { questionId: "q_full_name", value: "Ada Lovelace" },
       { questionId: "q_dob", value: "1990-05-04" },
-      { questionId: "q_smoker", value: true },
-      { questionId: "q_cigs_daily", value: 5 },
+      { questionId: "q_at_fault_accident", value: true },
+      { questionId: "q_accident_count", value: 5 },
       { questionId: "q_preexisting_conditions", value: ["opt_asthma"] }, // deduplicated
       { questionId: "q_medical_history", value: "Asthma since childhood" },
       { questionId: "q_coverage_level", value: "opt_standard" },
@@ -304,15 +304,15 @@ describe("contentHash - stability (exit criterion 3)", () => {
     const forward = await lockedOf(
       snapshot,
       answersOf([
-        ["q_smoker", true],
-        ["q_cigs_daily", 20],
+        ["q_at_fault_accident", true],
+        ["q_accident_count", 20],
       ]),
     );
     const reversed = await lockedOf(
       snapshot,
       answersOf([
-        ["q_cigs_daily", 20],
-        ["q_smoker", true],
+        ["q_accident_count", 20],
+        ["q_at_fault_accident", true],
       ]),
     );
     expect(forward.contentHash).toBe(reversed.contentHash);
@@ -322,7 +322,7 @@ describe("contentHash - stability (exit criterion 3)", () => {
     const snapshot = fixtureSnapshot("kitchen-sink.json");
     const base: readonly [string, AnswerValue][] = [
       ["q_dob", "1990-05-04"],
-      ["q_smoker", false],
+      ["q_at_fault_accident", false],
       ["q_preexisting_conditions", opts("opt_none")],
       ["q_coverage_level", "opt_basic"],
     ];

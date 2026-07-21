@@ -30,7 +30,7 @@ export const SessionParams = z.object({
  */
 export const StepDocument = z
   .object({
-    stepId: z.string().openapi({ example: "stp_health" }),
+    stepId: z.string().openapi({ example: "stp_history" }),
     root: z.unknown(),
   })
   .openapi("StepDocument");
@@ -44,9 +44,11 @@ export const StepDocument = z
  */
 export const FlowStateProjection = z
   .object({
-    currentStep: z.string().nullable().openapi({ example: "stp_health" }),
-    visibleQuestions: z.array(z.string()).openapi({ example: ["q_smoker", "q_cigs_daily"] }),
-    missingRequired: z.array(z.string()).openapi({ example: ["q_cigs_daily"] }),
+    currentStep: z.string().nullable().openapi({ example: "stp_history" }),
+    visibleQuestions: z
+      .array(z.string())
+      .openapi({ example: ["q_at_fault_accident", "q_accident_count"] }),
+    missingRequired: z.array(z.string()).openapi({ example: ["q_accident_count"] }),
     readyToSubmit: z.boolean().openapi({
       description:
         "True when no visible required question is unanswered (the flow may be submitted).",
@@ -93,7 +95,7 @@ export type StepResponse = z.infer<typeof StepResponse>;
  */
 export const SubmitAnswerBody = z
   .object({
-    questionId: z.string().min(1).openapi({ example: "q_smoker" }),
+    questionId: z.string().min(1).openapi({ example: "q_at_fault_accident" }),
     value: z
       .unknown()
       .openapi({ description: "The answer value; validated against the pinned question." }),

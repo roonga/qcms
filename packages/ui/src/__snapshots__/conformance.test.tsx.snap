@@ -11,7 +11,7 @@ exports[`A2UIStepRenderer conformance over the golden corpus > renders v1/constr
     "role": "heading2",
   },
   {
-    "name": "Do you currently smoke?",
+    "name": "Any at-fault accident in the last 3 years?",
     "role": "radiogroup",
   },
   {
@@ -75,7 +75,7 @@ exports[`A2UIStepRenderer conformance over the golden corpus > renders v1/constr
     "role": "textbox",
   },
   {
-    "name": "How many cigarettes do you smoke per day? *",
+    "name": "How many? *",
     "role": "textbox",
   },
   {
@@ -104,7 +104,7 @@ exports[`A2UIStepRenderer conformance over the golden corpus > renders v1/deep-n
     "role": "heading2",
   },
   {
-    "name": "Do you currently smoke?",
+    "name": "Any at-fault accident in the last 3 years?",
     "role": "radiogroup",
   },
   {
@@ -164,7 +164,7 @@ exports[`A2UIStepRenderer conformance over the golden corpus > renders v1/deep-n
     "role": "textbox",
   },
   {
-    "name": "How many cigarettes do you smoke per day? *",
+    "name": "How many? *",
     "role": "textbox",
   },
   {
@@ -195,18 +195,18 @@ exports[`A2UIStepRenderer conformance over the golden corpus > renders v1/deep-n
 ]
 `;
 
-exports[`A2UIStepRenderer conformance over the golden corpus > renders v1/insurance/stp_health and matches its accessibility tree 1`] = `
+exports[`A2UIStepRenderer conformance over the golden corpus > renders v1/insurance/stp_history and matches its accessibility tree 1`] = `
 [
   {
-    "name": "Life insurance sign-up",
+    "name": "Vehicle insurance quote",
     "role": "heading1",
   },
   {
-    "name": "Health",
+    "name": "Driving history",
     "role": "heading2",
   },
   {
-    "name": "Do you currently smoke?",
+    "name": "Any at-fault accident in the last 3 years?",
     "role": "radiogroup",
   },
   {
@@ -218,7 +218,7 @@ exports[`A2UIStepRenderer conformance over the golden corpus > renders v1/insura
     "role": "radio",
   },
   {
-    "name": "How many cigarettes do you smoke per day? *",
+    "name": "How many? *",
     "role": "textbox",
   },
 ]
@@ -286,14 +286,14 @@ exports[`A2UIStepRenderer conformance over the golden corpus > renders v1/kitche
 ]
 `;
 
-exports[`A2UIStepRenderer conformance over the golden corpus > renders v1/kitchen-sink/stp_health and matches its accessibility tree 1`] = `
+exports[`A2UIStepRenderer conformance over the golden corpus > renders v1/kitchen-sink/stp_history and matches its accessibility tree 1`] = `
 [
   {
-    "name": "Health",
+    "name": "Driving history",
     "role": "heading2",
   },
   {
-    "name": "Do you currently smoke?",
+    "name": "Any at-fault accident in the last 3 years?",
     "role": "radiogroup",
   },
   {
@@ -325,7 +325,7 @@ exports[`A2UIStepRenderer conformance over the golden corpus > renders v1/kitche
     "role": "checkbox",
   },
   {
-    "name": "How many cigarettes do you smoke per day? *",
+    "name": "How many? *",
     "role": "textbox",
   },
   {
@@ -363,7 +363,7 @@ exports[`A2UIStepRenderer conformance over the golden corpus > renders v2/constr
     "role": "heading2",
   },
   {
-    "name": "Do you currently smoke?",
+    "name": "Any at-fault accident in the last 3 years?",
     "role": "radiogroup",
   },
   {
@@ -427,7 +427,7 @@ exports[`A2UIStepRenderer conformance over the golden corpus > renders v2/constr
     "role": "textbox",
   },
   {
-    "name": "How many cigarettes do you smoke per day? *",
+    "name": "How many? *",
     "role": "textbox",
   },
   {
@@ -456,7 +456,7 @@ exports[`A2UIStepRenderer conformance over the golden corpus > renders v2/deep-n
     "role": "heading2",
   },
   {
-    "name": "Do you currently smoke?",
+    "name": "Any at-fault accident in the last 3 years?",
     "role": "radiogroup",
   },
   {
@@ -516,7 +516,7 @@ exports[`A2UIStepRenderer conformance over the golden corpus > renders v2/deep-n
     "role": "textbox",
   },
   {
-    "name": "How many cigarettes do you smoke per day? *",
+    "name": "How many? *",
     "role": "textbox",
   },
   {
@@ -547,18 +547,18 @@ exports[`A2UIStepRenderer conformance over the golden corpus > renders v2/deep-n
 ]
 `;
 
-exports[`A2UIStepRenderer conformance over the golden corpus > renders v2/insurance/stp_health and matches its accessibility tree 1`] = `
+exports[`A2UIStepRenderer conformance over the golden corpus > renders v2/insurance/stp_history and matches its accessibility tree 1`] = `
 [
   {
-    "name": "Life insurance sign-up",
+    "name": "Vehicle insurance quote",
     "role": "heading1",
   },
   {
-    "name": "Health",
+    "name": "Driving history",
     "role": "heading2",
   },
   {
-    "name": "Do you currently smoke?",
+    "name": "Any at-fault accident in the last 3 years?",
     "role": "radiogroup",
   },
   {
@@ -570,7 +570,7 @@ exports[`A2UIStepRenderer conformance over the golden corpus > renders v2/insura
     "role": "radio",
   },
   {
-    "name": "How many cigarettes do you smoke per day? *",
+    "name": "How many? *",
     "role": "textbox",
   },
 ]
@@ -638,14 +638,14 @@ exports[`A2UIStepRenderer conformance over the golden corpus > renders v2/kitche
 ]
 `;
 
-exports[`A2UIStepRenderer conformance over the golden corpus > renders v2/kitchen-sink/stp_health and matches its accessibility tree 1`] = `
+exports[`A2UIStepRenderer conformance over the golden corpus > renders v2/kitchen-sink/stp_history and matches its accessibility tree 1`] = `
 [
   {
-    "name": "Health",
+    "name": "Driving history",
     "role": "heading2",
   },
   {
-    "name": "Do you currently smoke?",
+    "name": "Any at-fault accident in the last 3 years?",
     "role": "radiogroup",
   },
   {
@@ -677,7 +677,7 @@ exports[`A2UIStepRenderer conformance over the golden corpus > renders v2/kitche
     "role": "checkbox",
   },
   {
-    "name": "How many cigarettes do you smoke per day? *",
+    "name": "How many? *",
     "role": "textbox",
   },
   {

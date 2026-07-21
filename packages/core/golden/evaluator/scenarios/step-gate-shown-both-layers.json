@@ -1,9 +1,9 @@
 {
-  "description": "A StepId target shows the whole step when its rule fires; a question-level rule inside the shown step ANDs on top (cigs > 20 shows the history question) and a later step's gate reads the now-visible answer.",
+  "description": "A StepId target shows the whole step when its rule fires; a question-level rule inside the shown step ANDs on top (count > 20 shows the history question) and a later step's gate reads the now-visible answer.",
   "form": "golden/evaluator/forms/step-gate.json",
   "answers": [
     {
-      "questionId": "q_smoker",
+      "questionId": "q_at_fault_accident",
       "value": true
     },
     {
@@ -11,7 +11,7 @@
       "value": "Ada Lovelace"
     },
     {
-      "questionId": "q_cigs_daily",
+      "questionId": "q_accident_count",
       "value": 25
     }
   ],
@@ -19,7 +19,7 @@
     "visible": [
       {
         "stepId": "stp_intro",
-        "questionId": "q_smoker"
+        "questionId": "q_at_fault_accident"
       },
       {
         "stepId": "stp_intro",
@@ -27,7 +27,7 @@
       },
       {
         "stepId": "stp_followup",
-        "questionId": "q_cigs_daily"
+        "questionId": "q_accident_count"
       },
       {
         "stepId": "stp_followup",
@@ -44,7 +44,7 @@
     ],
     "visibleSteps": ["stp_intro", "stp_followup", "stp_final"],
     "currentStep": "stp_final",
-    "answeredRequired": ["q_smoker", "q_full_name", "q_cigs_daily"],
+    "answeredRequired": ["q_at_fault_accident", "q_full_name", "q_accident_count"],
     "missingRequired": ["q_coverage_level"],
     "complete": false
   }

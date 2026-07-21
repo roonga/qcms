@@ -1,6 +1,6 @@
 {
-  "description": "Exclusion chain, B visible but unanswered: C's gte condition over the unanswered B is false, so C stays hidden.",
-  "form": "golden/evaluator/forms/exclusion-chain.json",
+  "description": "Insurance flow, step 2: accident = true appended — the follow-up becomes visible and required, so the response is no longer submittable until it is answered.",
+  "form": "fixtures/forms/valid/insurance.json",
   "answers": [
     {
       "questionId": "q_at_fault_accident",
@@ -10,16 +10,16 @@
   "expected": {
     "visible": [
       {
-        "stepId": "stp_one",
+        "stepId": "stp_history",
         "questionId": "q_at_fault_accident"
       },
       {
-        "stepId": "stp_two",
+        "stepId": "stp_history",
         "questionId": "q_accident_count"
       }
     ],
-    "visibleSteps": ["stp_one", "stp_two"],
-    "currentStep": "stp_two",
+    "visibleSteps": ["stp_history"],
+    "currentStep": "stp_history",
     "answeredRequired": ["q_at_fault_accident"],
     "missingRequired": ["q_accident_count"],
     "complete": false

@@ -9,9 +9,9 @@
       "items": [
         { "questionId": "q_full_name", "version": 1 },
         { "questionId": "q_medical_history", "version": 1 },
-        { "questionId": "q_cigs_daily", "version": 1 },
+        { "questionId": "q_accident_count", "version": 1 },
         { "questionId": "q_dob", "version": 1 },
-        { "questionId": "q_smoker", "version": 2 },
+        { "questionId": "q_at_fault_accident", "version": 2 },
         { "questionId": "q_coverage_level", "version": 1 },
         { "questionId": "q_preexisting_conditions", "version": 1 }
       ]

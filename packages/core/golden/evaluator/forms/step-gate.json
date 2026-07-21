@@ -12,7 +12,7 @@
       },
       "items": [
         {
-          "questionId": "q_smoker",
+          "questionId": "q_at_fault_accident",
           "version": 2
         },
         {
@@ -28,7 +28,7 @@
       },
       "items": [
         {
-          "questionId": "q_cigs_daily",
+          "questionId": "q_accident_count",
           "version": 1
         },
         {
@@ -59,7 +59,7 @@
       "ruleId": "rul_show_followup",
       "when": {
         "op": "equals",
-        "questionId": "q_smoker",
+        "questionId": "q_at_fault_accident",
         "value": true
       },
       "show": ["stp_followup"]
@@ -68,7 +68,7 @@
       "ruleId": "rul_show_history",
       "when": {
         "op": "gt",
-        "questionId": "q_cigs_daily",
+        "questionId": "q_accident_count",
         "value": 20
       },
       "show": ["q_medical_history"]
@@ -77,7 +77,7 @@
       "ruleId": "rul_show_gate",
       "when": {
         "op": "gt",
-        "questionId": "q_cigs_daily",
+        "questionId": "q_accident_count",
         "value": 20
       },
       "show": ["q_gate_a"]

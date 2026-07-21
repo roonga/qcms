@@ -1,5 +1,5 @@
 {
-  "description": "Kitchen-sink partially answered: smoker = true reveals the required follow-up, which joins the missing-required set; currentStep advances to the first step with a missing required question.",
+  "description": "Kitchen-sink partially answered: accident = true reveals the required follow-up, which joins the missing-required set; currentStep advances to the first step with a missing required question.",
   "form": "fixtures/forms/valid/kitchen-sink.json",
   "answers": [
     {
@@ -11,7 +11,7 @@
       "value": "1990-05-17"
     },
     {
-      "questionId": "q_smoker",
+      "questionId": "q_at_fault_accident",
       "value": true
     }
   ],
@@ -26,15 +26,15 @@
         "questionId": "q_dob"
       },
       {
-        "stepId": "stp_health",
-        "questionId": "q_smoker"
+        "stepId": "stp_history",
+        "questionId": "q_at_fault_accident"
       },
       {
-        "stepId": "stp_health",
-        "questionId": "q_cigs_daily"
+        "stepId": "stp_history",
+        "questionId": "q_accident_count"
       },
       {
-        "stepId": "stp_health",
+        "stepId": "stp_history",
         "questionId": "q_preexisting_conditions"
       },
       {
@@ -42,10 +42,10 @@
         "questionId": "q_coverage_level"
       }
     ],
-    "visibleSteps": ["stp_about", "stp_health", "stp_cover"],
-    "currentStep": "stp_health",
-    "answeredRequired": ["q_full_name", "q_dob", "q_smoker"],
-    "missingRequired": ["q_cigs_daily", "q_preexisting_conditions", "q_coverage_level"],
+    "visibleSteps": ["stp_about", "stp_history", "stp_cover"],
+    "currentStep": "stp_history",
+    "answeredRequired": ["q_full_name", "q_dob", "q_at_fault_accident"],
+    "missingRequired": ["q_accident_count", "q_preexisting_conditions", "q_coverage_level"],
     "complete": false
   }
 }

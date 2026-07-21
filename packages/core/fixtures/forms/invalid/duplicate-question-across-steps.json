@@ -1,23 +1,23 @@
 {
-  "description": "q_smoker is pinned in two different steps; a question appears at most once per form (DUPLICATE_QUESTION_IN_FORM).",
+  "description": "q_at_fault_accident is pinned in two different steps; a question appears at most once per form (DUPLICATE_QUESTION_IN_FORM).",
   "expected": {
     "code": "DUPLICATE_QUESTION_IN_FORM",
     "path": ["steps", 1, "items", 0, "questionId"]
   },
   "definition": {
-    "formId": "frm_life_signup",
+    "formId": "frm_auto_quote",
     "defaultLocale": "en",
-    "title": { "en": "Life insurance sign-up" },
+    "title": { "en": "Vehicle insurance quote" },
     "steps": [
       {
-        "stepId": "stp_health",
-        "title": { "en": "Health" },
-        "items": [{ "questionId": "q_smoker", "version": 2 }]
+        "stepId": "stp_history",
+        "title": { "en": "Driving history" },
+        "items": [{ "questionId": "q_at_fault_accident", "version": 2 }]
       },
       {
         "stepId": "stp_lifestyle",
         "title": { "en": "Lifestyle" },
-        "items": [{ "questionId": "q_smoker", "version": 1 }]
+        "items": [{ "questionId": "q_at_fault_accident", "version": 1 }]
       }
     ],
     "rules": []

@@ -5,7 +5,7 @@
 ## ASCII sketch - response browser + detail
 
 ```
-┌─ Responses: Life insurance ─────────────────────────┐
+┌─ Responses: Vehicle insurance ─────────────────────────┐
 │ [version ▾] [date range] [flagged ▾]     [Export ▾] │
 │ ┌─ table ────────────────────────────────────────┐  │
 │ │ ses_a1…  v3  2026-07-18 14:02  link   ⚑flagged │  │
@@ -14,8 +14,8 @@
 └─────────────────────────────────────────────────────┘
 ┌─ ses_a1… ───────────────────────────────────────────┐
 │ locked answers        │ ledger (audit timeline)     │
-│ Are you a smoker? Yes │ 14:01 q_smoker = true       │
-│ Cigarettes/day:   12  │ 14:01 q_cigs_daily = 12     │
+│ Any at-fault accident in the last 3 years? Yes │ 14:01 q_at_fault_accident = true       │
+│ At-fault accidents: 2  │ 14:01 q_accident_count = 2     │
 │ contentHash: ab3f…    │ 14:02 ── submitted ──       │
 │ [Erase respondent data…]                            │
 └─────────────────────────────────────────────────────┘

@@ -6,14 +6,14 @@
 
 ```
 ┌─ page ──────────────────────────────────────────────┐
-│ [logo slot]                    Step 2 of 4: Health  │
+│ [logo slot]                    Step 2 of 4: Driving history  │
 │ ┌─ step ─────────────────────────────────────────┐  │
-│ │ Health                                     (h1)│  │
-│ │ Are you a smoker?                              │  │
+│ │ Driving history                                     (h1)│  │
+│ │ Any at-fault accident in the last 3 years?                              │  │
 │ │ ( ) Yes   (•) No                               │  │
 │ │ ── inserted on branch ─────────────────────    │  │
-│ │ How many cigarettes daily?                     │  │
-│ │ [ 12          ]                                │  │
+│ │ How many?                     │  │
+│ │ [ 2           ]                                │  │
 │ └────────────────────────────────────────────────┘  │
 │                              [Back]  [Continue ▸]   │
 └─────────────────────────────────────────────────────┘

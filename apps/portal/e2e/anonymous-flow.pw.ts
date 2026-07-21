@@ -7,7 +7,7 @@
  * for the step (ADR-18: it never prunes the stored A2UI), and the @qcms/ui
  * renderer renders exactly that document, so both questions are always in the DOM.
  * The insurance branch is therefore observable through the *flow projection*, not
- * field mount/unmount: choosing "Yes" makes q_cigs_daily a visible required
+ * field mount/unmount: choosing "Yes" makes q_accident_count a visible required
  * question (the primary action stays "Continue" until it is answered), while
  * choosing "No" leaves it not-required and the form immediately ready ("Submit").
  * We assert the branch through that primary-action label, which is the honest
@@ -22,19 +22,19 @@ import { expect, test, type Page } from "@playwright/test";
 
 import { readFixtures } from "./support/fixtures.js";
 
-const SMOKE_LABEL = "Do you currently smoke?";
-const CIGS_LABEL = "How many cigarettes do you smoke per day?";
+const ACCIDENT_LABEL = "Any at-fault accident in the last 3 years?";
+const COUNT_LABEL = "How many?";
 
 /** Start anonymously at `/f/:slug`, click Start, land on the SSR flow page. */
 async function startAnonymousFlow(page: Page, slug: string): Promise<void> {
   await page.goto(`/f/${slug}`);
   await page.getByRole("button", { name: "Start" }).click();
   await page.waitForURL(/\/s\/ses_/);
-  await expect(page.getByText(SMOKE_LABEL)).toBeVisible();
+  await expect(page.getByText(ACCIDENT_LABEL)).toBeVisible();
 }
 
 /**
- * Choose a smoker answer and wait for the answer to be recorded server-side.
+ * Choose an at-fault-accident answer and wait for the answer to be recorded server-side.
  *
  * Two details: the react-aria radio's real `<input>` sits under a decorative
  * indicator that intercepts pointer events, so we click the option's visible label
@@ -43,7 +43,7 @@ async function startAnonymousFlow(page: Page, slug: string): Promise<void> {
  * otherwise a follow-up answer can race ahead of this one and the API rejects it
  * as not-yet-visible (409).
  */
-async function chooseSmoker(page: Page, answer: "Yes" | "No"): Promise<void> {
+async function chooseAccident(page: Page, answer: "Yes" | "No"): Promise<void> {
   const recorded = page.waitForResponse(
     (r) => r.url().includes("/answers") && r.request().method() === "POST" && r.status() === 200,
   );
@@ -59,7 +59,9 @@ async function submitAndExpectReceipt(page: Page): Promise<void> {
   await expect(page.getByTestId("content-hash")).toHaveText(/^[0-9a-f]{64}$/);
 }
 
-test("anonymous smoker branch completes on a throttled mobile connection", async ({ page }) => {
+test("anonymous at-fault-accident branch completes on a throttled mobile connection", async ({
+  page,
+}) => {
   const { slug } = readFixtures();
 
   // Throttle to a slow mobile profile before navigating (exit criterion 5).
@@ -75,8 +77,8 @@ test("anonymous smoker branch completes on a throttled mobile connection", async
 
   // Choosing "Yes" makes the follow-up number question required: the branch keeps
   // the primary action on "Continue" until it is answered.
-  await chooseSmoker(page, "Yes");
-  await expect(page.getByText(CIGS_LABEL)).toBeVisible();
+  await chooseAccident(page, "Yes");
+  await expect(page.getByText(COUNT_LABEL)).toBeVisible();
   await expect(page.getByTestId("primary-action")).toHaveText("Continue");
 
   // Answer the number, then blur to post it (the branch is then satisfied ->
@@ -85,21 +87,21 @@ test("anonymous smoker branch completes on a throttled mobile connection", async
   // does not. The answer posts on the field's blur, and Tab would only move focus
   // to the field's own stepper button (still inside the field), so blur by
   // clicking a neutral heading to move focus fully out of the control.
-  const cigs = page.getByRole("textbox", { name: /cigarettes/i });
-  await cigs.click();
-  await cigs.pressSequentially("10");
-  await page.getByRole("heading", { name: "Life insurance sign-up" }).click();
+  const count = page.getByRole("textbox", { name: /how many/i });
+  await count.click();
+  await count.pressSequentially("10");
+  await page.getByRole("heading", { name: "Vehicle insurance quote" }).click();
 
   await submitAndExpectReceipt(page);
 });
 
-test("anonymous non-smoker branch is ready to submit directly", async ({ page }) => {
+test("anonymous no-accident branch is ready to submit directly", async ({ page }) => {
   const { slug } = readFixtures();
   await startAnonymousFlow(page, slug);
 
   // Choosing "No" leaves the follow-up not-required, so the form is immediately
   // ready: the primary action flips to "Submit" with no further answers.
-  await chooseSmoker(page, "No");
+  await chooseAccident(page, "No");
 
   await submitAndExpectReceipt(page);
 });

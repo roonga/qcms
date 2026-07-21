@@ -64,7 +64,7 @@
       }
     },
     {
-      "stepId": "stp_health",
+      "stepId": "stp_history",
       "root": {
         "type": "Form",
         "children": [
@@ -80,13 +80,13 @@
                 "props": {
                   "as": "h2"
                 },
-                "children": "Health"
+                "children": "Driving history"
               },
               {
                 "type": "RadioGroup",
                 "props": {
-                  "label": "Do you currently smoke?",
-                  "name": "q_smoker",
+                  "label": "Any at-fault accident in the last 3 years?",
+                  "name": "q_at_fault_accident",
                   "isRequired": true
                 },
                 "children": [
@@ -109,9 +109,9 @@
               {
                 "type": "NumberField",
                 "props": {
-                  "label": "How many cigarettes do you smoke per day?",
+                  "label": "How many?",
                   "description": "An average across the last 12 months",
-                  "name": "q_cigs_daily",
+                  "name": "q_accident_count",
                   "isRequired": true,
                   "minValue": 0,
                   "maxValue": 200,

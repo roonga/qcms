@@ -10,7 +10,7 @@ Accessibility is in-scope during build, not a post-launch pass. 028 built struct
 ## Deliverables
 
 - **Focus management on branch changes:** when answering inserts questions, focus stays put and the insertion is announced; when it removes the focused question, focus moves to a stable, sensible target (document the policy: next visible question, else step heading). Implemented via 028's hooks; policy owned here.
-- **Live announcements:** `aria-live` regions for step changes ("Step 2 of 4: Health"), question insertion/removal counts, validation-error summaries on failed submit (with links moving focus to each offending field), submission success.
+- **Live announcements:** `aria-live` regions for step changes ("Step 2 of 4: Driving history"), question insertion/removal counts, validation-error summaries on failed submit (with links moving focus to each offending field), submission success.
 - **Keyboard traversal:** full flow completable keyboard-only; skip link; visible focus indicators meeting contrast; no traps; documented tab-order policy on branch insertion.
 - **Error UX:** failed submit renders an error summary (WCAG 3.3) before the first field, focus moved to it; per-field errors associated via `aria-describedby` (028's slots).
 - **Automated checks in CI:** axe (via Playwright) on every portal page state in the fixture walkthroughs - including *post-branch-change* states, not just initial render; Lighthouse a11y in CI for flow pages with a 100 threshold.

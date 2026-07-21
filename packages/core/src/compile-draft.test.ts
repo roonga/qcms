@@ -116,7 +116,7 @@ function makeStore(
 }
 
 /** Store over the task-003 question fixtures, published at versions 1 and 2
- * (the form fixtures pin q_smoker@2 and everything else @1). */
+ * (the form fixtures pin q_at_fault_accident@2 and everything else @1). */
 function fixtureStore(): Pick<DraftInput, "resolveQuestion" | "publishedQuestionVersions"> {
   const records: QuestionVersionRecord[] = [];
   for (const file of readdirSync(path.join(FIXTURES_DIR, "questions", "valid"))) {

@@ -45,9 +45,13 @@ function buildSnapshot(): FrozenSnapshot {
       },
     },
     {
-      questionId: "q_smoker",
+      questionId: "q_at_fault_accident",
       version: 1,
-      definition: { type: "boolean", questionId: "q_smoker", label: en("Smoker?") },
+      definition: {
+        type: "boolean",
+        questionId: "q_at_fault_accident",
+        label: en("At-fault accident?"),
+      },
     },
   ];
   const records: QuestionVersionRecord[] = rawQuestions.map((raw) => {
@@ -63,7 +67,11 @@ function buildSnapshot(): FrozenSnapshot {
     title: en("Seam"),
     steps: [
       { stepId: "stp_one", title: en("One"), items: [{ questionId: "q_name", version: 1 }] },
-      { stepId: "stp_two", title: en("Two"), items: [{ questionId: "q_smoker", version: 1 }] },
+      {
+        stepId: "stp_two",
+        title: en("Two"),
+        items: [{ questionId: "q_at_fault_accident", version: 1 }],
+      },
     ],
     rules: [],
   });

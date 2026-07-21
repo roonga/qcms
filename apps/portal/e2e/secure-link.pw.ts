@@ -13,7 +13,7 @@ test("a valid link redirects into the flow with real step content", async ({ pag
   const { validToken } = readFixtures();
   await page.goto(`/l/${validToken}`);
   await page.waitForURL(/\/s\/ses_/);
-  await expect(page.getByText("Do you currently smoke?")).toBeVisible();
+  await expect(page.getByText("Any at-fault accident in the last 3 years?")).toBeVisible();
 });
 
 test("an expired link shows the friendly expired page", async ({ page }) => {

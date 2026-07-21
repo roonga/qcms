@@ -5,16 +5,16 @@
 ## ASCII sketch
 
 ```
-┌─ Forms / Life insurance / Builder ──────────[Publish ▸]─┐
-│ ┌─ steps ──────┐ ┌─ step: Health ──────────────────────┐│
-│ │ 1 Health   ● │ │ q_smoker      @v2  [move pin ▾] [×] ││
-│ │ 2 Lifestyle  │ │ q_cigs_daily  @v1  [move pin ▾] [×] ││
+┌─ Forms / Vehicle insurance / Builder ──────────[Publish ▸]─┐
+│ ┌─ steps ──────┐ ┌─ step: Driving history ──────────────────────┐│
+│ │ 1 Drv hist ● │ │ q_at_fault_accident      @v2  [move pin ▾] [×] ││
+│ │ 2 Lifestyle  │ │ q_accident_count  @v1  [move pin ▾] [×] ││
 │ │ [+ add step] │ │ [+ add question from library]       ││
 │ └──────────────┘ └─────────────────────────────────────┘│
-│ ┌─ conditions (rul_smoker_followup) ──┐ ┌─ validation ─┐│
+│ ┌─ conditions (rul_accident_followup) ──┐ ┌─ validation ─┐│
 │ │ { "op":"equals",                    │ │ ✓ no issues  ││
-│ │   "questionId":"q_smoker", … }      │ │              ││
-│ │ show: [q_cigs_daily ▾]              │ └──────────────┘│
+│ │   "questionId":"q_at_fault_accident", … }      │ │              ││
+│ │ show: [q_accident_count ▾]              │ └──────────────┘│
 │ └─────────────────────────────────────┘                 │
 │ ┌─ settings ─┐ ┌─ test bench ─┐        saved ✓ 12:03    │
 └─────────────────────────────────────────────────────────┘

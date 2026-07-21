@@ -1,6 +1,6 @@
 {
   "type": "boolean",
-  "questionId": "q_smoker",
-  "label": { "en": "Do you currently smoke?" },
+  "questionId": "q_at_fault_accident",
+  "label": { "en": "Any at-fault accident in the last 3 years?" },
   "required": true
 }

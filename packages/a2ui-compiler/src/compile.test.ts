@@ -75,12 +75,12 @@ function buildKitchenSinkSnapshot(): FrozenSnapshot {
       },
     },
     {
-      questionId: "q_smoker",
+      questionId: "q_at_fault_accident",
       version: 1,
       definition: {
         type: "boolean",
-        questionId: "q_smoker",
-        label: en("Do you smoke?"),
+        questionId: "q_at_fault_accident",
+        label: en("Any at-fault accident in the last 3 years?"),
         required: true,
       },
     },
@@ -163,10 +163,10 @@ function buildKitchenSinkSnapshot(): FrozenSnapshot {
         ],
       },
       {
-        stepId: "stp_health",
+        stepId: "stp_history",
         title: en("Health details"),
         items: [
-          { questionId: "q_smoker", version: 1 },
+          { questionId: "q_at_fault_accident", version: 1 },
           { questionId: "q_coverage", version: 1 },
           { questionId: "q_country", version: 1 },
           { questionId: "q_conditions", version: 1 },
@@ -250,7 +250,7 @@ const snapshot = buildKitchenSinkSnapshot();
 describe("compileForm (kitchen-sink)", () => {
   it("produces one document per step, keyed by stepId in form order", () => {
     const compiled = compileForm(snapshot, {});
-    expect(compiled.documents.map((d) => d.stepId)).toEqual(["stp_about", "stp_health"]);
+    expect(compiled.documents.map((d) => d.stepId)).toEqual(["stp_about", "stp_history"]);
   });
 
   it("stamps the compiler and A2UI-spec versions (ADR-18)", () => {
@@ -303,7 +303,7 @@ describe("compileForm (kitchen-sink)", () => {
       type: "DatePicker",
       props: { granularity: "day", minValue: "1900-01-01", maxValue: "2025-12-31" },
     });
-    expect(byName("q_smoker")).toMatchObject({ type: "RadioGroup" });
+    expect(byName("q_at_fault_accident")).toMatchObject({ type: "RadioGroup" });
     expect(byName("q_coverage")).toMatchObject({ type: "RadioGroup" }); // ≤ 7 options
     expect(byName("q_country")).toMatchObject({ type: "Select" }); // > 7 options
     expect(byName("q_conditions")).toMatchObject({
@@ -315,7 +315,7 @@ describe("compileForm (kitchen-sink)", () => {
   it("renders boolean as a two-child yes/no RadioGroup with true/false values", () => {
     const health = compileForm(snapshot, {}).documents[1]!;
     const group = walk(health.root).find(
-      (n) => (n.props as { name?: string } | undefined)?.name === "q_smoker",
+      (n) => (n.props as { name?: string } | undefined)?.name === "q_at_fault_accident",
     )!;
     expect(group.children).toEqual([
       { type: "Radio", props: { value: "true", label: "Yes" } },
@@ -420,8 +420,8 @@ describe("compileFormWith (step-resolver seam)", () => {
         root: { type: "Text", props: { as: "h2" }, children: "stub:stp_about" },
       },
       {
-        stepId: "stp_health",
-        root: { type: "Text", props: { as: "h2" }, children: "stub:stp_health" },
+        stepId: "stp_history",
+        root: { type: "Text", props: { as: "h2" }, children: "stub:stp_history" },
       },
     ]);
     // Version stamps still come from the compiler, not the resolver.

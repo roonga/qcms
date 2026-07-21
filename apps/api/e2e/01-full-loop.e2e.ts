@@ -21,8 +21,8 @@ import {
   INSURANCE_GOLDEN,
   MOUNT,
   NOW,
-  Q_CIGS_DEF,
-  Q_SMOKER_DEF,
+  Q_ACCIDENT_COUNT_DEF,
+  Q_ACCIDENT_DEF,
   RespondentClient,
   WebhookReceiver,
   buildEnv,
@@ -75,7 +75,7 @@ afterAll(async () => {
   await testDb.teardown();
 });
 
-const FORM_ID = "frm_life_signup";
+const FORM_ID = "frm_auto_quote";
 const WEBHOOK_SECRET = "whsec_e2e_full_loop_0123456789";
 
 describe("scenario 1: full loop end to end", () => {
@@ -86,37 +86,37 @@ describe("scenario 1: full loop end to end", () => {
   let contentHash: string;
 
   it("authors the question library over the admin API and publishes it", async () => {
-    // q_smoker: create v1, publish it, add v2 (the form pins @2), publish v2.
+    // q_at_fault_accident: create v1, publish it, add v2 (the form pins @2), publish v2.
     const created = await admin.createQuestion<{
       questionId: string;
       version: { version: number };
     }>({
-      slug: "smoker",
-      definition: Q_SMOKER_DEF,
+      slug: "accident",
+      definition: Q_ACCIDENT_DEF,
     });
     expect(created.status).toBe(201);
-    expect(created.body.questionId).toBe("q_smoker");
+    expect(created.body.questionId).toBe("q_at_fault_accident");
     expect(created.body.version.version).toBe(1);
 
-    expect((await admin.publishQuestionVersion("q_smoker", 1)).status).toBe(200);
-    const v2 = await admin.addQuestionVersion<{ version: number }>("q_smoker");
+    expect((await admin.publishQuestionVersion("q_at_fault_accident", 1)).status).toBe(200);
+    const v2 = await admin.addQuestionVersion<{ version: number }>("q_at_fault_accident");
     expect(v2.status).toBe(201);
     expect(v2.body.version).toBe(2);
-    expect((await admin.publishQuestionVersion("q_smoker", 2)).status).toBe(200);
+    expect((await admin.publishQuestionVersion("q_at_fault_accident", 2)).status).toBe(200);
 
-    // q_cigs_daily: create v1, publish it (the form pins @1).
-    const cigs = await admin.createQuestion<{ questionId: string }>({
-      slug: "cigs",
-      definition: Q_CIGS_DEF,
+    // q_accident_count: create v1, publish it (the form pins @1).
+    const count = await admin.createQuestion<{ questionId: string }>({
+      slug: "accident-count",
+      definition: Q_ACCIDENT_COUNT_DEF,
     });
-    expect(cigs.status).toBe(201);
-    expect(cigs.body.questionId).toBe("q_cigs_daily");
-    expect((await admin.publishQuestionVersion("q_cigs_daily", 1)).status).toBe(200);
+    expect(count.status).toBe(201);
+    expect(count.body.questionId).toBe("q_accident_count");
+    expect((await admin.publishQuestionVersion("q_accident_count", 1)).status).toBe(200);
   });
 
   it("creates the form, drafts it with the branch rule, and publishes (server compiles)", async () => {
     expect(
-      (await admin.createForm({ formId: FORM_ID, slug: "life", defaultLocale: "en" })).status,
+      (await admin.createForm({ formId: FORM_ID, slug: "auto", defaultLocale: "en" })).status,
     ).toBe(201);
 
     const draft = await admin.saveDraft<{ issues: unknown[] }>(FORM_ID, INSURANCE_DEF);
@@ -154,24 +154,34 @@ describe("scenario 1: full loop end to end", () => {
     sessionId = start.body.sessionId;
     sessionToken = start.body.sessionToken;
 
-    // First step: only q_smoker is visible (the follow-up's rule is unsatisfied).
+    // First step: only q_at_fault_accident is visible (the follow-up's rule is unsatisfied).
     const step0 = await respondent.getStep<StepBody>(sessionId, sessionToken);
     expect(step0.status).toBe(200);
-    expect(step0.body.step?.stepId).toBe("stp_health");
+    expect(step0.body.step?.stepId).toBe("stp_history");
     expect(step0.body.step?.root).toBeDefined();
     expect(step0.body.a2uiSpecVersion).toBe(INSURANCE_GOLDEN.a2uiSpecVersion);
-    expect(step0.body.flowState.visibleQuestions).toEqual(["q_smoker"]);
+    expect(step0.body.flowState.visibleQuestions).toEqual(["q_at_fault_accident"]);
 
-    // q_smoker = true → the q_cigs_daily branch appears.
-    const revealed = await respondent.answer<StepBody>(sessionId, sessionToken, "q_smoker", true);
+    // q_at_fault_accident = true → the q_accident_count branch appears.
+    const revealed = await respondent.answer<StepBody>(
+      sessionId,
+      sessionToken,
+      "q_at_fault_accident",
+      true,
+    );
     expect(revealed.status).toBe(200);
-    expect(revealed.body.flowState.visibleQuestions).toContain("q_cigs_daily");
+    expect(revealed.body.flowState.visibleQuestions).toContain("q_accident_count");
     expect(revealed.body.flowState.readyToSubmit).toBe(false);
 
-    // q_smoker = false → the branch disappears and the flow is complete.
-    const hidden = await respondent.answer<StepBody>(sessionId, sessionToken, "q_smoker", false);
+    // q_at_fault_accident = false → the branch disappears and the flow is complete.
+    const hidden = await respondent.answer<StepBody>(
+      sessionId,
+      sessionToken,
+      "q_at_fault_accident",
+      false,
+    );
     expect(hidden.status).toBe(200);
-    expect(hidden.body.flowState.visibleQuestions).not.toContain("q_cigs_daily");
+    expect(hidden.body.flowState.visibleQuestions).not.toContain("q_accident_count");
     expect(hidden.body.flowState.readyToSubmit).toBe(true);
     expect(hidden.body.step).toBeNull();
   });
@@ -209,8 +219,8 @@ describe("scenario 1: full loop end to end", () => {
     expect(envelope.eventType).toBe("response.submitted");
     expect(envelope.payload.formId).toBe(FORM_ID);
     expect(envelope.payload.contentHash).toBe(contentHash);
-    // Only the visible q_smoker is locked (hidden q_cigs_daily excluded, I6).
-    expect(envelope.payload.answers.map((a) => a.questionId)).toEqual(["q_smoker"]);
+    // Only the visible q_at_fault_accident is locked (hidden q_accident_count excluded, I6).
+    expect(envelope.payload.answers.map((a) => a.questionId)).toEqual(["q_at_fault_accident"]);
   });
 
   it("exports the response as CSV and JSON", async () => {
@@ -218,7 +228,7 @@ describe("scenario 1: full loop end to end", () => {
     expect(csv.status).toBe(200);
     expect(csv.contentType).toContain("text/csv");
     expect(csv.contentDisposition).toContain("attachment");
-    expect(csv.text).toContain("q_smoker");
+    expect(csv.text).toContain("q_at_fault_accident");
     expect(csv.text).toContain(sessionId);
 
     const json = await admin.export(FORM_ID, { format: "json" });

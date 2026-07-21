@@ -13,11 +13,11 @@
         "questionId": "q_dob"
       },
       {
-        "stepId": "stp_health",
-        "questionId": "q_smoker"
+        "stepId": "stp_history",
+        "questionId": "q_at_fault_accident"
       },
       {
-        "stepId": "stp_health",
+        "stepId": "stp_history",
         "questionId": "q_preexisting_conditions"
       },
       {
@@ -25,13 +25,13 @@
         "questionId": "q_coverage_level"
       }
     ],
-    "visibleSteps": ["stp_about", "stp_health", "stp_cover"],
+    "visibleSteps": ["stp_about", "stp_history", "stp_cover"],
     "currentStep": "stp_about",
     "answeredRequired": [],
     "missingRequired": [
       "q_full_name",
       "q_dob",
-      "q_smoker",
+      "q_at_fault_accident",
       "q_preexisting_conditions",
       "q_coverage_level"
     ],

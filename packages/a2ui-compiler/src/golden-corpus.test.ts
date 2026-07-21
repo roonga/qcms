@@ -71,7 +71,7 @@ function loadForm(file: string): FormDefinition {
 
 /**
  * Question store over the canonical fixtures, each published at versions 1 and
- * 2 (the form fixtures pin `q_smoker@2` and everything else `@1`) - the same
+ * 2 (the form fixtures pin `q_at_fault_accident@2` and everything else `@1`) - the same
  * store `compile-draft.test.ts` builds. Pure lookups, no I/O in the kernel (R3);
  * the reads here are the test harness, not the compiler.
  */

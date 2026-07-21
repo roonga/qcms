@@ -93,13 +93,14 @@ describe("scenario 5: failure tour (typed codes through the envelope)", () => {
   });
 
   it("an out-of-range answer → 422 INVALID_ANSWER", async () => {
-    const start = await respondent.start<StartBody>({ formSlug: "life" });
+    const start = await respondent.start<StartBody>({ formSlug: "auto" });
     const { sessionId, sessionToken } = start.body;
-    // Reveal q_cigs_daily, then answer below its min (0).
+    // Reveal q_accident_count, then answer below its min (0).
     expect(
-      (await respondent.answer<StepBody>(sessionId, sessionToken, "q_smoker", true)).status,
+      (await respondent.answer<StepBody>(sessionId, sessionToken, "q_at_fault_accident", true))
+        .status,
     ).toBe(200);
-    const bad = await respondent.answer<ErrBody>(sessionId, sessionToken, "q_cigs_daily", -1);
+    const bad = await respondent.answer<ErrBody>(sessionId, sessionToken, "q_accident_count", -1);
     expect(bad.status).toBe(422);
     expect(bad.body.error.code).toBe("INVALID_ANSWER");
   });
@@ -131,14 +132,20 @@ describe("scenario 5: failure tour (typed codes through the envelope)", () => {
   });
 
   it("answering an already-submitted session → 409 SESSION_SUBMITTED", async () => {
-    const start = await respondent.start<StartBody>({ formSlug: "life" });
+    const start = await respondent.start<StartBody>({ formSlug: "auto" });
     const { sessionId, sessionToken } = start.body;
     expect(
-      (await respondent.answer<StepBody>(sessionId, sessionToken, "q_smoker", false)).status,
+      (await respondent.answer<StepBody>(sessionId, sessionToken, "q_at_fault_accident", false))
+        .status,
     ).toBe(200);
     expect((await respondent.submit<Receipt>(sessionId, sessionToken)).status).toBe(200);
 
-    const late = await respondent.answer<ErrBody>(sessionId, sessionToken, "q_smoker", true);
+    const late = await respondent.answer<ErrBody>(
+      sessionId,
+      sessionToken,
+      "q_at_fault_accident",
+      true,
+    );
     expect(late.status).toBe(409);
     expect(late.body.error.code).toBe("SESSION_SUBMITTED");
   });

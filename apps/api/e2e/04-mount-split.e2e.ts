@@ -73,7 +73,7 @@ describe("scenario 4: public-only + admin-only over one db/env", () => {
         "content-type": "application/json",
         "x-qcms-internal-token": adminApi.internalToken,
       },
-      body: JSON.stringify({ formSlug: "life" }),
+      body: JSON.stringify({ formSlug: "auto" }),
     });
     expect(res.status).toBe(404);
   });
@@ -93,7 +93,8 @@ describe("scenario 4: public-only + admin-only over one db/env", () => {
     expect(start.status).toBe(201);
     const { sessionId, sessionToken } = start.body;
     expect(
-      (await respondent.answer<StepBody>(sessionId, sessionToken, "q_smoker", false)).status,
+      (await respondent.answer<StepBody>(sessionId, sessionToken, "q_at_fault_accident", false))
+        .status,
     ).toBe(200);
     expect((await respondent.submit<Receipt>(sessionId, sessionToken)).status).toBe(200);
 

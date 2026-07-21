@@ -93,13 +93,13 @@ describe("kitchen-sink.json (canonical reference form)", () => {
 describe("insurance.json (DOMAIN_SCHEMA §6 flow)", () => {
   const form = parseValid("insurance.json");
 
-  it("pins q_smoker@2 then q_cigs_daily@1 in stp_health, with the follow-up rule", () => {
-    expect(form.formId).toBe("frm_life_signup");
+  it("pins q_at_fault_accident@2 then q_accident_count@1 in stp_history, with the follow-up rule", () => {
+    expect(form.formId).toBe("frm_auto_quote");
     expect(form.steps).toHaveLength(1);
-    expect(form.steps[0]?.stepId).toBe("stp_health");
+    expect(form.steps[0]?.stepId).toBe("stp_history");
     expect(form.steps[0]?.items).toEqual([
-      { questionId: "q_smoker", version: 2 },
-      { questionId: "q_cigs_daily", version: 1 },
+      { questionId: "q_at_fault_accident", version: 2 },
+      { questionId: "q_accident_count", version: 1 },
     ]);
     expect(form.rules).toHaveLength(1);
   });
@@ -145,22 +145,22 @@ describe("invalid fixtures", () => {
 
   it("reports all errors, not just the first", () => {
     const result = parseFormDefinition({
-      formId: "frm_life_signup",
+      formId: "frm_auto_quote",
       defaultLocale: "en",
-      title: { en: "Life insurance sign-up" },
+      title: { en: "Vehicle insurance quote" },
       steps: [
         {
-          stepId: "stp_health",
-          title: { en: "Health" },
+          stepId: "stp_history",
+          title: { en: "Driving history" },
           items: [
-            { questionId: "q_smoker", version: 2 },
-            { questionId: "q_smoker", version: 2 },
+            { questionId: "q_at_fault_accident", version: 2 },
+            { questionId: "q_at_fault_accident", version: 2 },
           ],
         },
         {
-          stepId: "stp_health",
-          title: { en: "Health again" },
-          items: [{ questionId: "q_cigs_daily", version: 1 }],
+          stepId: "stp_history",
+          title: { en: "Driving history again" },
+          items: [{ questionId: "q_accident_count", version: 1 }],
         },
       ],
       rules: [],

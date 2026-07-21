@@ -60,7 +60,7 @@ Status values: `todo` · `in-progress (branch)` · `blocked (issue #)` · `done 
 | 035 | Admin responses, erasure, webhook operations | 8a | todo |
 | 041 | Agent-assisted form building (flag-gated; off the launch gate - ADR-25) | 8a | todo |
 | 042 | UI wireframes (lo-fi pass; runs after 027, before 029/031–035) | 7 | done (signed off 2026-07-21) |
-| 043 | Rename example domain to vehicle insurance (runs after 029, before 030/031–035) | 7 | in-progress (feat/043-rename-example-domain) |
+| 043 | Rename example domain to vehicle insurance (runs after 029, before 030/031–035) | 7 | done (one-time golden re-baseline, ADR-18 amended 2026-07-22; closes #16) |
 | 044 | No-JS submission (progressive enhancement; after 029, off the launch gate - issue #17) | 7 | todo |
 | 036 | Production images, compose, ops docs | 8b | todo |
 | 037 | create-qcms-app CLI | 8b | todo |

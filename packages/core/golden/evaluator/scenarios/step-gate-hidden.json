@@ -3,7 +3,7 @@
   "form": "golden/evaluator/forms/step-gate.json",
   "answers": [
     {
-      "questionId": "q_smoker",
+      "questionId": "q_at_fault_accident",
       "value": false
     },
     {
@@ -19,7 +19,7 @@
     "visible": [
       {
         "stepId": "stp_intro",
-        "questionId": "q_smoker"
+        "questionId": "q_at_fault_accident"
       },
       {
         "stepId": "stp_intro",
@@ -32,7 +32,7 @@
     ],
     "visibleSteps": ["stp_intro", "stp_final"],
     "currentStep": null,
-    "answeredRequired": ["q_smoker", "q_full_name", "q_coverage_level"],
+    "answeredRequired": ["q_at_fault_accident", "q_full_name", "q_coverage_level"],
     "missingRequired": [],
     "complete": true
   }

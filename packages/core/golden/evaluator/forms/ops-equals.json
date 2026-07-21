@@ -20,7 +20,7 @@
           "version": 1
         },
         {
-          "questionId": "q_cigs_daily",
+          "questionId": "q_accident_count",
           "version": 1
         },
         {
@@ -28,7 +28,7 @@
           "version": 1
         },
         {
-          "questionId": "q_smoker",
+          "questionId": "q_at_fault_accident",
           "version": 2
         },
         {
@@ -101,7 +101,7 @@
       "ruleId": "rul_eq_number",
       "when": {
         "op": "equals",
-        "questionId": "q_cigs_daily",
+        "questionId": "q_accident_count",
         "value": 10
       },
       "show": ["q_gate_c"]
@@ -119,7 +119,7 @@
       "ruleId": "rul_eq_boolean",
       "when": {
         "op": "equals",
-        "questionId": "q_smoker",
+        "questionId": "q_at_fault_accident",
         "value": false
       },
       "show": ["q_gate_e"]

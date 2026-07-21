@@ -1,22 +1,22 @@
 {
-  "formId": "frm_life_signup",
+  "formId": "frm_auto_quote",
   "defaultLocale": "en",
-  "title": { "en": "Life insurance sign-up" },
+  "title": { "en": "Vehicle insurance quote" },
   "steps": [
     {
-      "stepId": "stp_health",
-      "title": { "en": "Health" },
+      "stepId": "stp_history",
+      "title": { "en": "Driving history" },
       "items": [
-        { "questionId": "q_smoker", "version": 2 },
-        { "questionId": "q_cigs_daily", "version": 1 }
+        { "questionId": "q_at_fault_accident", "version": 2 },
+        { "questionId": "q_accident_count", "version": 1 }
       ]
     }
   ],
   "rules": [
     {
-      "ruleId": "rul_smoker_followup",
-      "when": { "op": "equals", "questionId": "q_smoker", "value": true },
-      "show": ["q_cigs_daily"]
+      "ruleId": "rul_accident_followup",
+      "when": { "op": "equals", "questionId": "q_at_fault_accident", "value": true },
+      "show": ["q_accident_count"]
     }
   ]
 }

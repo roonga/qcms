@@ -42,16 +42,26 @@ afterAll(async () => {
 
 describe("scenario 2: anonymous respondent", () => {
   it("starts anonymously, walks the branch, submits, and exports as anonymous", async () => {
-    const start = await respondent.start<StartBody>({ formSlug: "life" });
+    const start = await respondent.start<StartBody>({ formSlug: "auto" });
     expect(start.status).toBe(201);
     const { sessionId, sessionToken } = start.body;
 
     // Reveal the follow-up and answer it (kept in the locked set this time).
-    const revealed = await respondent.answer<StepBody>(sessionId, sessionToken, "q_smoker", true);
+    const revealed = await respondent.answer<StepBody>(
+      sessionId,
+      sessionToken,
+      "q_at_fault_accident",
+      true,
+    );
     expect(revealed.status).toBe(200);
-    expect(revealed.body.flowState.visibleQuestions).toContain("q_cigs_daily");
+    expect(revealed.body.flowState.visibleQuestions).toContain("q_accident_count");
 
-    const complete = await respondent.answer<StepBody>(sessionId, sessionToken, "q_cigs_daily", 12);
+    const complete = await respondent.answer<StepBody>(
+      sessionId,
+      sessionToken,
+      "q_accident_count",
+      12,
+    );
     expect(complete.status).toBe(200);
     expect(complete.body.flowState.readyToSubmit).toBe(true);
     expect(complete.body.step).toBeNull();
@@ -72,6 +82,9 @@ describe("scenario 2: anonymous respondent", () => {
     expect(row).toBeDefined();
     expect(row?.accessMode).toBe("anonymous");
     // The JSON export keys answers by questionId (canonical encodings).
-    expect(Object.keys(row?.answers ?? {}).sort()).toEqual(["q_cigs_daily", "q_smoker"]);
+    expect(Object.keys(row?.answers ?? {}).sort()).toEqual([
+      "q_accident_count",
+      "q_at_fault_accident",
+    ]);
   });
 });

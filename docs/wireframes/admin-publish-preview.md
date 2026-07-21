@@ -5,15 +5,15 @@
 ## ASCII sketch - publish + preview
 
 ```
-┌─ Publish "Life insurance"? ──────────── (dialog) ───┐
+┌─ Publish "Vehicle insurance"? ──────────── (dialog) ───┐
 │ Freezes: 2 steps · 4 pinned questions · 1 rule      │
 │ New sessions get v3; in-flight sessions finish       │
 │ on their version.            [Cancel] [Publish v3]  │
 └─────────────────────────────────────────────────────┘
 ┌─ Preview - not published ───────────────── (banner) ┐
 │ ┌─ rendered step (shared renderer) ──────────────┐  │
-│ │ Are you a smoker?  (•) Yes ( ) No              │  │
-│ │ How many cigarettes daily? [   ]  ← appeared   │  │
+│ │ Any at-fault accident in the last 3 years?  (•) Yes ( ) No              │  │
+│ │ How many? [   ]  ← appeared   │  │
 │ └────────────────────────────────────────────────┘  │
 │ [◂ prev step] [next step ▸]   [reset answers]       │
 └─────────────────────────────────────────────────────┘

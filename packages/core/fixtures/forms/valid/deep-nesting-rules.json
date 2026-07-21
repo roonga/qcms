@@ -8,9 +8,9 @@
       "title": { "en": "Source answers" },
       "items": [
         { "questionId": "q_full_name", "version": 1 },
-        { "questionId": "q_cigs_daily", "version": 1 },
+        { "questionId": "q_accident_count", "version": 1 },
         { "questionId": "q_dob", "version": 1 },
-        { "questionId": "q_smoker", "version": 2 },
+        { "questionId": "q_at_fault_accident", "version": 2 },
         { "questionId": "q_coverage_level", "version": 1 },
         { "questionId": "q_preexisting_conditions", "version": 1 }
       ]
@@ -45,8 +45,12 @@
                               {
                                 "op": "and",
                                 "conditions": [
-                                  { "op": "equals", "questionId": "q_smoker", "value": true },
-                                  { "op": "gt", "questionId": "q_cigs_daily", "value": 0 }
+                                  {
+                                    "op": "equals",
+                                    "questionId": "q_at_fault_accident",
+                                    "value": true
+                                  },
+                                  { "op": "gt", "questionId": "q_accident_count", "value": 0 }
                                 ]
                               },
                               {
@@ -69,10 +73,10 @@
                   { "op": "notEquals", "questionId": "q_full_name", "value": "Nobody" }
                 ]
               },
-              { "op": "in", "questionId": "q_cigs_daily", "values": [999] }
+              { "op": "in", "questionId": "q_accident_count", "values": [999] }
             ]
           },
-          { "op": "lte", "questionId": "q_cigs_daily", "value": 200 }
+          { "op": "lte", "questionId": "q_accident_count", "value": 200 }
         ]
       },
       "show": ["q_medical_history"]

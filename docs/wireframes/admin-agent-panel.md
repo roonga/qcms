@@ -6,14 +6,14 @@
 
 ```
 ┌─ builder (033) ─────────────┐┌─ Assistant ─────────┐
-│                             ││ You: life insurance  │
-│                             ││ signup, smokers get  │
+│                             ││ You: vehicle insurance  │
+│                             ││ quote, at-fault accident  │
 │  (steps rail, step editor,  ││ a follow-up          │
 │   conditions, validation)   ││ ── proposal ──────── │
-│                             ││ + step: Health       │
-│                             ││ + q_smoker (boolean) │
-│                             ││ + q_cigs_daily (num) │
-│                             ││ + rule: smoker→show  │
+│                             ││ + step: Driving history       │
+│                             ││ + q_at_fault_accident (boolean) │
+│                             ││ + q_accident_count (num) │
+│                             ││ + rule: accident→show  │
 │                             ││ ✓ validation passes  │
 │                             ││ [Accept into draft]  │
 │                             ││ [Discard]            │

@@ -22,7 +22,7 @@ The serving loop: fetch the current step's stored compiled A2UI plus flow state;
 
 ## Exit criteria
 
-1. Branching loop test: answer `q_smoker=true` → response's flow shows `q_cigs_daily`; answer it; set `q_smoker=false` → follow-up disappears; ledger holds all three rows; `latestAnswers` reflects latest.
+1. Branching loop test: answer `q_at_fault_accident=true` → response's flow shows `q_accident_count`; answer it; set `q_at_fault_accident=false` → follow-up disappears; ledger holds all three rows; `latestAnswers` reflects latest.
 2. Served step deep-equals the stored golden compiled document for the fixture (proves no recompilation).
 3. Invalid value → 422 with kernel codes; hidden question → `QUESTION_NOT_VISIBLE`; unknown → `UNKNOWN_QUESTION`; submitted/expired session → typed reject.
 4. Concurrency: two simultaneous answers to one session both land, ledger order deterministic.

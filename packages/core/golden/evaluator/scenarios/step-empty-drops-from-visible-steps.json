@@ -3,7 +3,7 @@
   "form": "golden/evaluator/forms/step-empty.json",
   "answers": [
     {
-      "questionId": "q_smoker",
+      "questionId": "q_at_fault_accident",
       "value": false
     }
   ],
@@ -11,7 +11,7 @@
     "visible": [
       {
         "stepId": "stp_a",
-        "questionId": "q_smoker"
+        "questionId": "q_at_fault_accident"
       },
       {
         "stepId": "stp_c",
@@ -20,7 +20,7 @@
     ],
     "visibleSteps": ["stp_a", "stp_c"],
     "currentStep": "stp_c",
-    "answeredRequired": ["q_smoker"],
+    "answeredRequired": ["q_at_fault_accident"],
     "missingRequired": ["q_coverage_level"],
     "complete": false
   }

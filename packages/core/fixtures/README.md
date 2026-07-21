@@ -42,9 +42,9 @@ One fixture per question type - together they seed the kitchen-sink form.
 |---|---|---|---|
 | `short-text.json` | `shortText` | `q_full_name` | length + safe-pattern constraints |
 | `long-text.json` | `longText` | `q_medical_history` | |
-| `number.json` | `number` | `q_cigs_daily` | the insurance follow-up |
+| `number.json` | `number` | `q_accident_count` | the insurance follow-up |
 | `date.json` | `date` | `q_dob` | canonical `YYYY-MM-DD` min/max |
-| `boolean.json` | `boolean` | `q_smoker` | the insurance branch question |
+| `boolean.json` | `boolean` | `q_at_fault_accident` | the insurance branch question |
 | `single-choice.json` | `singleChoice` | `q_coverage_level` | carries `opt_none` (optionId scoping, R6) |
 | `multi-choice.json` | `multiChoice` | `q_preexisting_conditions` | also carries `opt_none` - optionIds are question-scoped |
 
@@ -57,7 +57,7 @@ empty option labels, unsafe/uncompilable patterns, empty option lists).
 | File | formId | What it is |
 |---|---|---|
 | `kitchen-sink.json` | `frm_kitchen_sink` | **The canonical reference form** (tasks 007, 011, 012, 028, 030, 038): pins every question fixture above (all seven types), 3 steps, 2 rules (`equals` branch + `containsAny` branch) |
-| `insurance.json` | `frm_life_signup` | The motivating flow from `DOMAIN_SCHEMA.md` §6: `q_smoker@2` → rule `rul_smoker_followup` shows `q_cigs_daily@1` |
+| `insurance.json` | `frm_auto_quote` | The motivating flow from `DOMAIN_SCHEMA.md` §6: `q_at_fault_accident@2` → rule `rul_accident_followup` shows `q_accident_count@1` |
 | `minimal.json` | `frm_minimal` | Smallest valid form: one step, one question, empty rules array |
 | `constraints-heavy.json` | `frm_constraints_heavy` | Added by task 012 for the A2UI golden corpus: one step pinning all seven question fixtures so **every constraint-bearing control** (length/pattern, number min/max/integer, date min/max, multiChoice selection bounds) compiles in a single document. No rules. |
 | `deep-nesting-rules.json` | `frm_deep_nesting_rules` | Added by task 012: a single `and/or/not` rule nested to the depth-8 cap (`RULE_DEPTH_EXCEEDED` boundary - task 005) whose `show` reveals `q_medical_history`. Exercises the publish path's rule-graph/type checks under maximal nesting; the compiled A2UI is unaffected by rules (visibility is applied at serve time), so its golden pins the plain projection. |
@@ -93,4 +93,4 @@ they need a question repository to resolve against and belong to task 008's
 
 | File | What it pins |
 |---|---|
-| `insurance-golden.json` | The `contentHash` of the DOMAIN_SCHEMA §6 complete insurance submission (`q_smoker=true, q_cigs_daily=20`). Guards the canonical-JSON hashing contract across machines and Node versions - a mismatch is canonicalization drift, never re-record casually. |
+| `insurance-golden.json` | The `contentHash` of the DOMAIN_SCHEMA §6 complete insurance submission (`q_at_fault_accident=true, q_accident_count=2`). Guards the canonical-JSON hashing contract across machines and Node versions - a mismatch is canonicalization drift, never re-record casually. |

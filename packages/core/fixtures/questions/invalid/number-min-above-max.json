@@ -3,8 +3,8 @@
   "expected": { "code": "MIN_ABOVE_MAX", "path": ["constraints", "min"] },
   "definition": {
     "type": "number",
-    "questionId": "q_cigs_daily",
-    "label": { "en": "How many cigarettes do you smoke per day?" },
+    "questionId": "q_accident_count",
+    "label": { "en": "How many?" },
     "constraints": { "min": 10, "max": 1 }
   }
 }

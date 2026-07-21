@@ -29,7 +29,12 @@ import {
 } from "@qcms/db";
 import type { TestDb } from "@qcms/db/testing";
 
-import { INSURANCE_DEF, INSURANCE_GOLDEN, Q_CIGS_DEF, Q_SMOKER_DEF } from "./fixtures.js";
+import {
+  INSURANCE_DEF,
+  INSURANCE_GOLDEN,
+  Q_ACCIDENT_COUNT_DEF,
+  Q_ACCIDENT_DEF,
+} from "./fixtures.js";
 
 type Db = TestDb["db"];
 type FormVersionInput = Parameters<typeof insertFormVersion>[1];
@@ -37,25 +42,31 @@ type QuestionVersionInput = Parameters<typeof createQuestionVersion>[1];
 
 const DEF = INSURANCE_DEF as FormVersionInput["definition"];
 const COMPILED = INSURANCE_GOLDEN as unknown as FormVersionInput["compiled"];
-const SMOKER_DEF = Q_SMOKER_DEF as QuestionVersionInput["definition"];
-const CIGS_DEF = Q_CIGS_DEF as QuestionVersionInput["definition"];
+const ACCIDENT_DEF = Q_ACCIDENT_DEF as QuestionVersionInput["definition"];
+const ACCIDENT_COUNT_DEF = Q_ACCIDENT_COUNT_DEF as QuestionVersionInput["definition"];
 
-/** The library questions the insurance form pins: q_smoker@2, q_cigs_daily@1. */
+/** The library questions the insurance form pins: q_at_fault_accident@2, q_accident_count@1. */
 export async function seedInsuranceQuestions(db: Db): Promise<void> {
-  await createQuestion(db, { questionId: QuestionId.parse("q_smoker"), slug: "smoker" });
-  // The form pins q_smoker@2, so create v1 then v2 (identical definitions).
+  await createQuestion(db, {
+    questionId: QuestionId.parse("q_at_fault_accident"),
+    slug: "accident",
+  });
+  // The form pins q_at_fault_accident@2, so create v1 then v2 (identical definitions).
   await createQuestionVersion(db, {
-    questionId: QuestionId.parse("q_smoker"),
-    definition: SMOKER_DEF,
+    questionId: QuestionId.parse("q_at_fault_accident"),
+    definition: ACCIDENT_DEF,
   });
   await createQuestionVersion(db, {
-    questionId: QuestionId.parse("q_smoker"),
-    definition: SMOKER_DEF,
+    questionId: QuestionId.parse("q_at_fault_accident"),
+    definition: ACCIDENT_DEF,
   });
-  await createQuestion(db, { questionId: QuestionId.parse("q_cigs_daily"), slug: "cigs" });
+  await createQuestion(db, {
+    questionId: QuestionId.parse("q_accident_count"),
+    slug: "accident-count",
+  });
   await createQuestionVersion(db, {
-    questionId: QuestionId.parse("q_cigs_daily"),
-    definition: CIGS_DEF,
+    questionId: QuestionId.parse("q_accident_count"),
+    definition: ACCIDENT_COUNT_DEF,
   });
 }
 
@@ -73,8 +84,8 @@ export async function seedInsuranceForm(
   db: Db,
   opts: { formId?: string; slug?: string } = {},
 ): Promise<SeededForm> {
-  const formId = opts.formId ?? "frm_life_signup";
-  const slug = opts.slug ?? "life";
+  const formId = opts.formId ?? "frm_auto_quote";
+  const slug = opts.slug ?? "auto";
   await seedInsuranceQuestions(db);
   await createForm(db, { formId: FormId.parse(formId), slug, defaultLocale: "en" });
   await publishInsuranceVersion(db, formId);

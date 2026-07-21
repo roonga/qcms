@@ -17,7 +17,7 @@ Compose pinned questions into steps; express branching in the structured conditi
 - Draft autosave (022's advisory-save semantics: inconsistent drafts save fine, issues listed); dirty/saved indicators; concurrent-edit last-write-wins with a warning (single-author launch assumption - issue for locking).
 - **Form settings panel:** per-form domain toggles (ADR-24 tier 2): `challengeRequired` - with an inline warning when enabled while the deployment's challenge provider is `none` (unenforceable until an operator configures one) - and the min-time floor (026).
 - Rule test bench: pick a rule → enter hypothetical answers for its referenced questions → shows match/no-match via client-side evaluation of that condition (uses core's evaluator on a synthetic snapshot - read-only aid, clearly labeled as preview).
-- Playwright: build the insurance form from seeded questions entirely through the UI - steps, pins, the smoker rule - with live validation visible; save.
+- Playwright: build the insurance form from seeded questions entirely through the UI - steps, pins, the at-fault-accident rule - with live validation visible; save.
 
 ## Exit criteria
 

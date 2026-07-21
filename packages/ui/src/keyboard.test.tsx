@@ -17,8 +17,8 @@ function isChecked(element: HTMLElement): boolean {
 // task conformance-verifies rather than assumes (a2ui-mapping.md / ADR-22).
 const kitchen = loadGoldenForms().find((f) => f.version === "v2" && f.form === "kitchen-sink");
 if (!kitchen) throw new Error("kitchen-sink v2 golden not found");
-const stepHealth = kitchen.compiled.documents.find((d) => d.stepId === "stp_health");
-if (!stepHealth) throw new Error("stp_health not found");
+const stepHealth = kitchen.compiled.documents.find((d) => d.stepId === "stp_history");
+if (!stepHealth) throw new Error("stp_history not found");
 
 describe("kitchen-sink keyboard walkthrough", () => {
   it("Tab visits every control in document order and never the honeypot", async () => {
@@ -29,7 +29,7 @@ describe("kitchen-sink keyboard walkthrough", () => {
     // NumberField, each Checkbox, and the TextArea are each their own tab stop.
     const expected = [
       screen.getByRole("radio", { name: "Yes" }),
-      screen.getByRole("textbox", { name: /cigarettes/ }),
+      screen.getByRole("textbox", { name: /how many/i }),
       screen.getByRole("checkbox", { name: "Diabetes" }),
       screen.getByRole("checkbox", { name: "Asthma" }),
       screen.getByRole("checkbox", { name: "Heart disease" }),

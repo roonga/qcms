@@ -20,7 +20,7 @@
           "version": 1
         },
         {
-          "questionId": "q_cigs_daily",
+          "questionId": "q_accident_count",
           "version": 1
         },
         {
@@ -28,7 +28,7 @@
           "version": 1
         },
         {
-          "questionId": "q_smoker",
+          "questionId": "q_at_fault_accident",
           "version": 2
         },
         {
@@ -96,10 +96,10 @@
       "show": ["q_gate_b"]
     },
     {
-      "ruleId": "rul_ans_cigs_daily",
+      "ruleId": "rul_ans_accident_count",
       "when": {
         "op": "answered",
-        "questionId": "q_cigs_daily"
+        "questionId": "q_accident_count"
       },
       "show": ["q_gate_c"]
     },
@@ -112,10 +112,10 @@
       "show": ["q_gate_d"]
     },
     {
-      "ruleId": "rul_ans_smoker",
+      "ruleId": "rul_ans_accident",
       "when": {
         "op": "answered",
-        "questionId": "q_smoker"
+        "questionId": "q_at_fault_accident"
       },
       "show": ["q_gate_e"]
     },

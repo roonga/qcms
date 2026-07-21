@@ -3,7 +3,7 @@
   "form": "golden/evaluator/forms/ops-ordered.json",
   "answers": [
     {
-      "questionId": "q_cigs_daily",
+      "questionId": "q_accident_count",
       "value": 9
     },
     {
@@ -15,7 +15,7 @@
     "visible": [
       {
         "stepId": "stp_src",
-        "questionId": "q_cigs_daily"
+        "questionId": "q_accident_count"
       },
       {
         "stepId": "stp_src",
@@ -40,7 +40,7 @@
     ],
     "visibleSteps": ["stp_src", "stp_gates"],
     "currentStep": "stp_gates",
-    "answeredRequired": ["q_cigs_daily", "q_dob"],
+    "answeredRequired": ["q_accident_count", "q_dob"],
     "missingRequired": [],
     "complete": true
   }

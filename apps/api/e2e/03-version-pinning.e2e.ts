@@ -44,7 +44,7 @@ afterAll(async () => {
 describe("scenario 3: version pinning", () => {
   it("a session started on v1 completes on v1 after v2 publishes; a new session gets v2", async () => {
     // Start a session while only v1 exists.
-    const first = await respondent.start<StartBody>({ formSlug: "life" });
+    const first = await respondent.start<StartBody>({ formSlug: "auto" });
     expect(first.status).toBe(201);
     expect(first.body.formVersion).toBe(1);
     const s1 = { id: first.body.sessionId, token: first.body.sessionToken };
@@ -55,13 +55,13 @@ describe("scenario 3: version pinning", () => {
     // The in-flight session still serves and completes on its pinned v1.
     const step = await respondent.getStep<StepBody>(s1.id, s1.token);
     expect(step.status).toBe(200);
-    expect((await respondent.answer<StepBody>(s1.id, s1.token, "q_smoker", false)).status).toBe(
-      200,
-    );
+    expect(
+      (await respondent.answer<StepBody>(s1.id, s1.token, "q_at_fault_accident", false)).status,
+    ).toBe(200);
     expect((await respondent.submit<Receipt>(s1.id, s1.token)).status).toBe(200);
 
     // A session started now binds to v2 (newest published).
-    const second = await respondent.start<StartBody>({ formSlug: "life" });
+    const second = await respondent.start<StartBody>({ formSlug: "auto" });
     expect(second.status).toBe(201);
     expect(second.body.formVersion).toBe(2);
 

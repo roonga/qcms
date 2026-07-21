@@ -133,7 +133,7 @@ describe("rejections carry typed error codes", () => {
   });
 
   it("rejects bad OptionId prefixes in choice answers", () => {
-    expect(unwrapErr(parseSingleChoiceAnswerValue("q_smoker")).code).toBe(
+    expect(unwrapErr(parseSingleChoiceAnswerValue("q_at_fault_accident")).code).toBe(
       "INVALID_SINGLE_CHOICE_ANSWER",
     );
     expect(unwrapErr(parseMultiChoiceAnswerValue(["opt_a", "zzz_b"])).code).toBe(

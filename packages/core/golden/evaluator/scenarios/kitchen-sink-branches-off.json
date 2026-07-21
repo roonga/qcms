@@ -1,5 +1,5 @@
 {
-  "description": "Kitchen-sink answered so that neither branch triggers (non-smoker, no listed condition): the follow-ups stay hidden and the response is complete without them.",
+  "description": "Kitchen-sink answered so that neither branch triggers (non-accident, no listed condition): the follow-ups stay hidden and the response is complete without them.",
   "form": "fixtures/forms/valid/kitchen-sink.json",
   "answers": [
     {
@@ -11,7 +11,7 @@
       "value": "1990-05-17"
     },
     {
-      "questionId": "q_smoker",
+      "questionId": "q_at_fault_accident",
       "value": false
     },
     {
@@ -34,11 +34,11 @@
         "questionId": "q_dob"
       },
       {
-        "stepId": "stp_health",
-        "questionId": "q_smoker"
+        "stepId": "stp_history",
+        "questionId": "q_at_fault_accident"
       },
       {
-        "stepId": "stp_health",
+        "stepId": "stp_history",
         "questionId": "q_preexisting_conditions"
       },
       {
@@ -46,12 +46,12 @@
         "questionId": "q_coverage_level"
       }
     ],
-    "visibleSteps": ["stp_about", "stp_health", "stp_cover"],
+    "visibleSteps": ["stp_about", "stp_history", "stp_cover"],
     "currentStep": null,
     "answeredRequired": [
       "q_full_name",
       "q_dob",
-      "q_smoker",
+      "q_at_fault_accident",
       "q_preexisting_conditions",
       "q_coverage_level"
     ],

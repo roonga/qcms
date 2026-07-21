@@ -47,12 +47,12 @@ forked. Every referenced form must be publish-shaped - the runner asserts
 {
   "description": "what this scenario pins down, in one sentence",
   "form": "golden/evaluator/forms/ops-equals.json",
-  "answers": [{ "questionId": "q_smoker", "value": true }],
+  "answers": [{ "questionId": "q_at_fault_accident", "value": true }],
   "expected": {
-    "visible": [{ "stepId": "stp_src", "questionId": "q_smoker" }],
+    "visible": [{ "stepId": "stp_src", "questionId": "q_at_fault_accident" }],
     "visibleSteps": ["stp_src"],
     "currentStep": null,
-    "answeredRequired": ["q_smoker"],
+    "answeredRequired": ["q_at_fault_accident"],
     "missingRequired": [],
     "complete": true
   }
@@ -84,7 +84,7 @@ forked. Every referenced form must be publish-shaped - the runner asserts
 | Multiple rules targeting the same question (OR) | `multi-rule-target` | `multi-rule-first-only`, `multi-rule-second-only`, `multi-rule-none` |
 | Hidden-answer exclusion chain (A controls B; B's answer feeds C) | `exclusion-chain`, `step-gate` | `chain-propagates`, `chain-hidden-answer-excluded`, `chain-middle-unanswered`, `step-gate-stale-answer-excluded` |
 | Empty answers / all answered / partial with required missing | many | `*-unanswered`, `*-none`, `answered-partial`, `kitchen-sink-partial-missing-required`, `minimal-*` |
-| Insurance flow as a sequence (answers appended step by step) | fixture `insurance` | `insurance-seq-1-empty`, `insurance-seq-2-smoker-yes`, `insurance-seq-2b-smoker-no`, `insurance-seq-3-complete` |
+| Insurance flow as a sequence (answers appended step by step) | fixture `insurance` | `insurance-seq-1-empty`, `insurance-seq-2-accident-yes`, `insurance-seq-2b-accident-no`, `insurance-seq-3-complete` |
 | Kitchen-sink end to end (both branches on, off, optional unanswered) | fixture `kitchen-sink` | `kitchen-sink-empty`, `kitchen-sink-partial-missing-required`, `kitchen-sink-complete`, `kitchen-sink-optional-unanswered`, `kitchen-sink-branches-off` |
 
 ## Adding a scenario

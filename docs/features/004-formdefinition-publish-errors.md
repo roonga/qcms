@@ -12,10 +12,10 @@ A form is ordered steps of pinned question references plus visibility rules. Pin
 - `QuestionRef`: `{ questionId, version: positive int }`.
 - `Step`: `{ stepId, title: LocalizedText, items: QuestionRef[] (min 1) }`.
 - `FormDefinition`: `{ formId, defaultLocale, title, steps (min 1), rules: VisibilityRule[] }` - parse-level refinements only: unique `stepId`s, unique `questionId` across all steps (a question appears at most once per form), rules array present (content validated in 005/008).
-- **`PublishError` model** - discriminated union with `code`, human `message`, and a structured `path` (e.g. `{ step: "stp_health", question: "q_smoker" }`). Codes at minimum: `DANGLING_QUESTION_REF`, `DANGLING_OPTION_REF`, `DANGLING_STEP_REF`, `UNPUBLISHED_QUESTION_PIN`, `LOCALE_INCOMPLETE`, `RULE_BACKWARD_TARGET`, `RULE_CYCLE`, `RULE_DEPTH_EXCEEDED`, `RULE_TYPE_MISMATCH`, `DUPLICATE_QUESTION_IN_FORM`. `PublishResult = ok(FrozenSnapshot) | err(PublishError[])` - always **all** errors, never first-only.
+- **`PublishError` model** - discriminated union with `code`, human `message`, and a structured `path` (e.g. `{ step: "stp_history", question: "q_at_fault_accident" }`). Codes at minimum: `DANGLING_QUESTION_REF`, `DANGLING_OPTION_REF`, `DANGLING_STEP_REF`, `UNPUBLISHED_QUESTION_PIN`, `LOCALE_INCOMPLETE`, `RULE_BACKWARD_TARGET`, `RULE_CYCLE`, `RULE_DEPTH_EXCEEDED`, `RULE_TYPE_MISMATCH`, `DUPLICATE_QUESTION_IN_FORM`. `PublishResult = ok(FrozenSnapshot) | err(PublishError[])` - always **all** errors, never first-only.
 - **Fixtures** in `packages/core/fixtures/forms/`:
   - `kitchen-sink.json` - every question type, ≥3 steps, at least one rule (the canonical reference form used by tasks 007, 011, 012, 028, 030, 038).
-  - `insurance.json` - the motivating flow from `DOMAIN_SCHEMA.md` §6 (`q_smoker` → `q_cigs_daily`).
+  - `insurance.json` - the motivating flow from `DOMAIN_SCHEMA.md` §6 (`q_at_fault_accident` → `q_accident_count`).
   - `minimal.json` - one step, one question.
   - Invalid fixtures for each parse-level refinement.
 

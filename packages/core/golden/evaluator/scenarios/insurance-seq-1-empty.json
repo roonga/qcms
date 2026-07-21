@@ -5,14 +5,14 @@
   "expected": {
     "visible": [
       {
-        "stepId": "stp_health",
-        "questionId": "q_smoker"
+        "stepId": "stp_history",
+        "questionId": "q_at_fault_accident"
       }
     ],
-    "visibleSteps": ["stp_health"],
-    "currentStep": "stp_health",
+    "visibleSteps": ["stp_history"],
+    "currentStep": "stp_history",
     "answeredRequired": [],
-    "missingRequired": ["q_smoker"],
+    "missingRequired": ["q_at_fault_accident"],
     "complete": false
   }
 }

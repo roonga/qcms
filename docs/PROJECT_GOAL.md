@@ -7,7 +7,7 @@
 
 ## 1. Vision
 
-QCMS is an MIT-licensed, TypeScript, open-source engine for questionnaires, surveys, and registration flows with **deeply conditional logic** - the answer to one question determines which questions follow (the motivating example: insurance sign-up, where "are you a smoker?" opens a follow-up branch).
+QCMS is an MIT-licensed, TypeScript, open-source engine for questionnaires, surveys, and registration flows with **deeply conditional logic** - the answer to one question determines which questions follow (the motivating example: a vehicle insurance quote, where "any at-fault accident in the last 3 years?" opens a follow-up branch).
 
 It is distributed in the **shadcn ethos**: adopters do not install a product, they scaffold an application into their own repository and own the source. The invariant machinery - domain model, rules engine, publish compiler, migrations - ships as versioned npm packages they upgrade like any dependency.
 
@@ -83,6 +83,8 @@ ADR-01…15 are the project's foundational scope decisions. The following decisi
 **Why.** "Prove exactly what was rendered" is the audit promise; recompile-on-read would let the served UI drift from the audit record. The cost - renderer backward compatibility - is made explicit and testable rather than discovered later. A2UI and `a2-react-aria` are young and co-evolve with this project; the version stamps and the immutable golden corpus are the contract between them.
 
 **Consequences.** The conformance suite is append-only. A future breaking A2UI change means a new spec version rendered alongside the old, not a migration of stored snapshots.
+
+**Amendment (2026-07-22, from the 043 example-domain rename - issue #16).** The append-only golden guard (`scripts/check-golden-append-only.mjs`) protects the **post-launch** contract: once a snapshot is published and served, its compiled A2UI is the audit record and the renderer must render it forever across spec versions, so a committed golden is never edited. Task 043 renamed the canonical example fixtures to the neutral vehicle insurance domain (the prior example is recorded in `docs/features/043-*.md` and git history) - a **test-fixture id/label rename with no deployments and no A2UI spec-version or renderer-compat change**. Because nothing is published yet (pre-launch), the append-only corpus has no live audit record to protect, and the rename leaves the spec versions and renderer contract unchanged. The owner therefore approved a **one-time, sanctioned pre-launch re-baseline** of the affected golden documents (`golden/v1/` and `golden/v2/` for the insurance, kitchen-sink, constraints-heavy, and deep-nesting-rules corpus forms): they were regenerated to match the renamed fixture output so `test:golden-drift` stays green, proving the change is a pure rename. The `check:golden-append-only` guard flags these regenerated files - that is expected and sanctioned for this single landing; the guard code is left untouched. **Append-only resumes full immutability after this landing**, and unconditionally once anything is published.
 
 ### ADR-19 - Launch splits Stage 8; scaffolding CLI is not on the launch gate
 

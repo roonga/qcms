@@ -24,7 +24,7 @@ The heart of the product. `evaluateRules(snapshot, answers) → FlowState` is a 
 
 1. Property tests (fast-check): determinism (same inputs twice → deep-equal output); totality over generated valid forms/answers; answer-order independence (AnswerMap is a map, not a ledger).
 2. Unit tests for each numbered semantic, including: hidden question's answer excluded from a downstream condition; `answered` vs `equals` on unanswered; step-level vs question-level targeting; `contains` vs `equals` on a multiChoice answer with a subset selected (ADR-21).
-3. Insurance fixture: `q_smoker=true` shows `q_cigs_daily`; changing to `false` hides it and its stale answer does not affect any later condition.
+3. Insurance fixture: `q_at_fault_accident=true` shows `q_accident_count`; changing to `false` hides it and its stale answer does not affect any later condition.
 4. Semantics documented in `DOMAIN_SCHEMA.md` with the worked example updated.
 
 ## Out of scope

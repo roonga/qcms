@@ -148,7 +148,7 @@ function gate(
   return build([["stp_one", [{ id: "q_a", type: "boolean" }, target]]], rules);
 }
 
-const showWhenSmokerTrue = {
+const showWhenAccidentTrue = {
   ruleId: "rul_gate",
   when: { op: "equals", questionId: "q_a", value: true },
   show: ["q_b"],
@@ -169,7 +169,7 @@ describe("semantic 1 - forward walk, targeting", () => {
   });
 
   it("a targeted item is hidden until a targeting rule is true", () => {
-    const setup = gate([showWhenSmokerTrue]);
+    const setup = gate([showWhenAccidentTrue]);
     expect(visibleIds(evalOk(setup, answersOf([])))).toEqual(["q_a"]);
     expect(visibleIds(evalOk(setup, answersOf([["q_a", false]])))).toEqual(["q_a"]);
     expect(visibleIds(evalOk(setup, answersOf([["q_a", true]])))).toEqual(["q_a", "q_b"]);
@@ -232,7 +232,7 @@ describe("semantic 1 - forward walk, targeting", () => {
 
 describe("semantic 2 - unanswered and hidden references", () => {
   it("equals on an unanswered question is false; answered is the existence test", () => {
-    const equalsGate = gate([showWhenSmokerTrue]);
+    const equalsGate = gate([showWhenAccidentTrue]);
     expect(visibleIds(evalOk(equalsGate, answersOf([])))).toEqual(["q_a"]);
 
     const answeredGate = gate([
@@ -634,7 +634,7 @@ describe("semantic 5 - currentStep, required accounting, completeness", () => {
 });
 
 describe("totality - typed errors on malformed input", () => {
-  const wellFormed = (): TestSetup => gate([showWhenSmokerTrue]);
+  const wellFormed = (): TestSetup => gate([showWhenAccidentTrue]);
 
   it("junk input is INVALID_FORM_DEFINITION, not a throw", () => {
     const { resolve } = wellFormed();
@@ -744,11 +744,11 @@ describe("totality - typed errors on malformed input", () => {
 describe("insurance fixture (exit criterion 3)", () => {
   const setup = (): TestSetup => ({ form: loadForm("insurance.json"), resolve: fixtureResolver() });
 
-  it("q_smoker=true shows q_cigs_daily and requires it", () => {
-    const state = evalOk(setup(), answersOf([["q_smoker", true]]));
-    expect(visibleIds(state)).toEqual(["q_smoker", "q_cigs_daily"]);
-    expect(state.missingRequired).toEqual(["q_cigs_daily"]);
-    expect(state.currentStep).toBe("stp_health");
+  it("q_at_fault_accident=true shows q_accident_count and requires it", () => {
+    const state = evalOk(setup(), answersOf([["q_at_fault_accident", true]]));
+    expect(visibleIds(state)).toEqual(["q_at_fault_accident", "q_accident_count"]);
+    expect(state.missingRequired).toEqual(["q_accident_count"]);
+    expect(state.currentStep).toBe("stp_history");
     expect(state.complete).toBe(false);
   });
 
@@ -756,40 +756,40 @@ describe("insurance fixture (exit criterion 3)", () => {
     const state = evalOk(
       setup(),
       answersOf([
-        ["q_smoker", true],
-        ["q_cigs_daily", 20],
+        ["q_at_fault_accident", true],
+        ["q_accident_count", 20],
       ]),
     );
     expect(state.complete).toBe(true);
     expect(state.currentStep).toBeNull();
-    expect(state.answeredRequired).toEqual(["q_smoker", "q_cigs_daily"]);
+    expect(state.answeredRequired).toEqual(["q_at_fault_accident", "q_accident_count"]);
   });
 
-  it("changing q_smoker to false hides q_cigs_daily; the stale answer is inert", () => {
+  it("changing q_at_fault_accident to false hides q_accident_count; the stale answer is inert", () => {
     const state = evalOk(
       setup(),
       answersOf([
-        ["q_smoker", false],
-        ["q_cigs_daily", 20], // stale ledger-latest answer, now hidden
+        ["q_at_fault_accident", false],
+        ["q_accident_count", 20], // stale ledger-latest answer, now hidden
       ]),
     );
-    expect(visibleIds(state)).toEqual(["q_smoker"]);
+    expect(visibleIds(state)).toEqual(["q_at_fault_accident"]);
     expect(state.missingRequired).toEqual([]);
     expect(state.complete).toBe(true);
   });
 
   it("the stale hidden answer does not affect any later condition", () => {
-    // The fixture extended with a downstream question gated on q_cigs_daily
+    // The fixture extended with a downstream question gated on q_accident_count
     // (fixture file untouched - extension happens in-memory).
     const raw = readJson("forms", "valid", "insurance.json") as {
       steps: { items: { questionId: string; version: number }[] }[];
       rules: unknown[];
     };
-    raw.steps[0]?.items.push({ questionId: "q_heavy_smoker_extra", version: 1 });
+    raw.steps[0]?.items.push({ questionId: "q_heavy_extra", version: 1 });
     raw.rules.push({
       ruleId: "rul_heavy",
-      when: { op: "gte", questionId: "q_cigs_daily", value: 10 },
-      show: ["q_heavy_smoker_extra"],
+      when: { op: "gte", questionId: "q_accident_count", value: 10 },
+      show: ["q_heavy_extra"],
     });
     const parsed = parseFormDefinition(raw);
     if (!parsed.ok) {
@@ -798,7 +798,7 @@ describe("insurance fixture (exit criterion 3)", () => {
     const fixtures = fixtureResolver();
     const extra = makeQuestion({
       type: "boolean",
-      questionId: "q_heavy_smoker_extra",
+      questionId: "q_heavy_extra",
       label: { en: "Extra" },
     });
     const extended: TestSetup = {
@@ -806,18 +806,18 @@ describe("insurance fixture (exit criterion 3)", () => {
       resolve: (questionId) => (questionId === extra.questionId ? extra : fixtures(questionId)),
     };
     const stale = answersOf([
-      ["q_smoker", false],
-      ["q_cigs_daily", 20],
+      ["q_at_fault_accident", false],
+      ["q_accident_count", 20],
     ]);
-    expect(visibleIds(evalOk(extended, stale))).toEqual(["q_smoker"]);
+    expect(visibleIds(evalOk(extended, stale))).toEqual(["q_at_fault_accident"]);
     const active = answersOf([
-      ["q_smoker", true],
-      ["q_cigs_daily", 20],
+      ["q_at_fault_accident", true],
+      ["q_accident_count", 20],
     ]);
     expect(visibleIds(evalOk(extended, active))).toEqual([
-      "q_smoker",
-      "q_cigs_daily",
-      "q_heavy_smoker_extra",
+      "q_at_fault_accident",
+      "q_accident_count",
+      "q_heavy_extra",
     ]);
   });
 });
@@ -828,12 +828,12 @@ describe("kitchen-sink fixture", () => {
     const state = evalOk(
       setup,
       answersOf([
-        ["q_smoker", false],
+        ["q_at_fault_accident", false],
         ["q_preexisting_conditions", opts("opt_asthma")],
       ]),
     );
     expect(visibleIds(state)).toContain("q_medical_history");
-    expect(visibleIds(state)).not.toContain("q_cigs_daily");
+    expect(visibleIds(state)).not.toContain("q_accident_count");
   });
 });
 

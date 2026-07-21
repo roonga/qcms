@@ -269,7 +269,7 @@ describe("CSV golden export + JSON round-trip (exit criterion 2)", () => {
   it("emits the byte-for-byte insurance CSV (BOM, quoting, multiChoice, column order)", async () => {
     const formId = await seedForm("frm_insurance", [
       ["stp_applicant", ["q_full_name", "q_age"]],
-      ["stp_health", ["q_smoker", "q_coverage", "q_conditions"]],
+      ["stp_history", ["q_at_fault_accident", "q_coverage", "q_conditions"]],
     ]);
     const submittedAt = new Date("2026-03-15T09:00:00.000Z");
     await seedSubmitted({
@@ -279,7 +279,7 @@ describe("CSV golden export + JSON round-trip (exit criterion 2)", () => {
       entries: [
         { questionId: "q_full_name", value: "Doe, Jane" },
         { questionId: "q_age", value: 34 },
-        { questionId: "q_smoker", value: false },
+        { questionId: "q_at_fault_accident", value: false },
         { questionId: "q_coverage", value: "opt_gold" },
         {
           questionId: "q_conditions",
@@ -294,7 +294,7 @@ describe("CSV golden export + JSON round-trip (exit criterion 2)", () => {
       entries: [
         { questionId: "q_full_name", value: "Ada" },
         { questionId: "q_age", value: 29 },
-        { questionId: "q_smoker", value: true },
+        { questionId: "q_at_fault_accident", value: true },
         { questionId: "q_coverage", value: "opt_silver" },
         // q_conditions intentionally unanswered → empty cell.
       ],
@@ -311,7 +311,7 @@ describe("CSV golden export + JSON round-trip (exit criterion 2)", () => {
     const text = new TextDecoder("utf-8", { ignoreBOM: true }).decode(bytes);
     const expected =
       "﻿" +
-      "session_id,form_version,submitted_at,access_mode,q_full_name,q_age,q_smoker,q_coverage,q_conditions\r\n" +
+      "session_id,form_version,submitted_at,access_mode,q_full_name,q_age,q_at_fault_accident,q_coverage,q_conditions\r\n" +
       'ses_ins_001,1,2026-03-15T09:00:00.000Z,anonymous,"Doe, Jane",34,false,opt_gold,opt_diabetes;opt_asthma\r\n' +
       "ses_ins_002,1,2026-03-15T09:00:00.000Z,anonymous,Ada,29,true,opt_silver,\r\n";
     expect(text).toBe(expected);

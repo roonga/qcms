@@ -83,8 +83,8 @@ describe("documentOrder", () => {
     expect(order.map((entry) => entry.questionId)).toEqual([
       "q_full_name",
       "q_dob",
-      "q_smoker",
-      "q_cigs_daily",
+      "q_at_fault_accident",
+      "q_accident_count",
       "q_preexisting_conditions",
       "q_medical_history",
       "q_coverage_level",

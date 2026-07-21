@@ -51,7 +51,7 @@ describe("valid fixtures", () => {
     expect([...types].sort()).toEqual([...QUESTION_TYPES].sort());
   });
 
-  it("include q_smoker (boolean) and q_cigs_daily (number) for the insurance flow", () => {
+  it("include q_at_fault_accident (boolean) and q_accident_count (number) for the insurance flow", () => {
     const definitions = validFiles.map((file) => {
       const result = parseQuestionDefinition(readJson("valid", file));
       if (!result.ok) {
@@ -59,8 +59,8 @@ describe("valid fixtures", () => {
       }
       return result.value;
     });
-    expect(definitions.find((d) => d.questionId === "q_smoker")?.type).toBe("boolean");
-    expect(definitions.find((d) => d.questionId === "q_cigs_daily")?.type).toBe("number");
+    expect(definitions.find((d) => d.questionId === "q_at_fault_accident")?.type).toBe("boolean");
+    expect(definitions.find((d) => d.questionId === "q_accident_count")?.type).toBe("number");
   });
 
   it("apply defaults: required=false, constraints={} with inner defaults", () => {
@@ -72,7 +72,7 @@ describe("valid fixtures", () => {
 
     const minimalNumber = parseQuestionDefinition({
       type: "number",
-      questionId: "q_cigs_daily",
+      questionId: "q_accident_count",
       label: { en: "How many per day?" },
     });
     if (!minimalNumber.ok || minimalNumber.value.type !== "number") {
@@ -158,12 +158,12 @@ describe("optionId scoping (R6)", () => {
   });
 
   it("optionIdsOf is [] for non-choice types and ordered for choice types", () => {
-    const smoker = parseQuestionDefinition(readJson("valid", "boolean.json"));
+    const accident = parseQuestionDefinition(readJson("valid", "boolean.json"));
     const single = parseQuestionDefinition(readJson("valid", "single-choice.json"));
-    if (!smoker.ok || !single.ok) {
+    if (!accident.ok || !single.ok) {
       throw new Error("fixtures did not parse");
     }
-    expect(optionIdsOf(smoker.value)).toEqual([]);
+    expect(optionIdsOf(accident.value)).toEqual([]);
     expect(optionIdsOf(single.value)).toEqual([
       "opt_basic",
       "opt_standard",
@@ -191,13 +191,23 @@ describe("QuestionVersionRecord", () => {
   const definition = readJson("valid", "boolean.json");
 
   it("parses a valid record", () => {
-    const result = parseQuestionVersionRecord({ questionId: "q_smoker", version: 1, definition });
+    const result = parseQuestionVersionRecord({
+      questionId: "q_at_fault_accident",
+      version: 1,
+      definition,
+    });
     expect(result.ok).toBe(true);
-    expect(isQuestionVersionRecord({ questionId: "q_smoker", version: 3, definition })).toBe(true);
+    expect(
+      isQuestionVersionRecord({ questionId: "q_at_fault_accident", version: 3, definition }),
+    ).toBe(true);
   });
 
   it.each([0, -1, 1.5, "1"])("rejects version %j with the record code", (version) => {
-    const result = parseQuestionVersionRecord({ questionId: "q_smoker", version, definition });
+    const result = parseQuestionVersionRecord({
+      questionId: "q_at_fault_accident",
+      version,
+      definition,
+    });
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error).toEqual(

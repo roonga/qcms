@@ -4,13 +4,13 @@
  * own packages (CONTRIBUTING). Requires Docker.
  *
  * The fixture is the canonical `insurance` form (`@qcms/core` fixtures): one
- * step `stp_health` with `q_smoker` (boolean, required) and `q_cigs_daily`
- * (number, required), the follow-up shown only when `q_smoker = true`. So:
+ * step `stp_history` with `q_at_fault_accident` (boolean, required) and `q_accident_count`
+ * (number, required), the follow-up shown only when `q_at_fault_accident = true`. So:
  *
- * - `q_smoker = false` → only `q_smoker` visible, flow complete → a valid
- *   submission whose locked set is `[q_smoker]` (the hidden `q_cigs_daily` never
+ * - `q_at_fault_accident = false` → only `q_at_fault_accident` visible, flow complete → a valid
+ *   submission whose locked set is `[q_at_fault_accident]` (the hidden `q_accident_count` never
  *   enters the lock, even if stale in the ledger - I6).
- * - `q_smoker = true` with `q_cigs_daily` unanswered → a visible required gap →
+ * - `q_at_fault_accident = true` with `q_accident_count` unanswered → a visible required gap →
  *   the submission sweep fails (422); a *hidden* required question never blocks.
  *
  * Covers every exit criterion: happy path + all-or-nothing under an induced
@@ -63,7 +63,7 @@ const INSURANCE_DEF = readFixture(
   "valid",
   "insurance.json",
 ) as VersionInput["definition"];
-const Q_SMOKER_DEF = readFixture(
+const Q_ACCIDENT_DEF = readFixture(
   "packages",
   "core",
   "fixtures",
@@ -71,7 +71,7 @@ const Q_SMOKER_DEF = readFixture(
   "valid",
   "boolean.json",
 ) as Parameters<typeof createQuestionVersion>[1]["definition"];
-const Q_CIGS_DEF = readFixture(
+const Q_ACCIDENT_COUNT_DEF = readFixture(
   "packages",
   "core",
   "fixtures",
@@ -111,7 +111,7 @@ beforeAll(async () => {
   internalToken = internalTokenFor(deps.config);
 
   await seedQuestions();
-  await seedForm("frm_life_signup", "life", GOLDEN as unknown as VersionInput["compiled"]);
+  await seedForm("frm_auto_quote", "auto", GOLDEN as unknown as VersionInput["compiled"]);
 }, BOOT_TIMEOUT);
 
 afterAll(async () => {
@@ -121,20 +121,26 @@ afterAll(async () => {
 // --- seed helpers -----------------------------------------------------------
 
 async function seedQuestions(): Promise<void> {
-  await createQuestion(testDb.db, { questionId: QuestionId.parse("q_smoker"), slug: "smoker" });
-  // q_smoker is pinned @2 by the form; create v1 then v2 (identical definition).
+  await createQuestion(testDb.db, {
+    questionId: QuestionId.parse("q_at_fault_accident"),
+    slug: "accident",
+  });
+  // q_at_fault_accident is pinned @2 by the form; create v1 then v2 (identical definition).
   await createQuestionVersion(testDb.db, {
-    questionId: QuestionId.parse("q_smoker"),
-    definition: Q_SMOKER_DEF,
+    questionId: QuestionId.parse("q_at_fault_accident"),
+    definition: Q_ACCIDENT_DEF,
   });
   await createQuestionVersion(testDb.db, {
-    questionId: QuestionId.parse("q_smoker"),
-    definition: Q_SMOKER_DEF,
+    questionId: QuestionId.parse("q_at_fault_accident"),
+    definition: Q_ACCIDENT_DEF,
   });
-  await createQuestion(testDb.db, { questionId: QuestionId.parse("q_cigs_daily"), slug: "cigs" });
+  await createQuestion(testDb.db, {
+    questionId: QuestionId.parse("q_accident_count"),
+    slug: "accident-count",
+  });
   await createQuestionVersion(testDb.db, {
-    questionId: QuestionId.parse("q_cigs_daily"),
-    definition: Q_CIGS_DEF,
+    questionId: QuestionId.parse("q_accident_count"),
+    definition: Q_ACCIDENT_COUNT_DEF,
   });
 }
 
@@ -184,7 +190,7 @@ async function loadSubmission(sessionId: string): Promise<SubmissionView | undef
   return getSubmission(testDb.db, SessionId.parse(sessionId));
 }
 
-async function startSession(slug = "life"): Promise<StartBody> {
+async function startSession(slug = "auto"): Promise<StartBody> {
   const res = await app.request("/sessions", {
     method: "POST",
     headers: { "content-type": "application/json", "x-qcms-internal-token": internalToken },
@@ -264,10 +270,10 @@ async function sessionStatus(sessionId: string): Promise<string | undefined> {
   return res.rows[0]?.status;
 }
 
-/** Drive a session to a valid, complete state (q_smoker = false → flow complete). */
+/** Drive a session to a valid, complete state (q_at_fault_accident = false → flow complete). */
 async function completeValidSession(): Promise<StartBody> {
   const started = await startSession();
-  const r = await postAnswer(started.sessionId, started.sessionToken, "q_smoker", false);
+  const r = await postAnswer(started.sessionId, started.sessionToken, "q_at_fault_accident", false);
   expect(r.status).toBe(200);
   return started;
 }
@@ -296,7 +302,7 @@ describe("happy path and all-or-nothing (exit criterion 1)", () => {
 
     const event = await outboxEvent(sessionId);
     expect(event?.eventType).toBe("response.submitted");
-    expect(event?.payload.formId).toBe("frm_life_signup");
+    expect(event?.payload.formId).toBe("frm_auto_quote");
     expect(event?.payload.contentHash).toBe(receipt.contentHash);
   });
 
@@ -351,10 +357,14 @@ describe("idempotency (exit criterion 2)", () => {
 describe("hidden-answer exclusion (exit criterion 3)", () => {
   it("a hidden question's answer is absent from the lock and webhook, present in the ledger", async () => {
     const { sessionId, sessionToken } = await startSession();
-    // Reveal q_cigs_daily, answer it, then hide it again (q_smoker = false).
-    expect((await postAnswer(sessionId, sessionToken, "q_smoker", true)).status).toBe(200);
-    expect((await postAnswer(sessionId, sessionToken, "q_cigs_daily", 20)).status).toBe(200);
-    expect((await postAnswer(sessionId, sessionToken, "q_smoker", false)).status).toBe(200);
+    // Reveal q_accident_count, answer it, then hide it again (q_at_fault_accident = false).
+    expect((await postAnswer(sessionId, sessionToken, "q_at_fault_accident", true)).status).toBe(
+      200,
+    );
+    expect((await postAnswer(sessionId, sessionToken, "q_accident_count", 20)).status).toBe(200);
+    expect((await postAnswer(sessionId, sessionToken, "q_at_fault_accident", false)).status).toBe(
+      200,
+    );
 
     const res = await submit(sessionId, sessionToken);
     expect(res.status).toBe(200);
@@ -363,19 +373,23 @@ describe("hidden-answer exclusion (exit criterion 3)", () => {
     const ledger = (await answerLedger(testDb.db, SessionId.parse(sessionId))) as {
       questionId: string;
     }[];
-    expect(ledger.map((r) => r.questionId)).toEqual(["q_smoker", "q_cigs_daily", "q_smoker"]);
+    expect(ledger.map((r) => r.questionId)).toEqual([
+      "q_at_fault_accident",
+      "q_accident_count",
+      "q_at_fault_accident",
+    ]);
 
-    // The locked set excludes the hidden q_cigs_daily (I6).
+    // The locked set excludes the hidden q_accident_count (I6).
     const submission = await loadSubmission(sessionId);
     const lockedIds = submission?.lockedAnswers.answers.map((a) => a.questionId) ?? [];
-    expect(lockedIds).toEqual(["q_smoker"]);
+    expect(lockedIds).toEqual(["q_at_fault_accident"]);
 
     // …and so does the webhook payload.
     const event = await outboxEvent(sessionId);
     const webhookIds = (event?.payload.answers as { questionId: string }[]).map(
       (a) => a.questionId,
     );
-    expect(webhookIds).toEqual(["q_smoker"]);
+    expect(webhookIds).toEqual(["q_at_fault_accident"]);
   });
 });
 
@@ -384,24 +398,26 @@ describe("hidden-answer exclusion (exit criterion 3)", () => {
 describe("required-answer sweep (exit criterion 4)", () => {
   it("a missing visible-required answer → 422 naming the id; nothing is submitted", async () => {
     const { sessionId, sessionToken } = await startSession();
-    // q_smoker = true reveals q_cigs_daily (required) and leaves it unanswered.
-    expect((await postAnswer(sessionId, sessionToken, "q_smoker", true)).status).toBe(200);
+    // q_at_fault_accident = true reveals q_accident_count (required) and leaves it unanswered.
+    expect((await postAnswer(sessionId, sessionToken, "q_at_fault_accident", true)).status).toBe(
+      200,
+    );
 
     const res = await submit(sessionId, sessionToken);
     expect(res.status).toBe(422);
     const body = (await res.json()) as ErrBody;
     expect(body.error.code).toBe("SUBMISSION_INVALID");
     const details = body.error.details as { missingRequired: string[] };
-    expect(details.missingRequired).toContain("q_cigs_daily");
+    expect(details.missingRequired).toContain("q_accident_count");
 
     // The failed sweep committed nothing.
     expect(await loadSubmission(sessionId)).toBeUndefined();
     expect(await sessionStatus(sessionId)).toBe("in_progress");
   });
 
-  it("a hidden required question does not block submit (q_smoker = false)", async () => {
+  it("a hidden required question does not block submit (q_at_fault_accident = false)", async () => {
     const { sessionId, sessionToken } = await completeValidSession();
-    // q_cigs_daily is required but hidden while q_smoker = false → submit succeeds.
+    // q_accident_count is required but hidden while q_at_fault_accident = false → submit succeeds.
     const res = await submit(sessionId, sessionToken);
     expect(res.status).toBe(200);
   });
@@ -481,7 +497,8 @@ describe("silent anti-abuse flags (exit criterion 5)", () => {
     // Default app: global antiAbuse.minSubmitMs is 0 (off) - only the form floor bites.
     const started = await startSession("minfloor");
     expect(
-      (await postAnswer(started.sessionId, started.sessionToken, "q_smoker", false)).status,
+      (await postAnswer(started.sessionId, started.sessionToken, "q_at_fault_accident", false))
+        .status,
     ).toBe(200);
     // createdAt = NOW so elapsed = 0 < 3s form floor → flagged MIN_TIME.
     await testDb.client.query(`update sessions set created_at = $1 where session_id = $2`, [
@@ -525,7 +542,7 @@ describe("session-state rejects and post-submit guards", () => {
     expect(step.status).toBe(409);
     expect(((await step.json()) as ErrBody).error.code).toBe("SESSION_SUBMITTED");
 
-    const answer = await postAnswer(sessionId, sessionToken, "q_smoker", true);
+    const answer = await postAnswer(sessionId, sessionToken, "q_at_fault_accident", true);
     expect(answer.status).toBe(409);
     expect(((await answer.json()) as ErrBody).error.code).toBe("SESSION_SUBMITTED");
   });

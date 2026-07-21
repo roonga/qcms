@@ -3,11 +3,11 @@
   "form": "golden/evaluator/forms/multi-rule-target.json",
   "answers": [
     {
-      "questionId": "q_smoker",
+      "questionId": "q_at_fault_accident",
       "value": false
     },
     {
-      "questionId": "q_cigs_daily",
+      "questionId": "q_accident_count",
       "value": 0
     }
   ],
@@ -15,16 +15,16 @@
     "visible": [
       {
         "stepId": "stp_src",
-        "questionId": "q_smoker"
+        "questionId": "q_at_fault_accident"
       },
       {
         "stepId": "stp_src",
-        "questionId": "q_cigs_daily"
+        "questionId": "q_accident_count"
       }
     ],
     "visibleSteps": ["stp_src"],
     "currentStep": null,
-    "answeredRequired": ["q_smoker", "q_cigs_daily"],
+    "answeredRequired": ["q_at_fault_accident", "q_accident_count"],
     "missingRequired": [],
     "complete": true
   }

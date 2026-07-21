@@ -1,0 +1,23 @@
+{
+  "description": "Insurance flow, alternative branch after step 1: accident = false — the follow-up stays hidden and the response is already complete.",
+  "form": "fixtures/forms/valid/insurance.json",
+  "answers": [
+    {
+      "questionId": "q_at_fault_accident",
+      "value": false
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_history",
+        "questionId": "q_at_fault_accident"
+      }
+    ],
+    "visibleSteps": ["stp_history"],
+    "currentStep": null,
+    "answeredRequired": ["q_at_fault_accident"],
+    "missingRequired": [],
+    "complete": true
+  }
+}

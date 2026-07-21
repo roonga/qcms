@@ -19,7 +19,7 @@ Questions are first-class versioned entities: `questionId` is identity (stable f
   - `singleChoice` / `multiChoice` - `options: ChoiceOption[]` (min 1, unique `optionId`s enforced); multiChoice adds `{ minSelected?, maxSelected? }`.
 - Cross-field refinements with typed errors: `minLength ≤ maxLength`, `min ≤ max`, `minSelected ≤ maxSelected ≤ options.length`, option labels non-empty for at least one locale.
 - `QuestionVersionRecord`: `{ questionId, version: positive int, definition }` - the shape the library stores; immutability is enforced by storage + publish, not here.
-- Fixtures in `packages/core/fixtures/questions/`: one valid instance of every type (these seed the kitchen-sink form) including `q_smoker` (boolean) and `q_cigs_daily` (number) for the insurance flow; a set of invalid definitions, one per refinement.
+- Fixtures in `packages/core/fixtures/questions/`: one valid instance of every type (these seed the kitchen-sink form) including `q_at_fault_accident` (boolean) and `q_accident_count` (number) for the insurance flow; a set of invalid definitions, one per refinement.
 
 ## Exit criteria
 

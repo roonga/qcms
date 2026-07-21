@@ -43,7 +43,7 @@ function expectRejects(condition: unknown, code?: string): void {
 
 describe("Condition parses every operator", () => {
   it.each([
-    ["equals (boolean)", { op: "equals", questionId: "q_smoker", value: true }],
+    ["equals (boolean)", { op: "equals", questionId: "q_at_fault_accident", value: true }],
     ["equals (string)", { op: "equals", questionId: "q_full_name", value: "Ada" }],
     ["equals (multiChoice set)", { op: "equals", questionId: "q_multi", value: ["opt_a"] }],
     ["notEquals", { op: "notEquals", questionId: "q_num", value: 3 }],
@@ -157,9 +157,9 @@ describe("nesting depth cap (DOMAIN_SCHEMA §3)", () => {
 describe("VisibilityRule", () => {
   it("parses question and step targets", () => {
     const result = parseVisibilityRule({
-      ruleId: "rul_smoker_followup",
-      when: { op: "equals", questionId: "q_smoker", value: true },
-      show: ["q_cigs_daily", "stp_health"],
+      ruleId: "rul_accident_followup",
+      when: { op: "equals", questionId: "q_at_fault_accident", value: true },
+      show: ["q_accident_count", "stp_history"],
     });
     expect(result.ok).toBe(true);
   });

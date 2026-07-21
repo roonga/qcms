@@ -30,7 +30,7 @@ The agent proposes, the kernel validates, the human publishes (ADR-25). An autho
 **Tests (ADR-23 layers):**
 
 - Slice tests with the fake provider: proposal → advisory issues attached; allowlist enforcement (a scripted rogue tool call to publish → rejected, logged); flag `none` → routes absent (404, mount-flag style); flag on without key → boot fails fast.
-- Playwright e2e with the fake provider: chat "life-insurance signup where smokers get a follow-up" → proposal diff appears → accept → validation green → publish through the normal 034 flow → preview walks the branch. Live-provider smoke test exists but is env-gated and manual - never in CI.
+- Playwright e2e with the fake provider: chat "vehicle-insurance quote where an at-fault accident opens a follow-up" → proposal diff appears → accept → validation green → publish through the normal 034 flow → preview walks the branch. Live-provider smoke test exists but is env-gated and manual - never in CI.
 
 ## Exit criteria
 

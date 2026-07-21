@@ -8,13 +8,13 @@
 ┌─ Questions ─────────────────────────────────────────┐
 │ [search…]  [status ▾] [type ▾]        [+ New question]
 │ ┌─ table ────────────────────────────────────────┐  │
-│ │ q_smoker      Are you a smoker?  boolean  v2 ●published
-│ │ q_cigs_daily  How many…          number   v1 ○draft
+│ │ q_at_fault_accident      Any at-fault accident in the last 3 years?  boolean  v2 ●published
+│ │ q_accident_count  How many…          number   v1 ○draft
 │ └────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────┘
-┌─ Edit q_smoker (v3 draft) ──────────────────────────┐
-│ type: boolean (locked)         id: q_smoker (fixed) │
-│ label [Are you a smoker?     ]  required [✓]        │
+┌─ Edit q_at_fault_accident (v3 draft) ──────────────────────────┐
+│ type: boolean (locked)         id: q_at_fault_accident (fixed) │
+│ label [Any at-fault accident in the last 3 years?     ]  required [✓]        │
 │ help  [                      ]                      │
 │ ┌─ constraints (per type) ───────────────────────┐  │
 │ └────────────────────────────────────────────────┘  │

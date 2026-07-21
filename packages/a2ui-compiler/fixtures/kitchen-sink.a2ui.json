@@ -83,7 +83,7 @@
       }
     },
     {
-      "stepId": "stp_health",
+      "stepId": "stp_history",
       "root": {
         "type": "Form",
         "children": [
@@ -104,8 +104,8 @@
               {
                 "type": "RadioGroup",
                 "props": {
-                  "label": "Do you smoke?",
-                  "name": "q_smoker",
+                  "label": "Any at-fault accident in the last 3 years?",
+                  "name": "q_at_fault_accident",
                   "isRequired": true
                 },
                 "children": [

@@ -368,41 +368,41 @@ stateDiagram-v2
 
 ## 6. Worked example
 
-A fragment of the insurance fixture: smokers get a follow-up.
+A fragment of the insurance fixture: drivers with an at-fault accident get a follow-up.
 
 ```json
 {
-  "formId": "frm_life_signup",
+  "formId": "frm_auto_quote",
   "defaultLocale": "en",
-  "title": { "en": "Life insurance sign-up" },
+  "title": { "en": "Vehicle insurance quote" },
   "steps": [{
-    "stepId": "stp_health",
-    "title": { "en": "Health" },
+    "stepId": "stp_history",
+    "title": { "en": "Driving history" },
     "items": [
-      { "questionId": "q_smoker",     "version": 2 },
-      { "questionId": "q_cigs_daily", "version": 1 }
+      { "questionId": "q_at_fault_accident",     "version": 2 },
+      { "questionId": "q_accident_count", "version": 1 }
     ]
   }],
   "rules": [{
-    "ruleId": "rul_smoker_followup",
-    "when": { "op": "equals", "questionId": "q_smoker", "value": true },
-    "show": ["q_cigs_daily"]
+    "ruleId": "rul_accident_followup",
+    "when": { "op": "equals", "questionId": "q_at_fault_accident", "value": true },
+    "show": ["q_accident_count"]
   }]
 }
 ```
 
-The rule is valid under ADR-16: its target (`q_cigs_daily`) appears after its referenced question (`q_smoker`) in document order. Publish freezes this with `q_smoker@2` / `q_cigs_daily@1`, compiles the step's A2UI document, and stores both with version stamps. Both questions are `required` in their pinned definitions.
+The rule is valid under ADR-16: its target (`q_accident_count`) appears after its referenced question (`q_at_fault_accident`) in document order. Publish freezes this with `q_at_fault_accident@2` / `q_accident_count@1`, compiles the step's A2UI document, and stores both with version stamps. Both questions are `required` in their pinned definitions.
 
 Evaluating (task 006) as answers arrive - `evaluateRules(snapshot, answers, resolveQuestion)`:
 
 | answers (latest per question) | visible | currentStep | missingRequired | complete |
 |---|---|---|---|---|
-| `{}` | `q_smoker` | `stp_health` | `q_smoker` | `false` |
-| `q_smoker=true` | `q_smoker`, `q_cigs_daily` | `stp_health` | `q_cigs_daily` | `false` |
-| `q_smoker=true, q_cigs_daily=20` | `q_smoker`, `q_cigs_daily` | `null` | - | `true` |
-| `q_smoker=false, q_cigs_daily=20` (stale) | `q_smoker` | `null` | - | `true` |
+| `{}` | `q_at_fault_accident` | `stp_history` | `q_at_fault_accident` | `false` |
+| `q_at_fault_accident=true` | `q_at_fault_accident`, `q_accident_count` | `stp_history` | `q_accident_count` | `false` |
+| `q_at_fault_accident=true, q_accident_count=2` | `q_at_fault_accident`, `q_accident_count` | `null` | - | `true` |
+| `q_at_fault_accident=false, q_accident_count=2` (stale) | `q_at_fault_accident` | `null` | - | `true` |
 
-The last row is hidden-answer exclusion (I6) at work: a session answering `q_smoker=true`, then `q_cigs_daily=20`, then `q_smoker=false` leaves three ledger rows; the forward pass sees the latest per question, hides `q_cigs_daily`, excludes its stale `20` from every later condition, and does not count it against completeness. The eventual submission excludes the orphaned answer from the locked set - while the ledger still shows it was once given, which is the audit property working as designed.
+The last row is hidden-answer exclusion (I6) at work: a session answering `q_at_fault_accident=true`, then `q_accident_count=2`, then `q_at_fault_accident=false` leaves three ledger rows; the forward pass sees the latest per question, hides `q_accident_count`, excludes its stale `2` from every later condition, and does not count it against completeness. The eventual submission excludes the orphaned answer from the locked set - while the ledger still shows it was once given, which is the audit property working as designed.
 
 ---
 

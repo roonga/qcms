@@ -12,11 +12,11 @@
       },
       "items": [
         {
-          "questionId": "q_smoker",
+          "questionId": "q_at_fault_accident",
           "version": 2
         },
         {
-          "questionId": "q_cigs_daily",
+          "questionId": "q_accident_count",
           "version": 1
         },
         {
@@ -58,12 +58,12 @@
         "conditions": [
           {
             "op": "equals",
-            "questionId": "q_smoker",
+            "questionId": "q_at_fault_accident",
             "value": true
           },
           {
             "op": "gt",
-            "questionId": "q_cigs_daily",
+            "questionId": "q_accident_count",
             "value": 5
           }
         ]
@@ -82,7 +82,7 @@
           },
           {
             "op": "lt",
-            "questionId": "q_cigs_daily",
+            "questionId": "q_accident_count",
             "value": 1
           }
         ]
@@ -95,7 +95,7 @@
         "op": "not",
         "condition": {
           "op": "equals",
-          "questionId": "q_smoker",
+          "questionId": "q_at_fault_accident",
           "value": true
         }
       },
@@ -125,7 +125,7 @@
             "op": "not",
             "condition": {
               "op": "equals",
-              "questionId": "q_smoker",
+              "questionId": "q_at_fault_accident",
               "value": false
             }
           }

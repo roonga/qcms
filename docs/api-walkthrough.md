@@ -29,25 +29,25 @@ Below, `$API` is the base URL, `$INT` the internal token, `$ADM` the admin marke
 
 ## 1. Author the question library (admin)
 
-Questions are versioned; the insurance form pins `q_smoker@2` and `q_cigs_daily@1`.
+Questions are versioned; the insurance form pins `q_at_fault_accident@2` and `q_accident_count@1`.
 
 ```sh
-# Create q_smoker (its definition carries the questionId). Returns v1 (draft).
+# Create q_at_fault_accident (its definition carries the questionId). Returns v1 (draft).
 curl -sX POST "$API/admin/questions" \
   -H "x-qcms-internal-token: $INT" -H "x-qcms-admin-session: $ADM" \
   -H 'content-type: application/json' \
-  -d '{"slug":"smoker","definition":{"type":"boolean","questionId":"q_smoker","label":{"en":"Do you currently smoke?"},"required":true}}'
+  -d '{"slug":"accident","definition":{"type":"boolean","questionId":"q_at_fault_accident","label":{"en":"Any at-fault accident in the last 3 years?"},"required":true}}'
 
 # Publish v1, append v2 (seeded from the latest draft), publish v2.
-curl -sX POST "$API/admin/questions/q_smoker/versions/1/publish" -H "x-qcms-internal-token: $INT" -H "x-qcms-admin-session: $ADM"
-curl -sX POST "$API/admin/questions/q_smoker/versions"           -H "x-qcms-internal-token: $INT" -H "x-qcms-admin-session: $ADM"
-curl -sX POST "$API/admin/questions/q_smoker/versions/2/publish" -H "x-qcms-internal-token: $INT" -H "x-qcms-admin-session: $ADM"
+curl -sX POST "$API/admin/questions/q_at_fault_accident/versions/1/publish" -H "x-qcms-internal-token: $INT" -H "x-qcms-admin-session: $ADM"
+curl -sX POST "$API/admin/questions/q_at_fault_accident/versions"           -H "x-qcms-internal-token: $INT" -H "x-qcms-admin-session: $ADM"
+curl -sX POST "$API/admin/questions/q_at_fault_accident/versions/2/publish" -H "x-qcms-internal-token: $INT" -H "x-qcms-admin-session: $ADM"
 
-# Create + publish q_cigs_daily v1.
+# Create + publish q_accident_count v1.
 curl -sX POST "$API/admin/questions" \
   -H "x-qcms-internal-token: $INT" -H "x-qcms-admin-session: $ADM" -H 'content-type: application/json' \
-  -d '{"slug":"cigs","definition":{"type":"number","questionId":"q_cigs_daily","label":{"en":"How many cigarettes per day?"},"required":true,"constraints":{"min":0,"max":200,"integer":true}}}'
-curl -sX POST "$API/admin/questions/q_cigs_daily/versions/1/publish" -H "x-qcms-internal-token: $INT" -H "x-qcms-admin-session: $ADM"
+  -d '{"slug":"accident-count","definition":{"type":"number","questionId":"q_accident_count","label":{"en":"How many?"},"required":true,"constraints":{"min":0,"max":200,"integer":true}}}'
+curl -sX POST "$API/admin/questions/q_accident_count/versions/1/publish" -H "x-qcms-internal-token: $INT" -H "x-qcms-admin-session: $ADM"
 ```
 
 ## 2. Create, draft, and publish the form (admin)
@@ -60,31 +60,31 @@ draft with a rule error still saves (issues are advisory); publish rejects it wi
 ```sh
 curl -sX POST "$API/admin/forms" \
   -H "x-qcms-internal-token: $INT" -H "x-qcms-admin-session: $ADM" -H 'content-type: application/json' \
-  -d '{"formId":"frm_life_signup","slug":"life","defaultLocale":"en"}'
+  -d '{"formId":"frm_auto_quote","slug":"auto","defaultLocale":"en"}'
 
-# Save the draft: one step, and a rule that shows q_cigs_daily only when q_smoker = true.
-curl -sX PUT "$API/admin/forms/frm_life_signup/draft" \
+# Save the draft: one step, and a rule that shows q_accident_count only when q_at_fault_accident = true.
+curl -sX PUT "$API/admin/forms/frm_auto_quote/draft" \
   -H "x-qcms-internal-token: $INT" -H "x-qcms-admin-session: $ADM" -H 'content-type: application/json' \
-  -d '{"definition":{"formId":"frm_life_signup","defaultLocale":"en","title":{"en":"Life insurance sign-up"},
-       "steps":[{"stepId":"stp_health","title":{"en":"Health"},
-                 "items":[{"questionId":"q_smoker","version":2},{"questionId":"q_cigs_daily","version":1}]}],
-       "rules":[{"ruleId":"rul_smoker_followup","when":{"op":"equals","questionId":"q_smoker","value":true},"show":["q_cigs_daily"]}]}}'
+  -d '{"definition":{"formId":"frm_auto_quote","defaultLocale":"en","title":{"en":"Vehicle insurance quote"},
+       "steps":[{"stepId":"stp_history","title":{"en":"Driving history"},
+                 "items":[{"questionId":"q_at_fault_accident","version":2},{"questionId":"q_accident_count","version":1}]}],
+       "rules":[{"ruleId":"rul_accident_followup","when":{"op":"equals","questionId":"q_at_fault_accident","value":true},"show":["q_accident_count"]}]}}'
 
 # Publish → { "version": 1, "publishedAt": "…" }
-curl -sX POST "$API/admin/forms/frm_life_signup/publish" -H "x-qcms-internal-token: $INT" -H "x-qcms-admin-session: $ADM"
+curl -sX POST "$API/admin/forms/frm_auto_quote/publish" -H "x-qcms-internal-token: $INT" -H "x-qcms-admin-session: $ADM"
 ```
 
 ## 3. Wire a webhook and mint a secure link (admin)
 
 ```sh
 # Configure a webhook. The plaintext secret is returned exactly once - store it.
-curl -sX POST "$API/admin/forms/frm_life_signup/webhooks" \
+curl -sX POST "$API/admin/forms/frm_auto_quote/webhooks" \
   -H "x-qcms-internal-token: $INT" -H "x-qcms-admin-session: $ADM" -H 'content-type: application/json' \
   -d '{"url":"https://consumer.example.com/qcms-hook","secret":"whsec_your_secret_value"}'
 # → { "webhookId":"whk_…", "url":"…", "active":true, "secret":"whsec_your_secret_value", … }
 
 # Mint a secure link. The token appears only inside the returned url (…/l/<token>).
-curl -sX POST "$API/admin/forms/frm_life_signup/links" \
+curl -sX POST "$API/admin/forms/frm_auto_quote/links" \
   -H "x-qcms-internal-token: $INT" -H "x-qcms-admin-session: $ADM" -H 'content-type: application/json' \
   -d '{"expiresAt":"2030-01-01T00:00:00.000Z","oneTime":false,"count":1}'
 # → { "links":[{ "linkId":"lnk_…", "url":"https://portal.example/l/<token>", "expiresAt":"…" }] }
@@ -93,28 +93,28 @@ curl -sX POST "$API/admin/forms/frm_life_signup/links" \
 ## 4. Walk the branching flow (respondent)
 
 ```sh
-# Start a session with the link token (or {"formSlug":"life"} for an anonymous start).
+# Start a session with the link token (or {"formSlug":"auto"} for an anonymous start).
 curl -sX POST "$API/sessions" \
   -H "x-qcms-internal-token: $INT" -H 'content-type: application/json' \
   -d '{"token":"<token>"}'
 # → { "sessionId":"ses_…", "sessionToken":"…", "formVersion":1, "expiresAt":"…" }
 
-# Read the current step. Initially only q_smoker is visible.
+# Read the current step. Initially only q_at_fault_accident is visible.
 curl -s "$API/sessions/$SES/step" -H "x-qcms-internal-token: $INT" -H "Authorization: Bearer $TOK"
-# → { "step":{ "stepId":"stp_health", "root":{…A2UI…} }, "a2uiSpecVersion":"…",
-#     "flowState":{ "currentStep":"stp_health", "visibleQuestions":["q_smoker"],
-#                   "missingRequired":["q_smoker"], "readyToSubmit":false }, "progress":{…} }
+# → { "step":{ "stepId":"stp_history", "root":{…A2UI…} }, "a2uiSpecVersion":"…",
+#     "flowState":{ "currentStep":"stp_history", "visibleQuestions":["q_at_fault_accident"],
+#                   "missingRequired":["q_at_fault_accident"], "readyToSubmit":false }, "progress":{…} }
 
-# Answer q_smoker = true → the q_cigs_daily branch appears.
+# Answer q_at_fault_accident = true → the q_accident_count branch appears.
 curl -sX POST "$API/sessions/$SES/answers" \
   -H "x-qcms-internal-token: $INT" -H "Authorization: Bearer $TOK" -H 'content-type: application/json' \
-  -d '{"questionId":"q_smoker","value":true}'
-# → flowState.visibleQuestions now includes "q_cigs_daily".
+  -d '{"questionId":"q_at_fault_accident","value":true}'
+# → flowState.visibleQuestions now includes "q_accident_count".
 
-# Answer q_smoker = false → the branch disappears; the flow is complete.
+# Answer q_at_fault_accident = false → the branch disappears; the flow is complete.
 curl -sX POST "$API/sessions/$SES/answers" \
   -H "x-qcms-internal-token: $INT" -H "Authorization: Bearer $TOK" -H 'content-type: application/json' \
-  -d '{"questionId":"q_smoker","value":false}'
+  -d '{"questionId":"q_at_fault_accident","value":false}'
 # → step:null, flowState.readyToSubmit:true.
 
 # Submit → the receipt. Idempotent; a flagged (honeypot/too-fast) submit returns the
@@ -142,17 +142,17 @@ const expected = `v1=${crypto.createHmac("sha256", secret).update(`${timestamp}.
 ```
 
 The locked answers exclude any question hidden at submit time (I6): here the payload
-carries only `q_smoker`.
+carries only `q_at_fault_accident`.
 
 ## 6. Export and erase (admin)
 
 ```sh
 # CSV (version required): UTF-8 BOM, CRLF, columns session_id,form_version,submitted_at,access_mode,<questionIds…>
-curl -s "$API/admin/forms/frm_life_signup/export?format=csv&version=1" \
+curl -s "$API/admin/forms/frm_auto_quote/export?format=csv&version=1" \
   -H "x-qcms-internal-token: $INT" -H "x-qcms-admin-session: $ADM"
 
 # JSON (may span versions): an array of { sessionId, formId, formVersion, submittedAt, accessMode, answers }
-curl -s "$API/admin/forms/frm_life_signup/export?format=json" \
+curl -s "$API/admin/forms/frm_auto_quote/export?format=json" \
   -H "x-qcms-internal-token: $INT" -H "x-qcms-admin-session: $ADM"
 
 # Erase a session (idempotent). Afterwards it is gone from every export and a
@@ -162,7 +162,7 @@ curl -sX POST "$API/admin/sessions/$SES/erase" \
   -d '{"reason":"subject request"}'
 # → { "sessionId","formId","formVersion","erasedAt","reason","alreadyErased":false }
 
-curl -s "$API/admin/erasures?formId=frm_life_signup" \
+curl -s "$API/admin/erasures?formId=frm_auto_quote" \
   -H "x-qcms-internal-token: $INT" -H "x-qcms-admin-session: $ADM"
 # → { "erasures":[{ "sessionId","formId","formVersion","erasedAt","reason" }] }
 ```

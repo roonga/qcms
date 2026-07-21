@@ -28,7 +28,7 @@ const stepById = (id: string): A2UIStepDocument => {
   return step;
 };
 const stepAbout = stepById("stp_about");
-const stepHealth = stepById("stp_health");
+const stepHealth = stepById("stp_history");
 const stepCover = stepById("stp_cover");
 
 // The one question type no golden document exercises: singleChoice with > 7
@@ -103,19 +103,28 @@ describe("controlled value round-trip → canonical AnswerValue (task 002 schema
     const changes = useChanges();
     render(<ControlledHost document={stepHealth} onChange={changes.onChange} />);
     await user.click(screen.getByRole("radio", { name: "Yes" }));
-    expect(parseBooleanAnswerValue(changes.latest("q_smoker"))).toEqual({ ok: true, value: true });
+    expect(parseBooleanAnswerValue(changes.latest("q_at_fault_accident"))).toEqual({
+      ok: true,
+      value: true,
+    });
     await user.click(screen.getByRole("radio", { name: "No" }));
-    expect(parseBooleanAnswerValue(changes.latest("q_smoker"))).toEqual({ ok: true, value: false });
+    expect(parseBooleanAnswerValue(changes.latest("q_at_fault_accident"))).toEqual({
+      ok: true,
+      value: false,
+    });
   });
 
   it("number (NumberField) emits a finite number", async () => {
     const user = userEvent.setup();
     const changes = useChanges();
     render(<ControlledHost document={stepHealth} onChange={changes.onChange} />);
-    const field = screen.getByRole("textbox", { name: /cigarettes/ });
+    const field = screen.getByRole("textbox", { name: /how many/i });
     await user.type(field, "12");
     await user.tab();
-    expect(parseNumberAnswerValue(changes.latest("q_cigs_daily"))).toEqual({ ok: true, value: 12 });
+    expect(parseNumberAnswerValue(changes.latest("q_accident_count"))).toEqual({
+      ok: true,
+      value: 12,
+    });
   });
 
   it("multiChoice (CheckboxGroup) emits a deduplicated OptionId[]", async () => {
