@@ -410,4 +410,30 @@ describe("challenge seam for challengeRequired forms", () => {
     const res = await postTo(gated, { formSlug: "no-challenge-form" });
     expect(res.status).toBe(201);
   });
+
+  // --- issue #13: challengeRequired is enforced on the secure-link (token)
+  // entry too, not only the anonymous (formSlug) path. handler.ts reads the
+  // link's form identity row and runs the same enforceChallenge gate.
+  it("rejects secure-link start without a challenge token for a challengeRequired form (403)", async () => {
+    const formId = await seedForm("frm_challenge_link", "challenge-link-form", {
+      versions: 1,
+      challengeRequired: true,
+    });
+    const token = await seedLink(formId, "lnk_challenge");
+    const gated = appWithVerifier(testVerifier);
+    const res = await postTo(gated, { token });
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as ErrBody).error.code).toBe("CHALLENGE_REQUIRED");
+  });
+
+  it("admits secure-link start with a valid challenge token for a challengeRequired form (201)", async () => {
+    const formId = await seedForm("frm_challenge_link_ok", "challenge-link-ok-form", {
+      versions: 1,
+      challengeRequired: true,
+    });
+    const token = await seedLink(formId, "lnk_challenge_ok");
+    const gated = appWithVerifier(testVerifier);
+    const res = await postTo(gated, { token, challengeToken: "good-token" });
+    expect(res.status).toBe(201);
+  });
 });
