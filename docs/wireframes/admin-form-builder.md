@@ -1,6 +1,6 @@
 # Wireframe - Admin form builder + condition editor
 
-**Status:** Draft (pre-027) · **Consumed by:** 033 · **Renders:** 022 (drafts, validate), 021 (library reads), 005 (`analyzeRuleGraph` client-side)
+**Status:** Signed off: Ravi, 2026-07-21 · **Consumed by:** 033 · **Renders:** 022 (drafts, validate), 021 (library reads), 005 (`analyzeRuleGraph` client-side)
 
 ## ASCII sketch
 
@@ -46,4 +46,4 @@ new empty form · draft with issues (advisory - saving allowed, publish blocked)
 
 - Validation entries are links; activating one moves focus to the target control. CodeMirror region labeled; all pickers offer the keyboard path (no drag-only interactions). Issue counts announced on change via `aria-live` (polite). Rail reorder via menu commands, not drag.
 
-Signed off: _pending (042)_
+Signed off: Ravi, 2026-07-21

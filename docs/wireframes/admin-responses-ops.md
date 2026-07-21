@@ -1,6 +1,6 @@
 # Wireframe - Admin responses, erasure, webhook operations
 
-**Status:** Draft (pre-027) · **Consumed by:** 035 · **Renders:** 023 (responses/export/erase), 024 (webhook config), 025 (delivery state, redeliver)
+**Status:** Signed off: Ravi, 2026-07-21 · **Consumed by:** 035 · **Renders:** 023 (responses/export/erase), 024 (webhook config), 025 (delivery state, redeliver)
 
 ## ASCII sketch - response browser + detail
 
@@ -44,4 +44,4 @@ no responses · filtered-empty · flagged present · detail submitted · detail 
 
 - Type-to-confirm `dialog` labels the required input with the exact string to type; error announced. Ledger timeline is a list (chronology in text, not layout). One-time secret reveal announced assertively; masked thereafter. Redeliver outcomes announced via `aria-live`. Flag/status `tag`s carry text, not color alone.
 
-Signed off: _pending (042)_
+Signed off: Ravi, 2026-07-21

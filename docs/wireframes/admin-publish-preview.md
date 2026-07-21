@@ -1,6 +1,6 @@
 # Wireframe - Admin publish, preview, versions, secure links
 
-**Status:** Draft (pre-027) · **Consumed by:** 034 · **Renders:** 022 (publish, versions, close/reopen, draft/preview), 024 (links), 028 (shared renderer)
+**Status:** Signed off: Ravi, 2026-07-21 · **Consumed by:** 034 · **Renders:** 022 (publish, versions, close/reopen, draft/preview), 024 (links), 028 (shared renderer)
 
 ## ASCII sketch - publish + preview
 
@@ -22,7 +22,7 @@
 ## Regions (normative)
 
 - **publish `dialog`**: freeze summary (steps/pins/rules counts) + R1 teaching copy · confirm/cancel `button`s. On failure: full `PublishError[]` as an actionable list - each entry links back into the builder anchored via structured `path` (033's anchoring). On success: version `tag` + link to history.
-- **preview**: banner `alert` ("Preview - not published") · dry-run compiled draft (`POST /admin/forms/:id/draft/preview`, 022 addition) rendered through **the same `@qcms/ui` renderer** (import-surface test - preview fidelity is the feature) · interactive answer state with live client-side rule evaluation (core evaluator) so authors walk branches · step prev/next `button`s · reset `button`.
+- **preview**: banner `alert` ("Preview - not published") · dry-run compiled draft (`POST /admin/forms/:id/draft/preview` - a planned thin extension of 022's draft slice that **034 lands**; deliberately **absent from the frozen 027 contract**, which predates it) rendered through **the same `@qcms/ui` renderer** (import-surface test - preview fidelity is the feature) · interactive answer state with live client-side rule evaluation (core evaluator) so authors walk branches · step prev/next `button`s · reset `button`.
 - **version history**: `table` - version, publishedAt, compilerVersion / a2uiSpecVersion / semanticsVersion (`text`, monospace) · view action → read-only render **from stored compiled JSONB** (ADR-18 - network assertion: no draft-preview call on history pages) · side-by-side definition **JSON diff** between selected versions (readable, additions/removals marked textually not color-only).
 - **secure links** (form with ≥1 published version): mint `dialog` - expiry `date-picker`, one-time `switch`, batch count `number-field` (≤ documented cap) → result list with copy-URL `button`s · links `table` - state `tag` (active/consumed/expired/revoked), consumption timestamp, revoke action (`dialog` confirm) · batch CSV export `button`.
 - **close/reopen**: form-level actions with in-flight-session explanation (R1 taught in copy).
@@ -34,7 +34,7 @@ publish confirm · publish errors (list rendered, nothing persisted) · publish 
 ## Interactions
 
 - Publish → `POST /admin/forms/:id/publish` (022) → 422 `PublishError[]` verbatim, or `{version, publishedAt}`.
-- Preview → `POST /admin/forms/:id/draft/preview` (022/034) → 011 compiled output → shared renderer; answers stay client-side.
+- Preview → `POST /admin/forms/:id/draft/preview` (022 extension landed by 034; not in the frozen 027 contract) → 011 compiled output → shared renderer; answers stay client-side.
 - History → `GET /admin/forms/:id/versions/:v` (022). Mint/list/revoke links → 024 endpoints; CSV export client-side from list data.
 - Close/reopen → `POST /admin/forms/:id/close|reopen` (022).
 
@@ -42,4 +42,4 @@ publish confirm · publish errors (list rendered, nothing persisted) · publish 
 
 - Publish-error list entries are links; activation moves focus into the builder target. Preview branch changes follow the portal announcement policy (030) so authors experience what respondents will. Copy-URL confirms via status text (`aria-live` polite). Diff readable without color (± markers).
 
-Signed off: _pending (042)_
+Signed off: Ravi, 2026-07-21

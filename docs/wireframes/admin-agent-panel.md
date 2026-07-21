@@ -1,6 +1,6 @@
 # Wireframe - Admin agent panel (agent-assisted form building)
 
-**Status:** Draft (pre-027) · **Consumed by:** 041 · **Renders:** `POST /admin/forms/:id/draft/assist` (041, SSE) · visible only when `QCMS_FLAG_AGENT_AUTHORING` ≠ `none`
+**Status:** Signed off: Ravi, 2026-07-21 · **Consumed by:** 041 · **Renders:** `POST /admin/forms/:id/draft/assist` (a 041 route, SSE; flag-gated and **not part of the frozen 027 core contract**) · visible only when `QCMS_FLAG_AGENT_AUTHORING` ≠ `none`
 
 ## ASCII sketch - docked beside the builder (033)
 
@@ -45,4 +45,4 @@ flag off (panel absent; no assist routes mounted) · empty conversation (prompt 
 
 - Panel is a labeled complementary landmark; collapse state persists. Streaming progress announced politely ("assistant is working"), completion announced ("proposal ready, 4 additions, validation passed"). Diff entries are a list; accept/discard reachable in order after the diff. Provider errors use `alert` semantics. Focus moves to the proposal summary when a proposal completes, back to the input after accept/discard.
 
-Signed off: _pending (042)_
+Signed off: Ravi, 2026-07-21

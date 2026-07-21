@@ -1,6 +1,6 @@
 # Wireframe - Portal respondent flow
 
-**Status:** Draft (pre-027) · **Consumed by:** 029 (portal), 030 (a11y pass) · **Renders:** 018 (start-session), 019 (get-step, submit-answer), 020 (submit)
+**Status:** Signed off: Ravi, 2026-07-21 · **Consumed by:** 029 (portal), 030 (a11y pass) · **Renders:** 018 (start-session), 019 (get-step, submit-answer), 020 (submit)
 
 ## ASCII sketch - flow step page (`/s/:sessionId`)
 
@@ -52,4 +52,4 @@ first-step · mid-flow · branch-inserted (follow-up appears) · branch-removed 
 - Step change announced: "Step N of M: {title}". Submit failure: focus moves to error-summary `alert`.
 - Full keyboard traversal; skip link; honeypot invisible to AT (verified in 030's manual pass).
 
-Signed off: _pending (042)_
+Signed off: Ravi, 2026-07-21

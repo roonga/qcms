@@ -1,6 +1,6 @@
 # Wireframe - Admin question library
 
-**Status:** Draft (pre-027) · **Consumed by:** 032 · **Renders:** 021 (question CRUD/versions/publish/deprecate)
+**Status:** Signed off: Ravi, 2026-07-21 · **Consumed by:** 032 · **Renders:** 021 (question CRUD/versions/publish/deprecate)
 
 ## ASCII sketch - library list + editor
 
@@ -48,4 +48,4 @@ empty library (+ seed hint: `pnpm qcms:seed-fixtures`) · list filtered-empty ·
 
 - Table: proper headers, row action reachable by keyboard. Option editor reorder operable without drag (up/down `button`s). Validation errors `aria-describedby`-linked. Lifecycle `dialog`s trap focus, return focus on close. Status conveyed by text in `tag`s, not color alone.
 
-Signed off: _pending (042)_
+Signed off: Ravi, 2026-07-21

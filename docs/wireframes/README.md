@@ -1,6 +1,6 @@
 # Wireframes - format spec (binding)
 
-**Status:** Drafted 2026-07-19 in the plan bundle, ahead of execution (per owner decision). Every file is **Draft (pre-027)** until task 042 verifies it against the frozen API contracts and records sign-off. Task 001 copies this folder to `docs/wireframes/` in the repo.
+**Status:** Verified against the frozen 027 API contracts and **signed off by Ravi, 2026-07-21** (task 042). Structure is now binding for the UI tasks (029, 031-035, 041). Task 001 copies this folder to `docs/wireframes/` in the repo.
 
 ## The one rule
 
@@ -22,8 +22,8 @@ Each wireframe file contains, in order:
 
 | Needed | For | Status |
 |---|---|---|
-| Multiline text (textarea or `text-field` multiline prop) | `longText` answers | flagged in 011 |
-| Checkbox group | `multiChoice` answers | flagged in 011 |
-| Pagination | admin tables (library, responses) | flagged here - compose from `button`s until upstream lands |
-| Toast/notification | save/publish/action feedback | flagged here - use inline `alert` until upstream lands |
-| Progress/loading indicator | streaming agent proposals, exports | flagged here - use `text` + `aria-busy` until upstream lands |
+| Multiline text (`text-area` / `TextArea`) | `longText` answers | **resolved (042)** - `@a2ra/core@1.0.0-preview.7` ships `TextArea`; vendored in 028 (`packages/ui/src/components/a2ui/text-area/`), `packages/ui/a2ra.json` pins the registry commit. The 011 gap is closed. |
+| Checkbox group (`checkbox` / `CheckboxGroup`) | `multiChoice` answers | **resolved (042)** - `CheckboxGroup` is in the preview.7 registry; vendored in 028 (`packages/ui/src/components/a2ui/checkbox/`). The 011 gap is closed. |
+| Pagination | admin tables (library, responses) | open - compose from `button`s until upstream lands |
+| Toast/notification | save/publish/action feedback | open - use inline `alert` until upstream lands |
+| Progress/loading indicator | streaming agent proposals, exports | open - use `text` + `aria-busy` until upstream lands |
