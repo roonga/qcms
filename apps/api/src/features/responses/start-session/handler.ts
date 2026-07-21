@@ -34,8 +34,9 @@ import {
   getLatestPublishedVersion,
   getSecureLink,
   getSession,
+  sessionExpiresAt,
 } from "@qcms/db";
-import type { Executor, SecureLinkRow } from "@qcms/db";
+import type { Executor, SecureLinkRow, SessionTtlConfig } from "@qcms/db";
 
 import type { Config } from "../../../config.js";
 import type { Deps } from "../../../deps.js";
@@ -71,9 +72,9 @@ function newSessionId(): SessionId {
   return `ses_${hex}` as SessionId;
 }
 
-/** Anonymous session TTL expiry: `now + config TTL`. */
-function anonymousExpiry(config: Config, now: Date): Date {
-  return new Date(now.getTime() + config.ttl.anonymousSessionMs);
+/** The @qcms/db TTL policy for the API's configured anonymous session lifetime. */
+function ttlConfig(config: Config): SessionTtlConfig {
+  return { anonymousTtlMs: config.ttl.anonymousSessionMs };
 }
 
 interface StartResult {
@@ -150,7 +151,11 @@ async function startAnonymous(
   const version = await getLatestPublishedVersion(deps.db, form.formId);
   if (version === undefined) throw fail.noPublishedVersion();
 
-  const expiresAt = anonymousExpiry(deps.config, now);
+  const expiresAt = sessionExpiresAt({
+    accessMode: "anonymous",
+    now,
+    config: ttlConfig(deps.config),
+  });
   const sessionId = newSessionId();
   await createSession(deps.db, {
     sessionId,
@@ -190,10 +195,15 @@ async function startFromSecureLink(
   const form = await getForm(deps.db, formId);
   await enforceChallenge(deps, form?.challengeRequired ?? false, challenge);
 
-  // Session expiry never outlives the link, nor the anonymous TTL ceiling.
-  const expiresAt = new Date(
-    Math.min(linkExpiresAt.getTime(), anonymousExpiry(deps.config, now).getTime()),
-  );
+  // Session expiry never outlives the link, nor the anonymous TTL ceiling
+  // (SEC-2). The min(link, now + TTL) policy lives in the @qcms/db helper so
+  // this slice and any future resume/extend caller stay consistent (issue #6).
+  const expiresAt = sessionExpiresAt({
+    accessMode: "secure_link",
+    now,
+    linkExpiresAt,
+    config: ttlConfig(deps.config),
+  });
   const sessionId = newSessionId();
 
   let formVersion: number;

@@ -29,9 +29,9 @@ import { type AccessMode, expireSessions, type SessionRow } from "./sessions.js"
  * Default TTL for **anonymous** sessions: 24 hours. An anonymous session with no
  * activity for a day is treated as abandoned and swept to `expired`.
  *
- * `secure_link` sessions have no independent TTL - a session opened from a
- * secure link expires when its link expires (SEC-2: the session never outlives
- * the token that authorized it), so its `expiresAt` is the link's `expiresAt`.
+ * `secure_link` sessions still carry the anonymous TTL as a ceiling: a session
+ * opened from a secure link expires at `min(link expiry, now + TTL)` - it never
+ * outlives the token that authorized it (SEC-2), nor the anonymous TTL horizon.
  * See {@link sessionExpiresAt}.
  */
 export const DEFAULT_ANONYMOUS_SESSION_TTL_MS = 24 * 60 * 60 * 1000;
@@ -49,12 +49,14 @@ export const DEFAULT_SESSION_TTL: SessionTtlConfig = {
 
 /**
  * Compute a new session's `expiresAt` from its access mode - the single place
- * the launch TTL policy lives, so the API's start-session slice (017) never
+ * the launch TTL policy lives, so the API's start-session slice (018) never
  * hardcodes it:
  *
  * - `anonymous` → `now + anonymousTtlMs` (default 24h).
- * - `secure_link` → the link's own `expiresAt` (required; the session expires
- *   with its link, never after it).
+ * - `secure_link` → `min(link expiry, now + anonymousTtlMs)`: the session
+ *   expires with its link and never after it, but the anonymous TTL is also a
+ *   ceiling so a long-lived link cannot mint an over-long session (SEC-2). The
+ *   `linkExpiresAt` input is required.
  *
  * Pure and deterministic over its inputs (no clock, no db). A `secure_link`
  * call without `linkExpiresAt` is a programming error and throws.
@@ -65,14 +67,16 @@ export function sessionExpiresAt(input: {
   linkExpiresAt?: Date;
   config?: SessionTtlConfig;
 }): Date {
+  const ttlMs = (input.config ?? DEFAULT_SESSION_TTL).anonymousTtlMs;
+  const ttlExpiry = new Date(input.now.getTime() + ttlMs);
   if (input.accessMode === "secure_link") {
     if (input.linkExpiresAt === undefined) {
       throw new Error("sessionExpiresAt: secure_link sessions require linkExpiresAt");
     }
-    return input.linkExpiresAt;
+    // Clamp to the TTL ceiling: the session never outlives its link *or* the TTL.
+    return input.linkExpiresAt.getTime() < ttlExpiry.getTime() ? input.linkExpiresAt : ttlExpiry;
   }
-  const ttlMs = (input.config ?? DEFAULT_SESSION_TTL).anonymousTtlMs;
-  return new Date(input.now.getTime() + ttlMs);
+  return ttlExpiry;
 }
 
 /** Outcome of a retention sweep. */
