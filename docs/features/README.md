@@ -63,6 +63,7 @@ Status values: `todo` · `in-progress (branch)` · `blocked (issue #)` · `done 
 | 043 | Rename example domain to vehicle insurance (runs after 029, before 030/031–035) | 7 | done (one-time golden re-baseline, ADR-18 amended 2026-07-22; closes #16) |
 | 044 | No-JS submission (progressive enhancement; after 029, off the launch gate - issue #17) | 7 | done (closed for boolean/choice/text/date; numeric no-JS deferred - upstream RAC limit, #18) |
 | 045 | Portal step navigation: explicit cursor (Continue/Back/Submit); full-flow kitchen-sink e2e x3 viewports with independent DB + container-log verification (fixes review M/N/G; ADR-28) | 7 | in-progress (feat/045-portal-step-navigation) |
+| 046 | Dev container as the canonical dev environment (Ubuntu 24.04; bypassPermissions loop; ADR-29) - off the launch gate; dispatch manually via `/task 046` after 045, not auto-selected | 7 | todo |
 | 036 | Production images, compose, ops docs | 8b | todo |
 | 037 | create-qcms-app CLI | 8b | todo |
 | 040 | Security review and hardening (runs after 036, before 038) | 8b | todo |

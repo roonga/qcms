@@ -56,7 +56,7 @@ Launch **excludes** (recorded as `phase-4` issues, never built early): impact an
 
 ## 6. Decision record - additions
 
-ADR-01…15 are the project's foundational scope decisions. The following decisions were added after the plan reviews (ADR-16…19: 2026-07-18; ADR-20…25: 2026-07-19; ADR-26: 2026-07-21; ADR-27: 2026-07-23; ADR-28: 2026-07-23) to resolve identified underspecifications. They carry the same weight.
+ADR-01…15 are the project's foundational scope decisions. The following decisions were added after the plan reviews (ADR-16…19: 2026-07-18; ADR-20…25: 2026-07-19; ADR-26: 2026-07-21; ADR-27: 2026-07-23; ADR-28: 2026-07-23; ADR-29: 2026-07-23) to resolve identified underspecifications. They carry the same weight.
 
 ### ADR-16 - Rules evaluation: forward-pass with publish-time cycle rejection
 
@@ -196,6 +196,16 @@ Dates, numbers, and currency are formatted **locale-aware via the platform `Intl
 **Why.** The shipped model derived the cursor from validation state: `evaluate-rules.ts` computes `currentStep` as the first step still holding an unanswered required question, and the portal renders exactly that step. Navigation was therefore a side effect of answering, which (manual review 2026-07-23) makes multi-choice unusable (one selection satisfies "required" and collapses the question before more can be picked), regresses a respondent backward when a later action re-opens an earlier required question, provides no Back, and violates WCAG 3.2.2 (On Input) - a selection causes a context change with no explicit action. The 042 wireframe (signed off 2026-07-21) already specifies Back, so explicit navigation is the intended model; this ADR records it and makes the implementation conform.
 
 **Consequences.** Serve-step may need to return a *requested* visible step (by cursor), not only the first-incomplete one; R2 is preserved (the portal requests and renders; it performs no rule evaluation). Determinism, immutability, and auditability are unaffected: navigation is UI cursor state, answers remain append-only (R3 / ADR-17), and the compiled document is unchanged (ADR-18). Implemented by task 045, whose full-stack e2e (kitchen-sink across phone/tablet/desktop, independent Postgres verification of persisted answers, browser + container-log error gates) is the proof and blocks 030's manual accessibility pass.
+
+### ADR-29 - Dev container as the canonical development environment
+
+**Decision.** Adopt a Dev Container (containers.dev spec; plain Docker underneath) as the canonical environment for both the autonomous dev loop and human contributors. The loop runs inside it with `--permission-mode bypassPermissions` - the container is the blast radius, so full autonomy is safe; the product build, the merge gate, and the Testcontainers suite (ADR-23) all run inside it. The product-owner seat stays on the host. Shape: a single-container `image` (Ubuntu 24.04 base) plus Features (node 24, `docker-outside-of-docker`, `github-cli`, `powershell`), reusing the existing `docker-compose.dev.yml` for the dev DB - **not** the `javascript-node-postgres` template, which bundles a long-lived Postgres the suite does not use. The canonical supervisor becomes `scripts/agent-loop.sh` (bash); `agent-loop.ps1` is retained for the Windows-host fallback. Cross-platform guards stay: Linux is the canonical, tested path, not the exclusive one - contributors on any OS (and Codespaces) are first-class. The dev-loop repos live in the WSL2 filesystem for I/O performance; the Windows checkout stays for the PO seat.
+
+**Why.** `bypassPermissions` is only responsible with real isolation, which the container provides. Linux erases the recurring Windows-isms this project keeps hitting (`git.exe` vs `git`, `pnpm.cmd` EINVAL, PowerShell path-token/`$env` traps, docker-credsStore, orphaned worktree folders). One environment onboards every contributor on any OS and enables free GitHub Codespaces. It shares a base with the production images of task 036, so it is groundwork, not a detour.
+
+**Trade-off (recorded honestly).** The merge gate boots real Docker Postgres per test file (Testcontainers). The container reaches Docker through a mounted host socket (`docker-outside-of-docker`), spinning *sibling* containers on the host - which re-widens the blast radius slightly (the container can drive host Docker). Acceptable on a solo/trusted machine; recorded as a decision, not an accident.
+
+**Consequences.** Implemented by task 046, which runs **after 045** so that 045's portal e2e (kitchen-sink across three viewports, independent Postgres verification, browser + container-log gates) becomes the migration's acceptance test - the environment is trusted only when that suite is green *inside* the container. The change is additive and reversible: the host workflow (`pwsh scripts/agent-loop.ps1`) is untouched and remains the fallback. Memory and CLAUDE.md notes describing PowerShell path traps are reframed as host-Windows-only once the container is canonical.
 
 ## 7. Constraints
 
