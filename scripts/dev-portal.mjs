@@ -6,7 +6,7 @@
  * e2e globalSetup, which lives and dies with the test run. This script makes it
  * a repeatable thing a human can drive:
  *
- *   1. Bring up the dev Postgres (docker-compose.dev.yml, QCMS_DB_PORT=5433) and
+ *   1. Bring up the dev Postgres (docker-compose.dev.yml, QCMS_DB_PORT=7020) and
  *      migrate it to head (the same package-owned migration set adopters run).
  *   2. Seed AND PUBLISH the kitchen-sink form (frm_kitchen_sink) through the
  *      exact same publish pipeline the e2e seed uses - the published @qcms/db
@@ -38,7 +38,7 @@ const REPO_ROOT = fileURLToPath(new URL("../", import.meta.url));
 // ---------------------------------------------------------------------------
 // Tunables (all overridable via env so the script never hard-codes a machine).
 // ---------------------------------------------------------------------------
-const DB_PORT = process.env.QCMS_DB_PORT ?? "5433";
+const DB_PORT = process.env.QCMS_DB_PORT ?? "7020";
 const DB_USER = process.env.QCMS_DB_USER ?? "qcms";
 const DB_PASSWORD = process.env.QCMS_DB_PASSWORD ?? "qcms";
 const DB_NAME = process.env.QCMS_DB_NAME ?? "qcms";
@@ -46,8 +46,8 @@ const DATABASE_URL =
   process.env.DATABASE_URL ??
   `postgres://${DB_USER}:${DB_PASSWORD}@localhost:${DB_PORT}/${DB_NAME}`;
 
-const API_PORT = process.env.QCMS_DEV_API_PORT ?? "4020";
-const PORTAL_PORT = process.env.QCMS_DEV_PORTAL_PORT ?? "3000";
+const API_PORT = process.env.QCMS_DEV_API_PORT ?? "7010";
+const PORTAL_PORT = process.env.QCMS_DEV_PORTAL_PORT ?? "7000";
 const API_BASE_URL = `http://127.0.0.1:${API_PORT}`;
 const PORTAL_BASE_URL = `http://localhost:${PORTAL_PORT}`;
 

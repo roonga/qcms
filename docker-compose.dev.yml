@@ -4,7 +4,7 @@ services:
   postgres:
     image: postgres:16-alpine
     ports:
-      - "${QCMS_DB_PORT:-5432}:5432"
+      - "${QCMS_DB_PORT:-7020}:5432"
     environment:
       POSTGRES_USER: ${QCMS_DB_USER:-qcms}
       POSTGRES_PASSWORD: ${QCMS_DB_PASSWORD:-qcms}

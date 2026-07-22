@@ -85,14 +85,14 @@ pnpm dev:portal
 ```
 
 This one command brings up the dev Postgres (`docker-compose.dev.yml`,
-`QCMS_DB_PORT=5433`), migrates it, seeds and publishes the kitchen-sink form
+`QCMS_DB_PORT=7020`), migrates it, seeds and publishes the kitchen-sink form
 (`frm_kitchen_sink`: every question type plus two branch rules) through the same
 publish pipeline the e2e seed uses, then starts the API and this portal wired
 together and waits until both are healthy. Seeding is idempotent. When ready it
 prints the respondent URL:
 
 ```
-http://localhost:3000/f/kitchen-sink
+http://localhost:7000/f/kitchen-sink
 ```
 
 Open it, click **Start**, and walk the flow. Stop with **Ctrl+C** (stops the API

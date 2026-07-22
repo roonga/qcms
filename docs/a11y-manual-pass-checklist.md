@@ -34,13 +34,13 @@ branch rules:
 pnpm dev:portal
 ```
 
-It brings up the dev Postgres (`docker-compose.dev.yml`, `QCMS_DB_PORT=5433`),
+It brings up the dev Postgres (`docker-compose.dev.yml`, `QCMS_DB_PORT=7020`),
 migrates it, seeds + publishes `frm_kitchen_sink`, then starts the API and the
 portal wired together and waits until both are healthy. Seeding is idempotent, so
 re-running is safe. When it is ready it prints the respondent URL:
 
 ```
-http://localhost:3000/f/kitchen-sink
+http://localhost:7000/f/kitchen-sink
 ```
 
 Open that, click **Start**, and walk the flow. To stop, press **Ctrl+C** (stops
@@ -52,8 +52,8 @@ docker compose -f docker-compose.dev.yml down
 
 The `dev:portal` script generates the internal service token in memory per run
 and never writes a secret to disk. Ports are overridable via env
-(`QCMS_DEV_PORTAL_PORT`, `QCMS_DEV_API_PORT`, `QCMS_DB_PORT`) if 3000 / 4020 /
-5433 are taken on your machine.
+(`QCMS_DEV_PORTAL_PORT`, `QCMS_DEV_API_PORT`, `QCMS_DB_PORT`) if 7000 / 7010 /
+7020 are taken on your machine.
 
 ## Environment (fill in)
 
