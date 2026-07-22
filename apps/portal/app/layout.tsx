@@ -38,7 +38,17 @@ export default async function RootLayout({ children }: { readonly children: Reac
   return (
     <html lang="en" className="light" suppressHydrationWarning>
       <head>
-        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
+        {/* The CSP nonce is present on the server-rendered script but stripped
+            from the client HTML (Next serializes no nonce to the browser, by
+            design - SEC-9), so server and client markup differ on this attribute.
+            That difference is expected, not a bug, so suppress React's hydration
+            warning for this element (finding A). The nonce still authorizes the
+            inline script server-side; the CSP is not weakened. */}
+        <script
+          nonce={nonce}
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }}
+        />
       </head>
       <body>
         <a href="#portal-main" className="skip-link">

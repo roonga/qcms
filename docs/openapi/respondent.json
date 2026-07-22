@@ -514,7 +514,7 @@
     },
     "/sessions/{id}/step": {
       "get": {
-        "summary": "Serve the current step's stored compiled UI and flow projection (session-token authed)",
+        "summary": "Serve a step's stored compiled UI and flow projection (session-token authed)",
         "tags": [
           "responses"
         ],
@@ -534,6 +534,19 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "nullable": true,
+              "minimum": 0,
+              "description": "0-based index of the visible step to render (the explicit navigation cursor, ADR-28). Clamped to the visible range; omit to serve the first incomplete step.",
+              "example": 1
+            },
+            "required": false,
+            "description": "0-based index of the visible step to render (the explicit navigation cursor, ADR-28). Clamped to the visible range; omit to serve the first incomplete step.",
+            "name": "step",
+            "in": "query"
           }
         ],
         "responses": {
@@ -602,6 +615,19 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "nullable": true,
+              "minimum": 0,
+              "description": "0-based index of the visible step to render (the explicit navigation cursor, ADR-28). Clamped to the visible range; omit to serve the first incomplete step.",
+              "example": 1
+            },
+            "required": false,
+            "description": "0-based index of the visible step to render (the explicit navigation cursor, ADR-28). Clamped to the visible range; omit to serve the first incomplete step.",
+            "name": "step",
+            "in": "query"
           }
         ],
         "requestBody": {

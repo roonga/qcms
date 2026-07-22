@@ -6,10 +6,12 @@
  * controls are reached by Tab/focus and operated by Space/Enter/typing.
  */
 
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "./support/gates.js";
+import type { Page } from "@playwright/test";
 
 import { readFixtures } from "./support/fixtures.js";
 import { ACCIDENT_LABEL, COUNT_LABEL } from "./support/flow.js";
+import { startKitchenSink } from "./support/kitchen-sink.js";
 
 /** Select an at-fault-accident radio by keyboard and await the recorded answer. */
 async function keyboardChoose(page: Page, answer: "Yes" | "No"): Promise<void> {
@@ -99,4 +101,24 @@ test("keyboard-only flow: insertion keeps focus + announces, removal announces, 
     await expect(page).toHaveURL(/\/done/, { timeout: 3000 });
   }).toPass({ timeout: 20000 });
   await expect(page.getByText("Thank you, your responses were received")).toBeVisible();
+});
+
+test("keyboard: kitchen-sink Continue gate is keyboard-operable", async ({ page }) => {
+  const { kitchenSinkSlug } = readFixtures();
+  await startKitchenSink(page, kitchenSinkSlug);
+
+  // On a multi-step form the primary action is "Continue" (Submit only on the
+  // final step); Back is hidden on the first step (042).
+  const primary = page.getByTestId("primary-action");
+  await expect(primary).toHaveText("Continue");
+  await expect(page.getByTestId("back-action")).toHaveCount(0);
+
+  // The Continue control is reachable and operable by keyboard: focusing it and
+  // pressing Enter with the required fields empty surfaces the error summary and
+  // does NOT advance (ADR-28: explicit navigation, gated on required answers).
+  await primary.focus();
+  await expect(primary).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("error-summary")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "About you" })).toBeVisible();
 });

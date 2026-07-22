@@ -13,7 +13,7 @@
  * JavaScript in play.
  */
 
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./support/gates.js";
 
 import { ACCIDENT_LABEL, FORM_HEADING } from "./support/flow.js";
 import { readFixtures } from "./support/fixtures.js";

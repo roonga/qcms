@@ -20,14 +20,14 @@ import type { Deps } from "../../../deps.js";
 import { errorResponses, withScopes } from "../../../openapi.js";
 import { answersPerIpLimiter, answersPerSessionLimiter } from "../rate-limits.js";
 import { makeGetStepHandler, makeSubmitAnswerHandler } from "./handler.js";
-import { SessionParams, StepResponse, SubmitAnswerBody } from "./schema.js";
+import { SessionParams, StepQuery, StepResponse, SubmitAnswerBody } from "./schema.js";
 
 export const getStepRoute = createRoute({
   method: "get",
   path: "/sessions/{id}/step",
-  summary: "Serve the current step's stored compiled UI and flow projection (session-token authed)",
+  summary: "Serve a step's stored compiled UI and flow projection (session-token authed)",
   tags: ["responses"],
-  request: { params: SessionParams },
+  request: { params: SessionParams, query: StepQuery },
   responses: {
     200: {
       description: "The current step document and client-safe flow projection",
@@ -46,6 +46,7 @@ export const submitAnswerRoute = createRoute({
   tags: ["responses"],
   request: {
     params: SessionParams,
+    query: StepQuery,
     body: {
       required: true,
       content: { "application/json": { schema: SubmitAnswerBody } },

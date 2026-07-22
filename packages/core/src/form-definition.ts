@@ -84,6 +84,16 @@ export const FormDefinition = z
     title: LocalizedText,
     steps: z.array(Step).min(1),
     rules: z.array(VisibilityRule),
+    /**
+     * Reserved per-form navigation setting (ADR-28, finding H). When `true`, the
+     * portal MAY auto-advance to the next step as the last required answer of a
+     * step lands; the default (absent, treated as `false`) means explicit
+     * Continue navigation. Task 045 reserves the schema slot ONLY - it is not yet
+     * honored anywhere, and the builder-UI toggle plus the auto-advance behaviour
+     * are a later admin task. Optional so every existing published snapshot
+     * parses unchanged (the field is simply absent).
+     */
+    advanceOnComplete: z.boolean().optional(),
   })
   .superRefine((form, ctx) => {
     const seenSteps = new Set<string>();

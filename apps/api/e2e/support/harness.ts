@@ -19,6 +19,7 @@ import { startTestDb, type TestDb } from "@qcms/db/testing";
 import { createApp } from "../../src/app.js";
 import type { Deps } from "../../src/deps.js";
 import type { MountFlags } from "../../src/config.js";
+import type { Logger } from "../../src/logger.js";
 import { appGroups } from "../../src/registrars.js";
 import { fixedClock, internalTokenFor, makeDeps, validEnv } from "../../src/test-support.js";
 
@@ -55,14 +56,23 @@ export interface ComposedApi {
 /**
  * Compose an app for a given database, environment, and process shape. The clock
  * is pinned to {@link NOW}. Every composition built from the same `env` shares
- * signing keys, the internal token, and the app-encryption key.
+ * signing keys, the internal token, and the app-encryption key. An optional
+ * `logger` override lets a harness capture the API's structured log stream (the
+ * portal e2e's server-side log gate writes it to a file, task 045); when omitted
+ * the default null logger is used, so existing scenarios are unaffected.
  */
 export function composeApi(
   db: TestDb["db"],
   env: Record<string, string | undefined>,
   flags: MountFlags,
+  opts: { logger?: Logger } = {},
 ): ComposedApi {
-  const deps = makeDeps({ db, env, clock: fixedClock(NOW) });
+  const deps = makeDeps({
+    db,
+    env,
+    clock: fixedClock(NOW),
+    ...(opts.logger !== undefined ? { logger: opts.logger } : {}),
+  });
   const app = createApp(deps, flags, { groups: appGroups });
   return { app, deps, internalToken: internalTokenFor(deps.config) };
 }

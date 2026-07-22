@@ -11,10 +11,21 @@
  */
 
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "./support/gates.js";
+import type { Page } from "@playwright/test";
 
 import { readFixtures } from "./support/fixtures.js";
 import { COUNT_LABEL, answerCount, chooseAccident, startAnonymousFlow } from "./support/flow.js";
+import {
+  KS,
+  answerNumber,
+  chooseRadio,
+  checkOption,
+  continueStep,
+  enterDate,
+  fillText,
+  startKitchenSink,
+} from "./support/kitchen-sink.js";
 
 /** Run axe on the current page state; fail on any violation, prove it ran. */
 async function expectNoAxeViolations(page: Page, label: string): Promise<void> {
@@ -60,6 +71,27 @@ test("axe: blocked-submit error-summary state has zero violations", async ({ pag
   await page.getByTestId("primary-action").click();
   await expect(page.getByTestId("error-summary")).toBeVisible();
   await expectNoAxeViolations(page, "blocked submit (error summary)");
+});
+
+test("axe: kitchen-sink flow states (six of seven types + a branch) have zero violations", async ({
+  page,
+}) => {
+  const { kitchenSinkSlug } = readFixtures();
+  await startKitchenSink(page, kitchenSinkSlug);
+  // Step 1: short text + date.
+  await expectNoAxeViolations(page, "kitchen-sink step 1 (short text + date)");
+
+  await fillText(page, KS.fullName, "Ada Lovelace");
+  await enterDate(page, "05171990");
+  await continueStep(page);
+  await expect(page.getByRole("heading", { name: "Driving history" })).toBeVisible();
+  // Step 2: boolean + number + multi-choice + (revealed) long text.
+  await chooseRadio(page, "Yes");
+  await answerNumber(page, "10");
+  await checkOption(page, "Breakdown");
+  await checkOption(page, "Windscreen");
+  await expect(page.getByRole("textbox", { name: KS.extraDetail })).toBeVisible();
+  await expectNoAxeViolations(page, "kitchen-sink step 2 branch-inserted (all four types)");
 });
 
 test("axe: completion page has zero violations", async ({ page }) => {

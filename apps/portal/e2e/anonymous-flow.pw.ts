@@ -1,29 +1,31 @@
 /**
  * Anonymous entry -> branching walkthrough -> submit -> completion (task 029,
- * exit criteria 1 and 5). Drives the portal against the composed API booted in
- * globalSetup, on Playwright's Pixel 7 mobile emulation.
+ * updated for explicit navigation, ADR-28 / task 045). Drives the portal against
+ * the composed API booted in globalSetup, on Playwright's Pixel 7 mobile
+ * emulation.
  *
- * Branch model note (as-built): the API serves the full compiled step document
- * for the step (ADR-18: it never prunes the stored A2UI), and the @qcms/ui
- * renderer renders exactly that document, so both questions are always in the DOM.
- * The insurance branch is therefore observable through the *flow projection*, not
- * field mount/unmount: choosing "Yes" makes q_accident_count a visible required
- * question (the primary action stays "Continue" until it is answered), while
- * choosing "No" leaves it not-required and the form immediately ready ("Submit").
- * We assert the branch through that primary-action label, which is the honest
- * signal this build exposes.
+ * Branch model note (as-built): the insurance fixture is a SINGLE visible step, so
+ * the primary action is always "Submit" (Submit appears only on the final step,
+ * and the only step is the final one). The API serves the full compiled step
+ * document (ADR-18) and the @qcms/ui renderer renders exactly that, so both
+ * questions are in the DOM; the branch is observable through the *flow
+ * projection*: choosing "Yes" makes q_accident_count a visible required question
+ * (a Submit is then blocked with the error summary until it is answered), while
+ * choosing "No" leaves it not-required and the form immediately submittable.
+ * Answering never advances or collapses the step (ADR-28).
  *
  * The "Yes" path additionally throttles the network (CDP
  * Network.emulateNetworkConditions) to prove the insurance fixture still completes
- * on a slow mobile connection (exit criterion 5).
+ * on a slow mobile connection.
  */
 
-import { expect, test, type Page } from "@playwright/test";
+import { test, expect } from "./support/gates.js";
+import type { Page } from "@playwright/test";
 
 import { readFixtures } from "./support/fixtures.js";
 import { COUNT_LABEL, chooseAccident, startAnonymousFlow } from "./support/flow.js";
 
-/** Submit, then assert the completion page shows a 64-hex content hash. */
+/** Submit from the final step, then assert the completion page's content hash. */
 async function submitAndExpectReceipt(page: Page): Promise<void> {
   await expect(page.getByTestId("primary-action")).toHaveText("Submit");
   await page.getByTestId("primary-action").click();
@@ -36,7 +38,7 @@ test("anonymous at-fault-accident branch completes on a throttled mobile connect
 }) => {
   const { slug } = readFixtures();
 
-  // Throttle to a slow mobile profile before navigating (exit criterion 5).
+  // Throttle to a slow mobile profile before navigating.
   const client = await page.context().newCDPSession(page);
   await client.send("Network.emulateNetworkConditions", {
     offline: false,
@@ -47,18 +49,16 @@ test("anonymous at-fault-accident branch completes on a throttled mobile connect
 
   await startAnonymousFlow(page, slug);
 
-  // Choosing "Yes" makes the follow-up number question required: the branch keeps
-  // the primary action on "Continue" until it is answered.
+  // Choosing "Yes" makes the follow-up number question visible + required (the
+  // single-step form still shows "Submit"). Blocked-submit is covered by the
+  // dedicated a11y-axe error-summary spec; here we just complete the flow.
   await chooseAccident(page, "Yes");
   await expect(page.getByText(COUNT_LABEL)).toBeVisible();
-  await expect(page.getByTestId("primary-action")).toHaveText("Continue");
+  await expect(page.getByTestId("primary-action")).toHaveText("Submit");
 
-  // Answer the number, then blur to post it (the branch is then satisfied ->
-  // "Submit"). Type key-by-key: the react-aria NumberField is a controlled input
-  // that commits per keystroke, so a real type registers where a one-shot fill
-  // does not. The answer posts on the field's blur, and Tab would only move focus
-  // to the field's own stepper button (still inside the field), so blur by
-  // clicking a neutral heading to move focus fully out of the control.
+  // Answer the number, then blur to post it (the branch is then satisfied). Type
+  // key-by-key: the react-aria NumberField commits per keystroke. The answer posts
+  // on blur, so blur by clicking a neutral heading to move focus fully out.
   const count = page.getByRole("textbox", { name: /how many/i });
   await count.click();
   await count.pressSequentially("10");
@@ -71,8 +71,8 @@ test("anonymous no-accident branch is ready to submit directly", async ({ page }
   const { slug } = readFixtures();
   await startAnonymousFlow(page, slug);
 
-  // Choosing "No" leaves the follow-up not-required, so the form is immediately
-  // ready: the primary action flips to "Submit" with no further answers.
+  // Choosing "No" leaves the follow-up not-required, so the single step is
+  // immediately submittable with no further answers.
   await chooseAccident(page, "No");
 
   await submitAndExpectReceipt(page);

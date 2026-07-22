@@ -30,3 +30,20 @@ export const FIXED_INTERNAL_TOKEN = "qcms-e2e-portal-shared-internal-token-00000
 export const FIXTURES_PATH = fileURLToPath(
   new URL("../../.playwright/fixtures.json", import.meta.url),
 );
+
+/**
+ * Absolute directory the server-side logs are captured into for the run window
+ * (task 045, exit criterion 5): the composed API's structured log, the Postgres
+ * container's server log, and the portal dev-server's stdout/stderr. The log
+ * gate scans these for any error/warn-level line.
+ */
+export const SERVER_LOG_DIR = fileURLToPath(
+  new URL("../../.playwright/server-logs/", import.meta.url),
+);
+
+/** The three captured server-log files (API, Postgres, portal server). */
+export const SERVER_LOG_FILES = {
+  api: `${SERVER_LOG_DIR}api.log`,
+  postgres: `${SERVER_LOG_DIR}postgres.log`,
+  portal: `${SERVER_LOG_DIR}portal.log`,
+} as const;

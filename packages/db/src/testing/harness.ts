@@ -30,6 +30,12 @@ export interface TestDb {
   readonly client: pg.Client;
   /** libpq connection string for the container. */
   readonly connectionUri: string;
+  /**
+   * The started Postgres container, for harnesses that need to stream its server
+   * logs (e.g. the portal e2e's server-side log gate, task 045). Do not stop it
+   * directly - use {@link TestDb.teardown}.
+   */
+  readonly container: StartedPostgreSqlContainer;
   /** Stop the client and the container. Idempotent. */
   teardown(): Promise<void>;
 }
@@ -68,6 +74,7 @@ export async function startTestDb(options: StartOptions = {}): Promise<TestDb> {
     db,
     client,
     connectionUri,
+    container,
     async teardown() {
       if (torn) return;
       torn = true;

@@ -22,6 +22,34 @@ export const SessionParams = z.object({
 });
 
 /**
+ * Optional query for the serving reads: the explicit navigation cursor (ADR-28).
+ *
+ * `step` is the 0-based index of the visible step the portal wants RENDERED. With
+ * it, the handler serves exactly that visible step's stored document (clamped to
+ * the visible range), so a step never collapses or advances as a side effect of
+ * answering (findings M/N). Without it, the first incomplete step is served
+ * (resume, no-JS, and the 019/029 callers - behaviour is unchanged). The cursor
+ * changes only which document is drawn; it is NEVER a validation authority -
+ * `flowState` (currentStep / readyToSubmit / missingRequired) stays the sole
+ * authority the portal reads to gate Continue/Submit, and the portal performs no
+ * rule evaluation of its own (R2).
+ */
+export const StepQuery = z.object({
+  step: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .openapi({
+      param: { name: "step", in: "query", required: false },
+      description:
+        "0-based index of the visible step to render (the explicit navigation cursor, ADR-28). Clamped to the visible range; omit to serve the first incomplete step.",
+      example: 1,
+    }),
+});
+export type StepQuery = z.infer<typeof StepQuery>;
+
+/**
  * One stored compiled A2UI document (a `CompiledForm` document, task 011): the
  * step's id and its A2UI node tree. Served verbatim from the pinned snapshot -
  * `root` is opaque to the API (the renderer, 028, interprets it), so it is

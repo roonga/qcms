@@ -116,28 +116,56 @@ export async function startSession(
   return readJson<StartSessionResponse>(res);
 }
 
-/** Fetch the current step + flow projection for a session (bearer required). */
-export async function getStep(sessionId: string, token: string): Promise<StepResponse> {
-  const res = await fetch(`${apiBaseUrl()}/sessions/${encodeURIComponent(sessionId)}/step`, {
-    headers: baseHeaders(token),
-    cache: "no-store",
-  });
+/**
+ * The `?step=<index>` suffix for the explicit navigation cursor (ADR-28), or ""
+ * when no cursor is requested (resume / no-JS / the first-incomplete default).
+ */
+function stepQuery(stepIndex?: number): string {
+  return stepIndex === undefined ? "" : `?step=${encodeURIComponent(String(stepIndex))}`;
+}
+
+/**
+ * Fetch a step + flow projection for a session (bearer required). `stepIndex` is
+ * the explicit navigation cursor: the 0-based visible-step index to render. Omit
+ * it to serve the first incomplete step (resume). The portal reads `flowState`,
+ * never re-derives it (R2).
+ */
+export async function getStep(
+  sessionId: string,
+  token: string,
+  stepIndex?: number,
+): Promise<StepResponse> {
+  const res = await fetch(
+    `${apiBaseUrl()}/sessions/${encodeURIComponent(sessionId)}/step${stepQuery(stepIndex)}`,
+    {
+      headers: baseHeaders(token),
+      cache: "no-store",
+    },
+  );
   return readJson<StepResponse>(res);
 }
 
-/** Submit one answer; the API returns the re-evaluated step + projection. */
+/**
+ * Submit one answer; the API returns the re-evaluated step + projection.
+ * `stepIndex` carries the caller's committed cursor so the response renders that
+ * step (never advancing away from it as a side effect of answering, ADR-28).
+ */
 export async function submitAnswer(
   sessionId: string,
   token: string,
   questionId: string,
   value: unknown,
+  stepIndex?: number,
 ): Promise<StepResponse> {
-  const res = await fetch(`${apiBaseUrl()}/sessions/${encodeURIComponent(sessionId)}/answers`, {
-    method: "POST",
-    headers: baseHeaders(token),
-    body: JSON.stringify({ questionId, value }),
-    cache: "no-store",
-  });
+  const res = await fetch(
+    `${apiBaseUrl()}/sessions/${encodeURIComponent(sessionId)}/answers${stepQuery(stepIndex)}`,
+    {
+      method: "POST",
+      headers: baseHeaders(token),
+      body: JSON.stringify({ questionId, value }),
+      cache: "no-store",
+    },
+  );
   return readJson<StepResponse>(res);
 }
 

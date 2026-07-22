@@ -41,3 +41,42 @@ export interface CompiledForm {
 export const INSURANCE_GOLDEN = readFixture(
   "packages/a2ui-compiler/golden/v1/insurance.a2ui.json",
 ) as CompiledForm;
+
+// --- kitchen-sink: all seven question types across three steps (task 045) ----
+
+/**
+ * The `kitchen-sink` form: three steps exercising every question type - short
+ * text, date, boolean, number, multi-choice, long text, single choice - with two
+ * branch rules (`q_accident_count` shown when `q_at_fault_accident=true`;
+ * `q_extra_detail` shown when an optional-cover option is selected). It is the
+ * fixture the portal's explicit-navigation e2e drives (ADR-28).
+ *
+ * The form is VEHICLE-domain throughout (043's neutral-domain rule): the two
+ * questions unique to this form (optional-cover multi-choice, extra-detail long
+ * text) live in this support directory rather than the shared kernel fixtures,
+ * whose bytes are frozen by the golden corpus. The compiled golden is generated
+ * from these definitions via the a2ui-compiler and committed alongside them.
+ */
+export const KITCHEN_SINK_DEF = readFixture("apps/api/e2e/support/fixtures/kitchen-sink-form.json");
+
+/** `q_full_name` - short text, required (stp_about). */
+export const Q_FULL_NAME_DEF = readFixture(
+  "packages/core/fixtures/questions/valid/short-text.json",
+);
+/** `q_dob` - date, required (stp_about). */
+export const Q_DOB_DEF = readFixture("packages/core/fixtures/questions/valid/date.json");
+/** `q_optional_cover` - multi-choice, required, 1..3 selected (stp_history). */
+export const Q_OPTIONAL_COVER_DEF = readFixture(
+  "apps/api/e2e/support/fixtures/q-optional-cover.json",
+);
+/** `q_extra_detail` - long text, optional (stp_history, shown by branch). */
+export const Q_EXTRA_DETAIL_DEF = readFixture("apps/api/e2e/support/fixtures/q-extra-detail.json");
+/** `q_coverage_level` - single choice, required (stp_cover). */
+export const Q_COVERAGE_DEF = readFixture(
+  "packages/core/fixtures/questions/valid/single-choice.json",
+);
+
+/** The committed golden compiled A2UI document for the kitchen-sink form. */
+export const KITCHEN_SINK_GOLDEN = readFixture(
+  "apps/api/e2e/support/fixtures/kitchen-sink.a2ui.json",
+) as CompiledForm;

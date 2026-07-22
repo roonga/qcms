@@ -20,7 +20,7 @@ export async function POST(
     return NextResponse.json({ error: { code: "unauthorized" } }, { status: 401 });
   }
   const { sessionId } = await ctx.params;
-  let body: { questionId?: unknown; value?: unknown };
+  let body: { questionId?: unknown; value?: unknown; step?: unknown };
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -29,8 +29,15 @@ export async function POST(
   if (typeof body.questionId !== "string") {
     return NextResponse.json({ error: { code: "bad_request" } }, { status: 400 });
   }
+  // The client's committed step cursor (ADR-28), forwarded so the API's response
+  // renders that step rather than advancing away from it. A non-integer is
+  // ignored (the API then falls back to the first-incomplete step).
+  const stepIndex =
+    typeof body.step === "number" && Number.isInteger(body.step) && body.step >= 0
+      ? body.step
+      : undefined;
   try {
-    const next = await submitAnswer(sessionId, token, body.questionId, body.value);
+    const next = await submitAnswer(sessionId, token, body.questionId, body.value, stepIndex);
     return NextResponse.json(next);
   } catch (error) {
     return apiErrorResponse(error);

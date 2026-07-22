@@ -18,21 +18,30 @@
  */
 
 import { createRequire } from "node:module";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import type { Readable } from "node:stream";
 
 import {
   buildEnv,
   composeApi,
   mintInsuranceLink,
   seedInsuranceForm,
+  seedKitchenSinkForm,
   startTestDb,
   MOUNT,
   NOW,
   type TestDb,
 } from "../../../api/e2e/support/index.js";
+import { createJsonLogger } from "../../../api/src/logger.js";
 
-import { API_PORT, FIXED_INTERNAL_TOKEN, FIXTURES_PATH } from "./harness-config.js";
+import {
+  API_PORT,
+  FIXED_INTERNAL_TOKEN,
+  FIXTURES_PATH,
+  SERVER_LOG_DIR,
+  SERVER_LOG_FILES,
+} from "./harness-config.js";
 
 /** The wire-stable SEC-4 internal-token header (matches the portal + API). */
 const INTERNAL_TOKEN_HEADER = "x-qcms-internal-token";
@@ -55,6 +64,14 @@ const { serve } = apiRequire("@hono/node-server") as { serve: Serve };
 /** The fixtures the specs read: the form slug and one link token per outcome. */
 export interface PortalFixtures {
   readonly slug: string;
+  /** The kitchen-sink form slug (all seven question types, task 045). */
+  readonly kitchenSinkSlug: string;
+  /**
+   * The e2e Postgres connection URI, so a spec can open its OWN client and verify
+   * persisted answers independently of the API's response echo (task 045, exit
+   * criterion 4). A test-only container credential, never a real secret.
+   */
+  readonly databaseUrl: string;
   readonly validToken: string;
   readonly expiredToken: string;
   readonly consumedToken: string;
@@ -77,17 +94,56 @@ let running: RunningApi | undefined;
 export async function startApiServer(): Promise<void> {
   if (running !== undefined) return;
 
+  // Fresh server-log capture for this run window (exit criterion 5): the composed
+  // API's structured log and the Postgres container's server log stream into
+  // files the log gate scans for error/warn lines. The portal dev-server's log is
+  // captured by the webServer wrapper (playwright.config.ts).
+  // The API + Postgres logs are truncated here; the portal dev-server log is
+  // owned and truncated by its wrapper (portal-server.mjs) to avoid a start-order
+  // race with this globalSetup.
+  mkdirSync(SERVER_LOG_DIR, { recursive: true });
+  writeFileSync(SERVER_LOG_FILES.api, "", "utf8");
+  writeFileSync(SERVER_LOG_FILES.postgres, "", "utf8");
+
   const testDb = await startTestDb();
+
+  // Stream the Postgres container's server log into the capture file.
+  const pgLogs = (await testDb.container.logs()) as Readable;
+  pgLogs.on("data", (chunk: Buffer | string) => {
+    appendFileSync(SERVER_LOG_FILES.postgres, chunk.toString());
+  });
+  pgLogs.on("error", () => undefined);
+
+  const apiLogger = createJsonLogger({
+    write: (line) => appendFileSync(SERVER_LOG_FILES.api, `${line}\n`),
+    base: { service: "qcms-api" },
+  });
+
   const env = buildEnv({
     QCMS_INTERNAL_TOKEN: FIXED_INTERNAL_TOKEN,
     DATABASE_URL: testDb.connectionUri,
     QCMS_MOUNT: "all",
+    // The composed API runs on a FIXED clock, so rate-limit windows never advance
+    // and every session-create / answer / submit across the whole suite counts
+    // against one frozen window. This behavioral suite is not a rate-limit test
+    // (that lives in the 026 API tests), and the multi-step kitchen-sink flow
+    // alone posts more than the default per-session burst (10), so raise every
+    // respondent limit far above what the suite can reach.
+    QCMS_RL_ANSWERS_SESSION_MAX: "1000000",
+    QCMS_RL_ANSWERS_IP_MAX: "1000000",
+    QCMS_RL_SESSION_CREATE_MAX: "1000000",
+    QCMS_RL_SUBMIT_SESSION_MAX: "1000000",
   });
-  const composed = composeApi(testDb.db, env, MOUNT.all);
+  const composed = composeApi(testDb.db, env, MOUNT.all, { logger: apiLogger });
   const app = composed.app;
   const config = composed.deps.config;
 
   const { slug, formId } = await seedInsuranceForm(testDb.db);
+  // The insurance seed already created q_at_fault_accident@2 + q_accident_count,
+  // which the kitchen-sink form also pins; do not re-create them.
+  const { slug: kitchenSinkSlug } = await seedKitchenSinkForm(testDb.db, {
+    sharedQuestionsSeeded: true,
+  });
 
   const nowMs = NOW.getTime();
   const oneHour = 60 * 60 * 1000;
@@ -138,6 +194,8 @@ export async function startApiServer(): Promise<void> {
 
   const fixtures: PortalFixtures = {
     slug,
+    kitchenSinkSlug,
+    databaseUrl: testDb.connectionUri,
     validToken,
     expiredToken,
     consumedToken,

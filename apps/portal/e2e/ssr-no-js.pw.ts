@@ -14,7 +14,7 @@
  * this spec keeps the narrower guarantee that first paint is real step content.
  */
 
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./support/gates.js";
 
 import { readFixtures } from "./support/fixtures.js";
 

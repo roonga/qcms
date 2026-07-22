@@ -9,7 +9,12 @@ import {
   submitSession,
   type StepResponse,
 } from "@/lib/server/api";
-import { writeReceiptCookie, writeStepContext, type StepContext } from "@/lib/server/route-helpers";
+import {
+  apiErrorResponse,
+  writeReceiptCookie,
+  writeStepContext,
+  type StepContext,
+} from "@/lib/server/route-helpers";
 import { clearSessionToken, readSessionToken } from "@/lib/server/session-cookie";
 import { decodeStepForm } from "@/lib/server/step-form";
 
@@ -38,6 +43,41 @@ import { decodeStepForm } from "@/lib/server/step-form";
 /** Redirect (303) back to the flow page so the server re-renders the step. */
 function backToStep(request: Request, sessionId: string): NextResponse {
   return NextResponse.redirect(new URL(`/s/${sessionId}`, request.url), 303);
+}
+
+/**
+ * BFF proxy: fetch one step's document + flow projection for the JS navigation
+ * cursor (ADR-28, task 045). The controlled `StepFlow` calls
+ * `GET /s/:id/step?step=<index>` on Continue/Back; the BFF attaches the session
+ * bearer from the httpOnly cookie and forwards the cursor to the internal API,
+ * returning its projection verbatim. Omitting `step` serves the first incomplete
+ * step (used when a blocked Submit sends the respondent to the step that still
+ * needs an answer). No rule evaluation happens here (R2) - the API owns it.
+ */
+export async function GET(
+  request: Request,
+  ctx: { params: Promise<{ sessionId: string }> },
+): Promise<NextResponse> {
+  const token = await readSessionToken();
+  if (token === undefined) {
+    return NextResponse.json({ error: { code: "unauthorized" } }, { status: 401 });
+  }
+  const { sessionId } = await ctx.params;
+  const raw = new URL(request.url).searchParams.get("step");
+  let stepIndex: number | undefined;
+  if (raw !== null) {
+    const parsed = Number(raw);
+    if (!Number.isInteger(parsed) || parsed < 0) {
+      return NextResponse.json({ error: { code: "bad_request" } }, { status: 400 });
+    }
+    stepIndex = parsed;
+  }
+  try {
+    const next = await getStep(sessionId, token, stepIndex);
+    return NextResponse.json(next);
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
 }
 
 /** The API's typed 422 detail, surfaced in the field's error slot (WCAG 3.3). */

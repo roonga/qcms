@@ -5,7 +5,7 @@
  * minted in globalSetup relative to the API's fixed clock.
  */
 
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./support/gates.js";
 
 import { readFixtures } from "./support/fixtures.js";
 

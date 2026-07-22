@@ -1,0 +1,46 @@
+{
+  "formId": "frm_kitchen_sink",
+  "defaultLocale": "en",
+  "title": { "en": "Kitchen sink" },
+  "steps": [
+    {
+      "stepId": "stp_about",
+      "title": { "en": "About you" },
+      "items": [
+        { "questionId": "q_full_name", "version": 1 },
+        { "questionId": "q_dob", "version": 1 }
+      ]
+    },
+    {
+      "stepId": "stp_history",
+      "title": { "en": "Driving history" },
+      "items": [
+        { "questionId": "q_at_fault_accident", "version": 2 },
+        { "questionId": "q_accident_count", "version": 1 },
+        { "questionId": "q_optional_cover", "version": 1 },
+        { "questionId": "q_extra_detail", "version": 1 }
+      ]
+    },
+    {
+      "stepId": "stp_cover",
+      "title": { "en": "Your cover" },
+      "items": [{ "questionId": "q_coverage_level", "version": 1 }]
+    }
+  ],
+  "rules": [
+    {
+      "ruleId": "rul_accident_followup",
+      "when": { "op": "equals", "questionId": "q_at_fault_accident", "value": true },
+      "show": ["q_accident_count"]
+    },
+    {
+      "ruleId": "rul_extra_detail",
+      "when": {
+        "op": "containsAny",
+        "questionId": "q_optional_cover",
+        "values": ["opt_breakdown", "opt_windscreen", "opt_legal"]
+      },
+      "show": ["q_extra_detail"]
+    }
+  ]
+}

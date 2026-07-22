@@ -1,0 +1,250 @@
+{
+  "documents": [
+    {
+      "stepId": "stp_about",
+      "root": {
+        "type": "Form",
+        "children": [
+          {
+            "type": "Flex",
+            "props": {
+              "direction": "column",
+              "gap": "md"
+            },
+            "children": [
+              {
+                "type": "Text",
+                "props": {
+                  "as": "h1"
+                },
+                "children": "Kitchen sink"
+              },
+              {
+                "type": "Text",
+                "props": {
+                  "as": "h2"
+                },
+                "children": "About you"
+              },
+              {
+                "type": "TextField",
+                "props": {
+                  "label": "Full name",
+                  "description": "As shown on your photo ID",
+                  "name": "q_full_name",
+                  "isRequired": true,
+                  "minLength": 1,
+                  "maxLength": 100,
+                  "pattern": "^[A-Za-z][A-Za-z .,'-]{0,99}$"
+                }
+              },
+              {
+                "type": "DatePicker",
+                "props": {
+                  "label": "Date of birth",
+                  "name": "q_dob",
+                  "isRequired": true,
+                  "granularity": "day",
+                  "minValue": "1900-01-01",
+                  "maxValue": "2100-12-31"
+                }
+              },
+              {
+                "type": "Honeypot",
+                "props": {
+                  "name": "website",
+                  "autoComplete": "off",
+                  "ariaHidden": true,
+                  "tabIndex": -1
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "stepId": "stp_history",
+      "root": {
+        "type": "Form",
+        "children": [
+          {
+            "type": "Flex",
+            "props": {
+              "direction": "column",
+              "gap": "md"
+            },
+            "children": [
+              {
+                "type": "Text",
+                "props": {
+                  "as": "h2"
+                },
+                "children": "Driving history"
+              },
+              {
+                "type": "RadioGroup",
+                "props": {
+                  "label": "Any at-fault accident in the last 3 years?",
+                  "name": "q_at_fault_accident",
+                  "isRequired": true
+                },
+                "children": [
+                  {
+                    "type": "Radio",
+                    "props": {
+                      "value": "true",
+                      "label": "Yes"
+                    }
+                  },
+                  {
+                    "type": "Radio",
+                    "props": {
+                      "value": "false",
+                      "label": "No"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "NumberField",
+                "props": {
+                  "label": "How many?",
+                  "description": "An average across the last 12 months",
+                  "name": "q_accident_count",
+                  "isRequired": true,
+                  "minValue": 0,
+                  "maxValue": 200,
+                  "step": 1
+                }
+              },
+              {
+                "type": "CheckboxGroup",
+                "props": {
+                  "label": "Which optional cover do you want?",
+                  "description": "Select all that apply",
+                  "name": "q_optional_cover",
+                  "isRequired": true,
+                  "orientation": "vertical"
+                },
+                "children": [
+                  {
+                    "type": "Checkbox",
+                    "props": {
+                      "value": "opt_breakdown",
+                      "label": "Breakdown"
+                    }
+                  },
+                  {
+                    "type": "Checkbox",
+                    "props": {
+                      "value": "opt_windscreen",
+                      "label": "Windscreen"
+                    }
+                  },
+                  {
+                    "type": "Checkbox",
+                    "props": {
+                      "value": "opt_legal",
+                      "label": "Legal"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "TextArea",
+                "props": {
+                  "label": "Anything else about your driving history?",
+                  "name": "q_extra_detail",
+                  "maxLength": 2000
+                }
+              },
+              {
+                "type": "Honeypot",
+                "props": {
+                  "name": "website",
+                  "autoComplete": "off",
+                  "ariaHidden": true,
+                  "tabIndex": -1
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "stepId": "stp_cover",
+      "root": {
+        "type": "Form",
+        "children": [
+          {
+            "type": "Flex",
+            "props": {
+              "direction": "column",
+              "gap": "md"
+            },
+            "children": [
+              {
+                "type": "Text",
+                "props": {
+                  "as": "h2"
+                },
+                "children": "Your cover"
+              },
+              {
+                "type": "RadioGroup",
+                "props": {
+                  "label": "Which coverage level would you like?",
+                  "name": "q_coverage_level",
+                  "isRequired": true
+                },
+                "children": [
+                  {
+                    "type": "Radio",
+                    "props": {
+                      "value": "opt_basic",
+                      "label": "Basic"
+                    }
+                  },
+                  {
+                    "type": "Radio",
+                    "props": {
+                      "value": "opt_standard",
+                      "label": "Standard"
+                    }
+                  },
+                  {
+                    "type": "Radio",
+                    "props": {
+                      "value": "opt_premium",
+                      "label": "Premium"
+                    }
+                  },
+                  {
+                    "type": "Radio",
+                    "props": {
+                      "value": "opt_none",
+                      "label": "No cover for now"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "Honeypot",
+                "props": {
+                  "name": "website",
+                  "autoComplete": "off",
+                  "ariaHidden": true,
+                  "tabIndex": -1
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "compilerVersion": "0.1.0",
+  "a2uiSpecVersion": "1.0.0-preview.7"
+}

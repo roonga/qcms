@@ -6,7 +6,7 @@
  * a mobile viewport manifests as a much narrower effective width.
  */
 
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./support/gates.js";
 
 import { readFixtures } from "./support/fixtures.js";
 import { ACCIDENT_LABEL } from "./support/flow.js";

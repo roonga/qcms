@@ -54,24 +54,55 @@ const PORTAL_BASE_URL = `http://localhost:${PORTAL_PORT}`;
 const FORM_ID = "frm_kitchen_sink";
 const FORM_SLUG = process.env.QCMS_DEV_FORM_SLUG ?? "kitchen-sink";
 
-// The kitchen-sink form pins these library questions (see
-// packages/core/fixtures/forms/valid/kitchen-sink.json). Each maps to one of the
-// committed question fixtures - one per question type. q_at_fault_accident is
-// pinned at version 2, so it gets two versions (identical bytes), mirroring the
-// e2e insurance seed.
+// The kitchen-sink form pins these library questions (see the ONE vehicle-domain
+// definition at apps/api/e2e/support/fixtures/kitchen-sink-form.json - the same
+// fixture the portal e2e seeds). Five map to the shared neutral kernel fixtures;
+// the two unique to this form (optional cover, extra detail) live in the e2e
+// support directory (043 neutral-domain rule). q_at_fault_accident is pinned at
+// version 2, so it gets two versions (identical bytes), mirroring the e2e seed.
 const QUESTIONS = [
-  { id: "q_full_name", slug: "full-name", fixture: "short-text.json", versions: 1 },
-  { id: "q_dob", slug: "dob", fixture: "date.json", versions: 1 },
-  { id: "q_at_fault_accident", slug: "at-fault-accident", fixture: "boolean.json", versions: 2 },
-  { id: "q_accident_count", slug: "accident-count", fixture: "number.json", versions: 1 },
   {
-    id: "q_preexisting_conditions",
-    slug: "preexisting-conditions",
-    fixture: "multi-choice.json",
+    id: "q_full_name",
+    slug: "full-name",
+    path: "packages/core/fixtures/questions/valid/short-text.json",
     versions: 1,
   },
-  { id: "q_medical_history", slug: "medical-history", fixture: "long-text.json", versions: 1 },
-  { id: "q_coverage_level", slug: "coverage-level", fixture: "single-choice.json", versions: 1 },
+  {
+    id: "q_dob",
+    slug: "dob",
+    path: "packages/core/fixtures/questions/valid/date.json",
+    versions: 1,
+  },
+  {
+    id: "q_at_fault_accident",
+    slug: "at-fault-accident",
+    path: "packages/core/fixtures/questions/valid/boolean.json",
+    versions: 2,
+  },
+  {
+    id: "q_accident_count",
+    slug: "accident-count",
+    path: "packages/core/fixtures/questions/valid/number.json",
+    versions: 1,
+  },
+  {
+    id: "q_optional_cover",
+    slug: "optional-cover",
+    path: "apps/api/e2e/support/fixtures/q-optional-cover.json",
+    versions: 1,
+  },
+  {
+    id: "q_extra_detail",
+    slug: "extra-detail",
+    path: "apps/api/e2e/support/fixtures/q-extra-detail.json",
+    versions: 1,
+  },
+  {
+    id: "q_coverage_level",
+    slug: "coverage-level",
+    path: "packages/core/fixtures/questions/valid/single-choice.json",
+    versions: 1,
+  },
 ];
 
 const IS_WINDOWS = process.platform === "win32";
@@ -206,7 +237,7 @@ async function seedKitchenSink({ handle, db, core }) {
 
   for (const q of QUESTIONS) {
     const questionId = core.QuestionId.parse(q.id);
-    const definition = readJson(`packages/core/fixtures/questions/valid/${q.fixture}`);
+    const definition = readJson(q.path);
     await ignoreDuplicate(() => db.createQuestion(handle, { questionId, slug: q.slug }));
     for (let v = 1; v <= q.versions; v += 1) {
       const created = await db.createQuestionVersion(handle, { questionId, definition });
@@ -221,8 +252,8 @@ async function seedKitchenSink({ handle, db, core }) {
     defaultLocale: "en",
   });
 
-  const definition = readJson("packages/core/fixtures/forms/valid/kitchen-sink.json");
-  const golden = readJson("packages/a2ui-compiler/golden/v1/kitchen-sink.a2ui.json");
+  const definition = readJson("apps/api/e2e/support/fixtures/kitchen-sink-form.json");
+  const golden = readJson("apps/api/e2e/support/fixtures/kitchen-sink.a2ui.json");
   await db.insertFormVersion(handle, {
     formId: core.FormId.parse(FORM_ID),
     definition,

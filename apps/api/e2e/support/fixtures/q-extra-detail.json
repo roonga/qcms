@@ -1,0 +1,6 @@
+{
+  "type": "longText",
+  "questionId": "q_extra_detail",
+  "label": { "en": "Anything else about your driving history?" },
+  "constraints": { "maxLength": 2000 }
+}

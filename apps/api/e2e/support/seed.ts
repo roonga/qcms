@@ -32,8 +32,15 @@ import type { TestDb } from "@qcms/db/testing";
 import {
   INSURANCE_DEF,
   INSURANCE_GOLDEN,
+  KITCHEN_SINK_DEF,
+  KITCHEN_SINK_GOLDEN,
   Q_ACCIDENT_COUNT_DEF,
   Q_ACCIDENT_DEF,
+  Q_COVERAGE_DEF,
+  Q_DOB_DEF,
+  Q_EXTRA_DETAIL_DEF,
+  Q_FULL_NAME_DEF,
+  Q_OPTIONAL_COVER_DEF,
 } from "./fixtures.js";
 
 type Db = TestDb["db"];
@@ -105,6 +112,104 @@ export async function publishInsuranceVersion(db: Db, formId: string): Promise<v
     a2uiSpecVersion: INSURANCE_GOLDEN.a2uiSpecVersion,
     semanticsVersion: "1",
   });
+}
+
+// --- kitchen-sink form (all seven question types, task 045) -----------------
+
+const KS_DEF = KITCHEN_SINK_DEF as FormVersionInput["definition"];
+const KS_COMPILED = KITCHEN_SINK_GOLDEN as unknown as FormVersionInput["compiled"];
+
+/** Create one library question with a single published version. */
+async function seedQuestionVersion(
+  db: Db,
+  questionId: string,
+  slug: string,
+  definition: QuestionVersionInput["definition"],
+): Promise<void> {
+  await createQuestion(db, { questionId: QuestionId.parse(questionId), slug });
+  await createQuestionVersion(db, { questionId: QuestionId.parse(questionId), definition });
+}
+
+/**
+ * Seed the questions the kitchen-sink form pins that are UNIQUE to it (the five
+ * new types); the two it shares with the insurance form (`q_at_fault_accident`@2,
+ * `q_accident_count`) are seeded by {@link seedKitchenSinkSharedQuestions}, split
+ * out so a harness that already seeded the insurance form does not re-create them
+ * (a duplicate `questions` primary key).
+ */
+export async function seedKitchenSinkUniqueQuestions(db: Db): Promise<void> {
+  await seedQuestionVersion(
+    db,
+    "q_full_name",
+    "full-name",
+    Q_FULL_NAME_DEF as QuestionVersionInput["definition"],
+  );
+  await seedQuestionVersion(db, "q_dob", "dob", Q_DOB_DEF as QuestionVersionInput["definition"]);
+  await seedQuestionVersion(
+    db,
+    "q_optional_cover",
+    "optional-cover",
+    Q_OPTIONAL_COVER_DEF as QuestionVersionInput["definition"],
+  );
+  await seedQuestionVersion(
+    db,
+    "q_extra_detail",
+    "extra-detail",
+    Q_EXTRA_DETAIL_DEF as QuestionVersionInput["definition"],
+  );
+  await seedQuestionVersion(
+    db,
+    "q_coverage_level",
+    "coverage-level",
+    Q_COVERAGE_DEF as QuestionVersionInput["definition"],
+  );
+}
+
+/** The two questions the kitchen-sink form shares with the insurance form. */
+export async function seedKitchenSinkSharedQuestions(db: Db): Promise<void> {
+  // q_at_fault_accident is pinned @2: create v1 then v2 (identical definitions).
+  await createQuestion(db, {
+    questionId: QuestionId.parse("q_at_fault_accident"),
+    slug: "accident",
+  });
+  await createQuestionVersion(db, {
+    questionId: QuestionId.parse("q_at_fault_accident"),
+    definition: ACCIDENT_DEF,
+  });
+  await createQuestionVersion(db, {
+    questionId: QuestionId.parse("q_at_fault_accident"),
+    definition: ACCIDENT_DEF,
+  });
+  await seedQuestionVersion(db, "q_accident_count", "accident-count", ACCIDENT_COUNT_DEF);
+}
+
+/**
+ * Seed the kitchen-sink questions plus a form with one published version storing
+ * the golden compiled A2UI (ADR-18). Returns the form id and slug. Pass
+ * `sharedQuestionsSeeded: true` when the two insurance-shared questions already
+ * exist (e.g. the insurance form was seeded first in the same database), so they
+ * are not re-created.
+ */
+export async function seedKitchenSinkForm(
+  db: Db,
+  opts: { formId?: string; slug?: string; sharedQuestionsSeeded?: boolean } = {},
+): Promise<SeededForm> {
+  const formId = opts.formId ?? "frm_kitchen_sink";
+  const slug = opts.slug ?? "kitchen-sink";
+  if (opts.sharedQuestionsSeeded !== true) {
+    await seedKitchenSinkSharedQuestions(db);
+  }
+  await seedKitchenSinkUniqueQuestions(db);
+  await createForm(db, { formId: FormId.parse(formId), slug, defaultLocale: "en" });
+  await insertFormVersion(db, {
+    formId: FormId.parse(formId),
+    definition: KS_DEF,
+    compiled: KS_COMPILED,
+    compilerVersion: KITCHEN_SINK_GOLDEN.compilerVersion,
+    a2uiSpecVersion: KITCHEN_SINK_GOLDEN.a2uiSpecVersion,
+    semanticsVersion: "1",
+  });
+  return { formId, slug };
 }
 
 /**

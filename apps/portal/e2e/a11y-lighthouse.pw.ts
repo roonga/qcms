@@ -14,13 +14,16 @@
  * authenticated flow instead of the recovery screen. See `docs/a11y.md`.
  */
 
-import { chromium, expect, test } from "@playwright/test";
+import { chromium } from "@playwright/test";
+
+import { expect, test } from "./support/gates.js";
 import * as chromeLauncher from "chrome-launcher";
 import lighthouse from "lighthouse";
 
 import { PORTAL_PORT } from "./support/harness-config.js";
 import { readFixtures } from "./support/fixtures.js";
 import { startAnonymousFlow } from "./support/flow.js";
+import { startKitchenSink } from "./support/kitchen-sink.js";
 
 const BASE = `http://localhost:${PORTAL_PORT}`;
 const SESSION_COOKIE = "qcms_session";
@@ -77,6 +80,22 @@ test("lighthouse a11y=100: flow page (authenticated via injected session cookie)
 }) => {
   const { slug } = readFixtures();
   await startAnonymousFlow(page, slug);
+  const flowUrl = page.url();
+
+  const cookies = await context.cookies();
+  const session = cookies.find((c) => c.name === SESSION_COOKIE);
+  expect(session, "session cookie should be set after starting the flow").toBeTruthy();
+
+  const score = await accessibilityScore(flowUrl, `${SESSION_COOKIE}=${session?.value ?? ""}`);
+  expect(score).toBe(1);
+});
+
+test("lighthouse a11y=100: kitchen-sink flow page (authenticated via injected session cookie)", async ({
+  page,
+  context,
+}) => {
+  const { kitchenSinkSlug } = readFixtures();
+  await startKitchenSink(page, kitchenSinkSlug);
   const flowUrl = page.url();
 
   const cookies = await context.cookies();

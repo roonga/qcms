@@ -197,6 +197,13 @@ async function getStep(id: string, token?: string): Promise<Response> {
   return app.request(`/sessions/${id}/step`, { headers });
 }
 
+/** GET the step at an explicit visible-step cursor index (ADR-28). */
+async function getStepAt(id: string, token: string, index: number): Promise<Response> {
+  return app.request(`/sessions/${id}/step?step=${String(index)}`, {
+    headers: { "x-qcms-internal-token": internalToken, authorization: `Bearer ${token}` },
+  });
+}
+
 async function postAnswer(
   id: string,
   token: string,
@@ -309,6 +316,71 @@ describe("branching answer loop (exit criterion 1)", () => {
     const latest = await latestAnswers(testDb.db, SessionId.parse(sessionId));
     expect(latest.get(QuestionId.parse("q_at_fault_accident"))).toBe(false);
     expect(latest.get(QuestionId.parse("q_accident_count"))).toBe(10);
+  });
+});
+
+// --- explicit navigation cursor (ADR-28, task 045) --------------------------
+
+describe("explicit navigation cursor renders the requested step (ADR-28)", () => {
+  it("?step renders that visible step even when the flow is complete (no collapse-on-answer)", async () => {
+    const { sessionId, sessionToken } = await startSession("auto");
+
+    // Answer the only required question false: q_accident_count stays hidden, so
+    // the single step is complete and the derived cursor is null.
+    const answered = await postAnswer(sessionId, sessionToken, "q_at_fault_accident", false);
+    const ab = (await answered.json()) as StepBody;
+    expect(ab.flowState.readyToSubmit).toBe(true);
+    expect(ab.flowState.currentStep).toBeNull();
+
+    // No cursor: legacy projection collapses to no step (currentStep null).
+    const legacy = (await (await getStep(sessionId, sessionToken)).json()) as StepBody;
+    expect(legacy.step).toBeNull();
+    expect(legacy.progress.stepIndex).toBe(1); // == totalVisibleSteps when complete
+
+    // Cursor at index 0: the step still renders (ADR-28 - a completed step never
+    // collapses; the respondent can review and Submit). flowState stays the
+    // authority: readyToSubmit true, currentStep null.
+    const res = await getStepAt(sessionId, sessionToken, 0);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as StepBody;
+    expect(body.step).toEqual(GOLDEN.documents[0]);
+    expect(body.flowState.visibleQuestions).toEqual(["q_at_fault_accident"]);
+    expect(body.flowState.readyToSubmit).toBe(true);
+    expect(body.flowState.currentStep).toBeNull();
+    expect(body.progress).toEqual({ stepIndex: 0, totalVisibleSteps: 1 });
+  });
+
+  it("?step clamps an out-of-range index to the last visible step", async () => {
+    const { sessionId, sessionToken } = await startSession("auto");
+    const res = await getStepAt(sessionId, sessionToken, 9);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as StepBody;
+    // Only one visible step, so any index >= 0 clamps to it.
+    expect(body.step).toEqual(GOLDEN.documents[0]);
+    expect(body.progress).toEqual({ stepIndex: 0, totalVisibleSteps: 1 });
+  });
+
+  it("POST answer with ?step keeps rendering the cursor step while a branch reveals within it (guards M)", async () => {
+    const { sessionId, sessionToken } = await startSession("auto");
+    // Answer q_at_fault_accident = true carrying the cursor: the follow-up
+    // becomes visible *within the same step*, and the response still renders that
+    // cursor step (index 0) rather than advancing away from it.
+    const answered = await app.request(`/sessions/${sessionId}/answers?step=0`, {
+      method: "post",
+      headers: {
+        "content-type": "application/json",
+        "x-qcms-internal-token": internalToken,
+        authorization: `Bearer ${sessionToken}`,
+      },
+      body: JSON.stringify({ questionId: "q_at_fault_accident", value: true }),
+    });
+    expect(answered.status).toBe(200);
+    const body = (await answered.json()) as StepBody;
+    expect(body.step).toEqual(GOLDEN.documents[0]);
+    expect(body.progress.stepIndex).toBe(0);
+    expect(body.flowState.visibleQuestions).toEqual(["q_at_fault_accident", "q_accident_count"]);
+    expect(body.flowState.missingRequired).toEqual(["q_accident_count"]);
+    expect(body.flowState.readyToSubmit).toBe(false);
   });
 });
 

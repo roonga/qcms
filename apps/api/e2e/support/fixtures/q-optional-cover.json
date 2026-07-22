@@ -1,0 +1,13 @@
+{
+  "type": "multiChoice",
+  "questionId": "q_optional_cover",
+  "label": { "en": "Which optional cover do you want?" },
+  "help": { "en": "Select all that apply" },
+  "required": true,
+  "options": [
+    { "optionId": "opt_breakdown", "label": { "en": "Breakdown" } },
+    { "optionId": "opt_windscreen", "label": { "en": "Windscreen" } },
+    { "optionId": "opt_legal", "label": { "en": "Legal" } }
+  ],
+  "constraints": { "minSelected": 1, "maxSelected": 3 }
+}

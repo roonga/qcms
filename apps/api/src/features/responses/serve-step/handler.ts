@@ -161,40 +161,68 @@ function evaluateOrThrow(snapshot: LoadedSnapshot, answers: AnswerMap): FlowStat
 
 /**
  * Project the kernel's `FlowState` to the client-safe response (SEC): the
- * current step's stored compiled document, the visible questions of that step,
- * the visible missing-required set, and progress. Nothing about hidden
- * questions or the rule graph crosses this boundary.
+ * RENDERED step's stored compiled document, the visible questions of that step,
+ * the visible missing-required set, and progress. Nothing about hidden questions
+ * or the rule graph crosses this boundary.
+ *
+ * `requestedIndex` is the explicit navigation cursor (ADR-28): the 0-based index
+ * of the visible step the portal wants drawn. When present, the handler renders
+ * exactly that visible step (clamped to the visible range) even when the flow as
+ * a whole is complete, so a step never collapses or advances as a side effect of
+ * answering (findings M/N). When absent (resume, no-JS, the 019/029 callers), the
+ * first incomplete step is served - the original behaviour, unchanged.
+ *
+ * The cursor changes ONLY which document is drawn and the `visibleQuestions` /
+ * `progress.stepIndex` that go with it. `flowState.currentStep`,
+ * `missingRequired`, and `readyToSubmit` are always the authoritative,
+ * cursor-independent flow projection - the portal reads them to gate
+ * Continue/Submit and never re-derives them (R2).
  */
-function project(snapshot: LoadedSnapshot, flow: FlowState): StepResponse {
-  const currentStep: StepId | null = flow.currentStep;
+function project(snapshot: LoadedSnapshot, flow: FlowState, requestedIndex?: number): StepResponse {
+  const visibleSteps = flow.visibleSteps;
+
+  let renderStep: StepId | null;
+  let stepIndex: number;
+  if (requestedIndex !== undefined) {
+    if (visibleSteps.length === 0) {
+      // A degenerate flow with no visible steps: nothing to render.
+      renderStep = null;
+      stepIndex = 0;
+    } else {
+      const clamped = Math.min(requestedIndex, visibleSteps.length - 1);
+      renderStep = visibleSteps[clamped] ?? null;
+      stepIndex = clamped;
+    }
+  } else {
+    renderStep = flow.currentStep;
+    stepIndex =
+      flow.currentStep !== null ? visibleSteps.indexOf(flow.currentStep) : visibleSteps.length;
+  }
 
   let step: StepResponse["step"] = null;
   let visibleQuestions: string[] = [];
-  if (currentStep !== null) {
-    const document = snapshot.compiled.documents.find((doc) => doc.stepId === currentStep);
+  if (renderStep !== null) {
+    const document = snapshot.compiled.documents.find((doc) => doc.stepId === renderStep);
     if (document === undefined) {
       // Every step has one compiled document (011); a gap is an internal break.
-      throw new Error(`serve-step: no compiled document for visible step "${currentStep}"`);
+      throw new Error(`serve-step: no compiled document for visible step "${renderStep}"`);
     }
     step = document;
     visibleQuestions = flow.visible
-      .filter((entry) => entry.stepId === currentStep)
+      .filter((entry) => entry.stepId === renderStep)
       .map((entry) => entry.questionId);
   }
-
-  const stepIndex =
-    currentStep !== null ? flow.visibleSteps.indexOf(currentStep) : flow.visibleSteps.length;
 
   return {
     step,
     a2uiSpecVersion: snapshot.a2uiSpecVersion,
     flowState: {
-      currentStep,
+      currentStep: flow.currentStep,
       visibleQuestions,
       missingRequired: flow.missingRequired,
       readyToSubmit: flow.complete,
     },
-    progress: { stepIndex, totalVisibleSteps: flow.visibleSteps.length },
+    progress: { stepIndex, totalVisibleSteps: visibleSteps.length },
   };
 }
 
@@ -228,6 +256,7 @@ async function loadActiveSession(deps: Deps, id: SessionId, now: Date): Promise<
 export function makeGetStepHandler(deps: Deps): RouteHandler<typeof getStepRoute, ApiEnv> {
   return async (c) => {
     const { id } = c.req.valid("param");
+    const { step: requestedIndex } = c.req.valid("query");
     const sessionId = await authorizedSessionId(c, deps, id);
 
     const session = await loadActiveSession(deps, sessionId, deps.clock.now());
@@ -235,7 +264,7 @@ export function makeGetStepHandler(deps: Deps): RouteHandler<typeof getStepRoute
     const answers = await latestAnswers(deps.db, sessionId);
     const flow = evaluateOrThrow(snapshot, answers);
 
-    return c.json(project(snapshot, flow), 200);
+    return c.json(project(snapshot, flow, requestedIndex), 200);
   };
 }
 
@@ -256,6 +285,7 @@ export function makeSubmitAnswerHandler(
 ): RouteHandler<typeof submitAnswerRoute, ApiEnv> {
   return async (c) => {
     const { id } = c.req.valid("param");
+    const { step: requestedIndex } = c.req.valid("query");
     const sessionId = await authorizedSessionId(c, deps, id);
     const body = c.req.valid("json");
 
@@ -297,7 +327,7 @@ export function makeSubmitAnswerHandler(
       await markInProgress(tx, sessionId);
 
       const after = await latestAnswers(tx, sessionId);
-      return project(snapshot, evaluateOrThrow(snapshot, after));
+      return project(snapshot, evaluateOrThrow(snapshot, after), requestedIndex);
     });
 
     return c.json(projection, 200);

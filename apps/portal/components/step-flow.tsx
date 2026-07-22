@@ -35,8 +35,8 @@ function branchAnnouncement(added: readonly string[], removed: readonly string[]
 }
 
 const flowViewOf = (snapshot: StepResponse): FlowView => ({
-  // The rendered step document's id (not flowState.currentStep, which also nulls
-  // out on ready-to-submit within the same step) - see FlowView.stepId (030).
+  // The RENDERED step document's id (the explicit cursor's step, ADR-28), not
+  // flowState.currentStep (the derived first-incomplete step, which may differ).
   stepId: snapshot.step?.stepId ?? null,
   stepIndex: snapshot.progress.stepIndex,
   visibleQuestions: snapshot.flowState.visibleQuestions,
@@ -66,25 +66,20 @@ function announcementText(
 
 /**
  * Recover focus after a projection when it would otherwise fall to <body>: the
- * step collapsed to ready (land on the primary action), the focused question was
- * removed (next visible question, else the step heading), or a remount lost focus
- * from a still-visible question (restore it). A branch INSERT keeps focus on the
- * answered control, so this is a no-op there. Owns the focus policy (030).
+ * focused question was removed by a branch change (next visible question, else
+ * the step heading), or a remount lost focus from a still-visible question
+ * (restore it). A branch INSERT keeps focus on the answered control, so this is a
+ * no-op there. Step navigation is handled separately (focus the new heading).
+ * Owns the within-step focus policy (030).
  */
 function recoverFocus(args: {
   readonly container: HTMLElement | null;
   readonly focused: string;
-  readonly becameReady: boolean;
   readonly delta: FlowDelta;
   readonly previousVisible: readonly string[];
   readonly nextVisible: ReadonlySet<string>;
-  readonly primary: HTMLButtonElement | null;
 }): void {
   const focusLost = document.activeElement === null || document.activeElement === document.body;
-  if (args.becameReady) {
-    if (focusLost) args.primary?.focus();
-    return;
-  }
   const { container } = args;
   if (container === null) return;
   if (args.delta.removed.includes(args.focused)) {
@@ -94,7 +89,7 @@ function recoverFocus(args: {
       args.nextVisible,
     );
     if (target !== undefined && focusQuestion(container, target)) return;
-    const heading = container.querySelector<HTMLElement>("h1");
+    const heading = container.querySelector<HTMLElement>("h1, h2");
     if (heading) {
       heading.tabIndex = -1;
       heading.focus();
@@ -105,13 +100,22 @@ function recoverFocus(args: {
 }
 
 /**
- * The hydrated flow (019's per-answer model). The server sends the first
- * `StepResponse` (real content, so the SSR first paint is real); this component
- * owns the local answer values, posts each answer to the same-origin BFF proxy on
- * change/blur, and re-renders branching from the API's returned flow projection.
+ * The hydrated flow with an explicit navigation cursor (029/030, ADR-28). The
+ * server sends the first `StepResponse` (real content, so the SSR first paint is
+ * real); this component owns the local answer values, posts each answer to the
+ * same-origin BFF proxy on change/blur, and re-renders branching *within the
+ * current step* from the API's returned flow projection.
+ *
+ * Navigation is a COMMITTED cursor, never a side effect of answering: **Continue**
+ * requests the next visible step (only when the current step's required questions
+ * are satisfied), **Back** requests the previous one, **Submit** appears only on
+ * the final visible step. A step never collapses or advances because a question
+ * was answered, so a multi-choice keeps every selection and a late-reopened
+ * required question never yanks the respondent backward (findings M/N).
+ *
  * The session token never touches client JS - the BFF attaches it from the
  * httpOnly cookie. The portal never evaluates rules; every projection comes from
- * the API (R2).
+ * the API, and Continue/Submit gate on the API's authoritative `flowState` (R2).
  *
  * `StepResponse` is imported type-only, so no server module reaches the client
  * bundle (enforced by the R2 import-surface test).
@@ -132,20 +136,37 @@ export function StepFlow({
   const [announcement, setAnnouncement] = useState("");
   const valuesRef = useRef<A2UIValues>(values);
   valuesRef.current = values;
-  // Answer posts are serialized: a follow-up answer must not overtake the answer
-  // that made its question visible (else the API rejects it 409 not-visible).
+  // The last server projection, read inside queued callbacks so a navigation or
+  // submit guard sees the projection left by any answer post that ran just ahead
+  // of it. Updated ONLY where the snapshot changes (each answer post and each
+  // navigation), never on every render - a render-time reassignment could clobber
+  // the fresh server response with stale state from an interleaved re-render
+  // (setBusy / setValues), making a just-completed answer look unfinished.
+  const snapshotRef = useRef<StepResponse>(snapshot);
+  // Answer posts and navigations are serialized on one queue: a follow-up answer
+  // must not overtake the answer that made its question visible (else the API
+  // rejects it 409 not-visible), and a Continue must evaluate its gate only after
+  // any in-flight answer (e.g. a blur post triggered by the click) has landed.
   const queueRef = useRef<Promise<void>>(Promise.resolve());
+  // The last value successfully posted per question (serialized), so a blur does
+  // not re-post an answer a change already posted. Without this, selecting a
+  // discrete control (which posts on change) and then clicking Continue/Submit
+  // blurs the control and re-posts the identical value: a redundant append that
+  // also flips `busy` at exactly the wrong moment and races the advance guard.
+  const lastPostedRef = useRef<Record<string, string>>({});
 
   // Flow-level accessibility (task 030): the step content region (for focus
   // targeting and reading the step heading), the previous flow projection (to
   // diff for announcements + focus), the question that held focus at the moment
   // an answer post returned (to recover focus if a branch change removed it),
-  // and the error summary (focused on a blocked submit).
+  // the error summary (focused on a blocked submit), and the last readiness (to
+  // announce becoming ready).
   const fieldsRef = useRef<HTMLDivElement>(null);
   const prevFlowRef = useRef<FlowView | undefined>(undefined);
   const focusedAtUpdateRef = useRef<string | undefined>(undefined);
   const errorSummaryRef = useRef<HTMLDivElement>(null);
   const primaryRef = useRef<HTMLButtonElement>(null);
+  const prevReadyRef = useRef<boolean>(initial.flowState.readyToSubmit);
 
   const sendAnswer = useCallback(
     async (name: string, value: A2UIAnswerValue | undefined): Promise<void> => {
@@ -154,13 +175,24 @@ export function StepFlow({
         const res = await fetch(`/s/${encodeURIComponent(sessionId)}/answers`, {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ questionId: name, value: value ?? null }),
+          // Carry the committed cursor so the API re-renders THIS step, never
+          // advancing away from it as a side effect of answering (ADR-28).
+          body: JSON.stringify({
+            questionId: name,
+            value: value ?? null,
+            step: snapshotRef.current.progress.stepIndex,
+          }),
         });
         if (res.status === 200) {
           const next = (await res.json()) as StepResponse;
+          // This value is now the last one posted for this question.
+          lastPostedRef.current[name] = JSON.stringify(value ?? null);
           // Record which question holds focus right now, so the post-render
           // effect can recover focus if this projection removes it (task 030).
           focusedAtUpdateRef.current = questionIdOf(document.activeElement);
+          // Update the ref synchronously (not only via the render) so a queued
+          // navigation/advance chained right after this post reads fresh state.
+          snapshotRef.current = next;
           setSnapshot(next);
           setErrors((prev) => {
             const rest = { ...prev };
@@ -209,12 +241,17 @@ export function StepFlow({
 
   const handleBlur = useCallback(
     (name: string): void => {
-      postAnswer(name, valuesRef.current[name]);
+      const value = valuesRef.current[name];
+      // Skip the post if this exact value was already posted (e.g. a discrete
+      // control that posted on change): re-posting on blur is a redundant append
+      // and races the advance guard.
+      if (lastPostedRef.current[name] === JSON.stringify(value ?? null)) return;
+      postAnswer(name, value);
     },
     [postAnswer],
   );
 
-  const submit = useCallback(async (): Promise<void> => {
+  const doSubmit = useCallback(async (): Promise<void> => {
     setBusy(true);
     try {
       const res = await fetch(`/s/${encodeURIComponent(sessionId)}/submit`, {
@@ -241,14 +278,105 @@ export function StepFlow({
     setBusy(false);
   }, [sessionId]);
 
-  const onPrimary = useCallback((): void => {
-    if (snapshot.flowState.readyToSubmit) void submit();
-    else setShowMissing(true);
-  }, [snapshot.flowState.readyToSubmit, submit]);
+  /**
+   * Fetch the requested step by cursor index (or the first incomplete step when
+   * `target === "current"`) and render it. The BFF attaches the bearer and
+   * forwards the cursor; the portal performs no rule evaluation (R2).
+   */
+  const doNavigate = useCallback(
+    async (target: number | "current"): Promise<void> => {
+      setBusy(true);
+      try {
+        const query = target === "current" ? "" : `?step=${encodeURIComponent(String(target))}`;
+        const res = await fetch(`/s/${encodeURIComponent(sessionId)}/step${query}`);
+        if (res.status === 200) {
+          const next = (await res.json()) as StepResponse;
+          // Navigation lands focus on the new step's heading (see the effect), so
+          // no per-question focus recovery is requested here.
+          focusedAtUpdateRef.current = undefined;
+          snapshotRef.current = next;
+          setSnapshot(next);
+        } else if (res.status === 401) {
+          window.location.assign(`/s/${encodeURIComponent(sessionId)}`);
+        } else {
+          setFailed(true);
+        }
+      } catch {
+        setFailed(true);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [sessionId],
+  );
+
+  /**
+   * Advance on Continue/Submit. Queued after any pending answer post so the gate
+   * reads the freshest projection: on a non-final step, Continue advances only
+   * when this step's required questions are satisfied (else the error summary
+   * shows and the step does not advance); on the final step, Submit submits when
+   * ready, shows the error summary when this step still has a gap, or navigates to
+   * the first incomplete step when a re-opened earlier required question blocks it
+   * (finding N - an explicit action, never a silent backward jump).
+   */
+  const attemptAdvance = useCallback((): void => {
+    queueRef.current = queueRef.current.then(async () => {
+      const snap = snapshotRef.current;
+      const index = snap.progress.stepIndex;
+      const total = snap.progress.totalVisibleSteps;
+      const stepQuestions = new Set(snap.flowState.visibleQuestions);
+      const stepMissing = snap.flowState.missingRequired.filter((q) => stepQuestions.has(q));
+      const onFinalStep = index >= total - 1;
+
+      if (onFinalStep) {
+        if (snap.flowState.readyToSubmit) {
+          await doSubmit();
+          return;
+        }
+        if (stepMissing.length > 0) {
+          setShowMissing(true);
+          return;
+        }
+        await doNavigate("current");
+        setShowMissing(true);
+        return;
+      }
+      if (stepMissing.length > 0) {
+        setShowMissing(true);
+        return;
+      }
+      setShowMissing(false);
+      await doNavigate(index + 1);
+    });
+  }, [doNavigate, doSubmit]);
+
+  const goBack = useCallback((): void => {
+    queueRef.current = queueRef.current.then(async () => {
+      const index = snapshotRef.current.progress.stepIndex;
+      if (index <= 0) return;
+      setShowMissing(false);
+      await doNavigate(index - 1);
+    });
+  }, [doNavigate]);
+
+  const stepIndex = snapshot.progress.stepIndex;
+  const total = snapshot.progress.totalVisibleSteps;
+  const isFirstStep = stepIndex <= 0;
+  const isFinalStep = stepIndex >= total - 1;
+  const progress = { current: stepIndex + 1, total };
+  const primaryLabel = isFinalStep ? t("action.submit") : t("action.continue");
+
+  // The error summary lists only the CURRENT step's still-missing required
+  // questions (those are what block Continue/Submit here), from the API's
+  // authoritative set intersected with this step's visible questions.
+  const stepVisible = new Set(snapshot.flowState.visibleQuestions);
+  const missing = showMissing
+    ? snapshot.flowState.missingRequired.filter((q) => stepVisible.has(q))
+    : [];
 
   // Announce step/branch changes and manage focus after each projection (030).
   // The SSR first paint needs neither (nothing changed yet), so the diff against
-  // `prevFlowRef` is empty on mount and this becomes active from the first answer.
+  // `prevFlowRef` is empty on mount and this becomes active from the first action.
   useEffect(() => {
     const container = fieldsRef.current;
     const previous = prevFlowRef.current;
@@ -256,11 +384,13 @@ export function StepFlow({
     const delta = diffFlow(previous, next);
     prevFlowRef.current = next;
 
-    // The last answer completed the step: the API drops `currentStep` to null and
-    // the form collapses to the ready-to-submit state (serve-step handler).
-    const becameReady = previous?.stepId != null && next.stepId === null;
+    const ready = snapshot.flowState.readyToSubmit;
+    const becameReady = previous !== undefined && !prevReadyRef.current && ready;
+    prevReadyRef.current = ready;
 
-    const headingText = container?.querySelector("h1")?.textContent?.trim() || undefined;
+    // The step's title heading: the step document's first heading (h1 on the
+    // first step, which also carries the form title; an h2 on later steps).
+    const headingText = container?.querySelector("h1, h2")?.textContent?.trim() || undefined;
     setAnnouncement(
       announcementText(
         delta,
@@ -271,27 +401,37 @@ export function StepFlow({
       ),
     );
 
+    // Explicit navigation to a different step: land focus at the new step's
+    // heading so keyboard and screen-reader users start at the top of the step.
+    if (delta.stepChanged && previous !== undefined) {
+      const heading = container?.querySelector<HTMLElement>("h1, h2");
+      if (heading) {
+        heading.tabIndex = -1;
+        heading.focus();
+      }
+      focusedAtUpdateRef.current = undefined;
+      return;
+    }
+
     const focused = focusedAtUpdateRef.current;
     focusedAtUpdateRef.current = undefined;
     if (focused === undefined) return;
     recoverFocus({
       container,
       focused,
-      becameReady,
       delta,
       previousVisible: previous?.visibleQuestions ?? [],
       nextVisible: new Set(next.visibleQuestions),
-      primary: primaryRef.current,
     });
   }, [snapshot]);
 
-  // A blocked submit moves focus to the error summary (WCAG 3.3.1); its
+  // A blocked submit/continue moves focus to the error summary (WCAG 3.3.1); its
   // role="alert" reads the summary heading. Each entry then jumps to its field.
   useEffect(() => {
-    if (showMissing && snapshot.flowState.missingRequired.length > 0) {
+    if (showMissing && missing.length > 0) {
       errorSummaryRef.current?.focus();
     }
-  }, [showMissing, snapshot.flowState.missingRequired.length]);
+  }, [showMissing, missing.length]);
 
   const focusMissingField = useCallback(
     (questionId: string) => (event: MouseEvent<HTMLAnchorElement>) => {
@@ -300,14 +440,6 @@ export function StepFlow({
     },
     [],
   );
-
-  const progress = {
-    current: snapshot.progress.stepIndex + 1,
-    total: snapshot.progress.totalVisibleSteps,
-  };
-  const readyToSubmit = snapshot.flowState.readyToSubmit;
-  const primaryLabel = readyToSubmit ? t("action.submit") : t("action.continue");
-  const missing = showMissing ? snapshot.flowState.missingRequired : [];
 
   return (
     <PortalShell progress={progress}>
@@ -373,12 +505,27 @@ export function StepFlow({
           </p>
         )}
 
-        <div className="flex items-center justify-end gap-3 pt-2">
+        <div className="flex items-center justify-between gap-3 pt-2">
+          {isFirstStep ? (
+            // Back is hidden on the first visible step (042 wireframe); keep the
+            // primary action right-aligned with a spacer.
+            <span aria-hidden="true" />
+          ) : (
+            <button
+              type="button"
+              className={buttonClass("secondary")}
+              onClick={goBack}
+              disabled={busy}
+              data-testid="back-action"
+            >
+              {t("action.back")}
+            </button>
+          )}
           <button
             ref={primaryRef}
             type="button"
             className={buttonClass("primary")}
-            onClick={onPrimary}
+            onClick={attemptAdvance}
             disabled={busy}
             data-testid="primary-action"
           >
