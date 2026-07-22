@@ -52,7 +52,7 @@ Status values: `todo` · `in-progress (branch)` · `blocked (issue #)` · `done 
 | 027 | API end-to-end suite | 6 | done |
 | 028 | A2UI renderer (`packages/ui`) | 7 | done |
 | 029 | Portal app (SSR + BFF) | 7 | done (design signed off Ravi 2026-07-22; no-JS-submission clause of exit-2 waived → task 044/#17) |
-| 030 | Portal accessibility pass | 7 | in-progress (feat/030-portal-a11y — automated portion; manual screen-reader pass is a human gate) |
+| 030 | Portal accessibility pass | 7 | in-progress (feat/030-portal-a11y; automated portion, manual screen-reader pass is a human gate) |
 | 031 | Admin shell and 2FA auth | 8a | todo |
 | 032 | Admin question library | 8a | todo |
 | 033 | Admin form builder and condition editor | 8a | todo |
