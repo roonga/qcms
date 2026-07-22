@@ -56,7 +56,7 @@ Launch **excludes** (recorded as `phase-4` issues, never built early): impact an
 
 ## 6. Decision record - additions
 
-ADR-01…15 are the project's foundational scope decisions. The following decisions were added after the plan reviews (ADR-16…19: 2026-07-18; ADR-20…25: 2026-07-19; ADR-26: 2026-07-21; ADR-27: 2026-07-23) to resolve identified underspecifications. They carry the same weight.
+ADR-01…15 are the project's foundational scope decisions. The following decisions were added after the plan reviews (ADR-16…19: 2026-07-18; ADR-20…25: 2026-07-19; ADR-26: 2026-07-21; ADR-27: 2026-07-23; ADR-28: 2026-07-23) to resolve identified underspecifications. They carry the same weight.
 
 ### ADR-16 - Rules evaluation: forward-pass with publish-time cycle rejection
 
@@ -188,6 +188,14 @@ Dates, numbers, and currency are formatted **locale-aware via the platform `Intl
 **Why.** These are surveys, registration, and insurance flows for real people: a respondent who cannot read the language cannot complete the flow, and an operator serving a multilingual population must localize without forking the source. Hardcoded strings are the biggest barrier to that and rot silently, so the rule is enforced at write time (no inline user-facing literals) rather than discovered later. `Intl`-based formatting avoids the classic date/number/currency locale bugs.
 
 **Consequences.** Every UI task (029, 031-035, 041) routes all strings through its i18n catalog; a hardcoded user-facing literal is a review-blocking defect (candidate for a lint/gate). Content translations live in the **published snapshot per version** (immutability: translating a published form is a new version, not an edit); chrome translations are app assets, versioned with the app, not the snapshot. §5's earlier "single locale" language is superseded: the i18n *machinery* is launch scope, while *additional shipped locale translations* and a *runtime locale-switcher UX* are demand-ordered (Phase 4). A follow-up audits the existing portal chrome (029) for stray hardcoded literals and adds the no-hardcoded-user-text guard.
+
+### ADR-28 - Portal step navigation: explicit cursor (Continue / Back / Submit), no collapse-on-answer
+
+**Decision.** The portal navigates steps via an explicit, committed cursor with user-driven controls: **Continue** advances only when the current step's required questions are satisfied (otherwise the error summary shows and the step does not advance); **Back** returns to the previous visible step (hidden on the first step, per the 042 wireframe); **Submit** appears only on the final visible step. A step **never collapses or advances as a side effect of answering**. Per-answer posting is unchanged - the API still re-evaluates and owns validation/projection (R2), branch changes within the current step still reflect live (030) - but the *rendered step* changes only on Continue/Back. `flowState` (`currentStep`/`readyToSubmit`/`missingRequired`) remains the validation authority the portal reads to gate Continue/Submit; it does not drive navigation by itself. Auto-advance (advancing on the last answer of a step) is **not** the default; it is deferred to an **opt-in per-form setting** (default off).
+
+**Why.** The shipped model derived the cursor from validation state: `evaluate-rules.ts` computes `currentStep` as the first step still holding an unanswered required question, and the portal renders exactly that step. Navigation was therefore a side effect of answering, which (manual review 2026-07-23) makes multi-choice unusable (one selection satisfies "required" and collapses the question before more can be picked), regresses a respondent backward when a later action re-opens an earlier required question, provides no Back, and violates WCAG 3.2.2 (On Input) - a selection causes a context change with no explicit action. The 042 wireframe (signed off 2026-07-21) already specifies Back, so explicit navigation is the intended model; this ADR records it and makes the implementation conform.
+
+**Consequences.** Serve-step may need to return a *requested* visible step (by cursor), not only the first-incomplete one; R2 is preserved (the portal requests and renders; it performs no rule evaluation). Determinism, immutability, and auditability are unaffected: navigation is UI cursor state, answers remain append-only (R3 / ADR-17), and the compiled document is unchanged (ADR-18). Implemented by task 045, whose full-stack e2e (kitchen-sink across phone/tablet/desktop, independent Postgres verification of persisted answers, browser + container-log error gates) is the proof and blocks 030's manual accessibility pass.
 
 ## 7. Constraints
 

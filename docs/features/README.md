@@ -52,7 +52,7 @@ Status values: `todo` · `in-progress (branch)` · `blocked (issue #)` · `done 
 | 027 | API end-to-end suite | 6 | done |
 | 028 | A2UI renderer (`packages/ui`) | 7 | done |
 | 029 | Portal app (SSR + BFF) | 7 | done (design signed off Ravi 2026-07-22; no-JS-submission clause of exit-2 waived → task 044/#17) |
-| 030 | Portal accessibility pass | 7 | in-progress (automated portion landed 2026-07-22; manual NVDA/VoiceOver pass pending, human gate) |
+| 030 | Portal accessibility pass | 7 | in-progress (automated portion landed 2026-07-22; manual NVDA/VoiceOver pass BLOCKED until 045 lands the full-flow e2e green; human gate) |
 | 031 | Admin shell and 2FA auth | 8a | todo |
 | 032 | Admin question library | 8a | todo |
 | 033 | Admin form builder and condition editor | 8a | todo |
@@ -62,6 +62,7 @@ Status values: `todo` · `in-progress (branch)` · `blocked (issue #)` · `done 
 | 042 | UI wireframes (lo-fi pass; runs after 027, before 029/031–035) | 7 | done (signed off 2026-07-21) |
 | 043 | Rename example domain to vehicle insurance (runs after 029, before 030/031–035) | 7 | done (one-time golden re-baseline, ADR-18 amended 2026-07-22; closes #16) |
 | 044 | No-JS submission (progressive enhancement; after 029, off the launch gate - issue #17) | 7 | done (closed for boolean/choice/text/date; numeric no-JS deferred - upstream RAC limit, #18) |
+| 045 | Portal step navigation: explicit cursor (Continue/Back/Submit); full-flow kitchen-sink e2e x3 viewports with independent DB + container-log verification (fixes review M/N/G; ADR-28) | 7 | todo (on the launch gate; blocks 030 manual a11y pass) |
 | 036 | Production images, compose, ops docs | 8b | todo |
 | 037 | create-qcms-app CLI | 8b | todo |
 | 040 | Security review and hardening (runs after 036, before 038) | 8b | todo |
