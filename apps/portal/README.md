@@ -75,6 +75,37 @@ no-JS respondent who reaches a numeric question cannot enter it. The no-JS e2e
 therefore drives the boolean branch. A native numeric fallback is a possible
 follow-up (see the task 044 friction note).
 
+## Run the portal for the manual pass
+
+To serve a real published form locally (for the task-030 manual screen-reader
+pass, or just to click through the flow), run from the repo root:
+
+```
+pnpm dev:portal
+```
+
+This one command brings up the dev Postgres (`docker-compose.dev.yml`,
+`QCMS_DB_PORT=5433`), migrates it, seeds and publishes the kitchen-sink form
+(`frm_kitchen_sink`: every question type plus two branch rules) through the same
+publish pipeline the e2e seed uses, then starts the API and this portal wired
+together and waits until both are healthy. Seeding is idempotent. When ready it
+prints the respondent URL:
+
+```
+http://localhost:3000/f/kitchen-sink
+```
+
+Open it, click **Start**, and walk the flow. Stop with **Ctrl+C** (stops the API
+and portal); the Postgres container is left up. Remove it with:
+
+```
+docker compose -f docker-compose.dev.yml down
+```
+
+The internal service token is generated in memory per run and never written to a
+file. Ports are overridable via `QCMS_DEV_PORTAL_PORT`, `QCMS_DEV_API_PORT`, and
+`QCMS_DB_PORT`. See `docs/a11y-manual-pass-checklist.md` for the full pass script.
+
 ## Tests
 
 - Vitest (below the browser): `lib/server/*.test.ts` cover the R2 import surface,

@@ -11,6 +11,7 @@
   },
   "scripts": {
     "build": "turbo run build",
+    "dev:portal": "node scripts/dev-portal.mjs",
     "test": "turbo run test",
     "test:golden-drift": "vitest run --project @qcms/core packages/core/src/golden-corpus.test.ts",
     "check:golden-append-only": "node scripts/check-golden-append-only.mjs",
