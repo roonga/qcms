@@ -30,7 +30,7 @@ These three properties shape every architectural decision and are never traded a
 2. **Determinism.** The serving path contains no LLM and no nondeterministic component. Same form version + same answers = same flow and same UI, forever. Rule evaluation is a pure function whose semantics are versioned with each snapshot.
 3. **Auditability.** The system can always answer: *what was asked, what was shown, what was answered, and when it changed.* Immutable snapshots store both the domain definition and the compiled UI; answers are an append-only ledger.
 
-A fourth property is a first-class commitment rather than a differentiator: **accessibility** (WCAG 2.2 AA, built during development, verified per release with automated and manual passes).
+Two further properties are first-class commitments rather than differentiators: **accessibility** (WCAG 2.2 AA, built during development, verified per release with automated and manual passes) and **internationalization** (ADR-27): **no user-facing string is ever hardcoded** - both the portal and the admin render every string through the app's i18n catalog or `LocalizedText` (authored content), and dates, numbers, and currency are formatted locale-aware via `Intl`. The system is multiple-language-capable; the initially shipped translation set may be small, but nothing is hardcoded.
 
 ## 4. Success criteria
 
@@ -48,15 +48,15 @@ Adoption signals decide sequencing, not the roadmap: OTP/social login, question-
 
 ## 5. Scope boundaries (the cut-line)
 
-Launch **includes**: the seven core question types (short text, long text, number, date, boolean, single choice, multi choice); the closed rules DSL; question-level versioning with manual pinning; anonymous + secure-link access; append-only answers with resume; submission lock; signed webhook with transactional outbox; CSV/JSON export; reporting view; retention sweep and hard-erasure path; admin authoring with structured condition editing; **flag-gated agent-assisted form building (ADR-25 - built for launch, off the launch gate)**; single locale on a localizable schema; single-tenant deployments.
+Launch **includes**: the seven core question types (short text, long text, number, date, boolean, single choice, multi choice); the closed rules DSL; question-level versioning with manual pinning; anonymous + secure-link access; append-only answers with resume; submission lock; signed webhook with transactional outbox; CSV/JSON export; reporting view; retention sweep and hard-erasure path; admin authoring with structured condition editing; **flag-gated agent-assisted form building (ADR-25 - built for launch, off the launch gate)**; **full internationalization on both apps** (no hardcoded user-facing text; locale-aware dates/numbers/currency; multiple-language-capable, ADR-27); single-tenant deployments.
 
-Launch **excludes** (recorded as `phase-4` issues, never built early): impact analysis / breaking-change detection, `/api/v1`, second locale UX, multi-tenancy, OTP/social auth, runtime agent flows **in the serving path** (adaptive flows - the `StepResolver` seam stays reserved), file-upload question type, visual drag-and-drop condition builder beyond the structured editor.
+Launch **excludes** (recorded as `phase-4` issues, never built early): impact analysis / breaking-change detection, `/api/v1`, large shipped locale-translation sets and a runtime locale-switcher UX (the i18n machinery is launch scope, ADR-27; additional translations are demand-ordered), multi-tenancy, OTP/social auth, runtime agent flows **in the serving path** (adaptive flows - the `StepResolver` seam stays reserved), file-upload question type, visual drag-and-drop condition builder beyond the structured editor.
 
 **The cut-line is enforced at review, not remembered.** An itch is written down as an issue labeled `phase-4`, not scratched.
 
 ## 6. Decision record - additions
 
-ADR-01…15 are the project's foundational scope decisions. The following decisions were added after the plan reviews (ADR-16…19: 2026-07-18; ADR-20…25: 2026-07-19; ADR-26: 2026-07-21) to resolve identified underspecifications. They carry the same weight.
+ADR-01…15 are the project's foundational scope decisions. The following decisions were added after the plan reviews (ADR-16…19: 2026-07-18; ADR-20…25: 2026-07-19; ADR-26: 2026-07-21; ADR-27: 2026-07-23) to resolve identified underspecifications. They carry the same weight.
 
 ### ADR-16 - Rules evaluation: forward-pass with publish-time cycle rejection
 
@@ -175,6 +175,19 @@ ADR-01…15 are the project's foundational scope decisions. The following decisi
 **Why.** The admin is client-heavy (autosave, live validation, optimistic updates, cross-view cache invalidation) - exactly where a query cache beats hand-rolled server-state, and where the minimal-dependency rule favors the library (the builder's server-state is well over a hundred lines of liability). The portal is SSR-first with trivial client state, so it pays for none of it. The two surfaces serve different masters: respondents see the *adopter's* brand (the portal must flex), authors see *ours* (the admin can be opinionated and fixed).
 
 **Consequences.** One new runtime dependency, **admin-only**: `@tanstack/react-query` (clears the CONTRIBUTING thresholds - major org, open source, vendor-agnostic; exit path bounded, it is a cache over `fetch`). 031-035 build against this stack. The design pass (`docs/wireframes` + the design brief) produces the token set and admin designs; the first pass validated **Cobalt** as the QCMS brand accent with a themeable portal baseline (2026-07-21). Portal fonts + tokens are the single adopter override surface.
+
+### ADR-27 - Internationalization: first-class, both apps, no hardcoded user-facing text
+
+**Decision.** i18n is a first-class commitment (§3). **No user-facing string is ever hardcoded** anywhere in the portal or the admin. Every string comes from one of two sources:
+
+- **Authored content** (question labels, help, option labels, form titles) via `LocalizedText`, stored in the immutable published snapshot (ADR-18).
+- **Application chrome** (buttons, system/validation messages, error-summary text, nav, status) via each app's **i18n catalog**, keyed and swappable per locale.
+
+Dates, numbers, and currency are formatted **locale-aware via the platform `Intl` APIs**, never hand-rolled. Both apps carry an active locale and a documented fallback. The system is **multiple-language-capable**; the initially shipped translation set may be small, but the machinery is complete at launch.
+
+**Why.** These are surveys, registration, and insurance flows for real people: a respondent who cannot read the language cannot complete the flow, and an operator serving a multilingual population must localize without forking the source. Hardcoded strings are the biggest barrier to that and rot silently, so the rule is enforced at write time (no inline user-facing literals) rather than discovered later. `Intl`-based formatting avoids the classic date/number/currency locale bugs.
+
+**Consequences.** Every UI task (029, 031-035, 041) routes all strings through its i18n catalog; a hardcoded user-facing literal is a review-blocking defect (candidate for a lint/gate). Content translations live in the **published snapshot per version** (immutability: translating a published form is a new version, not an edit); chrome translations are app assets, versioned with the app, not the snapshot. §5's earlier "single locale" language is superseded: the i18n *machinery* is launch scope, while *additional shipped locale translations* and a *runtime locale-switcher UX* are demand-ordered (Phase 4). A follow-up audits the existing portal chrome (029) for stray hardcoded literals and adds the no-hardcoded-user-text guard.
 
 ## 7. Constraints
 
