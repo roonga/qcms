@@ -34,6 +34,7 @@ const ALLOWED = new Set([
   "WTFPL",
   "MIT-0",
   "MPL-2.0", // file-level copyleft; permissive enough to consume as a dependency
+  "CC-BY-4.0", // attribution-only content license; build-time browser data (caniuse-lite), not shipped in the runtime bundle
 ]);
 
 function normalize(license) {

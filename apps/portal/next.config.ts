@@ -21,6 +21,13 @@ const nextConfig: NextConfig = {
   },
   // The portal never sends CORS headers (SEC): it is same-origin with its own
   // BFF route handlers. No `headers()` CORS entries here by design.
+  //
+  // No image optimization: the portal ships no optimized imagery, so Next needs
+  // no `sharp`. That optional dep pulls a native libvips binary under LGPL-3.0;
+  // dropping it (with pnpm.ignoredOptionalDependencies in the root package.json)
+  // keeps the MIT-redistribution no-copyleft policy pure and the check:licenses
+  // gate green.
+  images: { unoptimized: true },
 };
 
 export default nextConfig;
