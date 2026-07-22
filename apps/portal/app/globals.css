@@ -52,3 +52,33 @@ body {
 .skip-link:focus {
   top: 0.5rem;
 }
+
+/*
+ * Guaranteed focus-visible indicator (WCAG 2.2 - 2.4.11 Focus Appearance,
+ * task 030). Zero-specificity `:where()` so the vendored @qcms/ui controls keep
+ * their own focus rings; every other focusable element - the skip link, the
+ * error-summary "jump to field" links, a step heading focused after a branch
+ * removal - gets a solid, high-contrast outline. `--color-focus-ring` clears 3:1
+ * against its backgrounds in BOTH themes (light #2456c6, dark #7aa2ff; ADR-26).
+ */
+:where(a, button, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/*
+ * Respect reduced-motion (WCAG 2.3.3, task 030): the skip link's slide and the
+ * controls' color transitions collapse to near-instant. Kept as the standard
+ * conservative reset rather than removing motion the design does not use.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

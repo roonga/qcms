@@ -46,16 +46,27 @@ function isStringArray(value: A2UIAnswerValue | undefined): value is readonly st
 }
 
 /**
- * Fires the parent `onBlur(name)` when focus leaves the whole control (touched
- * semantics; focus *policy* is 029/030). The vendored controls do not forward
- * `onBlur`, so we capture the bubbling focusout on a `display:contents` wrapper
- * (invisible to layout) and ignore focus moves that stay inside the control
- * (e.g. between a NumberField's steppers).
+ * Wraps one control so consumers get (a) a touched-semantics `onBlur(name)` when
+ * focus leaves the whole control, and (b) a stable focus-target handle for that
+ * question. The vendored controls neither forward `onBlur` nor expose a
+ * questionId-keyed DOM node, so this qcms-owned adapter supplies both: it is a
+ * `display:contents` wrapper (invisible to layout, adds no box and no role, so
+ * the accessibility tree is unchanged) carrying `id={name}` and
+ * `data-qcms-field={name}`. The `id` lets a host app (the portal, 030) target the
+ * question for focus - error-summary "jump to field" links and focus recovery
+ * when a branch change removes the focused question - without guessing at each
+ * control type's internal DOM. Blur ignores focus moves that stay inside the
+ * control (e.g. between a NumberField's steppers).
+ *
+ * `name` is optional: a control compiled without a questionId (never happens for
+ * a real question, but the props type allows it) simply gets no id.
  */
 function FieldBlur({
+  name,
   onBlur,
   children,
 }: {
+  readonly name?: string;
   readonly onBlur: () => void;
   readonly children: ReactNode;
 }) {
@@ -65,7 +76,7 @@ function FieldBlur({
     }
   };
   return (
-    <div style={{ display: "contents" }} onBlur={handleBlur}>
+    <div style={{ display: "contents" }} id={name} data-qcms-field={name} onBlur={handleBlur}>
       {children}
     </div>
   );
@@ -75,7 +86,7 @@ type TextFieldProps = NonNullable<TextFieldNode["props"]>;
 function TextFieldField(props: Readonly<TextFieldProps>) {
   const field = useQcmsField(props.name);
   return (
-    <FieldBlur onBlur={field.blur}>
+    <FieldBlur name={props.name} onBlur={field.blur}>
       <TextField
         {...props}
         value={typeof field.value === "string" ? field.value : ""}
@@ -91,7 +102,7 @@ type TextAreaProps = NonNullable<TextAreaNode["props"]>;
 function TextAreaField(props: Readonly<TextAreaProps>) {
   const field = useQcmsField(props.name);
   return (
-    <FieldBlur onBlur={field.blur}>
+    <FieldBlur name={props.name} onBlur={field.blur}>
       <TextArea
         {...props}
         value={typeof field.value === "string" ? field.value : ""}
@@ -107,7 +118,7 @@ type NumberFieldProps = NonNullable<NumberFieldNode["props"]>;
 function NumberFieldField(props: Readonly<NumberFieldProps>) {
   const field = useQcmsField(props.name);
   return (
-    <FieldBlur onBlur={field.blur}>
+    <FieldBlur name={props.name} onBlur={field.blur}>
       <NumberField
         {...props}
         value={typeof field.value === "number" ? field.value : Number.NaN}
@@ -123,7 +134,7 @@ type DatePickerProps = NonNullable<DatePickerNode["props"]>;
 function DatePickerField(props: Readonly<DatePickerProps>) {
   const field = useQcmsField(props.name);
   return (
-    <FieldBlur onBlur={field.blur}>
+    <FieldBlur name={props.name} onBlur={field.blur}>
       <DatePicker
         {...props}
         value={typeof field.value === "string" ? field.value : undefined}
@@ -162,7 +173,7 @@ function RadioGroupField(props: RadioGroupProps) {
     }
   };
   return (
-    <FieldBlur onBlur={field.blur}>
+    <FieldBlur name={props.name} onBlur={field.blur}>
       <RadioGroup
         {...props}
         value={controlValue}
@@ -180,7 +191,7 @@ type CheckboxGroupProps = NonNullable<CheckboxGroupNode["props"]> & {
 function CheckboxGroupField(props: CheckboxGroupProps) {
   const field = useQcmsField(props.name);
   return (
-    <FieldBlur onBlur={field.blur}>
+    <FieldBlur name={props.name} onBlur={field.blur}>
       <CheckboxGroup
         {...props}
         value={isStringArray(field.value) ? [...field.value] : []}
@@ -198,7 +209,7 @@ type SelectProps = NonNullable<SelectNode["props"]>;
 function SelectField(props: Readonly<SelectProps>) {
   const field = useQcmsField(props.name);
   return (
-    <FieldBlur onBlur={field.blur}>
+    <FieldBlur name={props.name} onBlur={field.blur}>
       <Select
         {...props}
         // undefined (not "") when unselected - "" is not a valid option key and

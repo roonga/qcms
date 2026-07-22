@@ -30,8 +30,20 @@ export const messages = {
   "session.lost.title": "Something went wrong",
   "session.lost.body": "We could not reach the server. Please try again.",
 
-  "branch.added": "1 question added",
-  "branch.removed": "1 question removed",
+  // Live-region announcements (task 030). Read by screen readers only; never
+  // shown visually. Step changes announce the destination; branch changes
+  // announce how many questions appeared or disappeared so the change is
+  // perceivable to someone who cannot see the layout shift.
+  "announce.stepChange": "Step {current} of {total}: {title}",
+  "announce.stepChangeNoTitle": "Step {current} of {total}",
+  "announce.branchAdded.one": "1 question was added below.",
+  "announce.branchAdded.other": "{count} questions were added below.",
+  "announce.branchRemoved.one": "1 question was removed.",
+  "announce.branchRemoved.other": "{count} questions were removed.",
+  // Announced when the last answer completes the step and the flow collapses to
+  // the ready-to-submit state (currentStep becomes null): clearer than reporting
+  // the now-hidden questions as a bulk removal.
+  "announce.ready": "You have answered everything. You can now submit.",
 
   "link.expired.title": "This link has expired",
   "link.expired.body": "The registration link is no longer valid. Please request a new one.",

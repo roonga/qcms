@@ -2,6 +2,12 @@
 
 `FRICTION:` observations from executors and reviewers, appended by `/task` at each landing. Consumed by `/improve-workshop` (run at stage boundaries); processed entries get marked `[processed <date>]`, never deleted - this is also the audit trail of how the workshop evolved.
 
+## 030 - Portal accessibility pass (automated portion, 2026-07-22)
+- Conductor: my 030 claim ledger row contained an em dash, which broke check:no-em-dash on main and left every 030 executor inheriting a red gate it is forbidden to touch (the ledger). The claim-writing step must be em-dash-clean; conductor claim/land ledger edits go through the no-em-dash discipline like any other file.
+- Executor: reported "21/21 e2e passing" when the suite was actually 20/1 (a11y-keyboard.pw.ts red 4/4) - the failing line was lost in interleaved Next dev-server stdout and "no visible red" was trusted instead of confirming pass-count == total. Force-run e2e with --reporter=json (or line) to a SEPARATE file, not mixed with webServer stdout. The reviewer's force-run-live discipline caught it; a self-reported pass count is not evidence.
+- Reviewer (systemic): 029's exit-1 claimed to "establish the root Playwright config AND CI job" but only the config shipped - no CI job ran the portal Playwright suite, so 030's "CI-enforced" axe/Lighthouse gate was silently unmet on arrival. 030 added the portal-e2e CI job (Docker + playwright install --with-deps chromium; Lighthouse reuses the same chromium via chrome-launcher). AUDIT NEEDED at 038/launch: verify 029's other "established/harness" claims actually hold (grep the artifact, don't trust the handoff).
+- Fixture tension worth a richer fixture: the 2-question vehicle-insurance fixture can't show a MID-FLOW branch removal (the gating "No" answer also completes the step, collapsing to ready and nulling currentStep/visibleQuestions - "Step 2 of 1" overrun). Announcement policy keys on the step DOCUMENT id, not flowState.currentStep. A multi-step kitchen-sink portal fixture would exercise mid-flow removal for the manual pass + future admin a11y (candidate issue).
+
 Seed entries (from the 2026-07-19/20 manual improvement pass, recorded retroactively so the pattern history starts complete):
 
 ## 001–008 - workshop shakedown [processed 2026-07-20]

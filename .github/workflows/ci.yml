@@ -97,3 +97,40 @@ jobs:
       # The dedicated e2e project (the five scenario files). The OpenAPI drift +
       # validation guard rides in the unit job (part of `pnpm test`), no Docker.
       - run: pnpm --filter qcms-api exec vitest run --root ../.. --project qcms-api-e2e
+
+  # The portal browser suite (the ONE Playwright config, 029/ADR-23), as its own
+  # job for signal clarity: when this is red, a respondent-facing surface broke.
+  # It boots a Testcontainers Postgres + the composed API in globalSetup and drives
+  # the Next.js portal in a real browser. This is where the task 030 accessibility
+  # gates ENFORCE: axe (zero violations) on every flow state including post-branch
+  # changes, the keyboard-only walkthrough, reduced-motion/200%-zoom, and Lighthouse
+  # accessibility = 100 on the entry/flow/error/completion pages. Docker is
+  # available on ubuntu-latest (anonymous image pulls, no registry creds).
+  portal-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # @qcms/db's `.` export resolves to dist, and globalSetup composes the real
+      # API from the built workspace, so build first.
+      - run: pnpm build
+
+      # Playwright's Chromium plus the OS libraries headless Chrome needs on the
+      # runner. `--with-deps` is what makes both Playwright AND the Lighthouse gate
+      # work in CI: the Lighthouse audit launches this same Chromium binary via
+      # chrome-launcher (see apps/portal/e2e/a11y-lighthouse.pw.ts), and without the
+      # system libraries headless Chrome cannot start on a bare ubuntu runner.
+      - run: pnpm exec playwright install --with-deps chromium
+
+      # Runs the whole root Playwright config (CI=true, so it never reuses a server
+      # and forbids `test.only`). ~1-2 min including the DB boot and Lighthouse runs.
+      - run: pnpm exec playwright test

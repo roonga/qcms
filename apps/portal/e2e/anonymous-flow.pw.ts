@@ -21,35 +21,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import { readFixtures } from "./support/fixtures.js";
-
-const ACCIDENT_LABEL = "Any at-fault accident in the last 3 years?";
-const COUNT_LABEL = "How many?";
-
-/** Start anonymously at `/f/:slug`, click Start, land on the SSR flow page. */
-async function startAnonymousFlow(page: Page, slug: string): Promise<void> {
-  await page.goto(`/f/${slug}`);
-  await page.getByRole("button", { name: "Start" }).click();
-  await page.waitForURL(/\/s\/ses_/);
-  await expect(page.getByText(ACCIDENT_LABEL)).toBeVisible();
-}
-
-/**
- * Choose an at-fault-accident answer and wait for the answer to be recorded server-side.
- *
- * Two details: the react-aria radio's real `<input>` sits under a decorative
- * indicator that intercepts pointer events, so we click the option's visible label
- * (the enclosing pressable), exactly as a respondent would. And the answer posts
- * fire-and-forget, so we wait for the `/answers` response before continuing:
- * otherwise a follow-up answer can race ahead of this one and the API rejects it
- * as not-yet-visible (409).
- */
-async function chooseAccident(page: Page, answer: "Yes" | "No"): Promise<void> {
-  const recorded = page.waitForResponse(
-    (r) => r.url().includes("/answers") && r.request().method() === "POST" && r.status() === 200,
-  );
-  await page.getByText(answer, { exact: true }).click();
-  await recorded;
-}
+import { COUNT_LABEL, chooseAccident, startAnonymousFlow } from "./support/flow.js";
 
 /** Submit, then assert the completion page shows a 64-hex content hash. */
 async function submitAndExpectReceipt(page: Page): Promise<void> {
