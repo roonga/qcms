@@ -92,4 +92,29 @@ describe("R2 import surface (strict BFF)", () => {
     }
     expect(offenders).toEqual([]);
   });
+
+  // The task 044 whole-step form-encoded BFF route is a proxy only: it maps form
+  // fields to canonical answers and forwards them to the API, which stays the sole
+  // validation + rule authority. It must import NOTHING from @qcms/core (not even
+  // types) and must not re-implement any evaluation.
+  it("the no-JS whole-step route imports nothing from @qcms/core (R2)", () => {
+    const stepRoute = files.find((f) => f.path.endsWith("/step/route.ts"));
+    expect(stepRoute, "the whole-step BFF route should be scanned").toBeDefined();
+    const coreImports = importsOf(stepRoute!.text).filter((i) => i.spec.startsWith("@qcms/core"));
+    expect(coreImports).toEqual([]);
+    // Its only @qcms/ui *value* reach is the React-free transport-constants
+    // subpath (a bare `@qcms/ui` type import is erased and harmless).
+    for (const { spec, isType } of importsOf(stepRoute!.text)) {
+      if (!isType && spec.startsWith("@qcms/ui")) expect(spec).toBe("@qcms/ui/native-submit");
+    }
+  });
+
+  // The pure transport decoder must not reach into @qcms/core either - its kind
+  // hints come from @qcms/ui's React-free subpath, and coercion is not validation.
+  it("the step-form decoder is transport-only (no @qcms/core)", () => {
+    const decoder = files.find((f) => f.path.endsWith("/server/step-form.ts"));
+    expect(decoder, "the step-form decoder should be scanned").toBeDefined();
+    const coreImports = importsOf(decoder!.text).filter((i) => i.spec.startsWith("@qcms/core"));
+    expect(coreImports).toEqual([]);
+  });
 });

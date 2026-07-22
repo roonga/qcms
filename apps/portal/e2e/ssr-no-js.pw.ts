@@ -8,10 +8,10 @@
  * renders the step. We then assert the SSR HTML contains the question label with
  * no JavaScript in play.
  *
- * Known limitation (documented, not a gap to fix here): no-JS *answer submission*
- * is not wired. The shared @qcms/ui renderer owns the field `<form>` and the
- * compiled A2UI document cannot carry a per-question POST action without a 028
- * change, so this spec asserts only the SSR content, never a no-JS answer POST.
+ * No-JS *submission* is now wired too (task 044): the SSR paints a natively
+ * submittable `<form>` and a respondent can complete and submit the fixture
+ * without JavaScript. That end-to-end flow is covered by `no-js-submit.pw.ts`;
+ * this spec keeps the narrower guarantee that first paint is real step content.
  */
 
 import { expect, test } from "@playwright/test";

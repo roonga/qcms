@@ -10,6 +10,7 @@ import type {
   QcmsFieldContextValue,
 } from "./field-context.tsx";
 import { QcmsFieldContext } from "./field-context.tsx";
+import { withNativeSubmit, type NativeSubmitOptions } from "./native-submit.ts";
 import { registryForSpecVersion } from "./registry.tsx";
 
 /** One compiled A2UI step document (one entry of a compiled form's `documents`). */
@@ -33,6 +34,15 @@ export interface A2UIStepRendererProps {
   readonly locale?: string;
   /** The document's `a2uiSpecVersion` - selects the render generation (ADR-18 seam). */
   readonly specVersion?: string;
+  /**
+   * Opt into native (no-JS) submit mode (task 044): render a real
+   * `<form method="post" action=...>` with uncontrolled, natively-serializing
+   * controls and a real submit control, so a JavaScript-disabled respondent can
+   * POST the step. Absent (the default) leaves the controlled path (028/029)
+   * unchanged. This is a render-time capability only; the stored compiled
+   * document is never mutated (ADR-18).
+   */
+  readonly nativeSubmit?: NativeSubmitOptions;
 }
 
 const NO_VALUES: A2UIValues = Object.freeze({});
@@ -59,16 +69,25 @@ export function A2UIStepRenderer({
   onBlur = noop,
   locale = "en-US",
   specVersion,
+  nativeSubmit,
 }: A2UIStepRendererProps) {
   const registry = registryForSpecVersion(specVersion);
+  const native = nativeSubmit !== undefined;
   const ctx = useMemo<QcmsFieldContextValue>(
-    () => ({ values, errors, onChange, onBlur, locale }),
-    [values, errors, onChange, onBlur, locale],
+    () => ({ values, errors, onChange, onBlur, locale, native }),
+    [values, errors, onChange, onBlur, locale, native],
+  );
+  // Render-time only (ADR-18): in native mode the root Form gains action/method
+  // and a submit control; the stored `document.root` bytes are never mutated.
+  const root = useMemo(
+    () =>
+      nativeSubmit === undefined ? document.root : withNativeSubmit(document.root, nativeSubmit),
+    [document.root, nativeSubmit],
   );
   return (
     <I18nProvider locale={locale}>
       <QcmsFieldContext.Provider value={ctx}>
-        <A2Renderer node={document.root} registry={registry} />
+        <A2Renderer node={root} registry={registry} />
       </QcmsFieldContext.Provider>
     </I18nProvider>
   );

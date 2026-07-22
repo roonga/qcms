@@ -52,15 +52,28 @@ supported; the theme is chosen by `?theme=`, a cookie, or `prefers-color-scheme`
 See `.env.example`. Server-only: `QCMS_API_BASE_URL`, `QCMS_INTERNAL_TOKEN`.
 Optional challenge: `QCMS_FLAG_CHALLENGE_PROVIDER=turnstile` + `QCMS_TURNSTILE_SITE_KEY`.
 
-## Known limitation: no-JS submission
+## Progressive enhancement: no-JS submission (task 044)
 
-With JavaScript disabled the SSR flow page still renders the real step content
-(the SSR-content path is covered by the e2e suite). Full no-JS *submission* of
-answers is not yet wired: the shared `@qcms/ui` renderer owns the step `<form>`
-and the compiled A2UI document (served verbatim, ADR-18) cannot carry a POST
-action or a submit control without a small `@qcms/ui` change (028 is complete and
-frozen for this task). This is tracked as a follow-up; the JavaScript path is the
-supported respondent experience.
+The flow works with JavaScript disabled. The SSR paints a natively submittable
+`<form method="post">` (the `@qcms/ui` renderer's opt-in native-submit mode): the
+controls serialize their answers natively and a real submit control POSTs the
+whole step to the BFF's `/s/:sessionId/step` route, which forwards each answer to
+the API, and - once the API says the flow is ready - submits the session and
+redirects to the receipt. Each step is a full page reload (classic
+post/redirect/get); branching re-renders on the reload. On a validation failure
+the step re-renders with the API's typed errors in the error slots.
+
+When JavaScript runs, `ProgressiveStep` swaps the native form for the controlled
+per-answer `StepFlow` after hydration, so exactly one form is live at a time (no
+double-submit) and the JS experience is unchanged. The whole-step route stays a
+strict proxy (R2): it maps form fields to canonical answers and forwards them; the
+API remains the sole validation and rule authority.
+
+One caveat: the fixture's number follow-up ("How many?") is a react-aria
+NumberField whose editable input needs JavaScript to sync its form value, so a
+no-JS respondent who reaches a numeric question cannot enter it. The no-JS e2e
+therefore drives the boolean branch. A native numeric fallback is a possible
+follow-up (see the task 044 friction note).
 
 ## Tests
 

@@ -7,6 +7,9 @@
 export { A2UIStepRenderer } from "./A2UIStepRenderer.tsx";
 export type { A2UIStepDocument, A2UIStepRendererProps } from "./A2UIStepRenderer.tsx";
 
+export { NATIVE_FIELD_KIND_PREFIX, SUBMIT_NODE_TYPE, withNativeSubmit } from "./native-submit.ts";
+export type { NativeFieldKind, NativeSubmitOptions } from "./native-submit.ts";
+
 export { QcmsFieldContext, useQcmsField } from "./field-context.tsx";
 export type {
   A2UIAnswerValue,

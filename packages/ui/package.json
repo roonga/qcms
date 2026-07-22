@@ -12,6 +12,10 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./native-submit": {
+      "types": "./dist/native-submit.d.ts",
+      "default": "./dist/native-submit.js"
+    },
     "./theme.css": "./src/theme.css"
   },
   "files": [

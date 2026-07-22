@@ -38,6 +38,14 @@ export interface QcmsFieldContextValue {
   /** Fires when focus leaves the control (touched semantics; policy is 029/030). */
   readonly onBlur: (name: string) => void;
   readonly locale: string;
+  /**
+   * Native (no-JS) submit mode (task 044). When true, the control adapters render
+   * *uncontrolled* (a `defaultValue` seeded from `values`, no `onChange`) with a
+   * companion kind-tag hidden input, so their native form serialization carries
+   * the answer without JS. Default `false` keeps the controlled path (028/029)
+   * exactly as-is - the conformance suite renders with this unset.
+   */
+  readonly native: boolean;
 }
 
 /**
@@ -75,4 +83,13 @@ export function useQcmsField(name: string | undefined): QcmsField {
     if (name !== undefined) onBlur(name);
   }, [onBlur, name]);
   return { value, error, setValue, blur };
+}
+
+/** Whether the renderer is in native (no-JS) submit mode (task 044). */
+export function useQcmsNativeSubmit(): boolean {
+  const ctx = useContext(QcmsFieldContext);
+  if (ctx === null) {
+    throw new Error("A2UI field components must be rendered inside <A2UIStepRenderer>.");
+  }
+  return ctx.native;
 }

@@ -1,6 +1,6 @@
 import { createRegistry } from "@a2ra/core";
 import type { ComponentRegistry } from "@a2ra/core";
-import type { FocusEvent, ReactNode } from "react";
+import type { ComponentProps, FocusEvent, ReactNode } from "react";
 
 import {
   Checkbox,
@@ -24,10 +24,12 @@ import { TextArea, TextAreaSchema } from "./components/a2ui/text-area/index.ts";
 import type { TextAreaNode } from "./components/a2ui/text-area/index.ts";
 import { TextField, TextFieldSchema } from "./components/a2ui/text-field/index.ts";
 import type { TextFieldNode } from "./components/a2ui/text-field/index.ts";
+import { SubmitButton, SubmitButtonSchema } from "./components/submit/index.ts";
 import type { A2UIAnswerValue } from "./field-context.tsx";
-import { useQcmsField } from "./field-context.tsx";
+import { useQcmsField, useQcmsNativeSubmit } from "./field-context.tsx";
 import { Honeypot } from "./honeypot/Honeypot.tsx";
 import { HoneypotSchema } from "./honeypot/honeypot.schema.ts";
+import { NATIVE_FIELD_KIND_PREFIX, type NativeFieldKind } from "./native-submit.ts";
 
 /**
  * Controlled qcms adapters over the vendored a2-react-aria controls. The a2ra
@@ -38,11 +40,29 @@ import { HoneypotSchema } from "./honeypot/honeypot.schema.ts";
  * value to/from the canonical `AnswerValue` encoding for its question type. The
  * vendored components are used byte-for-byte upstream (clean `a2ra diff`,
  * ADR-22); all qcms wiring lives here.
+ *
+ * Native (no-JS) submit mode (task 044): when `useQcmsNativeSubmit()` is true the
+ * adapters render the SAME vendored control *uncontrolled* - a `defaultValue`
+ * seeded from `values` and no `onChange` - so the browser's own form
+ * serialization carries the answer without any JavaScript, plus a hidden
+ * kind-tag input so the strict BFF can decode the wire string back to the
+ * canonical shape (see `native-submit.ts`). The default (controlled) branch is
+ * byte-identical to 028/029, so the conformance snapshots are undisturbed.
  */
 
 /** Narrows a canonical answer to the multiChoice (OptionId[]) shape. */
 function isStringArray(value: A2UIAnswerValue | undefined): value is readonly string[] {
   return Array.isArray(value);
+}
+
+/**
+ * The hidden companion that tags one answer field with its transport kind, so the
+ * BFF can decode the form-encoded string without knowing the question (R2). Only
+ * emitted in native mode, and only for a control that has a questionId `name`.
+ */
+function FieldKind({ name, kind }: { readonly name?: string; readonly kind: NativeFieldKind }) {
+  if (name === undefined) return null;
+  return <input type="hidden" name={`${NATIVE_FIELD_KIND_PREFIX}${name}`} value={kind} />;
 }
 
 /**
@@ -85,15 +105,22 @@ function FieldBlur({
 type TextFieldProps = NonNullable<TextFieldNode["props"]>;
 function TextFieldField(props: Readonly<TextFieldProps>) {
   const field = useQcmsField(props.name);
+  const native = useQcmsNativeSubmit();
+  const modeProps: Partial<ComponentProps<typeof TextField>> = native
+    ? { defaultValue: typeof field.value === "string" ? field.value : undefined }
+    : {
+        value: typeof field.value === "string" ? field.value : "",
+        onChange: (v: string) => field.setValue(v.normalize("NFC")),
+      };
   return (
     <FieldBlur name={props.name} onBlur={field.blur}>
       <TextField
         {...props}
-        value={typeof field.value === "string" ? field.value : ""}
+        {...modeProps}
         isInvalid={field.error != null}
         errorMessage={field.error}
-        onChange={(v) => field.setValue(v.normalize("NFC"))}
       />
+      {native ? <FieldKind name={props.name} kind="string" /> : null}
     </FieldBlur>
   );
 }
@@ -101,15 +128,22 @@ function TextFieldField(props: Readonly<TextFieldProps>) {
 type TextAreaProps = NonNullable<TextAreaNode["props"]>;
 function TextAreaField(props: Readonly<TextAreaProps>) {
   const field = useQcmsField(props.name);
+  const native = useQcmsNativeSubmit();
+  const modeProps: Partial<ComponentProps<typeof TextArea>> = native
+    ? { defaultValue: typeof field.value === "string" ? field.value : undefined }
+    : {
+        value: typeof field.value === "string" ? field.value : "",
+        onChange: (v: string) => field.setValue(v.normalize("NFC")),
+      };
   return (
     <FieldBlur name={props.name} onBlur={field.blur}>
       <TextArea
         {...props}
-        value={typeof field.value === "string" ? field.value : ""}
+        {...modeProps}
         isInvalid={field.error != null}
         errorMessage={field.error}
-        onChange={(v) => field.setValue(v.normalize("NFC"))}
       />
+      {native ? <FieldKind name={props.name} kind="string" /> : null}
     </FieldBlur>
   );
 }
@@ -117,15 +151,22 @@ function TextAreaField(props: Readonly<TextAreaProps>) {
 type NumberFieldProps = NonNullable<NumberFieldNode["props"]>;
 function NumberFieldField(props: Readonly<NumberFieldProps>) {
   const field = useQcmsField(props.name);
+  const native = useQcmsNativeSubmit();
+  const modeProps: Partial<ComponentProps<typeof NumberField>> = native
+    ? { defaultValue: typeof field.value === "number" ? field.value : undefined }
+    : {
+        value: typeof field.value === "number" ? field.value : Number.NaN,
+        onChange: (n: number) => field.setValue(Number.isNaN(n) ? undefined : n),
+      };
   return (
     <FieldBlur name={props.name} onBlur={field.blur}>
       <NumberField
         {...props}
-        value={typeof field.value === "number" ? field.value : Number.NaN}
+        {...modeProps}
         isInvalid={field.error != null}
         errorMessage={field.error}
-        onChange={(n) => field.setValue(Number.isNaN(n) ? undefined : n)}
       />
+      {native ? <FieldKind name={props.name} kind="number" /> : null}
     </FieldBlur>
   );
 }
@@ -133,15 +174,22 @@ function NumberFieldField(props: Readonly<NumberFieldProps>) {
 type DatePickerProps = NonNullable<DatePickerNode["props"]>;
 function DatePickerField(props: Readonly<DatePickerProps>) {
   const field = useQcmsField(props.name);
+  const native = useQcmsNativeSubmit();
+  const modeProps: Partial<ComponentProps<typeof DatePicker>> = native
+    ? { defaultValue: typeof field.value === "string" ? field.value : undefined }
+    : {
+        value: typeof field.value === "string" ? field.value : undefined,
+        onChange: (s: string) => field.setValue(s === "" ? undefined : s),
+      };
   return (
     <FieldBlur name={props.name} onBlur={field.blur}>
       <DatePicker
         {...props}
-        value={typeof field.value === "string" ? field.value : undefined}
+        {...modeProps}
         isInvalid={field.error != null}
         errorMessage={field.error}
-        onChange={(s) => field.setValue(s === "" ? undefined : s)}
       />
+      {native ? <FieldKind name={props.name} kind="string" /> : null}
     </FieldBlur>
   );
 }
@@ -149,6 +197,7 @@ function DatePickerField(props: Readonly<DatePickerProps>) {
 type RadioGroupProps = NonNullable<RadioGroupNode["props"]> & { readonly children?: ReactNode };
 function RadioGroupField(props: RadioGroupProps) {
   const field = useQcmsField(props.name);
+  const native = useQcmsNativeSubmit();
   // boolean questions and singleChoice questions both compile to RadioGroup
   // (a2ui-mapping.md): boolean radios carry the string values "true"/"false",
   // singleChoice radios carry OptionIds ("opt_…"). Detect by the value shape so
@@ -172,15 +221,18 @@ function RadioGroupField(props: RadioGroupProps) {
       field.setValue(v);
     }
   };
+  const modeProps: Partial<ComponentProps<typeof RadioGroup>> = native
+    ? { defaultValue: controlValue }
+    : { value: controlValue, onChange: emitChange };
   return (
     <FieldBlur name={props.name} onBlur={field.blur}>
       <RadioGroup
         {...props}
-        value={controlValue}
+        {...modeProps}
         isInvalid={field.error != null}
         errorMessage={field.error}
-        onChange={emitChange}
       />
+      {native ? <FieldKind name={props.name} kind="radio" /> : null}
     </FieldBlur>
   );
 }
@@ -190,17 +242,24 @@ type CheckboxGroupProps = NonNullable<CheckboxGroupNode["props"]> & {
 };
 function CheckboxGroupField(props: CheckboxGroupProps) {
   const field = useQcmsField(props.name);
+  const native = useQcmsNativeSubmit();
+  const modeProps: Partial<ComponentProps<typeof CheckboxGroup>> = native
+    ? { defaultValue: isStringArray(field.value) ? [...field.value] : undefined }
+    : {
+        value: isStringArray(field.value) ? [...field.value] : [],
+        // Canonical multiChoice is deduplicated (task 002); RAC never emits
+        // duplicates, but dedupe defensively to keep the encoding canonical.
+        onChange: (values: string[]) => field.setValue([...new Set(values)]),
+      };
   return (
     <FieldBlur name={props.name} onBlur={field.blur}>
       <CheckboxGroup
         {...props}
-        value={isStringArray(field.value) ? [...field.value] : []}
+        {...modeProps}
         isInvalid={field.error != null}
         errorMessage={field.error}
-        // Canonical multiChoice is deduplicated (task 002); RAC never emits
-        // duplicates, but dedupe defensively to keep the encoding canonical.
-        onChange={(values: string[]) => field.setValue([...new Set(values)])}
       />
+      {native ? <FieldKind name={props.name} kind="multi" /> : null}
     </FieldBlur>
   );
 }
@@ -208,24 +267,32 @@ function CheckboxGroupField(props: CheckboxGroupProps) {
 type SelectProps = NonNullable<SelectNode["props"]>;
 function SelectField(props: Readonly<SelectProps>) {
   const field = useQcmsField(props.name);
+  const native = useQcmsNativeSubmit();
+  const modeProps: Partial<ComponentProps<typeof Select>> = native
+    ? { defaultValue: typeof field.value === "string" ? field.value : undefined }
+    : {
+        // undefined (not "") when unselected - "" is not a valid option key and
+        // breaks RAC's selection manager.
+        value: typeof field.value === "string" ? field.value : undefined,
+        onChange: (v: string) => field.setValue(v),
+      };
   return (
     <FieldBlur name={props.name} onBlur={field.blur}>
       <Select
         {...props}
-        // undefined (not "") when unselected - "" is not a valid option key and
-        // breaks RAC's selection manager.
-        value={typeof field.value === "string" ? field.value : undefined}
+        {...modeProps}
         isInvalid={field.error != null}
         errorMessage={field.error}
-        onChange={(v) => field.setValue(v)}
       />
+      {native ? <FieldKind name={props.name} kind="string" /> : null}
     </FieldBlur>
   );
 }
 
 /**
  * The lean, explicit registry - only the components the compiler emits
- * (a2ui-mapping.md) plus the qcms `Honeypot` node (task 026). Never
+ * (a2ui-mapping.md) plus the qcms `Honeypot` node (task 026) and the
+ * render-time-only `SubmitButton` used by native submit mode (task 044). Never
  * `defaultRegistry` (ADR-22): a smaller, auditable surface. `strict` means the
  * a2ra renderer validates every node against its schema before rendering.
  *
@@ -249,6 +316,7 @@ function buildV1Registry(): ComponentRegistry {
       Checkbox: { component: Checkbox, schema: CheckboxSchema },
       Select: { component: SelectField, schema: SelectSchema },
       Honeypot: { component: Honeypot, schema: HoneypotSchema },
+      SubmitButton: { component: SubmitButton, schema: SubmitButtonSchema },
     },
     { strict: true },
   );
