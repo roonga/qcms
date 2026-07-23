@@ -8,8 +8,10 @@
  * an empty `DOCKER_AUTH_CONFIG` forces an anonymous pull and, crucially, skips
  * the credential-helper subprocess (`docker-credential-desktop`) that Docker
  * Desktop configures via `credsStore` and that fails to spawn on Windows. A
- * no-op on Linux CI, where anonymous pulls already work. We never override a
- * config the developer set themselves.
+ * no-op on Linux CI and inside the dev container (ADR-29), where anonymous
+ * pulls already work - verified in task 046, so the guard is kept purely for
+ * the Windows host, not simplified away. We never override a config the
+ * developer set themselves.
  */
 if (!process.env.DOCKER_AUTH_CONFIG && !process.env.DOCKER_CONFIG) {
   process.env.DOCKER_AUTH_CONFIG = "{}";

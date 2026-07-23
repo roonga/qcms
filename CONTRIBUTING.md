@@ -7,6 +7,37 @@
 
 The reference documents in `docs/` are authoritative; the discipline rules R1–R7 and decisions ADR-01…25 / SEC-1…12 are not relitigated in PRs - a PR that violates them is not mergeable regardless of quality. Conflicts with a decision are raised as an issue proposing a new ADR, never resolved silently in code. The launch cut-line (R7) applies to contributions: out-of-scope features become `phase-4` issues, not PRs.
 
+## Development environment
+
+**The dev container is the recommended path (ADR-29).** It is the canonical, tested environment: one preinstalled Ubuntu 24.04 box with Node 24, pnpm (from the `packageManager` pin), Docker access, the GitHub CLI, PowerShell, Playwright's Chromium, and a configured zsh. Running the host toolchain directly still works and is fully supported; the container just removes the "works on my machine" class of problem.
+
+**Prerequisites:** Docker (Docker Desktop, or Docker Engine under WSL2/Linux) and either the VS Code **Dev Containers** extension or the `@devcontainers/cli`.
+
+```sh
+# VS Code: open the repo, then "Reopen in Container".
+# CLI (no editor needed):
+pnpm dlx @devcontainers/cli up --workspace-folder .
+pnpm dlx @devcontainers/cli exec --workspace-folder . pnpm build
+```
+
+GitHub **Codespaces** works from the same file: use the badge in `README.md`, or *Code → Codespaces → Create codespace*.
+
+First start pulls the base image and runs `.devcontainer/post-create.sh` (corepack + `pnpm install --frozen-lockfile` + `playwright install --with-deps chromium`), so budget several minutes; later starts are quick.
+
+**What the container assumes:**
+
+- **Docker is the host's daemon**, mounted in (`docker-outside-of-docker`). Testcontainers (ADR-23) therefore starts *sibling* containers on the host, not children. ADR-29 records that trade-off explicitly. If a test cannot reach its container, set `TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal` (the container is started with `--add-host=host.docker.internal:host-gateway`, so that name always resolves).
+- **The dev database stays in `docker-compose.dev.yml`** and publishes on the *host*, so from inside the container reach it by name, not by localhost:
+  ```sh
+  docker compose -f docker-compose.dev.yml up -d
+  DATABASE_URL=postgres://qcms:qcms@host.docker.internal:7020/qcms pnpm dev:portal
+  ```
+- **Dev servers bind `0.0.0.0`** (portal `next dev`), so `http://localhost:7000` in your *host* browser hits the portal through the forwarded port. Ports 7000 (portal) / 7010 (API) / 7020 (dev Postgres) are forwarded.
+- **The `a2-react-aria` sibling repo** (ADR-22) is bind-mounted at `/workspaces/a2-react-aria` from `../a2-react-aria` on the host. Clone it next to `qcms` if you work on the UI packages; if it is absent the directory is created empty and the container still starts.
+- **Secrets are provisioned at runtime, never committed.** `.env` (gitignored) arrives with the workspace mount, `gh auth login` runs inside the container, and `~/.claude` is mounted from the host. `.env.example` remains the only committed env file, and no secret value appears anywhere in `.devcontainer/`.
+
+**Rollback:** the container is purely additive. Delete `.devcontainer/` (or just never open the repo in a container) and every host workflow is unchanged: `pnpm install`, the merge gate, `docker compose -f docker-compose.dev.yml up -d`, and `pwsh scripts/agent-loop.ps1` on a Windows host all behave exactly as before.
+
 ## Coding standards
 
 ### TypeScript

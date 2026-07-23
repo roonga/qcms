@@ -6,13 +6,41 @@ How to drive the QCMS multi-agent development flow as the human in the loop. (Wh
 
 ## Launching
 
+**The canonical seat is inside the dev container (ADR-29).** The container is the blast radius, which is what makes `bypassPermissions` a responsible default for the loop rather than a gamble.
+
 ```sh
-cd H:\source\agent3\qcms
+# From the repo root on the host (WSL2/Linux/macOS):
+pnpm dlx @devcontainers/cli up --workspace-folder .        # first run: several minutes
+pnpm dlx @devcontainers/cli exec --workspace-folder . zsh  # a shell inside
+# or, in VS Code: "Reopen in Container" and use the integrated terminal.
+
+# Then, inside the container:
 claude                                      # normal session - repo defaults to acceptEdits mode
-claude --permission-mode bypassPermissions  # fully unattended (overnight loops) - per-run choice, deliberately not the repo default
+claude --permission-mode bypassPermissions  # fully unattended: safe here, because "here" is the container
 ```
 
-Modes: the repo's `.claude/settings.json` sets **acceptEdits** (file edits and allowlisted commands run without prompting; anything unusual still asks). Shift+Tab cycles modes mid-session. For zero prompts, use the bypass flag above - only in a checkout you trust the agent with.
+The host seat still works exactly as before (nothing about it changed):
+
+```sh
+cd H:\source\agent3\qcms      # or /home/<you>/src/agent3/qcms under WSL2
+claude
+claude --permission-mode bypassPermissions  # only in a checkout you trust the agent with
+```
+
+Modes: the repo's `.claude/settings.json` sets **acceptEdits** (file edits and allowlisted commands run without prompting; anything unusual still asks). Shift+Tab cycles modes mid-session. For zero prompts, use the bypass flag above.
+
+**What the container gives the loop:** Node 24 + pnpm at the pinned version, Docker (the host daemon, mounted in) so Testcontainers works, the GitHub CLI, PowerShell, Playwright's Chromium with its OS libraries, zsh, and the Claude Code CLI. `~/.claude` is mounted from the host, so a login persists across rebuilds (`CLAUDE_CONFIG_DIR` points at the mount). If a first run inside asks you to authenticate, run `claude login` once.
+
+**Viewing the app from your host browser:** dev servers bind `0.0.0.0` inside the container and 7000 / 7010 / 7020 are forwarded, so `http://localhost:7000` on the host reaches the portal. The dev Postgres from `docker-compose.dev.yml` publishes on the *host*, so from inside the container point at it by name:
+
+```sh
+docker compose -f docker-compose.dev.yml up -d
+DATABASE_URL=postgres://qcms:qcms@host.docker.internal:7020/qcms pnpm dev:portal
+```
+
+If a Testcontainers-backed suite cannot reach the container it just started (sibling containers, not children), set `TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal`.
+
+**Rollback (the migration is reversible):** `.devcontainer/` is purely additive. Stop using it - or delete the directory - and the host workflow is untouched: `pnpm install`, the merge gate, `docker compose -f docker-compose.dev.yml up -d`, and `pwsh scripts/agent-loop.ps1` behave exactly as they did before task 046. The only product-code change the migration made is `next dev --hostname 0.0.0.0` in `apps/portal/package.json`, which is Next.js's own default anyway.
 
 ## Running work
 
@@ -36,16 +64,24 @@ Modes: the repo's `.claude/settings.json` sets **acceptEdits** (file edits and a
 
 An in-session `/loop` dies when your Claude usage window closes and **won't self-restart** - nothing inside a session can wake itself hours later. For runs that should outlast limit windows, use the supervisor instead:
 
+```sh
+# Canonical: inside the dev container (ADR-29).
+bash scripts/agent-loop.sh                  # one task at a time
+bash scripts/agent-loop.sh --parallel 3     # up to 3 independent tasks per batch
+bash scripts/agent-loop.sh --help           # all options
+```
+
 ```powershell
+# Windows-host fallback: the same supervisor, same behaviour.
 pwsh scripts/agent-loop.ps1                 # one task at a time
 pwsh scripts/agent-loop.ps1 -Parallel 3     # up to 3 independent tasks per batch
 ```
 
-It runs `/next-task` in a **fresh headless session per iteration** (safe because the repo is the memory: claims, branches, HANDOFFs), reads the `NEXT-TASK:` sentinel each session emits, and: continues immediately on `LANDED`/`RESUMED`, stops on `AWAITING-HUMAN`/`BLOCKED`/`NOTHING`, and on *no sentinel* (usage limit or crash) waits `-RetryMinutes` (default 30) and retries - the next session's stale-claim recovery picks up whatever the killed one left mid-flight. Progress is in `agent-loop.log` and, as always, the ledger.
+Either script runs `/next-task` in a **fresh headless session per iteration** (safe because the repo is the memory: claims, branches, HANDOFFs), reads the `NEXT-TASK:` sentinel each session emits, and: continues immediately on `LANDED`/`RESUMED`, stops on `AWAITING-HUMAN`/`BLOCKED`/`NOTHING`, and on *no sentinel* (usage limit or crash) waits the retry interval (`--retry-minutes` / `-RetryMinutes`, default 30) and retries - the next session's stale-claim recovery picks up whatever the killed one left mid-flight. Progress is in `agent-loop.log` and, as always, the ledger.
 
 ## Editing skills/agents while a loop is running
 
-A long-lived session follows the instructions it already read - edits to `.claude/skills/` or `.claude/agents/` land on disk but a running conductor may keep executing the old flow from memory. After changing any skill or agent file: **restart running sessions**, or (better) run via `scripts/agent-loop.ps1`, whose fresh-session-per-task model picks up the current files on every iteration by construction.
+A long-lived session follows the instructions it already read - edits to `.claude/skills/` or `.claude/agents/` land on disk but a running conductor may keep executing the old flow from memory. After changing any skill or agent file: **restart running sessions**, or (better) run via `scripts/agent-loop.sh` (`.ps1` on a Windows host), whose fresh-session-per-task model picks up the current files on every iteration by construction.
 
 ## Monitoring and control
 
@@ -55,7 +91,7 @@ A long-lived session follows the instructions it already read - edits to `.claud
 
 ## Permissions tuning
 
-- Allowlist lives in `.claude/settings.json` - **both** `Bash(...)` and `PowerShell(...)` families must be listed (rules are per-tool; this was the main cause of early prompt noise on Windows).
+- Allowlist lives in `.claude/settings.json` - **both** `Bash(...)` and `PowerShell(...)` families must be listed (rules are per-tool; this was the main cause of early prompt noise on a Windows host). Inside the dev container the loop runs in `bypassPermissions`, so the allowlist only matters for interactive sessions and for the host fallback.
 - Getting prompted for something routine? Run `/fewer-permission-prompts` - it scans real transcripts and proposes evidence-based allowlist additions.
 - Denied on purpose (don't relax): `npm`/`yarn` (pnpm-only), `git push --force`.
 
