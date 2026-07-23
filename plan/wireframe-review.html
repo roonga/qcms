@@ -1,0 +1,403 @@
+<title>QCMS 042 Wireframe Sign-off Review</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #f5f7f9; --surface: #ffffff; --surface-2: #eef1f5;
+    --ink: #1a2130; --ink-soft: #556080; --ink-faint: #838fa6;
+    --line: #dae0e9; --line-strong: #c3cbd8;
+    --accent: #3a5a9a; --accent-soft: #e9f0fb;
+    --ok: #2c7a58; --ok-soft: #e4f1ea;
+    --warn: #8f6410; --warn-soft: #f6eeda;
+    --risk: #a5403c; --risk-soft: #f5e5e3;
+    --mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --radius: 9px; --shadow: 0 1px 2px rgba(20,30,50,.06), 0 6px 20px rgba(20,30,50,.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --surface: #151b24; --surface-2: #1c232f;
+      --ink: #e5e9f1; --ink-soft: #9aa4b8; --ink-faint: #6f7a8f;
+      --line: #29313d; --line-strong: #3a4453;
+      --accent: #86a2e2; --accent-soft: #19233524;
+      --ok: #5cbf93; --ok-soft: #13251d;
+      --warn: #d7ab52; --warn-soft: #272013;
+      --risk: #e18a85; --risk-soft: #2a1917;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 22px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #f5f7f9; --surface: #ffffff; --surface-2: #eef1f5;
+    --ink: #1a2130; --ink-soft: #556080; --ink-faint: #838fa6;
+    --line: #dae0e9; --line-strong: #c3cbd8;
+    --accent: #3a5a9a; --accent-soft: #e9f0fb;
+    --ok: #2c7a58; --ok-soft: #e4f1ea;
+    --warn: #8f6410; --warn-soft: #f6eeda;
+    --risk: #a5403c; --risk-soft: #f5e5e3;
+    --shadow: 0 1px 2px rgba(20,30,50,.06), 0 6px 20px rgba(20,30,50,.05);
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1117; --surface: #151b24; --surface-2: #1c232f;
+    --ink: #e5e9f1; --ink-soft: #9aa4b8; --ink-faint: #6f7a8f;
+    --line: #29313d; --line-strong: #3a4453;
+    --accent: #86a2e2; --accent-soft: #19233524;
+    --ok: #5cbf93; --ok-soft: #13251d;
+    --warn: #d7ab52; --warn-soft: #272013;
+    --risk: #e18a85; --risk-soft: #2a1917;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 22px rgba(0,0,0,.35);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: var(--sans); line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 40px 22px 80px; }
+
+  /* ---- header ---- */
+  .eyebrow {
+    font-family: var(--mono); font-size: 12px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--accent); font-weight: 600;
+  }
+  h1 {
+    font-size: clamp(26px, 4vw, 38px); line-height: 1.08; margin: 10px 0 0;
+    letter-spacing: -.02em; text-wrap: balance; font-weight: 680;
+  }
+  .lede { color: var(--ink-soft); max-width: 66ch; margin: 14px 0 0; font-size: 16px; }
+  .lede strong { color: var(--ink); font-weight: 620; }
+
+  .progress-bar {
+    display: flex; align-items: center; gap: 12px; margin-top: 22px;
+    font-family: var(--mono); font-size: 13px; color: var(--ink-soft);
+  }
+  .progress-track { flex: 0 0 180px; height: 7px; border-radius: 99px; background: var(--surface-2); overflow: hidden; border: 1px solid var(--line); }
+  .progress-fill { height: 100%; width: 0; background: var(--ok); transition: width .3s ease; }
+  @media (prefers-reduced-motion: reduce) { .progress-fill, .progress-track { transition: none; } }
+
+  /* ---- section headers ---- */
+  h2 {
+    font-size: 13px; font-family: var(--mono); letter-spacing: .1em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 600; margin: 46px 0 16px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--line);
+  }
+
+  /* ---- callout bands ---- */
+  .band { border-radius: var(--radius); padding: 18px 20px; border: 1px solid var(--line); background: var(--surface); box-shadow: var(--shadow); }
+  .band + .band { margin-top: 14px; }
+  .band-title { font-weight: 640; font-size: 15px; display: flex; align-items: center; gap: 9px; margin: 0 0 4px; }
+  .dot { width: 9px; height: 9px; border-radius: 99px; flex: none; }
+  .verified .dot { background: var(--ok); }
+  .verified { border-left: 3px solid var(--ok); }
+  .verified ul { margin: 8px 0 0; padding-left: 20px; color: var(--ink-soft); font-size: 14.5px; }
+  .verified li { margin: 3px 0; }
+
+  .decide-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+  .decide {
+    background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--warn);
+    border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow);
+  }
+  .decide .num { font-family: var(--mono); font-size: 12px; color: var(--warn); font-weight: 700; }
+  .decide h3 { margin: 4px 0 5px; font-size: 14.5px; font-weight: 640; }
+  .decide p { margin: 0; font-size: 13.5px; color: var(--ink-soft); }
+
+  /* ---- risk callouts ---- */
+  .risk-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 720px) { .risk-cols { grid-template-columns: 1fr; } }
+  .rc { border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); box-shadow: var(--shadow); overflow: hidden; }
+  .rc-head { padding: 13px 16px; font-weight: 640; font-size: 14px; display: flex; align-items: center; gap: 9px; border-bottom: 1px solid var(--line); }
+  .rc-gap .rc-head { background: var(--risk-soft); color: var(--risk); }
+  .rc-ext .rc-head { background: var(--accent-soft); color: var(--accent); }
+  .rc table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  .rc td { padding: 9px 16px; border-top: 1px solid var(--line); vertical-align: top; }
+  .rc tr:first-child td { border-top: none; }
+  .rc td:first-child { font-family: var(--mono); font-weight: 600; white-space: nowrap; color: var(--ink); }
+  .rc td:last-child { color: var(--ink-soft); }
+
+  /* ---- summary matrix ---- */
+  .matrix-scroll { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--line); box-shadow: var(--shadow); }
+  table.matrix { width: 100%; border-collapse: collapse; font-size: 13.5px; background: var(--surface); min-width: 640px; }
+  table.matrix th {
+    text-align: left; font-family: var(--mono); font-size: 11px; letter-spacing: .07em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 600; padding: 11px 14px; background: var(--surface-2); border-bottom: 1px solid var(--line-strong); white-space: nowrap;
+  }
+  table.matrix td { padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  table.matrix tr:last-child td { border-bottom: none; }
+  table.matrix a { color: var(--accent); text-decoration: none; font-weight: 600; }
+  table.matrix a:hover { text-decoration: underline; }
+  .task-chip { font-family: var(--mono); font-size: 12px; color: var(--ink-soft); }
+  .flag-chip { display: inline-block; font-family: var(--mono); font-size: 11px; padding: 1px 7px; border-radius: 5px; border: 1px solid var(--line-strong); color: var(--ink-soft); }
+  .flag-gap { color: var(--risk); border-color: var(--risk); background: var(--risk-soft); }
+  .flag-ext { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+  .flag-clean { color: var(--ok); border-color: var(--ok); background: var(--ok-soft); }
+
+  /* ---- screen cards ---- */
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(468px, 1fr)); gap: 16px; }
+  @media (max-width: 560px) { .cards { grid-template-columns: 1fr; } }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); scroll-margin-top: 16px; display: flex; flex-direction: column; }
+  .card-head { padding: 16px 18px 14px; border-bottom: 1px solid var(--line); }
+  .card-eyebrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 7px; }
+  .card h3 { margin: 0; font-size: 17px; font-weight: 660; letter-spacing: -.01em; }
+  .renders { margin-top: 6px; font-size: 12.5px; color: var(--ink-faint); }
+  .renders code { font-family: var(--mono); color: var(--ink-soft); }
+  .card-body { padding: 14px 18px 6px; flex: 1; }
+  .block { margin-bottom: 13px; }
+  .block-label { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); font-weight: 600; margin-bottom: 6px; }
+  .block p { margin: 0; font-size: 13.7px; color: var(--ink-soft); }
+  .tok { font-family: var(--mono); font-size: 12px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; color: var(--ink); white-space: nowrap; }
+  .api { font-family: var(--mono); font-size: 12.5px; color: var(--accent); }
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .chip { font-family: var(--mono); font-size: 11.5px; padding: 2px 8px; border-radius: 99px; background: var(--surface-2); border: 1px solid var(--line); color: var(--ink-soft); }
+  .chip.gap { background: var(--risk-soft); border-color: var(--risk); color: var(--risk); }
+
+  .card-foot { padding: 12px 18px 15px; border-top: 1px solid var(--line); margin-top: auto; }
+  .review-toggle { display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; font-size: 13.5px; color: var(--ink-soft); }
+  .review-toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .box { width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid var(--line-strong); flex: none; display: grid; place-items: center; transition: all .15s ease; background: var(--surface); }
+  @media (prefers-reduced-motion: reduce) { .box { transition: none; } }
+  .box svg { width: 12px; height: 12px; opacity: 0; }
+  .review-toggle input:checked + .box { background: var(--ok); border-color: var(--ok); }
+  .review-toggle input:checked + .box svg { opacity: 1; }
+  .review-toggle input:focus-visible + .box { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .review-toggle input:checked ~ .rt-label { color: var(--ok); font-weight: 600; }
+  .rt-label .done { display: none; }
+  .review-toggle input:checked ~ .rt-label .todo { display: none; }
+  .review-toggle input:checked ~ .rt-label .done { display: inline; }
+
+  /* ---- how to sign off ---- */
+  .signoff { margin-top: 40px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px 24px; box-shadow: var(--shadow); }
+  .signoff h3 { margin: 0 0 10px; font-size: 16px; }
+  .signoff ol { margin: 0; padding-left: 20px; color: var(--ink-soft); }
+  .signoff li { margin: 7px 0; }
+  .signoff code, pre code { font-family: var(--mono); }
+  pre { background: var(--surface-2); border: 1px solid var(--line); border-radius: 7px; padding: 12px 14px; overflow-x: auto; font-size: 12.5px; margin: 10px 0 0; }
+  pre code { color: var(--ink); }
+  .del { color: var(--risk); }
+  .ins { color: var(--ok); }
+  .foot-note { margin-top: 26px; font-size: 12.5px; color: var(--ink-faint); text-align: center; font-family: var(--mono); }
+  a.jump { color: inherit; text-decoration: none; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Task 042 &middot; Stage 7 pre-work &middot; human gate</div>
+    <h1>Wireframe sign-off review</h1>
+    <p class="lede">Seven screens, the structural contract every UI task (029, 031&ndash;035, 041) builds against. The mechanical checks are done for you; this page surfaces only what needs <strong>your</strong> judgment, then you flip each file's status line. Review is per screen: approve some, send others back.</p>
+    <div class="progress-bar">
+      <div class="progress-track"><div class="progress-fill" id="pfill"></div></div>
+      <span id="ptext">0 of 7 marked reviewed</span>
+    </div>
+  </header>
+
+  <h2>Already verified - you can trust these</h2>
+  <div class="band verified">
+    <div class="band-title"><span class="dot"></span>The executor checked all of this against the frozen 027 contract</div>
+    <ul>
+      <li>Every Interactions entry's paths, bodies, and error codes match the 027 OpenAPI documents</li>
+      <li>Every Regions component name is a real a2ra registry token (<span class="tok">table</span>, <span class="tok">dialog</span>, <span class="tok">text-field</span>, &hellip;) - no invented components</li>
+      <li>All 7 files carry the required sections; every UI task's <code style="font-family:var(--mono)">Wireframe:</code> reference resolves</li>
+      <li>Two 011 component gaps closed since drafting (<span class="tok">TextArea</span>, <span class="tok">CheckboxGroup</span> landed in preview.7)</li>
+    </ul>
+  </div>
+
+  <h2>What needs your judgment</h2>
+  <div class="decide-grid">
+    <div class="decide"><div class="num">01</div><h3>Completeness</h3><p>Do these 7 screens and their regions cover the product you want? Anything 029&ndash;035 will need that is missing?</p></div>
+    <div class="decide"><div class="num">02</div><h3>Inventories stand alone</h3><p>The rule: no requirement lives only in the ASCII sketch. Can you build each screen from its Regions / States / Interactions lists? Are the states complete?</p></div>
+    <div class="decide"><div class="num">03</div><h3>Open-gap risk</h3><p>Three components are still missing upstream. Screens using them cannot be fully built until they land. Accept that dependency?</p></div>
+    <div class="decide"><div class="num">04</div><h3>Two non-027 endpoints</h3><p>Preview and Assist sit outside the frozen contract by design. OK to build them as planned extensions?</p></div>
+  </div>
+
+  <h2>Open component gaps &amp; out-of-contract endpoints</h2>
+  <div class="risk-cols">
+    <div class="rc rc-gap">
+      <div class="rc-head"><span class="dot" style="background:var(--risk)"></span>3 upstream component gaps (interim workaround in place)</div>
+      <table>
+        <tr><td>pagination</td><td>Question library &amp; Responses tables. Interim: compose from <span class="tok">button</span>s.</td></tr>
+        <tr><td>toast</td><td>Save / publish / action feedback. Interim: inline <span class="tok">alert</span>.</td></tr>
+        <tr><td>progress</td><td>Streaming agent proposals, exports. Interim: <span class="tok">text</span> + <code style="font-family:var(--mono);font-size:12px">aria-busy</code>.</td></tr>
+      </table>
+    </div>
+    <div class="rc rc-ext">
+      <div class="rc-head"><span class="dot" style="background:var(--accent)"></span>2 endpoints deliberately outside the 027 contract</div>
+      <table>
+        <tr><td>draft/preview</td><td>Dry-run render on Publish/Preview. A planned 022 extension that <strong>034</strong> lands.</td></tr>
+        <tr><td>draft/assist</td><td>Agent proposal route (SSE), a flag-gated <strong>041</strong> feature. Not core.</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <h2>The seven screens at a glance</h2>
+  <div class="matrix-scroll">
+    <table class="matrix">
+      <thead><tr><th>Screen</th><th>UI task</th><th>Renders (slices)</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><a href="#s-portal">Portal respondent flow</a></td><td class="task-chip">029, 030</td><td class="task-chip">018, 019, 020</td><td><span class="flag-chip flag-clean">in 027</span></td></tr>
+        <tr><td><a href="#s-shell">Admin shell + 2FA</a></td><td class="task-chip">031</td><td class="task-chip">better-auth</td><td><span class="flag-chip flag-clean">in 027</span></td></tr>
+        <tr><td><a href="#s-library">Question library</a></td><td class="task-chip">032</td><td class="task-chip">021</td><td><span class="flag-chip flag-gap">pagination gap</span></td></tr>
+        <tr><td><a href="#s-builder">Form builder + conditions</a></td><td class="task-chip">033</td><td class="task-chip">022, 021, 005</td><td><span class="flag-chip flag-clean">in 027</span></td></tr>
+        <tr><td><a href="#s-publish">Publish, preview, links</a></td><td class="task-chip">034</td><td class="task-chip">022, 024, 028</td><td><span class="flag-chip flag-ext">draft/preview ext</span></td></tr>
+        <tr><td><a href="#s-responses">Responses &amp; webhook ops</a></td><td class="task-chip">035</td><td class="task-chip">023, 024, 025</td><td><span class="flag-chip flag-gap">pagination gap</span></td></tr>
+        <tr><td><a href="#s-agent">Agent panel</a></td><td class="task-chip">041</td><td class="task-chip">assist (SSE)</td><td><span class="flag-chip flag-ext">flag-gated ext</span> <span class="flag-chip flag-gap">progress gap</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Screen detail</h2>
+  <div class="cards" id="cards">
+
+    <!-- PORTAL -->
+    <section class="card" id="s-portal">
+      <div class="card-head">
+        <div class="card-eyebrow"><span class="task-chip">029 &middot; 030</span><span class="flag-chip flag-clean">in 027</span></div>
+        <h3>Portal respondent flow</h3>
+        <div class="renders">Renders <code>018</code> start-session &middot; <code>019</code> get-step / submit-answer &middot; <code>020</code> submit</div>
+      </div>
+      <div class="card-body">
+        <div class="block"><div class="block-label">Regions</div><p>Minimal chrome (logo slot, "Step N of M" text, no nav). Step rendered entirely by <span class="tok">A2UIStepRenderer</span> from the compiled doc, incl. invisible honeypot. <span class="tok">button</span> Continue/Back; state-conditional <span class="tok">alert</span> error-summary; flag-conditional Turnstile challenge on entry only. Companion screens: anon entry, secure-link, completion receipt, resume, expired.</p></div>
+        <div class="block"><div class="block-label">States</div><div class="chips"><span class="chip">first-step</span><span class="chip">mid-flow</span><span class="chip">branch-inserted</span><span class="chip">branch-removed</span><span class="chip">field-error 422</span><span class="chip">submit-blocked</span><span class="chip">readyToSubmit</span><span class="chip">submitted</span><span class="chip">no-JS fallback</span><span class="chip">link-error &times;3</span><span class="chip">expired</span></div></div>
+        <div class="block"><div class="block-label">Interactions</div><p>Answer change &rarr; <span class="api">POST /sessions/:id/answers</span> &rarr; re-render from flow projection. Final Continue &rarr; <span class="api">POST /sessions/:id/submit</span>. Start &rarr; BFF &rarr; <span class="api">POST /sessions</span>.</p></div>
+        <div class="block"><div class="block-label">A11y</div><p>Branch insert keeps focus, announces via <code style="font-family:var(--mono);font-size:12px">aria-live</code>; step-change announced; skip link; honeypot invisible to AT.</p></div>
+      </div>
+      <div class="card-foot"><label class="review-toggle"><input type="checkbox" data-screen="portal"><span class="box"><svg viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rt-label"><span class="todo">Mark reviewed</span><span class="done">Reviewed</span></span></label></div>
+    </section>
+
+    <!-- SHELL -->
+    <section class="card" id="s-shell">
+      <div class="card-head">
+        <div class="card-eyebrow"><span class="task-chip">031</span><span class="flag-chip flag-clean">in 027</span></div>
+        <h3>Admin shell, sign-in, 2FA</h3>
+        <div class="renders">Renders better-auth flows &middot; <code>/admin</code> group auth</div>
+      </div>
+      <div class="card-body">
+        <div class="block"><div class="block-label">Regions</div><p>Top bar: nav (Questions / Forms / Responses / Webhooks / Settings) + sign-out. Content with <span class="tok">breadcrumb</span> on nested routes. Sign-in <span class="tok">card</span> (generic failure, no user enumeration - SEC-1). 2FA enroll (QR + copyable secret, TOTP) then one-time recovery codes; 2FA challenge each sign-in. No self-registration UI anywhere.</p></div>
+        <div class="block"><div class="block-label">States</div><div class="chips"><span class="chip">signed-out</span><span class="chip">sign-in error</span><span class="chip">throttled</span><span class="chip">2FA-enroll</span><span class="chip">recovery-codes</span><span class="chip">2FA-challenge</span><span class="chip">2FA-recovery</span><span class="chip">authenticated</span><span class="chip">session-expired</span></div></div>
+        <div class="block"><div class="block-label">Interactions</div><p>All auth through better-auth in the admin BFF. Unauth route &rarr; redirect to sign-in; unauth admin API &rarr; <span class="api">401</span>.</p></div>
+        <div class="block"><div class="block-label">A11y</div><p>Error <span class="tok">alert</span> takes focus; manual secret is the accessible QR alternative; recovery codes announced as a list; nav is a labeled landmark with <code style="font-family:var(--mono);font-size:12px">aria-current</code>.</p></div>
+      </div>
+      <div class="card-foot"><label class="review-toggle"><input type="checkbox" data-screen="shell"><span class="box"><svg viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rt-label"><span class="todo">Mark reviewed</span><span class="done">Reviewed</span></span></label></div>
+    </section>
+
+    <!-- LIBRARY -->
+    <section class="card" id="s-library">
+      <div class="card-head">
+        <div class="card-eyebrow"><span class="task-chip">032</span><span class="flag-chip flag-gap">pagination gap</span></div>
+        <h3>Question library</h3>
+        <div class="renders">Renders <code>021</code> question CRUD / versions / publish / deprecate</div>
+      </div>
+      <div class="card-body">
+        <div class="block"><div class="block-label">Regions</div><p>List toolbar (search, status/type <span class="tok">select</span>, New). List <span class="tok">table</span> with status <span class="tok">tag</span> and pagination <span class="chip gap">upstream gap</span>. Detail version timeline via the shared renderer. Editor <span class="tok">form</span>: type picker locked after creation, immutable <span class="tok">q_</span> id, per-type constraints panel, live Zod validation. Lifecycle <span class="tok">dialog</span>s teach the rules. No delete exists (R6).</p></div>
+        <div class="block"><div class="block-label">States</div><div class="chips"><span class="chip">empty + seed hint</span><span class="chip">filtered-empty</span><span class="chip">editor new</span><span class="chip">draft-dirty/saved</span><span class="chip">publish confirm</span><span class="chip">VERSION_IMMUTABLE</span><span class="chip">deprecated view</span></div></div>
+        <div class="block"><div class="block-label">Interactions</div><p><span class="api">POST /admin/questions</span>, <span class="api">PUT .../versions/:v</span>, publish, new version, deprecate. Option reorder keeps optionIds stable (rules depend on it).</p></div>
+        <div class="block"><div class="block-label">A11y</div><p>Table headers proper; option reorder via up/down <span class="tok">button</span>s (no drag-only); errors <code style="font-family:var(--mono);font-size:12px">aria-describedby</code>-linked; status conveyed by text, not color alone.</p></div>
+      </div>
+      <div class="card-foot"><label class="review-toggle"><input type="checkbox" data-screen="library"><span class="box"><svg viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rt-label"><span class="todo">Mark reviewed</span><span class="done">Reviewed</span></span></label></div>
+    </section>
+
+    <!-- BUILDER -->
+    <section class="card" id="s-builder">
+      <div class="card-head">
+        <div class="card-eyebrow"><span class="task-chip">033</span><span class="flag-chip flag-clean">in 027</span></div>
+        <h3>Form builder + condition editor</h3>
+        <div class="renders">Renders <code>022</code> drafts/validate &middot; <code>021</code> library reads &middot; <code>005</code> analyzeRuleGraph (client)</div>
+      </div>
+      <div class="card-body">
+        <div class="block"><div class="block-label">Regions</div><p>Header (breadcrumb, Publish, save indicator). Steps rail with per-step issue <span class="tok">tag</span>. Step editor: pin <span class="tok">menu</span> (published versions only, no auto-upgrade - R7), library picker <span class="tok">dialog</span>. Condition editor is <span class="tok">CodeMirror</span> (recorded ADR-22 exception) with op/questionId/optionId autocomplete; <span class="tok">show</span> target picker pre-filtered by document order. Live validation panel (debounced <span class="api">draft/validate</span> + client analyzeRuleGraph), test bench, settings panel, flag-conditional agent panel.</p></div>
+        <div class="block"><div class="block-label">States</div><div class="chips"><span class="chip">new empty</span><span class="chip">draft w/ issues</span><span class="chip">draft clean</span><span class="chip">saving/saved/failed</span><span class="chip">backward-target</span><span class="chip">pin-move breaks rule</span><span class="chip">concurrent-edit</span></div></div>
+        <div class="block"><div class="block-label">Interactions</div><p>Autosave &rarr; <span class="api">PUT /admin/forms/:id/draft</span> (returns {draft, issues}); debounced <span class="api">POST .../draft/validate</span>; Publish hands to 034. Editor must never emit DSL the schema rejects.</p></div>
+        <div class="block"><div class="block-label">A11y</div><p>Validation entries are links that move focus to the target; CodeMirror region labeled; every picker keyboard-operable (no drag-only); issue counts announced politely.</p></div>
+      </div>
+      <div class="card-foot"><label class="review-toggle"><input type="checkbox" data-screen="builder"><span class="box"><svg viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rt-label"><span class="todo">Mark reviewed</span><span class="done">Reviewed</span></span></label></div>
+    </section>
+
+    <!-- PUBLISH -->
+    <section class="card" id="s-publish">
+      <div class="card-head">
+        <div class="card-eyebrow"><span class="task-chip">034</span><span class="flag-chip flag-ext">draft/preview ext</span></div>
+        <h3>Publish, preview, versions, links</h3>
+        <div class="renders">Renders <code>022</code> publish/versions/preview &middot; <code>024</code> links &middot; <code>028</code> shared renderer</div>
+      </div>
+      <div class="card-body">
+        <div class="block"><div class="block-label">Regions</div><p>Publish <span class="tok">dialog</span> with freeze summary + R1 copy; on failure the full <span class="tok">PublishError[]</span> as anchored links back into the builder. Preview: banner <span class="tok">alert</span>, dry-run via <span class="api">draft/preview</span> (022 extension, 034 lands it) through the same <span class="tok">@qcms/ui</span> renderer, live client-side rule eval. Version history <span class="tok">table</span> from stored JSONB with JSON diff. Secure links: mint <span class="tok">dialog</span> (expiry, one-time, batch) + links <span class="tok">table</span> with revoke. Close/reopen.</p></div>
+        <div class="block"><div class="block-label">States</div><div class="chips"><span class="chip">publish confirm</span><span class="chip">publish errors</span><span class="chip">publish success</span><span class="chip">preview walking branches</span><span class="chip">history empty</span><span class="chip">history + diff</span><span class="chip">links minted</span><span class="chip">revoke confirm</span></div></div>
+        <div class="block"><div class="block-label">Interactions</div><p><span class="api">POST .../publish</span> &rarr; PublishError[] or {version}. <span class="api">POST .../draft/preview</span> <span class="chip" style="color:var(--accent);border-color:var(--accent)">not in 027</span>. <span class="api">GET .../versions/:v</span>. Links via 024; CSV export client-side. Close/reopen via 022.</p></div>
+        <div class="block"><div class="block-label">A11y</div><p>Publish-error links move focus into the builder; preview follows the portal announcement policy; copy confirms via status text; diff readable without color (&plusmn; markers).</p></div>
+      </div>
+      <div class="card-foot"><label class="review-toggle"><input type="checkbox" data-screen="publish"><span class="box"><svg viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rt-label"><span class="todo">Mark reviewed</span><span class="done">Reviewed</span></span></label></div>
+    </section>
+
+    <!-- RESPONSES -->
+    <section class="card" id="s-responses">
+      <div class="card-head">
+        <div class="card-eyebrow"><span class="task-chip">035</span><span class="flag-chip flag-gap">pagination gap</span></div>
+        <h3>Responses, erasure, webhook ops</h3>
+        <div class="renders">Renders <code>023</code> responses/export/erase &middot; <code>024</code> webhook config &middot; <code>025</code> delivery state</div>
+      </div>
+      <div class="card-body">
+        <div class="block"><div class="block-label">Regions</div><p>Browser toolbar (version/date/flagged <span class="tok">select</span>, Export <span class="tok">menu</span>). Browser <span class="tok">table</span> with pagination <span class="chip gap">upstream gap</span>. Detail: locked answers + <strong>ledger timeline</strong> (matches answerLedger exactly), contentHash, flag reason + unflag. Erasure: type-to-confirm <span class="tok">dialog</span> (ADR-17, requires typing the sessionId), tombstone, erasure log. Webhook config: secret shown <strong>once</strong>. Delivery dashboard with dead-letter list + redeliver.</p></div>
+        <div class="block"><div class="block-label">States</div><div class="chips"><span class="chip">no responses</span><span class="chip">filtered-empty</span><span class="chip">flagged</span><span class="chip">detail erased (tombstone)</span><span class="chip">erase confirm (typed)</span><span class="chip">secret-reveal once</span><span class="chip">deliveries healthy</span><span class="chip">dead-letters</span><span class="chip">redeliver</span></div></div>
+        <div class="block"><div class="block-label">Interactions</div><p><span class="api">GET .../responses[/:sessionId]</span>, streamed <span class="api">.../export</span>, <span class="api">POST .../erase</span>, unflag, webhook CRUD (024), <span class="api">POST .../redeliver</span> (025). Post-erasure the session vanishes from list/detail/export and appears in the log.</p></div>
+        <div class="block"><div class="block-label">A11y</div><p>Type-to-confirm dialog labels the exact string to type; ledger is a text list; one-time secret announced assertively; redeliver outcomes via <code style="font-family:var(--mono);font-size:12px">aria-live</code>.</p></div>
+      </div>
+      <div class="card-foot"><label class="review-toggle"><input type="checkbox" data-screen="responses"><span class="box"><svg viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rt-label"><span class="todo">Mark reviewed</span><span class="done">Reviewed</span></span></label></div>
+    </section>
+
+    <!-- AGENT -->
+    <section class="card" id="s-agent">
+      <div class="card-head">
+        <div class="card-eyebrow"><span class="task-chip">041</span><span class="flag-chip flag-ext">flag-gated ext</span><span class="flag-chip flag-gap">progress gap</span></div>
+        <h3>Agent panel</h3>
+        <div class="renders">Renders <code>draft/assist</code> (041 route, SSE) &middot; only when <code>QCMS_FLAG_AGENT_AUTHORING</code> &ne; none</div>
+      </div>
+      <div class="card-body">
+        <div class="block"><div class="block-label">Regions</div><p>Collapsible panel docked right of the builder, <strong>absent entirely</strong> when the flag is none. Conversation (streaming progress <span class="chip gap">upstream gap</span>). Proposal diff <span class="tok">card</span> with textual +/~ marks per step/question/rule, expandable <span class="tok">accordion</span>. Validation line (server ran 022 validation). Actions: Accept into draft (never publishes), Discard, input. Provenance <span class="tok">tag</span> once accepted (ADR-25). Guardrail: panel exposes no publish/erase/links affordances.</p></div>
+        <div class="block"><div class="block-label">States</div><div class="chips"><span class="chip">flag off (absent)</span><span class="chip">empty</span><span class="chip">streaming</span><span class="chip">proposal clean</span><span class="chip">proposal w/ issues</span><span class="chip">accepted</span><span class="chip">discarded</span><span class="chip">provider error</span><span class="chip">rate-limited</span></div></div>
+        <div class="block"><div class="block-label">Interactions</div><p>Send &rarr; <span class="api">POST .../draft/assist</span> <span class="chip" style="color:var(--accent);border-color:var(--accent)">not in 027</span> (SSE) &rarr; proposal. Accept &rarr; merges via the normal <span class="api">PUT .../draft</span> (022); nothing bypasses the builder's validation loop.</p></div>
+        <div class="block"><div class="block-label">A11y</div><p>Labeled complementary landmark; streaming announced politely, completion announced ("proposal ready, 4 additions"); focus moves to the summary on complete, back to input after accept/discard.</p></div>
+      </div>
+      <div class="card-foot"><label class="review-toggle"><input type="checkbox" data-screen="agent"><span class="box"><svg viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rt-label"><span class="todo">Mark reviewed</span><span class="done">Reviewed</span></span></label></div>
+    </section>
+
+  </div>
+
+  <div class="signoff">
+    <h3>How to sign off</h3>
+    <ol>
+      <li>Review each screen above. The checkboxes track your progress locally (they do not change the repo).</li>
+      <li>For each file you approve, flip its status line in <code>docs/wireframes/*.md</code>:</li>
+    </ol>
+    <pre><code><span class="del">- **Status:** Draft (pre-027) &middot; **Consumed by:** ...</span>
+<span class="ins">+ **Status:** Signed off: Ravi, 2026-07-21 &middot; **Consumed by:** ...</span></code></pre>
+    <ol start="3">
+      <li>Send any screen back by telling me what to change instead of flipping it. Anything revealing an API gap is a blocking issue on that slice task, not a wireframe fix (042 out-of-scope rule).</li>
+      <li>Once all 7 carry your sign-off, 042 lands and the loop can resume into 029 / 031&ndash;035.</li>
+    </ol>
+  </div>
+
+  <p class="foot-note">QCMS &middot; task 042 &middot; docs/wireframes/ &middot; branch feat/042-ui-wireframes</p>
+</div>
+
+<script>
+  (function () {
+    var KEY = "qcms042-reviewed";
+    var boxes = Array.prototype.slice.call(document.querySelectorAll("input[data-screen]"));
+    var fill = document.getElementById("pfill");
+    var text = document.getElementById("ptext");
+    var saved = {};
+    try { saved = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (e) { saved = {}; }
+
+    function render() {
+      var n = boxes.filter(function (b) { return b.checked; }).length;
+      fill.style.width = (n / boxes.length * 100) + "%";
+      text.textContent = n + " of " + boxes.length + " marked reviewed";
+    }
+    boxes.forEach(function (b) {
+      b.checked = !!saved[b.dataset.screen];
+      b.addEventListener("change", function () {
+        saved[b.dataset.screen] = b.checked;
+        try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (e) {}
+        render();
+      });
+    });
+    render();
+  })();
+</script>
