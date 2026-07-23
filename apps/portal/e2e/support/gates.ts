@@ -68,6 +68,14 @@ const SERVER_ALLOW: readonly { readonly source: LogSource; readonly pattern: Reg
   // (a discovery is filed to tighten the API's transaction handling separately).
   { source: "postgres", pattern: /WARNING:\s+there is already a transaction in progress/ },
   { source: "postgres", pattern: /WARNING:\s+there is no transaction in progress/ },
+  // The Next dev server logs `Error: aborted` when a request is cancelled
+  // client-side (the browser aborts an in-flight fetch/navigation). The throttled
+  // mobile spec provokes this by design: under a simulated slow connection a
+  // request can still be in flight when the page navigates on, so the client
+  // aborts it. It is a client abort, not a server fault - the flow completes and
+  // the independent DB verification confirms the persisted answers - so it is
+  // allowlisted rather than allowed to false-positive the server-log gate.
+  { source: "portal", pattern: /\bError: aborted\b/ },
 ];
 
 type LogSource = "api" | "postgres" | "portal";
