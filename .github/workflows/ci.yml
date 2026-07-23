@@ -31,6 +31,13 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # Build before typecheck so every workspace package's dist/ (and its emitted
+      # .d.ts) exists on disk first. `pnpm typecheck` (turbo, ^build) should build
+      # deps itself, but on a cold CI cache it intermittently races and fails to
+      # resolve a just-built workspace package (e.g. `@qcms/db`); an explicit build
+      # makes resolution deterministic. Root cause tracked in the CI-race issue.
+      - run: pnpm build
+
       - run: pnpm typecheck
 
       - run: pnpm lint
