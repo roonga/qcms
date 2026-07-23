@@ -56,7 +56,7 @@ Launch **excludes** (recorded as `phase-4` issues, never built early): impact an
 
 ## 6. Decision record - additions
 
-ADR-01…15 are the project's foundational scope decisions. The following decisions were added after the plan reviews (ADR-16…19: 2026-07-18; ADR-20…25: 2026-07-19; ADR-26: 2026-07-21; ADR-27: 2026-07-23; ADR-28: 2026-07-23; ADR-29: 2026-07-23) to resolve identified underspecifications. They carry the same weight.
+ADR-01…15 are the project's foundational scope decisions. The following decisions were added after the plan reviews (ADR-16…19: 2026-07-18; ADR-20…25: 2026-07-19; ADR-26: 2026-07-21; ADR-27: 2026-07-23; ADR-28: 2026-07-23; ADR-29: 2026-07-23; ADR-30: 2026-07-23) to resolve identified underspecifications. They carry the same weight.
 
 ### ADR-16 - Rules evaluation: forward-pass with publish-time cycle rejection
 
@@ -206,6 +206,24 @@ Dates, numbers, and currency are formatted **locale-aware via the platform `Intl
 **Trade-off (recorded honestly).** The merge gate boots real Docker Postgres per test file (Testcontainers). The container reaches Docker through a mounted host socket (`docker-outside-of-docker`), spinning *sibling* containers on the host - which re-widens the blast radius slightly (the container can drive host Docker). Acceptable on a solo/trusted machine; recorded as a decision, not an accident.
 
 **Consequences.** Implemented by task 046, which runs **after 045** so that 045's portal e2e (kitchen-sink across three viewports, independent Postgres verification, browser + container-log gates) becomes the migration's acceptance test - the environment is trusted only when that suite is green *inside* the container. The change is additive and reversible: the host workflow (`pwsh scripts/agent-loop.ps1`) is untouched and remains the fallback. Memory and CLAUDE.md notes describing PowerShell path traps are reframed as host-Windows-only once the container is canonical.
+
+### ADR-30 - Portal theming: managed themes, respondent runtime controls, a four-group token contract
+
+**Decision.** Portal presentation splits into two ownership layers over an expanded token contract, superseding ADR-22's single-file override for the portal.
+
+- **Theme (admin/adopter-set):** a named token set = brand palette + default font + **border-radius** (`--radius-*`: Sharp / Subtle / Rounded / Pill) + brand mark (text/logo, folds #25). QCMS ships predefined themes (Slate Teal default + brand-neutral alternates); the adopter selects one **per deployment** (single-tenant, ADR-20) and may customize it. A theme is **mutable operator config, not form-grade immutable** - presentation chrome, not answer data, so the immutability/auditability non-negotiables are untouched.
+- **Respondent runtime choices (in the portal, persisted, defaulting from OS signals):** **mode** (Light / Dark / High-contrast), **font** (from the registry; System always offered as the escape hatch), and **density** (Compact / Comfortable / Spacious).
+
+The token contract has **four groups**: color (`--color-*`), typography (`--font-portal` + a WCAG-1.4.12-compliant type scale), spacing (`--space-*`, driven by density), radius (`--radius-*`). Mode = root class (`none`/`.dark`/`.hc`); theme = `[data-theme]`; font + density = root classes.
+
+- **HC is a mode-layer, not a per-theme palette:** defined once (theme-agnostic black-on-white, heavy borders, flat, fixed AAA semantic colors); the theme contributes only its AAA-deep accent. New themes get HC for free. HC ships a little CSS (border weight/flatness), not only token values. Aligns with forced-colors / Windows HCM (#28).
+- **Fonts are a declarative registry:** each font = a manifest entry (family, self-hosted `woff2`, weights, fallback, license). The portal switcher and admin curation both render from it, grouped (System / Accessibility / Popular / Playful-Kids / Traditional-Corporate / Monospace). Add/remove = one entry; adopter-extensible. Every offered font is open-licensed + self-hostable per the §3 font mandate. The admin curates the respondent-facing subset; System is always on. Numeric inputs use tabular figures regardless of font.
+
+**Scope.** *Launch tier:* predefined themes + per-deployment selection + brand config + the respondent mode/font/density controls + the font registry. *Phase-4:* an admin UI to customize a theme's tokens and save a **named custom theme** (needs the admin app, 031-035; issue #26). *Baseline a11y/i18n ships regardless of this feature:* multi-script font fallback (#27) and forced-colors / prefers-contrast (#28).
+
+**Why.** ADR-22's single-file token override is too thin for real adopters and offers no accessible presets or user control. Managed themes plus respondent controls deliver white-label branding **and** a strong accessibility posture (user-chosen contrast, visibility/legibility fonts, comfortable density) without forking source. The token groups + registry make it data-driven and extensible.
+
+**Consequences.** Extends the `@qcms/ui` token contract (theme.css) and requires components to consume spacing/radius and honor the HC border treatment. The theme-palette design pass supplies the concrete predefined themes (`tokens.css` + showcase). Implemented by **task 047** (launch tier); the save-custom-theme admin UI is Phase-4. The `adopter-theme.css` override point remains for deployment-level custom values.
 
 ## 7. Constraints
 

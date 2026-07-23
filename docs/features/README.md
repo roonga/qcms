@@ -64,6 +64,7 @@ Status values: `todo` · `in-progress (branch)` · `blocked (issue #)` · `done 
 | 044 | No-JS submission (progressive enhancement; after 029, off the launch gate - issue #17) | 7 | done (closed for boolean/choice/text/date; numeric no-JS deferred - upstream RAC limit, #18) |
 | 045 | Portal step navigation: explicit cursor (Continue/Back/Submit); full-flow kitchen-sink e2e x3 viewports with independent DB + container-log verification (fixes review M/N/G; ADR-28) | 7 | done (explicit cursor ADR-28; fixes M/N/G; 3-viewport full-stack e2e + independent DB verify + fixture-content guard) |
 | 046 | Dev container as the canonical dev environment (Ubuntu 24.04; bypassPermissions loop; ADR-29) - off the launch gate; dispatch manually via `/task 046` after 045, not auto-selected | 7 | todo |
+| 047 | Portal theming: managed themes + respondent controls (mode/font/density) + declarative font registry + 4-group token contract (color/type/spacing/radius), ADR-30 - launch tier (admin save-custom-theme UI is Phase-4, #26) | 7 | todo (after 045; likely decomposes into subtasks when scheduled) |
 | 036 | Production images, compose, ops docs | 8b | todo |
 | 037 | create-qcms-app CLI | 8b | todo |
 | 040 | Security review and hardening (runs after 036, before 038) | 8b | todo |
