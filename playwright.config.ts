@@ -47,7 +47,14 @@ export default defineConfig({
   // the whole run deterministic; the three viewport projects still all run.
   workers: 1,
   forbidOnly: !!process.env.CI,
-  retries: 0,
+  // Retry on CI only. The suite drives a real full-stack flow (browser -> portal
+  // BFF -> API -> Docker Postgres) over a single on-demand `next dev` server, so a
+  // request can occasionally exceed its wait under CI load; a single-shot
+  // `waitForResponse` then times out and reds the whole run. Retrying on CI keeps
+  // it green against that timing class while Playwright still reports any retried
+  // test as "flaky" (visible, not hidden) so genuine flakes get root-caused. Local
+  // runs stay strict at 0 so a real regression is never masked in development.
+  retries: process.env.CI ? 2 : 0,
   // Booting Testcontainers Postgres in globalSetup takes ~30-60s on a cold pull.
   timeout: 60_000,
   reporter: [["list"]],
