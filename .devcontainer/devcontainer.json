@@ -1,0 +1,93 @@
+// QCMS dev container - the canonical development environment (ADR-29, task 046).
+//
+// Shape: a single Ubuntu 24.04 image plus Features. The dev database is NOT part
+// of this container: it stays in `docker-compose.dev.yml` (and the merge gate's
+// database is ephemeral Testcontainers, ADR-23), which is why the
+// `javascript-node-postgres` template is deliberately not used.
+//
+// Docker reaches the HOST daemon through a mounted socket
+// (`docker-outside-of-docker`), so Testcontainers spins *sibling* containers on
+// the host. ADR-29 records that trade-off. See `docs/DEVELOPER_GUIDE.md` for the
+// launch path, the `TESTCONTAINERS_HOST_OVERRIDE` note and the rollback steps.
+{
+  "name": "qcms",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+
+  "features": {
+    // zsh + oh-my-zsh as the default shell, so a contributor gets a usable
+    // terminal instead of raw bash. The autosuggestion / syntax-highlight
+    // plugins are wired in post-create.sh.
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": true,
+      "configureZshAsDefaultShell": true,
+      "installOhMyZsh": true,
+      "installOhMyZshConfig": true,
+      "upgradePackages": false
+    },
+    // Node 24 = the repo's pinned LTS floor (`engines.node >= 24`, .nvmrc).
+    // pnpm itself is activated by corepack from the `packageManager` pin.
+    "ghcr.io/devcontainers/features/node:1": { "version": "24" },
+    // Testcontainers (ADR-23) needs a Docker daemon: mount the host socket.
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+      "moby": true,
+      "installDockerBuildx": true,
+      "installDockerComposeSwitch": true
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    // PowerShell so `scripts/agent-loop.ps1` stays runnable from inside the
+    // container too (the bash `agent-loop.sh` is the canonical supervisor).
+    "ghcr.io/devcontainers/features/powershell:1": {},
+    // The autonomous loop runs INSIDE this container with
+    // `--permission-mode bypassPermissions` (ADR-29): the container is the
+    // blast radius.
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
+  },
+
+  // Dev ports (7xxx). The dev servers bind 0.0.0.0 inside the container so the
+  // HOST browser can reach them over these forwards.
+  "forwardPorts": [7000, 7010, 7020],
+  "portsAttributes": {
+    "7000": { "label": "portal (next dev)", "onAutoForward": "notify" },
+    "7010": { "label": "api (Hono)", "onAutoForward": "silent" },
+    "7020": { "label": "dev Postgres (docker-compose.dev.yml)", "onAutoForward": "silent" }
+  },
+
+  // `host.docker.internal` resolves to the host from inside the container: the
+  // documented address for the dev Postgres published by docker-compose.dev.yml
+  // and the `TESTCONTAINERS_HOST_OVERRIDE` fallback if sibling containers are
+  // not reachable on localhost.
+  "runArgs": ["--init", "--add-host=host.docker.internal:host-gateway"],
+
+  "containerEnv": {
+    // corepack must never stop for a "download this pnpm version?" prompt: the
+    // loop runs unattended.
+    "COREPACK_ENABLE_DOWNLOAD_PROMPT": "0",
+    // Keep Claude Code's config + credentials in the mounted ~/.claude, so a
+    // container rebuild does not throw away the login.
+    "CLAUDE_CONFIG_DIR": "/home/vscode/.claude"
+  },
+
+  // Secrets are provisioned at RUNTIME, never committed: `.env` (gitignored)
+  // arrives with the workspace bind mount, `gh auth login` writes into the
+  // container, and Claude Code credentials live in the mounted ~/.claude. No
+  // secret value appears in this file.
+  "mounts": [
+    // The a2-react-aria sibling repo (ADR-22): upstream component sources and
+    // docs are required reading for the UI tasks. initializeCommand creates the
+    // directory on the host first so the bind never fails on a fresh clone.
+    "source=${localWorkspaceFolder}/../a2-react-aria,target=/workspaces/a2-react-aria,type=bind,consistency=cached",
+    // Claude Code config + credentials, shared with the host user.
+    "source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind,consistency=cached"
+  ],
+  "initializeCommand": "mkdir -p \"${localWorkspaceFolder}/../a2-react-aria\" \"$HOME/.claude\" || true",
+
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "zsh"
+      }
+    }
+  }
+}
