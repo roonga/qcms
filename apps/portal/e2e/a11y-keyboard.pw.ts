@@ -15,11 +15,20 @@ import { startKitchenSink } from "./support/kitchen-sink.js";
 
 /** Select an at-fault-accident radio by keyboard and await the recorded answer. */
 async function keyboardChoose(page: Page, answer: "Yes" | "No"): Promise<void> {
+  const radio = page.getByRole("radio", { name: answer, exact: true });
   const recorded = page.waitForResponse(
     (r) => r.url().includes("/answers") && r.request().method() === "POST" && r.status() === 200,
   );
-  await page.getByRole("radio", { name: answer, exact: true }).focus();
-  await page.keyboard.press("Space");
+  // Pure keyboard selection, retried the same way the Submit activation below is:
+  // a late re-render can momentarily steal focus to <body> and swallow a single
+  // keystroke (documented on the Submit step), which on slower CI runners leaves
+  // the radio unselected so no answer ever posts and `recorded` times out.
+  // `locator.press` re-focuses the radio each attempt, so this stays pure keyboard
+  // (never a pointer); we retry until the selection actually registers.
+  await expect(async () => {
+    await radio.press("Space");
+    await expect(radio).toBeChecked({ timeout: 2000 });
+  }).toPass({ timeout: 20000 });
   await recorded;
 }
 
