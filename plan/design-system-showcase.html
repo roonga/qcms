@@ -1,0 +1,1223 @@
+<!-- @dsCard group="Overview" -->
+<title>QCMS Design System</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+/* ============================================================
+   QCMS DESIGN SYSTEM  -  first visual pass
+   Self-contained. System/self-hostable fonts only. No external requests.
+   ============================================================ */
+
+/* ---- Font roles (system stacks; adopter-swappable) ---- */
+:root{
+  --font-ui: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", "Roboto Mono", Consolas, "Liberation Mono", monospace;
+  --font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+  --font-heading: var(--font-ui);
+}
+
+/* ============================================================
+   TOKEN SETS
+   Rule A = light  -> applies to :root, explicit light, and .t-light frames
+   Rule B = dark via OS pref only when no page toggle
+   Rule C = dark   -> applies to explicit dark and .t-dark frames
+   Product components read these tokens, so each preview frame flips
+   independently of the page chrome by carrying .t-light / .t-dark.
+   ============================================================ */
+:root, :root[data-theme="light"], .t-light{
+  --background:#FBFCFD;
+  --foreground:#0F1729;
+  --card:#FFFFFF;
+  --card-foreground:#0F1729;
+  --popover:#FFFFFF;
+  --popover-foreground:#0F1729;
+  --primary:#2456C6;
+  --primary-foreground:#FFFFFF;
+  --secondary:#EEF1F6;
+  --secondary-foreground:#33405B;
+  --muted:#EEF1F6;
+  --muted-foreground:#55617A;
+  --accent:#E9EFFB;
+  --accent-foreground:#1E3F94;
+  --destructive:#C0271F;
+  --destructive-foreground:#FFFFFF;
+  --border:#DDE3ED;
+  --input:#838CA4;
+  --ring:#2456C6;
+  --radius:8px;
+  --success:#1E7A46;
+  --success-foreground:#FFFFFF;
+  --success-surface:#E7F4EC;
+  --warning:#8A5A00;
+  --warning-foreground:#FFFFFF;
+  --warning-surface:#FBF1DD;
+  --critical:#C0271F;
+  --critical-surface:#FBEBEA;
+  --info-surface:#E9EFFB;
+  --chart-1:#2456C6;
+  --chart-2:#2C6E63;
+  --code-ink:#1C2740;
+  --shadow-color:220 45% 20%;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme]){
+    --background:#0B0F1A; --foreground:#E6EAF2; --card:#121826; --card-foreground:#E6EAF2;
+    --popover:#141B2B; --popover-foreground:#E6EAF2; --primary:#7AA2FF; --primary-foreground:#0B0F1A;
+    --secondary:#1B2333; --secondary-foreground:#C4CCDC; --muted:#1B2333; --muted-foreground:#97A2B8;
+    --accent:#141D33; --accent-foreground:#AEC4FF; --destructive:#FF7B80; --destructive-foreground:#0B0F1A;
+    --border:#262F42; --input:#626C88; --ring:#7AA2FF;
+    --success:#46C08A; --success-foreground:#0B0F1A; --success-surface:#0E2A1E;
+    --warning:#E0A93B; --warning-foreground:#0B0F1A; --warning-surface:#2A2210;
+    --critical:#FF7B80; --critical-surface:#2A1417; --info-surface:#141D33;
+    --chart-1:#7AA2FF; --chart-2:#5FB8AC; --code-ink:#D7DEEC; --shadow-color:220 60% 2%;
+  }
+}
+:root[data-theme="dark"], .t-dark{
+  --background:#0B0F1A; --foreground:#E6EAF2; --card:#121826; --card-foreground:#E6EAF2;
+  --popover:#141B2B; --popover-foreground:#E6EAF2; --primary:#7AA2FF; --primary-foreground:#0B0F1A;
+  --secondary:#1B2333; --secondary-foreground:#C4CCDC; --muted:#1B2333; --muted-foreground:#97A2B8;
+  --accent:#141D33; --accent-foreground:#AEC4FF; --destructive:#FF7B80; --destructive-foreground:#0B0F1A;
+  --border:#262F42; --input:#626C88; --ring:#7AA2FF;
+  --success:#46C08A; --success-foreground:#0B0F1A; --success-surface:#0E2A1E;
+  --warning:#E0A93B; --warning-foreground:#0B0F1A; --warning-surface:#2A2210;
+  --critical:#FF7B80; --critical-surface:#2A1417; --info-surface:#141D33;
+  --chart-1:#7AA2FF; --chart-2:#5FB8AC; --code-ink:#D7DEEC; --shadow-color:220 60% 2%;
+}
+
+/* ---- Portal brand overrides (theme-aware, per frame) ---- */
+.t-light.b-portal{ --primary:#2C6E63; --primary-foreground:#FFFFFF; --ring:#2C6E63; --accent:#E4F1EE; --accent-foreground:#1E4F47; }
+.t-dark.b-portal { --primary:#5FB8AC; --primary-foreground:#08130F; --ring:#5FB8AC; --accent:#0F241F; --accent-foreground:#96D8CE; }
+.t-light.b-northwind{ --primary:#0F6B4F; --primary-foreground:#FFFFFF; --ring:#0F6B4F; --accent:#E3F1EA; --accent-foreground:#0C4E3A; --font-heading:var(--font-serif); }
+.t-dark.b-northwind { --primary:#4FC79A; --primary-foreground:#08130F; --ring:#4FC79A; --accent:#0E241B; --accent-foreground:#8FDCBE; --font-heading:var(--font-serif); }
+
+/* ============================================================
+   RESET + PAGE CHROME
+   ============================================================ */
+*{box-sizing:border-box;}
+html{-webkit-text-size-adjust:100%; overflow-x:clip;}
+body{
+  margin:0; font-family:var(--font-ui);
+  background:var(--background); color:var(--foreground);
+  line-height:1.55; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+  overflow-x:clip; max-width:100%;
+}
+/* Responsive preview grids: minmax(0,1fr) stops wide device frames from
+   expanding their track past the viewport (min-width:auto blowout). */
+.two-up{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:26px;}
+@media (max-width:720px){ .two-up{grid-template-columns:minmax(0,1fr);} }
+.one-up{display:grid; grid-template-columns:minmax(0,1fr); gap:30px;}
+@media (prefers-reduced-motion:no-preference){
+  body,.frame,.swatch,.btn,.toggle{transition:background-color .35s ease,color .35s ease,border-color .35s ease;}
+}
+h1,h2,h3,h4,p{margin:0;}
+a{color:var(--primary);}
+:focus-visible{outline:2px solid var(--ring); outline-offset:2px; border-radius:4px;}
+
+.wrap{max-width:1160px; margin:0 auto; padding:0 24px;}
+@media (max-width:560px){ .wrap{padding:0 16px;} }
+
+/* ---- Top bar ---- */
+.topbar{
+  position:sticky; top:0; z-index:50;
+  background:color-mix(in srgb, var(--background) 88%, transparent);
+  backdrop-filter:saturate(1.2) blur(8px);
+  border-bottom:1px solid var(--border);
+}
+.topbar-in{display:flex; align-items:center; gap:16px; height:60px;}
+.wordmark{display:flex; align-items:baseline; gap:10px; font-family:var(--font-ui); letter-spacing:-.01em;}
+.wordmark .mark{
+  font-weight:700; font-size:16px; color:var(--foreground);
+  border:1.5px solid var(--foreground); border-radius:6px; padding:3px 7px; line-height:1;
+}
+.wordmark .sub{font-size:12px; color:var(--muted-foreground); letter-spacing:.02em;}
+.topnav{display:flex; gap:4px; margin-left:auto;}
+.topnav a{
+  font-size:12.5px; color:var(--muted-foreground); text-decoration:none;
+  padding:6px 10px; border-radius:6px; white-space:nowrap; font-weight:500;
+}
+.topnav a:hover{color:var(--foreground); background:var(--muted);}
+@media (max-width:860px){ .topnav{display:none;} }
+.toggle{
+  display:inline-flex; align-items:center; gap:7px; cursor:pointer;
+  font-family:var(--font-ui); font-size:12px; font-weight:600;
+  color:var(--foreground); background:var(--card);
+  border:1px solid var(--input); border-radius:8px; padding:7px 11px; margin-left:8px;
+}
+.toggle:hover{border-color:var(--primary);}
+.toggle .ico{width:14px; height:14px; display:inline-block;}
+
+/* ============================================================
+   SECTION SCAFFOLD
+   ============================================================ */
+section{padding:72px 0; border-bottom:1px solid var(--border);}
+@media (max-width:560px){ section{padding:48px 0;} }
+.eyebrow{
+  font-family:var(--font-ui); font-size:11.5px; font-weight:600; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--primary); display:flex; align-items:center; gap:10px;
+}
+.eyebrow::before{content:""; width:22px; height:1.5px; background:var(--primary); display:inline-block;}
+.sec-title{font-family:var(--font-heading); font-size:clamp(1.6rem,3.4vw,2.1rem); font-weight:700; letter-spacing:-.02em; margin-top:14px; text-wrap:balance;}
+.sec-lede{color:var(--muted-foreground); max-width:62ch; margin-top:12px; font-size:1.02rem;}
+.block-title{font-family:var(--font-heading); font-size:1.15rem; font-weight:650; letter-spacing:-.01em; margin-top:8px;}
+.block-note{color:var(--muted-foreground); font-size:.92rem; max-width:70ch;}
+
+/* ============================================================
+   COVER
+   ============================================================ */
+.cover{padding-top:64px;}
+.cover-grid{display:grid; grid-template-columns:1.15fr .85fr; gap:48px; align-items:center;}
+@media (max-width:900px){ .cover-grid{grid-template-columns:1fr; gap:36px;} }
+.cover h1{
+  font-family:var(--font-heading); font-weight:800; letter-spacing:-.03em;
+  font-size:clamp(2.4rem,6vw,3.9rem); line-height:1.02; margin-top:20px; text-wrap:balance;
+}
+.cover h1 .accent{color:var(--primary);}
+.character{font-size:1.14rem; color:var(--foreground); max-width:52ch; margin-top:22px; line-height:1.5;}
+.character b{font-weight:650;}
+.meta-row{display:flex; flex-wrap:wrap; gap:10px; margin-top:26px;}
+.chip{
+  display:inline-flex; align-items:center; gap:7px; font-family:var(--font-ui);
+  font-size:12px; font-weight:600; padding:6px 11px; border-radius:999px;
+  border:1px solid var(--border); background:var(--card); color:var(--muted-foreground);
+}
+.chip .dot{width:10px; height:10px; border-radius:3px;}
+
+/* palette panel */
+.palette-card{
+  background:var(--card); border:1px solid var(--border); border-radius:16px; overflow:hidden;
+  box-shadow:0 1px 2px hsl(var(--shadow-color)/.06), 0 12px 40px -12px hsl(var(--shadow-color)/.18);
+}
+.palette-card h3{font-family:var(--font-ui); font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted-foreground); padding:16px 18px 0;}
+.pal-accents{display:flex; gap:0;}
+.pal-accents .big{flex:1; height:96px; display:flex; align-items:flex-end; padding:10px; color:#fff; font-family:var(--font-mono); font-size:11px; font-weight:600;}
+.pal-neu{display:grid; grid-template-columns:repeat(6,1fr); border-top:1px solid var(--border);}
+.pal-neu .n{height:44px; display:flex; align-items:flex-end; justify-content:flex-start; padding:4px 5px; font-family:var(--font-mono); font-size:8.5px;}
+.pal-foot{padding:12px 18px 18px; display:grid; gap:6px;}
+.pal-foot .r{display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:11.5px; color:var(--muted-foreground);}
+.pal-foot .r b{color:var(--foreground); font-weight:600;}
+
+/* ============================================================
+   FOUNDATIONS: color
+   ============================================================ */
+.grid-2{display:grid; grid-template-columns:1fr 1fr; gap:28px;}
+@media (max-width:820px){ .grid-2{grid-template-columns:1fr;} }
+.theme-panel{
+  border:1px solid var(--border); border-radius:14px; padding:20px;
+  background:var(--background); color:var(--foreground);
+}
+.theme-panel .ph{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;}
+.theme-panel .ph .lbl{font-family:var(--font-ui); font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted-foreground);}
+.swrow{display:flex; align-items:center; gap:12px; padding:9px 0; border-top:1px solid var(--border);}
+.swatch{width:38px; height:38px; border-radius:8px; border:1px solid rgba(128,128,128,.28); flex-shrink:0;}
+.swmeta{min-width:0; flex:1;}
+.swmeta .tk{font-family:var(--font-mono); font-size:12.5px; font-weight:600;}
+.swmeta .hx{font-family:var(--font-mono); font-size:11.5px; color:var(--muted-foreground);}
+.ratio{
+  display:inline-flex; align-items:center; gap:6px; font-family:var(--font-mono); font-size:11px; font-weight:600;
+  padding:4px 8px; border-radius:6px; white-space:nowrap;
+  background:var(--success-surface); color:var(--success);
+}
+.ratio svg{width:12px; height:12px;}
+.ratio .rr{color:var(--foreground); font-weight:700;}
+
+/* tokens table */
+.tbl-scroll{overflow-x:auto; border:1px solid var(--border); border-radius:12px; -webkit-overflow-scrolling:touch;}
+table.tokens{border-collapse:collapse; width:100%; min-width:520px; font-size:13px;}
+table.tokens th, table.tokens td{text-align:left; padding:9px 14px; border-bottom:1px solid var(--border); white-space:nowrap;}
+table.tokens thead th{font-family:var(--font-ui); font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted-foreground); background:var(--muted);}
+table.tokens td.tok{font-family:var(--font-mono); font-weight:600;}
+table.tokens td.val{font-family:var(--font-mono); color:var(--muted-foreground);}
+table.tokens tr:last-child td{border-bottom:none;}
+.vcell{display:flex; align-items:center; gap:8px;}
+.vdot{width:14px; height:14px; border-radius:4px; border:1px solid rgba(128,128,128,.3); flex-shrink:0;}
+
+/* type */
+.type-spec{border:1px solid var(--border); border-radius:14px; overflow:hidden;}
+.type-row{display:grid; grid-template-columns:132px 1fr; gap:20px; padding:18px 20px; border-bottom:1px solid var(--border); align-items:baseline;}
+.type-row:last-child{border-bottom:none;}
+@media (max-width:620px){ .type-row{grid-template-columns:1fr; gap:6px;} }
+.type-key{font-family:var(--font-ui); font-size:11px; color:var(--muted-foreground); line-height:1.5;}
+.type-key b{display:block; color:var(--foreground); font-size:12px; letter-spacing:.02em;}
+.samp{color:var(--foreground); text-wrap:balance;}
+.font-note{display:inline-block; margin-top:12px; font-family:var(--font-ui); font-size:11.5px; color:var(--muted-foreground);}
+
+/* radius + spacing */
+.rs-grid{display:grid; grid-template-columns:1fr 1fr; gap:24px;}
+@media (max-width:700px){ .rs-grid{grid-template-columns:1fr;} }
+.demo-box{border:1px solid var(--border); border-radius:14px; padding:20px;}
+.radii{display:flex; gap:16px; flex-wrap:wrap; align-items:flex-end;}
+.radii .r{display:flex; flex-direction:column; align-items:center; gap:8px; font-family:var(--font-ui); font-size:10.5px; color:var(--muted-foreground);}
+.radii .rbox{width:56px; height:56px; background:var(--accent); border:1.5px solid var(--primary);}
+.spacer-row{display:flex; align-items:center; gap:14px; margin-top:12px; font-family:var(--font-ui); font-size:11px; color:var(--muted-foreground);}
+.spacer-row .bar{height:14px; background:var(--primary); border-radius:3px;}
+
+/* ============================================================
+   DEVICE FRAMES
+   ============================================================ */
+.preview-label{
+  display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:12px;
+  font-family:var(--font-ui); font-size:11.5px; color:var(--muted-foreground);
+}
+.badge{
+  display:inline-flex; align-items:center; gap:6px; font-family:var(--font-ui); font-size:10.5px; font-weight:600;
+  padding:3px 8px; border-radius:5px; border:1px solid var(--border); background:var(--card); color:var(--foreground);
+  letter-spacing:.02em;
+}
+.badge.dark-b{background:#0B0F1A; color:#E6EAF2; border-color:#2A3346;}
+.badge.light-b{background:#FFFFFF; color:#0F1729; border-color:#DDE3ED;}
+
+.preview-wall{display:flex; flex-wrap:wrap; gap:32px 26px;}
+.preview-col{display:flex; flex-direction:column;}
+
+/* phone */
+.phone{
+  width:100%; max-width:392px; background:#0c0f16; border-radius:40px; padding:12px;
+  border:1px solid rgba(128,128,128,.4);
+  box-shadow:0 2px 4px hsl(var(--shadow-color)/.15), 0 30px 60px -24px hsl(var(--shadow-color)/.5);
+}
+.phone-screen{
+  border-radius:29px; overflow:hidden; position:relative;
+  background:var(--background); color:var(--foreground); font-family:var(--font-ui);
+}
+.notch{position:absolute; top:0; left:50%; transform:translateX(-50%); width:120px; height:22px; background:#0c0f16; border-radius:0 0 14px 14px; z-index:5;}
+
+/* browser chrome (admin) */
+.browser{
+  width:100%; border-radius:14px; overflow:hidden; border:1px solid var(--border);
+  background:var(--card);
+  box-shadow:0 2px 4px hsl(var(--shadow-color)/.1), 0 30px 70px -30px hsl(var(--shadow-color)/.4);
+}
+.browser-bar{display:flex; align-items:center; gap:8px; padding:10px 14px; background:var(--muted); border-bottom:1px solid var(--border);}
+.tl{width:11px; height:11px; border-radius:50%;}
+.urlbar{
+  margin-left:8px; flex:1; min-width:0; background:var(--background); border:1px solid var(--border); border-radius:7px;
+  padding:5px 12px; font-family:var(--font-mono); font-size:11.5px; color:var(--muted-foreground);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:flex; align-items:center; gap:7px;
+}
+.urlbar svg{width:11px; height:11px; flex-shrink:0;}
+
+/* ============================================================
+   PRODUCT COMPONENTS (static shadcn/react-aria representations)
+   ============================================================ */
+.app{background:var(--background); color:var(--foreground);}
+.portal-app{padding:22px 20px 24px;}
+.p-head{display:flex; flex-direction:column; gap:12px;}
+.p-step{font-family:var(--font-ui); font-size:13px; font-weight:600; color:var(--muted-foreground); display:flex; justify-content:space-between; align-items:center;}
+.p-step .cnt{font-family:var(--font-ui); font-size:11px; color:var(--muted-foreground);}
+.progress{display:flex; gap:6px;}
+.progress i{height:5px; flex:1; border-radius:3px; background:var(--muted);}
+.progress i.on{background:var(--primary);}
+.portal-h1{font-family:var(--font-heading); font-size:1.7rem; font-weight:700; letter-spacing:-.02em; margin-top:22px;}
+.q{margin-top:22px;}
+.q-label{font-size:1.02rem; font-weight:600; margin-bottom:12px;}
+.radio-group{display:flex; flex-direction:column; gap:10px;}
+.radio{
+  display:flex; align-items:center; gap:13px; min-height:52px; padding:0 16px;
+  border:1.5px solid var(--input); border-radius:12px; background:var(--card); cursor:pointer; font-size:1rem;
+}
+.radio .dot{width:22px; height:22px; border-radius:50%; border:2px solid var(--input); flex-shrink:0; display:grid; place-items:center;}
+.radio.sel{border-color:var(--primary); background:var(--accent); color:var(--accent-foreground); font-weight:600;}
+.radio.sel .dot{border-color:var(--primary);}
+.radio.sel .dot::after{content:""; width:11px; height:11px; border-radius:50%; background:var(--primary);}
+.radio.focus{outline:2px solid var(--ring); outline-offset:2px;}
+
+/* inserted (branch) field */
+.inserted{
+  margin-top:14px; margin-left:2px; padding:16px 16px 16px 18px; border-radius:12px;
+  border:1px solid var(--border); background:var(--muted);
+  border-left:3px solid var(--primary); position:relative;
+}
+.inserted .ins-tag{
+  display:inline-flex; align-items:center; gap:6px; font-family:var(--font-ui); font-size:10.5px; font-weight:600;
+  color:var(--accent-foreground); background:var(--accent); border:1px solid var(--border);
+  padding:3px 8px; border-radius:5px; letter-spacing:.03em; margin-bottom:11px;
+}
+.inserted .ins-tag svg{width:11px; height:11px;}
+.field-label{font-size:.95rem; font-weight:600; margin-bottom:9px; display:block;}
+.numfield{display:flex; align-items:stretch; max-width:180px; border:1.5px solid var(--input); border-radius:11px; overflow:hidden; background:var(--card);}
+.numfield input, .numfield .val{flex:1; border:none; background:transparent; font-family:var(--font-mono); font-size:1rem; font-weight:600; color:var(--foreground); padding:0 14px; min-width:0; display:flex; align-items:center; min-height:48px;}
+.numfield .step{width:46px; border-left:1px solid var(--border); background:var(--muted); color:var(--foreground); font-size:18px; display:grid; place-items:center; cursor:pointer;}
+.numfield.focus{border-color:var(--ring); outline:2px solid var(--ring); outline-offset:2px;}
+.p-actions{display:flex; gap:12px; margin-top:30px;}
+
+/* buttons */
+.btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  font-family:var(--font-ui); font-size:.95rem; font-weight:600; cursor:pointer;
+  min-height:48px; padding:0 20px; border-radius:11px; border:1.5px solid transparent; white-space:nowrap;
+}
+.btn.primary{background:var(--primary); color:var(--primary-foreground); flex:1;}
+.btn.ghost{background:var(--card); color:var(--foreground); border-color:var(--input);}
+.btn.sm{min-height:36px; padding:0 13px; font-size:.85rem; border-radius:8px;}
+.btn.primary:hover{filter:brightness(1.06);}
+
+/* ---- admin ---- */
+.admin{font-family:var(--font-ui); color:var(--foreground); background:var(--background);}
+.a-crumb{display:flex; align-items:center; gap:8px; padding:12px 18px; border-bottom:1px solid var(--border); font-size:12.5px; color:var(--muted-foreground); font-family:var(--font-ui); flex-wrap:wrap;}
+.a-crumb a{color:var(--muted-foreground); text-decoration:none;}
+.a-crumb .cur{color:var(--foreground); font-weight:600;}
+.a-crumb .sep{opacity:.5;}
+.a-body{display:grid; grid-template-columns:170px 1fr; min-height:340px;}
+@media (max-width:640px){ .a-body{grid-template-columns:1fr;} }
+.rail{border-right:1px solid var(--border); padding:14px 12px; background:var(--muted); display:flex; flex-direction:column; gap:6px;}
+@media (max-width:640px){ .rail{border-right:none; border-bottom:1px solid var(--border); flex-direction:row; overflow-x:auto;} }
+.rail .rl-h{font-family:var(--font-ui); font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted-foreground); padding:2px 8px 6px;}
+.step-item{display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:8px; font-size:13px; color:var(--foreground); white-space:nowrap;}
+.step-item .num{width:20px; height:20px; border-radius:5px; display:grid; place-items:center; font-family:var(--font-ui); font-size:11px; font-weight:700; background:var(--card); border:1px solid var(--border); color:var(--muted-foreground);}
+.step-item.active{background:var(--accent); color:var(--accent-foreground); font-weight:600;}
+.step-item.active .num{background:var(--primary); color:var(--primary-foreground); border-color:var(--primary);}
+
+.editor{padding:16px 18px; display:flex; flex-direction:column; gap:16px; min-width:0;}
+.ed-head{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;}
+.ed-head h3{font-family:var(--font-heading); font-size:1.05rem; font-weight:650;}
+.saved{display:inline-flex; align-items:center; gap:7px; font-family:var(--font-ui); font-size:11.5px; color:var(--success); background:var(--success-surface); padding:5px 10px; border-radius:6px;}
+.saved svg{width:12px; height:12px;}
+
+.qcard{border:1px solid var(--border); border-radius:10px; background:var(--card); display:flex; align-items:center; gap:12px; padding:11px 12px;}
+.qcard + .qcard{margin-top:8px;}
+.pin{display:grid; place-items:center; width:30px; height:30px; border-radius:7px; border:1px solid var(--border); background:var(--muted); color:var(--muted-foreground); cursor:grab; flex-shrink:0;}
+.pin svg{width:14px;height:14px;}
+.qmeta{min-width:0; flex:1;}
+.qid{font-family:var(--font-mono); font-size:13px; font-weight:600; display:flex; align-items:center; gap:9px; flex-wrap:wrap;}
+.vtag{font-family:var(--font-mono); font-size:10.5px; font-weight:700; color:var(--accent-foreground); background:var(--accent); padding:2px 7px; border-radius:5px; border:1px solid var(--border); letter-spacing:.02em;}
+.qsub{font-size:11.5px; color:var(--muted-foreground); margin-top:2px;}
+.icon-btn{display:grid; place-items:center; width:30px; height:30px; border-radius:7px; border:1px solid var(--border); background:var(--card); color:var(--muted-foreground); cursor:pointer; flex-shrink:0;}
+.icon-btn:hover{border-color:var(--critical); color:var(--critical);}
+.icon-btn svg{width:14px; height:14px;}
+
+.subhead{font-family:var(--font-ui); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted-foreground); margin-bottom:2px;}
+.codeblock{
+  border:1px solid var(--border); border-radius:10px; background:var(--muted); overflow:hidden;
+}
+.codeblock .cb-bar{display:flex; align-items:center; justify-content:space-between; padding:7px 12px; border-bottom:1px solid var(--border); font-family:var(--font-mono); font-size:10.5px; color:var(--muted-foreground);}
+.codeblock pre{margin:0; padding:12px 14px; overflow-x:auto; font-family:var(--font-mono); font-size:12px; line-height:1.65; color:var(--code-ink);}
+.codeblock .k{color:var(--primary);}
+.codeblock .s{color:var(--success);}
+.codeblock .p{color:var(--accent-foreground);}
+.codeblock .m{color:var(--muted-foreground);}
+
+.alert{display:flex; gap:11px; align-items:flex-start; border:1px solid var(--border); border-radius:10px; padding:12px 14px; background:var(--success-surface); border-color:color-mix(in srgb, var(--success) 30%, var(--border));}
+.alert .ai{color:var(--success); flex-shrink:0; margin-top:1px;}
+.alert .ai svg{width:16px; height:16px;}
+.alert .at{font-size:13px; font-weight:600; color:var(--foreground);}
+.alert .ad{font-size:12px; color:var(--muted-foreground); margin-top:2px;}
+
+/* responses */
+.resp-body{display:grid; grid-template-columns:1.25fr 1fr; min-height:360px;}
+@media (max-width:760px){ .resp-body{grid-template-columns:1fr;} }
+.resp-list{border-right:1px solid var(--border); min-width:0;}
+@media (max-width:760px){ .resp-list{border-right:none; border-bottom:1px solid var(--border);} }
+.resp-toolbar{display:flex; align-items:center; gap:10px; padding:12px 14px; border-bottom:1px solid var(--border); flex-wrap:wrap;}
+.inp{display:flex; align-items:center; gap:8px; background:var(--card); border:1.5px solid var(--input); border-radius:8px; padding:7px 11px; font-size:12.5px; color:var(--muted-foreground); flex:1; min-width:120px;}
+.inp svg{width:13px; height:13px; flex-shrink:0;}
+.resp-scroll{overflow-x:auto;}
+table.sessions{border-collapse:collapse; width:100%; min-width:420px; font-size:12.5px;}
+table.sessions th, table.sessions td{padding:10px 14px; text-align:left; border-bottom:1px solid var(--border); white-space:nowrap;}
+table.sessions thead th{font-family:var(--font-ui); font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted-foreground); background:var(--muted);}
+table.sessions td.id{font-family:var(--font-mono); font-weight:600;}
+table.sessions td.v, table.sessions td.t{font-family:var(--font-mono); color:var(--muted-foreground);}
+table.sessions tr.sel td{background:var(--accent);}
+table.sessions tbody tr{cursor:pointer;}
+.tag{display:inline-flex; align-items:center; gap:5px; font-family:var(--font-ui); font-size:10.5px; font-weight:600; padding:2px 7px; border-radius:5px; border:1px solid transparent;}
+.tag.flag{background:var(--warning-surface); color:var(--warning); border-color:color-mix(in srgb, var(--warning) 30%, var(--border));}
+.tag.anon{background:var(--muted); color:var(--muted-foreground); border-color:var(--border);}
+.tag.link{background:var(--accent); color:var(--accent-foreground); border-color:var(--border);}
+.tag svg{width:11px; height:11px;}
+
+.detail{padding:16px 16px; display:flex; flex-direction:column; gap:16px; min-width:0;}
+.detail .d-h{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;}
+.detail .d-h .did{font-family:var(--font-mono); font-size:13px; font-weight:700;}
+.locked{border:1px solid var(--border); border-radius:10px; overflow:hidden;}
+.locked .lk-h{display:flex; align-items:center; gap:7px; padding:8px 12px; background:var(--muted); font-family:var(--font-ui); font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted-foreground); border-bottom:1px solid var(--border);}
+.locked .lk-h svg{width:12px; height:12px;}
+.ans{display:flex; justify-content:space-between; gap:12px; padding:9px 12px; font-size:13px; border-bottom:1px solid var(--border);}
+.ans:last-child{border-bottom:none;}
+.ans .a-k{color:var(--muted-foreground);}
+.ans .a-v{font-family:var(--font-mono); font-weight:600;}
+.timeline{display:flex; flex-direction:column; gap:0;}
+.tl-item{display:grid; grid-template-columns:64px 1fr; gap:12px; padding:8px 0; position:relative; font-size:12.5px;}
+.tl-item .tl-time{font-family:var(--font-mono); font-size:11px; color:var(--muted-foreground); text-align:right;}
+.tl-item .tl-body{position:relative; padding-left:18px; border-left:1.5px solid var(--border);}
+.tl-item .tl-body::before{content:""; position:absolute; left:-5.5px; top:5px; width:9px; height:9px; border-radius:50%; background:var(--primary); border:2px solid var(--card);}
+.tl-item.submit .tl-body::before{background:var(--success);}
+.tl-body code{font-family:var(--font-mono); font-weight:600;}
+.hashline{display:flex; align-items:center; gap:8px; background:var(--muted); border:1px solid var(--border); border-radius:8px; padding:9px 11px; font-family:var(--font-mono); font-size:11.5px; overflow:hidden;}
+.hashline .hk{color:var(--muted-foreground); flex-shrink:0;}
+.hashline .hv{color:var(--foreground); font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.copybtn{margin-left:auto; display:inline-flex; align-items:center; gap:5px; font-family:var(--font-ui); font-size:10.5px; font-weight:600; color:var(--foreground); background:var(--card); border:1px solid var(--input); border-radius:6px; padding:4px 9px; cursor:pointer; flex-shrink:0;}
+.copybtn:hover{border-color:var(--primary); color:var(--primary);}
+.copybtn svg{width:11px; height:11px;}
+
+/* footer */
+footer{padding:48px 0 64px; color:var(--muted-foreground); font-size:13px;}
+footer .fnote{font-family:var(--font-ui); font-size:11.5px; max-width:70ch;}
+
+.legend{display:flex; flex-wrap:wrap; gap:8px 14px; margin-top:14px; font-family:var(--font-ui); font-size:11px; color:var(--muted-foreground);}
+.legend span{display:inline-flex; align-items:center; gap:6px;}
+.legend .sq{width:11px; height:11px; border-radius:3px;}
+</style>
+
+<!-- ============================== TOP BAR ============================== -->
+<header class="topbar">
+  <div class="wrap topbar-in">
+    <div class="wordmark">
+      <span class="mark">QCMS</span>
+      <span class="sub">Design System / v0.1</span>
+    </div>
+    <nav class="topnav" aria-label="Sections">
+      <a href="#foundations">Foundations</a>
+      <a href="#portal">Portal</a>
+      <a href="#builder">Builder</a>
+      <a href="#responses">Responses</a>
+    </nav>
+    <button class="toggle" id="themeToggle" type="button" aria-pressed="false" aria-label="Toggle light and dark theme">
+      <span class="ico" id="toggleIco" aria-hidden="true"></span>
+      <span id="toggleTxt">Dark</span>
+    </button>
+  </div>
+</header>
+
+<!-- ============================== COVER ============================== -->
+<section class="cover" id="top" style="border-bottom:none;">
+  <div class="wrap">
+    <div class="cover-grid">
+      <div>
+        <div class="eyebrow">MIT-licensed / self-hosted / audit-grade</div>
+        <h1>QCMS <span class="accent">Design System</span></h1>
+        <p class="character">The visual language of a questionnaire engine built on <b>immutability, determinism, and auditability</b>. Precise, legible, and calm: infrastructure that compliance-sensitive teams can trust on sight, not decoration that asks them to.</p>
+        <div class="meta-row">
+          <span class="chip"><span class="dot" style="background:#2456C6;"></span>Brand accent / Cobalt</span>
+          <span class="chip"><span class="dot" style="background:#2C6E63;"></span>Portal default / Slate Teal</span>
+          <span class="chip"><span class="dot" style="background:#0F1729;"></span>Ink neutral</span>
+        </div>
+      </div>
+
+      <div class="palette-card" aria-label="Palette summary">
+        <h3>Accents</h3>
+        <div style="padding:12px 18px 0;">
+          <div class="pal-accents" style="border-radius:10px; overflow:hidden;">
+            <div class="big" style="background:#2456C6;">Cobalt<br>#2456C6</div>
+            <div class="big" style="background:#2C6E63;">Slate Teal<br>#2C6E63</div>
+          </div>
+        </div>
+        <h3 style="margin-top:16px;">Neutral ramp / light</h3>
+        <div style="padding:8px 18px 0;">
+          <div class="pal-neu" style="border-radius:8px; overflow:hidden; border:1px solid var(--border);">
+            <div class="n" style="background:#FBFCFD; color:#55617A;">bg</div>
+            <div class="n" style="background:#EEF1F6; color:#55617A;">muted</div>
+            <div class="n" style="background:#DDE3ED; color:#55617A;">border</div>
+            <div class="n" style="background:#838CA4; color:#fff;">input</div>
+            <div class="n" style="background:#55617A; color:#fff;">m-fg</div>
+            <div class="n" style="background:#0F1729; color:#fff;">ink</div>
+          </div>
+        </div>
+        <div class="pal-foot">
+          <div class="r"><span>Cobalt on light / dark</span><b>#2456C6 / #7AA2FF</b></div>
+          <div class="r"><span>Ink neutral on light / dark</span><b>#0F1729 / #E6EAF2</b></div>
+          <div class="r"><span>Body contrast (both themes)</span><b>17.4:1 / 15.9:1 AA</b></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== FOUNDATIONS ============================== -->
+<section id="foundations">
+  <div class="wrap">
+    <div class="eyebrow">Foundations</div>
+    <h2 class="sec-title">Color, tokens, type, rhythm</h2>
+    <p class="sec-lede">Every value is a token. The whole system flips between light and dark from one set of custom properties, and the same set is the single surface an adopter overrides to re-skin the portal. Contrast is verified, not assumed: WCAG 2.2 AA is the floor.</p>
+
+    <!-- COLOR -->
+    <div style="margin-top:40px;">
+      <div class="block-title">Palette and semantic color</div>
+      <p class="block-note" style="margin-top:8px;">Key text and surface pairs are annotated with their measured contrast ratio. Semantic hues (success, warning, critical) sit apart from the brand accent and never carry state alone: they always travel with text or an icon.</p>
+      <div class="grid-2" style="margin-top:20px;">
+
+        <!-- LIGHT panel -->
+        <div class="theme-panel t-light">
+          <div class="ph"><span class="lbl">Light theme</span><span class="badge light-b">default</span></div>
+          <div class="swrow" style="border-top:none;">
+            <div class="swatch" style="background:#0F1729;"></div>
+            <div class="swmeta"><div class="tk">foreground</div><div class="hx">#0F1729 on #FBFCFD</div></div>
+            <span class="ratio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg><span class="rr">17.4:1</span>AA</span>
+          </div>
+          <div class="swrow">
+            <div class="swatch" style="background:#55617A;"></div>
+            <div class="swmeta"><div class="tk">muted-foreground</div><div class="hx">#55617A on #FBFCFD</div></div>
+            <span class="ratio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg><span class="rr">6.05:1</span>AA</span>
+          </div>
+          <div class="swrow">
+            <div class="swatch" style="background:#2456C6;"></div>
+            <div class="swmeta"><div class="tk">primary / Cobalt</div><div class="hx">#2456C6 on #FBFCFD</div></div>
+            <span class="ratio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg><span class="rr">6.35:1</span>AA</span>
+          </div>
+          <div class="swrow">
+            <div class="swatch" style="background:#2C6E63;"></div>
+            <div class="swmeta"><div class="tk">portal accent / Slate Teal</div><div class="hx">#2C6E63 on #FBFCFD</div></div>
+            <span class="ratio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg><span class="rr">5.81:1</span>AA</span>
+          </div>
+          <div class="swrow">
+            <div class="swatch" style="background:#1E7A46;"></div>
+            <div class="swmeta"><div class="tk">success</div><div class="hx">#1E7A46 on #FBFCFD</div></div>
+            <span class="ratio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg><span class="rr">5.21:1</span>AA</span>
+          </div>
+          <div class="swrow">
+            <div class="swatch" style="background:#8A5A00;"></div>
+            <div class="swmeta"><div class="tk">warning</div><div class="hx">#8A5A00 on #FBFCFD</div></div>
+            <span class="ratio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg><span class="rr">5.77:1</span>AA</span>
+          </div>
+          <div class="swrow">
+            <div class="swatch" style="background:#C0271F;"></div>
+            <div class="swmeta"><div class="tk">critical / destructive</div><div class="hx">#C0271F on #FBFCFD</div></div>
+            <span class="ratio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg><span class="rr">5.76:1</span>AA</span>
+          </div>
+          <div class="swrow">
+            <div class="swatch" style="background:#838CA4;"></div>
+            <div class="swmeta"><div class="tk">input border</div><div class="hx">#838CA4 on #FBFCFD / UI 3:1</div></div>
+            <span class="ratio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg><span class="rr">3.27:1</span>AA</span>
+          </div>
+        </div>
+
+        <!-- DARK panel -->
+        <div class="theme-panel t-dark">
+          <div class="ph"><span class="lbl">Dark theme</span><span class="badge dark-b">default</span></div>
+          <div class="swrow" style="border-top:none;">
+            <div class="swatch" style="background:#E6EAF2;"></div>
+            <div class="swmeta"><div class="tk">foreground</div><div class="hx">#E6EAF2 on #0B0F1A</div></div>
+            <span class="ratio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg><span class="rr">15.9:1</span>AA</span>
+          </div>
+          <div class="swrow">
+            <div class="swatch" style="background:#97A2B8;"></div>
+            <div class="swmeta"><div class="tk">muted-foreground</div><div class="hx">#97A2B8 on #0B0F1A</div></div>
+            <span class="ratio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg><span class="rr">7.45:1</span>AA</span>
+          </div>
+          <div class="swrow">
+            <div class="swatch" style="background:#7AA2FF;"></div>
+            <div class="swmeta"><div class="tk">primary / Cobalt</div><div class="hx">#7AA2FF on #0B0F1A</div></div>
+            <span class="ratio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg><span class="rr">7.69:1</span>AA</span>
+          </div>
+          <div class="swrow">
+            <div class="swatch" style="background:#5FB8AC;"></div>
+            <div class="swmeta"><div class="tk">portal accent / Slate Teal</div><div class="hx">#5FB8AC on #0B0F1A</div></div>
+            <span class="ratio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg><span class="rr">8.14:1</span>AA</span>
+          </div>
+          <div class="swrow">
+            <div class="swatch" style="background:#46C08A;"></div>
+            <div class="swmeta"><div class="tk">success</div><div class="hx">#46C08A on #0B0F1A</div></div>
+            <span class="ratio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg><span class="rr">8.35:1</span>AA</span>
+          </div>
+          <div class="swrow">
+            <div class="swatch" style="background:#E0A93B;"></div>
+            <div class="swmeta"><div class="tk">warning</div><div class="hx">#E0A93B on #0B0F1A</div></div>
+            <span class="ratio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg><span class="rr">9.03:1</span>AA</span>
+          </div>
+          <div class="swrow">
+            <div class="swatch" style="background:#FF7B80;"></div>
+            <div class="swmeta"><div class="tk">critical / destructive</div><div class="hx">#FF7B80 on #0B0F1A</div></div>
+            <span class="ratio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg><span class="rr">7.65:1</span>AA</span>
+          </div>
+          <div class="swrow">
+            <div class="swatch" style="background:#626C88;"></div>
+            <div class="swmeta"><div class="tk">input border</div><div class="hx">#626C88 on #121826 / UI 3:1</div></div>
+            <span class="ratio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg><span class="rr">3.39:1</span>AA</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TOKENS -->
+    <div style="margin-top:48px;">
+      <div class="block-title">Design tokens</div>
+      <p class="block-note" style="margin-top:8px;">The shadcn / react-aria custom-property contract. This table is the entire adopter override surface: re-skinning the portal means shipping a replacement set, nothing more. QCMS reads tokens, never raw hex.</p>
+      <div class="tbl-scroll" style="margin-top:18px;">
+        <table class="tokens">
+          <thead><tr><th>Token</th><th>Light</th><th>Dark</th></tr></thead>
+          <tbody>
+            <tr><td class="tok">--background</td><td class="val"><span class="vcell"><span class="vdot" style="background:#FBFCFD;"></span>#FBFCFD</span></td><td class="val"><span class="vcell"><span class="vdot" style="background:#0B0F1A;"></span>#0B0F1A</span></td></tr>
+            <tr><td class="tok">--foreground</td><td class="val"><span class="vcell"><span class="vdot" style="background:#0F1729;"></span>#0F1729</span></td><td class="val"><span class="vcell"><span class="vdot" style="background:#E6EAF2;"></span>#E6EAF2</span></td></tr>
+            <tr><td class="tok">--card</td><td class="val"><span class="vcell"><span class="vdot" style="background:#FFFFFF;"></span>#FFFFFF</span></td><td class="val"><span class="vcell"><span class="vdot" style="background:#121826;"></span>#121826</span></td></tr>
+            <tr><td class="tok">--popover</td><td class="val"><span class="vcell"><span class="vdot" style="background:#FFFFFF;"></span>#FFFFFF</span></td><td class="val"><span class="vcell"><span class="vdot" style="background:#141B2B;"></span>#141B2B</span></td></tr>
+            <tr><td class="tok">--primary</td><td class="val"><span class="vcell"><span class="vdot" style="background:#2456C6;"></span>#2456C6</span></td><td class="val"><span class="vcell"><span class="vdot" style="background:#7AA2FF;"></span>#7AA2FF</span></td></tr>
+            <tr><td class="tok">--primary-foreground</td><td class="val"><span class="vcell"><span class="vdot" style="background:#FFFFFF;"></span>#FFFFFF</span></td><td class="val"><span class="vcell"><span class="vdot" style="background:#0B0F1A;"></span>#0B0F1A</span></td></tr>
+            <tr><td class="tok">--secondary</td><td class="val"><span class="vcell"><span class="vdot" style="background:#EEF1F6;"></span>#EEF1F6</span></td><td class="val"><span class="vcell"><span class="vdot" style="background:#1B2333;"></span>#1B2333</span></td></tr>
+            <tr><td class="tok">--secondary-foreground</td><td class="val"><span class="vcell"><span class="vdot" style="background:#33405B;"></span>#33405B</span></td><td class="val"><span class="vcell"><span class="vdot" style="background:#C4CCDC;"></span>#C4CCDC</span></td></tr>
+            <tr><td class="tok">--muted</td><td class="val"><span class="vcell"><span class="vdot" style="background:#EEF1F6;"></span>#EEF1F6</span></td><td class="val"><span class="vcell"><span class="vdot" style="background:#1B2333;"></span>#1B2333</span></td></tr>
+            <tr><td class="tok">--muted-foreground</td><td class="val"><span class="vcell"><span class="vdot" style="background:#55617A;"></span>#55617A</span></td><td class="val"><span class="vcell"><span class="vdot" style="background:#97A2B8;"></span>#97A2B8</span></td></tr>
+            <tr><td class="tok">--accent</td><td class="val"><span class="vcell"><span class="vdot" style="background:#E9EFFB;"></span>#E9EFFB</span></td><td class="val"><span class="vcell"><span class="vdot" style="background:#141D33;"></span>#141D33</span></td></tr>
+            <tr><td class="tok">--accent-foreground</td><td class="val"><span class="vcell"><span class="vdot" style="background:#1E3F94;"></span>#1E3F94</span></td><td class="val"><span class="vcell"><span class="vdot" style="background:#AEC4FF;"></span>#AEC4FF</span></td></tr>
+            <tr><td class="tok">--destructive</td><td class="val"><span class="vcell"><span class="vdot" style="background:#C0271F;"></span>#C0271F</span></td><td class="val"><span class="vcell"><span class="vdot" style="background:#FF7B80;"></span>#FF7B80</span></td></tr>
+            <tr><td class="tok">--border</td><td class="val"><span class="vcell"><span class="vdot" style="background:#DDE3ED;"></span>#DDE3ED</span></td><td class="val"><span class="vcell"><span class="vdot" style="background:#262F42;"></span>#262F42</span></td></tr>
+            <tr><td class="tok">--input</td><td class="val"><span class="vcell"><span class="vdot" style="background:#838CA4;"></span>#838CA4</span></td><td class="val"><span class="vcell"><span class="vdot" style="background:#626C88;"></span>#626C88</span></td></tr>
+            <tr><td class="tok">--ring</td><td class="val"><span class="vcell"><span class="vdot" style="background:#2456C6;"></span>#2456C6</span></td><td class="val"><span class="vcell"><span class="vdot" style="background:#7AA2FF;"></span>#7AA2FF</span></td></tr>
+            <tr><td class="tok">--radius</td><td class="val">8px</td><td class="val">8px</td></tr>
+            <tr><td class="tok">--success</td><td class="val"><span class="vcell"><span class="vdot" style="background:#1E7A46;"></span>#1E7A46</span></td><td class="val"><span class="vcell"><span class="vdot" style="background:#46C08A;"></span>#46C08A</span></td></tr>
+            <tr><td class="tok">--warning</td><td class="val"><span class="vcell"><span class="vdot" style="background:#8A5A00;"></span>#8A5A00</span></td><td class="val"><span class="vcell"><span class="vdot" style="background:#E0A93B;"></span>#E0A93B</span></td></tr>
+            <tr><td class="tok">--chart-1</td><td class="val"><span class="vcell"><span class="vdot" style="background:#2456C6;"></span>#2456C6</span></td><td class="val"><span class="vcell"><span class="vdot" style="background:#7AA2FF;"></span>#7AA2FF</span></td></tr>
+            <tr><td class="tok">--chart-2</td><td class="val"><span class="vcell"><span class="vdot" style="background:#2C6E63;"></span>#2C6E63</span></td><td class="val"><span class="vcell"><span class="vdot" style="background:#5FB8AC;"></span>#5FB8AC</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TYPE -->
+    <div style="margin-top:48px;">
+      <div class="block-title">Type</div>
+      <p class="block-note" style="margin-top:8px;">Two roles, both from self-hostable system stacks so the page renders offline with no webfont request. A humanist UI face carries reading and forms (adopter-swappable). A monospace face carries every identifier, version, hash, and JSON fragment, so machine facts read as machine facts.</p>
+      <div class="type-spec" style="margin-top:18px;">
+        <div class="type-row">
+          <div class="type-key"><b>Display / 800</b>2.4rem<br>heading face</div>
+          <div class="samp" style="font-family:var(--font-heading); font-size:2.2rem; font-weight:800; letter-spacing:-.03em; line-height:1.05;">Vehicle insurance intake</div>
+        </div>
+        <div class="type-row">
+          <div class="type-key"><b>H1 / 700</b>1.7rem<br>heading face</div>
+          <div class="samp" style="font-family:var(--font-heading); font-size:1.6rem; font-weight:700; letter-spacing:-.02em;">Step 2 of 4: Driving history</div>
+        </div>
+        <div class="type-row">
+          <div class="type-key"><b>H3 / 650</b>1.15rem<br>heading face</div>
+          <div class="samp" style="font-family:var(--font-heading); font-size:1.15rem; font-weight:650;">Condition: show accident count when at-fault accident equals yes</div>
+        </div>
+        <div class="type-row">
+          <div class="type-key"><b>Body / 400</b>1rem / 1.55<br>UI face</div>
+          <div class="samp" style="font-size:1rem; max-width:60ch;">Answers are locked at submission and never rewritten. Each response carries the exact form version it was captured against, so a review two years later reads the questionnaire the respondent actually saw.</div>
+        </div>
+        <div class="type-row">
+          <div class="type-key"><b>Small / 500</b>0.875rem<br>UI face</div>
+          <div class="samp" style="font-size:.875rem; font-weight:500; color:var(--muted-foreground);">Inserted by an earlier answer. Remove the trigger to withdraw this question.</div>
+        </div>
+        <div class="type-row">
+          <div class="type-key"><b>Mono / 600</b>0.8rem<br>technical face</div>
+          <div class="samp" style="font-family:var(--font-mono); font-size:.85rem; font-weight:600;">q_accident_count @v1 &nbsp; contentHash: ab3f9c21 &nbsp; ses_a1f7c9</div>
+        </div>
+      </div>
+      <span class="font-note">UI stack: ui-sans-serif, system-ui, "Segoe UI", Roboto ... &nbsp; | &nbsp; Mono stack: ui-monospace, "SF Mono", "Cascadia Code", Consolas ...</span>
+    </div>
+
+    <!-- RADIUS + SPACING -->
+    <div style="margin-top:48px;">
+      <div class="block-title">Radius and spacing rhythm</div>
+      <div class="rs-grid" style="margin-top:18px;">
+        <div class="demo-box">
+          <div class="subhead" style="margin-bottom:14px;">Radius / --radius 8px</div>
+          <div class="radii">
+            <div class="r"><div class="rbox" style="border-radius:4px;"></div>sm 4</div>
+            <div class="r"><div class="rbox" style="border-radius:8px;"></div>base 8</div>
+            <div class="r"><div class="rbox" style="border-radius:12px;"></div>lg 12</div>
+            <div class="r"><div class="rbox" style="border-radius:999px; width:56px;"></div>full</div>
+          </div>
+        </div>
+        <div class="demo-box">
+          <div class="subhead" style="margin-bottom:14px;">Spacing / 4px base scale</div>
+          <div class="spacer-row"><span class="bar" style="width:4px;"></span>4</div>
+          <div class="spacer-row"><span class="bar" style="width:8px;"></span>8</div>
+          <div class="spacer-row"><span class="bar" style="width:16px;"></span>16</div>
+          <div class="spacer-row"><span class="bar" style="width:24px;"></span>24</div>
+          <div class="spacer-row"><span class="bar" style="width:32px;"></span>32</div>
+          <div class="spacer-row"><span class="bar" style="width:48px;"></span>48</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== PORTAL ============================== -->
+<section id="portal">
+  <div class="wrap">
+    <div class="eyebrow">Surface 01 / Respondent portal</div>
+    <h2 class="sec-title">Portal: external, themeable, mobile-first</h2>
+    <p class="sec-lede">Respondents answer on their phone under the adopter's brand. QCMS ships a refined, brand-neutral baseline; any brand re-skins it through tokens alone. Below: the same Driving history step in the default Slate Teal baseline and in a re-skinned adopter brand (Northwind Mutual, a green accent with a serif heading), across mobile and wide widths, in both themes. Tap targets stay at 44px or more, one column, no horizontal scroll.</p>
+
+    <div class="legend">
+      <span><span class="sq" style="background:#2C6E63;"></span>Default baseline / Slate Teal + system UI face</span>
+      <span><span class="sq" style="background:#0F6B4F;"></span>Adopter re-skin / Northwind green + serif heading</span>
+    </div>
+
+    <div class="preview-wall" style="margin-top:28px;">
+
+      <!-- default light mobile -->
+      <div class="preview-col">
+        <div class="preview-label"><span class="badge light-b">Light</span><span class="badge">Default brand</span><span>390px mobile</span></div>
+        <div class="phone t-light b-portal">
+          <div class="phone-screen"><span class="notch"></span>
+            <div class="portal-app app">
+              <div class="p-head">
+                <div class="p-step"><span>Step 2 of 4: Driving history</span><span class="cnt">2 / 4</span></div>
+                <div class="progress"><i class="on"></i><i class="on"></i><i></i><i></i></div>
+              </div>
+              <h1 class="portal-h1">Driving history</h1>
+              <div class="q">
+                <div class="q-label">Any at-fault accident in the last 3 years?</div>
+                <div class="radio-group" role="radiogroup" aria-label="Any at-fault accident in the last 3 years?">
+                  <div class="radio" role="radio" aria-checked="false"><span class="dot"></span>Yes</div>
+                  <div class="radio sel" role="radio" aria-checked="true"><span class="dot"></span>No</div>
+                </div>
+              </div>
+              <div class="inserted">
+                <span class="ins-tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>Added by your answer</span>
+                <label class="field-label">How many?</label>
+                <div class="numfield">
+                  <span class="val">12</span>
+                  <span class="step" aria-hidden="true">+</span>
+                </div>
+              </div>
+              <div class="p-actions">
+                <button class="btn ghost" type="button">Back</button>
+                <button class="btn primary" type="button">Continue</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- default dark mobile -->
+      <div class="preview-col">
+        <div class="preview-label"><span class="badge dark-b">Dark</span><span class="badge">Default brand</span><span>390px mobile</span></div>
+        <div class="phone t-dark b-portal">
+          <div class="phone-screen"><span class="notch"></span>
+            <div class="portal-app app">
+              <div class="p-head">
+                <div class="p-step"><span>Step 2 of 4: Driving history</span><span class="cnt">2 / 4</span></div>
+                <div class="progress"><i class="on"></i><i class="on"></i><i></i><i></i></div>
+              </div>
+              <h1 class="portal-h1">Driving history</h1>
+              <div class="q">
+                <div class="q-label">Any at-fault accident in the last 3 years?</div>
+                <div class="radio-group" role="radiogroup" aria-label="Any at-fault accident in the last 3 years?">
+                  <div class="radio" role="radio" aria-checked="false"><span class="dot"></span>Yes</div>
+                  <div class="radio sel focus" role="radio" aria-checked="true"><span class="dot"></span>No</div>
+                </div>
+              </div>
+              <div class="inserted">
+                <span class="ins-tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>Added by your answer</span>
+                <label class="field-label">How many?</label>
+                <div class="numfield">
+                  <span class="val">12</span>
+                  <span class="step" aria-hidden="true">+</span>
+                </div>
+              </div>
+              <div class="p-actions">
+                <button class="btn ghost" type="button">Back</button>
+                <button class="btn primary" type="button">Continue</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="preview-label" style="margin-top:8px;">Focus-visible state shown on the selected radio</div>
+      </div>
+
+      <!-- alt brand light mobile -->
+      <div class="preview-col">
+        <div class="preview-label"><span class="badge light-b">Light</span><span class="badge" style="border-color:#0F6B4F; color:#0F6B4F;">Northwind re-skin</span><span>390px mobile</span></div>
+        <div class="phone t-light b-northwind">
+          <div class="phone-screen"><span class="notch"></span>
+            <div class="portal-app app">
+              <div class="p-head">
+                <div class="p-step"><span>Step 2 of 4: Driving history</span><span class="cnt">2 / 4</span></div>
+                <div class="progress"><i class="on"></i><i class="on"></i><i></i><i></i></div>
+              </div>
+              <h1 class="portal-h1">Driving history</h1>
+              <div class="q">
+                <div class="q-label">Any at-fault accident in the last 3 years?</div>
+                <div class="radio-group" role="radiogroup" aria-label="Any at-fault accident in the last 3 years?">
+                  <div class="radio" role="radio" aria-checked="false"><span class="dot"></span>Yes</div>
+                  <div class="radio sel" role="radio" aria-checked="true"><span class="dot"></span>No</div>
+                </div>
+              </div>
+              <div class="inserted">
+                <span class="ins-tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>Added by your answer</span>
+                <label class="field-label">How many?</label>
+                <div class="numfield">
+                  <span class="val">12</span>
+                  <span class="step" aria-hidden="true">+</span>
+                </div>
+              </div>
+              <div class="p-actions">
+                <button class="btn ghost" type="button">Back</button>
+                <button class="btn primary" type="button">Continue</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- wide previews -->
+    <div class="two-up" style="margin-top:40px;">
+      <div>
+        <div class="preview-label"><span class="badge light-b">Light</span><span class="badge">Default brand</span><span>Wide / tablet</span></div>
+        <div class="browser t-light b-portal" style="--radius:12px;">
+          <div class="browser-bar">
+            <span class="tl" style="background:#e5624f;"></span><span class="tl" style="background:#e0a93b;"></span><span class="tl" style="background:#3fa66a;"></span>
+            <span class="urlbar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>forms.example.org / apply / quote</span>
+          </div>
+          <div class="app" style="padding:34px 40px 40px; max-width:640px; margin:0 auto;">
+            <div class="p-head">
+              <div class="p-step"><span>Step 2 of 4: Driving history</span><span class="cnt">2 / 4</span></div>
+              <div class="progress"><i class="on"></i><i class="on"></i><i></i><i></i></div>
+            </div>
+            <h1 class="portal-h1" style="font-size:2rem;">Driving history</h1>
+            <div class="q">
+              <div class="q-label">Any at-fault accident in the last 3 years?</div>
+              <div class="radio-group" role="radiogroup" aria-label="Any at-fault accident in the last 3 years?">
+                <div class="radio" role="radio" aria-checked="false"><span class="dot"></span>Yes</div>
+                <div class="radio sel" role="radio" aria-checked="true"><span class="dot"></span>No</div>
+              </div>
+            </div>
+            <div class="inserted">
+              <span class="ins-tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>Added by your answer</span>
+              <label class="field-label">How many?</label>
+              <div class="numfield"><span class="val">12</span><span class="step" aria-hidden="true">+</span></div>
+            </div>
+            <div class="p-actions" style="max-width:340px;">
+              <button class="btn ghost" type="button">Back</button>
+              <button class="btn primary" type="button">Continue</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="preview-label"><span class="badge dark-b">Dark</span><span class="badge" style="border-color:#4FC79A; color:#0F6B4F;">Northwind re-skin</span><span>Wide / tablet</span></div>
+        <div class="browser t-dark b-northwind" style="--radius:12px;">
+          <div class="browser-bar">
+            <span class="tl" style="background:#e5624f;"></span><span class="tl" style="background:#e0a93b;"></span><span class="tl" style="background:#3fa66a;"></span>
+            <span class="urlbar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>apply.northwind.example / quote</span>
+          </div>
+          <div class="app" style="padding:34px 40px 40px; max-width:640px; margin:0 auto;">
+            <div class="p-head">
+              <div class="p-step"><span>Step 2 of 4: Driving history</span><span class="cnt">2 / 4</span></div>
+              <div class="progress"><i class="on"></i><i class="on"></i><i></i><i></i></div>
+            </div>
+            <h1 class="portal-h1" style="font-size:2rem;">Driving history</h1>
+            <div class="q">
+              <div class="q-label">Any at-fault accident in the last 3 years?</div>
+              <div class="radio-group" role="radiogroup" aria-label="Any at-fault accident in the last 3 years?">
+                <div class="radio" role="radio" aria-checked="false"><span class="dot"></span>Yes</div>
+                <div class="radio sel" role="radio" aria-checked="true"><span class="dot"></span>No</div>
+              </div>
+            </div>
+            <div class="inserted">
+              <span class="ins-tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>Added by your answer</span>
+              <label class="field-label">How many?</label>
+              <div class="numfield"><span class="val">12</span><span class="step" aria-hidden="true">+</span></div>
+            </div>
+            <div class="p-actions" style="max-width:340px;">
+              <button class="btn ghost" type="button">Back</button>
+              <button class="btn primary" type="button">Continue</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== ADMIN: BUILDER ============================== -->
+<section id="builder">
+  <div class="wrap">
+    <div class="eyebrow">Surface 02 / Admin</div>
+    <h2 class="sec-title">Form builder: QCMS's own identity</h2>
+    <p class="sec-lede">The authoring surface is not re-skinned: it wears QCMS's Cobalt identity and is denser, more opinionated, and data-forward. Technical content is first-class, set in the monospace face. Question versions are pinned and explicit, conditions are shown as the rule that actually runs, and validation is live. Light and dark.</p>
+
+    <div class="one-up" style="margin-top:26px;">
+
+      <!-- LIGHT builder -->
+      <div>
+        <div class="preview-label"><span class="badge light-b">Light</span><span class="badge">Admin / Cobalt</span></div>
+        <div class="browser t-light">
+          <div class="browser-bar">
+            <span class="tl" style="background:#e5624f;"></span><span class="tl" style="background:#e0a93b;"></span><span class="tl" style="background:#3fa66a;"></span>
+            <span class="urlbar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>admin.qcms.internal / forms / vehicle-insurance / builder</span>
+          </div>
+          <div class="admin">
+            <nav class="a-crumb" aria-label="Breadcrumb">
+              <a href="#builder">Forms</a><span class="sep">/</span><a href="#builder">Vehicle insurance</a><span class="sep">/</span><span class="cur">Builder</span>
+            </nav>
+            <div class="a-body">
+              <aside class="rail" aria-label="Steps">
+                <div class="rl-h">Steps</div>
+                <div class="step-item active"><span class="num">1</span>Driving history</div>
+                <div class="step-item"><span class="num">2</span>Lifestyle</div>
+              </aside>
+              <div class="editor">
+                <div class="ed-head">
+                  <h3>Driving history</h3>
+                  <span class="saved"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M5 13l4 4L19 7"/></svg>Saved 12:03</span>
+                </div>
+
+                <div>
+                  <div class="subhead" style="margin-bottom:8px;">Questions / pinned order</div>
+                  <div class="qcard">
+                    <span class="pin" title="Move pin" aria-label="Reorder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h.01M8 12h.01M8 18h.01M16 6h.01M16 12h.01M16 18h.01"/></svg></span>
+                    <div class="qmeta">
+                      <div class="qid">q_at_fault_accident <span class="vtag">@v2</span></div>
+                      <div class="qsub">Radio / Any at-fault accident in the last 3 years?</div>
+                    </div>
+                    <button class="icon-btn" type="button" aria-label="Remove q_at_fault_accident"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V5h6v2M7 7l1 12h8l1-12"/></svg></button>
+                  </div>
+                  <div class="qcard">
+                    <span class="pin" aria-label="Reorder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h.01M8 12h.01M8 18h.01M16 6h.01M16 12h.01M16 18h.01"/></svg></span>
+                    <div class="qmeta">
+                      <div class="qid">q_accident_count <span class="vtag">@v1</span></div>
+                      <div class="qsub">Number / How many?</div>
+                    </div>
+                    <button class="icon-btn" type="button" aria-label="Remove q_accident_count"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V5h6v2M7 7l1 12h8l1-12"/></svg></button>
+                  </div>
+                </div>
+
+                <div>
+                  <div class="subhead" style="margin-bottom:8px;">Condition / branch rule</div>
+                  <div class="codeblock">
+                    <div class="cb-bar"><span>rule.json</span><span>show [ q_accident_count ]</span></div>
+<pre><span class="m">{</span>
+  <span class="p">"op"</span><span class="m">:</span> <span class="s">"equals"</span><span class="m">,</span>
+  <span class="p">"questionId"</span><span class="m">:</span> <span class="s">"q_at_fault_accident"</span><span class="m">,</span>
+  <span class="p">"value"</span><span class="m">:</span> <span class="s">"yes"</span><span class="m">,</span>
+  <span class="p">"show"</span><span class="m">:</span> <span class="m">[</span> <span class="s">"q_accident_count"</span> <span class="m">]</span>
+<span class="m">}</span></pre>
+                  </div>
+                </div>
+
+                <div class="alert" role="status">
+                  <span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="9"/><path d="M8 12l2.5 2.5L16 9"/></svg></span>
+                  <div><div class="at">Validation: no issues</div><div class="ad">2 questions, 1 condition, all references resolve against pinned versions.</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DARK builder -->
+      <div>
+        <div class="preview-label"><span class="badge dark-b">Dark</span><span class="badge">Admin / Cobalt</span></div>
+        <div class="browser t-dark">
+          <div class="browser-bar">
+            <span class="tl" style="background:#e5624f;"></span><span class="tl" style="background:#e0a93b;"></span><span class="tl" style="background:#3fa66a;"></span>
+            <span class="urlbar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>admin.qcms.internal / forms / vehicle-insurance / builder</span>
+          </div>
+          <div class="admin">
+            <nav class="a-crumb" aria-label="Breadcrumb">
+              <a href="#builder">Forms</a><span class="sep">/</span><a href="#builder">Vehicle insurance</a><span class="sep">/</span><span class="cur">Builder</span>
+            </nav>
+            <div class="a-body">
+              <aside class="rail" aria-label="Steps">
+                <div class="rl-h">Steps</div>
+                <div class="step-item active"><span class="num">1</span>Driving history</div>
+                <div class="step-item"><span class="num">2</span>Lifestyle</div>
+              </aside>
+              <div class="editor">
+                <div class="ed-head">
+                  <h3>Driving history</h3>
+                  <span class="saved"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M5 13l4 4L19 7"/></svg>Saved 12:03</span>
+                </div>
+                <div>
+                  <div class="subhead" style="margin-bottom:8px;">Questions / pinned order</div>
+                  <div class="qcard">
+                    <span class="pin" aria-label="Reorder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h.01M8 12h.01M8 18h.01M16 6h.01M16 12h.01M16 18h.01"/></svg></span>
+                    <div class="qmeta"><div class="qid">q_at_fault_accident <span class="vtag">@v2</span></div><div class="qsub">Radio / Any at-fault accident in the last 3 years?</div></div>
+                    <button class="icon-btn" type="button" aria-label="Remove q_at_fault_accident"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V5h6v2M7 7l1 12h8l1-12"/></svg></button>
+                  </div>
+                  <div class="qcard">
+                    <span class="pin" aria-label="Reorder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h.01M8 12h.01M8 18h.01M16 6h.01M16 12h.01M16 18h.01"/></svg></span>
+                    <div class="qmeta"><div class="qid">q_accident_count <span class="vtag">@v1</span></div><div class="qsub">Number / How many?</div></div>
+                    <button class="icon-btn" type="button" aria-label="Remove q_accident_count"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V5h6v2M7 7l1 12h8l1-12"/></svg></button>
+                  </div>
+                </div>
+                <div>
+                  <div class="subhead" style="margin-bottom:8px;">Condition / branch rule</div>
+                  <div class="codeblock">
+                    <div class="cb-bar"><span>rule.json</span><span>show [ q_accident_count ]</span></div>
+<pre><span class="m">{</span>
+  <span class="p">"op"</span><span class="m">:</span> <span class="s">"equals"</span><span class="m">,</span>
+  <span class="p">"questionId"</span><span class="m">:</span> <span class="s">"q_at_fault_accident"</span><span class="m">,</span>
+  <span class="p">"value"</span><span class="m">:</span> <span class="s">"yes"</span><span class="m">,</span>
+  <span class="p">"show"</span><span class="m">:</span> <span class="m">[</span> <span class="s">"q_accident_count"</span> <span class="m">]</span>
+<span class="m">}</span></pre>
+                  </div>
+                </div>
+                <div class="alert" role="status">
+                  <span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="9"/><path d="M8 12l2.5 2.5L16 9"/></svg></span>
+                  <div><div class="at">Validation: no issues</div><div class="ad">2 questions, 1 condition, all references resolve against pinned versions.</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== ADMIN: RESPONSES ============================== -->
+<section id="responses" style="border-bottom:none;">
+  <div class="wrap">
+    <div class="eyebrow">Surface 03 / Admin</div>
+    <h2 class="sec-title">Responses: browse and inspect</h2>
+    <p class="sec-lede">Sessions list on the left, a locked detail on the right. Answers are immutable once submitted; the ledger records exactly when each value was set, and a content hash makes the record verifiable. Flagged status carries an icon and a word, never color on its own. Light and dark.</p>
+
+    <div class="one-up" style="margin-top:26px;">
+
+      <!-- LIGHT responses -->
+      <div>
+        <div class="preview-label"><span class="badge light-b">Light</span><span class="badge">Admin / Cobalt</span></div>
+        <div class="browser t-light">
+          <div class="browser-bar">
+            <span class="tl" style="background:#e5624f;"></span><span class="tl" style="background:#e0a93b;"></span><span class="tl" style="background:#3fa66a;"></span>
+            <span class="urlbar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>admin.qcms.internal / forms / vehicle-insurance / responses</span>
+          </div>
+          <div class="admin resp-wrap">
+            <div class="resp-toolbar">
+              <span class="inp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>Filter sessions</span>
+              <button class="btn ghost sm" type="button"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M7 12h10M10 18h4"/></svg>Form v3</button>
+              <button class="btn ghost sm" type="button"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg>Export</button>
+            </div>
+            <div class="resp-body">
+              <div class="resp-list">
+                <div class="resp-scroll">
+                  <table class="sessions">
+                    <thead><tr><th>Session</th><th>Ver</th><th>Captured</th><th>Subject</th><th>Status</th></tr></thead>
+                    <tbody>
+                      <tr class="sel" aria-selected="true">
+                        <td class="id">ses_a1f7c9</td><td class="v">v3</td><td class="t">2026-07-18 14:02</td>
+                        <td><span class="tag link">linked</span></td>
+                        <td><span class="tag flag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M12 9v4m0 4h.01M10.3 3.9l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3l-8-14a2 2 0 0 0-3.4 0z"/></svg>Flagged</span></td>
+                      </tr>
+                      <tr>
+                        <td class="id">ses_b2e40d</td><td class="v">v3</td><td class="t">2026-07-18 13:47</td>
+                        <td><span class="tag anon">anon</span></td>
+                        <td><span class="tag anon">Clear</span></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="detail">
+                <div class="d-h">
+                  <span class="did">ses_a1f7c9</span>
+                  <span class="tag flag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M12 9v4m0 4h.01M10.3 3.9l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3l-8-14a2 2 0 0 0-3.4 0z"/></svg>Flagged for review</span>
+                </div>
+                <div class="locked">
+                  <div class="lk-h"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Locked answers / form v3</div>
+                  <div class="ans"><span class="a-k">Any at-fault accident in the last 3 years?</span><span class="a-v">Yes</span></div>
+                  <div class="ans"><span class="a-k">Accident count</span><span class="a-v">2</span></div>
+                </div>
+                <div>
+                  <div class="subhead" style="margin-bottom:8px;">Ledger</div>
+                  <div class="timeline">
+                    <div class="tl-item"><span class="tl-time">14:01</span><div class="tl-body"><code>q_at_fault_accident = true</code></div></div>
+                    <div class="tl-item"><span class="tl-time">14:01</span><div class="tl-body"><code>q_accident_count = 2</code></div></div>
+                    <div class="tl-item submit"><span class="tl-time">14:02</span><div class="tl-body"><code>submitted</code></div></div>
+                  </div>
+                </div>
+                <div class="hashline">
+                  <span class="hk">contentHash:</span><span class="hv" id="hash-l">ab3f9c21d7e04b8a</span>
+                  <button class="copybtn" type="button" data-hash="ab3f9c21d7e04b8a"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>Copy</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DARK responses -->
+      <div>
+        <div class="preview-label"><span class="badge dark-b">Dark</span><span class="badge">Admin / Cobalt</span></div>
+        <div class="browser t-dark">
+          <div class="browser-bar">
+            <span class="tl" style="background:#e5624f;"></span><span class="tl" style="background:#e0a93b;"></span><span class="tl" style="background:#3fa66a;"></span>
+            <span class="urlbar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>admin.qcms.internal / forms / vehicle-insurance / responses</span>
+          </div>
+          <div class="admin resp-wrap">
+            <div class="resp-toolbar">
+              <span class="inp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>Filter sessions</span>
+              <button class="btn ghost sm" type="button"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M7 12h10M10 18h4"/></svg>Form v3</button>
+              <button class="btn ghost sm" type="button"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg>Export</button>
+            </div>
+            <div class="resp-body">
+              <div class="resp-list">
+                <div class="resp-scroll">
+                  <table class="sessions">
+                    <thead><tr><th>Session</th><th>Ver</th><th>Captured</th><th>Subject</th><th>Status</th></tr></thead>
+                    <tbody>
+                      <tr class="sel" aria-selected="true">
+                        <td class="id">ses_a1f7c9</td><td class="v">v3</td><td class="t">2026-07-18 14:02</td>
+                        <td><span class="tag link">linked</span></td>
+                        <td><span class="tag flag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M12 9v4m0 4h.01M10.3 3.9l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3l-8-14a2 2 0 0 0-3.4 0z"/></svg>Flagged</span></td>
+                      </tr>
+                      <tr>
+                        <td class="id">ses_b2e40d</td><td class="v">v3</td><td class="t">2026-07-18 13:47</td>
+                        <td><span class="tag anon">anon</span></td>
+                        <td><span class="tag anon">Clear</span></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="detail">
+                <div class="d-h">
+                  <span class="did">ses_a1f7c9</span>
+                  <span class="tag flag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M12 9v4m0 4h.01M10.3 3.9l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3l-8-14a2 2 0 0 0-3.4 0z"/></svg>Flagged for review</span>
+                </div>
+                <div class="locked">
+                  <div class="lk-h"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Locked answers / form v3</div>
+                  <div class="ans"><span class="a-k">Any at-fault accident in the last 3 years?</span><span class="a-v">Yes</span></div>
+                  <div class="ans"><span class="a-k">Accident count</span><span class="a-v">2</span></div>
+                </div>
+                <div>
+                  <div class="subhead" style="margin-bottom:8px;">Ledger</div>
+                  <div class="timeline">
+                    <div class="tl-item"><span class="tl-time">14:01</span><div class="tl-body"><code>q_at_fault_accident = true</code></div></div>
+                    <div class="tl-item"><span class="tl-time">14:01</span><div class="tl-body"><code>q_accident_count = 2</code></div></div>
+                    <div class="tl-item submit"><span class="tl-time">14:02</span><div class="tl-body"><code>submitted</code></div></div>
+                  </div>
+                </div>
+                <div class="hashline">
+                  <span class="hk">contentHash:</span><span class="hv">ab3f9c21d7e04b8a</span>
+                  <button class="copybtn" type="button" data-hash="ab3f9c21d7e04b8a"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>Copy</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p class="fnote">QCMS Design System / first visual pass / v0.1. Every color pair on this page meets WCAG 2.2 AA in both themes (4.5:1 body text, 3:1 large and UI). Fonts are system stacks: no external requests. Components are static representations of the a2-react-aria / shadcn vocabulary: table, dialog, radio, text-field, number-field, tag, alert, button, card, breadcrumb, menu.</p>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var root = document.documentElement;
+  var btn = document.getElementById('themeToggle');
+  var txt = document.getElementById('toggleTxt');
+  var ico = document.getElementById('toggleIco');
+  var sun = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>';
+  var moon = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
+  function prefersDark(){ return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches; }
+  function apply(mode){
+    root.setAttribute('data-theme', mode);
+    var isDark = mode === 'dark';
+    btn.setAttribute('aria-pressed', String(isDark));
+    txt.textContent = isDark ? 'Light' : 'Dark';
+    ico.innerHTML = isDark ? sun : moon;
+  }
+  apply(prefersDark() ? 'dark' : 'light');
+  btn.addEventListener('click', function(){
+    apply(root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+  });
+  // copy contentHash
+  document.querySelectorAll('.copybtn').forEach(function(b){
+    b.addEventListener('click', function(){
+      var v = b.getAttribute('data-hash');
+      var done = function(){ var o=b.innerHTML; b.textContent='Copied'; setTimeout(function(){ b.innerHTML=o; },1400); };
+      if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(v).then(done, done); }
+      else { done(); }
+    });
+  });
+})();
+</script>

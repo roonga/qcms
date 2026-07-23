@@ -26,9 +26,11 @@ const EM_DASH = String.fromCharCode(0x2014);
 const GLOBS = ["*.md", "*.ts", "*.tsx", "*.js", "*.jsx", "*.mjs", "*.cjs", "*.yml", "*.yaml"];
 
 function tracked() {
-  const out = execFileSync(GIT, ["ls-files", "-z", ...GLOBS, ":!packages/ui/src/components/**"], {
-    encoding: "utf8",
-  });
+  const out = execFileSync(
+    GIT,
+    ["ls-files", "-z", ...GLOBS, ":!packages/ui/src/components/**", ":!plan/**"],
+    { encoding: "utf8" },
+  );
   return out.split("\0").filter((p) => p !== "");
 }
 
