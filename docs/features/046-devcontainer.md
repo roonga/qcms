@@ -2,7 +2,7 @@
 
 **Stage:** tooling / infra - **off the launch gate** · **Apps/packages:** repo-root `.devcontainer/`, `scripts/`, contributor docs · **Depends on:** 029, **045** (its portal e2e is this task's acceptance test)
 **Runs:** after 045 lands and `main` is clean (the migration must not move the environment under a running 045). Numbered out of sequence - see `features/README.md`.
-**References:** ADR-29 (proposed 2026-07-23, pending Ravi's decision - this task implements it) · ADR-23 (Testcontainers e2e/db) · ADR-22 (`a2-react-aria` sibling repo, tasks 011/028) · ADR-20 (four-container solo topology; shares a base with 036) · `scripts/agent-loop.ps1` · `docker-compose.dev.yml` · dev ports 7xxx (portal 7000 / API 7010 / Postgres 7020).
+**References:** ADR-29 (accepted 2026-07-24 - this task implements it) · ADR-23 (Testcontainers e2e/db) · ADR-22 (`a2-react-aria` sibling repo, tasks 011/028) · ADR-20 (four-container solo topology; shares a base with 036) · `scripts/agent-loop.ps1` · `docker-compose.dev.yml` · dev ports 7xxx (portal 7000 / API 7010 / Postgres 7020).
 
 ## Context
 
@@ -10,7 +10,7 @@ Windows-isms keep leaking into a project meant to ship cross-platform (`git.exe`
 
 ## Deliverables
 
-- **`.devcontainer/devcontainer.json`:** single-container `image` (Ubuntu 24.04 base) + Features - node 24, `docker-outside-of-docker` (for Testcontainers), `github-cli`, `powershell`; `forwardPorts` aligned to the **7xxx** dev ports; `a2-react-aria` sibling bind-mount (ADR-22); `postCreate` = corepack + `pnpm install --frozen-lockfile` + `npx playwright install --with-deps chromium`. Reuses `docker-compose.dev.yml` for the dev DB; does **not** adopt the `javascript-node-postgres` template (it bundles a long-lived Postgres qcms does not use - Testcontainers is ephemeral).
+- **`.devcontainer/devcontainer.json`:** single-container `image` (Ubuntu 24.04 base) + Features - node 24, `docker-outside-of-docker` (for Testcontainers), `github-cli`, `powershell`, and a preconfigured default shell (zsh + oh-my-zsh with autosuggestions/syntax-highlighting) so every contributor inherits a usable terminal rather than raw bash; `forwardPorts` aligned to the **7xxx** dev ports; `a2-react-aria` sibling bind-mount (ADR-22); `postCreate` = corepack + `pnpm install --frozen-lockfile` + `npx playwright install --with-deps chromium`. Reuses `docker-compose.dev.yml` for the dev DB; does **not** adopt the `javascript-node-postgres` template (it bundles a long-lived Postgres qcms does not use - Testcontainers is ephemeral).
 - **`scripts/agent-loop.sh`:** canonical bash supervisor mirroring `agent-loop.ps1`; the `.ps1` stays for Windows-host fallback (decision B).
 - **Host-browser viewing:** portal/admin/`dev:portal` dev servers bind `0.0.0.0` inside the container so the forwarded 7xxx ports are reachable from the host browser (the agent screenshot gate uses headless Playwright *inside* the container; `claude-in-chrome` stays host-side).
 - **Windows-ism audit actions:** keep the cross-platform guards (`git.exe` shim, PowerShell permission families, the `/next-task` orphaned-worktree sweep - all no-ops on Linux); review the `@qcms/db` docker-credsStore/anonymous-pull workaround inside the container and simplify only if verified (guarded for Windows otherwise); reframe CLAUDE.md/memory PowerShell-trap notes as host-Windows-only.
@@ -24,6 +24,8 @@ Windows-isms keep leaking into a project meant to ship cross-platform (`git.exe`
 3. **045's portal e2e passes inside the container** - the kitchen-sink full flow across the 3 viewports with the independent Postgres verification and browser + container-log gates. This is the migration's real acceptance test. Host-browser view of the running app over the forwarded 7xxx ports works (0.0.0.0 bind verified).
 4. A throwaway `/next-task` dry run in `bypassPermissions` completes with **zero prompts** (decision C).
 5. **Additive + reversible:** the host workflow is untouched (`pwsh scripts/agent-loop.ps1` still runs on the host); `.devcontainer/` is purely additive; rollback documented. Windows-host support retained (decision D).
+
+**Acceptance architecture:** the exit criteria are verified on the host arch (**amd64**, Ravi's machine). **arm64 (Apple Silicon) is expected-supported** - the Ubuntu 24.04 base and all Features publish multi-arch manifests, and the pulled images (Playwright Chromium, Testcontainers Postgres) are multi-arch - **but stays unverified** until a contributor confirms on arm64 hardware. Do not claim arm64 as tested; a mac contributor's first run is the verification (tracked separately if it surfaces gaps).
 
 ## Out of scope
 
