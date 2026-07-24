@@ -1,6 +1,6 @@
 # Wireframes - format spec (binding)
 
-**Status:** Verified against the frozen 027 API contracts and **signed off by Ravi, 2026-07-21** (task 042). Structure is now binding for the UI tasks (029, 031-035, 041). Task 001 copies this folder to `docs/wireframes/` in the repo.
+**Status:** Verified against the frozen 027 API contracts and **signed off by the Code Owner, 2026-07-21** (task 042). Structure is now binding for the UI tasks (029, 031-035, 041). Task 001 copies this folder to `docs/wireframes/` in the repo.
 
 ## The one rule
 

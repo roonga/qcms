@@ -3,7 +3,7 @@
 **Purpose:** the human-in-the-loop half of task 030 exit criterion 3. Automated
 axe + Lighthouse (CI) catch roughly half of WCAG issues; this pass covers what
 only a human with a screen reader can judge: does the flow actually make sense
-when you cannot see it. An agent PREPARES this checklist; a person (Ravi or a
+when you cannot see it. An agent PREPARES this checklist; a person (the Code Owner or a
 tester) EXECUTES it and records the result.
 
 **Do not** let an automated tool or agent fill in the results below. The value is

@@ -2,7 +2,7 @@
 
 **Stage:** 7 · **Apps/packages:** `apps/portal` (029), `@qcms/ui` (028), `apps/api` (serve-step) · **Depends on:** 029 · **Blocks:** 030 (manual a11y pass)
 **Runs:** now, before 030's manual screen-reader pass. **On the launch gate** - the portal flow must complete end-to-end.
-**References:** ADR-28 (proposed 2026-07-23, pending Ravi's decision - this task implements it) · 042 wireframe (Back control) · ADR-23 (testing architecture: Playwright e2e over the real stack + Docker Postgres) · ADR-26 (portal SSR-first, fetch-only) · R2 (strict BFF; the portal never evaluates rules) · WCAG 2.2 AA (3.2.2 On Input) · manual review 2026-07-23 findings M/N/G/H + E/L/B · `packages/core/src/evaluate-rules.ts:388-414` (derived `currentStep` - the root cause) · `apps/portal/components/step-flow.tsx:356` (collapse-on-answer render).
+**References:** ADR-28 (proposed 2026-07-23, pending the Code Owner's decision - this task implements it) · 042 wireframe (Back control) · ADR-23 (testing architecture: Playwright e2e over the real stack + Docker Postgres) · ADR-26 (portal SSR-first, fetch-only) · R2 (strict BFF; the portal never evaluates rules) · WCAG 2.2 AA (3.2.2 On Input) · manual review 2026-07-23 findings M/N/G/H + E/L/B · `packages/core/src/evaluate-rules.ts:388-414` (derived `currentStep` - the root cause) · `apps/portal/components/step-flow.tsx:356` (collapse-on-answer render).
 
 > **e2e is a full-stack integration test, not a UI test.** The portal e2e drives the real
 > stack - browser -> portal BFF -> API -> Postgres in Docker (ADR-23). Exit criteria 4-5 below

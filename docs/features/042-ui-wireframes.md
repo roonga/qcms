@@ -24,14 +24,14 @@ The design system is already decided (ADR-22: upstream tokens, vendored a2ra com
   - `admin-publish-preview.md` - publish flow + errors, preview, version history, secure links (034).
   - `admin-responses-ops.md` - response browser, detail + ledger, export, erasure, webhook operations + dead letters (035).
   - `admin-agent-panel.md` - chat panel, proposal diff, accept-into-draft, provenance marker (041).
-- **Human sign-off:** Ravi reviews and approves each file (a checked sign-off line with date inside the file). This is a §1.8 human-in-the-loop point - an agent prepares, a human decides.
+- **Human sign-off:** the Code Owner reviews and approves each file (a checked sign-off line with date inside the file). This is a §1.8 human-in-the-loop point - an agent prepares, a human decides.
 - The **Wireframe:** references in the UI task files (029, 031–035, 041) already point at the filenames above - verify they resolve once the files exist; fix any drift here.
 
 ## Exit criteria
 
 1. Every screen area above has a wireframe file conforming to the format spec; no requirement exists only in ASCII geometry (spot-check: build each Regions tree without looking at the sketch).
 2. Component names in the Regions trees exist in the a2ra registry or are flagged as the known upstream gaps (011's cross-repo issues) - no invented components.
-3. All files carry Ravi's dated sign-off.
+3. All files carry the Code Owner's dated sign-off.
 4. UI task files updated with their wireframe references.
 
 ## Out of scope

@@ -1,6 +1,6 @@
 # Wireframe - Admin shell, sign-in, 2FA
 
-**Status:** Signed off: Ravi, 2026-07-21 · **Consumed by:** 031 · **Renders:** better-auth flows (031), `/admin` group auth
+**Status:** Signed off: Code Owner, 2026-07-21 · **Consumed by:** 031 · **Renders:** better-auth flows (031), `/admin` group auth
 
 ## ASCII sketch - authenticated shell
 
@@ -39,4 +39,4 @@ signed-out · sign-in error (generic) · sign-in throttled · 2FA-enroll · reco
 
 - Sign-in error `alert` receives focus. QR screen: manual secret is the accessible alternative to the QR image (labeled, copyable). Recovery codes announced as a list; copy-all confirmed via status text. Nav is a labeled landmark; active page `aria-current`. axe gate active from 031.
 
-Signed off: Ravi, 2026-07-21
+Signed off: Code Owner, 2026-07-21

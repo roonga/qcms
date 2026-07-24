@@ -5,7 +5,7 @@
 
 ## Context
 
-The launch gate is a human test, not a CI job: someone who is not the author of the code performs the full loop from the README alone. An agent prepares everything; a human external tester (not Ravi) executes. This task is the preparation, execution support, and evidence.
+The launch gate is a human test, not a CI job: someone who is not the author of the code performs the full loop from the README alone. An agent prepares everything; a human external tester (not the Code Owner) executes. This task is the preparation, execution support, and evidence.
 
 ## Deliverables
 
