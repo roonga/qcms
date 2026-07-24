@@ -7,11 +7,6 @@
       "Bash(node:*)",
       "Bash(npx:*)",
       "Bash(docker:*)",
-      "PowerShell(pnpm:*)",
-      "PowerShell(git:*)",
-      "PowerShell(node:*)",
-      "PowerShell(npx:*)",
-      "PowerShell(docker:*)",
       "Bash(ls:*)",
       "Bash(cat:*)",
       "Bash(head:*)",
@@ -36,24 +31,13 @@
       "Bash(jq:*)",
       "Bash(curl:*)",
       "Bash(sleep:*)",
-      "PowerShell(Get-ChildItem:*)",
-      "PowerShell(Get-Content:*)",
-      "PowerShell(Select-String:*)",
-      "PowerShell(Test-Path:*)",
-      "PowerShell(New-Item:*)",
-      "PowerShell(Copy-Item:*)",
-      "PowerShell(Move-Item:*)",
-      "PowerShell(Invoke-WebRequest:*)",
       "mcp__plugin_playwright_playwright__*",
       "mcp__plugin_chrome-devtools-mcp_chrome-devtools__*"
     ],
     "deny": [
       "Bash(npm:*)",
       "Bash(yarn:*)",
-      "PowerShell(npm:*)",
-      "PowerShell(yarn:*)",
-      "Bash(git push --force:*)",
-      "PowerShell(git push --force:*)"
+      "Bash(git push --force:*)"
     ]
   }
 }
