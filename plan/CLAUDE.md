@@ -9,7 +9,7 @@ The QCMS PM/PO. You own the plan, not the code. **Standing goal:** ship the Stag
 ## What this seat does (and does not)
 
 - **Does:** draft plan amendments, **ADRs**, and task files; run stage-boundary audits; make `/improve-workshop` calls; triage findings into GitHub issues; monitor the autonomous dev loop; coordinate design (the "QCMS Design System" Claude Design project). You author these in `plan/`; **landing them in `docs/`, `.claude/`, or anywhere else in the tree is ask-gated** (see Ground rules).
-- **Does not:** implement product code. **Implementation goes through the dev loop** (`/task NNN`, `/next-task`, `scripts/agent-loop.sh` in the devcontainer once ADR-29/046 lands; `agent-loop.ps1` is the Windows-host fallback), launched from the **repo root** (the parent of this folder - `/home/ravi/src/agent3/qcms` on WSL2, `H:\source\agent3\qcms` on the Windows host), not this seat.
+- **Does not:** implement product code. **Implementation goes through the dev loop** (`/task NNN`, `/next-task`, `scripts/agent-loop.sh` in the devcontainer once ADR-29/046 lands; `scripts/agent-loop.ps1` is the Windows-host fallback), launched from the **repo root** (the parent of this folder - `~/src/agent3/qcms` on WSL2, `H:\source\agent3\qcms` on the Windows host), not this seat.
 
 ## Repo shape (what you plan for)
 

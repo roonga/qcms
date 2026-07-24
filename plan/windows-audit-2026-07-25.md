@@ -15,7 +15,7 @@ Scope: main + `feat/046-devcontainer`, `.claude/` harness config, `plan/` seat f
 
 ## 2. Covered by 046 (verify at review, not re-done here)
 
-- `scripts/agent-loop.sh` - canonical bash supervisor; `.ps1` retained as Windows-host fallback (ADR-29 decision B).
+- `scripts/agent-loop.sh` - canonical bash supervisor; `scripts/agent-loop.ps1` retained as Windows-host fallback (ADR-29 decision B).
 - `docs/DEVELOPER_GUIDE.md` - dual paths (`H:\...` or WSL2), container-first framing, Windows-fallback section.
 - `CONTRIBUTING.md`, `README.md`, `docs/RETRO.md`, root `CLAUDE.md` - container-canonical reframing.
 - Outstanding on that branch: `--model claude-opus-5` pin for the `agent-loop.sh` orchestrator (issue #40).
@@ -38,7 +38,7 @@ Scope: main + `feat/046-devcontainer`, `.claude/` harness config, `plan/` seat f
 
 | Capability | Windows host | WSL2/container | Status |
 |---|---|---|---|
-| Loop supervisor | `agent-loop.ps1` | `agent-loop.sh` (046 branch) | parity when 046 merges |
+| Loop supervisor | `scripts/agent-loop.ps1` | `scripts/agent-loop.sh` (046 branch) | parity when 046 merges |
 | git resolution in check scripts | `git.exe` shim | plain `git` | ok today |
 | Permission allowlist | `PowerShell(...)` families | `Bash(...)` families | both present in `.claude/settings.json` |
 | Process-tree teardown (`dev-portal.mjs`) | `taskkill /T` | `SIGTERM` | ok today |
