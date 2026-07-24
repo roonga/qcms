@@ -1,6 +1,6 @@
 # QCMS portal review findings - 2026-07-23
 
-Running log from the manual/automated portal review (Ravi driving, PO capturing). Concrete bugs/gaps become GitHub issues when the review closes; design questions become ADR/phase-4 tickets. Severity: S1 blocker, S2 confusing/non-conforming, S3 polish.
+Running log from the manual/automated portal review (the Code Owner driving, PO capturing). Concrete bugs/gaps become GitHub issues when the review closes; design questions become ADR/phase-4 tickets. Severity: S1 blocker, S2 confusing/non-conforming, S3 polish.
 
 | # | Finding | Type | Sev | Owner | Proposed resolution |
 |---|---|---|---|---|---|
@@ -28,7 +28,7 @@ This shifts theming from ADR-22's "adopter edits token values in the scaffolded 
 - **ADR-28 (proposed):** managed themes - a theme is a named set of token values (the shadcn/a2ra tokens, ADR-27's brand/logo text included); QCMS ships N predefined themes; an operator/admin can fork one, customize tokens, and save a named custom theme; the active theme is applied to the portal (and admin chrome). Decide: stored where (DB row vs config file), granularity (per-deployment vs per-form vs per-org), and whether this is **launch or Phase-4**.
 - **Tasks (draft):** (1) define the predefined theme token sets (design-system output: QCMS default Cobalt + a small set of alternates); (2) theme storage in `@qcms/db` (name + token values, immutability/versioning stance); (3) admin theme-management UI (browse predefined -> customize tokens + brand text/logo -> save named); (4) apply the selected theme at the portal (and admin) shell.
 
-**Open decisions for Ravi:** launch vs Phase-4? per-deployment or per-form themes? does a saved theme need versioning/immutability like published forms, or is it mutable operator config? These shape the ADR.
+**Open decisions for the Code Owner:** launch vs Phase-4? per-deployment or per-form themes? does a saved theme need versioning/immutability like published forms, or is it mutable operator config? These shape the ADR.
 
 **Not-yet-filed:** all rows except F. When the review closes I will file A/C/G/J as bugs, E as a coverage task, B into #19, D/H/I as design/config tickets, and post a one-line summary.
 
