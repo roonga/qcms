@@ -8,7 +8,7 @@ metadata:
   modified: 2026-07-21T11:59:59.176Z
 ---
 
-QCMS visual design, settled 2026-07-21 (first pass approved by Ravi, "LGTM"):
+QCMS visual design, settled 2026-07-21 (first pass approved by the Code Owner, "LGTM"):
 
 - **Brand accent: Cobalt** `#2456C6` (light) / `#7AA2FF` (dark) - QCMS's own fixed identity, used in the **admin** (internal tool). **Portal default: Slate Teal** `#2C6E63` / `#5FB8AC` - a brand-neutral, **adopter-themeable** baseline (respondents see the adopter's brand). Cool-biased neutrals; semantics success/warning/critical separate from accent. All AA-verified light+dark.
 - **Token contract in the repo:** `packages/ui/src/theme.css` (the a2ra `--color-*` var contract, re-hued to the QCMS palette; renderer defaults to the portal Slate-Teal baseline, `--color-info` = Cobalt). Committed 2392e7e. Per-app globals (admin -> Cobalt, portal -> adopter override) are wired by tasks 029/031 when they scaffold the apps (portal/admin are still stubs).

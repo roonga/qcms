@@ -15,8 +15,8 @@ Scope: main + `feat/046-devcontainer`, `.claude/` harness config, `plan/` seat f
 
 ## 2. Covered by 046 (verify at review, not re-done here)
 
-- `scripts/agent-loop.sh` - canonical bash supervisor; `scripts/agent-loop.ps1` retained as Windows-host fallback (ADR-29 decision B).
-- `docs/DEVELOPER_GUIDE.md` - dual paths (`H:\...` or WSL2), container-first framing, Windows-fallback section.
+- `scripts/agent-loop.sh` - canonical bash supervisor. (Originally paired with a retained `.ps1` fallback under ADR-29 decision B; superseded by D1 below - the `.ps1` is retired.)
+- `docs/DEVELOPER_GUIDE.md` - dual launch paths (Windows host or WSL2), container-first framing, Windows-fallback section. (The 046 resume also makes the clone-path examples location-agnostic - no assumed parent folder; issue #40.)
 - `CONTRIBUTING.md`, `README.md`, `docs/RETRO.md`, root `CLAUDE.md` - container-canonical reframing.
 - Outstanding on that branch: `--model claude-opus-5` pin for the `agent-loop.sh` orchestrator (issue #40).
 
@@ -30,9 +30,9 @@ Scope: main + `feat/046-devcontainer`, `.claude/` harness config, `plan/` seat f
 
 ## 4. Owner decisions (open)
 
-**D1 - fate of `agent-loop.ps1` and its support surface.** Ravi called the `.ps1` "a leftover from windows" (2026-07-25). ADR-29 decision B currently says keep it as the Windows-host fallback. If it is retired instead, the follow-on removals are: the `.ps1` itself, the `powershell` Feature in `.devcontainer/devcontainer.json` (smaller image), the 16 `PowerShell(...)` permission rules in `.claude/settings.json` (incl. the `PowerShell(git push --force)` deny mirror), and the Windows-fallback sections in `DEVELOPER_GUIDE`/`CONTRIBUTING`. That is an ADR-29 amendment and is cheapest folded into 046 before it merges. If kept: no action; the families are inert on Linux.
+**D1 - fate of `scripts/agent-loop.ps1` and its support surface. DECIDED 2026-07-25: retired** (Code Owner). ADR-29 decision B amended in PR #42; the 046 resume executes the removals (the `.ps1` itself, the `powershell` Feature in `.devcontainer/devcontainer.json`, the 16 `PowerShell(...)` permission rules in `.claude/settings.json` incl. the deny mirrors, Windows-fallback doc sections) - scope recorded on issue #40.
 
-**D2 - `docs/PRODUCT_OWNER.md:3` is stale** (independent of D1): it still seats the PO at `H:\source\agent3\qcms-plan`, which was archived 2026-07-23 when the seat moved into `qcms/plan/`. Staleness-rule fix; needs a small `docs/` PR (ask-gated for this seat).
+**D2 - `docs/PRODUCT_OWNER.md:3` was stale** (still seated the PO at the archived `qcms-plan` checkout). **FIXED in PR #43** along with the Code Owner name sweep.
 
 ## WSL2 parity check (the "same for wsl2" question)
 

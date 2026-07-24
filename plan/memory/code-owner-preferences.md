@@ -1,6 +1,6 @@
 ---
-name: ravi-working-preferences
-description: "How Ravi works and decisions he's made that govern my behavior on qcms"
+name: code-owner-preferences
+description: "How the Code Owner works and decisions he's made that govern my behavior on qcms"
 metadata: 
   node_type: memory
   type: feedback

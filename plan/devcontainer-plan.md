@@ -1,6 +1,6 @@
 # Plan: Dev Container as the canonical dev environment (proposed ADR-27)
 
-**Status:** proposal for Ravi's review. Commit the artifacts (ADR-27 + `.devcontainer/` + doc updates) into the repo **when 029 is done and pushed**, then switch the loop over. Nothing here changes the running 029 task.
+**Status:** proposal for the Code Owner's review. Commit the artifacts (ADR-27 + `.devcontainer/` + doc updates) into the repo **when 029 is done and pushed**, then switch the loop over. Nothing here changes the running 029 task.
 
 Three goals, one change:
 1. Run the **autonomous dev loop** in a container with `bypassPermissions` (no more permission-prompt tuning).
@@ -122,7 +122,7 @@ Host workflow is untouched and remains the fallback (`pwsh scripts/agent-loop.ps
 ## 12. Switch checklist (run when 029 is pushed)
 
 - [ ] 029 landed on main, tree clean
-- [ ] Ravi's calls on A/B/C/D recorded
+- [ ] the Code Owner's calls on A/B/C/D recorded
 - [ ] Commit ADR-27 (`docs/PROJECT_GOAL.md`), `.devcontainer/`, `agent-loop.sh`, CONTRIBUTING/README/DEVELOPER_GUIDE updates
 - [ ] `devcontainer up` + run the §10 verification (Testcontainers included)
 - [ ] Kick the loop in `bypassPermissions`; watch the first task end-to-end

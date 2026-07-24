@@ -1,6 +1,6 @@
 # ADR-30 (draft requirements) - Portal theming, modes, and typography
 
-Working capture of decisions settled with Ravi 2026-07-23. Draft the ADR from this once the Claude Design palette pass returns (it feeds the concrete theme set). Supersedes ADR-22's single-override model for the portal; extends ADR-26.
+Working capture of decisions settled with the Code Owner 2026-07-23. Draft the ADR from this once the Claude Design palette pass returns (it feeds the concrete theme set). Supersedes ADR-22's single-override model for the portal; extends ADR-26.
 
 ## Model (two axes, clear ownership)
 - **Theme = admin/adopter setup.** A named token set: brand palette + default font + **border-radius** (`--radius-control` / `--radius-card` / `--radius-sm`; presets Sharp / Subtle (default) / Rounded / Pill - brand character, admin-level not respondent) + brand mark (text/logo, folds #25). QCMS ships predefined themes; the adopter picks/customizes.
