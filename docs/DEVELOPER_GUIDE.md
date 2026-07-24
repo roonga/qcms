@@ -31,7 +31,7 @@ Modes: the repo's `.claude/settings.json` sets **acceptEdits** (file edits and a
 
 **What the container gives the loop:** Node 24 + pnpm at the pinned version, Docker (the host daemon, mounted in) so Testcontainers works, the GitHub CLI, PowerShell, Playwright's Chromium with its OS libraries, zsh, and the Claude Code CLI. `~/.claude` is mounted from the host, so a login persists across rebuilds (`CLAUDE_CONFIG_DIR` points at the mount). If a first run inside asks you to authenticate, run `claude login` once.
 
-**Viewing the app from your host browser:** dev servers bind `0.0.0.0` inside the container and 7000 / 7010 / 7020 are forwarded, so `http://localhost:7000` on the host reaches the portal. The dev Postgres from `docker-compose.dev.yml` publishes on the *host*, so from inside the container point at it by name:
+**Viewing the app from your host browser:** the dev servers listen on all interfaces inside the container (`next dev` and the Hono `serve()` both bind `0.0.0.0` by default, verified by the listen socket), and 7000 / 7010 / 7020 are forwarded, so `http://localhost:7000` on the host reaches the portal. The dev Postgres from `docker-compose.dev.yml` publishes on the *host*, so from inside the container point at it by name:
 
 ```sh
 docker compose -f docker-compose.dev.yml up -d
@@ -40,7 +40,7 @@ DATABASE_URL=postgres://qcms:qcms@host.docker.internal:7020/qcms pnpm dev:portal
 
 If a Testcontainers-backed suite cannot reach the container it just started (sibling containers, not children), set `TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal`.
 
-**Rollback (the migration is reversible):** `.devcontainer/` is purely additive. Stop using it - or delete the directory - and the host workflow is untouched: `pnpm install`, the merge gate, `docker compose -f docker-compose.dev.yml up -d`, and `pwsh scripts/agent-loop.ps1` behave exactly as they did before task 046. The only product-code change the migration made is `next dev --hostname 0.0.0.0` in `apps/portal/package.json`, which is Next.js's own default anyway.
+**Rollback (the migration is reversible):** `.devcontainer/` is purely additive and touches no product code. Stop using it - or delete the directory - and the host workflow is untouched: `pnpm install`, the merge gate, `docker compose -f docker-compose.dev.yml up -d`, and `pwsh scripts/agent-loop.ps1` behave exactly as they did before task 046. (Task 046 verified that the portal and API dev servers already bind `0.0.0.0` by default, so no source change was needed for host-browser viewing.)
 
 ## Running work
 

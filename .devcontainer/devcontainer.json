@@ -43,8 +43,9 @@
     "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
   },
 
-  // Dev ports (7xxx). The dev servers bind 0.0.0.0 inside the container so the
-  // HOST browser can reach them over these forwards.
+  // Dev ports (7xxx). `next dev` and the Hono `serve()` both listen on 0.0.0.0
+  // by default, so the HOST browser reaches them over these forwards (verified
+  // in task 046; no source change needed).
   "forwardPorts": [7000, 7010, 7020],
   "portsAttributes": {
     "7000": { "label": "portal (next dev)", "onAutoForward": "notify" },
@@ -56,7 +57,11 @@
   // documented address for the dev Postgres published by docker-compose.dev.yml
   // and the `TESTCONTAINERS_HOST_OVERRIDE` fallback if sibling containers are
   // not reachable on localhost.
-  "runArgs": ["--init", "--add-host=host.docker.internal:host-gateway"],
+  // `--ipc=host` is required for Chromium: Docker's default 64 MB /dev/shm is
+  // too small for Chrome's shared-memory allocations, and the portal Playwright
+  // suite hangs on the first JavaScript-heavy page without it (Playwright's own
+  // documented Docker recommendation).
+  "runArgs": ["--init", "--ipc=host", "--add-host=host.docker.internal:host-gateway"],
 
   "containerEnv": {
     // corepack must never stop for a "download this pnpm version?" prompt: the

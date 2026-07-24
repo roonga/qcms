@@ -32,11 +32,11 @@ First start pulls the base image and runs `.devcontainer/post-create.sh` (corepa
   docker compose -f docker-compose.dev.yml up -d
   DATABASE_URL=postgres://qcms:qcms@host.docker.internal:7020/qcms pnpm dev:portal
   ```
-- **Dev servers bind `0.0.0.0`** (portal `next dev`), so `http://localhost:7000` in your *host* browser hits the portal through the forwarded port. Ports 7000 (portal) / 7010 (API) / 7020 (dev Postgres) are forwarded.
+- **Dev servers listen on all interfaces** (`next dev` and the Hono `serve()` both bind `0.0.0.0` by default), so `http://localhost:7000` in your *host* browser hits the portal through the forwarded port. Ports 7000 (portal) / 7010 (API) / 7020 (dev Postgres) are forwarded.
 - **The `a2-react-aria` sibling repo** (ADR-22) is bind-mounted at `/workspaces/a2-react-aria` from `../a2-react-aria` on the host. Clone it next to `qcms` if you work on the UI packages; if it is absent the directory is created empty and the container still starts.
 - **Secrets are provisioned at runtime, never committed.** `.env` (gitignored) arrives with the workspace mount, `gh auth login` runs inside the container, and `~/.claude` is mounted from the host. `.env.example` remains the only committed env file, and no secret value appears anywhere in `.devcontainer/`.
 
-**Rollback:** the container is purely additive. Delete `.devcontainer/` (or just never open the repo in a container) and every host workflow is unchanged: `pnpm install`, the merge gate, `docker compose -f docker-compose.dev.yml up -d`, and `pwsh scripts/agent-loop.ps1` on a Windows host all behave exactly as before.
+**Rollback:** the container is purely additive and changes no product code. Delete `.devcontainer/` (or just never open the repo in a container) and every host workflow is unchanged: `pnpm install`, the merge gate, `docker compose -f docker-compose.dev.yml up -d`, and `pwsh scripts/agent-loop.ps1` on a Windows host all behave exactly as before.
 
 ## Coding standards
 
