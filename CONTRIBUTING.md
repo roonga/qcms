@@ -32,7 +32,7 @@ First start pulls the base image and runs `.devcontainer/post-create.sh` (corepa
   docker compose -f docker-compose.dev.yml up -d
   DATABASE_URL=postgres://qcms:qcms@host.docker.internal:7020/qcms pnpm dev:portal
   ```
-- **Dev servers listen on all interfaces** (`next dev` and the Hono `serve()` both bind `0.0.0.0` by default), so `http://localhost:7000` in your *host* browser hits the portal through the forwarded port. Ports 7000 (portal) / 7010 (API) / 7020 (dev Postgres) are forwarded.
+- **Dev servers listen on all interfaces** (`next dev` and the Hono `serve()` both bind `0.0.0.0` by default), and ports 7000 (portal) / 7010 (API) / 7020 (dev Postgres) leave the container two ways: `appPort` publishes them on the Docker host, which works under **any** launcher including a bare CLI `devcontainer up`, and `forwardPorts` adds the VS Code / Codespaces editor tunnel with the labels. So `http://localhost:7000` in your *host* browser hits the portal on either route (measured: `200` from the host with the portal running under a CLI-launched container). If you launch the container by hand with plain `docker run`, publish the ports yourself (`-p 7000:7000`).
 - **The `a2-react-aria` sibling repo** (ADR-22) is bind-mounted at `/workspaces/a2-react-aria` from `../a2-react-aria` on the host. Clone it next to `qcms` if you work on the UI packages; if it is absent the directory is created empty and the container still starts.
 - **Secrets are provisioned at runtime, never committed.** `.env` (gitignored) arrives with the workspace mount, `gh auth login` runs inside the container, and `~/.claude` is mounted from the host. `.env.example` remains the only committed env file, and no secret value appears anywhere in `.devcontainer/`.
 

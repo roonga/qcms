@@ -44,8 +44,16 @@
   },
 
   // Dev ports (7xxx). `next dev` and the Hono `serve()` both listen on 0.0.0.0
-  // by default, so the HOST browser reaches them over these forwards (verified
-  // in task 046; no source change needed).
+  // by default, so a host browser can reach them once the ports leave the
+  // container (verified in task 046; no source change needed).
+  //
+  // TWO mechanisms, because they cover different launchers:
+  //   - `appPort` publishes the ports on the Docker host (`docker run -p`), so
+  //     they work under ANY launcher, including a bare `devcontainer up` from
+  //     the CLI. This is what makes http://localhost:7000 work outside VS Code.
+  //   - `forwardPorts` is the VS Code / Codespaces editor tunnel, which also
+  //     gives the labels below. It does nothing on the CLI route.
+  "appPort": [7000, 7010, 7020],
   "forwardPorts": [7000, 7010, 7020],
   "portsAttributes": {
     "7000": { "label": "portal (next dev)", "onAutoForward": "notify" },
@@ -84,6 +92,13 @@
     // Claude Code config + credentials, shared with the host user.
     "source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind,consistency=cached"
   ],
+  // Runs in the HOST shell before the container is created. KNOWN LIMITATION:
+  // this form is POSIX-only (`mkdir -p`, `$HOME`), so on a Windows host running
+  // Docker Desktop natively it is a no-op that prints an error rather than
+  // creating the directories; `${localEnv:HOME}` is likewise empty on Windows
+  // (which uses USERPROFILE). Windows contributors should either use WSL2 (the
+  // tested path) or create `..\a2-react-aria` and `%USERPROFILE%\.claude` by
+  // hand once. Verified on Linux/WSL2 only; tracked as a follow-up issue.
   "initializeCommand": "mkdir -p \"${localWorkspaceFolder}/../a2-react-aria\" \"$HOME/.claude\" || true",
 
   "postCreateCommand": "bash .devcontainer/post-create.sh",
