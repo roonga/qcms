@@ -37,16 +37,16 @@ First start pulls the base image and runs `.devcontainer/post-create.sh` (corepa
 - **The `a2-react-aria` sibling repo** (ADR-22) is bind-mounted at `/workspaces/a2-react-aria` from `../a2-react-aria` on the host. Clone it next to `qcms` if you work on the UI packages; if it is absent the directory is created empty and the container still starts.
 - **Secrets are provisioned at runtime, never committed.** `.env` (gitignored) arrives with the workspace mount, `gh auth login` runs inside the container, and `~/.claude` is mounted from the host. `.env.example` remains the only committed env file, and no secret value appears anywhere in `.devcontainer/`.
 
-**What the container takes over from the host (read before you mix the two).** The container is additive to the *repo*, but it is not invisible to your *machine* - it shares three host resources, and in each case the last writer wins:
+**What the container takes over from the host (read before you mix the two).** The container is additive to the *repo*, but it is not invisible to your *machine* - it shares four host resources, and the conflict rule differs per row, so skim the table before mixing. Ports in particular do **not** hand over to the newcomer: whoever holds them first wins, and the second arrival fails to start.
 
 | Resource | What happens | Consequence |
 |---|---|---|
-| Ports 7000 / 7010 | Published on the Docker host via `appPort` | A host process already on 7000 or 7010 blocks container creation, and vice versa. Stop one before starting the other. |
+| Ports 7000 / 7010 | Published on the Docker host via `appPort` | Anything already holding 7000 or 7010 blocks container creation: a host process, **or a dev container from another checkout**. Only one qcms dev container can run at a time, machine-wide. Stop the other one first (`docker ps`, then `docker stop <id>`). |
 | Port 7020 | **Not** taken by the container; owned by host `docker-compose.dev.yml` | Safe by design. Do not add 7020 to `appPort`, or the DB and the container will fight over it. |
 | `node_modules/` + the pnpm store | The workspace is bind-mounted, so the in-container `pnpm install` **relinks `node_modules` to the container's store** | After running the container, host-side pnpm commands in the same checkout can fail with `ERR_PNPM_MISSING_PACKAGE_INDEX_FILE`. Recover with `pnpm install` on the host, which relinks it back. |
 | Docker daemon | Mounted host socket (`docker-outside-of-docker`) | Testcontainers starts *sibling* containers on your host, visible to `docker ps`. This is ADR-29's recorded trade-off. |
 
-The practical rule: **pick one side per checkout at a time.** Alternating host and container pnpm in the same directory is supported but costs a re-`install` each way; if you switch often, keep a second `git worktree` for the host side.
+The practical rule: **one container machine-wide, and one side per checkout at a time.** A second checkout is fine for editing, but its container will not start while another holds the ports. Alternating host and container pnpm in the same directory is supported but costs a re-`install` each way; if you switch often, keep a second `git worktree` for the host side.
 
 **Rollback:** the container changes no product code. Delete `.devcontainer/` (or just never open the repo in a container) and every host workflow is unchanged: `pnpm install`, the merge gate, and `docker compose -f docker-compose.dev.yml up -d` all behave exactly as before. If you had used the container in that checkout, run `pnpm install` once on the host to relink `node_modules` to the host store.
 
