@@ -62,4 +62,4 @@ QCMS is built with an agentic development workflow. **External pull requests are
 
 ## License
 
-[MIT](LICENSE) © 2026 Ravi Mohan and the QCMS contributors.
+[MIT](LICENSE) © 2026 Roonga and the QCMS contributors.
