@@ -1,6 +1,6 @@
 # Wireframe - Admin publish, preview, versions, secure links
 
-**Status:** Signed off: Ravi, 2026-07-21 · **Consumed by:** 034 · **Renders:** 022 (publish, versions, close/reopen, draft/preview), 024 (links), 028 (shared renderer)
+**Status:** Signed off: Code Owner, 2026-07-21 · **Consumed by:** 034 · **Renders:** 022 (publish, versions, close/reopen, draft/preview), 024 (links), 028 (shared renderer)
 
 ## ASCII sketch - publish + preview
 
@@ -42,4 +42,4 @@ publish confirm · publish errors (list rendered, nothing persisted) · publish 
 
 - Publish-error list entries are links; activation moves focus into the builder target. Preview branch changes follow the portal announcement policy (030) so authors experience what respondents will. Copy-URL confirms via status text (`aria-live` polite). Diff readable without color (± markers).
 
-Signed off: Ravi, 2026-07-21
+Signed off: Code Owner, 2026-07-21

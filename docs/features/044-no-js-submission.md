@@ -6,7 +6,7 @@
 
 ## Context
 
-029 landed SSR-first with real server-rendered step content on first paint **with JS disabled** (verified live), but the no-JS *submission* half of its exit criterion 2 was **explicitly waived by Ravi at 029 land (2026-07-22)** so the portal could land on the JS path. This task closes that gap: a respondent with JavaScript disabled must be able to complete and submit a form, page-reload per step.
+029 landed SSR-first with real server-rendered step content on first paint **with JS disabled** (verified live), but the no-JS *submission* half of its exit criterion 2 was **explicitly waived by the Code Owner at 029 land (2026-07-22)** so the portal could land on the JS path. This task closes that gap: a respondent with JavaScript disabled must be able to complete and submit a form, page-reload per step.
 
 **Why it was deferred (a real cross-package dependency, not a scope cut).** The `@qcms/ui` a2ra renderer (028) owns the step `<form>`, and the stored compiled A2UI document (served verbatim, ADR-18) carries no form `action`/`method` and no submit control. The portal's primary button is rendered outside the renderer as `type="button"`, and the only answer endpoint accepts per-question JSON (`{ questionId, value }`), not a form-encoded whole-step POST. So a radio-only step has nothing to submit without JS.
 

@@ -13,7 +13,7 @@ Verify that what the repository **claims** is what the repository **does** - aga
 stated commitments (PROJECT_GOAL.md, the ADRs, R1-R7, SEC-1..12, the ledger). Do not accept a
 claim until it is reproduced. Do not fix anything: the auditor **reports**; the dev loop and PO
 act. Do not make product decisions or relitigate settled ADRs/R-rules - verify conformance to
-them and escalate genuine conflicts to Ravi.
+them and escalate genuine conflicts to the Code Owner.
 
 ## What it verifies
 
@@ -79,14 +79,14 @@ them and escalate genuine conflicts to Ravi.
   GitHub issues and/or `docs/audits/audit-<date>.md`.
 - An explicit **ran vs skipped** list for the suites/checks.
 - A **go / no-go** recommendation for the relevant stage gate (advisory; the human gate stays
-  Ravi's).
+  the Code Owner's).
 
 ## Boundaries
 
 - Does not implement, refactor, or "quickly fix" - that is the dev loop's job (a fix by the
   auditor destroys its independence).
-- Does not decide product scope or author ADRs - that is the PO / Ravi.
-- Escalates human-gate items (030 manual a11y, 040 security sign-off, 038 launch gate) to Ravi
+- Does not decide product scope or author ADRs - that is the PO / the Code Owner.
+- Escalates human-gate items (030 manual a11y, 040 security sign-off, 038 launch gate) to the Code Owner
   with its evidence; never signs them off itself.
 
 ## When to run

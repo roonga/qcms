@@ -12,6 +12,8 @@
 
 **No em dash (Unicode U+2014), anywhere:** prose, comments, commit messages, UI strings. It reads as an AI tell and the repo is public. Use a colon, comma, parentheses, a period, or a spaced hyphen (` - `). The en dash (`–`) is allowed for numeric ranges only. The `check:no-em-dash` gate (`pnpm check:no-em-dash`) enforces this in CI.
 
+**No personal names in committed content (2026-07-25):** the human owner is referred to as **Code Owner** in all prose, docs, comments, sign-off records, and commit messages - never by name. Sole exception: the legal copyright attribution in `LICENSE` and the README license line, which keep a legal name the Code Owner chooses. (Git author metadata on past commits is history and stays; this rule governs file contents going forward.)
+
 | Thing | Name |
 |---|---|
 | Repo / product | **QCMS** (dir/scope: `qcms`, `@qcms/*`) |
