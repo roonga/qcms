@@ -22,18 +22,20 @@ claude --permission-mode bypassPermissions  # fully unattended: safe here, becau
 The host seat still works exactly as before (nothing about it changed):
 
 ```sh
-cd H:\source\agent3\qcms      # or /home/<you>/src/agent3/qcms under WSL2
+cd <your qcms checkout>
 claude
 claude --permission-mode bypassPermissions  # only in a checkout you trust the agent with
 ```
 
 Modes: the repo's `.claude/settings.json` sets **acceptEdits** (file edits and allowlisted commands run without prompting; anything unusual still asks). Shift+Tab cycles modes mid-session. For zero prompts, use the bypass flag above.
 
-**What the container gives the loop:** Node 24 + pnpm at the pinned version, Docker (the host daemon, mounted in) so Testcontainers works, the GitHub CLI, PowerShell, Playwright's Chromium with its OS libraries, zsh, and the Claude Code CLI. `CLAUDE_CONFIG_DIR` points at the mounted `~/.claude`, which puts `.claude.json` (the account/OAuth state) inside the mount too, so your host login carries straight into the container and survives rebuilds. Verified in task 046: `claude -p "..." --permission-mode bypassPermissions` runs headless inside the container, already authenticated, with zero prompts.
+**What the container gives the loop:** Node 24 + pnpm at the pinned version, Docker (the host daemon, mounted in) so Testcontainers works, the GitHub CLI, Playwright's Chromium with its OS libraries, zsh, and the Claude Code CLI. `CLAUDE_CONFIG_DIR` points at the mounted `~/.claude`, which puts `.claude.json` (the account/OAuth state) inside the mount too, so your host login carries straight into the container and survives rebuilds. Verified in task 046: `claude -p "..." --permission-mode bypassPermissions` runs headless inside the container, already authenticated, with zero prompts.
 
 **Trust the workspace once for interactive sessions.** A fresh container prints `Ignoring N permissions.allow entries from .claude/settings.json: this workspace has not been trusted`. Under `bypassPermissions` this is harmless (nothing is being gated), but an *interactive* session in the container will keep asking until you accept the trust dialog once, or set `projects["/workspaces/<folder>"].hasTrustDialogAccepted: true` in `~/.claude/.claude.json`.
 
-**Viewing the app from your host browser:** the dev servers listen on all interfaces inside the container (`next dev` and the Hono `serve()` both bind `0.0.0.0` by default, verified by the listen socket), and 7000 / 7010 / 7020 leave the container via `appPort` (published on the Docker host by **any** launcher, including a bare CLI `devcontainer up`) plus `forwardPorts` (the VS Code / Codespaces editor tunnel). `http://localhost:7000` on the host reaches the portal on either route: measured `200` from the WSL2 host against a CLI-launched container running `pnpm exec next dev --port 7000`. The dev Postgres from `docker-compose.dev.yml` publishes on the *host*, so from inside the container point at it by name:
+**Viewing the app from your host browser:** the dev servers listen on all interfaces inside the container (`next dev` and the Hono `serve()` both bind `0.0.0.0` by default, verified by the listen socket). The ports the container serves, **7000 and 7010**, leave it via `appPort` (published on the Docker host by **any** launcher, including a bare CLI `devcontainer up`) plus `forwardPorts` (the VS Code / Codespaces editor tunnel). `http://localhost:7000` on the host reaches the portal on either route: measured `200` from the host against a CLI-launched container running `pnpm exec next dev --port 7000`.
+
+**7020 belongs to the host.** The dev Postgres from `docker-compose.dev.yml` publishes 7020 on the host, so the container must *not* claim it - if it did, whichever of the two started second would fail to bind. The container reaches the database by name instead:
 
 ```sh
 docker compose -f docker-compose.dev.yml up -d
@@ -42,7 +44,9 @@ DATABASE_URL=postgres://qcms:qcms@host.docker.internal:7020/qcms pnpm dev:portal
 
 If a Testcontainers-backed suite cannot reach the container it just started (sibling containers, not children), set `TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal`.
 
-**Rollback (the migration is reversible):** `.devcontainer/` is purely additive and touches no product code. Stop using it - or delete the directory - and the host workflow is untouched: `pnpm install`, the merge gate, `docker compose -f docker-compose.dev.yml up -d`, and `pwsh scripts/agent-loop.ps1` behave exactly as they did before task 046. (Task 046 verified that the portal and API dev servers already bind `0.0.0.0` by default, so no source change was needed for host-browser viewing.)
+**What the container takes over from your machine.** It is additive to the repo but shares three host resources: **ports 7000/7010** (published via `appPort`, so a host process already holding one blocks container creation and vice versa), **`node_modules` + the pnpm store** (the workspace is bind-mounted, so the in-container `pnpm install` relinks `node_modules` to the container's store; host-side pnpm in that same checkout then fails with `ERR_PNPM_MISSING_PACKAGE_INDEX_FILE` until you re-run `pnpm install` on the host), and **the Docker daemon** (mounted socket, so Testcontainers spins sibling containers visible to your host `docker ps` - ADR-29's recorded trade-off). Port 7020 is deliberately left to the host's dev Postgres. Practical rule: pick one side per checkout at a time, or keep a second `git worktree` for host-side work. Full table in [`CONTRIBUTING.md`](../CONTRIBUTING.md#development-environment).
+
+**Rollback (the migration is reversible):** `.devcontainer/` touches no product code. Stop using it - or delete the directory - and the host workflow is unchanged: `pnpm install`, the merge gate, and `docker compose -f docker-compose.dev.yml up -d` behave exactly as they did before task 046 (re-run `pnpm install` on the host once if that checkout had been used in the container). Task 046 verified that the portal and API dev servers already bind `0.0.0.0` by default, so no source change was needed for host-browser viewing.
 
 ## Running work
 
@@ -67,23 +71,19 @@ If a Testcontainers-backed suite cannot reach the container it just started (sib
 An in-session `/loop` dies when your Claude usage window closes and **won't self-restart** - nothing inside a session can wake itself hours later. For runs that should outlast limit windows, use the supervisor instead:
 
 ```sh
-# Canonical: inside the dev container (ADR-29).
+# Run it inside the dev container (ADR-29) - that is what makes bypassPermissions safe.
 bash scripts/agent-loop.sh                  # one task at a time
 bash scripts/agent-loop.sh --parallel 3     # up to 3 independent tasks per batch
 bash scripts/agent-loop.sh --help           # all options
 ```
 
-```powershell
-# Windows-host fallback: the same supervisor, same behaviour.
-pwsh scripts/agent-loop.ps1                 # one task at a time
-pwsh scripts/agent-loop.ps1 -Parallel 3     # up to 3 independent tasks per batch
-```
+This is the only supervisor. `agent-loop.ps1` was **retired** (ADR-29 amended 2026-07-25): a Windows contributor's supported path is the container itself, via Docker Desktop or Codespaces. Outside the container the interactive fallback is `/loop /next-task`, which does not survive a usage-limit window.
 
-Either script runs `/next-task` in a **fresh headless session per iteration** (safe because the repo is the memory: claims, branches, HANDOFFs), reads the `NEXT-TASK:` sentinel each session emits, and: continues immediately on `LANDED`/`RESUMED`, stops on `AWAITING-HUMAN`/`BLOCKED`/`NOTHING`, and on *no sentinel* (usage limit or crash) waits the retry interval (`--retry-minutes` / `-RetryMinutes`, default 30) and retries - the next session's stale-claim recovery picks up whatever the killed one left mid-flight. Progress is in `agent-loop.log` and, as always, the ledger.
+The script runs `/next-task` in a **fresh headless session per iteration** (safe because the repo is the memory: claims, branches, HANDOFFs), reads the `NEXT-TASK:` sentinel each session emits, and: continues immediately on `LANDED`/`RESUMED`, stops on `AWAITING-HUMAN`/`BLOCKED`/`NOTHING`, and on *no sentinel* (usage limit or crash) waits the retry interval (`--retry-minutes`, default 30) and retries - the next session's stale-claim recovery picks up whatever the killed one left mid-flight. Progress is in `agent-loop.log` and, as always, the ledger.
 
 ## Editing skills/agents while a loop is running
 
-A long-lived session follows the instructions it already read - edits to `.claude/skills/` or `.claude/agents/` land on disk but a running conductor may keep executing the old flow from memory. After changing any skill or agent file: **restart running sessions**, or (better) run via `scripts/agent-loop.sh` (`.ps1` on a Windows host), whose fresh-session-per-task model picks up the current files on every iteration by construction.
+A long-lived session follows the instructions it already read - edits to `.claude/skills/` or `.claude/agents/` land on disk but a running conductor may keep executing the old flow from memory. After changing any skill or agent file: **restart running sessions**, or (better) run via `scripts/agent-loop.sh`, whose fresh-session-per-task model picks up the current files on every iteration by construction.
 
 ## Monitoring and control
 
@@ -93,7 +93,7 @@ A long-lived session follows the instructions it already read - edits to `.claud
 
 ## Permissions tuning
 
-- Allowlist lives in `.claude/settings.json` - **both** `Bash(...)` and `PowerShell(...)` families must be listed (rules are per-tool; this was the main cause of early prompt noise on a Windows host). Inside the dev container the loop runs in `bypassPermissions`, so the allowlist only matters for interactive sessions and for the host fallback.
+- Allowlist lives in `.claude/settings.json`, as `Bash(...)` families (rules are per-tool). Inside the dev container the loop runs in `bypassPermissions`, so the allowlist only matters for interactive sessions. The `PowerShell(...)` families are retired along with `agent-loop.ps1` (ADR-29 amended 2026-07-25).
 - Getting prompted for something routine? Run `/fewer-permission-prompts` - it scans real transcripts and proposes evidence-based allowlist additions.
 - Denied on purpose (don't relax): `npm`/`yarn` (pnpm-only), `git push --force`.
 

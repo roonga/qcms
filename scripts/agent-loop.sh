@@ -4,10 +4,12 @@
 # iteration (safe: the repo is the memory - ledger claims, task branches, and
 # HANDOFFs let a new session recover anything a killed one left behind).
 #
-# This is the CANONICAL supervisor (ADR-29): it runs inside the dev container,
-# where `--permission-mode bypassPermissions` is safe because the container is
-# the blast radius. `agent-loop.ps1` is the byte-for-byte behavioural mirror
-# kept for the Windows-host fallback.
+# This is the ONLY supervisor (ADR-29, amended 2026-07-25): it runs inside the
+# dev container, where `--permission-mode bypassPermissions` is safe because the
+# container is the blast radius. The former `agent-loop.ps1` is retired, not
+# retained - a Windows contributor's supported path is the container itself
+# (Docker Desktop or Codespaces). Outside the container, the interactive
+# fallback is `/loop /next-task`.
 #
 # Usage:  bash scripts/agent-loop.sh [-p 3] [-r 30] [-m 100] [-s 010]
 #           -p, --parallel N          executors per batch (pairwise-independent tasks only)

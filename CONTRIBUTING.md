@@ -9,7 +9,7 @@ The reference documents in `docs/` are authoritative; the discipline rules R1–
 
 ## Development environment
 
-**The dev container is the recommended path (ADR-29).** It is the canonical, tested environment: one preinstalled Ubuntu 24.04 box with Node 24, pnpm (from the `packageManager` pin), Docker access, the GitHub CLI, PowerShell, Playwright's Chromium, and a configured zsh. Running the host toolchain directly still works and is fully supported; the container just removes the "works on my machine" class of problem.
+**The dev container is the recommended path (ADR-29).** It is the canonical, tested environment: one preinstalled Ubuntu 24.04 box with Node 24, pnpm (from the `packageManager` pin), Docker access, the GitHub CLI, Playwright's Chromium, and a configured zsh. Running the host toolchain directly still works and is fully supported; the container just removes the "works on my machine" class of problem. **On Windows, the container is the supported path** (Docker Desktop or Codespaces) rather than a native-PowerShell checkout.
 
 **Prerequisites:** Docker (Docker Desktop, or Docker Engine under WSL2/Linux) and either the VS Code **Dev Containers** extension or the `@devcontainers/cli`.
 
@@ -32,11 +32,23 @@ First start pulls the base image and runs `.devcontainer/post-create.sh` (corepa
   docker compose -f docker-compose.dev.yml up -d
   DATABASE_URL=postgres://qcms:qcms@host.docker.internal:7020/qcms pnpm dev:portal
   ```
-- **Dev servers listen on all interfaces** (`next dev` and the Hono `serve()` both bind `0.0.0.0` by default), and ports 7000 (portal) / 7010 (API) / 7020 (dev Postgres) leave the container two ways: `appPort` publishes them on the Docker host, which works under **any** launcher including a bare CLI `devcontainer up`, and `forwardPorts` adds the VS Code / Codespaces editor tunnel with the labels. So `http://localhost:7000` in your *host* browser hits the portal on either route (measured: `200` from the host with the portal running under a CLI-launched container). If you launch the container by hand with plain `docker run`, publish the ports yourself (`-p 7000:7000`).
+- **Dev servers listen on all interfaces** (`next dev` and the Hono `serve()` both bind `0.0.0.0` by default). The two ports the container actually serves, **7000 (portal) and 7010 (API)**, leave it two ways: `appPort` publishes them on the Docker host, which works under **any** launcher including a bare CLI `devcontainer up`, and `forwardPorts` adds the VS Code / Codespaces editor tunnel with the labels. So `http://localhost:7000` in your *host* browser hits the portal on either route (measured: `200` from the host with the portal running under a CLI-launched container). If you launch the container by hand with plain `docker run`, publish those ports yourself (`-p 7000:7000 -p 7010:7010`).
+- **7020 is the host's, not the container's.** The dev Postgres runs on the host under `docker-compose.dev.yml`, which publishes 7020 itself. The container never binds it (that would make one of the two fail to start, whichever came second); it reaches the database at `host.docker.internal:7020` as shown above.
 - **The `a2-react-aria` sibling repo** (ADR-22) is bind-mounted at `/workspaces/a2-react-aria` from `../a2-react-aria` on the host. Clone it next to `qcms` if you work on the UI packages; if it is absent the directory is created empty and the container still starts.
 - **Secrets are provisioned at runtime, never committed.** `.env` (gitignored) arrives with the workspace mount, `gh auth login` runs inside the container, and `~/.claude` is mounted from the host. `.env.example` remains the only committed env file, and no secret value appears anywhere in `.devcontainer/`.
 
-**Rollback:** the container is purely additive and changes no product code. Delete `.devcontainer/` (or just never open the repo in a container) and every host workflow is unchanged: `pnpm install`, the merge gate, `docker compose -f docker-compose.dev.yml up -d`, and `pwsh scripts/agent-loop.ps1` on a Windows host all behave exactly as before.
+**What the container takes over from the host (read before you mix the two).** The container is additive to the *repo*, but it is not invisible to your *machine* - it shares three host resources, and in each case the last writer wins:
+
+| Resource | What happens | Consequence |
+|---|---|---|
+| Ports 7000 / 7010 | Published on the Docker host via `appPort` | A host process already on 7000 or 7010 blocks container creation, and vice versa. Stop one before starting the other. |
+| Port 7020 | **Not** taken by the container; owned by host `docker-compose.dev.yml` | Safe by design. Do not add 7020 to `appPort`, or the DB and the container will fight over it. |
+| `node_modules/` + the pnpm store | The workspace is bind-mounted, so the in-container `pnpm install` **relinks `node_modules` to the container's store** | After running the container, host-side pnpm commands in the same checkout can fail with `ERR_PNPM_MISSING_PACKAGE_INDEX_FILE`. Recover with `pnpm install` on the host, which relinks it back. |
+| Docker daemon | Mounted host socket (`docker-outside-of-docker`) | Testcontainers starts *sibling* containers on your host, visible to `docker ps`. This is ADR-29's recorded trade-off. |
+
+The practical rule: **pick one side per checkout at a time.** Alternating host and container pnpm in the same directory is supported but costs a re-`install` each way; if you switch often, keep a second `git worktree` for the host side.
+
+**Rollback:** the container changes no product code. Delete `.devcontainer/` (or just never open the repo in a container) and every host workflow is unchanged: `pnpm install`, the merge gate, and `docker compose -f docker-compose.dev.yml up -d` all behave exactly as before. If you had used the container in that checkout, run `pnpm install` once on the host to relink `node_modules` to the host store.
 
 ## Coding standards
 

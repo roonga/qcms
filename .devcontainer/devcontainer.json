@@ -34,9 +34,6 @@
       "installDockerComposeSwitch": true
     },
     "ghcr.io/devcontainers/features/github-cli:1": {},
-    // PowerShell so `scripts/agent-loop.ps1` stays runnable from inside the
-    // container too (the bash `agent-loop.sh` is the canonical supervisor).
-    "ghcr.io/devcontainers/features/powershell:1": {},
     // The autonomous loop runs INSIDE this container with
     // `--permission-mode bypassPermissions` (ADR-29): the container is the
     // blast radius.
@@ -53,7 +50,15 @@
   //     the CLI. This is what makes http://localhost:7000 work outside VS Code.
   //   - `forwardPorts` is the VS Code / Codespaces editor tunnel, which also
   //     gives the labels below. It does nothing on the CLI route.
-  "appPort": [7000, 7010, 7020],
+  //
+  // 7020 is deliberately NOT in `appPort`: nothing in this container listens on
+  // it. The dev Postgres runs on the HOST via docker-compose.dev.yml, which
+  // publishes 7020 itself, so claiming it here would take the port away from the
+  // database and make `docker compose -f docker-compose.dev.yml up -d` fail with
+  // "port is already allocated" (and, in the other order, make container
+  // creation fail). It stays in `forwardPorts` only for the VS Code label; the
+  // editor tunnel is a no-op here, not a host bind.
+  "appPort": [7000, 7010],
   "forwardPorts": [7000, 7010, 7020],
   "portsAttributes": {
     "7000": { "label": "portal (next dev)", "onAutoForward": "notify" },
