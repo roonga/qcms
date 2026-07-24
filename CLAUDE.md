@@ -14,6 +14,8 @@
 
 **No personal names in committed content (2026-07-25):** the human owner is referred to as **Code Owner** in all prose, docs, comments, sign-off records, and commit messages - never by name. Sole exception: the legal copyright attribution in `LICENSE` and the README license line, which keep a legal name the Code Owner chooses. (Git author metadata on past commits is history and stays; this rule governs file contents going forward.)
 
+**No machine-specific paths in committed content (2026-07-25):** anyone can clone the repo into any parent folder, so committed files never assume one - no `/home/<user>`, no drive letters, no named parent directories. Use repo-root-relative paths (`scripts/agent-loop.sh`), `~` for home when unavoidable, and "sibling checkout `../a2-react-aria`" phrasing for the component library.
+
 | Thing | Name |
 |---|---|
 | Repo / product | **QCMS** (dir/scope: `qcms`, `@qcms/*`) |
