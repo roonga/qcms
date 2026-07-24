@@ -25,21 +25,48 @@ retry_minutes=30
 max_iterations=100
 stop_after_task=""
 
+die() {
+  echo "agent-loop: $1" >&2
+  exit 2
+}
+
+# Every value-taking flag routes through this: without it, a missing value trips
+# `set -u` with a bare "$2: unbound variable" that names neither the flag nor the
+# script.
+need_value() { # $1 = flag, $2 = value (possibly absent)
+  [ -n "$2" ] || die "$1 requires a value"
+}
+
+# The numeric flags are used unquoted in arithmetic contexts, where a non-numeric
+# value does not error - it evaluates to 0. `-m abc` would silently run zero
+# iterations and exit looking like a clean "nothing to do" run, so validate here
+# rather than let the loop no-op.
+positive_int() { # $1 = flag, $2 = value
+  case "$2" in
+    '' | *[!0-9]*) die "$1 needs a positive integer, got '$2'" ;;
+  esac
+  [ "$2" -ge 1 ] || die "$1 needs a positive integer, got '$2'"
+}
+
 while [ $# -gt 0 ]; do
   case "$1" in
     -p | --parallel)
+      need_value "$1" "${2:-}"
       parallel="$2"
       shift 2
       ;;
     -r | --retry-minutes)
+      need_value "$1" "${2:-}"
       retry_minutes="$2"
       shift 2
       ;;
     -m | --max-iterations)
+      need_value "$1" "${2:-}"
       max_iterations="$2"
       shift 2
       ;;
     -s | --stop-after-task)
+      need_value "$1" "${2:-}"
       stop_after_task="$2"
       shift 2
       ;;
@@ -48,11 +75,14 @@ while [ $# -gt 0 ]; do
       exit 0
       ;;
     *)
-      echo "unknown option: $1" >&2
-      exit 2
+      die "unknown option: $1"
       ;;
   esac
 done
+
+positive_int --parallel "$parallel"
+positive_int --retry-minutes "$retry_minutes"
+positive_int --max-iterations "$max_iterations"
 
 cd "$(dirname "$0")/.."
 log_file="$PWD/agent-loop.log"
