@@ -94,13 +94,22 @@ export async function answerNumber(page: Page, value: string): Promise<void> {
 }
 
 /**
+ * Click a control by its visible label and wait for the answer POST it triggers.
+ * Shared by the input kinds whose value posts immediately on change rather than
+ * on blur (boolean radios can flip a branch; checkboxes post each toggle).
+ */
+async function clickLabelAndAwaitPost(page: Page, label: string): Promise<void> {
+  const recorded = answerPosted(page);
+  await page.getByText(label, { exact: true }).click();
+  await recorded;
+}
+
+/**
  * Choose a BOOLEAN radio (Yes/No) by its visible label. A boolean posts
  * immediately on change (it can flip a branch), so wait for the post directly.
  */
 export async function chooseRadio(page: Page, label: string): Promise<void> {
-  const recorded = answerPosted(page);
-  await page.getByText(label, { exact: true }).click();
-  await recorded;
+  await clickLabelAndAwaitPost(page, label);
 }
 
 /**
@@ -120,9 +129,7 @@ export async function chooseSingleChoice(page: Page, label: string): Promise<voi
 
 /** Toggle a checkbox option by its visible label (cumulative array; posts each). */
 export async function checkOption(page: Page, label: string): Promise<void> {
-  const recorded = answerPosted(page);
-  await page.getByText(label, { exact: true }).click();
-  await recorded;
+  await clickLabelAndAwaitPost(page, label);
 }
 
 /** Click Continue and wait for the next step to be served. */

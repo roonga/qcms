@@ -43,25 +43,22 @@ async function accessibilityScore(url: string, cookie?: string): Promise<number>
     chromeFlags: ["--headless=new", "--no-sandbox", "--disable-gpu"],
   });
   try {
-    const runnerResult = await lighthouse(
-      url,
-      {
-        port: chrome.port,
-        onlyCategories: ["accessibility"],
-        output: "json",
-        logLevel: "error",
-        ...(cookie ? { extraHeaders: { Cookie: cookie } } : {}),
-      },
-      undefined,
-    );
+    const runnerResult = await lighthouse(url, {
+      port: chrome.port,
+      onlyCategories: ["accessibility"],
+      output: "json",
+      logLevel: "error",
+      ...(cookie ? { extraHeaders: { Cookie: cookie } } : {}),
+    });
     const score = runnerResult?.lhr.categories.accessibility?.score;
     return typeof score === "number" ? score : 0;
   } finally {
     // On Windows, chrome-launcher's temp-profile cleanup can throw EPERM because
     // the just-killed Chrome has not released its profile files yet. The audit is
-    // already complete, so this teardown race must not fail the test.
+    // already complete, so this teardown race must not fail the test. `kill()` is
+    // synchronous (chrome-launcher returns void), so a throw is caught directly.
     try {
-      await chrome.kill();
+      chrome.kill();
     } catch {
       /* best-effort: leaked temp profile is cleaned by the OS */
     }

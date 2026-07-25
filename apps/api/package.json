@@ -20,7 +20,7 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --root ../.. --project qcms-api --project qcms-api-e2e",
-    "lint": "eslint src e2e",
+    "lint": "eslint src e2e scripts",
     "start": "node dist/serve.js"
   },
   "dependencies": {
