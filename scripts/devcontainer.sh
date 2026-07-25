@@ -75,8 +75,16 @@ cmd_up() {
 }
 
 cmd_rebuild() {
-  devcontainer_cli up --workspace-folder "$REPO_ROOT" --remove-existing-container ||
-    die "devcontainer rebuild failed"
+  # Remove by name rather than relying on `--remove-existing-container`. That
+  # flag finds the container through a `devcontainer.local_folder` label, and
+  # the two launchers disagree about the same folder: VS Code on Windows records
+  # a UNC path (\\wsl.localhost\...), the CLI under WSL2 records a POSIX one. So
+  # a container created in the editor is invisible to the CLI, nothing gets
+  # removed, and the fixed --name then collides. The name is unambiguous.
+  if exists; then
+    docker rm -f "$CONTAINER" >/dev/null 2>&1 && echo "removed existing $CONTAINER"
+  fi
+  devcontainer_cli up --workspace-folder "$REPO_ROOT" || die "devcontainer rebuild failed"
 }
 
 cmd_shell() {
