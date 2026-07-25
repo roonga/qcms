@@ -20,9 +20,6 @@ importers:
       '@playwright/test':
         specifier: ^1.61.1
         version: 1.61.1
-      '@types/node':
-        specifier: ^24.13.3
-        version: 24.13.3
       '@vitest/coverage-v8':
         specifier: 4.1.10
         version: 4.1.10(vitest@4.1.10)

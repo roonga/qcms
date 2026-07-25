@@ -40,6 +40,12 @@ export default defineConfig({
       // provisioning helpers and the loop supervisor (task 046). Both are shell,
       // driven here by spawning them - ADR-23 keeps Vitest as the only runner
       // below the browser, so no bats or shunit2.
+      //
+      // These files are run but NOT typechecked: covering them would mean a
+      // root tsconfig and hoisting @types/node to the root, which is more
+      // dependency surface than two shell-driving test files justify. Vitest
+      // transpiles without checking, and what they assert is process exit codes
+      // and stderr, so the risk a type error would catch is small.
       {
         extends: true,
         test: {
