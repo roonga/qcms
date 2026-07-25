@@ -1,6 +1,6 @@
 # Decision brief: conditional flows and question-level rule execution
 
-Status: DRAFT for Code Owner discussion (2026-07-25). Supersedes nothing; if adopted, becomes an ADR with #31 and #23 re-scoped under it in the same change (staleness rule). Parked trigger: #31 (posting semantics) turned out to be the surface of this question.
+Status: ADOPTED as ADR-31 (Code Owner, 2026-07-25) with the recommended defaults: commitment semantics (C), the compileDraft warning (D-as-warning), multiChoice group-exit commit, retained-answer keep-and-document. This file is the discussion record; the ADR in docs/PROJECT_GOAL.md is authoritative.
 
 ## What is already decided and NOT on the table
 
