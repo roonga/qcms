@@ -42,9 +42,16 @@ const DB_PORT = process.env.QCMS_DB_PORT ?? "7020";
 const DB_USER = process.env.QCMS_DB_USER ?? "qcms";
 const DB_PASSWORD = process.env.QCMS_DB_PASSWORD ?? "qcms";
 const DB_NAME = process.env.QCMS_DB_NAME ?? "qcms";
+// Where this process reaches the dev Postgres. On a host checkout that is
+// plain localhost. Inside the dev container it is not: `docker compose` there
+// talks to the mounted host socket (docker-outside-of-docker, ADR-29), so the
+// database starts as a SIBLING published on the host's loopback, and the
+// container's own localhost has nothing listening on 7020. The devcontainer
+// sets this to host.docker.internal - see .devcontainer/devcontainer.json.
+const DB_HOST = process.env.QCMS_DB_HOST ?? "localhost";
 const DATABASE_URL =
   process.env.DATABASE_URL ??
-  `postgres://${DB_USER}:${DB_PASSWORD}@localhost:${DB_PORT}/${DB_NAME}`;
+  `postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}`;
 
 const API_PORT = process.env.QCMS_DEV_API_PORT ?? "7010";
 const PORTAL_PORT = process.env.QCMS_DEV_PORTAL_PORT ?? "7000";

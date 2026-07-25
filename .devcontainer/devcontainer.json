@@ -10,7 +10,7 @@
 // the host. ADR-29 records that trade-off. See `docs/DEVELOPER_GUIDE.md` for the
 // launch path, the `TESTCONTAINERS_HOST_OVERRIDE` note and the rollback steps.
 {
-  "name": "qcms",
+  "name": "qcms-dev-container",
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
 
   "features": {
@@ -74,7 +74,20 @@
   // too small for Chrome's shared-memory allocations, and the portal Playwright
   // suite hangs on the first JavaScript-heavy page without it (Playwright's own
   // documented Docker recommendation).
-  "runArgs": ["--init", "--ipc=host", "--add-host=host.docker.internal:host-gateway"],
+  //
+  // `--name` makes the container legible in `docker ps` and gives the port
+  // conflict above a one-line fix (`docker stop qcms-dev-container`) instead of
+  // hunting a random Docker name. The matching compose-project label groups it
+  // with the dev database in Docker Desktop, so the whole dev environment reads
+  // as one unit. Both are safe because only one of these can run at a time
+  // anyway: `appPort` already makes the ports exclusive machine-wide.
+  "runArgs": [
+    "--init",
+    "--ipc=host",
+    "--add-host=host.docker.internal:host-gateway",
+    "--name=qcms-dev-container",
+    "--label=com.docker.compose.project=qcms-dev"
+  ],
 
   "containerEnv": {
     // corepack must never stop for a "download this pnpm version?" prompt: the
@@ -82,7 +95,13 @@
     "COREPACK_ENABLE_DOWNLOAD_PROMPT": "0",
     // Keep Claude Code's config + credentials in the mounted ~/.claude, so a
     // container rebuild does not throw away the login.
-    "CLAUDE_CONFIG_DIR": "/home/vscode/.claude"
+    "CLAUDE_CONFIG_DIR": "/home/vscode/.claude",
+    // `docker compose` in here talks to the host daemon, so the dev database
+    // starts as a sibling published on the HOST's loopback. This container's own
+    // localhost has nothing on 7020, so `pnpm dev:portal` must reach the host.
+    // Node resolves this to IPv4 via happy-eyeballs; the IPv6 record that
+    // host-gateway also publishes refuses connections here.
+    "QCMS_DB_HOST": "host.docker.internal"
   },
 
   // Secrets are provisioned at RUNTIME, never committed: `.env` (gitignored)

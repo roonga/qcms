@@ -1,5 +1,13 @@
 # Dev database only. Copy .env.example to .env first (compose reads .env for
 # variable substitution); the defaults below match .env.example's DATABASE_URL.
+#
+# The project name is pinned so the container is always `qcms-dev-postgres-1`,
+# whatever the checkout directory is called, and so it groups with the dev
+# container (which carries the matching compose-project label). Without this,
+# Compose derives the project from the folder name and two checkouts produce
+# two differently-named databases that both try to bind port 7020.
+name: qcms-dev
+
 services:
   postgres:
     image: postgres:16-alpine

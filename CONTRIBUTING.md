@@ -41,10 +41,21 @@ First start pulls the base image and runs `.devcontainer/post-create.sh` (corepa
 
 | Resource | What happens | Consequence |
 |---|---|---|
-| Ports 7000 / 7010 | Published on the Docker host via `appPort` | Anything already holding 7000 or 7010 blocks container creation: a host process, **or a dev container from another checkout**. Only one qcms dev container can run at a time, machine-wide. Stop the other one first (`docker ps`, then `docker stop <id>`). |
+| Ports 7000 / 7010 | Published on the Docker host via `appPort` | Anything already holding 7000 or 7010 blocks container creation: a host process, **or a dev container from another checkout**. Only one qcms dev container can run at a time, machine-wide. Stop the other one first: `docker stop qcms-dev-container`. |
 | Port 7020 | **Not** taken by the container; owned by host `docker-compose.dev.yml` | Safe by design. Do not add 7020 to `appPort`, or the DB and the container will fight over it. |
 | `node_modules/` + the pnpm store | The workspace is bind-mounted, so the in-container `pnpm install` **relinks `node_modules` to the container's store** | After running the container, host-side pnpm commands in the same checkout can fail with `ERR_PNPM_MISSING_PACKAGE_INDEX_FILE`. Recover with `pnpm install` on the host, which relinks it back. |
 | Docker daemon | Mounted host socket (`docker-outside-of-docker`) | Testcontainers starts *sibling* containers on your host, visible to `docker ps`. This is ADR-29's recorded trade-off. |
+
+Everything the dev environment runs is named and grouped, so `docker ps` reads at a glance and Docker Desktop shows one stack rather than loose containers:
+
+| Container | What |
+|---|---|
+| `qcms-dev-container` | the dev container itself |
+| `qcms-dev-postgres-1` | the dev database from `docker-compose.dev.yml` |
+
+Both carry the `qcms-dev` compose project, and the database keeps that name whatever your checkout folder is called. Testcontainers still spawns its own short-lived containers with generated names - those are ephemeral and belong to the test run, not the dev stack.
+
+**`pnpm dev:portal` inside the container.** `docker compose` in here talks to the host daemon, so the database starts as a sibling published on the *host's* loopback, and this container's `localhost:7020` has nothing on it. `QCMS_DB_HOST` is preset to `host.docker.internal` in `devcontainer.json` so the script reaches it. On a host checkout the variable is unset and the default stays plain `localhost`, so nothing changes there.
 
 The practical rule: **one container machine-wide, and one side per checkout at a time.** A second checkout is fine for editing, but its container will not start while another holds the ports. Alternating host and container pnpm in the same directory is supported but costs a re-`install` each way; if you switch often, keep a second `git worktree` for the host side.
 
