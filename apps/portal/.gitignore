@@ -1,5 +1,8 @@
 # Next.js
+# Production build output (`next build` / `next start`) and, kept deliberately
+# separate from it, the dev server's own output (issue #54).
 /.next/
+/.next-dev/
 /next-env.d.ts
 
 # TypeScript incremental build info

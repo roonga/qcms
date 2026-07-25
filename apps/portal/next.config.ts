@@ -1,11 +1,17 @@
 import { fileURLToPath } from "node:url";
 
 import type { NextConfig } from "next";
+import { PHASE_DEVELOPMENT_SERVER } from "next/constants.js";
 
 // This app lives in a git worktree that shares the monorepo. Next would otherwise
 // infer the shared main checkout as the workspace root (multiple lockfiles) and
 // resolve modules from there; pin the root to this worktree.
 const WORKTREE_ROOT = fileURLToPath(new URL("../../", import.meta.url));
+
+/** Where `next build` / `next start` keep the production build. */
+const PRODUCTION_DIST_DIR = ".next";
+/** Where `next dev` keeps its own output (Next nests it one level: `<dir>/dev`). */
+const DEVELOPMENT_DIST_DIR = ".next-dev";
 
 /**
  * Portal Next.js config (task 029). The portal is SSR-first and fetch-only
@@ -13,21 +19,34 @@ const WORKTREE_ROOT = fileURLToPath(new URL("../../", import.meta.url));
  * from its build output, so no `transpilePackages` entry is needed - its dist is
  * plain ESM. The strict BFF keeps the internal API server-only; the base URL is
  * read from server-only config in route handlers (added in the wiring phase).
+ *
+ * Exported as a phase function so the dev server and the production build write
+ * to DIFFERENT top-level directories (issue #54). They must not share one:
+ * `turbo.json` declares the portal build's outputs as `.next/**`, so any dev
+ * output living under `.next` gets tarred into the build cache artifact and a
+ * later `pnpm build` cache hit RESTORES that stale snapshot (possibly from a
+ * sibling worktree) over the live dev directory. A dev server then reads a stale
+ * or partially-restored Turbopack cache and dies: seen as CSS resolution errors
+ * (issue #54) and as a corrupt cache ("SST file open error", docs/RETRO.md), both
+ * of which surface only as a bare Playwright `webServer` timeout. Separate
+ * directories make the build cache structurally unable to touch dev state, so no
+ * ordering of `pnpm build` and `pnpm exec playwright test` needs a manual clean.
  */
-const nextConfig: NextConfig = {
-  reactStrictMode: true,
-  turbopack: {
-    root: WORKTREE_ROOT,
-  },
-  // The portal never sends CORS headers (SEC): it is same-origin with its own
-  // BFF route handlers. No `headers()` CORS entries here by design.
-  //
-  // No image optimization: the portal ships no optimized imagery, so Next needs
-  // no `sharp`. That optional dep pulls a native libvips binary under LGPL-3.0;
-  // dropping it (with pnpm.ignoredOptionalDependencies in the root package.json)
-  // keeps the MIT-redistribution no-copyleft policy pure and the check:licenses
-  // gate green.
-  images: { unoptimized: true },
-};
-
-export default nextConfig;
+export default function portalNextConfig(phase: string): NextConfig {
+  return {
+    distDir: phase === PHASE_DEVELOPMENT_SERVER ? DEVELOPMENT_DIST_DIR : PRODUCTION_DIST_DIR,
+    reactStrictMode: true,
+    turbopack: {
+      root: WORKTREE_ROOT,
+    },
+    // The portal never sends CORS headers (SEC): it is same-origin with its own
+    // BFF route handlers. No `headers()` CORS entries here by design.
+    //
+    // No image optimization: the portal ships no optimized imagery, so Next needs
+    // no `sharp`. That optional dep pulls a native libvips binary under LGPL-3.0;
+    // dropping it (with pnpm.ignoredOptionalDependencies in the root package.json)
+    // keeps the MIT-redistribution no-copyleft policy pure and the check:licenses
+    // gate green.
+    images: { unoptimized: true },
+  };
+}

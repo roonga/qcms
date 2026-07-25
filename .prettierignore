@@ -6,8 +6,10 @@ dist/
 coverage/
 pnpm-lock.yaml
 
-# Next.js build output, generated ambient types, and captured screenshots (029)
+# Next.js output (production build in .next, dev server in .next-dev - issue #54),
+# generated ambient types, and captured screenshots (029)
 .next/
+.next-dev/
 **/next-env.d.ts
 apps/portal/.playwright/
 apps/portal/screenshots/

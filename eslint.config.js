@@ -11,8 +11,10 @@ export default tseslint.config(
       "**/node_modules/**",
       "**/.turbo/**",
       "**/coverage/**",
-      // Next.js build output and generated ambient types (portal, task 029).
+      // Next.js output and generated ambient types (portal, task 029): the
+      // production build in `.next`, the dev server's in `.next-dev` (issue #54).
       "**/.next/**",
+      "**/.next-dev/**",
       "**/next-env.d.ts",
       "apps/portal/.playwright/**",
       "apps/portal/screenshots/**",
