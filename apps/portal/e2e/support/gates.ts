@@ -52,14 +52,6 @@ const SERVER_ALLOW: readonly { readonly source: LogSource; readonly pattern: Reg
   // exercise on purpose, not a server malfunction.
   { source: "api", pattern: /"msg":"handled error"/ },
   { source: "api", pattern: /"msg":"http exception"/ },
-  // Benign Postgres transaction-bookkeeping warnings from the node-postgres/drizzle
-  // pool: a BEGIN issued on a connection already in a transaction, or a
-  // COMMIT/ROLLBACK with none open. Postgres continues normally and the persisted
-  // ledger is correct (the independent DB verification confirms it). They are a
-  // driver/pool artifact, not a data or correctness fault, so they are allowlisted
-  // (a discovery is filed to tighten the API's transaction handling separately).
-  { source: "postgres", pattern: /WARNING:\s+there is already a transaction in progress/ },
-  { source: "postgres", pattern: /WARNING:\s+there is no transaction in progress/ },
   // The Next dev server logs `Error: aborted` when a request is cancelled
   // client-side (the browser aborts an in-flight fetch/navigation). The throttled
   // mobile spec provokes this by design: under a simulated slow connection a

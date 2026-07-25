@@ -89,6 +89,13 @@ beforeAll(async () => (ctx = await startTestDb()));
 afterAll(() => ctx.teardown());
 ```
 
+`db` is a Drizzle handle over a **connection pool**, as the API builds it in
+production, so concurrent `db.transaction()` calls get their own connections and
+per-session `pg_advisory_xact_lock` serialization behaves under test as it does in
+production (issue #30). `client` is a separate single connection for raw SQL: it
+sees only committed state, so do not use it to observe a transaction another
+connection still has open.
+
 `applyMigrations(client, { from, to })` applies migration files one at a time
 (bypassing Drizzle's tracker) so a test can observe the schema **between**
 migrations - the "apply N, then N+1" forward path.
