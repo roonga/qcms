@@ -11,7 +11,7 @@ Each file is a self-contained work order for one agent session (or one focused h
 1. Read `PROJECT_INSTRUCTIONS.md` (rules R1–R7 + amendments), then the task file, then the **References** it lists. Check the **progress ledger below** and `git log` - trust the repo over memory.
 2. Do only what the task's Deliverables and Exit criteria require. **Out of scope** sections are binding. Blocked on a genuine decision → stop and ask; never choose silently.
 3. Tests ship with the code; docs named in the task are updated in the same change.
-4. A task is done only when every exit criterion passes and `pnpm build && pnpm test && pnpm lint` is green at the repo root. **Update the ledger status in the same PR.**
+4. A task is done only when every exit criterion passes and **`pnpm verify`** is green at the repo root - one command, a superset of CI's unit job (`check:all` = em dash, control chars, changeset, golden-append-only, licenses, duplication; then build, typecheck, lint, test, golden-drift). Add `pnpm verify:browser` (the Playwright suite, the one CI job `verify` omits) when the task touches `apps/portal`, `apps/admin`, or `@qcms/ui`. **Update the ledger status in the same PR.**
 5. **Green or clean:** if a session can't finish, either revert to green or park on the task branch with a `HANDOFF.md` (state, next step, what's red). Never merge red; never leave main broken.
 6. Branch `feat/NNN-slug`; task number in commit messages; PR description is the exit-criteria checklist, checked off.
 7. **Review before merge:** a human, or a second agent session given only the task file + diff, verifies exit criteria and rule compliance (R1–R7, cut-line, SEC controls). The reviewer verifies; it never extends the work.
