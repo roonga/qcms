@@ -38,12 +38,26 @@ export default async function RootLayout({ children }: { readonly children: Reac
   return (
     <html lang="en" className="light" suppressHydrationWarning>
       <head>
-        {/* The CSP nonce is present on the server-rendered script but stripped
-            from the client HTML (Next serializes no nonce to the browser, by
-            design - SEC-9), so server and client markup differ on this attribute.
-            That difference is expected, not a bug, so suppress React's hydration
-            warning for this element (finding A). The nonce still authorizes the
-            inline script server-side; the CSP is not weakened. */}
+        {/* The per-request CSP nonce (SEC-9) reaches SSR on the `x-nonce` request
+            header the middleware sets, and it IS propagated: the served HTML
+            stamps the real value and the RSC payload carries the same value, so
+            React's server and client trees agree. Next does not nonce app-authored
+            scripts for us (dropping this prop gets the script CSP-blocked), so the
+            prop is required.
+
+            `suppressHydrationWarning` is still needed, for a reason that has
+            nothing to do with propagation (issue #20). On insertion the browser
+            performs the HTML specification's *nonce hiding*: it moves the value
+            into the element's internal `[[CSPNonce]]` slot (readable as the
+            `.nonce` property) and blanks the `nonce` content attribute, so a CSS
+            attribute selector cannot exfiltrate it. React's hydration check reads
+            the attribute back with `getAttribute("nonce")`, sees `""` against its
+            own real value, and reports an attribute difference it explicitly does
+            not patch up. The DOM, the executed script, and the enforcing nonce are
+            all unaffected: only the warning is spurious, and this element's only
+            other prop is a module-level constant string, so nothing real can hide
+            behind the suppression. Weakening the CSP to silence it is never an
+            option. `e2e/csp-nonce.pw.ts` proves the whole chain instead. */}
         <script
           nonce={nonce}
           suppressHydrationWarning

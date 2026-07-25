@@ -1,7 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { challengeProvider } from "@/lib/server/challenge";
-import { buildCsp } from "@/lib/server/csp";
+// Relative, not the `@/` alias: this module is unit-tested directly
+// (`middleware.test.ts`) and Vitest resolves no Next path aliases.
+import { challengeProvider } from "./lib/server/challenge";
+import { buildCsp } from "./lib/server/csp";
 
 /**
  * Security headers for every portal response (task 029). Sets a per-request CSP
