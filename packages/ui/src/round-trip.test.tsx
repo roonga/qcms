@@ -72,10 +72,11 @@ const selectStep: A2UIStepDocument = {
 };
 
 // Same load exposure, same reason as keyboard.test.tsx (issue #61): these tests
-// type into react-aria controls with `userEvent` in jsdom, and on the same
-// starved runner five of the eight run past Vitest's 5000ms default (worst 9.7s)
-// purely because the CPU share shrank. Timeout kept identical to keyboard.test's
-// so the two files share one justification.
+// type into react-aria controls with `userEvent` in jsdom, so their cost scales
+// with the CPU share the runner gets rather than with any awaited delay. On the
+// same starved runner at least one of them (`shortText`) crosses Vitest's 5000ms
+// default at roughly 5.2-5.6s, with others approaching it. Timeout kept identical
+// to keyboard.test.tsx's so the two files share one justification.
 describe(
   "controlled value round-trip → canonical AnswerValue (task 002 schemas)",
   { timeout: 30_000 },
