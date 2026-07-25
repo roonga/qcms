@@ -86,7 +86,9 @@ await withTestDb(async ({ db, client }) => {
 // one container per test file (share across tests in the file)
 let ctx;
 beforeAll(async () => (ctx = await startTestDb()));
-afterAll(() => ctx.teardown());
+// Optional chaining on purpose: if the boot failed, `ctx` was never assigned and
+// an unguarded teardown buries the real error under a TypeError (issue #74).
+afterAll(() => ctx?.teardown());
 ```
 
 `db` is a Drizzle handle over a **connection pool**, as the API builds it in
@@ -106,6 +108,22 @@ sets an empty `DOCKER_AUTH_CONFIG` before Testcontainers loads so image pulls ar
 anonymous and the Docker Desktop credential helper (`docker-credential-desktop`,
 unresolvable from some Windows shells) is never invoked; set `DOCKER_AUTH_CONFIG`
 or `DOCKER_CONFIG` yourself to override.
+
+**Which image, and where it comes from.** The harness boots `postgres:16-alpine`
+from Docker Hub, so a laptop needs no registry account or mirror. Set
+`QCMS_TEST_POSTGRES_IMAGE` (read once, at module load, so export it before the
+test process starts) to boot the same Postgres from somewhere else. CI does
+exactly that: anonymous Docker Hub pulls from shared runner IP ranges are
+rate-limited and intermittently return HTTP 500, which failed every `@qcms/db`
+test file twice in one day, so each CI job resolves a GHCR mirror of the image
+first (`.github/actions/test-postgres-image`, populated by the
+`Mirror test images` workflow) and falls back to Docker Hub when no mirror is
+available. Keep the value on the same Postgres major: the migrations target 16.
+
+When the image cannot be pulled, `startTestDb` throws an error naming the image,
+the registry failure and the override, instead of Docker's opaque
+`(HTTP code 500) ...` (issue #74), and every later boot of that same image in the
+worker fails immediately rather than waiting on the registry again.
 
 ## better-auth tables
 

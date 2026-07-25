@@ -115,8 +115,15 @@ function describeCause(error: unknown): string {
   const parts: string[] = [];
   let current: unknown = error;
   for (let depth = 0; current !== undefined && current !== null && depth < 5; depth += 1) {
-    parts.push(current instanceof Error ? `${current.name}: ${current.message}` : String(current));
-    current = current instanceof Error ? current.cause : undefined;
+    if (current instanceof Error) {
+      parts.push(`${current.name}: ${current.message}`);
+      current = current.cause;
+      continue;
+    }
+    // A thrown non-Error: JSON keeps an object readable, and returns undefined
+    // only for values with no JSON form (a function, a symbol).
+    parts.push(typeof current === "string" ? current : (JSON.stringify(current) ?? typeof current));
+    current = undefined;
   }
   return parts.join(" <- ");
 }
