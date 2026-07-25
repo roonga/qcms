@@ -7,6 +7,26 @@ set -euo pipefail
 
 log() { printf '\n[post-create] %s\n' "$1"; }
 
+# Steps 1-3 all reach the network, and under `set -e` a single registry hiccup
+# aborts the whole build, leaving a half-provisioned container that has to be
+# recreated by hand. Retry with backoff so a transient failure costs seconds
+# instead of a rebuild. Step 4 stays best-effort and is not routed through this.
+retry() { # $1 = description, rest = command to run
+  local what="$1"
+  shift
+  local attempt=1
+  local max=3
+  until "$@"; do
+    if [ "$attempt" -ge "$max" ]; then
+      echo "[post-create] $what failed after $max attempts" >&2
+      return 1
+    fi
+    echo "[post-create] $what failed (attempt $attempt/$max), retrying in $((attempt * 5))s" >&2
+    sleep "$((attempt * 5))"
+    attempt=$((attempt + 1))
+  done
+}
+
 # ---------------------------------------------------------------------------
 # 1. pnpm, at exactly the version pinned by package.json's `packageManager`.
 #    Corepack (not a global install) is what keeps the pin honest, and the
@@ -14,14 +34,14 @@ log() { printf '\n[post-create] %s\n' "$1"; }
 # ---------------------------------------------------------------------------
 log "activating pnpm via corepack"
 corepack enable
-corepack prepare --activate
+retry "corepack prepare" corepack prepare --activate
 pnpm --version
 
 # ---------------------------------------------------------------------------
 # 2. Workspace dependencies, frozen exactly like CI.
 # ---------------------------------------------------------------------------
 log "pnpm install --frozen-lockfile"
-pnpm install --frozen-lockfile
+retry "pnpm install" pnpm install --frozen-lockfile
 
 # ---------------------------------------------------------------------------
 # 3. Playwright's Chromium plus the OS libraries headless Chrome needs. This is
@@ -29,7 +49,7 @@ pnpm install --frozen-lockfile
 #    same binary through chrome-launcher.
 # ---------------------------------------------------------------------------
 log "playwright chromium + OS dependencies"
-pnpm exec playwright install --with-deps chromium
+retry "playwright install" pnpm exec playwright install --with-deps chromium
 
 # ---------------------------------------------------------------------------
 # 4. Shell polish: oh-my-zsh comes from the common-utils Feature; add the two
