@@ -41,11 +41,14 @@ export default defineConfig({
       // driven here by spawning them - ADR-23 keeps Vitest as the only runner
       // below the browser, so no bats or shunit2.
       //
-      // These files are run but NOT typechecked: covering them would mean a
-      // root tsconfig and hoisting @types/node to the root, which is more
-      // dependency surface than two shell-driving test files justify. Vitest
-      // transpiles without checking, and what they assert is process exit codes
-      // and stderr, so the risk a type error would catch is small.
+      // These files are run but neither typechecked nor linted. Typechecking
+      // them would mean a root tsconfig and hoisting @types/node to the root,
+      // which is more dependency surface than shell-driving test files justify;
+      // ESLint's project service does not pick up files outside packages/ and
+      // apps/, so the `no any` / `no as` rules are unenforced here too. Both
+      // gaps are deliberate: what these assert is process exit codes and stderr
+      // strings, so the risk either gate would catch is small. Revisit if this
+      // project ever grows tests with real type surface.
       {
         extends: true,
         test: {
