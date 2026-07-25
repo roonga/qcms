@@ -55,7 +55,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await testDb.teardown();
+  await testDb?.teardown();
 });
 
 describe("scenario 4: public-only + admin-only over one db/env", () => {

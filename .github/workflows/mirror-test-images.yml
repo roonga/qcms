@@ -1,0 +1,63 @@
+# Mirrors the container image the @qcms/db Testcontainers harness boots into this
+# repository owner's GitHub Container Registry namespace (issue #74).
+#
+# Why: anonymous Docker Hub pulls from shared GitHub runner IP ranges are
+# rate-limited and intermittently return HTTP 500, which failed every @qcms/db
+# test file twice in one day. GHCR pulls from Actions are same-host and unmetered.
+#
+# ONE-TIME MAINTAINER ACTION after the first run: GitHub creates the package
+# `<owner>/qcms/postgres` on first push, and a newly created container package is
+# NOT public. Set it to Public in the package settings. Pulls must work
+# unauthenticated: the harness deliberately forces anonymous pulls
+# (`DOCKER_AUTH_CONFIG={}`, see src/testing/docker-auth-config.ts) and forks have
+# no credentials for this namespace. Until that is done, CI logs a warning and
+# falls back to Docker Hub (see .github/actions/test-postgres-image), so the
+# suite stays green either way.
+name: Mirror test images
+
+on:
+  # Refresh weekly: `postgres:16-alpine` is a moving tag that picks up patch and
+  # base-image updates, and the mirror should not drift far behind it.
+  schedule:
+    - cron: "17 4 * * 1"
+  # For the first run, and for re-mirroring on demand after a tag change.
+  workflow_dispatch:
+
+# Least privilege: write to packages, read nothing else that matters.
+permissions:
+  contents: read
+  packages: write
+
+# A second copy of the same tag is pointless and races the first.
+concurrency:
+  group: mirror-test-images
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log in to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: printf '%s' "${GHCR_TOKEN}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      # `imagetools create` copies the whole multi-architecture manifest list
+      # registry-to-registry, without pulling the layers onto the runner first.
+      - name: Copy postgres:16-alpine to GHCR
+        env:
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          owner="$(printf '%s' "${REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          docker buildx imagetools create \
+            --tag "ghcr.io/${owner}/qcms/postgres:16-alpine" \
+            docker.io/library/postgres:16-alpine
+
+      - name: Show the mirrored manifest
+        env:
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          owner="$(printf '%s' "${REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          docker buildx imagetools inspect "ghcr.io/${owner}/qcms/postgres:16-alpine"

@@ -42,7 +42,7 @@ beforeAll(async () => {
 }, BOOT_TIMEOUT);
 
 afterAll(async () => {
-  await testDb.teardown();
+  await testDb?.teardown();
 }, BOOT_TIMEOUT);
 
 let seq = 0;

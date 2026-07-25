@@ -1,0 +1,58 @@
+name: Resolve test Postgres image
+description: >
+  Pre-pull the Postgres image the @qcms/db Testcontainers harness boots, from the
+  GHCR mirror when it is available, and export QCMS_TEST_POSTGRES_IMAGE for the
+  steps that follow. Every job that runs Testcontainers must use this (issue #74).
+
+inputs:
+  tag:
+    description: Image tag to resolve. Must stay on the Postgres major the migrations target.
+    required: false
+    default: "16-alpine"
+
+runs:
+  using: composite
+  steps:
+    # Why a pre-pull rather than only an env var: testcontainers-node pulls only
+    # when the image is absent locally (DefaultPullPolicy), so once this step has
+    # the image on the runner, the test run itself makes no registry call at all.
+    # That is what removes the Docker Hub dependency from test time.
+    #
+    # The mirror is namespaced to the owner of the repository running the
+    # workflow, so a fork with its own mirror uses it, and a pull request from a
+    # fork (which runs in the base repository's context) uses the upstream one.
+    # Docker Hub stays as the fallback: the mirror is an availability
+    # optimisation, never a new hard dependency, so a repository without one (a
+    # fresh fork) still runs the suite.
+    - name: Resolve and pre-pull the test Postgres image
+      shell: bash
+      env:
+        IMAGE_TAG: ${{ inputs.tag }}
+        REPOSITORY_OWNER: ${{ github.repository_owner }}
+      run: |
+        set -uo pipefail
+
+        upstream="postgres:${IMAGE_TAG}"
+        owner="$(printf '%s' "${REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+        mirror="ghcr.io/${owner}/qcms/postgres:${IMAGE_TAG}"
+
+        if docker pull --quiet "${mirror}"; then
+          echo "QCMS_TEST_POSTGRES_IMAGE=${mirror}" >> "${GITHUB_ENV}"
+          echo "Using the GHCR mirror: ${mirror}"
+          exit 0
+        fi
+
+        echo "::warning title=Test Postgres mirror unavailable::Could not pull ${mirror}; falling back to Docker Hub (${upstream}). Check that the mirror workflow has run and that the package is public."
+
+        for attempt in 1 2 3; do
+          if docker pull --quiet "${upstream}"; then
+            echo "QCMS_TEST_POSTGRES_IMAGE=${upstream}" >> "${GITHUB_ENV}"
+            echo "Using Docker Hub: ${upstream}"
+            exit 0
+          fi
+          echo "Docker Hub pull attempt ${attempt} of 3 failed."
+          sleep $((attempt * 10))
+        done
+
+        echo "::error title=Test Postgres image unavailable::Neither ${mirror} nor ${upstream} could be pulled. This is a container-registry failure, not a test failure."
+        exit 1

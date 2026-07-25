@@ -11,7 +11,7 @@ beforeAll(async () => {
 }, BOOT_TIMEOUT);
 
 afterAll(async () => {
-  await testDb.teardown();
+  await testDb?.teardown();
 }, BOOT_TIMEOUT);
 
 /** Seed a form + published form_version so sessions/answers have valid FKs. */

@@ -38,7 +38,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await testDb.teardown();
+  await testDb?.teardown();
 });
 
 describe("scenario 3: version pinning", () => {
