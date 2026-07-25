@@ -14,6 +14,7 @@ import {
   type FlowDelta,
   type FlowView,
 } from "@/lib/a11y";
+import { missingRequiredEntries } from "@/lib/error-summary";
 import { t } from "@/lib/i18n/en";
 import { buttonClass } from "@/lib/ui";
 import { documentForVisible } from "@/lib/visible";
@@ -373,6 +374,13 @@ export function StepFlow({
   const missing = showMissing
     ? snapshot.flowState.missingRequired.filter((q) => stepVisible.has(q))
     : [];
+  // Each entry names its own question, so the summary links have distinct
+  // accessible names (WCAG 3.3.1, issue #21). The label comes from the step
+  // document the portal already holds, never from a second request.
+  const missingEntries = missingRequiredEntries(
+    snapshot.step as unknown as A2UIStepDocument | null,
+    missing,
+  );
 
   // Announce step/branch changes and manage focus after each projection (030).
   // The SSR first paint needs neither (nothing changed yet), so the diff against
@@ -470,14 +478,14 @@ export function StepFlow({
               {t("errorSummary.title")}
             </p>
             <ul className="mt-2 flex flex-col gap-1">
-              {missing.map((questionId) => (
-                <li key={questionId}>
+              {missingEntries.map((entry) => (
+                <li key={entry.questionId}>
                   <a
-                    href={`#${questionId}`}
-                    onClick={focusMissingField(questionId)}
+                    href={`#${entry.questionId}`}
+                    onClick={focusMissingField(entry.questionId)}
                     className="text-sm text-(--color-danger-fg) underline"
                   >
-                    {t("errorSummary.missingRequired")}
+                    {entry.message}
                   </a>
                 </li>
               ))}

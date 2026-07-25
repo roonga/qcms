@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { A2UIStepDocument } from "@qcms/ui";
 
-import { documentForVisible } from "./visible";
+import { documentForVisible, questionLabels } from "./visible";
 
 /**
  * The portal renders only the questions the API's flow projection marks visible,
@@ -62,5 +62,36 @@ describe("documentForVisible", () => {
     const before = serialize(stepDoc);
     documentForVisible(stepDoc, ["q_at_fault_accident"]);
     expect(serialize(stepDoc)).toBe(before);
+  });
+});
+
+/**
+ * The label map behind the error summary's per-question wording (issue #21). It
+ * uses the same convention as the projection above: a node is a question iff it
+ * carries a string `name`, so an option (a Radio, labelled but unnamed) is never
+ * mistaken for a question.
+ */
+describe("questionLabels", () => {
+  it("maps every named question in the tree to its label", () => {
+    expect([...questionLabels(stepDoc)]).toEqual([
+      ["q_at_fault_accident", "Any at-fault accident in the last 3 years?"],
+      ["q_accident_count", "How many?"],
+    ]);
+  });
+
+  it("omits a named node with no usable label (e.g. the honeypot)", () => {
+    const doc = {
+      stepId: "stp_about",
+      root: {
+        type: "Form",
+        children: [
+          { type: "TextField", props: { name: "q_full_name", label: "Full name" } },
+          { type: "Honeypot", props: { name: "website", ariaHidden: true } },
+          { type: "TextField", props: { name: "q_blank", label: "   " } },
+        ],
+      },
+    } as unknown as A2UIStepDocument;
+
+    expect([...questionLabels(doc)]).toEqual([["q_full_name", "Full name"]]);
   });
 });

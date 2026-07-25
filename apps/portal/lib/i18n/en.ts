@@ -24,6 +24,15 @@ export const messages = {
   "entry.startHint": "This should take a few minutes. Your answers are saved as you go.",
 
   "errorSummary.title": "Please fix the following before continuing",
+  // Each error-summary entry names its own question, so the links have distinct
+  // accessible names and a screen-reader user can tell which field each one jumps
+  // to (WCAG 3.3.1, issue #21). The whole sentence is one template rather than a
+  // label concatenated with a message: word order and punctuation around the
+  // label are a translator's decision, not the component's.
+  "errorSummary.missingRequiredNamed": "{label} needs an answer.",
+  // Fallback for a missing-required question the step document carries no label
+  // for (defensively: a control the label walker does not reach, or a label that
+  // resolved blank). Unnamed but still readable, and never a broken sentence.
   "errorSummary.missingRequired": "This question needs an answer.",
   "answer.invalid": "That answer is not valid.",
   "flow.submitReady": "You have answered everything. Submit your responses when you are ready.",
