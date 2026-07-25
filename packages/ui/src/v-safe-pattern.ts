@@ -58,15 +58,42 @@ export function compilesUnderV(pattern: string): boolean {
   }
 }
 
+/** One rewritten source span: what to emit, and how many input characters it ate. */
+interface Rewrite {
+  readonly text: string;
+  readonly consumed: number;
+}
+
 /**
- * Escapes the character-class literals that `v` mode reserves, reading the source
- * with `u`-mode semantics (which is what the pattern was authored and validated
- * against). Every rewrite is a literal-to-escaped-literal substitution, so the
- * matched set is unchanged; a `-` is only escaped where `u` mode makes it
- * unambiguously a literal rather than a range operator (first element of the
- * class, or last before the closing `]`). Any other `-` is left alone, which
- * means an exotic mid-class dash falls through to omission rather than risking a
- * silent change of meaning.
+ * Re-spells one element of a character class (read with `u`-mode semantics) so that
+ * `v` mode accepts it unchanged in meaning. Every branch is a
+ * literal-to-escaped-literal substitution, so the matched set is identical.
+ *
+ * A `-` is escaped only where `u` mode makes it unambiguously a literal rather
+ * than a range operator: the class's first element, or the last before the closing
+ * `]`. Any other `-` is left as-is, so an exotic mid-class dash falls through to
+ * omission rather than risking a silent change of meaning.
+ */
+function rewriteClassElement(pattern: string, i: number, atClassStart: boolean): Rewrite {
+  const ch = pattern[i];
+  if (ch === "-") {
+    const isLiteral = atClassStart || pattern[i + 1] === "]";
+    return { text: isLiteral ? "\\-" : "-", consumed: 1 };
+  }
+  if (CLASS_SYNTAX_LITERALS.has(ch)) {
+    return { text: `\\${ch}`, consumed: 1 };
+  }
+  if (DOUBLE_PUNCTUATORS.has(ch) && pattern[i + 1] === ch) {
+    return { text: `\\${ch}\\${ch}`, consumed: 2 };
+  }
+  return { text: ch, consumed: 1 };
+}
+
+/**
+ * Walks the pattern with `u`-mode semantics, handing each character-class element
+ * to `rewriteClassElement`. Text outside a class is copied verbatim: `u` and `v`
+ * agree there, and the class grammar is the only place their literal spellings
+ * diverge.
  */
 function escapeVReservedInClasses(pattern: string): string {
   let out = "";
@@ -83,51 +110,24 @@ function escapeVReservedInClasses(pattern: string): string {
       out += pattern.slice(i, i + 2);
       i += 2;
       atClassStart = false;
-      continue;
-    }
-    if (!inClass) {
-      out += ch;
-      if (ch === "[") {
-        inClass = true;
-        atClassStart = true;
-        if (pattern[i + 1] === "^") {
-          // A negation caret is not an element; the first-element position is the
-          // character after it.
-          out += "^";
-          i += 1;
-        }
-      }
-      i += 1;
-      continue;
-    }
-    if (ch === "]") {
+    } else if (!inClass) {
+      // A negation caret is not an element, so the first-element position is the
+      // character after it.
+      const negated = ch === "[" && pattern[i + 1] === "^";
+      out += negated ? "[^" : ch;
+      i += negated ? 2 : 1;
+      inClass = ch === "[";
+      atClassStart = inClass;
+    } else if (ch === "]") {
       inClass = false;
       out += ch;
       i += 1;
-      continue;
-    }
-    if (ch === "-") {
-      const isLiteral = atClassStart || pattern[i + 1] === "]";
-      out += isLiteral ? "\\-" : "-";
-      i += 1;
+    } else {
+      const { text, consumed } = rewriteClassElement(pattern, i, atClassStart);
+      out += text;
+      i += consumed;
       atClassStart = false;
-      continue;
     }
-    if (CLASS_SYNTAX_LITERALS.has(ch)) {
-      out += `\\${ch}`;
-      i += 1;
-      atClassStart = false;
-      continue;
-    }
-    if (DOUBLE_PUNCTUATORS.has(ch) && pattern[i + 1] === ch) {
-      out += `\\${ch}\\${ch}`;
-      i += 2;
-      atClassStart = false;
-      continue;
-    }
-    out += ch;
-    i += 1;
-    atClassStart = false;
   }
   return out;
 }
