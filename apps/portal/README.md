@@ -20,7 +20,8 @@ open registration links, hydrating into the shared `@qcms/ui` renderer. Task 029
   never in client JS; secure in production (`lib/server/cookie-options.ts`). The
   client hydration talks to same-origin BFF proxy routes so the token never
   leaves the server.
-- **Security headers.** `middleware.ts` sets a per-request CSP with a nonce for
+- **Security headers.** `proxy.ts` (the Next 16 file convention that replaced
+  `middleware.ts`) sets a per-request CSP with a nonce for
   the inline theme script (never `'unsafe-inline'` for scripts). The Turnstile
   origin is admitted to the CSP ONLY when the challenge flag is on (SEC-9,
   `lib/server/csp.ts`). No CORS headers, ever (same-origin BFF).

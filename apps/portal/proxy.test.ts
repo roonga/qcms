@@ -1,10 +1,10 @@
 import { NextRequest } from "next/server";
 import { describe, expect, it } from "vitest";
 
-import { middleware } from "./middleware";
+import { proxy } from "./proxy";
 
 /**
- * The nonce contract at its source (SEC-9, issue #20). The middleware is the ONLY
+ * The nonce contract at its source (SEC-9, issue #20). The proxy is the ONLY
  * place a portal nonce is minted, and three properties make it a control rather
  * than decoration:
  *
@@ -20,9 +20,9 @@ import { middleware } from "./middleware";
  * `e2e/csp-nonce.pw.ts` proves the same chain end to end through a real browser.
  */
 
-function runMiddleware(): { requestNonce: string | null; csp: string } {
+function runProxy(): { requestNonce: string | null; csp: string } {
   const request = new NextRequest("https://portal.example/f/demo");
-  const response = middleware(request);
+  const response = proxy(request);
   return {
     // `NextResponse.next({ request: { headers } })` encodes the forwarded request
     // headers as an override header; read the nonce back through the same public
@@ -36,9 +36,9 @@ function cspNonce(csp: string): string | undefined {
   return /script-src [^;]*'nonce-([^']+)'/.exec(csp)?.[1];
 }
 
-describe("portal security-header middleware", () => {
+describe("portal security-header proxy", () => {
   it("forwards to SSR exactly the nonce its own CSP names", () => {
-    const { requestNonce, csp } = runMiddleware();
+    const { requestNonce, csp } = runProxy();
 
     expect(requestNonce).not.toBeNull();
     expect(requestNonce).not.toBe("");
@@ -48,7 +48,7 @@ describe("portal security-header middleware", () => {
   it("mints an unguessable nonce per request", () => {
     const seen = new Set<string>();
     for (let i = 0; i < 25; i += 1) {
-      const { requestNonce } = runMiddleware();
+      const { requestNonce } = runProxy();
       // 16 random bytes, base64: 24 characters, never repeated across requests.
       expect(requestNonce).toHaveLength(24);
       seen.add(requestNonce ?? "");
@@ -57,7 +57,7 @@ describe("portal security-header middleware", () => {
   });
 
   it("leaves the nonce as the only authorization for inline script", () => {
-    const scriptSrc = /script-src ([^;]*)/.exec(runMiddleware().csp)?.[1] ?? "";
+    const scriptSrc = /script-src ([^;]*)/.exec(runProxy().csp)?.[1] ?? "";
 
     expect(scriptSrc).toContain("'nonce-");
     expect(scriptSrc).not.toContain("'unsafe-inline'");

@@ -1,7 +1,7 @@
 /**
  * CSP nonce end to end (SEC-9, issue #20).
  *
- * The portal mints one nonce per request in `middleware.ts`, names it in the
+ * The portal mints one nonce per request in `proxy.ts`, names it in the
  * response `Content-Security-Policy`, and stamps it on the inline theme-bootstrap
  * script the root layout renders. This spec proves the whole chain against a real
  * browser, because a nonce that does not match its own CSP header is not a

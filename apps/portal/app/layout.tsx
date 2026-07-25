@@ -39,7 +39,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
     <html lang="en" className="light" suppressHydrationWarning>
       <head>
         {/* The per-request CSP nonce (SEC-9) reaches SSR on the `x-nonce` request
-            header the middleware sets, and it IS propagated: the served HTML
+            header `proxy.ts` sets, and it IS propagated: the served HTML
             stamps the real value and the RSC payload carries the same value, so
             React's server and client trees agree. Next does not nonce app-authored
             scripts for us (dropping this prop gets the script CSP-blocked), so the
