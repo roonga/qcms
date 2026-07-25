@@ -4,9 +4,9 @@
  * and each test automatically fails on:
  *
  * - **Browser errors (exit 3):** any `console.error`, uncaught `pageerror`, or
- *   React hydration warning in the page under test. This also surfaces the
- *   CSP-nonce hydration mismatch (finding A) - if it fires, the suite goes red
- *   until it is fixed or the specific line is allowlisted with justification.
+ *   React hydration warning in the page under test. If one fires, the suite goes
+ *   red until it is fixed at the source; an allowlist entry is a last resort and
+ *   needs the justification written inline next to it.
  * - **Server errors (exit 5):** any error-level line the API, Postgres, or the
  *   portal dev server wrote during the test. We are testing the API + DB through
  *   the flow, so their logs must be clean too.
@@ -31,8 +31,11 @@ export { expect };
  * Browser console/page messages that are benign and allowlisted. The gate is
  * strict by default; each entry below is a genuinely unavoidable dev-server
  * artifact or a pre-existing issue tracked outside task 045, justified inline.
- * The CSP-nonce hydration mismatch (finding A) is NOT here - it is fixed at the
- * source (layout.tsx suppresses the expected server/client nonce difference).
+ * Nothing about the CSP nonce is here and nothing about it may be added (issue
+ * #20): the nonce chain is asserted positively in `csp-nonce.pw.ts`, and the one
+ * spurious warning it would otherwise raise (browser nonce hiding blanks the
+ * `nonce` attribute React hydrates against) is handled at the source, on that
+ * single element, in `app/layout.tsx`.
  */
 const BROWSER_ALLOW: readonly RegExp[] = [
   // Dev-only: Next runs React's DEVELOPMENT build, which uses eval() for debug

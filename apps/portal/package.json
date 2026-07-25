@@ -11,7 +11,7 @@
     "start": "next start",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --root ../.. --project qcms-portal",
-    "lint": "eslint app components e2e lib middleware.ts next.config.ts postcss.config.mjs"
+    "lint": "eslint app components e2e lib middleware.ts middleware.test.ts next.config.ts postcss.config.mjs"
   },
   "dependencies": {
     "@qcms/ui": "workspace:*",
