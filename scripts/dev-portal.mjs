@@ -42,13 +42,30 @@ const DB_PORT = process.env.QCMS_DB_PORT ?? "7020";
 const DB_USER = process.env.QCMS_DB_USER ?? "qcms";
 const DB_PASSWORD = process.env.QCMS_DB_PASSWORD ?? "qcms";
 const DB_NAME = process.env.QCMS_DB_NAME ?? "qcms";
-// Where this process reaches the dev Postgres. On a host checkout that is
-// plain localhost. Inside the dev container it is not: `docker compose` there
-// talks to the mounted host socket (docker-outside-of-docker, ADR-29), so the
-// database starts as a SIBLING published on the host's loopback, and the
-// container's own localhost has nothing listening on 7020. The devcontainer
-// sets this to host.docker.internal - see .devcontainer/devcontainer.json.
-const DB_HOST = process.env.QCMS_DB_HOST ?? "localhost";
+// Where this process reaches the dev Postgres.
+//
+// On a host checkout that is plain localhost. Inside the dev container it is
+// not: `docker compose` there talks to the mounted host socket
+// (docker-outside-of-docker, ADR-29), so the database starts as a SIBLING
+// published on the host's loopback, and this container's own localhost has
+// nothing on 7020.
+//
+// The address that works is the default-route gateway. `host.docker.internal`
+// looks right and even accepts a TCP connection on Docker Desktop, but a real
+// Postgres session against it times out - so it is not used here, and a plain
+// TCP reachability check is not sufficient evidence for this path.
+function detectDbHost() {
+  if (process.env.QCMS_DB_HOST) return process.env.QCMS_DB_HOST;
+  if (!existsSync("/.dockerenv")) return "localhost";
+
+  const route = spawnSync("ip", ["route"], { encoding: "utf8" });
+  const gateway = route.stdout?.match(/default via (\S+)/)?.[1];
+  if (gateway) return gateway;
+
+  // No `ip` (or no default route): fall back and let the connection error say so.
+  return "host.docker.internal";
+}
+const DB_HOST = detectDbHost();
 const DATABASE_URL =
   process.env.DATABASE_URL ??
   `postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}`;
@@ -208,6 +225,21 @@ function composeUp() {
 
 async function loadDbToolkit() {
   const require = createRequire(pathToFileURL(join(REPO_ROOT, "packages/db/package.json")));
+
+  // This script consumes build output, not sources. A fresh checkout (or a
+  // fresh dev container, where post-create installs but does not build) has no
+  // dist/ yet, and the bare module-not-found that surfaces here names an
+  // internal path rather than the one thing the reader has to do.
+  const required = ["packages/db/dist/index.js", "packages/core/dist/index.js"];
+  const missing = required.filter((rel) => !existsSync(join(REPO_ROOT, rel)));
+  if (missing.length > 0) {
+    fail(
+      `the workspace is not built yet (missing ${missing.join(", ")}).\n` +
+        `  Run:  pnpm build\n` +
+        `  Then: pnpm dev:portal`,
+    );
+  }
+
   const db = await import(pathToFileURL(join(REPO_ROOT, "packages/db/dist/index.js")).href);
   const core = await import(pathToFileURL(join(REPO_ROOT, "packages/core/dist/index.js")).href);
   const { drizzle } = await import(

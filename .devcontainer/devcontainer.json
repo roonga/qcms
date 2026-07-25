@@ -95,13 +95,13 @@
     "COREPACK_ENABLE_DOWNLOAD_PROMPT": "0",
     // Keep Claude Code's config + credentials in the mounted ~/.claude, so a
     // container rebuild does not throw away the login.
-    "CLAUDE_CONFIG_DIR": "/home/vscode/.claude",
-    // `docker compose` in here talks to the host daemon, so the dev database
-    // starts as a sibling published on the HOST's loopback. This container's own
-    // localhost has nothing on 7020, so `pnpm dev:portal` must reach the host.
-    // Node resolves this to IPv4 via happy-eyeballs; the IPv6 record that
-    // host-gateway also publishes refuses connections here.
-    "QCMS_DB_HOST": "host.docker.internal"
+    "CLAUDE_CONFIG_DIR": "/home/vscode/.claude"
+    // QCMS_DB_HOST is deliberately NOT preset. `docker compose` in here talks to
+    // the host daemon, so the dev database is a sibling on the host and this
+    // container's localhost is wrong - but `host.docker.internal` is wrong too:
+    // it accepts a TCP connection and then times out on a real Postgres session.
+    // scripts/dev-portal.mjs detects the default-route gateway instead, which
+    // works on any bridge subnet. Set QCMS_DB_HOST to override.
   },
 
   // Secrets are provisioned at RUNTIME, never committed: `.env` (gitignored)

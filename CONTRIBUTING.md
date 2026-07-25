@@ -27,13 +27,13 @@ First start pulls the base image and runs `.devcontainer/post-create.sh` (corepa
 **What the container assumes:**
 
 - **Docker is the host's daemon**, mounted in (`docker-outside-of-docker`). Testcontainers (ADR-23) therefore starts *sibling* containers on the host, not children. ADR-29 records that trade-off explicitly. If a test cannot reach its container, set `TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal` (the container is started with `--add-host=host.docker.internal:host-gateway`, so that name always resolves).
-- **The dev database stays in `docker-compose.dev.yml`** and publishes on the *host*, so from inside the container reach it by name, not by localhost:
+- **The dev database stays in `docker-compose.dev.yml`** and publishes on the *host*, so from inside the container it is not on localhost. `pnpm dev:portal` works this out for itself, so there is nothing to set:
   ```sh
-  docker compose -f docker-compose.dev.yml up -d
-  DATABASE_URL=postgres://qcms:qcms@host.docker.internal:7020/qcms pnpm dev:portal
+  pnpm dev:portal
   ```
+  It brings the database up, then reaches it at the container's default-route gateway. Note that `host.docker.internal` is **not** the right address here despite looking like it: on Docker Desktop it accepts a TCP connection and then times out on a real Postgres session, which is why the script resolves the gateway instead. Override with `QCMS_DB_HOST` (or a full `DATABASE_URL`) if your setup differs.
 - **Dev servers listen on all interfaces** (`next dev` and the Hono `serve()` both bind `0.0.0.0` by default). The two ports the container actually serves, **7000 (portal) and 7010 (API)**, leave it two ways: `appPort` publishes them on the Docker host, which works under **any** launcher including a bare CLI `devcontainer up`, and `forwardPorts` adds the VS Code / Codespaces editor tunnel with the labels. So `http://localhost:7000` in your *host* browser hits the portal on either route (measured: `200` from the host with the portal running under a CLI-launched container). If you launch the container by hand with plain `docker run`, publish those ports yourself (`-p 7000:7000 -p 7010:7010`).
-- **7020 is the host's, not the container's.** The dev Postgres runs on the host under `docker-compose.dev.yml`, which publishes 7020 itself. The container never binds it (that would make one of the two fail to start, whichever came second); it reaches the database at `host.docker.internal:7020` as shown above.
+- **7020 is the host's, not the container's.** The dev Postgres runs on the host under `docker-compose.dev.yml`, which publishes 7020 itself. The container never binds it (that would make one of the two fail to start, whichever came second); it reaches the database over the host gateway on 7020, as described above.
 - **The `a2-react-aria` sibling repo** (ADR-22) is bind-mounted at `/workspaces/a2-react-aria` from `../a2-react-aria` on the host. Clone it next to `qcms` if you work on the UI packages; if it is absent the directory is created empty and the container still starts.
 - **Secrets are provisioned at runtime, never committed.** `.env` (gitignored) arrives with the workspace mount, `gh auth login` runs inside the container, and `~/.claude` is mounted from the host. `.env.example` remains the only committed env file, and no secret value appears anywhere in `.devcontainer/`.
 
@@ -55,7 +55,9 @@ Everything the dev environment runs is named and grouped, so `docker ps` reads a
 
 Both carry the `qcms-dev` compose project, and the database keeps that name whatever your checkout folder is called. Testcontainers still spawns its own short-lived containers with generated names - those are ephemeral and belong to the test run, not the dev stack.
 
-**`pnpm dev:portal` inside the container.** `docker compose` in here talks to the host daemon, so the database starts as a sibling published on the *host's* loopback, and this container's `localhost:7020` has nothing on it. `QCMS_DB_HOST` is preset to `host.docker.internal` in `devcontainer.json` so the script reaches it. On a host checkout the variable is unset and the default stays plain `localhost`, so nothing changes there.
+**`pnpm dev:portal` inside the container.** `docker compose` in here talks to the host daemon, so the database starts as a sibling published on the *host's* loopback, and this container's `localhost:7020` has nothing on it. The script detects this (it checks for `/.dockerenv`) and connects over the default-route gateway instead. On a host checkout it uses plain `localhost`, unchanged. `QCMS_DB_HOST` overrides both.
+
+Do not "fix" this by setting `QCMS_DB_HOST=host.docker.internal`: that address accepts a TCP connection on Docker Desktop and then times out on a real Postgres session, so a reachability check passes while the app still fails. It was measured wrong once already.
 
 The practical rule: **one container machine-wide, and one side per checkout at a time.** A second checkout is fine for editing, but its container will not start while another holds the ports. Alternating host and container pnpm in the same directory is supported but costs a re-`install` each way; if you switch often, keep a second `git worktree` for the host side.
 
