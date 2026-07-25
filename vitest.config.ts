@@ -8,6 +8,9 @@ import { defineConfig } from "vitest/config";
 // cwd = apps/api) - it would look for apps/api/apps/api and find nothing.
 const API_ROOT = fileURLToPath(new URL("apps/api", import.meta.url));
 
+// Repo root, resolved from this file for the same reason API_ROOT is.
+const REPO_ROOT = fileURLToPath(new URL(".", import.meta.url));
+
 // Single root Vitest configuration - every package and app is a project here;
 // no per-package runners or configs. (Vitest 4 removed vitest.workspace.ts;
 // test.projects is its replacement - task 001.)
@@ -31,6 +34,18 @@ export default defineConfig({
           // suite room for image pull + boot on a cold CI runner.
           testTimeout: 120_000,
           hookTimeout: 120_000,
+        },
+      },
+      // Repo tooling that is neither a package nor an app: the dev container's
+      // provisioning helpers and the loop supervisor (task 046). Both are shell,
+      // driven here by spawning them - ADR-23 keeps Vitest as the only runner
+      // below the browser, so no bats or shunit2.
+      {
+        extends: true,
+        test: {
+          name: "tooling",
+          root: REPO_ROOT,
+          include: ["scripts/**/*.test.ts", ".devcontainer/**/*.test.ts"],
         },
       },
     ],

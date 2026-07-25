@@ -1,0 +1,15 @@
+{
+  // Repo tooling tests (task 046) live outside packages/ and apps/, so no
+  // package tsconfig covers them and `turbo run typecheck` would skip them
+  // entirely. This config exists purely so the merge gate typechecks them
+  // alongside everything else - it emits nothing.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "types": ["node"]
+  },
+  "include": ["scripts/**/*.test.ts", ".devcontainer/**/*.test.ts"]
+}

@@ -7,25 +7,11 @@ set -euo pipefail
 
 log() { printf '\n[post-create] %s\n' "$1"; }
 
-# Steps 1-3 all reach the network, and under `set -e` a single registry hiccup
-# aborts the whole build, leaving a half-provisioned container that has to be
-# recreated by hand. Retry with backoff so a transient failure costs seconds
-# instead of a rebuild. Step 4 stays best-effort and is not routed through this.
-retry() { # $1 = description, rest = command to run
-  local what="$1"
-  shift
-  local attempt=1
-  local max=3
-  until "$@"; do
-    if [ "$attempt" -ge "$max" ]; then
-      echo "[post-create] $what failed after $max attempts" >&2
-      return 1
-    fi
-    echo "[post-create] $what failed (attempt $attempt/$max), retrying in $((attempt * 5))s" >&2
-    sleep "$((attempt * 5))"
-    attempt=$((attempt + 1))
-  done
-}
+# Steps 1-3 all reach the network; `retry` keeps a transient registry failure
+# from aborting the whole build. Step 4 stays best-effort and is not routed
+# through it. Lives in lib.sh so the behaviour is testable (lib.test.ts).
+# shellcheck source=.devcontainer/lib.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 # ---------------------------------------------------------------------------
 # 1. pnpm, at exactly the version pinned by package.json's `packageManager`.
