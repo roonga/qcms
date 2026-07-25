@@ -225,6 +225,25 @@ The token contract has **four groups**: color (`--color-*`), typography (`--font
 
 **Consequences.** Extends the `@qcms/ui` token contract (theme.css) and requires components to consume spacing/radius and honor the HC border treatment. The theme-palette design pass supplies the concrete predefined themes (`tokens.css` + showcase). Implemented by **task 047** (launch tier); the save-custom-theme admin UI is Phase-4. The `adopter-theme.css` override point remains for deployment-level custom values.
 
+### ADR-31 - Answer commitment semantics and conditional reveal cadence
+
+**Decision.** Adopt **answer commitment** as a first-class runtime concept (Code Owner, 2026-07-25; decision brief `plan/conditional-flow-decision.md`). The kernel already supports question-level visibility (`VisibilityRule.show` targets QuestionIds and StepIds) and stays untouched; this ADR fixes *when the portal posts an answer and when the UI applies the server's re-evaluation*, which today differs per control type by accident (booleans/checkboxes post on change and reveal immediately; singleChoice/date/longText post on blur and reveal late - issue #31). The contract:
+
+| Control | Commit moment | Same-step reveal on commit |
+| --- | --- | --- |
+| boolean | on change | yes |
+| singleChoice (radio or select) | on change | yes |
+| date | on completion (all segments filled) | yes |
+| number | on blur | yes |
+| longText | on blur | yes |
+| multiChoice | on group exit (focus leaves the group) | yes, at commit |
+
+The server remains the only rule evaluator (R2); commitment governs client posting cadence only. Additionally, `compileDraft` emits a **warning** (not a refusal) when a rule whose conditions read a multiChoice answer targets a same-step QuestionId, steering multiChoice-gated content to the next step where Continue is the natural commit; escalation to refusal stays open as an additive future change.
+
+**Why.** A multi-select has no natural commit moment, so per-toggle gating produces mid-interaction churn (`contains` flipping as the respondent decides), threshold flapping (`count >= 2` around the boundary), and retained-answer re-reveals - all constructible with the shipped DSL, all accessibility liabilities for the 030 manual pass. Defining commitment per control type legitimizes the immediate reveal users already get for discrete choices, fixes #31 as a consequence of a principle rather than a one-off patch, and gives multiChoice a defined moment instead of per-toggle round-trips. The compile-time warning converts the one pattern no posting semantics can make pleasant into guided authoring.
+
+**Consequences.** Issue #31 is re-scoped to implement this table (portal adapter posting cadence; no kernel change; ADR-28 navigation untouched). Issue #23's auto-advance uses the same classification: auto-advance is only coherent for on-change-commit controls. Retained answers on re-reveal are **kept and documented** as author-facing behavior (append-only is correct; clearing on hide would touch R3/ADR-17 semantics and is rejected); the admin form builder (task 033) surfaces the multiChoice same-step warning inline with the other `PublishError[]` diagnostics. The golden corpus is unaffected: a warning adds no compiled-output change.
+
 ## 7. Constraints
 
 - **Team:** one developer, part-time to full-time, using agentic AI workflows for leverage. Every stage must land a meaningful, testable increment; exit criteria gate stages, not dates.
