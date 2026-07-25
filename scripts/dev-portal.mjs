@@ -191,7 +191,19 @@ function composeUp() {
       QCMS_DB_NAME: DB_NAME,
     },
   });
-  if (res.status !== 0) fail("docker compose up failed (is Docker running?)");
+  if (res.status !== 0) {
+    // Compose has already printed the real reason above. Guessing "is Docker
+    // running?" sends people to check a daemon that is plainly running, so name
+    // the cause that actually accounts for most of these instead.
+    fail(
+      `docker compose up failed (exit ${res.status}). See the compose error above.\n` +
+        `  If it says port ${DB_PORT} is already allocated, something else already has the dev database:\n` +
+        `    docker ps -a --filter publish=${DB_PORT}\n` +
+        `    docker rm -f <name>\n` +
+        `  A container from an older checkout (pre-rename it was "qcms-postgres-1") is the usual culprit.\n` +
+        `  Otherwise check that Docker is running.`,
+    );
+  }
 }
 
 async function loadDbToolkit() {
