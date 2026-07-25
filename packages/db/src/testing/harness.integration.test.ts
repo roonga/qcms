@@ -21,8 +21,6 @@
  * the client as an error), and it fails if the redundant statements come back.
  */
 
-import type { Readable } from "node:stream";
-
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -48,7 +46,7 @@ let serverLog = "";
 
 beforeAll(async () => {
   testDb = await startTestDb();
-  const logs = (await testDb.container.logs()) as Readable;
+  const logs = await testDb.container.logs();
   logs.on("data", (chunk: Buffer | string) => {
     serverLog += chunk.toString();
   });
