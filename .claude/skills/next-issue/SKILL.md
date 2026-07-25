@@ -1,0 +1,29 @@
+---
+name: next-issue
+description: Pick the next actionable open GitHub issue and fix it end to end with the multi-agent flow - task-executor implements on fix/NN-slug, task-reviewer verifies, squash-merge auto-closes the issue. Designed for "/loop /next-issue". Skips phase-4, needs-ADR, and task-folded issues; stops at human gates.
+---
+
+Select and fix exactly one open GitHub issue per invocation; /loop provides the repetition. You coordinate; the subagents do the work. The issue text stands in for the task file; everything else mirrors the /task flow.
+
+**Housekeeping first (same sweep as /next-task).** `git worktree prune`, then `rm -rf` any `.claude/worktrees/agent-*` directory that does not appear in `git worktree list`. Never remove a dir that IS a live registered worktree. If the shared checkout's working tree is dirty, stop and report instead of stashing someone's work.
+
+1. **Select.** `gh issue list -R roonga/qcms --state open --json number,title,labels,body`. Exclude:
+   - Labels `phase-4`, `wontfix`, `duplicate`, `invalid`, `question` (post-launch backlog and non-work).
+   - Issues that need an ADR or a Code Owner decision before code can be written (title/body says "needs ADR", or the issue poses an open product question). These are awaiting-human, not executable.
+   - Issues a `todo` or `in-progress` ledger task already folds in - grep `docs/features/*.md` for `#NN` (e.g. "folds #25"); the task will deliver them, do not race it.
+   - Claimed issues: an origin branch `fix/NN-*` exists, or the issue carries a claim comment (step 3) with no later release comment.
+
+   Priority among the rest: `security` first, then `bug`, then unlabeled, then `enhancement`. Ties break to the smaller, better-specified issue (clear repro plus acceptance criteria beats vague). If nothing is eligible, report why in one line per skipped issue and emit the NOTHING sentinel - under /loop, end the loop; do not idle.
+2. **Stale-claim recovery (before fresh selection).** A claimed issue with no live session owning it resumes before anything new starts:
+   - `fix/NN-*` branch with a committed `HANDOFF.md` at its tip - dispatch the executor with the handoff.
+   - Branch, no `HANDOFF.md` - dispatch the executor with: "issue #NN was interrupted; reconstruct state from `git log`/`git diff main...<branch>` and the issue, then continue on this branch." Remove any leftover worktree for it first.
+   - Claim comment, no branch - the claim is vapor; reply on the issue releasing it, then treat the issue as fresh.
+3. **Claim.** Comment on the issue before spawning anything: `Claimed by the dev loop - branch fix/NN-slug.` The comment is the claim lock (issues have no ledger row); anyone selecting work treats a claim comment without a release reply as taken.
+4. **Execute.** Write the executor a work order distilled from the issue: number, title, URL, full body, deliverables (the fix, tests at the layer ADR-23 assigns, and any doc the fix touches), and an explicit out-of-scope line (anything the issue does not name; discoveries become new issues, never scope growth). Spawn **task-executor** (worktree isolation) on `fix/NN-slug`. The executor's protocol applies with the work order standing in for the task file; ledger dependency checks do not apply.
+5. **Human gates - never automate.** A fix that changes visible portal/admin UI stops at the static-render screenshot gate for Code Owner sign-off, exactly like a UI task. A fix that alters SEC-* behavior (scopes, tokens, CSP, erasure) lands only with the issue's acceptance criteria proven by tests; if acceptance is ambiguous, stop and surface the question instead of choosing.
+6. **Review.** Spawn **task-reviewer** with the branch and the same work order (the issue's acceptance criteria are the exit criteria). On REJECT, relay findings to the executor (SendMessage) - at most two fix cycles, then park with `HANDOFF.md` and report. On APPROVE, continue.
+7. **Land (serialized - one merge at a time, ever).** As /task step 6: rebase onto current `main` (never `git reset --hard origin/<branch>` an executor branch), re-run `pnpm build && pnpm typecheck && pnpm test && pnpm lint` at root after the rebase, force-run Docker-backed suites (`turbo run test --filter=<pkg> --force`) when the fix touched db/integration/e2e. Two differences from /task: the squash-merge commit body contains `Fixes #NN` so GitHub closes the issue on push, and there is no ledger row to update. Push main (plain push, never force).
+8. **Retro and cleanup.** Append executor and reviewer `FRICTION:` lines (skip `none`) to `docs/RETRO.md` under `## issue #NN - <title>` with today's date, in the landing commit. Remove the executor's worktree (`git worktree remove --force`, then prune) and delete the merged `fix/NN-slug` branch. On abandonment, comment the honest state on the issue - parked branch plus `HANDOFF.md`, or the blocking reason - never leave a claim comment that reads as active work.
+9. **Sentinel.** End with a one-line human summary and, as the very last output line, exactly one machine-readable sentinel: `NEXT-ISSUE: LANDED #NN` / `NEXT-ISSUE: RESUMED #NN` / `NEXT-ISSUE: AWAITING-HUMAN <what the human must do>` / `NEXT-ISSUE: BLOCKED #NN <reason>` / `NEXT-ISSUE: NOTHING`.
+
+Never: merge red, skip the reviewer, widen an issue's scope, batch multiple issues onto one branch, or perform a human sign-off on the Code Owner's behalf. Branch prefix is always `fix/` - issue numbers share the numeric space with ledger task numbers, and `feat/NNN-*` is reserved for tasks.
