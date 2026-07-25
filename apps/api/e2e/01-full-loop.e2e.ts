@@ -72,7 +72,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await receiver.stop();
-  await testDb.teardown();
+  await testDb?.teardown();
 });
 
 const FORM_ID = "frm_auto_quote";

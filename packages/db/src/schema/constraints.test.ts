@@ -11,7 +11,7 @@ beforeAll(async () => {
 }, BOOT_TIMEOUT);
 
 afterAll(async () => {
-  await testDb.teardown();
+  await testDb?.teardown();
 }, BOOT_TIMEOUT);
 
 describe("form_drafts enforces at most one open draft per form", () => {

@@ -50,7 +50,7 @@ describe("@qcms/db migrations", () => {
     }, BOOT_TIMEOUT);
 
     afterEach(async () => {
-      await testDb.teardown();
+      await testDb?.teardown();
     }, BOOT_TIMEOUT);
 
     it("creates every table on an empty database", async () => {
@@ -77,7 +77,7 @@ describe("@qcms/db migrations", () => {
     }, BOOT_TIMEOUT);
 
     afterEach(async () => {
-      await testDb.teardown();
+      await testDb?.teardown();
     }, BOOT_TIMEOUT);
 
     it("applies 0000 (tables), then 0001 (triggers), each taking effect in turn", async () => {

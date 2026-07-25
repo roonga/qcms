@@ -30,7 +30,7 @@ beforeAll(async () => {
 }, BOOT_TIMEOUT);
 
 afterAll(async () => {
-  await testDb.teardown();
+  await testDb?.teardown();
 }, BOOT_TIMEOUT);
 
 const emptyDef = {} as unknown as FormDefinition;

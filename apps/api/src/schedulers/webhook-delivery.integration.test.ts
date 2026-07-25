@@ -142,7 +142,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await receiver.close();
-  await testDb.teardown();
+  await testDb?.teardown();
 }, BOOT_TIMEOUT);
 
 /** Seed a form + published version, and one active webhook per given path. */

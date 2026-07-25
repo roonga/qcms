@@ -44,7 +44,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await testDb.teardown();
+  await testDb?.teardown();
 });
 
 function shortText(id: string, label: string): Record<string, unknown> {

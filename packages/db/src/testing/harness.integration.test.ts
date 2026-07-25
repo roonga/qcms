@@ -19,6 +19,10 @@
  * distinct backends, and the container's server log must carry neither warning.
  * The log assertion is the honest one for this symptom (the WARNING never reaches
  * the client as an error), and it fails if the redundant statements come back.
+ *
+ * The final describe block covers a second harness contract (issue #74): a
+ * container image that cannot be pulled must be reported as a registry failure
+ * naming the image, not as Docker's opaque HTTP error.
  */
 
 import { sql } from "drizzle-orm";
@@ -54,7 +58,7 @@ beforeAll(async () => {
 }, BOOT_TIMEOUT);
 
 afterAll(async () => {
-  await testDb.teardown();
+  await testDb?.teardown();
 }, BOOT_TIMEOUT);
 
 /**
@@ -116,5 +120,50 @@ describe("startTestDb transaction handling (issue #30)", () => {
     // Whoever wins, the loser cannot enter before the winner has left.
     expect(order).toHaveLength(4);
     expect(order[1]).toBe(`${order[0]!.split(":")[0]!}:out`);
+  }, 60_000);
+});
+
+/**
+ * A reference no registry can serve: port 1 on loopback refuses the connection
+ * immediately, so the assertion never depends on a real registry's wording, on
+ * network access, or on a slow timeout. The failure the harness must dress up is
+ * the same class Docker Hub produced in CI (HTTP 500 from the registry).
+ */
+const UNPULLABLE_IMAGE = "localhost:1/qcms-no-such-image:16-alpine";
+
+/** Resolve to the error `startTestDb` threw, or undefined if it did not throw. */
+async function captureStartFailure(image: string): Promise<Error | undefined> {
+  try {
+    const started = await startTestDb({ image, migrate: false });
+    await started.teardown();
+    return undefined;
+  } catch (error) {
+    return error as Error;
+  }
+}
+
+describe("startTestDb image-pull failure reporting (issue #74)", () => {
+  it("reports the registry failure and the image instead of Docker's opaque error", async () => {
+    const failure = await captureStartFailure(UNPULLABLE_IMAGE);
+
+    expect(failure).toBeInstanceOf(Error);
+    // Everything a reader needs to diagnose a CI-side registry outage: what
+    // failed, which image, and the knob that redirects it at a mirror.
+    expect(failure?.message).toContain("Could not PULL the test Postgres image");
+    expect(failure?.message).toContain(UNPULLABLE_IMAGE);
+    expect(failure?.message).toContain("QCMS_TEST_POSTGRES_IMAGE");
+    // The underlying Docker error is preserved rather than swallowed.
+    expect(failure?.message).toMatch(/cause:.+localhost:1/s);
+    expect(failure?.cause).toBeDefined();
+  }, 60_000);
+
+  it("fails the next attempt immediately rather than waiting on the registry again", async () => {
+    // The image already failed in the test above (same worker process), so this
+    // call must short-circuit: in CI that saves every later test file another
+    // pull timeout against a registry known to be unusable.
+    const failure = await captureStartFailure(UNPULLABLE_IMAGE);
+
+    expect(failure?.message).toContain("not retried");
+    expect(failure?.message).toContain(UNPULLABLE_IMAGE);
   }, 60_000);
 });

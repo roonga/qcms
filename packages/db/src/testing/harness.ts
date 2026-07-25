@@ -15,10 +15,31 @@ import * as schema from "../schema/index.js";
 const { Client, Pool } = pg;
 
 /**
- * The Postgres image the harness boots. Pinned to the same major the compose
- * dev stack uses; `-alpine` keeps pulls small and is cached across runs.
+ * The Postgres image the harness boots when nothing overrides it. Pinned to the
+ * same major the compose dev stack uses; `-alpine` keeps pulls small and is
+ * cached across runs. A contributor on a laptop needs nothing else: this is a
+ * public Docker Hub image and the pull is anonymous.
  */
-export const TEST_POSTGRES_IMAGE = "postgres:16-alpine";
+export const DEFAULT_TEST_POSTGRES_IMAGE = "postgres:16-alpine";
+
+/**
+ * The Postgres image the harness boots, resolved once at module load.
+ *
+ * `QCMS_TEST_POSTGRES_IMAGE` overrides the default with any other reference of
+ * the same Postgres major (issue #74). CI points it at a GHCR mirror of the same
+ * image, because anonymous Docker Hub pulls from shared GitHub runner IP ranges
+ * are rate-limited and intermittently return HTTP 500, which failed the whole
+ * `@qcms/db` suite twice in one day. Read at module load rather than per call so
+ * every container in a run boots the same image; set it in the environment
+ * before the test process starts.
+ */
+export const TEST_POSTGRES_IMAGE = resolveConfiguredImage() ?? DEFAULT_TEST_POSTGRES_IMAGE;
+
+/** The configured override, or undefined when unset or blank. */
+function resolveConfiguredImage(): string | undefined {
+  const configured = process.env.QCMS_TEST_POSTGRES_IMAGE?.trim();
+  return configured === undefined || configured.length === 0 ? undefined : configured;
+}
 
 /** Absolute path to the package-owned migrations folder. */
 export const MIGRATIONS_DIR = fileURLToPath(new URL("../../migrations", import.meta.url));
@@ -51,6 +72,94 @@ export interface TestDb {
 interface StartOptions {
   /** Run the full migration set after connecting (default true). */
   readonly migrate?: boolean;
+  /**
+   * Boot a different image than {@link TEST_POSTGRES_IMAGE}. Exists so the
+   * harness's own tests can exercise the unpullable-image path; production test
+   * suites should leave it unset and use `QCMS_TEST_POSTGRES_IMAGE` instead, so
+   * every container in a run boots the same image.
+   */
+  readonly image?: string;
+}
+
+/**
+ * Substrings that mark a container-start failure as an image-pull failure rather
+ * than a Postgres or Docker-daemon problem. Matched case-insensitively against
+ * the whole error chain. Docker surfaces registry trouble as an opaque
+ * `(HTTP code 500) server error - Get "https://registry-1.docker.io/v2/": ...`,
+ * so the HTTP-code shape has to be part of the signal.
+ */
+const PULL_FAILURE_MARKERS: readonly RegExp[] = [
+  /\bpull\b/i,
+  /\bregistry\b/i,
+  /\bmanifest\b/i,
+  /toomanyrequests/i,
+  /\b(unauthorized|denied|forbidden)\b/i,
+  /no such image/i,
+  /HTTP code 5\d\d/i,
+  /connection refused/i,
+  /context deadline exceeded/i,
+];
+
+/**
+ * Images whose pull has already failed in this worker process, with the message
+ * to replay. A registry that cannot serve the image for one test file cannot
+ * serve it for the next, and every file that tries costs another pull timeout,
+ * so the second and later attempts fail immediately (issue #74). Keyed by image
+ * reference: a deliberately unpullable reference in one test never poisons the
+ * real one.
+ */
+const unpullableImages = new Map<string, string>();
+
+/** Flatten an error and its `cause` chain into one searchable string. */
+function describeCause(error: unknown): string {
+  const parts: string[] = [];
+  let current: unknown = error;
+  for (let depth = 0; current !== undefined && current !== null && depth < 5; depth += 1) {
+    parts.push(current instanceof Error ? `${current.name}: ${current.message}` : String(current));
+    current = current instanceof Error ? current.cause : undefined;
+  }
+  return parts.join(" <- ");
+}
+
+/**
+ * Start the container, converting a failure into an error that names the image
+ * and the registry problem.
+ *
+ * Without this, a pull failure throws Docker's opaque HTTP error from inside
+ * `beforeAll`, the caller's `TestDb` is never assigned, and every `afterAll`
+ * then throws `Cannot read properties of undefined (reading 'teardown')` - the
+ * shape observed in CI, where 21 of the 24 reported errors were that cascade and
+ * only 3 carried the actual cause (issue #74).
+ */
+async function startContainer(image: string): Promise<StartedPostgreSqlContainer> {
+  const alreadyFailed = unpullableImages.get(image);
+  if (alreadyFailed !== undefined) {
+    throw new Error(`${alreadyFailed}\n  note: not retried (this image already failed to pull)`);
+  }
+
+  try {
+    return await new PostgreSqlContainer(image).start();
+  } catch (cause) {
+    const detail = describeCause(cause);
+    const isPullFailure = PULL_FAILURE_MARKERS.some((marker) => marker.test(detail));
+    const message = [
+      isPullFailure
+        ? "Could not PULL the test Postgres image - the container registry failed, not Postgres."
+        : "Could not START the test Postgres container.",
+      `  image:  ${image}`,
+      `  source: ${image === TEST_POSTGRES_IMAGE ? "TEST_POSTGRES_IMAGE" : "startTestDb({ image })"}${
+        image === DEFAULT_TEST_POSTGRES_IMAGE ? " (default)" : ""
+      }`,
+      `  cause:  ${detail}`,
+      isPullFailure
+        ? "  fix:    check the registry is reachable and the tag exists, or set QCMS_TEST_POSTGRES_IMAGE" +
+          ` to a mirror of the same image (default: ${DEFAULT_TEST_POSTGRES_IMAGE}).`
+        : "  fix:    check that a Docker daemon is running and reachable.",
+    ].join("\n");
+
+    if (isPullFailure) unpullableImages.set(image, message);
+    throw new Error(message, { cause });
+  }
 }
 
 /**
@@ -76,9 +185,7 @@ interface StartOptions {
  * under test as it does in production.
  */
 export async function startTestDb(options: StartOptions = {}): Promise<TestDb> {
-  const container: StartedPostgreSqlContainer = await new PostgreSqlContainer(
-    TEST_POSTGRES_IMAGE,
-  ).start();
+  const container = await startContainer(options.image ?? TEST_POSTGRES_IMAGE);
 
   const connectionUri = container.getConnectionUri();
   const client = new Client({ connectionString: connectionUri });
