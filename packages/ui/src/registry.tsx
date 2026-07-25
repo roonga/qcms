@@ -30,6 +30,7 @@ import { useQcmsField, useQcmsNativeSubmit } from "./field-context.tsx";
 import { Honeypot } from "./honeypot/Honeypot.tsx";
 import { HoneypotSchema } from "./honeypot/honeypot.schema.ts";
 import { NATIVE_FIELD_KIND_PREFIX, type NativeFieldKind } from "./native-submit.ts";
+import { toVSafePattern } from "./v-safe-pattern.ts";
 
 /**
  * Controlled qcms adapters over the vendored a2-react-aria controls. The a2ra
@@ -116,6 +117,12 @@ function TextFieldField(props: Readonly<TextFieldProps>) {
     <FieldBlur name={props.name} onBlur={field.blur}>
       <TextField
         {...props}
+        // Browsers compile the HTML `pattern` attribute with the `v` flag, which
+        // rejects class-literal spellings that `u` (what the pattern was authored
+        // and validated against) accepts. Normalize where that is provably
+        // semantics-preserving, otherwise drop the hint - the API is the
+        // validation authority (R2). See `v-safe-pattern.ts` (issue #29).
+        pattern={toVSafePattern(props.pattern)}
         {...modeProps}
         isInvalid={field.error != null}
         errorMessage={field.error}
