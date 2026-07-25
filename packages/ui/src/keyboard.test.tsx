@@ -20,7 +20,18 @@ if (!kitchen) throw new Error("kitchen-sink v2 golden not found");
 const stepHealth = kitchen.compiled.documents.find((d) => d.stepId === "stp_history");
 if (!stepHealth) throw new Error("stp_history not found");
 
-describe("kitchen-sink keyboard walkthrough", () => {
+// Every test here drives real `userEvent` interaction through react-aria in
+// jsdom, which is CPU-bound work: each simulated key dispatches a full event
+// sequence and react-aria re-renders the RadioGroup/CheckboxGroup on every one.
+// Measured on a starved runner (one core, ~26 competing processes) the three
+// tests take 4.2s, 5.9s and 10.0s - all past Vitest's 5000ms default, which is
+// how issue #61's flake appeared under CI load while a warm machine runs the
+// file in 1.5s. There is nothing timing-sensitive to restructure: the cost is
+// arithmetic, not an awaited delay (`userEvent.setup({ delay: null })` was
+// measured and changed nothing), so the honest fix is room to finish. 30s is
+// ~2.3x the worst starved observation and well under the 120s the Testcontainer
+// e2e project takes for the same reason (see the root vitest.config.ts).
+describe("kitchen-sink keyboard walkthrough", { timeout: 30_000 }, () => {
   it("Tab visits every control in document order and never the honeypot", async () => {
     const user = userEvent.setup();
     const { container } = render(<ControlledHost document={stepHealth} />);

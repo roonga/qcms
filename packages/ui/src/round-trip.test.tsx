@@ -71,108 +71,117 @@ const selectStep: A2UIStepDocument = {
   },
 };
 
-describe("controlled value round-trip → canonical AnswerValue (task 002 schemas)", () => {
-  it("shortText (TextField) emits an NFC string", async () => {
-    const user = userEvent.setup();
-    const changes = useChanges();
-    render(<ControlledHost document={stepAbout} onChange={changes.onChange} />);
-    await user.type(screen.getByRole("textbox", { name: /Full name/ }), "Ada Lovelace");
-    expect(parseTextAnswerValue(changes.latest("q_full_name"))).toEqual({
-      ok: true,
-      value: "Ada Lovelace",
+// Same load exposure, same reason as keyboard.test.tsx (issue #61): these tests
+// type into react-aria controls with `userEvent` in jsdom, and on the same
+// starved runner five of the eight run past Vitest's 5000ms default (worst 9.7s)
+// purely because the CPU share shrank. Timeout kept identical to keyboard.test's
+// so the two files share one justification.
+describe(
+  "controlled value round-trip → canonical AnswerValue (task 002 schemas)",
+  { timeout: 30_000 },
+  () => {
+    it("shortText (TextField) emits an NFC string", async () => {
+      const user = userEvent.setup();
+      const changes = useChanges();
+      render(<ControlledHost document={stepAbout} onChange={changes.onChange} />);
+      await user.type(screen.getByRole("textbox", { name: /Full name/ }), "Ada Lovelace");
+      expect(parseTextAnswerValue(changes.latest("q_full_name"))).toEqual({
+        ok: true,
+        value: "Ada Lovelace",
+      });
     });
-  });
 
-  it("date (DatePicker) emits an ISO YYYY-MM-DD string", async () => {
-    const user = userEvent.setup();
-    const changes = useChanges();
-    render(<ControlledHost document={stepAbout} onChange={changes.onChange} />);
-    const group = screen.getByRole("group", { name: /Date of birth/ });
-    const segments = within(group).getAllByRole("spinbutton");
-    await user.click(segments[0]);
-    // en-US order MM/DD/YYYY; typing fills each segment and auto-advances.
-    await user.keyboard("01151990");
-    expect(parseDateAnswerValue(changes.latest("q_dob"))).toEqual({
-      ok: true,
-      value: "1990-01-15",
+    it("date (DatePicker) emits an ISO YYYY-MM-DD string", async () => {
+      const user = userEvent.setup();
+      const changes = useChanges();
+      render(<ControlledHost document={stepAbout} onChange={changes.onChange} />);
+      const group = screen.getByRole("group", { name: /Date of birth/ });
+      const segments = within(group).getAllByRole("spinbutton");
+      await user.click(segments[0]);
+      // en-US order MM/DD/YYYY; typing fills each segment and auto-advances.
+      await user.keyboard("01151990");
+      expect(parseDateAnswerValue(changes.latest("q_dob"))).toEqual({
+        ok: true,
+        value: "1990-01-15",
+      });
     });
-  });
 
-  it("boolean (RadioGroup) emits a JSON boolean", async () => {
-    const user = userEvent.setup();
-    const changes = useChanges();
-    render(<ControlledHost document={stepHealth} onChange={changes.onChange} />);
-    await user.click(screen.getByRole("radio", { name: "Yes" }));
-    expect(parseBooleanAnswerValue(changes.latest("q_at_fault_accident"))).toEqual({
-      ok: true,
-      value: true,
+    it("boolean (RadioGroup) emits a JSON boolean", async () => {
+      const user = userEvent.setup();
+      const changes = useChanges();
+      render(<ControlledHost document={stepHealth} onChange={changes.onChange} />);
+      await user.click(screen.getByRole("radio", { name: "Yes" }));
+      expect(parseBooleanAnswerValue(changes.latest("q_at_fault_accident"))).toEqual({
+        ok: true,
+        value: true,
+      });
+      await user.click(screen.getByRole("radio", { name: "No" }));
+      expect(parseBooleanAnswerValue(changes.latest("q_at_fault_accident"))).toEqual({
+        ok: true,
+        value: false,
+      });
     });
-    await user.click(screen.getByRole("radio", { name: "No" }));
-    expect(parseBooleanAnswerValue(changes.latest("q_at_fault_accident"))).toEqual({
-      ok: true,
-      value: false,
-    });
-  });
 
-  it("number (NumberField) emits a finite number", async () => {
-    const user = userEvent.setup();
-    const changes = useChanges();
-    render(<ControlledHost document={stepHealth} onChange={changes.onChange} />);
-    const field = screen.getByRole("textbox", { name: /how many/i });
-    await user.type(field, "12");
-    await user.tab();
-    expect(parseNumberAnswerValue(changes.latest("q_accident_count"))).toEqual({
-      ok: true,
-      value: 12,
+    it("number (NumberField) emits a finite number", async () => {
+      const user = userEvent.setup();
+      const changes = useChanges();
+      render(<ControlledHost document={stepHealth} onChange={changes.onChange} />);
+      const field = screen.getByRole("textbox", { name: /how many/i });
+      await user.type(field, "12");
+      await user.tab();
+      expect(parseNumberAnswerValue(changes.latest("q_accident_count"))).toEqual({
+        ok: true,
+        value: 12,
+      });
     });
-  });
 
-  it("multiChoice (CheckboxGroup) emits a deduplicated OptionId[]", async () => {
-    const user = userEvent.setup();
-    const changes = useChanges();
-    render(<ControlledHost document={stepHealth} onChange={changes.onChange} />);
-    await user.click(screen.getByRole("checkbox", { name: "Diabetes" }));
-    await user.click(screen.getByRole("checkbox", { name: "Asthma" }));
-    expect(parseMultiChoiceAnswerValue(changes.latest("q_preexisting_conditions"))).toEqual({
-      ok: true,
-      value: ["opt_diabetes", "opt_asthma"],
+    it("multiChoice (CheckboxGroup) emits a deduplicated OptionId[]", async () => {
+      const user = userEvent.setup();
+      const changes = useChanges();
+      render(<ControlledHost document={stepHealth} onChange={changes.onChange} />);
+      await user.click(screen.getByRole("checkbox", { name: "Diabetes" }));
+      await user.click(screen.getByRole("checkbox", { name: "Asthma" }));
+      expect(parseMultiChoiceAnswerValue(changes.latest("q_preexisting_conditions"))).toEqual({
+        ok: true,
+        value: ["opt_diabetes", "opt_asthma"],
+      });
     });
-  });
 
-  it("longText (TextArea) emits an NFC string", async () => {
-    const user = userEvent.setup();
-    const changes = useChanges();
-    render(<ControlledHost document={stepHealth} onChange={changes.onChange} />);
-    await user.type(
-      screen.getByRole("textbox", { name: /Relevant medical history/ }),
-      "Asthma since 2010",
-    );
-    expect(parseTextAnswerValue(changes.latest("q_medical_history"))).toEqual({
-      ok: true,
-      value: "Asthma since 2010",
+    it("longText (TextArea) emits an NFC string", async () => {
+      const user = userEvent.setup();
+      const changes = useChanges();
+      render(<ControlledHost document={stepHealth} onChange={changes.onChange} />);
+      await user.type(
+        screen.getByRole("textbox", { name: /Relevant medical history/ }),
+        "Asthma since 2010",
+      );
+      expect(parseTextAnswerValue(changes.latest("q_medical_history"))).toEqual({
+        ok: true,
+        value: "Asthma since 2010",
+      });
     });
-  });
 
-  it("singleChoice ≤ 7 (RadioGroup) emits an OptionId", async () => {
-    const user = userEvent.setup();
-    const changes = useChanges();
-    render(<ControlledHost document={stepCover} onChange={changes.onChange} />);
-    await user.click(screen.getByRole("radio", { name: "Standard" }));
-    expect(parseSingleChoiceAnswerValue(changes.latest("q_coverage_level"))).toEqual({
-      ok: true,
-      value: "opt_standard",
+    it("singleChoice ≤ 7 (RadioGroup) emits an OptionId", async () => {
+      const user = userEvent.setup();
+      const changes = useChanges();
+      render(<ControlledHost document={stepCover} onChange={changes.onChange} />);
+      await user.click(screen.getByRole("radio", { name: "Standard" }));
+      expect(parseSingleChoiceAnswerValue(changes.latest("q_coverage_level"))).toEqual({
+        ok: true,
+        value: "opt_standard",
+      });
     });
-  });
 
-  it("singleChoice > 7 (Select) emits an OptionId", async () => {
-    const user = userEvent.setup();
-    const changes = useChanges();
-    render(<ControlledHost document={selectStep} onChange={changes.onChange} />);
-    await user.click(screen.getByRole("button", { name: /Country/ }));
-    await user.click(screen.getByRole("option", { name: "New Zealand" }));
-    expect(parseSingleChoiceAnswerValue(changes.latest("q_country"))).toEqual({
-      ok: true,
-      value: "opt_nz",
+    it("singleChoice > 7 (Select) emits an OptionId", async () => {
+      const user = userEvent.setup();
+      const changes = useChanges();
+      render(<ControlledHost document={selectStep} onChange={changes.onChange} />);
+      await user.click(screen.getByRole("button", { name: /Country/ }));
+      await user.click(screen.getByRole("option", { name: "New Zealand" }));
+      expect(parseSingleChoiceAnswerValue(changes.latest("q_country"))).toEqual({
+        ok: true,
+        value: "opt_nz",
+      });
     });
-  });
-});
+  },
+);
