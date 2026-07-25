@@ -76,6 +76,31 @@ export default tseslint.config(
     ...tseslint.configs.disableTypeChecked,
   },
   {
+    // Node harness and tooling scripts (e2e server wrappers Playwright's
+    // `webServer` spawns, build-time generators under a `scripts/` dir) are a
+    // distinct file class from app source: plain ESM run by Node, not by a
+    // browser or a bundler. `eslint.configs.recommended` turns on `no-undef`, and
+    // typescript-eslint's eslint-recommended only disables it for TS files, so
+    // these need the Node globals they legitimately use declared. Listed inline
+    // rather than pulled from the `globals` package, which is not a workspace
+    // dependency (adding one needs the CONTRIBUTING approval policy).
+    files: ["**/e2e/**/*.{js,mjs,cjs}", "**/scripts/**/*.{js,mjs,cjs}"],
+    languageOptions: {
+      globals: {
+        Buffer: "readonly",
+        URL: "readonly",
+        URLSearchParams: "readonly",
+        clearInterval: "readonly",
+        clearTimeout: "readonly",
+        console: "readonly",
+        fetch: "readonly",
+        process: "readonly",
+        setInterval: "readonly",
+        setTimeout: "readonly",
+      },
+    },
+  },
+  {
     // @qcms/core is fetch-pure (R4) and I/O-free (R3): no Node built-ins,
     // ever - WebCrypto (`crypto.subtle`) instead of `node:crypto` (task 010).
     // Tests may use Node ambient types for fixtures, but never Node imports

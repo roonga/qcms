@@ -157,6 +157,12 @@ export const test = base.extend<{ browserGuard: void; serverGuard: void }>({
     { auto: true },
   ],
   serverGuard: [
+    // Playwright derives a fixture's dependencies by parsing its first parameter
+    // and rejects anything that is not an object-destructuring pattern ("First
+    // argument must use the object destructuring pattern"). A fixture that needs
+    // no other fixture must therefore destructure nothing, so the empty pattern
+    // is required here, not an oversight.
+    // eslint-disable-next-line no-empty-pattern
     async ({}, use) => {
       const before: Offsets = {
         api: byteLength(SERVER_LOG_FILES.api),

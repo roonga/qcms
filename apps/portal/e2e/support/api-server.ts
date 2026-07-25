@@ -20,7 +20,6 @@
 import { createRequire } from "node:module";
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import type { Readable } from "node:stream";
 
 import {
   buildEnv,
@@ -108,7 +107,7 @@ export async function startApiServer(): Promise<void> {
   const testDb = await startTestDb();
 
   // Stream the Postgres container's server log into the capture file.
-  const pgLogs = (await testDb.container.logs()) as Readable;
+  const pgLogs = await testDb.container.logs();
   pgLogs.on("data", (chunk: Buffer | string) => {
     appendFileSync(SERVER_LOG_FILES.postgres, chunk.toString());
   });
