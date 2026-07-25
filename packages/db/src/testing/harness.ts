@@ -12,7 +12,7 @@ import pg from "pg";
 
 import * as schema from "../schema/index.js";
 
-const { Client } = pg;
+const { Client, Pool } = pg;
 
 /**
  * The Postgres image the harness boots. Pinned to the same major the compose
@@ -24,9 +24,17 @@ export const TEST_POSTGRES_IMAGE = "postgres:16-alpine";
 export const MIGRATIONS_DIR = fileURLToPath(new URL("../../migrations", import.meta.url));
 
 export interface TestDb {
-  /** Drizzle handle bound to the full schema. */
+  /**
+   * Drizzle handle bound to the full schema, backed by a connection **pool** -
+   * the same shape `serve.ts` builds in production. See {@link startTestDb} for
+   * why a pool rather than a single client.
+   */
   readonly db: NodePgDatabase<typeof schema>;
-  /** The underlying node-postgres client, for raw SQL in tests. */
+  /**
+   * A dedicated single node-postgres connection for raw SQL in tests. Separate
+   * from the pool behind {@link TestDb.db}, so it sees only committed state - do
+   * not use it to observe another connection's open transaction.
+   */
   readonly client: pg.Client;
   /** libpq connection string for the container. */
   readonly connectionUri: string;
@@ -53,6 +61,19 @@ interface StartOptions {
  * `drizzle-kit migrate`. Intended for one container per test file (call in
  * `beforeAll`, `teardown()` in `afterAll`); tests within a file share the
  * migrated database and isolate by using distinct IDs.
+ *
+ * The Drizzle handle is built over a `pg.Pool`, exactly as `serve.ts` does in
+ * production, and that is a correctness requirement rather than mere realism
+ * (issue #30): drizzle's node-postgres driver issues a transaction's `BEGIN` and
+ * `COMMIT` on whatever client it was handed, so a handle over a single
+ * `pg.Client` puts *every* concurrent transaction on one connection. Two
+ * overlapping transactions then emit `BEGIN, BEGIN, ..., COMMIT, COMMIT` on one
+ * backend - Postgres warns ("there is already a transaction in progress" / "there
+ * is no transaction in progress"), and, worse, the two logical transactions share
+ * one physical transaction, so the first `COMMIT` ends both and any
+ * `pg_advisory_xact_lock` they took is released early. A pool gives each
+ * transaction its own connection, so per-session lock serialization (I5) behaves
+ * under test as it does in production.
  */
 export async function startTestDb(options: StartOptions = {}): Promise<TestDb> {
   const container: StartedPostgreSqlContainer = await new PostgreSqlContainer(
@@ -63,7 +84,13 @@ export async function startTestDb(options: StartOptions = {}): Promise<TestDb> {
   const client = new Client({ connectionString: connectionUri });
   await client.connect();
 
-  const db = drizzle(client, { schema });
+  const pool = new Pool({ connectionString: connectionUri });
+  // An idle pooled connection that dies (typically the container going away at
+  // teardown) emits `error` on the pool; node-postgres rethrows it as an
+  // unhandled error without a listener, which would red an unrelated test.
+  pool.on("error", () => undefined);
+
+  const db = drizzle(pool, { schema });
 
   if (options.migrate ?? true) {
     await migrate(db, { migrationsFolder: MIGRATIONS_DIR });
@@ -78,6 +105,7 @@ export async function startTestDb(options: StartOptions = {}): Promise<TestDb> {
     async teardown() {
       if (torn) return;
       torn = true;
+      await pool.end();
       await client.end();
       await container.stop();
     },
