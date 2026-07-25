@@ -109,4 +109,4 @@ A long-lived session follows the instructions it already read - edits to `.claud
 
 ## Conventions the agents follow (so you can spot violations)
 
-One task per PR/branch (`feat/NNN-slug`) · Conventional Commits with the task number · **no AI attribution trailers in commit messages** · green-or-clean (never merge red) · discoveries become issues (`phase-4` for cut-line itches), never scope creep · docs named in a task update in the same change.
+One task per PR/branch (`feat/NNN-slug`) · Conventional Commits with the task number · **no AI attribution trailers in commit messages** · green-or-clean, where green means **`pnpm verify`** (one command, a superset of CI's unit job; `pnpm verify:browser` adds the Playwright suite for portal/admin/`@qcms/ui` work) · never merge red · discoveries become issues (`phase-4` for cut-line itches), never scope creep · docs named in a task update in the same change.

@@ -63,4 +63,4 @@ if [ -d "$HOME/.oh-my-zsh" ]; then
   fi
 fi
 
-log "done. Next: 'pnpm build && pnpm typecheck && pnpm test && pnpm lint'"
+log "done. Next: 'pnpm verify' (the full merge gate; add 'pnpm verify:browser' for UI work)"

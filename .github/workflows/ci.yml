@@ -66,6 +66,13 @@ jobs:
         env:
           DEFAULT_BRANCH: ${{ github.event.pull_request.base.ref || 'main' }}
 
+      # A publishable package must not change without a changeset naming it
+      # (issue #55, folded into #19) - the "Changeset added" merge requirement,
+      # enforced instead of remembered. Same diff basis as the guard above.
+      - run: pnpm check:changeset
+        env:
+          DEFAULT_BRANCH: ${{ github.event.pull_request.base.ref || 'main' }}
+
       # A NUL byte once shipped in a .ts and passed every gate (workshop retro,
       # Stage 4); this rejects control chars (except tab/LF/CR) in tracked source.
       - run: pnpm check:no-control-chars

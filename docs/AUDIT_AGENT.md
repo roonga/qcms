@@ -43,11 +43,12 @@ them and escalate genuine conflicts to the Code Owner.
   (#14) - present and effective. Threat-model coverage feeding the 040 security review.
 
 **3. Code hygiene**
-- The **full** merge gate is actually green on the current head: `pnpm build && typecheck &&
-  test && lint` **plus** the CI-only gates (`check:licenses`, `check:no-em-dash`,
-  `check:no-control-chars`, `check:duplication`, `check:golden-append-only`).
-- Known structural gap #19: the local merge gate is **not** a superset of CI - verify whether
-  CI-red can still land, and whether it has.
+- The **full** merge gate is actually green on the current head: `pnpm verify` (build,
+  typecheck, lint, test, golden-drift plus every `check:*` gate), and `pnpm verify:browser`
+  when the head touched the portal, admin, or `@qcms/ui`.
+- Gap #19 is closed (`verify` is a superset of CI's unit job): verify it has **stayed** a
+  superset - every step in `.github/workflows/ci.yml` still maps to something `verify` runs
+  (the mapping table in `CONTRIBUTING.md`), and no CI-red commit has landed on `main` since.
 - Test reality: no suites silently skipped or `.pending`; environment-needing suites (e2e,
   visual) actually run when the code they exercise changed; coverage is real, not asserted
   (e.g. e2e viewport + kitchen-sink coverage, findings E/L). Determinism of the test run.
