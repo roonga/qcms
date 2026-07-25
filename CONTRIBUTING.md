@@ -77,6 +77,22 @@ use `pnpm devcontainer rebuild` after editing `devcontainer.json`.
 | `drizzle-orm` | Young, VC-funded | No magic used - migrations are plain SQL files, helpers are thin; exit to Kysely/raw SQL is bounded |
 | `ai` (Vercel AI SDK) + `@ai-sdk/*` | Vercel-owned - same steering/churn profile as Next/Turborepo | Vendor-agnostic LLM layer for 041 only; confined behind the `DraftAssistant` seam, so a swap touches one adapter file |
 
+### Security overrides (`pnpm.overrides`)
+
+Transitive advisories that a parent's pinned range blocks are patched with **targeted** `pnpm.overrides` entries in the root `package.json`, not by waiting on Dependabot (its `npm_and_yarn` updater fails on multi-range advisories in a pnpm monorepo - issue #47). Rules for adding one:
+
+- **Scope it to the vulnerable resolution** (`"minimatch@9": "^10.2.5"`), never a bare package name, unless every consumer in the tree is already on that major. A blanket override silently forces future consumers of an older major onto an incompatible API.
+- **Verify the API contract by hand before trusting the install.** `pnpm install` succeeding proves nothing about a major-crossing override: read how the dependents actually import the package (`require(...)` default vs named) and check the new version still satisfies it.
+- **Prove it with the gates that exercise the affected path**, not just `pnpm audit`: postcss means a real portal build plus the Playwright suite; the testcontainers chain means a forced `turbo run test --force`; drizzle-kit means `drizzle-kit check`.
+- **Record why it exists and when it can go**, in the table below. An override with no removal condition becomes permanent by accident.
+
+| Override | Advisory it closes | Why this version | Removable when |
+| --- | --- | --- | --- |
+| `postcss: ^8.5.23` | GHSA-qx2v-qp2m-jg93, GHSA-6g55-p6wh-862q, GHSA-r28c-9q8g-f849 | The three advisories need at least `8.5.18` (the highest of their patched floors: 8.5.10, 8.5.12, 8.5.18), and Next pins `postcss` at exactly `8.4.31`, so no parent bump can reach it. `^8.5.23` was latest at the time; the entry is deliberately left unscoped so the whole tree dedupes onto one postcss 8 instance rather than keeping a second already-clean copy | Next's own pin reaches `>= 8.5.18` |
+| `minimatch@5: ^10.2.5` · `minimatch@9: ^10.2.5` | GHSA-mh99-v99m-4gvg (indirectly) | minimatch 5 and 9 pin `brace-expansion@^2` (`^2.0.1` and `^2.0.2`) and the fix landed only in `brace-expansion` 5.0.8, so the vulnerable copy has to move *with* minimatch, not under it: `minimatch@10.2.5` declares `brace-expansion: ^5.0.5`. Safe because every dependent (`glob@10`, `readdir-glob@1`) imports minimatch by **named** export, which 10 keeps | `archiver`/`testcontainers` reach minimatch 10 on their own |
+| `brace-expansion@5: ^5.0.8` | GHSA-mh99-v99m-4gvg | 5.0.8 is the only release outside the advisory range (`<= 5.0.7`): the 1.x, 2.x, 3.x and 4.x lines all sit inside it and none carries a backport. Scoped to `5` so a future `^2` consumer is not forced onto 5.x, whose CJS build exports `{ expand }` and is **not** callable | minimatch's own floor reaches 5.0.8 |
+| `esbuild@0.18.20: ^0.25.12` | GHSA-67mh-4wv8-2f99 | Pins only the vestigial copy under drizzle-kit's deprecated `@esbuild-kit/*` chain; drizzle-kit already resolves `esbuild@0.25.12` directly, so this dedupes rather than adding a version | drizzle-kit drops `@esbuild-kit/esm-loader` |
+
 ### Testing
 
 - **Two runners, fixed (ADR-23):** Vitest for everything below the browser (unit, component, API slices/scenarios); **Playwright is the only browser/e2e framework** - specs live in `apps/{portal,admin}/e2e/`. No other test frameworks, ever.

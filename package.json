@@ -49,6 +49,13 @@
   "pnpm": {
     "ignoredOptionalDependencies": [
       "sharp"
-    ]
+    ],
+    "overrides": {
+      "postcss": "^8.5.23",
+      "minimatch@5": "^10.2.5",
+      "minimatch@9": "^10.2.5",
+      "brace-expansion@5": "^5.0.8",
+      "esbuild@0.18.20": "^0.25.12"
+    }
   }
 }
