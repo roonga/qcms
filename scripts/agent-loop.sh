@@ -106,7 +106,9 @@ shopt -s nocasematch
 
 for ((i = 1; i <= max_iterations; i++)); do
   log "iteration ${i}: launching fresh session"
-  out="$(claude -p "$prompt" --permission-mode bypassPermissions --output-format text 2>&1)"
+  # --model is pinned so an unattended run cannot silently move models when the
+  # CLI default changes (same reasoning as the agent-brief frontmatter pins).
+  out="$(claude -p "$prompt" --model claude-opus-5 --permission-mode bypassPermissions --output-format text 2>&1)"
   echo "$out" >>"$log_file"
   sentinel="$(echo "$out" | grep '^NEXT-TASK:' | tail -n 1)"
 
