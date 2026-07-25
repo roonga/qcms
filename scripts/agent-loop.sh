@@ -83,6 +83,10 @@ done
 positive_int --parallel "$parallel"
 positive_int --retry-minutes "$retry_minutes"
 positive_int --max-iterations "$max_iterations"
+# Optional, so only checked when given. It reaches `$((10#$stop_after_task))`
+# at sentinel-match time, where a non-numeric value throws a bash arithmetic
+# error mid-run and the stop check then silently never fires.
+[ -z "$stop_after_task" ] || positive_int --stop-after-task "$stop_after_task"
 
 cd "$(dirname "$0")/.."
 log_file="$PWD/agent-loop.log"

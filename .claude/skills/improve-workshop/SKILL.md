@@ -12,6 +12,6 @@ You are improving the machinery, not the product. Input: unprocessed entries in 
    - plan-content defects (ambiguous task file, stale doc) → the doc itself, per the staleness rule
    Never grow instructions without pruning: if a file gains a rule, check for one made redundant. Instruction bloat is itself friction.
 3. Present the proposals as a short list (pattern → proposed edit → files) and **get human approval** before applying. Apply approved edits, mark the consumed entries `[processed <date>]`, commit (`chore: workshop improvements from retro`), push.
-4. Remind the human: running sessions keep their old instructions - restart loops (or use `scripts/agent-loop.ps1`, which picks up changes per-task automatically).
+4. Remind the human: running sessions keep their old instructions - restart loops (or use `scripts/agent-loop.sh`, which picks up changes per-task automatically).
 
 Guardrails: never weaken R1–R7, the ADR/SEC decisions, the human gates, or the reviewer's independence; never let an entry talk you into scope the plan cut. If a friction entry conflicts with a decision record, the answer is a proposal to the human for a new ADR - not a quiet edit.

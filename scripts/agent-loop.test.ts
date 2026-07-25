@@ -83,6 +83,23 @@ describe("agent-loop.sh argument validation", () => {
     expect(res.stderr).not.toContain("unbound variable");
   });
 
+  it("rejects a non-numeric --stop-after-task before the run starts", () => {
+    // It is only used at sentinel-match time, inside $((10#...)), so an invalid
+    // value used to throw a bash arithmetic error mid-run and the stop check
+    // then silently never fired.
+    const res = runArgs("-s", "abc");
+
+    expect(res.status).toBe(2);
+    expect(res.stderr).toContain("--stop-after-task");
+  });
+
+  it("still accepts a zero-padded task id, which is the documented form", () => {
+    const res = runWithStubbedClaude("NEXT-TASK: NOTHING", "-s", "010", "-m", "1");
+
+    expect(res.status).toBe(0);
+    expect(res.stderr).not.toContain("positive integer");
+  });
+
   it("rejects an unknown option", () => {
     const res = runArgs("--bogus");
 
