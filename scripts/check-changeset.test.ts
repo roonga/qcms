@@ -28,6 +28,9 @@ function write(root: string, filePath: string, content: string): void {
 }
 
 function run(root: string, args: string[]): void {
+  // `as string`: every call site passes a literal argv whose first element is the
+  // program name, so args[0] is never undefined; `noUncheckedIndexedAccess` cannot
+  // see that. A runtime guard here would be unreachable code in a test helper.
   const result = spawnSync(args[0] as string, args.slice(1), { cwd: root, encoding: "utf8" });
   if (result.status !== 0) {
     throw new Error(`${args.join(" ")} failed in ${root}: ${result.stderr}`);
@@ -196,6 +199,20 @@ describe("check-changeset gate", () => {
 
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("release diff");
+  });
+
+  it("FAILS LOUDLY on a workspace glob it cannot expand", () => {
+    // The throw is deliberate: silently skipping an unexpanded glob would leave
+    // the packages it covers unguarded, which is the failure mode this gate exists
+    // to prevent.
+    const root = makeRepo();
+    write(root, "pnpm-workspace.yaml", 'packages:\n  - "packages/**/nested"\n');
+    commit(root, "unsupported workspace glob");
+
+    const result = runGate(root);
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("unsupported workspace glob");
   });
 
   it("passes silently on the default branch (empty diff)", () => {
