@@ -10,7 +10,7 @@ The authoring app's foundation: a second Next.js app (separate deployable for th
 
 ## Deliverables
 
-- `apps/admin` Next.js app: app-router layout (nav: Questions, Forms, Responses, Webhooks, Settings), same BFF pattern as portal (R2: session, credentials, proxying to `/admin` API group only).
+- `apps/admin` Next.js app: app-router layout (nav: Questions, Forms, Responses, Webhooks, Settings), same BFF pattern as portal (R2: session, credentials, proxying to `/admin` API group only). Adopt the portal's phase-based `distDir` split from day one (`next.config.ts` as a phase function: dev writes `.next-dev`, build/start use `.next`, matching ignores) - a shared output directory lets a turbo build-cache hit restore stale dev state over a live dev server (issue #54, fixed for the portal in PR #56).
 - **better-auth** configured in owned shell code: email+password sign-in; **TOTP 2FA** - enrollment (QR + recovery codes) enforced-by-default with a config escape hatch (`QCMS_ADMIN_2FA=optional`) for dev; session management; sign-out. Data in the deployment's Postgres (013's tables). Document the external-IdP swap recipe stub (`docs/auth-swap.md`) - a pointer, not an implementation.
 - Admin API auth middleware (replacing 021's stub): better-auth session verification for the `/admin` group; the e2e suite (027) gets a real-auth login helper.
 - First-run bootstrap: with zero admin users, a CLI-or-env-driven initial admin creation flow (`pnpm qcms:create-admin` script in the shell) - documented; no open self-registration.
