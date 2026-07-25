@@ -62,8 +62,10 @@ function detectDbHost() {
   const gateway = route.stdout?.match(/default via (\S+)/)?.[1];
   if (gateway) return gateway;
 
-  // No `ip` (or no default route): fall back and let the connection error say so.
-  return "host.docker.internal";
+  // No `ip`, or no default route. Fall back to localhost rather than
+  // host.docker.internal: it is wrong here, and it fails by timing out, which
+  // is slower and less obvious than the connection refusal localhost gives.
+  return "localhost";
 }
 const DB_HOST = detectDbHost();
 const DATABASE_URL =
@@ -208,38 +210,12 @@ function composeUp() {
       QCMS_DB_NAME: DB_NAME,
     },
   });
-  if (res.status !== 0) {
-    // Compose has already printed the real reason above. Guessing "is Docker
-    // running?" sends people to check a daemon that is plainly running, so name
-    // the cause that actually accounts for most of these instead.
-    fail(
-      `docker compose up failed (exit ${res.status}). See the compose error above.\n` +
-        `  If it says port ${DB_PORT} is already allocated, something else already has the dev database:\n` +
-        `    docker ps -a --filter publish=${DB_PORT}\n` +
-        `    docker rm -f <name>\n` +
-        `  A container from an older checkout (pre-rename it was "qcms-postgres-1") is the usual culprit.\n` +
-        `  Otherwise check that Docker is running.`,
-    );
-  }
+  // Compose has already printed the real reason; do not guess at it.
+  if (res.status !== 0) fail(`docker compose up failed (exit ${res.status}); see the error above`);
 }
 
 async function loadDbToolkit() {
   const require = createRequire(pathToFileURL(join(REPO_ROOT, "packages/db/package.json")));
-
-  // This script consumes build output, not sources. A fresh checkout (or a
-  // fresh dev container, where post-create installs but does not build) has no
-  // dist/ yet, and the bare module-not-found that surfaces here names an
-  // internal path rather than the one thing the reader has to do.
-  const required = ["packages/db/dist/index.js", "packages/core/dist/index.js"];
-  const missing = required.filter((rel) => !existsSync(join(REPO_ROOT, rel)));
-  if (missing.length > 0) {
-    fail(
-      `the workspace is not built yet (missing ${missing.join(", ")}).\n` +
-        `  Run:  pnpm build\n` +
-        `  Then: pnpm dev:portal`,
-    );
-  }
-
   const db = await import(pathToFileURL(join(REPO_ROOT, "packages/db/dist/index.js")).href);
   const core = await import(pathToFileURL(join(REPO_ROOT, "packages/core/dist/index.js")).href);
   const { drizzle } = await import(
