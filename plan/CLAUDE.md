@@ -31,7 +31,7 @@ Data flow: `core` evaluates rules -> `a2ui-compiler` produces the UI doc -> `ui`
 
 - **No AI attribution trailers in any commit** - no `Co-Authored-By` / `Claude-Session` lines. The Code Owner's standing rule, every repo.
 - **No personal names in committed content (2026-07-25):** the human owner is always **Code Owner** - in docs, sign-offs, commit messages, and these seat files. Sole exception: the legal copyright line in `LICENSE`/README.
-- **pnpm only.** Merge gate = `pnpm build && pnpm typecheck && pnpm test && pnpm lint`. The local gate is **not yet a superset of CI** (issue #19), so re-verify the CI-only gates (`check:licenses`, `check:no-em-dash`, `check:no-control-chars`, `check:duplication`, `check:golden-append-only`, `check:fixture-domain`) after late changes.
+- **pnpm only.** Merge gate = **`pnpm verify`** (issue #19): `check:all` (em dash, control chars, changeset, golden-append-only, licenses, duplication) then build, typecheck, lint, test, golden-drift - a superset of CI's unit job, so the CI-only gates no longer need a separate pass. The Playwright suite is the one CI job it omits: add `pnpm verify:browser` when the change touches `apps/portal`, `apps/admin`, or `@qcms/ui`.
 - **No em dash (U+2014) anywhere.** **No real secret values in any file** - environment variables or `<placeholder>` text only.
 - **Trust the repo over memory:** read `docs/PROJECT_INSTRUCTIONS.md` (rules R1-R7), the ledger (`docs/features/README.md`), and `git log` before asserting any project state - snapshots age.
 - Plan changes of substance = a new ADR **with the affected task files corrected in the same change** (staleness rule).

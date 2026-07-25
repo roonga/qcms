@@ -62,7 +62,7 @@ The human owns decisions, taste, and review; agents own execution and verificati
 **During:** work only within deliverables/exit criteria; run tests continuously; when blocked by a genuine decision (not a lookup), stop and surface the question rather than choosing silently.
 
 **End - every session leaves the repo green or clean:**
-- Done: all exit criteria pass, `pnpm build && pnpm test && pnpm lint` green at root, docs updated, ledger updated.
+- Done: all exit criteria pass, `pnpm verify` green at root (one command, a superset of CI - see `CONTRIBUTING.md`; add `pnpm verify:browser` for portal/admin/`@qcms/ui` work), docs updated, ledger updated.
 - Not done: either revert to green, or park on the task branch with a `HANDOFF.md` note (state, next step, what's red) - **never merge red, never leave main broken.**
 
 **Conventions:** one branch per task (`feat/NNN-slug`); task number in commit messages; PR description = exit-criteria checklist checked off.

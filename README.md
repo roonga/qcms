@@ -49,6 +49,7 @@ Working on the host instead is fully supported. Requires [Node](https://nodejs.o
 ```sh
 pnpm install
 pnpm build && pnpm test        # kernel, compiler, db (Testcontainers), api
+pnpm verify                    # the full merge gate: the above plus typecheck, lint, and every check:*
 docker compose -f docker-compose.dev.yml up -d   # local Postgres - copy .env.example to .env first
 ```
 

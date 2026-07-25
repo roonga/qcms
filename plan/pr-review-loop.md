@@ -18,7 +18,7 @@ The PO seat runs this as a recurring loop (`/loop` in `qcms/plan/`): watch for o
      - Not human-gate territory: no visible portal/admin UI change lacking the Code Owner's screenshot sign-off, no ambiguous SEC-* acceptance, no `.archive`/destructive change.
      - Not a PO-authored PR without the Code Owner's explicit OK (any channel counts, but it must exist - never rubber-stamp your own work).
 4. **Merge (strictly serialized - one at a time, ever).**
-   - Branch must be current with `main`. If behind: rebase in a temp worktree, re-run `pnpm build && pnpm typecheck && pnpm test && pnpm lint` at root plus the CI-only gates from `.github/workflows/ci.yml`, push, wait for CI.
+   - Branch must be current with `main`. If behind: rebase in a temp worktree, re-run `pnpm verify` at root (a superset of CI's unit job; add `pnpm verify:browser` for a portal/admin/`@qcms/ui` diff), push, wait for CI.
    - `gh pr merge <NN> --squash --delete-branch`, keeping `Fixes #NN` in the squash body so the issue auto-closes.
    - Post-merge: append the PR's `## Retro` lines (skip `none`) to `docs/RETRO.md` under `## issue #NN - <title>` with the merge date; commit to `main` (plain push, never force). This replaces the pre-PR flow's "in the landing commit" retro append.
 5. **Report.** One line per PR handled (reviewed / merged / changes-requested / escalated) in the loop summary. If nothing is open, say so and sleep - never idle-poll faster than the loop cadence.

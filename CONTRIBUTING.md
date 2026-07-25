@@ -106,13 +106,45 @@ Transitive advisories that a parent's pinned range blocks are patched with **tar
 
 No secrets in code, fixtures, or logs; answer values never logged; queries parameterized via Drizzle only (no SQL string interpolation); WebCrypto, never `node:crypto`, in fetch-pure code; no CORS headers, ever; new dependencies follow the Dependencies policy above (thresholds + risk assessment in the PR).
 
+## The merge gate: `pnpm verify`
+
+**One command, and it is a superset of CI** (issue #19). Work used to pass a four-command local gate, land, and then go CI-red on a gate that only CI ran (task 029 shipped an LGPL transitive dependency exactly that way), so the local gate now runs every check CI runs:
+
+```sh
+pnpm verify           # the landing gate: check:all, then build, typecheck, lint, test, golden-drift
+pnpm verify:browser   # the Playwright suite (portal e2e + a11y + Lighthouse), see below
+```
+
+| `.github/workflows/ci.yml` step | Covered by |
+| --- | --- |
+| `pnpm build` (both occurrences) | `pnpm build` |
+| `pnpm typecheck` | `pnpm typecheck` |
+| `pnpm lint` | `pnpm lint` (turbo eslint + `prettier --check .` + `check:fixture-domain`) |
+| `pnpm test` | `pnpm test` (turbo test incl. the api e2e project, + `test:tooling`) |
+| `pnpm test:golden-drift` | `pnpm test:golden-drift` |
+| `pnpm check:golden-append-only` | `pnpm check:all` |
+| `pnpm check:changeset` | `pnpm check:all` |
+| `pnpm check:no-control-chars` | `pnpm check:all` |
+| `pnpm check:licenses` | `pnpm check:all` |
+| `pnpm check:no-em-dash` | `pnpm check:all` |
+| `pnpm check:duplication` | `pnpm check:all` |
+| `e2e` job (`--project qcms-api-e2e`) | `pnpm test` (apps/api's `test` script runs that project) |
+| `portal-e2e` job (`playwright test`) | **`pnpm verify:browser`** - deliberately not in `verify` |
+| `codeql.yml`, `mirror-test-images.yml` | Not local gates (GitHub-hosted analysis / image mirroring) |
+
+`check:changeset` is new with this gate: it enforces the "Changeset for any change to a publishable package" merge requirement (issue #55, folded into #19), locally and in CI.
+
+**Why the browser suite is separate.** `verify` is minutes long already; adding a browser boot, Docker Postgres, and two Lighthouse runs to *every* iteration is how a gate gets routed around. Run `pnpm verify:browser` before landing anything that touches `apps/portal`, `apps/admin`, or `@qcms/ui` - and note it is the only part of CI a green `verify` does not vouch for.
+
+**`check:changeset` in one paragraph.** It fails when the diff against `origin/main` touches a publishable package with no changeset **added in the same diff** naming that package (an unreleased changeset already on `main` does not count). The publishable set is derived from each `package.json`'s `private` field plus `.changeset/config.json`'s `ignore`, so it never goes stale. Exempt: markdown anywhere (docs, package READMEs, CHANGELOGs), private packages (`apps/*`), and test files/directories inside a publishable package (`*.test.ts`, `*.e2e.ts`, `e2e/`, `__tests__/`, `test/`) - a test-only change alters nothing a consumer can call, and a changeset that is not required is still allowed. `packages/db/src/testing/` is **not** exempt: it is the published `@qcms/db/testing` subpath. A `changeset version` release diff (which deletes changesets) is passed through, so the release PR is never blocked by the gate it spends. It reads committed state, so commit before you trust its verdict.
+
 ## Git and PR rules
 
 - **Branches:** `feat/NNN-slug` for plan tasks, `fix/slug`, `docs/slug`, `chore/slug` otherwise. Never force-push `main`; force-push your own branch freely before review.
 - **Commits:** Conventional Commits (`feat:`, `fix:`, `docs:`, `test:`, `chore:`); include the task number for plan work (`feat(core): 006 forward-pass evaluator`).
 - **PR scope:** one task (or less) per PR. If a diff wants to do two things, it's two PRs.
 - **PR description:** the task's exit-criteria checklist, checked off, plus anything a reviewer needs to verify locally. For non-task PRs: what, why, and how it was tested.
-- **Merge requirements:** CI green (no skips); a Changeset for any change to a publishable package (patch/minor/major honestly chosen - snapshot formats and golden corpora are public contracts); progress ledger updated for task PRs; review approval per below. Squash-merge; the squash message follows the commit convention.
+- **Merge requirements:** CI green (no skips); `pnpm verify` green locally *after* the final rebase; a Changeset for any change to a publishable package (enforced by `check:changeset`) (patch/minor/major honestly chosen - snapshot formats and golden corpora are public contracts); progress ledger updated for task PRs; review approval per below. Squash-merge; the squash message follows the commit convention.
 - **Review:** the reviewer (human, or a second agent session given only the task file + diff) verifies exit criteria, R1–R7, cut-line, and security standards - and never extends the work. Author responds to every comment (fix or reasoned pushback); style nits that aren't lint rules are suggestions, not blockers.
 - **Never merge red; never leave `main` broken.** Incomplete work parks on its branch with a `HANDOFF.md` (state, next step, what's red).
 
@@ -128,4 +160,4 @@ No secrets in code, fixtures, or logs; answer values never logged; queries param
 
 ## Quick pre-PR checklist
 
-`pnpm build && pnpm typecheck && pnpm test && pnpm lint` green at root · exit criteria checked · tests ship with the change · docs named by the task updated · Changeset added if packages changed · ledger updated · no unexplained `as`/`any`/`eslint-disable` · no new dependency without justification.
+`pnpm verify` green at root (plus `pnpm verify:browser` if the change touches the portal, admin, or `@qcms/ui`) · exit criteria checked · tests ship with the change · docs named by the task updated · Changeset added if packages changed (`check:changeset` enforces it) · ledger updated · no unexplained `as`/`any`/`eslint-disable` · no new dependency without justification.

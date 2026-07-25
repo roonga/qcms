@@ -22,4 +22,4 @@ The Code Owner holds: ADR-level decisions, all human gates, scope changes, anyth
 
 ## Operating rules
 
-No AI attribution trailers in commits, ever. pnpm only. Merge gate is `pnpm build && pnpm typecheck && pnpm test && pnpm lint` and must remain a superset of CI. Keep PO edits to this repo small and immediately committed+pushed - never leave uncommitted state in the dev checkout. Avoid touching the repo during a task's landing phase.
+No AI attribution trailers in commits, ever. pnpm only. Merge gate is `pnpm verify` (plus `pnpm verify:browser` for portal/admin/`@qcms/ui` changes) and must remain a superset of CI: every step added to `.github/workflows/ci.yml` gets a matching entry in `CONTRIBUTING.md`'s gate mapping table in the same change. Keep PO edits to this repo small and immediately committed+pushed - never leave uncommitted state in the dev checkout. Avoid touching the repo during a task's landing phase.
