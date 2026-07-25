@@ -89,23 +89,16 @@ describe("respondent write endpoints carry responses:write (SEC-5, issues #7 and
     return requirement?.MachineToken ?? [];
   }
 
-  it("POST /sessions requires responses:write, not responses:read", () => {
-    const scopes = scopesFor(generated.respondent, "post", "/sessions");
-    expect(scopes).toContain("responses:write");
-    expect(scopes).not.toContain("responses:read");
-  });
-
-  it("POST /sessions/{id}/answers requires responses:write, not responses:read", () => {
-    const scopes = scopesFor(generated.respondent, "post", "/sessions/{id}/answers");
-    expect(scopes).toContain("responses:write");
-    expect(scopes).not.toContain("responses:read");
-  });
-
-  it("POST /sessions/{id}/submit requires responses:write, not responses:read", () => {
-    const scopes = scopesFor(generated.respondent, "post", "/sessions/{id}/submit");
-    expect(scopes).toContain("responses:write");
-    expect(scopes).not.toContain("responses:read");
-  });
+  // Start a session (#7), append an answer (#7), submit the session (#15).
+  // Parameterized because the lint rule rejects three same-shaped `it` blocks.
+  it.each(["/sessions", "/sessions/{id}/answers", "/sessions/{id}/submit"])(
+    "POST %s requires responses:write, not responses:read",
+    (path) => {
+      const scopes = scopesFor(generated.respondent, "post", path);
+      expect(scopes).toContain("responses:write");
+      expect(scopes).not.toContain("responses:read");
+    },
+  );
 
   it("the respondent read endpoints keep responses:read (no scope widening)", () => {
     expect(scopesFor(generated.respondent, "get", "/sessions/{id}")).toEqual(["responses:read"]);
