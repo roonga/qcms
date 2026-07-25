@@ -52,7 +52,7 @@ describe("missingRequiredEntries", () => {
 
   it("leaves no unresolved placeholder in a named message", () => {
     const [entry] = missingRequiredEntries(stepDoc, ["q_full_name"]);
-    expect(entry?.message).not.toContain("{");
+    expect(entry?.message).not.toContain("{label}");
     expect(entry?.message).toBe("Full name needs an answer.");
   });
 
