@@ -1,6 +1,6 @@
 ---
 name: next-issue
-description: Pick the next actionable open GitHub issue and fix it end to end with the multi-agent flow - task-executor implements on fix/NN-slug, task-reviewer verifies, and the conductor opens one PR per issue whose body carries "Fixes #NN" so the squash-merge closes it. Designed for "/loop /next-issue". Skips phase-4, needs-ADR, and task-folded issues; parks human-gated fixes as open PRs and keeps looping - the loop ends only when nothing is executable.
+description: Pick the next actionable open GitHub issue and fix it end to end with the multi-agent flow - task-executor implements on fix/NN-slug, task-reviewer verifies, and the conductor opens one PR per issue whose body carries "Fixes #NN" so the squash-merge closes it. Designed for "/loop /next-issue". Skips phase-4, needs-ADR, and task-folded issues; parks human-gated fixes as open PRs and keeps looping - the loop ends only when nothing is executable or a stated repo-wide blocker exists (step 10).
 ---
 
 Select and fix exactly one open GitHub issue per invocation; /loop provides the repetition. You coordinate; the subagents do the work. The issue text stands in for the task file; everything else mirrors the /task flow, with one deliberate difference: the conductor never merges. Each issue lands as its own PR, reviewed and squash-merged by the PO review loop or the Code Owner (merger duties: `plan/pr-review-loop.md`).
