@@ -1,4 +1,8 @@
 node_modules/
+# pnpm relocates its content-addressable store next to node_modules when the
+# default store dir is on a different filesystem - which is exactly the case in
+# the dev container (bind-mounted workspace vs container home, task 046).
+.pnpm-store/
 dist/
 .turbo/
 coverage/

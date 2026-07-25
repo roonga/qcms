@@ -42,9 +42,35 @@ const DB_PORT = process.env.QCMS_DB_PORT ?? "7020";
 const DB_USER = process.env.QCMS_DB_USER ?? "qcms";
 const DB_PASSWORD = process.env.QCMS_DB_PASSWORD ?? "qcms";
 const DB_NAME = process.env.QCMS_DB_NAME ?? "qcms";
+// Where this process reaches the dev Postgres.
+//
+// On a host checkout that is plain localhost. Inside the dev container it is
+// not: `docker compose` there talks to the mounted host socket
+// (docker-outside-of-docker, ADR-29), so the database starts as a SIBLING
+// published on the host's loopback, and this container's own localhost has
+// nothing on 7020.
+//
+// The address that works is the default-route gateway. `host.docker.internal`
+// looks right and even accepts a TCP connection on Docker Desktop, but a real
+// Postgres session against it times out - so it is not used here, and a plain
+// TCP reachability check is not sufficient evidence for this path.
+function detectDbHost() {
+  if (process.env.QCMS_DB_HOST) return process.env.QCMS_DB_HOST;
+  if (!existsSync("/.dockerenv")) return "localhost";
+
+  const route = spawnSync("ip", ["route"], { encoding: "utf8" });
+  const gateway = route.stdout?.match(/default via (\S+)/)?.[1];
+  if (gateway) return gateway;
+
+  // No `ip`, or no default route. Fall back to localhost rather than
+  // host.docker.internal: it is wrong here, and it fails by timing out, which
+  // is slower and less obvious than the connection refusal localhost gives.
+  return "localhost";
+}
+const DB_HOST = detectDbHost();
 const DATABASE_URL =
   process.env.DATABASE_URL ??
-  `postgres://${DB_USER}:${DB_PASSWORD}@localhost:${DB_PORT}/${DB_NAME}`;
+  `postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}`;
 
 const API_PORT = process.env.QCMS_DEV_API_PORT ?? "7010";
 const PORTAL_PORT = process.env.QCMS_DEV_PORTAL_PORT ?? "7000";
@@ -184,7 +210,8 @@ function composeUp() {
       QCMS_DB_NAME: DB_NAME,
     },
   });
-  if (res.status !== 0) fail("docker compose up failed (is Docker running?)");
+  // Compose has already printed the real reason; do not guess at it.
+  if (res.status !== 0) fail(`docker compose up failed (exit ${res.status}); see the error above`);
 }
 
 async function loadDbToolkit() {

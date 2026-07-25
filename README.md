@@ -40,13 +40,19 @@ The domain kernel (`@qcms/core`) is a functional core: pure functions over immut
 
 ## Development
 
-Requires [Node](https://nodejs.org) (LTS, see `.nvmrc`), [pnpm](https://pnpm.io), and Docker (for the integration test database).
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/roonga/qcms)
+
+The **dev container** in `.devcontainer/` is the recommended environment (ADR-29): Node 24, pnpm, Docker access, the GitHub CLI and Playwright's Chromium, preinstalled. Open the repo in VS Code and *Reopen in Container*, click the badge above for a Codespace, or run `pnpm devcontainer up` from a terminal. Full guide: [`docs/DEV_CONTAINER.md`](docs/DEV_CONTAINER.md).
+
+Working on the host instead is fully supported. Requires [Node](https://nodejs.org) (LTS, see `.nvmrc`), [pnpm](https://pnpm.io), and Docker (for the integration test database).
 
 ```sh
 pnpm install
 pnpm build && pnpm test        # kernel, compiler, db (Testcontainers), api
 docker compose -f docker-compose.dev.yml up -d   # local Postgres - copy .env.example to .env first
 ```
+
+Details, including how to reach the dev database from inside the container: [`CONTRIBUTING.md`](CONTRIBUTING.md#development-environment).
 
 ## Documentation
 

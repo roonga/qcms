@@ -7,6 +7,33 @@
 
 The reference documents in `docs/` are authoritative; the discipline rules R1–R7 and decisions ADR-01…25 / SEC-1…12 are not relitigated in PRs - a PR that violates them is not mergeable regardless of quality. Conflicts with a decision are raised as an issue proposing a new ADR, never resolved silently in code. The launch cut-line (R7) applies to contributions: out-of-scope features become `phase-4` issues, not PRs.
 
+## Development environment
+
+**The dev container is the recommended path (ADR-29).** It is the canonical, tested environment: one preinstalled Ubuntu 24.04 box with Node 24, pnpm (from the `packageManager` pin), Docker access, the GitHub CLI, Playwright's Chromium, and a configured zsh. Running the host toolchain directly still works and is fully supported; the container just removes the "works on my machine" class of problem. **On Windows, the container is the supported path** (Docker Desktop or Codespaces) rather than a native-PowerShell checkout.
+
+**Prerequisites:** Docker (Docker Desktop, or Docker Engine under WSL2/Linux) and either the VS Code **Dev Containers** extension or the `@devcontainers/cli`.
+
+```sh
+# VS Code: open the repo, then "Reopen in Container".
+# CLI (no editor needed):
+pnpm devcontainer up   # wraps @devcontainers/cli; `pnpm devcontainer --help` for the rest
+pnpm devcontainer run 'pnpm build'
+```
+
+GitHub **Codespaces** works from the same file: use the badge in `README.md`, or *Code → Codespaces → Create codespace*.
+
+First start pulls the base image and runs `.devcontainer/post-create.sh` (corepack + `pnpm install --frozen-lockfile` + `playwright install --with-deps chromium`), so budget several minutes; later starts are quick.
+
+**Full operational guide: [`docs/DEV_CONTAINER.md`](docs/DEV_CONTAINER.md)** - every command, what the container
+takes over from your machine (ports, `node_modules`, the Docker daemon), running the app, troubleshooting, secrets,
+Codespaces, and rollback. That file is the single source of truth for using the container; this section only frames it.
+
+Two things worth knowing before your first run: **only one qcms dev container runs at a time** (it publishes fixed host
+ports), and **`devcontainer up` silently reuses a running container**, ignoring changed `runArgs`/`appPort`/`containerEnv` -
+use `pnpm devcontainer rebuild` after editing `devcontainer.json`.
+
+**Rollback** is a one-liner: the container changes no product code, so deleting `.devcontainer/` (or simply never opening the repo in a container) leaves every host workflow unchanged. Details, including the one `pnpm install` you need if that checkout had been used in the container, are in [`docs/DEV_CONTAINER.md`](docs/DEV_CONTAINER.md#rollback).
+
 ## Coding standards
 
 ### TypeScript

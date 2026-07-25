@@ -1,0 +1,133 @@
+// QCMS dev container - the canonical development environment (ADR-29, task 046).
+//
+// Shape: a single Ubuntu 24.04 image plus Features. The dev database is NOT part
+// of this container: it stays in `docker-compose.dev.yml` (and the merge gate's
+// database is ephemeral Testcontainers, ADR-23), which is why the
+// `javascript-node-postgres` template is deliberately not used.
+//
+// Docker reaches the HOST daemon through a mounted socket
+// (`docker-outside-of-docker`), so Testcontainers spins *sibling* containers on
+// the host. ADR-29 records that trade-off. See `docs/DEVELOPER_GUIDE.md` for the
+// launch path, the `TESTCONTAINERS_HOST_OVERRIDE` note and the rollback steps.
+{
+  "name": "qcms-dev-container",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+
+  "features": {
+    // zsh + oh-my-zsh as the default shell, so a contributor gets a usable
+    // terminal instead of raw bash. The autosuggestion / syntax-highlight
+    // plugins are wired in post-create.sh.
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": true,
+      "configureZshAsDefaultShell": true,
+      "installOhMyZsh": true,
+      "installOhMyZshConfig": true,
+      "upgradePackages": false
+    },
+    // Node 24 = the repo's pinned LTS floor (`engines.node >= 24`, .nvmrc).
+    // pnpm itself is activated by corepack from the `packageManager` pin.
+    "ghcr.io/devcontainers/features/node:1": { "version": "24" },
+    // Testcontainers (ADR-23) needs a Docker daemon: mount the host socket.
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+      "moby": true,
+      "installDockerBuildx": true,
+      "installDockerComposeSwitch": true
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    // The autonomous loop runs INSIDE this container with
+    // `--permission-mode bypassPermissions` (ADR-29): the container is the
+    // blast radius.
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
+  },
+
+  // Dev ports (7xxx). `next dev` and the Hono `serve()` both listen on 0.0.0.0
+  // by default, so a host browser can reach them once the ports leave the
+  // container (verified in task 046; no source change needed).
+  //
+  // TWO mechanisms, because they cover different launchers:
+  //   - `appPort` publishes the ports on the Docker host (`docker run -p`), so
+  //     they work under ANY launcher, including a bare `devcontainer up` from
+  //     the CLI. This is what makes http://localhost:7000 work outside VS Code.
+  //   - `forwardPorts` is the VS Code / Codespaces editor tunnel, which also
+  //     gives the labels below. It does nothing on the CLI route.
+  //
+  // 7020 is deliberately NOT in `appPort`: nothing in this container listens on
+  // it. The dev Postgres runs on the HOST via docker-compose.dev.yml, which
+  // publishes 7020 itself, so claiming it here would take the port away from the
+  // database and make `docker compose -f docker-compose.dev.yml up -d` fail with
+  // "port is already allocated" (and, in the other order, make container
+  // creation fail). It stays in `forwardPorts` only for the VS Code label; the
+  // editor tunnel is a no-op here, not a host bind.
+  "appPort": [7000, 7010],
+  "forwardPorts": [7000, 7010, 7020],
+  "portsAttributes": {
+    "7000": { "label": "portal (next dev)", "onAutoForward": "notify" },
+    "7010": { "label": "api (Hono)", "onAutoForward": "silent" },
+    "7020": { "label": "dev Postgres (docker-compose.dev.yml)", "onAutoForward": "silent" }
+  },
+
+  // `host.docker.internal` resolves to the host from inside the container: the
+  // documented address for the dev Postgres published by docker-compose.dev.yml
+  // and the `TESTCONTAINERS_HOST_OVERRIDE` fallback if sibling containers are
+  // not reachable on localhost.
+  // `--ipc=host` is required for Chromium: Docker's default 64 MB /dev/shm is
+  // too small for Chrome's shared-memory allocations, and the portal Playwright
+  // suite hangs on the first JavaScript-heavy page without it (Playwright's own
+  // documented Docker recommendation).
+  //
+  // `--name` makes the container legible in `docker ps` and gives the port
+  // conflict above a one-line fix (`docker stop qcms-dev-container`) instead of
+  // hunting a random Docker name. The matching compose-project label groups it
+  // with the dev database in Docker Desktop, so the whole dev environment reads
+  // as one unit. Both are safe because only one of these can run at a time
+  // anyway: `appPort` already makes the ports exclusive machine-wide.
+  "runArgs": [
+    "--init",
+    "--ipc=host",
+    "--add-host=host.docker.internal:host-gateway",
+    "--name=qcms-dev-container",
+    "--label=com.docker.compose.project=qcms-dev"
+  ],
+
+  "containerEnv": {
+    // corepack must never stop for a "download this pnpm version?" prompt: the
+    // loop runs unattended.
+    "COREPACK_ENABLE_DOWNLOAD_PROMPT": "0",
+    // Keep Claude Code's config + credentials in the mounted ~/.claude, so a
+    // container rebuild does not throw away the login.
+    "CLAUDE_CONFIG_DIR": "/home/vscode/.claude"
+    // The dev database address is not set here: scripts/dev-portal.mjs detects
+    // it, which keeps host and container checkouts on the same code path.
+  },
+
+  // Secrets are provisioned at RUNTIME, never committed: `.env` (gitignored)
+  // arrives with the workspace bind mount, `gh auth login` writes into the
+  // container, and Claude Code credentials live in the mounted ~/.claude. No
+  // secret value appears in this file.
+  "mounts": [
+    // The a2-react-aria sibling repo (ADR-22): upstream component sources and
+    // docs are required reading for the UI tasks. initializeCommand creates the
+    // directory on the host first so the bind never fails on a fresh clone.
+    "source=${localWorkspaceFolder}/../a2-react-aria,target=/workspaces/a2-react-aria,type=bind,consistency=cached",
+    // Claude Code config + credentials, shared with the host user.
+    "source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind,consistency=cached"
+  ],
+  // Runs in the HOST shell before the container is created. KNOWN LIMITATION:
+  // this form is POSIX-only (`mkdir -p`, `$HOME`), so on a Windows host running
+  // Docker Desktop natively it is a no-op that prints an error rather than
+  // creating the directories; `${localEnv:HOME}` is likewise empty on Windows
+  // (which uses USERPROFILE). Windows contributors should either use WSL2 (the
+  // tested path) or create `..\a2-react-aria` and `%USERPROFILE%\.claude` by
+  // hand once. Verified on Linux/WSL2 only; tracked as a follow-up issue.
+  "initializeCommand": "mkdir -p \"${localWorkspaceFolder}/../a2-react-aria\" \"$HOME/.claude\" || true",
+
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "zsh"
+      }
+    }
+  }
+}

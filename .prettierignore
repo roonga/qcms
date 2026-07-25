@@ -1,5 +1,6 @@
 # Build and dependency output
 node_modules/
+.pnpm-store/
 dist/
 .turbo/
 coverage/

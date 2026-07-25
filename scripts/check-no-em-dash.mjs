@@ -10,8 +10,12 @@
  * always fine.
  *
  * Deny-by-default over tracked prose/source/config: .md .ts .tsx .js .jsx .mjs
- * .cjs .yml .yaml (vendored a2ra components excluded). This file references the
- * banned glyph only via its codepoint, so it scans cleanly over itself.
+ * .cjs .yml .yaml .sh (vendored a2ra components excluded). This file references
+ * the banned glyph only via its codepoint, so it scans cleanly over itself.
+ *
+ * NOT covered: .json. The append-only golden corpus (ADR-18) contains em dashes
+ * inside frozen fixture data, so widening this gate to .json would fail on
+ * files that must never be edited. Committed .json prose is reviewed by hand.
  *
  * Usage:  node scripts/check-no-em-dash.mjs
  */
@@ -23,7 +27,18 @@ import { readFileSync } from "node:fs";
 const GIT = process.platform === "win32" ? "git.exe" : "git";
 const EM_DASH = String.fromCharCode(0x2014);
 
-const GLOBS = ["*.md", "*.ts", "*.tsx", "*.js", "*.jsx", "*.mjs", "*.cjs", "*.yml", "*.yaml"];
+const GLOBS = [
+  "*.md",
+  "*.ts",
+  "*.tsx",
+  "*.js",
+  "*.jsx",
+  "*.mjs",
+  "*.cjs",
+  "*.yml",
+  "*.yaml",
+  "*.sh",
+];
 
 function tracked() {
   const out = execFileSync(
