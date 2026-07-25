@@ -1,5 +1,14 @@
 import { spawnSync } from "node:child_process";
-import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -33,14 +42,25 @@ function runWithStubbedClaude(stubOutput: string, ...args: string[]) {
   const copied = join(root, "scripts", "agent-loop.sh");
   copyFileSync(SUPERVISOR, copied);
 
+  // The stub records the argv it was launched with, one argument per line, so a
+  // test can assert what the supervisor actually passes to `claude`.
   const stub = join(root, "bin", "claude");
-  writeFileSync(stub, `#!/usr/bin/env bash\ncat <<'OUT'\n${stubOutput}\nOUT\n`);
+  const argvLog = join(root, "claude-argv.txt");
+  writeFileSync(
+    stub,
+    `#!/usr/bin/env bash\nprintf '%s\\n' "$@" >>'${argvLog}'\ncat <<'OUT'\n${stubOutput}\nOUT\n`,
+  );
   chmodSync(stub, 0o755);
 
-  return spawnSync("bash", [copied, ...args], {
+  const res = spawnSync("bash", [copied, ...args], {
     encoding: "utf8",
     env: { ...process.env, PATH: `${join(root, "bin")}:${process.env.PATH ?? ""}` },
   });
+
+  const claudeArgv = existsSync(argvLog)
+    ? readFileSync(argvLog, "utf8").split("\n").filter(Boolean)
+    : [];
+  return { ...res, claudeArgv };
 }
 
 describe("agent-loop.sh argument validation", () => {
@@ -127,6 +147,14 @@ describe("agent-loop.sh supervisor loop", () => {
     expect(res.stdout).toContain("ledger exhausted");
     // Proves validation did not reject the parallel value on the way through.
     expect(res.stdout).toContain("/next-task 2");
+  });
+
+  it("pins the model, so an unattended run cannot drift with the CLI default", () => {
+    const res = runWithStubbedClaude("NEXT-TASK: NOTHING", "-m", "1");
+
+    expect(res.status).toBe(0);
+    // Adjacency, not mere presence: `--model` has to actually carry the id.
+    expect(res.claudeArgv[res.claudeArgv.indexOf("--model") + 1]).toBe("claude-opus-5");
   });
 
   it("stops at a human gate rather than continuing to the next task", () => {
