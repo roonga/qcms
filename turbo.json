@@ -13,9 +13,27 @@
       "dependsOn": ["^build"],
       "outputs": ["dist/**"]
     },
+    // An `outputs` glob must match only files the build itself writes: turbo tars
+    // whatever matches when the task ends, and a later cache hit restores that over
+    // whatever is on disk, in any worktree (issue #57).
+    //
+    // `next build` writes `apps/portal/.next`. Two subdirectories under it are
+    // carved back out:
+    //   - `dev` is a dev server's live working directory. Since issue #54 the
+    //     portal's dev phase writes `.next-dev` instead (see next.config.ts), so
+    //     nothing writes `.next/dev` here any more, but the glob still named it, and
+    //     residue left by an older checkout or a stray `next dev` was being tarred
+    //     into the shared artifact and restored elsewhere: measured at 277 MB of dev
+    //     Turbopack cache and a dev log, against a 16 MB build. A planted marker file
+    //     under `.next/dev` was overwritten by a cache hit before this exclusion and
+    //     survives one after it.
+    //   - `cache` is Next's incremental cache between builds (a `.tsbuildinfo` from
+    //     the build's typecheck), not build product, and it is where a running
+    //     server would keep any data or image cache. Excluding it keeps a cache hit
+    //     from putting an older copy over a newer one.
     "qcms-portal#build": {
       "dependsOn": ["^build"],
-      "outputs": [".next/**", "!.next/cache/**"]
+      "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**"]
     },
     "test": {
       "dependsOn": ["build"]
