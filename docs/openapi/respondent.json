@@ -703,7 +703,7 @@
         "security": [
           {
             "MachineToken": [
-              "responses:read"
+              "responses:write"
             ]
           }
         ],

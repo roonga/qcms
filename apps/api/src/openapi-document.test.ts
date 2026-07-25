@@ -80,7 +80,7 @@ describe("committed OpenAPI documents (exit criterion 4)", () => {
   });
 });
 
-describe("respondent write endpoints carry responses:write (SEC-5, issue #7)", () => {
+describe("respondent write endpoints carry responses:write (SEC-5, issues #7 and #15)", () => {
   /** The `MachineToken` scopes annotated on a `"METHOD path"` operation. */
   function scopesFor(doc: OpenApiDocument, method: string, path: string): string[] {
     const op = (doc.paths?.[path] as Record<string, unknown> | undefined)?.[method] as
@@ -97,6 +97,12 @@ describe("respondent write endpoints carry responses:write (SEC-5, issue #7)", (
 
   it("POST /sessions/{id}/answers requires responses:write, not responses:read", () => {
     const scopes = scopesFor(generated.respondent, "post", "/sessions/{id}/answers");
+    expect(scopes).toContain("responses:write");
+    expect(scopes).not.toContain("responses:read");
+  });
+
+  it("POST /sessions/{id}/submit requires responses:write, not responses:read", () => {
+    const scopes = scopesFor(generated.respondent, "post", "/sessions/{id}/submit");
     expect(scopes).toContain("responses:write");
     expect(scopes).not.toContain("responses:read");
   });

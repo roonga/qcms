@@ -41,7 +41,10 @@ export const submitRoute = createRoute({
     // 422: at least one visible-required answer is missing or invalid.
     ...errorResponses(401, 404, 409, 422),
   },
-  ...withScopes("responses:read"),
+  // A respondent *write* endpoint (locks the answer set): SEC-5
+  // `responses:write`, not the `responses:read` it borrowed before the scope
+  // existed (issue #15, reconciling the endpoint #7 did not name).
+  ...withScopes("responses:write"),
 });
 
 /** Register the submit route on a public surface group. */
