@@ -1,6 +1,13 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "globalDependencies": ["eslint.config.js", ".prettierrc*", "tsconfig.base.json"],
+  // Bound how many package tasks run at once. turbo's default of 10 multiplies
+  // with each test task's own Vitest worker pool. Paired with `maxWorkers` in
+  // vitest.config.ts, which explains the measurements and the tradeoff: this cuts
+  // process count and oversubscription, not peak CPU. A percentage keeps it
+  // proportional on a small CI runner. Measured: 25% cost 30% more wall time for
+  // no further benefit, so 50% is the chosen point.
+  "concurrency": "50%",
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

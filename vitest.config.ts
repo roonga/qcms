@@ -16,6 +16,25 @@ const REPO_ROOT = fileURLToPath(new URL(".", import.meta.url));
 // test.projects is its replacement - task 001.)
 export default defineConfig({
   test: {
+    // Bound the per-run worker pool. Every package's `test` script runs
+    // `vitest run --root <repo> --project <name>`, so each turbo task spawns its
+    // own pool against this config and turbo runs several of those at once: the
+    // two multiply. Measured on a 24-core box, `turbo run test --force` went from
+    // a peak of 32 concurrent worker processes to 16 with this plus the paired
+    // `concurrency` in turbo.json, for about 9% more wall time (66s to 72s).
+    //
+    // What this does and does not buy, measured rather than assumed: it lowers
+    // oversubscription and the process/memory footprint, so a long agent-loop
+    // session stops starving everything else sharing the machine. It does NOT
+    // lower peak CPU (peak load was 23.3 uncapped and 24.6 capped) - the suite is
+    // CPU-bound, so it will use whatever cores it is given. A hard CPU ceiling
+    // belongs to the host (WSL2 `.wslconfig` `processors`, or a container
+    // `--cpus` limit), deliberately not committed here because a fixed core count
+    // would throttle a contributor with fewer cores.
+    //
+    // Percentages, not fixed numbers, so both scale down on a 2-to-4-core CI
+    // runner instead of oversubscribing it.
+    maxWorkers: "25%",
     projects: [
       "packages/*",
       "apps/*",
