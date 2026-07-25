@@ -48,6 +48,8 @@ docker compose -f docker-compose.dev.yml up -d
 pnpm dev:portal   # finds the dev DB itself; see CONTRIBUTING for why not host.docker.internal
 ```
 
+**Where the portal's build output lands:** the production build (`pnpm build`, served by `next start`) writes `apps/portal/.next`; every dev server (`pnpm dev:portal`, and the one the Playwright suite boots) writes `apps/portal/.next-dev`. Two directories, deliberately (issue #54): `turbo.json` declares the portal build's outputs as `.next/**`, so while dev output lived under `.next` it was tarred into the build cache and a later `pnpm build` cache hit restored that stale snapshot, from any worktree, over the live dev directory. The dev server then died on a corrupt or stale Turbopack cache and the only visible symptom was a bare 180s Playwright `webServer` timeout. Split, `pnpm build` and `pnpm exec playwright test` work in either order with no manual clean. Both directories are gitignored, and `rm -rf apps/portal/.next-dev` is always safe: it discards no production build.
+
 If a Testcontainers-backed suite cannot reach the container it just started (sibling containers, not children), set `TESTCONTAINERS_HOST_OVERRIDE`. It has never been needed here. Prefer the default-route gateway over `host.docker.internal` if you do need it, for the Postgres-session reason noted above.
 
 **What the container takes over from your machine** (ports 7000/7010, `node_modules` and the pnpm store, the Docker daemon), how to run the app inside it, and the full troubleshooting table are in [`DEV_CONTAINER.md`](DEV_CONTAINER.md). The rule that bites first: **only one qcms dev container runs at a time**, machine-wide.
