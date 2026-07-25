@@ -266,7 +266,19 @@ describe("one-time link race (exit criterion 1)", () => {
     expect(((await loser.json()) as ErrBody).error.code).toBe("LINK_CONSUMED");
     const winnerBody = (await winner.json()) as StartBody;
     const row = await getSession(testDb.db, SessionId.parse(winnerBody.sessionId));
-    expect(row?.linkId).toBe("lnk_race");
+    // Asserted in two steps on purpose (issue #38): a *missing* row and a row
+    // whose `linkId` is null are different defects, and a bare
+    // `expect(row?.linkId)` reported both as "expected undefined to be
+    // 'lnk_race'". Row absent means the winner's transaction never committed;
+    // `linkId` null means it committed without binding the link. Keep them
+    // distinguishable so a future failure names its own cause.
+    expect(
+      row,
+      `winner session ${winnerBody.sessionId} has no row: winner tx did not commit`,
+    ).toBeDefined();
+    expect(row?.linkId, "winner session row committed but is not bound to the link").toBe(
+      "lnk_race",
+    );
   });
 });
 
