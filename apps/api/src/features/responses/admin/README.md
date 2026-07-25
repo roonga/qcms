@@ -25,13 +25,17 @@ bundled into a preset**: `responses:erase` (destructive) is granted on its own.
 ### The unflag scope (a documented judgement call)
 
 Unflag is a per-response **disposition mutation** - it releases a response that
-anti-abuse withheld from webhook delivery. There is no `responses:write` /
-`responses:moderate` scope in the launch taxonomy (SEC-5, fixed in 017), so it is
-annotated with `responses:erase`: the two per-response disposition mutations
-(release vs. destroy) share one deliberately-narrow scope, keeping mutating
-authority out of the read/export scopes. A dedicated `responses:moderate` scope
-is the right Phase-4 refinement (filed as a discovery), at which point unflag
-moves to it - a one-line annotation change, since scopes enforce nothing today.
+anti-abuse withheld from webhook delivery. A `responses:write` scope does exist
+(SEC-5; added by issue #7 for `POST /sessions` and `POST /sessions/{id}/answers`,
+extended by #15 to `POST /sessions/{id}/submit`), but it is the **respondent**
+write scope: it authorizes a respondent filling in a form, not an administrator
+changing a submitted response's disposition, so it is the wrong scope here even
+though it exists. There is no `responses:moderate` scope, so unflag is annotated
+with `responses:erase`: the two per-response disposition mutations (release vs.
+destroy) share one deliberately-narrow scope, keeping admin mutating authority
+out of the read/export scopes. A dedicated `responses:moderate` scope is the
+right Phase-4 refinement (issue #9), at which point unflag moves to it - a
+one-line annotation change, since scopes enforce nothing today.
 
 ## Erasure safety (SEC / ADR-17)
 
