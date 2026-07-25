@@ -4,7 +4,7 @@
  *
  * Every missing-required entry once rendered the same sentence, so all summary
  * links had the SAME accessible name: a screen-reader user hearing "This question
- * needs an answer" three times could not tell which field any link pointed at.
+ * needs an answer." once per entry could not tell which field any link pointed at.
  * Each entry now names its own question.
  *
  * The assertions below are role + accessible-name queries resolved by the browser
