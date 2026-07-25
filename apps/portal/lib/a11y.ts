@@ -89,20 +89,55 @@ const FOCUSABLE_SELECTOR = [
 ].join(", ");
 
 /**
+ * Whether an element can actually take focus in the layout as rendered. `.focus()`
+ * is silent when it fails, so a candidate the browser does not render would make
+ * `focusQuestion` report a success that never happened (issue #76).
+ *
+ * `getClientRects().length === 0` is the primary test: it is zero for
+ * `display: none` (the element's own or inherited) and for a detached node, and
+ * unlike `offsetParent === null` it does not misreport a `position: fixed`
+ * element as hidden. `checkVisibility` then adds the cases that DO generate boxes
+ * yet still refuse focus (`visibility: hidden`, `content-visibility: hidden`); it
+ * is feature-detected because it is newer than the rest of this file's baseline.
+ *
+ * Deliberately NOT a visually-hidden test: a clipped 1x1 control can be a real
+ * focus target (that is how skip links are built). The visually-hidden native
+ * mirrors that must be skipped are excluded by the `aria-hidden` filter instead.
+ *
+ * Only ever evaluated in a browser: jsdom performs no layout, so every element
+ * there reports zero client rects. That is why this file's DOM helpers are
+ * covered by Playwright and not by the portal's node-env Vitest project.
+ */
+function canTakeFocus(element: HTMLElement): boolean {
+  if (element.getClientRects().length === 0) return false;
+  if (typeof element.checkVisibility === "function") {
+    return element.checkVisibility({ visibilityProperty: true });
+  }
+  return true;
+}
+
+/**
  * The control a screen reader should land on for a question: prefer the value
  * control (input / textarea / select, or a radio group's first radio) over a
  * control's ancillary buttons (a NumberField renders stepper `<button>`s around
  * its input) and over trigger buttons. Skips anything inside an `aria-hidden`
- * subtree (e.g. the honeypot, or a hidden native select mirror).
+ * subtree (e.g. the honeypot, or a hidden native select mirror) and anything the
+ * browser does not render, which `.focus()` would silently ignore.
  */
 export function firstFocusableIn(root: ParentNode): HTMLElement | null {
   const candidates = Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
-    (element) => element.closest("[aria-hidden='true']") === null,
+    (element) => element.closest("[aria-hidden='true']") === null && canTakeFocus(element),
   );
+  // A segmented date field's value control is its first editable SEGMENT, which
+  // react-aria renders as a `[role=spinbutton]` span rather than an input. Checked
+  // before the input preference because such a field also renders a native text
+  // input for soft-keyboard entry: it is `display: none` on pointer platforms, but
+  // it must not win the preference below on a platform where it is rendered.
+  const dateSegment = candidates.find((element) => element.getAttribute("role") === "spinbutton");
   const valueControl = candidates.find((element) =>
     /^(INPUT|TEXTAREA|SELECT)$/.test(element.tagName),
   );
-  return valueControl ?? candidates[0] ?? null;
+  return dateSegment ?? valueControl ?? candidates[0] ?? null;
 }
 
 /** The questionId of the field wrapper an element sits inside, if any. */
@@ -113,14 +148,21 @@ export function questionIdOf(element: Element | null): string | undefined {
 
 /**
  * Move focus to a question's value control by questionId, scoped to `root`.
- * Returns true when a control was focused. `scrollIntoView` keeps the newly
+ * Returns true only when focus ACTUALLY landed inside that question: `.focus()`
+ * reports nothing when it fails, and the caller that branches on this result (the
+ * branch-removal recovery in `step-flow`) must fall back to the step heading
+ * rather than believe focus moved and leave it wherever it was (issue #76).
+ * Anything inside the field counts, since a component may delegate focus from the
+ * element we picked to a descendant of it. `scrollIntoView` keeps the newly
  * focused control on screen at 200% zoom / small viewports.
  */
 export function focusQuestion(root: ParentNode, questionId: string): boolean {
   const field = root.querySelector<HTMLElement>(`[data-qcms-field="${cssEscape(questionId)}"]`);
-  const control = field ? firstFocusableIn(field) : null;
+  if (field === null) return false;
+  const control = firstFocusableIn(field);
   if (control === null) return false;
   control.focus();
+  if (!field.contains(field.ownerDocument.activeElement)) return false;
   control.scrollIntoView({ block: "center", behavior: "auto" });
   return true;
 }
