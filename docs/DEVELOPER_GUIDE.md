@@ -10,8 +10,12 @@ How to drive the QCMS multi-agent development flow as the human in the loop. (Wh
 
 ```sh
 # From the repo root on the host (WSL2/Linux/macOS):
-pnpm dlx @devcontainers/cli up --workspace-folder .        # first run: several minutes
-pnpm dlx @devcontainers/cli exec --workspace-folder . zsh  # a shell inside
+pnpm devcontainer up        # build/start (first run: several minutes)
+pnpm devcontainer shell     # a zsh terminal inside; repeat for more terminals
+pnpm devcontainer status     # what is running, and whether the config drifted
+pnpm devcontainer rebuild    # REQUIRED after editing devcontainer.json
+pnpm devcontainer run 'pnpm build'   # one command inside, then exit
+pnpm devcontainer stop       # there is no `devcontainer down`
 # or, in VS Code: "Reopen in Container" and use the integrated terminal.
 
 # Then, inside the container:
@@ -26,6 +30,8 @@ cd <your qcms checkout>
 claude
 claude --permission-mode bypassPermissions  # only in a checkout you trust the agent with
 ```
+
+`pnpm devcontainer` wraps the `@devcontainers/cli` lifecycle (falling back to `pnpm dlx`, so no global install is needed) and covers the trap that route has: **`up` silently reuses a running container and ignores changed `runArgs`, `appPort` and `containerEnv`.** `status` and `shell` warn when `devcontainer.json` is newer than the running container, and `rebuild` is the fix. Working without the wrapper is fine too - it is `devcontainer up --workspace-folder .`, plus `--remove-existing-container` to force a real recreate.
 
 Modes: the repo's `.claude/settings.json` sets **acceptEdits** (file edits and allowlisted commands run without prompting; anything unusual still asks). Shift+Tab cycles modes mid-session. For zero prompts, use the bypass flag above.
 

@@ -16,8 +16,8 @@ The reference documents in `docs/` are authoritative; the discipline rules R1–
 ```sh
 # VS Code: open the repo, then "Reopen in Container".
 # CLI (no editor needed):
-pnpm dlx @devcontainers/cli up --workspace-folder .
-pnpm dlx @devcontainers/cli exec --workspace-folder . pnpm build
+pnpm devcontainer up   # wraps @devcontainers/cli; `pnpm devcontainer --help` for the rest
+pnpm devcontainer run 'pnpm build'
 ```
 
 GitHub **Codespaces** works from the same file: use the badge in `README.md`, or *Code → Codespaces → Create codespace*.
