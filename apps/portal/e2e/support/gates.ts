@@ -40,14 +40,6 @@ const BROWSER_ALLOW: readonly RegExp[] = [
   // itself states it "will never use eval() in production mode", so this cannot
   // occur in the shipped build; weakening the CSP to silence it is not an option.
   /eval\(\) is not supported in this environment/,
-  // Pre-existing @qcms/ui issue (ticketed for the conductor, not task 045): the
-  // shortText control renders the question's validation regex as an HTML `pattern`
-  // attribute, and a pattern authored for the JS `u`/no-flag regex (e.g. an
-  // unescaped `-` in a character class) is rejected by the browser's stricter `v`
-  // flag applied to `pattern`. The API is the validation authority (R2), so this
-  // broken native hint does not affect correctness; it needs a compiler/renderer
-  // fix to emit a `v`-safe pattern.
-  /Pattern attribute value .* is not a valid regular expression/,
 ];
 
 /**
