@@ -115,6 +115,7 @@ exercise every type; mark n/a only if the type is genuinely absent.
 | D3 | The offending field's own error message is announced (aria-describedby) | | | |
 | D4 | A server-rejected answer (invalid value) is announced at the field | | | |
 | D5 | Nothing announces a stale error after it is corrected | | | |
+| D6 | With two or more missing answers, each summary entry names its own question, so the links are told apart by name alone (WCAG 3.3.1) | | | |
 
 ## E. Completion
 

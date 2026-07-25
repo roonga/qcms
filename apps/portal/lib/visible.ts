@@ -15,6 +15,11 @@ import type { A2UIStepDocument } from "@qcms/ui";
  * questionId, per the a2ui mapping); such a node is dropped unless its name is in
  * the visible set. Layout and text nodes (no `name`) are always kept, with their
  * children pruned recursively.
+ *
+ * The same convention drives `questionLabels`, which reads each question's
+ * rendered label out of the document so the portal can name a question in shell
+ * chrome (the error summary, issue #21) without a second API call: the compiler
+ * already resolved `label` onto every control node at publish time (ADR-18).
  */
 
 interface MutableNode {
@@ -68,4 +73,35 @@ export function documentForVisible(
     children: [],
   };
   return { stepId: document.stepId, root: root };
+}
+
+/** Visit `node` and every descendant, in document order. */
+function forEachNode(node: MutableNode, visit: (node: MutableNode) => void): void {
+  visit(node);
+  const { children } = node;
+  if (children === undefined || typeof children === "string") return;
+  if (Array.isArray(children)) {
+    for (const child of children) forEachNode(child, visit);
+    return;
+  }
+  forEachNode(children, visit);
+}
+
+/**
+ * Map each question in `document` to its rendered label, using the same
+ * `name`-prop convention as the visibility projection above. A question whose
+ * label is absent or blank (a control the compiler gave no label, e.g. the
+ * honeypot) is simply not in the map - callers decide the fallback.
+ */
+export function questionLabels(document: A2UIStepDocument): ReadonlyMap<string, string> {
+  const labels = new Map<string, string>();
+  forEachNode(document.root, (node) => {
+    const name = questionName(node);
+    if (name === undefined) return;
+    const label = node.props?.label;
+    if (typeof label !== "string") return;
+    const trimmed = label.trim();
+    if (trimmed !== "") labels.set(name, trimmed);
+  });
+  return labels;
 }
