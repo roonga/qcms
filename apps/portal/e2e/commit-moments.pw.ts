@@ -36,10 +36,11 @@
  * more often. It must not: any non-200 fails the test.
  */
 
-import type { Page, Request } from "@playwright/test";
+import type { Page } from "@playwright/test";
 
 import { test, expect } from "./support/gates.js";
 
+import { expectNoRejectedPosts, postsFor, watchAnswerPosts } from "./support/answer-log.js";
 import { readFixtures } from "./support/fixtures.js";
 import {
   KS,
@@ -60,50 +61,6 @@ const COVERAGE_OPTION_ID = "opt_standard";
 
 /** The live-region text for "every question is answered" (lib/i18n/en.ts). */
 const READY_ANNOUNCEMENT = "You have answered everything. You can now submit.";
-
-/** One recorded `POST /answers`: what it carried and how the API answered. */
-interface AnswerPost {
-  readonly questionId: string;
-  readonly value: unknown;
-  readonly status: number;
-}
-
-/**
- * Record every answer post the page makes, in order. Registered before the flow
- * starts, so the log is the complete history and a count is an accounting of
- * everything that has happened, not a sample.
- */
-function watchAnswerPosts(page: Page): AnswerPost[] {
-  const log: AnswerPost[] = [];
-  page.on("response", (response) => {
-    const request: Request = response.request();
-    if (request.method() !== "POST" || !response.url().includes("/answers")) return;
-    const body = JSON.parse(request.postData() ?? "{}") as {
-      questionId?: string;
-      value?: unknown;
-    };
-    log.push({
-      questionId: body.questionId ?? "",
-      value: body.value,
-      status: response.status(),
-    });
-  });
-  return log;
-}
-
-/** The posts recorded for one question, in order. */
-function postsFor(log: readonly AnswerPost[], questionId: string): AnswerPost[] {
-  return log.filter((post) => post.questionId === questionId);
-}
-
-/**
- * Every answer post so far was accepted. A 422 here is the null-post defect
- * (issue #95; resolved by PR #97) firing: an untouched required field blurred into a `null` post the
- * API rejects. Changing the posting cadence must not provoke more of them.
- */
-function expectNoRejectedPosts(log: readonly AnswerPost[]): void {
-  expect(log.filter((post) => post.status !== 200)).toEqual([]);
-}
 
 /** The questionId of the control that currently holds focus, via `FieldBlur`'s handle. */
 function focusedQuestion(page: Page): Promise<string | null> {

@@ -13,6 +13,7 @@ import { describe, expect, it } from "vitest";
 import { type A2UIStepDocument } from "./A2UIStepRenderer.tsx";
 import { loadGoldenForms } from "./test-support/golden.ts";
 import { ControlledHost, useChanges } from "./test-support/host.tsx";
+import { SELECT_STEP } from "./test-support/select-step.ts";
 
 // Controlled round-trip (exit criterion 3): typing into each control fires the
 // canonical AnswerValue shape for its question type. The emitted value is
@@ -30,46 +31,6 @@ const stepById = (id: string): A2UIStepDocument => {
 const stepAbout = stepById("stp_about");
 const stepHealth = stepById("stp_history");
 const stepCover = stepById("stp_cover");
-
-// The one question type no golden document exercises: singleChoice with > 7
-// options (Select). A tiny synthetic fixture - not a golden, just a test input.
-const selectStep: A2UIStepDocument = {
-  stepId: "stp_select",
-  root: {
-    type: "Form",
-    children: [
-      {
-        type: "Flex",
-        props: { direction: "column", gap: "md" },
-        children: [
-          { type: "Text", props: { as: "h2" }, children: "Where do you live?" },
-          {
-            type: "Select",
-            props: {
-              label: "Country",
-              name: "q_country",
-              isRequired: true,
-              items: [
-                { value: "opt_au", label: "Australia" },
-                { value: "opt_nz", label: "New Zealand" },
-                { value: "opt_us", label: "United States" },
-                { value: "opt_ca", label: "Canada" },
-                { value: "opt_gb", label: "United Kingdom" },
-                { value: "opt_ie", label: "Ireland" },
-                { value: "opt_de", label: "Germany" },
-                { value: "opt_fr", label: "France" },
-              ],
-            },
-          },
-          {
-            type: "Honeypot",
-            props: { name: "website", autoComplete: "off", ariaHidden: true, tabIndex: -1 },
-          },
-        ],
-      },
-    ],
-  },
-};
 
 // Same load exposure, same reason as keyboard.test.tsx (issue #61): these tests
 // type into react-aria controls with `userEvent` in jsdom, so their cost scales
@@ -176,7 +137,7 @@ describe(
     it("singleChoice > 7 (Select) emits an OptionId", async () => {
       const user = userEvent.setup();
       const changes = useChanges();
-      render(<ControlledHost document={selectStep} onChange={changes.onChange} />);
+      render(<ControlledHost document={SELECT_STEP} onChange={changes.onChange} />);
       await user.click(screen.getByRole("button", { name: /Country/ }));
       await user.click(screen.getByRole("option", { name: "New Zealand" }));
       expect(parseSingleChoiceAnswerValue(changes.latest("q_country"))).toEqual({

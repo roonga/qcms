@@ -577,7 +577,14 @@ describe("answers helpers", () => {
       answeredAt: new Date(t0 + 3000),
     });
     expect(tombstone.retracted).toBe(true);
-    expect(tombstone.value).toBeNull();
+    // The narrowed `RetractionRow` return is the contract, not merely the runtime
+    // shape (issue #98): these two annotations fail to compile if `retractAnswer`
+    // ever widens back to `AnswerRow`, so a caller can read the discriminator
+    // without re-narrowing through `isRetraction`.
+    const retractedValue: null = tombstone.value;
+    const retractedFlag: true = tombstone.retracted;
+    expect(retractedValue).toBeNull();
+    expect(retractedFlag).toBe(true);
 
     // The kernel's view: the retracted question is UNANSWERED, and the earlier
     // revision is not resurrected. Its neighbour is untouched.

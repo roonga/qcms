@@ -94,6 +94,10 @@ export async function appendAnswer(
  * Retracting a question that currently has no answer is legal (the caller may
  * not know), and simply leaves it unanswered; the API avoids appending a
  * meaningless tombstone in that case (see the submit-answer handler).
+ *
+ * Returns a {@link RetractionRow}, not a bare {@link AnswerRow}: this function can
+ * only ever insert a tombstone, so the narrower type carries that invariant to its
+ * callers instead of making each one re-derive it through {@link isRetraction}.
  */
 export async function retractAnswer(
   exec: Executor,
@@ -102,7 +106,7 @@ export async function retractAnswer(
     questionId: QuestionId;
     answeredAt?: Date;
   },
-): Promise<AnswerRow> {
+): Promise<RetractionRow> {
   const [row] = await exec
     .insert(answers)
     .values({
@@ -113,7 +117,11 @@ export async function retractAnswer(
       ...(input.answeredAt ? { answeredAt: input.answeredAt } : {}),
     })
     .returning();
-  return row!;
+  // The two discriminator fields are restated rather than type-asserted: this
+  // INSERT wrote exactly them, and the `answers_retraction_value` CHECK (migration
+  // 0009) forbids the database from returning any other shape, so the narrowing is
+  // a fact about this statement rather than a claim about an arbitrary row.
+  return { ...row!, value: null, retracted: true };
 }
 
 /**

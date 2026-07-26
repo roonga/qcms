@@ -43,6 +43,12 @@ import { toVSafePattern } from "./v-safe-pattern.ts";
  * vendored components are used byte-for-byte upstream (clean `a2ra diff`,
  * ADR-22); all qcms wiring lives here.
  *
+ * Clearing (issue #98): every adapter reports an emptied control as `undefined`,
+ * so one gesture has one meaning at this seam and the host can post the single
+ * ADR-33 retraction at that control's ADR-31 commit moment. See
+ * `absentIfEmptyText` below for why an empty value is never an answer, and the
+ * RadioGroup / Select adapters for the two controls that have no clear gesture.
+ *
  * Native (no-JS) submit mode (task 044): when `useQcmsNativeSubmit()` is true the
  * adapters render the SAME vendored control *uncontrolled* - a `defaultValue`
  * seeded from `values` and no `onChange` - so the browser's own form
@@ -55,6 +61,48 @@ import { toVSafePattern } from "./v-safe-pattern.ts";
 /** Narrows a canonical answer to the multiChoice (OptionId[]) shape. */
 function isStringArray(value: A2UIAnswerValue | undefined): value is readonly string[] {
   return Array.isArray(value);
+}
+
+/**
+ * An emptied control reports **absence**, never an "answer of nothing" (issue
+ * #98, ADR-33). One respondent gesture ("I emptied this field") must reach the
+ * server with one meaning, whichever control they emptied: `undefined` here, which
+ * the host posts as the ADR-33 null retraction at that control's ADR-31 commit
+ * moment. Without this, the same gesture reached the API three different ways -
+ * an empty-string answer from the text controls, an empty-array answer from the
+ * checkbox group, a retraction from number and date - and the two "answer of
+ * nothing" spellings are wrong on the merits, not merely inconsistent:
+ *
+ * - Nothing in the UI distinguishes "emptied" from "never answered": an empty text
+ *   box and an all-unchecked group ARE the pristine rendering, so the respondent
+ *   cannot mean the empty value as a value. Only an authored option ("None of the
+ *   above") can say that, and that is a real OptionId, not an empty selection.
+ * - `""` and `[]` are legal `AnswerValue`s, so they *satisfy* `required` (presence
+ *   is the whole test: `evaluate-rules` counts a question answered iff the answer
+ *   map has an entry). A required question emptied by the respondent would look
+ *   answered while holding nothing, which is precisely what ADR-33 forbids.
+ * - Where a constraint rejects the empty value (a `minLength`/`pattern` shortText,
+ *   a `minSelected: 1` multiChoice - the common shapes for a required question),
+ *   the empty post 422s, so the respondent saw "not valid" while the server
+ *   quietly kept the OLD answer and Continue advanced on it: the issue-#95 defect
+ *   class, reproduced for text and multiChoice.
+ * - The no-JS submit path (task 044) already decodes a blank text field and an
+ *   empty checkbox set to *absent* (`lib/server/step-form.ts`), so absence is
+ *   already this seam's answer on the other side of it.
+ *
+ * `undefined` for a question with no stored answer is a server-side no-op (ADR-33),
+ * so this never manufactures a tombstone for a field nobody answered.
+ */
+function absentIfEmptyText(value: string): string | undefined {
+  return value === "" ? undefined : value.normalize("NFC");
+}
+
+/** The multiChoice counterpart: an empty selection is absence, not an empty set. */
+function absentIfNoSelection(values: readonly string[]): readonly string[] | undefined {
+  // Canonical multiChoice is deduplicated (task 002); RAC never emits duplicates,
+  // but dedupe defensively to keep the encoding canonical.
+  const selected = [...new Set(values)];
+  return selected.length > 0 ? selected : undefined;
 }
 
 /**
@@ -115,8 +163,11 @@ function TextFieldField(props: Readonly<TextFieldProps>) {
   const modeProps: Partial<ComponentProps<typeof TextField>> = native
     ? { defaultValue: typeof field.value === "string" ? field.value : undefined }
     : {
+        // "" when the parent holds no answer, so the control stays CONTROLLED
+        // through a clear (`undefined` would hand react-aria its
+        // controlled-to-uncontrolled path and redisplay the cleared text).
         value: typeof field.value === "string" ? field.value : "",
-        onChange: (v: string) => field.setValue(v.normalize("NFC")),
+        onChange: (v: string) => field.setValue(absentIfEmptyText(v)),
       };
   return (
     <FieldBlur name={props.name} onBlur={field.blur}>
@@ -145,7 +196,7 @@ function TextAreaField(props: Readonly<TextAreaProps>) {
     ? { defaultValue: typeof field.value === "string" ? field.value : undefined }
     : {
         value: typeof field.value === "string" ? field.value : "",
-        onChange: (v: string) => field.setValue(v.normalize("NFC")),
+        onChange: (v: string) => field.setValue(absentIfEmptyText(v)),
       };
   return (
     <FieldBlur name={props.name} onBlur={field.blur}>
@@ -263,6 +314,14 @@ function RadioGroupField(props: RadioGroupProps) {
   // onChange emits a JSON boolean for the former and an OptionId for the latter.
   // No selection → `undefined` (not ""), so RAC's roving tabindex keeps the
   // first radio in the tab order; a bare "" would leave the group unreachable.
+  //
+  // A RadioGroup has **no clear gesture** to audit (issue #98): a selected radio
+  // cannot be toggled off - re-clicking it, or pressing Delete / Backspace /
+  // Escape / Space on it, all leave it selected, and react-aria emits no change.
+  // An author who wants "prefer not to say" gives the question that OPTION; it is
+  // a real answer, not a clear. So a boolean or singleChoice question can only go
+  // from unanswered to answered, or from one answer to another, and the only path
+  // back to unanswered is whole-session erasure (out of scope, ADR-33).
   let controlValue: string | undefined;
   if (field.value === undefined) {
     controlValue = undefined;
@@ -305,10 +364,10 @@ function CheckboxGroupField(props: CheckboxGroupProps) {
   const modeProps: Partial<ComponentProps<typeof CheckboxGroup>> = native
     ? { defaultValue: isStringArray(field.value) ? [...field.value] : undefined }
     : {
+        // [] when the parent holds no answer, so the group stays CONTROLLED
+        // through a clear (the TextField note above applies here too).
         value: isStringArray(field.value) ? [...field.value] : [],
-        // Canonical multiChoice is deduplicated (task 002); RAC never emits
-        // duplicates, but dedupe defensively to keep the encoding canonical.
-        onChange: (values: string[]) => field.setValue([...new Set(values)]),
+        onChange: (values: string[]) => field.setValue(absentIfNoSelection(values)),
       };
   return (
     <FieldBlur name={props.name} onBlur={field.blur}>
@@ -333,7 +392,15 @@ function SelectField(props: Readonly<SelectProps>) {
         // undefined (not "") when unselected - "" is not a valid option key and
         // breaks RAC's selection manager.
         value: typeof field.value === "string" ? field.value : undefined,
-        onChange: (v: string) => field.setValue(v),
+        // Like the RadioGroup, a Select (singleChoice above the compiler's option
+        // threshold) has **no clear gesture** to audit: the vendored trigger has no
+        // clear button, and RAC does not let a chosen key be deselected. The
+        // upstream `onSelectionChange` is nonetheless typed `Key | null` and the
+        // vendored component narrows it with a cast, so accept the empty case here
+        // and report it as absence: were react-aria ever to emit one, it would
+        // reach the API as an ADR-33 retraction like every other clear, never as a
+        // `null` travelling as though it were an `AnswerValue` (issue #98).
+        onChange: (v: string | null) => field.setValue(v === null || v === "" ? undefined : v),
       };
   return (
     <FieldBlur name={props.name} onBlur={field.blur}>
