@@ -37,8 +37,36 @@ import { afterAll, afterEach, describe, expect, it } from "vitest";
 
 const WRAPPER = fileURLToPath(new URL("portal-server.mjs", import.meta.url));
 
-/** Comfortably under the real 180s webServer timeout, comfortably over the 300ms grace. */
-const FAST_FAILURE_BUDGET_MS = 20_000;
+/**
+ * Wall-clock ceiling for a fail-fast exit.
+ *
+ * The property this pins is "seconds, not the webServer timeout": #58 measured
+ * 199s before the fix and 2s after, against the 180000ms
+ * `webServer.timeout` in the root `playwright.config.ts`. So the number that has
+ * to be ruled out is 180s, and any bound well under it proves the fix decisively.
+ * What proves the fail-fast *path* was taken is the mechanism each test asserts
+ * alongside this (a nonzero exit code, the fatal-marker message, the quoted log
+ * tail); this bound only rules out the hang, so it can afford to be loose.
+ *
+ * Loose is required, because `elapsedMs` is wall clock across a real
+ * child-process lifecycle: spawn, the stub's own Node boot, the wrapper's 300ms
+ * flush grace, subtree reaping. That cost scales with the CPU share the runner
+ * gets, which is why a loaded GitHub runner measured 23278ms against the original
+ * 20000ms ceiling while the duplicate run of the same commit passed (issue #136,
+ * the same class as #61). A third of the webServer timeout leaves 2.5x headroom
+ * over that worst observation and still fails any regression toward the 180s hang.
+ */
+const FAST_FAILURE_BUDGET_MS = 60_000;
+
+/**
+ * Per-test timeout for the two tests that assert `FAST_FAILURE_BUDGET_MS`. It has
+ * to sit above the budget, or an over-budget run would die on an opaque Vitest
+ * timeout instead of on the assertion that names the elapsed time. Derived rather
+ * than written out so the two cannot drift apart. Scoped to those two tests: the
+ * other five in this file keep the 30s they had, and nothing outside this file
+ * changes.
+ */
+const BUDGET_TEST_TIMEOUT_MS = FAST_FAILURE_BUDGET_MS + 30_000;
 
 /**
  * Claim a port from the ephemeral range and release it again. Most tests here
@@ -185,36 +213,50 @@ setInterval(() => {}, 1000);
 `;
 
 describe("portal-server wrapper startup fail-fast (issue #58)", () => {
-  it("fails fast with the log tail when the child reports a fatal error but never exits", async () => {
-    const wrapper = startWrapper(FATAL_THEN_HANGS, await freePort());
-    const { code, elapsedMs } = await wrapper.ended;
+  it(
+    "fails fast with the log tail when the child reports a fatal error but never exits",
+    async () => {
+      const wrapper = startWrapper(FATAL_THEN_HANGS, await freePort());
+      const { code, elapsedMs } = await wrapper.ended;
 
-    // Nonzero is what makes Playwright abandon its URL poll instead of waiting
-    // out the timeout.
-    expect(code).not.toBe(0);
-    expect(elapsedMs).toBeLessThan(FAST_FAILURE_BUDGET_MS);
+      // Nonzero is what makes Playwright abandon its URL poll instead of waiting
+      // out the timeout.
+      expect(code).not.toBe(0);
+      expect(
+        elapsedMs,
+        `fail-fast took ${String(elapsedMs)}ms, which is no longer "seconds not minutes"`,
+      ).toBeLessThan(FAST_FAILURE_BUDGET_MS);
 
-    const stderr = wrapper.stderr();
-    expect(stderr).toContain("portal dev server failed during startup");
-    expect(stderr).toContain("did not exit");
-    // The tail, on stderr: the cause is in the failure output, not just the file.
-    expect(stderr).toContain("last 30 non-blank lines of");
-    expect(stderr).toContain("ERR_SOCKET_BAD_PORT");
-    expect(stderr).toContain("RangeError: options.port should be >= 0 and < 65536.");
-  }, 30_000);
+      const stderr = wrapper.stderr();
+      expect(stderr).toContain("portal dev server failed during startup");
+      expect(stderr).toContain("did not exit");
+      // The tail, on stderr: the cause is in the failure output, not just the file.
+      expect(stderr).toContain("last 30 non-blank lines of");
+      expect(stderr).toContain("ERR_SOCKET_BAD_PORT");
+      expect(stderr).toContain("RangeError: options.port should be >= 0 and < 65536.");
+    },
+    BUDGET_TEST_TIMEOUT_MS,
+  );
 
-  it("propagates a nonzero child exit code and quotes the log tail", async () => {
-    const wrapper = startWrapper(
-      `process.stderr.write("Error: Cannot find module 'next'\\n");\nprocess.exit(7);\n`,
-      await freePort(),
-    );
-    const { code, elapsedMs } = await wrapper.ended;
+  it(
+    "propagates a nonzero child exit code and quotes the log tail",
+    async () => {
+      const wrapper = startWrapper(
+        `process.stderr.write("Error: Cannot find module 'next'\\n");\nprocess.exit(7);\n`,
+        await freePort(),
+      );
+      const { code, elapsedMs } = await wrapper.ended;
 
-    expect(code).toBe(7);
-    expect(elapsedMs).toBeLessThan(FAST_FAILURE_BUDGET_MS);
-    expect(wrapper.stderr()).toContain("exited with code 7");
-    expect(wrapper.stderr()).toContain("Cannot find module 'next'");
-  }, 30_000);
+      expect(code).toBe(7);
+      expect(
+        elapsedMs,
+        `fail-fast took ${String(elapsedMs)}ms, which is no longer "seconds not minutes"`,
+      ).toBeLessThan(FAST_FAILURE_BUDGET_MS);
+      expect(wrapper.stderr()).toContain("exited with code 7");
+      expect(wrapper.stderr()).toContain("Cannot find module 'next'");
+    },
+    BUDGET_TEST_TIMEOUT_MS,
+  );
 
   it("still exits nonzero when the child exits 0 before the server is reachable", async () => {
     // A dev server that stops during startup served nothing, so a 0 here would
