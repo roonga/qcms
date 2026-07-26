@@ -162,6 +162,50 @@ describe("portal log gate", () => {
 });
 
 /**
+ * The `[browser]` exclusion must be a *prefix* test, not a substring test (issue
+ * #131). The Next dev server writes the marker at the start of a line it forwards
+ * from the browser console, and those lines belong to the browser gate. A
+ * substring test also exempted any server-side fault line that merely quoted the
+ * literal text `[browser]` in its message, and that direction of bug is the
+ * dangerous one: it makes the gate go quiet on a real fault rather than cry wolf,
+ * so nothing ever draws attention to it.
+ */
+const QUOTES_THE_MARKER_LATER: readonly Case[] = [
+  {
+    why: "a thrown error whose message quotes the marker",
+    line: '⨯ Error: failed to forward a "[browser]" console entry',
+  },
+  {
+    why: "an unhandled rejection whose reason quotes the marker",
+    line: "Unhandled Rejection: TypeError: Cannot read properties of undefined (reading '[browser]')",
+  },
+  {
+    why: "a 5xx request line whose path quotes the marker",
+    line: "POST /r/tok_abc/[browser] 500 in 42ms",
+  },
+];
+
+/** Genuine forwarded browser lines: still the browser gate's business, not this one. */
+const PREFIXED_BY_THE_HARNESS: readonly Case[] = [
+  { why: "a forwarded browser TypeError", line: "[browser] TypeError: Failed to fetch" },
+  { why: "a forwarded browser error glyph line", line: "[browser] ⨯ RangeError: boom" },
+  {
+    why: "a forwarded browser line indented in the log (the gate trims first)",
+    line: "   [browser] SyntaxError: Unexpected end of JSON input",
+  },
+];
+
+describe("the [browser] exclusion is anchored to the start of the line", () => {
+  it.each(QUOTES_THE_MARKER_LATER)("fails on $why", ({ line }) => {
+    expect(gateVerdict("portal", line)).toEqual([line]);
+  });
+
+  it.each(PREFIXED_BY_THE_HARNESS)("stays silent on $why", ({ line }) => {
+    expect(gateVerdict("portal", line)).toEqual([]);
+  });
+});
+
+/**
  * The #120 widening is scoped to the portal branch of `isErrorLine`. These pin
  * that the API and Postgres branches are untouched by it: the API branch is a
  * JSON level filter, so a plain-text `RangeError:` line is not a fault there, and
