@@ -1,6 +1,6 @@
 ---
 name: qcms-project-state
-description: "Where qcms lives, execution status, and operational facts (updated 2026-07-26 — verify ledger/git before relying on task status)"
+description: "Where qcms lives, execution status, and operational facts (updated 2026-07-26 - verify ledger/git before relying on task status)"
 metadata: 
   node_type: memory
   type: project
