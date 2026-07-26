@@ -127,6 +127,11 @@ const PORTAL_ERROR =
  * to prevent. Escapes are only tolerated *before* the marker, so they cannot be
  * used to smuggle other text in front of it.
  */
+// The ESC byte is the whole point of this pattern: it matches the SGR colour
+// sequences the dev server writes around the marker. `no-control-regex` exists to
+// catch a control character that landed in a pattern by accident, which is the
+// opposite of the deliberate case here.
+// eslint-disable-next-line no-control-regex
 const BROWSER_FORWARD_PREFIX = /^(?:\u001B\[\d+(?:;\d+)*m)*\[browser\]/;
 
 function isErrorLine(source: LogSource, line: string): boolean {
