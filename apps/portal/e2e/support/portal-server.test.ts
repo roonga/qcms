@@ -198,7 +198,7 @@ describe("portal-server wrapper startup fail-fast (issue #58)", () => {
     expect(stderr).toContain("portal dev server failed during startup");
     expect(stderr).toContain("did not exit");
     // The tail, on stderr: the cause is in the failure output, not just the file.
-    expect(stderr).toContain("last 30 lines of");
+    expect(stderr).toContain("last 30 non-blank lines of");
     expect(stderr).toContain("ERR_SOCKET_BAD_PORT");
     expect(stderr).toContain("RangeError: options.port should be >= 0 and < 65536.");
   }, 30_000);
