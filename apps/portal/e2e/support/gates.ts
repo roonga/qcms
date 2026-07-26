@@ -111,13 +111,28 @@ const PG_ERROR = /(ERROR|FATAL|PANIC|WARNING):/;
 const PORTAL_ERROR =
   /(⨯|unhandledRejection|UnhandledPromiseRejection|Unhandled Rejection:|Uncaught Exception:|\b\w*Error:| 5\d\d )/;
 
-/** The prefix the Next dev server writes at the start of a forwarded browser line. */
-const BROWSER_FORWARD_PREFIX = "[browser]";
+/**
+ * The prefix the Next dev server writes at the START of a line it forwards from
+ * the browser console, anchored so that a server-side fault line merely quoting
+ * the literal text `[browser]` in its message is no longer exempted (issue #131).
+ *
+ * The leading-escape alternation is not defensive padding: the dev server colours
+ * the marker (`cyan("[browser]")`) and the captured log keeps those bytes, so a
+ * real line in `.playwright/server-logs/portal.log` reads
+ * `\u001B[36m[browser]\u001B[39m ...`, never a bare `[browser] ...`. Measured over
+ * a 3077-line log from a full `pnpm verify:browser` run: 173 forwarded lines, all
+ * 173 colour-wrapped, none bare. A plain `startsWith("[browser]")` anchor would
+ * therefore have excluded none of them and handed every forwarded browser fault
+ * to the server gate as well, which is the false positive this exclusion exists
+ * to prevent. Escapes are only tolerated *before* the marker, so they cannot be
+ * used to smuggle other text in front of it.
+ */
+const BROWSER_FORWARD_PREFIX = /^(?:\u001B\[\d+(?:;\d+)*m)*\[browser\]/;
 
 function isErrorLine(source: LogSource, line: string): boolean {
   if (source === "api") return apiLineIsError(line);
   if (source === "postgres") return PG_ERROR.test(line);
-  if (line.startsWith(BROWSER_FORWARD_PREFIX)) return false;
+  if (BROWSER_FORWARD_PREFIX.test(line)) return false;
   return PORTAL_ERROR.test(line);
 }
 

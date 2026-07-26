@@ -169,7 +169,18 @@ describe("portal log gate", () => {
  * literal text `[browser]` in its message, and that direction of bug is the
  * dangerous one: it makes the gate go quiet on a real fault rather than cry wolf,
  * so nothing ever draws attention to it.
+ *
+ * The forwarded marker arrives colour-wrapped (`cyan("[browser]")`), and the
+ * captured log keeps the escape bytes: every one of the 173 forwarded lines in a
+ * 3077-line `portal.log` from a full `pnpm verify:browser` run is
+ * `\u001B[36m[browser]\u001B[39m ...` and none is bare. So the colour-wrapped
+ * shape below is the shape that actually occurs, and the bare one is the shape
+ * this file's older case assumed; both must stay excluded, which is why the anchor
+ * tolerates leading SGR escapes rather than being a plain `startsWith`.
  */
+const CYAN = "\u001B[36m";
+const RESET = "\u001B[39m";
+
 const QUOTES_THE_MARKER_LATER: readonly Case[] = [
   {
     why: "a thrown error whose message quotes the marker",
@@ -183,14 +194,25 @@ const QUOTES_THE_MARKER_LATER: readonly Case[] = [
     why: "a 5xx request line whose path quotes the marker",
     line: "POST /r/tok_abc/[browser] 500 in 42ms",
   },
+  {
+    why: "a coloured server line whose own text precedes the quoted marker",
+    line: `${CYAN}\u001B[31m⨯${RESET} Error: cannot parse a "[browser]" entry`,
+  },
 ];
 
 /** Genuine forwarded browser lines: still the browser gate's business, not this one. */
 const PREFIXED_BY_THE_HARNESS: readonly Case[] = [
-  { why: "a forwarded browser TypeError", line: "[browser] TypeError: Failed to fetch" },
-  { why: "a forwarded browser error glyph line", line: "[browser] ⨯ RangeError: boom" },
   {
-    why: "a forwarded browser line indented in the log (the gate trims first)",
+    why: "the real coloured forwarded shape, carrying a fault the browser gate owns",
+    line: `${CYAN}[browser]${RESET} TypeError: Failed to fetch`,
+  },
+  {
+    why: "a coloured forwarded line with the error glyph",
+    line: `${CYAN}[browser]${RESET} ⨯ RangeError: boom`,
+  },
+  { why: "an uncoloured forwarded line (NO_COLOR sinks)", line: "[browser] TypeError: boom" },
+  {
+    why: "a forwarded line indented in the log (the gate trims first)",
     line: "   [browser] SyntaxError: Unexpected end of JSON input",
   },
 ];
