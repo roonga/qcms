@@ -1,7 +1,7 @@
 # 047 - Portal theming: managed themes + respondent controls (launch tier)
 
 **Stage:** 7 (portal + `@qcms/ui`) · **Apps/packages:** `packages/ui` (028), `apps/portal` (029) · **Depends on:** 028, 029, **045** (the modern header hosts the respondent controls; 045 reworks the shell/flow)
-**Runs:** after 045. **Launch tier per ADR-30** (predefined themes + per-deployment selection + respondent a11y controls + font registry); the admin save-custom-theme UI is **Phase-4** (issue #26). This is a large task and will likely **decompose into subtasks when scheduled** (token contract / respondent controls / font registry) - it exists now to log the requirements; implementation is deferred.
+**Runs:** after 045. **Launch tier per ADR-30** (predefined themes + per-deployment selection + respondent a11y controls + font registry); the admin customize/save-named-theme UI is **task 049** (launch tier per the 2026-07-25 ADR-30 amendment; folds #26). This is a large task and will likely **decompose into subtasks when scheduled** (token contract / respondent controls / font registry) - it exists now to log the requirements; implementation is deferred.
 **References:** ADR-30 (this task implements it) · ADR-22/26 (superseded single-override; two-surface mandate) · ADR-11 (LocalizedText) · §3 font mandate (open-licensed + self-hostable, Google Fonts canonical) · WCAG 2.2 AA + 1.4.12 + 2.5.8 · the theme-palette design deliverable (`tokens.css` + showcase from the design pass) · issues #25 (brand mark), #26 (managed theming / Phase-4 admin UI), #27 (multi-script fallback), #28 (forced-colors/prefers-contrast).
 
 ## Context
@@ -29,4 +29,4 @@ ADR-30 replaces ADR-22's single-file token override for the portal with a **mana
 
 ## Out of scope
 
-The **Phase-4** admin UI to customize a theme's tokens and save a **named custom theme** (issue #26); per-form theming; the full admin font-curation UI (config-only for launch). The two **baseline** items ship on their own tracks regardless of this feature: multi-script font fallback (#27) and forced-colors / prefers-contrast (#28) - reference them, do not absorb them here.
+The admin UI to customize a theme's tokens and save a **named custom theme** - launch tier since the 2026-07-25 ADR-30 amendment but delivered by **task 049**, not here (issue #26); per-form theming; the full admin font-curation UI (config-only for launch). The two **baseline** items ship on their own tracks regardless of this feature: multi-script font fallback (#27) and forced-colors / prefers-contrast (#28) - reference them, do not absorb them here.
