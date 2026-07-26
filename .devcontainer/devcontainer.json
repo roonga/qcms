@@ -102,7 +102,8 @@
 
   // Secrets are provisioned at RUNTIME, never committed: `.env` (gitignored)
   // arrives with the workspace bind mount, `gh auth login` writes into the
-  // container, and Claude Code credentials live in the mounted ~/.claude. No
+  // mounted host `~/.config/gh` (so it survives rebuilds; log in once on the
+  // host), and Claude Code credentials live in the mounted ~/.claude. No
   // secret value appears in this file.
   "mounts": [
     // The a2-react-aria sibling repo (ADR-22): upstream component sources and
