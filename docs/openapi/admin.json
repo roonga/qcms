@@ -769,6 +769,11 @@
           "value": {
             "nullable": true
           },
+          "retracted": {
+            "type": "boolean",
+            "description": "True when this revision RETRACTED the answer (the respondent cleared it); `value` is then null and the question became unanswered at this point in the history.",
+            "example": false
+          },
           "answeredAt": {
             "type": "string",
             "format": "date-time"
@@ -776,6 +781,7 @@
         },
         "required": [
           "questionId",
+          "retracted",
           "answeredAt"
         ]
       },
