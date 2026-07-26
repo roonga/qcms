@@ -10,6 +10,6 @@ metadata:
 Conducting qcms merges from PowerShell on Windows:
 - **Commit messages with path-like tokens** (e.g. `/admin`, `feat/...`) trip a false-positive Remove-Item safety guard when passed inline in a compound command. Use `git commit -F <msgfile>` (heredoc to a temp file) for such messages.
 - **`$env:VAR="x"` inside a `&&` chain is a parse error.** Set env vars in a separate statement before the chain, or use the Bash tool instead.
-- Prefer the Bash tool for git/gh work in these repos — POSIX heredocs avoid both traps.
+- Prefer the Bash tool for git/gh work in these repos - POSIX heredocs avoid both traps.
 
 Related: [[a2ra-repo-notes]], [[qcms-project-state]].

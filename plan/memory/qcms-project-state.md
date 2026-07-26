@@ -1,6 +1,6 @@
 ---
 name: qcms-project-state
-description: "Where qcms lives, execution status, and operational facts (snapshot 2026-07-23 — verify ledger/git before relying on task status)"
+description: "Where qcms lives, execution status, and operational facts (updated 2026-07-26 - verify ledger/git before relying on task status)"
 metadata: 
   node_type: memory
   type: project
@@ -20,4 +20,6 @@ metadata:
 
 **Workshop:** executor+reviewer subagents, FRICTION retro log (`docs/RETRO.md`) consumed by `/improve-workshop` at stage boundaries; screenshot gates for UI tasks. Scope v2 doc: the dangling references were **removed** 2026-07-21 (R1–R7 now canonical in `PROJECT_INSTRUCTIONS.md`); re-add a `docs/SCOPE.md` if/when the Code Owner supplies the original.
 
-**Static-analysis division (settled 2026-07-21):** CodeQL (`.github/workflows/codeql.yml`, `security-and-quality` suite) owns **security SAST** server-side; local `sonarjs + jscpd` (still stashed, ~106-finding triage pending) owns **code quality + duplication** at write-time in the `pnpm lint` gate. GitHub "Code quality findings" deliberately left **disabled** — it duplicates sonarjs on generic smells, does nothing for jscpd-style duplication, and only detects after push rather than blocking at write-time. Public-repo security features all on: secret scanning + push protection, Dependabot alerts + auto security fixes, private vulnerability reporting.
+**Static-analysis division (settled 2026-07-21):** CodeQL (`.github/workflows/codeql.yml`, `security-and-quality` suite) owns **security SAST** server-side; local `sonarjs + jscpd` (still stashed, ~106-finding triage pending) owns **code quality + duplication** at write-time in the `pnpm lint` gate. GitHub "Code quality findings" deliberately left **disabled** - it duplicates sonarjs on generic smells, does nothing for jscpd-style duplication, and only detects after push rather than blocking at write-time. Public-repo security features all on: secret scanning + push protection, Dependabot alerts + auto security fixes, private vulnerability reporting.
+
+**Update 2026-07-26:** the dev loop and this seat interlock via the PR-per-issue flow (see [[qcms-pr-flow]]). Landed across 2026-07-25/26: ~24 issues via reviewed PRs; `pnpm verify` one-command gate + `check:changeset` (#83); GHCR image mirror for CI Postgres (#78, activation clicks pending); ADR-31 (commitment semantics, PR #90) / ADR-32 (validation messages, task 048) / ADR-30 amendment (theme editor launch tier, task 049) / ADR-33 (retraction tombstone, task 050 DONE via PR #97); component guidelines doc; CI checks renamed `verify (node-NN)`. 030 manual a11y pass still the next human gate on the critical path; 047 theming is the next feature task.
