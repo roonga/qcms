@@ -44,9 +44,15 @@ afterAll(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
+/** A fresh log-file path, so no case can read a line another case wrote. */
+function nextLogPath(name: string): string {
+  counter += 1;
+  return join(dir, `${name}-${counter}.log`);
+}
+
 /** Write `text` as a fresh log file and return the gate's verdict on all of it. */
 function gateVerdict(source: "api" | "postgres" | "portal", text: string): string[] {
-  const path = join(dir, `${source}-${(counter += 1)}.log`);
+  const path = nextLogPath(source);
   writeFileSync(path, `${text}\n`, "utf8");
   return scanAppended(source, path, 0);
 }
@@ -147,7 +153,7 @@ describe("portal log gate", () => {
 
   it("scans only what was appended after the offset", () => {
     const before = "✓ Ready in 1.2s\n";
-    const path = join(dir, `offset-${(counter += 1)}.log`);
+    const path = nextLogPath("offset");
     writeFileSync(path, `${before}RangeError: Invalid array length\n`, "utf8");
     expect(scanAppended("portal", path, Buffer.byteLength(before))).toEqual([
       "RangeError: Invalid array length",
