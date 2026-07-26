@@ -8,7 +8,7 @@ metadata:
   modified: 2026-07-22T21:32:11.612Z
 ---
 
-**Disposition sweep 2026-07-26:** #20 (disproven - spec nonce-hiding, PR #84), #21 (PR #75), #31 (ADR-31, PR #90), #66 (option 2, PR #103) all CLOSED; #22 -> ADR-32/task 048; #26 -> ADR-30 amendment/task 049 (launch tier); #95 retraction -> ADR-33/task 050 DONE. **Still open: #53** - the portable-subset recommendation (patterns valid under both u and v, divergent class-set constructs rejected, reject-new-only via R6 versioning, editor one-click normalization) awaits the Code Owner's go.
+**Disposition sweep 2026-07-26:** #20 (disproven - spec nonce-hiding, PR #84), #21 (PR #75), #31 (ADR-31, PR #90), #66 (option 2, PR #103) all CLOSED; #22 -> ADR-32/task 048; #26 -> ADR-30 amendment/task 049 (launch tier); #95 retraction -> ADR-33/task 050 DONE. **#53 and #128 both DECIDED 2026-07-26** (Code Owner "use recommended"): #53 portable subset - `checkSafePattern` compiles with the `v` flag, `u`-only patterns rejected at authoring time; #128 required means non-blank - trim before the required predicate, stored values stay as-typed. Decisions + acceptance criteria are comments on the issues; titles carry "(decided: ...)" so the loop's semantic filter no longer excludes them. No Code Owner decision is currently pending.
 
 Decisions the Code Owner has raised that need scheduling or formalizing into the plan:
 
