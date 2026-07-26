@@ -6,7 +6,7 @@ The PO seat runs this as a recurring loop (`/loop` in `qcms/plan/`): watch for o
 
 1. **List.** `gh pr list -R roonga/qcms --state open --json number,title,headRefName,isDraft,url,statusCheckRollup,author`. Skip drafts. Skip PRs already reviewed at their current head SHA (a prior approval or changes-requested review on the same head means wait, do not re-review).
 2. **Review the diff as a stranger.** `gh pr diff <NN>`. Checks, against the written rules (CI gates are a subset - `plan/**` is excluded from several):
-   - **Scope:** the diff does what the linked issue/task names and nothing more; discoveries belong in new issues.
+   - **Scope:** the diff does what the linked issue/task names, plus any riders listed under `## Same-area fixes ridden along` - audit each rider for genuine same-area-and-small status (same files/seam, no new decision, no golden ripple, no new dependency); anything heavier belongs in an issue.
    - **Tests:** present at the layer ADR-23 assigns (Vitest below the browser, Playwright e2e); no new test frameworks.
    - **Added-lines grep:** em dash (U+2014), the Code Owner's personal name, machine-specific paths (`/home/<user>`, drive letters, assumed parent folders), AI attribution (`Co-Authored-By: Claude`, `Claude-Session:`, "Generated with Claude"), real secret values.
    - **Conventions:** for a PR whose head branch is `fix/NN-slug`, `Fixes #NN` present on its own line in the body (it is the auto-close mechanism); conventional-commit title; docs named in acceptance criteria updated in the same diff (staleness rule).
