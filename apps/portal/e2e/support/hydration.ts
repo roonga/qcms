@@ -7,10 +7,11 @@
  * they return, so a spec cannot interact with an un-hydrated step by omission.
  *
  * Wait until React has hydrated the step, not merely until the SSR markup is
- * visible. The portal's first paint is real server-rendered content (029), so
- * every control is visible and fillable BEFORE any handler is attached: a `fill`
- * that lands in that window sets the DOM value, the controlled re-render throws
- * it away, and no answer is ever posted. React tags each host node it owns with
+ * visible. The portal's first paint is a real server-rendered fallback form
+ * (029) - visible and fillable, but not the markup React keeps: on hydration
+ * React replaces the fallback wholesale with its own render. An interaction that
+ * lands in that window toggles a native control that is then unmounted, so no
+ * React handler ever fires and no answer is posted. React tags each host node it owns with
  * a `__reactFiber$...` / `__reactProps$...` property when it hydrates, so the
  * presence of one on a step control is the attachment signal itself rather than
  * a proxy for it.
