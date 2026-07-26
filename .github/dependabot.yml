@@ -25,3 +25,9 @@ updates:
     groups:
       minor-and-patch:
         update-types: ["minor", "patch"]
+    ignore:
+      # Types track the RUNTIME major: the engine floor is Node 24 and the
+      # node-26 CI leg is an early warning, not the target. Re-enable (or bump
+      # manually) when the engine floor moves.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
