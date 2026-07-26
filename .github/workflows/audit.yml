@@ -1,0 +1,45 @@
+# Scheduled advisory surfacing (issue #68): a weekly pnpm audit that fails
+# loudly by filing/updating a labeled issue, instead of advisories sitting
+# unseen on the Security tab until a Dependabot run fails. Deliberately NOT a
+# per-PR gate, so a newly published advisory never blocks unrelated work.
+name: audit
+on:
+  schedule:
+    - cron: "0 2 * * 1"
+  workflow_dispatch:
+permissions:
+  contents: read
+  issues: write
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: pnpm audit, filing an issue on findings
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          audit_output=$(pnpm audit 2>&1)
+          status=$?
+          set -e
+          echo "$audit_output"
+          if [ "$status" -eq 0 ]; then
+            echo "No known vulnerabilities."
+            exit 0
+          fi
+          title="pnpm audit findings (scheduled run)"
+          existing=$(gh issue list --state open --label security --search "in:title \"$title\"" --json number --jq '.[0].number // empty')
+          body=$(printf 'Scheduled audit found advisories (run %s).\n\nTriage against CONTRIBUTING > Security overrides (the overrides table is the removal-condition ledger).\n\n```\n%s\n```' "$GITHUB_RUN_ID" "$audit_output")
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --title "$title" --label security --body "$body"
+          fi
+          exit 1

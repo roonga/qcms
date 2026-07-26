@@ -1,0 +1,27 @@
+# Explicit Dependabot configuration (issue #68). Security updates for npm run
+# regardless of this file; when the npm_and_yarn updater cannot complete in this
+# pnpm monorepo (the multi-range failure class of issue #47), the documented path
+# is a manual, scoped pnpm.overrides entry per CONTRIBUTING's "Security overrides"
+# section - the overrides table there is the removal-condition ledger that the
+# scheduled audit job's findings (audit.yml) get triaged against.
+version: 2
+updates:
+  # Keep the Actions pins current; low-noise, weekly, grouped.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+  # npm version updates: weekly, small budget, minor+patch grouped so routine
+  # bumps arrive as one reviewable PR instead of a stream. Majors stay individual
+  # (they need the CONTRIBUTING risk assessment).
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
