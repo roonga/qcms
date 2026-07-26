@@ -62,6 +62,15 @@ test("the hydration wait rejects on server-rendered markup and resolves once Rea
   expect(neverHydrates, "the bundle must be gone or the page would hydrate").not.toMatch(
     /<script/i,
   );
+
+  // Navigate away BEFORE swapping in that markup. `setContent` rewrites the
+  // current document in place, leaving the already-hydrated React app from the
+  // navigation above holding references to nodes that no longer exist: its next
+  // commit then throws "Failed to execute 'removeChild' on 'Node'" and the browser
+  // error gate reds the test (intermittently, since it depends on whether React
+  // has pending work). A real navigation to a blank page tears that JS context
+  // down first, so the SSR markup lands in a document React has never touched.
+  await page.goto("about:blank");
   await page.setContent(neverHydrates);
 
   // This markup is genuinely interactive: the question, its radios and a submit
