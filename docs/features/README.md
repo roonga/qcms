@@ -67,7 +67,7 @@ Status values: `todo` · `in-progress (branch)` · `blocked (issue #)` · `done 
 | 047 | Portal theming: managed themes + respondent controls (mode/font/density) + declarative font registry + 4-group token contract (color/type/spacing/radius), ADR-30 - launch tier (admin theme editor split out to 049 per the 2026-07-25 amendment) | 7 | todo (after 045; likely decomposes into subtasks when scheduled) |
 | 048 | Author-supplied validation messages: per-question per-constraint LocalizedText with edit-level default fallback (ADR-32; folds #22) | 8a | todo (after 032) |
 | 049 | Admin theme editor: customize tokens + save named custom theme (ADR-30 amended 2026-07-25 to launch tier; folds #26) | 8a | todo (after 031 + 047) |
-| 050 | Answer retraction: tombstone append resolved to unanswered by latestAnswers (ADR-33; folds #95) | 7 | todo (after PR #90 merges) |
+| 050 | Answer retraction: tombstone append resolved to unanswered by latestAnswers (ADR-33; folds #95) | 7 | done (PR #97; kernel unchanged per the accepted ADR-33 divergence; landed before PR #90, which rebases over it) |
 | 036 | Production images, compose, ops docs | 8b | todo |
 | 037 | create-qcms-app CLI | 8b | todo |
 | 040 | Security review and hardening (runs after 036, before 038) | 8b | todo |
