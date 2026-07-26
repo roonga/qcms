@@ -36,7 +36,7 @@
 // is running the wrapper behaves exactly as it did before: a post-readiness fault
 // stays the server-log gate's business, not a reason to kill the dev server.
 
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync, writeSync } from "node:fs";
 import { get } from "node:http";
 import { dirname } from "node:path";
@@ -118,6 +118,69 @@ function logTail() {
 }
 
 /**
+ * Every live descendant pid of `rootPid`, from a single `ps` snapshot.
+ *
+ * One `ps` rather than recursive `pgrep -P` calls: a single snapshot cannot race
+ * against itself, and `ps -e -o pid=,ppid=` is portable across Linux and macOS.
+ */
+function descendantsOf(rootPid) {
+  const listed = spawnSync("ps", ["-e", "-o", "pid=,ppid="], { encoding: "utf8" });
+  if (listed.status !== 0 || typeof listed.stdout !== "string") return [];
+  /** parent pid -> its immediate children. */
+  const childrenOf = new Map();
+  for (const line of listed.stdout.split("\n")) {
+    const [pid, parentPid] = line.trim().split(/\s+/).map(Number);
+    if (!Number.isInteger(pid) || !Number.isInteger(parentPid)) continue;
+    const siblings = childrenOf.get(parentPid);
+    if (siblings === undefined) childrenOf.set(parentPid, [pid]);
+    else siblings.push(pid);
+  }
+  const found = [];
+  const pending = [rootPid];
+  while (pending.length > 0) {
+    const parent = pending.pop();
+    for (const pid of childrenOf.get(parent) ?? []) {
+      found.push(pid);
+      pending.push(pid);
+    }
+  }
+  return found;
+}
+
+/**
+ * Kill the spawned command and every process under it.
+ *
+ * Why this has to exist, and why `child.kill()` is not enough: the command runs
+ * through `sh -c`, which does not forward signals, so signalling the direct child
+ * reaches at most `pnpm` and leaves `next dev` and `next-server` running. On a
+ * NORMAL teardown that does not matter, because Playwright SIGKILLs the whole
+ * process group and the child is deliberately not `detached`, so it shares this
+ * process's group and dies with it. But Playwright skips that cleanup entirely
+ * once the wrapper has already exited by itself (`killProcess` short-circuits on
+ * `processClosed=true`), which is exactly what the fail-fast path below does. So
+ * a self-exiting wrapper must reap its own subtree, or a zombie `next-server`
+ * survives holding the port and `reuseExistingServer` latches onto it next run.
+ *
+ * Deliberately NOT solved with `detached: true` on the child: giving the child its
+ * own process group would put it outside the group Playwright SIGKILLs, leaking on
+ * every normal teardown instead, and SIGKILL is untrappable so the wrapper could
+ * not compensate.
+ */
+function reapChildTree() {
+  const rootPid = child.pid;
+  if (rootPid === undefined) return;
+  // Snapshot before killing anything, then kill the root first so it cannot spawn
+  // a replacement behind the snapshot.
+  for (const pid of [rootPid, ...descendantsOf(rootPid)]) {
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+      // Already gone, which is the normal case for most of the tree.
+    }
+  }
+}
+
+/**
  * Report why startup failed and exit nonzero, so Playwright abandons its
  * webServer wait immediately instead of polling to its timeout.
  *
@@ -125,7 +188,7 @@ function logTail() {
  * asynchronous, and the `process.exit` below would truncate the very tail this
  * function exists to print.
  */
-function failFast(reason, exitCode, killChild) {
+function failFast(reason, exitCode) {
   finished = true;
   writeSync(
     2,
@@ -138,13 +201,9 @@ function failFast(reason, exitCode, killChild) {
       "",
     ].join("\n"),
   );
-  if (killChild) {
-    try {
-      child.kill();
-    } catch {
-      // Already gone: nothing to clean up.
-    }
-  }
+  // Always, not just on the "child never exited" path: even when the child itself
+  // has gone, `sh -c` may have left the dev server behind it running.
+  reapChildTree();
   process.exit(exitCode);
 }
 
@@ -163,7 +222,7 @@ function tee(chunk) {
   // Claim the ending now and let the rest of the trace land before quoting it.
   finished = true;
   const reason = "the dev server reported a fatal startup error and did not exit";
-  setTimeout(() => failFast(reason, 1, true), FLUSH_GRACE_MS);
+  setTimeout(() => failFast(reason, 1), FLUSH_GRACE_MS);
 }
 
 /**
@@ -183,7 +242,7 @@ function handleChildEnd(code, signal) {
     : `the dev-server process exited with code ${code} before the server was reachable`;
   // A clean `0` must still become a nonzero wrapper exit: `code ?? 1` would pass
   // the 0 straight through and report success for a server that never started.
-  failFast(reason, code === null || code === 0 ? 1 : code, false);
+  failFast(reason, code === null || code === 0 ? 1 : code);
 }
 
 child.stdout.on("data", tee);
@@ -201,7 +260,10 @@ child.on("exit", (code, signal) => {
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, () => {
     finished = true;
-    child.kill();
+    // Same reasoning as the fail-fast path: this handler exits the wrapper itself,
+    // so nothing else is going to reap the subtree afterwards. (Playwright's own
+    // teardown SIGKILLs the group and never reaches here.)
+    reapChildTree();
     process.exit(0);
   });
 }

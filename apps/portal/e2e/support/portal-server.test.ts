@@ -73,18 +73,22 @@ interface Wrapper {
   readonly ended: Promise<{ readonly code: number | null; readonly elapsedMs: number }>;
   /** Everything the wrapper wrote to stderr, which is what Playwright forwards. */
   stderr: () => string;
+  /** The tee'd child output, which is how a stub reports the pids it created. */
+  stdout: () => string;
 }
 
 const tempDirs: string[] = [];
 const running: WrapperProcess[] = [];
 
 /**
- * Reap a wrapper and everything under it. The wrapper reaches its dev server
- * through `sh -c`, which does not always `exec`, so signalling the wrapper alone
- * can orphan the stub and leave it holding a port. In a real run Playwright owns
- * that cleanup (it launches the wrapper detached and kills the whole group); here
- * the test has to be its own umbrella, so it spawns detached too and kills by
- * negative pid.
+ * A last-resort net so a failed expectation cannot leak a stub that holds a port
+ * into the next test. It is NOT the mechanism under test: the wrapper is required
+ * to have reaped its own subtree before it exits, which
+ * "leaves no surviving descendant behind after a fail-fast exit" asserts.
+ *
+ * Playwright group-SIGKILLs the wrapper only while the wrapper is still alive; it
+ * skips that cleanup once the wrapper has self-exited, which is every failure path
+ * here. So each wrapper gets its own process group and is killed by negative pid.
  */
 function reap(child: WrapperProcess): void {
   const { pid } = child;
@@ -135,14 +139,41 @@ function startWrapper(stubSource: string, port: string): Wrapper {
   child.stderr.on("data", (chunk: Buffer) => {
     stderr += chunk.toString();
   });
-  // Drained so a chatty stub can never fill the pipe and stall the wrapper.
-  child.stdout.resume();
+  // Collected rather than merely drained, so a chatty stub can never fill the pipe
+  // and stall the wrapper.
+  let stdout = "";
+  child.stdout.on("data", (chunk: Buffer) => {
+    stdout += chunk.toString();
+  });
 
   const ended = new Promise<{ code: number | null; elapsedMs: number }>((resolve) => {
     child.on("close", (code) => resolve({ code, elapsedMs: Date.now() - startedAt }));
   });
 
-  return { child, ended, stderr: () => stderr };
+  return { child, ended, stderr: () => stderr, stdout: () => stdout };
+}
+
+/** True while `pid` still exists (signal 0 probes without delivering anything). */
+function isAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Wait for `pid` to disappear. Polled rather than asserted outright because a
+ * SIGKILLed process lingers as a zombie until whoever inherited it reaps it.
+ */
+async function waitUntilGone(pid: number, timeoutMs = 10_000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (!isAlive(pid)) return true;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  return !isAlive(pid);
 }
 
 /** The #58 shape: a fatal error is reported, but the process keeps running. */
@@ -233,6 +264,47 @@ describe("portal-server wrapper startup fail-fast (issue #58)", () => {
     wrapper.child.kill("SIGTERM");
     const { code } = await wrapper.ended;
     expect(code).toBe(0);
+  }, 30_000);
+
+  it("leaves no surviving descendant behind after a fail-fast exit", async () => {
+    // The real tree is pnpm -> next dev -> next-server, and `sh -c` forwards no
+    // signals, so killing the direct child reaches at most the first of those.
+    // Nothing else will finish the job: Playwright group-SIGKILLs the webServer
+    // only while it is still alive, and skips that cleanup once the wrapper has
+    // self-exited. A survivor here would hold the port for the next run to latch
+    // onto via `reuseExistingServer`.
+    //
+    // The grandchild is `detached`, so it sits in its own process group: killing a
+    // group cannot be what reaps it, only walking the tree can.
+    const wrapper = startWrapper(
+      `import { spawn } from "node:child_process";\n` +
+        `const grandchild = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], {\n` +
+        `  detached: true,\n` +
+        `  stdio: "ignore",\n` +
+        `});\n` +
+        `process.stdout.write(\`pids \${process.pid} \${grandchild.pid}\\n\`);\n` +
+        `process.stdout.write("Unhandled Rejection: Error: boom\\n");\n` +
+        `setInterval(() => {}, 1000);\n`,
+      await freePort(),
+    );
+
+    const { code } = await wrapper.ended;
+    expect(code).not.toBe(0);
+
+    const pids = /pids (\d+) (\d+)/.exec(wrapper.stdout());
+    // Guards the test itself: without this the assertions below could pass by
+    // never having had a tree to reap.
+    expect(pids, `stub never reported its pids; stdout was:\n${wrapper.stdout()}`).not.toBeNull();
+    const stubPid = Number(pids?.[1]);
+    const grandchildPid = Number(pids?.[2]);
+    expect(Number.isInteger(stubPid)).toBe(true);
+    expect(Number.isInteger(grandchildPid)).toBe(true);
+
+    expect(await waitUntilGone(stubPid), `stub ${stubPid} survived the fail-fast exit`).toBe(true);
+    expect(
+      await waitUntilGone(grandchildPid),
+      `grandchild ${grandchildPid} survived the fail-fast exit`,
+    ).toBe(true);
   }, 30_000);
 
   it("disarms the startup watch once the server is reachable", async () => {
