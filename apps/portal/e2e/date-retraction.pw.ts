@@ -21,13 +21,7 @@ import { test, expect } from "./support/gates.js";
 
 import { openDb } from "./support/db.js";
 import { readFixtures } from "./support/fixtures.js";
-import {
-  KS,
-  clearDate,
-  enterDate,
-  fillText,
-  startKitchenSink,
-} from "./support/kitchen-sink.js";
+import { KS, clearDate, enterDate, fillText, startKitchenSink } from "./support/kitchen-sink.js";
 
 test("clearing an answered required date retracts it and Continue no longer advances", async ({
   page,
