@@ -26,7 +26,7 @@ export function watchAnswerPosts(page: Page): AnswerPost[] {
   page.on("response", (response) => {
     const request: Request = response.request();
     if (request.method() !== "POST" || !response.url().includes("/answers")) return;
-    const body = JSON.parse(request.postData() ?? "{}") as {
+    const body = JSON.parse(request.postData() || "{}") as {
       questionId?: string;
       value?: unknown;
     };
