@@ -421,6 +421,55 @@ describe("required-answer sweep (exit criterion 4)", () => {
     const res = await submit(sessionId, sessionToken);
     expect(res.status).toBe(200);
   });
+
+  it("a RETRACTED required answer blocks submit exactly like a never-answered one (ADR-33)", async () => {
+    const { sessionId, sessionToken } = await startSession();
+    expect((await postAnswer(sessionId, sessionToken, "q_at_fault_accident", true)).status).toBe(
+      200,
+    );
+    expect((await postAnswer(sessionId, sessionToken, "q_accident_count", 20)).status).toBe(200);
+    // The respondent clears it: a null post appends a retraction (ADR-33), which
+    // the read model resolves to unanswered before the kernel ever sees it.
+    expect((await postAnswer(sessionId, sessionToken, "q_accident_count", null)).status).toBe(200);
+
+    const blocked = await submit(sessionId, sessionToken);
+    expect(blocked.status).toBe(422);
+    const body = (await blocked.json()) as ErrBody;
+    expect(body.error.code).toBe("SUBMISSION_INVALID");
+    expect((body.error.details as { missingRequired: string[] }).missingRequired).toContain(
+      "q_accident_count",
+    );
+    expect(await loadSubmission(sessionId)).toBeUndefined();
+
+    // Hiding the question completes the flow, and the retracted answer reaches
+    // neither the lock nor the webhook payload - so it reaches neither the
+    // reporting view nor the exports, which read the locked set. The ledger keeps
+    // every row, retraction included: nothing was mutated or deleted (R3/ADR-17).
+    expect((await postAnswer(sessionId, sessionToken, "q_at_fault_accident", false)).status).toBe(
+      200,
+    );
+    expect((await submit(sessionId, sessionToken)).status).toBe(200);
+
+    const submission = await loadSubmission(sessionId);
+    expect(submission?.lockedAnswers.answers.map((a) => a.questionId)).toEqual([
+      "q_at_fault_accident",
+    ]);
+    const event = await outboxEvent(sessionId);
+    expect((event?.payload.answers as { questionId: string }[]).map((a) => a.questionId)).toEqual([
+      "q_at_fault_accident",
+    ]);
+    const ledger = (await answerLedger(testDb.db, SessionId.parse(sessionId))) as {
+      questionId: string;
+      value: unknown;
+      retracted: boolean;
+    }[];
+    expect(ledger.map((r) => [r.questionId, r.value, r.retracted])).toEqual([
+      ["q_at_fault_accident", true, false],
+      ["q_accident_count", 20, false],
+      ["q_accident_count", null, true],
+      ["q_at_fault_accident", false, false],
+    ]);
+  });
 });
 
 // --- exit criterion 5: silent anti-abuse flags ------------------------------
