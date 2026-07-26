@@ -16,6 +16,7 @@
     "check:all": "pnpm check:no-em-dash && pnpm check:no-control-chars && pnpm check:changeset && pnpm check:golden-append-only && pnpm check:licenses && pnpm check:duplication",
     "dev:portal": "node scripts/dev-portal.mjs",
     "devcontainer": "bash scripts/devcontainer.sh",
+    "claude": "bash scripts/claude-session.sh",
     "test": "turbo run test && pnpm test:tooling",
     "test:tooling": "vitest run --project tooling",
     "test:golden-drift": "vitest run --project @qcms/core packages/core/src/golden-corpus.test.ts",
