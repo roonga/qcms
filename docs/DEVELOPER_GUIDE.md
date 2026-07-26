@@ -66,6 +66,10 @@ If a Testcontainers-backed suite cannot reach the container it just started (sib
 | `/next-task` | Picks the next executable `todo` (numeric order; exceptions: 040 after 036 before 038 · 041 after 034 · 042 after 027 before UI tasks) and runs the `/task` flow. |
 | `/loop /next-task` | Autonomous run, task after task. Stops at human gates, on blocks, or when nothing is executable. |
 | `/loop /next-task 3` | Same, up to 3 **pairwise-independent** tasks per batch (parallel executors, serialized merges). |
+| `/next-issue` | Picks the next actionable GitHub issue by label tier (`security` > `bug` > unlabeled > `enhancement`; the routing labels `needs-decision`/`blocked-upstream`/`workshop`/`admin-stage` and `phase-4` are excluded) and runs the same executor+reviewer relay on `fix/NN-slug` - then **opens one PR per issue** (body: acceptance checklist, `Fixes #NN`, reviewer verdict, retro lines; respondent-visible changes carry gate screenshots under `docs/gates/pr-NN/`). The conductor never merges. |
+| `/loop /next-issue` | Issue after issue until nothing is executable or a stated repo-wide blocker. Human gates park **the PR**, never the run; an open PR whose newest `PO-REVIEW: CHANGES-REQUESTED @<headRefOid>` sentinel (the full head SHA) matches the current head is picked up as a findings cycle before fresh work. |
+
+Issue PRs are reviewed and squash-merged by the **PO seat's review loop** (procedure: `plan/pr-review-loop.md`): stranger review, a Copilot-comment sweep where every comment gets a fix or a reasoned reply, verdicts ending in a head-bound `PO-REVIEW:` sentinel, merge when every check concludes SUCCESS except at most the node-26 `verify` leg, which is `continue-on-error` by design and may be waived with the waiver recorded in the verdict, then the retro append. You can also review and merge yourself - the sentinel comment is the only protocol.
 
 **Never run two interactive sessions in one checkout.** If you want a second hands-on session, give it its own `git worktree add ../qcms-me main`.
 
