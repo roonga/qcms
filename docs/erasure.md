@@ -71,7 +71,9 @@ Either alone is sufficient; both hold after `eraseSession`.
 
 The answer ledger is append-only (I5): there is no UPDATE path, and migration
 `0001` rejects UPDATE at the database level. Erasure is the *only* amendment -
-whole-session DELETE. To keep that door narrow, migration `0004` installs a
+whole-session DELETE. (Clearing one answer is **not** an amendment: it appends a
+retraction row, ADR-33, which erasure then deletes with every other row of the
+session.) To keep that door narrow, migration `0004` installs a
 `BEFORE DELETE` trigger (`answers_reject_delete`) that **rejects any DELETE on
 `answers`** unless the transaction-local setting `qcms.allow_answer_delete` is
 `'on'`.
