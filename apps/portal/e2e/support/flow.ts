@@ -8,17 +8,26 @@
 
 import { expect, type Page } from "@playwright/test";
 
+import { waitForHydration } from "./hydration.js";
+
 /** The vehicle-insurance fixture's two branch questions (043 rename). */
 export const ACCIDENT_LABEL = "Any at-fault accident in the last 3 years?";
 export const COUNT_LABEL = "How many?";
 export const FORM_HEADING = "Vehicle insurance quote";
 
-/** Start anonymously at `/f/:slug`, click Start, land on the SSR flow page. */
+/**
+ * Start anonymously at `/f/:slug`, click Start, and land on the flow page with
+ * React attached, so the caller's first interaction cannot be discarded (issue
+ * #121). The visible-question check below is satisfied by the server-rendered
+ * fallback form, which is why it is not on its own enough to interact against;
+ * `waitForHydration` is what makes the returned page live.
+ */
 export async function startAnonymousFlow(page: Page, slug: string): Promise<void> {
   await page.goto(`/f/${slug}`);
   await page.getByRole("button", { name: "Start" }).click();
   await page.waitForURL(/\/s\/ses_/);
   await expect(page.getByText(ACCIDENT_LABEL)).toBeVisible();
+  await waitForHydration(page);
 }
 
 /**
