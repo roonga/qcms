@@ -21,7 +21,7 @@ shipped; add a new one.
 | `form_versions`                   | Immutable published snapshots: domain JSONB + compiled A2UI JSONB + `compiler_version` + `a2ui_spec_version` + `semantics_version` |
 | `sessions`                        | Respondent sessions; pinned `(form_id, form_version)`, access mode, expiry (I4)                                                   |
 | `secure_links`                    | Server-side state for secure-link tokens (SEC-2, task 010): revocation and one-time consumption - a signature alone is never enough |
-| `answers`                         | **Append-only** ledger `(session_id, question_id, value, answered_at)`; current = latest row; UPDATE rejected at the DB level (I5) |
+| `answers`                         | **Append-only** ledger `(session_id, question_id, value, retracted, answered_at)`; current = latest row, unless it is a retraction (ADR-33), which resolves to unanswered; UPDATE rejected at the DB level (I5) |
 | `submissions`                     | Lock records: session, locked answer set + content hash, submitted timestamp                                                     |
 | `erasure_tombstones`              | ADR-17: `(session_id, form_id, form_version, erased_at, reason)` - existence without content                                     |
 | `outbox`                          | Transactionally written domain events with delivery state, attempt count, next-retry, dead-letter flag                           |
@@ -50,6 +50,12 @@ static predicate; it has no access to the OLD row). Each is therefore a
 The **one-open-draft** invariant needs no trigger: `form_drafts.form_id` is the
 primary key, so a second draft insert for the same form fails on the unique
 constraint.
+
+The **answer-or-retraction** invariant needs no trigger either: the CHECK
+`answers_retraction_value` (migration `0009`, ADR-33) permits only the two legal
+row shapes - an answer (`retracted = false`, `value` present) or a retraction
+(`retracted = true`, `value` null) - so an audit reader can branch on `retracted`
+without trusting the writer, and no sentinel ever lives inside `value`.
 
 ## Indexes
 
