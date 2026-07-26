@@ -233,12 +233,13 @@ The token contract has **four groups**: color (`--color-*`), typography (`--font
 | --- | --- | --- |
 | boolean | on change | yes |
 | singleChoice (radio or select) | on change | yes |
-| date | on completion (all segments filled) | yes |
+| date | on completion, committed when editing ends (all-segments-filled precondition: a never-answered partial date does not post; a previously-answered question edited to partial or cleared posts null to clear) *(amended 2026-07-26)* | yes, at the commit |
 | number | on blur | yes |
 | longText | on blur | yes |
+| shortText | on blur *(added 2026-07-26; absent from the original table)* | yes |
 | multiChoice | on group exit (focus leaves the group) | yes, at commit |
 
-The server remains the only rule evaluator (R2); commitment governs client posting cadence only. Additionally, `compileDraft` emits a **warning** (not a refusal) when a rule whose conditions read a multiChoice answer targets a same-step QuestionId, steering multiChoice-gated content to the next step where Continue is the natural commit; escalation to refusal stays open as an additive future change.
+The server remains the only rule evaluator (R2); commitment governs client posting cadence only. *(Amended 2026-07-26, Code Owner confirmation on PR #90:)* the date row's original literal trigger ("all segments filled", posting the moment the value completes) is unimplementable against the vendored DatePicker, which reports a complete value on every year digit - the literal reading posts provisional dates mid-entry, the exact churn this ADR exists to prevent. The amended row is the contract; a previously-answered question that is cleared or partially edited posts null to clear, rather than leaving the server holding a stale answer. Additionally, `compileDraft` emits a **warning** (not a refusal) when a rule whose conditions read a multiChoice answer targets a same-step QuestionId, steering multiChoice-gated content to the next step where Continue is the natural commit; escalation to refusal stays open as an additive future change.
 
 **Why.** A multi-select has no natural commit moment, so per-toggle gating produces mid-interaction churn (`contains` flipping as the respondent decides), threshold flapping (`count >= 2` around the boundary), and retained-answer re-reveals - all constructible with the shipped DSL, all accessibility liabilities for the 030 manual pass. Defining commitment per control type legitimizes the immediate reveal users already get for discrete choices, fixes #31 as a consequence of a principle rather than a one-off patch, and gives multiChoice a defined moment instead of per-toggle round-trips. The compile-time warning converts the one pattern no posting semantics can make pleasant into guided authoring.
 
