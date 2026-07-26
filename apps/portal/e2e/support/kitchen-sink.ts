@@ -29,7 +29,6 @@ export const KS = {
   count: /how many/i,
   optionalCover: "Which optional cover do you want?",
   extraDetail: "Anything else about your driving history?",
-  coverage: "Which coverage level would you like?",
 } as const;
 
 /** Wait for one `POST /answers` to be recorded server-side (status 200). */
