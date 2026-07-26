@@ -64,8 +64,8 @@ export default defineConfig({
     // from the first CI retry, uploaded by ci.yml's if-failure artifact step so a
     // CI-only browser failure is debuggable without local reproduction. Passing
     // runs record nothing - the suite stays fast and artifacts stay small.
-    screenshot: "only-on-failure",
-    trace: "on-first-retry",
+    screenshot: process.env.CI ? "only-on-failure" : "off",
+    trace: process.env.CI ? "on-first-retry" : "off",
   },
   projects: [
     {
