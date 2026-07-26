@@ -43,6 +43,8 @@ import {
   insertFormVersion,
   insertSecureLink,
   insertSubmission,
+  isRetraction,
+  retractAnswer,
   isQuestionIdTaken,
   latestAnswers,
   listDeadLetters,
@@ -536,6 +538,102 @@ describe("answers helpers", () => {
     const ledger = await answerLedger(testDb.db, sessionId);
     expect(ledger).toHaveLength(4);
     expect(ledger.map((r) => r.value)).toEqual(["first", "second", "third", 42]);
+  });
+
+  it("retracts an answer as a tombstone append: absent from latestAnswers, present in the ledger", async () => {
+    const { formId, version } = await seedPublishedForm("frm_retract");
+    const sessionId = SessionId.parse("ses_retract");
+    await createSession(testDb.db, {
+      sessionId,
+      formId,
+      formVersion: version,
+      accessMode: "anonymous",
+      expiresAt: new Date(Date.now() + 86_400_000),
+    });
+    const qDate = QuestionId.parse("q_dob");
+    const qKeep = QuestionId.parse("q_keep");
+    const t0 = Date.now();
+    await appendAnswer(testDb.db, {
+      sessionId,
+      questionId: qDate,
+      value: "1990-05-16",
+      answeredAt: new Date(t0),
+    });
+    await appendAnswer(testDb.db, {
+      sessionId,
+      questionId: qDate,
+      value: "1990-05-17",
+      answeredAt: new Date(t0 + 1000),
+    });
+    await appendAnswer(testDb.db, {
+      sessionId,
+      questionId: qKeep,
+      value: "kept",
+      answeredAt: new Date(t0 + 2000),
+    });
+    const tombstone = await retractAnswer(testDb.db, {
+      sessionId,
+      questionId: qDate,
+      answeredAt: new Date(t0 + 3000),
+    });
+    expect(tombstone.retracted).toBe(true);
+    expect(tombstone.value).toBeNull();
+
+    // The kernel's view: the retracted question is UNANSWERED, and the earlier
+    // revision is not resurrected. Its neighbour is untouched.
+    const latest = await latestAnswers(testDb.db, sessionId);
+    expect(latest.has(qDate)).toBe(false);
+    expect(latest.size).toBe(1);
+    expect(latest.get(qKeep)).toBe("kept");
+
+    // The audit view: nothing was erased. Every revision plus the retraction,
+    // oldest first, with the retraction distinguishable without inference.
+    const ledger = await answerLedger(testDb.db, sessionId);
+    expect(ledger).toHaveLength(4);
+    expect(ledger.map((r) => [r.questionId, r.value, r.retracted])).toEqual([
+      [qDate, "1990-05-16", false],
+      [qDate, "1990-05-17", false],
+      [qKeep, "kept", false],
+      [qDate, null, true],
+    ]);
+    expect(ledger.filter(isRetraction)).toHaveLength(1);
+
+    // Answering again after a retraction restores the question (the tombstone is
+    // a revision, not a lock).
+    await appendAnswer(testDb.db, {
+      sessionId,
+      questionId: qDate,
+      value: "2001-01-01",
+      answeredAt: new Date(t0 + 4000),
+    });
+    expect((await latestAnswers(testDb.db, sessionId)).get(qDate)).toBe("2001-01-01");
+  });
+
+  it("rejects a row that is both retracted and valued, or neither (CHECK constraint)", async () => {
+    const { formId, version } = await seedPublishedForm("frm_retract_check");
+    const sessionId = SessionId.parse("ses_retract_check");
+    await createSession(testDb.db, {
+      sessionId,
+      formId,
+      formVersion: version,
+      accessMode: "anonymous",
+      expiresAt: new Date(Date.now() + 86_400_000),
+    });
+    // A retraction that carries a value would let a reader mistake it for an
+    // answer; an answer with no value would be an invisible retraction. The
+    // database refuses both, so no reader has to trust the writer.
+    await expect(
+      testDb.client.query(
+        `insert into answers (session_id, question_id, value, retracted) values ($1, $2, $3, true)`,
+        [sessionId, "q_bad", JSON.stringify("x")],
+      ),
+    ).rejects.toThrow(/answers_retraction_value/);
+    await expect(
+      testDb.client.query(
+        `insert into answers (session_id, question_id, value, retracted) values ($1, $2, null, false)`,
+        [sessionId, "q_bad"],
+      ),
+    ).rejects.toThrow(/answers_retraction_value/);
   });
 });
 

@@ -61,12 +61,13 @@ erDiagram
     ANSWER {
         string sessionId FK
         string questionId
-        json value "canonical AnswerValue (§2.4)"
+        json value "canonical AnswerValue (§2.4); null on a retraction"
+        boolean retracted "tombstone: the respondent cleared this answer (ADR-33)"
         datetime answeredAt "append-only; latest wins"
     }
 ```
 
-Two relationships carry the whole audit story: a **session pins a form version at creation** and never migrates, and **answers are append-only** with current-state defined as latest-per-`questionId`. Everything else is derivable. (ADR-17 amends append-only with exactly one exception: whole-session erasure, which deletes and tombstones - there is still no UPDATE path anywhere.)
+Two relationships carry the whole audit story: a **session pins a form version at creation** and never migrates, and **answers are append-only** with current-state defined as latest-per-`questionId`. Everything else is derivable. (ADR-17 amends append-only with exactly one exception: whole-session erasure, which deletes and tombstones - there is still no UPDATE path anywhere. ADR-33 adds no exception: clearing an answer *appends* a retraction row, which the latest-wins rule resolves to unanswered.)
 
 ## 2. Core value types
 
@@ -358,7 +359,7 @@ stateDiagram-v2
 | I2 | Every rule reference resolves against pinned question versions (incl. `optionId`s, types) | `compileDraft` validation | 008 |
 | I3 | `defaultLocale` complete for all `LocalizedText` in the snapshot | `compileDraft` validation | 008 |
 | I4 | Sessions pin a version at creation; never migrate | session creation; absent update path | 014, 018 |
-| I5 | Answers are append-only; current = latest per `questionId` (sole exception: whole-session erasure, ADR-17) | ledger schema; no UPDATE path; scoped erasure door | 013, 016 |
+| I5 | Answers are append-only; current = latest per `questionId`, unless that latest row is a **retraction**, which resolves to unanswered (ADR-33) (sole exception to append-only: whole-session erasure, ADR-17) | ledger schema; no UPDATE path; scoped erasure door; retraction CHECK | 013, 016 |
 | I6 | Hidden answers excluded from evaluation and from the locked submission | `evaluateRules` + submit lock | 006, 009 |
 | I7 | Same `(snapshot, answers)` → same `FlowState`, forever | forward-pass purity; `semanticsVersion` stamped per snapshot | 006, 008 |
 | I8 | `questionId` / `optionId` never reused with a different meaning | authoring API refusal + R6 review rule | 021 |

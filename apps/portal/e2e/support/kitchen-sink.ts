@@ -83,6 +83,27 @@ export async function enterDate(page: Page, digits: string): Promise<void> {
   await recorded;
 }
 
+/**
+ * Clear an ALREADY-ANSWERED date and commit, which retracts it (issue #95).
+ *
+ * Backspace on a react-aria date segment deletes digit-wise, so one press empties
+ * a two-digit month and leaves the date incomplete but not empty: the exact state
+ * react-aria never reports through `onChange` (it fires only when a date becomes
+ * complete, or when every segment is empty). The adapter reads the displayed
+ * segments at the commit moment instead, and posts a null clear, so this waits
+ * for that POST like any other answer post.
+ */
+export async function clearDate(page: Page): Promise<void> {
+  const retracted = answerPosted(page);
+  const group = page.getByRole("group", { name: KS.dob });
+  const month = group.getByRole("spinbutton", { name: /month/i });
+  await month.click();
+  await page.keyboard.press("Backspace");
+  await expect(month).toHaveText(/mm/i);
+  await blurActive(page);
+  await retracted;
+}
+
 /** Type into the NumberField key-by-key (per-keystroke commit), then blur. */
 export async function answerNumber(page: Page, value: string): Promise<void> {
   const recorded = answerPosted(page);

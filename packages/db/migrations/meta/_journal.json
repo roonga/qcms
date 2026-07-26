@@ -64,6 +64,13 @@
       "when": 1784736000000,
       "tag": "0008_form_abuse_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1785037299287,
+      "tag": "0009_answer_retraction",
+      "breakpoints": true
     }
   ]
 }

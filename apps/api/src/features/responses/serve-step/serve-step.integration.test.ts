@@ -319,6 +319,102 @@ describe("branching answer loop (exit criterion 1)", () => {
   });
 });
 
+// --- answer retraction (ADR-33, issue #95) ----------------------------------
+
+describe("answer retraction (ADR-33)", () => {
+  it("a null value retracts: the question becomes required-missing again and the ledger records it", async () => {
+    const { sessionId, sessionToken } = await startSession("auto");
+    const sid = SessionId.parse(sessionId);
+
+    await postAnswer(sessionId, sessionToken, "q_at_fault_accident", true);
+    const answered = (await (
+      await postAnswer(sessionId, sessionToken, "q_accident_count", 10)
+    ).json()) as StepBody;
+    expect(answered.flowState.readyToSubmit).toBe(true);
+
+    // The respondent clears the number: post null on the same route.
+    const res = await postAnswer(sessionId, sessionToken, "q_accident_count", null);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as StepBody;
+    // The flow re-evaluates with the question UNANSWERED, so the required gap is
+    // back and the flow is no longer submittable. This is what stops Continue.
+    expect(body.flowState.missingRequired).toEqual(["q_accident_count"]);
+    expect(body.flowState.readyToSubmit).toBe(false);
+
+    // The read model omits it; the audit ledger keeps every row, retraction last.
+    const latest = await latestAnswers(testDb.db, sid);
+    expect(latest.has(QuestionId.parse("q_accident_count"))).toBe(false);
+    expect(latest.get(QuestionId.parse("q_at_fault_accident"))).toBe(true);
+    const ledger = (await answerLedger(testDb.db, sid)) as {
+      questionId: string;
+      value: unknown;
+      retracted: boolean;
+    }[];
+    expect(ledger.map((row) => [row.questionId, row.value, row.retracted])).toEqual([
+      ["q_at_fault_accident", true, false],
+      ["q_accident_count", 10, false],
+      ["q_accident_count", null, true],
+    ]);
+
+    // Answering again after the retraction restores the flow.
+    const reanswered = (await (
+      await postAnswer(sessionId, sessionToken, "q_accident_count", 7)
+    ).json()) as StepBody;
+    expect(reanswered.flowState.readyToSubmit).toBe(true);
+    expect((await latestAnswers(testDb.db, sid)).get(QuestionId.parse("q_accident_count"))).toBe(7);
+  });
+
+  it("retracting a question that was never answered is a no-op, not an error and not a tombstone", async () => {
+    const { sessionId, sessionToken } = await startSession("auto");
+    const sid = SessionId.parse(sessionId);
+
+    // The sibling case from issue #95: a never-answered required control commits
+    // empty. It used to 422 with "invalid value" on a question nobody answered.
+    const res = await postAnswer(sessionId, sessionToken, "q_at_fault_accident", null);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as StepBody;
+    expect(body.flowState.missingRequired).toEqual(["q_at_fault_accident"]);
+    expect(body.flowState.readyToSubmit).toBe(false);
+    // No ledger noise: a tombstone over nothing records no event.
+    expect((await answerLedger(testDb.db, sid)) as unknown[]).toEqual([]);
+  });
+
+  it("is not a validation bypass: an invalid real answer is still 422 and appends nothing", async () => {
+    const { sessionId, sessionToken } = await startSession("auto");
+    const sid = SessionId.parse(sessionId);
+    await postAnswer(sessionId, sessionToken, "q_at_fault_accident", true);
+
+    // Only a literal null takes the retraction branch; every other value goes to
+    // the kernel exactly as before, and the retraction branch can never carry one.
+    const invalid = await postAnswer(sessionId, sessionToken, "q_accident_count", "ten");
+    expect(invalid.status).toBe(422);
+    expect(((await invalid.json()) as ErrBody).error.code).toBe("INVALID_ANSWER");
+    const ledger = (await answerLedger(testDb.db, sid)) as { questionId: string }[];
+    expect(ledger.map((row) => row.questionId)).toEqual(["q_at_fault_accident"]);
+  });
+
+  it("is authorized exactly like an answer write: hidden question 409, unknown 404, no token 401", async () => {
+    const { sessionId, sessionToken } = await startSession("auto");
+
+    // q_accident_count is hidden until q_at_fault_accident = true: a retraction
+    // may not reach it either (it would otherwise probe the hidden flow).
+    const hidden = await postAnswer(sessionId, sessionToken, "q_accident_count", null);
+    expect(hidden.status).toBe(409);
+    expect(((await hidden.json()) as ErrBody).error.code).toBe("QUESTION_NOT_VISIBLE");
+
+    const unknown = await postAnswer(sessionId, sessionToken, "q_not_in_form", null);
+    expect(unknown.status).toBe(404);
+    expect(((await unknown.json()) as ErrBody).error.code).toBe("UNKNOWN_QUESTION");
+
+    const unauthed = await app.request(`/sessions/${sessionId}/answers`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-qcms-internal-token": internalToken },
+      body: JSON.stringify({ questionId: "q_at_fault_accident", value: null }),
+    });
+    expect(unauthed.status).toBe(401);
+  });
+});
+
 // --- explicit navigation cursor (ADR-28, task 045) --------------------------
 
 describe("explicit navigation cursor renders the requested step (ADR-28)", () => {

@@ -120,13 +120,20 @@ export type StepResponse = z.infer<typeof StepResponse>;
  * (`validateAnswer`, 009) against the pinned question version, so it is accepted
  * as `unknown` here and never re-shaped by the transport schema - the canonical
  * form the ledger stores is the kernel's output.
+ *
+ * A literal `null` is the **retraction** request (ADR-33): "the respondent
+ * cleared this question". It is the one wire value that is not an answer, which
+ * is why it can be spelled on this route without ambiguity - `null` is not a
+ * legal `AnswerValue` for any question type, so it can never collide with real
+ * content. The handler routes it to a tombstone append instead of validation.
  */
 export const SubmitAnswerBody = z
   .object({
     questionId: z.string().min(1).openapi({ example: "q_at_fault_accident" }),
-    value: z
-      .unknown()
-      .openapi({ description: "The answer value; validated against the pinned question." }),
+    value: z.unknown().openapi({
+      description:
+        "The answer value; validated against the pinned question. Literal null retracts the answer (the question becomes unanswered; the ledger records the retraction).",
+    }),
   })
   .openapi("SubmitAnswerBody");
 export type SubmitAnswerBody = z.infer<typeof SubmitAnswerBody>;

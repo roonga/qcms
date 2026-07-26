@@ -23,9 +23,12 @@ export function useChanges() {
 export function ControlledHost({
   document,
   onChange,
+  onBlur,
 }: {
   readonly document: A2UIStepDocument;
   readonly onChange?: (name: string, value: A2UIAnswerValue | undefined) => void;
+  /** Touched semantics, as the portal wires them (the commit moment, ADR-31). */
+  readonly onBlur?: (name: string) => void;
 }) {
   const [values, setValues] = useState<A2UIValues>({});
   return (
@@ -36,6 +39,7 @@ export function ControlledHost({
         setValues((current) => ({ ...current, [name]: value }));
         onChange?.(name, value);
       }}
+      {...(onBlur ? { onBlur } : {})}
     />
   );
 }
