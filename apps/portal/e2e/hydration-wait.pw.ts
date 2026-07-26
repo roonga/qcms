@@ -9,11 +9,14 @@
  *    fallback form (029), so a spec can interact with the step long before React
  *    attaches. A wait that polled for something already true of that markup, or
  *    that timed out into a truthy default, would pass every run and protect
- *    nothing. The first test pins the negative half against the step's OWN
- *    server-rendered HTML with the hydration bundle removed (markup present, React
- *    absent, so the page can never hydrate), then the positive half on the same
- *    step served normally. Both halves are needed: the rejection alone would also
- *    be produced by a typo in the probe selector.
+ *    nothing. The first test pins the negative half against the real step served
+ *    with its script requests starved (markup present, React never runs, so the
+ *    page cannot hydrate), then the positive half on the same step served normally.
+ *    Both halves are needed: the rejection alone would also be produced by a typo
+ *    in the probe selector. Starving the bundle over the network is deliberate: an
+ *    earlier version built the fixture by editing the SSR HTML string, which is
+ *    both fragile (a close tag it failed to match would silently restore
+ *    hydration) and a thing static analysis rightly flags as unsafe HTML handling.
  * 2. **An entry helper's first interaction is not silently discarded.** The second
  *    test drives the real entry helper with the CPU throttled, which widens the gap
  *    between first paint and React attaching, and asserts the answer still posts.
@@ -46,36 +49,45 @@ test("the hydration wait rejects on server-rendered markup and resolves once Rea
 }) => {
   const { slug } = readFixtures();
 
+  // Starve the app bundle: every script request is answered with an empty 200, so
+  // the page gets its real server-rendered markup and React never runs. Empty
+  // rather than `abort()` on purpose - an aborted request surfaces as a
+  // `net::ERR_FAILED` console error and the browser error gate would red the test
+  // for the wrong reason. `no-store` keeps the empty body out of the HTTP cache, so
+  // lifting the starvation below really does refetch the bundle. Page JavaScript
+  // stays enabled throughout, which is what lets `waitForFunction` still poll.
+  let starveScripts = true;
+  let scriptsStarved = 0;
+  await page.route("**/*", async (route) => {
+    if (starveScripts && route.request().resourceType() === "script") {
+      scriptsStarved += 1;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/javascript",
+        headers: { "cache-control": "no-store" },
+        body: "",
+      });
+      return;
+    }
+    await route.continue();
+  });
+
+  // Entry and Start both work with no client JavaScript at all (that is what the
+  // no-JS specs cover), so this lands on the step's server-rendered fallback form.
   await page.goto(`/f/${slug}`);
   await page.getByRole("button", { name: "Start" }).click();
   await page.waitForURL(/\/s\/ses_/);
   const stepUrl = page.url();
 
-  // The step's own SSR response with every script removed: real server-rendered
-  // markup that can never hydrate. The `link` tags go too, so the page makes no
-  // subresource requests at all (an about:blank base URL would 404 them and trip
-  // the browser error gate).
-  const ssrHtml = await (await page.request.get(stepUrl)).text();
-  const neverHydrates = ssrHtml
-    .replace(/<script\b[\s\S]*?<\/script>/gi, "")
-    .replace(/<link\b[^>]*>/gi, "");
-  expect(neverHydrates, "the bundle must be gone or the page would hydrate").not.toMatch(
-    /<script/i,
-  );
+  // The page asked for its bundle and got nothing, so it cannot hydrate. This is
+  // what replaces a "no <script> in the HTML" check: it is the browser's own
+  // request accounting rather than an inspection of markup, so the test cannot pass
+  // vacuously by accidentally serving a page that CAN hydrate.
+  expect(scriptsStarved, "the bundle must have been requested and starved").toBeGreaterThan(0);
 
-  // Navigate away BEFORE swapping in that markup. `setContent` rewrites the
-  // current document in place, leaving the already-hydrated React app from the
-  // navigation above holding references to nodes that no longer exist: its next
-  // commit then throws "Failed to execute 'removeChild' on 'Node'" and the browser
-  // error gate reds the test (intermittently, since it depends on whether React
-  // has pending work). A real navigation to a blank page tears that JS context
-  // down first, so the SSR markup lands in a document React has never touched.
-  await page.goto("about:blank");
-  await page.setContent(neverHydrates);
-
-  // This markup is genuinely interactive: the question, its radios and a submit
-  // button are all present and operable without JavaScript (the no-JS specs rely
-  // on exactly this). An interaction here is silently thrown away later.
+  // The markup is nonetheless genuinely interactive: the question, its radios and a
+  // submit button are all present and operable without JavaScript. An interaction
+  // here is silently thrown away, which is the whole reason the wait exists.
   await expect(page.getByText(ACCIDENT_LABEL)).toBeVisible();
   await expect(page.getByRole("radio", { name: "Yes", exact: true })).toBeAttached();
   await expect(page.locator("button[type='submit']")).toBeVisible();
@@ -91,6 +103,7 @@ test("the hydration wait rejects on server-rendered markup and resolves once Rea
 
   // Positive half: the same step, served with its scripts, resolves the wait. So
   // the rejection above was the absence of hydration, not a broken probe.
+  starveScripts = false;
   await page.goto(stepUrl);
   await waitForHydration(page);
 });
