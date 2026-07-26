@@ -110,7 +110,12 @@
     // directory on the host first so the bind never fails on a fresh clone.
     "source=${localWorkspaceFolder}/../a2-react-aria,target=/workspaces/a2-react-aria,type=bind,consistency=cached",
     // Claude Code config + credentials, shared with the host user.
-    "source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind,consistency=cached"
+    "source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind,consistency=cached",
+    // gh CLI config + token, shared with the host user for the same reason as
+    // ~/.claude: a container rebuild must not wipe auth the loop depends on
+    // (2026-07-26: a rebuild severed gh auth and blocked the PR-review loop for
+    // a day). Log in once on the WSL2 host; every container has it.
+    "source=${localEnv:HOME}/.config/gh,target=/home/vscode/.config/gh,type=bind,consistency=cached"
   ],
   // Runs in the HOST shell before the container is created. KNOWN LIMITATION:
   // this form is POSIX-only (`mkdir -p`, `$HOME`), so on a Windows host running
@@ -119,7 +124,7 @@
   // (which uses USERPROFILE). Windows contributors should either use WSL2 (the
   // tested path) or create `..\a2-react-aria` and `%USERPROFILE%\.claude` by
   // hand once. Verified on Linux/WSL2 only; tracked as a follow-up issue.
-  "initializeCommand": "mkdir -p \"${localWorkspaceFolder}/../a2-react-aria\" \"$HOME/.claude\" || true",
+  "initializeCommand": "mkdir -p \"${localWorkspaceFolder}/../a2-react-aria\" \"$HOME/.claude\" \"$HOME/.config/gh\" || true",
 
   "postCreateCommand": "bash .devcontainer/post-create.sh",
 
