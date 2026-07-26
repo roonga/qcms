@@ -96,6 +96,14 @@ cmd_shell() {
   local ws
   ws="$(workspace_dir)"
   [ -n "$ws" ] || die "could not determine the workspace path inside $CONTAINER"
+  # gh auth is load-bearing for the loops (PR review, issue churn). The config is
+  # bind-mounted from the host, so an unauthenticated container almost always
+  # means the HOST is not logged in - say so before dropping into the shell.
+  if ! docker exec -u vscode "$CONTAINER" sh -c 'command -v gh' >/dev/null 2>&1; then
+    echo "WARNING: gh is not installed in $CONTAINER - the loops need it. Rebuild the container (the github-cli Feature provides it)." >&2
+  elif ! docker exec -u vscode "$CONTAINER" gh auth status >/dev/null 2>&1; then
+    echo "WARNING: gh is not authenticated in $CONTAINER. Run 'gh auth login' on the host (the config is bind-mounted) or inside this shell." >&2
+  fi
   docker exec -it -u vscode -w "$ws" "$CONTAINER" zsh
 }
 

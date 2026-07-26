@@ -99,7 +99,7 @@ The practical rule: **one container machine-wide, and one side per checkout at a
 
 ## Secrets
 
-Provisioned at runtime, never committed. `.env` (gitignored) arrives with the workspace mount, `gh auth login` runs inside the container, and `~/.claude` is mounted from the host, which carries your Claude Code login in and survives rebuilds. `.env.example` stays the only committed env file, and no secret value appears anywhere in `.devcontainer/`.
+Provisioned at runtime, never committed. `.env` (gitignored) arrives with the workspace mount, and both `~/.claude` (Claude Code login) and `~/.config/gh` (gh CLI token) are bind-mounted from the host, so each survives rebuilds: run `gh auth login` once on the WSL2 host and every container inherits it (a rebuild on 2026-07-26 severed in-container gh auth and blocked the PR-review loop for a day, which is why the mount exists). `pnpm devcontainer shell` warns before dropping you into an unauthenticated container - that warning almost always means the HOST is not logged in. `.env.example` stays the only committed env file, and no secret value appears anywhere in `.devcontainer/`.
 
 ## Codespaces
 
