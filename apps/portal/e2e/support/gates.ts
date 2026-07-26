@@ -80,14 +80,32 @@ function apiLineIsError(line: string): boolean {
 /** PG severities that denote a fault (LOG / DETAIL / STATEMENT are benign). */
 const PG_ERROR = /(ERROR|FATAL|PANIC|WARNING):/;
 /**
- * Portal dev-server FAULT markers: Next.js's error glyph, an unhandled rejection,
- * a thrown `Error:`, or a 5xx response in the request log. The portal dev server's
- * `warn`-level output is inherently noisy (telemetry, deprecations, and forwarded
- * BROWSER console warnings), and browser-console messages are owned by the browser
- * gate above, so `[browser] ...` lines are excluded here rather than matched as
- * server faults. This is the documented, justified scope of the portal log gate.
+ * Portal dev-server FAULT markers: Next.js's error glyph, an unhandled rejection
+ * or uncaught exception, a thrown `*Error:`, or a 5xx response in the request log.
+ * The portal dev server's `warn`-level output is inherently noisy (telemetry,
+ * deprecations, and forwarded BROWSER console warnings), and browser-console
+ * messages are owned by the browser gate above, so `[browser] ...` lines are
+ * excluded here rather than matched as server faults. This is the documented,
+ * justified scope of the portal log gate.
+ *
+ * Two spellings this used to miss (issue #120), both covered by `gates.test.ts`:
+ *
+ * - `\w*Error:` rather than `\bError:`. There is no word boundary between `e` and
+ *   `E` in `RangeError`, so the old alternative matched a bare `Error:` but no
+ *   subclass name: `RangeError:`, `TypeError:`, `ReferenceError:` and
+ *   `SyntaxError:` all slipped through. `\w*` only ever extends the match
+ *   leftwards over word characters, so it can add a prefix to `Error:` but cannot
+ *   loosen the trailing colon: `Errors:` in prose and a question label containing
+ *   the word "error" still do not match, and neither does lower-case `error:`.
+ * - `Unhandled Rejection:` / `Uncaught Exception:` (space, title case, colon) are
+ *   what Node prints when a handler is installed, which is precisely the case
+ *   where the process survives and only a log gate can notice. These are the same
+ *   two prefixes `portal-server.mjs` treats as fatal at startup (issue #58);
+ *   `unhandledRejection` and `UnhandledPromiseRejection` stay for the spellings
+ *   the bare runtime uses.
  */
-const PORTAL_ERROR = /(⨯|unhandledRejection|UnhandledPromiseRejection|\bError:| 5\d\d )/;
+const PORTAL_ERROR =
+  /(⨯|unhandledRejection|UnhandledPromiseRejection|Unhandled Rejection:|Uncaught Exception:|\b\w*Error:| 5\d\d )/;
 
 function isErrorLine(source: LogSource, line: string): boolean {
   if (source === "api") return apiLineIsError(line);
@@ -112,7 +130,17 @@ function appendedSince(path: string, offset: number): string {
   }
 }
 
-function scanAppended(source: LogSource, path: string, offset: number): string[] {
+/**
+ * Every fault line a source appended to its log after `offset`: the exact set the
+ * `serverGuard` fixture below asserts is empty. Exported for `gates.test.ts`,
+ * which proves the `PORTAL_ERROR` spellings by writing a log file and reading the
+ * gate's verdict on it, rather than by inspecting the pattern. Testing through
+ * this function rather than through `PORTAL_ERROR` directly is deliberate: the
+ * question a gate test must answer is "would the suite go red on this log line",
+ * which depends on the level filter, the `[browser]` exclusion and `SERVER_ALLOW`
+ * as much as on the pattern.
+ */
+export function scanAppended(source: LogSource, path: string, offset: number): string[] {
   const text = appendedSince(path, offset);
   return text
     .split(/\r?\n/)
