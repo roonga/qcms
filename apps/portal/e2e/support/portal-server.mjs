@@ -37,7 +37,14 @@
 // stays the server-log gate's business, not a reason to kill the dev server.
 
 import { spawn, spawnSync } from "node:child_process";
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync, writeSync } from "node:fs";
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+  writeSync,
+} from "node:fs";
 import { get } from "node:http";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -118,13 +125,22 @@ function logTail() {
 }
 
 /**
+ * Absolute path to `ps`, never resolved through `PATH`: a writable directory
+ * earlier in `PATH` could otherwise shadow it (`sonarjs/no-os-command-from-path`).
+ * Both locations are covered because Linux distributions differ on which is the
+ * real file and which is the merged-usr symlink.
+ */
+const PS_BINARY = ["/bin/ps", "/usr/bin/ps"].find((candidate) => existsSync(candidate));
+
+/**
  * Every live descendant pid of `rootPid`, from a single `ps` snapshot.
  *
  * One `ps` rather than recursive `pgrep -P` calls: a single snapshot cannot race
  * against itself, and `ps -e -o pid=,ppid=` is portable across Linux and macOS.
  */
 function descendantsOf(rootPid) {
-  const listed = spawnSync("ps", ["-e", "-o", "pid=,ppid="], { encoding: "utf8" });
+  if (PS_BINARY === undefined) return [];
+  const listed = spawnSync(PS_BINARY, ["-e", "-o", "pid=,ppid="], { encoding: "utf8" });
   if (listed.status !== 0 || typeof listed.stdout !== "string") return [];
   /** parent pid -> its immediate children. */
   const childrenOf = new Map();
