@@ -8,7 +8,7 @@ Select and fix exactly one open GitHub issue per invocation; /loop provides the 
 **Housekeeping first (same sweep as /next-task).** `git worktree prune`, then `rm -rf` any `.claude/worktrees/agent-*` directory that does not appear in `git worktree list`. Never remove a dir that IS a live registered worktree. If the shared checkout's working tree is dirty, stop and report instead of stashing someone's work.
 
 1. **Select.** `gh issue list -R roonga/qcms --state open --json number,title,labels,body`. Exclude:
-   - Labels `phase-4`, `wontfix`, `duplicate`, `invalid`, `question` (post-launch backlog and non-work).
+   - Labels `phase-4`, `wontfix`, `duplicate`, `invalid`, `question` (post-launch backlog and non-work), and the routing labels `needs-decision` (awaiting the Code Owner), `blocked-upstream` (report BLOCKED, never claim), `workshop` (routed via /improve-workshop), `admin-stage` (delivered by tasks 031-035).
    - Issues that need an ADR or a Code Owner decision before code can be written (title/body says "needs ADR", or the issue poses an open product question). These are awaiting-human, not executable.
    - Issues a `todo` or `in-progress` ledger task already folds in - grep `docs/features/*.md` for `#NN` (e.g. "folds #25"); the task will deliver them, do not race it.
    - Claimed issues: an origin branch `fix/NN-*` exists, or the issue carries a claim comment (step 3) with no later release comment.
