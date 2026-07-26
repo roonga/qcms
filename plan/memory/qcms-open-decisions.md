@@ -8,6 +8,8 @@ metadata:
   modified: 2026-07-22T21:32:11.612Z
 ---
 
+**Disposition sweep 2026-07-26:** #20 (disproven - spec nonce-hiding, PR #84), #21 (PR #75), #31 (ADR-31, PR #90), #66 (option 2, PR #103) all CLOSED; #22 -> ADR-32/task 048; #26 -> ADR-30 amendment/task 049 (launch tier); #95 retraction -> ADR-33/task 050 DONE. **Still open: #53** - the portable-subset recommendation (patterns valid under both u and v, divergent class-set constructs rejected, reject-new-only via R6 versioning, editor one-click normalization) awaits the Code Owner's go.
+
 Decisions the Code Owner has raised that need scheduling or formalizing into the plan:
 
 - **SAST gate + baseline sweep** (raised 2026-07-21, issue #14): **DONE 2026-07-21.** Landed serverless: CodeQL (`security-and-quality`) server-side + `eslint-plugin-sonarjs` in lint + jscpd `check:duplication` (3% threshold) locally, all in CI. Baseline swept: all 65 sonarjs findings cleared, project tuning documented inline in `eslint.config.js` with rationale; jscpd accepts R5 vertical-slice repetition. See [[qcms-project-state]] static-analysis division.

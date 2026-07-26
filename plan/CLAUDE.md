@@ -63,13 +63,13 @@ Data flow: `core` evaluates rules -> `a2ui-compiler` produces the UI doc -> `ui`
 
 Your **committed memory is in `plan/memory/`** (role, project state, open decisions, design system, working preferences, repo notes) - read it on boot. It travels with the repo (host, WSL, container), unlike path-keyed auto-memory (which may also load on the host but breaks when the path changes).
 
-## Active workstreams (snapshot 2026-07-23 - RE-VERIFY against ledger/git/issues)
+## Active workstreams (snapshot 2026-07-26 - RE-VERIFY against ledger/git/issues)
 
-- **045 landed** - explicit portal step navigation (Continue/Back/Submit) + full-stack kitchen-sink e2e; **unblocks the 030 manual a11y pass** (the Code Owner's gate).
-- **Theming - ADR-30 + task 047** (launch tier): managed themes + respondent **mode/font/density** controls + **radius**; a declarative **font registry**; a four-group token contract (color/type/spacing/radius). Design palettes produced and synced to the Claude Design project (`foundations/theming`). Still to fold in: a **Monospace** font group (JetBrains/Geist Mono) + tabular figures for numeric fields.
-- **Devcontainer - ADR-29 + task 046**: Ubuntu 24.04 devcontainer, `bypassPermissions` loop, repos in WSL2. Dispatch `/task 046` after 045. Off the launch gate.
-- **Review findings -> issues #20-28**: hydration nonce, error-link identity (WCAG 3.3.1), author error messages, auto-advance/date options, translation authoring UI, hardcoded brand mark, managed theming, multi-script font fallback, forced-colors/prefers-contrast.
-- `fix/portal-favicon` branch pushed (adds `apps/portal/app/icon.svg`), no PR yet.
+- **The two-seat PR flow is live** (PRs #49/#80/#83/#92/#93): /next-issue opens one PR per issue with gate screenshots committed under `docs/gates/pr-NN/`; this seat reviews (Copilot sweep before every merge), merges via head-bound `PO-REVIEW:` sentinels, appends retro, and keeps looping - `pnpm verify` is the one-command gate (superset of CI's unit job; checks renamed `verify (node-NN)`, node-26 leg waivable by design).
+- **ADR-31/32/33 arc complete** (2026-07-25/26): answer commitment semantics (implemented, PR #90), author validation messages (task 048, after 032), managed theme editor at launch (ADR-30 amended, task 049), answer retraction as tombstone append (task 050 DONE, PR #97). ~24 issues closed through reviewed PRs across the run.
+- **Board:** enhancement tier for the issue loop (#27 #28 #58 #68 #70 #91 #98 #99 #102); #53 (u/v pattern validation) awaits the Code Owner's go on the portable-subset recommendation; #72 blocked upstream; admin-stage folds (#22-#24) ride tasks 031-035/048; two GHCR clicks pending (mirror workflow dispatch + qcms/postgres package public - Docker Hub flake tax until then).
+- **Next feature work:** 047 theming via /next-task, then admin 031-035 (with 048/049/050 slotted); /improve-workshop recommended at the boundary - the retro carries the wrong-pre-trace pattern (3x), gate-duplication economics, and the ADR-trigger-vs-control-emission lesson (2x).
+- Idle ticks in this seat pick up docs/non-functional work per `plan/pr-review-loop.md` step 6 (Code Owner directive 2026-07-26).
 
 ---
 
