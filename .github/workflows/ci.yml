@@ -165,3 +165,16 @@ jobs:
       # Runs the whole root Playwright config (CI=true, so it never reuses a server
       # and forbids `test.only`). ~1-2 min including the DB boot and Lighthouse runs.
       - run: pnpm exec playwright test
+
+      # Failure forensics (issue #102): screenshots, traces, and the captured
+      # portal/API server logs, only when the job fails. docs/gates/pr-NN stays
+      # the sign-off mechanism; this is debugging evidence.
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: portal-e2e-failure-${{ github.run_id }}
+          path: |
+            apps/portal/.playwright/output
+            apps/portal/.playwright/server-logs
+          retention-days: 7
+          if-no-files-found: warn
