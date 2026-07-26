@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { A2UIStepDocument } from "@qcms/ui";
 
-import { documentForVisible, questionLabels } from "./visible";
+import { commitMoments, documentForVisible, questionLabels } from "./visible";
 
 /**
  * The portal renders only the questions the API's flow projection marks visible,
@@ -93,5 +93,93 @@ describe("questionLabels", () => {
     } as unknown as A2UIStepDocument;
 
     expect([...questionLabels(doc)]).toEqual([["q_full_name", "Full name"]]);
+  });
+});
+
+/**
+ * WHEN each answer commits, per ADR-31 (issue #31). A single-choice OptionId, a
+ * date and a long-text answer are all strings on the wire, so the flow cannot
+ * tell them apart from the value: the control kind in the compiled document is
+ * what carries the commit moment. This is the pure half of the fix - that the
+ * portal actually posts at each moment and not before is asserted in the browser
+ * (`apps/portal/e2e/commit-moments.pw.ts`, ADR-23).
+ */
+describe("commitMoments", () => {
+  it("reports the radio group as change and the number field as blur", () => {
+    expect([...commitMoments(stepDoc)]).toEqual([
+      ["q_at_fault_accident", "change"],
+      ["q_accident_count", "blur"],
+    ]);
+  });
+
+  it("maps every control in ADR-31's table to its commit moment", () => {
+    const doc = {
+      stepId: "stp_mixed",
+      root: {
+        type: "Form",
+        children: [
+          { type: "Text", props: { as: "h1" }, children: "Everything" },
+          {
+            type: "RadioGroup",
+            props: { name: "q_coverage_level" },
+            children: [{ type: "Radio", props: { value: "opt_basic", label: "Basic" } }],
+          },
+          { type: "Select", props: { name: "q_long_list" } },
+          { type: "CheckboxGroup", props: { name: "q_optional_cover" } },
+          { type: "TextField", props: { name: "q_full_name" } },
+          { type: "TextArea", props: { name: "q_extra_detail" } },
+          { type: "NumberField", props: { name: "q_accident_count" } },
+          { type: "DatePicker", props: { name: "q_dob" } },
+        ],
+      },
+    } as unknown as A2UIStepDocument;
+
+    expect([...commitMoments(doc)]).toEqual([
+      // boolean / singleChoice up to 7 options
+      ["q_coverage_level", "change"],
+      // singleChoice above 7 options
+      ["q_long_list", "change"],
+      // multiChoice: NOT on change, unlike every other selection control
+      ["q_optional_cover", "groupExit"],
+      // shortText: not listed in ADR-31's table, read as unchanged
+      ["q_full_name", "blur"],
+      ["q_extra_detail", "blur"],
+      ["q_accident_count", "blur"],
+      // the only control with a completion signal distinct from blur
+      ["q_dob", "completion"],
+    ]);
+  });
+
+  it("never reports an option child, which is labelled but unnamed", () => {
+    const doc = {
+      stepId: "stp_cover",
+      root: {
+        type: "RadioGroup",
+        props: { name: "q_coverage_level" },
+        children: [
+          { type: "Radio", props: { value: "opt_basic", label: "Basic" } },
+          { type: "Radio", props: { value: "opt_premium", label: "Premium" } },
+        ],
+      },
+    } as unknown as A2UIStepDocument;
+
+    expect([...commitMoments(doc)]).toEqual([["q_coverage_level", "change"]]);
+  });
+
+  it("omits an unrecognized control, so the caller falls back to the safe moment", () => {
+    const doc = {
+      stepId: "stp_future",
+      root: {
+        type: "Form",
+        children: [
+          { type: "ColorPicker", props: { name: "q_future" } },
+          { type: "RadioGroup", props: { name: "q_known" } },
+        ],
+      },
+    } as unknown as A2UIStepDocument;
+
+    const moments = commitMoments(doc);
+    expect(moments.has("q_future")).toBe(false);
+    expect(moments.get("q_known")).toBe("change");
   });
 });

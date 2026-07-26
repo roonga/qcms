@@ -2,15 +2,21 @@
  * Driving helpers for the kitchen-sink form (task 045). One place for the
  * react-aria control quirks so the flow spec reads as a script: radios and
  * checkboxes sit under a decorative indicator that intercepts pointer events (so
- * click the visible label text, not the input); the NumberField commits per
+ * click the visible label text, not the input); the NumberField emits per
  * keystroke (type key-by-key); the DatePicker is a segmented DateField in en-US
- * order MM/DD/YYYY that only emits a value once all segments are complete; and
- * discrete controls (radios, checkboxes) post immediately on change while text /
- * number / date post on blur. Answer posts are serialized, so we wait for each
- * `/answers` 200 (or the navigation `/step` 200) before the next action.
+ * order MM/DD/YYYY that only emits a value once all segments are complete.
+ *
+ * WHEN each answer posts is ADR-31's commit table, which these helpers encode so
+ * a spec reads as a script rather than as event plumbing: booleans and single
+ * choice post on change, the date posts when its last segment completes, text and
+ * number post on blur, and a multi-choice posts when focus leaves the whole
+ * checkbox GROUP (so `checkOption` toggles AND exits). Answer posts are
+ * serialized, so we wait for each `/answers` 200 (or the navigation `/step` 200)
+ * before the next action. The commit moments themselves are the subject of
+ * `commit-moments.pw.ts`; here they are only the driving convention.
  */
 
-import { expect, type Page } from "@playwright/test";
+import { expect, type Page, type Response } from "@playwright/test";
 
 /** The kitchen-sink form's three step titles (headings), in order. */
 export const KS_STEP_TITLES = ["About you", "Driving history", "Your cover"] as const;
@@ -25,7 +31,7 @@ export const KS = {
 } as const;
 
 /** Wait for one `POST /answers` to be recorded server-side (status 200). */
-export function answerPosted(page: Page): Promise<unknown> {
+export function answerPosted(page: Page): Promise<Response> {
   return page.waitForResponse(
     (r) => r.url().includes("/answers") && r.request().method() === "POST" && r.status() === 200,
   );
@@ -44,10 +50,27 @@ export function stepServed(page: Page): Promise<unknown> {
  * deterministic: it always moves focus out of the field's wrapper and fires its
  * onBlur, regardless of layout or overlays.
  */
-async function blurActive(page: Page): Promise<void> {
+export async function blurActive(page: Page): Promise<void> {
   await page.evaluate(() => {
     const el = document.activeElement;
     if (el instanceof HTMLElement) el.blur();
+  });
+}
+
+/**
+ * Wait until React has hydrated the step, not merely until the SSR markup is
+ * visible. The portal's first paint is real server-rendered content (029), so
+ * every control is visible and fillable BEFORE any handler is attached: a `fill`
+ * that lands in that window sets the DOM value, the controlled re-render throws
+ * it away, and no answer is ever posted. React tags each host node it owns with
+ * a `__reactFiber$…` / `__reactProps$…` property when it hydrates, so the
+ * presence of one on a step control is the attachment signal itself rather than
+ * a proxy for it.
+ */
+async function waitForHydration(page: Page): Promise<void> {
+  await page.waitForFunction(() => {
+    const el = document.querySelector("[data-testid='primary-action']");
+    return el !== null && Object.keys(el).some((key) => key.startsWith("__react"));
   });
 }
 
@@ -57,6 +80,7 @@ export async function startKitchenSink(page: Page, slug: string): Promise<void> 
   await page.getByRole("button", { name: "Start" }).click();
   await page.waitForURL(/\/s\/ses_/);
   await expect(page.getByRole("textbox", { name: KS.fullName })).toBeVisible();
+  await waitForHydration(page);
 }
 
 /** Fill a text/textarea control by accessible name, then blur to post it. */
@@ -67,7 +91,13 @@ export async function fillText(page: Page, name: string, value: string): Promise
   await recorded;
 }
 
-/** Enter a date into the segmented DateField (en-US MM/DD/YYYY), then blur. */
+/**
+ * Enter a date into the segmented DateField (en-US MM/DD/YYYY), then blur. The
+ * date's commit moment is `completion` (ADR-31): a partial date never posts, and
+ * the complete one posts once, when editing ends. Typing all eight digits and
+ * blurring is therefore one post - see `commit-moments.pw.ts` for why the
+ * control's own "value is non-empty" signal cannot be the trigger.
+ */
 export async function enterDate(page: Page, digits: string): Promise<void> {
   const recorded = answerPosted(page);
   const group = page.getByRole("group", { name: KS.dob });
@@ -116,8 +146,8 @@ export async function answerNumber(page: Page, value: string): Promise<void> {
 
 /**
  * Click a control by its visible label and wait for the answer POST it triggers.
- * Shared by the input kinds whose value posts immediately on change rather than
- * on blur (boolean radios can flip a branch; checkboxes post each toggle).
+ * Shared by the controls whose commit moment is `change` (ADR-31): a boolean or
+ * single-choice radio, either of which can flip a branch on selection.
  */
 async function clickLabelAndAwaitPost(page: Page, label: string): Promise<void> {
   const recorded = answerPosted(page);
@@ -134,23 +164,69 @@ export async function chooseRadio(page: Page, label: string): Promise<void> {
 }
 
 /**
- * Choose a SINGLE-CHOICE radio (an OptionId string) by its visible label. A
- * single-choice value is a string, which the portal posts on blur (like text),
- * so the radio must be genuinely FOCUSED (a pointer click on the label can select
- * without focusing) before we blur into the step heading to post it. Focus the
- * radio and select it with Space, then blur.
+ * Choose a SINGLE-CHOICE radio (an OptionId string) by its visible label. Single
+ * choice commits on change, like a boolean, because it can gate a branch
+ * (ADR-31, issue #31) - so this waits for the post directly and never blurs. It
+ * used to have to focus the radio, press Space and then blur, because a
+ * single-choice value is a string and the flow posted every string on blur; that
+ * workaround is the regression net here, and its removal is what the fix buys.
  */
 export async function chooseSingleChoice(page: Page, label: string): Promise<void> {
+  await clickLabelAndAwaitPost(page, label);
+}
+
+/**
+ * Toggle one checkbox option by its visible label WITHOUT committing the group.
+ * A multi-choice commits on group exit (ADR-31), so a toggle posts nothing: only
+ * `commitCheckboxGroup` does. The explicit `.focus()` afterwards is what makes
+ * that exit deterministic - a pointer click on the decorative label selects the
+ * box without necessarily focusing its input, and the group's commit is a FOCUS
+ * event.
+ */
+export async function toggleOption(page: Page, label: string): Promise<void> {
+  await page.getByText(label, { exact: true }).click();
+  await page.getByRole("checkbox", { name: label, exact: true }).focus();
+}
+
+/**
+ * Commit the focused checkbox group by moving focus out of it, and wait for the
+ * single post that commit makes. Blurring the active element leaves the group
+ * with `relatedTarget === null` (a click on the page background, or a tab out of
+ * the document), which `FieldBlur`'s containment check treats as leaving.
+ */
+export async function commitCheckboxGroup(page: Page): Promise<void> {
   const recorded = answerPosted(page);
-  await page.getByRole("radio", { name: label, exact: true }).focus();
-  await page.keyboard.press("Space");
   await blurActive(page);
   await recorded;
 }
 
-/** Toggle a checkbox option by its visible label (cumulative array; posts each). */
+/**
+ * Select a checkbox option and commit the group (the cumulative array posts once,
+ * on exit). Two options in a row therefore cost two posts here; a spec that cares
+ * about the cadence itself uses `toggleOption` + `commitCheckboxGroup` directly.
+ */
 export async function checkOption(page: Page, label: string): Promise<void> {
-  await clickLabelAndAwaitPost(page, label);
+  await toggleOption(page, label);
+  await commitCheckboxGroup(page);
+}
+
+/**
+ * Fast-forward through the kitchen-sink form's first two steps with valid
+ * answers and land on step 3 ("Your cover"), whose only question is the
+ * single-choice one. The flow spec drives those steps with its own assertions;
+ * this is the plain set-up for a spec whose subject is step 3.
+ *
+ * "No" is chosen for the accident question so the number follow-up stays hidden
+ * and no extra required question is introduced.
+ */
+export async function advanceToCoverStep(page: Page, slug: string): Promise<void> {
+  await startKitchenSink(page, slug);
+  await fillText(page, KS.fullName, "Ada Lovelace");
+  await enterDate(page, "05171990"); // 1990-05-17 (en-US MM/DD/YYYY)
+  await continueStep(page);
+  await chooseRadio(page, "No");
+  await checkOption(page, "Breakdown");
+  await continueStep(page);
 }
 
 /** Click Continue and wait for the next step to be served. */

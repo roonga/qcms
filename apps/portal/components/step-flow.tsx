@@ -2,7 +2,7 @@
 
 import { A2UIStepRenderer } from "@qcms/ui";
 import type { A2UIAnswerValue, A2UIErrors, A2UIStepDocument, A2UIValues } from "@qcms/ui";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 
 import { PortalShell } from "@/components/portal-shell";
@@ -17,7 +17,8 @@ import {
 import { missingRequiredEntries } from "@/lib/error-summary";
 import { t } from "@/lib/i18n/en";
 import { buttonClass } from "@/lib/ui";
-import { documentForVisible } from "@/lib/visible";
+import { commitMoments, documentForVisible, DEFAULT_COMMIT_MOMENT } from "@/lib/visible";
+import type { CommitMoment } from "@/lib/visible";
 import type { StepResponse } from "@/lib/server/api";
 
 /** The localized branch-change announcement for an inserted/removed count. */
@@ -104,8 +105,8 @@ function recoverFocus(args: {
  * The hydrated flow with an explicit navigation cursor (029/030, ADR-28). The
  * server sends the first `StepResponse` (real content, so the SSR first paint is
  * real); this component owns the local answer values, posts each answer to the
- * same-origin BFF proxy on change/blur, and re-renders branching *within the
- * current step* from the API's returned flow projection.
+ * same-origin BFF proxy at that control's ADR-31 commit moment, and re-renders
+ * branching *within the current step* from the API's returned flow projection.
  *
  * Navigation is a COMMITTED cursor, never a side effect of answering: **Continue**
  * requests the next visible step (only when the current step's required questions
@@ -155,6 +156,17 @@ export function StepFlow({
   // blurs the control and re-posts the identical value: a redundant append that
   // also flips `busy` at exactly the wrong moment and races the advance guard.
   const lastPostedRef = useRef<Record<string, string>>({});
+  // Each question's ADR-31 commit moment, read out of the compiled step document
+  // (issue #31). Derived from the FULL document, not the visibility-pruned copy,
+  // so a question the projection is about to reveal is already classified.
+  // Recomputed only when the step document changes, not on every keystroke.
+  const moments = useMemo(
+    () =>
+      snapshot.step === null
+        ? (new Map() as ReadonlyMap<string, CommitMoment>)
+        : commitMoments(snapshot.step as unknown as A2UIStepDocument),
+    [snapshot.step],
+  );
 
   // Flow-level accessibility (task 030): the step content region (for focus
   // targeting and reading the step heading), the previous flow projection (to
@@ -231,25 +243,64 @@ export function StepFlow({
         else next[name] = value;
         return next;
       });
-      // Discrete controls (booleans, choices) can flip branch visibility, so post
-      // immediately; free-text and numbers post on blur (below) to avoid chatter.
-      if (value === undefined || typeof value === "boolean" || Array.isArray(value)) {
+      // ADR-31: post exactly at this control's commit moment, so the same-step
+      // reveal the server sends back lands at the moment the respondent finished
+      // saying this one thing. `change` is a whole answer per event (a boolean or
+      // singleChoice selection - posting those on blur is issue #31, where a
+      // branch a singleChoice gates appeared only after focus left the radio
+      // group). `completion`, `blur` and `groupExit` all commit in handleBlur
+      // below. The control kind comes from the compiled document because the value
+      // alone cannot separate a singleChoice OptionId from a date or a long-text
+      // string. Nothing else posts here: a change mid-entry is a keystroke, a
+      // segment or one toggle of a multi-select, none of which is an answer.
+      const moment = moments.get(name) ?? DEFAULT_COMMIT_MOMENT;
+      if (moment === "change") {
+        postAnswer(name, value);
+        return;
+      }
+      // ADR-31 (amended) x ADR-33: a previously-answered `completion` control
+      // whose value clears posts its RETRACTION here, because the adapter only
+      // surfaces the clear (`setValue(undefined)`, no blur - so the stale value
+      // cannot re-post behind it) once editing has ended: this change event IS
+      // the commit moment. A never-answered clear is not an answer and posts
+      // nothing; a retraction already posted is deduped by lastPostedRef.
+      const last = lastPostedRef.current[name];
+      if (moment === "completion" && value === undefined && last !== undefined && last !== "null") {
         postAnswer(name, value);
       }
     },
-    [postAnswer],
+    [moments, postAnswer],
   );
 
+  /**
+   * The renderer calls this only when focus leaves the WHOLE control (its
+   * `FieldBlur` wrapper ignores a focusout whose `relatedTarget` is still inside,
+   * and treats `relatedTarget === null` - a click on the page background, or a tab
+   * out of the document - as leaving). That containment check is exactly ADR-31's
+   * `groupExit` for a multiChoice: moving between the group's own checkboxes is
+   * not a commit, leaving the group is. It is also the `blur` commit for number,
+   * longText and shortText, and where a `completion` control commits.
+   *
+   * A `completion` control (the date) commits ONLY a complete value here: an
+   * unfinished never-answered date is not an answer. The one `null` it can post
+   * is the ADR-33 retraction of a previously-answered value, which travels via
+   * handleChange (the adapter surfaces a clear only after editing ends). See
+   * `visible.ts` for why the DatePicker's own "value is non-empty" signal cannot
+   * be the trigger.
+   */
   const handleBlur = useCallback(
     (name: string): void => {
       const value = valuesRef.current[name];
-      // Skip the post if this exact value was already posted (e.g. a discrete
-      // control that posted on change): re-posting on blur is a redundant append
-      // and races the advance guard.
+      if ((moments.get(name) ?? DEFAULT_COMMIT_MOMENT) === "completion" && value === undefined) {
+        return;
+      }
+      // Skip the post if this exact value was already posted (e.g. a control that
+      // committed on change): re-posting on blur is a redundant append and races
+      // the advance guard.
       if (lastPostedRef.current[name] === JSON.stringify(value ?? null)) return;
       postAnswer(name, value);
     },
-    [postAnswer],
+    [moments, postAnswer],
   );
 
   const doSubmit = useCallback(async (): Promise<void> => {
