@@ -253,7 +253,19 @@ export function StepFlow({
       // alone cannot separate a singleChoice OptionId from a date or a long-text
       // string. Nothing else posts here: a change mid-entry is a keystroke, a
       // segment or one toggle of a multi-select, none of which is an answer.
-      if ((moments.get(name) ?? DEFAULT_COMMIT_MOMENT) === "change") {
+      const moment = moments.get(name) ?? DEFAULT_COMMIT_MOMENT;
+      if (moment === "change") {
+        postAnswer(name, value);
+        return;
+      }
+      // ADR-31 (amended) x ADR-33: a previously-answered `completion` control
+      // whose value clears posts its RETRACTION here, because the adapter only
+      // surfaces the clear (`setValue(undefined)`, no blur - so the stale value
+      // cannot re-post behind it) once editing has ended: this change event IS
+      // the commit moment. A never-answered clear is not an answer and posts
+      // nothing; a retraction already posted is deduped by lastPostedRef.
+      const last = lastPostedRef.current[name];
+      if (moment === "completion" && value === undefined && last !== undefined && last !== "null") {
         postAnswer(name, value);
       }
     },
@@ -269,9 +281,12 @@ export function StepFlow({
    * not a commit, leaving the group is. It is also the `blur` commit for number,
    * longText and shortText, and where a `completion` control commits.
    *
-   * A `completion` control (the date) commits ONLY a complete value: an unfinished
-   * date is not an answer, so it is never posted as `null`. See `visible.ts` for
-   * why the DatePicker's own "value is non-empty" signal cannot be the trigger.
+   * A `completion` control (the date) commits ONLY a complete value here: an
+   * unfinished never-answered date is not an answer. The one `null` it can post
+   * is the ADR-33 retraction of a previously-answered value, which travels via
+   * handleChange (the adapter surfaces a clear only after editing ends). See
+   * `visible.ts` for why the DatePicker's own "value is non-empty" signal cannot
+   * be the trigger.
    */
   const handleBlur = useCallback(
     (name: string): void => {
