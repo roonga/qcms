@@ -211,7 +211,7 @@ function failFast(reason, exitCode) {
     [
       "",
       `[portal-server] portal dev server failed during startup: ${reason}.`,
-      `[portal-server] last ${LOG_TAIL_LINES} lines of ${logPath}:`,
+      `[portal-server] last ${LOG_TAIL_LINES} non-blank lines of ${logPath}:`,
       logTail(),
       `[portal-server] exiting ${exitCode} so the Playwright webServer wait ends now.`,
       "",
