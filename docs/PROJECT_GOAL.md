@@ -233,7 +233,7 @@ The token contract has **four groups**: color (`--color-*`), typography (`--font
 | --- | --- | --- |
 | boolean | on change | yes |
 | singleChoice (radio or select) | on change | yes |
-| date | on completion, committed when editing ends (all-segments-filled precondition: a never-answered partial date does not post; a previously-answered question edited to partial or cleared posts null to clear) *(amended 2026-07-26)* | yes, at the commit |
+| date | on completion, committed when editing ends (all-segments-filled precondition: a never-answered partial date does not post; a previously-answered question edited to partial or cleared posts a retraction, ADR-33) *(amended 2026-07-26)* | yes, at the commit |
 | number | on blur | yes |
 | longText | on blur | yes |
 | shortText | on blur *(added 2026-07-26; absent from the original table)* | yes |
@@ -255,7 +255,7 @@ The server remains the only rule evaluator (R2); commitment governs client posti
 
 ### ADR-33 - Answer retraction as a tombstone append
 
-**Decision.** A respondent un-answering a question is represented as an **explicit appended retraction record** (Code Owner, 2026-07-26; issue #95). No answer row is ever mutated or deleted: the retraction is one more append, and `latestAnswers` resolves a question whose newest record is a retraction to **unanswered** - for validation, rules, reporting, and exports alike. Rejected alternatives, recorded: making `null` a legal `AnswerValue` (null would flow into the rules DSL, exports, reporting, and the compiler, forcing every consumer to handle it), and a portal-only Continue guard (leaves the server, rules, and exports honoring an answer the respondent removed). Whole-session erasure remains the sole DELETE door.
+**Decision.** A respondent clearing an answer is represented as an **explicit appended retraction record** (Code Owner, 2026-07-26; issue #95). No answer row is ever mutated or deleted: the retraction is one more append, and `latestAnswers` resolves a question whose newest record is a retraction to **unanswered** - for validation, rules, reporting, and exports alike. Rejected alternatives, recorded: making `null` a legal `AnswerValue` (null would flow into the rules DSL, exports, reporting, and the compiler, forcing every consumer to handle it), and a portal-only Continue guard (leaves the server, rules, and exports honoring an answer the respondent removed). Whole-session erasure remains the sole DELETE door.
 
 **Why.** Issue #95 proved two independent gaps with browser and kernel probes: the portal cannot even observe a cleared date (react-aria emits no change when a complete value becomes incomplete), and no retraction path exists at any layer (`validateAnswer(def, null)` fails, the API 422s before append). Meanwhile ADR-31's contract requires a previously-answered question that is cleared to stop counting as answered. The tombstone preserves the append-only audit trail (R3/ADR-17): the record shows a retraction happened rather than erasing that it did - determinism, immutability, and auditability all hold.
 
