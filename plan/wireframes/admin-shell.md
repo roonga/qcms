@@ -1,30 +1,30 @@
-# Wireframe — Admin shell, sign-in, 2FA
+# Wireframe - Admin shell, sign-in, 2FA
 
 **Status:** Draft (pre-027) · **Consumed by:** 031 · **Renders:** better-auth flows (031), `/admin` group auth
 
-## ASCII sketch — authenticated shell
+## ASCII sketch - authenticated shell
 
 ```
 ┌─ shell ─────────────────────────────────────────────┐
 │ [logo] Questions Forms Responses Webhooks Settings ⏻│
 │ ┌─ content ──────────────────────────────────────┐  │
-│ │ (per-area screens — see sibling wireframes)    │  │
+│ │ (per-area screens - see sibling wireframes)    │  │
 │ └────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────┘
 ```
 
 ## Regions (normative)
 
-- **shell top bar**: logo slot · primary nav — Questions / Forms / Responses / Webhooks / Settings (links; active state visible) · sign-out `button` (icon + label).
+- **shell top bar**: logo slot · primary nav - Questions / Forms / Responses / Webhooks / Settings (links; active state visible) · sign-out `button` (icon + label).
 - **content**: the routed area screen. Breadcrumb (`breadcrumb`) at content top on nested routes (e.g. Forms / {form} / Builder).
 - **Settings** area at launch: account (change password → sessions invalidated), 2FA re-enrollment, nothing else (RBAC etc. is Phase 4).
 
 ### Auth screens (inventory-only)
 
-- **Sign-in**: `card` — email `text-field`, password `text-field` (masked), submit `button`. Generic failure message (no user enumeration — SEC-1). Throttled state shows generic "try again later" `alert`.
-- **2FA enrollment** (first sign-in, enforced by default): `card` — QR code image + manual secret (`text`, copyable), TOTP code `text-field`, verify `button`; then **recovery codes screen**: one-time display (`card`, copy-all `button`, "I have saved these" confirm `button` gates continue — codes never shown again).
+- **Sign-in**: `card` - email `text-field`, password `text-field` (masked), submit `button`. Generic failure message (no user enumeration - SEC-1). Throttled state shows generic "try again later" `alert`.
+- **2FA enrollment** (first sign-in, enforced by default): `card` - QR code image + manual secret (`text`, copyable), TOTP code `text-field`, verify `button`; then **recovery codes screen**: one-time display (`card`, copy-all `button`, "I have saved these" confirm `button` gates continue - codes never shown again).
 - **2FA challenge** (each sign-in): TOTP code `text-field`, verify `button`, "use a recovery code" link → recovery-code `text-field` variant.
-- **First-run note**: no self-registration UI exists anywhere (SEC-1); first admin via `pnpm qcms:create-admin` — sign-in screen shows nothing about registration.
+- **First-run note**: no self-registration UI exists anywhere (SEC-1); first admin via `pnpm qcms:create-admin` - sign-in screen shows nothing about registration.
 
 ## States (normative)
 

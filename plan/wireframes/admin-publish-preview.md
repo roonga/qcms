@@ -1,8 +1,8 @@
-# Wireframe — Admin publish, preview, versions, secure links
+# Wireframe - Admin publish, preview, versions, secure links
 
 **Status:** Draft (pre-027) · **Consumed by:** 034 · **Renders:** 022 (publish, versions, close/reopen, draft/preview), 024 (links), 028 (shared renderer)
 
-## ASCII sketch — publish + preview
+## ASCII sketch - publish + preview
 
 ```
 ┌─ Publish "Life insurance"? ──────────── (dialog) ───┐
@@ -10,7 +10,7 @@
 │ New sessions get v3; in-flight sessions finish       │
 │ on their version.            [Cancel] [Publish v3]  │
 └─────────────────────────────────────────────────────┘
-┌─ Preview — not published ───────────────── (banner) ┐
+┌─ Preview - not published ───────────────── (banner) ┐
 │ ┌─ rendered step (shared renderer) ──────────────┐  │
 │ │ Are you a smoker?  (•) Yes ( ) No              │  │
 │ │ How many cigarettes daily? [   ]  ← appeared   │  │
@@ -21,10 +21,10 @@
 
 ## Regions (normative)
 
-- **publish `dialog`**: freeze summary (steps/pins/rules counts) + R1 teaching copy · confirm/cancel `button`s. On failure: full `PublishError[]` as an actionable list — each entry links back into the builder anchored via structured `path` (033's anchoring). On success: version `tag` + link to history.
-- **preview**: banner `alert` ("Preview — not published") · dry-run compiled draft (`POST /admin/forms/:id/draft/preview` — a planned thin extension of 022's draft slice that **034 lands**; deliberately **absent from the frozen 027 contract**, which predates it) rendered through **the same `@qcms/ui` renderer** (import-surface test — preview fidelity is the feature) · interactive answer state with live client-side rule evaluation (core evaluator) so authors walk branches · step prev/next `button`s · reset `button`.
-- **version history**: `table` — version, publishedAt, compilerVersion / a2uiSpecVersion / semanticsVersion (`text`, monospace) · view action → read-only render **from stored compiled JSONB** (ADR-18 — network assertion: no draft-preview call on history pages) · side-by-side definition **JSON diff** between selected versions (readable, additions/removals marked textually not color-only).
-- **secure links** (form with ≥1 published version): mint `dialog` — expiry `date-picker`, one-time `switch`, batch count `number-field` (≤ documented cap) → result list with copy-URL `button`s · links `table` — state `tag` (active/consumed/expired/revoked), consumption timestamp, revoke action (`dialog` confirm) · batch CSV export `button`.
+- **publish `dialog`**: freeze summary (steps/pins/rules counts) + R1 teaching copy · confirm/cancel `button`s. On failure: full `PublishError[]` as an actionable list - each entry links back into the builder anchored via structured `path` (033's anchoring). On success: version `tag` + link to history.
+- **preview**: banner `alert` ("Preview - not published") · dry-run compiled draft (`POST /admin/forms/:id/draft/preview` - a planned thin extension of 022's draft slice that **034 lands**; deliberately **absent from the frozen 027 contract**, which predates it) rendered through **the same `@qcms/ui` renderer** (import-surface test - preview fidelity is the feature) · interactive answer state with live client-side rule evaluation (core evaluator) so authors walk branches · step prev/next `button`s · reset `button`.
+- **version history**: `table` - version, publishedAt, compilerVersion / a2uiSpecVersion / semanticsVersion (`text`, monospace) · view action → read-only render **from stored compiled JSONB** (ADR-18 - network assertion: no draft-preview call on history pages) · side-by-side definition **JSON diff** between selected versions (readable, additions/removals marked textually not color-only).
+- **secure links** (form with ≥1 published version): mint `dialog` - expiry `date-picker`, one-time `switch`, batch count `number-field` (≤ documented cap) → result list with copy-URL `button`s · links `table` - state `tag` (active/consumed/expired/revoked), consumption timestamp, revoke action (`dialog` confirm) · batch CSV export `button`.
 - **close/reopen**: form-level actions with in-flight-session explanation (R1 taught in copy).
 
 ## States (normative)

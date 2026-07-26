@@ -2,6 +2,7 @@
 name: qcms-pr-flow
 description: The two-seat PR-per-issue flow - who opens, who merges, sentinels, gates (adopted 2026-07-25)
 metadata:
+  node_type: memory
   type: project
 ---
 
