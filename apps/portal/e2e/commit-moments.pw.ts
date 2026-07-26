@@ -32,7 +32,7 @@
  *   accounting of everything that happened before it.
  *
  * Each test also watches every answer post's STATUS, because changing when
- * answers post could have made the known null-post/422 defect (issue #76) fire
+ * answers post could have made the known null-post/422 defect (issue #95; resolved by PR #97) fire
  * more often. It must not: any non-200 fails the test.
  */
 
@@ -98,7 +98,7 @@ function postsFor(log: readonly AnswerPost[], questionId: string): AnswerPost[] 
 
 /**
  * Every answer post so far was accepted. A 422 here is the null-post defect
- * (issue #76) firing: an untouched required field blurred into a `null` post the
+ * (issue #95; resolved by PR #97) firing: an untouched required field blurred into a `null` post the
  * API rejects. Changing the posting cadence must not provoke more of them.
  */
 function expectNoRejectedPosts(log: readonly AnswerPost[]): void {
