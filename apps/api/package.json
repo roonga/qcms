@@ -37,7 +37,7 @@
   "devDependencies": {
     "@seriousme/openapi-schema-validator": "^2.9.0",
     "@testcontainers/postgresql": "^12.0.4",
-    "@types/node": "^24.13.3",
+    "@types/node": "^26.1.1",
     "@types/pg": "^8.20.0"
   }
 }
