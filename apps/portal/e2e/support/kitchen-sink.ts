@@ -18,6 +18,8 @@
 
 import { expect, type Page, type Response } from "@playwright/test";
 
+import { waitForHydration } from "./hydration.js";
+
 /** The kitchen-sink form's three step titles (headings), in order. */
 export const KS_STEP_TITLES = ["About you", "Driving history", "Your cover"] as const;
 
@@ -55,23 +57,6 @@ export async function blurActive(page: Page): Promise<void> {
   await page.evaluate(() => {
     const el = document.activeElement;
     if (el instanceof HTMLElement) el.blur();
-  });
-}
-
-/**
- * Wait until React has hydrated the step, not merely until the SSR markup is
- * visible. The portal's first paint is real server-rendered content (029), so
- * every control is visible and fillable BEFORE any handler is attached: a `fill`
- * that lands in that window sets the DOM value, the controlled re-render throws
- * it away, and no answer is ever posted. React tags each host node it owns with
- * a `__reactFiber$…` / `__reactProps$…` property when it hydrates, so the
- * presence of one on a step control is the attachment signal itself rather than
- * a proxy for it.
- */
-async function waitForHydration(page: Page): Promise<void> {
-  await page.waitForFunction(() => {
-    const el = document.querySelector("[data-testid='primary-action']");
-    return el !== null && Object.keys(el).some((key) => key.startsWith("__react"));
   });
 }
 
