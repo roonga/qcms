@@ -74,7 +74,15 @@ export {
   deactivateWebhook,
 } from "./webhooks.js";
 
-export { type AnswerRow, appendAnswer, latestAnswers, answerLedger } from "./answers.js";
+export {
+  type AnswerRow,
+  type RetractionRow,
+  appendAnswer,
+  retractAnswer,
+  isRetraction,
+  latestAnswers,
+  answerLedger,
+} from "./answers.js";
 
 export { type SubmissionRow, insertSubmission, getSubmission } from "./submissions.js";
 

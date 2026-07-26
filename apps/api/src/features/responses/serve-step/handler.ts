@@ -48,6 +48,7 @@ import {
   getSession,
   latestAnswers,
   markInProgress,
+  retractAnswer,
   type SessionRow,
 } from "@qcms/db";
 import { sql } from "drizzle-orm";
@@ -275,6 +276,12 @@ export function makeGetStepHandler(deps: Deps): RouteHandler<typeof getStepRoute
  * exists (`UNKNOWN_QUESTION`) → currently visible (`QUESTION_NOT_VISIBLE`) →
  * value valid (422) → append.
  *
+ * A body `value` of literal `null` is a **retraction** (ADR-33, issue #95): the
+ * same route, the same gates, but the ledger gets a tombstone append instead of
+ * an answer and the question resolves to unanswered. It is a separate branch
+ * taken before validation, never a validation outcome, so no real answer can
+ * reach the ledger through it.
+ *
  * The visibility check, append, mark, and re-evaluation run inside one
  * transaction holding a per-session advisory lock, so concurrent submits are
  * serialized and the ledger's order is deterministic (I6: only legitimately
@@ -310,6 +317,27 @@ export function makeSubmitAnswerHandler(
       const beforeFlow = evaluateOrThrow(snapshot, before);
       const isVisible = beforeFlow.visible.some((entry) => entry.questionId === questionId);
       if (!isVisible) throw fail.questionNotVisible();
+
+      // A literal `null` body value is a RETRACTION, not an answer (ADR-33): the
+      // respondent cleared a question they had answered. It appends a tombstone
+      // that `latestAnswers` resolves to unanswered, so the flow re-evaluates
+      // with the question missing (and a required one blocks Continue again).
+      // The kernel is never consulted, because a retraction is not an
+      // `AnswerValue` and has nothing to validate; equally, this branch can never
+      // record a value, so it is not a way to bypass validation for a real
+      // answer. It runs behind the same authorization, session, visibility and
+      // rate-limit gates as an answer write.
+      if (body.value === null) {
+        // Retracting a question that currently has no answer is a no-op: the
+        // portal posts a clear on any commit of an empty control, and a tombstone
+        // over nothing records no event while adding ledger noise on every blur.
+        if (before.has(questionId)) {
+          await retractAnswer(tx, { sessionId, questionId });
+          await markInProgress(tx, sessionId);
+        }
+        const cleared = await latestAnswers(tx, sessionId);
+        return project(snapshot, evaluateOrThrow(snapshot, cleared), requestedIndex);
+      }
 
       // Validate the value against the pinned question version (009). On failure
       // return the kernel's full error list; the message names constraints, the

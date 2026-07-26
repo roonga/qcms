@@ -133,11 +133,21 @@ export const ResponseListResponse = z
   })
   .openapi("ResponseListResponse");
 
-/** One append-only ledger revision (audit history). */
+/**
+ * One append-only ledger revision (audit history): an answer, or a **retraction**
+ * that cleared the question (ADR-33). `retracted` is the discriminator, always
+ * present, so a reader never has to infer intent from an absent value: a
+ * retraction carries `value: null` and `retracted: true`, an answer the reverse.
+ */
 export const LedgerEntry = z
   .object({
     questionId: z.string().openapi({ example: "q_full_name" }),
     value: z.unknown(),
+    retracted: z.boolean().openapi({
+      description:
+        "True when this revision RETRACTED the answer (the respondent cleared it); `value` is then null and the question became unanswered at this point in the history.",
+      example: false,
+    }),
     answeredAt: z.iso.datetime(),
   })
   .openapi("LedgerEntry");

@@ -30,10 +30,16 @@ interface PgClientCtor {
 
 const { Client } = apiRequire("pg") as { Client: PgClientCtor };
 
-/** One appended answer row (append-only ledger). `value` is the stored JSONB. */
+/**
+ * One appended answer row (append-only ledger). `value` is the stored JSONB, and
+ * `retracted` marks a tombstone row: the respondent cleared the question at this
+ * point in the history (ADR-33), so `value` is null and the question resolves to
+ * unanswered from here until it is answered again.
+ */
 export interface AnswerRow {
   readonly questionId: string;
   readonly value: unknown;
+  readonly retracted: boolean;
   readonly answeredAt: string;
 }
 
@@ -52,9 +58,10 @@ export class Db {
     const result = await this.client.query<{
       question_id: string;
       value: unknown;
+      retracted: boolean;
       answered_at: string;
     }>(
-      `select question_id, value, answered_at
+      `select question_id, value, retracted, answered_at
          from answers
         where session_id = $1
         order by answered_at asc, id asc`,
@@ -63,20 +70,32 @@ export class Db {
     return result.rows.map((row) => ({
       questionId: row.question_id,
       value: row.value,
+      retracted: row.retracted,
       answeredAt: row.answered_at,
     }));
   }
 
-  /** The latest answer per question (DISTINCT ON, newest wins), as a map. */
+  /**
+   * The latest answer per question (DISTINCT ON, newest wins), as a map. A
+   * question whose newest row is a retraction is omitted entirely, mirroring
+   * `latestAnswers` in `@qcms/db` (ADR-33): the filter runs AFTER the pick, since
+   * excluding retractions from it would resurrect the cleared answer.
+   */
   async latestAnswers(sessionId: string): Promise<Map<string, unknown>> {
-    const result = await this.client.query<{ question_id: string; value: unknown }>(
-      `select distinct on (question_id) question_id, value
+    const result = await this.client.query<{
+      question_id: string;
+      value: unknown;
+      retracted: boolean;
+    }>(
+      `select distinct on (question_id) question_id, value, retracted
          from answers
         where session_id = $1
         order by question_id, answered_at desc, id desc`,
       [sessionId],
     );
-    return new Map(result.rows.map((row) => [row.question_id, row.value]));
+    return new Map(
+      result.rows.filter((row) => !row.retracted).map((row) => [row.question_id, row.value]),
+    );
   }
 
   /** How many rows a given question has (append-only proof: a change adds a row). */

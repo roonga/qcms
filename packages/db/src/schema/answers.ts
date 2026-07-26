@@ -1,4 +1,4 @@
-import { index, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, index, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 import type { AnswerValue, QuestionId, SessionId } from "@qcms/core";
 
@@ -17,6 +17,16 @@ import { sessions } from "./sessions.js";
  *
  * `questionId` is not a foreign key: an answer references the question pinned in
  * the session's form version, not a mutable row in the question library.
+ *
+ * **Retraction rows (ADR-33).** A respondent who clears an answered question
+ * appends a *retraction*: `retracted = true` and `value = null`. It is an
+ * ordinary append (no row is mutated or deleted, so R3/ADR-17 hold) that
+ * `latestAnswers` resolves to "unanswered" while `answerLedger` keeps showing it.
+ * A database CHECK (`answers_retraction_value`, migration 0009) makes the two
+ * shapes mutually exclusive: an answer always carries a value, a retraction never
+ * does. The retraction is a ledger event, never an `AnswerValue` - no sentinel is
+ * ever stored inside `value`, so author-supplied content can never collide with
+ * it and the kernel never sees a null answer.
  */
 export const answers = pgTable(
   "answers",
@@ -27,7 +37,8 @@ export const answers = pgTable(
       .notNull()
       .references(() => sessions.sessionId),
     questionId: text("question_id").$type<QuestionId>().notNull(),
-    value: jsonb("value").$type<AnswerValue>().notNull(),
+    value: jsonb("value").$type<AnswerValue>(),
+    retracted: boolean("retracted").notNull().default(false),
     answeredAt: timestamp("answered_at", { withTimezone: true, mode: "date" })
       .notNull()
       .defaultNow(),

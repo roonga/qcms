@@ -42,7 +42,7 @@ export const submitAnswerRoute = createRoute({
   method: "post",
   path: "/sessions/{id}/answers",
   summary:
-    "Submit one answer; validated, appended to the ledger, flow re-evaluated (session-token authed)",
+    "Submit one answer (or retract it with a null value); validated, appended to the ledger, flow re-evaluated (session-token authed)",
   tags: ["responses"],
   request: {
     params: SessionParams,

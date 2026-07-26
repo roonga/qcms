@@ -1,5 +1,6 @@
 import { createRegistry } from "@a2ra/core";
 import type { ComponentRegistry } from "@a2ra/core";
+import { useState } from "react";
 import type { ComponentProps, FocusEvent, ReactNode } from "react";
 
 import {
@@ -81,6 +82,10 @@ function FieldKind({ name, kind }: { readonly name?: string; readonly kind: Nati
  *
  * `name` is optional: a control compiled without a questionId (never happens for
  * a real question, but the props type allows it) simply gets no id.
+ *
+ * The wrapper element is handed to `onBlur` so an adapter can inspect what its
+ * control currently DISPLAYS at the commit moment; the DatePicker adapter needs
+ * that to see a clear react-aria never reports (see below).
  */
 function FieldBlur({
   name,
@@ -88,12 +93,12 @@ function FieldBlur({
   children,
 }: {
   readonly name?: string;
-  readonly onBlur: () => void;
+  readonly onBlur: (container: HTMLElement) => void;
   readonly children: ReactNode;
 }) {
   const handleBlur = (event: FocusEvent<HTMLDivElement>) => {
     if (!event.currentTarget.contains(event.relatedTarget)) {
-      onBlur();
+      onBlur(event.currentTarget);
     }
   };
   return (
@@ -178,10 +183,56 @@ function NumberFieldField(props: Readonly<NumberFieldProps>) {
   );
 }
 
+/**
+ * Whether the segmented date input inside `container` currently DISPLAYS a
+ * complete date. Every editable segment showing its placeholder (`mm`, `dd`,
+ * `yyyy`) means the respondent has cleared or half-cleared the field.
+ *
+ * `data-placeholder` and `data-type` are react-aria-components' documented
+ * styling hooks on `DateSegment`, read here from qcms-owned code; the vendored
+ * component stays byte-faithful to upstream (ADR-22). A DOM read is the only
+ * signal available: react-aria emits `onChange` when a date becomes *complete*
+ * and when *every* segment is cleared, but emits nothing at all in between, so a
+ * complete date backspaced to a partial one (`1990-05-17` -> `mm/1/199`) is
+ * invisible to the controlled value (issue #95, cause A).
+ *
+ * A container with no segments at all (no date input rendered) reports complete:
+ * absence of evidence never manufactures a retraction.
+ */
+function dateInputIsComplete(container: HTMLElement): boolean {
+  const segments = Array.from(container.querySelectorAll<HTMLElement>("[data-type]"));
+  return segments.every(
+    (segment) => segment.dataset["type"] === "literal" || !segment.hasAttribute("data-placeholder"),
+  );
+}
+
 type DatePickerProps = NonNullable<DatePickerNode["props"]>;
 function DatePickerField(props: Readonly<DatePickerProps>) {
   const field = useQcmsField(props.name);
   const native = useQcmsNativeSubmit();
+  // Bumped only when a clear is observed, so the vendored control remounts with
+  // the parent's now-empty value. Without the remount react-aria falls back to
+  // its own last complete value the moment `value` goes undefined (its
+  // controlled-to-uncontrolled path), redisplaying the date the respondent just
+  // cleared. Never bumped while the respondent is typing, so entry is undisturbed.
+  const [clearedGeneration, setClearedGeneration] = useState(0);
+
+  /**
+   * The ADR-31 date commit moment: editing ends. Commit whatever the control
+   * shows - a complete date it already reported through `onChange`, or the clear
+   * it could not report, which is a retraction of the stored answer (ADR-33).
+   */
+  const commit = (container: HTMLElement): void => {
+    if (typeof field.value === "string" && !dateInputIsComplete(container)) {
+      setClearedGeneration((generation) => generation + 1);
+      // The value change IS the commit; `blur` is deliberately not also fired,
+      // so a host that posts on blur cannot re-post the stale value behind it.
+      field.setValue(undefined);
+      return;
+    }
+    field.blur();
+  };
+
   const modeProps: Partial<ComponentProps<typeof DatePicker>> = native
     ? { defaultValue: typeof field.value === "string" ? field.value : undefined }
     : {
@@ -189,8 +240,9 @@ function DatePickerField(props: Readonly<DatePickerProps>) {
         onChange: (s: string) => field.setValue(s === "" ? undefined : s),
       };
   return (
-    <FieldBlur name={props.name} onBlur={field.blur}>
+    <FieldBlur name={props.name} onBlur={native ? field.blur : commit}>
       <DatePicker
+        key={clearedGeneration}
         {...props}
         {...modeProps}
         isInvalid={field.error != null}

@@ -62,8 +62,11 @@ describe("query helper import surface", () => {
     "getWebhook",
     "updateWebhook",
     "deactivateWebhook",
-    // answers
+    // answers - `retractAnswer` appends a tombstone (ADR-33), never an UPDATE or
+    // DELETE, so it widens no mutation door; `isRetraction` is a pure narrower.
     "appendAnswer",
+    "retractAnswer",
+    "isRetraction",
     "latestAnswers",
     "answerLedger",
     // submissions

@@ -204,9 +204,12 @@ export function makeGetResponseHandler(deps: Deps): RouteHandler<typeof getRespo
         flaggedReason: detail.flaggedReason,
         contentHash: detail.contentHash,
         answers: detail.answers,
+        // A retraction revision is carried explicitly (`retracted: true`, no
+        // value), never flattened into a value-less answer (ADR-33).
         ledger: ledger.map((entry) => ({
           questionId: entry.questionId,
           value: entry.value,
+          retracted: entry.retracted,
           answeredAt: entry.answeredAt.toISOString(),
         })),
       },
