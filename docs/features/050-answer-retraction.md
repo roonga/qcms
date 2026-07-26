@@ -18,7 +18,7 @@ Issue #95, from PR #90's review cycle: clears are unobservable in the portal (re
 ## Exit criteria
 
 1. The #95 browser repro fails on main and passes on the branch: answer required date, clear it, Continue does not advance; the error summary names the question.
-2. Kernel: retraction resolution unit-tested per type; append-only proven (no UPDATE/DELETE on the answers table in the diff or at runtime).
+2. Retraction resolution proven at the read-model seam (latestAnswers integration tests; no kernel change - per the accepted ADR-33 amendment there is no per-type kernel path to test, the null branch runs before validateAnswer); append-only proven (no UPDATE/DELETE on the answers table in the diff or at runtime).
 3. API: retraction post round-trip integration-tested; untouched-required blur produces no 422 noise.
 4. Reporting/export: a retracted answer is absent from both, regression-tested.
 5. `pnpm verify` + `verify:browser` green; changeset for `@qcms/core` (+ `@qcms/db` if its surface changes); screenshot gate for the respondent-visible states.
