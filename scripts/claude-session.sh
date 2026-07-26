@@ -11,6 +11,7 @@
 # the Claude mobile/web apps); --resume picks up the most recent session for
 # this directory instead of starting cold.
 set -euo pipefail
+cd "$(dirname "$0")/.."
 if [ ! -f /.dockerenv ] && [ -z "${REMOTE_CONTAINERS:-}" ] && [ -z "${CODESPACES:-}" ]; then
   echo "WARNING: not inside a container. bypassPermissions is meant for a safe environment like the dev container (ADR-29)." >&2
 fi
