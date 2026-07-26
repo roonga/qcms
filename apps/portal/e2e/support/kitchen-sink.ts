@@ -27,6 +27,7 @@ export const KS = {
   dob: "Date of birth",
   accidentGroup: "Any at-fault accident in the last 3 years?",
   count: /how many/i,
+  optionalCover: "Which optional cover do you want?",
   extraDetail: "Anything else about your driving history?",
 } as const;
 
@@ -130,6 +131,25 @@ export async function clearDate(page: Page): Promise<void> {
   await month.click();
   await page.keyboard.press("Backspace");
   await expect(month).toHaveText(/mm/i);
+  await blurActive(page);
+  await retracted;
+}
+
+/**
+ * Empty an ALREADY-ANSWERED text-like control (TextField, TextArea or
+ * NumberField) and commit, which retracts the answer (issue #98, ADR-33).
+ *
+ * Emptying the box is not the commit: text and number both commit on blur
+ * (ADR-31), so the retraction posts when focus leaves, and this waits for that
+ * POST like any other answer post. An emptied control reports absence rather than
+ * an empty-string answer, so what travels is the same `null` clear a cleared date
+ * sends (see `clearDate`).
+ */
+export async function clearText(page: Page, name: string | RegExp): Promise<void> {
+  const retracted = answerPosted(page);
+  const field = page.getByRole("textbox", { name });
+  await field.click();
+  await field.fill("");
   await blurActive(page);
   await retracted;
 }

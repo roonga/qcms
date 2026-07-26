@@ -1,0 +1,3 @@
+# Gate evidence - PR #126 (issue #98)
+
+Approve the respondent-visible result of emptying an answered control, which is now a retraction for every control type rather than an answer of nothing: the emptied required text field and the all-unchecked required multi-choice are treated as unanswered, so Continue does not advance, the error summary names the field ("Full name needs an answer.", "Which optional cover do you want? needs an answer."), no "That answer is not valid." rejection flashes on the field, and the multi-choice's gated follow-up question closes because the server re-evaluated with it unanswered (`text-cleared-390.png` / `multichoice-cleared-390.png` phone, `-1280.png` desktop).
