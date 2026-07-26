@@ -5,7 +5,11 @@ on:
   pull_request:
 
 jobs:
-  ci:
+  verify:
+    # The CI enactment of `pnpm verify` (issue #19 / PR #83): same superset,
+    # split into named steps for failure granularity. Renamed from `ci` so the
+    # check list reads as what each job is: verify (node-NN), e2e, portal-e2e.
+    name: verify (node-${{ matrix.node-version }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
