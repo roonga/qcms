@@ -24,13 +24,13 @@
     "start": "node dist/serve.js"
   },
   "dependencies": {
-    "@hono/node-server": "^2.0.10",
+    "@hono/node-server": "^2.0.12",
     "@hono/zod-openapi": "^1.5.1",
     "@qcms/a2ui-compiler": "workspace:*",
     "@qcms/core": "workspace:*",
     "@qcms/db": "workspace:*",
     "drizzle-orm": "^0.45.2",
-    "hono": "^4.12.31",
+    "hono": "^4.12.32",
     "pg": "^8.22.0",
     "zod": "^4.4.3"
   },
