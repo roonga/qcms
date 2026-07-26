@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: pnpm
@@ -35,7 +35,7 @@ jobs:
             exit 0
           fi
           title="pnpm audit findings (scheduled run)"
-          existing=$(gh issue list --state open --search "in:title \"$title\"" --json number --jq '.[0].number // empty')
+          existing=$(gh issue list --state open --label security --search "in:title \"$title\"" --json number --jq '.[0].number // empty')
           body=$(printf 'Scheduled audit found advisories (run %s).\n\nTriage against CONTRIBUTING > Security overrides (the overrides table is the removal-condition ledger).\n\n```\n%s\n```' "$GITHUB_RUN_ID" "$audit_output")
           if [ -n "$existing" ]; then
             gh issue comment "$existing" --body "$body"
