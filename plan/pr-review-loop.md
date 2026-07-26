@@ -22,7 +22,8 @@ The PO seat runs this as a recurring loop (`/loop` in `qcms/plan/`): watch for o
    - Branch must be current with `main`. If behind: rebase in a temp worktree, re-run `pnpm verify` at root (a superset of CI's unit job; add `pnpm verify:browser` for a portal/admin/`@qcms/ui` diff), push, wait for CI.
    - `gh pr merge <NN> --squash --delete-branch`, keeping `Fixes #NN` in the squash body so the issue auto-closes.
    - Post-merge: append the PR's `## Retro` lines (skip `none`) to `docs/RETRO.md` under `## issue #NN - <title>` with the merge date; commit to `main` (plain push, never force). This replaces the pre-PR flow's "in the landing commit" retro append.
-5. **Report.** One line per PR handled (reviewed / merged / changes-requested / escalated) in the loop summary. If nothing is open, say so and sleep - never idle-poll faster than the loop cadence.
+5. **Report.** One line per PR handled (reviewed / merged / changes-requested / escalated) in the loop summary.
+6. **Idle ticks do docs/non-functional work (Code Owner directive, 2026-07-26).** When nothing is open and nothing awaits a signal, pick up work instead of sleeping, in this order: (a) seat hygiene - `plan/memory/` and the `plan/CLAUDE.md` snapshot refreshed against the live repo (autonomous, worktree + PR); (b) docs staleness sweeps anywhere a landed change contradicts prose (worktree + PR under the standing docs grant); (c) open issues that are purely non-functional - CI/workflow config, packaging, docs - with no product-logic, kernel, or UI surface (e.g. advisory automation, failure-artifact capture), landed via worktree + PR with the same review discipline. Never product code, never anything screenshot-gated, never /improve-workshop (that stays human-triggered). One item per idle tick; the PR watch always preempts.
 
 ## Never
 
