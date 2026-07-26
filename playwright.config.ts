@@ -60,10 +60,11 @@ export default defineConfig({
   reporter: [["list"]],
   use: {
     baseURL: `http://localhost:${PORT}`,
-    // Failure forensics (issue #102): a screenshot on every failure and a trace
-    // from the first CI retry, uploaded by ci.yml's if-failure artifact step so a
-    // CI-only browser failure is debuggable without local reproduction. Passing
-    // runs record nothing - the suite stays fast and artifacts stay small.
+    // Failure forensics (issue #102), CI-ONLY by design: in CI, a screenshot on
+    // every failure and a trace from the first retry, uploaded by ci.yml's
+    // if-failure artifact step so a CI-only browser failure is debuggable without
+    // local reproduction. Local runs capture nothing (a local failure is already
+    // reproducible in place); passing runs record nothing anywhere.
     screenshot: process.env.CI ? "only-on-failure" : "off",
     trace: process.env.CI ? "on-first-retry" : "off",
   },
