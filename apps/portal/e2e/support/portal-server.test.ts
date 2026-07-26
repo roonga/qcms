@@ -1,10 +1,12 @@
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { spawn, type ChildProcessByStdio } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, describe, expect, it } from "vitest";
 
 /**
  * Startup fail-fast for the portal dev-server wrapper (issue #58).
@@ -35,21 +37,38 @@ import { afterAll, describe, expect, it } from "vitest";
 
 const WRAPPER = fileURLToPath(new URL("portal-server.mjs", import.meta.url));
 
-/**
- * A port nothing in this repo listens on. The wrapper polls it to decide the
- * server is up, so keeping it closed holds every test below in the pre-readiness
- * window, which is the only window the fail-fast logic is armed in.
- */
-const CLOSED_PORT = "45999";
-
-/** A free port the readiness test's stub actually listens on. */
-const READY_PORT = "45998";
-
 /** Comfortably under the real 180s webServer timeout, comfortably over the 300ms grace. */
 const FAST_FAILURE_BUDGET_MS = 20_000;
 
+/**
+ * Claim a port from the ephemeral range and release it again. Most tests here
+ * want a port that stays CLOSED, so the wrapper's readiness probe never succeeds
+ * and they stay in the pre-readiness window that the fail-fast logic is armed in;
+ * the readiness test hands the same port to a stub that does listen. Allocating
+ * rather than hard-coding keeps a stray listener from silently inverting a result.
+ */
+function freePort(): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const probe = createServer();
+    probe.on("error", reject);
+    probe.listen(0, "127.0.0.1", () => {
+      const address = probe.address();
+      if (address === null || typeof address === "string") {
+        probe.close();
+        reject(new Error("could not allocate a free port"));
+        return;
+      }
+      const { port } = address;
+      probe.close(() => resolve(String(port)));
+    });
+  });
+}
+
+/** What `spawn` returns for this file's `stdio: ["ignore", "pipe", "pipe"]`. */
+type WrapperProcess = ChildProcessByStdio<null, Readable, Readable>;
+
 interface Wrapper {
-  readonly child: ChildProcessWithoutNullStreams;
+  readonly child: WrapperProcess;
   /** Resolves when the wrapper process ends. */
   readonly ended: Promise<{ readonly code: number | null; readonly elapsedMs: number }>;
   /** Everything the wrapper wrote to stderr, which is what Playwright forwards. */
@@ -57,12 +76,33 @@ interface Wrapper {
 }
 
 const tempDirs: string[] = [];
-const running: ChildProcessWithoutNullStreams[] = [];
+const running: WrapperProcess[] = [];
+
+/**
+ * Reap a wrapper and everything under it. The wrapper reaches its dev server
+ * through `sh -c`, which does not always `exec`, so signalling the wrapper alone
+ * can orphan the stub and leave it holding a port. In a real run Playwright owns
+ * that cleanup (it launches the wrapper detached and kills the whole group); here
+ * the test has to be its own umbrella, so it spawns detached too and kills by
+ * negative pid.
+ */
+function reap(child: WrapperProcess): void {
+  const { pid } = child;
+  if (pid === undefined) return;
+  try {
+    process.kill(-pid, "SIGKILL");
+  } catch {
+    // The group is already gone, which is the normal case after a clean exit.
+  }
+}
+
+afterEach(() => {
+  // Leaving even one stub alive would let it hold a port into the next test.
+  for (const child of running) reap(child);
+  running.length = 0;
+});
 
 afterAll(() => {
-  // Stubs are spawned through a shell by the wrapper; make sure nothing outlives
-  // the file even if an expectation failed mid-test.
-  for (const child of running) child.kill("SIGKILL");
   for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true });
 });
 
@@ -71,7 +111,7 @@ afterAll(() => {
  * log teed into a throwaway directory. Both substitutions use the wrapper's
  * documented test-only env seams, so the code under test is the shipped code.
  */
-function startWrapper(stubSource: string, port: string = CLOSED_PORT): Wrapper {
+function startWrapper(stubSource: string, port: string): Wrapper {
   const dir = mkdtempSync(join(tmpdir(), "portal-server-"));
   tempDirs.push(dir);
   const stub = join(dir, "stub.mjs");
@@ -86,7 +126,9 @@ function startWrapper(stubSource: string, port: string = CLOSED_PORT): Wrapper {
       QCMS_PORTAL_SERVER_LOG: join(dir, "portal.log"),
     },
     stdio: ["ignore", "pipe", "pipe"],
-  }) as ChildProcessWithoutNullStreams;
+    // Own process group, so `reap` can take the wrapper's whole subtree down.
+    detached: true,
+  });
   running.push(child);
 
   let stderr = "";
@@ -113,7 +155,7 @@ setInterval(() => {}, 1000);
 
 describe("portal-server wrapper startup fail-fast (issue #58)", () => {
   it("fails fast with the log tail when the child reports a fatal error but never exits", async () => {
-    const wrapper = startWrapper(FATAL_THEN_HANGS);
+    const wrapper = startWrapper(FATAL_THEN_HANGS, await freePort());
     const { code, elapsedMs } = await wrapper.ended;
 
     // Nonzero is what makes Playwright abandon its URL poll instead of waiting
@@ -133,6 +175,7 @@ describe("portal-server wrapper startup fail-fast (issue #58)", () => {
   it("propagates a nonzero child exit code and quotes the log tail", async () => {
     const wrapper = startWrapper(
       `process.stderr.write("Error: Cannot find module 'next'\\n");\nprocess.exit(7);\n`,
+      await freePort(),
     );
     const { code, elapsedMs } = await wrapper.ended;
 
@@ -146,7 +189,10 @@ describe("portal-server wrapper startup fail-fast (issue #58)", () => {
     // A dev server that stops during startup served nothing, so a 0 here would
     // report success for a run that cannot work, and would degrade Playwright's
     // message to the vague "exited early".
-    const wrapper = startWrapper(`process.stdout.write("stopping\\n");\nprocess.exit(0);\n`);
+    const wrapper = startWrapper(
+      `process.stdout.write("stopping\\n");\nprocess.exit(0);\n`,
+      await freePort(),
+    );
     const { code } = await wrapper.ended;
 
     expect(code).toBe(1);
@@ -157,6 +203,7 @@ describe("portal-server wrapper startup fail-fast (issue #58)", () => {
     const wrapper = startWrapper(
       `for (let i = 1; i <= 40; i += 1) process.stdout.write(\`line-\${String(i).padStart(2, "0")}\\n\`);\n` +
         `process.stdout.write("Uncaught Exception: Error: boom\\n");\nsetInterval(() => {}, 1000);\n`,
+      await freePort(),
     );
     const { code } = await wrapper.ended;
 
@@ -170,11 +217,13 @@ describe("portal-server wrapper startup fail-fast (issue #58)", () => {
 
   it("leaves a healthy slow start alone and shuts down cleanly on SIGTERM", async () => {
     // The regression that would be worse than the bug: a server that is merely
-    // slow and quiet must not be killed. Nothing here is ever reachable on
-    // CLOSED_PORT, so the wrapper stays in its pre-readiness window the whole
-    // time and still must not act.
+    // slow and quiet must not be killed. Nothing ever listens on this port, so
+    // the wrapper stays in its pre-readiness window the whole time and still must
+    // not act.
+    const port = await freePort();
     const wrapper = startWrapper(
-      `process.stdout.write("  \\u25b2 Next.js 16.2.11\\n  - Local: http://localhost:45999\\n");\nsetInterval(() => {}, 1000);\n`,
+      `process.stdout.write("  \\u25b2 Next.js 16.2.11\\n  - Local: http://localhost:${port}\\n");\nsetInterval(() => {}, 1000);\n`,
+      port,
     );
 
     await new Promise((resolve) => setTimeout(resolve, 3_000));
@@ -196,7 +245,7 @@ describe("portal-server wrapper startup fail-fast (issue #58)", () => {
         `createServer((_req, res) => res.end("ok")).listen(Number(process.env.PORTAL_PORT));\n` +
         `setTimeout(() => process.stdout.write("Unhandled Rejection: Error: late boom\\n"), 2_000);\n` +
         `setInterval(() => {}, 1000);\n`,
-      READY_PORT,
+      await freePort(),
     );
 
     await new Promise((resolve) => setTimeout(resolve, 4_000));
