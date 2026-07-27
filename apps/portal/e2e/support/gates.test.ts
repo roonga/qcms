@@ -4,9 +4,25 @@ import { join } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { scanAppended } from "./gates.js";
+import { browserConsoleFault, scanAppended } from "./gates.js";
 
 /**
+ * Gate tests for `gates.ts`, in two halves.
+ *
+ * The first and larger half covers the **server-log** gate: the `PORTAL_ERROR`
+ * fault pattern (issue #120), the `[browser]` / `[server]` prefix policy (#131,
+ * #143) and the SGR stripping every pattern now relies on (#143). Its cases feed
+ * the gate a log file and read its verdict.
+ *
+ * The second half, at the bottom of the file, covers the **browser** gate's
+ * `console.warn` coverage (issue #147). Its cases feed `browserConsoleFault` a
+ * live console message and read its verdict.
+ *
+ * The two halves share one discipline, which is the point of both: a case proves
+ * what the *gate* does, never what a regex or a `Set` contains.
+ *
+ * ---
+ *
  * The portal server-log gate's fault pattern (issue #120).
  *
  * Every case here is proved by *feeding the gate a log file* and reading its
@@ -374,4 +390,98 @@ describe("the [server] forwarded prefix is not exempted", () => {
   it("stays silent on a benign server-origin forwarded line", () => {
     expect(gateVerdict("portal", `${CYAN}[server]${RESET} fetching form frm_01`)).toEqual([]);
   });
+});
+
+/**
+ * The browser gate's `warn` coverage (issue #147).
+ *
+ * Before #147 a browser-side `console.warn` was owned by no gate: the browser
+ * gate early-returned on anything that was not `console.error`, and the server
+ * gate excludes forwarded `[browser]` lines by design. That is how the issue #144
+ * defect ran unnoticed: a required radio group left entirely unreachable by
+ * keyboard announced itself 51 times per run at `warn`, into the void.
+ *
+ * Every case here asks `browserConsoleFault` - the same function the
+ * `browserGuard` fixture asks - rather than inspecting `BROWSER_ALLOW`, for the
+ * same reason the server cases go through `scanAppended`: whether the suite goes
+ * red depends on the level filter and the allowlist together.
+ *
+ * The level spelling is the trap this pins. Playwright reports `console.warn` as
+ * the type `"warning"`, so a gate written against `"warn"` would compile, pass
+ * review, and match nothing.
+ */
+describe("the browser gate fails on an unrecognised console.warn (issue #147)", () => {
+  it("reports an unrecognised warning", () => {
+    expect(browserConsoleFault("warning", "Cannot update a component while rendering")).toBe(
+      "console.warning: Cannot update a component while rendering",
+    );
+  });
+
+  it("reports the #144 shape of defect: a control that went uncontrolled", () => {
+    expect(
+      browserConsoleFault("warning", "You provided a `value` prop without an `onChange` handler"),
+    ).toBe("console.warning: You provided a `value` prop without an `onChange` handler");
+  });
+
+  it("still reports an unrecognised console.error", () => {
+    expect(browserConsoleFault("error", "Hydration failed")).toBe(
+      "console.error: Hydration failed",
+    );
+  });
+});
+
+/**
+ * The two allowlisted shapes, verbatim as a real run emits them. Both strings
+ * below were copied from a live capture of a full `pnpm verify:browser` run, so a
+ * drift in the upstream wording shows up here as a failing gate rather than as a
+ * silently-dead allowlist entry.
+ */
+describe("the allowlisted browser shapes stay silent (issue #147)", () => {
+  it("allows the dev-build eval()/CSP notice, which arrives as an error", () => {
+    const text =
+      "eval() is not supported in this environment. If this page was served with a " +
+      "`Content-Security-Policy` header, make sure that `unsafe-eval` is included. React " +
+      "requires eval() in development mode for various debugging features like " +
+      "reconstructing callstacks from a different environment.";
+    expect(browserConsoleFault("error", text)).toBeNull();
+  });
+
+  it("allows the issue #144 DatePicker residue, which arrives as a warning", () => {
+    expect(
+      browserConsoleFault("warning", "WARN: A component changed from uncontrolled to controlled."),
+    ).toBeNull();
+  });
+
+  it("does not allowlist a different uncontrolled-to-controlled warning by accident", () => {
+    // The entry is anchored, so a fault line that merely quotes the allowlisted
+    // sentence is still a fault - the same "no text smuggled in front of the
+    // marker" property #131 established for the server gate's `[browser]` anchor.
+    const line = "Ignored an error: WARN: A component changed from uncontrolled to controlled.";
+    expect(browserConsoleFault("warning", line)).toBe(`console.warning: ${line}`);
+  });
+});
+
+/**
+ * The `info` / `log` / `debug` policy (issue #147), pinned rather than left
+ * implicit. Measured over a full run these are development-tooling chatter with
+ * no fault semantics: 128 `info` (React DevTools notice), 127 `log` (HMR / Fast
+ * Refresh), 0 `debug`. They are not gated, and these cases make that a decision
+ * on the record instead of an oversight, so the first person to wonder finds an
+ * answer instead of a hole.
+ */
+describe("info, log and debug are not gated (issue #147)", () => {
+  // `as const` keeps each `type` a literal, so these rows are checked against
+  // Playwright's own level union rather than widened to `string`.
+  const ungated = [
+    { type: "info", text: "Download the React DevTools for a better development experience" },
+    { type: "log", text: "[HMR] connected" },
+    { type: "log", text: "[Fast Refresh] rebuilding" },
+    { type: "debug", text: "anything at all" },
+  ] as const;
+
+  for (const { type, text } of ungated) {
+    it(`stays silent on ${type}`, () => {
+      expect(browserConsoleFault(type, text)).toBeNull();
+    });
+  }
 });
