@@ -62,7 +62,7 @@ function compose(env: Record<string, string | undefined> = validEnv()): Composed
   return { app, deps };
 }
 
-function whoami(composed: Composed, sessionToken?: string): Promise<Response> {
+async function whoami(composed: Composed, sessionToken?: string): Promise<Response> {
   return composed.app.request("/admin/whoami", {
     headers: {
       "x-qcms-internal-token": internalTokenFor(composed.deps.config),

@@ -33,8 +33,14 @@ process.env.QCMS_ADMIN_AUTH_SECRET = FIXED_AUTH_SECRET;
 // would work too; keeping the order explicit documents the dependency.
 const { getAuth } = await import("../../lib/server/auth.ts");
 
-/** A synthetic password, well over the 12-character minimum. Never a real credential. */
-export const TEST_PASSWORD = "e2e-admin-correct-horse-battery";
+/**
+ * A synthetic password for the suite's accounts, **generated per run** rather than written
+ * down. Two reasons, one of which is not tidiness: a literal here is a hard-coded credential
+ * the lint gate flags (correctly - that is how a real one eventually gets committed next to
+ * it), and a fresh value per run means a leaked log line from one run authorizes nothing in
+ * the next. Length is well over the 12-character minimum.
+ */
+export const TEST_PASSWORD = `e2e-admin-${Buffer.from(crypto.getRandomValues(new Uint8Array(18))).toString("base64url")}`;
 
 /** A per-spec-file unique email, so files never contend over one account's 2FA state. */
 export function uniqueAdminEmail(label: string): string {

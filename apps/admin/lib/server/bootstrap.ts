@@ -44,9 +44,23 @@ export type BootstrapResult =
   | { readonly ok: true; readonly userId: string; readonly email: string }
   | { readonly ok: false; readonly refusal: BootstrapRefusal };
 
-/** A deliberately conservative shape check; the address is never emailed. */
+/**
+ * A deliberately conservative shape check; the address is never emailed, so this only has to
+ * catch a typo like a missing `@`, not implement RFC 5322.
+ *
+ * Written with string operations rather than the obvious `/^[^\s@]+@[^\s@]+\.[^\s@]+$/`,
+ * which pairs unbounded quantifiers around a literal and is therefore super-linear on a
+ * crafted input - a real (if small) denial-of-service shape on a value that arrives from
+ * outside, and one the lint gate rejects.
+ */
 function looksLikeEmail(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  if (/\s/.test(value)) return false;
+  const parts = value.split("@");
+  if (parts.length !== 2) return false;
+  const [local, domain] = parts;
+  if (local === undefined || local === "" || domain === undefined) return false;
+  const labels = domain.split(".");
+  return labels.length >= 2 && labels.every((label) => label !== "");
 }
 
 /**

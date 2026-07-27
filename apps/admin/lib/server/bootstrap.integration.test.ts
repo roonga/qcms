@@ -23,8 +23,11 @@ import { closeAdminDb } from "./db.ts";
  */
 
 const BOOT_TIMEOUT = 120_000;
-/** Comfortably over the 12-character minimum, and not a real credential. */
-const PASSWORD = "correct-horse-battery-staple";
+/**
+ * Generated per run, not written down: a literal here is a hard-coded credential the lint
+ * gate flags, and the point of the fixture is only that it is long enough to be accepted.
+ */
+const PASSWORD = `fixture-${Buffer.from(crypto.getRandomValues(new Uint8Array(18))).toString("base64url")}`;
 const EMAIL = "first.admin@example.test";
 
 let testDb: TestDb;
@@ -50,10 +53,7 @@ describe("createInitialAdmin against an empty database", () => {
   it("refuses a weak password and an invalid email before touching the database", async () => {
     expect(await countAdminUsers(testDb.db)).toBe(0);
 
-    const short = await createInitialAdmin(testDb.db, {
-      email: EMAIL,
-      password: "too-short",
-    });
+    const short = await createInitialAdmin(testDb.db, { email: EMAIL, password: "short" });
     expect(short.ok).toBe(false);
     expect(short.ok === false && short.refusal.kind).toBe("weak-password");
 

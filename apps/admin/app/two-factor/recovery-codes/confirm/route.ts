@@ -10,7 +10,7 @@ import { SHELL_HOME_PATH } from "@/lib/server/session";
  * were generated and stored at enrollment. All this does is close the display, which
  * is what makes the wireframe's "codes never shown again" true.
  */
-export async function POST(request: Request): Promise<Response> {
+export function POST(request: Request): Response {
   if (!isSameOriginPost(request)) return redirectAfterPost(SHELL_HOME_PATH);
   return redirectAfterPost(SHELL_HOME_PATH, [clearRecoveryViewCookie()]);
 }

@@ -19,6 +19,22 @@ import { currentAdminSession, SHELL_HOME_PATH } from "@/lib/server/session";
  * back as an opaque `?error=1` marker that renders one fixed sentence: an unknown
  * email and a wrong password are indistinguishable here and in the API's logs.
  */
+
+/**
+ * The one message this screen may show, chosen from the opaque markers a failed POST
+ * redirects with. Three distinguishable markers, one for each state the wireframe names
+ * (generic failure, throttled, session expired) - and nothing more granular than that,
+ * because a fourth marker is how enumeration gets reintroduced (SEC-1).
+ */
+function signInMessage(
+  params: Readonly<Record<string, string | string[] | undefined>>,
+): string | undefined {
+  if (params.throttled !== undefined) return t("signIn.throttled");
+  if (params.expired !== undefined) return t("signIn.expired");
+  if (params.error !== undefined) return t("signIn.error");
+  return undefined;
+}
+
 export default async function SignInPage({
   searchParams,
 }: {
@@ -29,14 +45,7 @@ export default async function SignInPage({
   if ((await currentAdminSession()) !== undefined) redirect(SHELL_HOME_PATH);
 
   const params = await searchParams;
-  const error =
-    params.throttled !== undefined
-      ? t("signIn.throttled")
-      : params.expired !== undefined
-        ? t("signIn.expired")
-        : params.error !== undefined
-          ? t("signIn.error")
-          : undefined;
+  const error = signInMessage(params);
 
   return (
     <AuthScreen title={t("signIn.title")} error={error}>

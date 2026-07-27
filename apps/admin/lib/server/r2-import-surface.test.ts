@@ -6,21 +6,22 @@ import { describe, expect, it } from "vitest";
 /**
  * Exit criterion 4 (R2 audit): the admin BFF stays a proxy.
  *
- * Same shape as the portal's audit, plus two rules the admin needs and the portal does
- * not, because the admin holds credentials the portal never sees:
+ * The portal's audit covers the first two rules below. The admin needs the last three as
+ * well, because it holds credentials and a database handle the portal never sees:
  *
  * 1. Nothing imports `@qcms/core` as a value - rule evaluation, validation and publish
  *    aggregation live in the API, and the admin has no authority over any of them.
- * 2. No client component pulls a server-only module in as a value, so the database
- *    handle, the better-auth instance, the signing secret, the internal service token
- *    and the admin's session token cannot reach the browser bundle.
- * 3. No BFF route handler queries a **domain** table. The admin genuinely does own a
- *    database handle (better-auth needs one), which is exactly why this has to be
- *    asserted rather than assumed: the temptation in tasks 032-035 is to "just read the
- *    forms table here". Domain data comes from the API's `/admin` group and nowhere
- *    else.
- * 4. `fetch` to the API happens only through `lib/server/api.ts`, so the two
- *    credentials are attached in one place and a new screen cannot forget one.
+ * 2. No client component pulls a server-only module in as a value, so the database handle,
+ *    the better-auth instance, the signing secret, the internal service token and the
+ *    admin's session token cannot reach the browser bundle.
+ * 3. The only value bindings taken from `@qcms/db` are the auth ones. The admin genuinely
+ *    does own a database handle (better-auth needs one), which is exactly why this has to
+ *    be asserted rather than assumed: the temptation in tasks 032-035 is to "just read the
+ *    forms table here". Domain data comes from the API's `/admin` group and nowhere else.
+ * 4. No Drizzle query is issued outside the auth client module, which closes the gap rule 3
+ *    leaves open (the `schema` namespace still reaches every table).
+ * 5. `fetch` to the API happens only through `lib/server/api.ts`, so the two credentials are
+ *    attached in one place and a new screen cannot forget one.
  */
 
 const ADMIN_ROOT = fileURLToPath(new URL("../../", import.meta.url));
@@ -96,6 +97,50 @@ function importsOf(text: string): ParsedImport[] {
   return parsed;
 }
 
+/**
+ * The **value** bindings a module imports from `@qcms/db`, ignoring type-only ones.
+ *
+ * Split out of its test rather than inlined so neither this nor the assertion carries the
+ * other's complexity, and written with string operations rather than a
+ * quantifier-on-quantifier regex (`\s+as\s+` and friends are super-linear, which the lint
+ * gate rejects for good reason: these run over every source file in the app).
+ */
+function dbValueBindings(text: string): string[] {
+  return text
+    .split("\n")
+    .map((line) => line.trimStart())
+    .filter(isDbValueImport)
+    .flatMap(namedBindings);
+}
+
+/** True for an `import { ... } from "@qcms/db"` line that is not type-only. */
+function isDbValueImport(line: string): boolean {
+  if (!line.startsWith("import ")) return false;
+  // `import type { ... } from "@qcms/db"` is erased at compile time.
+  if (line.startsWith("import type ")) return false;
+  return line.includes('from "@qcms/db"') || line.includes("from '@qcms/db'");
+}
+
+/** The imported names inside one `{ ... }` clause, with aliases and `type` resolved away. */
+function namedBindings(line: string): string[] {
+  const open = line.indexOf("{");
+  const close = line.indexOf("}");
+  if (open === -1 || close === -1) return [];
+  return (
+    line
+      .slice(open + 1, close)
+      .split(",")
+      .map((raw) => raw.trim())
+      // An inline `type X` binding is erased too.
+      .filter((specifier) => specifier !== "" && !specifier.startsWith("type "))
+      // `X as Y`: the imported name is what matters, not the local alias.
+      .map((specifier) => {
+        const aliasAt = specifier.indexOf(" as ");
+        return aliasAt === -1 ? specifier : specifier.slice(0, aliasAt).trim();
+      })
+  );
+}
+
 function isClientModule(text: string): boolean {
   const first =
     text
@@ -143,22 +188,8 @@ describe("R2 import surface (strict BFF)", () => {
   it("takes only auth bindings from @qcms/db: domain data comes from the API", () => {
     const offenders: string[] = [];
     for (const { path, text } of files) {
-      for (const line of text.split("\n")) {
-        const trimmed = line.trimStart();
-        if (!trimmed.startsWith("import ")) continue;
-        if (trimmed.startsWith("import type ")) continue;
-        if (!/from\s+["']@qcms\/db["']/.test(trimmed)) continue;
-        const named = /^import\s+\{([^}]*)\}/.exec(trimmed)?.[1] ?? "";
-        for (const raw of named.split(",")) {
-          const binding = raw
-            .trim()
-            .replace(/^type\s+/, "")
-            .split(/\s+as\s+/)[0];
-          if (binding === undefined || binding === "") continue;
-          // `import { type X }` is erased; only value bindings matter here.
-          if (raw.trim().startsWith("type ")) continue;
-          if (!ALLOWED_DB_VALUE_IMPORTS.has(binding)) offenders.push(`${path} -> ${binding}`);
-        }
+      for (const binding of dbValueBindings(text)) {
+        if (!ALLOWED_DB_VALUE_IMPORTS.has(binding)) offenders.push(`${path} -> ${binding}`);
       }
     }
     expect(offenders).toEqual([]);
