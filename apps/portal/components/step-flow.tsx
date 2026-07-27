@@ -14,6 +14,20 @@ import {
   type FlowDelta,
   type FlowView,
 } from "@/lib/a11y";
+import {
+  answerKey,
+  holdsAnswer,
+  isRecorded,
+  recordedAnswers,
+  visibleErrors,
+  withIssued,
+  withRejection,
+  withRollback,
+  withServerHeld,
+  withoutRejection,
+  type PostedRecord,
+  type RejectedAnswers,
+} from "@/lib/answer-record";
 import { missingRequiredEntries } from "@/lib/error-summary";
 import { t } from "@/lib/i18n/en";
 import { buttonClass } from "@/lib/ui";
@@ -34,32 +48,6 @@ function branchAnnouncement(added: readonly string[], removed: readonly string[]
       : t("announce.branchRemoved.other", { count: removed.length });
   }
   return "";
-}
-
-/**
- * The "already recorded server-side" fingerprint for a set of held answers, in the
- * same encoding `lastPostedRef` uses for values this client posted (issue #146).
- *
- * Seeding it alongside the displayed values is what makes a resumed control inert
- * until the respondent actually changes something: without it, focus entering and
- * leaving an untouched control looked like a fresh commit of an emptied field and
- * posted a `null` RETRACTION of an answer the server legitimately held - the answer
- * was destroyed by a gesture that changed nothing. `handleBlur` guards only the
- * `completion` moment, so that reached every OTHER control regardless of its commit
- * moment: `blur` (shortText, longText, number), `groupExit` (multiChoice) and
- * `change` (boolean, singleChoice) alike.
- *
- * It also restores the other direction: a resumed `completion` control (the date)
- * whose value the respondent clears can only be recognised as retracting a
- * *previously answered* question by comparing against this record, so without the
- * seed that clear posted nothing at all and the server kept the cleared date.
- */
-function recordedValues(held: StepResponse["values"]): Record<string, string> {
-  const recorded: Record<string, string> = {};
-  for (const [questionId, value] of Object.entries(held)) {
-    recorded[questionId] = JSON.stringify(value);
-  }
-  return recorded;
 }
 
 const flowViewOf = (snapshot: StepResponse): FlowView => ({
@@ -165,7 +153,11 @@ export function StepFlow({
   // Continue/Submit gate from `missingRequired` / `readyToSubmit`, both computed
   // by the API and never re-derived here (R2).
   const [values, setValues] = useState<A2UIValues>(initial.values);
-  const [errors, setErrors] = useState<A2UIErrors>({});
+  // Which questions the API refused, and which value it refused for each. The
+  // DISPLAYED errors are derived from that plus the values on screen, so a message
+  // lives exactly as long as the value it describes (issue #122, `visibleErrors`).
+  const [rejected, setRejected] = useState<RejectedAnswers>({});
+  const errors: A2UIErrors = useMemo(() => visibleErrors(rejected, values), [rejected, values]);
   const [showMissing, setShowMissing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -189,10 +181,13 @@ export function StepFlow({
   // control (which posts on change) and then clicking Continue/Submit blurs the
   // control and re-posts the identical value: a redundant append that also flips
   // `busy` at exactly the wrong moment and races the advance guard. Seeded from the
-  // answers the server holds for this step (issue #146) and then updated by each
-  // successful post, so "what the server has" is known from the first render rather
-  // than only from this client's own writes - see `recordedValues`.
-  const lastPostedRef = useRef<Record<string, string>>(recordedValues(initial.values));
+  // answers the server holds for this step (issue #146), so "what the server has"
+  // is known from the first render rather than only from this client's own writes,
+  // and then written by each post as it is ISSUED, rolled back if that post is
+  // refused (issue #122). All of those rules live in `lib/answer-record.ts`; the ref
+  // holds the record because a commit moment must see the write the commit moment
+  // before it made, which is a gesture away, not a render away.
+  const lastPostedRef = useRef<PostedRecord>(recordedAnswers(initial.values));
   // Each question's ADR-31 commit moment, read out of the compiled step document
   // (issue #31). Derived from the FULL document, not the visibility-pruned copy,
   // so a question the projection is about to reveal is already classified.
@@ -218,8 +213,14 @@ export function StepFlow({
   const primaryRef = useRef<HTMLButtonElement>(null);
   const prevReadyRef = useRef<boolean>(initial.flowState.readyToSubmit);
 
+  /**
+   * Post one answer and apply what came back. Returns whether the API ACCEPTED it,
+   * which is what decides whether the optimistic record entry stands or is rolled
+   * back (issue #122); every other outcome (a refusal, a lost session, a network
+   * failure) is reported to the respondent here and answered `false`.
+   */
   const sendAnswer = useCallback(
-    async (name: string, value: A2UIAnswerValue | undefined): Promise<void> => {
+    async (name: string, value: A2UIAnswerValue | undefined): Promise<boolean> => {
       setBusy(true);
       try {
         const res = await fetch(`/s/${encodeURIComponent(sessionId)}/answers`, {
@@ -235,8 +236,11 @@ export function StepFlow({
         });
         if (res.status === 200) {
           const next = (await res.json()) as StepResponse;
-          // This value is now the last one posted for this question.
-          lastPostedRef.current[name] = JSON.stringify(value ?? null);
+          // The record already holds this value: it was written when this post was
+          // issued (see `postAnswer`), and writing it again here would clobber a
+          // newer commit of the same question that was issued while this was in
+          // flight.
+          //
           // Record which question holds focus right now, so the post-render
           // effect can recover focus if this projection removes it (task 030).
           focusedAtUpdateRef.current = questionIdOf(document.activeElement);
@@ -244,20 +248,25 @@ export function StepFlow({
           // navigation/advance chained right after this post reads fresh state.
           snapshotRef.current = next;
           setSnapshot(next);
-          setErrors((prev) => {
-            const rest = { ...prev };
-            delete rest[name];
-            return rest;
-          });
-        } else if (res.status === 422) {
-          setErrors((prev) => ({ ...prev, [name]: t("answer.invalid") }));
-        } else if (res.status === 401) {
-          window.location.assign(`/s/${encodeURIComponent(sessionId)}`);
-        } else {
-          setFailed(true);
+          // Drop any earlier refusal for this question: the value that was refused
+          // is no longer what the server holds, so its message can never apply
+          // again, even if the respondent re-enters that value later.
+          setRejected((prev) => withoutRejection(prev, name));
+          return true;
         }
+        if (res.status === 422) {
+          setRejected((prev) => withRejection(prev, name, value, t("answer.invalid")));
+          return false;
+        }
+        if (res.status === 401) {
+          window.location.assign(`/s/${encodeURIComponent(sessionId)}`);
+          return false;
+        }
+        setFailed(true);
+        return false;
       } catch {
         setFailed(true);
+        return false;
       } finally {
         setBusy(false);
       }
@@ -265,9 +274,31 @@ export function StepFlow({
     [sessionId],
   );
 
+  /**
+   * Commit one answer: the single funnel every commit moment posts through, and the
+   * owner of the "what does the server have" record (issue #122).
+   *
+   * The record is written HERE, before the request is queued, because the next
+   * commit moment for the same question can arrive before this post resolves: a
+   * `change` control's post is in flight while the respondent's focus is already
+   * leaving it (ADR-31 makes boolean and singleChoice commit on change), and the
+   * blur that follows must see the value as recorded or it re-posts it. It is rolled
+   * back if the post is not accepted, so a refused value stays retryable.
+   */
   const postAnswer = useCallback(
     (name: string, value: A2UIAnswerValue | undefined): void => {
-      queueRef.current = queueRef.current.then(() => sendAnswer(name, value));
+      // Nothing new to say: this exact value is already recorded, or a post
+      // carrying it is in flight. Re-posting is a redundant append that also flips
+      // `busy` at the wrong moment and races the advance guard.
+      if (isRecorded(lastPostedRef.current, name, value)) return;
+      const previous = lastPostedRef.current[name];
+      const key = answerKey(value);
+      lastPostedRef.current = withIssued(lastPostedRef.current, name, value);
+      queueRef.current = queueRef.current.then(async () => {
+        const accepted = await sendAnswer(name, value);
+        if (accepted) return;
+        lastPostedRef.current = withRollback(lastPostedRef.current, name, key, previous);
+      });
     },
     [sendAnswer],
   );
@@ -300,9 +331,12 @@ export function StepFlow({
       // surfaces the clear (`setValue(undefined)`, no blur - so the stale value
       // cannot re-post behind it) once editing has ended: this change event IS
       // the commit moment. A never-answered clear is not an answer and posts
-      // nothing; a retraction already posted is deduped by lastPostedRef.
-      const last = lastPostedRef.current[name];
-      if (moment === "completion" && value === undefined && last !== undefined && last !== "null") {
+      // nothing; a retraction already posted is deduped in postAnswer.
+      if (
+        moment === "completion" &&
+        value === undefined &&
+        holdsAnswer(lastPostedRef.current, name)
+      ) {
         postAnswer(name, value);
       }
     },
@@ -331,10 +365,9 @@ export function StepFlow({
       if ((moments.get(name) ?? DEFAULT_COMMIT_MOMENT) === "completion" && value === undefined) {
         return;
       }
-      // Skip the post if this exact value was already posted (e.g. a control that
-      // committed on change): re-posting on blur is a redundant append and races
-      // the advance guard.
-      if (lastPostedRef.current[name] === JSON.stringify(value ?? null)) return;
+      // A control that already committed this value (on change, or on an earlier
+      // blur, or before the page was reloaded) posts nothing here: postAnswer owns
+      // that dedupe, and since issue #122 it recognises a post still in flight too.
       postAnswer(name, value);
     },
     [moments, postAnswer],
@@ -400,10 +433,7 @@ export function StepFlow({
           focusedAtUpdateRef.current = undefined;
           snapshotRef.current = next;
           setValues((prev) => ({ ...prev, ...next.values }));
-          lastPostedRef.current = {
-            ...lastPostedRef.current,
-            ...recordedValues(next.values),
-          };
+          lastPostedRef.current = withServerHeld(lastPostedRef.current, next.values);
           setSnapshot(next);
         } else if (res.status === 401) {
           window.location.assign(`/s/${encodeURIComponent(sessionId)}`);
