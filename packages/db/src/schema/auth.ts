@@ -1,4 +1,4 @@
-import { boolean, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
 /**
  * better-auth tables (`ARCHITECTURE.md` §7, admin identity with TOTP 2FA at
@@ -86,4 +86,19 @@ export const authTwoFactor = pgTable("twoFactor", {
   userId: text("userId")
     .notNull()
     .references(() => authUser.id, { onDelete: "cascade" }),
+  /**
+   * The plugin's own enrollment and lockout bookkeeping (task 031). These three columns
+   * were missing from the 013 hand-written mirror, and better-auth refuses to run
+   * without them: it validates the Drizzle schema against its plugin field definitions
+   * and throws `The field "verified" does not exist in the "twoFactor" Drizzle schema`
+   * at the first sign-in. That is exactly the drift this file's header predicted, so the
+   * values below are read off the plugin's definitions rather than guessed.
+   *
+   * `verified` marks a confirmed factor; `failedVerificationCount` and `lockedUntil` are
+   * the plugin's brute-force lockout state for TOTP and recovery-code attempts, which
+   * makes them part of SEC-1's throttling story rather than incidental bookkeeping.
+   */
+  verified: boolean("verified").default(true),
+  failedVerificationCount: integer("failedVerificationCount").default(0),
+  lockedUntil: timestamp("lockedUntil"),
 });

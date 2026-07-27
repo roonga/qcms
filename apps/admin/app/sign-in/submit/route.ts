@@ -3,6 +3,8 @@ import { APIError } from "better-auth/api";
 import { getAuth, twoFactorOptional } from "@/lib/server/auth";
 import { pendingEnrollmentCookie } from "@/lib/server/enrollment";
 import {
+  authRefused,
+  authThrottled,
   cookiesFrom,
   formField,
   isSameOriginPost,
@@ -67,6 +69,13 @@ export async function POST(request: Request): Promise<Response> {
     // better-auth deliberately reports identically.
     if (error instanceof APIError) return redirectWithGenericFailure(SIGN_IN_PATH);
     throw error;
+  }
+
+  // A refusal arrives as a 4xx Response, not a throw, because of `asResponse: true`
+  // (see `authRefused`). Checking the status is what keeps a wrong password reported as
+  // a wrong password.
+  if (authRefused(signIn)) {
+    return redirectWithGenericFailure(SIGN_IN_PATH, authThrottled(signIn) ? "throttled" : "error");
   }
 
   const cookies = cookiesFrom(signIn);

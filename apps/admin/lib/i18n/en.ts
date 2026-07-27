@@ -71,8 +71,7 @@ export const messages = {
   "settings.account": "Account",
   "settings.signedInAs": "Signed in as {email}.",
   "settings.passwordTitle": "Change password",
-  "settings.passwordIntro":
-    "Changing your password signs out every other session on every device.",
+  "settings.passwordIntro": "Changing your password signs out every other session on every device.",
   "settings.currentPassword": "Current password",
   "settings.newPassword": "New password",
   "settings.passwordChanged": "Your password was changed and other sessions were signed out.",

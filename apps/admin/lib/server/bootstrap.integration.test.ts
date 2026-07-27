@@ -87,7 +87,9 @@ describe("createInitialAdmin against an empty database", () => {
     expect(row?.twoFactorEnabled ?? false).toBe(false);
 
     // A command line has no browser, so the session signUpEmail issues is revoked.
-    const sessions = await getAuth().api.listSessions({ headers: new Headers() }).catch(() => []);
+    const sessions = await getAuth()
+      .api.listSessions({ headers: new Headers() })
+      .catch(() => []);
     expect(Array.isArray(sessions) ? sessions.length : 0).toBe(0);
 
     // "then sign in": the only proof the stored hash is one better-auth verifies.

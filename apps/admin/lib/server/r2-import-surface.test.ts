@@ -97,7 +97,11 @@ function importsOf(text: string): ParsedImport[] {
 }
 
 function isClientModule(text: string): boolean {
-  const first = text.split("\n").find((line) => line.trim() !== "")?.trim() ?? "";
+  const first =
+    text
+      .split("\n")
+      .find((line) => line.trim() !== "")
+      ?.trim() ?? "";
   return first === '"use client";' || first === "'use client';";
 }
 
@@ -146,7 +150,10 @@ describe("R2 import surface (strict BFF)", () => {
         if (!/from\s+["']@qcms\/db["']/.test(trimmed)) continue;
         const named = /^import\s+\{([^}]*)\}/.exec(trimmed)?.[1] ?? "";
         for (const raw of named.split(",")) {
-          const binding = raw.trim().replace(/^type\s+/, "").split(/\s+as\s+/)[0];
+          const binding = raw
+            .trim()
+            .replace(/^type\s+/, "")
+            .split(/\s+as\s+/)[0];
           if (binding === undefined || binding === "") continue;
           // `import { type X }` is erased; only value bindings matter here.
           if (raw.trim().startsWith("type ")) continue;

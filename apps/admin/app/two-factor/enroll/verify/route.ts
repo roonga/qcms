@@ -3,6 +3,7 @@ import { APIError } from "better-auth/api";
 import { getAuth } from "@/lib/server/auth";
 import { clearEnrollmentCookie, recoveryViewCookie } from "@/lib/server/enrollment";
 import {
+  authRefused,
   cookiesFrom,
   formField,
   isSameOriginPost,
@@ -43,8 +44,11 @@ export async function POST(request: Request): Promise<Response> {
     throw error;
   }
 
-  // No session came back: the sign-in session lapsed while enrolling. Nothing to
-  // continue with, and re-provisioning needs the password.
+  // A wrong code arrives as a 4xx Response rather than a throw (see `authRefused`).
+  if (authRefused(verified)) return redirectWithGenericFailure(ENROLL_PATH);
+
+  // Defensive: a successful verify always issues a session. No cookies would mean the
+  // sign-in session lapsed mid-enrollment, and re-provisioning needs the password.
   const cookies = cookiesFrom(verified);
   if (cookies.length === 0) return redirectAfterPost(`${SIGN_IN_PATH}?expired=1`);
 

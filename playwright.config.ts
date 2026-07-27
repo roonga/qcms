@@ -1,8 +1,14 @@
 import { defineConfig, devices } from "@playwright/test";
 
 import {
+  ADMIN_BASE_URL,
+  ADMIN_PORT,
+  FIXED_AUTH_SECRET,
+} from "./apps/admin/e2e/support/harness-config.js";
+import {
   API_BASE_URL,
   FIXED_INTERNAL_TOKEN,
+  FIXTURES_PATH,
   HARNESS_BRAND_LOGO,
   HARNESS_BRAND_NAME,
   HARNESS_CORNERS,
@@ -28,6 +34,16 @@ import {
  * flow + accessibility specs run at three viewports (finding L), captures the
  * portal dev-server log for the server-side log gate (exit 5), and every spec
  * imports the gated `test` from `support/gates.ts` (browser + server error gates).
+ *
+ * Task 031 adds the admin app to this same config rather than a second one, which is
+ * what ADR-23's "one browser-test framework" means in practice and has a concrete
+ * payoff: the existing CI browser job runs `pnpm exec playwright test`, so the admin's
+ * axe gate is CI-enforced the moment its project exists, with no second job to
+ * remember (the failure mode 029 shipped and 030 had to fix). The admin gets its own
+ * project - with its own `testDir` and `baseURL`, leaving the portal projects and
+ * their snapshot baselines untouched - and its own `webServer` entry. It shares this
+ * run's Postgres and composed API, which is also the real topology: one database, one
+ * API, two frontends.
  */
 const PORT = PORTAL_PORT;
 
@@ -96,54 +112,101 @@ export default defineConfig({
       testMatch: MULTI_VIEWPORT_SPECS,
       use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 800 } },
     },
-  ],
-  webServer: {
-    // Run the portal DEV server through a wrapper that tees its stdout/stderr to
-    // the server-log capture file (exit 5), so the log gate can scan it. Over http
-    // localhost the session cookie is not `secure` (isProduction() is false), so
-    // the real cookie-backed flow works. The BFF reaches the composed API booted
-    // by globalSetup; both sides share the synthetic SEC-4 internal token.
-    command: `node ./apps/portal/e2e/support/portal-server.mjs`,
-    url: `http://localhost:${PORT}`,
-    reuseExistingServer: !process.env.CI,
-    timeout: 180_000,
-    env: {
-      PORTAL_PORT: String(PORT),
-      QCMS_API_BASE_URL: API_BASE_URL,
-      QCMS_INTERNAL_TOKEN: FIXED_INTERNAL_TOKEN,
-      // Tracing on, pointed at the in-test OTLP receiver globalSetup boots (task
-      // 054). This is also the switch that makes the portal's `instrumentation.ts`
-      // call `registerOTel` at all - with it unset the portal starts no SDK, which
-      // is what every other suite and CI job exercises.
-      OTEL_EXPORTER_OTLP_ENDPOINT: OTLP_ENDPOINT,
-      // JSON, not the exporter's default protobuf: the receiver is 40 lines of
-      // `node:http` and the SEC-13 assertion greps the captured bytes for an answer
-      // string, which a protobuf payload would hide behind an encoder.
-      OTEL_EXPORTER_OTLP_PROTOCOL: "http/json",
-      OTEL_SERVICE_NAME: OTEL_SERVICE_NAMES.portal,
-      OTEL_BSP_SCHEDULE_DELAY: OTLP_SCHEDULE_DELAY_MS,
-      // Per-deployment theming (ADR-30, task 051), set to a NON-default theme and
-      // corner preset on purpose - see HARNESS_THEME.
-      QCMS_PORTAL_THEME: HARNESS_THEME,
-      QCMS_PORTAL_CORNERS: HARNESS_CORNERS,
-      // Per-deployment font config (task 052), likewise non-default: a curated
-      // subset that omits `system`, and a default font from inside it. See
-      // HARNESS_FONT / HARNESS_FONTS.
-      QCMS_PORTAL_FONT: HARNESS_FONT,
-      QCMS_PORTAL_FONTS: HARNESS_FONTS,
-      // Per-deployment BRAND config (task 053, issue #25), likewise non-default: the
-      // header mark and the document title are proven to come from config rather
-      // than from a literal. See HARNESS_BRAND_NAME.
-      QCMS_PORTAL_BRAND_NAME: HARNESS_BRAND_NAME,
-      QCMS_PORTAL_BRAND_LOGO: HARNESS_BRAND_LOGO,
-      // `QCMS_PORTAL_DENSITY` is deliberately NOT set, so the suite runs at the
-      // shipped Comfortable default: `theming.pw.ts` measures the Comfortable
-      // spacing values (44px control height, 36px card padding) on rendered
-      // controls, and those assertions only mean anything while the base level is
-      // what the server serves. The config path is covered by
-      // `lib/server/theme.test.ts`, and `appearance.pw.ts` drives the same
-      // server-side resolution through the density cookie, which is the path a
-      // respondent actually takes.
+    {
+      // The admin app (task 031). Its own `testDir`, so the portal projects above are
+      // untouched, and its own `baseURL`, because it is a separate deployable on a
+      // separate port. Desktop-only: the admin is an internal authoring tool used at a
+      // desk (ARCHITECTURE §6), the opposite of the portal's phone-first respondents,
+      // so a phone project here would test a shape nobody uses.
+      name: "admin-chromium",
+      testDir: "./apps/admin/e2e",
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1280, height: 800 },
+        baseURL: ADMIN_BASE_URL,
+      },
     },
-  },
+  ],
+  webServer: [
+    {
+      // Run the portal DEV server through a wrapper that tees its stdout/stderr to
+      // the server-log capture file (exit 5), so the log gate can scan it. Over http
+      // localhost the session cookie is not `secure` (isProduction() is false), so
+      // the real cookie-backed flow works. The BFF reaches the composed API booted
+      // by globalSetup; both sides share the synthetic SEC-4 internal token.
+      command: `node ./apps/portal/e2e/support/portal-server.mjs`,
+      url: `http://localhost:${PORT}`,
+      reuseExistingServer: !process.env.CI,
+      timeout: 180_000,
+      env: {
+        PORTAL_PORT: String(PORT),
+        QCMS_API_BASE_URL: API_BASE_URL,
+        QCMS_INTERNAL_TOKEN: FIXED_INTERNAL_TOKEN,
+        // Tracing on, pointed at the in-test OTLP receiver globalSetup boots (task
+        // 054). This is also the switch that makes the portal's `instrumentation.ts`
+        // call `registerOTel` at all - with it unset the portal starts no SDK, which
+        // is what every other suite and CI job exercises.
+        OTEL_EXPORTER_OTLP_ENDPOINT: OTLP_ENDPOINT,
+        // JSON, not the exporter's default protobuf: the receiver is 40 lines of
+        // `node:http` and the SEC-13 assertion greps the captured bytes for an answer
+        // string, which a protobuf payload would hide behind an encoder.
+        OTEL_EXPORTER_OTLP_PROTOCOL: "http/json",
+        OTEL_SERVICE_NAME: OTEL_SERVICE_NAMES.portal,
+        OTEL_BSP_SCHEDULE_DELAY: OTLP_SCHEDULE_DELAY_MS,
+        // Per-deployment theming (ADR-30, task 051), set to a NON-default theme and
+        // corner preset on purpose - see HARNESS_THEME.
+        QCMS_PORTAL_THEME: HARNESS_THEME,
+        QCMS_PORTAL_CORNERS: HARNESS_CORNERS,
+        // Per-deployment font config (task 052), likewise non-default: a curated
+        // subset that omits `system`, and a default font from inside it. See
+        // HARNESS_FONT / HARNESS_FONTS.
+        QCMS_PORTAL_FONT: HARNESS_FONT,
+        QCMS_PORTAL_FONTS: HARNESS_FONTS,
+        // Per-deployment BRAND config (task 053, issue #25), likewise non-default: the
+        // header mark and the document title are proven to come from config rather
+        // than from a literal. See HARNESS_BRAND_NAME.
+        QCMS_PORTAL_BRAND_NAME: HARNESS_BRAND_NAME,
+        QCMS_PORTAL_BRAND_LOGO: HARNESS_BRAND_LOGO,
+        // `QCMS_PORTAL_DENSITY` is deliberately NOT set, so the suite runs at the
+        // shipped Comfortable default: `theming.pw.ts` measures the Comfortable
+        // spacing values (44px control height, 36px card padding) on rendered
+        // controls, and those assertions only mean anything while the base level is
+        // what the server serves. The config path is covered by
+        // `lib/server/theme.test.ts`, and `appearance.pw.ts` drives the same
+        // server-side resolution through the density cookie, which is the path a
+        // respondent actually takes.
+      },
+    },
+    {
+      // The admin DEV server (task 031), through its own wrapper. Two things differ
+      // from the portal's: the wrapper waits for `globalSetup` to write the fixtures
+      // file before starting, and the admin is given the fixtures **path** rather than
+      // a database URL. It needs a database (better-auth), the database is a
+      // throwaway container on a random port, and Playwright starts webServers
+      // alongside globalSetup rather than after it - so the URL cannot be known at
+      // spawn time. Reading it per request also means a locally reused dev server
+      // picks up the current run's database instead of a dead pool from the last one
+      // (see `apps/admin/lib/server/db.ts`).
+      command: `node ./apps/admin/e2e/support/admin-server.mjs`,
+      // `/healthz` rather than `/`: Playwright treats a 5xx as "not started" and gates
+      // globalSetup on webServer readiness, so probing a page that needs the database
+      // would wait for the very thing globalSetup is about to create.
+      url: `${ADMIN_BASE_URL}/healthz`,
+      reuseExistingServer: !process.env.CI,
+      timeout: 180_000,
+      env: {
+        ADMIN_PORT: String(ADMIN_PORT),
+        QCMS_ADMIN_E2E_FIXTURES: FIXTURES_PATH,
+        QCMS_ADMIN_BASE_URL: ADMIN_BASE_URL,
+        QCMS_ADMIN_AUTH_SECRET: FIXED_AUTH_SECRET,
+        // The BFF's credentials for the API. No 031 screen proxies yet (the area
+        // screens are 032-035), but the admin shares the portal's synthetic token so
+        // the first screen that does needs no harness change.
+        QCMS_API_BASE_URL: API_BASE_URL,
+        QCMS_INTERNAL_TOKEN: FIXED_INTERNAL_TOKEN,
+        // Left at the default (`required`) deliberately: enforced-by-default 2FA is
+        // the behaviour under test, so the escape hatch must not be set here.
+      },
+    },
+  ],
 });

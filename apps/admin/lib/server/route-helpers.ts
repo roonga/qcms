@@ -17,10 +17,36 @@ import { adminBaseUrl } from "./config.ts";
  * re-submit the credential. The `Location` is always an app-relative path, never
  * anything derived from the request, so no open redirect is possible.
  */
-export function redirectAfterPost(path: `/${string}`, setCookies: readonly string[] = []): Response {
+export function redirectAfterPost(
+  path: `/${string}`,
+  setCookies: readonly string[] = [],
+): Response {
   const headers = new Headers({ location: path });
   for (const cookie of setCookies) headers.append("set-cookie", cookie);
   return new Response(null, { status: 303, headers });
+}
+
+/**
+ * Whether a better-auth call refused the request.
+ *
+ * This exists because of a trap that cost a debugging cycle: `asResponse: true` changes
+ * better-auth's **error channel**, not just its return shape. Without it a rejected call
+ * throws an `APIError`; with it, the same rejection comes back as an ordinary `Response`
+ * carrying a 4xx status, and nothing throws. A handler that only caught `APIError`
+ * therefore treated "wrong TOTP code" as success and fell through to its
+ * cookie-inspection branch, which redirected to "your session expired" - a wrong message
+ * for a wrong code, arrived at via three redirects.
+ *
+ * So every call site checks the status explicitly. The `catch (APIError)` blocks stay as
+ * well, because the calls made *without* `asResponse` (`enableTwoFactor`) still throw.
+ */
+export function authRefused(response: Response): boolean {
+  return !response.ok;
+}
+
+/** True when the refusal was rate limiting, the one failure worth its own message. */
+export function authThrottled(response: Response): boolean {
+  return response.status === 429;
 }
 
 /**

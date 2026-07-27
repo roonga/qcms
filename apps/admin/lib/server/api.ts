@@ -1,4 +1,9 @@
-import { ADMIN_SESSION_HEADER, INTERNAL_TOKEN_HEADER, apiBaseUrl, internalToken } from "./config.ts";
+import {
+  ADMIN_SESSION_HEADER,
+  INTERNAL_TOKEN_HEADER,
+  apiBaseUrl,
+  internalToken,
+} from "./config.ts";
 import type { AdminSession } from "./session.ts";
 
 /**

@@ -11,7 +11,7 @@ import {
   sessionPolicy,
   twoFactorPolicy,
 } from "./config.ts";
-import { adminDb } from "./db.ts";
+import { adminDb, databaseUrl } from "./db.ts";
 
 /**
  * better-auth, configured in owned shell code (ADR-06, SECURITY_DESIGN §2.1
@@ -70,91 +70,104 @@ export const SESSION_COOKIE = `${COOKIE_PREFIX}.session_token`;
 export const TWO_FACTOR_COOKIE = `${COOKIE_PREFIX}.two_factor`;
 
 /**
- * The instance is built **lazily and memoized**, not at module load, and that is
- * load-bearing rather than stylistic: `next build` imports every page module to
- * collect route data, so a top-level `betterAuth({...})` would demand
- * `DATABASE_URL` and `QCMS_ADMIN_AUTH_SECRET` at *build* time and make
- * `pnpm build` fail in CI, where no database exists. Configuration is read on the
- * first request instead, which is also where a misconfiguration should surface.
+ * Instances, built **lazily** and cached **per database URL**. Both halves are
+ * load-bearing rather than stylistic.
+ *
+ * *Lazily*, because `next build` imports every page module to collect route data: a
+ * top-level `betterAuth({...})` would demand `DATABASE_URL` and
+ * `QCMS_ADMIN_AUTH_SECRET` at *build* time and fail `pnpm build` in CI, where no
+ * database exists. Configuration is read on the first request instead, which is also
+ * where a misconfiguration should surface.
+ *
+ * *Per URL*, because a single memoized instance would capture the first database handle
+ * forever, defeating the pool-per-URL cache in `db.ts` and, with it, the property that
+ * makes a dev server reusable across Playwright runs (each run boots a fresh throwaway
+ * Postgres on a fresh port). Keying on the resolved URL means a changed database yields a
+ * new instance rather than a stale one; in production the URL never changes, so exactly
+ * one instance is ever built.
  */
-let instance: ReturnType<typeof buildAuth> | undefined;
+const instances = new Map<string, ReturnType<typeof buildAuth>>();
 
 function buildAuth() {
   const policy = sessionPolicy();
   return betterAuth({
-  database: drizzleAdapter(adminDb(), {
-    provider: "pg",
-    // Explicit model-to-table mapping: this package's exported names are prefixed
-    // (`authUser`) to keep them apart from the domain tables, while better-auth
-    // addresses its models unprefixed. Without the map the adapter would look for
-    // tables named after its own models and find nothing.
-    schema: {
-      user: authUser,
-      session: authSession,
-      account: authAccount,
-      verification: authVerification,
-      twoFactor: authTwoFactor,
-    },
-  }),
-  secret: authSecret(),
-  baseURL: adminBaseUrl(),
-  // No phone-home. better-auth's telemetry is opt-in upstream; saying so
-  // explicitly means an upstream default flip cannot quietly turn it on.
-  telemetry: { enabled: false },
-  emailAndPassword: {
-    enabled: true,
-    // Length only. SEC-1 asks for a zxcvbn-style strength score, which needs a
-    // dictionary dependency and a UX for the score; it is recorded as an issue
-    // rather than improvised here, and 040 verifies SEC-1 as a system.
-    minPasswordLength: MIN_PASSWORD_LENGTH,
-    // No reset mail exists (see the header), so do not advertise one.
-    requireEmailVerification: false,
-  },
-  session: {
-    expiresIn: Math.floor(policy.idleMs / 1000),
-    // Refresh at most once per quarter of the idle window: enough that an active
-    // admin is never logged out mid-task, few enough that a busy session is not
-    // writing to the session row on every request.
-    updateAge: Math.floor(policy.idleMs / 4000),
-  },
-  user: {
-    additionalFields: {
-      // The SEC-3 role claim, carried from day one so Phase 4 RBAC is additive.
-      // `input: false` is the load-bearing part: no request body can set it, so
-      // the claim cannot be self-assigned.
-      role: { type: "string", required: false, defaultValue: "admin", input: false },
-    },
-  },
-  advanced: {
-    cookiePrefix: COOKIE_PREFIX,
-    // `Secure` in production only, so local http development still works (ADR-20:
-    // TLS terminates at the operator's ingress, and local eval runs plain http).
-    useSecureCookies: isProduction(),
-    defaultCookieAttributes: {
-      httpOnly: true,
-      // SameSite=Lax is the primary CSRF control (SEC-9); the BFF route handlers
-      // add an Origin/Sec-Fetch-Site check on top for older clients.
-      sameSite: "lax",
-      path: "/",
-    },
-  },
-  plugins: [
-    twoFactor({
-      // What an authenticator app displays next to the account.
-      issuer: "QCMS admin",
-      // Enrollment must be confirmed by a real TOTP code before the account counts
-      // as protected; this is better-auth's default and is restated because
-      // flipping it would silently weaken SEC-1.
-      skipVerificationOnEnable: false,
+    database: drizzleAdapter(adminDb(), {
+      provider: "pg",
+      // Explicit model-to-table mapping: this package's exported names are prefixed
+      // (`authUser`) to keep them apart from the domain tables, while better-auth
+      // addresses its models unprefixed. Without the map the adapter would look for
+      // tables named after its own models and find nothing.
+      schema: {
+        user: authUser,
+        session: authSession,
+        account: authAccount,
+        verification: authVerification,
+        twoFactor: authTwoFactor,
+      },
     }),
-  ],
+    secret: authSecret(),
+    baseURL: adminBaseUrl(),
+    // No phone-home. better-auth's telemetry is opt-in upstream; saying so
+    // explicitly means an upstream default flip cannot quietly turn it on.
+    telemetry: { enabled: false },
+    emailAndPassword: {
+      enabled: true,
+      // Length only. SEC-1 asks for a zxcvbn-style strength score, which needs a
+      // dictionary dependency and a UX for the score; it is recorded as an issue
+      // rather than improvised here, and 040 verifies SEC-1 as a system.
+      minPasswordLength: MIN_PASSWORD_LENGTH,
+      // No reset mail exists (see the header), so do not advertise one.
+      requireEmailVerification: false,
+    },
+    session: {
+      expiresIn: Math.floor(policy.idleMs / 1000),
+      // Refresh at most once per quarter of the idle window: enough that an active
+      // admin is never logged out mid-task, few enough that a busy session is not
+      // writing to the session row on every request.
+      updateAge: Math.floor(policy.idleMs / 4000),
+    },
+    user: {
+      additionalFields: {
+        // The SEC-3 role claim, carried from day one so Phase 4 RBAC is additive.
+        // `input: false` is the load-bearing part: no request body can set it, so
+        // the claim cannot be self-assigned.
+        role: { type: "string", required: false, defaultValue: "admin", input: false },
+      },
+    },
+    advanced: {
+      cookiePrefix: COOKIE_PREFIX,
+      // `Secure` in production only, so local http development still works (ADR-20:
+      // TLS terminates at the operator's ingress, and local eval runs plain http).
+      useSecureCookies: isProduction(),
+      defaultCookieAttributes: {
+        httpOnly: true,
+        // SameSite=Lax is the primary CSRF control (SEC-9); the BFF route handlers
+        // add an Origin/Sec-Fetch-Site check on top for older clients.
+        sameSite: "lax",
+        path: "/",
+      },
+    },
+    plugins: [
+      twoFactor({
+        // What an authenticator app displays next to the account.
+        issuer: "QCMS admin",
+        // Enrollment must be confirmed by a real TOTP code before the account counts
+        // as protected; this is better-auth's default and is restated because
+        // flipping it would silently weaken SEC-1.
+        skipVerificationOnEnable: false,
+      }),
+    ],
   });
 }
 
-/** The configured better-auth instance. Built on first use, then reused. */
+/** The configured better-auth instance for the current database. Built on first use. */
 export function getAuth(): ReturnType<typeof buildAuth> {
-  instance ??= buildAuth();
-  return instance;
+  const url = databaseUrl();
+  const existing = instances.get(url);
+  if (existing !== undefined) return existing;
+  const built = buildAuth();
+  instances.set(url, built);
+  return built;
 }
 
 /** Whether TOTP enrollment may be skipped (development escape hatch, SEC-1). */

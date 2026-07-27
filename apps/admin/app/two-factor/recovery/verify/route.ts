@@ -2,6 +2,7 @@ import { APIError } from "better-auth/api";
 
 import { getAuth } from "@/lib/server/auth";
 import {
+  authRefused,
   cookiesFrom,
   formField,
   isSameOriginPost,
@@ -39,6 +40,10 @@ export async function POST(request: Request): Promise<Response> {
     if (error instanceof APIError) return redirectWithGenericFailure("/two-factor/recovery");
     throw error;
   }
+
+  // A spent or wrong code arrives as a 4xx Response rather than a throw (see
+  // `authRefused`), which is the path the single-use assertion exercises.
+  if (authRefused(verified)) return redirectWithGenericFailure("/two-factor/recovery");
 
   return redirectAfterPost(SHELL_HOME_PATH, cookiesFrom(verified));
 }

@@ -2,6 +2,7 @@ import { APIError } from "better-auth/api";
 
 import { getAuth } from "@/lib/server/auth";
 import {
+  authRefused,
   cookiesFrom,
   formField,
   isSameOriginPost,
@@ -45,6 +46,10 @@ export async function POST(request: Request): Promise<Response> {
     if (error instanceof APIError) return redirectWithGenericFailure(SETTINGS_PATH);
     throw error;
   }
+
+  // A wrong current password or a too-short new one arrives as a 4xx Response rather than
+  // a throw (see `authRefused`); both report the same generic sentence (SEC-1).
+  if (authRefused(changed)) return redirectWithGenericFailure(SETTINGS_PATH);
 
   return redirectAfterPost(`${SETTINGS_PATH}?changed=1`, cookiesFrom(changed));
 }

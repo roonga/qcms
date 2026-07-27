@@ -51,19 +51,15 @@ export default async function SettingsPage({
             {t("settings.passwordTitle")}
           </h2>
           <p className="text-sm text-(--color-text-muted)">{t("settings.passwordIntro")}</p>
+          {/* No wrapper `role` on either: the vendored `Alert` already renders
+              `role="alert"`, and nesting a second live region for one message means it
+              is announced twice. */}
           {params.changed !== undefined && (
-            <div role="status">
-              <Alert variant="success">{t("settings.passwordChanged")}</Alert>
-            </div>
+            <Alert variant="success">{t("settings.passwordChanged")}</Alert>
           )}
-          {params.error !== undefined && (
-            <div role="alert">
-              {/* The same generic sentence as every other auth failure: a wrong
-                  current password must not be distinguishable from a rejected new
-                  one (SEC-1). */}
-              <Alert variant="error">{t("signIn.error")}</Alert>
-            </div>
-          )}
+          {/* The same generic sentence as every other auth failure: a wrong current
+              password must not be distinguishable from a rejected new one (SEC-1). */}
+          {params.error !== undefined && <Alert variant="error">{t("signIn.error")}</Alert>}
           <form method="post" action="/settings/password" className="flex max-w-sm flex-col gap-4">
             <TextField
               name="currentPassword"
@@ -92,9 +88,19 @@ export default async function SettingsPage({
           <h2 className="text-base font-semibold text-(--color-text)">
             {t("settings.twoFactorTitle")}
           </h2>
-          <Alert variant={session.twoFactorEnabled ? "success" : "warning"}>
+          {/* Prose, not an `Alert`: the vendored Alert is a live region (`role="alert"`),
+              and this is standing state rather than something that just happened. As an
+              Alert it announced itself on every visit to Settings and competed with the
+              real password-change message for the screen reader's attention. */}
+          <p
+            className={
+              session.twoFactorEnabled
+                ? "text-sm text-(--color-success-fg)"
+                : "text-sm text-(--color-warning-fg)"
+            }
+          >
             {session.twoFactorEnabled ? t("settings.twoFactorOn") : t("settings.twoFactorOff")}
-          </Alert>
+          </p>
         </div>
       </Card>
     </div>

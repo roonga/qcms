@@ -2,6 +2,7 @@ import { APIError } from "better-auth/api";
 
 import { getAuth } from "@/lib/server/auth";
 import {
+  authRefused,
   cookiesFrom,
   formField,
   isSameOriginPost,
@@ -40,6 +41,9 @@ export async function POST(request: Request): Promise<Response> {
     if (error instanceof APIError) return redirectWithGenericFailure("/two-factor/challenge");
     throw error;
   }
+
+  // A wrong code arrives as a 4xx Response rather than a throw (see `authRefused`).
+  if (authRefused(verified)) return redirectWithGenericFailure("/two-factor/challenge");
 
   return redirectAfterPost(SHELL_HOME_PATH, cookiesFrom(verified));
 }
