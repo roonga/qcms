@@ -62,9 +62,10 @@ const FAST_FAILURE_BUDGET_MS = 60_000;
  * Per-test timeout for the two tests that assert `FAST_FAILURE_BUDGET_MS`. It has
  * to sit above the budget, or an over-budget run would die on an opaque Vitest
  * timeout instead of on the assertion that names the elapsed time. Derived rather
- * than written out so the two cannot drift apart. Scoped to those two tests: the
- * other five in this file keep the 30s they had, and nothing outside this file
- * changes.
+ * than written out so the two cannot drift apart. Scoped to those two tests, and
+ * nothing outside this file changes. The pattern has since been reused once, for
+ * the pair that gained a readiness wait in issue #140 (`SIGTERM_TEST_TIMEOUT_MS`);
+ * the three tests with no derived wait of their own keep the 30s they had.
  */
 const BUDGET_TEST_TIMEOUT_MS = FAST_FAILURE_BUDGET_MS + 30_000;
 
