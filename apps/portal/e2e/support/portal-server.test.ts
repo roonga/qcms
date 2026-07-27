@@ -41,7 +41,7 @@ const WRAPPER = fileURLToPath(new URL("portal-server.mjs", import.meta.url));
  * Wall-clock ceiling for a fail-fast exit.
  *
  * The property this pins is "seconds, not the webServer timeout": #58 measured
- * 199s before the fix and 2s after, against the 180000ms
+ * 199s before the fix and 2s after, against the 180_000ms
  * `webServer.timeout` in the root `playwright.config.ts`. So the number that has
  * to be ruled out is 180s, and any bound well under it proves the fix decisively.
  * What proves the fail-fast *path* was taken is the mechanism each test asserts
@@ -62,11 +62,36 @@ const FAST_FAILURE_BUDGET_MS = 60_000;
  * Per-test timeout for the two tests that assert `FAST_FAILURE_BUDGET_MS`. It has
  * to sit above the budget, or an over-budget run would die on an opaque Vitest
  * timeout instead of on the assertion that names the elapsed time. Derived rather
- * than written out so the two cannot drift apart. Scoped to those two tests: the
- * other five in this file keep the 30s they had, and nothing outside this file
- * changes.
+ * than written out so the two cannot drift apart. Scoped to those two tests, and
+ * nothing outside this file changes. The pattern has since been reused once, for
+ * the pair that gained a readiness wait in issue #140 (`SIGTERM_TEST_TIMEOUT_MS`);
+ * the three tests with no derived wait of their own keep the 30s they had.
  */
 const BUDGET_TEST_TIMEOUT_MS = FAST_FAILURE_BUDGET_MS + 30_000;
+
+/**
+ * Ceiling on `waitForTeedOutput`, the readiness wait the two SIGTERM tests use in
+ * place of a fixed sleep (issue #140).
+ *
+ * It has to clear three serial process boots under load: this wrapper, the `sh -c`
+ * it spawns its command through, and the stub itself, since the first thing the
+ * wrapper can echo is something the stub printed. At the ~50x starvation that
+ * reproduces #140 that chain measured a little over 20s, so a bound near the
+ * fail-fast budget keeps the wait honest to roughly 150x while still failing any
+ * wrapper that never speaks at all. Unloaded the wait ends in well under a second,
+ * so the ceiling costs nothing in the normal case.
+ */
+const WRAPPER_BOOT_BUDGET_MS = 60_000;
+
+/**
+ * Per-test timeout for the two SIGTERM tests, derived from the wait they contain
+ * for the same reason `BUDGET_TEST_TIMEOUT_MS` is derived: a wait that reaches its
+ * ceiling must die on the message that names what it was waiting for, not on an
+ * opaque Vitest timeout. The 30s on top covers the SIGTERM round trip after the
+ * wait: the wrapper's handler reaps its subtree with a `ps` snapshot, which is
+ * itself a process spawn and so is one of the things load stretches.
+ */
+const SIGTERM_TEST_TIMEOUT_MS = WRAPPER_BOOT_BUDGET_MS + 30_000;
 
 /**
  * Claim a port from the ephemeral range and release it again. Most tests here
@@ -204,6 +229,50 @@ async function waitUntilGone(pid: number, timeoutMs = 10_000): Promise<boolean> 
   return !isAlive(pid);
 }
 
+/**
+ * Wait until `match` shows up in the wrapper's teed stdout.
+ *
+ * This is the readiness signal the two SIGTERM tests below need (issue #140). A
+ * fixed sleep before signalling is not a signal at all: `code === null` from the
+ * wrapper means it died from the raw SIGTERM, which is only possible before its
+ * `process.on("SIGTERM", ...)` registration has run, and under CPU starvation the
+ * wrapper's Node boot outlasts any sleep length picked from an idle machine's
+ * timings (~40-50x slowdown reproduces it).
+ *
+ * Teed output is proof that the registration has happened. `portal-server.mjs`
+ * attaches the stdout tee (`child.stdout.on("data", tee)`) before it registers the
+ * signal handlers, inside one synchronous module body with no top-level await, so
+ * the first `data` event cannot be delivered until the whole body, handlers
+ * included, has finished running. Anything the wrapper echoes therefore places it
+ * past that registration, which is the only thing this wait needs to establish.
+ *
+ * The wrapper's own exit is checked each turn so a wrapper that died early fails
+ * here with its cause rather than burning the timeout in silence. This project
+ * suppresses console output, so the thrown message is the only diagnostic channel.
+ */
+async function waitForTeedOutput(
+  wrapper: Wrapper,
+  match: string,
+  timeoutMs = WRAPPER_BOOT_BUDGET_MS,
+) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (wrapper.stdout().includes(match)) return;
+    const { exitCode, signalCode } = wrapper.child;
+    if (exitCode !== null || signalCode !== null) {
+      throw new Error(
+        `wrapper ended (code ${String(exitCode)}, signal ${String(signalCode)}) before teeing ` +
+          `${JSON.stringify(match)}; stdout was:\n${wrapper.stdout()}\nstderr was:\n${wrapper.stderr()}`,
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error(
+    `wrapper never teed ${JSON.stringify(match)} within ${String(timeoutMs)}ms; stdout was:\n` +
+      `${wrapper.stdout()}\nstderr was:\n${wrapper.stderr()}`,
+  );
+}
+
 /** The #58 shape: a fatal error is reported, but the process keeps running. */
 const FATAL_THEN_HANGS = `
 process.stdout.write("> qcms-portal@0.0.0 dev\\n> next dev --port 99999\\n");
@@ -288,25 +357,36 @@ describe("portal-server wrapper startup fail-fast (issue #58)", () => {
     expect(stderr).not.toContain("line-01");
   }, 30_000);
 
-  it("leaves a healthy slow start alone and shuts down cleanly on SIGTERM", async () => {
-    // The regression that would be worse than the bug: a server that is merely
-    // slow and quiet must not be killed. Nothing ever listens on this port, so
-    // the wrapper stays in its pre-readiness window the whole time and still must
-    // not act.
-    const port = await freePort();
-    const wrapper = startWrapper(
-      `process.stdout.write("  \\u25b2 Next.js 16.2.11\\n  - Local: http://localhost:${port}\\n");\nsetInterval(() => {}, 1000);\n`,
-      port,
-    );
+  it(
+    "leaves a healthy slow start alone and shuts down cleanly on SIGTERM",
+    async () => {
+      // The regression that would be worse than the bug: a server that is merely
+      // slow and quiet must not be killed. Nothing ever listens on this port, so
+      // the wrapper stays in its pre-readiness window the whole time and still must
+      // not act.
+      const port = await freePort();
+      const wrapper = startWrapper(
+        `process.stdout.write("  \\u25b2 Next.js 16.2.11\\n  - Local: http://localhost:${port}\\n");\nsetInterval(() => {}, 1000);\n`,
+        port,
+      );
 
-    await new Promise((resolve) => setTimeout(resolve, 3_000));
-    expect(wrapper.child.exitCode).toBeNull();
-    expect(wrapper.stderr()).toBe("");
+      // The banner coming back out of the wrapper is both halves of what this test
+      // needs: the wrapper is past its own boot (so SIGTERM will reach the handler,
+      // issue #140), and the one thing this stub ever prints has been through the
+      // startup watch without arming it. Nothing is left that could act afterwards:
+      // before readiness the wrapper only ever moves on a fatal marker in teed output
+      // or on the child ending, and this stub does neither. So no settling delay is
+      // needed here, and none is what the assertions rest on.
+      await waitForTeedOutput(wrapper, "Next.js 16.2.11");
+      expect(wrapper.child.exitCode).toBeNull();
+      expect(wrapper.stderr()).toBe("");
 
-    wrapper.child.kill("SIGTERM");
-    const { code } = await wrapper.ended;
-    expect(code).toBe(0);
-  }, 30_000);
+      wrapper.child.kill("SIGTERM");
+      const { code } = await wrapper.ended;
+      expect(code).toBe(0);
+    },
+    SIGTERM_TEST_TIMEOUT_MS,
+  );
 
   it("leaves no surviving descendant behind after a fail-fast exit", async () => {
     // The real tree is pnpm -> next dev -> next-server, and `sh -c` forwards no
@@ -349,24 +429,58 @@ describe("portal-server wrapper startup fail-fast (issue #58)", () => {
     ).toBe(true);
   }, 30_000);
 
-  it("disarms the startup watch once the server is reachable", async () => {
-    // The scope limit that keeps this change off the happy path: after readiness
-    // the wrapper behaves exactly as it did pre-#58, so a late fault is reported
-    // by the server-log gate per test instead of killing the dev server and
-    // reddening the whole run.
-    const wrapper = startWrapper(
-      `import { createServer } from "node:http";\n` +
-        `createServer((_req, res) => res.end("ok")).listen(Number(process.env.PORTAL_PORT));\n` +
-        `setTimeout(() => process.stdout.write("Unhandled Rejection: Error: late boom\\n"), 2_000);\n` +
-        `setInterval(() => {}, 1000);\n`,
-      await freePort(),
-    );
+  it(
+    "disarms the startup watch once the server is reachable",
+    async () => {
+      // The scope limit that keeps this change off the happy path: after readiness
+      // the wrapper behaves exactly as it did pre-#58, so a late fault is reported
+      // by the server-log gate per test instead of killing the dev server and
+      // reddening the whole run.
+      //
+      // Getting the fatal line to land *after* readiness is what this test needs, and
+      // a wall-clock deadline is the wrong way to arrange it (issue #140): under load
+      // the wrapper is still booting when one fires. The stub instead reads readiness
+      // off the wrapper's own behaviour. The wrapper polls the port every
+      // READINESS_POLL_MS until it succeeds and then never knocks again, so each
+      // request pushes the fatal line back and a quiet stretch means the probe that
+      // mattered has landed. Anchoring on the *last* knock rather than the first is
+      // the point: the wrapper abandons a probe that has not answered within
+      // READINESS_POLL_MS * 4 and tries again, and under starvation this stub is slow
+      // enough to be abandoned several times before one completes.
+      //
+      // The 3s of quiet is the delay retained on purpose, for two reasons: it is many
+      // poll intervals, so it cannot be confused with the gap between two probes, and
+      // the wrapper sets `ready` in a microtask *after* the probe response arrives, so
+      // a line written in the request handler itself could still be teed while the
+      // watch is armed.
+      const wrapper = startWrapper(
+        `import { createServer } from "node:http";\n` +
+          `let lateBoom;\n` +
+          `createServer((_req, res) => {\n` +
+          `  clearTimeout(lateBoom);\n` +
+          `  lateBoom = setTimeout(\n` +
+          `    () => process.stdout.write("Unhandled Rejection: Error: late boom\\n"),\n` +
+          `    3_000,\n` +
+          `  );\n` +
+          `  res.end("ok");\n` +
+          `}).listen(Number(process.env.PORTAL_PORT));\n` +
+          `setInterval(() => {}, 1000);\n`,
+        await freePort(),
+      );
 
-    await new Promise((resolve) => setTimeout(resolve, 4_000));
-    expect(wrapper.child.exitCode).toBeNull();
-    expect(wrapper.stderr()).toBe("");
+      // Seeing the late fatal line teed back out means it reached the wrapper's watch
+      // post-readiness, which is the property under test, and (as in the test above)
+      // that the wrapper is booted enough to have a SIGTERM handler.
+      await waitForTeedOutput(wrapper, "late boom");
+      // A wrongly armed fail-fast would fire FLUSH_GRACE_MS (300ms) after that tee, so
+      // this window exists only to let the failure happen before we assert it did not.
+      await new Promise((resolve) => setTimeout(resolve, 1_500));
+      expect(wrapper.child.exitCode).toBeNull();
+      expect(wrapper.stderr()).toBe("");
 
-    wrapper.child.kill("SIGTERM");
-    expect((await wrapper.ended).code).toBe(0);
-  }, 30_000);
+      wrapper.child.kill("SIGTERM");
+      expect((await wrapper.ended).code).toBe(0);
+    },
+    SIGTERM_TEST_TIMEOUT_MS,
+  );
 });
