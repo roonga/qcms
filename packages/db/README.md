@@ -129,6 +129,11 @@ first (`.github/actions/test-postgres-image`, populated by the
 `Mirror test images` workflow) and falls back to Docker Hub when no mirror is
 available. Keep the value on the same Postgres major: the migrations target 16.
 
+In this repo the variable must also be listed in `turbo.json`'s
+`globalPassThroughEnv`, because turbo 2.x runs tasks in strict env mode and
+`pnpm test` is `turbo run test`: exporting it in the shell is not enough on its own
+to reach the Vitest process.
+
 When the image cannot be pulled, `startTestDb` throws an error naming the image,
 the registry failure and the override, instead of Docker's opaque
 `(HTTP code 500) ...` (issue #74), and every later boot of that same image in the

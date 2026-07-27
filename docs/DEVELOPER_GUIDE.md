@@ -62,6 +62,14 @@ If a Testcontainers-backed suite cannot reach the container it just started (sib
 - The paired `.github/actions/assert-no-docker-hub-pulls` step prints, in each Docker-backed job's log, every image the test run pulled and fails the job if any came from Docker Hub. The steady-state line is `Images pulled during the test run: none.`
 - A failure of the reaper is now reported as a reaper failure, naming `TESTCONTAINERS_RYUK_DISABLED` and `RYUK_CONTAINER_IMAGE`, never as a Postgres-image pull failure. (The knob is `RYUK_CONTAINER_IMAGE`, not `TESTCONTAINERS_RYUK_CONTAINER_IMAGE`, in testcontainers-node.)
 
+**A Testcontainers env knob only works if `turbo.json` passes it through.** turbo 2.x runs tasks in **strict** env mode: a task sees only the variables declared in `turbo.json` plus turbo's own defaults. `pnpm test` is `turbo run test`, so `QCMS_TEST_POSTGRES_IMAGE`, `TESTCONTAINERS_RYUK_DISABLED`, `TESTCONTAINERS_HOST_OVERRIDE` and the `DOCKER_*` overrides reach the *job* and not the Vitest process unless they are listed in `globalPassThroughEnv`. That is how the #74 GHCR mirror was silently bypassed inside CI's `verify` job while the `e2e` and `portal-e2e` jobs (which invoke Vitest and Playwright directly, no turbo) used it correctly: the harness fell back to the default `postgres:16-alpine`, which was not the pre-pulled reference, and Docker went to Docker Hub for it. To prove a knob actually arrives, give it a value nothing can serve and watch the suite fail:
+
+```sh
+QCMS_TEST_POSTGRES_IMAGE=localhost:1/nope pnpm exec turbo run test --filter @qcms/db --force
+```
+
+If that **passes**, the variable is being stripped.
+
 **What the container takes over from your machine** (ports 7000/7010, `node_modules` and the pnpm store, the Docker daemon), how to run the app inside it, and the full troubleshooting table are in [`DEV_CONTAINER.md`](DEV_CONTAINER.md). The rule that bites first: **only one qcms dev container runs at a time**, machine-wide.
 
 **Rollback (the migration is reversible):** `.devcontainer/` touches no product code. Stop using it - or delete the directory - and the host workflow is unchanged: `pnpm install`, the merge gate, and `docker compose -f docker-compose.dev.yml up -d` behave exactly as they did before task 046 (re-run `pnpm install` on the host once if that checkout had been used in the container). Task 046 verified that the portal and API dev servers already bind `0.0.0.0` by default, so no source change was needed for host-browser viewing.

@@ -8,6 +8,34 @@
   // proportional on a small CI runner. Measured: 25% cost 30% more wall time for
   // no further benefit, so 50% is the chosen point.
   "concurrency": "50%",
+  // turbo 2.x runs tasks in **strict** env mode by default: a task sees only the
+  // variables declared here plus turbo's own defaults. Every Testcontainers and
+  // Docker knob this repo documents was therefore invisible to `turbo run test`,
+  // silently. That is not theoretical - it is how `postgres:16-alpine` kept being
+  // pulled from Docker Hub inside the `verify` job long after issue #74 pointed
+  // QCMS_TEST_POSTGRES_IMAGE at a GHCR mirror: the variable reached the job, not
+  // the Vitest process, so the harness asked for the default reference, which was
+  // not the pre-pulled one, and Docker went to Hub for it. The `e2e` and
+  // `portal-e2e` jobs never had the bug because they invoke Vitest and Playwright
+  // directly, without turbo (issue #150).
+  //
+  // passThrough rather than `env`: these choose *where* an identical image comes
+  // from and whether a cleanup sidecar runs, so they must not be part of the task
+  // hash - hashing them would miss the cache on every machine that resolves a
+  // different mirror, for byte-identical results.
+  //
+  // Verify a new knob actually arrives with an unpullable value: if
+  // `QCMS_TEST_POSTGRES_IMAGE=localhost:1/nope pnpm exec turbo run test
+  // --filter @qcms/db --force` PASSES, the variable is being stripped.
+  "globalPassThroughEnv": [
+    "QCMS_TEST_POSTGRES_IMAGE",
+    "TESTCONTAINERS_RYUK_DISABLED",
+    "RYUK_CONTAINER_IMAGE",
+    "TESTCONTAINERS_HOST_OVERRIDE",
+    "DOCKER_HOST",
+    "DOCKER_CONFIG",
+    "DOCKER_AUTH_CONFIG"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
