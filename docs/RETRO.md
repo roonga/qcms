@@ -357,3 +357,11 @@ Seed entries (from the 2026-07-19/20 manual improvement pass, recorded retroacti
 - Reviewer FRICTION: the stale-comment class keeps recurring (CLAUDE.md carries the "sole/only door" flavour). The generalisation for the executor prompt: any comment your diff makes false is part of your diff.
 - Reviewer FRICTION: the loaded-sweep note should state expected slowdown variance - identical 400-spinner setups produced ~30x and ~50x. Addressed in the CLAUDE.md bullet.
 - Conductor FRICTION: called the CLAUDE.md edit unrequested scope when the designated spec asked for it explicitly, and repeated a wrong test count that corroborated the stale comment instead of exposing it.
+
+## issue #122 - record an answer post when it is issued, not when it resolves (2026-07-27, PR #170)
+
+- Executor FRICTION: the largest single cost was discovering that the shared browser console gate makes a 422 unreachable from any gated spec, and only after writing the spec and running it twice. A line in the toolchain rules ("a deliberate 4xx cannot appear in a .pw.ts spec: the browser logs it as console.error; test that logic below the browser") would have saved the cycle.
+- Executor FRICTION: the work order's symptom-1 scenario was unreachable because busy disables both navigation buttons for exactly the window under test; the only available gesture is focus-to-nowhere. A note that busy disables Continue and Back during a post would have pointed straight at it.
+- Reviewer FRICTION: the browser console gate's verdict depends on event-delivery timing - a spec ending right after the fault sees green, the same spec with a settle sees red. Any "verify the gate fails on X" instruction must require the probe to hold the page open past the provoking action. Filed as #166.
+- Reviewer FRICTION: pre-fix reproduction by git show origin/main:<file> plus an isolated spec run was cheap and decisive. Worth making a standard reviewer step for fix-class tasks.
+- Conductor FRICTION: specified an unreachable reproduction scenario and asked for coverage at a layer that structurally cannot host it; both were checkable before dispatch.
