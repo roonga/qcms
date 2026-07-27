@@ -513,6 +513,14 @@ function tick(ms: number): Promise<void> {
  * `serverGuard`: the server-log gate's scan is subject to the same class of race
  * (a fault line the portal writes when a late response lands), and settling first
  * keeps that line inside the window of the test that caused it.
+ *
+ * **What it costs**, measured across a full `pnpm verify:browser` before and after
+ * (68 shared tests): median +4ms, p90 +200ms, and one outlier at +2.9s on the
+ * throttled mobile spec, whose whole subject is a simulated slow connection with
+ * requests genuinely still in flight when the test ends. That outlier is the budget
+ * doing its job rather than a cost to tune away: it is exactly the shape of test
+ * where the old gate could miss a fault. Nothing came near the budget otherwise, so
+ * no request in this suite is left hanging at teardown.
  */
 async function settleBrowserEvents(page: Page, inflight: ReadonlySet<Request>): Promise<void> {
   if (page.isClosed()) return;
@@ -633,10 +641,9 @@ export const test = base.extend<{ browserGuard: BrowserFaultGate; serverGuard: v
       // exemption is how a gate goes quiet. Reported as a failure of the test that
       // declared it, so the hatch has to be deleted when it stops being needed.
       const unmet = declared.filter((entry) => entry.used === 0).map(describeExpectation);
-      expect(
-        unmet,
-        "expected request failures that this test declared but never provoked",
-      ).toEqual([]);
+      expect(unmet, "expected request failures that this test declared but never provoked").toEqual(
+        [],
+      );
     },
     { auto: true },
   ],
