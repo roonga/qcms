@@ -11,7 +11,16 @@ import type { Page } from "@playwright/test";
 
 import { readFixtures } from "./support/fixtures.js";
 import { ACCIDENT_LABEL, COUNT_LABEL } from "./support/flow.js";
-import { startKitchenSink } from "./support/kitchen-sink.js";
+import {
+  KS,
+  answerNumber,
+  checkOption,
+  chooseRadio,
+  continueStep,
+  enterDate,
+  fillText,
+  startKitchenSink,
+} from "./support/kitchen-sink.js";
 
 /** Select an at-fault-accident radio by keyboard and await the recorded answer. */
 async function keyboardChoose(page: Page, answer: "Yes" | "No"): Promise<void> {
@@ -130,4 +139,41 @@ test("keyboard: kitchen-sink Continue gate is keyboard-operable", async ({ page 
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("error-summary")).toBeVisible();
   await expect(page.getByRole("heading", { name: "About you" })).toBeVisible();
+});
+
+test("keyboard: a later step's radio group is still reachable after Continue (#144)", async ({
+  page,
+}) => {
+  const { kitchenSinkSlug } = readFixtures();
+  await startKitchenSink(page, kitchenSinkSlug);
+
+  // Drive to the final step, where the singleChoice RadioGroup sits at the same
+  // tree index as step 2's boolean RadioGroup, so React reconciles the two
+  // questions onto one position. When the mounted control was reused across them it
+  // carried react-aria's `lastFocusedValue` from the answered boolean into a
+  // question with no such option, which dropped EVERY radio to tabindex=-1: the
+  // required question became unreachable by keyboard and screen reader while a
+  // pointer user saw nothing wrong (issue #144). The adapter now keys each control
+  // by its questionId, so arriving at the step mounts a fresh group.
+  await fillText(page, KS.fullName, "Ada Lovelace");
+  await enterDate(page, "05171990");
+  await continueStep(page);
+  await chooseRadio(page, "Yes");
+  await answerNumber(page, "10");
+  await checkOption(page, "Breakdown");
+  await continueStep(page);
+  await expect(page.getByRole("heading", { name: "Your cover" })).toBeVisible();
+
+  // Reachable: with nothing selected, react-aria leaves the group's radios in the
+  // tab order (tabindex=0), which is the roving-tabindex contract the adapter's
+  // no-selection value exists to preserve.
+  const first = page.getByRole("radio").first();
+  await expect(first).toHaveAttribute("tabindex", "0");
+  // ... and operable by keyboard alone, all the way to a recorded answer.
+  const recorded = page.waitForResponse(
+    (r) => r.url().includes("/answers") && r.request().method() === "POST" && r.status() === 200,
+  );
+  await first.press("Space");
+  await expect(first).toBeChecked();
+  await recorded;
 });
