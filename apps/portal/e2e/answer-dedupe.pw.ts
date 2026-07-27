@@ -18,13 +18,14 @@
  *
  * The other half of issue #122 - a refusal's error message outliving the value it
  * describes, and the record's rollback that keeps a refused value retryable - is
- * NOT here, because a refused answer cannot be provoked from a gated spec: a
- * browser reports any 4xx response as a `console.error` ("Failed to load resource:
- * ... 422"), which the shared gate in `support/gates.ts` fails the test on, whether
- * the 422 comes from the real API or from a fulfilled route.
- * `a11y-focus-target.pw.ts` records the same constraint and avoids the case the
- * same way. Those rules are therefore pinned one layer down, over the pure
- * functions they live in: `apps/portal/lib/answer-record.test.ts`.
+ * in `answer-rejection.pw.ts`, not here. It used to be unreachable from any gated
+ * spec, because a browser reports any 4xx response as a `console.error` ("Failed to
+ * load resource: ... 422") and the shared gate in `support/gates.ts` failed the
+ * test on it, whether the 422 came from the real API or from a fulfilled route.
+ * Issue #166 added a per-test declaration for a deliberately-provoked failed
+ * request, so that half is now pinned at this layer too; the pure functions the
+ * rules live in stay pinned in `apps/portal/lib/answer-record.test.ts`, where the
+ * whole sequences are cheap to drive.
  */
 
 import { test, expect } from "./support/gates.js";

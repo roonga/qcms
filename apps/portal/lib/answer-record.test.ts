@@ -23,13 +23,16 @@ import {
  * issue #122 reports are about ORDER - what the record held at the moment a second
  * commit arrived, and what it held after a post came back refused.
  *
- * The browser layer covers what a respondent can reach without a refused answer:
+ * The browser layer covers that these functions are actually wired up:
  * `apps/portal/e2e/answer-dedupe.pw.ts` pins the exact post counts for the
  * in-flight double post, the ordinary dedupe and the retract-then-re-answer
- * sequence, and `resume.pw.ts` pins the issue #146 seeding these rules must not
- * regress. A refused answer cannot be provoked from a gated spec at all (a browser
- * logs any 4xx as a `console.error`, which the shared gate fails on), so the 422
- * halves - the rollback and the message's lifetime - are pinned here.
+ * sequence; `resume.pw.ts` pins the issue #146 seeding these rules must not
+ * regress; and `answer-rejection.pw.ts` drives the 422 halves - the rollback and
+ * the message's lifetime - over a real API refusal. That last one was impossible
+ * until issue #166: a browser logs any 4xx as a `console.error` and the shared e2e
+ * gate failed every test on it, so these two rules had no layer above this one.
+ * They stay pinned here as well, because a whole sequence is cheap to drive over
+ * pure functions and expensive to drive through a browser.
  */
 
 /** The record after answering `q_name` with "Ada", as the flow would have it. */

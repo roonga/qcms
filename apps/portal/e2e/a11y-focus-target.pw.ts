@@ -99,10 +99,20 @@ test("error-summary entries land focus on each question type's value control", a
   await expect(page.getByTestId("flow-announcer")).toBeAttached();
 
   // Each question is ANSWERED while focus is still in it, before the next entry
-  // is activated. Leaving a required question still empty posts `null` on blur,
-  // which the API rejects with a 422 (correctly: the value is invalid), and the
-  // shared console gate fails the test on the resulting browser error. That
-  // posting policy is a separate concern, so this spec avoids provoking it.
+  // is activated. Two reasons, and only the second one was ever a workaround:
+  //
+  // 1. This spec walks all three steps, and `continueStep` only advances when the
+  //    current step's required questions are satisfied. Answering them is what
+  //    makes the walk possible, not a concession to a gate.
+  // 2. Leaving a required question empty posts `null` on blur, which the API
+  //    rejects with a 422 (correctly: the value is invalid), and the browser logs
+  //    that as a `console.error` the shared gate used to fail on unconditionally.
+  //
+  // Issue #166 added a per-test declaration for a deliberate failed request, so
+  // that second reason is no longer a hard constraint. This spec KEEPS the
+  // behaviour anyway: declaring the 422 here would make a focus spec fail whenever
+  // the null-post policy changes, and that policy is exactly what issue #168 is
+  // open on. The subject here is where focus lands, so it stays off that hook.
 
   // --- Step 1: shortText and the DatePicker (the #76 regression) ------------
   await expectMissing(page, ["q_full_name", "q_dob"]);
