@@ -141,7 +141,8 @@ beforeAll(async () => {
   // webhook secret we encrypt is decryptable by the deliverer.
   baseEnv = validEnv({ QCMS_WEBHOOK_ALLOW_PRIVATE: "true" });
   deps = makeDeps({ db: testDb.db, env: baseEnv, clock: systemClock });
-  adminSessionToken = (await seedAdminSession(testDb.db, { at: new Date(), label: "operator" })).token;
+  adminSessionToken = (await seedAdminSession(testDb.db, { at: new Date(), label: "operator" }))
+    .token;
 }, BOOT_TIMEOUT);
 
 afterAll(async () => {
