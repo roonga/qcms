@@ -124,6 +124,20 @@ export interface Config {
     readonly outboxJitterMs: number;
     readonly retentionSweepIntervalMs: number;
   };
+  /**
+   * Admin-session policy the admin-auth middleware enforces (SEC-1, task 031).
+   * Idle expiry itself is better-auth's business (it maintains `session.expiresAt`
+   * in the shared Postgres); what the API adds is the **absolute** cap, because
+   * an idle window alone can be renewed indefinitely by a warm session.
+   */
+  readonly adminSession: {
+    /**
+     * Absolute session lifetime in ms measured from issue
+     * (`QCMS_ADMIN_SESSION_MAX_AGE_MS`, default 12h per SEC-1). Past it every
+     * admin API call 401s regardless of activity; the admin must sign in again.
+     */
+    readonly maxAgeMs: number;
+  };
   readonly readiness: {
     /** `/ready` DB-probe timeout in ms (`QCMS_READY_DB_TIMEOUT_MS`). */
     readonly dbTimeoutMs: number;
@@ -391,6 +405,7 @@ const DEFAULTS = {
   outboxJitterMs: 1_000,
   retentionSweepIntervalMs: 60 * 60 * 1000, // 1h
   readyDbTimeoutMs: 2_000,
+  adminSessionMaxAgeMs: 12 * 60 * 60 * 1000, // 12h absolute admin session (SEC-1)
   webhookTimeoutMs: 10_000, // 10s per delivery attempt (025)
   webhookBatchSize: 20, // deliveries processed per pass (025)
   bodyLimitBytes: 1_000_000, // 1MB (SEC-9)
@@ -499,6 +514,15 @@ export function loadConfig(env: Env): Config {
         env,
         "QCMS_RETENTION_SWEEP_INTERVAL_MS",
         DEFAULTS.retentionSweepIntervalMs,
+        1_000,
+        issues,
+      ),
+    },
+    adminSession: {
+      maxAgeMs: parseInt_(
+        env,
+        "QCMS_ADMIN_SESSION_MAX_AGE_MS",
+        DEFAULTS.adminSessionMaxAgeMs,
         1_000,
         issues,
       ),

@@ -2,24 +2,38 @@
   "name": "qcms-admin",
   "version": "0.0.0",
   "private": true,
-  "description": "qcms admin app (Next.js) (placeholder, task 001)",
+  "description": "QCMS authoring admin (Next.js, strict BFF + better-auth 2FA), task 031",
   "license": "MIT",
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    }
-  },
-  "files": [
-    "dist"
-  ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --root ../.. --project qcms-admin",
-    "lint": "eslint src"
+    "lint": "eslint app components e2e lib scripts proxy.ts proxy.test.ts next.config.ts postcss.config.mjs",
+    "create-admin": "node scripts/create-admin.mjs"
+  },
+  "dependencies": {
+    "@qcms/db": "workspace:*",
+    "@qcms/ui": "workspace:*",
+    "better-auth": "^1.6.25",
+    "drizzle-orm": "^0.45.2",
+    "next": "^16.2.12",
+    "pg": "^8.22.0",
+    "qrcode": "^1.5.4",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@testcontainers/postgresql": "^12.0.4",
+    "@types/node": "^24.13.3",
+    "@types/pg": "^8.20.0",
+    "@types/qrcode": "^1.5.5",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "otplib": "^13.4.1",
+    "tailwindcss": "^4.3.3"
   }
 }

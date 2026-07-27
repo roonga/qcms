@@ -25,6 +25,12 @@ import { z } from "@hono/zod-openapi";
  */
 export interface AdminPrincipal {
   readonly userId: string;
+  /**
+   * SEC-3 role claim, carried from day one so Phase 4 RBAC is additive code
+   * rather than a schema change. Launch issues a single value (`admin`) and
+   * nothing branches on it: authorization at launch is "authenticated admin".
+   */
+  readonly role: string;
   readonly scopes: readonly Scope[];
 }
 

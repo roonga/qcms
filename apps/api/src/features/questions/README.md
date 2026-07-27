@@ -37,7 +37,7 @@ after reading the current status - **before** the write is attempted. The
 storage backstop; a client always sees a clean 409, never a 500 surfaced from
 the trigger.
 
-## Auth seam (real from day one, stubbed until 031)
+## Auth seam (real since 031)
 
 The admin group carries two independent gates, applied in order:
 
@@ -48,12 +48,19 @@ The admin group carries two independent gates, applied in order:
    bucket, so it runs before every route here. A request without an admin
    session is rejected **401** before any handler or database access.
 
-The middleware is a **real seam with a permissive stub**. It wraps an
-`AdminSessionVerifier`; today `stubAdminSessionVerifier` treats any non-empty
-`x-qcms-admin-session` header as an authenticated admin (scopes inert). Task 031
-swaps in real better-auth session (cookie) verification and 2FA policy (SEC-1) at
-`makeAdminAuth` - a one-line change, no handler or route touched. Auth logic
-never leaks into a handler.
+The middleware wraps an `AdminSessionVerifier`. Since task 031 that verifier is
+`betterAuthSessionVerifier`: the admin BFF forwards the signed-in user's
+better-auth **session token** on `x-qcms-admin-session`, and the middleware
+resolves it against the deployment's Postgres, rejecting an unknown token, an
+idle-expired session, a session past its 12h absolute lifetime, or (unless
+`QCMS_ADMIN_2FA=optional`) an account that has not completed TOTP enrollment
+(SEC-1). The resolved principal carries the SEC-3 `role` claim and the inert
+SEC-5 `scopes`. The API never links better-auth: verification is one row read, so
+handlers stay fetch-pure (R4). Auth logic never leaks into a handler.
+
+A test that needs an authenticated admin request seeds a real session row with
+`seedAdminSession` (`src/test-support.ts`); there is no longer a marker header any
+value satisfies.
 
 In a **public-only** process the admin group is not mounted at all (ADR-09), so
 these paths do not exist: a request 404s, never 403s.

@@ -37,7 +37,7 @@ import { createApp } from "../../../app.js";
 import type { Deps } from "../../../deps.js";
 import { FLAG_REASONS, FlagReason } from "../flag-reasons.js";
 import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../../../middleware/admin-auth.js";
-import { internalTokenFor, makeDeps, validEnv } from "../../../test-support.js";
+import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../../../test-support.js";
 import { registerAdminResponses } from "./route.js";
 
 const BOOT_TIMEOUT = 120_000;
@@ -47,6 +47,10 @@ let testDb: TestDb;
 let deps: Deps;
 let app: ReturnType<typeof createApp>;
 let internalToken: string;
+// A real better-auth session row seeded per suite (031): the admin-auth
+// middleware verifies it against the database, so a made-up marker no longer
+// authenticates anything.
+let adminSessionToken: string;
 
 beforeAll(async () => {
   testDb = await startTestDb();
@@ -55,6 +59,7 @@ beforeAll(async () => {
     groups: { admin: [registerAdminAuth, registerAdminResponses] },
   });
   internalToken = internalTokenFor(deps.config);
+  adminSessionToken = (await seedAdminSession(testDb.db)).token;
 }, BOOT_TIMEOUT);
 
 afterAll(async () => {
@@ -67,7 +72,7 @@ function authHeaders(extra: Record<string, string> = {}): Record<string, string>
   return {
     "content-type": "application/json",
     "x-qcms-internal-token": internalToken,
-    [ADMIN_SESSION_HEADER]: "editor-1",
+    [ADMIN_SESSION_HEADER]: adminSessionToken,
     ...extra,
   };
 }

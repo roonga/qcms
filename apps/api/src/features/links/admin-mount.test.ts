@@ -59,7 +59,8 @@ describe("links admin group is absent in a public-only process (ADR-09)", () => 
       headers: {
         "content-type": "application/json",
         "x-qcms-internal-token": internalTokenFor(deps.config),
-        [ADMIN_SESSION_HEADER]: "editor-1",
+        // Unmounted group: nothing runs, so this value is never verified (031).
+        [ADMIN_SESSION_HEADER]: "any-value-unverified-here",
       },
       body: JSON.stringify({ expiresAt: "2026-12-31T00:00:00.000Z" }),
     });

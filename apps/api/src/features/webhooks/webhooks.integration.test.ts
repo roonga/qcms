@@ -17,7 +17,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../../app.js";
 import type { Deps } from "../../deps.js";
 import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../../middleware/admin-auth.js";
-import { internalTokenFor, makeDeps, validEnv } from "../../test-support.js";
+import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../../test-support.js";
 import { decryptWebhookSecret } from "./crypto.js";
 import { registerWebhooks } from "./route.js";
 
@@ -29,6 +29,10 @@ let testDb: TestDb;
 let deps: Deps;
 let app: ReturnType<typeof createApp>;
 let internalToken: string;
+// A real better-auth session row seeded per suite (031): the admin-auth
+// middleware verifies it against the database, so a made-up marker no longer
+// authenticates anything.
+let adminSessionToken: string;
 // A fixed base env so the on-prem-override app shares the internal token and app
 // key with the default app - only QCMS_WEBHOOK_ALLOW_PRIVATE varies.
 let baseEnv: Record<string, string | undefined>;
@@ -50,6 +54,7 @@ beforeAll(async () => {
   baseEnv = validEnv();
   ({ deps, app } = buildApp(baseEnv));
   internalToken = internalTokenFor(deps.config);
+  adminSessionToken = (await seedAdminSession(testDb.db)).token;
   await createForm(testDb.db, { formId: FORM_ID, slug: "webhooks-it", defaultLocale: "en" });
 }, BOOT_TIMEOUT);
 
@@ -63,7 +68,7 @@ function headers(): Record<string, string> {
   return {
     "content-type": "application/json",
     "x-qcms-internal-token": internalToken,
-    [ADMIN_SESSION_HEADER]: "editor-1",
+    [ADMIN_SESSION_HEADER]: adminSessionToken,
   };
 }
 

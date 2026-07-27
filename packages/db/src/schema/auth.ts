@@ -16,6 +16,14 @@ import { boolean, pgTable, text, timestamp } from "drizzle-orm/pg-core";
  *
  * These tables are deliberately isolated from the domain schema: no foreign keys
  * cross between auth and the questionnaire tables.
+ *
+ * One column is ours rather than better-auth's default set: `user.role`
+ * (task 031). Launch ships a single `admin` role, but SEC-3 requires the session
+ * context to carry a role claim **from day one** so Phase 4 RBAC is additive code
+ * rather than a migration against a live deployment. The admin shell declares it
+ * to better-auth as an `additionalFields` entry with `input: false`, so no
+ * request body can set it; nothing at launch reads it for an authorization
+ * decision.
  */
 
 export const authUser = pgTable("user", {
@@ -27,6 +35,8 @@ export const authUser = pgTable("user", {
   createdAt: timestamp("createdAt").notNull().defaultNow(),
   updatedAt: timestamp("updatedAt").notNull().defaultNow(),
   twoFactorEnabled: boolean("twoFactorEnabled"),
+  /** SEC-3 role claim. Single value (`admin`) at launch; see the file header. */
+  role: text("role").notNull().default("admin"),
 });
 
 export const authSession = pgTable("session", {

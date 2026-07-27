@@ -71,6 +71,13 @@
       "when": 1785037299287,
       "tag": "0009_answer_retraction",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1785145335259,
+      "tag": "0010_admin_role_claim",
+      "breakpoints": true
     }
   ]
 }

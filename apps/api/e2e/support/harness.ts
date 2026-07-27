@@ -21,7 +21,13 @@ import type { Deps } from "../../src/deps.js";
 import type { MountFlags } from "../../src/config.js";
 import type { Logger } from "../../src/logger.js";
 import { appGroups } from "../../src/registrars.js";
-import { fixedClock, internalTokenFor, makeDeps, validEnv } from "../../src/test-support.js";
+import {
+  fixedClock,
+  internalTokenFor,
+  makeDeps,
+  seedAdminSession,
+  validEnv,
+} from "../../src/test-support.js";
 
 /** The fixed wall-clock the suite pins for deterministic tokens/timestamps. */
 export const NOW = new Date("2026-07-20T00:00:00.000Z");
@@ -75,6 +81,27 @@ export function composeApi(
   });
   const app = createApp(deps, flags, { groups: appGroups });
   return { app, deps, internalToken: internalTokenFor(deps.config) };
+}
+
+/**
+ * The real-auth login helper the 027 suite gained in task 031.
+ *
+ * Before 031 an admin request carried a made-up marker header that the launch
+ * stub accepted unconditionally. The stub is gone: the admin-auth middleware now
+ * resolves the header against a real `session` row. This is the one call a
+ * scenario makes to become an authenticated admin - seed a 2FA-enrolled admin
+ * account and a live session, and hand the returned token to
+ * {@link AdminClient}. Anchored to {@link NOW} so it is live under the same
+ * pinned clock every composition here uses.
+ *
+ * It is not a browser sign-in and does not pretend to be: the full
+ * password + TOTP + recovery-code loop through better-auth is the admin
+ * Playwright suite's subject (`apps/admin/e2e`). What this covers is the API's
+ * side of the contract - a real session row, verified by the real middleware.
+ */
+export async function adminLogin(db: TestDb["db"], at: Date = NOW): Promise<string> {
+  const { token } = await seedAdminSession(db, { at });
+  return token;
 }
 
 export { startTestDb, type TestDb };

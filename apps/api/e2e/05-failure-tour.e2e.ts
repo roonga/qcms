@@ -12,6 +12,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
+  adminLogin,
   AdminClient,
   MOUNT,
   NOW,
@@ -38,7 +39,7 @@ let formId: string;
 beforeAll(async () => {
   testDb = await startTestDb();
   composed = composeApi(testDb.db, buildEnv(), MOUNT.all);
-  admin = new AdminClient(composed.app, composed.internalToken);
+  admin = new AdminClient(composed.app, composed.internalToken, await adminLogin(testDb.db));
   respondent = new RespondentClient(composed.app, composed.internalToken);
   ({ formId } = await seedInsuranceForm(testDb.db));
 });

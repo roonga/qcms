@@ -59,7 +59,8 @@ describe("responses admin group is absent in a public-only process (ADR-09)", ()
     const res = await app.request("/admin/forms/frm_x/export?format=json&version=1", {
       headers: {
         "x-qcms-internal-token": internalTokenFor(deps.config),
-        [ADMIN_SESSION_HEADER]: "editor-1",
+        // Unmounted group: nothing runs, so this value is never verified (031).
+        [ADMIN_SESSION_HEADER]: "any-value-unverified-here",
       },
     });
     expect(res.status).toBe(404);

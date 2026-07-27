@@ -8,8 +8,9 @@
  * and JSON bodies, no imports from any slice's handler.
  *
  * Every request carries the internal service token (SEC-4). Admin calls add the
- * admin-session marker (021 stub); respondent session-scoped calls add the
- * `Bearer` session token minted by `POST /sessions`.
+ * admin's better-auth session token, obtained from `adminLogin()` (031);
+ * respondent session-scoped calls add the `Bearer` session token minted by
+ * `POST /sessions`.
  */
 
 import { ADMIN_SESSION_HEADER } from "../../src/middleware/admin-auth.js";
@@ -40,21 +41,24 @@ async function parse<T>(res: Response): Promise<JsonResult<T>> {
 }
 
 /**
- * The admin authoring surface (`/admin/*`). One instance per composition; the
- * session marker is any non-empty string under the launch stub (021).
+ * The admin authoring surface (`/admin/*`). One instance per composition. The
+ * session token is a REAL better-auth session token (031): the middleware
+ * resolves it against the database, so there is deliberately no default - a
+ * scenario must call `adminLogin()` first, exactly as the admin app signs in
+ * before it proxies anything.
  */
 export class AdminClient {
   constructor(
     private readonly app: App,
     private readonly internalToken: string,
-    private readonly sessionMarker = "e2e-admin",
+    private readonly adminSessionToken: string,
   ) {}
 
   private headers(extra: Record<string, string> = {}): Record<string, string> {
     return {
       "content-type": "application/json",
       [INTERNAL_TOKEN_HEADER]: this.internalToken,
-      [ADMIN_SESSION_HEADER]: this.sessionMarker,
+      [ADMIN_SESSION_HEADER]: this.adminSessionToken,
       ...extra,
     };
   }

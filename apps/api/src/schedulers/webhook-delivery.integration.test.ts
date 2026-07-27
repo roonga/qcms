@@ -46,7 +46,7 @@ import type { Deps } from "../deps.js";
 import { encryptWebhookSecret } from "../features/webhooks/crypto.js";
 import { registerOutboxOps } from "../features/outbox/route.js";
 import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../middleware/admin-auth.js";
-import { internalTokenFor, makeDeps, validEnv } from "../test-support.js";
+import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../test-support.js";
 import { runDeliveryPass } from "./outbox-delivery.js";
 
 const { Pool } = pg;
@@ -129,6 +129,9 @@ let receiver: Receiver;
 let baseEnv: Record<string, string | undefined>;
 let deps: Deps;
 let seq = 0;
+// A real better-auth session row (031). This suite runs on the SYSTEM clock, so
+// the seeded session is anchored to wall time rather than the fixed test instant.
+let adminSessionToken: string;
 
 beforeAll(async () => {
   testDb = await startTestDb();
@@ -138,6 +141,7 @@ beforeAll(async () => {
   // webhook secret we encrypt is decryptable by the deliverer.
   baseEnv = validEnv({ QCMS_WEBHOOK_ALLOW_PRIVATE: "true" });
   deps = makeDeps({ db: testDb.db, env: baseEnv, clock: systemClock });
+  adminSessionToken = (await seedAdminSession(testDb.db, { at: new Date(), label: "operator" })).token;
 }, BOOT_TIMEOUT);
 
 afterAll(async () => {
@@ -221,7 +225,7 @@ function adminHeaders(): Record<string, string> {
   return {
     "content-type": "application/json",
     "x-qcms-internal-token": internalTokenFor(deps.config),
-    [ADMIN_SESSION_HEADER]: "operator-1",
+    [ADMIN_SESSION_HEADER]: adminSessionToken,
   };
 }
 
