@@ -6,7 +6,7 @@
 
 ## Context
 
-First slice of 047: the four-group token contract the whole theming model rests on, the predefined themes over it, and the single HC mode layer. No respondent-facing UI in this subtask - selection is config-only here so the themes are exercisable end to end before 052 adds controls.
+First slice of 047: the four-group token contract the whole theming model rests on, the predefined themes over it, and the single HC mode layer. No respondent-facing UI in this subtask - selection is config-only here so the themes are exercisable end to end before 053 adds controls.
 
 ## Deliverables
 
