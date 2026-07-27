@@ -40,9 +40,10 @@ import { SELECT_STEP } from "./test-support/select-step.ts";
 
 const kitchen = loadGoldenForms().find((f) => f.version === "v2" && f.form === "kitchen-sink");
 if (!kitchen) throw new Error("kitchen-sink v2 golden not found");
+const documents = kitchen.compiled.documents;
 
 function stepById(id: string): A2UIStepDocument {
-  const step = kitchen.compiled.documents.find((d) => d.stepId === id);
+  const step = documents.find((d) => d.stepId === id);
   if (!step) throw new Error(`step ${id} not found`);
   return step;
 }
