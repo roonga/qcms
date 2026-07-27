@@ -3,10 +3,11 @@
  * 3 and 5). Import `test` and `expect` from here instead of `@playwright/test`
  * and each test automatically fails on:
  *
- * - **Browser errors (exit 3):** any `console.error`, uncaught `pageerror`, or
- *   React hydration warning in the page under test. If one fires, the suite goes
+ * - **Browser faults (exit 3):** any `console.error`, any `console.warn`, or an
+ *   uncaught `pageerror` in the page under test. If one fires, the suite goes
  *   red until it is fixed at the source; an allowlist entry is a last resort and
- *   needs the justification written inline next to it.
+ *   needs the justification written inline next to it. `warn` was added by issue
+ *   #147: it had been owned by no gate at all (see `GATED_CONSOLE_TYPES`).
  * - **Server errors (exit 5):** any error-level line the API, Postgres, or the
  *   portal dev server wrote during the test. We are testing the API + DB through
  *   the flow, so their logs must be clean too.
@@ -46,14 +47,90 @@ export { expect };
  * spurious warning it would otherwise raise (browser nonce hiding blanks the
  * `nonce` attribute React hydrates against) is handled at the source, on that
  * single element, in `app/layout.tsx`.
+ *
+ * One list covers every gated surface (`console.error`, `console.warn`,
+ * `pageerror`) rather than one list per level. That is deliberate and it is the
+ * looser of the two options: a shape allowlisted at one level is allowlisted if
+ * it is re-emitted at another. Both entries below name a specific known artefact
+ * with a specific removal condition, so the level a browser happens to pick for
+ * it is not information the gate should depend on, and a per-level split would
+ * mean re-justifying the same two shapes twice (issue #147).
+ *
+ * Entries match by **pattern, never by count**. The population drifts run to run:
+ * two observers on issue #144 measured 123 and 121 occurrences of the same shape,
+ * and the run this file was last measured against produced 128. A count-based
+ * assertion would be flaky by construction.
  */
 const BROWSER_ALLOW: readonly RegExp[] = [
   // Dev-only: Next runs React's DEVELOPMENT build, which uses eval() for debug
   // tooling, but the portal's strict CSP (SEC-9) forbids `unsafe-eval`. React
   // itself states it "will never use eval() in production mode", so this cannot
   // occur in the shipped build; weakening the CSP to silence it is not an option.
+  // Arrives as `console.error` (~128 per suite run, measured), so it was already
+  // gated and already allowlisted before #147.
+  // REMOVED BY: nothing here. It goes when the e2e suite stops running against a
+  // development React build, not before.
   /eval\(\) is not supported in this environment/,
+  // The documented issue #144 residue, and the one shape that was invisible to
+  // both gates until #147: React emits it as `console.warn`, the browser gate
+  // only looked at `console.error`, and the server gate deliberately excludes
+  // forwarded `[browser]` lines. 25 per suite run, measured.
+  // The DatePicker starts with `value={undefined}` and flips to a string on the
+  // first answer, because the vendored control cannot yet accept
+  // `value?: string | null`, so React sees an uncontrolled input become
+  // controlled. It is a real defect and it is NOT fixed here.
+  // REMOVED BY: issue #148. Once that upstream `value?: string | null` change
+  // lands in the sibling checkout `../a2-react-aria`, the control is genuinely
+  // controlled from first render, the warning stops, and this entry must be
+  // deleted (leaving it would re-open the exact blind spot #147 closed).
+  /^WARN: A component changed from uncontrolled to controlled\./,
 ];
+
+/**
+ * The browser console levels the gate treats as a fault (issue #147).
+ *
+ * `error` was always gated. `warn` is the addition, and the justification is
+ * concrete rather than tidiness: issue #144 shipped an accessibility-blocking
+ * production defect (a required radio group left entirely unreachable by
+ * keyboard, every option at `tabindex="-1"`) whose only runtime signal was a
+ * browser `console.warn`. The browser gate ignored every non-`error` message and
+ * the server gate excludes forwarded `[browser]` lines by design, so 51 warnings
+ * per run announced the defect to nobody for as long as it took a human to notice
+ * the keyboard trap.
+ *
+ * `info`, `log` and `debug` are deliberately NOT gated. Measured over a full
+ * `pnpm verify:browser` run, they are pure development-tooling chatter with no
+ * fault semantics: 128 `info` (React's "Download the React DevTools" notice), 127
+ * `log` (`[HMR] connected`, `[Fast Refresh] rebuilding/done`), 0 `debug`. None of
+ * that can indicate a defect, all of it exists only because the suite runs
+ * against a dev server, and gating it would buy nothing but a third allowlist
+ * entry per dev-tool release. `warn` is different in kind: it is the level React
+ * and the browser platform APIs use to report behaviour that is actually wrong.
+ * If a future defect ever announces itself at `info`, the fix is to gate `info`
+ * then, on evidence, not to pre-emptively gate noise now.
+ */
+const GATED_CONSOLE_TYPES: ReadonlySet<string> = new Set(["error", "warning"]);
+
+/**
+ * The gate's verdict on one live browser console message: the fault string to
+ * report, or `null` when the message is benign.
+ *
+ * Note the level spelling. Playwright reports `console.warn` as the message type
+ * `"warning"` (the Chrome DevTools Protocol level name), not `"warn"`, which is a
+ * gate that silently matches nothing if got wrong. The value in
+ * `GATED_CONSOLE_TYPES` is the one observed on live messages in a real run.
+ *
+ * Exported for `gates.test.ts`, which proves the gate bites by asking this
+ * function rather than by inspecting `BROWSER_ALLOW` - the same reason
+ * `scanAppended` is exported: the question a gate test must answer is "would the
+ * suite go red on this message", which depends on the level filter and the
+ * allowlist together, not on either alone.
+ */
+export function browserConsoleFault(type: string, text: string): string | null {
+  if (!GATED_CONSOLE_TYPES.has(type)) return null;
+  if (BROWSER_ALLOW.some((allow) => allow.test(text))) return null;
+  return `console.${type}: ${text}`;
+}
 
 /**
  * Server-log lines that are benign for a clean run, each justified. Applied after
@@ -106,7 +183,10 @@ const PG_ERROR = /(ERROR|FATAL|PANIC|WARNING):/;
  * deprecations, and forwarded BROWSER console warnings), and browser-console
  * messages are owned by the browser gate above, so `[browser] ...` lines are
  * excluded here rather than matched as server faults. This is the documented,
- * justified scope of the portal log gate. The exclusion is anchored to the start
+ * justified scope of the portal log gate, and since #147 the claim it rests on is
+ * actually true: the browser gate now covers forwarded `warn` output as well as
+ * `error`, so excluding these lines here hands them to a gate that reads them
+ * instead of dropping them on the floor. The exclusion is anchored to the start
  * of the (stripped, then trimmed) line, because that is where the Next dev server
  * writes the prefix: an unanchored substring test exempted any server-side fault
  * line that merely quoted the literal text `[browser]` somewhere in its message,
@@ -259,20 +339,27 @@ interface Offsets {
 }
 
 /**
- * The gated test runner. `browserGuard` collects console errors + page errors for
- * the whole test; `serverGuard` records each server log's length at the start and
- * scans what was appended by the end. Both run automatically for every spec that
- * imports this `test`.
+ * The gated test runner. `browserGuard` collects gated console messages (`error`
+ * and, since #147, `warn`) plus page errors for the whole test; `serverGuard`
+ * records each server log's length at the start and scans what was appended by
+ * the end. Both run automatically for every spec that imports this `test`.
+ *
+ * The browser gate watches **live Playwright console events**, not the forwarded
+ * copies the Next dev server writes into `portal.log`. Both surfaces carry the
+ * same messages (measured: 25 forwarded `[browser] WARN:` lines in a captured
+ * `portal.log` against 25 live `warning` events in the same run), and the live one
+ * is the right place to gate them: it is per-test rather than per-run, it carries
+ * the message type as data instead of as a text prefix to be re-parsed, and
+ * gating the log copy instead would mean weakening the server gate's `[browser]`
+ * exclusion, which #131 anchored deliberately.
  */
 export const test = base.extend<{ browserGuard: void; serverGuard: void }>({
   browserGuard: [
     async ({ page }, use) => {
       const problems: string[] = [];
       page.on("console", (msg) => {
-        if (msg.type() !== "error") return;
-        const text = msg.text();
-        if (BROWSER_ALLOW.some((allow) => allow.test(text))) return;
-        problems.push(`console.error: ${text}`);
+        const fault = browserConsoleFault(msg.type(), msg.text());
+        if (fault !== null) problems.push(fault);
       });
       page.on("pageerror", (error) => {
         const text = error.message;
@@ -282,7 +369,7 @@ export const test = base.extend<{ browserGuard: void; serverGuard: void }>({
       await use();
       expect(
         problems,
-        `browser console/page errors during the test:\n${problems.join("\n")}`,
+        `browser console/page faults during the test:\n${problems.join("\n")}`,
       ).toEqual([]);
     },
     { auto: true },
