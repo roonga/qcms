@@ -20,7 +20,10 @@
   "files": [
     "dist",
     "src",
-    "migrations"
+    "migrations",
+    "!src/**/*.test.*",
+    "!src/**/__snapshots__/**",
+    "!src/test-support/**"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
