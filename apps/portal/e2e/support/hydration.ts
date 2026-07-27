@@ -21,6 +21,15 @@
  * with a stack pointing at whichever shared helper awaited it. Two sessions lost
  * bisecting runs to it (PR #90, PR #97) before it was fixed structurally.
  *
+ * Reproducing the race, a trap paid for twice (issues #121, #137): `page.waitForURL`
+ * defaults to `waitUntil: "load"`, so at normal speed hydration is usually already
+ * complete when it resolves. Throttling the CPU *after* the navigation, or delaying
+ * script responses with `page.route` (the step page reuses the entry page's cached
+ * bundle), therefore yields a green false negative rather than a weak repro. Arm
+ * `Emulation.setCPUThrottlingRate` BEFORE the first `goto`: rate 6 reproduces it every
+ * run, while rate 20 is worse, reddening an unrelated Submit `toPass` for scaffold
+ * reasons rather than the race.
+ *
  * A wait like this is worthless if it can pass without observing anything, so the
  * property name React attached is read back and asserted rather than assumed:
  * `waitForFunction` only resolves on a truthy value and throws on timeout, and the

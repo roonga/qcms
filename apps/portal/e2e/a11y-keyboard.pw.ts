@@ -11,6 +11,7 @@ import type { Page } from "@playwright/test";
 
 import { readFixtures } from "./support/fixtures.js";
 import { ACCIDENT_LABEL, COUNT_LABEL } from "./support/flow.js";
+import { waitForHydration } from "./support/hydration.js";
 import {
   KS,
   answerNumber,
@@ -34,6 +35,12 @@ async function keyboardChoose(page: Page, answer: "Yes" | "No"): Promise<void> {
   // the radio unselected so no answer ever posts and `recorded` times out.
   // `locator.press` re-focuses the radio each attempt, so this stays pure keyboard
   // (never a pointer); we retry until the selection actually registers.
+  // Kept after the entry hydration wait landed (issue #137): the two guards cover
+  // different windows. The wait covers the one-off gap before React first attaches;
+  // this loop covers every LATER re-render, including the one the second call below
+  // rides in after the first answer posts, which the wait cannot see. It is also not
+  // a substitute for the wait: pre-hydration, `toBeChecked` can pass on the native
+  // radio in the instant before React discards it, after which no retry ever runs.
   await expect(async () => {
     await radio.press("Space");
     await expect(radio).toBeChecked({ timeout: 2000 });
@@ -77,6 +84,14 @@ test("keyboard-only flow: insertion keeps focus + announces, removal announces, 
   await page.keyboard.press("Enter");
   await page.waitForURL(/\/s\/ses_/);
   await expect(page.getByText(ACCIDENT_LABEL)).toBeVisible();
+  // This spec is deliberately keyboard-only, so it hand-rolls the entry the shared
+  // helpers own and has to own their hydration wait too (issue #137). The visible
+  // question above is satisfied by the server-rendered fallback form, whose radios
+  // React replaces wholesale on hydration: a Space press landing in that window
+  // checks a control that is then unmounted, so no answer is posted and nothing
+  // errors (issue #121). Reproduced here at a 6x CPU throttle, where the raw entry
+  // landed un-hydrated every run and the awaited `/answers` POST never arrived.
+  await waitForHydration(page);
 
   const announcer = page.getByTestId("flow-announcer");
 
