@@ -101,9 +101,15 @@ curl -sX POST "$API/sessions" \
 
 # Read the current step. Initially only q_at_fault_accident is visible.
 curl -s "$API/sessions/$SES/step" -H "x-qcms-internal-token: $INT" -H "Authorization: Bearer $TOK"
-# → { "step":{ "stepId":"stp_history", "root":{…A2UI…} }, "a2uiSpecVersion":"…",
+# → { "step":{ "stepId":"stp_history", "root":{…A2UI…} }, "values":{}, "a2uiSpecVersion":"…",
 #     "flowState":{ "currentStep":"stp_history", "visibleQuestions":["q_at_fault_accident"],
 #                   "missingRequired":["q_at_fault_accident"], "readyToSubmit":false }, "progress":{…} }
+# `values` carries the answers already stored for this step's VISIBLE questions,
+# keyed by questionId, so a resumed session renders what the server holds instead
+# of empty controls. It rides beside the compiled document, never inside it
+# (ADR-18); a retracted answer (ADR-33) is absent, not stale; a hidden question's
+# answer is never included. Display data only - `flowState` stays the sole
+# authority on visibility and readiness.
 
 # Answer q_at_fault_accident = true → the q_accident_count branch appears.
 curl -sX POST "$API/sessions/$SES/answers" \

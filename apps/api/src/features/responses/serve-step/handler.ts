@@ -2,9 +2,9 @@
  * Serving-loop handlers (task 019) - the respondent's read/answer loop.
  *
  * `GET /sessions/{id}/step` serves the current step's **stored** compiled A2UI
- * document plus a narrow flow projection; `POST /sessions/{id}/answers`
- * validates one answer through the kernel, appends it to the ledger, and
- * returns the re-evaluated projection.
+ * document, the answers already held for that step, and a narrow flow projection;
+ * `POST /sessions/{id}/answers` validates one answer through the kernel, appends
+ * it to the ledger, and returns the re-evaluated projection.
  *
  * These are **transaction scripts** (R5): load state (`@qcms/db`) → call the
  * kernel (`evaluateRules` 006, `validateAnswer` 009) → persist. The GET **never
@@ -15,8 +15,10 @@
  * Two security properties hold by construction:
  *
  * - **No leak of the hidden flow.** The client projection carries only the
- *   *visible* questions of the current step and the *visible* missing-required
- *   set - never the full rule graph or the inventory of hidden questions (SEC).
+ *   *visible* questions of the current step, the *visible* missing-required set,
+ *   and the answers held for those same visible questions - never the full rule
+ *   graph, never the inventory of hidden questions, and never a hidden question's
+ *   stored answer (SEC).
  * - **Answer values are never logged** (SEC-8): errors and the append path name
  *   `questionId`s and counts, never content.
  *

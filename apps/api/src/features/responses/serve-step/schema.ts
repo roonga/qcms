@@ -7,11 +7,13 @@
  *
  * The response is a deliberately **narrow projection** of the kernel's
  * `FlowState` (ADR-18, SEC): clients receive the current step's stored compiled
- * A2UI document plus which of that step's questions are currently visible and
- * which required ones are still missing - never the full rule graph, never the
- * inventory of hidden questions. `step` is served verbatim from the pinned
+ * A2UI document, the answers already held for that step's visible questions, and
+ * which of those questions are currently visible / still missing - never the full
+ * rule graph, never the inventory of hidden questions, never an answer to a
+ * question the flow hides. `step` is served verbatim from the pinned
  * `form_versions.compiled` JSONB, so it is modelled as an opaque document the
- * API does not re-shape (`root` is the A2UI node tree, passed through untouched).
+ * API does not re-shape (`root` is the A2UI node tree, passed through untouched),
+ * and the held answers travel beside it rather than being written into it.
  */
 
 import { z } from "@hono/zod-openapi";
@@ -117,13 +119,11 @@ export const StepProgress = z
  * answers over their own session-authed request, and they are never logged
  * (SEC-8).
  */
-export const HeldValues = z
-  .record(z.string(), z.unknown())
-  .openapi({
-    description:
-      "The answers the server currently holds for this step's visible questions, keyed by questionId, in canonical AnswerValue encoding. Absent keys are unanswered (including retracted answers). Display data only; the flow projection stays the sole authority on visibility and readiness.",
-    example: { q_at_fault_accident: true, q_accident_count: 2 },
-  });
+export const HeldValues = z.record(z.string(), z.unknown()).openapi({
+  description:
+    "The answers the server currently holds for this step's visible questions, keyed by questionId, in canonical AnswerValue encoding. Absent keys are unanswered (including retracted answers). Display data only; the flow projection stays the sole authority on visibility and readiness.",
+  example: { q_at_fault_accident: true, q_accident_count: 2 },
+});
 
 /**
  * The serving-loop response, returned by both the get-step read and the
