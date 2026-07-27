@@ -2,17 +2,20 @@ import { boolean, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core"
 
 /**
  * better-auth tables (`ARCHITECTURE.md` §7, admin identity with TOTP 2FA at
- * launch). These mirror the default Drizzle schema that better-auth's Drizzle
- * adapter expects for its core models plus the `twoFactor` plugin - camelCase
- * column names, `text` primary keys, `timestamp` (no timezone), exactly as
- * `@better-auth/cli generate` emits them.
+ * launch). These mirror the Drizzle schema better-auth's adapter expects for its core
+ * models plus the `twoFactor` plugin - camelCase column names, `text` primary keys,
+ * `timestamp` (no timezone) - plus one column of our own (`user.role`, below).
  *
  * They live here because migration history is package-owned: the admin's users,
- * sessions, and accounts share the deployment's one Postgres. When the auth
- * instance is wired in owned shell code (task 031), regenerate this file with
- * `@better-auth/cli generate` against the configured plugin set and diff - it is
- * the source of truth for the exact columns; this hand-written mirror keeps the
- * schema and migrations self-contained until then.
+ * sessions, and accounts share the deployment's one Postgres.
+ *
+ * Task 031 wired the real auth instance and reconciled this mirror against
+ * better-auth 1.6's own field definitions (`getAuthTables`), which found three
+ * missing `twoFactor` columns - see the note on that table. The library validates the
+ * Drizzle schema at startup and refuses to run on a mismatch, so **the check is not
+ * optional and not deferrable**: any change to the configured plugin set means
+ * re-reconciling this file and appending a migration, or the first request after the
+ * upgrade throws.
  *
  * These tables are deliberately isolated from the domain schema: no foreign keys
  * cross between auth and the questionnaire tables.

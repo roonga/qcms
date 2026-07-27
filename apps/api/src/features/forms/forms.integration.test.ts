@@ -71,7 +71,7 @@ afterAll(async () => {
   await testDb?.teardown();
 }, BOOT_TIMEOUT);
 
-// --- request helpers (channel token + stub admin session on every call) -----
+// --- request helpers (channel token + a real admin session on every call) ----
 
 function authHeaders(extra: Record<string, string> = {}): Record<string, string> {
   return {
