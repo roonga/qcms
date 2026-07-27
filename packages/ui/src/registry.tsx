@@ -106,6 +106,40 @@ function absentIfNoSelection(values: readonly string[]): readonly string[] | und
 }
 
 /**
+ * The controlled "nothing is selected" value for the two discrete controls, and
+ * why it is `null` rather than `undefined` or `""` (issue #144).
+ *
+ * react-stately's `useControlledState` decides controlled-vs-uncontrolled by
+ * `value !== undefined` alone, so `value={undefined}` IS uncontrolled. Passing it
+ * for "no selection" made the FIRST selection flip the same mounted control from
+ * uncontrolled to controlled, and a projection that re-targeted the control at an
+ * unanswered question flip it back. The reverse direction is the defect, not the
+ * warning: while uncontrolled, react-stately serves its OWN last internal value in
+ * place of the parent's absence, which is the issue-#95 divergence class.
+ *
+ * `null` is react-aria's own spelling of "no selection" for these controls
+ * (`useRadioGroupState` defaults to `props.defaultValue ?? null`,
+ * `useSingleSelectListState` to `props.defaultSelectedKey ?? null`), so it is
+ * controlled while keeping both properties a bare `""` would break:
+ *
+ * - **Roving tabindex.** `useRadio` narrows the group's single tab stop to the
+ *   selected radio only when `state.selectedValue != null`; with `null` no radio
+ *   is selected, so the first one stays in the tab order. With `""` nothing
+ *   matches and the whole group becomes keyboard-unreachable.
+ * - **Option-key validity.** The select's key lookup is guarded by
+ *   `selectedKey != null`, so `null` is never looked up as a key, whereas `""` is
+ *   an invalid one.
+ *
+ * The vendored prop types narrow `value` to `string` while passing it straight
+ * through to the react-aria-components control, whose own contract is
+ * `string | null`; ADR-22 keeps the vendored files byte-identical, so the null
+ * travels through one cast here instead of a component edit. The DatePicker cannot
+ * take this route: its vendored body is `value ? parseDate(value) : undefined`, so
+ * every empty spelling collapses to `undefined` there (see `DatePickerField`).
+ */
+const NO_SELECTION = null as unknown as string;
+
+/**
  * The hidden companion that tags one answer field with its transport kind, so the
  * BFF can decode the form-encoded string without knowing the question (R2). Only
  * emitted in native mode, and only for a control that has a questionId `name`.
@@ -156,6 +190,32 @@ function FieldBlur({
   );
 }
 
+/**
+ * Every adapter below keys its vendored control by the question's `name`, so **one
+ * mounted control serves exactly one question** (issue #144).
+ *
+ * `A2Renderer` keys a node's children by ARRAY INDEX, so when the host swaps in
+ * another step's document, or a branch change prunes a question out of the current
+ * one, React reconciles the control at index i onto whatever control sat at index i
+ * before: a mounted control silently starts serving a DIFFERENT question. The
+ * parent-owned value follows the new question, but the vendored control's own
+ * internal state does not, and that state is not always invisible. Observed on the
+ * kitchen-sink fixture: Continue from an answered boolean RadioGroup to the step
+ * whose singleChoice RadioGroup sat at the same index carried the previous
+ * question's `lastFocusedValue` across, which left EVERY radio of the new question
+ * at `tabIndex=-1` - a required question no keyboard or screen-reader respondent
+ * could reach. The DatePicker carries its previous question's last complete date
+ * the same way.
+ *
+ * Keying by questionId makes that re-target a remount, so no control's internal
+ * state outlives the question it belongs to. The key is stable for the life of a
+ * question, so nothing remounts while the respondent is answering, and a control
+ * compiled without a questionId keys as `undefined`, exactly as it reconciled
+ * before. Where a remount does cost focus (a question removed above the focused
+ * one), the host already restores it - see `recoverFocus` in the portal's step flow
+ * (030).
+ */
+
 type TextFieldProps = NonNullable<TextFieldNode["props"]>;
 function TextFieldField(props: Readonly<TextFieldProps>) {
   const field = useQcmsField(props.name);
@@ -172,6 +232,7 @@ function TextFieldField(props: Readonly<TextFieldProps>) {
   return (
     <FieldBlur name={props.name} onBlur={field.blur}>
       <TextField
+        key={props.name}
         {...props}
         // Browsers compile the HTML `pattern` attribute with the `v` flag, which
         // rejects class-literal spellings that `u` (what the pattern was authored
@@ -201,6 +262,7 @@ function TextAreaField(props: Readonly<TextAreaProps>) {
   return (
     <FieldBlur name={props.name} onBlur={field.blur}>
       <TextArea
+        key={props.name}
         {...props}
         {...modeProps}
         isInvalid={field.error != null}
@@ -224,6 +286,7 @@ function NumberFieldField(props: Readonly<NumberFieldProps>) {
   return (
     <FieldBlur name={props.name} onBlur={field.blur}>
       <NumberField
+        key={props.name}
         {...props}
         {...modeProps}
         isInvalid={field.error != null}
@@ -287,13 +350,26 @@ function DatePickerField(props: Readonly<DatePickerProps>) {
   const modeProps: Partial<ComponentProps<typeof DatePicker>> = native
     ? { defaultValue: typeof field.value === "string" ? field.value : undefined }
     : {
+        // The one control that cannot take `NO_SELECTION`: the vendored body is
+        // `value ? parseDate(value) : undefined`, so every empty spelling arrives at
+        // react-aria as `undefined` (uncontrolled) no matter what is passed here.
+        // A date with no answer is therefore uncontrolled until the first complete
+        // value, which is the one remaining controlled/uncontrolled transition at
+        // this seam (issue #144: benign in itself, since the value react-stately
+        // then adopts is the one it just reported through `onChange`). What it must
+        // never do is DISPLAY its own stale value in place of the parent's absence:
+        // the remount key below is what prevents that, both when the respondent
+        // clears the field and when a projection re-targets the control at another
+        // question. Making it genuinely controlled needs a `value: string | null`
+        // pass-through in the vendored component (upstream a2-react-aria, then a
+        // re-vendor), which ADR-22 keeps out of this repo.
         value: typeof field.value === "string" ? field.value : undefined,
         onChange: (s: string) => field.setValue(s === "" ? undefined : s),
       };
   return (
     <FieldBlur name={props.name} onBlur={native ? field.blur : commit}>
       <DatePicker
-        key={clearedGeneration}
+        key={`${props.name}:${clearedGeneration}`}
         {...props}
         {...modeProps}
         isInvalid={field.error != null}
@@ -312,8 +388,11 @@ function RadioGroupField(props: RadioGroupProps) {
   // (a2ui-mapping.md): boolean radios carry the string values "true"/"false",
   // singleChoice radios carry OptionIds ("opt_…"). Detect by the value shape so
   // onChange emits a JSON boolean for the former and an OptionId for the latter.
-  // No selection → `undefined` (not ""), so RAC's roving tabindex keeps the
-  // first radio in the tab order; a bare "" would leave the group unreachable.
+  // No selection → `NO_SELECTION` (null, never "") in controlled mode, which keeps
+  // the group CONTROLLED while leaving RAC's roving tabindex on the first radio; a
+  // bare "" would leave the group unreachable, and `undefined` reads as
+  // uncontrolled (see `NO_SELECTION`). Native mode keeps `undefined`, because the
+  // vendored control seeds a2ra's form state from any defined `defaultValue`.
   //
   // A RadioGroup has **no clear gesture** to audit (issue #98): a selected radio
   // cannot be toggled off - re-clicking it, or pressing Delete / Backspace /
@@ -341,10 +420,11 @@ function RadioGroupField(props: RadioGroupProps) {
   };
   const modeProps: Partial<ComponentProps<typeof RadioGroup>> = native
     ? { defaultValue: controlValue }
-    : { value: controlValue, onChange: emitChange };
+    : { value: controlValue ?? NO_SELECTION, onChange: emitChange };
   return (
     <FieldBlur name={props.name} onBlur={field.blur}>
       <RadioGroup
+        key={props.name}
         {...props}
         {...modeProps}
         isInvalid={field.error != null}
@@ -372,6 +452,7 @@ function CheckboxGroupField(props: CheckboxGroupProps) {
   return (
     <FieldBlur name={props.name} onBlur={field.blur}>
       <CheckboxGroup
+        key={props.name}
         {...props}
         {...modeProps}
         isInvalid={field.error != null}
@@ -389,9 +470,10 @@ function SelectField(props: Readonly<SelectProps>) {
   const modeProps: Partial<ComponentProps<typeof Select>> = native
     ? { defaultValue: typeof field.value === "string" ? field.value : undefined }
     : {
-        // undefined (not "") when unselected - "" is not a valid option key and
-        // breaks RAC's selection manager.
-        value: typeof field.value === "string" ? field.value : undefined,
+        // NO_SELECTION (null, never "") when unselected: "" is not a valid option
+        // key and breaks RAC's selection manager, and `undefined` reads as
+        // uncontrolled. See `NO_SELECTION`.
+        value: typeof field.value === "string" ? field.value : NO_SELECTION,
         // Like the RadioGroup, a Select (singleChoice above the compiler's option
         // threshold) has **no clear gesture** to audit: the vendored trigger has no
         // clear button, and RAC does not let a chosen key be deselected. The
@@ -405,6 +487,7 @@ function SelectField(props: Readonly<SelectProps>) {
   return (
     <FieldBlur name={props.name} onBlur={field.blur}>
       <Select
+        key={props.name}
         {...props}
         {...modeProps}
         isInvalid={field.error != null}
