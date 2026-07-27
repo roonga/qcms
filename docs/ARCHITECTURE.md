@@ -148,7 +148,7 @@ In the enterprise topology these run in the internal API instance only (a mount-
 
 ## 6. Frontend architecture
 
-**Portal** (Next.js, public): fully SSR pages for fast first paint, hydrating into the shared A2UI renderer. Route handlers are a strict BFF - session cookies, server-held credentials, proxying; no rule evaluation, no validation authority (R2).
+**Portal** (Next.js, public): fully SSR pages for fast first paint, hydrating into the shared A2UI renderer. First paint is a real no-JS fallback form (a natively submittable `<form>`, see `docs/features/044-no-js-submission.md`) which React *replaces* on hydration rather than adopting in place, so an interaction landing before hydration is discarded. Route handlers are a strict BFF - session cookies, server-held credentials, proxying; no rule evaluation, no validation authority (R2).
 
 **Admin** (Next.js, VPN in enterprise topology): predominantly client components - form builder, structured condition editor, question library - using the same BFF pattern against `/admin`. Its most important feature is preview fidelity: previews render through the identical `packages/ui` renderer, in the same runtime, so what the author sees is what the respondent gets. The condition editor is structured JSON editing with live kernel validation (ADR-19); a visual builder is Phase 4. Admin screens are **ordinary React** built from the same vendored `a2-react-aria` component set in `packages/ui` (ADR-22) - A2UI documents and `A2Renderer` appear in the admin only inside the preview pane, never for the admin's own UI.
 
