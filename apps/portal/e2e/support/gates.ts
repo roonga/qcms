@@ -30,6 +30,7 @@
 import { readFileSync, statSync } from "node:fs";
 
 import { test as base, expect } from "@playwright/test";
+import type { ConsoleMessage } from "@playwright/test";
 
 import { SERVER_LOG_FILES } from "./harness-config.js";
 
@@ -87,6 +88,29 @@ const BROWSER_ALLOW: readonly RegExp[] = [
 ];
 
 /**
+ * The console levels Playwright itself can report, derived from
+ * `ConsoleMessage.type()` rather than restated as `string`.
+ *
+ * This is a tripwire, not decoration. Playwright spells `console.warn` as
+ * `"warning"` (the Chrome DevTools Protocol level name), and a gate written
+ * against `"warn"` would compile, pass review, and match nothing - reopening
+ * exactly the blind spot #147 closes, silently. Typing `GATED_CONSOLE_TYPES`
+ * against the upstream union means a renamed level fails `pnpm typecheck` at
+ * upgrade time, automatically, instead of waiting for someone to notice the gate
+ * went quiet.
+ *
+ * The protection is real but bounded, and worth not overstating: it holds only
+ * insofar as an upstream rename lands in the type union alongside the runtime
+ * string, which is how Playwright has shipped these historically. Nothing here
+ * observes what a browser actually emits.
+ *
+ * It is also the ONLY automatic check on this. The `gates.test.ts` cases pin
+ * `browserConsoleFault`'s contract for the string `"warning"`; they cannot notice
+ * that Playwright stopped emitting it.
+ */
+type BrowserConsoleType = ReturnType<ConsoleMessage["type"]>;
+
+/**
  * The browser console levels the gate treats as a fault (issue #147).
  *
  * `error` was always gated. `warn` is the addition, and the justification is
@@ -109,16 +133,16 @@ const BROWSER_ALLOW: readonly RegExp[] = [
  * If a future defect ever announces itself at `info`, the fix is to gate `info`
  * then, on evidence, not to pre-emptively gate noise now.
  */
-const GATED_CONSOLE_TYPES: ReadonlySet<string> = new Set(["error", "warning"]);
+const GATED_CONSOLE_TYPES: ReadonlySet<BrowserConsoleType> = new Set(["error", "warning"]);
 
 /**
  * The gate's verdict on one live browser console message: the fault string to
  * report, or `null` when the message is benign.
  *
- * Note the level spelling. Playwright reports `console.warn` as the message type
- * `"warning"` (the Chrome DevTools Protocol level name), not `"warn"`, which is a
- * gate that silently matches nothing if got wrong. The value in
- * `GATED_CONSOLE_TYPES` is the one observed on live messages in a real run.
+ * `type` is Playwright's own level union rather than `string`, so a call site
+ * cannot invent a level the runtime never emits: see {@link BrowserConsoleType}
+ * for why that matters here specifically. The values in `GATED_CONSOLE_TYPES` are
+ * the ones observed on live messages in a real run.
  *
  * Exported for `gates.test.ts`, which proves the gate bites by asking this
  * function rather than by inspecting `BROWSER_ALLOW` - the same reason
@@ -126,7 +150,7 @@ const GATED_CONSOLE_TYPES: ReadonlySet<string> = new Set(["error", "warning"]);
  * suite go red on this message", which depends on the level filter and the
  * allowlist together, not on either alone.
  */
-export function browserConsoleFault(type: string, text: string): string | null {
+export function browserConsoleFault(type: BrowserConsoleType, text: string): string | null {
   if (!GATED_CONSOLE_TYPES.has(type)) return null;
   if (BROWSER_ALLOW.some((allow) => allow.test(text))) return null;
   return `console.${type}: ${text}`;

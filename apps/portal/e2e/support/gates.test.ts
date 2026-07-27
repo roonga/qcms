@@ -7,6 +7,22 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { browserConsoleFault, scanAppended } from "./gates.js";
 
 /**
+ * Gate tests for `gates.ts`, in two halves.
+ *
+ * The first and larger half covers the **server-log** gate: the `PORTAL_ERROR`
+ * fault pattern (issue #120), the `[browser]` / `[server]` prefix policy (#131,
+ * #143) and the SGR stripping every pattern now relies on (#143). Its cases feed
+ * the gate a log file and read its verdict.
+ *
+ * The second half, at the bottom of the file, covers the **browser** gate's
+ * `console.warn` coverage (issue #147). Its cases feed `browserConsoleFault` a
+ * live console message and read its verdict.
+ *
+ * The two halves share one discipline, which is the point of both: a case proves
+ * what the *gate* does, never what a regex or a `Set` contains.
+ *
+ * ---
+ *
  * The portal server-log gate's fault pattern (issue #120).
  *
  * Every case here is proved by *feeding the gate a log file* and reading its
@@ -454,12 +470,14 @@ describe("the allowlisted browser shapes stay silent (issue #147)", () => {
  * answer instead of a hole.
  */
 describe("info, log and debug are not gated (issue #147)", () => {
+  // `as const` keeps each `type` a literal, so these rows are checked against
+  // Playwright's own level union rather than widened to `string`.
   const ungated = [
     { type: "info", text: "Download the React DevTools for a better development experience" },
     { type: "log", text: "[HMR] connected" },
     { type: "log", text: "[Fast Refresh] rebuilding" },
     { type: "debug", text: "anything at all" },
-  ];
+  ] as const;
 
   for (const { type, text } of ungated) {
     it(`stays silent on ${type}`, () => {
