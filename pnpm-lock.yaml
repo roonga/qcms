@@ -187,6 +187,9 @@ importers:
       drizzle-kit:
         specifier: ^0.31.10
         version: 0.31.10
+      testcontainers:
+        specifier: ^12.0.4
+        version: 12.0.4
 
   packages/ui:
     dependencies:

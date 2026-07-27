@@ -1,0 +1,71 @@
+name: Assert no Docker Hub pulls
+description: >
+  Prove from the job log that the Testcontainers test run pulled nothing from
+  Docker Hub (issue #150). Pairs with the `test-postgres-image` action, which
+  baselines the runner's images and disables the Ryuk reaper. Run it after the
+  Docker-backed test step.
+
+runs:
+  using: composite
+  steps:
+    # The evidence, not an argument about which images are configured. A pull puts
+    # an image on the runner, so anything absent from the baseline was pulled during
+    # the test run, and its reference names the registry it came from. In the steady
+    # state the list is EMPTY: the Postgres image was pre-pulled from GHCR and Ryuk
+    # never boots, so the run makes no registry call at all.
+    #
+    # What this cannot see is a pull that FAILED (no image lands). That gap is
+    # covered by the job going red on the failure itself, which is exactly how
+    # issue #150 surfaced. So a green job plus an empty list below is the proof.
+    - name: Assert no Docker Hub image pulls during the test run
+      shell: bash
+      run: |
+        set -uo pipefail
+
+        echo "Testcontainers configuration this job ran with:"
+        echo "  QCMS_TEST_POSTGRES_IMAGE=${QCMS_TEST_POSTGRES_IMAGE:-<unset>}"
+        echo "  TESTCONTAINERS_RYUK_DISABLED=${TESTCONTAINERS_RYUK_DISABLED:-<unset>}"
+
+        if [ -z "${QCMS_DOCKER_IMAGE_SNAPSHOT:-}" ] || [ ! -f "${QCMS_DOCKER_IMAGE_SNAPSHOT}" ]; then
+          echo "::error title=No image baseline::QCMS_DOCKER_IMAGE_SNAPSHOT is missing. Run ./.github/actions/test-postgres-image before the test step."
+          exit 1
+        fi
+
+        after="${RUNNER_TEMP}/qcms-images-after.txt"
+        docker image ls --format '{{.Repository}}:{{.Tag}}' | sort -u > "${after}"
+        new_images="$(comm -13 "${QCMS_DOCKER_IMAGE_SNAPSHOT}" "${after}")"
+
+        if [ -z "${new_images}" ]; then
+          echo "Images pulled during the test run: none. Zero registry calls, so zero Docker Hub calls."
+          exit 0
+        fi
+
+        echo "Images that appeared during the test run:"
+        printf '%s\n' "${new_images}" | sed 's/^/  /'
+
+        # A Docker Hub reference carries no registry host: its first path component
+        # has neither a dot nor a colon (postgres:16-alpine, testcontainers/ryuk:0.14.0),
+        # or it names Hub outright. Anything else (ghcr.io/..., localhost:5000/...)
+        # is some other registry. `<none>:<none>` is an untagged local layer, not a pull.
+        hub_images=""
+        while IFS= read -r ref; do
+          [ -n "${ref}" ] || continue
+          case "${ref}" in
+            "<none>:<none>") continue ;;
+            docker.io/* | registry-1.docker.io/* | index.docker.io/*) ;;
+            */*)
+              host="${ref%%/*}"
+              case "${host}" in
+                *.* | *:*) continue ;;
+              esac
+              ;;
+          esac
+          hub_images="${hub_images}${ref}"$'\n'
+        done <<< "${new_images}"
+
+        if [ -n "${hub_images}" ]; then
+          echo "::error title=Docker Hub pull during the test run::The test run pulled from Docker Hub, which issue #150 removed. Offending references:%0A$(printf '%s' "${hub_images}" | tr '\n' ' ')"
+          exit 1
+        fi
+
+        echo "No Docker Hub references among them."

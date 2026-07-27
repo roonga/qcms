@@ -109,7 +109,10 @@ connection still has open.
 migrations - the "apply N, then N+1" forward path.
 
 **Requirements.** These are integration tests: they need a running Docker
-daemon. On Linux CI (`ubuntu-latest`) this works out of the box. The harness
+daemon, plus this package's `@testcontainers/postgresql` and `testcontainers`
+devDependencies (the harness imports Testcontainers' reaper bootstrap directly, so
+`testcontainers` is declared rather than borrowed transitively). On Linux CI
+(`ubuntu-latest`) this works out of the box. The harness
 sets an empty `DOCKER_AUTH_CONFIG` before Testcontainers loads so image pulls are
 anonymous and the Docker Desktop credential helper (`docker-credential-desktop`,
 unresolvable from some Windows shells) is never invoked; set `DOCKER_AUTH_CONFIG`
@@ -130,6 +133,17 @@ When the image cannot be pulled, `startTestDb` throws an error naming the image,
 the registry failure and the override, instead of Docker's opaque
 `(HTTP code 500) ...` (issue #74), and every later boot of that same image in the
 worker fails immediately rather than waiting on the registry again.
+
+**The Ryuk reaper is a separate image, and a separate failure.** Testcontainers
+boots a cleanup sidecar (`testcontainers/ryuk`) before the first container;
+`QCMS_TEST_POSTGRES_IMAGE` does not redirect it, so it kept pulling from Docker
+Hub after the mirror landed and a Hub timeout on it failed a CI leg while the
+mirror was fine. `startTestDb` therefore brings the reaper up as its own step,
+before asking for Postgres, and reports a failure there as a *reaper* failure
+naming `TESTCONTAINERS_RYUK_DISABLED` and `RYUK_CONTAINER_IMAGE` - never as a
+Postgres-image pull failure sending you to check a working mirror (issue #150).
+CI sets `TESTCONTAINERS_RYUK_DISABLED=true` because a runner is destroyed with the
+job; local runs keep the reaper, because your machine is not.
 
 ## better-auth tables
 

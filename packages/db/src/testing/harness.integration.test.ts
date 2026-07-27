@@ -20,9 +20,11 @@
  * The log assertion is the honest one for this symptom (the WARNING never reaches
  * the client as an error), and it fails if the redundant statements come back.
  *
- * The final describe block covers a second harness contract (issue #74): a
+ * The last two describe blocks cover the harness's failure-reporting contract. A
  * container image that cannot be pulled must be reported as a registry failure
- * naming the image, not as Docker's opaque HTTP error.
+ * naming the image, not as Docker's opaque HTTP error (issue #74) - and a failure
+ * of Testcontainers' own Ryuk reaper must be reported as that, never as a failure
+ * of the configured Postgres image (issue #150).
  */
 
 import { sql } from "drizzle-orm";
@@ -131,10 +133,21 @@ describe("startTestDb transaction handling (issue #30)", () => {
  */
 const UNPULLABLE_IMAGE = "localhost:1/qcms-no-such-image:16-alpine";
 
+/**
+ * Docker's wording for the registry timeout that failed PR #149's portal-e2e leg:
+ * an HTTP 500 that names Docker Hub's v2 endpoint and **no image at all**. That
+ * missing reference is why the phase a failure came from, not its text, has to
+ * decide which image gets blamed (issue #150).
+ */
+const HUB_TIMEOUT_MESSAGE =
+  '(HTTP code 500) server error - Get "https://registry-1.docker.io/v2/": context deadline exceeded';
+
 /** Resolve to the error `startTestDb` threw, or undefined if it did not throw. */
-async function captureStartFailure(image: string): Promise<Error | undefined> {
+async function captureStartFailure(
+  options: Parameters<typeof startTestDb>[0],
+): Promise<Error | undefined> {
   try {
-    const started = await startTestDb({ image, migrate: false });
+    const started = await startTestDb({ migrate: false, ...options });
     await started.teardown();
     return undefined;
   } catch (error) {
@@ -144,7 +157,7 @@ async function captureStartFailure(image: string): Promise<Error | undefined> {
 
 describe("startTestDb image-pull failure reporting (issue #74)", () => {
   it("reports the registry failure and the image instead of Docker's opaque error", async () => {
-    const failure = await captureStartFailure(UNPULLABLE_IMAGE);
+    const failure = await captureStartFailure({ image: UNPULLABLE_IMAGE });
 
     expect(failure).toBeInstanceOf(Error);
     // Everything a reader needs to diagnose a CI-side registry outage: what
@@ -155,15 +168,62 @@ describe("startTestDb image-pull failure reporting (issue #74)", () => {
     // The underlying Docker error is preserved rather than swallowed.
     expect(failure?.message).toMatch(/cause:.+localhost:1/s);
     expect(failure?.cause).toBeDefined();
+    // The other direction of issue #150: a genuine image failure must not be
+    // dressed up as a reaper problem either.
+    expect(failure?.message).not.toContain("Ryuk");
   }, 60_000);
 
   it("fails the next attempt immediately rather than waiting on the registry again", async () => {
     // The image already failed in the test above (same worker process), so this
     // call must short-circuit: in CI that saves every later test file another
     // pull timeout against a registry known to be unusable.
-    const failure = await captureStartFailure(UNPULLABLE_IMAGE);
+    const failure = await captureStartFailure({ image: UNPULLABLE_IMAGE });
 
     expect(failure?.message).toContain("not retried");
     expect(failure?.message).toContain(UNPULLABLE_IMAGE);
+  }, 60_000);
+});
+
+/**
+ * Issue #150. PR #149's portal-e2e leg died on a Docker Hub timeout while the
+ * GHCR Postgres mirror was pre-pulled and working; the harness reported it as
+ * `Could not PULL the test Postgres image / image: <the GHCR mirror> / source:
+ * TEST_POSTGRES_IMAGE`, and only the preserved `cause` showed the truth (the pull
+ * was the Ryuk reaper's, from Docker Hub, which no Postgres override covers). The
+ * misattribution cost a wrong diagnosis, so it gets a regression test.
+ *
+ * The infrastructure boot is injected rather than forced for real: Testcontainers
+ * **reuses** any reaper already running on the machine, so an unreachable
+ * `RYUK_CONTAINER_IMAGE` produces a failure only when no other test file happens
+ * to have one up. Injecting is the deterministic form of the same failure.
+ */
+describe("startTestDb infrastructure failure reporting (issue #150)", () => {
+  it("blames the Ryuk reaper, not the configured Postgres image", async () => {
+    const failure = await captureStartFailure({
+      bootInfrastructure: () => Promise.reject(new Error(HUB_TIMEOUT_MESSAGE)),
+    });
+
+    expect(failure).toBeInstanceOf(Error);
+    // Names the component that actually failed, and the knobs that govern it.
+    expect(failure?.message).toContain("Ryuk reaper");
+    expect(failure?.message).toContain("TESTCONTAINERS_RYUK_DISABLED");
+    expect(failure?.message).toContain("RYUK_CONTAINER_IMAGE");
+    // And does NOT send the reader to a Postgres mirror that is working: no
+    // Postgres-pull headline, no `source:` line, no QCMS_TEST_POSTGRES_IMAGE fix.
+    expect(failure?.message).not.toContain("Could not PULL the test Postgres image");
+    expect(failure?.message).not.toContain("source: TEST_POSTGRES_IMAGE");
+    expect(failure?.message).not.toMatch(/fix:.*QCMS_TEST_POSTGRES_IMAGE/);
+    // The Docker error is still preserved, as it was for image failures.
+    expect(failure?.message).toContain("registry-1.docker.io");
+    expect(failure?.cause).toBeDefined();
+  }, 60_000);
+
+  it("classifies a non-registry reaper failure as a start failure", async () => {
+    const failure = await captureStartFailure({
+      bootInfrastructure: () => Promise.reject(new Error("Failed to connect to Reaper")),
+    });
+
+    expect(failure?.message).toContain("Could not START the Testcontainers Ryuk reaper");
+    expect(failure?.message).not.toContain("Could not PULL");
   }, 60_000);
 });
