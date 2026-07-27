@@ -62,6 +62,18 @@ interface Case {
   readonly line: string;
   /** Why this line has the verdict it does (the test name). */
   readonly why: string;
+  /**
+   * What the gate prints when this line is a fault. Defaults to `line`; set it
+   * only for a coloured line, because since #143 the gate reports the
+   * SGR-stripped text so a failing run shows readable output rather than raw
+   * colour bytes.
+   */
+  readonly reported?: string;
+}
+
+/** The fault text the gate is expected to report for a case. */
+function reportedText(c: Case): string {
+  return c.reported ?? c.line;
 }
 
 /** Fault spellings the pattern already caught before #120; these must not regress. */
@@ -134,12 +146,12 @@ const BENIGN: readonly Case[] = [
 ];
 
 describe("portal log gate", () => {
-  it.each(CAUGHT_BEFORE)("still fails on $why", ({ line }) => {
-    expect(gateVerdict("portal", line)).toEqual([line]);
+  it.each(CAUGHT_BEFORE)("still fails on $why", (c) => {
+    expect(gateVerdict("portal", c.line)).toEqual([reportedText(c)]);
   });
 
-  it.each(CAUGHT_BY_120)("now fails on $why", ({ line }) => {
-    expect(gateVerdict("portal", line)).toEqual([line]);
+  it.each(CAUGHT_BY_120)("now fails on $why", (c) => {
+    expect(gateVerdict("portal", c.line)).toEqual([reportedText(c)]);
   });
 
   it.each(BENIGN)("stays silent on $why", ({ line }) => {
@@ -175,8 +187,11 @@ describe("portal log gate", () => {
  * 3077-line `portal.log` from a full `pnpm verify:browser` run is
  * `\u001B[36m[browser]\u001B[39m ...` and none is bare. So the colour-wrapped
  * shape below is the shape that actually occurs, and the bare one is the shape
- * this file's older case assumed; both must stay excluded, which is why the anchor
- * tolerates leading SGR escapes rather than being a plain `startsWith`.
+ * this file's older case assumed; both must stay excluded. #131 achieved that with
+ * an anchor that tolerated leading SGR escapes; since #143 strips SGR once in
+ * `scanAppended`, the exclusion is a plain `startsWith("[browser]")` and both
+ * shapes reach it already bare. The cases below are unchanged, and that is the
+ * point: the observable behaviour did not move.
  */
 const CYAN = "\u001B[36m";
 const RESET = "\u001B[39m";
@@ -197,6 +212,12 @@ const QUOTES_THE_MARKER_LATER: readonly Case[] = [
   {
     why: "a coloured server line whose own text precedes the quoted marker",
     line: `${CYAN}\u001B[31m⨯${RESET} Error: cannot parse a "[browser]" entry`,
+    reported: '⨯ Error: cannot parse a "[browser]" entry',
+  },
+  {
+    why: "plain text in front of the coloured marker (the #131 anchoring property)",
+    line: `forwarding ${CYAN}[browser]${RESET} TypeError: Failed to fetch`,
+    reported: "forwarding [browser] TypeError: Failed to fetch",
   },
 ];
 
@@ -218,8 +239,8 @@ const PREFIXED_BY_THE_HARNESS: readonly Case[] = [
 ];
 
 describe("the [browser] exclusion is anchored to the start of the line", () => {
-  it.each(QUOTES_THE_MARKER_LATER)("fails on $why", ({ line }) => {
-    expect(gateVerdict("portal", line)).toEqual([line]);
+  it.each(QUOTES_THE_MARKER_LATER)("fails on $why", (c) => {
+    expect(gateVerdict("portal", c.line)).toEqual([reportedText(c)]);
   });
 
   it.each(PREFIXED_BY_THE_HARNESS)("stays silent on $why", ({ line }) => {
@@ -253,5 +274,104 @@ describe("the other two log sources are unaffected", () => {
     );
     const fatal = "FATAL:  role does not exist";
     expect(gateVerdict("postgres", fatal)).toEqual([fatal]);
+  });
+});
+
+/**
+ * SGR escapes are stripped once in `scanAppended` before any pattern runs (issue
+ * #143), so no pattern has to know that the captured log is coloured.
+ *
+ * The exposure this closes is the quiet direction: an escape landing *inside* a
+ * token defeats a pattern and the gate simply stops gating. It is not reachable
+ * from Next today, because picocolors wraps whole segments rather than parts of
+ * tokens, so these cases are synthetic by necessity. They are worth pinning
+ * anyway: #120 widened `PORTAL_ERROR` to `\\b\\w*Error:` precisely to catch
+ * `<Word>Error:` subclass spellings, and a split token is exactly the shape that
+ * defeats a `\\b\\w*` prefix match.
+ *
+ * Note which shapes actually blind the pattern, because it is not the obvious one.
+ * An escape placed *between* two tokens does not blind it: every SGR sequence ends
+ * in `m`, a word character, so `\\b\\w*` simply bridges the escape body and
+ * `Type\u001B[39mError: boom` still matches. Only an escape *inside* the word
+ * `Error` removes the literal `Error:` from the raw line, and that is what the
+ * cases below use.
+ */
+const RESET_MID_TOKEN = `TypeErr\u001B[39mor: Cannot read properties of undefined`;
+const RESET_INSIDE_ABORTED = `Error: ab\u001B[39morted`;
+
+/**
+ * Verbatim frozen copies of the two patterns as they stood before #143, kept only
+ * to demonstrate the *old* verdict. Nothing else may use them: every other
+ * assertion in this file goes through `scanAppended`, deliberately, so it measures
+ * the gate rather than a regex. If `gates.ts` changes what these patterns mean,
+ * these copies are meant to go stale and be deleted with the cases they justify.
+ */
+const PRE_143_PORTAL_ERROR =
+  /(⨯|unhandledRejection|UnhandledPromiseRejection|Unhandled Rejection:|Uncaught Exception:|\b\w*Error:| 5\d\d )/;
+const PRE_143_SERVER_ALLOW_ABORTED = /\bError: aborted\b/;
+
+describe("SGR escapes are stripped before any pattern runs (issue #143)", () => {
+  it("catches a fault whose Error token is split by a colour escape", () => {
+    // Before: the raw line contains no literal `Error:`, so the fault pattern
+    // found nothing and the gate stayed silent. That is the blinding case.
+    expect(PRE_143_PORTAL_ERROR.test(RESET_MID_TOKEN)).toBe(false);
+    // After: stripped first, so the gate sees `TypeError:` and reports it.
+    expect(gateVerdict("portal", RESET_MID_TOKEN)).toEqual([
+      "TypeError: Cannot read properties of undefined",
+    ]);
+  });
+
+  it("allowlists a benign line whose allowlisted phrase is split by a colour escape", () => {
+    // The same hole in the other direction: `SERVER_ALLOW` could not recognise its
+    // own justified line, so the gate would have cried wolf on a client abort.
+    expect(PRE_143_PORTAL_ERROR.test(RESET_INSIDE_ABORTED)).toBe(true);
+    expect(PRE_143_SERVER_ALLOW_ABORTED.test(RESET_INSIDE_ABORTED)).toBe(false);
+    expect(gateVerdict("portal", RESET_INSIDE_ABORTED)).toEqual([]);
+  });
+
+  it("reports the stripped text, so a failing gate prints readable output", () => {
+    expect(gateVerdict("portal", `${CYAN}⨯${RESET} Error: boom`)).toEqual(["⨯ Error: boom"]);
+  });
+
+  it("strips before trimming, so a colour sequence ahead of the indent still anchors", () => {
+    expect(gateVerdict("portal", `${CYAN}   [browser]${RESET} TypeError: boom`)).toEqual([]);
+  });
+
+  it("strips escapes in the Postgres and API sources too", () => {
+    const fatal = `${CYAN}FATAL:${RESET}  role does not exist`;
+    expect(gateVerdict("postgres", fatal)).toEqual(["FATAL:  role does not exist"]);
+    const apiLine = `${CYAN}${RESET}{"level":"error","msg":"unhandled error"}`;
+    expect(gateVerdict("api", apiLine)).toEqual(['{"level":"error","msg":"unhandled error"}']);
+  });
+});
+
+/**
+ * The `[server]` prefix policy (issue #143).
+ *
+ * `receive-logs.js` builds the same cyan marker as `[server]` rather than
+ * `[browser]` when the console entry's origin context is the server or edge
+ * runtime (`ctx.isServer || ctx.isEdgeServer`). There are zero occurrences in any
+ * captured log so far, so this was undocumented and untested.
+ *
+ * The decision: `[server]` is NOT exempted. Only browser-origin console output is
+ * the browser gate's business; a server-origin fault is exactly what the server
+ * gate exists to catch, so letting it through would be the quiet direction. The
+ * cases below pin that, so the first real occurrence fails loudly and on purpose
+ * rather than looking like a gate bug.
+ */
+describe("the [server] forwarded prefix is not exempted", () => {
+  it("fails on a coloured server-origin forwarded fault", () => {
+    expect(gateVerdict("portal", `${CYAN}[server]${RESET} TypeError: Failed to fetch`)).toEqual([
+      "[server] TypeError: Failed to fetch",
+    ]);
+  });
+
+  it("fails on an uncoloured server-origin forwarded fault", () => {
+    const line = "[server] Unhandled Rejection: RangeError: boom";
+    expect(gateVerdict("portal", line)).toEqual([line]);
+  });
+
+  it("stays silent on a benign server-origin forwarded line", () => {
+    expect(gateVerdict("portal", `${CYAN}[server]${RESET} fetching form frm_01`)).toEqual([]);
   });
 });

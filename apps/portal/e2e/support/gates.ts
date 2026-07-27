@@ -17,6 +17,13 @@
  * purpose by the failure-path specs, NOT a server fault. Those warn lines are
  * allowlisted with that justification; an `error`-level "unhandled error" (a real
  * 500 / bug) is never allowlisted and fails the gate.
+ *
+ * **Every server-log pattern below matches STRIPPED text** (issue #143). The
+ * captured logs carry ANSI SGR colour bytes, and `scanAppended` removes them once
+ * before any pattern runs, so no pattern here needs to know about escapes and none
+ * can be blinded by one landing inside a token. The single exception is
+ * `BROWSER_ALLOW`, which is not a log pattern at all: it matches live browser
+ * console text, which never carries these escapes.
  */
 
 import { readFileSync, statSync } from "node:fs";
@@ -28,7 +35,10 @@ import { SERVER_LOG_FILES } from "./harness-config.js";
 export { expect };
 
 /**
- * Browser console/page messages that are benign and allowlisted. The gate is
+ * Browser console/page messages that are benign and allowlisted. Unlike every
+ * other pattern in this file these match live Playwright console/page text rather
+ * than a captured log, so they never see SGR escapes and `scanAppended`'s strip
+ * does not apply to them. The gate is
  * strict by default; each entry below is a genuinely unavoidable dev-server
  * artifact or a pre-existing issue tracked outside task 045, justified inline.
  * Nothing about the CSP nonce is here and nothing about it may be added (issue
@@ -47,7 +57,9 @@ const BROWSER_ALLOW: readonly RegExp[] = [
 
 /**
  * Server-log lines that are benign for a clean run, each justified. Applied after
- * the level filter below.
+ * the level filter below, to SGR-stripped text (issue #143), so a colour escape
+ * landing inside `aborted` can no longer defeat the allowlist and false-positive
+ * the gate.
  */
 const SERVER_ALLOW: readonly { readonly source: LogSource; readonly pattern: RegExp }[] = [
   // The API's deliberate client-safe 4xx reporting: the API returning a typed
@@ -67,7 +79,12 @@ const SERVER_ALLOW: readonly { readonly source: LogSource; readonly pattern: Reg
 
 type LogSource = "api" | "postgres" | "portal";
 
-/** True when an API JSON log line is at warn/error level (a server-side signal). */
+/**
+ * True when an API JSON log line is at warn/error level (a server-side signal).
+ * Receives SGR-stripped text (issue #143); the API writes uncoloured JSON, but a
+ * stray escape would otherwise make `JSON.parse` throw and silently downgrade a
+ * real fault line to "not an error".
+ */
 function apiLineIsError(line: string): boolean {
   try {
     const parsed = JSON.parse(line) as { level?: string };
@@ -77,7 +94,10 @@ function apiLineIsError(line: string): boolean {
   }
 }
 
-/** PG severities that denote a fault (LOG / DETAIL / STATEMENT are benign). */
+/**
+ * PG severities that denote a fault (LOG / DETAIL / STATEMENT are benign).
+ * Matches SGR-stripped text (issue #143).
+ */
 const PG_ERROR = /(ERROR|FATAL|PANIC|WARNING):/;
 /**
  * Portal dev-server FAULT markers: Next.js's error glyph, an unhandled rejection
@@ -87,10 +107,15 @@ const PG_ERROR = /(ERROR|FATAL|PANIC|WARNING):/;
  * messages are owned by the browser gate above, so `[browser] ...` lines are
  * excluded here rather than matched as server faults. This is the documented,
  * justified scope of the portal log gate. The exclusion is anchored to the start
- * of the (trimmed) line, because that is where the Next dev server writes the
- * prefix: an unanchored substring test exempted any server-side fault line that
- * merely quoted the literal text `[browser]` somewhere in its message, which is a
- * gate going silent rather than a gate crying wolf (issue #131).
+ * of the (stripped, then trimmed) line, because that is where the Next dev server
+ * writes the prefix: an unanchored substring test exempted any server-side fault
+ * line that merely quoted the literal text `[browser]` somewhere in its message,
+ * which is a gate going silent rather than a gate crying wolf (issue #131).
+ *
+ * This pattern matches SGR-stripped text (issue #143), which is what makes the
+ * `\b\w*` prefix below trustworthy: an escape landing inside `Error` would
+ * otherwise leave no literal `Error:` in the raw line for it to extend leftwards
+ * from, and the fault would pass silently.
  *
  * Two spellings this used to miss (issue #120), both covered by `gates.test.ts`:
  *
@@ -112,33 +137,67 @@ const PORTAL_ERROR =
   /(⨯|unhandledRejection|UnhandledPromiseRejection|Unhandled Rejection:|Uncaught Exception:|\b\w*Error:| 5\d\d )/;
 
 /**
- * The prefix the Next dev server writes at the START of a line it forwards from
- * the browser console, anchored so that a server-side fault line merely quoting
- * the literal text `[browser]` in its message is no longer exempted (issue #131).
+ * The marker the Next dev server writes at the START of a line it forwards from
+ * the browser console. The test is a plain `startsWith`, so a server-side fault
+ * line that merely quotes the literal text `[browser]` in its message is not
+ * exempted (issue #131) and no text can be smuggled in front of the marker.
  *
- * The leading-escape alternation is not defensive padding: the dev server colours
- * the marker (`cyan("[browser]")`) and the captured log keeps those bytes, so a
- * real line in `.playwright/server-logs/portal.log` reads
- * `\u001B[36m[browser]\u001B[39m ...`, never a bare `[browser] ...`. Measured over
- * a 3077-line log from a full `pnpm verify:browser` run: 173 forwarded lines, all
- * 173 colour-wrapped, none bare. A plain `startsWith("[browser]")` anchor would
- * therefore have excluded none of them and handed every forwarded browser fault
- * to the server gate as well, which is the false positive this exclusion exists
- * to prevent. Escapes are only tolerated *before* the marker, so they cannot be
- * used to smuggle other text in front of it.
+ * The dev server colours the marker (`cyan("[browser]")`) and the captured log
+ * keeps those bytes, so a real line in `.playwright/server-logs/portal.log` is
+ * `ESC[36m[browser]ESC[39m ...`, never a bare `[browser] ...`. #131 therefore had
+ * to spell this out as a regex tolerating leading escapes, plus a
+ * `no-control-regex` disable. Since #143 strips SGR in `scanAppended` before any
+ * pattern runs, a plain string prefix is enough and that disable is gone.
+ *
+ * Only `[browser]` is exempted. `receive-logs.js` builds the same cyan marker as
+ * `[server]` for console output whose origin context is the server or edge runtime
+ * (`ctx.isServer || ctx.isEdgeServer`). Those are server-side faults the browser
+ * gate does not own, so they are deliberately NOT exempted: a
+ * `[server] TypeError: ...` line fails the server gate, which is the loud
+ * direction and the one we want. There are zero occurrences in any log captured so
+ * far; `gates.test.ts` pins the decision so the first one is not a surprise.
  */
-// The ESC byte is the whole point of this pattern: it matches the SGR colour
-// sequences the dev server writes around the marker. `no-control-regex` exists to
-// catch a control character that landed in a pattern by accident, which is the
-// opposite of the deliberate case here.
-// eslint-disable-next-line no-control-regex
-const BROWSER_FORWARD_PREFIX = /^(?:\u001B\[\d+(?:;\d+)*m)*\[browser\]/;
+const BROWSER_FORWARD_PREFIX = "[browser]";
 
 function isErrorLine(source: LogSource, line: string): boolean {
   if (source === "api") return apiLineIsError(line);
   if (source === "postgres") return PG_ERROR.test(line);
-  if (BROWSER_FORWARD_PREFIX.test(line)) return false;
+  if (line.startsWith(BROWSER_FORWARD_PREFIX)) return false;
   return PORTAL_ERROR.test(line);
+}
+
+/**
+ * One ANSI SGR (colour) escape sequence: `ESC [ params m`. Written as the
+ * six-character `\u001B` source escape, never a literal ESC byte, so
+ * `check:no-control-chars` stays green.
+ *
+ * `no-control-regex` guards against a control character reaching a pattern by
+ * accident. This is the single place in the file where matching the ESC byte is
+ * the entire purpose, and stripping here is what lets every other pattern be
+ * written in plain text, so one deliberate disable lives here instead of one per
+ * call site (issue #143).
+ */
+// eslint-disable-next-line no-control-regex
+const SGR_ESCAPE = /\u001B\[[0-9;]*m/g;
+
+/**
+ * Drop every SGR colour sequence from a captured log line.
+ *
+ * Next colours its dev-server output via picocolors and the captured log keeps
+ * the bytes, so 753 of 3097 non-empty lines in a real `portal.log` carry escapes.
+ * Every pattern in this file used to match that coloured text, and an escape
+ * landing inside a token defeats a pattern silently: `PORTAL_ERROR`'s `\b\w*Error:`
+ * finds nothing in `TypeErr<ESC>[39mor:`, and `SERVER_ALLOW`'s
+ * `\bError: aborted\b` fails to allowlist `Error: ab<ESC>[39morted`. Stripping once
+ * here removes the whole category rather than one instance of it (issue #143).
+ *
+ * Only SGR (`ESC [ params m`) is stripped, which is what picocolors emits. A
+ * cursor-movement or erase-line CSI would survive; none occur in any captured log
+ * measured so far, and widening the strip would change what the patterns see
+ * beyond the colour bytes this issue is about.
+ */
+function stripSgr(line: string): string {
+  return line.replace(SGR_ESCAPE, "");
 }
 
 function byteLength(path: string): number {
@@ -166,12 +225,26 @@ function appendedSince(path: string, offset: number): string {
  * question a gate test must answer is "would the suite go red on this log line",
  * which depends on the level filter, the `[browser]` exclusion and `SERVER_ALLOW`
  * as much as on the pattern.
+ *
+ * SGR escapes are stripped here, once, before any pattern runs (issue #143), so
+ * every pattern above is written against plain text. The order is **strip, then
+ * trim**, which is the only order robust to both interleavings: trimming first
+ * handles `   <ESC>[36m[browser]` but leaves `<ESC>[36m   [browser]` with leading
+ * whitespace, defeating the anchor. Stripping first collapses both to a bare
+ * `[browser]` prefix. (Only the first shape is known to occur today; the ordering
+ * costs nothing and removes the question.)
+ * Anchoring itself is unaffected, because a strip only ever removes escape bytes:
+ * it can never move non-escape text to the front of a line, so the #131 property
+ * that text cannot be smuggled in front of the marker still holds.
+ *
+ * The lines this returns are the stripped ones, so a failing gate prints readable
+ * text rather than raw colour bytes.
  */
 export function scanAppended(source: LogSource, path: string, offset: number): string[] {
   const text = appendedSince(path, offset);
   return text
     .split(/\r?\n/)
-    .map((line) => line.trim())
+    .map((line) => stripSgr(line).trim())
     .filter((line) => line.length > 0)
     .filter((line) => isErrorLine(source, line))
     .filter(
