@@ -7,7 +7,9 @@
  *   uncaught `pageerror` in the page under test. If one fires, the suite goes
  *   red until it is fixed at the source; an allowlist entry is a last resort and
  *   needs the justification written inline next to it. `warn` was added by issue
- *   #147: it had been owned by no gate at all (see `GATED_CONSOLE_TYPES`).
+ *   #147: it had been owned by no gate at all (see `GATED_CONSOLE_TYPES`). A
+ *   deliberately-provoked non-2xx response is declared per test instead of
+ *   allowlisted (see {@link ExpectedRequestFailure}, issue #166).
  * - **Server errors (exit 5):** any error-level line the API, Postgres, or the
  *   portal dev server wrote during the test. We are testing the API + DB through
  *   the flow, so their logs must be clean too.
@@ -25,12 +27,17 @@
  * can be blinded by one landing inside a token. The single exception is
  * `BROWSER_ALLOW`, which is not a log pattern at all: it matches live browser
  * console text, which never carries these escapes.
+ *
+ * **The browser gate's verdict is read after a settle** (issue #166), because a
+ * console event is delivered asynchronously and a fault emitted in a test's final
+ * moments used to be missed while the suite stayed green. See
+ * {@link settleBrowserEvents} for what that guarantees and what it cannot.
  */
 
 import { readFileSync, statSync } from "node:fs";
 
 import { test as base, expect } from "@playwright/test";
-import type { ConsoleMessage } from "@playwright/test";
+import type { ConsoleMessage, Page, Request } from "@playwright/test";
 
 import { SERVER_LOG_FILES } from "./harness-config.js";
 
@@ -61,6 +68,13 @@ export { expect };
  * two observers on issue #144 measured 123 and 121 occurrences of the same shape,
  * and the run this file was last measured against produced 128. A count-based
  * assertion would be flaky by construction.
+ *
+ * A message a single spec provokes ON PURPOSE does not belong here. This list is
+ * exempt in every test, forever, which is why each entry has to name a removal
+ * condition; a deliberate one-test fault is declared per test through
+ * {@link ExpectedRequestFailure} instead (issue #166). Nothing about a 4xx status
+ * may be added here: it would blind every spec in the suite to every failed
+ * request at that status.
  */
 const BROWSER_ALLOW: readonly RegExp[] = [
   // Dev-only: Next runs React's DEVELOPMENT build, which uses eval() for debug
@@ -136,13 +150,20 @@ type BrowserConsoleType = ReturnType<ConsoleMessage["type"]>;
 const GATED_CONSOLE_TYPES: ReadonlySet<BrowserConsoleType> = new Set(["error", "warning"]);
 
 /**
- * The gate's verdict on one live browser console message: the fault string to
- * report, or `null` when the message is benign.
+ * The gate's standing verdict on one live browser console message: the fault
+ * string to report, or `null` when the message is benign for every spec.
  *
  * `type` is Playwright's own level union rather than `string`, so a call site
  * cannot invent a level the runtime never emits: see {@link BrowserConsoleType}
  * for why that matters here specifically. The values in `GATED_CONSOLE_TYPES` are
  * the ones observed on live messages in a real run.
+ *
+ * This is the level filter plus `BROWSER_ALLOW`, which is the whole verdict for
+ * every message except one: a fault string returned here is still dropped if the
+ * running test declared it as an expected request failure
+ * ({@link matchExpectedFailure}, issue #166). Splitting it that way is deliberate:
+ * what is benign everywhere and what one spec provokes on purpose are different
+ * questions, and only the first one belongs to a list read by the whole suite.
  *
  * Exported for `gates.test.ts`, which proves the gate bites by asking this
  * function rather than by inspecting `BROWSER_ALLOW` - the same reason
@@ -154,6 +175,73 @@ export function browserConsoleFault(type: BrowserConsoleType, text: string): str
   if (!GATED_CONSOLE_TYPES.has(type)) return null;
   if (BROWSER_ALLOW.some((allow) => allow.test(text))) return null;
   return `console.${type}: ${text}`;
+}
+
+/**
+ * One non-2xx response a single test provokes ON PURPOSE, declared before it
+ * happens (issue #166).
+ *
+ * The browser reports any failed resource load as a `console.error` ("Failed to
+ * load resource: the server responded with a status of 422 (Unprocessable
+ * Entity)"), so until this existed no gated spec could exercise a rejected post at
+ * all: the 422 branch of `step-flow.tsx` was covered by no layer (issue #122), and
+ * `a11y-focus-target.pw.ts` had to answer every question before moving on so a
+ * required question's `null` post could not draw one.
+ *
+ * This is NOT a `BROWSER_ALLOW` entry and the difference is the point.
+ * `BROWSER_ALLOW` is exempt in every test forever; this is scoped to one test, one
+ * status, and the requests whose URL matches, so a spec provoking a 422 on
+ * `/answers` still fails on a 500 anywhere, on a 422 from any other URL, and on
+ * every other console error and `pageerror` in the same test. It is also REQUIRED
+ * to occur: a declaration nothing matched fails the test, so it cannot quietly rot
+ * into a mute once the behaviour it was written for changes.
+ */
+export interface ExpectedRequestFailure {
+  /** The status the browser is expected to report, e.g. `422`. */
+  readonly status: number;
+  /**
+   * Matched against the failing request's URL. Chromium puts that URL in
+   * `ConsoleMessage.location().url` and NOT in the message text (measured, issue
+   * #166), which is why the status and the request are two fields rather than one
+   * pattern over one string.
+   */
+  readonly url: RegExp;
+}
+
+/**
+ * The browser's report of a non-2xx resource load, with the status captured as
+ * data rather than restated per call site.
+ *
+ * Anchored at the start of the message, so a page that merely quotes this sentence
+ * inside a longer error is not a resource-load failure and stays a fault: the same
+ * "no text can be smuggled in front of the marker" property #131 established for
+ * the server gate's `[browser]` exclusion.
+ */
+const RESOURCE_LOAD_FAILURE =
+  /^Failed to load resource: the server responded with a status of (\d{3})\b/;
+
+/**
+ * The first declared expectation this console message satisfies, or `undefined`
+ * when the message is not an expected request failure at all.
+ *
+ * Returning the declaration rather than a boolean is what lets `browserGuard` mark
+ * it as used, so a declaration nothing matched can fail the test. It is generic
+ * over the declaration type for the same reason: the caller's own record (with its
+ * use count) comes straight back, so nothing has to be matched up by index.
+ *
+ * Exported for `gates.test.ts` for the same reason `browserConsoleFault` is: the
+ * question worth pinning is whether a declared 422 exempts THIS message, which
+ * depends on the resource-load shape, the status and the URL together.
+ */
+export function matchExpectedFailure<T extends ExpectedRequestFailure>(
+  declared: readonly T[],
+  text: string,
+  url: string,
+): T | undefined {
+  const match = RESOURCE_LOAD_FAILURE.exec(text);
+  if (match === null) return undefined;
+  const status = Number(match[1]);
+  return declared.find((expected) => expected.status === status && expected.url.test(url));
 }
 
 /**
@@ -363,6 +451,118 @@ interface Offsets {
 }
 
 /**
+ * How long {@link settleBrowserEvents} waits for the requests that were still in
+ * flight when the test body ended. Three seconds is four orders of magnitude more
+ * than a localhost round trip needs, and a request still open after it is not
+ * going to be closed by waiting longer - it is a stream, a hung route handler, or
+ * a spec that walked away from it on purpose.
+ */
+const REQUEST_SETTLE_BUDGET_MS = 3000;
+
+/** How often the settle re-checks the pending set. */
+const REQUEST_SETTLE_POLL_MS = 25;
+
+/** A pending-set re-check tick, as a promise (no page round trip involved). */
+function tick(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+/**
+ * Give the browser gate every fault the page has ALREADY produced before its
+ * verdict is read (issue #166).
+ *
+ * The hole this closes: `page.on("console")` fires when Playwright dispatches a
+ * protocol event, which is asynchronous with respect to the test body. A probe that
+ * provoked a 422 immediately before its test ended therefore PASSED, and the same
+ * probe holding the page open for a second failed, deterministically - measured
+ * both ways on this suite before and after this function existed. In a gate whose
+ * only job is noticing browser-side faults that is the quiet direction: the suite
+ * goes green and nothing says otherwise.
+ *
+ * Two steps, and they are not the same kind of thing:
+ *
+ * 1. **A page round trip is a real flush, not a hope.** Chromium delivers a
+ *    session's events and its command responses over one ordered pipe, so an event
+ *    the browser generated before we issued `page.evaluate` is dispatched ahead of
+ *    that call's reply. Awaiting one therefore guarantees every console message and
+ *    page error generated so far has already reached the handlers above. Two round
+ *    trips are needed, not one: the first also flushes the `request` events for a
+ *    fetch the test's last gesture had just issued, which is what makes the pending
+ *    set below complete.
+ * 2. **Draining the pending requests is a bound, not a guarantee.** A fault the
+ *    page has not generated yet cannot be flushed by anything, and the common shape
+ *    of exactly that is a fire-and-forget post whose non-2xx response has not
+ *    arrived (the #122 answer post, and the probe above). Waiting for the requests
+ *    that were in flight is what makes those faults exist in time to be flushed by
+ *    step 3, and a round-trip-only settle was measured NOT to fix the probe.
+ *
+ * **The residual window**, stated plainly rather than implied away: a fault whose
+ * cause starts after the drain (a timer the page scheduled, a retry, a request
+ * issued during teardown) is not observed, and no settle can close that - "no fault
+ * happened" is not a provable claim about a live page, only a claim about a window.
+ * A request still open when the budget expires reopens the same window for itself.
+ * Playwright exposes no "flush pending CDP events" primitive, so step 1 is the
+ * closest thing available, and it is enough for everything already generated.
+ * Ordering also holds only within one protocol session, so a message from an
+ * out-of-process iframe or a worker is outside the guarantee; the portal has
+ * neither.
+ *
+ * This runs before EITHER gate asserts, which is why `browserGuard` depends on
+ * `serverGuard`: the server-log gate's scan is subject to the same class of race
+ * (a fault line the portal writes when a late response lands), and settling first
+ * keeps that line inside the window of the test that caused it.
+ */
+async function settleBrowserEvents(page: Page, inflight: ReadonlySet<Request>): Promise<void> {
+  if (page.isClosed()) return;
+  const roundTrip = async (): Promise<void> => {
+    // A closed page/context cannot be flushed; that is a residual window, not an
+    // error to report as a browser fault.
+    try {
+      await page.evaluate(() => undefined);
+    } catch {
+      /* page or context gone */
+    }
+  };
+  await roundTrip();
+  const pending = new Set(inflight);
+  const deadline = Date.now() + REQUEST_SETTLE_BUDGET_MS;
+  while (pending.size > 0 && Date.now() < deadline) {
+    await tick(REQUEST_SETTLE_POLL_MS);
+    for (const request of pending) {
+      if (!inflight.has(request)) pending.delete(request);
+    }
+  }
+  await roundTrip();
+}
+
+/**
+ * The browser gate, as a test sees it: the one sanctioned door onto its per-test
+ * state (issue #166).
+ */
+export interface BrowserFaultGate {
+  /**
+   * Declare a non-2xx response this test provokes on purpose, before provoking it.
+   * The console error the browser logs for it stops being a fault FOR THIS TEST
+   * only; every other fault still reds it, and a declaration nothing matched reds
+   * it too. See {@link ExpectedRequestFailure} for the scope and why this is not an
+   * allowlist entry.
+   */
+  readonly expectRequestFailure: (expected: ExpectedRequestFailure) => void;
+}
+
+/** One declaration and how many messages it exempted (0 means it never happened). */
+interface DeclaredFailure extends ExpectedRequestFailure {
+  used: number;
+}
+
+/** How a never-matched declaration is reported, so the failure names the shape. */
+function describeExpectation(expected: ExpectedRequestFailure): string {
+  return `status ${expected.status} on a request matching ${String(expected.url)}`;
+}
+
+/**
  * The gated test runner. `browserGuard` collects gated console messages (`error`
  * and, since #147, `warn`) plus page errors for the whole test; `serverGuard`
  * records each server log's length at the start and scans what was appended by
@@ -376,24 +576,66 @@ interface Offsets {
  * the message type as data instead of as a text prefix to be re-parsed, and
  * gating the log copy instead would mean weakening the server gate's `[browser]`
  * exclusion, which #131 anchored deliberately.
+ *
+ * `browserGuard` DEPENDS on `serverGuard` (that is the whole reason it destructures
+ * it), which inverts their teardown order so the browser guard runs first. That is
+ * what puts {@link settleBrowserEvents} ahead of both verdicts rather than only
+ * ahead of the browser one: without it, a late response would land after the server
+ * log had already been scanned and its fault line would fall into the gap between
+ * two tests, seen by neither (issue #166).
  */
-export const test = base.extend<{ browserGuard: void; serverGuard: void }>({
+export const test = base.extend<{ browserGuard: BrowserFaultGate; serverGuard: void }>({
   browserGuard: [
-    async ({ page }, use) => {
+    // `serverGuard` is destructured for its DEPENDENCY, not its value (it has
+    // none): that is what puts this fixture's teardown ahead of the server gate's
+    // scan, so the settle below happens before either verdict is read. Playwright
+    // has no other way to order two auto fixtures.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    async ({ page, serverGuard }, use) => {
       const problems: string[] = [];
+      const declared: DeclaredFailure[] = [];
+      // The requests Playwright has told us about and not yet reported settled, so
+      // the settle below knows what it is waiting for. `requestfailed` covers an
+      // aborted request as well as a network error, so nothing lingers in the set.
+      const inflight = new Set<Request>();
+      page.on("request", (request) => inflight.add(request));
+      const settled = (request: Request): void => {
+        inflight.delete(request);
+      };
+      page.on("requestfinished", settled);
+      page.on("requestfailed", settled);
       page.on("console", (msg) => {
         const fault = browserConsoleFault(msg.type(), msg.text());
-        if (fault !== null) problems.push(fault);
+        if (fault === null) return;
+        const matched = matchExpectedFailure(declared, msg.text(), msg.location().url);
+        if (matched !== undefined) {
+          matched.used += 1;
+          return;
+        }
+        problems.push(fault);
       });
       page.on("pageerror", (error) => {
         const text = error.message;
         if (BROWSER_ALLOW.some((allow) => allow.test(text))) return;
         problems.push(`pageerror: ${text}`);
       });
-      await use();
+      await use({
+        expectRequestFailure: (expected) => {
+          declared.push({ ...expected, used: 0 });
+        },
+      });
+      await settleBrowserEvents(page, inflight);
       expect(
         problems,
         `browser console/page faults during the test:\n${problems.join("\n")}`,
+      ).toEqual([]);
+      // A declared failure that never happened is a dead exemption, and a dead
+      // exemption is how a gate goes quiet. Reported as a failure of the test that
+      // declared it, so the hatch has to be deleted when it stops being needed.
+      const unmet = declared.filter((entry) => entry.used === 0).map(describeExpectation);
+      expect(
+        unmet,
+        "expected request failures that this test declared but never provoked",
       ).toEqual([]);
     },
     { auto: true },

@@ -4,7 +4,8 @@ import { join } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { browserConsoleFault, scanAppended } from "./gates.js";
+import { browserConsoleFault, matchExpectedFailure, scanAppended } from "./gates.js";
+import type { ExpectedRequestFailure } from "./gates.js";
 
 /**
  * Gate tests for `gates.ts`, in two halves.
@@ -14,9 +15,11 @@ import { browserConsoleFault, scanAppended } from "./gates.js";
  * #143) and the SGR stripping every pattern now relies on (#143). Its cases feed
  * the gate a log file and read its verdict.
  *
- * The second half, at the bottom of the file, covers the **browser** gate's
- * `console.warn` coverage (issue #147). Its cases feed `browserConsoleFault` a
- * live console message and read its verdict.
+ * The second half, at the bottom of the file, covers the **browser** gate: its
+ * `console.warn` coverage (issue #147) and the per-test declaration that lets one
+ * spec provoke a failed request on purpose (issue #166). Those cases feed
+ * `browserConsoleFault` and `matchExpectedFailure` a live console message and read
+ * their verdict.
  *
  * The two halves share one discipline, which is the point of both: a case proves
  * what the *gate* does, never what a regex or a `Set` contains.
@@ -484,4 +487,73 @@ describe("info, log and debug are not gated (issue #147)", () => {
       expect(browserConsoleFault(type, text)).toBeNull();
     });
   }
+});
+
+/**
+ * The per-test declaration of a deliberately-provoked failed request (issue #166).
+ *
+ * The browser reports any non-2xx resource load as a `console.error`, so before
+ * this existed no gated spec could exercise a rejected post: #122's 422 branch in
+ * `step-flow.tsx` was covered by no layer at all. The hatch has to be narrow enough
+ * that it cannot become a mute, and these cases pin each edge of that narrowness:
+ * the message shape, the exact status, the request URL, and the anchor.
+ *
+ * The message text and the URL are separate arguments because that is how Chromium
+ * reports it: measured on this suite, a refused `fetch` arrives as `console.error`
+ * with the text below and the request URL in `location().url`, never in the text.
+ *
+ * What these cases cannot show is the other half of "not a blanket mute" - that a
+ * declaration nothing matched fails the test, and that an unrelated console error
+ * in the same test still fails it. Neither is expressible without running a nested
+ * Playwright runner; both were measured with throwaway probe specs against the real
+ * suite (issue #166) and are pinned in the fixture's own assertions.
+ */
+const ANSWERS_422 =
+  "Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)";
+const ANSWERS_URL = "http://localhost:3100/s/ses_abc/answers";
+const EXPECT_422: ExpectedRequestFailure = { status: 422, url: /\/answers$/ };
+const DECLARED: readonly ExpectedRequestFailure[] = [EXPECT_422];
+
+describe("a declared request failure exempts only itself (issue #166)", () => {
+  it("exempts the declared status on the declared request", () => {
+    expect(matchExpectedFailure(DECLARED, ANSWERS_422, ANSWERS_URL)).toBe(EXPECT_422);
+  });
+
+  it("does not exempt a different status on the same request", () => {
+    const text =
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)";
+    expect(matchExpectedFailure(DECLARED, text, ANSWERS_URL)).toBeUndefined();
+  });
+
+  it("does not exempt the declared status on a different request", () => {
+    expect(
+      matchExpectedFailure(DECLARED, ANSWERS_422, "http://localhost:3100/s/ses_abc/submit"),
+    ).toBeUndefined();
+  });
+
+  it("does not exempt an ordinary console error, whatever the URL", () => {
+    expect(matchExpectedFailure(DECLARED, "Hydration failed", ANSWERS_URL)).toBeUndefined();
+  });
+
+  it("exempts nothing when the test declared nothing", () => {
+    expect(matchExpectedFailure([], ANSWERS_422, ANSWERS_URL)).toBeUndefined();
+  });
+
+  it("is anchored, so a fault that quotes the shape is still a fault", () => {
+    // The same "no text smuggled in front of the marker" property #131 established
+    // for the server gate's `[browser]` anchor: a page error whose message happens
+    // to contain the browser's own sentence is not a resource-load failure.
+    expect(matchExpectedFailure(DECLARED, `Caught: ${ANSWERS_422}`, ANSWERS_URL)).toBeUndefined();
+  });
+
+  it("does not confuse a status that merely starts with the declared digits", () => {
+    const text = "Failed to load resource: the server responded with a status of 4220 (Nonsense)";
+    expect(matchExpectedFailure(DECLARED, text, ANSWERS_URL)).toBeUndefined();
+  });
+
+  it("returns the matching declaration itself, so its use can be recorded", () => {
+    const wrongStatus: ExpectedRequestFailure = { status: 500, url: /\/answers$/ };
+    const two: readonly ExpectedRequestFailure[] = [wrongStatus, EXPECT_422];
+    expect(matchExpectedFailure(two, ANSWERS_422, ANSWERS_URL)).toBe(EXPECT_422);
+  });
 });
