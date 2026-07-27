@@ -86,7 +86,11 @@ const PG_ERROR = /(ERROR|FATAL|PANIC|WARNING):/;
  * deprecations, and forwarded BROWSER console warnings), and browser-console
  * messages are owned by the browser gate above, so `[browser] ...` lines are
  * excluded here rather than matched as server faults. This is the documented,
- * justified scope of the portal log gate.
+ * justified scope of the portal log gate. The exclusion is anchored to the start
+ * of the (trimmed) line, because that is where the Next dev server writes the
+ * prefix: an unanchored substring test exempted any server-side fault line that
+ * merely quoted the literal text `[browser]` somewhere in its message, which is a
+ * gate going silent rather than a gate crying wolf (issue #131).
  *
  * Two spellings this used to miss (issue #120), both covered by `gates.test.ts`:
  *
@@ -107,10 +111,33 @@ const PG_ERROR = /(ERROR|FATAL|PANIC|WARNING):/;
 const PORTAL_ERROR =
   /(⨯|unhandledRejection|UnhandledPromiseRejection|Unhandled Rejection:|Uncaught Exception:|\b\w*Error:| 5\d\d )/;
 
+/**
+ * The prefix the Next dev server writes at the START of a line it forwards from
+ * the browser console, anchored so that a server-side fault line merely quoting
+ * the literal text `[browser]` in its message is no longer exempted (issue #131).
+ *
+ * The leading-escape alternation is not defensive padding: the dev server colours
+ * the marker (`cyan("[browser]")`) and the captured log keeps those bytes, so a
+ * real line in `.playwright/server-logs/portal.log` reads
+ * `\u001B[36m[browser]\u001B[39m ...`, never a bare `[browser] ...`. Measured over
+ * a 3077-line log from a full `pnpm verify:browser` run: 173 forwarded lines, all
+ * 173 colour-wrapped, none bare. A plain `startsWith("[browser]")` anchor would
+ * therefore have excluded none of them and handed every forwarded browser fault
+ * to the server gate as well, which is the false positive this exclusion exists
+ * to prevent. Escapes are only tolerated *before* the marker, so they cannot be
+ * used to smuggle other text in front of it.
+ */
+// The ESC byte is the whole point of this pattern: it matches the SGR colour
+// sequences the dev server writes around the marker. `no-control-regex` exists to
+// catch a control character that landed in a pattern by accident, which is the
+// opposite of the deliberate case here.
+// eslint-disable-next-line no-control-regex
+const BROWSER_FORWARD_PREFIX = /^(?:\u001B\[\d+(?:;\d+)*m)*\[browser\]/;
+
 function isErrorLine(source: LogSource, line: string): boolean {
   if (source === "api") return apiLineIsError(line);
   if (source === "postgres") return PG_ERROR.test(line);
-  if (line.includes("[browser]")) return false;
+  if (BROWSER_FORWARD_PREFIX.test(line)) return false;
   return PORTAL_ERROR.test(line);
 }
 
