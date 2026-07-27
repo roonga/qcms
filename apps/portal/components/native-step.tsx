@@ -42,7 +42,13 @@ export function NativeStep({
   };
 
   const errors: A2UIErrors = context?.errors ?? {};
-  const values: A2UIValues = context?.values ?? {};
+  // The answers the API holds for this step (issue #146) under the just-submitted
+  // ones from the no-JS re-render cookie. The cookie has to win: after a rejected
+  // POST it carries the value the respondent typed, which the API refused and so
+  // does not hold, and re-showing the stored answer instead would hide the input
+  // their error message is about. With no cookie (a plain resume, or the SSR first
+  // paint before hydration) the stored answers are what the step displays.
+  const values: A2UIValues = { ...initial.values, ...context?.values };
   const errorEntries = Object.entries(errors).filter(([, message]) => message !== undefined);
 
   return (

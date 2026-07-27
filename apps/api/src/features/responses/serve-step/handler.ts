@@ -2,9 +2,9 @@
  * Serving-loop handlers (task 019) - the respondent's read/answer loop.
  *
  * `GET /sessions/{id}/step` serves the current step's **stored** compiled A2UI
- * document plus a narrow flow projection; `POST /sessions/{id}/answers`
- * validates one answer through the kernel, appends it to the ledger, and
- * returns the re-evaluated projection.
+ * document, the answers already held for that step, and a narrow flow projection;
+ * `POST /sessions/{id}/answers` validates one answer through the kernel, appends
+ * it to the ledger, and returns the re-evaluated projection.
  *
  * These are **transaction scripts** (R5): load state (`@qcms/db`) → call the
  * kernel (`evaluateRules` 006, `validateAnswer` 009) → persist. The GET **never
@@ -15,8 +15,10 @@
  * Two security properties hold by construction:
  *
  * - **No leak of the hidden flow.** The client projection carries only the
- *   *visible* questions of the current step and the *visible* missing-required
- *   set - never the full rule graph or the inventory of hidden questions (SEC).
+ *   *visible* questions of the current step, the *visible* missing-required set,
+ *   and the answers held for those same visible questions - never the full rule
+ *   graph, never the inventory of hidden questions, and never a hidden question's
+ *   stored answer (SEC).
  * - **Answer values are never logged** (SEC-8): errors and the append path name
  *   `questionId`s and counts, never content.
  *
@@ -160,6 +162,62 @@ function evaluateOrThrow(snapshot: LoadedSnapshot, answers: AnswerMap): FlowStat
   return result.value;
 }
 
+/** One rendered step's client-safe contents: which questions, and what is held. */
+interface RenderedQuestions {
+  readonly visibleQuestions: string[];
+  readonly values: Record<string, unknown>;
+}
+
+/**
+ * The visible questions of the rendered step, paired with the answers the server
+ * already holds for exactly those questions (issue #146).
+ *
+ * Walking the visible set (never the ledger) is what keeps the two aligned: a
+ * question the flow hides contributes neither an id nor an answer, so a stored
+ * answer can never disclose a hidden question (SEC). An answer is absent when
+ * `latestAnswers` reports none, which includes a question whose newest ledger row
+ * is an ADR-33 retraction - so a cleared answer resumes as unanswered rather than
+ * resurfacing as a stale value.
+ */
+function renderedQuestions(
+  flow: FlowState,
+  answers: AnswerMap,
+  renderStep: StepId,
+): RenderedQuestions {
+  const visibleQuestions: string[] = [];
+  const values: Record<string, unknown> = {};
+  for (const entry of flow.visible) {
+    if (entry.stepId !== renderStep) continue;
+    visibleQuestions.push(entry.questionId);
+    const held = answers.get(entry.questionId);
+    if (held !== undefined) values[entry.questionId] = held;
+  }
+  return { visibleQuestions, values };
+}
+
+/**
+ * Which visible step this response draws, and its 0-based index: the explicit
+ * ADR-28 cursor when one is given (clamped to the visible range), otherwise the
+ * flow's own first-incomplete step. `null` means nothing is drawn.
+ */
+function renderTarget(
+  flow: FlowState,
+  requestedIndex?: number,
+): { readonly stepId: StepId | null; readonly stepIndex: number } {
+  const visibleSteps = flow.visibleSteps;
+  if (requestedIndex === undefined) {
+    return {
+      stepId: flow.currentStep,
+      stepIndex:
+        flow.currentStep !== null ? visibleSteps.indexOf(flow.currentStep) : visibleSteps.length,
+    };
+  }
+  // A degenerate flow with no visible steps: nothing to render.
+  if (visibleSteps.length === 0) return { stepId: null, stepIndex: 0 };
+  const clamped = Math.min(requestedIndex, visibleSteps.length - 1);
+  return { stepId: visibleSteps[clamped] ?? null, stepIndex: clamped };
+}
+
 /**
  * Project the kernel's `FlowState` to the client-safe response (SEC): the
  * RENDERED step's stored compiled document, the visible questions of that step,
@@ -178,30 +236,24 @@ function evaluateOrThrow(snapshot: LoadedSnapshot, answers: AnswerMap): FlowStat
  * `missingRequired`, and `readyToSubmit` are always the authoritative,
  * cursor-independent flow projection - the portal reads them to gate
  * Continue/Submit and never re-derives them (R2).
+ *
+ * `values` carries the answers already held for the rendered step's visible
+ * questions (issue #146), so a resumed session can DISPLAY what the server holds
+ * instead of painting empty controls over it. They travel beside the compiled
+ * document, never inside it (ADR-18), and they are display data only - no
+ * decision moves client-side with them (R2). Answers to questions the flow hides
+ * are excluded, so the hidden-flow property is unchanged (SEC).
  */
-function project(snapshot: LoadedSnapshot, flow: FlowState, requestedIndex?: number): StepResponse {
-  const visibleSteps = flow.visibleSteps;
-
-  let renderStep: StepId | null;
-  let stepIndex: number;
-  if (requestedIndex !== undefined) {
-    if (visibleSteps.length === 0) {
-      // A degenerate flow with no visible steps: nothing to render.
-      renderStep = null;
-      stepIndex = 0;
-    } else {
-      const clamped = Math.min(requestedIndex, visibleSteps.length - 1);
-      renderStep = visibleSteps[clamped] ?? null;
-      stepIndex = clamped;
-    }
-  } else {
-    renderStep = flow.currentStep;
-    stepIndex =
-      flow.currentStep !== null ? visibleSteps.indexOf(flow.currentStep) : visibleSteps.length;
-  }
+function project(
+  snapshot: LoadedSnapshot,
+  flow: FlowState,
+  answers: AnswerMap,
+  requestedIndex?: number,
+): StepResponse {
+  const { stepId: renderStep, stepIndex } = renderTarget(flow, requestedIndex);
 
   let step: StepResponse["step"] = null;
-  let visibleQuestions: string[] = [];
+  let rendered: RenderedQuestions = { visibleQuestions: [], values: {} };
   if (renderStep !== null) {
     const document = snapshot.compiled.documents.find((doc) => doc.stepId === renderStep);
     if (document === undefined) {
@@ -209,21 +261,20 @@ function project(snapshot: LoadedSnapshot, flow: FlowState, requestedIndex?: num
       throw new Error(`serve-step: no compiled document for visible step "${renderStep}"`);
     }
     step = document;
-    visibleQuestions = flow.visible
-      .filter((entry) => entry.stepId === renderStep)
-      .map((entry) => entry.questionId);
+    rendered = renderedQuestions(flow, answers, renderStep);
   }
 
   return {
     step,
+    values: rendered.values,
     a2uiSpecVersion: snapshot.a2uiSpecVersion,
     flowState: {
       currentStep: flow.currentStep,
-      visibleQuestions,
+      visibleQuestions: rendered.visibleQuestions,
       missingRequired: flow.missingRequired,
       readyToSubmit: flow.complete,
     },
-    progress: { stepIndex, totalVisibleSteps: visibleSteps.length },
+    progress: { stepIndex, totalVisibleSteps: flow.visibleSteps.length },
   };
 }
 
@@ -265,7 +316,7 @@ export function makeGetStepHandler(deps: Deps): RouteHandler<typeof getStepRoute
     const answers = await latestAnswers(deps.db, sessionId);
     const flow = evaluateOrThrow(snapshot, answers);
 
-    return c.json(project(snapshot, flow, requestedIndex), 200);
+    return c.json(project(snapshot, flow, answers, requestedIndex), 200);
   };
 }
 
@@ -336,7 +387,7 @@ export function makeSubmitAnswerHandler(
           await markInProgress(tx, sessionId);
         }
         const cleared = await latestAnswers(tx, sessionId);
-        return project(snapshot, evaluateOrThrow(snapshot, cleared), requestedIndex);
+        return project(snapshot, evaluateOrThrow(snapshot, cleared), cleared, requestedIndex);
       }
 
       // Validate the value against the pinned question version (009). On failure
@@ -355,7 +406,7 @@ export function makeSubmitAnswerHandler(
       await markInProgress(tx, sessionId);
 
       const after = await latestAnswers(tx, sessionId);
-      return project(snapshot, evaluateOrThrow(snapshot, after), requestedIndex);
+      return project(snapshot, evaluateOrThrow(snapshot, after), after, requestedIndex);
     });
 
     return c.json(projection, 200);

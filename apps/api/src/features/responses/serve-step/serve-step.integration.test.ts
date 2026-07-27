@@ -171,6 +171,7 @@ interface ErrBody {
 }
 interface StepBody {
   step: CompiledDoc | null;
+  values: Record<string, unknown>;
   a2uiSpecVersion: string;
   flowState: {
     currentStep: string | null;
@@ -412,6 +413,71 @@ describe("answer retraction (ADR-33)", () => {
       body: JSON.stringify({ questionId: "q_at_fault_accident", value: null }),
     });
     expect(unauthed.status).toBe(401);
+  });
+});
+
+// --- held answers travel with the step (issue #146) -------------------------
+
+// Two sessions for the whole block, on purpose: the fixed clock means every
+// session create in this file counts against one rate-limit window, and the file
+// already sits close to the default 20/hour.
+describe("the served step carries the answers the server holds (issue #146)", () => {
+  it("a resumed read, and every answer write, return the rendered step's stored answers", async () => {
+    const { sessionId, sessionToken } = await startSession("auto");
+
+    // Nothing answered yet: an empty map, never a missing field (the client seeds
+    // its display state from it unconditionally).
+    const fresh = (await (await getStep(sessionId, sessionToken)).json()) as StepBody;
+    expect(fresh.values).toEqual({});
+
+    // Each write returns the same map, so a branch reveal arrives with whatever
+    // the newly-visible question already holds.
+    const first = (await (
+      await postAnswer(sessionId, sessionToken, "q_at_fault_accident", true)
+    ).json()) as StepBody;
+    expect(first.values).toEqual({ q_at_fault_accident: true });
+    // The second answer completes the single-step flow, so this response draws no
+    // step - and a response with no step carries no values either.
+    const second = (await (
+      await postAnswer(sessionId, sessionToken, "q_accident_count", 4)
+    ).json()) as StepBody;
+    expect(second.step).toBeNull();
+    expect(second.values).toEqual({});
+
+    // A cursor read - what a resumed page load and a Back/Continue perform - keeps
+    // drawing the step (ADR-28's no-collapse path) and carries both answers in
+    // their canonical encoding, so the step renders them.
+    const resumed = (await (await getStepAt(sessionId, sessionToken, 0)).json()) as StepBody;
+    expect(resumed.values).toEqual({ q_at_fault_accident: true, q_accident_count: 4 });
+    // The compiled document is untouched by this: still the stored bytes (ADR-18).
+    expect(resumed.step).toEqual(GOLDEN.documents[0]);
+  });
+
+  it("a retraction resumes as unanswered, and an answer the flow now hides is never disclosed", async () => {
+    const { sessionId, sessionToken } = await startSession("auto");
+    await postAnswer(sessionId, sessionToken, "q_at_fault_accident", true);
+    await postAnswer(sessionId, sessionToken, "q_accident_count", 4);
+    await postAnswer(sessionId, sessionToken, "q_accident_count", null);
+
+    // `latestAnswers` drops the retracted row AFTER its DISTINCT ON pick, so the
+    // read model already resolves the tombstone to unanswered; this pins that the
+    // serving projection honours it rather than reviving the pre-retraction value.
+    const retracted = (await (await getStep(sessionId, sessionToken)).json()) as StepBody;
+    expect(retracted.values).toEqual({ q_at_fault_accident: true });
+    expect("q_accident_count" in retracted.values).toBe(false);
+    expect(retracted.flowState.missingRequired).toEqual(["q_accident_count"]);
+
+    // Answer it again, then flip the trigger: q_accident_count is hidden while the
+    // ledger keeps its answer (append-only, R3). The values map follows
+    // VISIBILITY, not the ledger, so a hidden question's answer never crosses the
+    // client boundary and the map cannot be used to enumerate the hidden flow.
+    await postAnswer(sessionId, sessionToken, "q_accident_count", 9);
+    await postAnswer(sessionId, sessionToken, "q_at_fault_accident", false);
+    const hidden = (await (await getStepAt(sessionId, sessionToken, 0)).json()) as StepBody;
+    expect(hidden.flowState.visibleQuestions).toEqual(["q_at_fault_accident"]);
+    expect(hidden.values).toEqual({ q_at_fault_accident: false });
+    const held = await latestAnswers(testDb.db, SessionId.parse(sessionId));
+    expect(Object.fromEntries(held)).toEqual({ q_at_fault_accident: false, q_accident_count: 9 });
   });
 });
 

@@ -7,11 +7,13 @@
  *
  * The response is a deliberately **narrow projection** of the kernel's
  * `FlowState` (ADR-18, SEC): clients receive the current step's stored compiled
- * A2UI document plus which of that step's questions are currently visible and
- * which required ones are still missing - never the full rule graph, never the
- * inventory of hidden questions. `step` is served verbatim from the pinned
+ * A2UI document, the answers already held for that step's visible questions, and
+ * which of those questions are currently visible / still missing - never the full
+ * rule graph, never the inventory of hidden questions, never an answer to a
+ * question the flow hides. `step` is served verbatim from the pinned
  * `form_versions.compiled` JSONB, so it is modelled as an opaque document the
- * API does not re-shape (`root` is the A2UI node tree, passed through untouched).
+ * API does not re-shape (`root` is the A2UI node tree, passed through untouched),
+ * and the held answers travel beside it rather than being written into it.
  */
 
 import { z } from "@hono/zod-openapi";
@@ -96,6 +98,34 @@ export const StepProgress = z
   .openapi("StepProgress");
 
 /**
+ * The answers the server already holds for the questions on the RENDERED step
+ * (issue #146), keyed by questionId, in the canonical `AnswerValue` encoding the
+ * ledger stores. A question with no current answer is simply absent, and a
+ * question whose newest ledger row is an ADR-33 retraction is absent too
+ * (`latestAnswers` resolves a tombstone to unanswered), so a retracted answer
+ * comes back as unanswered rather than as a stale value.
+ *
+ * This is the separate path by which stored answers reach a client without
+ * touching the compiled document (ADR-18): the served A2UI stays the immutable,
+ * content-only bytes from the pinned snapshot, and the values ride beside it. It
+ * is pure display data and never a decision: visibility stays in
+ * `flowState.visibleQuestions` and readiness in `missingRequired` /
+ * `readyToSubmit`, which the client reads and never re-derives (R2).
+ *
+ * Scoped to the rendered step's **visible** questions, which keeps the
+ * hidden-flow property intact (SEC): an answer to a question the current flow
+ * hides never crosses this boundary, so the client cannot learn that such a
+ * question exists from the values map either. The values are the respondent's own
+ * answers over their own session-authed request, and they are never logged
+ * (SEC-8).
+ */
+export const HeldValues = z.record(z.string(), z.unknown()).openapi({
+  description:
+    "The answers the server currently holds for this step's visible questions, keyed by questionId, in canonical AnswerValue encoding. Absent keys are unanswered (including retracted answers). Display data only; the flow projection stays the sole authority on visibility and readiness.",
+  example: { q_at_fault_accident: true, q_accident_count: 2 },
+});
+
+/**
  * The serving-loop response, returned by both the get-step read and the
  * submit-answer write (the portal re-renders branching from the write's
  * response, 029). When the flow is complete `step` is `null`,
@@ -104,6 +134,7 @@ export const StepProgress = z
 export const StepResponse = z
   .object({
     step: StepDocument.nullable(),
+    values: HeldValues,
     a2uiSpecVersion: z.string().openapi({
       description:
         "The pinned snapshot's A2UI spec version, so the renderer selects the right handling (ADR-18).",

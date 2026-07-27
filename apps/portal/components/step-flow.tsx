@@ -36,6 +36,32 @@ function branchAnnouncement(added: readonly string[], removed: readonly string[]
   return "";
 }
 
+/**
+ * The "already recorded server-side" fingerprint for a set of held answers, in the
+ * same encoding `lastPostedRef` uses for values this client posted (issue #146).
+ *
+ * Seeding it alongside the displayed values is what makes a resumed control inert
+ * until the respondent actually changes something: without it, focus entering and
+ * leaving an untouched control looked like a fresh commit of an emptied field and
+ * posted a `null` RETRACTION of an answer the server legitimately held - the answer
+ * was destroyed by a gesture that changed nothing. `handleBlur` guards only the
+ * `completion` moment, so that reached every OTHER control regardless of its commit
+ * moment: `blur` (shortText, longText, number), `groupExit` (multiChoice) and
+ * `change` (boolean, singleChoice) alike.
+ *
+ * It also restores the other direction: a resumed `completion` control (the date)
+ * whose value the respondent clears can only be recognised as retracting a
+ * *previously answered* question by comparing against this record, so without the
+ * seed that clear posted nothing at all and the server kept the cleared date.
+ */
+function recordedValues(held: StepResponse["values"]): Record<string, string> {
+  const recorded: Record<string, string> = {};
+  for (const [questionId, value] of Object.entries(held)) {
+    recorded[questionId] = JSON.stringify(value);
+  }
+  return recorded;
+}
+
 const flowViewOf = (snapshot: StepResponse): FlowView => ({
   // The RENDERED step document's id (the explicit cursor's step, ADR-28), not
   // flowState.currentStep (the derived first-incomplete step, which may differ).
@@ -130,7 +156,15 @@ export function StepFlow({
   readonly initial: StepResponse;
 }) {
   const [snapshot, setSnapshot] = useState<StepResponse>(initial);
-  const [values, setValues] = useState<A2UIValues>({});
+  // Seeded from the answers the server already holds for this step (issue #146).
+  // A resumed session used to mount with an empty map, so every previously
+  // answered question on the resumed step rendered EMPTY over a server that still
+  // held the answer. The values arrive beside the compiled document, never inside
+  // it (ADR-18), and they are only ever handed to the renderer as display state:
+  // visibility still comes from `flowState.visibleQuestions` and the
+  // Continue/Submit gate from `missingRequired` / `readyToSubmit`, both computed
+  // by the API and never re-derived here (R2).
+  const [values, setValues] = useState<A2UIValues>(initial.values);
   const [errors, setErrors] = useState<A2UIErrors>({});
   const [showMissing, setShowMissing] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -150,12 +184,15 @@ export function StepFlow({
   // rejects it 409 not-visible), and a Continue must evaluate its gate only after
   // any in-flight answer (e.g. a blur post triggered by the click) has landed.
   const queueRef = useRef<Promise<void>>(Promise.resolve());
-  // The last value successfully posted per question (serialized), so a blur does
-  // not re-post an answer a change already posted. Without this, selecting a
-  // discrete control (which posts on change) and then clicking Continue/Submit
-  // blurs the control and re-posts the identical value: a redundant append that
-  // also flips `busy` at exactly the wrong moment and races the advance guard.
-  const lastPostedRef = useRef<Record<string, string>>({});
+  // The value currently recorded server-side per question, so a blur does not
+  // re-post an answer a change already posted. Without this, selecting a discrete
+  // control (which posts on change) and then clicking Continue/Submit blurs the
+  // control and re-posts the identical value: a redundant append that also flips
+  // `busy` at exactly the wrong moment and races the advance guard. Seeded from the
+  // answers the server holds for this step (issue #146) and then updated by each
+  // successful post, so "what the server has" is known from the first render rather
+  // than only from this client's own writes - see `recordedValues`.
+  const lastPostedRef = useRef<Record<string, string>>(recordedValues(initial.values));
   // Each question's ADR-31 commit moment, read out of the compiled step document
   // (issue #31). Derived from the FULL document, not the visibility-pruned copy,
   // so a question the projection is about to reveal is already classified.
@@ -334,6 +371,21 @@ export function StepFlow({
    * Fetch the requested step by cursor index (or the first incomplete step when
    * `target === "current"`) and render it. The BFF attaches the bearer and
    * forwards the cursor; the portal performs no rule evaluation (R2).
+   *
+   * The response's held answers are adopted into the displayed values (issue
+   * #146), so navigating to a step this client never filled in - Back to an
+   * earlier step of a resumed session, Continue into a step answered before the
+   * page was reloaded - shows what the server holds instead of empty controls.
+   * Held answers are merged over, not swapped in: a key the server has wins (it is
+   * the ledger), and a key it does not have leaves the local entry alone, so a
+   * value this client is still carrying is never dropped.
+   *
+   * Deliberately NOT done on each answer post's response, even though it returns
+   * the same projection: a post lands while the respondent may be typing in
+   * another already-answered control, and adopting there would overwrite the
+   * characters they just typed with the value the server still holds. A navigation
+   * has no such in-flight edit (it is queued behind any pending post, and focus
+   * moves to the new step's heading).
    */
   const doNavigate = useCallback(
     async (target: number | "current"): Promise<void> => {
@@ -347,6 +399,11 @@ export function StepFlow({
           // no per-question focus recovery is requested here.
           focusedAtUpdateRef.current = undefined;
           snapshotRef.current = next;
+          setValues((prev) => ({ ...prev, ...next.values }));
+          lastPostedRef.current = {
+            ...lastPostedRef.current,
+            ...recordedValues(next.values),
+          };
           setSnapshot(next);
         } else if (res.status === 401) {
           window.location.assign(`/s/${encodeURIComponent(sessionId)}`);
