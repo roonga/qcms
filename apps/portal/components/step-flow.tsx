@@ -42,12 +42,17 @@ function branchAnnouncement(added: readonly string[], removed: readonly string[]
  *
  * Seeding it alongside the displayed values is what makes a resumed control inert
  * until the respondent actually changes something: without it, focus entering and
- * leaving an untouched control looked like a fresh commit, and a blur-committing
- * control (shortText, longText, number, multiChoice) posted a `null` RETRACTION of
- * an answer the server legitimately held - the answer was destroyed by a gesture
- * that changed nothing. It also restores the other direction: a resumed `completion`
- * control (the date) whose value the respondent clears can only be recognised as
- * retracting a *previously answered* question by comparing against this record.
+ * leaving an untouched control looked like a fresh commit of an emptied field and
+ * posted a `null` RETRACTION of an answer the server legitimately held - the answer
+ * was destroyed by a gesture that changed nothing. `handleBlur` guards only the
+ * `completion` moment, so that reached every OTHER control regardless of its commit
+ * moment: `blur` (shortText, longText, number), `groupExit` (multiChoice) and
+ * `change` (boolean, singleChoice) alike.
+ *
+ * It also restores the other direction: a resumed `completion` control (the date)
+ * whose value the respondent clears can only be recognised as retracting a
+ * *previously answered* question by comparing against this record, so without the
+ * seed that clear posted nothing at all and the server kept the cleared date.
  */
 function recordedValues(held: StepResponse["values"]): Record<string, string> {
   const recorded: Record<string, string> = {};

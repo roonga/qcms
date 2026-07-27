@@ -8,24 +8,29 @@
  * Issue #146 is what the rest of this file exists for. The original spec asserted
  * only that the question TEXT came back, so it passed while the resumed step
  * rendered every previously answered control EMPTY over a server that still held
- * the answers. That was not a cosmetic gap: the client's "what has been posted"
- * record was empty too, so focus merely entering and leaving an untouched control
- * looked like a fresh commit of an emptied field and posted the ADR-33 `null`
- * retraction, destroying the stored answer. Both halves are pinned below: the value
- * is DISPLAYED, and nothing is posted by loading, rendering, or touching a resumed
- * control.
+ * the answers. That was not a cosmetic gap: the client's record of what the server
+ * already holds was empty too, so focus merely entering and leaving an untouched
+ * control looked like a fresh commit of an emptied field and posted the ADR-33
+ * `null` retraction, destroying the stored answer. `handleBlur` guards only the
+ * `completion` moment, so that reached every other control: `blur` (shortText,
+ * longText, number), `groupExit` (multiChoice) AND `change` (boolean,
+ * singleChoice). Three halves are pinned below, because each protects a different
+ * direction of the same defect: the stored value is DISPLAYED, an untouched
+ * resumed control posts NOTHING, and a resumed control the respondent genuinely
+ * clears still posts its retraction.
  *
- * Which control types a *resumed* step can show is decided by the resume rule, not
- * by preference: `/s/:id` serves the first INCOMPLETE step, so the resumed step
- * always has one unanswered required question, and only the other questions on that
- * step can carry a stored answer. On the kitchen-sink fixture that means step 1
- * displays whichever of shortText / date is not the gap, and the singleChoice step
- * (one question) can never be the resumed step at all. The remaining types are
- * therefore asserted on the FIRST NAVIGATION out of the resumed step, which is the
- * same defect one step over (a client that mounted holding nothing) and an equally
- * real respondent path: Continue from a resumed session into a step answered before
- * the reload. Per-adapter display of all eight renderings in the #98 audit table,
- * including the Select the portal has no fixture for, is `@qcms/ui`'s
+ * Two limits on where a *resumed* step can be asserted, both structural: `/s/:id`
+ * serves the first INCOMPLETE step, so the resumed step's gap question is by
+ * definition unanswered and cannot be asserted there, and the kitchen-sink
+ * singleChoice step holds exactly one question, so it can never be the resumed
+ * step at all. Everything else is a scripting choice: the types covered below on
+ * the first NAVIGATION out of the resumed step are reachable on a true resume too
+ * (leave a different required question as the gap). They are asserted on the
+ * navigation because a client that mounted holding nothing is the same defect one
+ * step over, and Continue from a resumed session into a step answered before the
+ * reload is an equally real respondent path. The mount seed is type-agnostic, and
+ * per-adapter display of all eight renderings in the #98 audit table - including
+ * the Select the portal has no fixture for - is pinned in `@qcms/ui`'s
  * `seeded-values.test.tsx`; the served payload is `serve-step.integration.test.ts`.
  */
 
@@ -190,4 +195,61 @@ test("a resumed session displays every other control type the server holds, and 
   // Nothing in the resume, the render, or the two navigations posted an answer
   // except the one name re-entry this test performed.
   expect(log).toEqual([{ questionId: "q_full_name", value: "Ada Lovelace", status: 200 }]);
+});
+
+test("clearing an answer on a resumed step still retracts it", async ({ page }) => {
+  test.setTimeout(120_000);
+  const { kitchenSinkSlug, databaseUrl } = readFixtures();
+
+  await startKitchenSink(page, kitchenSinkSlug);
+  const sessionId = sessionIdOf(page.url());
+  await enterDate(page, "05171990");
+  // q_full_name stays unanswered, so step 1 remains the first incomplete step and
+  // the resume lands back on it with the date already answered.
+
+  const log = watchAnswerPosts(page);
+  await resume(page);
+  await expect(dobMonth(page)).toHaveText(/^0?5$/);
+
+  // The OTHER direction of the same defect, and the half that has no natural
+  // symptom: a resumed control the respondent genuinely clears must still retract.
+  // The date's commit moment is `completion` (ADR-31), and a `completion` clear is
+  // recognised as a retraction only by comparing against what the server is known
+  // to hold - so with that record empty on a resumed mount, this gesture posted
+  // NOTHING and the server silently kept a date the respondent had cleared. That is
+  // the displayed-versus-server divergence of issue #144 and #95, arrived at from
+  // the resume path. Clearing a value the SAME mount typed cannot catch it (the
+  // client recorded that post itself), which is why this test resumes first.
+  const month = dobMonth(page);
+  await month.click();
+  // react-aria deletes a segment digit-wise, so one Backspace empties the
+  // two-digit month and leaves the date incomplete (see `clearDate`).
+  await page.keyboard.press("Backspace");
+  await expect(month).toHaveText(/mm/i);
+  await blurActive(page);
+
+  // Whole-log equality, not a slice: a slice would hide an extra post, and the
+  // pre-fix behaviour is exactly the empty log. Polled because the assertion is
+  // that a post ARRIVES, and its absence is the regression being guarded.
+  await expect
+    .poll(() => log, {
+      message: "clearing a resumed date must post exactly one ADR-33 null retraction",
+    })
+    .toEqual([{ questionId: "q_dob", value: null, status: 200 }]);
+  expectNoRejectedPosts(log);
+
+  // And the server agrees, read independently of the API's response echo: the
+  // ledger keeps both rows with the tombstone last (append-only, R3), and the read
+  // model resolves the question to unanswered.
+  const db = await openDb(databaseUrl);
+  try {
+    const rows = await db.answerRows(sessionId);
+    expect(rows.map((row) => [row.questionId, row.value, row.retracted])).toEqual([
+      ["q_dob", "1990-05-17", false],
+      ["q_dob", null, true],
+    ]);
+    expect(Object.fromEntries(await db.latestAnswers(sessionId))).toEqual({});
+  } finally {
+    await db.close();
+  }
 });
