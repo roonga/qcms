@@ -2,6 +2,10 @@ import { authUser, countAdminUsers } from "@qcms/db";
 import { startTestDb, type TestDb } from "@qcms/db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { getAuth } from "./auth.ts";
+import { createInitialAdmin, describeRefusal } from "./bootstrap.ts";
+import { closeAdminDb } from "./db.ts";
+
 /**
  * First-run bootstrap tests (task 031, exit criterion 3: "empty DB → create admin →
  * sign in").
@@ -12,10 +16,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
  * that proves the hash is one better-auth can verify. A mocked adapter would pass while
  * shipping an account nobody can use. Requires Docker.
  *
- * The environment is set **before** importing the modules under test: `lib/server/auth.ts`
- * builds the better-auth instance (and its database pool) at module load, so a dynamic
- * import after `process.env` is populated is what lets one test file point it at a
- * throwaway container. That is also why the imports below are inside `beforeAll`.
+ * The environment is populated in `beforeAll`, before anything calls `getAuth()`.
+ * That works precisely because the better-auth instance is built lazily on first use
+ * rather than at module load (see `lib/server/auth.ts`), so one test file can point it
+ * at a throwaway container without any import gymnastics.
  */
 
 const BOOT_TIMEOUT = 120_000;
@@ -24,8 +28,6 @@ const PASSWORD = "correct-horse-battery-staple";
 const EMAIL = "first.admin@example.test";
 
 let testDb: TestDb;
-let bootstrap: typeof import("./bootstrap.ts");
-let auth: typeof import("./auth.ts");
 
 beforeAll(async () => {
   testDb = await startTestDb();
@@ -35,11 +37,12 @@ beforeAll(async () => {
   process.env.QCMS_ADMIN_AUTH_SECRET = Buffer.from(
     crypto.getRandomValues(new Uint8Array(32)),
   ).toString("base64url");
-  bootstrap = await import("./bootstrap.ts");
-  auth = await import("./auth.ts");
 }, BOOT_TIMEOUT);
 
 afterAll(async () => {
+  // Close the auth pool BEFORE stopping the container: a live client at teardown
+  // surfaces as an unhandled pg error that reds the run (see `closeAdminDb`).
+  await closeAdminDb();
   await testDb?.teardown();
 }, BOOT_TIMEOUT);
 
@@ -47,14 +50,14 @@ describe("createInitialAdmin against an empty database", () => {
   it("refuses a weak password and an invalid email before touching the database", async () => {
     expect(await countAdminUsers(testDb.db)).toBe(0);
 
-    const short = await bootstrap.createInitialAdmin(testDb.db, {
+    const short = await createInitialAdmin(testDb.db, {
       email: EMAIL,
       password: "too-short",
     });
     expect(short.ok).toBe(false);
     expect(short.ok === false && short.refusal.kind).toBe("weak-password");
 
-    const malformed = await bootstrap.createInitialAdmin(testDb.db, {
+    const malformed = await createInitialAdmin(testDb.db, {
       email: "not-an-email",
       password: PASSWORD,
     });
@@ -66,7 +69,7 @@ describe("createInitialAdmin against an empty database", () => {
   });
 
   it("creates the first admin, leaves no session behind, and that admin can sign in", async () => {
-    const created = await bootstrap.createInitialAdmin(testDb.db, {
+    const created = await createInitialAdmin(testDb.db, {
       email: EMAIL,
       password: PASSWORD,
       name: "First Admin",
@@ -84,11 +87,11 @@ describe("createInitialAdmin against an empty database", () => {
     expect(row?.twoFactorEnabled ?? false).toBe(false);
 
     // A command line has no browser, so the session signUpEmail issues is revoked.
-    const sessions = await auth.auth.api.listSessions({ headers: new Headers() }).catch(() => []);
+    const sessions = await getAuth().api.listSessions({ headers: new Headers() }).catch(() => []);
     expect(Array.isArray(sessions) ? sessions.length : 0).toBe(0);
 
     // "then sign in": the only proof the stored hash is one better-auth verifies.
-    const signIn = await auth.auth.api.signInEmail({
+    const signIn = await getAuth().api.signInEmail({
       body: { email: EMAIL, password: PASSWORD },
       asResponse: true,
     });
@@ -97,7 +100,7 @@ describe("createInitialAdmin against an empty database", () => {
   });
 
   it("refuses once any admin exists, which is what makes the command re-runnable", async () => {
-    const again = await bootstrap.createInitialAdmin(testDb.db, {
+    const again = await createInitialAdmin(testDb.db, {
       email: "second.admin@example.test",
       password: PASSWORD,
     });
@@ -108,7 +111,7 @@ describe("createInitialAdmin against an empty database", () => {
   });
 
   it("explains a refusal without echoing any credential (SEC-8)", () => {
-    const message = bootstrap.describeRefusal({ kind: "weak-password", minLength: 12 });
+    const message = describeRefusal({ kind: "weak-password", minLength: 12 });
     expect(message).toContain("QCMS_ADMIN_PASSWORD");
     expect(message).not.toContain(PASSWORD);
   });

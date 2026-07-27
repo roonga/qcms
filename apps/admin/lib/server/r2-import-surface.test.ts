@@ -31,24 +31,27 @@ const EXTRA_FILES = ["proxy.ts"];
 const API_CLIENT_SUFFIX = "/lib/server/api.ts";
 
 /**
- * Domain tables from `@qcms/db`'s schema. The admin's own auth tables are absent
- * from this list on purpose: better-auth is *supposed* to reach those.
+ * The complete set of value bindings the admin may take from `@qcms/db`.
+ *
+ * An allowlist rather than a domain-table denylist, because a denylist over names like
+ * `forms` and `sessions` cannot tell a Drizzle table from a nav label or a sentence in
+ * a doc comment. This list is what "the admin's database access is for auth" means
+ * concretely: the five better-auth tables, the one bootstrap read helper, and the
+ * schema namespace the Drizzle client is constructed with. A task that needs a domain
+ * table has to edit this list, which is where review can see it.
  */
-const DOMAIN_TABLES = [
-  "questions",
-  "questionVersions",
-  "forms",
-  "formDrafts",
-  "formVersions",
-  "sessions",
-  "secureLinks",
-  "answers",
-  "submissions",
-  "erasureTombstones",
-  "outbox",
-  "webhooks",
-  "webhookDeliveries",
-];
+const ALLOWED_DB_VALUE_IMPORTS = new Set([
+  "authUser",
+  "authSession",
+  "authAccount",
+  "authVerification",
+  "authTwoFactor",
+  "countAdminUsers",
+  "schema",
+]);
+
+/** Files allowed to construct a Drizzle client at all. */
+const DB_CLIENT_SUFFIX = "/lib/server/db.ts";
 
 function isSource(entry: string): boolean {
   const isTs = entry.endsWith(".ts") || entry.endsWith(".tsx");
@@ -133,14 +136,35 @@ describe("R2 import surface (strict BFF)", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("names no domain table anywhere: questionnaire data comes from the API", () => {
-    // A string match rather than an import check, because `import { schema }` would
-    // otherwise hide `schema.forms`. The auth tables are deliberately not listed.
+  it("takes only auth bindings from @qcms/db: domain data comes from the API", () => {
     const offenders: string[] = [];
     for (const { path, text } of files) {
-      for (const table of DOMAIN_TABLES) {
-        if (new RegExp(`\\b${table}\\b`).test(text)) offenders.push(`${path} -> ${table}`);
+      for (const line of text.split("\n")) {
+        const trimmed = line.trimStart();
+        if (!trimmed.startsWith("import ")) continue;
+        if (trimmed.startsWith("import type ")) continue;
+        if (!/from\s+["']@qcms\/db["']/.test(trimmed)) continue;
+        const named = /^import\s+\{([^}]*)\}/.exec(trimmed)?.[1] ?? "";
+        for (const raw of named.split(",")) {
+          const binding = raw.trim().replace(/^type\s+/, "").split(/\s+as\s+/)[0];
+          if (binding === undefined || binding === "") continue;
+          // `import { type X }` is erased; only value bindings matter here.
+          if (raw.trim().startsWith("type ")) continue;
+          if (!ALLOWED_DB_VALUE_IMPORTS.has(binding)) offenders.push(`${path} -> ${binding}`);
+        }
       }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("runs no Drizzle query outside the auth client module (R2)", () => {
+    // The complement of the allowlist above: even with only auth tables imported, a
+    // screen could still reach the domain through the `schema` namespace. No
+    // query-builder call outside the client module means no screen queries anything.
+    const offenders: string[] = [];
+    for (const { path, text } of files) {
+      if (path.endsWith(DB_CLIENT_SUFFIX)) continue;
+      if (/\.(select|insert|update|delete|transaction)\s*\(/.test(text)) offenders.push(path);
     }
     expect(offenders).toEqual([]);
   });

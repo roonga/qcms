@@ -1,7 +1,7 @@
 import { countAdminUsers } from "@qcms/db";
 import type { Executor } from "@qcms/db";
 
-import { auth } from "./auth.ts";
+import { getAuth } from "./auth.ts";
 import { MIN_PASSWORD_LENGTH } from "./config.ts";
 
 /**
@@ -69,7 +69,7 @@ export async function createInitialAdmin(
     return { ok: false, refusal: { kind: "weak-password", minLength: MIN_PASSWORD_LENGTH } };
   }
 
-  const created = await auth.api.signUpEmail({
+  const created = await getAuth().api.signUpEmail({
     body: { email: input.email, password: input.password, name: input.name ?? "Administrator" },
     asResponse: true,
   });
@@ -78,7 +78,7 @@ export async function createInitialAdmin(
   // Revoke the session `signUpEmail` issued: a CLI has no browser to hand it to.
   const cookies = created.headers.getSetCookie().map((c) => c.split(";")[0]);
   if (cookies.length > 0) {
-    await auth.api.revokeSessions({ headers: new Headers({ cookie: cookies.join("; ") }) });
+    await getAuth().api.revokeSessions({ headers: new Headers({ cookie: cookies.join("; ") }) });
   }
 
   return { ok: true, userId: body.user.id, email: body.user.email };

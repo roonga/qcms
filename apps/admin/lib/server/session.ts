@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { auth, twoFactorOptional } from "./auth.ts";
+import { getAuth, twoFactorOptional } from "./auth.ts";
 import { sessionPolicy } from "./config.ts";
 
 /**
@@ -74,7 +74,7 @@ export const SHELL_HOME_PATH = "/questions";
  */
 export async function currentAdminSession(): Promise<AdminSession | undefined> {
   const requestHeaders = await headers();
-  const result = await auth.api.getSession({ headers: requestHeaders });
+  const result = await getAuth().api.getSession({ headers: requestHeaders });
   if (result === null) return undefined;
 
   const issuedAt = new Date(result.session.createdAt).getTime();

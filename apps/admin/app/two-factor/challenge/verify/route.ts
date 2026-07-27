@@ -1,6 +1,6 @@
 import { APIError } from "better-auth/api";
 
-import { auth } from "@/lib/server/auth";
+import { getAuth } from "@/lib/server/auth";
 import {
   cookiesFrom,
   formField,
@@ -31,7 +31,7 @@ export async function POST(request: Request): Promise<Response> {
 
   let verified: Response;
   try {
-    verified = await auth.api.verifyTOTP({
+    verified = await getAuth().api.verifyTOTP({
       body: { code },
       headers: request.headers,
       asResponse: true,

@@ -56,8 +56,6 @@ import { adminDb } from "./db.ts";
  * verifies, so an abandoned enrollment cannot leave an account half-protected.
  */
 
-const HAS_2FA_OPTIONAL_POLICY = twoFactorPolicy() === "optional";
-
 /**
  * Cookie prefix. QCMS-named rather than better-auth's default so an operator
  * reading a browser's cookie jar sees whose cookie it is, and so a co-hosted
@@ -71,9 +69,19 @@ export const SESSION_COOKIE = `${COOKIE_PREFIX}.session_token`;
 /** The name of the short-lived cookie that carries a pending 2FA challenge. */
 export const TWO_FACTOR_COOKIE = `${COOKIE_PREFIX}.two_factor`;
 
-const policy = sessionPolicy();
+/**
+ * The instance is built **lazily and memoized**, not at module load, and that is
+ * load-bearing rather than stylistic: `next build` imports every page module to
+ * collect route data, so a top-level `betterAuth({...})` would demand
+ * `DATABASE_URL` and `QCMS_ADMIN_AUTH_SECRET` at *build* time and make
+ * `pnpm build` fail in CI, where no database exists. Configuration is read on the
+ * first request instead, which is also where a misconfiguration should surface.
+ */
+let instance: ReturnType<typeof buildAuth> | undefined;
 
-export const auth = betterAuth({
+function buildAuth() {
+  const policy = sessionPolicy();
+  return betterAuth({
   database: drizzleAdapter(adminDb(), {
     provider: "pg",
     // Explicit model-to-table mapping: this package's exported names are prefixed
@@ -140,9 +148,16 @@ export const auth = betterAuth({
       skipVerificationOnEnable: false,
     }),
   ],
-});
+  });
+}
+
+/** The configured better-auth instance. Built on first use, then reused. */
+export function getAuth(): ReturnType<typeof buildAuth> {
+  instance ??= buildAuth();
+  return instance;
+}
 
 /** Whether TOTP enrollment may be skipped (development escape hatch, SEC-1). */
 export function twoFactorOptional(): boolean {
-  return HAS_2FA_OPTIONAL_POLICY;
+  return twoFactorPolicy() === "optional";
 }

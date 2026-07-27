@@ -1,6 +1,6 @@
 import { APIError } from "better-auth/api";
 
-import { auth } from "@/lib/server/auth";
+import { getAuth } from "@/lib/server/auth";
 import {
   cookiesFrom,
   formField,
@@ -36,7 +36,7 @@ export async function POST(request: Request): Promise<Response> {
 
   let changed: Response;
   try {
-    changed = await auth.api.changePassword({
+    changed = await getAuth().api.changePassword({
       body: { currentPassword, newPassword, revokeOtherSessions: true },
       headers: request.headers,
       asResponse: true,

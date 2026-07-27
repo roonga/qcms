@@ -1,6 +1,6 @@
 import { APIError } from "better-auth/api";
 
-import { auth, twoFactorOptional } from "@/lib/server/auth";
+import { getAuth, twoFactorOptional } from "@/lib/server/auth";
 import { pendingEnrollmentCookie } from "@/lib/server/enrollment";
 import {
   cookiesFrom,
@@ -54,7 +54,7 @@ export async function POST(request: Request): Promise<Response> {
 
   let signIn: Response;
   try {
-    signIn = await auth.api.signInEmail({
+    signIn = await getAuth().api.signInEmail({
       body: { email, password },
       headers: request.headers,
       asResponse: true,
@@ -80,14 +80,14 @@ export async function POST(request: Request): Promise<Response> {
   // A session now exists. Decide between outcomes 2 and 3.
   const sessionHeaders = new Headers(request.headers);
   sessionHeaders.set("cookie", cookies.map((c) => c.split(";")[0]).join("; "));
-  const session = await auth.api.getSession({ headers: sessionHeaders });
+  const session = await getAuth().api.getSession({ headers: sessionHeaders });
   const enrolled = session?.user.twoFactorEnabled === true;
 
   if (!enrolled && !twoFactorOptional()) {
     // Outcome 2. `enableTwoFactor` returns the otpauth URI and the recovery codes;
     // only the URI is carried forward, because the codes are read back server-side
     // at display time and never travel through a cookie.
-    const provisioned = await auth.api.enableTwoFactor({
+    const provisioned = await getAuth().api.enableTwoFactor({
       body: { password },
       headers: sessionHeaders,
     });

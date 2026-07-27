@@ -4,7 +4,7 @@ import { AuthScreen } from "@/components/auth-screen";
 import { Button } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
 import { recoveryDisplayOwed } from "@/lib/server/enrollment";
-import { auth } from "@/lib/server/auth";
+import { getAuth } from "@/lib/server/auth";
 import { currentAdminSession, SHELL_HOME_PATH, SIGN_IN_PATH } from "@/lib/server/session";
 
 /**
@@ -35,7 +35,7 @@ export default async function RecoveryCodesPage() {
   if (session === undefined) redirect(SIGN_IN_PATH);
   if (!(await recoveryDisplayOwed())) redirect(SHELL_HOME_PATH);
 
-  const { backupCodes } = await auth.api.viewBackupCodes({ body: { userId: session.userId } });
+  const { backupCodes } = await getAuth().api.viewBackupCodes({ body: { userId: session.userId } });
 
   return (
     <AuthScreen title={t("recovery.title")} intro={t("recovery.intro")}>

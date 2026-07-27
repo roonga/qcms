@@ -1,4 +1,4 @@
-import { auth } from "@/lib/server/auth";
+import { getAuth } from "@/lib/server/auth";
 import { cookiesFrom, isSameOriginPost, redirectAfterPost } from "@/lib/server/route-helpers";
 import { SIGN_IN_PATH } from "@/lib/server/session";
 
@@ -22,7 +22,7 @@ import { SIGN_IN_PATH } from "@/lib/server/session";
 export async function POST(request: Request): Promise<Response> {
   if (!isSameOriginPost(request)) return redirectAfterPost(SIGN_IN_PATH);
   try {
-    const signedOut = await auth.api.signOut({ headers: request.headers, asResponse: true });
+    const signedOut = await getAuth().api.signOut({ headers: request.headers, asResponse: true });
     return redirectAfterPost(SIGN_IN_PATH, cookiesFrom(signedOut));
   } catch {
     return redirectAfterPost(SIGN_IN_PATH);
