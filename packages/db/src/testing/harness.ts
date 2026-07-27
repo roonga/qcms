@@ -9,6 +9,7 @@ import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testconta
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import pg from "pg";
+import { getContainerRuntimeClient, getReaper } from "testcontainers";
 
 import * as schema from "../schema/index.js";
 
@@ -79,6 +80,50 @@ interface StartOptions {
    * every container in a run boots the same image.
    */
   readonly image?: string;
+  /**
+   * Bring up the Testcontainers infrastructure (the Ryuk reaper) instead of
+   * {@link bootTestcontainersInfrastructure}. A test seam, like {@link
+   * StartOptions.image}: a real forced reaper failure is not deterministic,
+   * because Testcontainers **reuses** any reaper already running on the machine,
+   * so a concurrently running test file would silently make the failure vanish.
+   * Production test suites leave this unset.
+   */
+  readonly bootInfrastructure?: () => Promise<void>;
+}
+
+/**
+ * The Ryuk reaper reference Testcontainers will boot, for error messages only.
+ *
+ * testcontainers-node reads `RYUK_CONTAINER_IMAGE` lazily and otherwise uses a
+ * version-pinned `testcontainers/ryuk` tag of its own. The pin is deliberately
+ * not duplicated here: a stale copy in an error message is worse than no copy.
+ */
+function describeReaperImage(): string {
+  const configured = process.env.RYUK_CONTAINER_IMAGE?.trim();
+  return configured === undefined || configured.length === 0
+    ? "testcontainers/ryuk (testcontainers-node's pinned default)"
+    : configured;
+}
+
+/**
+ * Bring up the Ryuk reaper (or reuse the one already running) before any
+ * container of ours.
+ *
+ * Testcontainers does this itself inside `.start()`, *after* pulling the
+ * requested image. Doing it first, explicitly, is what makes the two failure
+ * modes distinguishable: once this has returned, the reaper is up, so any later
+ * registry failure during `.start()` can only be the image we asked for. That is
+ * the whole point (issue #150) - a reaper pull failure used to be reported as a
+ * Postgres-image pull failure, sending the reader to check a mirror that was
+ * working perfectly.
+ *
+ * `getReaper` short-circuits to a no-op reaper when `TESTCONTAINERS_RYUK_DISABLED`
+ * is `true` (CI sets it - see `.github/actions/test-postgres-image`), so on CI
+ * this touches no registry at all.
+ */
+async function bootTestcontainersInfrastructure(): Promise<void> {
+  const client = await getContainerRuntimeClient();
+  await getReaper(client);
 }
 
 /**
@@ -129,6 +174,31 @@ function describeCause(error: unknown): string {
 }
 
 /**
+ * The message for a failure that happened before any Postgres container was
+ * asked for: Testcontainers' own infrastructure could not come up.
+ *
+ * It must not name the configured Postgres image or `QCMS_TEST_POSTGRES_IMAGE`,
+ * because neither is involved. That misattribution is issue #150: a Ryuk pull
+ * against Docker Hub failed while the GHCR Postgres mirror was working, and the
+ * error sent the reader to check the mirror.
+ */
+function describeInfrastructureFailure(cause: unknown): string {
+  const detail = describeCause(cause);
+  const isPullFailure = PULL_FAILURE_MARKERS.some((marker) => marker.test(detail));
+  return [
+    isPullFailure
+      ? "Could not PULL the Testcontainers Ryuk reaper image - Testcontainers' own infrastructure failed, NOT the test Postgres image."
+      : "Could not START the Testcontainers Ryuk reaper - Testcontainers' own infrastructure failed, NOT the test Postgres image.",
+    "  component: Testcontainers Ryuk reaper (boots before any container of ours)",
+    `  image:     ${describeReaperImage()}`,
+    `  cause:     ${detail}`,
+    "  fix:       on ephemeral CI runners set TESTCONTAINERS_RYUK_DISABLED=true (nothing needs reaping" +
+      " when the runner is destroyed); otherwise point RYUK_CONTAINER_IMAGE at a reachable mirror of the reaper.",
+    `  note:      QCMS_TEST_POSTGRES_IMAGE does not cover this image - it redirects only Postgres (currently ${TEST_POSTGRES_IMAGE}).`,
+  ].join("\n");
+}
+
+/**
  * Start the container, converting a failure into an error that names the image
  * and the registry problem.
  *
@@ -137,11 +207,27 @@ function describeCause(error: unknown): string {
  * then throws `Cannot read properties of undefined (reading 'teardown')` - the
  * shape observed in CI, where 21 of the 24 reported errors were that cascade and
  * only 3 carried the actual cause (issue #74).
+ *
+ * Two failures, deliberately kept apart (issue #150). The Testcontainers
+ * infrastructure comes up first, in its own step: if *that* fails, the image the
+ * caller configured is not implicated and the message must not name it. Docker
+ * reports a registry timeout as a bare `Get "https://registry-1.docker.io/v2/":
+ * context deadline exceeded` with no image reference in it, so the phase the
+ * failure came from is the only reliable signal about which image it was.
  */
-async function startContainer(image: string): Promise<StartedPostgreSqlContainer> {
+async function startContainer(
+  image: string,
+  bootInfrastructure: () => Promise<void>,
+): Promise<StartedPostgreSqlContainer> {
   const alreadyFailed = unpullableImages.get(image);
   if (alreadyFailed !== undefined) {
     throw new Error(`${alreadyFailed}\n  note: not retried (this image already failed to pull)`);
+  }
+
+  try {
+    await bootInfrastructure();
+  } catch (cause) {
+    throw new Error(describeInfrastructureFailure(cause), { cause });
   }
 
   try {
@@ -192,7 +278,10 @@ async function startContainer(image: string): Promise<StartedPostgreSqlContainer
  * under test as it does in production.
  */
 export async function startTestDb(options: StartOptions = {}): Promise<TestDb> {
-  const container = await startContainer(options.image ?? TEST_POSTGRES_IMAGE);
+  const container = await startContainer(
+    options.image ?? TEST_POSTGRES_IMAGE,
+    options.bootInfrastructure ?? bootTestcontainersInfrastructure,
+  );
 
   const connectionUri = container.getConnectionUri();
   const client = new Client({ connectionString: connectionUri });

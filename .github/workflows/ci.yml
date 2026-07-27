@@ -46,8 +46,9 @@ jobs:
 
       - run: pnpm lint
 
-      # Resolves QCMS_TEST_POSTGRES_IMAGE and puts the image on the runner, so
-      # the Testcontainers boots below make no registry call (issue #74).
+      # Resolves QCMS_TEST_POSTGRES_IMAGE, puts the image on the runner, and
+      # disables the Ryuk reaper, so the Testcontainers boots below make no
+      # registry call at all (issues #74 and #150).
       - uses: ./.github/actions/test-postgres-image
 
       # Includes @qcms/db's integration tests (task 013), which boot a
@@ -56,6 +57,12 @@ jobs:
       # anonymously (no registry credentials required), from the image the step
       # above resolved.
       - run: pnpm test
+
+      # The job-log evidence for issue #150: list every image the test run pulled
+      # and fail if any came from Docker Hub. Runs even when the tests failed,
+      # because a Hub pull is one of the things that fails them.
+      - uses: ./.github/actions/assert-no-docker-hub-pulls
+        if: ${{ !cancelled() }}
 
       # The golden-corpus drift guard (task 007): fails if any golden
       # scenario's expected FlowState differs from live evaluator output.
@@ -118,12 +125,15 @@ jobs:
       - run: pnpm build
 
       # Same registry-independence as the unit job: these scenarios boot a
-      # Testcontainers Postgres per file (issue #74).
+      # Testcontainers Postgres per file (issues #74 and #150).
       - uses: ./.github/actions/test-postgres-image
 
       # The dedicated e2e project (the five scenario files). The OpenAPI drift +
       # validation guard rides in the unit job (part of `pnpm test`), no Docker.
       - run: pnpm --filter qcms-api exec vitest run --root ../.. --project qcms-api-e2e
+
+      - uses: ./.github/actions/assert-no-docker-hub-pulls
+        if: ${{ !cancelled() }}
 
   # The portal browser suite (the ONE Playwright config, 029/ADR-23), as its own
   # job for signal clarity: when this is red, a respondent-facing surface broke.
@@ -159,12 +169,16 @@ jobs:
       - run: pnpm exec playwright install --with-deps chromium
 
       # globalSetup boots a Testcontainers Postgres, so this job needs the same
-      # registry independence as the other two (issue #74).
+      # registry independence as the other two (issues #74 and #150). This is the
+      # leg PR #149 lost to a Docker Hub timeout on the Ryuk reaper's image.
       - uses: ./.github/actions/test-postgres-image
 
       # Runs the whole root Playwright config (CI=true, so it never reuses a server
       # and forbids `test.only`). ~1-2 min including the DB boot and Lighthouse runs.
       - run: pnpm exec playwright test
+
+      - uses: ./.github/actions/assert-no-docker-hub-pulls
+        if: ${{ !cancelled() }}
 
       # Failure forensics (issue #102): screenshots, traces, and the captured
       # portal/API server logs, only when the job fails. docs/gates/pr-NN stays

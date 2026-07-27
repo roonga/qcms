@@ -54,6 +54,22 @@ pnpm dev:portal   # finds the dev DB itself; see CONTRIBUTING for why not host.d
 
 If a Testcontainers-backed suite cannot reach the container it just started (sibling containers, not children), set `TESTCONTAINERS_HOST_OVERRIDE`. It has never been needed here. Prefer the default-route gateway over `host.docker.internal` if you do need it, for the Postgres-session reason noted above.
 
+**Testcontainers behaves differently locally and on CI, in exactly one way (issue #150).** The Ryuk reaper (Testcontainers' cleanup sidecar, image `testcontainers/ryuk`) runs **locally** and is **disabled on CI** via `TESTCONTAINERS_RYUK_DISABLED=true`, set by `.github/actions/test-postgres-image` for every Testcontainers job:
+
+- **Why disabled on CI:** its image is the one thing `QCMS_TEST_POSTGRES_IMAGE` does not redirect, so it was still pulled from Docker Hub after the #74 GHCR mirror landed, and a Hub timeout on that pull failed PR #149's `portal-e2e` leg while the mirror worked perfectly. A runner is an ephemeral VM destroyed with the job, so nothing needs reaping. The trade accepted: on CI no process owns container cleanup after a crashed run.
+- **Why kept locally:** your machine is long-lived. Kill a Vitest run mid-flight without Ryuk and its Postgres containers keep running until you clean them up by hand.
+- **Do not put that variable in a committed `.env` or in `vitest.config.ts`** - both would follow developers and take Ryuk away from the machines that need it. If you want it locally for one run, export it in that shell only.
+- The paired `.github/actions/assert-no-docker-hub-pulls` step prints, in each Docker-backed job's log, every image the test run pulled and fails the job if any came from Docker Hub. The steady-state line is `Images pulled during the test run: none.`
+- A failure of the reaper is now reported as a reaper failure, naming `TESTCONTAINERS_RYUK_DISABLED` and `RYUK_CONTAINER_IMAGE`, never as a Postgres-image pull failure. (The knob is `RYUK_CONTAINER_IMAGE`, not `TESTCONTAINERS_RYUK_CONTAINER_IMAGE`, in testcontainers-node.)
+
+**A Testcontainers env knob only works if `turbo.json` passes it through.** turbo 2.x runs tasks in **strict** env mode: a task sees only the variables declared in `turbo.json` plus turbo's own defaults. `pnpm test` is `turbo run test`, so `QCMS_TEST_POSTGRES_IMAGE`, `TESTCONTAINERS_RYUK_DISABLED`, `TESTCONTAINERS_HOST_OVERRIDE` and the `DOCKER_*` overrides reach the *job* and not the Vitest process unless they are listed in `globalPassThroughEnv`. That is how the #74 GHCR mirror was silently bypassed inside CI's `verify` job while the `e2e` and `portal-e2e` jobs (which invoke Vitest and Playwright directly, no turbo) used it correctly: the harness fell back to the default `postgres:16-alpine`, which was not the pre-pulled reference, and Docker went to Docker Hub for it. To prove a knob actually arrives, give it a value nothing can serve and watch the suite fail:
+
+```sh
+QCMS_TEST_POSTGRES_IMAGE=localhost:1/nope pnpm exec turbo run test --filter @qcms/db --force
+```
+
+If that **passes**, the variable is being stripped.
+
 **What the container takes over from your machine** (ports 7000/7010, `node_modules` and the pnpm store, the Docker daemon), how to run the app inside it, and the full troubleshooting table are in [`DEV_CONTAINER.md`](DEV_CONTAINER.md). The rule that bites first: **only one qcms dev container runs at a time**, machine-wide.
 
 **Rollback (the migration is reversible):** `.devcontainer/` touches no product code. Stop using it - or delete the directory - and the host workflow is unchanged: `pnpm install`, the merge gate, and `docker compose -f docker-compose.dev.yml up -d` behave exactly as they did before task 046 (re-run `pnpm install` on the host once if that checkout had been used in the container). Task 046 verified that the portal and API dev servers already bind `0.0.0.0` by default, so no source change was needed for host-browser viewing.

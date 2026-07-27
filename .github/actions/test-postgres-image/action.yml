@@ -1,8 +1,10 @@
-name: Resolve test Postgres image
+name: Prepare Testcontainers
 description: >
-  Pre-pull the Postgres image the @qcms/db Testcontainers harness boots, from the
-  GHCR mirror when it is available, and export QCMS_TEST_POSTGRES_IMAGE for the
-  steps that follow. Every job that runs Testcontainers must use this (issue #74).
+  Make a Testcontainers job independent of Docker Hub. Pre-pulls the Postgres
+  image the @qcms/db harness boots (from the GHCR mirror when available) and
+  exports QCMS_TEST_POSTGRES_IMAGE (issue #74), and disables the Ryuk reaper,
+  which was the last image still pulled from Docker Hub (issue #150). Every job
+  that runs Testcontainers must use this.
 
 inputs:
   tag:
@@ -13,6 +15,29 @@ inputs:
 runs:
   using: composite
   steps:
+    # Ryuk is Testcontainers' cleanup sidecar: it boots before the first container
+    # and reaps whatever a crashed test process leaves behind. Its image comes from
+    # Docker Hub and QCMS_TEST_POSTGRES_IMAGE does not cover it, so it survived the
+    # #74 mirror and failed PR #149's portal-e2e leg on a Hub timeout while the
+    # mirror itself worked perfectly.
+    #
+    # Disabling beats mirroring it here, deliberately (issue #150):
+    #   - it REMOVES the call rather than relocating it, so there is no second
+    #     mirrored image to keep fresh and no second GHCR package a maintainer must
+    #     remember to make public before pulls work (the mirror workflow's existing
+    #     one-time action is already a known footgun);
+    #   - a GitHub runner is an ephemeral VM destroyed with the job, so there is
+    #     nothing left for a reaper to reap. The cost, stated plainly: on CI no
+    #     process owns container cleanup after a crashed run. That is acceptable
+    #     only because the whole machine goes away with it.
+    # Local runs keep Ryuk on purpose: a developer's machine is long-lived and a
+    # killed Vitest would otherwise leave Postgres containers running. So this is a
+    # CI-only variable and belongs nowhere a developer's shell would read it - not
+    # in a committed .env, not in vitest.config.ts.
+    - name: Disable the Ryuk reaper (ephemeral runner, nothing to reap)
+      shell: bash
+      run: echo "TESTCONTAINERS_RYUK_DISABLED=true" >> "${GITHUB_ENV}"
+
     # Why a pre-pull rather than only an env var: testcontainers-node pulls only
     # when the image is absent locally (DefaultPullPolicy), so once this step has
     # the image on the runner, the test run itself makes no registry call at all.
@@ -56,3 +81,19 @@ runs:
 
         echo "::error title=Test Postgres image unavailable::Neither ${mirror} nor ${upstream} could be pulled. This is a container-registry failure, not a test failure."
         exit 1
+
+    # Baseline for the paired `assert-no-docker-hub-pulls` action. Everything after
+    # this point is test time, and test time should reach no registry at all: the
+    # Postgres image is already on the runner and Ryuk is disabled above. Any image
+    # that appears later was pulled by the test run, and the paired action reports
+    # which registry it came from. The snapshot starts *after* the pre-pull on
+    # purpose: that pull is this action's own, it prints the registry it used, and a
+    # fork with no mirror is allowed to take the Docker Hub fallback (issue #74).
+    - name: Snapshot the runner's images (baseline for the no-Docker-Hub check)
+      shell: bash
+      run: |
+        set -uo pipefail
+        snapshot="${RUNNER_TEMP}/qcms-images-before.txt"
+        docker image ls --format '{{.Repository}}:{{.Tag}}' | sort -u > "${snapshot}"
+        echo "QCMS_DOCKER_IMAGE_SNAPSHOT=${snapshot}" >> "${GITHUB_ENV}"
+        echo "Baselined $(wc -l < "${snapshot}") image references on the runner."
