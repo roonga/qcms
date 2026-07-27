@@ -46,6 +46,27 @@ test.beforeAll(async () => {
 });
 
 /**
+ * Wait until React has finished hydrating before touching the DOM.
+ *
+ * Not defensive padding: `hideDevChrome` below removes `nextjs-portal`, which is a
+ * React-owned element, and doing that while hydration is still in flight made React report
+ * a hydration mismatch on an unrelated input (`style={{caret-color:"transparent"}}` against
+ * `style={undefined}`) - which the shared console gate correctly failed the run on. Waiting
+ * removes the race rather than allowlisting its symptom.
+ *
+ * React tags every host node it owns with a `__reactFiber$...` property when it hydrates, so
+ * the presence of one is the attachment signal itself rather than a proxy for it. Every
+ * screen captured here renders at least one `<button>`, so that is the probe.
+ */
+async function waitForHydration(page: import("@playwright/test").Page): Promise<void> {
+  await page.waitForFunction(() => {
+    const button = document.querySelector("button");
+    if (button === null) return false;
+    return Object.keys(button).some((key) => key.startsWith("__reactFiber$"));
+  });
+}
+
+/**
  * Remove the Next dev-tools indicator. It lives in a custom element Next injects
  * (`nextjs-portal`) plus a couple of legacy ids, and it is only present under `next dev`,
  * so every selector here is expected to match nothing in a production build.
@@ -60,6 +81,7 @@ async function hideDevChrome(page: import("@playwright/test").Page): Promise<voi
 
 /** Capture one named state at both widths. */
 async function capture(page: import("@playwright/test").Page, name: string): Promise<void> {
+  await waitForHydration(page);
   for (const width of WIDTHS) {
     await page.setViewportSize({ width, height: width === 390 ? 844 : 800 });
     await hideDevChrome(page);
