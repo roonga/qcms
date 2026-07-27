@@ -178,8 +178,20 @@ function evaluateOrThrow(snapshot: LoadedSnapshot, answers: AnswerMap): FlowStat
  * `missingRequired`, and `readyToSubmit` are always the authoritative,
  * cursor-independent flow projection - the portal reads them to gate
  * Continue/Submit and never re-derives them (R2).
+ *
+ * `values` carries the answers already held for the rendered step's visible
+ * questions (issue #146), so a resumed session can DISPLAY what the server holds
+ * instead of painting empty controls over it. They travel beside the compiled
+ * document, never inside it (ADR-18), and they are display data only - no
+ * decision moves client-side with them (R2). Answers to questions the flow hides
+ * are excluded, so the hidden-flow property is unchanged (SEC).
  */
-function project(snapshot: LoadedSnapshot, flow: FlowState, requestedIndex?: number): StepResponse {
+function project(
+  snapshot: LoadedSnapshot,
+  flow: FlowState,
+  answers: AnswerMap,
+  requestedIndex?: number,
+): StepResponse {
   const visibleSteps = flow.visibleSteps;
 
   let renderStep: StepId | null;
@@ -202,6 +214,7 @@ function project(snapshot: LoadedSnapshot, flow: FlowState, requestedIndex?: num
 
   let step: StepResponse["step"] = null;
   let visibleQuestions: string[] = [];
+  const values: Record<string, unknown> = {};
   if (renderStep !== null) {
     const document = snapshot.compiled.documents.find((doc) => doc.stepId === renderStep);
     if (document === undefined) {
@@ -209,13 +222,19 @@ function project(snapshot: LoadedSnapshot, flow: FlowState, requestedIndex?: num
       throw new Error(`serve-step: no compiled document for visible step "${renderStep}"`);
     }
     step = document;
-    visibleQuestions = flow.visible
-      .filter((entry) => entry.stepId === renderStep)
-      .map((entry) => entry.questionId);
+    for (const entry of flow.visible) {
+      if (entry.stepId !== renderStep) continue;
+      visibleQuestions.push(entry.questionId);
+      const held = answers.get(entry.questionId);
+      // A retraction resolves to unanswered in `latestAnswers`, so an absent key
+      // here IS "unanswered" - a cleared answer can never resurface as a value.
+      if (held !== undefined) values[entry.questionId] = held;
+    }
   }
 
   return {
     step,
+    values,
     a2uiSpecVersion: snapshot.a2uiSpecVersion,
     flowState: {
       currentStep: flow.currentStep,
@@ -265,7 +284,7 @@ export function makeGetStepHandler(deps: Deps): RouteHandler<typeof getStepRoute
     const answers = await latestAnswers(deps.db, sessionId);
     const flow = evaluateOrThrow(snapshot, answers);
 
-    return c.json(project(snapshot, flow, requestedIndex), 200);
+    return c.json(project(snapshot, flow, answers, requestedIndex), 200);
   };
 }
 
@@ -336,7 +355,7 @@ export function makeSubmitAnswerHandler(
           await markInProgress(tx, sessionId);
         }
         const cleared = await latestAnswers(tx, sessionId);
-        return project(snapshot, evaluateOrThrow(snapshot, cleared), requestedIndex);
+        return project(snapshot, evaluateOrThrow(snapshot, cleared), cleared, requestedIndex);
       }
 
       // Validate the value against the pinned question version (009). On failure
@@ -355,7 +374,7 @@ export function makeSubmitAnswerHandler(
       await markInProgress(tx, sessionId);
 
       const after = await latestAnswers(tx, sessionId);
-      return project(snapshot, evaluateOrThrow(snapshot, after), requestedIndex);
+      return project(snapshot, evaluateOrThrow(snapshot, after), after, requestedIndex);
     });
 
     return c.json(projection, 200);

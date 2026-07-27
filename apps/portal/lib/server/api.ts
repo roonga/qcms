@@ -1,3 +1,5 @@
+import type { A2UIAnswerValue } from "@qcms/ui";
+
 import { INTERNAL_TOKEN_HEADER, apiBaseUrl, internalToken } from "./config";
 
 /**
@@ -31,9 +33,23 @@ export interface ApiProgress {
   readonly totalVisibleSteps: number;
 }
 
+/**
+ * The answers the API already holds for the rendered step's visible questions,
+ * keyed by questionId (issue #146). A question with no current answer - including
+ * one whose newest ledger row is an ADR-33 retraction - is simply absent.
+ *
+ * This is how stored answers reach the browser WITHOUT the compiled document
+ * carrying them (ADR-18): they ride beside `step`, which stays the immutable,
+ * content-only bytes the API serves verbatim. They are display data only; the BFF
+ * neither reads nor derives anything from them (R2) - it forwards them, and the
+ * renderer shows them.
+ */
+export type ApiHeldValues = Readonly<Record<string, A2UIAnswerValue>>;
+
 /** GET /sessions/:id/step and POST /sessions/:id/answers both return this shape. */
 export interface StepResponse {
   readonly step: ApiStepDocument | null;
+  readonly values: ApiHeldValues;
   readonly a2uiSpecVersion: string;
   readonly flowState: ApiFlowState;
   readonly progress: ApiProgress;
