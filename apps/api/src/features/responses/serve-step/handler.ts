@@ -162,6 +162,62 @@ function evaluateOrThrow(snapshot: LoadedSnapshot, answers: AnswerMap): FlowStat
   return result.value;
 }
 
+/** One rendered step's client-safe contents: which questions, and what is held. */
+interface RenderedQuestions {
+  readonly visibleQuestions: string[];
+  readonly values: Record<string, unknown>;
+}
+
+/**
+ * The visible questions of the rendered step, paired with the answers the server
+ * already holds for exactly those questions (issue #146).
+ *
+ * Walking the visible set (never the ledger) is what keeps the two aligned: a
+ * question the flow hides contributes neither an id nor an answer, so a stored
+ * answer can never disclose a hidden question (SEC). An answer is absent when
+ * `latestAnswers` reports none, which includes a question whose newest ledger row
+ * is an ADR-33 retraction - so a cleared answer resumes as unanswered rather than
+ * resurfacing as a stale value.
+ */
+function renderedQuestions(
+  flow: FlowState,
+  answers: AnswerMap,
+  renderStep: StepId,
+): RenderedQuestions {
+  const visibleQuestions: string[] = [];
+  const values: Record<string, unknown> = {};
+  for (const entry of flow.visible) {
+    if (entry.stepId !== renderStep) continue;
+    visibleQuestions.push(entry.questionId);
+    const held = answers.get(entry.questionId);
+    if (held !== undefined) values[entry.questionId] = held;
+  }
+  return { visibleQuestions, values };
+}
+
+/**
+ * Which visible step this response draws, and its 0-based index: the explicit
+ * ADR-28 cursor when one is given (clamped to the visible range), otherwise the
+ * flow's own first-incomplete step. `null` means nothing is drawn.
+ */
+function renderTarget(
+  flow: FlowState,
+  requestedIndex?: number,
+): { readonly stepId: StepId | null; readonly stepIndex: number } {
+  const visibleSteps = flow.visibleSteps;
+  if (requestedIndex === undefined) {
+    return {
+      stepId: flow.currentStep,
+      stepIndex:
+        flow.currentStep !== null ? visibleSteps.indexOf(flow.currentStep) : visibleSteps.length,
+    };
+  }
+  // A degenerate flow with no visible steps: nothing to render.
+  if (visibleSteps.length === 0) return { stepId: null, stepIndex: 0 };
+  const clamped = Math.min(requestedIndex, visibleSteps.length - 1);
+  return { stepId: visibleSteps[clamped] ?? null, stepIndex: clamped };
+}
+
 /**
  * Project the kernel's `FlowState` to the client-safe response (SEC): the
  * RENDERED step's stored compiled document, the visible questions of that step,
@@ -194,29 +250,10 @@ function project(
   answers: AnswerMap,
   requestedIndex?: number,
 ): StepResponse {
-  const visibleSteps = flow.visibleSteps;
-
-  let renderStep: StepId | null;
-  let stepIndex: number;
-  if (requestedIndex !== undefined) {
-    if (visibleSteps.length === 0) {
-      // A degenerate flow with no visible steps: nothing to render.
-      renderStep = null;
-      stepIndex = 0;
-    } else {
-      const clamped = Math.min(requestedIndex, visibleSteps.length - 1);
-      renderStep = visibleSteps[clamped] ?? null;
-      stepIndex = clamped;
-    }
-  } else {
-    renderStep = flow.currentStep;
-    stepIndex =
-      flow.currentStep !== null ? visibleSteps.indexOf(flow.currentStep) : visibleSteps.length;
-  }
+  const { stepId: renderStep, stepIndex } = renderTarget(flow, requestedIndex);
 
   let step: StepResponse["step"] = null;
-  let visibleQuestions: string[] = [];
-  const values: Record<string, unknown> = {};
+  let rendered: RenderedQuestions = { visibleQuestions: [], values: {} };
   if (renderStep !== null) {
     const document = snapshot.compiled.documents.find((doc) => doc.stepId === renderStep);
     if (document === undefined) {
@@ -224,27 +261,20 @@ function project(
       throw new Error(`serve-step: no compiled document for visible step "${renderStep}"`);
     }
     step = document;
-    for (const entry of flow.visible) {
-      if (entry.stepId !== renderStep) continue;
-      visibleQuestions.push(entry.questionId);
-      const held = answers.get(entry.questionId);
-      // A retraction resolves to unanswered in `latestAnswers`, so an absent key
-      // here IS "unanswered" - a cleared answer can never resurface as a value.
-      if (held !== undefined) values[entry.questionId] = held;
-    }
+    rendered = renderedQuestions(flow, answers, renderStep);
   }
 
   return {
     step,
-    values,
+    values: rendered.values,
     a2uiSpecVersion: snapshot.a2uiSpecVersion,
     flowState: {
       currentStep: flow.currentStep,
-      visibleQuestions,
+      visibleQuestions: rendered.visibleQuestions,
       missingRequired: flow.missingRequired,
       readyToSubmit: flow.complete,
     },
-    progress: { stepIndex, totalVisibleSteps: visibleSteps.length },
+    progress: { stepIndex, totalVisibleSteps: flow.visibleSteps.length },
   };
 }
 

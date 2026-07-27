@@ -476,12 +476,8 @@ describe("the served step carries the answers the server holds (issue #146)", ()
     const hidden = (await (await getStepAt(sessionId, sessionToken, 0)).json()) as StepBody;
     expect(hidden.flowState.visibleQuestions).toEqual(["q_at_fault_accident"]);
     expect(hidden.values).toEqual({ q_at_fault_accident: false });
-    expect(await latestAnswers(testDb.db, SessionId.parse(sessionId))).toEqual(
-      new Map([
-        [QuestionId.parse("q_at_fault_accident"), false],
-        [QuestionId.parse("q_accident_count"), 9],
-      ]),
-    );
+    const held = await latestAnswers(testDb.db, SessionId.parse(sessionId));
+    expect(Object.fromEntries(held)).toEqual({ q_at_fault_accident: false, q_accident_count: 9 });
   });
 });
 

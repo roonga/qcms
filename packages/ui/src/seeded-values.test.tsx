@@ -33,9 +33,10 @@ import { SELECT_STEP } from "./test-support/select-step.ts";
 
 const kitchen = loadGoldenForms().find((f) => f.version === "v2" && f.form === "kitchen-sink");
 if (!kitchen) throw new Error("kitchen-sink v2 golden not found");
+const compiled = kitchen.compiled;
 
 function stepById(id: string): A2UIStepDocument {
-  const step = kitchen.compiled.documents.find((d) => d.stepId === id);
+  const step = compiled.documents.find((d) => d.stepId === id);
   if (!step) throw new Error(`step ${id} not found`);
   return step;
 }
@@ -43,11 +44,7 @@ function stepById(id: string): A2UIStepDocument {
 /** Render one golden step with the values a resumed session would arrive holding. */
 function renderSeeded(document: A2UIStepDocument, values: A2UIValues): void {
   render(
-    <A2UIStepRenderer
-      document={document}
-      values={values}
-      specVersion={kitchen.compiled.a2uiSpecVersion}
-    />,
+    <A2UIStepRenderer document={document} values={values} specVersion={compiled.a2uiSpecVersion} />,
   );
 }
 
