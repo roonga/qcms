@@ -183,7 +183,7 @@ jobs:
       # Failure forensics (issue #102): screenshots, traces, and the captured
       # portal/API server logs, only when the job fails. docs/gates/pr-NN stays
       # the sign-off mechanism; this is debugging evidence.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: portal-e2e-failure-${{ github.run_id }}-${{ github.run_attempt }}
