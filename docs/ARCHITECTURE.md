@@ -265,6 +265,7 @@ qcms/
 │   ├── wireframes/               # UI wireframes: ASCII + normative inventories (042)
 │   ├── a2ui-mapping.md (011) · agent-seam.md (011) · secure-links.md (010, 024)
 │   ├── reporting-view.md (015) · erasure.md (016) · a11y.md (030)
+│   ├── theming.md (051)          # the four-group token contract (ADR-30)
 │   ├── deploy-enterprise.md · backup-restore.md · operations.md (036)
 │   ├── ownership-seam.md (037) · auth-swap.md (031)
 │   └── api-walkthrough.md (027) · launch-validation.md (038)

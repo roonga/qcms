@@ -10,7 +10,8 @@ A controlled component that renders one compiled A2UI **step document**:
 
 ```tsx
 import { A2UIStepRenderer } from "@qcms/ui";
-import "@qcms/ui/theme.css"; // or set the --color-* tokens in your own globals
+import "@qcms/ui/theme.css"; // the token contract (see Theming below)
+import "@qcms/ui/theme-components.css"; // components consume spacing + radius
 
 <A2UIStepRenderer
   document={step} // one entry of a compiled form's `documents` array: { stepId, root }
@@ -61,14 +62,26 @@ The a2ra components are **vendored source**, not imported from `@a2ra/core`:
 > consistent with the pinned core. (Reported upstream: the CLI's default registry
 > pin lags the published core package.)
 
-## Theming
+## Theming (ADR-30): the four-group token contract
 
-The vendored `*.styles.ts` files are Tailwind utilities over shadcn-convention
-`var(--color-*)` custom properties. This package ships no palette of its own
-(ADR-22, "expose, don't opine"); `@qcms/ui/theme.css` exposes the upstream
-reference tokens (light + `.dark`) as an opt-in. Shells wire Tailwind in their
-build and either import that file or define the same token names in their
-globals.
+This package owns the token contract the portal rests on. Two stylesheets, and
+which one you import matters:
+
+| Import | Contains |
+| --- | --- |
+| `@qcms/ui/theme.css` | the token **values**: four groups (`--color-*`, `--font-portal` + `--type-*`, `--space-*`, `--radius-*`), the four predefined themes each authored Light and Dark, the shared High-contrast layer, and the four corner presets. Plain CSS, no build requirement. |
+| `@qcms/ui/theme-components.css` | the CSS that makes the **vendored controls consume** the spacing, radius and type-scale tokens, plus the High-contrast mode scaffold (heavy borders, flat surfaces, heavy focus). Needs Tailwind v4 in the build. |
+
+The vendored `*.styles.ts` files resolve `var(--color-*)` themselves, but their
+spacing, radius and font sizes are literal Tailwind utilities. ADR-22 keeps those
+files byte-for-byte upstream, so `theme-components.css` re-points them at the
+tokens from outside, anchored on `[data-qcms-field]` and `[data-rac]`. A vendored
+file is never edited to theme it.
+
+This supersedes the earlier "expose, don't opine / no palette of its own" note:
+QCMS ships opinionated, accessibility-verified themes for the portal (ADR-26,
+ADR-30). Every pair's WCAG ratio is recomputed from `theme.css` by
+`src/theme-tokens.test.ts`. Full contract: `docs/theming.md`.
 
 ## Tests (the conformance contract)
 
