@@ -43,22 +43,23 @@ describe("log/trace correlation", () => {
     const lines: string[] = [];
     const logger = createJsonLogger({ write: (line) => lines.push(line), base: { service: "t" } });
 
-    const span = trace.getTracer("test").startSpan("unit");
-    const expected = span.spanContext();
+    let activeContext: { traceId: string; spanId: string } | undefined;
     trace.getTracer("test").startActiveSpan("active", (active) => {
+      activeContext = active.spanContext();
       logger.info("inside", { path: "/health" });
       active.end();
     });
-    span.end();
 
     const line = JSON.parse(lines[0] ?? "{}") as Record<string, unknown>;
     expect(line.msg).toBe("inside");
     expect(line.path).toBe("/health");
-    expect(typeof line.trace_id).toBe("string");
+    // The injected ids must BE the active span's context, not merely id-shaped:
+    // shape-only assertions would pass if the instrumentation injected a stale
+    // or unrelated context.
+    expect(line.trace_id).toBe(activeContext?.traceId);
+    expect(line.span_id).toBe(activeContext?.spanId);
     expect(line.trace_id).toMatch(/^[0-9a-f]{32}$/);
     expect(line.span_id).toMatch(/^[0-9a-f]{16}$/);
-    // Sanity: a recording SDK is in place, so the ids above are real ones.
-    expect(expected.traceId).toMatch(/^[0-9a-f]{32}$/);
   });
 
   it("emits no trace fields outside a span, and keeps the shape otherwise", () => {
