@@ -8,10 +8,16 @@ import { requireAdminSession } from "@/lib/server/session";
 /**
  * The authenticated shell (task 031; wireframe "ASCII sketch - authenticated shell").
  *
- * This layout is the **only** authentication gate for every screen tasks 032-035 add:
- * a page placed in this route group is behind `requireAdminSession()` by construction,
- * so a new area cannot ship accidentally public. Auth screens sit outside the group,
- * which is why they are unaffected by it.
+ * This layout is the authentication gate for every **page** tasks 032-035 add: a page
+ * placed in this route group is behind `requireAdminSession()` by construction, so a
+ * new area cannot ship accidentally public. Auth screens sit outside the group, which
+ * is why they are unaffected by it.
+ *
+ * It does **not** cover a `route.ts` in the group: a Next layout wraps the page tree
+ * and never runs for a route handler. A route handler under here guards itself, and
+ * `settings/password/route.ts` currently does not (issue #177) - it fails closed on
+ * authentication via better-auth, but skips the absolute-lifetime and 2FA-enrollment
+ * gates that `requireAdminSession()` adds.
  *
  * Sign-out is a form POST rather than a link, because signing out is a state change
  * and a GET link would let a prefetch or a crawler end someone's session. It is the
