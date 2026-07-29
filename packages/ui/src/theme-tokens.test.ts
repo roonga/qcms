@@ -39,6 +39,36 @@ interface Block {
   readonly tokens: Readonly<Record<string, string>>;
 }
 
+/** The custom properties declared in one block body, `--name: value` per entry. */
+function parseDeclarations(body: string): Record<string, string> {
+  const tokens: Record<string, string> = {};
+  for (const line of body.split(";")) {
+    const colon = line.indexOf(":");
+    if (colon < 0) continue;
+    const name = line.slice(0, colon).trim();
+    if (!name.startsWith("--")) continue;
+    tokens[name] = line.slice(colon + 1).trim();
+  }
+  return tokens;
+}
+
+/** The mode a selector selects, or `null` when it applies to every mode. */
+function modeOf(selector: string): Mode | null {
+  if (selector.includes(".hc")) return "hc";
+  if (selector.includes(".dark")) return "dark";
+  return null;
+}
+
+/**
+ * Selector specificity, counted the only way these selectors need it: each is
+ * `:root` plus zero or more classes and attribute selectors, and each of those
+ * raises specificity by one. That is enough to order
+ * `:root` < `:root.hc` < `:root[data-theme="x"].hc`.
+ */
+function specificityOf(selector: string): number {
+  return selector.split(".").length - 1 + (selector.split("[").length - 1);
+}
+
 /** Parse `theme.css` into cascade-ordered blocks. Comments are stripped first. */
 function parseBlocks(css: string): readonly Block[] {
   const withoutComments = css.replaceAll(/\/\*[\s\S]*?\*\//gu, "");
@@ -47,24 +77,15 @@ function parseBlocks(css: string): readonly Block[] {
   let match = blockPattern.exec(withoutComments);
   for (let index = 0; match !== null; index += 1, match = blockPattern.exec(withoutComments)) {
     const selector = (match.groups?.selector ?? "").trim();
-    const body = match.groups?.body ?? "";
-    const tokens: Record<string, string> = {};
-    for (const line of body.split(";")) {
-      const declaration = /^\s*(?<name>--[\w-]+)\s*:\s*(?<value>.+?)\s*$/u.exec(line);
-      if (declaration?.groups) tokens[declaration.groups.name] = declaration.groups.value;
-    }
     const themeMatch = /\[data-theme="(?<theme>[^"]+)"\]/u.exec(selector);
     const cornersMatch = /\.(?<corners>radius-[\w-]+)/u.exec(selector);
     blocks.push({
       index,
       theme: (themeMatch?.groups?.theme as Theme | undefined) ?? null,
-      mode: selector.includes(".hc") ? "hc" : selector.includes(".dark") ? "dark" : null,
+      mode: modeOf(selector),
       corners: cornersMatch?.groups?.corners ?? null,
-      // Every selector here is `:root` plus zero or more classes / attributes;
-      // each of those raises specificity by one, which is all we need to order
-      // `:root` < `:root.hc` < `:root[data-theme="x"].hc`.
-      specificity: (selector.match(/\.[\w-]+|\[[^\]]+\]/gu) ?? []).length,
-      tokens,
+      specificity: specificityOf(selector),
+      tokens: parseDeclarations(match.groups?.body ?? ""),
     });
   }
   return blocks;
