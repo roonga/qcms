@@ -67,9 +67,13 @@ const DISABLED: Telemetry = {
  * when asking "is this process exporting telemetry".
  */
 export function otlpEndpoint(env: TelemetryEnv): string | undefined {
-  const raw = env.OTEL_EXPORTER_OTLP_ENDPOINT?.trim();
+  let raw = env.OTEL_EXPORTER_OTLP_ENDPOINT?.trim();
   if (raw === undefined || raw === "") return undefined;
-  return raw.replace(/\/+$/, "");
+  // Trailing slashes trimmed one at a time rather than with `/\/+$/`, which is
+  // super-linear on a pathological input (`sonarjs/super-linear-regex`) - and this
+  // reads an environment variable, so "pathological" is not ours to rule out.
+  while (raw.endsWith("/")) raw = raw.slice(0, -1);
+  return raw;
 }
 
 /**

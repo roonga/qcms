@@ -25,6 +25,9 @@ import { dirname } from "node:path";
 
 import { OTLP_CAPTURE_PATH, OTLP_PORT } from "./harness-config.js";
 
+/** The scalar shapes an OTLP attribute value can flatten to. */
+export type CapturedAttributeValue = string | number | boolean;
+
 /** One span, flattened out of the OTLP JSON envelope for assertions. */
 export interface CapturedSpan {
   readonly traceId: string;
@@ -35,7 +38,7 @@ export interface CapturedSpan {
   readonly kind: number;
   /** `service.name` from the owning resource. */
   readonly serviceName: string;
-  readonly attributes: Readonly<Record<string, string | number | boolean>>;
+  readonly attributes: Readonly<Record<string, CapturedAttributeValue>>;
 }
 
 let server: Server | undefined;
@@ -106,17 +109,19 @@ interface OtlpSpan {
   kind?: number;
   attributes?: OtlpAttribute[];
 }
+interface OtlpResourceSpans {
+  resource?: { attributes?: OtlpAttribute[] };
+  scopeSpans?: { spans?: OtlpSpan[] }[];
+}
 interface OtlpPayload {
-  resourceSpans?: {
-    resource?: { attributes?: OtlpAttribute[] };
-    scopeSpans?: { spans?: OtlpSpan[] }[];
-  }[];
+  resourceSpans?: OtlpResourceSpans[];
 }
 
+/** Flatten OTLP's typed attribute values to scalars, dropping anything else. */
 function flattenAttributes(
   attributes: OtlpAttribute[] | undefined,
-): Record<string, string | number | boolean> {
-  const out: Record<string, string | number | boolean> = {};
+): Record<string, CapturedAttributeValue> {
+  const out: Record<string, CapturedAttributeValue> = {};
   for (const attribute of attributes ?? []) {
     const key = attribute.key;
     const value = attribute.value;
@@ -129,35 +134,38 @@ function flattenAttributes(
   return out;
 }
 
+/** Flatten every span carried by one resource, stamping its `service.name`. */
+function spansOfResource(resourceSpan: OtlpResourceSpans): CapturedSpan[] {
+  const resource = flattenAttributes(resourceSpan.resource?.attributes);
+  const service = resource["service.name"];
+  const serviceName = typeof service === "string" ? service : "";
+  return (resourceSpan.scopeSpans ?? []).flatMap((scopeSpan) =>
+    (scopeSpan.spans ?? []).map((span) => ({
+      traceId: span.traceId ?? "",
+      spanId: span.spanId ?? "",
+      parentSpanId: span.parentSpanId ?? "",
+      name: span.name ?? "",
+      kind: span.kind ?? 0,
+      serviceName,
+      attributes: flattenAttributes(span.attributes),
+    })),
+  );
+}
+
+/** One captured line, or `undefined` if it is not parseable OTLP JSON. */
+function parsePayload(line: string): OtlpPayload | undefined {
+  try {
+    return JSON.parse(line) as OtlpPayload;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Every captured span, flattened. Malformed lines are skipped, never thrown on. */
 export function readCapturedSpans(): CapturedSpan[] {
-  const spans: CapturedSpan[] = [];
-  for (const line of readCapturedPayloads().split("\n")) {
-    if (line.trim() === "") continue;
-    let payload: OtlpPayload;
-    try {
-      payload = JSON.parse(line) as OtlpPayload;
-    } catch {
-      continue;
-    }
-    for (const resourceSpan of payload.resourceSpans ?? []) {
-      const resource = flattenAttributes(resourceSpan.resource?.attributes);
-      const serviceName =
-        typeof resource["service.name"] === "string" ? resource["service.name"] : "";
-      for (const scopeSpan of resourceSpan.scopeSpans ?? []) {
-        for (const span of scopeSpan.spans ?? []) {
-          spans.push({
-            traceId: span.traceId ?? "",
-            spanId: span.spanId ?? "",
-            parentSpanId: span.parentSpanId ?? "",
-            name: span.name ?? "",
-            kind: span.kind ?? 0,
-            serviceName,
-            attributes: flattenAttributes(span.attributes),
-          });
-        }
-      }
-    }
-  }
-  return spans;
+  return readCapturedPayloads()
+    .split("\n")
+    .filter((line) => line.trim() !== "")
+    .flatMap((line) => parsePayload(line)?.resourceSpans ?? [])
+    .flatMap(spansOfResource);
 }
