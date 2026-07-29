@@ -19,7 +19,9 @@ export function EntryView({
   return (
     <PortalShell>
       <div className="flex flex-col gap-5">
-        <h1 className="text-2xl font-semibold tracking-tight text-(--color-text)">{title}</h1>
+        <h1 className="qcms-step-title font-semibold tracking-tight text-(--color-text)">
+          {title}
+        </h1>
         <p className="text-sm leading-relaxed text-(--color-text-muted)">{t("entry.startHint")}</p>
         <form action={startAction} method="post" className="flex flex-col gap-4">
           <ChallengeSlot />

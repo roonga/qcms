@@ -35,7 +35,7 @@ export function CompletionView({
           </p>
         </div>
 
-        <dl className="flex flex-col gap-3 rounded-lg border border-(--color-border) bg-(--color-background-muted) p-4">
+        <dl className="flex flex-col gap-3 rounded-(--radius-card) border border-(--color-border) bg-(--color-background-muted) p-4">
           <div className="flex flex-col gap-0.5">
             <dt className="text-xs font-medium text-(--color-text-muted)">
               {t("completion.submittedAt")}

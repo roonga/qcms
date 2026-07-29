@@ -59,7 +59,7 @@ export function NativeStep({
             role="alert"
             aria-labelledby="error-summary-title"
             data-testid="error-summary"
-            className="rounded-lg border border-(--color-danger) bg-(--color-danger-subtle) p-4"
+            className="rounded-(--radius-card) border border-(--color-danger) bg-(--color-danger-subtle) p-4"
           >
             <p id="error-summary-title" className="text-sm font-medium text-(--color-danger-fg)">
               {t("errorSummary.title")}

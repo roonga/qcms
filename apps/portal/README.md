@@ -39,19 +39,32 @@ open registration links, hydrating into the shared `@qcms/ui` renderer. Task 029
 | `/done` | Completion receipt (submittedAt + contentHash) |
 | `/link-error`, `/expired` | Friendly typed-error pages |
 
-## Theming (ADR-26): the single adopter override point
+## Theming (ADR-30): managed themes over a four-group token contract
 
-The portal ships a refined, brand-neutral default. Adopters re-skin it by editing
-ONE file, `app/adopter-theme.css`: set `--font-portal` and override any of the
-`--color-*` tokens (provide both a light `:root` value and a dark `:root.dark`
-value, each at WCAG 2.2 AA). Do not edit `globals.css` or the component styles.
-The brand-neutral defaults live in `@qcms/ui/theme.css`. Light + dark are both
-supported; the theme is chosen by `?theme=`, a cookie, or `prefers-color-scheme`.
+Presentation is **configuration**, not a code change. A deployment picks one of
+the predefined themes and a corner preset from the environment, and the root
+layout stamps them onto `<html>` during SSR:
+
+| Variable | Values | Meaning |
+| --- | --- | --- |
+| `QCMS_PORTAL_THEME` | `slate` (default) `harbor` `sand` `plum` | which palette |
+| `QCMS_PORTAL_CORNERS` | `subtle` (default) `sharp` `rounded` `pill` | corner preset |
+| `QCMS_PORTAL_MODE` | `auto` (default) `light` `dark` `hc` | default colour mode |
+
+Every theme is authored in Light and Dark and shares ONE High-contrast mode
+layer. `?mode=light|dark|hc` and the `qcms-theme` cookie override the configured
+default; the respondent-facing switcher is task 053.
+
+Deployment-specific values that no predefined theme offers go in the single
+documented override file, `app/adopter-theme.css` (never `globals.css`, never a
+component). The contract itself - the four token groups, the themes, the HC
+layer, and how to add a theme - is documented in `docs/theming.md`.
 
 ## Environment
 
 See `.env.example`. Server-only: `QCMS_API_BASE_URL`, `QCMS_INTERNAL_TOKEN`.
 Optional challenge: `QCMS_FLAG_CHALLENGE_PROVIDER=turnstile` + `QCMS_TURNSTILE_SITE_KEY`.
+Optional theming: `QCMS_PORTAL_THEME`, `QCMS_PORTAL_CORNERS`, `QCMS_PORTAL_MODE`.
 
 ## Progressive enhancement: no-JS submission (task 044)
 

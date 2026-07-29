@@ -44,7 +44,7 @@ export function PortalShell({
 
       <main id="portal-main" className="flex-1 px-4 py-6 sm:py-10">
         <div className="mx-auto w-full max-w-2xl">
-          <div className="rounded-xl border border-(--color-border) bg-(--color-surface) p-5 shadow-sm sm:p-8">
+          <div className="rounded-(--radius-card) border border-(--color-border) bg-(--color-surface) p-(--space-section-pad) shadow-sm">
             {children}
           </div>
         </div>

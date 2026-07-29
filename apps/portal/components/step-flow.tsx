@@ -610,7 +610,7 @@ export function StepFlow({
             tabIndex={-1}
             aria-labelledby="error-summary-title"
             data-testid="error-summary"
-            className="rounded-lg border border-(--color-danger) bg-(--color-danger-subtle) p-4 outline-none"
+            className="rounded-(--radius-card) border border-(--color-danger) bg-(--color-danger-subtle) p-4 outline-none"
           >
             <p id="error-summary-title" className="text-sm font-medium text-(--color-danger-fg)">
               {t("errorSummary.title")}
