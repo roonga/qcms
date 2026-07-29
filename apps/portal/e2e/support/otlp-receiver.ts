@@ -142,7 +142,8 @@ export function readCapturedSpans(): CapturedSpan[] {
     }
     for (const resourceSpan of payload.resourceSpans ?? []) {
       const resource = flattenAttributes(resourceSpan.resource?.attributes);
-      const serviceName = typeof resource["service.name"] === "string" ? resource["service.name"] : "";
+      const serviceName =
+        typeof resource["service.name"] === "string" ? resource["service.name"] : "";
       for (const scopeSpan of resourceSpan.scopeSpans ?? []) {
         for (const span of scopeSpan.spans ?? []) {
           spans.push({

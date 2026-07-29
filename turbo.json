@@ -27,6 +27,16 @@
   // Verify a new knob actually arrives with an unpullable value: if
   // `QCMS_TEST_POSTGRES_IMAGE=localhost:1/nope pnpm exec turbo run test
   // --filter @qcms/db --force` PASSES, the variable is being stripped.
+  // The `OTEL_*` knobs (task 054 / ADR-34) are deliberately NOT listed below, and
+  // that is the safe direction of the strict-env trap rather than an oversight. No
+  // turbo-run task needs them: the unit and integration suites never start an SDK
+  // (they assert the gate instead), and the traced proof lives in the Playwright
+  // suite, which runs without turbo and sets `OTEL_EXPORTER_OTLP_ENDPOINT` itself
+  // (pointed at its own in-test receiver, `apps/portal/e2e/support/otlp-receiver.ts`).
+  // Passing them through would mean a developer who exports an endpoint for the
+  // local trace viewer silently turns exporting on inside `pnpm test`. If a future
+  // turbo-run task ever must read one, add it here and prove it arrives the way the
+  // Postgres-image note below describes.
   "globalPassThroughEnv": [
     "QCMS_TEST_POSTGRES_IMAGE",
     "TESTCONTAINERS_RYUK_DISABLED",

@@ -39,7 +39,11 @@ import {
   fillText,
   startKitchenSink,
 } from "./support/kitchen-sink.js";
-import { readCapturedPayloads, readCapturedSpans, type CapturedSpan } from "./support/otlp-receiver.js";
+import {
+  readCapturedPayloads,
+  readCapturedSpans,
+  type CapturedSpan,
+} from "./support/otlp-receiver.js";
 
 /**
  * The answer value this spec submits and then hunts for. Deliberately unlike any
@@ -138,7 +142,9 @@ test("a respondent submit produces one connected trace, correlated logs, and no 
 
   // The pg spans belong to the API's side of that trace, under an API span.
   const apiSpanIds = new Set(
-    inTrace.filter((span) => span.serviceName === OTEL_SERVICE_NAMES.api).map((span) => span.spanId),
+    inTrace
+      .filter((span) => span.serviceName === OTEL_SERVICE_NAMES.api)
+      .map((span) => span.spanId),
   );
   const pgSpans = inTrace.filter(
     (span) =>

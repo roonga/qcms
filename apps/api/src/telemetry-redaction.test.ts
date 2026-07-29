@@ -92,7 +92,7 @@ describe("sanitizeSpan", () => {
         attributes: {
           "exception.type": "ApiError",
           "exception.message": 'value "My private answer" is not a valid number',
-          "exception.stacktrace": "ApiError: value \"My private answer\" ...",
+          "exception.stacktrace": 'ApiError: value "My private answer" ...',
         },
         droppedAttributesCount: 0,
       },

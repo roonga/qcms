@@ -1,7 +1,7 @@
 # QCMS - Security Design
 
-**Status:** v1.1 (formal) · companion to `ARCHITECTURE.md` (§5.1, §7, §8) and `PROJECT_GOAL.md` (ADR-16…25) · v1.1: ingress language per ADR-20; task-file fold-back note (§10)
-**Decisions here are numbered SEC-1…SEC-12** and carry ADR weight; conflicts are flagged, not silently overridden.
+**Status:** v1.1 (formal) · companion to `ARCHITECTURE.md` (§5.1, §7, §8) and `PROJECT_GOAL.md` (ADR-16…25) · v1.1: ingress language per ADR-20; task-file fold-back note (§10); SEC-13 telemetry privacy per ADR-34 (task 054)
+**Decisions here are numbered SEC-1…SEC-13** and carry ADR weight; conflicts are flagged, not silently overridden.
 **Delivery:** every control in this document maps to a task in `features/` (traceability matrix, §10). New task: `features/040-security-review-hardening.md`, executed after 036 and before the launch gate (038).
 
 ---
@@ -132,6 +132,18 @@ Owned by 026 (rate limits, honeypot, min-time, session binding, challenge adapte
 
 **Agent-assisted authoring (ADR-25, flag-gated).** The assist surface is admin-only (behind 2FA auth), off by default, and adds one egress path: outbound LLM-provider calls carrying **form structure only - respondent answers are structurally unreachable from the agent's tool surface** (the PII boundary is the allowlist, not a prompt). Prompt injection is bounded the same way: the allowlist is enforced server-side (draft mutation + validation only; never publish/erase/links/webhooks), every proposal passes kernel validation, and publish remains a human act. The provider key follows SEC-8 (validated iff the flag is on, never logged). 040 covers the surface when enabled.
 
+## 8a. Telemetry privacy - SEC-13
+
+**Telemetry is an export, so its contents are an allowlist, not a filter (ADR-34, task 054).** Spans leave the process and land in an adopter's observability backend, which is outside our erasure reach and outside our retention controls, so what may appear in a span is decided by naming what is permitted rather than by listing what to strip: an attribute no allowlist entry names is dropped before export, in a span processor at each app's composition root (`apps/api/src/telemetry-redaction.ts`, `apps/portal/lib/server/telemetry-redaction.ts`), not per instrumentation.
+
+**Never in any signal:** respondent answer values, `LocalizedText` content, secure-link tokens (`lnk_`), the SEC-4 internal service token, session bearers, admin credentials or TOTP material, and any other secret from the SEC-7 inventory. Concretely: HTTP header capture is left off in `@hono/otel` and in the http/undici instrumentations (`authorization` and the internal token travel in headers); `enhancedDatabaseReporting` is off in `instrumentation-pg`, so `db.query.text` carries **parameterized SQL only** and never bound parameter values (an answer value is a bound parameter on every insert); query strings are removed from every URL-shaped attribute whole; and `exception.message`/`exception.stacktrace` are never exported (a validation message is the one place an answer value can plausibly land inside an error string - the message and the stack stay in the process's own structured log, correlated by `trace_id` and `x-request-id`).
+
+**Branded ids are permitted as pseudonymous correlators** (`frm_`, `stp_`, `q_`, `ses_`): they are random and opaque, they carry no respondent content, and they are what makes an exported trace worth reading. The **secure-link token is the deliberate exception that needs work**, because it is a credential in a URL path (`/l/<token>`, the SEC-8 exception noted in §6): the portal redacts it to `/l/[token]` in URL attributes *and in the span name*, since Next builds its root span name from the real pathname.
+
+**The adopter owns telemetry retention.** Tracing is off unless `OTEL_EXPORTER_OTLP_ENDPOINT` is set, and when it is set the `ses_` ids in the exported spans live in the adopter's backend under the adopter's retention policy - the ADR-17 erasure path governs QCMS's Postgres only and cannot reach them. That is documented rather than hidden, and it is why the ids are pseudonymous by construction: an erasure request that has removed the answers leaves behind, at most, opaque identifiers in an operational store the operator chose to fill. Hashing ids at the exporter was considered and deferred (Phase 4) as unnecessary given the above.
+
+**Verified by:** unit tests over both allowlists (unknown attribute dropped, URL query stripped, `exception.message` gone, token rewritten) plus the traced e2e run in `apps/portal/e2e/otel-trace.pw.ts`, which submits a known answer value through the real stack and asserts it appears in **no** captured OTLP payload and in neither app's captured log, and that the link token is exported as the redacted pattern rather than merely being absent.
+
 ## 9. Supply chain and release security - SEC-11
 
 Lockfile committed and frozen in CI (`--frozen-lockfile`); `pnpm audit` + osv-scanner in CI (fail on high/critical with a documented triage path); Dependabot/Renovate enabled; minimal dependency policy (the 010 decision to hand-roll tokens over a JWT lib is the pattern). Vendored `a2-react-aria` component sources (ADR-22) enter the repo via `@a2ra/cli add` and are reviewed in their PR like any first-party code - no postinstall scripts, no opaque bundles. npm publishing: 2FA on the npm account, provenance attestations (`npm publish --provenance`) for all `@qcms/*` packages, publish only from CI on tagged releases. Docker images: pinned base digests, non-root, SBOM (036). The scaffold (037) must never contain a real secret - a scaffold-output scan is part of its CI. GitHub: branch protection, required CI, no force-push to main.
@@ -154,5 +166,6 @@ Lockfile committed and frozen in CI (`--frozen-lockfile`); `pnpm audit` + osv-sc
 | Least-privilege DB roles (SEC-10) | §7 | 013, 015, 036 · 040 |
 | Supply chain (SEC-11) | §9 | 001 (CI), 036, 037 · 040 |
 | Review + disclosure (SEC-12) | §10 | **040**, 038 gate |
+| Telemetry privacy / redaction allowlist (SEC-13) | §8a | 054 · 040 |
 
 **Consistency notes against existing docs:** `ARCHITECTURE.md` §5.1's table gains the internal service token implicitly (SEC-4) - no contradiction; 017's config schema grows `QCMS_SESSION_KEYS`, `QCMS_INTERNAL_TOKEN`, `QCMS_APP_KEY` and 010 generalizes to purpose-tagged tokens - **task files 010/017/018 were corrected in place (2026-07-19)** per the staleness rule (`AGENTIC_DEVELOPMENT.md` §1.1); 018's session token is ratified as SEC-2. If a conflict between a task file and this document is discovered later, this document wins and the task file is corrected in the same change.

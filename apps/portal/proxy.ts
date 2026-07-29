@@ -34,7 +34,8 @@ export function proxy(request: NextRequest): NextResponse {
   const nonce = btoa(String.fromCharCode(...nonceBytes));
   const csp = buildCsp(challengeProvider(), nonce);
 
-  const requestId = normalizeRequestId(request.headers.get(REQUEST_ID_HEADER)) ?? crypto.randomUUID();
+  const requestId =
+    normalizeRequestId(request.headers.get(REQUEST_ID_HEADER)) ?? crypto.randomUUID();
 
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
