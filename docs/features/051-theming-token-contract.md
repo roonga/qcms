@@ -23,4 +23,4 @@ First slice of 047: the four-group token contract the whole theming model rests 
 
 ## Out of scope
 
-Respondent controls and persistence (052), the font registry and font-dependent floors (053), the admin theme editor (049), baselines #27/#28.
+The font registry and font-dependent floors (052), respondent controls and persistence (053), the admin theme editor (049), baselines #27/#28.
