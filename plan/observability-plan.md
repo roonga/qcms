@@ -69,7 +69,7 @@ Backend/vendor selection, alerting/SLOs, dashboards-as-code, browser RUM, client
 
 ## Open decisions for the Code Owner
 
-- **D1 - slot:** after the admin train, before 038 (recommended) vs Phase 4 entirely.
+- **D1 - slot:** **DECIDED 2026-07-29 (Code Owner): after the admin train, before 038** - the observability task runs once 031-035/048/049 clear and lands before the external-tester gate.
 - **D2 - browser-side telemetry:** out of scope for launch (recommended) vs in.
 - **D3 - `ses_` in telemetry:** allowed as pseudonymous (recommended) vs hashed at the exporter.
 - **D4 - dev viewer:** documented optional recipe (recommended) vs wired into `pnpm dev:portal` behind a flag.
