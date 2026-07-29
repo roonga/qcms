@@ -43,7 +43,7 @@
     "chrome-launcher": "^1.2.1",
     "eslint": "^10.8.0",
     "eslint-plugin-sonarjs": "^4.2.0",
-    "jscpd": "^5.0.12",
+    "jscpd": "^5.0.14",
     "lighthouse": "^13.4.1",
     "prettier": "^3.9.6",
     "turbo": "^2.10.7",
