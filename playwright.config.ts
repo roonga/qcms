@@ -3,6 +3,9 @@ import { defineConfig, devices } from "@playwright/test";
 import {
   API_BASE_URL,
   FIXED_INTERNAL_TOKEN,
+  OTEL_SERVICE_NAMES,
+  OTLP_ENDPOINT,
+  OTLP_SCHEDULE_DELAY_MS,
   PORTAL_PORT,
 } from "./apps/portal/e2e/support/harness-config.js";
 
@@ -102,6 +105,17 @@ export default defineConfig({
       PORTAL_PORT: String(PORT),
       QCMS_API_BASE_URL: API_BASE_URL,
       QCMS_INTERNAL_TOKEN: FIXED_INTERNAL_TOKEN,
+      // Tracing on, pointed at the in-test OTLP receiver globalSetup boots (task
+      // 054). This is also the switch that makes the portal's `instrumentation.ts`
+      // call `registerOTel` at all - with it unset the portal starts no SDK, which
+      // is what every other suite and CI job exercises.
+      OTEL_EXPORTER_OTLP_ENDPOINT: OTLP_ENDPOINT,
+      // JSON, not the exporter's default protobuf: the receiver is 40 lines of
+      // `node:http` and the SEC-13 assertion greps the captured bytes for an answer
+      // string, which a protobuf payload would hide behind an encoder.
+      OTEL_EXPORTER_OTLP_PROTOCOL: "http/json",
+      OTEL_SERVICE_NAME: OTEL_SERVICE_NAMES.portal,
+      OTEL_BSP_SCHEDULE_DELAY: OTLP_SCHEDULE_DELAY_MS,
     },
   },
 });

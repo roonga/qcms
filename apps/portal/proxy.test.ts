@@ -20,8 +20,16 @@ import { proxy } from "./proxy";
  * `e2e/csp-nonce.pw.ts` proves the same chain end to end through a real browser.
  */
 
-function runProxy(): { requestNonce: string | null; csp: string } {
-  const request = new NextRequest("https://portal.example/f/demo");
+function runProxy(headers?: HeadersInit): {
+  requestNonce: string | null;
+  csp: string;
+  requestId: string | null;
+  echoedRequestId: string | null;
+} {
+  const request = new NextRequest(
+    "https://portal.example/f/demo",
+    headers === undefined ? undefined : { headers },
+  );
   const response = proxy(request);
   return {
     // `NextResponse.next({ request: { headers } })` encodes the forwarded request
@@ -29,6 +37,8 @@ function runProxy(): { requestNonce: string | null; csp: string } {
     // shape the framework hands to the route/layout.
     requestNonce: response.headers.get("x-middleware-request-x-nonce"),
     csp: response.headers.get("Content-Security-Policy") ?? "",
+    requestId: response.headers.get("x-middleware-request-x-request-id"),
+    echoedRequestId: response.headers.get("x-request-id"),
   };
 }
 
@@ -54,6 +64,34 @@ describe("portal security-header proxy", () => {
       seen.add(requestNonce ?? "");
     }
     expect(seen.size).toBe(25);
+  });
+
+  /**
+   * The correlation id (task 054, ADR-34 P5). The proxy is the single minting
+   * point: one id per browser request, forwarded to SSR (where the BFF reads it
+   * and puts it on its API calls) and echoed on the response so a respondent or
+   * tester can quote it.
+   */
+  it("mints one x-request-id per request, forwards it to SSR, and echoes it", () => {
+    const { requestId, echoedRequestId } = runProxy();
+
+    expect(requestId).not.toBeNull();
+    expect(requestId).toBe(echoedRequestId);
+    expect(requestId).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it("honours an inbound x-request-id rather than replacing it", () => {
+    const { requestId, echoedRequestId } = runProxy({ "x-request-id": "caller-supplied-id" });
+
+    expect(requestId).toBe("caller-supplied-id");
+    expect(echoedRequestId).toBe("caller-supplied-id");
+  });
+
+  it("replaces an unusable inbound id (over the API's 200-character limit)", () => {
+    const { requestId } = runProxy({ "x-request-id": "x".repeat(201) });
+
+    expect(requestId).not.toBe("x".repeat(201));
+    expect(requestId).toMatch(/^[0-9a-f-]{36}$/);
   });
 
   it("leaves the nonce as the only authorization for inline script", () => {

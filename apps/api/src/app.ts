@@ -19,6 +19,7 @@
  * what the middleware/mount tests exercise.
  */
 
+import { httpInstrumentationMiddleware } from "@hono/otel";
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { bodyLimit } from "hono/body-limit";
 
@@ -68,6 +69,21 @@ export function createApp(
 
   // Uniform error rendering for everything below.
   app.onError(errorEnvelope(deps));
+
+  // The `SpanKind.SERVER` span for this request, and the point where an inbound
+  // W3C `traceparent` (the portal BFF's, over the SEC-4 hop) is extracted and
+  // becomes this span's parent - so one respondent action is one trace across
+  // both services (task 054, ADR-34).
+  //
+  // Unconditional, and safe to be: `@hono/otel` depends on `@opentelemetry/api`
+  // only, so with no SDK registered (`OTEL_EXPORTER_OTLP_ENDPOINT` unset) it
+  // resolves the no-op tracer and records nothing. Header capture is left unset
+  // on purpose: `authorization` and the SEC-4 internal token travel in headers,
+  // and SEC-13 keeps them out of every signal.
+  //
+  // FIRST, above the request logger, so the correlation id below has a span to
+  // attach itself to.
+  app.use("*", httpInstrumentationMiddleware());
 
   // Correlation id + structured request log wraps every request.
   app.use("*", requestLogger(deps));

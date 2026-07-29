@@ -11,10 +11,16 @@
     "start": "next start",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --root ../.. --project qcms-portal",
-    "lint": "eslint app components e2e lib proxy.ts proxy.test.ts next.config.ts postcss.config.mjs"
+    "lint": "eslint app components e2e lib instrumentation.ts proxy.ts proxy.test.ts next.config.ts postcss.config.mjs"
   },
   "dependencies": {
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/api-logs": "^0.221.0",
+    "@opentelemetry/instrumentation": "^0.221.0",
+    "@opentelemetry/sdk-logs": "^0.221.0",
+    "@opentelemetry/sdk-trace-base": "^2.10.0",
     "@qcms/ui": "workspace:*",
+    "@vercel/otel": "^2.1.3",
     "next": "^16.2.12",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"

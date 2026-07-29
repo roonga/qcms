@@ -46,8 +46,16 @@ export {
   type ApiEnv,
   type Scope,
 } from "./openapi.js";
+export {
+  startTelemetry,
+  otlpEndpoint,
+  DEFAULT_SERVICE_NAME,
+  type Telemetry,
+  type TelemetryEnv,
+  type TelemetryOptions,
+} from "./telemetry.js";
 export { internalToken } from "./middleware/internal-token.js";
-export { requestLogger } from "./middleware/request-logger.js";
+export { requestLogger, REQUEST_ID_ATTRIBUTE } from "./middleware/request-logger.js";
 export { errorEnvelope } from "./middleware/error-envelope.js";
 export { registerHealthRoutes } from "./routes/health.js";
 export {
