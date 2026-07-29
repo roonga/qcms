@@ -308,7 +308,9 @@ qcms/
 │   │   │   ├── config.ts         # Zod env schema, fail-fast        (017)
 │   │   │   ├── middleware/       # envelope · logging · rate-limit · auth (017, 021, 031)
 │   │   │   ├── workers/          # outbox deliverer · sweep         (017, 025)
-│   │   │   ├── serve.ts          # entry: starts server + workers   (017)
+│   │   │   ├── serve.ts          # entry: telemetry, then main       (017, 054)
+│   │   │   ├── main.ts           # composes deps, binds port, workers (017)
+│   │   │   ├── telemetry.ts      # gated NodeSDK + SEC-13 redaction  (054)
 │   │   │   └── features/
 │   │   │       ├── responses/  start-session/ (018) · get-step/ · submit-answer/ (019)
 │   │   │       │               submit/ (020) · list/ · export/ · erase/ (023)
@@ -320,6 +322,7 @@ qcms/
 │   │   └── CONTRIBUTING.md       # slice conventions                (017)
 │   │
 │   ├── portal/                   # Next.js · SSR + strict BFF (R2)
+│   │   ├── instrumentation.ts    # gated registerOTel (@vercel/otel) (054)
 │   │   └── src/app/  f/[formSlug]/ · l/[token]/ · s/[sessionId]/ · done/
 │   │                 api/        # BFF route handlers - proxy only  (029)
 │   │
