@@ -1,6 +1,6 @@
 # QCMS observability plan (OTel baseline)
 
-**Status:** PO draft for Code Owner review, 2026-07-29. On ratification this becomes an ADR (next free number: ADR-34; re-verify at landing) plus one task file; this document stays as the working record.
+**Status:** PO draft for Code Owner review, 2026-07-29 (rev 2 same day: implementation anchored on the official OTel JS setup - NodeSDK bootstrap, Next's documented route, official instrumentation libraries including `@hono/otel` and `instrumentation-pino` - replacing the hand-rolled middleware/logger-enrichment sketch, per Code Owner direction). On ratification this becomes an ADR (next free number: ADR-34; re-verify at landing) plus one task file; this document stays as the working record.
 **Prompted by:** the consolidated-local-logs discussion and the coming admin train (three services in local dev), plus the external-tester launch gate (038) needing real request forensics.
 
 ## 1. Current state (verified 2026-07-29)
@@ -19,21 +19,22 @@ QCMS is adopter-hosted (shadcn-style). We therefore ship **instrumentation and c
 ## 3. Principles
 
 - **P1 - OTel is the single standard.** W3C Trace Context (`traceparent`/`tracestate`) for propagation, OTLP/HTTP for export. No vendor SDKs, ever.
-- **P2 - SDK only at composition roots.** The OTel **SDK** is wired in exactly two places: the API entry (`serve.ts` path) and the Next.js apps' `instrumentation.ts`. Library packages take at most `@opentelemetry/api` (a no-op when no SDK is registered). **`@qcms/core` stays completely OTel-free** - the kernel is pure (R4); spans around rule evaluation and compilation belong to callers. Determinism and the golden corpus are untouched by construction: spans wrap outputs, never appear in them.
+- **P2 - SDK only at composition roots, wired the documented way.** The OTel **SDK** is wired in exactly two places, each following the official OTel JS setup (opentelemetry.io/docs/languages/js): the API entry uses the canonical `NodeSDK` bootstrap from `@opentelemetry/sdk-node`, and the Next.js apps use Next's own documented OTel route (`instrumentation.ts` + `registerOTel`). (The zero-code `--require .../register` hook is the docs' other path, but it rides the `auto-instrumentations-node` meta package - see the exclusion in section 7 - so the explicit bootstrap is the recommendation.) Library packages take at most `@opentelemetry/api` (a no-op when no SDK is registered). **`@qcms/core` stays completely OTel-free** - the kernel is pure (R4); spans around rule evaluation and compilation belong to callers. Determinism and the golden corpus are untouched by construction: spans wrap outputs, never appear in them.
 - **P3 - Standard knobs, not new ones.** Configuration via standard `OTEL_*` env vars (`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`, `OTEL_TRACES_SAMPLER`). Telemetry is a no-op unless the endpoint is explicitly set - CI and default dev runs stay exactly as they are. No new `QCMS_` flags unless we hit something OTel genuinely does not standardize.
 - **P4 - Privacy by allowlist (the QCMS-specific rule).** Span attributes and log fields come from an explicit allowlist. **Never recorded in any signal:** respondent answer values, `LocalizedText` content, secure-link tokens (`lnk_`), the SEC-4 internal token, auth secrets, and (once 031 lands) admin credentials/TOTP material. Branded ids (`frm_`, `stp_`, `q_`, `ses_`) are allowed as pseudonymous correlators and documented as such. `db.statement` capture: parameterized SQL text only, parameter values explicitly off. This becomes a SEC row (SEC-13 candidate) in `docs/SECURITY_DESIGN.md`.
 - **P5 - `x-request-id` stays.** It is the human-facing correlation token (error envelope, support). The bridge: the portal BFF starts forwarding it; it is recorded as a span attribute; log lines gain `trace_id`/`span_id` when a span is active. `traceparent` becomes the machine propagation truth alongside it, not instead of it.
 
 ## 4. Signals, scoped
 
-**Traces (the core of this plan).**
+**Traces (the core of this plan).** Instrumentation is the official libraries throughout - nothing hand-rolled, so behaviour tracks the spec as the packages evolve.
 - The trace **starts at the portal server** (SSR/BFF route handlers). Browser-side telemetry is out of scope for launch (CSP surface, consent/privacy, payload cost - and R2 means the browser only ever talks to the portal anyway).
-- Portal: Node SDK + undici/fetch instrumentation in `instrumentation.ts`; the BFF's fetch to the API then propagates `traceparent` automatically over the SEC-4-authenticated hop.
-- API: a small Hono middleware (fetch-pure, DI-friendly, sits beside `request-logger.ts`) extracts the inbound context and opens the server span. Community middleware exists; hand-rolling on `@opentelemetry/api` is ~30 lines and keeps the composition-root discipline - decide at implementation.
+- Portal: Next's documented OTel setup (`instrumentation.ts`), with fetch/undici instrumentation so the BFF's call to the API propagates `traceparent` automatically over the SEC-4-authenticated hop.
+- API: the official Hono middleware (`@hono/otel`) opens the server span and extracts inbound context; it sits beside `request-logger.ts` at the composition root.
 - DB: `@opentelemetry/instrumentation-pg`, statement text on (parameterized), parameter capture off (P4).
+- Instrumentation selection: an **explicit list** of official packages (http, undici, pg, pino) rather than the `auto-instrumentations-node` meta package - same official code, but the meta package drags in 100+ instrumentations against our dependency policy.
 - Admin (031+): same recipe as the portal; joins when the app exists.
 
-**Logs.** Keep the injected `Logger` interface and JSON-to-stdout transport (12-factor; adopters ship stdout wherever they like). One enhancement: the logger implementation (not call sites) enriches lines with `trace_id`/`span_id` from the active OTel context. **No OTel Logs SDK at launch** - extra surface, little gain over correlated stdout; revisit in Phase 4.
+**Logs.** Keep the injected `Logger` interface (the DI seam handlers already use) but back the implementation with **pino**, and get trace correlation the formal way: `@opentelemetry/instrumentation-pino` injects `trace_id`/`span_id` into every line automatically - no custom context-lookup code in our logger. Transport stays JSON-to-stdout (12-factor; adopters ship stdout wherever they like). **No OTLP logs export at launch** - the pino instrumentation gives correlated stdout without the Logs SDK surface; OTLP log shipping is a Phase 4 flip, not a rewrite, because the instrumentation already supports it.
 
 **Metrics.** None custom at launch; duration/status/error-rate derive from spans. Product metrics (publish counts, submission rates) are Phase 4, demand-driven.
 
@@ -48,7 +49,7 @@ QCMS is adopter-hosted (shadcn-style). We therefore ship **instrumentation and c
 
 ## 7. Dependencies (CONTRIBUTING approval list, all Apache-2.0, CNCF-governed)
 
-`@opentelemetry/api` (apps; possibly `@qcms/db` if the pg instrumentation needs a hook there - prefer apps-only), `@opentelemetry/sdk-node`, `@opentelemetry/exporter-trace-otlp-http`, `@opentelemetry/instrumentation-http`, `-undici`, `-pg`, `@opentelemetry/semantic-conventions`. Caret ranges per the #125 pin policy (not framework-tier). Risk assessment rides the PR per `CONTRIBUTING.md`.
+`@opentelemetry/api` (apps; possibly `@qcms/db` if the pg instrumentation needs a hook there - prefer apps-only), `@opentelemetry/sdk-node`, `@opentelemetry/exporter-trace-otlp-http`, `@opentelemetry/instrumentation-http`, `-undici`, `-pg`, `-pino`, `@opentelemetry/semantic-conventions`, `@vercel/otel` (portal/admin, per Next's documented setup), `@hono/otel` (API), `pino` (API logger implementation behind the existing `Logger` interface). Caret ranges per the #125 pin policy (not framework-tier). Risk assessment rides the PR per `CONTRIBUTING.md`. Deliberately excluded: `auto-instrumentations-node` as a dependency (meta-package bloat; the explicit list above is the same official code).
 
 ## 8. Rollout recommendation
 
