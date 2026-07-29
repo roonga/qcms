@@ -54,9 +54,9 @@ because `:root.hc` and `:root[data-theme="x"]` have the same specificity.
 | Word-spacing >= 0.16em | `--type-word-spacing` | `0.16em` |
 | Paragraph spacing >= 2em | `--type-paragraph-spacing` | `2em` |
 
-Plus `--type-step-title` (`clamp(1.55rem, 3.5vw, 1.85rem)`),
-`--type-section-title` and `--type-title-line-height` for headings. No mode, theme
-or (later) density level may lower a floor;
+Plus `--type-step-title` (`clamp(1.55rem, 3.5vw, 1.85rem)`) and
+`--type-title-line-height` for the step title. No mode, theme or (later) density
+level may lower a floor;
 `packages/ui/src/theme-tokens.test.ts` asserts each one and asserts that every
 theme x mode resolution leaves it unchanged.
 
@@ -164,7 +164,7 @@ palette authored per theme. It is a single, theme-agnostic layer:
 
 | Theme | HC accent | primary-fg / primary |
 | --- | --- | --- |
-| slate | `#0b453d` (in the base `:root.hc`) | 10.85:1 |
+| slate | `#0b453d` (in the base `:root.hc`) | 10.86:1 |
 | harbor | `#0a3a8a` | 10.57:1 |
 | sand | `#7a3717` | 8.80:1 |
 | plum | `#54148f` | 11.20:1 |

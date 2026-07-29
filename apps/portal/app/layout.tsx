@@ -51,9 +51,9 @@ var c=document.cookie.match(/(?:^|; )qcms-theme=(dark|light|hc)/);
 var m=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;
 var t=q||(c&&c[1])||${fallback};
 if(v.indexOf(t)<0)t='light';
-var e=document.documentElement;
-for(var i=0;i<v.length;i++)e.classList.remove(v[i]);
-e.classList.add(t);
+var r=document.documentElement;
+for(var i=0;i<v.length;i++)r.classList.remove(v[i]);
+r.classList.add(t);
 }catch(e){}})();`;
 }
 

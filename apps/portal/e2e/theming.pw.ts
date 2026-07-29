@@ -135,6 +135,24 @@ test("per-deployment selection: the configured theme and corner preset reach the
   expect(slatePrimary).toBe("#2c6e63");
 });
 
+test("the pre-paint bootstrap accepts every mode and rejects anything else", async ({ page }) => {
+  const { slug } = readFixtures();
+  const root = page.locator("html");
+
+  // The documented manual door until task 053 ships the switcher. It is resolved
+  // before first paint by the nonced inline script, so the class is already right
+  // on the first assertion - there is no flash to wait out.
+  for (const mode of MODES) {
+    await page.goto(`/f/${slug}?mode=${mode}`);
+    await expect(root).toHaveClass(new RegExp(`\\b${mode}\\b`));
+  }
+
+  // An unknown value can never become a class: it falls back to Light.
+  await page.goto(`/f/${slug}?mode=sepia`);
+  await expect(root).toHaveClass(/\blight\b/u);
+  await expect(root).not.toHaveClass(/\bsepia\b/u);
+});
+
 test("radius presets apply across controls, the step card and a banner", async ({ page }) => {
   const { kitchenSinkSlug } = readFixtures();
   await startKitchenSink(page, kitchenSinkSlug);

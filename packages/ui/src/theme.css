@@ -56,7 +56,6 @@
   --type-label: 1rem;
   --type-hint: 0.875rem;
   --type-step-title: clamp(1.55rem, 3.5vw, 1.85rem);
-  --type-section-title: 1.125rem;
 
   /* Spacing of text (the 1.4.12 floors). */
   --type-line-height: 1.5;
