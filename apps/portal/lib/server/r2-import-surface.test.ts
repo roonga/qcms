@@ -13,7 +13,7 @@ import { describe, expect, it } from "vitest";
 
 const PORTAL_ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const SCAN_DIRS = ["app", "components", "lib"];
-const EXTRA_FILES = ["proxy.ts"];
+const EXTRA_FILES = ["proxy.ts", "instrumentation.ts"];
 
 function isSource(entry: string): boolean {
   const isTs = entry.endsWith(".ts") || entry.endsWith(".tsx");

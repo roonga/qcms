@@ -1,6 +1,7 @@
 import type { A2UIAnswerValue } from "@qcms/ui";
 
 import { INTERNAL_TOKEN_HEADER, apiBaseUrl, internalToken } from "./config";
+import { REQUEST_ID_HEADER, currentRequestId } from "./request-id";
 
 /**
  * The strict BFF's internal API client (task 029, R2).
@@ -89,12 +90,24 @@ interface ErrorEnvelope {
   };
 }
 
-function baseHeaders(token?: string): Record<string, string> {
+/**
+ * Credential + correlation headers for one internal API call.
+ *
+ * Async since task 054: it also forwards this browser request's `x-request-id`
+ * (minted by `proxy.ts`, read back through `headers()`), so the API logs the id
+ * the respondent can quote instead of generating an unrelated one. `traceparent`
+ * rides the same fetch without appearing here - `@vercel/otel` injects it into
+ * outgoing fetches whose URL matches `propagateContextUrls` (see
+ * `instrumentation.ts`), which is why this stays proxy + credential duty only.
+ */
+async function baseHeaders(token?: string): Promise<Record<string, string>> {
   const headers: Record<string, string> = {
     "content-type": "application/json",
     [INTERNAL_TOKEN_HEADER]: internalToken(),
   };
   if (token !== undefined) headers.authorization = `Bearer ${token}`;
+  const requestId = await currentRequestId();
+  if (requestId !== undefined) headers[REQUEST_ID_HEADER] = requestId;
   return headers;
 }
 
@@ -125,7 +138,7 @@ export async function startSession(
 ): Promise<StartSessionResponse> {
   const res = await fetch(`${apiBaseUrl()}/sessions`, {
     method: "POST",
-    headers: baseHeaders(),
+    headers: await baseHeaders(),
     body: JSON.stringify(body),
     cache: "no-store",
   });
@@ -154,7 +167,7 @@ export async function getStep(
   const res = await fetch(
     `${apiBaseUrl()}/sessions/${encodeURIComponent(sessionId)}/step${stepQuery(stepIndex)}`,
     {
-      headers: baseHeaders(token),
+      headers: await baseHeaders(token),
       cache: "no-store",
     },
   );
@@ -177,7 +190,7 @@ export async function submitAnswer(
     `${apiBaseUrl()}/sessions/${encodeURIComponent(sessionId)}/answers${stepQuery(stepIndex)}`,
     {
       method: "POST",
-      headers: baseHeaders(token),
+      headers: await baseHeaders(token),
       body: JSON.stringify({ questionId, value }),
       cache: "no-store",
     },
@@ -193,7 +206,7 @@ export async function submitSession(
 ): Promise<SubmitResponse> {
   const res = await fetch(`${apiBaseUrl()}/sessions/${encodeURIComponent(sessionId)}/submit`, {
     method: "POST",
-    headers: baseHeaders(token),
+    headers: await baseHeaders(token),
     body: JSON.stringify(body),
     cache: "no-store",
   });

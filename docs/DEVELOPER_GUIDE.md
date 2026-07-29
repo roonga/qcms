@@ -74,6 +74,38 @@ If that **passes**, the variable is being stripped.
 
 **Rollback (the migration is reversible):** `.devcontainer/` touches no product code. Stop using it - or delete the directory - and the host workflow is unchanged: `pnpm install`, the merge gate, and `docker compose -f docker-compose.dev.yml up -d` behave exactly as they did before task 046 (re-run `pnpm install` on the host once if that checkout had been used in the container). Task 046 verified that the portal and API dev servers already bind `0.0.0.0` by default, so no source change was needed for host-browser viewing.
 
+## Seeing a trace locally (optional, task 054 / ADR-34)
+
+Tracing is **off unless you set an endpoint**, and nothing in the repo depends on a viewer image. When you want to watch one respondent submit cross the portal -> API -> Postgres hops, run any standalone OTLP dashboard container and point the apps at it. Two that need no configuration:
+
+```sh
+# A. Jaeger all-in-one (trace search + timeline; UI on 16686)
+docker run --rm -p 16686:16686 -p 4318:4318 jaegertracing/all-in-one:latest
+
+# B. .NET Aspire dashboard (traces + logs + metrics in one pane; UI on 18888)
+docker run --rm -p 18888:18888 -p 4318:18889 \
+  -e DASHBOARD__FRONTEND__AUTHMODE=Unsecured \
+  mcr.microsoft.com/dotnet/aspire-dashboard:latest
+```
+
+Then start the stack with the standard variables set (the same two knobs both processes read):
+
+```sh
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 \
+OTEL_SERVICE_NAME=qcms-portal \
+NEXT_OTEL_VERBOSE=1 \
+pnpm dev:portal
+```
+
+Notes worth having before you go looking for a missing span:
+
+- **`OTEL_EXPORTER_OTLP_ENDPOINT` is the whole switch.** Unset, neither app starts an SDK at all (not "starts one that fails to export") - so an empty dashboard with the variable unset is correct behaviour, not a bug.
+- **Set `OTEL_SERVICE_NAME` per process** if you start the API separately, otherwise both default names collide in the dashboard's service list (`qcms-api` and `qcms-portal` are the defaults when you do nothing).
+- **`NEXT_OTEL_VERBOSE=1`** makes Next emit its fuller span set rather than the default subset. Useful when you are debugging the portal's own render/fetch phases; noisy otherwise.
+- **The expected root span is `GET /requested/pathname`** on the portal, with the BFF's `fetch POST .../sessions/...` beneath it, then the API's `POST /sessions/:id/...` server span (that is the `traceparent` hop working), then `pg.query:*` spans under that.
+- **The secure-link route shows as `GET /l/[token]`.** That is SEC-13 redaction doing its job: the token is a credential and is removed from span names and URLs before export. Same reason you will not find answer values or `db.statement` parameters anywhere in a span.
+- Nothing about the viewer is wired into `pnpm dev:portal`; the container above is yours to start and stop, and the port `4318` in these recipes is the OTLP/HTTP default (the Playwright suite deliberately uses `4319` for its own in-test receiver, so a running dashboard and a test run cannot collide).
+
 ## Running work
 
 | You type | What happens |

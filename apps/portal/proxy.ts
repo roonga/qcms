@@ -4,6 +4,7 @@ import { NextResponse, type NextRequest } from "next/server";
 // (`proxy.test.ts`) and Vitest resolves no Next path aliases.
 import { challengeProvider } from "./lib/server/challenge";
 import { buildCsp } from "./lib/server/csp";
+import { REQUEST_ID_HEADER, normalizeRequestId } from "./lib/server/request-id";
 
 /**
  * Security headers for every portal response (task 029). Sets a per-request CSP
@@ -11,6 +12,12 @@ import { buildCsp } from "./lib/server/csp";
  * plus a nonce that authorizes the portal's own inline theme script and Next's
  * runtime scripts. Also carries the nonce forward on a request header so the root
  * layout can stamp it on the inline <script>.
+ *
+ * Since task 054 it is also the single minting point for `x-request-id` (ADR-34
+ * P5): one id per browser request, honoured if the caller supplied one, forwarded
+ * to SSR and to the BFF's API calls (which is how the API comes to log the same
+ * id), and echoed on the response so a respondent or tester can quote it. It uses
+ * the same request-header override mechanism as the nonce, for the same reason.
  *
  * Next 16 renamed this file convention from `middleware` to `proxy` (issue #32).
  * Under `proxy.ts` the framework resolves `mod.proxy || mod.default`, so the
@@ -27,12 +34,17 @@ export function proxy(request: NextRequest): NextResponse {
   const nonce = btoa(String.fromCharCode(...nonceBytes));
   const csp = buildCsp(challengeProvider(), nonce);
 
+  const requestId =
+    normalizeRequestId(request.headers.get(REQUEST_ID_HEADER)) ?? crypto.randomUUID();
+
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
+  requestHeaders.set(REQUEST_ID_HEADER, requestId);
   // Next reads the nonce from the request CSP header to stamp its own scripts.
   requestHeaders.set("Content-Security-Policy", csp);
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
+  response.headers.set(REQUEST_ID_HEADER, requestId);
   response.headers.set("Content-Security-Policy", csp);
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("Referrer-Policy", "no-referrer");

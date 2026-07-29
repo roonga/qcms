@@ -189,9 +189,30 @@ Committed at launch (Stage 8b), not aspirational:
 
 - **Health:** `/health` (liveness) and `/ready` (DB connectivity) on API; equivalent checks on both Next apps; compose healthchecks wired.
 - **Backup/restore:** documented `pg_dump`/restore procedure in the README, with a tested restore drill as part of the 8b exit criteria. The database is the *only* stateful component by design.
-- **Logs:** structured JSON logs to stdout from all processes (12-factor); no log infrastructure shipped - adopters point their collector at container output.
+- **Logs:** structured JSON logs to stdout from all processes (12-factor); no log infrastructure shipped - adopters point their collector at container output. The API's logger is an injected interface backed by pino, so the lines gain `trace_id`/`span_id` automatically when tracing is on (see §10.1).
 - **Webhook observability:** delivery state, attempt history, and dead-letters visible in admin; manual redelivery.
 - **Upgrades:** packages release via Changesets from Stage 5; `pnpm up` + `drizzle-kit migrate` is the adopter upgrade path, exercised in CI from the start.
+
+### 10.1 Observability: tracing and correlated logs (ADR-34, task 054)
+
+QCMS is adopter-hosted, so it ships **instrumentation and conventions, never a backend choice**: OpenTelemetry, W3C Trace Context for propagation, OTLP for export, and no collector in the deployment (the four-container budget of ADR-20 is unchanged - adopters point `OTEL_*` at their own infrastructure). Alerting, SLOs, dashboards and telemetry retention are adopter territory.
+
+**Off unless asked for.** With `OTEL_EXPORTER_OTLP_ENDPOINT` unset, no SDK starts in any process: the gate is explicit in each composition root, because the OTLP exporter's own default is `http://localhost:4318` and "unconfigured" must mean silent, not a connection error per flush. Configuration is standard `OTEL_*` variables only (`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`, `OTEL_TRACES_SAMPLER`) - no new `QCMS_` flag.
+
+**The SDK is wired at composition roots, the documented way, twice:**
+
+| Where | How | Spans it produces |
+|---|---|---|
+| `apps/api` (`src/serve.ts` -> `src/telemetry.ts`) | canonical `NodeSDK` bootstrap; the entry starts it and only then dynamically imports `main.ts`, because the instrumentations patch `pg`, `pino` and `node:http` as those modules are first required | `@hono/otel` server span (extracts the inbound `traceparent`), `instrumentation-http`, `instrumentation-undici` (outbound webhook delivery), `instrumentation-pg` (parameterized statement text, no bound values) |
+| `apps/portal` (`instrumentation.ts`) | Next's documented route: `register()` + `registerOTel` from `@vercel/otel`, Node runtime only | Next's own request/render spans plus its `fetch` span for the BFF hop, with `propagateContextUrls` covering the API origin so the fetch carries `traceparent` |
+
+Instrumentation is an **explicit list of official packages**; `auto-instrumentations-node` is deliberately excluded (same code, 100+ packages of dependency surface), and no fetch/undici instrumentation is added to the Next apps (Next already emits that span, so adding one double-instruments the hop). `@qcms/core` and every other package stay **OTel-free**: spans wrap the kernel, never enter it, so determinism and the golden corpus are untouched by construction. `apps/admin` adopts the portal recipe unchanged when it exists.
+
+**One respondent action is one trace, and `x-request-id` still works.** The trace starts at the portal server (browser-side telemetry is out of the baseline: CSP surface, consent, payload cost - and R2 means the browser only ever talks to the portal). `traceparent` is the machine propagation; `x-request-id` remains the human-facing token in the error envelope and in support conversations, now minted once per browser request by the portal proxy, forwarded by the BFF, honoured by the API, and recorded on the API's server span as `qcms.request_id`. That gives three joins on one id: the response header, the log line, and the span.
+
+**Signals, scoped at launch.** Traces plus trace-correlated stdout logs. No custom metrics (duration, status and error rate derive from spans) and no OTLP log export - `instrumentation-pino` runs with log-sending disabled, which is a Phase-4 flip rather than a rewrite. Redaction is allowlist-based and is a security control, specified as **SEC-13** in `SECURITY_DESIGN.md` §8a: answer values, `LocalizedText`, `lnk_` tokens and secrets never appear in any signal, branded ids are permitted as pseudonymous correlators.
+
+**Verification** is an in-test OTLP receiver, not a viewer: `apps/portal/e2e/otel-trace.pw.ts` drives a real respondent submit through browser -> portal -> API -> Postgres and asserts one connected trace, the `x-request-id` joins, and that a known submitted answer value appears in no exported payload. The optional local trace-viewer recipe is in `DEVELOPER_GUIDE.md`.
 
 ## 11. Cross-cutting commitments
 
@@ -287,7 +308,9 @@ qcms/
 │   │   │   ├── config.ts         # Zod env schema, fail-fast        (017)
 │   │   │   ├── middleware/       # envelope · logging · rate-limit · auth (017, 021, 031)
 │   │   │   ├── workers/          # outbox deliverer · sweep         (017, 025)
-│   │   │   ├── serve.ts          # entry: starts server + workers   (017)
+│   │   │   ├── serve.ts          # entry: telemetry, then main       (017, 054)
+│   │   │   ├── main.ts           # composes deps, binds port, workers (017)
+│   │   │   ├── telemetry.ts      # gated NodeSDK + SEC-13 redaction  (054)
 │   │   │   └── features/
 │   │   │       ├── responses/  start-session/ (018) · get-step/ · submit-answer/ (019)
 │   │   │       │               submit/ (020) · list/ · export/ · erase/ (023)
@@ -299,6 +322,7 @@ qcms/
 │   │   └── CONTRIBUTING.md       # slice conventions                (017)
 │   │
 │   ├── portal/                   # Next.js · SSR + strict BFF (R2)
+│   │   ├── instrumentation.ts    # gated registerOTel (@vercel/otel) (054)
 │   │   └── src/app/  f/[formSlug]/ · l/[token]/ · s/[sessionId]/ · done/
 │   │                 api/        # BFF route handlers - proxy only  (029)
 │   │
