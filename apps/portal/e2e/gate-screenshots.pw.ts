@@ -134,7 +134,9 @@ test("captures each density with the panel open over a real form", async ({ page
   await startKitchenSink(page, kitchenSinkSlug);
   await openPanel(page);
   await pick(page, "mode", "light");
-  for (const level of ["compact", "comfortable", "spacious"] as const) {
+  // Comfortable with the panel open in Light IS `panel-light-*` from the test above,
+  // byte for byte, so only the two non-default levels are captured here.
+  for (const level of ["compact", "spacious"] as const) {
     await pick(page, "density", level);
     await capture(page, `density-${level}`);
   }

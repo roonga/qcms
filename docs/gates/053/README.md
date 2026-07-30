@@ -34,7 +34,7 @@ the shipped Comfortable default.
 | Does the panel read in each colour mode? | `panel-light-*` `panel-dark-*` `panel-hc-*` |
 | **Can you tell which chip is selected without using colour?** Check glyph, bolder label, heavier border. | all `panel-*`, and especially `panel-hc-*` |
 | Does each density look deliberate rather than accidental, with the panel out of the way? | `form-compact-*` `form-comfortable-*` `form-spacious-*` |
-| Does the panel itself hold up at each density (it takes the density too)? | `density-compact-*` `density-comfortable-*` `density-spacious-*` |
+| Does the panel itself hold up at each density (it takes the density too)? | `density-compact-*` `panel-light-*` (Comfortable) `density-spacious-*` |
 | Does a font choice change the page's character without breaking the layout? | `font-atkinson-*` (Accessibility group) `font-merriweather-*` (serif) |
 | Does the High-contrast treatment hold with a form AND an error banner on screen? | `hc-error-summary-*` |
 
@@ -46,7 +46,7 @@ the shipped Comfortable default.
 | `panel-light` | The panel open, Light mode, Comfortable. Light is selected, so this is the selected-chip treatment against the default palette. |
 | `panel-dark` | The panel open, Dark mode. |
 | `panel-hc` | The panel open, High-contrast: 2px black edges on every control, 3px on the selected chip, flat surfaces, the theme's AAA accent as the fill. |
-| `density-compact` / `-comfortable` / `-spacious` | The panel open at each density. The controls take the density too, so this is also the target-size check by eye (measured: 36px chips at Compact, against WCAG 2.5.8's 24px). |
+| `density-compact` / `density-spacious` | The panel open at the two non-default densities. The controls take the density too, so this is also the target-size check by eye (measured: 36px chips at Compact, against WCAG 2.5.8's 24px). Comfortable-with-panel-open is `panel-light-*`, which would otherwise be a byte-identical duplicate. |
 | `form-compact` / `-comfortable` / `-spacious` | Each density **after a reload**, panel closed, so the form is unobstructed. The reload is the point: the persisted level is what the returning respondent's first paint carries. `form-comfortable` is also the default view. |
 | `font-atkinson` | Atkinson Hyperlegible selected (the Accessibility group). |
 | `font-merriweather` | Merriweather selected (a serif, so the change in character is obvious). |
