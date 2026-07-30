@@ -1,0 +1,55 @@
+<!-- @dsCard group="Overview" name="Component gaps - design requests" subtitle="What the DS still needs: states, inputs, alerts, table, overlays" -->
+<title>QCMS Design System - component gaps</title>
+<style>
+body { font-family: ui-sans-serif, system-ui, sans-serif; margin: 2rem auto; max-width: 860px; padding: 0 1rem; line-height: 1.55; color: #0f1729; background: #fbfcfd; }
+h1 { font-size: 1.6rem; letter-spacing: -0.02em; }
+h2 { font-size: 1.1rem; letter-spacing: -0.01em; margin-top: 1.8rem; }
+p.lead { color: #55617a; }
+li { margin-bottom: 0.35rem; }
+.done { color: #16603a; }
+code { background: #eef1f6; padding: 0.05rem 0.35rem; border-radius: 4px; font-size: 0.85em; }
+</style>
+<h1>Component gaps - design requests</h1>
+<p class="lead">What the overview already defines is marked done; the rest is what the QCMS Design System still needs before the admin build (tasks 032-035) consumes it. Requested by the PO seat, 2026-07-30. Constraints for every component: tokens only (051 contract), WCAG 2.2 AA (AAA in HC), visible focus, 24px minimum targets, works in light / dark / HC.</p>
+
+<h2>Buttons</h2>
+<ul>
+  <li class="done">Done: primary + ghost at rest/hover, 48px portal scale, weight 600, icon gap.</li>
+  <li>Secondary and destructive variants.</li>
+  <li>Full state matrix: focus-visible, active, disabled, loading.</li>
+  <li>Sizes: small, icon-only; and a density axis (admin runs the same language at 40px).</li>
+</ul>
+
+<h2>Inputs</h2>
+<ul>
+  <li class="done">Done: field label style.</li>
+  <li>Text, search, select, textarea, date - full anatomy: label + hint + error message + required marker.</li>
+  <li>States: default, hover, focus, error, disabled, readonly.</li>
+  <li>Error pattern feeds task 048 (author validation messages) - design the field-level error and the page-level error summary together.</li>
+</ul>
+
+<h2>Alerts / banners</h2>
+<ul>
+  <li class="done">Done: one success alert (icon slot, subtle surface, colour-mix border).</li>
+  <li>The severity family: info, warning, danger siblings of the same anatomy.</li>
+  <li>Dismissible and with-action variants; page-level vs field-level scale.</li>
+  <li>Toast (transient) treatment.</li>
+</ul>
+
+<h2>Data table (admin)</h2>
+<ul>
+  <li>Header with sort states; row hover and selection; striping vs hairline choice.</li>
+  <li>Pagination; empty state; loading skeleton.</li>
+  <li>Density: 44px rows, tabular figures for numeric columns.</li>
+</ul>
+
+<h2>Overlays and feedback</h2>
+<ul>
+  <li>Confirm dialog - including the destructive confirm (retire / erase flows).</li>
+  <li>Dropdown menu; tabs; breadcrumb.</li>
+</ul>
+
+<h2>Housekeeping</h2>
+<ul>
+  <li>The overview's neutral values predate the landed 051 registry (e.g. dark card <code>#121826</code> vs <code>#141a26</code>) - regenerate the overview from the registry so there is one truth.</li>
+</ul>
