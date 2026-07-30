@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { AppearanceControls } from "@/components/appearance-controls";
+import { BrandMark } from "@/components/brand-mark";
 import { t } from "@/lib/i18n/en";
 
 export interface StepProgress {
@@ -8,11 +10,23 @@ export interface StepProgress {
 }
 
 /**
- * The respondent page chrome (wireframe `page` region): a brandable logo slot and
- * the progress text, then the main content column. Minimal by design - respondents
- * never navigate freely, so there is no nav. Mobile-first: a single centered
- * column that stays comfortable on a phone and caps its width on larger screens
- * (ADR-26). Adopters re-skin via tokens (adopter-theme.css), never this markup.
+ * The respondent page chrome (wireframe `page` region): the config-driven brand
+ * mark, the progress text and the appearance disclosure, then the main content
+ * column. Minimal by design - respondents never navigate freely, so there is no
+ * nav. Mobile-first: a single centered column that stays comfortable on a phone
+ * and caps its width on larger screens (ADR-26). Adopters re-skin via tokens
+ * (adopter-theme.css), never this markup.
+ *
+ * The brand mark and the appearance controls both read the appearance context
+ * (task 053) rather than taking props, which keeps this component's six call
+ * sites - one of them a client component - unchanged; see
+ * `components/appearance-context.tsx` for why that is the shape.
+ *
+ * The appearance controls are a collapsed `<details>` rather than three visible
+ * control rows. At a phone width three chip groups plus a font select would be
+ * most of the viewport above the first question, and the header's job is to stay
+ * out of the way of the form; a respondent who needs High-contrast or a
+ * legibility face opens it once and never again, because the choice persists.
  */
 export function PortalShell({
   progress,
@@ -24,9 +38,11 @@ export function PortalShell({
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="border-b border-(--color-border) bg-(--color-surface)">
-        <div className="mx-auto flex w-full max-w-2xl items-center justify-between gap-4 px-4 py-3">
-          {/* Logo slot (shell theming) - adopters replace this brand mark. */}
-          <span className="text-base font-semibold tracking-tight text-(--color-text)">QCMS</span>
+        {/* `relative` is the anchor for the appearance panel, which is positioned
+            below this row rather than inside it: a panel that expanded the header
+            would push the first question down the page every time it opened. */}
+        <div className="relative mx-auto flex w-full max-w-2xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+          <BrandMark />
           {progress ? (
             <p
               aria-live="polite"
@@ -39,6 +55,9 @@ export function PortalShell({
               })}
             </p>
           ) : null}
+          <div className="ms-auto">
+            <AppearanceControls />
+          </div>
         </div>
       </header>
 

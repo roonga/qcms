@@ -35,6 +35,8 @@ interface Block {
   readonly mode: Mode | null;
   /** A corners preset class (`radius-pill`), or `null` for the base blocks. */
   readonly corners: string | null;
+  /** A density level class (`density-compact`), or `null` for the base blocks. */
+  readonly density: string | null;
   readonly specificity: number;
   readonly tokens: Readonly<Record<string, string>>;
 }
@@ -79,11 +81,13 @@ function parseBlocks(css: string): readonly Block[] {
     const selector = (match.groups?.selector ?? "").trim();
     const themeMatch = /\[data-theme="(?<theme>[^"]+)"\]/u.exec(selector);
     const cornersMatch = /\.(?<corners>radius-[\w-]+)/u.exec(selector);
+    const densityMatch = /\.(?<density>density-[\w-]+)/u.exec(selector);
     blocks.push({
       index,
       theme: (themeMatch?.groups?.theme as Theme | undefined) ?? null,
       mode: modeOf(selector),
       corners: cornersMatch?.groups?.corners ?? null,
+      density: densityMatch?.groups?.density ?? null,
       specificity: specificityOf(selector),
       tokens: parseDeclarations(match.groups?.body ?? ""),
     });
@@ -98,11 +102,18 @@ const BLOCKS = parseBlocks(THEME_CSS);
  * resolves them: every block whose selector matches contributes, ordered by
  * specificity and then by source order. That ordering is why the shared `.hc`
  * layer (specificity 1, emitted last) beats a theme's light block (also 1).
+ *
+ * The corners and density blocks are excluded because neither class is on the
+ * root in this resolution: this is the Subtle / Comfortable baseline, and each of
+ * those two groups is asserted separately against its own blocks below. Leaving
+ * either one in would silently apply the LAST preset in source order to every
+ * contrast and floor assertion in the file.
  */
 function resolve(theme: Theme, mode: Mode): Readonly<Record<string, string>> {
   const applicable = BLOCKS.filter(
     (block) =>
       block.corners === null &&
+      block.density === null &&
       (block.theme === null || block.theme === theme) &&
       (block.mode === null || block.mode === mode),
   ).sort((a, b) => a.specificity - b.specificity || a.index - b.index);
@@ -281,23 +292,76 @@ describe("typography group: the WCAG 1.4.12 floors are carried by tokens", () =>
   });
 });
 
-describe("spacing group", () => {
+describe("spacing group: the three density levels", () => {
   const base = resolve("slate", "light");
+  const SPACING_TOKENS = [
+    "--space-control-h",
+    "--space-control-pad-x",
+    "--space-field-gap",
+    "--space-section-pad",
+    "--space-stack",
+  ] as const;
+  /** Compact and Spacious are classes; Comfortable is the base block. */
+  const DENSITY_CLASSES = ["density-compact", "density-spacious"] as const;
+
+  /** The five spacing values in force at one density level (task 053). */
+  function atDensity(density: string | null): Readonly<Record<string, string>> {
+    if (density === null) return base;
+    const block = BLOCKS.find((candidate) => candidate.density === density);
+    expect(block, `no :root.${density} block in theme.css`).toBeDefined();
+    return { ...base, ...block!.tokens };
+  }
 
   it("declares all five spacing tokens", () => {
-    for (const token of [
-      "--space-control-h",
-      "--space-control-pad-x",
-      "--space-field-gap",
-      "--space-section-pad",
-      "--space-stack",
-    ]) {
+    for (const token of SPACING_TOKENS) {
       expect(base[token], `${token} is missing from the spacing group`).toBeDefined();
     }
   });
 
-  it("the control height clears the WCAG 2.5.8 target-size floor", () => {
-    expect(Number.parseFloat(base["--space-control-h"])).toBeGreaterThanOrEqual(24);
+  it("Compact and Spacious each override all five tokens", () => {
+    for (const density of DENSITY_CLASSES) {
+      const block = BLOCKS.find((candidate) => candidate.density === density);
+      expect(block, `no :root.${density} block in theme.css`).toBeDefined();
+      for (const token of SPACING_TOKENS) {
+        expect(block?.tokens[token], `:root.${density} does not set ${token}`).toBeDefined();
+      }
+    }
+  });
+
+  // The boundary that keeps density out of the other three groups. A density level
+  // that could set a --type-* token could lower a WCAG 1.4.12 floor, and one that
+  // could set a --color-* token could break a contrast pair; both are asserted
+  // elsewhere in this file against the base blocks only, so the guarantee those
+  // assertions give is only as good as this one.
+  it("a density level sets ONLY spacing tokens (never a type, colour or radius value)", () => {
+    for (const block of BLOCKS.filter((candidate) => candidate.density !== null)) {
+      for (const token of Object.keys(block.tokens)) {
+        expect(
+          SPACING_TOKENS.includes(token as (typeof SPACING_TOKENS)[number]),
+          `:root.${block.density} sets ${token}, which is not one of the five spacing tokens`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("the control height clears the WCAG 2.5.8 target-size floor at EVERY density", () => {
+    for (const density of [null, ...DENSITY_CLASSES]) {
+      const height = Number.parseFloat(atDensity(density)["--space-control-h"]);
+      expect(height, `--space-control-h at ${density ?? "comfortable"}`).toBeGreaterThanOrEqual(24);
+    }
+  });
+
+  // Density is a monotonic scale, not three unrelated presets: Compact is smaller
+  // than Comfortable is smaller than Spacious on every token. This is what makes
+  // the control a meaningful choice rather than three arbitrary looks, and it
+  // catches a value edited in the wrong block.
+  it("the three levels are ordered Compact < Comfortable < Spacious on every token", () => {
+    const levels = [atDensity("density-compact"), base, atDensity("density-spacious")];
+    for (const token of SPACING_TOKENS) {
+      const values = levels.map((level) => Number.parseFloat(level[token]));
+      expect(values[0], `${token}: compact < comfortable`).toBeLessThan(values[1]);
+      expect(values[1], `${token}: comfortable < spacious`).toBeLessThan(values[2]);
+    }
   });
 });
 

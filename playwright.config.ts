@@ -3,6 +3,8 @@ import { defineConfig, devices } from "@playwright/test";
 import {
   API_BASE_URL,
   FIXED_INTERNAL_TOKEN,
+  HARNESS_BRAND_LOGO,
+  HARNESS_BRAND_NAME,
   HARNESS_CORNERS,
   HARNESS_FONT,
   HARNESS_FONTS,
@@ -129,6 +131,19 @@ export default defineConfig({
       // HARNESS_FONT / HARNESS_FONTS.
       QCMS_PORTAL_FONT: HARNESS_FONT,
       QCMS_PORTAL_FONTS: HARNESS_FONTS,
+      // Per-deployment BRAND config (task 053, issue #25), likewise non-default: the
+      // header mark and the document title are proven to come from config rather
+      // than from a literal. See HARNESS_BRAND_NAME.
+      QCMS_PORTAL_BRAND_NAME: HARNESS_BRAND_NAME,
+      QCMS_PORTAL_BRAND_LOGO: HARNESS_BRAND_LOGO,
+      // `QCMS_PORTAL_DENSITY` is deliberately NOT set, so the suite runs at the
+      // shipped Comfortable default: `theming.pw.ts` measures the Comfortable
+      // spacing values (44px control height, 36px card padding) on rendered
+      // controls, and those assertions only mean anything while the base level is
+      // what the server serves. The config path is covered by
+      // `lib/server/theme.test.ts`, and `appearance.pw.ts` drives the same
+      // server-side resolution through the density cookie, which is the path a
+      // respondent actually takes.
     },
   },
 });

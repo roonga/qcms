@@ -1,12 +1,12 @@
 # Wireframe - Portal respondent flow
 
-**Status:** Signed off: Code Owner, 2026-07-21 · **Consumed by:** 029 (portal), 030 (a11y pass) · **Renders:** 018 (start-session), 019 (get-step, submit-answer), 020 (submit)
+**Status:** Signed off: Code Owner, 2026-07-21 · **the `brand mark` and `appearance` regions and the two `appearance-*` states are additions from 053 and are NOT yet signed off** (they ride the 053 screenshot gate) · **Consumed by:** 029 (portal), 030 (a11y pass), 053 (brand mark + appearance controls) · **Renders:** 018 (start-session), 019 (get-step, submit-answer), 020 (submit)
 
 ## ASCII sketch - flow step page (`/s/:sessionId`)
 
 ```
 ┌─ page ──────────────────────────────────────────────┐
-│ [logo slot]                    Step 2 of 4: Driving history  │
+│ [logo] Brand name      Step 2 of 4: Driving history  [◐ Appearance] │
 │ ┌─ step ─────────────────────────────────────────┐  │
 │ │ Driving history                                     (h1)│  │
 │ │ Any at-fault accident in the last 3 years?                              │  │
@@ -21,7 +21,9 @@
 
 ## Regions (normative)
 
-- **page**: minimal chrome - logo slot (shell theming, 029), progress text ("Step N of M: {title}"), no nav (respondents never navigate freely).
+- **page**: minimal chrome - brand mark, progress text ("Step N of M: {title}"), appearance disclosure, no nav (respondents never navigate freely).
+- **brand mark** (in `page`): operator config, not a literal (053, folds #25) - `QCMS_PORTAL_BRAND_NAME` as text, always visible, plus an optional decorative logo beside it from `QCMS_PORTAL_BRAND_LOGO`. Replaces 029's `[logo slot]`.
+- **appearance** (in `page`, end-aligned): a collapsed `details`/`summary` disclosure labelled "Appearance" (053). Open, it holds three controls: colour mode (radio group of chips: Light / Dark / High contrast), font (native `select`, one `optgroup` per registry group), density (radio group of chips with a density icon: Compact / Comfortable / Spacious). The panel is positioned BELOW the header row rather than expanding it, so opening it never pushes the first question down the page. Hidden entirely without scripting.
 - **step**: rendered entirely by `A2UIStepRenderer` (028) from the stored compiled document - the wireframe does not enumerate per-question markup; the renderer + compiled doc own it. Contains: step heading (h1 from document), question controls (a2ra components per 011's mapping), per-question inline error slots, honeypot field (invisible, 026).
 - **actions**: `button` Continue (primary; label becomes "Submit" on the final visible step when `readyToSubmit`), `button` Back (secondary; absent on first step).
 - **error-summary** (state-conditional, above step): `alert` listing failed validations, each entry a link that moves focus to the offending field (WCAG 3.3 - 030).
@@ -37,7 +39,7 @@
 
 ## States (normative)
 
-first-step · mid-flow · branch-inserted (follow-up appears) · branch-removed (answered follow-up disappears) · per-field validation error (422 from submit-answer) · submit blocked (missing visible-required → error-summary) · readyToSubmit · submitted (further answers rejected) · no-JS fallback (plain form POST per step - degraded but functional, 029) · link-error pages ×3 · expired.
+first-step · mid-flow · branch-inserted (follow-up appears) · branch-removed (answered follow-up disappears) · per-field validation error (422 from submit-answer) · submit blocked (missing visible-required → error-summary) · readyToSubmit · submitted (further answers rejected) · no-JS fallback (plain form POST per step - degraded but functional, 029; the appearance disclosure is hidden, 053) · appearance-collapsed (default) · appearance-open · link-error pages ×3 · expired.
 
 ## Interactions
 

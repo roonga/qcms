@@ -22,6 +22,8 @@
  *   theme   root attribute:  (absent) or [data-theme="slate"] = the default
  *                            [data-theme="harbor"|"sand"|"plum"] = alternates
  *   corners root class:      (none) = Subtle  .radius-sharp / -rounded / -pill
+ *   density root class:      (none) = Comfortable  .density-compact / -spacious
+ *   font    root class:      .font-<registry key> (declared by fonts.css)
  *
  * The default theme (Slate Teal) lives in the bare :root blocks; an alternate
  * only overrides under :root[data-theme="x"], so setting the attribute is enough
@@ -83,8 +85,17 @@
    GROUP 3 - SPACING. Chrome only: control height, paddings, gaps, rhythm. A
    spacing token never carries colour, so no contrast ratio depends on this
    group. --space-control-h is also the WCAG 2.5.8 target-size floor (>= 24px).
-   The Compact / Comfortable / Spacious density levels that swap these values at
-   runtime arrive with the respondent controls (task 053); this is Comfortable.
+
+   DENSITY is the respondent runtime control over this group (task 053), and it
+   is the ONLY axis that moves these five values. Comfortable is the base below,
+   so it needs no class; Compact and Spacious are the two root classes.
+
+   The hard boundary: a density level may set the five --space-* tokens and
+   NOTHING else. In particular it may never touch a --type-* token, because those
+   carry the WCAG 1.4.12 floors, and it may never take --space-control-h below
+   24px, because that token is the WCAG 2.5.8 target-size floor. Both are
+   asserted by `theme-tokens.test.ts` over this file, and re-measured on rendered
+   controls per density by `apps/portal/e2e/appearance.pw.ts`.
    ========================================================================== */
 :root {
   --space-control-h: 44px;
@@ -92,6 +103,28 @@
   --space-field-gap: 2em;
   --space-section-pad: 2.25rem;
   --space-stack: 0.5rem;
+}
+
+/* Compact: for respondents who want more of a long form on screen at once, and
+   the escape hatch on a narrow phone. 36px controls still clear 2.5.8 by 12px
+   (the option rows, whose target is the whole label row, come out at 36px too:
+   a 24px line box plus 6px of --space-stack above and below). */
+:root.density-compact {
+  --space-control-h: 36px;
+  --space-control-pad-x: 0.7rem;
+  --space-field-gap: 1.25em;
+  --space-section-pad: 1.5rem;
+  --space-stack: 0.375rem;
+}
+
+/* Spacious: larger targets and more separation, for coarse pointers, tremor, and
+   anyone who finds a dense form hard to track. */
+:root.density-spacious {
+  --space-control-h: 52px;
+  --space-control-pad-x: 1.1rem;
+  --space-field-gap: 2.75em;
+  --space-section-pad: 3rem;
+  --space-stack: 0.75rem;
 }
 
 /* ==========================================================================
