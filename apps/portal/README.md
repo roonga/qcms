@@ -50,10 +50,19 @@ layout stamps them onto `<html>` during SSR:
 | `QCMS_PORTAL_THEME` | `slate` (default) `harbor` `sand` `plum` | which palette |
 | `QCMS_PORTAL_CORNERS` | `subtle` (default) `sharp` `rounded` `pill` | corner preset |
 | `QCMS_PORTAL_MODE` | `auto` (default) `light` `dark` `hc` | default colour mode |
+| `QCMS_PORTAL_FONT` | `system` (default) or any registry key | default font |
+| `QCMS_PORTAL_FONTS` | registry keys, comma/space separated | the offered subset |
 
 Every theme is authored in Light and Dark and shares ONE High-contrast mode
 layer. `?mode=light|dark|hc` and the `qcms-theme` cookie override the configured
 default; the respondent-facing switcher is task 053.
+
+The font registry (task 052) lives in `@qcms/ui` and is **entirely self-hosted**:
+the `woff2` binaries are committed in the package, so no font selection causes an
+external request and there is nothing for the CSP to allow. `QCMS_PORTAL_FONTS`
+is the launch-time curation surface (`system` is always offered and cannot be
+removed); the admin UI over the same setting is Phase-4. Adding or removing a
+font is a one-entry change in `packages/ui/src/font-registry.ts`.
 
 Deployment-specific values that no predefined theme offers go in the single
 documented override file, `app/adopter-theme.css` (never `globals.css`, never a
@@ -64,7 +73,8 @@ layer, and how to add a theme - is documented in `docs/theming.md`.
 
 See `.env.example`. Server-only: `QCMS_API_BASE_URL`, `QCMS_INTERNAL_TOKEN`.
 Optional challenge: `QCMS_FLAG_CHALLENGE_PROVIDER=turnstile` + `QCMS_TURNSTILE_SITE_KEY`.
-Optional theming: `QCMS_PORTAL_THEME`, `QCMS_PORTAL_CORNERS`, `QCMS_PORTAL_MODE`.
+Optional theming: `QCMS_PORTAL_THEME`, `QCMS_PORTAL_CORNERS`, `QCMS_PORTAL_MODE`,
+`QCMS_PORTAL_FONT`, `QCMS_PORTAL_FONTS`.
 
 ## Progressive enhancement: no-JS submission (task 044)
 

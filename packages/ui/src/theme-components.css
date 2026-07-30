@@ -6,6 +6,7 @@
  *
  *   @import "@qcms/ui/theme.css";
  *   @import "@qcms/ui/theme-components.css";
+ *   @import "@qcms/ui/fonts.css";          // the font registry (task 052)
  *
  * WHY A SEPARATE LAYER AND NOT AN EDIT TO THE COMPONENTS
  * The `src/components/a2ui/*` sources are vendored upstream and kept
@@ -124,6 +125,30 @@
 /* Question-to-question rhythm: the compiled step's form element. */
 form:has([data-qcms-field]) {
   gap: var(--space-field-gap);
+}
+
+/* --------------------------------------------------------------------------
+   TABULAR FIGURES. Numeric controls get `font-feature-settings: "tnum"` from the
+   `--type-numeric` token, whatever font the registry has selected (task 052).
+   Digits then share one advance width, so a number answer and the day / month /
+   year segments of a date stay column-aligned and do not shift as the respondent
+   corrects a digit. Families without the feature ignore it, which is why this is
+   unconditional rather than per-font, and it is a TOKEN so an adopter can turn it
+   off in one place instead of hunting selectors.
+
+   Same three anchors the rules above use, so nothing depends on a vendored
+   Tailwind class string: the number field's inner input, the date field's
+   spinbutton segments, and any input the renderer marks numeric.
+   -------------------------------------------------------------------------- */
+[data-qcms-field]
+  :is(
+    [role="group"][data-rac] > input,
+    [role="spinbutton"],
+    input[type="number"],
+    input[inputmode="numeric"],
+    input[inputmode="decimal"]
+  ) {
+  font-feature-settings: var(--type-numeric);
 }
 
 /* --------------------------------------------------------------------------

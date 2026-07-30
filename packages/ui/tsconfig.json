@@ -1,8 +1,6 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": "src",
-    "outDir": "dist",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
     // Node globals are needed only by the test-support corpus loader; React/DOM
@@ -22,5 +20,9 @@
     "exactOptionalPropertyTypes": false,
     "noUncheckedIndexedAccess": false
   },
-  "include": ["src"]
+  // `tools` holds the fonts.css generator (task 052). It is typechecked and linted
+  // with the package but excluded from `tsconfig.build.json`, so it never reaches
+  // `dist` - and it stays out of `src` because `import-surface.test.ts` allows only
+  // the a2-react-aria stack in the shipped tree and the generator needs `node:fs`.
+  "include": ["src", "tools"]
 }

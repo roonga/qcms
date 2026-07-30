@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { t } from "@/lib/i18n/en";
 import {
   portalCorners,
+  portalFont,
   portalMode,
   portalTheme,
   rootClassName,
@@ -60,16 +61,19 @@ r.classList.add(t);
 export default async function RootLayout({ children }: { readonly children: ReactNode }) {
   const nonce = (await headers()).get("x-nonce") ?? undefined;
   // Per-deployment theme selection (ADR-30): the palette rides `data-theme`, the
-  // colour mode and corner preset ride root classes. All three come from config -
-  // there is no respondent selector in this slice.
+  // colour mode, corner preset and font ride root classes. All four come from
+  // config - there is no respondent selector in this slice (task 053). The font
+  // class selects a self-hosted face from the @qcms/ui registry (task 052), so it
+  // costs no external request whatever it resolves to.
   const mode = portalMode();
   const theme = portalTheme();
   const corners = portalCorners();
+  const font = portalFont();
   return (
     <html
       lang="en"
       data-theme={theme}
-      className={rootClassName(mode, corners)}
+      className={rootClassName(mode, corners, font)}
       suppressHydrationWarning
     >
       <head>
