@@ -54,11 +54,12 @@ export const DEFAULT_MODE: PortalMode = "auto";
  */
 export const DEFAULT_FONT: string = SYSTEM_FONT_KEY;
 
-// The two casts are the standard `readonly T[]` narrowing gap: `includes` is typed to
+// The casts here are the standard `readonly T[]` narrowing gap: `includes` is typed to
 // accept only `T`, so an arbitrary string cannot be passed without one, and TypeScript
-// does not narrow `raw` from the guard. The cast is safe precisely because it is
+// does not narrow `raw` from the guard. They are safe precisely because they are
 // guarded - the value is only returned as `T` on the branch where `allowed` contains it,
-// and every other input falls back.
+// and every other input falls back. `portalFont` below does the same thing against the
+// curated font list, which is a runtime set rather than a literal union.
 function oneOf<T extends string>(allowed: readonly T[], raw: string | undefined, fallback: T): T {
   return allowed.includes(raw as T) ? (raw as T) : fallback;
 }
