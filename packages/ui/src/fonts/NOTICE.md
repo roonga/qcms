@@ -27,7 +27,7 @@ fallback baseline is issue #27 and is not covered here.
 | Family                | Key            | Weights  | License | Bytes   |
 | --------------------- | -------------- | -------- | ------- | ------- |
 | Atkinson Hyperlegible | `atkinson`     | 400, 700 | OFL-1.1 | 34,732  |
-| Lexend                | `lexend`       | 400, 700 | OFL-1.1 | 79,360  |
+| Lexend                | `lexend`       | 400, 700 | OFL-1.1 | 39,680  |
 | OpenDyslexic          | `opendyslexic` | 400, 700 | OFL-1.1 | 235,636 |
 
 **Atkinson Hyperlegible** (OFL-1.1)
@@ -157,4 +157,4 @@ fallback baseline is issue #27 and is not covered here.
 
 > Copyright 2024 The Geist Project Authors (https://github.com/vercel/geist-font.git)
 
-Total committed font payload: **750,664 bytes** across 25 files.
+Total committed font payload: **710,984 bytes** across 24 files (25 declared faces; a variable font's weights share one file).

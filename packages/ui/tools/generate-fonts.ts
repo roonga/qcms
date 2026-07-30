@@ -30,9 +30,14 @@ import type { FontEntry } from "../src/font-registry.ts";
 const SRC = join(import.meta.dirname, "..", "src");
 const FONT_DIR = join(SRC, "fonts");
 
-/** Total committed bytes of one entry's self-hosted faces. */
+/**
+ * Total committed bytes of one entry's self-hosted faces, counting each FILE once.
+ * A variable font (Lexend) declares two faces over one file, and counting per face
+ * would report bytes that are not on disk.
+ */
 function bytesOf(entry: FontEntry): number {
-  return entry.faces.reduce((total, face) => total + statSync(join(FONT_DIR, face.file)).size, 0);
+  const files = new Set(entry.faces.map((face) => face.file));
+  return [...files].reduce((total, file) => total + statSync(join(FONT_DIR, file)).size, 0);
 }
 
 const thousands = (n: number): string => n.toLocaleString("en-US");
@@ -65,7 +70,7 @@ function renderNotice(): string {
     "",
   ];
   let total = 0;
-  let faces = 0;
+  const files = new Set<string>();
   for (const group of FONT_GROUPS) {
     const inGroup = FONT_REGISTRY.filter((entry) => entry.group === group);
     if (inGroup.length === 0) continue;
@@ -78,7 +83,7 @@ function renderNotice(): string {
     for (const entry of inGroup) {
       const bytes = bytesOf(entry);
       total += bytes;
-      faces += entry.faces.length;
+      for (const face of entry.faces) files.add(face.file);
       const weights = entry.faces.map((face) => face.weight).join(", ");
       lines.push(
         `| ${entry.label} | \`${entry.key}\` | ${weights === "" ? "none" : weights} |` +
@@ -92,7 +97,9 @@ function renderNotice(): string {
     }
   }
   lines.push(
-    `Total committed font payload: **${thousands(total)} bytes** across ${thousands(faces)} files.`,
+    `Total committed font payload: **${thousands(total)} bytes** across ${thousands(files.size)} files` +
+      ` (${thousands(FONT_REGISTRY.reduce((n, e) => n + e.faces.length, 0))} declared faces; a` +
+      ` variable font's weights share one file).`,
     "",
   );
   return lines.join("\n");

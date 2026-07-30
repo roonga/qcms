@@ -12,7 +12,7 @@ downloads nothing and can never be curated away. Each entry carries its family,
 self-hosted weights, a fallback stack ending in a CSS generic, and its upstream
 copyright notice.
 
-The `woff2` binaries are **committed** under `src/fonts/` (750,664 bytes, 24 files,
+The `woff2` binaries are **committed** under `src/fonts/` (710,984 bytes, 24 files,
 Latin subsets) rather than fetched at build time, so a deployment and its CI never
 depend on a third-party font host and a portal makes zero external requests for a
 typeface. `src/fonts.css` and `src/fonts/NOTICE.md` are generated from the manifest
