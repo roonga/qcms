@@ -45,7 +45,8 @@
   --color-surface-hover: #f4f6fa;
   --color-focus-ring: #2456c6;
   --color-overlay: rgb(0 0 0 / 0.5);
-  --admin-control-h: 36px;
+  --shadow-color: 222deg 30% 20%;
+  --admin-control-h: 40px;
   --admin-control-pad-x: 0.6rem;
   --admin-stack: 0.35rem;
   --admin-section-pad: 1.25rem;
@@ -54,6 +55,7 @@
   --radius-card: 12px;
   --radius-sm: 4px;
   --font-admin: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace;
 }
 
 :root.dark {
@@ -93,6 +95,7 @@
   --color-surface-hover: #1b2230;
   --color-focus-ring: #7aa2ff;
   --color-overlay: rgb(0 0 0 / 0.6);
+  --shadow-color: 222deg 60% 2%;
 }
 
 /* High-contrast: the universal HC mode-layer (carried verbatim from the 051
