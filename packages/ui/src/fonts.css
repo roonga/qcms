@@ -2,7 +2,7 @@
  * GENERATED FILE - do not edit by hand.
  *
  * Source of truth: `src/font-registry.ts`. Regenerate with
- * `pnpm --filter @qcms/ui fonts:css`; `font-registry.test.ts` fails if this
+ * `pnpm --filter @qcms/ui fonts:generate`; `font-registry.test.ts` fails if this
  * file and the manifest disagree, so a hand edit here cannot survive a gate.
  *
  * Every face is SELF-HOSTED from `src/fonts/` next to this file, so selecting a
@@ -62,14 +62,14 @@
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url("./fonts/lexend-400.woff2") format("woff2");
+  src: url("./fonts/lexend-variable.woff2") format("woff2");
 }
 @font-face {
   font-family: "Lexend";
   font-style: normal;
   font-weight: 700;
   font-display: swap;
-  src: url("./fonts/lexend-700.woff2") format("woff2");
+  src: url("./fonts/lexend-variable.woff2") format("woff2");
 }
 :root.font-lexend {
   --font-portal: "Lexend", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;

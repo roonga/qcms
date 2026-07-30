@@ -119,6 +119,14 @@ interface WebfontSpec {
   readonly group: Exclude<FontGroup, "System">;
   readonly tail: string;
   readonly weights: readonly number[];
+  /**
+   * Set for a VARIABLE font, where upstream serves one file that covers every
+   * weight: all the declared weights then point at this single file, exactly as
+   * Google Fonts' own css2 output does (two `@font-face` rules, one `src`). The
+   * browser downloads it once and instantiates the `wght` axis per rule. Without
+   * this, each weight gets its own `<key>-<weight>.woff2`.
+   */
+  readonly file?: string;
   readonly license: FontLicense;
   readonly copyright: string;
   readonly note: string;
@@ -132,7 +140,10 @@ function webfont(spec: WebfontSpec): FontEntry {
     family: spec.family,
     group: spec.group,
     stack: `"${spec.family}", ${spec.tail}`,
-    faces: spec.weights.map((weight) => ({ weight, file: `${spec.key}-${weight}.woff2` })),
+    faces: spec.weights.map((weight) => ({
+      weight,
+      file: spec.file ?? `${spec.key}-${weight}.woff2`,
+    })),
     license: spec.license,
     copyright: spec.copyright,
     note: spec.note,
@@ -173,6 +184,11 @@ export const FONT_REGISTRY: readonly FontEntry[] = [
     group: "Accessibility",
     tail: SANS_TAIL,
     weights: [400, 700],
+    // Lexend is a VARIABLE font upstream: one file carries the whole wght axis,
+    // and Google's css2 returns the same URL for 400 and 700. Shipping it once and
+    // pointing both faces at it is upstream's own arrangement, and it is why this
+    // is the only entry with an explicit file name.
+    file: "lexend-variable.woff2",
     license: "OFL-1.1",
     copyright:
       "Copyright 2018 The Lexend Project Authors (https://github.com/googlefonts/lexend), with Reserved Font Name RevReading Lexend.",
