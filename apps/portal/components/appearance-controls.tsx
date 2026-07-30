@@ -224,6 +224,9 @@ export function AppearanceControls() {
   return (
     <details className="qcms-appearance" data-testid="appearance">
       <summary className="qcms-appearance__summary">
+        {/* The conventional contrast glyph: a circle with one half filled. It says
+            "how this looks" far more directly than a gear, and it is decorative
+            either way - the visible label is what names the control. */}
         <svg
           aria-hidden="true"
           className="qcms-seg__icon"
@@ -233,11 +236,9 @@ export function AppearanceControls() {
           fill="none"
           stroke="currentColor"
           strokeWidth="1.5"
-          strokeLinecap="round"
         >
-          <circle cx="8" cy="8" r="5.25" />
-          <path d="M8 2.75v10.5" />
-          <path d="M2.75 8h10.5" />
+          <circle cx="8" cy="8" r="5.5" />
+          <path d="M8 2.5a5.5 5.5 0 0 1 0 11z" fill="currentColor" stroke="none" />
         </svg>
         {t("appearance.title")}
       </summary>

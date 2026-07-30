@@ -120,8 +120,8 @@ export function portalDensity(): Density {
  *
  * Unset or empty means the whole registry, never an empty list. Unknown keys are
  * dropped rather than fatal (the same typo tolerance as the rest of this module),
- * and System is always present. Task 053's control renders exactly this list; the
- * admin UI over the same setting is Phase-4.
+ * and System is always present. The respondent font control renders exactly this
+ * list; the admin UI over the same setting is Phase-4.
  */
 export function portalFontChoices(): readonly FontEntry[] {
   const raw = process.env.QCMS_PORTAL_FONTS ?? "";

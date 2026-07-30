@@ -163,8 +163,15 @@ body {
   overflow-wrap: anywhere;
 }
 
+/*
+ * Deliberately NOT `position: relative`. The panel below is positioned against the
+ * HEADER ROW (`portal-shell.tsx` marks that container `relative`), not against the
+ * summary: anchoring it here makes `.qcms-appearance` the containing block, the panel
+ * inherits the summary's narrow width, and the chips spill out of it - which is
+ * exactly what the first screenshot pass showed.
+ */
 .qcms-appearance {
-  position: relative;
+  position: static;
 }
 
 .qcms-appearance__summary {
@@ -189,9 +196,21 @@ body {
   display: none;
 }
 
+/*
+ * The panel hangs below the header row, right-aligned under the summary that opened
+ * it, and it never leaves the content column.
+ *
+ * The `1rem` matches the header row's own `px-4`, so the panel's right edge lines up
+ * with the progress text rather than with the viewport. `min-width` is what stops the
+ * chips wrapping into a ragged stack at a comfortable reading width, and the `min()`
+ * is what keeps that from overflowing a 390px phone: whichever of "wide enough" and
+ * "fits the column" is smaller wins.
+ */
 .qcms-appearance__panel {
   position: absolute;
-  inset-inline: 0;
+  inset-inline: auto 1rem;
+  min-width: min(22rem, calc(100% - 2rem));
+  max-width: calc(100% - 2rem);
   top: calc(100% - 0.5rem);
   z-index: 40;
   display: flex;
