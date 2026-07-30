@@ -69,7 +69,12 @@ function renderNotice(): string {
   for (const group of FONT_GROUPS) {
     const inGroup = FONT_REGISTRY.filter((entry) => entry.group === group);
     if (inGroup.length === 0) continue;
-    lines.push(`## ${group}`, "", "| Family | Key | Weights | License | Bytes |", "| --- | --- | --- | --- | --- |");
+    lines.push(
+      `## ${group}`,
+      "",
+      "| Family | Key | Weights | License | Bytes |",
+      "| --- | --- | --- | --- | --- |",
+    );
     for (const entry of inGroup) {
       const bytes = bytesOf(entry);
       total += bytes;

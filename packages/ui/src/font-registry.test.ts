@@ -77,9 +77,29 @@ function stripComments(css: string): string {
  * a comment happened to sit.
  */
 function rules(css: string): readonly string[] {
-  return [...stripComments(css).matchAll(/(?<rule>[^{}]+\{[^{}]*\})/gu)].map((match) =>
-    normalize(match.groups?.rule ?? ""),
-  );
+  // Scanned with indexOf rather than a regex: a `selector { body }` pattern reads
+  // naturally but backtracks (sonarjs/super-linear-regex), and these stylesheets
+  // have no nested blocks, so a linear scan is both simpler and exact.
+  const text = stripComments(css);
+  const out: string[] = [];
+  for (let index = 0; index < text.length;) {
+    const open = text.indexOf("{", index);
+    if (open < 0) break;
+    const close = text.indexOf("}", open);
+    if (close < 0) break;
+    out.push(normalize(`${text.slice(index, open)}{${text.slice(open + 1, close)}}`));
+    index = close + 1;
+  }
+  return out;
+}
+
+/** The value of the first declaration of `name` in a stylesheet, trimmed. */
+function firstDeclaration(css: string, name: string): string | undefined {
+  const start = css.indexOf(`${name}:`);
+  if (start < 0) return undefined;
+  const end = css.indexOf(";", start);
+  if (end < 0) return undefined;
+  return css.slice(start + name.length + 1, end).trim();
 }
 
 /** The `:root.font-*` blocks of a stylesheet, as selector -> declarations text. */
@@ -101,7 +121,8 @@ describe("the manifest is well formed", () => {
   it("keys are unique and CSS-class safe", () => {
     const keys = FONT_REGISTRY.map((entry) => entry.key);
     expect(new Set(keys).size).toBe(keys.length);
-    for (const key of keys) expect(key, `${key} is not a CSS-safe token`).toMatch(/^[a-z][a-z0-9]*$/u);
+    for (const key of keys)
+      expect(key, `${key} is not a CSS-safe token`).toMatch(/^[a-z][a-z0-9]*$/u);
   });
 
   it("families are unique and every entry names a declared group", () => {
@@ -158,9 +179,9 @@ describe("System is always present and never removable", () => {
   });
 
   it("restates the base --font-portal value from theme.css byte for byte", () => {
-    const base = /:root\s*\{[^}]*?--font-portal:\s*(?<value>[^;]+);/su.exec(THEME_CSS);
-    expect(base?.groups?.value, "theme.css declares no base --font-portal").toBeDefined();
-    expect(system?.stack).toBe((base?.groups?.value ?? "").trim());
+    const base = firstDeclaration(THEME_CSS, "--font-portal");
+    expect(base, "theme.css declares no base --font-portal").toBeDefined();
+    expect(system?.stack).toBe(base);
   });
 
   it("survives every curation, including one that excludes it", () => {
@@ -197,7 +218,9 @@ describe("every declared face is a real, committed woff2", () => {
   it("commits no two byte-identical font files", () => {
     const byDigest = new Map<string, string[]>();
     for (const name of readdirSync(FONT_DIR).filter((entry) => entry.endsWith(".woff2"))) {
-      const digest = createHash("sha256").update(readFileSync(join(FONT_DIR, name))).digest("hex");
+      const digest = createHash("sha256")
+        .update(readFileSync(join(FONT_DIR, name)))
+        .digest("hex");
       byDigest.set(digest, [...(byDigest.get(digest) ?? []), name]);
     }
     const duplicates = [...byDigest.values()].filter((names) => names.length > 1);
@@ -281,7 +304,10 @@ describe("fonts.css is generated from the manifest", () => {
     for (const entry of FONT_REGISTRY) {
       const body = blocks.get(`:root.${fontClass(entry.key)}`);
       expect(body, `no block for ${entry.key}`).toBeDefined();
-      const declared = [...(body ?? "").matchAll(/(--[\w-]+)\s*:/gu)].map((m) => m[1]);
+      const declared = (body ?? "")
+        .split(";")
+        .map((part) => part.slice(0, part.indexOf(":")).trim())
+        .filter((name) => name.startsWith("--"));
       // A font entry may never touch a --type-* token: those carry the WCAG
       // 1.4.12 floors, and no font selection is allowed to lower one.
       expect(declared, `${entry.key} declares more than the family token`).toEqual([
@@ -343,18 +369,17 @@ describe("tabular figures are token-driven (task 052 deliverable)", () => {
   const COMPONENTS_CSS = readFileSync(join(SRC, "theme-components.css"), "utf8");
 
   it("theme.css declares --type-numeric as tnum", () => {
-    const value = /--type-numeric:\s*(?<value>[^;]+);/u.exec(THEME_CSS)?.groups?.value;
-    expect(value?.trim()).toBe('"tnum"');
+    expect(firstDeclaration(THEME_CSS, "--type-numeric")).toBe('"tnum"');
   });
 
   it("theme-components.css applies it to numeric controls through the token", () => {
     expect(COMPONENTS_CSS).toContain("font-feature-settings: var(--type-numeric);");
     // The rule anchors on qcms/react-aria markup, never a vendored Tailwind class.
-    const rule = /(?<selector>[^}]*?)\{\s*font-feature-settings: var\(--type-numeric\);/su.exec(
-      COMPONENTS_CSS,
+    const rule = rules(COMPONENTS_CSS).find((candidate) =>
+      candidate.includes("font-feature-settings: var(--type-numeric);"),
     );
-    const selector = rule?.groups?.selector ?? "";
-    expect(selector).toContain("[data-qcms-field]");
-    expect(selector).toContain('[role="spinbutton"]');
+    expect(rule, "no rule applies --type-numeric").toBeDefined();
+    expect(rule).toContain("[data-qcms-field]");
+    expect(rule).toContain('[role="spinbutton"]');
   });
 });

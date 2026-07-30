@@ -158,9 +158,9 @@ test("per-deployment font config reaches the page and the offered subset", async
   // with System added back even though the harness config omits it.
   const curated = HARNESS_FONTS.split(/[\s,]+/u).filter((key) => key !== "");
   expect(curated).not.toContain(SYSTEM_FONT_KEY);
-  expect([SYSTEM_FONT_KEY, ...curated].every((key) => FONT_REGISTRY.some((e) => e.key === key))).toBe(
-    true,
-  );
+  expect(
+    [SYSTEM_FONT_KEY, ...curated].every((key) => FONT_REGISTRY.some((e) => e.key === key)),
+  ).toBe(true);
 });
 
 test("every shipped font renders, from this origin only, with the 1.4.12 floors intact", async ({

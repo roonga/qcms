@@ -24,12 +24,7 @@
  * and the fallback is the shipped brand-neutral default, which is always safe.
  */
 
-import {
-  fontChoices,
-  fontClass,
-  SYSTEM_FONT_KEY,
-  type FontEntry,
-} from "@qcms/ui/fonts";
+import { fontChoices, fontClass, SYSTEM_FONT_KEY, type FontEntry } from "@qcms/ui/fonts";
 
 /** The predefined themes (the theme-palette design deliverable). */
 export const PORTAL_THEMES = ["slate", "harbor", "sand", "plum"] as const;

@@ -145,11 +145,10 @@ describe("font curation config", () => {
   it("accepts commas, spaces, or both as separators", () => {
     for (const raw of ["inter,merriweather", "inter merriweather", "inter,  merriweather"]) {
       process.env.QCMS_PORTAL_FONTS = raw;
-      expect(portalFontChoices().map((entry) => entry.key), raw).toEqual([
-        SYSTEM_FONT_KEY,
-        "inter",
-        "merriweather",
-      ]);
+      expect(
+        portalFontChoices().map((entry) => entry.key),
+        raw,
+      ).toEqual([SYSTEM_FONT_KEY, "inter", "merriweather"]);
     }
   });
 
