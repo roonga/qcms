@@ -11,7 +11,8 @@ Task 031 shipped the admin shell and auth flows with near-default styling. The a
 ## Deliverables
 
 - **Token sheet landed as the admin's stylesheet:** `plan/admin-theme/tokens.css` copied into `apps/admin` (placement per the app's existing global-CSS structure), byte-identical values. It is the only source of colour in the admin: components consume `--color-*` / `--admin-topbar-*` / `--radius-*` / `--admin-*` custom properties, never literal colours.
-- **Shell restyled:** topbar (navy chrome, accent active-underline, on-dark focus ring), nav, sign-out, content area, auth cards (sign-in, 2FA enroll/challenge/recovery, recovery codes), placeholder area screens, banners - all via tokens.
+- **Shell restyled:** topbar (translucent mode-following chrome, accent active-underline), nav, sign-out, content area, auth cards (sign-in, 2FA enroll/challenge/recovery, recovery codes), placeholder area screens, banners - all via tokens. The wordmark is **QCMS** with no "admin" sub-label (no user-facing string says "admin"; Code Owner naming call, 2026-07-30).
+- **Typeface:** the app face is **Lexend**, consumed from the registry's existing `packages/ui/src/fonts/lexend-variable.woff2` (OFL-1.1, already in `NOTICE.md`; no new dependency, no second copy of the file). System stack remains the `@font-face` fallback only; operators get no font switcher.
 - **Mode control (light / dark / high-contrast):** a labeled control in the topbar (matching the portal's runtime-control pattern). Default follows `prefers-color-scheme`; an explicit choice persists per operator (client-side persistence is fine at this tier); HC is only ever explicit, never inferred. Labels localized per ADR-27. Applied as the root class convention from the sheet (bare = light, `.dark`, `.hc`).
 - **Gate evidence:** fresh screenshot set under `docs/gates/<NNN>/` - sign-in, 2FA challenge, shell (Questions), Settings - each at 390px and 1280px in all three modes, with a README in the 031 style.
 
@@ -26,4 +27,4 @@ Task 031 shipped the admin shell and auth flows with near-default styling. The a
 
 ## Out of scope
 
-Respondent theming of the admin (never happens); the managed theme editor (049); any `apps/portal` or `packages/ui` change; font or density controls for the admin (operator tool ships the system stack, dense by default - revisit only on operator feedback); corners variants (admin ships Subtle).
+Respondent theming of the QCMS app (never happens); the managed theme editor (049); any `apps/portal` change and any `packages/ui` change beyond consuming the existing Lexend asset; font or density controls for operators (one face, dense by default - revisit only on operator feedback); corners variants (the app ships its sharp 4/8/2 set as brand character; the portal keeps Subtle).
