@@ -51,9 +51,9 @@
   --admin-stack: 0.35rem;
   --admin-section-pad: 1.25rem;
   --admin-table-row-h: 44px;
-  --radius-control: 8px;
-  --radius-card: 12px;
-  --radius-sm: 4px;
+  --radius-control: 4px;
+  --radius-card: 8px;
+  --radius-sm: 2px;
   --font-admin: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace;
 }

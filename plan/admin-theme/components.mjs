@@ -16,20 +16,20 @@ body { margin: 0; font-family: var(--font-admin); font-size: 16px; line-height: 
 button, input, select, textarea { font: inherit; }
 :focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
 .switcher { display: flex; gap: 0.5rem; padding: 0.75rem 1.5rem; border-bottom: 1px dashed var(--color-border-strong); background: var(--color-background-muted); }
-.switcher button { height: 32px; padding: 0 0.75rem; border-radius: 8px; border: 1px solid var(--color-border-strong); background: var(--color-surface); color: var(--color-text); cursor: pointer; }
+.switcher button { height: 32px; padding: 0 0.75rem; border-radius: var(--radius-control); border: 1px solid var(--color-border-strong); background: var(--color-surface); color: var(--color-text); cursor: pointer; }
 .switcher button[aria-pressed="true"] { background: var(--color-primary); border-color: var(--color-primary); color: var(--color-primary-foreground); }
 .content { max-width: 1000px; margin: 0 auto; padding: 1.5rem; display: grid; gap: 1.5rem; }
 h1 { font-size: 1.7rem; font-weight: 700; letter-spacing: -0.02em; margin: 0; }
 h2 { font-size: 1.1rem; font-weight: 700; letter-spacing: -0.01em; margin: 0 0 0.75rem; }
 h3 { font-size: 0.95rem; font-weight: 600; margin: 1rem 0 0.5rem; color: var(--color-text-muted); }
-.card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 12px; padding: 1.25rem;
+.card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-card); padding: 1.25rem;
   box-shadow: 0 1px 2px hsl(var(--shadow-color) / 0.06), 0 12px 40px -12px hsl(var(--shadow-color) / 0.18); }
 :root.hc .card { box-shadow: none; }
 .note { font-size: 0.85rem; color: var(--color-text-muted); }
 .rowline { display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; }
 
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  height: 40px; padding: 0 18px; border-radius: 10px;
+  height: 40px; padding: 0 18px; border-radius: var(--radius-control);
   border: 1.5px solid transparent; font-weight: 600; font-size: 0.95rem; cursor: pointer;
   transition: background 0.12s ease, border-color 0.12s ease; }
 .btn-primary { background: var(--color-primary); color: var(--color-primary-foreground); }
@@ -46,8 +46,11 @@ h3 { font-size: 0.95rem; font-weight: 600; margin: 1rem 0 0.5rem; color: var(--c
 .btn-danger:active, .btn-danger.is-active { background: var(--color-danger-active); }
 .btn.is-focus { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn-sm { height: 32px; padding: 0 12px; font-size: 0.875rem; border-radius: 8px; }
-.btn-lg { height: 48px; padding: 0 20px; border-radius: 11px; }
+.btn-sm { height: 32px; padding: 0 12px; font-size: 0.875rem; border-radius: var(--radius-control); }
+/* btn-lg keeps a 6px literal rather than the 4px --radius-control: at 48px
+   height (the portal/respondent scale) 4px reads as a sharp corner clipping a
+   tall pill; 6px keeps the industrial edge without looking accidental. */
+.btn-lg { height: 48px; padding: 0 20px; border-radius: 6px; }
 .btn-icon { width: 40px; padding: 0; }
 .spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; border-top-color: transparent; animation: rot 0.8s linear infinite; }
 @keyframes rot { to { transform: rotate(360deg); } }
@@ -56,7 +59,7 @@ h3 { font-size: 0.95rem; font-weight: 600; margin: 1rem 0 0.5rem; color: var(--c
 .field label { display: block; font-size: 0.95rem; font-weight: 600; margin-bottom: 6px; }
 .field .req { color: var(--color-danger-fg); }
 .field .hint { font-size: 0.85rem; color: var(--color-text-muted); margin: 0 0 6px; }
-.field input, .field select, .field textarea { width: 100%; height: 40px; padding: 0 12px; border-radius: 8px;
+.field input, .field select, .field textarea { width: 100%; height: 40px; padding: 0 12px; border-radius: var(--radius-control);
   border: 1px solid var(--color-border-strong); background: var(--color-surface); color: var(--color-text);
   transition: border-color 0.12s ease; }
 .field textarea { height: auto; min-height: 90px; padding: 8px 12px; }
@@ -71,7 +74,7 @@ h3 { font-size: 0.95rem; font-weight: 600; margin: 1rem 0 0.5rem; color: var(--c
 .search svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--color-text-muted); }
 .search input { padding-left: 34px; }
 
-.banner { display: flex; gap: 11px; align-items: flex-start; padding: 12px 14px; border-radius: 10px;
+.banner { display: flex; gap: 11px; align-items: flex-start; padding: 12px 14px; border-radius: var(--radius-card);
   border: 1px solid color-mix(in srgb, currentColor 30%, transparent); margin-bottom: 0.75rem; }
 .banner svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 3px; }
 .banner .body { flex: 1; }
@@ -86,7 +89,7 @@ th { text-align: left; color: var(--color-text-muted); font-weight: 600; font-si
 td { padding: 0 0.75rem; height: 44px; border-bottom: 1px solid var(--color-border); font-variant-numeric: tabular-nums; }
 tbody tr:nth-child(even) { background: var(--color-background-muted); }
 tbody tr:hover { background: var(--color-surface-hover); }
-code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; border-radius: 4px; font-size: 0.85em; }
+code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; border-radius: var(--radius-sm); font-size: 0.85em; }
 `;
 
 const ICONS = {
@@ -270,7 +273,7 @@ const tableBody = `
 </div>
 <div class="card">
   <h2>Empty state</h2>
-  <div style="border: 1.5px dashed var(--color-border-strong); border-radius: 10px; padding: 2.5rem; text-align: center;">
+  <div style="border: 1.5px dashed var(--color-border-strong); border-radius: var(--radius-card); padding: 2.5rem; text-align: center;">
     <p style="margin: 0 0 0.25rem; font-weight: 600;">No questions yet</p>
     <p class="note" style="margin: 0 0 1rem;">Questions you create appear here and can be reused across forms.</p>
     <button class="btn btn-primary">${ICONS.plus} New question</button>
@@ -289,7 +292,7 @@ const tableBody = `
 </div>`;
 
 const tableCss = `
-.sk { display: inline-block; height: 0.9em; border-radius: 4px; background: linear-gradient(90deg, var(--color-background-muted), var(--color-border), var(--color-background-muted)); background-size: 200% 100%; animation: shimmer 1.4s ease infinite; }
+.sk { display: inline-block; height: 0.9em; border-radius: var(--radius-sm); background: linear-gradient(90deg, var(--color-background-muted), var(--color-border), var(--color-background-muted)); background-size: 200% 100%; animation: shimmer 1.4s ease infinite; }
 @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 `;
 
@@ -300,7 +303,7 @@ const overlaysBody = `
 <p class="note">Confirm dialog (destructive variant shown - retire/erase flows), dropdown menu, tabs, breadcrumb. Dialogs trap focus; the destructive confirm names the object and the consequence, and the safe action is the default.</p>
 <div class="card">
   <h2>Destructive confirm dialog</h2>
-  <div style="position: relative; height: 300px; border-radius: 10px; overflow: hidden; background: var(--color-overlay);">
+  <div style="position: relative; height: 300px; border-radius: var(--radius-card); overflow: hidden; background: var(--color-overlay);">
     <div role="alertdialog" aria-modal="true" aria-labelledby="dlg-t" style="position: absolute; inset: 0; display: grid; place-items: center;">
       <div class="card" style="max-width: 420px; box-shadow: 0 2px 4px hsl(var(--shadow-color) / 0.15), 0 30px 60px -24px hsl(var(--shadow-color) / 0.5);">
         <h2 id="dlg-t">Retire this question?</h2>
@@ -317,7 +320,7 @@ const overlaysBody = `
   <h2>Dropdown menu (open)</h2>
   <div style="position: relative; height: 210px;">
     <button class="btn btn-ghost" aria-expanded="true">Actions &#9662;</button>
-    <div role="menu" style="position: absolute; top: 46px; left: 0; min-width: 200px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 10px; padding: 6px; box-shadow: 0 2px 4px hsl(var(--shadow-color) / 0.1), 0 30px 70px -30px hsl(var(--shadow-color) / 0.4);">
+    <div role="menu" style="position: absolute; top: 46px; left: 0; min-width: 200px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-card); padding: 6px; box-shadow: 0 2px 4px hsl(var(--shadow-color) / 0.1), 0 30px 70px -30px hsl(var(--shadow-color) / 0.4);">
       <a role="menuitem" href="#" class="mi">Edit</a>
       <a role="menuitem" href="#" class="mi">Duplicate</a>
       <a role="menuitem" href="#" class="mi" style="background: var(--color-surface-hover);">Preview</a>
@@ -347,7 +350,7 @@ const overlaysBody = `
 </div>`;
 
 const overlaysCss = `
-.mi { display: block; padding: 8px 10px; border-radius: 6px; color: var(--color-text); text-decoration: none; }
+.mi { display: block; padding: 8px 10px; border-radius: var(--radius-sm); color: var(--color-text); text-decoration: none; }
 .mi:hover { background: var(--color-surface-hover); }
 .tab { background: none; border: none; cursor: pointer; padding: 0.5rem 0.9rem; color: var(--color-text-muted); font-weight: 600; position: relative; }
 .tab-on { color: var(--color-primary); }
