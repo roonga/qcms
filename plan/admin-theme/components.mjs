@@ -1,13 +1,17 @@
 // QCMS Design System - first-pass component cards (PO draft for Code Owner
-// redline). Emits five self-contained cards consuming the generated admin
-// token sheet (tokens.css, built by build.mjs - run that first). Each card
-// covers a gap named in component-gaps.html: buttons (state matrix), inputs
+// redline). Emits six self-contained cards consuming the generated admin
+// token sheet (tokens.css, built by build.mjs - run that first). Five cover
+// a gap named in component-gaps.html: buttons (state matrix), inputs
 // (family + error anatomy), alerts (severity family), data table, overlays.
+// The sixth, navbar, documents the admin topbar (canonical treatment carried
+// over from admin-theme.html) plus the portal respondent header for contrast.
 // Run: node components.mjs (from this directory)
 
 import { readFileSync, writeFileSync } from "node:fs";
+import { lexendFontFaceCss } from "./lexend-font.mjs";
 
 const tokens = readFileSync("tokens.css", "utf8");
+const lexendFontFace = lexendFontFaceCss();
 
 const BASE = `
 * { box-sizing: border-box; }
@@ -120,6 +124,7 @@ const page = (card, title, extraCss, body) =>
   `<!-- @dsCard group="Components" name="${card}" subtitle="${title}" -->
 <title>QCMS DS - ${card}</title>
 <style>
+${lexendFontFace}
 ${tokens}
 ${BASE}
 ${extraCss}
@@ -167,7 +172,7 @@ const buttonsBody = `
   <h2>Sizes and density</h2>
   <h3>Portal scale (48px) - respondent-facing</h3>
   <p class="rowline"><button class="btn btn-lg btn-primary">Continue</button><button class="btn btn-lg btn-ghost">Back</button></p>
-  <h3>Admin scale (40px) - default in the admin</h3>
+  <h3>QCMS app scale (40px) - default in the QCMS app</h3>
   <p class="rowline"><button class="btn btn-primary">${ICONS.plus} New question</button><button class="btn btn-ghost">Cancel</button></p>
   <h3>Small (32px) - table row actions</h3>
   <p class="rowline"><button class="btn btn-sm btn-ghost">Edit</button><button class="btn btn-sm btn-ghost">Duplicate</button></p>
@@ -357,6 +362,120 @@ const overlaysCss = `
 .tab-on::after { content: ""; position: absolute; left: 0.9rem; right: 0.9rem; bottom: -1px; height: 2px; background: var(--color-primary); border-radius: 2px; }
 `;
 
+// ---------- navbar ----------
+// Canonical admin topbar treatment carried over verbatim from
+// admin-theme.html (translucent, mode-following, sticky) rather than
+// re-derived, plus the quieter portal respondent header for contrast. The
+// .navitem class factors admin-theme.html's ".topbar nav a" rules out so the
+// same rules drive both the real topbar and the standalone states row below
+// it. The high-contrast demo scopes the exact HC token values from
+// tokens.css (":root.hc") onto a local wrapper class so it renders correctly
+// independent of the page-level mode switcher above. The 390px demo relies
+// on nothing but flexbox: nav shrinks (min-width: 0) and wraps onto further
+// rows as its container narrows, no media query and no JS.
+
+const navbarCss = `
+.navitem { color: var(--color-text-muted); text-decoration: none; padding: 0.4rem 0.7rem; border-radius: var(--radius-control); position: relative; font-size: 0.95rem; }
+.navitem:hover, .navitem.is-hover { background: var(--color-ghost-hover); color: var(--color-text); }
+.navitem.is-focus { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+.navitem[aria-current="page"] { color: var(--color-primary); font-weight: 600; }
+.navitem[aria-current="page"]::after { content: ""; position: absolute; left: 0.7rem; right: 0.7rem; bottom: -1px; height: 2px; background: var(--color-primary); border-radius: 2px; }
+
+.topbar { position: sticky; top: 0; display: flex; align-items: center; gap: 1.25rem; padding: 0.6rem 1.5rem; min-height: 60px;
+  background: color-mix(in srgb, var(--color-background) 88%, transparent);
+  backdrop-filter: saturate(1.2) blur(8px);
+  border-bottom: 1px solid var(--color-border);
+  flex-wrap: wrap; }
+:root.hc .topbar { background: var(--color-surface); backdrop-filter: none; border-bottom: 2px solid var(--color-border-strong); }
+.topbar .brand { display: flex; align-items: baseline; gap: 0.5rem; }
+.topbar .brand .mark { font-weight: 800; letter-spacing: -0.02em; color: var(--color-text); }
+.topbar .brand .sub { font-size: 0.85rem; color: var(--color-text-muted); }
+.topbar nav { display: flex; gap: 0.25rem; flex: 1 1 160px; min-width: 0; flex-wrap: wrap; }
+.topbar .signout { height: var(--admin-control-h); padding: 0 0.9rem; border-radius: var(--radius-control); border: 1px solid var(--color-border-strong); background: var(--color-ghost); color: var(--color-text); cursor: pointer; flex-shrink: 0; }
+.topbar .signout:hover { background: var(--color-ghost-hover); }
+
+.frame { border: 1px solid var(--color-border); border-radius: var(--radius-card); overflow: hidden; }
+.demo-fill { padding: 0.85rem 1.5rem; color: var(--color-text-muted); font-size: 0.85rem; background: var(--color-background); }
+
+/* High-contrast treatment demo: the exact universal HC mode-layer values
+   plus the QCMS app's cobalt accent (tokens.css ":root.hc"), scoped to this box
+   so it renders correctly regardless of the page-level switcher above. */
+.demo-hc { --color-ghost-hover: #eceef1; --color-text: #000000; --color-text-muted: #22262e;
+  --color-border: #5a616e; --color-border-strong: #000000; --color-background: #ffffff;
+  --color-surface: #ffffff; --color-focus-ring: #0a3ea8; --color-primary: #0a3ea8; }
+.demo-hc .topbar { background: var(--color-surface); backdrop-filter: none; border-bottom: 2px solid var(--color-border-strong); }
+
+.portal-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.75rem 1.5rem;
+  background: var(--color-surface); border-bottom: 1px solid var(--color-border); }
+.portal-header .brandmark { display: flex; align-items: center; gap: 0.6rem; }
+.portal-header .brandmark .swatch { width: 24px; height: 24px; border-radius: var(--radius-sm); background: var(--color-primary); flex-shrink: 0; }
+.portal-header .brandmark .title { font-weight: 700; font-size: 1rem; }
+.portal-header .controls { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.portal-header .controls select { height: 32px; padding: 0 0.5rem; border-radius: var(--radius-control); border: 1px solid var(--color-border-strong); background: var(--color-surface); color: var(--color-text); font-size: 0.85rem; }
+`;
+
+const topbarMarkup = `
+    <header class="topbar">
+      <span class="brand"><span class="mark">QCMS</span></span>
+      <nav aria-label="Primary">
+        <a href="#" class="navitem" aria-current="page">Questions</a>
+        <a href="#" class="navitem">Forms</a>
+        <a href="#" class="navitem">Responses</a>
+        <a href="#" class="navitem">Webhooks</a>
+        <a href="#" class="navitem">Settings</a>
+      </nav>
+      <button class="signout">Sign out</button>
+    </header>`;
+
+const navbarBody = `
+<h1>Navbar</h1>
+<p class="note">The QCMS topbar is fixed brand chrome: translucent, sticky, mode-following, never themed by the respondent (see 051). Below it: the state matrix, the high-contrast override, 390px wrap behaviour, and the quieter portal respondent header for comparison.</p>
+
+<div class="card">
+  <h2>QCMS topbar</h2>
+  <div class="frame">${topbarMarkup}
+    <div class="demo-fill">Page content scrolls under the bar.</div>
+  </div>
+
+  <h3>Nav item states</h3>
+  <p class="note">Hover and focus-visible are simulated with classes so every state is visible at once; active carries primary text plus a 2px primary underline, driven by <code>aria-current="page"</code>.</p>
+  <div class="rowline" style="background: var(--color-background); padding: 0.6rem 0.75rem; border-radius: var(--radius-control);">
+    <a href="#" class="navitem">Rest</a>
+    <a href="#" class="navitem is-hover">Hover</a>
+    <a href="#" class="navitem is-focus">Focus-visible</a>
+    <a href="#" class="navitem" aria-current="page">Active</a>
+  </div>
+</div>
+
+<div class="card">
+  <h2>High-contrast treatment</h2>
+  <p class="note">HC drops the translucency: solid surface, no blur, 2px strong border (tokens.css ":root.hc"). Forced here with scoped tokens so it renders correctly on its own, independent of the page-level mode switcher above.</p>
+  <div class="frame demo-hc">${topbarMarkup}
+  </div>
+</div>
+
+<div class="card">
+  <h2>Narrow viewport (390px)</h2>
+  <p class="note">Pure CSS, no JS: as the container narrows the nav shrinks and wraps onto further rows, the bar grows to an auto height, and sign-out stays on the top row and reachable.</p>
+  <div class="frame" style="width: 390px;">${topbarMarkup}
+  </div>
+</div>
+
+<div class="card">
+  <h2>Portal respondent header</h2>
+  <p class="note">Portal chrome follows the respondent's theme; the QCMS bar above is fixed brand chrome regardless of theme.</p>
+  <div class="frame">
+    <header class="portal-header">
+      <span class="brandmark"><span class="swatch" aria-hidden="true"></span><span class="title">Vehicle insurance intake</span></span>
+      <div class="controls">
+        <select aria-label="Mode"><option>Light</option><option>Dark</option><option>High contrast</option></select>
+        <select aria-label="Font"><option>Default</option><option>Dyslexic-friendly</option><option>Large print</option></select>
+        <select aria-label="Density"><option>Comfortable</option><option>Compact</option></select>
+      </div>
+    </header>
+  </div>
+</div>`;
+
 // ---------- emit ----------
 
 const cards = [
@@ -365,6 +484,7 @@ const cards = [
   ["ds-alerts.html", "Alerts", "Severity family, dismissible, action, toast", "", alertsBody],
   ["ds-table.html", "Data table", "Sort, selection, pagination, empty, skeleton", tableCss, tableBody],
   ["ds-overlays.html", "Overlays", "Confirm dialog, dropdown, tabs, breadcrumb", overlaysCss, overlaysBody],
+  ["ds-navbar.html", "Navbar", "QCMS topbar + portal header, states, 390px", navbarCss, navbarBody],
 ];
 
 for (const [file, name, subtitle, extraCss, body] of cards) {
