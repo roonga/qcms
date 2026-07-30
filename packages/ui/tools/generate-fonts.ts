@@ -42,6 +42,56 @@ function bytesOf(entry: FontEntry): number {
 
 const thousands = (n: number): string => n.toLocaleString("en-US");
 
+/** The fixed preamble: what a redistributor needs to know before the tables. */
+const PREAMBLE: readonly string[] = [
+  "# Self-hosted font notices (`@qcms/ui`)",
+  "",
+  "Generated from `src/font-registry.ts` by `pnpm --filter @qcms/ui fonts:generate`.",
+  "",
+  "Every typeface QCMS ships is open-licensed and redistributable under QCMS's MIT",
+  "terms, and every binary in this directory is committed to the repository: a portal",
+  "serves fonts from its own origin and makes **zero external requests** for a",
+  "typeface. There is no CDN and no build-time download, so nothing here can make a",
+  "deployment or CI depend on a third-party host.",
+  "",
+  "The license texts the notices below refer to sit beside the binaries, which is what",
+  "OFL-1.1 (section 2) and Apache-2.0 (section 4a) each require of a redistribution:",
+  "`LICENSE-OFL-1.1.txt` and `LICENSE-Apache-2.0.txt`.",
+  "",
+  "The files are the **Latin** `woff2` subsets, so text outside Latin falls back",
+  "glyph-by-glyph through each entry's fallback stack. A designed multi-script",
+  "fallback baseline is issue #27 and is not covered here.",
+  "",
+];
+
+/** One entry's summary row. */
+function summaryRow(entry: FontEntry): string {
+  const weights = entry.faces.map((face) => face.weight).join(", ");
+  return (
+    `| ${entry.label} | \`${entry.key}\` | ${weights === "" ? "none" : weights} |` +
+    ` ${entry.license ?? "n/a (no webfont)"} | ${thousands(bytesOf(entry))} |`
+  );
+}
+
+/** One entry's copyright notice, or nothing when there is no webfont to cover. */
+function noticeBlock(entry: FontEntry): readonly string[] {
+  if (entry.copyright === null) return [];
+  return [`**${entry.label}** (${entry.license})`, "", `> ${entry.copyright}`, ""];
+}
+
+/** One group: its summary table, then a notice block per entry. */
+function groupSection(group: string, entries: readonly FontEntry[]): readonly string[] {
+  return [
+    `## ${group}`,
+    "",
+    "| Family | Key | Weights | License | Bytes |",
+    "| --- | --- | --- | --- | --- |",
+    ...entries.map(summaryRow),
+    "",
+    ...entries.flatMap(noticeBlock),
+  ];
+}
+
 /**
  * The redistribution notice. OFL-1.1 section 2 and Apache-2.0 section 4(a) each
  * require the license text and the copyright notice to travel with the bytes, so
@@ -49,60 +99,21 @@ const thousands = (n: number): string => n.toLocaleString("en-US");
  * discharges that obligation for a QCMS deployment.
  */
 function renderNotice(): string {
-  const lines: string[] = [
-    "# Self-hosted font notices (`@qcms/ui`)",
-    "",
-    "Generated from `src/font-registry.ts` by `pnpm --filter @qcms/ui fonts:generate`.",
-    "",
-    "Every typeface QCMS ships is open-licensed and redistributable under QCMS's MIT",
-    "terms, and every binary in this directory is committed to the repository: a portal",
-    "serves fonts from its own origin and makes **zero external requests** for a",
-    "typeface. There is no CDN and no build-time download, so nothing here can make a",
-    "deployment or CI depend on a third-party host.",
-    "",
-    "The license texts the notices below refer to sit beside the binaries, which is what",
-    "OFL-1.1 (section 2) and Apache-2.0 (section 4a) each require of a redistribution:",
-    "`LICENSE-OFL-1.1.txt` and `LICENSE-Apache-2.0.txt`.",
-    "",
-    "The files are the **Latin** `woff2` subsets, so text outside Latin falls back",
-    "glyph-by-glyph through each entry's fallback stack. A designed multi-script",
-    "fallback baseline is issue #27 and is not covered here.",
-    "",
-  ];
-  let total = 0;
-  const files = new Set<string>();
-  for (const group of FONT_GROUPS) {
+  const sections = FONT_GROUPS.flatMap((group) => {
     const inGroup = FONT_REGISTRY.filter((entry) => entry.group === group);
-    if (inGroup.length === 0) continue;
-    lines.push(
-      `## ${group}`,
-      "",
-      "| Family | Key | Weights | License | Bytes |",
-      "| --- | --- | --- | --- | --- |",
-    );
-    for (const entry of inGroup) {
-      const bytes = bytesOf(entry);
-      total += bytes;
-      for (const face of entry.faces) files.add(face.file);
-      const weights = entry.faces.map((face) => face.weight).join(", ");
-      lines.push(
-        `| ${entry.label} | \`${entry.key}\` | ${weights === "" ? "none" : weights} |` +
-          ` ${entry.license ?? "n/a (no webfont)"} | ${thousands(bytes)} |`,
-      );
-    }
-    lines.push("");
-    for (const entry of inGroup) {
-      if (entry.copyright === null) continue;
-      lines.push(`**${entry.label}** (${entry.license})`, "", `> ${entry.copyright}`, "");
-    }
-  }
-  lines.push(
-    `Total committed font payload: **${thousands(total)} bytes** across ${thousands(files.size)} files` +
-      ` (${thousands(FONT_REGISTRY.reduce((n, e) => n + e.faces.length, 0))} declared faces; a` +
-      ` variable font's weights share one file).`,
+    return inGroup.length === 0 ? [] : groupSection(group, inGroup);
+  });
+  const files = new Set(FONT_REGISTRY.flatMap((entry) => entry.faces.map((face) => face.file)));
+  const faces = FONT_REGISTRY.reduce((count, entry) => count + entry.faces.length, 0);
+  const total = FONT_REGISTRY.reduce((sum, entry) => sum + bytesOf(entry), 0);
+  return [
+    ...PREAMBLE,
+    ...sections,
+    `Total committed font payload: **${thousands(total)} bytes** across ` +
+      `${thousands(files.size)} files (${thousands(faces)} declared faces; a variable font's ` +
+      `weights share one file).`,
     "",
-  );
-  return lines.join("\n");
+  ].join("\n");
 }
 
 writeFileSync(join(SRC, "fonts.css"), renderFontsCss(), "utf8");
