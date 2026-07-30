@@ -113,3 +113,12 @@ export const SERVER_LOG_FILES = {
 export const OTLP_CAPTURE_PATH = fileURLToPath(
   new URL("../../.playwright/otlp/spans.jsonl", import.meta.url),
 );
+
+/**
+ * Where `fonts.pw.ts` writes the per-font WCAG 1.4.12 measurements it takes
+ * (task 052). The same table is attached to the Playwright report; the file exists
+ * so a GREEN run leaves the numbers readable, since `docs/theming.md` states them.
+ */
+export const FONT_FLOORS_PATH = fileURLToPath(
+  new URL("../../.playwright/font-floors.txt", import.meta.url),
+);

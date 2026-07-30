@@ -33,13 +33,15 @@
  * control is task 053.
  */
 
+import { writeFileSync } from "node:fs";
+
 import { FONT_REGISTRY, fontClass, SYSTEM_FONT_KEY } from "@qcms/ui/fonts";
 import type { Locator, Page } from "@playwright/test";
 
 import { readFixtures } from "./support/fixtures.js";
 import { ACCIDENT_LABEL, chooseAccident, startAnonymousFlow } from "./support/flow.js";
 import { expect, test } from "./support/gates.js";
-import { HARNESS_FONT, HARNESS_FONTS } from "./support/harness-config.js";
+import { FONT_FLOORS_PATH, HARNESS_FONT, HARNESS_FONTS } from "./support/harness-config.js";
 import { KS, startKitchenSink } from "./support/kitchen-sink.js";
 
 /** The families that carry a self-hosted webfont (System has none by design). */
@@ -78,6 +80,16 @@ function computed(target: Locator, property: string): Promise<string> {
     (element, name) => getComputedStyle(element).getPropertyValue(name),
     property,
   );
+}
+
+/**
+ * The first family of a computed `font-family`, unquoted. Chromium serializes a
+ * single-identifier family WITHOUT quotes (`Inter`) and a multi-word one WITH them
+ * (`"Open Sans"`), so comparing the raw string against the manifest's quoted name
+ * would pass for half the registry and fail for the other half.
+ */
+function firstFamily(computedValue: string): string {
+  return (computedValue.split(",")[0] ?? "").trim().replace(/^["']|["']$/gu, "");
 }
 
 /** Numeric pixel value of a computed property. */
@@ -150,9 +162,7 @@ test("per-deployment font config reaches the page and the offered subset", async
   const entry = FONT_REGISTRY.find((candidate) => candidate.key === HARNESS_FONT);
   expect(entry, `unknown harness font ${HARNESS_FONT}`).toBeDefined();
   const family = await computed(page.locator("body"), "font-family");
-  expect(family.startsWith(`"${entry?.family ?? ""}"`), `computed font-family: ${family}`).toBe(
-    true,
-  );
+  expect(firstFamily(family), `computed font-family: ${family}`).toBe(entry?.family ?? "");
 
   // The curated subset the operator configured is exactly what 053 will offer,
   // with System added back even though the harness config omits it.
@@ -233,13 +243,18 @@ test("every shipped font renders, from this origin only, with the 1.4.12 floors 
     );
     // The applied class is the family in force, for every entry in the sweep.
     const family = await computed(page.locator("body"), "font-family");
-    const expected = entry.family === null ? "ui-sans-serif" : `"${entry.family}"`;
-    expect(family.startsWith(expected), `${entry.key} computed font-family: ${family}`).toBe(true);
+    const expected = entry.family ?? "ui-sans-serif";
+    expect(firstFamily(family), `${entry.key} computed font-family: ${family}`).toBe(expected);
   }
+  // Attached to the report AND written to the run directory, because "the floors
+  // hold under every font" is a claim docs/theming.md makes with numbers in it: the
+  // numbers have to be readable after a green run, not only after a red one.
+  const measured = `${table.join("\n")}\n`;
   await testInfo.attach("wcag-1.4.12-floors-per-font.txt", {
-    body: table.join("\n"),
+    body: measured,
     contentType: "text/plain",
   });
+  writeFileSync(FONT_FLOORS_PATH, measured, "utf8");
 
   // The whole point of self-hosting: after loading every face of every family and
   // rendering under each one, the page has made no external request at all.
@@ -254,12 +269,38 @@ test("every shipped font renders, from this origin only, with the 1.4.12 floors 
       .filter((entry) => entry.name.endsWith(".woff2"))
       .map((entry) => entry.name),
   );
-  expect(fontRequests.length, "no woff2 was requested at all").toBeGreaterThanOrEqual(
-    FACE_SPECS.length,
+  // Every DISTINCT file in the manifest was fetched exactly once, which is one
+  // fewer request than the face count: Lexend is a variable font whose 400 and 700
+  // faces share a single file (see the manifest), so it downloads once.
+  //
+  // The registry's own files have to be picked out of the woff2 requests rather
+  // than counted wholesale, because the Next DEV server serves its error-overlay
+  // typeface (`/__nextjs_font/geist-latin.woff2`) from this origin too. That is
+  // dev-server chrome, not portal content, and it is same-origin, so it satisfies
+  // the zero-external-request claim while making a bare count wrong by one.
+  const declared = [...new Set(FONT_REGISTRY.flatMap((e) => e.faces.map((f) => f.file)))];
+  const stems = declared.map((file) => file.replace(/\.woff2$/u, ""));
+  const ours = fontRequests.filter((url) =>
+    stems.some((stem) => url.includes(`/${stem}.`) || url.endsWith(`/${stem}.woff2`)),
   );
+  expect(
+    [...new Set(ours)].length,
+    `expected all ${declared.length} registry files; requested:\n${[...new Set(fontRequests)].sort().join("\n")}`,
+  ).toBe(declared.length);
   for (const url of fontRequests) {
     expect(url.startsWith(new URL(baseUrl).origin), `off-origin font: ${url}`).toBe(true);
   }
+
+  writeFileSync(
+    FONT_FLOORS_PATH,
+    `${measured}\n` +
+      `entries swept: ${FONT_REGISTRY.length}\n` +
+      `faces declared: ${FACE_SPECS.length}\n` +
+      `registry woff2 files requested: ${new Set(ours).size} (declared ${declared.length})\n` +
+      `total woff2 resource entries incl. the Next dev overlay font: ${fontRequests.length}\n` +
+      `off-origin requests for the whole sweep: ${external.length}\n`,
+    "utf8",
+  );
 });
 
 test("the accessibility fonts ship a real bold, not a synthesised one", async ({ page }) => {
