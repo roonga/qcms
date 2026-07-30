@@ -302,6 +302,10 @@ describe("respondent choices resolve over config (task 053)", () => {
 });
 
 describe("root class name", () => {
+  // The cast takes plain strings where the signature wants the literal unions, so a
+  // case can pass a value the resolver is supposed to reject (that is what several of
+  // these tests assert). Shaping only: the object's keys and their runtime types are
+  // exactly what `rootClassName` reads.
   const at = (mode: string, font: string, density: string) =>
     ({ mode, modeChosen: false, font, density }) as Parameters<typeof rootClassName>[0];
 

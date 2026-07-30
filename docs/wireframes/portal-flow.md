@@ -1,12 +1,12 @@
 # Wireframe - Portal respondent flow
 
-**Status:** Signed off: Code Owner, 2026-07-21 · **Consumed by:** 029 (portal), 030 (a11y pass), 053 (brand mark + appearance controls) · **Renders:** 018 (start-session), 019 (get-step, submit-answer), 020 (submit)
+**Status:** Signed off: Code Owner, 2026-07-21 · **the `brand mark` and `appearance` regions and the two `appearance-*` states are additions from 053 and are NOT yet signed off** (they ride the 053 screenshot gate) · **Consumed by:** 029 (portal), 030 (a11y pass), 053 (brand mark + appearance controls) · **Renders:** 018 (start-session), 019 (get-step, submit-answer), 020 (submit)
 
 ## ASCII sketch - flow step page (`/s/:sessionId`)
 
 ```
 ┌─ page ──────────────────────────────────────────────┐
-│ [logo] Brand name      Step 2 of 4: Driving history  [⚙ Appearance] │
+│ [logo] Brand name      Step 2 of 4: Driving history  [◐ Appearance] │
 │ ┌─ step ─────────────────────────────────────────┐  │
 │ │ Driving history                                     (h1)│  │
 │ │ Any at-fault accident in the last 3 years?                              │  │
