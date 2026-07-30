@@ -481,7 +481,9 @@ async function measureTargets(page: Page): Promise<{ name: string; w: number; h:
   return measured;
 }
 
-test("every control target clears the WCAG 2.5.8 minimum at Compact", async ({ page }, testInfo) => {
+test("every control target clears the WCAG 2.5.8 minimum at Compact", async ({
+  page,
+}, testInfo) => {
   // The anonymous flow rather than the kitchen sink, because its first step is a
   // CHOICE question: the option row (a `label[data-rac]`, whose target is the whole
   // row and whose height is `--space-stack` above and below a line box) is the one

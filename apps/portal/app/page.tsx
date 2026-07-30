@@ -11,11 +11,5 @@ import { portalBrand } from "@/lib/server/theme";
  * name without a link, and the name they should see there is the operator's.
  */
 export default function Home() {
-  return (
-    <MessageScreen
-      tone="neutral"
-      title={portalBrand().name}
-      body={t("home.body")}
-    />
-  );
+  return <MessageScreen tone="neutral" title={portalBrand().name} body={t("home.body")} />;
 }

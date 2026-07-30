@@ -239,7 +239,7 @@ describe("brand mark config (task 053, issue #25)", () => {
       "//cdn.example.com/logo.png", // protocol-relative: starts with / but is off-origin
       "javascript:alert(1)", // not an image scheme at all
       "data:text/html,<script>x</script>", // data:, but not an image
-      "/logo.png\" onerror=\"x", // attribute-breaking characters
+      '/logo.png" onerror="x', // attribute-breaking characters
       "/logo one.png", // whitespace
     ]) {
       process.env.QCMS_PORTAL_BRAND_LOGO = logo;

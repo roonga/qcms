@@ -120,9 +120,10 @@ export default async function RootLayout({ children }: { readonly children: Reac
   const brand = portalBrand();
 
   // What the header's controls need. Everything in it is already visible in the
-  // served HTML (the root classes) or is public config; nothing server-only
-  // crosses this boundary. `osResolved` tells the controls that the script above
-  // may have changed the mode after this render, so they re-read the live class.
+  // served HTML (the root classes) or is public config; nothing server-only crosses
+  // this boundary. `mode` here is the class this render STAMPED, which the controls
+  // hydrate against and then reconcile with the live root class - the script above
+  // can have landed elsewhere from a `?mode=` parameter or the OS signals.
   const state: AppearanceState = {
     mode: modeClass(appearance.mode),
     font: appearance.font,
@@ -170,10 +171,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
           nonce={nonce}
           suppressHydrationWarning
           dangerouslySetInnerHTML={{
-            __html: themeBootstrap(
-              configuredMode,
-              appearance.modeChosen ? state.mode : null,
-            ),
+            __html: themeBootstrap(configuredMode, appearance.modeChosen ? state.mode : null),
           }}
         />
         {/* Without scripting the appearance controls cannot do anything, and a

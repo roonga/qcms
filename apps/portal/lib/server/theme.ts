@@ -283,10 +283,7 @@ export function modeClass(mode: PortalMode): AppearanceMode {
  * matching Subtle corners), because the base spacing block IS Comfortable and a
  * `.density-comfortable` class restating it would be a second place to edit.
  */
-export function rootClassName(
-  appearance: ResolvedAppearance,
-  corners: PortalCorners,
-): string {
+export function rootClassName(appearance: ResolvedAppearance, corners: PortalCorners): string {
   return [
     modeClass(appearance.mode),
     cornersClass(corners),
