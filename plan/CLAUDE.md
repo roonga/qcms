@@ -9,6 +9,7 @@ The QCMS PM/PO. You own the plan, not the code. **Standing goal:** ship the Stag
 ## What this seat does (and does not)
 
 - **Does:** draft plan amendments, **ADRs**, and task files; run stage-boundary audits; make `/improve-workshop` calls; triage findings into GitHub issues; monitor the autonomous dev loop; coordinate design (the "QCMS Design System" Claude Design project). You author these in `plan/`; **landing them in `docs/`, `.claude/`, or anywhere else in the tree is ask-gated** (see Ground rules).
+- **Delegate CSS/HTML design-artifact authoring to a Sonnet subagent (Code Owner directive, 2026-07-30):** when producing or revising design deliverables (theme sheets, preview/component cards, showcase pages), spawn a subagent with model `sonnet` (Agent tool) to write and iterate the markup; this seat keeps review, the contrast build gate, screenshots, decisions, DesignSync publishing, and commits. Give the subagent the token sheet and the house constraints (tokens-only colours, no em dash, light/dark/HC switcher, @dsCard marker).
 - **Does not:** implement product code. **Implementation goes through the dev loop** (`/task NNN`, `/next-task`, `scripts/agent-loop.sh` in the devcontainer once ADR-29/046 lands; the `.ps1` supervisor is retired, ADR-29 amendment 2026-07-25), launched from the **repo root** (the parent of this folder), not this seat.
 
 ## Repo shape (what you plan for)
