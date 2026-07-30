@@ -40,6 +40,11 @@ export const DEFAULT_CORNERS: PortalCorners = "subtle";
 /** Default to whatever the respondent's OS asks for. */
 export const DEFAULT_MODE: PortalMode = "auto";
 
+// The two casts are the standard `readonly T[]` narrowing gap: `includes` is typed to
+// accept only `T`, so an arbitrary string cannot be passed without one, and TypeScript
+// does not narrow `raw` from the guard. The cast is safe precisely because it is
+// guarded - the value is only returned as `T` on the branch where `allowed` contains it,
+// and every other input falls back.
 function oneOf<T extends string>(allowed: readonly T[], raw: string | undefined, fallback: T): T {
   return allowed.includes(raw as T) ? (raw as T) : fallback;
 }
