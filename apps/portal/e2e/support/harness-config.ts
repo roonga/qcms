@@ -144,3 +144,13 @@ export const OTLP_CAPTURE_PATH = fileURLToPath(
 export const FONT_FLOORS_PATH = fileURLToPath(
   new URL("../../.playwright/font-floors.txt", import.meta.url),
 );
+
+/**
+ * Where `appearance.pw.ts` writes the per-density WCAG 2.5.8 target-size
+ * measurements (task 053), for the same reason as the file above: "every control
+ * target clears 24px at Compact" is a claim with numbers in it, and the numbers have
+ * to be readable after a green run.
+ */
+export const APPEARANCE_METRICS_PATH = fileURLToPath(
+  new URL("../../.playwright/appearance-target-sizes.txt", import.meta.url),
+);
