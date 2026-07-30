@@ -1,0 +1,190 @@
+/*
+ * QCMS component token layer: the CSS that makes the vendored a2-react-aria
+ * controls consume the spacing, radius and typography groups of the token
+ * contract, plus the High-contrast mode scaffold. Companion to `theme.css`
+ * (which holds the token VALUES); import both, this one after it:
+ *
+ *   @import "@qcms/ui/theme.css";
+ *   @import "@qcms/ui/theme-components.css";
+ *
+ * WHY A SEPARATE LAYER AND NOT AN EDIT TO THE COMPONENTS
+ * The `src/components/a2ui/*` sources are vendored upstream and kept
+ * byte-for-byte so `a2ra diff` stays clean (ADR-22). Their Tailwind strings
+ * already resolve `--color-*` on their own, but their spacing, radius and font
+ * sizes are literal utilities (`px-3`, `rounded`, `text-sm`). Reaching those
+ * through the token contract (ADR-30) therefore happens HERE, in qcms-owned CSS
+ * over the DOM those components render, and never by editing a vendored file.
+ *
+ * Two mechanisms, both deliberate:
+ *
+ *  1. `@theme` (Tailwind v4) repoints the two sub-16px steps of the Tailwind type
+ *     scale at the QCMS type tokens. `text-sm` (14px) and `text-xs` (12px) are
+ *     below the WCAG 1.4.12 floors, and they are used by the vendored labels,
+ *     descriptions and error slots as well as by the shells' own chrome, so
+ *     fixing the scale itself fixes every one of them from the tokens.
+ *  2. Plain, UNLAYERED rules for radius and spacing. Tailwind's utilities live in
+ *     `@layer utilities`, and unlayered author CSS beats any layer regardless of
+ *     specificity, so these win over `rounded` / `px-3` without `!important` and
+ *     without depending on Tailwind internals.
+ *
+ * The selectors anchor on markup qcms or react-aria owns, never on a vendored
+ * Tailwind class string: `[data-qcms-field]` is the per-question wrapper
+ * `registry.tsx` renders, and `[data-rac]` marks a react-aria-components element.
+ *
+ * Requires Tailwind v4 in the consuming build (the components need it anyway).
+ * Contract documentation: docs/theming.md.
+ */
+
+/* --------------------------------------------------------------------------
+   Type scale floors (WCAG 1.4.12). The tokens are the carrier; this block only
+   points Tailwind's two smallest steps at them.
+   -------------------------------------------------------------------------- */
+@theme {
+  /* Body / label text never below 16px. */
+  --text-sm: var(--type-body);
+  --text-sm--line-height: var(--type-line-height);
+  /* Hint / description / error text never below 14px. */
+  --text-xs: var(--type-hint);
+  --text-xs--line-height: var(--type-line-height);
+  /* `text-base` is already 16px; only its line-height needs the 1.5 floor. */
+  --text-base--line-height: var(--type-line-height);
+}
+
+/* --------------------------------------------------------------------------
+   RADIUS + SPACING: the vendored controls consume the token groups.
+   -------------------------------------------------------------------------- */
+
+/* Text-entry controls: the free-text input and the long-text textarea. The
+   visually-hidden checkbox/radio inputs and the hidden native-submit inputs are
+   excluded - they draw nothing. */
+[data-qcms-field]
+  :is(input:not([type="radio"], [type="checkbox"], [type="hidden"], [hidden]), textarea) {
+  border-radius: var(--radius-control);
+  min-height: var(--space-control-h);
+  padding-inline: var(--space-control-pad-x);
+}
+
+/* Composite controls that draw ONE box around several parts: the number field
+   (its own direct-child input, flanked by steppers) and the date field (a row of
+   spinbutton segments). The `:has()` tests distinguish them from a checkbox
+   group, which react-aria also renders with `role="group"` but which is a stack
+   of option rows, not a control box. */
+[data-qcms-field] [role="group"][data-rac]:is(:has(> input), :has([role="spinbutton"])) {
+  border-radius: var(--radius-control);
+  min-height: var(--space-control-h);
+}
+
+/* The number field's inner input sits INSIDE that box, so it must not draw a
+   second one; the steppers keep their own joined-corner treatment. */
+[data-qcms-field] [role="group"][data-rac] > input {
+  border-radius: 0;
+  min-height: 0;
+}
+
+/* Date segments are small chips inside the field box. */
+[data-qcms-field] [role="spinbutton"] {
+  border-radius: var(--radius-sm);
+}
+
+/* The select's trigger button (the only `aria-haspopup` control the renderer
+   produces). Its popover is portalled to the document body, so the popover and
+   its options are matched at document scope below. */
+[data-qcms-field] button[data-rac][aria-haspopup] {
+  border-radius: var(--radius-control);
+  min-height: var(--space-control-h);
+  padding-inline: var(--space-control-pad-x);
+}
+
+[data-rac]:has(> [role="listbox"]) {
+  border-radius: var(--radius-card);
+}
+
+[role="option"][data-rac] {
+  border-radius: var(--radius-sm);
+  padding-inline: var(--space-control-pad-x);
+}
+
+/* Checkbox indicator: a small square. The radio indicator stays a circle, so it
+   is deliberately not matched here. */
+[data-qcms-field] label[data-rac]:has(input[type="checkbox"]) > div {
+  border-radius: var(--radius-sm);
+}
+
+/* Option rows (checkbox / radio) take the stack token as vertical padding, which
+   is also what keeps their hit target comfortably above the WCAG 2.5.8 floor. */
+[data-qcms-field] label[data-rac] {
+  padding-block: var(--space-stack);
+}
+
+/* Label-to-control gap inside one question. */
+[data-qcms-field] > [data-rac] {
+  gap: var(--space-stack);
+}
+
+/* Question-to-question rhythm: the compiled step's form element. */
+form:has([data-qcms-field]) {
+  gap: var(--space-field-gap);
+}
+
+/* --------------------------------------------------------------------------
+   HIGH-CONTRAST mode scaffold (ADR-30). One theme-agnostic layer, never a
+   palette per theme: the token VALUES for `.hc` live once in theme.css, and the
+   treatment that is CSS rather than a value lives here. Heavy black borders,
+   flat surfaces, a heavy focus ring. A new theme inherits all of it and
+   contributes only its AAA accent.
+   -------------------------------------------------------------------------- */
+
+/* HC is a light-on-dark-text mode, not Dark: tell the UA so form controls and
+   scrollbars do not render dark. */
+:root.hc {
+  color-scheme: light;
+}
+
+/* Heavy borders on every control edge. `--color-border-strong` is pure black in
+   the HC layer, so this is the "heavy black border" treatment. */
+:root.hc
+  [data-qcms-field]
+  :is(
+    input:not([type="radio"], [type="checkbox"], [type="hidden"], [hidden]),
+    textarea,
+    [role="group"][data-rac],
+    button[data-rac],
+    label[data-rac] > div
+  ) {
+  border-width: 2px;
+  border-color: var(--color-border-strong);
+}
+
+:root.hc [data-rac]:has(> [role="listbox"]) {
+  border-width: 2px;
+  border-color: var(--color-border-strong);
+}
+
+/* Flat surfaces: any Tailwind shadow utility is neutralized in HC, wherever it
+   sits (the vendored popover, a shell's step card). Matching the utility class
+   is intentional here - flatness is a blanket mode rule, not a per-component
+   one. */
+:root.hc [class*="shadow-"] {
+  box-shadow: none;
+}
+
+/* Heavy focus indicator, above whatever a control draws for itself. */
+:root.hc
+  :is(
+    a,
+    button,
+    input,
+    textarea,
+    select,
+    summary,
+    [tabindex],
+    [contenteditable="true"]
+  ):focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+/* Separators read at full contrast. */
+:root.hc :is(hr, [role="separator"]) {
+  border-color: var(--color-border-strong);
+}

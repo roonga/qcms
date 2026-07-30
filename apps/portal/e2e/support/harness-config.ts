@@ -51,6 +51,19 @@ export const OTLP_SCHEDULE_DELAY_MS = "500";
 /** Synthetic shared SEC-4 internal token (test-only, not a real secret). */
 export const FIXED_INTERNAL_TOKEN = "qcms-e2e-portal-shared-internal-token-000000";
 
+/**
+ * Per-deployment theming config the harness runs the portal under (task 051).
+ *
+ * Deliberately NOT the defaults: the whole browser suite runs on an ALTERNATE
+ * theme and an alternate corner preset, so `QCMS_PORTAL_THEME` /
+ * `QCMS_PORTAL_CORNERS` are proven end to end (config -> `<html>` -> computed
+ * style) rather than only where the shipped defaults would have matched anyway.
+ * The default resolution and the typo fallback are covered by
+ * `lib/server/theme.test.ts`.
+ */
+export const HARNESS_THEME = "harbor";
+export const HARNESS_CORNERS = "rounded";
+
 /** Absolute path of the fixtures the specs read (written by globalSetup). */
 export const FIXTURES_PATH = fileURLToPath(
   new URL("../../.playwright/fixtures.json", import.meta.url),

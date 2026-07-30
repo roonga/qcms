@@ -1,14 +1,21 @@
 /*
- * Portal global stylesheet (task 029).
+ * Portal global stylesheet (task 029; token contract 051).
  *
- * Layering (ADR-26, two-surface design mandate):
+ * Layering (ADR-26 two-surface mandate, ADR-30 token contract):
  *   1. Tailwind v4 - the utility engine the vendored a2-react-aria components
  *      (rendered through @qcms/ui) style themselves with.
- *   2. @qcms/ui theme.css - the brand-NEUTRAL portal default token set (a refined
- *      Slate Teal baseline, WCAG 2.2 AA in light and dark). This is the shipped
- *      default, never the QCMS Cobalt admin identity.
- *   3. adopter-theme.css - THE single documented override surface. Adopters re-skin
- *      the portal (fonts + token values) by editing that one file and nothing else.
+ *   2. @qcms/ui theme.css - the four-group token contract (color / typography /
+ *      spacing / radius): the four predefined themes, each authored Light and
+ *      Dark, plus the single shared High-contrast mode layer.
+ *   3. @qcms/ui theme-components.css - the qcms-owned CSS that makes the vendored
+ *      controls consume the spacing, radius and type-scale tokens, plus the HC
+ *      mode scaffold. Kept out of theme.css because it is CSS, not token values.
+ *   4. adopter-theme.css - THE single documented override surface. Adopters re-skin
+ *      a deployment by editing that one file and nothing else.
+ *
+ * Which theme, corner preset and default colour mode a deployment runs is config,
+ * not CSS: `lib/server/theme.ts` reads it and `app/layout.tsx` stamps `data-theme`
+ * plus the mode / corners root classes onto <html>. See docs/theming.md.
  *
  * `@source` tells Tailwind where the utility-class strings live: the portal's own
  * files are auto-detected; the @qcms/ui renderer sources are declared explicitly
@@ -16,6 +23,7 @@
  */
 @import "tailwindcss";
 @import "../../../packages/ui/src/theme.css";
+@import "../../../packages/ui/src/theme-components.css";
 @import "./adopter-theme.css";
 
 @source "../app";
@@ -27,13 +35,38 @@ html {
   color-scheme: light dark;
 }
 
+/*
+ * The WCAG 1.4.12 text-spacing floors, set once on the page and carried by the
+ * typography token group so nothing downstream can drop below them: body text at
+ * 16px, line-height 1.5, letter-spacing 0.12em, word-spacing 0.16em. The
+ * paragraph-spacing floor (2em) is applied to the content column below.
+ */
 body {
   margin: 0;
   min-height: 100dvh;
   background-color: var(--color-background);
   color: var(--color-text);
   font-family: var(--font-portal, ui-sans-serif, system-ui, sans-serif);
+  font-size: var(--type-body);
+  line-height: var(--type-line-height);
+  letter-spacing: var(--type-letter-spacing);
+  word-spacing: var(--type-word-spacing);
   -webkit-font-smoothing: antialiased;
+}
+
+/* Paragraph rhythm inside the respondent's content column (1.4.12's fifth floor).
+   Scoped to the main column so header/footer chrome keeps its own tighter layout. */
+#portal-main p {
+  margin-block: 0 var(--type-paragraph-spacing);
+}
+#portal-main p:last-child {
+  margin-block-end: 0;
+}
+
+/* Step titles come from the type scale, not from a hardcoded size. */
+.qcms-step-title {
+  font-size: var(--type-step-title);
+  line-height: var(--type-title-line-height);
 }
 
 /* Visible-on-focus skip link (structure sound for 030's a11y deep-pass). */
@@ -42,7 +75,7 @@ body {
   left: 0.5rem;
   top: -3rem;
   z-index: 50;
-  border-radius: 0.375rem;
+  border-radius: var(--radius-control);
   background-color: var(--color-surface);
   color: var(--color-text);
   padding: 0.5rem 0.75rem;
@@ -59,7 +92,9 @@ body {
  * their own focus rings; every other focusable element - the skip link, the
  * error-summary "jump to field" links, a step heading focused after a branch
  * removal - gets a solid, high-contrast outline. `--color-focus-ring` clears 3:1
- * against its backgrounds in BOTH themes (light #2456c6, dark #7aa2ff; ADR-26).
+ * against its backgrounds in EVERY theme and mode (asserted by
+ * `theme-tokens.test.ts`), and the heavier HC treatment is in
+ * theme-components.css.
  */
 :where(a, button, summary, [tabindex]):focus-visible {
   outline: 2px solid var(--color-focus-ring);

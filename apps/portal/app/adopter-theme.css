@@ -1,22 +1,37 @@
 /*
- * ADOPTER OVERRIDE POINT (the single documented re-skin surface, ADR-26).
+ * ADOPTER OVERRIDE POINT (the single documented re-skin surface; ADR-26, ADR-30).
  *
- * This is the ONLY file an adopter edits to re-brand the respondent portal.
- * Everything the portal shows resolves from the CSS custom properties below plus
- * the shipped @qcms/ui theme.css defaults. To make the portal your own:
+ * Read `docs/theming.md` first. Most deployments never need this file at all,
+ * because theme selection is CONFIGURATION, not CSS:
  *
- *   1. Fonts: set `--font-portal` to your typeface (self-host the font files and
- *      add an `@font-face` block here, then reference the family name).
- *   2. Brand accent + surfaces: override any of the `--color-*` token names from
- *      @qcms/ui/theme.css here. Provide BOTH a light value (`:root`) and a dark
- *      value (`:root.dark`); keep each text/background pair at WCAG 2.2 AA.
+ *   QCMS_PORTAL_THEME=slate|harbor|sand|plum     which predefined palette
+ *   QCMS_PORTAL_CORNERS=sharp|subtle|rounded|pill  which corner preset
+ *   QCMS_PORTAL_MODE=auto|light|dark|hc          the default colour mode
  *
- * The shipped defaults are intentionally brand-neutral (Slate Teal). Do not edit
- * globals.css or the component styles - this file is the whole contract, so an
- * adopter's diff against QCMS stays a single file.
+ * This file is for the deployment that wants values the predefined themes do not
+ * offer. It is imported last, so anything declared here wins over
+ * `@qcms/ui/theme.css`. Override token NAMES from the four-group contract; never
+ * edit globals.css, theme.css, or a component.
  *
- * Example (commented out - this file ships empty of overrides so the neutral
- * default shows through):
+ *   1. Typography: `--font-portal` (self-host the files and add an `@font-face`
+ *      block here, then name the family). The type scale (`--type-*`) carries the
+ *      WCAG 1.4.12 floors: raising a size is fine, lowering one below its floor is
+ *      an accessibility regression, not a style choice.
+ *   2. Colour: any `--color-*` name. Provide a value per mode you support -
+ *      `:root` (Light), `:root.dark`, `:root.hc` - and keep every text/background
+ *      pair at WCAG 2.2 AA (`:root.hc` is the AAA layer: 7:1 body text). The four
+ *      shipped themes are verified by `packages/ui/src/theme-tokens.test.ts`; an
+ *      override here is outside that gate, so check your own pairs.
+ *   3. Spacing / radius: `--space-*` and `--radius-*` if a preset is not enough.
+ *      Keep `--space-control-h` at or above 24px (WCAG 2.5.8 target size).
+ *
+ * Scope an override to one theme with the attribute selector, so the other
+ * predefined themes keep working:
+ *
+ *   :root[data-theme="slate"] { --color-primary: #2c6e63; }
+ *
+ * Example (commented out - this file ships empty of overrides so the configured
+ * predefined theme shows through):
  *
  *   :root {
  *     --font-portal: "Inter", ui-sans-serif, system-ui, sans-serif;
@@ -28,8 +43,3 @@
  *     --color-primary-foreground: #0b0f1a;
  *   }
  */
-
-:root {
-  /* Brand-neutral default typeface (system stack). Adopters override this. */
-  --font-portal: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-}

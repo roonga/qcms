@@ -3,6 +3,8 @@ import { defineConfig, devices } from "@playwright/test";
 import {
   API_BASE_URL,
   FIXED_INTERNAL_TOKEN,
+  HARNESS_CORNERS,
+  HARNESS_THEME,
   OTEL_SERVICE_NAMES,
   OTLP_ENDPOINT,
   OTLP_SCHEDULE_DELAY_MS,
@@ -116,6 +118,10 @@ export default defineConfig({
       OTEL_EXPORTER_OTLP_PROTOCOL: "http/json",
       OTEL_SERVICE_NAME: OTEL_SERVICE_NAMES.portal,
       OTEL_BSP_SCHEDULE_DELAY: OTLP_SCHEDULE_DELAY_MS,
+      // Per-deployment theming (ADR-30, task 051), set to a NON-default theme and
+      // corner preset on purpose - see HARNESS_THEME.
+      QCMS_PORTAL_THEME: HARNESS_THEME,
+      QCMS_PORTAL_CORNERS: HARNESS_CORNERS,
     },
   },
 });
