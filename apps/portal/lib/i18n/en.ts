@@ -9,7 +9,12 @@
  */
 
 export const messages = {
-  "app.title": "QCMS",
+  // The brand mark and the document title are the operator's (task 053, ADR-30 +
+  // ADR-27, folding issue #25): `QCMS_PORTAL_BRAND_NAME` supplies them, and this
+  // is only the fallback for a deployment that has not set it. It is deliberately
+  // generic - a respondent opening a registration link is looking at THEIR
+  // organisation's form, and the engine's own name is not information they need.
+  "brand.defaultName": "Questionnaire",
   "app.description": "Complete your questionnaire.",
 
   "action.skipToContent": "Skip to content",
@@ -19,6 +24,9 @@ export const messages = {
   "action.submit": "Submit",
 
   "progress.step": "Step {current} of {total}",
+
+  // The bare-root landing (`app/page.tsx`), whose heading is the brand name.
+  "home.body": "Open your questionnaire from the link you were sent.",
 
   "entry.title": "You are invited to complete this form",
   "entry.startHint": "This should take a few minutes. Your answers are saved as you go.",
@@ -85,6 +93,20 @@ export const messages = {
   "completion.submittedAt": "Submitted",
   "completion.reference": "Reference",
   "completion.copy": "Copy reference",
+
+  // The respondent appearance controls (task 053, ADR-30). "Spacing" rather than
+  // "Density" for the visible label: density is the token contract's word for the
+  // axis, not a word a respondent filling in a form should have to decode.
+  "appearance.title": "Appearance",
+  "appearance.mode.legend": "Colour mode",
+  "appearance.mode.light": "Light",
+  "appearance.mode.dark": "Dark",
+  "appearance.mode.hc": "High contrast",
+  "appearance.font.legend": "Font",
+  "appearance.density.legend": "Spacing",
+  "appearance.density.compact": "Compact",
+  "appearance.density.comfortable": "Comfortable",
+  "appearance.density.spacious": "Spacious",
 } as const;
 
 export type MessageKey = keyof typeof messages;

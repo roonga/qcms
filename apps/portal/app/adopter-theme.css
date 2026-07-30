@@ -7,6 +7,14 @@
  *   QCMS_PORTAL_THEME=slate|harbor|sand|plum     which predefined palette
  *   QCMS_PORTAL_CORNERS=sharp|subtle|rounded|pill  which corner preset
  *   QCMS_PORTAL_MODE=auto|light|dark|hc          the default colour mode
+ *   QCMS_PORTAL_DENSITY=compact|comfortable|spacious   the default spacing
+ *   QCMS_PORTAL_FONT=<registry key>              the default font
+ *   QCMS_PORTAL_FONTS=<registry keys>            the fonts offered to respondents
+ *   QCMS_PORTAL_BRAND_NAME=<text>                header mark and document title
+ *   QCMS_PORTAL_BRAND_LOGO=</path or data: URI>  optional logo beside the text
+ *
+ * Mode, font and density are also RESPONDENT controls (the header's Appearance
+ * disclosure): the values above are only what a first-time visitor gets.
  *
  * This file is for the deployment that wants values the predefined themes do not
  * offer. It is imported last, so anything declared here wins over

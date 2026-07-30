@@ -82,6 +82,28 @@ export const HARNESS_CORNERS = "rounded";
 export const HARNESS_FONT = "inter";
 export const HARNESS_FONTS = "atkinson, inter, merriweather, jetbrainsmono";
 
+/**
+ * Per-deployment BRAND config the harness runs the portal under (task 053, issue
+ * #25).
+ *
+ * Non-default for the same reason the theme and font are: the header brand mark and
+ * the document title are proven to come from config, end to end, rather than only
+ * where a shipped default would have matched anyway. It is also the standing check
+ * that no `QCMS` literal came back into the shell - if one did, the whole suite
+ * would still show this string in the header and the assertion in
+ * `appearance.pw.ts` would be the only thing that noticed.
+ *
+ * The logo is a base64 `data:` image rather than a file, deliberately: it proves the
+ * `<img>` renders and that the shipped CSP (`img-src 'self' data:`, SEC-9) permits
+ * the value `portalBrand()` accepted, without committing a fixture asset or adding a
+ * `public/` directory to the app for test-only reasons. A 24x24 rounded square.
+ */
+export const HARNESS_BRAND_NAME = "Northwind Rowing Club";
+export const HARNESS_BRAND_LOGO =
+  "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIg" +
+  "aGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0Ij48cmVjdCB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHJ4PSI0IiBmaW" +
+  "xsPSIjM2Y2ZjhmIi8+PC9zdmc+";
+
 /** Absolute path of the fixtures the specs read (written by globalSetup). */
 export const FIXTURES_PATH = fileURLToPath(
   new URL("../../.playwright/fixtures.json", import.meta.url),
