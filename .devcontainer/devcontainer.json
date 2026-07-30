@@ -58,12 +58,13 @@
   // "port is already allocated" (and, in the other order, make container
   // creation fail). It stays in `forwardPorts` only for the VS Code label; the
   // editor tunnel is a no-op here, not a host bind.
-  "appPort": [7000, 7010],
-  "forwardPorts": [7000, 7010, 7020],
+  "appPort": [7000, 7010, 7030],
+  "forwardPorts": [7000, 7010, 7020, 7030],
   "portsAttributes": {
     "7000": { "label": "portal (next dev)", "onAutoForward": "notify" },
     "7010": { "label": "api (Hono)", "onAutoForward": "silent" },
-    "7020": { "label": "dev Postgres (docker-compose.dev.yml)", "onAutoForward": "silent" }
+    "7020": { "label": "dev Postgres (docker-compose.dev.yml)", "onAutoForward": "silent" },
+    "7030": { "label": "artifacts (pnpm artifacts)", "onAutoForward": "silent" }
   },
 
   // `host.docker.internal` resolves to the host from inside the container: the

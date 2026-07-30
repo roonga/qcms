@@ -41,6 +41,8 @@ Modes: the repo's `.claude/settings.json` sets **acceptEdits** (file edits and a
 
 **Viewing the app from your host browser:** the dev servers listen on all interfaces inside the container (`next dev` and the Hono `serve()` both bind `0.0.0.0` by default, verified by the listen socket). The ports the container serves, **7000 and 7010**, leave it via `appPort` (published on the Docker host by **any** launcher, including a bare CLI `devcontainer up`) plus `forwardPorts` (the VS Code / Codespaces editor tunnel). `http://localhost:7000` on the host reaches the portal on either route: measured `200` from the host against a CLI-launched container running `pnpm exec next dev --port 7000`.
 
+**Artifacts over HTTP (port 7030):** `pnpm artifacts` starts a read-only, dependency-free static server (`scripts/serve-artifacts.mjs`) so gate evidence and design previews render in the host browser instead of being fished out of the container by path. `http://localhost:7030/` indexes three roots: `/gates/` (landed evidence in `docs/gates/`), `/plan/` (design previews and planning artifacts), and `/worktrees/<name>/` (an in-flight task branch's `docs/gates/`, the usual place to review a screenshot set before its PR merges). The port leaves the container the same way as 7000/7010 (`appPort` + `forwardPorts`); a container created before 7030 was added to `appPort` publishes it only after a rebuild.
+
 **7020 belongs to the host.** The dev Postgres from `docker-compose.dev.yml` publishes 7020 on the host, so the container must *not* claim it - if it did, whichever of the two started second would fail to bind. The container reaches it over the host gateway instead:
 
 ```sh
