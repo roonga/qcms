@@ -64,6 +64,24 @@ export const FIXED_INTERNAL_TOKEN = "qcms-e2e-portal-shared-internal-token-00000
 export const HARNESS_THEME = "harbor";
 export const HARNESS_CORNERS = "rounded";
 
+/**
+ * Per-deployment FONT config the harness runs the portal under (task 052).
+ *
+ * Same reasoning as the theme above: the whole browser suite runs on a curated
+ * subset with a non-default default font, so `QCMS_PORTAL_FONT` /
+ * `QCMS_PORTAL_FONTS` are proven end to end (config -> `<html class>` -> the
+ * computed `font-family` -> a real same-origin `woff2` request) rather than only
+ * where the shipped System default would have matched anyway. It also means every
+ * other spec in the suite runs on a self-hosted webfont, so a font that failed to
+ * load would show up as collateral damage across the suite, not just here.
+ *
+ * `HARNESS_FONTS` deliberately omits most of the registry and deliberately omits
+ * `system`, which `fontChoices()` must add back: that is the "System can never be
+ * curated away" rule, observed through config rather than asserted in a unit test.
+ */
+export const HARNESS_FONT = "inter";
+export const HARNESS_FONTS = "atkinson, inter, merriweather, jetbrainsmono";
+
 /** Absolute path of the fixtures the specs read (written by globalSetup). */
 export const FIXTURES_PATH = fileURLToPath(
   new URL("../../.playwright/fixtures.json", import.meta.url),
@@ -94,4 +112,13 @@ export const SERVER_LOG_FILES = {
  */
 export const OTLP_CAPTURE_PATH = fileURLToPath(
   new URL("../../.playwright/otlp/spans.jsonl", import.meta.url),
+);
+
+/**
+ * Where `fonts.pw.ts` writes the per-font WCAG 1.4.12 measurements it takes
+ * (task 052). The same table is attached to the Playwright report; the file exists
+ * so a GREEN run leaves the numbers readable, since `docs/theming.md` states them.
+ */
+export const FONT_FLOORS_PATH = fileURLToPath(
+  new URL("../../.playwright/font-floors.txt", import.meta.url),
 );

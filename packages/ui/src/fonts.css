@@ -1,0 +1,367 @@
+/*
+ * GENERATED FILE - do not edit by hand.
+ *
+ * Source of truth: `src/font-registry.ts`. Regenerate with
+ * `pnpm --filter @qcms/ui fonts:generate`; `font-registry.test.ts` fails if this
+ * file and the manifest disagree, so a hand edit here cannot survive a gate.
+ *
+ * Every face is SELF-HOSTED from `src/fonts/` next to this file, so selecting a
+ * font makes zero external requests (no CDN, nothing for the CSP to allow).
+ * Import it after `theme.css`, whose base `:root` block declares the System
+ * stack that these classes override:
+ *
+ *   @import "@qcms/ui/theme.css";
+ *   @import "@qcms/ui/theme-components.css";
+ *   @import "@qcms/ui/fonts.css";
+ *
+ * A block below sets exactly one token, `--font-portal`. It must never set a
+ * `--type-*` value: those carry the WCAG 1.4.12 floors, and no font selection may
+ * lower one.
+ *
+ * Contract documentation: docs/theming.md.
+ */
+
+/* ==========================================================================
+   System
+   ========================================================================== */
+
+/* System default - no webfont: the device's own UI face; downloads nothing and is always available. */
+:root.font-system {
+  --font-portal: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* ==========================================================================
+   Accessibility
+   ========================================================================== */
+
+/* Atkinson Hyperlegible - OFL-1.1
+   Copyright 2020 Braille Institute of America, Inc. */
+@font-face {
+  font-family: "Atkinson Hyperlegible";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/atkinson-400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Atkinson Hyperlegible";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./fonts/atkinson-700.woff2") format("woff2");
+}
+:root.font-atkinson {
+  --font-portal:
+    "Atkinson Hyperlegible", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Lexend - OFL-1.1
+   Copyright 2018 The Lexend Project Authors (https://github.com/googlefonts/lexend), with Reserved Font Name RevReading Lexend. */
+@font-face {
+  font-family: "Lexend";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/lexend-variable.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Lexend";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./fonts/lexend-variable.woff2") format("woff2");
+}
+:root.font-lexend {
+  --font-portal: "Lexend", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* OpenDyslexic - OFL-1.1
+   Copyright (c) 2019-07-29, Abbie Gonzalez (https://abbiecod.es|support@abbiecod.es), with Reserved Font Name OpenDyslexic. */
+@font-face {
+  font-family: "OpenDyslexic";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/opendyslexic-400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "OpenDyslexic";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./fonts/opendyslexic-700.woff2") format("woff2");
+}
+:root.font-opendyslexic {
+  --font-portal:
+    "OpenDyslexic", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* ==========================================================================
+   Popular
+   ========================================================================== */
+
+/* Inter - OFL-1.1
+   Copyright 2020 The Inter Project Authors (https://github.com/rsms/inter) */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/inter-400.woff2") format("woff2");
+}
+:root.font-inter {
+  --font-portal: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Roboto - OFL-1.1 OR Apache-2.0
+   Copyright 2011 The Roboto Project Authors (https://github.com/googlefonts/roboto-classic) */
+@font-face {
+  font-family: "Roboto";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/roboto-400.woff2") format("woff2");
+}
+:root.font-roboto {
+  --font-portal: "Roboto", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Open Sans - OFL-1.1
+   Copyright 2020 The Open Sans Project Authors (https://github.com/googlefonts/opensans) */
+@font-face {
+  font-family: "Open Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/opensans-400.woff2") format("woff2");
+}
+:root.font-opensans {
+  --font-portal:
+    "Open Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Lato - OFL-1.1
+   Copyright (c) 2010-2014 by tyPoland Lukasz Dziedzic (team@latofonts.com) with Reserved Font Name "Lato" */
+@font-face {
+  font-family: "Lato";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/lato-400.woff2") format("woff2");
+}
+:root.font-lato {
+  --font-portal: "Lato", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Poppins - OFL-1.1
+   Copyright 2020 The Poppins Project Authors (https://github.com/itfoundry/Poppins) */
+@font-face {
+  font-family: "Poppins";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/poppins-400.woff2") format("woff2");
+}
+:root.font-poppins {
+  --font-portal: "Poppins", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Montserrat - OFL-1.1
+   Copyright 2024 The Montserrat.Git Project Authors (https://github.com/JulietaUla/Montserrat.git) */
+@font-face {
+  font-family: "Montserrat";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/montserrat-400.woff2") format("woff2");
+}
+:root.font-montserrat {
+  --font-portal:
+    "Montserrat", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* ==========================================================================
+   Playful & Kids
+   ========================================================================== */
+
+/* Andika - OFL-1.1
+   Copyright (c) 2004-2022 SIL International (http://www.sil.org/) with Reserved Font Names "Andika" and "SIL". */
+@font-face {
+  font-family: "Andika";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/andika-400.woff2") format("woff2");
+}
+:root.font-andika {
+  --font-portal: "Andika", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Fredoka - OFL-1.1
+   Copyright 2016 The Fredoka Project Authors (https://github.com/hafontia/Fredoka-One) */
+@font-face {
+  font-family: "Fredoka";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/fredoka-400.woff2") format("woff2");
+}
+:root.font-fredoka {
+  --font-portal: "Fredoka", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Baloo 2 - OFL-1.1
+   Copyright 2019 The Baloo 2 Project Authors (https://github.com/EkType/Baloo2) */
+@font-face {
+  font-family: "Baloo 2";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/baloo2-400.woff2") format("woff2");
+}
+:root.font-baloo2 {
+  --font-portal: "Baloo 2", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Comic Neue - OFL-1.1
+   Copyright 2014 The Comic Neue Project Authors (https://github.com/crozynski/comicneue) */
+@font-face {
+  font-family: "Comic Neue";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/comicneue-400.woff2") format("woff2");
+}
+:root.font-comicneue {
+  --font-portal:
+    "Comic Neue", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Patrick Hand - OFL-1.1
+   Copyright (c) 2010-2012 Patrick Wagesreiter (mail@patrickwagesreiter.at) */
+@font-face {
+  font-family: "Patrick Hand";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/patrickhand-400.woff2") format("woff2");
+}
+:root.font-patrickhand {
+  --font-portal:
+    "Patrick Hand", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* ==========================================================================
+   Traditional & Corporate
+   ========================================================================== */
+
+/* Merriweather - OFL-1.1
+   Copyright 2020 The Merriweather Project Authors (https://github.com/EbenSorkin/Merriweather4) with Reserved Font Name "Merriweather". */
+@font-face {
+  font-family: "Merriweather";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/merriweather-400.woff2") format("woff2");
+}
+:root.font-merriweather {
+  --font-portal: "Merriweather", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+}
+
+/* Lora - OFL-1.1
+   Copyright 2011 The Lora Project Authors (https://github.com/cyrealtype/Lora-Cyrillic), with Reserved Font Name "Lora". */
+@font-face {
+  font-family: "Lora";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/lora-400.woff2") format("woff2");
+}
+:root.font-lora {
+  --font-portal: "Lora", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+}
+
+/* PT Serif - OFL-1.1
+   Copyright (c) 2010, ParaType Ltd. (http://www.paratype.com/public), with Reserved Font Names "PT Sans", "PT Serif" and "ParaType". */
+@font-face {
+  font-family: "PT Serif";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/ptserif-400.woff2") format("woff2");
+}
+:root.font-ptserif {
+  --font-portal: "PT Serif", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+}
+
+/* Libre Baskerville - OFL-1.1
+   Copyright 2012 The Libre Baskerville Project Authors (https://github.com/impallari/Libre-Baskerville) with Reserved Font Name Libre Baskerville. */
+@font-face {
+  font-family: "Libre Baskerville";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/librebaskerville-400.woff2") format("woff2");
+}
+:root.font-librebaskerville {
+  --font-portal: "Libre Baskerville", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+}
+
+/* IBM Plex Serif - OFL-1.1
+   Copyright (c) 2017 IBM Corp. with Reserved Font Name "Plex" */
+@font-face {
+  font-family: "IBM Plex Serif";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/ibmplexserif-400.woff2") format("woff2");
+}
+:root.font-ibmplexserif {
+  --font-portal: "IBM Plex Serif", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+}
+
+/* Public Sans - OFL-1.1
+   Copyright 2015 The Public Sans Project Authors (https://github.com/uswds/public-sans) */
+@font-face {
+  font-family: "Public Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/publicsans-400.woff2") format("woff2");
+}
+:root.font-publicsans {
+  --font-portal:
+    "Public Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* ==========================================================================
+   Monospace
+   ========================================================================== */
+
+/* JetBrains Mono - OFL-1.1
+   Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono) */
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/jetbrainsmono-400.woff2") format("woff2");
+}
+:root.font-jetbrainsmono {
+  --font-portal:
+    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+/* Geist Mono - OFL-1.1
+   Copyright 2024 The Geist Project Authors (https://github.com/vercel/geist-font.git) */
+@font-face {
+  font-family: "Geist Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/geistmono-400.woff2") format("woff2");
+}
+:root.font-geistmono {
+  --font-portal:
+    "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}

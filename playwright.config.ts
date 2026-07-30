@@ -4,6 +4,8 @@ import {
   API_BASE_URL,
   FIXED_INTERNAL_TOKEN,
   HARNESS_CORNERS,
+  HARNESS_FONT,
+  HARNESS_FONTS,
   HARNESS_THEME,
   OTEL_SERVICE_NAMES,
   OTLP_ENDPOINT,
@@ -122,6 +124,11 @@ export default defineConfig({
       // corner preset on purpose - see HARNESS_THEME.
       QCMS_PORTAL_THEME: HARNESS_THEME,
       QCMS_PORTAL_CORNERS: HARNESS_CORNERS,
+      // Per-deployment font config (task 052), likewise non-default: a curated
+      // subset that omits `system`, and a default font from inside it. See
+      // HARNESS_FONT / HARNESS_FONTS.
+      QCMS_PORTAL_FONT: HARNESS_FONT,
+      QCMS_PORTAL_FONTS: HARNESS_FONTS,
     },
   },
 });

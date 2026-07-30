@@ -17,7 +17,12 @@
       "default": "./dist/native-submit.js"
     },
     "./theme.css": "./src/theme.css",
-    "./theme-components.css": "./src/theme-components.css"
+    "./theme-components.css": "./src/theme-components.css",
+    "./fonts.css": "./src/fonts.css",
+    "./fonts": {
+      "types": "./dist/font-registry.d.ts",
+      "default": "./dist/font-registry.js"
+    }
   },
   "files": [
     "dist",
@@ -31,7 +36,8 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --root ../.. --project @qcms/ui",
-    "lint": "eslint src"
+    "fonts:generate": "node tools/generate-fonts.ts && prettier --write src/fonts.css src/fonts/NOTICE.md",
+    "lint": "eslint src tools"
   },
   "dependencies": {
     "@a2ra/core": "1.0.0-preview.7",

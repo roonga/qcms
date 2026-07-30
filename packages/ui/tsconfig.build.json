@@ -1,5 +1,13 @@
 {
   "extends": "./tsconfig.json",
+  // `rootDir` / `outDir` live HERE rather than in tsconfig.json: the typecheck
+  // program also covers `tools/` (the fonts.css generator, task 052), which sits
+  // outside `src` on purpose, and a `rootDir` of `src` would reject it (TS6059).
+  // Only the build emits, and the build is src-only.
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist"
+  },
   "include": ["src"],
   "exclude": ["**/*.test.ts", "**/*.test.tsx", "src/test-support/**"]
 }

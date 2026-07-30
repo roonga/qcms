@@ -8,14 +8,21 @@
  *      spacing / radius): the four predefined themes, each authored Light and
  *      Dark, plus the single shared High-contrast mode layer.
  *   3. @qcms/ui theme-components.css - the qcms-owned CSS that makes the vendored
- *      controls consume the spacing, radius and type-scale tokens, plus the HC
- *      mode scaffold. Kept out of theme.css because it is CSS, not token values.
- *   4. adopter-theme.css - THE single documented override surface. Adopters re-skin
+ *      controls consume the spacing, radius and type-scale tokens, the tabular
+ *      figures rule, plus the HC mode scaffold. Kept out of theme.css because it is
+ *      CSS, not token values.
+ *   4. @qcms/ui fonts.css - the declarative font registry (task 052): one
+ *      `@font-face` per self-hosted weight and one `:root.font-<key>` block that
+ *      repoints `--font-portal`. Every face is served from this origin, so a font
+ *      selection costs zero external requests and needs no CSP allowance (SEC-9).
+ *      Generated from `packages/ui/src/font-registry.ts`; never hand-edited.
+ *   5. adopter-theme.css - THE single documented override surface. Adopters re-skin
  *      a deployment by editing that one file and nothing else.
  *
- * Which theme, corner preset and default colour mode a deployment runs is config,
- * not CSS: `lib/server/theme.ts` reads it and `app/layout.tsx` stamps `data-theme`
- * plus the mode / corners root classes onto <html>. See docs/theming.md.
+ * Which theme, corner preset, default colour mode and default font a deployment
+ * runs is config, not CSS - and so is which fonts it offers respondents:
+ * `lib/server/theme.ts` reads it all and `app/layout.tsx` stamps `data-theme` plus
+ * the mode / corners / font root classes onto <html>. See docs/theming.md.
  *
  * `@source` tells Tailwind where the utility-class strings live: the portal's own
  * files are auto-detected; the @qcms/ui renderer sources are declared explicitly
@@ -24,6 +31,7 @@
 @import "tailwindcss";
 @import "../../../packages/ui/src/theme.css";
 @import "../../../packages/ui/src/theme-components.css";
+@import "../../../packages/ui/src/fonts.css";
 @import "./adopter-theme.css";
 
 @source "../app";

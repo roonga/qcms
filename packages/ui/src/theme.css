@@ -44,10 +44,15 @@
    guidance: body >= 16px, line-height >= 1.5, letter-spacing >= 0.12em,
    word-spacing >= 0.16em, paragraph spacing >= 2em. Nothing (no mode, no theme,
    no density level) may lower them; `theme-tokens.test.ts` asserts each floor.
-   The font registry that swaps --font-portal at runtime is task 052.
+   The declarative font registry that swaps --font-portal (task 052) lives in
+   `font-registry.ts` and ships as the generated `fonts.css`: each entry is one
+   `:root.font-<key>` block that sets --font-portal and NOTHING else, so no font
+   selection can reach a floor. Import fonts.css after this file.
    ========================================================================== */
 :root {
-  /* Brand-neutral system stack. A theme or an adopter overrides the family only. */
+  /* Brand-neutral system stack, and the value the registry's System entry keeps
+     byte-identical (`SANS_TAIL` in font-registry.ts). A theme, a registry entry or
+     an adopter overrides the family only. */
   --font-portal: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 
   /* Sizes. Body and label sit AT the 16px floor; hint text is the one smaller
@@ -56,6 +61,15 @@
   --type-label: 1rem;
   --type-hint: 0.875rem;
   --type-step-title: clamp(1.55rem, 3.5vw, 1.85rem);
+
+  /* Numeric figures. Numbers a respondent types or scans - a number answer, the
+     day/month/year segments of a date - must line up in columns and must not
+     change width as they change value, or a digit correction looks like a layout
+     jump. `tnum` (tabular figures) is applied to those controls REGARDLESS of the
+     selected font: most of the registry's families ship the feature and honour
+     it, the rest ignore it harmlessly, and no font selection can turn it off.
+     Consumed by theme-components.css; the registry is task 052. */
+  --type-numeric: "tnum";
 
   /* Spacing of text (the 1.4.12 floors). */
   --type-line-height: 1.5;

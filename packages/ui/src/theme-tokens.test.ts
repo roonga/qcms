@@ -254,6 +254,18 @@ describe("typography group: the WCAG 1.4.12 floors are carried by tokens", () =>
     expect(Number.parseFloat(base["--type-paragraph-spacing"])).toBeGreaterThanOrEqual(2);
   });
 
+  // Task 052: numeric controls get tabular figures from a token, so the feature is
+  // unconditional across the font registry and an adopter can turn it off in one
+  // place. `font-registry.test.ts` proves theme-components.css consumes it.
+  it("declares the tabular-figures token, and no mode or theme turns it off", () => {
+    expect(base["--type-numeric"]).toBe('"tnum"');
+    for (const theme of THEMES) {
+      for (const mode of MODES) {
+        expect(resolve(theme, mode)["--type-numeric"], `${theme}/${mode}`).toBe('"tnum"');
+      }
+    }
+  });
+
   it("no mode or theme lowers a floor", () => {
     for (const theme of THEMES) {
       for (const mode of MODES) {

@@ -54,7 +54,11 @@ function shippedSourceFiles(dir: string): string[] {
 }
 
 const IMPORT_RE = /\b(?:import|export)\b[^"'`]*?\bfrom\s*["']([^"']+)["']/g;
-const SIDE_EFFECT_RE = /\bimport\s*["']([^"']+)["']/g;
+// The `(?<!@)` is load-bearing: a CSS `@import "@qcms/ui/theme.css";` inside a
+// string literal (font-registry.ts builds the generated stylesheet's header
+// comment, which documents exactly that) is not a JavaScript import, and without
+// the lookbehind it is reported as a forbidden dependency.
+const SIDE_EFFECT_RE = /(?<!@)\bimport\s*["']([^"']+)["']/g;
 
 function bareSpecifiers(source: string): string[] {
   const specs = new Set<string>();
