@@ -31,8 +31,10 @@ import { FONT_REGISTRY, fontClass } from "@qcms/ui/fonts";
 
 import { DENSITY_LEVELS, densityClass } from "../lib/appearance.js";
 import { readFixtures } from "./support/fixtures.js";
+import { startAnonymousFlow } from "./support/flow.js";
 import { expect, test } from "./support/gates.js";
 import {
+  APPEARANCE_FLOORS_PATH,
   APPEARANCE_METRICS_PATH,
   HARNESS_BRAND_LOGO,
   HARNESS_BRAND_NAME,
@@ -449,7 +451,6 @@ async function measureTargets(page: Page): Promise<{ name: string; w: number; h:
   const targets: { name: string; locator: Locator }[] = [
     { name: "appearance summary", locator: page.locator('[data-testid="appearance"] > summary') },
     { name: "font select", locator: page.getByTestId("appearance-font") },
-    { name: "text input", locator: page.getByRole("textbox", { name: KS.fullName }) },
     { name: "primary action", locator: page.getByTestId("primary-action") },
   ];
   for (const mode of MODES) {
@@ -481,8 +482,13 @@ async function measureTargets(page: Page): Promise<{ name: string; w: number; h:
 }
 
 test("every control target clears the WCAG 2.5.8 minimum at Compact", async ({ page }, testInfo) => {
-  const { kitchenSinkSlug } = readFixtures();
-  await startKitchenSink(page, kitchenSinkSlug);
+  // The anonymous flow rather than the kitchen sink, because its first step is a
+  // CHOICE question: the option row (a `label[data-rac]`, whose target is the whole
+  // row and whose height is `--space-stack` above and below a line box) is the one
+  // form target density can shrink, so it has to be on screen to be measured. The
+  // vendored text control's height is asserted per density in the persistence test.
+  const { slug } = readFixtures();
+  await startAnonymousFlow(page, slug);
   await openAppearance(page);
 
   const table: string[] = [];
@@ -595,10 +601,12 @@ test("the WCAG 1.4.12 floors hold at every font AND every density", async ({ pag
   }
   // The claim docs/theming.md makes has numbers in it, so the numbers have to be
   // readable after a GREEN run, not only after a red one.
+  const measured = `${table.join("\n")}\n`;
   await testInfo.attach("wcag-1.4.12-floors-per-density-and-font.txt", {
-    body: `${table.join("\n")}\n`,
+    body: measured,
     contentType: "text/plain",
   });
+  writeFileSync(APPEARANCE_FLOORS_PATH, measured, "utf8");
   expect(table).toHaveLength(DENSITY_LEVELS.length * fontKeys.length);
 });
 

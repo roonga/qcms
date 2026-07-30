@@ -154,3 +154,15 @@ export const FONT_FLOORS_PATH = fileURLToPath(
 export const APPEARANCE_METRICS_PATH = fileURLToPath(
   new URL("../../.playwright/appearance-target-sizes.txt", import.meta.url),
 );
+
+/**
+ * Where `appearance.pw.ts` writes the WCAG 1.4.12 floors measured at every density x
+ * every registry font (task 053). `FONT_FLOORS_PATH` covers the font axis at the
+ * default density; this covers the whole grid, which is what exit criterion 2 asks
+ * for. An `attach()` alone is not enough: with the `list` reporter there is no HTML
+ * report for an inline attachment to end up in, so a green run would leave no numbers
+ * behind at all.
+ */
+export const APPEARANCE_FLOORS_PATH = fileURLToPath(
+  new URL("../../.playwright/appearance-floors.txt", import.meta.url),
+);
