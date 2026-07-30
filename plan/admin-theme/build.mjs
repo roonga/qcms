@@ -1,8 +1,12 @@
-// QCMS admin theme (Cobalt) - build script.
+// QCMS admin theme (Cobalt) - build script. Rev 2: aligned to the QCMS Design
+// System visual language (qcms-design-system.html in the Claude Design project):
+// brand cobalt #2456C6 / #7AA2FF, mode-following translucent topbar, 8px radius
+// base, tight heading tracking. Rev 1's fixed navy topbar and off-brand cobalt
+// (#1c4fd6) were divergences and are withdrawn.
 // Defines the admin token sets, verifies every critical contrast pair with the
 // WCAG 2.2 relative-luminance formula, and emits tokens.css, ADMIN_THEME.md and
 // the self-contained admin-theme.html preview. Fails the build if any pair
-// misses its target, so the published numbers cannot drift from the tokens.
+// misses, so the published numbers cannot drift from the tokens.
 // Run: node build.mjs (from this directory)
 
 import { writeFileSync } from "node:fs";
@@ -25,13 +29,14 @@ const ratio = (fg, bg) => {
 
 // ---------- Tokens ----------
 // Neutrals and semantic colours are the shipped slate values (051, already
-// WCAG-verified there); the admin adds only the cobalt accent and the topbar
-// chrome group. Recomputed here anyway - the gate is cheap and total.
+// WCAG-verified there). The accent is the design-system cobalt: #2456C6 light /
+// #7AA2FF dark (the values the DS overview and the portal focus ring already
+// use), so primary == focus-ring == info hue, as in the DS (--ring == --primary).
 
 const light = {
-  "--color-primary": "#1c4fd6",
-  "--color-primary-hover": "#1846bf",
-  "--color-primary-active": "#143da8",
+  "--color-primary": "#2456c6",
+  "--color-primary-hover": "#1e4aad",
+  "--color-primary-active": "#193f95",
   "--color-primary-foreground": "#ffffff",
   "--color-secondary": "#4f5b70",
   "--color-secondary-hover": "#475265",
@@ -63,14 +68,14 @@ const light = {
   "--color-background-muted": "#eef1f6",
   "--color-surface": "#ffffff",
   "--color-surface-hover": "#f4f6fa",
-  "--color-focus-ring": "#1c4fd6",
+  "--color-focus-ring": "#2456c6",
   "--color-overlay": "rgb(0 0 0 / 0.5)",
 };
 
 const dark = {
-  "--color-primary": "#8ab0ff",
-  "--color-primary-hover": "#9abcff",
-  "--color-primary-active": "#a8c5ff",
+  "--color-primary": "#7aa2ff",
+  "--color-primary-hover": "#8fb1ff",
+  "--color-primary-active": "#a1beff",
   "--color-primary-foreground": "#0b0f1a",
   "--color-secondary": "#97a2b8",
   "--color-secondary-hover": "#a3adc1",
@@ -102,31 +107,8 @@ const dark = {
   "--color-background-muted": "#10151f",
   "--color-surface": "#141a26",
   "--color-surface-hover": "#1b2230",
-  "--color-focus-ring": "#8ab0ff",
+  "--color-focus-ring": "#7aa2ff",
   "--color-overlay": "rgb(0 0 0 / 0.6)",
-};
-
-// Admin chrome: the topbar is deep cobalt navy in BOTH light and dark modes -
-// the operator's fixed brand chrome. Its text sits on dark blue, so it carries
-// its own contrast pairs independent of mode.
-const topbarLight = {
-  "--admin-topbar-bg": "#111c40",
-  "--admin-topbar-hover": "#1b2a5c",
-  "--admin-topbar-fg": "#f2f5ff",
-  "--admin-topbar-fg-muted": "#a9b6e2",
-  "--admin-topbar-accent": "#8ab0ff",
-  "--admin-topbar-focus": "#9db9ff",
-  "--admin-topbar-border": "#2a3866",
-};
-
-const topbarDark = {
-  "--admin-topbar-bg": "#0e1834",
-  "--admin-topbar-hover": "#182446",
-  "--admin-topbar-fg": "#f2f5ff",
-  "--admin-topbar-fg-muted": "#a9b6e2",
-  "--admin-topbar-accent": "#8ab0ff",
-  "--admin-topbar-focus": "#9db9ff",
-  "--admin-topbar-border": "#26305a",
 };
 
 // HC: the universal 051 HC mode-layer (carried verbatim from the portal theme
@@ -175,25 +157,28 @@ const hcAccent = {
 };
 
 // Admin density default: dense chrome (36px controls; WCAG 2.5.8 floor is 24px).
+// Radius follows the design system's 8px base (card 12px, small 4px).
 const spacing = {
   "--admin-control-h": "36px",
   "--admin-control-pad-x": "0.6rem",
   "--admin-stack": "0.35rem",
   "--admin-section-pad": "1.25rem",
   "--admin-table-row-h": "44px",
-  "--radius-control": "6px",
-  "--radius-card": "10px",
+  "--radius-control": "8px",
+  "--radius-card": "12px",
   "--radius-sm": "4px",
 };
 
 // ---------- Contrast gates ----------
 
-const modePairs = (t, name) => [
+const modePairs = (t) => [
   [`text / background`, t["--color-text"], t["--color-background"], 4.5],
   [`text / surface`, t["--color-text"], t["--color-surface"], 4.5],
   [`text-muted / background`, t["--color-text-muted"], t["--color-background"], 4.5],
   [`text-muted / surface`, t["--color-text-muted"], t["--color-surface"], 4.5],
   [`primary-fg / primary`, t["--color-primary-foreground"], t["--color-primary"], 4.5],
+  [`primary-fg / primary-hover`, t["--color-primary-foreground"], t["--color-primary-hover"], 4.5],
+  [`primary-fg / primary-active`, t["--color-primary-foreground"], t["--color-primary-active"], 4.5],
   [`secondary-fg / secondary`, t["--color-secondary-foreground"], t["--color-secondary"], 4.5],
   [`danger-fg-btn / danger`, t["--color-danger-foreground"], t["--color-danger"], 4.5],
   [`danger-fg / danger-subtle`, t["--color-danger-fg"], t["--color-danger-subtle"], 4.5],
@@ -205,14 +190,7 @@ const modePairs = (t, name) => [
   [`focus-ring / background`, t["--color-focus-ring"], t["--color-background"], 3.0],
   [`focus-ring / surface`, t["--color-focus-ring"], t["--color-surface"], 3.0],
   [`primary / surface (link-UI)`, t["--color-primary"], t["--color-surface"], 3.0],
-];
-
-const topbarPairs = (tb, label) => [
-  [`topbar-fg / topbar-bg`, tb["--admin-topbar-fg"], tb["--admin-topbar-bg"], 4.5],
-  [`topbar-fg-muted / topbar-bg`, tb["--admin-topbar-fg-muted"], tb["--admin-topbar-bg"], 4.5],
-  [`topbar-fg / topbar-hover`, tb["--admin-topbar-fg"], tb["--admin-topbar-hover"], 4.5],
-  [`topbar-accent / topbar-bg`, tb["--admin-topbar-accent"], tb["--admin-topbar-bg"], 3.0],
-  [`topbar-focus / topbar-bg`, tb["--admin-topbar-focus"], tb["--admin-topbar-bg"], 3.0],
+  [`primary / background (topbar active)`, t["--color-primary"], t["--color-background"], 3.0],
 ];
 
 const hc = { ...hcUniversal, ...hcAccent };
@@ -234,8 +212,6 @@ const hcPairs = [
 const sections = [
   ["cobalt / light", modePairs(light)],
   ["cobalt / dark", modePairs(dark)],
-  ["topbar (light chrome)", topbarPairs(topbarLight)],
-  ["topbar (dark chrome)", topbarPairs(topbarDark)],
   ["cobalt / high-contrast (universal layer + cobalt accent)", hcPairs],
 ];
 
@@ -264,70 +240,66 @@ console.log("All contrast pairs pass.");
 const block = (sel, obj) =>
   `${sel} {\n${Object.entries(obj).map(([k, v]) => `  ${k}: ${v};`).join("\n")}\n}`;
 
-const css = `/* QCMS admin theme - Cobalt. Generated by plan/admin-theme/build.mjs.
-   All values WCAG 2.2-verified at build time; see ADMIN_THEME.md.
+const css = `/* QCMS admin theme - Cobalt (rev 2, aligned to the QCMS Design System).
+   Generated by plan/admin-theme/build.mjs. All values WCAG 2.2-verified at
+   build time; see ADMIN_THEME.md.
    Mode convention matches the portal theme registry (051):
    (none) = Light  .dark = Dark  .hc = High-contrast (universal layer + accent).
-   Neutrals and semantic colours are the shipped slate values; the admin adds
-   the cobalt accent and the --admin-topbar-* chrome group. */
+   Neutrals and semantic colours are the shipped slate values; the accent is the
+   design-system cobalt (#2456C6 / #7AA2FF; primary == focus-ring == info hue,
+   as the DS overview's --ring == --primary). The topbar is translucent and
+   mode-following (styled from standard tokens; no dedicated chrome group). */
 
 ${block(":root", { ...light, ...spacing, "--font-admin": `ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif` })}
 
 ${block(":root.dark", dark)}
 
-/* Topbar chrome: deep cobalt navy in both modes (fixed operator brand chrome). */
-${block(":root", topbarLight)}
-${block(":root.dark", topbarDark)}
-
 /* High-contrast: the universal HC mode-layer (carried verbatim from the 051
    registry so this sheet is self-contained) plus the admin's cobalt accent -
-   the accent is the only part the admin contributes, like any theme. In HC the
-   topbar drops its navy fill for the universal white-on-black-border chrome. */
-${block(":root.hc", {
-  ...hcUniversal,
-  ...hcAccent,
-  "--admin-topbar-bg": "#ffffff",
-  "--admin-topbar-hover": "#eceef1",
-  "--admin-topbar-fg": "#000000",
-  "--admin-topbar-fg-muted": "#22262e",
-  "--admin-topbar-accent": "#0a3ea8",
-  "--admin-topbar-focus": "#0a3ea8",
-  "--admin-topbar-border": "#000000",
-})}
+   the accent is the only part the admin contributes, like any theme. */
+${block(":root.hc", { ...hcUniversal, ...hcAccent })}
 `;
 
 writeFileSync("tokens.css", css);
 
 // ---------- Emit ADMIN_THEME.md ----------
 
-const md = `# QCMS admin theme - Cobalt
+const md = `# QCMS admin theme - Cobalt (rev 2)
 
 Design deliverable for the admin app's visual theme (apps/admin, tasks 031-035).
 Generated by \`build.mjs\`; every ratio below is computed from the exact token
 values with the WCAG 2.2 relative-luminance formula, so the numbers cannot
 drift from the tokens.
 
+**Rev 2 (2026-07-30):** aligned to the QCMS Design System visual language
+(\`qcms-design-system.html\` in the Claude Design project) after the Code Owner
+flagged rev 1's divergence. Changed: accent is now the brand cobalt
+(#2456C6 light / #7AA2FF dark, the DS primary and the portal focus-ring value)
+instead of rev 1's #1c4fd6; the fixed navy topbar is withdrawn in favour of the
+DS's translucent, mode-following topbar (admin identity comes from the wordmark
+and density, not divergent chrome); radius follows the DS 8px base; headings
+carry the DS tight tracking.
+
 ## Design intent
 
 - **One system, two seats.** The admin reuses the portal's slate neutrals and
-  semantic colours (051, already verified) unchanged. Only two things are new:
-  the **cobalt accent** (the QCMS brand accent the admin shell has carried since
-  031) and the **topbar chrome group**.
-- **Operator chrome.** The top bar is deep cobalt navy in BOTH light and dark
-  modes - fixed brand chrome that separates the operator tool from the
-  respondent portal (whose chrome follows the respondent's theme). Its text sits
-  on dark blue, so it carries its own contrast pairs, verified per mode below.
+  semantic colours (051, already verified) unchanged, and takes its accent and
+  chrome language from the design system overview. Nothing in this theme is a
+  new visual decision; it is the DS applied to the admin surface.
+- **Topbar:** translucent surface over the page (\`color-mix\` 88% background +
+  blur), hairline border, wordmark (\`QCMS\` + \`admin\` sub), active nav item in
+  primary with an accent underline. Follows mode like every other region. In HC
+  the translucency is dropped: solid surface, strong border, no blur.
 - **The admin is NOT respondent-themed.** Portal themes (slate/harbor/sand/plum)
-  are the adopter's choice for respondents; the admin always wears Cobalt.
-  Mode (light/dark/HC) remains a per-operator control.
+  are the adopter's choice for respondents; the admin always wears the brand
+  cobalt. Mode (light/dark/HC) remains a per-operator control.
 - **HC for free.** High-contrast rides the universal 051 HC mode-layer; the
   admin contributes only an AAA-safe cobalt accent (the same mechanism any new
-  theme uses). In HC the topbar drops its navy fill for universal
-  black-on-white with a hard border.
+  theme uses).
 - **Dense by default.** Controls are 36px (vs the portal's 44px comfortable) -
   an operator data tool, still comfortably above the 24px WCAG 2.5.8 floor.
-  Table rows are 44px. Type floors are unchanged: body >= 16px, line-height
-  >= 1.5.
+  Table rows are 44px; numeric table cells use tabular figures. Type floors are
+  unchanged: body >= 16px, line-height >= 1.5.
 
 ## Targets
 
@@ -348,6 +320,12 @@ ${tables.join("\n\n")}
 - \`admin-theme.html\` - self-contained preview (shell + question library table +
   auth card + banners) with a light/dark/HC switcher; pushed to the
   "QCMS Design System" Claude Design project as \`admin/theme.html\`.
+
+## Known adjacent staleness (not this deliverable)
+
+The DS overview's neutral values predate 051 and differ slightly from the
+landed registry (e.g. dark card #121826 vs 051's #141a26). The 051 registry is
+the product truth; the overview should be regenerated from it at some point.
 `;
 
 writeFileSync("ADMIN_THEME.md", md);
@@ -369,27 +347,28 @@ button, input, select { font: inherit; }
 .switcher button { height: 32px; padding: 0 0.75rem; border-radius: var(--radius-control); border: 1px solid var(--color-border-strong); background: var(--color-surface); color: var(--color-text); cursor: pointer; }
 .switcher button[aria-pressed="true"] { background: var(--color-primary); border-color: var(--color-primary); color: var(--color-primary-foreground); }
 
-/* topbar */
-.topbar { display: flex; align-items: center; gap: 1.25rem; padding: 0 1.5rem; height: 56px;
-  background: var(--admin-topbar-bg); border-bottom: 2px solid var(--admin-topbar-border); }
-.topbar .brand { display: flex; align-items: center; gap: 0.5rem; color: var(--admin-topbar-fg); font-weight: 600; }
-.topbar .brand .mark { width: 22px; height: 22px; border-radius: 5px; background: var(--admin-topbar-accent); color: var(--admin-topbar-bg); display: grid; place-items: center; font-size: 14px; font-weight: 700; }
+/* topbar: translucent, mode-following (DS language) */
+.topbar { position: sticky; top: 0; display: flex; align-items: center; gap: 1.25rem; padding: 0 1.5rem; height: 60px;
+  background: color-mix(in srgb, var(--color-background) 88%, transparent);
+  backdrop-filter: saturate(1.2) blur(8px);
+  border-bottom: 1px solid var(--color-border); }
+:root.hc .topbar { background: var(--color-surface); backdrop-filter: none; border-bottom: 2px solid var(--color-border-strong); }
+.topbar .brand { display: flex; align-items: baseline; gap: 0.5rem; }
+.topbar .brand .mark { font-weight: 800; letter-spacing: -0.02em; color: var(--color-text); }
+.topbar .brand .sub { font-size: 0.85rem; color: var(--color-text-muted); }
 .topbar nav { display: flex; gap: 0.25rem; flex: 1; }
-.topbar nav a { color: var(--admin-topbar-fg-muted); text-decoration: none; padding: 0.4rem 0.7rem; border-radius: var(--radius-control); position: relative; }
-.topbar nav a:hover { background: var(--admin-topbar-hover); color: var(--admin-topbar-fg); }
-.topbar nav a:focus-visible { outline-color: var(--admin-topbar-focus); }
-.topbar nav a[aria-current="page"] { color: var(--admin-topbar-fg); font-weight: 600; }
-.topbar nav a[aria-current="page"]::after { content: ""; position: absolute; left: 0.7rem; right: 0.7rem; bottom: -2px; height: 3px; background: var(--admin-topbar-accent); border-radius: 2px; }
-.topbar .signout { height: var(--admin-control-h); padding: 0 0.9rem; border-radius: var(--radius-control); border: 1px solid var(--admin-topbar-fg-muted); background: transparent; color: var(--admin-topbar-fg); cursor: pointer; }
-.topbar .signout:hover { background: var(--admin-topbar-hover); }
-.topbar .signout:focus-visible { outline-color: var(--admin-topbar-focus); }
-:root.hc .topbar .signout { border-color: var(--admin-topbar-fg); }
+.topbar nav a { color: var(--color-text-muted); text-decoration: none; padding: 0.4rem 0.7rem; border-radius: var(--radius-control); position: relative; }
+.topbar nav a:hover { background: var(--color-ghost-hover); color: var(--color-text); }
+.topbar nav a[aria-current="page"] { color: var(--color-primary); font-weight: 600; }
+.topbar nav a[aria-current="page"]::after { content: ""; position: absolute; left: 0.7rem; right: 0.7rem; bottom: -1px; height: 2px; background: var(--color-primary); border-radius: 2px; }
+.topbar .signout { height: var(--admin-control-h); padding: 0 0.9rem; border-radius: var(--radius-control); border: 1px solid var(--color-border-strong); background: var(--color-ghost); color: var(--color-text); cursor: pointer; }
+.topbar .signout:hover { background: var(--color-ghost-hover); }
 
 /* layout */
 .content { max-width: 1100px; margin: 0 auto; padding: 1.5rem; display: grid; gap: 1.5rem; }
 .row { display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: flex-start; }
-h1 { font-size: 1.5rem; margin: 0; }
-h2 { font-size: 1.1rem; margin: 0 0 0.75rem; }
+h1 { font-size: 1.7rem; font-weight: 700; letter-spacing: -0.02em; margin: 0; }
+h2 { font-size: 1.1rem; font-weight: 700; letter-spacing: -0.01em; margin: 0 0 0.75rem; }
 
 /* buttons */
 .btn { height: var(--admin-control-h); padding: 0 var(--admin-control-pad-x); border-radius: var(--radius-control); border: 1px solid transparent; cursor: pointer; }
@@ -407,7 +386,7 @@ h2 { font-size: 1.1rem; margin: 0 0 0.75rem; }
 .toolbar .spacer { flex: 1; }
 table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
 th { text-align: left; color: var(--color-text-muted); font-weight: 600; padding: 0.5rem 0.75rem; border-bottom: 2px solid var(--color-border-strong); }
-td { padding: 0 0.75rem; height: var(--admin-table-row-h); border-bottom: 1px solid var(--color-border); }
+td { padding: 0 0.75rem; height: var(--admin-table-row-h); border-bottom: 1px solid var(--color-border); font-variant-numeric: tabular-nums; }
 tbody tr:nth-child(even) { background: var(--color-background-muted); }
 tbody tr:hover { background: var(--color-surface-hover); }
 .chip { display: inline-block; padding: 0.1rem 0.55rem; border-radius: var(--radius-sm); font-size: 0.85rem; font-weight: 600; }
@@ -437,7 +416,7 @@ code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; bord
 </div>
 
 <header class="topbar">
-  <span class="brand"><span class="mark" aria-hidden="true">Q</span> QCMS admin</span>
+  <span class="brand"><span class="mark">QCMS</span><span class="sub">admin</span></span>
   <nav aria-label="Primary">
     <a href="#" aria-current="page">Questions</a>
     <a href="#">Forms</a>
