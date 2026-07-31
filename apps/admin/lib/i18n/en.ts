@@ -18,7 +18,7 @@
  */
 
 export const messages = {
-  "app.title": "QCMS admin",
+  "app.title": "QCMS",
   "app.description": "Author questionnaires, publish forms, and review responses.",
 
   "action.skipToContent": "Skip to content",
@@ -35,7 +35,7 @@ export const messages = {
   "nav.webhooks": "Webhooks",
   "nav.settings": "Settings",
 
-  "signIn.title": "Sign in to QCMS admin",
+  "signIn.title": "Sign in to QCMS",
   "signIn.email": "Email",
   "signIn.password": "Password",
   // One message for every failure: wrong password, unknown email, wrong TOTP code,

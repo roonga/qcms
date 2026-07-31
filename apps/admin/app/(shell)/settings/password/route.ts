@@ -1,6 +1,6 @@
 import { APIError } from "better-auth/api";
 
-import { getAuth } from "@/lib/server/auth";
+import { getAuth, twoFactorOptional } from "@/lib/server/auth";
 import {
   authRefused,
   cookiesFrom,
@@ -9,6 +9,7 @@ import {
   redirectAfterPost,
   redirectWithGenericFailure,
 } from "@/lib/server/route-helpers";
+import { ENROLL_PATH, SIGN_IN_PATH, currentAdminSession } from "@/lib/server/session";
 
 const SETTINGS_PATH = "/settings";
 
@@ -24,9 +25,28 @@ const SETTINGS_PATH = "/settings";
  * A rejected change (wrong current password, new password too short) redirects back
  * with the same opaque marker every auth failure uses. Distinguishing them would tell
  * whoever is at the keyboard whether they guessed the current password right.
+ *
+ * ## Why this handler applies the shell's session policy itself
+ *
+ * The `(shell)` layout calls `requireAdminSession()`, but a layout only guards the
+ * pages it renders - a route handler in the same segment is reached directly by the
+ * browser's POST and never passes through it. Relying on better-auth's cookie
+ * validation alone would enforce gate 1 (existence) and gate 2's idle window, but
+ * neither the QCMS absolute 12h cap nor the 2FA-enrollment gate, so a signed-in but
+ * un-enrolled session could reach this route while "the enrollment screens and
+ * nothing else" is the stated policy. `currentAdminSession()` applies the absolute
+ * cap; the enrollment gate is applied here explicitly, the same pair
+ * `requireAdminSession()` applies for pages.
+ *
+ * The refusal is a **303**, not `redirect()`: `redirect()` answers a POST with 307,
+ * which asks the browser to repeat the POST at the sign-in screen.
  */
 export async function POST(request: Request): Promise<Response> {
   if (!isSameOriginPost(request)) return redirectWithGenericFailure(SETTINGS_PATH);
+
+  const session = await currentAdminSession();
+  if (session === undefined) return redirectAfterPost(SIGN_IN_PATH);
+  if (!session.twoFactorEnabled && !twoFactorOptional()) return redirectAfterPost(ENROLL_PATH);
 
   const form = await request.formData();
   const currentPassword = formField(form, "currentPassword");

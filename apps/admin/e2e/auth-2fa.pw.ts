@@ -1,6 +1,7 @@
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
-import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
+import { TEST_PASSWORD, createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
+import { ADMIN_BASE_URL } from "./support/harness-config.js";
 import {
   readSetupKey,
   signInWithTotp,
@@ -52,7 +53,7 @@ test.beforeAll(async () => {
 
 test("the sign-in screen offers no way to register (SEC-1)", async ({ page }) => {
   await page.goto("/sign-in");
-  await expect(page.getByRole("heading", { name: "Sign in to QCMS admin" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sign in to QCMS" })).toBeVisible();
   // Not a styling detail: SEC-1 requires that no self-registration path exists, and the
   // screen must not imply one either.
   await expect(page.getByText(/sign up|create an account|register/i)).toHaveCount(0);
@@ -103,6 +104,29 @@ test("first sign-in is forced into 2FA enrollment, which a wrong code cannot byp
   // "Codes never shown again": the display is spent, so revisiting must not re-print them.
   await page.goto("/two-factor/recovery-codes");
   await expect(page).toHaveURL(/\/questions$/);
+});
+
+test("a shell route handler applies the enrollment gate, not just cookie validation", async ({
+  page,
+}) => {
+  // Its own account, deliberately left un-enrolled: EMAIL's 2FA state advances through
+  // this serial file, and this test must not disturb it.
+  const unenrolled = uniqueAdminEmail("ungated");
+  await createTestAdmin(unenrolled);
+  await submitSignIn(page, unenrolled);
+  await expect(page).toHaveURL(/\/two-factor\/enroll$/);
+
+  // The `(shell)` layout guards the pages it renders; a form POST reaches the route
+  // handler directly and never passes through it. This session carries a valid
+  // better-auth cookie, so only the handler's own gate can turn it away - which is
+  // exactly the invariant "the enrollment screens and nothing else" depends on.
+  const response = await page.request.post("/settings/password", {
+    headers: { origin: ADMIN_BASE_URL, referer: `${ADMIN_BASE_URL}/settings` },
+    form: { currentPassword: TEST_PASSWORD, newPassword: "a different long passphrase" },
+    maxRedirects: 0,
+  });
+  expect(response.status()).toBe(303);
+  expect(response.headers()["location"]).toBe("/two-factor/enroll");
 });
 
 test("a later sign-in demands the second factor before any session exists", async ({ page }) => {

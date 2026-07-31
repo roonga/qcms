@@ -149,8 +149,10 @@ function buildAuth() {
     },
     plugins: [
       twoFactor({
-        // What an authenticator app displays next to the account.
-        issuer: "QCMS admin",
+        // What an authenticator app displays next to the account. The product name
+        // only: an operator's authenticator shows this for years, and "admin" is not
+        // part of the name (Code Owner naming call, 2026-07-30).
+        issuer: "QCMS",
         // Enrollment must be confirmed by a real TOTP code before the account counts
         // as protected; this is better-auth's default and is restated because
         // flipping it would silently weaken SEC-1.

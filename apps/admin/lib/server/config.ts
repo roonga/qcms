@@ -69,7 +69,7 @@ export function isProduction(): boolean {
 }
 
 /**
- * The admin app's own origin (`QCMS_ADMIN_BASE_URL`), which better-auth uses to
+ * The authoring app's own origin (`QCMS_ADMIN_BASE_URL`), which better-auth uses to
  * scope cookies and to build the TOTP issuer's account URI.
  */
 export function adminBaseUrl(): string {

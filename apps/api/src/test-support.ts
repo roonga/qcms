@@ -136,7 +136,10 @@ export async function seedAdminSession(
     readonly label?: string;
   } = {},
 ): Promise<{ token: string; userId: string }> {
-  const at = options.at ?? new Date("2026-07-20T00:00:00.000Z");
+  // Derived from `fixedClock`, not a second copy of the literal: the doc above
+  // promises they are the same instant, so changing the clock's default must move
+  // this with it rather than silently drift.
+  const at = options.at ?? fixedClock().now();
   const label = options.label ?? "editor";
   const userId = `au_${label}_${synthSecret().slice(0, 12)}`;
   const token = `st_${synthSecret()}`;
