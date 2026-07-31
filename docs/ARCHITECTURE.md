@@ -156,7 +156,7 @@ One framework for both frontends: one router, one data-fetching idiom, one auth 
 
 ## 7. Identity and access
 
-Admin identity: **better-auth** in-process, configured in owned shell code, data in the deployment's own Postgres, **TOTP 2FA enabled at launch** for accounts that can publish forms and read responses. Respondent access at launch: **anonymous sessions** and **secure links** - signed, expiring, single-form tokens minted and verified by core functions (key material supplied by the shell; rotation documented). Secure-link generation is an admin feature (mint from the form view, copy/export URLs). OTP and social are Phase 4 via the same library; external IdPs are a documented swap recipe.
+Admin identity: **better-auth**, configured in owned shell code, data in the deployment's own Postgres, **TOTP 2FA enabled at launch** for accounts that can publish forms and read responses. The instance is hosted in the admin app until **task 056** moves it into the API behind an admin-proxied `/api/auth/*` (ADR-35 as amended 2026-07-31), after which the API is the deployment's only database client. Respondent access at launch: **anonymous sessions** and **secure links** - signed, expiring, single-form tokens minted and verified by core functions (key material supplied by the shell; rotation documented). Secure-link generation is an admin feature (mint from the form view, copy/export URLs). OTP and social are Phase 4 via the same library; external IdPs are a documented swap recipe.
 
 ## 8. Abuse resistance
 
@@ -185,7 +185,7 @@ portal · admin · api (all groups + workers; no published port) · postgres
 
 Both topologies run the same images; the difference is instance count and mount flags. The solo shape - four containers (portal, admin, api, postgres), one a database, with TLS/ingress supplied by the operator (ADR-20) - is the operability budget and the reference deployment the scaffold produces.
 
-Database clients (ADR-35): the API is the sole client of the domain tables; the admin connects for better-auth's tables only, on a dedicated Postgres role scoped to that surface (issue #211); the portal holds no database handle at all.
+Database clients (ADR-35): the API is the sole client of the domain tables; the admin connects for better-auth's tables only until task 056 (before 036) removes that edge by moving the better-auth instance into the API; the portal holds no database handle at all. The diagram's admin-to-postgres edge is transitional and disappears with 056 - no production composition ever includes it.
 
 ## 10. Operations
 
