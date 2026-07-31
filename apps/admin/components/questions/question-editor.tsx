@@ -117,7 +117,34 @@ export function QuestionEditor({
   const leftover = unplacedIssues(state.issues ?? [], rendered);
 
   return (
-    <form action={formAction} className="flex flex-col gap-5">
+    <form
+      action={formAction}
+      className="flex flex-col gap-5"
+      // React 19 resets a form automatically once its action resolves. That is right for an
+      // uncontrolled form (the inputs are the state, so clearing them is the point) and
+      // wrong for this one, which is fully controlled: `definition` above is the single
+      // source of truth and every visible control is driven from it, so a reset does not
+      // clear the document - it desynchronizes the controls from the document that owns
+      // them. react-aria honours the cancellation explicitly (`useFormReset` skips its work
+      // when the reset event is `defaultPrevented`), so this is the vendored stack's own
+      // opt-out rather than a workaround pushed past it.
+      //
+      // Left un-prevented, every constraint control silently reverted to its mount-time
+      // value the moment "Draft saved." appeared: the date panel visibly blanked, and the
+      // numeric panel dropped its bounds without even a warning, because the reset arrives
+      // as an `onChange` and this editor believes its own controls. The next save would
+      // then have persisted the emptied document over the one just stored.
+      //
+      // `onResetCapture`, not `onReset`, and that is the fix rather than a detail of it.
+      // react-aria subscribes with `addEventListener` on the form itself, so its handler
+      // runs in the target phase; React delegates both props to the root container, where
+      // capture runs before the target and bubble runs after it. Cancelling in the bubble
+      // phase sets `defaultPrevented` a beat too late for react-aria to read, which looks
+      // exactly like the fix not working.
+      onResetCapture={(event) => {
+        event.preventDefault();
+      }}
+    >
       {/* The whole document, as one field. See the note above on why. */}
       <input type="hidden" name="definition" value={JSON.stringify(forWire(definition))} />
       <input type="hidden" name="questionId" value={questionId} />

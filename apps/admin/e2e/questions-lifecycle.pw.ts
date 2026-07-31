@@ -10,6 +10,7 @@ import {
   confirmLifecycle,
   createDraft,
   field,
+  fillDate,
   optionIds,
 } from "./support/questions.js";
 
@@ -235,6 +236,69 @@ test("a row opens its question from the keyboard alone", async ({ page }) => {
   await row.focus();
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(new RegExp(questionIdFor("preview")));
+});
+
+/*
+ * The coverage gap behind issue #220, in two halves.
+ *
+ * The lifecycle walk above publishes every type with an *empty* constraint panel, so no
+ * spec ever rendered a frozen version whose constraint controls carry saved values - and a
+ * frozen panel is the one place those controls are disabled. A fault that needs both
+ * (disabled *and* valued) was invisible to the whole suite while being reproducible by
+ * hand. The two halves are separate tests rather than one so a failure names the control
+ * that produced it: the numeric panel and the date panel are different vendored components
+ * with different controlled-state behaviour.
+ */
+
+test("a frozen number version renders cleanly with its bounds saved", async ({ page }) => {
+  test.setTimeout(120_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+
+  await createDraft(page, slugFor("frozen-number"), "Number");
+  await fillStable(field(page, "Smallest value"), "1");
+  await fillStable(field(page, "Largest value"), "10");
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByText("Draft saved.")).toBeVisible();
+
+  // The bounds are still on screen after the save. React 19 resets a form once its action
+  // resolves, and this editor is controlled, so an un-prevented reset used to hand every
+  // constraint control back its mount-time value here - silently for a NumberField, whose
+  // empty state is a number (`NaN`) rather than an absent value. The author saw "Draft
+  // saved." over an editor that had quietly emptied itself, and the next save would have
+  // written that emptiness over the stored document.
+  await expect(field(page, "Smallest value")).toHaveValue("1");
+  await expect(field(page, "Largest value")).toHaveValue("10");
+
+  await confirmLifecycle(page, /^Publish version 1$/, "Publish");
+
+  // The hard navigation is the point: a client-side link would never server-render this
+  // screen, so only `goto` puts the frozen panel through hydration.
+  await page.goto(`/questions/${questionIdFor("frozen-number")}?v=1`);
+  await expect(field(page, "Smallest value")).toHaveValue("1");
+  await expect(field(page, "Smallest value")).toBeDisabled();
+});
+
+test("a frozen date version renders cleanly with its bounds saved", async ({ page }) => {
+  test.setTimeout(120_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+
+  await createDraft(page, slugFor("frozen-date"), "Date");
+  await fillDate(page, "Earliest date", "01012030");
+  await fillDate(page, "Latest date", "12312030");
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByText("Draft saved.")).toBeVisible();
+
+  // Both dates survive the save. This is the loud half of the same fault: a DatePicker's
+  // empty state is an absent value, so the reset also flipped it from controlled to
+  // uncontrolled and react-stately said so on the console - which is how issue #220's
+  // console fault was reachable at all.
+  await expect(page.getByRole("group", { name: "Earliest date" })).toContainText("1/1/2030");
+  await expect(page.getByRole("group", { name: "Latest date" })).toContainText("12/31/2030");
+
+  await confirmLifecycle(page, /^Publish version 1$/, "Publish");
+
+  await page.goto(`/questions/${questionIdFor("frozen-date")}?v=1`);
+  await expect(page.getByRole("group", { name: "Earliest date" })).toContainText("2030");
 });
 
 test("the type picker is locked once the question exists", async ({ page }) => {

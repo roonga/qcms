@@ -61,6 +61,22 @@ export async function addOption(page: Page, label: string): Promise<void> {
   await expect(page.getByRole("textbox", { name: /^Label for option / }).last()).toHaveValue(label);
 }
 
+/**
+ * Type a date into a `DatePicker`, which has no text input to fill.
+ *
+ * react-aria renders a date as a row of spinbutton segments, so the value is typed rather
+ * than set: focus the first segment and the digits roll through the segments in the order
+ * the resolved locale lays them out. `digits` is therefore locale-ordered. The config pins
+ * no `locale`, so this is Chromium's default `en-US` and the order is MMDDYYYY; the
+ * trailing-year assertion below fails loudly rather than silently if that ever changes.
+ */
+export async function fillDate(page: Page, label: string, digits: string): Promise<void> {
+  const group = page.getByRole("group", { name: label });
+  await group.getByRole("spinbutton").first().click();
+  await page.keyboard.type(digits);
+  await expect(group).toContainText(digits.slice(-4));
+}
+
 /** Open a lifecycle confirmation and accept it. */
 export async function confirmLifecycle(page: Page, open: RegExp, confirm: string): Promise<void> {
   await page.getByRole("button", { name: open }).click();
