@@ -28,6 +28,14 @@ export const messages = {
   "action.continue": "Continue",
   "action.savePassword": "Change password",
 
+  // The colour-mode control (task 055). Every label an operator reads goes through
+  // here, mode names included (ADR-27) - a control that exists to make the app
+  // usable is the last one that should be hard-coded to English.
+  "appearance.mode.legend": "Appearance",
+  "appearance.mode.light": "Light",
+  "appearance.mode.dark": "Dark",
+  "appearance.mode.hc": "High contrast",
+
   "nav.label": "Primary",
   "nav.questions": "Questions",
   "nav.forms": "Forms",

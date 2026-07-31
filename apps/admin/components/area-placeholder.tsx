@@ -25,8 +25,8 @@ export function AreaPlaceholder({
 }) {
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-semibold text-(--color-text)">{title}</h1>
-      <p className="rounded border border-dashed border-(--color-border-strong) bg-(--color-background-muted) px-4 py-3 text-sm text-(--color-text-muted)">
+      <h1 className="text-2xl font-bold text-(--color-text)">{title}</h1>
+      <p className="rounded-md border border-dashed border-(--color-border-strong) bg-(--color-background-muted) px-4 py-3 text-sm text-(--color-text-muted)">
         {pending}
       </p>
     </div>

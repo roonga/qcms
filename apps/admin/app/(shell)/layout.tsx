@@ -1,7 +1,11 @@
+import { cookies } from "next/headers";
 import type { ReactNode } from "react";
 
 import { AdminNav } from "@/components/admin-nav";
 import { Button } from "@/components/kit";
+import { ModeControl } from "@/components/mode-control";
+import { MODE_COOKIE, parseMode } from "@/lib/appearance";
+import { isProduction } from "@/lib/server/config";
 import { t } from "@/lib/i18n/en";
 import { requireAdminSession } from "@/lib/server/session";
 
@@ -26,30 +30,39 @@ import { requireAdminSession } from "@/lib/server/session";
  */
 export default async function ShellLayout({ children }: { readonly children: ReactNode }) {
   const session = await requireAdminSession();
+  // The topbar's mode control is a client component, so its starting selection comes
+  // in as a prop from the one place that can read a cookie: here. `isProduction()` is
+  // read here too, for the same reason - `lib/server/` is unreachable from a client
+  // module by construction (the R2 import-surface test).
+  const mode = parseMode((await cookies()).get(MODE_COOKIE)?.value);
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <header className="border-b border-(--color-border) bg-(--color-surface)">
-        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3 p-3">
-          <div className="flex flex-wrap items-center gap-4">
-            <span className="text-sm font-semibold tracking-tight text-(--color-text)">
-              {t("app.title")}
-            </span>
+      <header className="qcms-topbar">
+        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-x-5 gap-y-2 px-4 py-2">
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
+            {/* "QCMS" and nothing else. No sub-label, and no word here names this app
+                to an operator: the product is QCMS and the respondent app is the
+                Portal (Code Owner naming call, 2026-07-30). */}
+            <span className="qcms-wordmark">{t("app.title")}</span>
             <AdminNav />
           </div>
-          <form method="post" action="/sign-out">
-            <Button type="submit" variant="ghost" size="sm">
-              {t("action.signOut")}
-            </Button>
-          </form>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <ModeControl mode={mode} secureCookies={isProduction()} />
+            <form method="post" action="/sign-out">
+              <Button type="submit" variant="ghost" size="sm">
+                {t("action.signOut")}
+              </Button>
+            </form>
+          </div>
         </div>
       </header>
-      <main id="admin-main" className="mx-auto w-full max-w-5xl flex-1 p-4">
+      <main id="admin-main" className="mx-auto w-full max-w-5xl flex-1 p-6">
         {children}
       </main>
       {/* The email is shell chrome, not a credential; it tells an operator which
           account is acting when several people share a screen. */}
-      <footer className="mx-auto w-full max-w-5xl p-4 text-xs text-(--color-text-muted)">
+      <footer className="mx-auto w-full max-w-5xl px-6 pb-6 text-xs text-(--color-text-muted)">
         {t("settings.signedInAs", { email: session.email })}
       </footer>
     </div>

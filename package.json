@@ -13,7 +13,7 @@
     "build": "turbo run build",
     "verify": "pnpm check:all && pnpm build && pnpm typecheck && pnpm lint && pnpm test && pnpm test:golden-drift",
     "verify:browser": "playwright test",
-    "check:all": "pnpm check:no-em-dash && pnpm check:no-control-chars && pnpm check:changeset && pnpm check:golden-append-only && pnpm check:licenses && pnpm check:duplication",
+    "check:all": "pnpm check:no-em-dash && pnpm check:no-control-chars && pnpm check:changeset && pnpm check:golden-append-only && pnpm check:licenses && pnpm check:duplication && pnpm check:admin-theme",
     "dev:portal": "node scripts/dev-portal.mjs",
     "artifacts": "node scripts/serve-artifacts.mjs",
     "qcms:create-admin": "pnpm --filter qcms-admin create-admin",
@@ -34,6 +34,7 @@
     "check:changeset": "node scripts/check-changeset.mjs",
     "check:licenses": "node scripts/check-licenses.mjs",
     "check:no-em-dash": "node scripts/check-no-em-dash.mjs",
+    "check:admin-theme": "node scripts/check-admin-theme.mjs",
     "check:duplication": "jscpd packages apps --config .jscpd.json --threshold 3"
   },
   "devDependencies": {

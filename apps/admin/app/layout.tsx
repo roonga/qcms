@@ -1,6 +1,8 @@
+import { cookies } from "next/headers";
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 
+import { MODE_COOKIE, parseMode } from "@/lib/appearance";
 import { t } from "@/lib/i18n/en";
 
 import "./globals.css";
@@ -19,21 +21,45 @@ export const viewport: Viewport = {
 };
 
 /**
- * The admin root layout (task 031).
+ * The admin root layout (task 031; mode stamping added by task 055).
  *
- * Deliberately thinner than the portal's. There is no inline theme-bootstrap script
- * here, and therefore no CSP nonce to thread: the admin's palette is QCMS's fixed
- * Cobalt identity rather than a respondent-selectable theme (ADR-26's two-surface
- * mandate), so light and dark are resolved by CSS alone (`color-scheme` plus the
- * `prefers-color-scheme` media query in theme.css). That keeps the admin's CSP free
- * of any `script-src` allowance for our own inline script - see `proxy.ts`.
+ * Deliberately thinner than the portal's, and it stays that way: there is still no
+ * inline theme-bootstrap script here, and therefore no CSP nonce to thread for one -
+ * which keeps the app's CSP free of any `script-src` allowance of our own (see
+ * `lib/server/csp.ts`).
+ *
+ * Mode is resolved in two halves, and the split is what removes the script:
+ *
+ * - An EXPLICIT choice is a cookie, readable here, stamped as the root class before
+ *   a byte of HTML leaves. No flash, and no client code involved in the first paint.
+ * - NO choice means no class at all, and the token sheet's own
+ *   `prefers-color-scheme` block then applies the dark values (`app/theme.css`).
+ *   That is the one input a server cannot see, handled by the one mechanism that
+ *   does not need to run in the document.
+ *
+ * High-contrast is never inferred by either half, which is the constraint task 055
+ * makes explicit: `.hc` appears only when the cookie says the operator chose it.
+ *
+ * Reading a cookie makes every route dynamic. That costs nothing here: every screen
+ * in this app is already per-request (session lookups, search params), and there is
+ * no page worth caching in an authoring tool behind auth.
  *
  * The skip link is the same structure as the portal's, so the keyboard walkthrough
  * and the axe gate inherited from task 030 start from a known-good shape.
  */
-export default function AdminRootLayout({ children }: { readonly children: ReactNode }) {
+export default async function AdminRootLayout({ children }: { readonly children: ReactNode }) {
+  const mode = parseMode((await cookies()).get(MODE_COOKIE)?.value);
+
   return (
-    <html lang="en">
+    <html lang="en" className={mode ?? undefined}>
+      <head>
+        {/* Hidden with CSS rather than by not rendering it, so a scripted operator
+            gets no hydration boundary and no layout shift. `style-src` already
+            allows inline styles, so no nonce is involved. */}
+        <noscript>
+          <style>{".qcms-mode{display:none}"}</style>
+        </noscript>
+      </head>
       <body>
         <a href="#admin-main" className="skip-link">
           {t("action.skipToContent")}
