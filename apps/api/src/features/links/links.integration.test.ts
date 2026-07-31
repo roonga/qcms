@@ -23,6 +23,7 @@ import {
   fixedClock,
   internalTokenFor,
   makeDeps,
+  seedAdminSession,
   synthSecret,
   validEnv,
 } from "../../test-support.js";
@@ -44,6 +45,10 @@ let testDb: TestDb;
 let deps: Deps;
 let app: ReturnType<typeof createApp>;
 let internalToken: string;
+// A real better-auth session row seeded per suite (031): the admin-auth
+// middleware verifies it against the database, so a made-up marker no longer
+// authenticates anything.
+let adminSessionToken: string;
 let linkKeyA: string;
 // A fixed base env so every rebuilt app (rotation) shares the internal token,
 // session keys, and app key - only QCMS_LINK_KEYS varies across builds.
@@ -69,6 +74,7 @@ beforeAll(async () => {
   baseEnv = validEnv({ QCMS_LINK_KEYS: linkKeyA });
   ({ deps, app } = buildApp(linkKeyA));
   internalToken = internalTokenFor(deps.config);
+  adminSessionToken = (await seedAdminSession(testDb.db)).token;
 
   await createForm(testDb.db, { formId: FORM_ID, slug: "links-it", defaultLocale: "en" });
   await insertFormVersion(testDb.db, {
@@ -91,7 +97,7 @@ function adminHeaders(): Record<string, string> {
   return {
     "content-type": "application/json",
     "x-qcms-internal-token": internalToken,
-    [ADMIN_SESSION_HEADER]: "editor-1",
+    [ADMIN_SESSION_HEADER]: adminSessionToken,
   };
 }
 

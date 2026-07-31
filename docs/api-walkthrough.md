@@ -20,12 +20,17 @@ description of every route lives in the generated OpenAPI documents
   is not mounted at all - those paths 404, never 403 (ADR-09).
 - Every mounted request carries the internal service token:
   `x-qcms-internal-token: <token>` (SEC-4).
-- Admin requests add a session marker: `x-qcms-admin-session: <marker>` (a launch
-  stub; 031 swaps in a real better-auth session).
+- Admin requests add the signed-in admin's better-auth **session token**:
+  `x-qcms-admin-session: <token>` (031). The admin BFF forwards it; the API verifies it
+  against the deployment's Postgres and rejects an unknown, idle-expired, over-12h, or
+  not-yet-2FA-enrolled session with a reasonless `401` (SEC-1). The channel token
+  authorizes nothing on its own (SEC-4).
 - Respondent session-scoped calls carry the bearer token minted by `POST /sessions`:
   `Authorization: Bearer <sessionToken>`.
 
-Below, `$API` is the base URL, `$INT` the internal token, `$ADM` the admin marker.
+Below, `$API` is the base URL, `$INT` the internal token, `$ADM` an admin session token.
+Get one by signing in to the admin app and reading `session.token`, or - in a test - with
+`seedAdminSession` / `adminLogin` (`apps/api/src/test-support.ts`).
 
 ## 1. Author the question library (admin)
 

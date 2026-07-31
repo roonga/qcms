@@ -50,6 +50,23 @@ docker compose -f docker-compose.dev.yml up -d
 pnpm dev:portal   # finds the dev DB itself; see CONTRIBUTING for why not host.docker.internal
 ```
 
+**Running the admin app (task 031).** Same dev DB, one extra step first: the admin has no
+self-registration path (SEC-1), so the deployment's first account comes from a command.
+
+```sh
+cp apps/admin/.env.example apps/admin/.env.local        # then edit
+pnpm --filter @qcms/db exec drizzle-kit migrate          # the auth tables must exist
+QCMS_ADMIN_EMAIL=you@example.test QCMS_ADMIN_PASSWORD='a long passphrase' pnpm qcms:create-admin
+pnpm --filter qcms-admin dev
+```
+
+The command refuses to run once any admin account exists, so it is safe in a runbook and
+safe to re-run by accident. On first sign-in you must enroll a TOTP factor before reaching
+anything else, and the recovery codes are shown once. `QCMS_ADMIN_2FA=optional` skips
+enrollment for development; the API reads the same variable, so relaxing it in one place
+only means every admin API call 401s. The admin adopts the same `.next` / `.next-dev`
+split described next, from day one.
+
 **Where the portal's build output lands:** the production build (`pnpm build`, served by `next start`) writes `apps/portal/.next`; every dev server (`pnpm dev:portal`, and the one the Playwright suite boots) writes `apps/portal/.next-dev`. Two directories, deliberately (issue #54): `turbo.json` declares the portal build's outputs as `.next/**`, so while dev output lived under `.next` it was tarred into the build cache and a later `pnpm build` cache hit restored that stale snapshot, from any worktree, over the live dev directory. The dev server then died on a corrupt or stale Turbopack cache and the only visible symptom was a bare 180s Playwright `webServer` timeout. Split, `pnpm build` and `pnpm exec playwright test` work in either order with no manual clean. Both directories are gitignored, and `rm -rf apps/portal/.next-dev` is always safe: it discards no production build. That glob now also excludes `.next/dev` and `.next/cache` (issue #57), so the artifact holds only what `next build` produced.
 
 **A turbo `outputs` glob must match only files the build itself writes.** turbo tars whatever matches when a task ends, so anything else that lives in those paths (a dev server's directory, a runtime cache, a log) is captured and restored over the live copy on the next cache hit, in any worktree.

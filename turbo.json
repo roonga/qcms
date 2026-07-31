@@ -73,6 +73,18 @@
       "dependsOn": ["^build"],
       "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**"]
     },
+    // The admin (task 031) writes `apps/admin/.next` and needs the same entry for the
+    // same reasons, plus one of its own: without it the generic `build` task's
+    // `dist/**` glob applies, matches nothing the admin produces, and turbo warns
+    // "no output files found" on every run while caching none of the build. The
+    // carve-outs mirror the portal's - `dev` because a stray dev directory under
+    // `.next` would be tarred into the shared artifact and restored over live dev
+    // state in any worktree (issue #54/#57), `cache` because Next's incremental cache
+    // is not build product and a hit must not put an older copy over a newer one.
+    "qcms-admin#build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**"]
+    },
     "test": {
       "dependsOn": ["build"]
     },

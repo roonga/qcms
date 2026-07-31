@@ -71,6 +71,20 @@
       "when": 1785037299287,
       "tag": "0009_answer_retraction",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1785145335259,
+      "tag": "0010_admin_role_claim",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1785147917197,
+      "tag": "0011_two_factor_plugin_fields",
+      "breakpoints": true
     }
   ]
 }

@@ -12,6 +12,10 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./kit": {
+      "types": "./dist/kit.d.ts",
+      "default": "./dist/kit.js"
+    },
     "./native-submit": {
       "types": "./dist/native-submit.d.ts",
       "default": "./dist/native-submit.js"

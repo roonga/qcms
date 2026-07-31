@@ -22,7 +22,7 @@
 ### Auth screens (inventory-only)
 
 - **Sign-in**: `card` - email `text-field`, password `text-field` (masked), submit `button`. Generic failure message (no user enumeration - SEC-1). Throttled state shows generic "try again later" `alert`.
-- **2FA enrollment** (first sign-in, enforced by default): `card` - QR code image + manual secret (`text`, copyable), TOTP code `text-field`, verify `button`; then **recovery codes screen**: one-time display (`card`, copy-all `button`, "I have saved these" confirm `button` gates continue - codes never shown again).
+- **2FA enrollment** (first sign-in, enforced by default): `card` - QR code image + manual secret (`text`, copyable), TOTP code `text-field`, verify `button`; then **recovery codes screen**: one-time display (`card`, copy-all `button`, "I have saved these" confirm `button` gates continue - codes never shown again). **Accepted deviation (031, screenshot gate signed 2026-07-31):** the copy-all `button` is not built. It needs client-side clipboard access plus a status region, a client interaction pattern the admin has no other use for yet; the codes render as a selectable list that works with keyboard and mouse. Revisit if a second screen needs the same pattern.
 - **2FA challenge** (each sign-in): TOTP code `text-field`, verify `button`, "use a recovery code" link → recovery-code `text-field` variant.
 - **First-run note**: no self-registration UI exists anywhere (SEC-1); first admin via `pnpm qcms:create-admin` - sign-in screen shows nothing about registration.
 
@@ -37,6 +37,6 @@ signed-out · sign-in error (generic) · sign-in throttled · 2FA-enroll · reco
 
 ## A11y notes
 
-- Sign-in error `alert` receives focus. QR screen: manual secret is the accessible alternative to the QR image (labeled, copyable). Recovery codes announced as a list; copy-all confirmed via status text. Nav is a labeled landmark; active page `aria-current`. axe gate active from 031.
+- Sign-in error `alert` receives focus. QR screen: manual secret is the accessible alternative to the QR image (labeled, copyable). Recovery codes announced as a list (the copy-all status text goes with the deferred copy-all button above). Nav is a labeled landmark; active page `aria-current`. axe gate active from 031.
 
 Signed off: Code Owner, 2026-07-21

@@ -16,6 +16,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
+  adminLogin,
   AdminClient,
   INSURANCE_DEF,
   INSURANCE_GOLDEN,
@@ -66,7 +67,7 @@ beforeAll(async () => {
   const env = buildEnv();
   const composed = composeApi(testDb.db, env, MOUNT.all);
   deps = composed.deps;
-  admin = new AdminClient(composed.app, composed.internalToken);
+  admin = new AdminClient(composed.app, composed.internalToken, await adminLogin(testDb.db));
   respondent = new RespondentClient(composed.app, composed.internalToken);
 });
 

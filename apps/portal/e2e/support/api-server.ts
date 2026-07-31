@@ -22,6 +22,7 @@ import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
 import {
+  adminLogin,
   buildEnv,
   composeApi,
   mintInsuranceLink,
@@ -44,7 +45,12 @@ import {
 
 /** The wire-stable SEC-4 internal-token header (matches the portal + API). */
 const INTERNAL_TOKEN_HEADER = "x-qcms-internal-token";
-/** The admin-session marker header (launch stub, task 021); any value passes. */
+/**
+ * The header carrying the admin's better-auth session token (031). This harness
+ * makes exactly one admin call - revoking a link so a spec can assert the revoked
+ * outcome - and the middleware now resolves this header against a real `session`
+ * row, so the token comes from `adminLogin()` rather than being a marker string.
+ */
 const ADMIN_SESSION_HEADER = "x-qcms-admin-session";
 
 /** The minimal shape of `@hono/node-server`'s returned server we depend on. */
@@ -179,12 +185,13 @@ export async function startApiServer(): Promise<void> {
     linkId: "lnk_revoked",
     expiresAt: new Date(nowMs + oneHour),
   });
+  const adminSessionToken = await adminLogin(testDb.db);
   const revokeRes = await app.request("/admin/links/lnk_revoked/revoke", {
     method: "POST",
     headers: {
       "content-type": "application/json",
       [INTERNAL_TOKEN_HEADER]: composed.internalToken,
-      [ADMIN_SESSION_HEADER]: "e2e-admin",
+      [ADMIN_SESSION_HEADER]: adminSessionToken,
     },
   });
   if (revokeRes.status !== 200) {

@@ -107,6 +107,12 @@ describe("query helper import surface", () => {
     "recordDeliveryFailure",
     "listDeadLetterDeliveries",
     "resetDeliveryForRedelivery",
+    // admin identity reads (task 031) - reads only. better-auth owns every write
+    // to the auth tables, so no helper here creates, refreshes or deletes a
+    // session, and none returns a credential (no password hash, no TOTP secret,
+    // no backup codes).
+    "getAdminSessionByToken",
+    "countAdminUsers",
   ];
 
   it("exposes exactly the intended query-helper surface", () => {

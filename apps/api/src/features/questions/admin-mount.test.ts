@@ -64,8 +64,10 @@ describe("admin group is absent in a public-only process (exit criterion 4, ADR-
       headers: {
         "content-type": "application/json",
         "x-qcms-internal-token": internalTokenFor(deps.config),
-        // Even with a (stub) admin session, the path does not exist here.
-        [ADMIN_SESSION_HEADER]: "editor-1",
+        // Even with an admin session header present, the path does not exist here:
+        // the group is unmounted, so nothing (not even the auth gate) runs. The value
+        // is never verified on this path, which is why no session is seeded (031).
+        [ADMIN_SESSION_HEADER]: "any-value-unverified-here",
       },
       body: JSON.stringify({ slug: "x", definition: {} }),
     });

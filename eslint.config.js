@@ -11,13 +11,16 @@ export default tseslint.config(
       "**/node_modules/**",
       "**/.turbo/**",
       "**/coverage/**",
-      // Next.js output and generated ambient types (portal, task 029): the
-      // production build in `.next`, the dev server's in `.next-dev` (issue #54).
+      // Next.js output and generated ambient types for both apps (portal 029, admin
+      // 031): the production build in `.next`, the dev server's in `.next-dev`
+      // (issue #54). Playwright artifacts and gate screenshots are output too.
       "**/.next/**",
       "**/.next-dev/**",
       "**/next-env.d.ts",
       "apps/portal/.playwright/**",
       "apps/portal/screenshots/**",
+      "apps/admin/.playwright/**",
+      "apps/admin/screenshots/**",
       // Vendored a2-react-aria component sources (task 028) are upstream-owned -
       // kept byte-for-byte for a clean `a2ra diff` (ADR-22) and tested upstream.
       // qcms lint rules apply to the qcms renderer code, not the vendored copy.

@@ -17,6 +17,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
+  adminLogin,
   AdminClient,
   MOUNT,
   RespondentClient,
@@ -31,9 +32,12 @@ import {
   type TestDb,
 } from "./support/index.js";
 
+// The admin-session header on the ONE request below that must 404: the public
+// process has no admin group, so nothing verifies this value (031). Every real
+// admin call goes through AdminClient with a token from `adminLogin`.
 const ADMIN_HEADERS = {
   "content-type": "application/json",
-  "x-qcms-admin-session": "e2e-admin",
+  "x-qcms-admin-session": "any-value-unverified-here",
 } as const;
 
 let testDb: TestDb;
@@ -49,7 +53,7 @@ beforeAll(async () => {
   const env = buildEnv();
   publicApi = composeApi(testDb.db, env, MOUNT.publicOnly);
   adminApi = composeApi(testDb.db, env, MOUNT.adminOnly);
-  admin = new AdminClient(adminApi.app, adminApi.internalToken);
+  admin = new AdminClient(adminApi.app, adminApi.internalToken, await adminLogin(testDb.db));
   respondent = new RespondentClient(publicApi.app, publicApi.internalToken);
   ({ formId } = await seedInsuranceForm(testDb.db));
 });

@@ -8,6 +8,11 @@
 
 export type { Executor } from "./executor.js";
 
+// Admin identity reads (task 031). better-auth owns every write to the auth
+// tables; these are the two reads its non-shell consumers need - session
+// verification in the API middleware, and the first-run bootstrap guard.
+export { type AdminSessionRow, getAdminSessionByToken, countAdminUsers } from "./auth.js";
+
 export {
   type QuestionRow,
   type QuestionVersionRow,

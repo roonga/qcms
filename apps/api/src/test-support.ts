@@ -7,6 +7,8 @@
  * or above the config minimum length.
  */
 
+import { authSession, authUser } from "@qcms/db";
+
 import type { Config, MountFlags } from "./config.js";
 import { loadConfig } from "./config.js";
 import type { Deps } from "./deps.js";
@@ -100,6 +102,65 @@ export function recordingLogger(): { logger: Logger; lines: Array<Record<string,
     now: () => new Date("2026-07-20T00:00:00.000Z"),
   });
   return { logger, lines };
+}
+
+/**
+ * The real-auth login helper (task 031). Every admin-slice test used to send a
+ * made-up marker header that 021's permissive stub accepted; the stub is gone, so
+ * a test that wants an authenticated admin request must present a session the
+ * middleware can actually verify. This seeds one: a real `user` row (2FA
+ * enrollment complete by default, because that is what the `required` policy
+ * demands) and a real `session` row, and returns the token to put on
+ * `ADMIN_SESSION_HEADER`.
+ *
+ * It writes the rows directly rather than driving better-auth, deliberately: the
+ * API does not link better-auth (see `middleware/admin-auth.ts`), and what these
+ * tests exercise is the verifier's contract against stored session state. The
+ * browser-level "does better-auth actually issue this row" question is the admin
+ * Playwright suite's job, where the real library is in the loop.
+ *
+ * Timestamps are anchored to `at`, which defaults to {@link fixedClock}'s instant
+ * so the seeded session is live under the same clock `makeDeps` gives the app.
+ * No password hash is written: nothing here signs in, so no credential exists.
+ */
+export async function seedAdminSession(
+  exec: Executor,
+  options: {
+    /** The instant the session is issued at; must match the app's clock. */
+    readonly at?: Date;
+    /** Idle expiry offset from `at` in ms (default 1h, matching SEC-1). */
+    readonly expiresInMs?: number;
+    /** Set false to seed an account that has not completed TOTP enrollment. */
+    readonly twoFactorEnabled?: boolean;
+    /** Distinguishing suffix when a test needs two different admins. */
+    readonly label?: string;
+  } = {},
+): Promise<{ token: string; userId: string }> {
+  // Derived from `fixedClock`, not a second copy of the literal: the doc above
+  // promises they are the same instant, so changing the clock's default must move
+  // this with it rather than silently drift.
+  const at = options.at ?? fixedClock().now();
+  const label = options.label ?? "editor";
+  const userId = `au_${label}_${synthSecret().slice(0, 12)}`;
+  const token = `st_${synthSecret()}`;
+  await exec.insert(authUser).values({
+    id: userId,
+    name: `Test ${label}`,
+    email: `${label}.${userId}@admin.test`,
+    emailVerified: true,
+    createdAt: at,
+    updatedAt: at,
+    twoFactorEnabled: options.twoFactorEnabled ?? true,
+  });
+  await exec.insert(authSession).values({
+    id: `ss_${synthSecret().slice(0, 16)}`,
+    token,
+    userId,
+    createdAt: at,
+    updatedAt: at,
+    expiresAt: new Date(at.getTime() + (options.expiresInMs ?? 60 * 60 * 1000)),
+  });
+  return { token, userId };
 }
 
 export type { MountFlags };

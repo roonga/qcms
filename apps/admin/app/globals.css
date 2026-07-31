@@ -1,0 +1,93 @@
+/*
+ * Admin global stylesheet (task 031).
+ *
+ * Layering:
+ *   1. Tailwind v4 - the utility engine the vendored a2-react-aria components
+ *      style themselves with.
+ *   2. @qcms/ui theme.css - the shared token contract. Its VALUES are the portal's
+ *      brand-neutral Slate Teal baseline, because respondents see the adopter's
+ *      brand there.
+ *   3. The admin override below - QCMS's own fixed Cobalt identity. The admin is an
+ *      internal tool, not an adopter-branded surface, so it opines (ADR-26's
+ *      two-surface mandate) and is deliberately NOT themeable by adopters.
+ *
+ * Only `--color-primary*` and `--color-focus-ring` are re-hued. Everything else
+ * (neutrals, semantics, surfaces) is shared with the portal on purpose: one token
+ * contract, one set of AA-verified pairs, one place to fix a contrast bug. Both
+ * Cobalt pairs clear WCAG 2.2 AA against their foregrounds - #2456C6 with white is
+ * 5.6:1, #7AA2FF with #0B0F1A is 9.2:1.
+ */
+@import "tailwindcss";
+@import "../../../packages/ui/src/theme.css";
+
+@source "../app";
+@source "../components";
+@source "../../../packages/ui/src";
+
+:root {
+  /* QCMS Cobalt - the admin's fixed brand accent. */
+  --color-primary: #2456c6;
+  --color-primary-hover: #1d47a6;
+  --color-primary-active: #173a89;
+  --color-primary-foreground: #ffffff;
+}
+
+:root.dark {
+  --color-primary: #7aa2ff;
+  --color-primary-hover: #93b4ff;
+  --color-primary-active: #adc6ff;
+  --color-primary-foreground: #0b0f1a;
+}
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background-color: var(--color-background);
+  color: var(--color-text);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Visible-on-focus skip link, matching the portal's structure (task 030). */
+.skip-link {
+  position: absolute;
+  left: 0.5rem;
+  top: -3rem;
+  z-index: 50;
+  border-radius: 0.375rem;
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  padding: 0.5rem 0.75rem;
+  box-shadow: 0 1px 2px var(--color-overlay);
+  transition: top 0.15s ease;
+}
+.skip-link:focus {
+  top: 0.5rem;
+}
+
+/*
+ * Guaranteed focus-visible indicator (WCAG 2.2 - 2.4.11 Focus Appearance).
+ * Zero-specificity `:where()` so the vendored controls keep their own focus rings;
+ * everything else the admin adds - nav links, the skip link, the recovery-code
+ * copy control - gets a solid, high-contrast outline in both themes.
+ */
+:where(a, button, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

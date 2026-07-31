@@ -3,8 +3,10 @@
  *
  * `playwright.config.ts` (the webServer env) and `api-server.ts` (the composed
  * API) both import from here so the SEC-4 internal token is *identical* on both
- * sides of the wire: the separately-spawned portal dev server presents this token
- * to the in-process composed API, which was built to accept exactly it.
+ * sides of the wire. Since task 031 the admin app's harness reads {@link FIXTURES_PATH}
+ * and the token from here too, for the same reason: one database, one API, two
+ * frontends, so one set of constants. The separately-spawned portal dev server presents
+ * this token to the in-process composed API, which was built to accept exactly it.
  *
  * The token is a synthetic, test-only value (never a real credential): it exists
  * only to let the two processes authenticate to each other. It is >= the config
