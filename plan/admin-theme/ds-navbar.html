@@ -246,6 +246,18 @@ code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; bord
 .topbar .signout { height: var(--admin-control-h); padding: 0 0.9rem; border-radius: var(--radius-control); border: 1px solid var(--color-border-strong); background: var(--color-ghost); color: var(--color-text); cursor: pointer; flex-shrink: 0; }
 .topbar .signout:hover { background: var(--color-ghost-hover); }
 
+/* Appearance mode control: a compact chip radiogroup in the topbar's trailing
+   group, before Sign out. 32px keeps it inside a 48px-content bar where
+   --admin-control-h (40px) would crowd the row; the group centers via the
+   topbar's own align-items. Selected state never relies on colour alone:
+   border weight + font weight + a leading check glyph. */
+.topbar .modes { display: flex; align-items: center; gap: 0.35rem; flex-shrink: 0; }
+.modechip { display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0 0.65rem; border-radius: var(--radius-control); border: 1px solid var(--color-border); background: var(--color-ghost); color: var(--color-text); font-size: 0.85rem; cursor: pointer; }
+.modechip:hover { background: var(--color-ghost-hover); }
+.modechip .check { font-weight: 700; }
+.modechip.is-selected { border: 2px solid var(--color-border-strong); font-weight: 600; }
+.demo-hc .modechip.is-selected { border-color: var(--color-primary); }
+
 .frame { border: 1px solid var(--color-border); border-radius: var(--radius-card); overflow: hidden; }
 .demo-fill { padding: 0.85rem 1.5rem; color: var(--color-text-muted); font-size: 0.85rem; background: var(--color-background); }
 
@@ -335,6 +347,71 @@ code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; bord
         <a href="#" class="navitem">Webhooks</a>
         <a href="#" class="navitem">Settings</a>
       </nav>
+      <button class="signout">Sign out</button>
+    </header>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Appearance mode control</h2>
+  <p class="note">Default follows prefers-color-scheme; an explicit choice persists per operator; High contrast is only ever explicit, never inferred. The selected chip is distinguishable without colour: border weight, label weight, and a leading check glyph carry the state, not colour alone.</p>
+
+  <h3>Light / default, Dark selected</h3>
+  <div class="frame">
+    <header class="topbar">
+      <span class="brand"><span class="mark">QCMS</span></span>
+      <nav aria-label="Primary">
+        <a href="#" class="navitem" aria-current="page">Questions</a>
+        <a href="#" class="navitem">Forms</a>
+        <a href="#" class="navitem">Responses</a>
+        <a href="#" class="navitem">Webhooks</a>
+        <a href="#" class="navitem">Settings</a>
+      </nav>
+      <div class="modes" role="radiogroup" aria-label="Appearance">
+        <button type="button" class="modechip" role="radio" aria-checked="false">Light</button>
+        <button type="button" class="modechip is-selected" role="radio" aria-checked="true"><span class="check" aria-hidden="true">✓</span>Dark</button>
+        <button type="button" class="modechip" role="radio" aria-checked="false">High contrast</button>
+      </div>
+      <button class="signout">Sign out</button>
+    </header>
+  </div>
+
+  <h3>High-contrast treatment, High contrast selected</h3>
+  <div class="frame demo-hc">
+    <header class="topbar">
+      <span class="brand"><span class="mark">QCMS</span></span>
+      <nav aria-label="Primary">
+        <a href="#" class="navitem" aria-current="page">Questions</a>
+        <a href="#" class="navitem">Forms</a>
+        <a href="#" class="navitem">Responses</a>
+        <a href="#" class="navitem">Webhooks</a>
+        <a href="#" class="navitem">Settings</a>
+      </nav>
+      <div class="modes" role="radiogroup" aria-label="Appearance">
+        <button type="button" class="modechip" role="radio" aria-checked="false">Light</button>
+        <button type="button" class="modechip" role="radio" aria-checked="false">Dark</button>
+        <button type="button" class="modechip is-selected" role="radio" aria-checked="true"><span class="check" aria-hidden="true">✓</span>High contrast</button>
+      </div>
+      <button class="signout">Sign out</button>
+    </header>
+  </div>
+
+  <h3>Narrow viewport (390px)</h3>
+  <div class="frame" style="width: 390px;">
+    <header class="topbar">
+      <span class="brand"><span class="mark">QCMS</span></span>
+      <nav aria-label="Primary">
+        <a href="#" class="navitem" aria-current="page">Questions</a>
+        <a href="#" class="navitem">Forms</a>
+        <a href="#" class="navitem">Responses</a>
+        <a href="#" class="navitem">Webhooks</a>
+        <a href="#" class="navitem">Settings</a>
+      </nav>
+      <div class="modes" role="radiogroup" aria-label="Appearance">
+        <button type="button" class="modechip" role="radio" aria-checked="false">Light</button>
+        <button type="button" class="modechip is-selected" role="radio" aria-checked="true"><span class="check" aria-hidden="true">✓</span>Dark</button>
+        <button type="button" class="modechip" role="radio" aria-checked="false">High contrast</button>
+      </div>
       <button class="signout">Sign out</button>
     </header>
   </div>
