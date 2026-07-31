@@ -106,9 +106,29 @@ shopt -s nocasematch
 
 for ((i = 1; i <= max_iterations; i++)); do
   log "iteration ${i}: launching fresh session"
+
+  # Seat mail (2026-07-31): deterministically deliver PO-seat messages into the
+  # prompt. The next-task skill's seat-mail step is the semantic contract (what
+  # messages mean, move-to-read/ as the ack); this block is the delivery
+  # guarantee - an instruction is a "usually", the supervisor is an "always".
+  # Act-then-move gives at-least-once: a crashed iteration redelivers.
+  iter_prompt="$prompt"
+  mail=""
+  for f in "$PWD/../seat-mail/dev/"*.txt; do
+    [ -e "$f" ] || continue
+    mail="$mail
+--- seat mail: $(basename "$f") ---
+$(cat "$f")"
+  done
+  if [ -n "$mail" ]; then
+    log "seat mail: delivering $(printf '%s' "$mail" | grep -c '^--- seat mail:') message(s) into the prompt"
+    iter_prompt="$prompt
+
+Seat mail from the PO seat (act on each, then move its file to ../seat-mail/dev/read/ as the ack):$mail"
+  fi
   # --model is pinned so an unattended run cannot silently move models when the
   # CLI default changes (same reasoning as the agent-brief frontmatter pins).
-  out="$(claude -p "$prompt" --model claude-opus-5 --permission-mode bypassPermissions --output-format text 2>&1)"
+  out="$(claude -p "$iter_prompt" --model claude-opus-5 --permission-mode bypassPermissions --output-format text 2>&1)"
   echo "$out" >>"$log_file"
   sentinel="$(echo "$out" | grep '^NEXT-TASK:' | tail -n 1)"
 
