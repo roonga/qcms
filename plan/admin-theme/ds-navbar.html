@@ -246,17 +246,72 @@ code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; bord
 .topbar .signout { height: var(--admin-control-h); padding: 0 0.9rem; border-radius: var(--radius-control); border: 1px solid var(--color-border-strong); background: var(--color-ghost); color: var(--color-text); cursor: pointer; flex-shrink: 0; }
 .topbar .signout:hover { background: var(--color-ghost-hover); }
 
-/* Appearance mode control: a compact chip radiogroup in the topbar's trailing
-   group, before Sign out. 32px keeps it inside a 48px-content bar where
-   --admin-control-h (40px) would crowd the row; the group centers via the
-   topbar's own align-items. Selected state never relies on colour alone:
-   border weight + font weight + a leading check glyph. */
-.topbar .modes { display: flex; align-items: center; gap: 0.35rem; flex-shrink: 0; }
-.modechip { display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0 0.65rem; border-radius: var(--radius-control); border: 1px solid var(--color-border); background: var(--color-ghost); color: var(--color-text); font-size: 0.85rem; cursor: pointer; }
-.modechip:hover { background: var(--color-ghost-hover); }
-.modechip .check { font-weight: 700; }
-.modechip.is-selected { border: 2px solid var(--color-border-strong); font-weight: 600; }
-.demo-hc .modechip.is-selected { border-color: var(--color-primary); }
+/* Appearance mode control (rework 2026-07-31, Code Owner call): the earlier
+   three-chip radiogroup read as too many buttons in the topbar, replaced by
+   one compact dropdown. Third pass, same day: the trigger drops the visible
+   mode word too - the interface itself already shows the mode, so a status
+   glyph is a nicer text-free cue than a label. Fourth pass, same day: the
+   trigger drops its border and fill at rest too - the icon alone is the
+   button, the 32px box stays only as the hit area (var(--radius-control)
+   sizes the hover/focus shapes that still use it), and var(--color-ghost-
+   hover) fill materializes the box on hover or while open, so the anchored
+   menu visually connects to something. .demo-hc keeps a permanent 1px
+   strong border at rest as a deliberate, documented exception: a borderless
+   icon is exactly what high-contrast users struggle to locate, and
+   boundaries are the point of the mode. Fifth pass, same day: the character
+   glyphs (circle/half-circle text characters) become owned inline SVGs -
+   sun, crescent moon, half-filled circle - stroke="currentColor" so they
+   inherit .modetrigger's color like the rest of the button, no icon library.
+   Sized at 24px (viewBox units map 1:1 to px) inside the 32px hit box: a
+   thin stroke icon carries far less optical mass than the avatar's solid
+   32px disc below, so it has to claim proportionally more of its box to
+   read with comparable weight; 22px left it looking closer to half the
+   avatar's visual size side by side, 24px (4px margin per side, matching
+   the box's own padding conventions elsewhere in the file) closed most of
+   that gap without crowding the hit area. aria-hidden on the svg; aria-
+   label carries what the visual drops. The open menu is unchanged and
+   reuses the dropdown-menu language from ds-overlays.html (surface, border,
+   radius, shadow) so the two cards agree. Checked state in the menu never
+   relies on colour alone: a leading check glyph, font weight, and an inset
+   accent edge carry it together. */
+.topbar .mode { position: relative; flex-shrink: 0; }
+.modetrigger { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--radius-control); border: none; background: var(--color-ghost); color: var(--color-text); cursor: pointer; flex-shrink: 0; }
+.modetrigger:hover, .modetrigger[aria-expanded="true"] { background: var(--color-ghost-hover); }
+.demo-hc .modetrigger { border: 1px solid var(--color-border-strong); }
+.modemenu { position: absolute; top: calc(100% + 6px); right: 0; min-width: 180px; background: var(--color-surface); border: 1px solid var(--color-border-strong); border-radius: var(--radius-card); padding: 6px; box-shadow: 0 2px 4px hsl(var(--shadow-color) / 0.1), 0 30px 70px -30px hsl(var(--shadow-color) / 0.4); }
+.demo-hc .modemenu { box-shadow: none; }
+.modeitem { display: flex; align-items: center; gap: 8px; width: 100%; height: 38px; padding: 0 10px; border: none; border-radius: var(--radius-sm); background: none; color: var(--color-text); font-size: 0.9rem; text-align: left; cursor: pointer; }
+.modeitem:hover { background: var(--color-ghost-hover); }
+.modeitem .check { width: 1em; flex-shrink: 0; font-weight: 700; }
+.modeitem.is-checked { font-weight: 600; box-shadow: inset 2px 0 0 var(--color-border-strong); }
+.demo-hc .modeitem.is-checked { box-shadow: inset 2px 0 0 var(--color-primary); }
+
+/* Account menu (added 2026-07-31, Code Owner call): the trailing group's
+   second consolidated control, absorbing the standalone Sign out button.
+   The menu deliberately reuses .modemenu/.modeitem as-is (same recipe as
+   the appearance dropdown) rather than fork a parallel set of classes;
+   .account only adds the positioning context for it, plus the
+   non-interactive "signed in as" header row the appearance menu has no
+   equivalent for. The trigger itself is .avatar, not .modetrigger (refined
+   2026-07-31, second Code Owner pass): a circular initials monogram rather
+   than an email-text button, so the full email moved into the menu header
+   below and the email-truncation rules an earlier pass added here are gone
+   again - the circle never needs to shrink. */
+.topbar .account { position: relative; flex-shrink: 0; }
+.acctinfo { display: block; padding: 6px 10px 8px; }
+.acctinfo .who { display: block; font-size: 0.75rem; color: var(--color-text-muted); }
+.acctinfo .email { display: block; font-size: 0.85rem; font-weight: 600; color: var(--color-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* .avatar: a deliberate, documented exception to the sharp-corners character
+   (radius-control/radius-card/radius-sm are all near-flat elsewhere in this
+   file) - the account trigger is an identity glyph, not a control surface,
+   so a full circle reads correctly. No caret, no visible text: the initials
+   are decorative, and aria-label carries the accessible name. */
+.avatar { width: 32px; height: 32px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--color-primary); color: var(--color-primary-foreground); font-weight: 600; font-size: 0.72rem; letter-spacing: 0.02em;
+  border: none; cursor: pointer; flex-shrink: 0; }
+.avatar:hover, .avatar[aria-expanded="true"] { box-shadow: 0 0 0 2px var(--color-border-strong); }
+.demo-hc .avatar { border: 1px solid var(--color-border-strong); }
 
 .frame { border: 1px solid var(--color-border); border-radius: var(--radius-card); overflow: hidden; }
 .demo-fill { padding: 0.85rem 1.5rem; color: var(--color-text-muted); font-size: 0.85rem; background: var(--color-background); }
@@ -354,9 +409,9 @@ code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; bord
 
 <div class="card">
   <h2>Appearance mode control</h2>
-  <p class="note">Default follows prefers-color-scheme; an explicit choice persists per operator; High contrast is only ever explicit, never inferred. The selected chip is distinguishable without colour: border weight, label weight, and a leading check glyph carry the state, not colour alone.</p>
+  <p class="note">One compact control replaces the three-button chip row (Code Owner call, 2026-07-31). Default follows prefers-color-scheme; an explicit choice persists per operator; High contrast is only ever explicit, never inferred. The checked item is distinguishable without colour: a leading check glyph, font weight, and an inset accent edge carry the state, not colour alone. Keyboard: the trigger opens with Enter, Space, or Arrow Down; the open menu is arrow-navigated; Escape closes it and returns focus to the trigger (the vendored a2-react-aria menu provides this). The trigger is icon-only, no mode word in the bar (Code Owner, 2026-07-31): the word is redundant, since the interface itself already displays the mode; the accessible name and the menu carry the words instead. The trigger is also borderless at rest (Code Owner, 2026-07-31): the icon alone is the button, and hover or open materializes the ghost-fill surface around it; high contrast keeps a permanent border by design, since a borderless icon is exactly what high-contrast users struggle to locate. The mode glyphs are owned inline SVGs, not an icon library (Code Owner call, 2026-07-31): sun, crescent moon, and half-filled circle, drawn with stroke="currentColor" so each inherits the trigger's colour like everything else in the file.</p>
 
-  <h3>Light / default, Dark selected</h3>
+  <h3>Closed, Dark selected</h3>
   <div class="frame">
     <header class="topbar">
       <span class="brand"><span class="mark">QCMS</span></span>
@@ -367,17 +422,15 @@ code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; bord
         <a href="#" class="navitem">Webhooks</a>
         <a href="#" class="navitem">Settings</a>
       </nav>
-      <div class="modes" role="radiogroup" aria-label="Appearance">
-        <button type="button" class="modechip" role="radio" aria-checked="false">Light</button>
-        <button type="button" class="modechip is-selected" role="radio" aria-checked="true"><span class="check" aria-hidden="true">✓</span>Dark</button>
-        <button type="button" class="modechip" role="radio" aria-checked="false">High contrast</button>
+      <div class="mode">
+        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="false" aria-label="Appearance: Dark"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M15 8 A5 5 0 1 0 15 16 A4 4 0 0 1 15 8 Z"/></svg></button>
       </div>
       <button class="signout">Sign out</button>
     </header>
   </div>
 
-  <h3>High-contrast treatment, High contrast selected</h3>
-  <div class="frame demo-hc">
+  <h3>Open, Dark selected</h3>
+  <div class="frame" style="min-height: 230px;">
     <header class="topbar">
       <span class="brand"><span class="mark">QCMS</span></span>
       <nav aria-label="Primary">
@@ -387,16 +440,42 @@ code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; bord
         <a href="#" class="navitem">Webhooks</a>
         <a href="#" class="navitem">Settings</a>
       </nav>
-      <div class="modes" role="radiogroup" aria-label="Appearance">
-        <button type="button" class="modechip" role="radio" aria-checked="false">Light</button>
-        <button type="button" class="modechip" role="radio" aria-checked="false">Dark</button>
-        <button type="button" class="modechip is-selected" role="radio" aria-checked="true"><span class="check" aria-hidden="true">✓</span>High contrast</button>
+      <div class="mode">
+        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="true" aria-label="Appearance: Dark"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M15 8 A5 5 0 1 0 15 16 A4 4 0 0 1 15 8 Z"/></svg></button>
+        <div class="modemenu" role="menu" aria-label="Appearance">
+          <button type="button" class="modeitem" role="menuitemradio" aria-checked="false"><span class="check" aria-hidden="true"></span>Light</button>
+          <button type="button" class="modeitem is-checked" role="menuitemradio" aria-checked="true"><span class="check" aria-hidden="true">&#10003;</span>Dark</button>
+          <button type="button" class="modeitem" role="menuitemradio" aria-checked="false"><span class="check" aria-hidden="true"></span>High contrast</button>
+        </div>
       </div>
       <button class="signout">Sign out</button>
     </header>
   </div>
 
-  <h3>Narrow viewport (390px)</h3>
+  <h3>High-contrast treatment, open, High contrast selected</h3>
+  <div class="frame demo-hc" style="min-height: 230px;">
+    <header class="topbar">
+      <span class="brand"><span class="mark">QCMS</span></span>
+      <nav aria-label="Primary">
+        <a href="#" class="navitem" aria-current="page">Questions</a>
+        <a href="#" class="navitem">Forms</a>
+        <a href="#" class="navitem">Responses</a>
+        <a href="#" class="navitem">Webhooks</a>
+        <a href="#" class="navitem">Settings</a>
+      </nav>
+      <div class="mode">
+        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="true" aria-label="Appearance: High contrast"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="5"/><path d="M12 7 A5 5 0 0 0 12 17 Z" fill="currentColor" stroke="none"/></svg></button>
+        <div class="modemenu" role="menu" aria-label="Appearance">
+          <button type="button" class="modeitem" role="menuitemradio" aria-checked="false"><span class="check" aria-hidden="true"></span>Light</button>
+          <button type="button" class="modeitem" role="menuitemradio" aria-checked="false"><span class="check" aria-hidden="true"></span>Dark</button>
+          <button type="button" class="modeitem is-checked" role="menuitemradio" aria-checked="true"><span class="check" aria-hidden="true">&#10003;</span>High contrast</button>
+        </div>
+      </div>
+      <button class="signout">Sign out</button>
+    </header>
+  </div>
+
+  <h3>Narrow viewport (390px), closed</h3>
   <div class="frame" style="width: 390px;">
     <header class="topbar">
       <span class="brand"><span class="mark">QCMS</span></span>
@@ -407,12 +486,113 @@ code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; bord
         <a href="#" class="navitem">Webhooks</a>
         <a href="#" class="navitem">Settings</a>
       </nav>
-      <div class="modes" role="radiogroup" aria-label="Appearance">
-        <button type="button" class="modechip" role="radio" aria-checked="false">Light</button>
-        <button type="button" class="modechip is-selected" role="radio" aria-checked="true"><span class="check" aria-hidden="true">✓</span>Dark</button>
-        <button type="button" class="modechip" role="radio" aria-checked="false">High contrast</button>
+      <div class="mode">
+        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="false" aria-label="Appearance: Dark"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M15 8 A5 5 0 1 0 15 16 A4 4 0 0 1 15 8 Z"/></svg></button>
       </div>
       <button class="signout">Sign out</button>
+    </header>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Account menu</h2>
+  <p class="note">The account menu absorbs the standalone Sign out button (Code Owner call, 2026-07-31): the earlier sections' bare Sign out demos document the pre-032 state, and the .signout spec remains the ghost-button reference; new builds compose the trailing group as appearance dropdown plus account menu. Sign out inside the menu keeps its confirmation-free immediate behavior; Change password routes to the settings password screen. Same keyboard contract as the appearance menu: the trigger opens with Enter, Space, or Arrow Down, the menu is arrow-navigated, and Escape closes it and returns focus to the trigger. The trigger itself is an initials monogram (second Code Owner pass, 2026-07-31), not an external avatar service: the app makes zero off-origin requests and there is no image upload today, and if an avatar image field ever ships it slots into this same circle without a layout change. The full email now lives only in the menu's Signed in as header row, since the circular trigger no longer shows it. The circle is a deliberate, documented exception to the file's sharp-corners character: an identity glyph, not a control surface.</p>
+
+  <h3>Closed, trailing group composition</h3>
+  <div class="frame">
+    <header class="topbar">
+      <span class="brand"><span class="mark">QCMS</span></span>
+      <nav aria-label="Primary">
+        <a href="#" class="navitem" aria-current="page">Questions</a>
+        <a href="#" class="navitem">Forms</a>
+        <a href="#" class="navitem">Responses</a>
+        <a href="#" class="navitem">Webhooks</a>
+        <a href="#" class="navitem">Settings</a>
+      </nav>
+      <div class="mode">
+        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="false" aria-label="Appearance: Dark"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M15 8 A5 5 0 1 0 15 16 A4 4 0 0 1 15 8 Z"/></svg></button>
+      </div>
+      <div class="account">
+        <button type="button" class="avatar" aria-haspopup="menu" aria-expanded="false" aria-label="Account menu for op@example.test">OP</button>
+      </div>
+    </header>
+  </div>
+
+  <h3>Open, account menu</h3>
+  <div class="frame" style="min-height: 200px;">
+    <header class="topbar">
+      <span class="brand"><span class="mark">QCMS</span></span>
+      <nav aria-label="Primary">
+        <a href="#" class="navitem" aria-current="page">Questions</a>
+        <a href="#" class="navitem">Forms</a>
+        <a href="#" class="navitem">Responses</a>
+        <a href="#" class="navitem">Webhooks</a>
+        <a href="#" class="navitem">Settings</a>
+      </nav>
+      <div class="mode">
+        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="false" aria-label="Appearance: Dark"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M15 8 A5 5 0 1 0 15 16 A4 4 0 0 1 15 8 Z"/></svg></button>
+      </div>
+      <div class="account">
+        <button type="button" class="avatar" aria-haspopup="menu" aria-expanded="true" aria-label="Account menu for op@example.test">OP</button>
+        <div class="modemenu" role="menu" aria-label="Account">
+          <div class="acctinfo" role="presentation">
+            <span class="who">Signed in as</span>
+            <span class="email">op@example.test</span>
+          </div>
+          <div style="height: 1px; background: var(--color-border); margin: 6px 4px;"></div>
+          <button type="button" class="modeitem" role="menuitem">Change password</button>
+          <button type="button" class="modeitem" role="menuitem">Sign out</button>
+        </div>
+      </div>
+    </header>
+  </div>
+
+  <h3>High-contrast treatment, open</h3>
+  <div class="frame demo-hc" style="min-height: 200px;">
+    <header class="topbar">
+      <span class="brand"><span class="mark">QCMS</span></span>
+      <nav aria-label="Primary">
+        <a href="#" class="navitem" aria-current="page">Questions</a>
+        <a href="#" class="navitem">Forms</a>
+        <a href="#" class="navitem">Responses</a>
+        <a href="#" class="navitem">Webhooks</a>
+        <a href="#" class="navitem">Settings</a>
+      </nav>
+      <div class="mode">
+        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="false" aria-label="Appearance: High contrast"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="5"/><path d="M12 7 A5 5 0 0 0 12 17 Z" fill="currentColor" stroke="none"/></svg></button>
+      </div>
+      <div class="account">
+        <button type="button" class="avatar" aria-haspopup="menu" aria-expanded="true" aria-label="Account menu for op@example.test">OP</button>
+        <div class="modemenu" role="menu" aria-label="Account">
+          <div class="acctinfo" role="presentation">
+            <span class="who">Signed in as</span>
+            <span class="email">op@example.test</span>
+          </div>
+          <div style="height: 1px; background: var(--color-border); margin: 6px 4px;"></div>
+          <button type="button" class="modeitem" role="menuitem">Change password</button>
+          <button type="button" class="modeitem" role="menuitem">Sign out</button>
+        </div>
+      </div>
+    </header>
+  </div>
+
+  <h3>Narrow viewport (390px), closed</h3>
+  <div class="frame" style="width: 390px;">
+    <header class="topbar">
+      <span class="brand"><span class="mark">QCMS</span></span>
+      <nav aria-label="Primary">
+        <a href="#" class="navitem" aria-current="page">Questions</a>
+        <a href="#" class="navitem">Forms</a>
+        <a href="#" class="navitem">Responses</a>
+        <a href="#" class="navitem">Webhooks</a>
+        <a href="#" class="navitem">Settings</a>
+      </nav>
+      <div class="mode">
+        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="false" aria-label="Appearance: Dark"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M15 8 A5 5 0 1 0 15 16 A4 4 0 0 1 15 8 Z"/></svg></button>
+      </div>
+      <div class="account">
+        <button type="button" class="avatar" aria-haspopup="menu" aria-expanded="false" aria-label="Account menu for op@example.test">OP</button>
+      </div>
     </header>
   </div>
 </div>
