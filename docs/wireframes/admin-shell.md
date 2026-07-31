@@ -15,7 +15,7 @@
 
 ## Regions (normative)
 
-- **shell top bar**: logo slot · primary nav - Questions / Forms / Responses / Webhooks / Settings (links; active state visible) · sign-out `button` (icon + label).
+- **shell top bar**: logo slot · primary nav - Questions / Forms / Responses / Webhooks / Settings (links; active state visible) · appearance mode control · sign-out `button` (icon + label). **Added by 055 (theme application, screenshot gate `docs/gates/055/`):** the mode control is a three-option radio group (Light / Dark / High contrast) in the bar's trailing group. It is chrome, not a screen: no state, no route, nothing else in this wireframe changes. Default follows `prefers-color-scheme`; an explicit choice persists per operator; high-contrast is only ever explicit.
 - **content**: the routed area screen. Breadcrumb (`breadcrumb`) at content top on nested routes (e.g. Forms / {form} / Builder).
 - **Settings** area at launch: account (change password → sessions invalidated), 2FA re-enrollment, nothing else (RBAC etc. is Phase 4).
 
@@ -37,6 +37,6 @@ signed-out · sign-in error (generic) · sign-in throttled · 2FA-enroll · reco
 
 ## A11y notes
 
-- Sign-in error `alert` receives focus. QR screen: manual secret is the accessible alternative to the QR image (labeled, copyable). Recovery codes announced as a list (the copy-all status text goes with the deferred copy-all button above). Nav is a labeled landmark; active page `aria-current`. axe gate active from 031.
+- Sign-in error `alert` receives focus. QR screen: manual secret is the accessible alternative to the QR image (labeled, copyable). Recovery codes announced as a list (the copy-all status text goes with the deferred copy-all button above). Nav is a labeled landmark; active page `aria-current`. axe gate active from 031, and from 055 it runs in all three modes rather than only the one the machine prefers. Active nav is never colour-only (weight plus an accent underline); nor is the mode control's selected chip (heavier border, bolder label, a check glyph), which is the one control an operator in high-contrast has to be able to read.
 
 Signed off: Code Owner, 2026-07-21

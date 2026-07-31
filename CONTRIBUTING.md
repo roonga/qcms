@@ -128,11 +128,14 @@ pnpm verify:browser   # the Playwright suite (portal e2e + a11y + Lighthouse), s
 | `pnpm check:licenses` | `pnpm check:all` |
 | `pnpm check:no-em-dash` | `pnpm check:all` |
 | `pnpm check:duplication` | `pnpm check:all` |
+| `pnpm check:admin-theme` | `pnpm check:all` |
 | `e2e` job (`--project qcms-api-e2e`) | `pnpm test` (apps/api's `test` script runs that project) |
 | `portal-e2e` job (`playwright test`) | **`pnpm verify:browser`** - deliberately not in `verify` |
 | `codeql.yml`, `mirror-test-images.yml` | Not local gates (GitHub-hosted analysis / image mirroring) |
 
 `check:changeset` is new with this gate: it enforces the "Changeset for any change to a publishable package" merge requirement (issue #55, folded into #19), locally and in CI.
+
+**`check:admin-theme` in one paragraph** (task 055). Three properties of the QCMS app's own styling, none of which a diff shows once the app grows: every colour in `apps/admin` outside `apps/admin/app/theme.css` is a `var(--...)` reference (a raw hex or a Tailwind palette utility looks right in whichever mode the author had open and is wrong in the other two); the landed sheet is byte-identical to `plan/admin-theme/tokens.css`, which is generated behind a WCAG contrast gate, so a hand-edit cannot keep the published contrast table while losing the property it certifies; and no value in the app's message catalog names the app "admin" (the product is QCMS and the respondent app is the Portal - code identifiers such as `apps/admin` and `qcms-admin` are deliberately untouched). Comments are excluded from both scans, so a comment citing `issue #177` or describing the app by its directory is fine.
 
 **Why the browser suite is separate.** `verify` is minutes long already; adding a browser boot, Docker Postgres, and two Lighthouse runs to *every* iteration is how a gate gets routed around. Run `pnpm verify:browser` before landing anything that touches `apps/portal`, `apps/admin`, or `@qcms/ui` - and note it is the only part of CI a green `verify` does not vouch for.
 

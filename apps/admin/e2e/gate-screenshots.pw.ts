@@ -117,15 +117,11 @@ test("enrolls the account the rest of the capture signs in with", async ({ page 
 
 for (const mode of MODES) {
   test(`captures the ${mode} set`, async ({ page }) => {
-    await page.context().addCookies([
-      {
-        name: "qcms-app-mode",
-        value: mode,
-        url: ADMIN_BASE_URL,
-        path: "/",
-        sameSite: "Lax",
-      },
-    ]);
+    // `url` rather than `domain` + `path`: Playwright takes one form or the other,
+    // and the base URL is the one this project already knows.
+    await page
+      .context()
+      .addCookies([{ name: "qcms-app-mode", value: mode, url: ADMIN_BASE_URL, sameSite: "Lax" }]);
 
     await page.goto("/sign-in");
     await capture(page, `sign-in-${mode}`);
