@@ -36,73 +36,83 @@ export default async function SettingsPage({
     <div className="flex flex-col gap-6">
       <h1 className="text-xl font-semibold text-(--color-text)">{t("settings.title")}</h1>
 
-      <Card padding="md" radius="md" border>
-        <div className="flex flex-col gap-3">
-          <h2 className="text-base font-semibold text-(--color-text)">{t("settings.account")}</h2>
-          <p className="text-sm text-(--color-text-muted)">
-            {t("settings.signedInAs", { email: session.email })}
-          </p>
-        </div>
-      </Card>
+      <div className="qcms-card">
+        <Card padding="md" radius="md" border>
+          <div className="flex flex-col gap-3">
+            <h2 className="text-base font-semibold text-(--color-text)">{t("settings.account")}</h2>
+            <p className="text-sm text-(--color-text-muted)">
+              {t("settings.signedInAs", { email: session.email })}
+            </p>
+          </div>
+        </Card>
+      </div>
 
-      <Card padding="md" radius="md" border>
-        <div className="flex flex-col gap-4">
-          <h2 className="text-base font-semibold text-(--color-text)">
-            {t("settings.passwordTitle")}
-          </h2>
-          <p className="text-sm text-(--color-text-muted)">{t("settings.passwordIntro")}</p>
-          {/* No wrapper `role` on either: the vendored `Alert` already renders
+      <div className="qcms-card">
+        <Card padding="md" radius="md" border>
+          <div className="flex flex-col gap-4">
+            <h2 className="text-base font-semibold text-(--color-text)">
+              {t("settings.passwordTitle")}
+            </h2>
+            <p className="text-sm text-(--color-text-muted)">{t("settings.passwordIntro")}</p>
+            {/* No wrapper `role` on either: the vendored `Alert` already renders
               `role="alert"`, and nesting a second live region for one message means it
               is announced twice. */}
-          {params.changed !== undefined && (
-            <Alert variant="success">{t("settings.passwordChanged")}</Alert>
-          )}
-          {/* The same generic sentence as every other auth failure: a wrong current
+            {params.changed !== undefined && (
+              <Alert variant="success">{t("settings.passwordChanged")}</Alert>
+            )}
+            {/* The same generic sentence as every other auth failure: a wrong current
               password must not be distinguishable from a rejected new one (SEC-1). */}
-          {params.error !== undefined && <Alert variant="error">{t("signIn.error")}</Alert>}
-          <form method="post" action="/settings/password" className="flex max-w-sm flex-col gap-4">
-            <TextField
-              name="currentPassword"
-              type="password"
-              label={t("settings.currentPassword")}
-              autoComplete="current-password"
-              isRequired
-            />
-            <TextField
-              name="newPassword"
-              type="password"
-              label={t("settings.newPassword")}
-              autoComplete="new-password"
-              minLength={MIN_PASSWORD_LENGTH}
-              isRequired
-            />
-            <Button type="submit" variant="primary" size="md">
-              {t("action.savePassword")}
-            </Button>
-          </form>
-        </div>
-      </Card>
+            {params.error !== undefined && <Alert variant="error">{t("signIn.error")}</Alert>}
+            <form
+              method="post"
+              action="/settings/password"
+              className="flex max-w-sm flex-col gap-4"
+            >
+              <TextField
+                name="currentPassword"
+                type="password"
+                label={t("settings.currentPassword")}
+                autoComplete="current-password"
+                isRequired
+              />
+              <TextField
+                name="newPassword"
+                type="password"
+                label={t("settings.newPassword")}
+                autoComplete="new-password"
+                minLength={MIN_PASSWORD_LENGTH}
+                isRequired
+              />
+              <Button type="submit" variant="primary" size="md">
+                {t("action.savePassword")}
+              </Button>
+            </form>
+          </div>
+        </Card>
+      </div>
 
-      <Card padding="md" radius="md" border>
-        <div className="flex flex-col gap-3">
-          <h2 className="text-base font-semibold text-(--color-text)">
-            {t("settings.twoFactorTitle")}
-          </h2>
-          {/* Prose, not an `Alert`: the vendored Alert is a live region (`role="alert"`),
+      <div className="qcms-card">
+        <Card padding="md" radius="md" border>
+          <div className="flex flex-col gap-3">
+            <h2 className="text-base font-semibold text-(--color-text)">
+              {t("settings.twoFactorTitle")}
+            </h2>
+            {/* Prose, not an `Alert`: the vendored Alert is a live region (`role="alert"`),
               and this is standing state rather than something that just happened. As an
               Alert it announced itself on every visit to Settings and competed with the
               real password-change message for the screen reader's attention. */}
-          <p
-            className={
-              session.twoFactorEnabled
-                ? "text-sm text-(--color-success-fg)"
-                : "text-sm text-(--color-warning-fg)"
-            }
-          >
-            {session.twoFactorEnabled ? t("settings.twoFactorOn") : t("settings.twoFactorOff")}
-          </p>
-        </div>
-      </Card>
+            <p
+              className={
+                session.twoFactorEnabled
+                  ? "text-sm text-(--color-success-fg)"
+                  : "text-sm text-(--color-warning-fg)"
+              }
+            >
+              {session.twoFactorEnabled ? t("settings.twoFactorOn") : t("settings.twoFactorOff")}
+            </p>
+          </div>
+        </Card>
+      </div>
     </div>
   );
 }

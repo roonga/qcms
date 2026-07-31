@@ -37,19 +37,18 @@ export function AdminNav() {
   const pathname = usePathname();
   return (
     <nav aria-label={t("nav.label")}>
-      <ul className="flex flex-wrap items-center gap-x-4 gap-y-1">
+      <ul className="flex flex-wrap items-center gap-1">
         {ITEMS.map((item) => {
           const active = isActive(pathname, item.href);
           return (
             <li key={item.href}>
+              {/* One class in both states: the active treatment is selected by the
+                  `aria-current` attribute in `globals.css`, so the accessible signal
+                  and the visual one cannot drift apart the way two class strings can. */}
               <Link
                 href={item.href}
                 aria-current={active ? "page" : undefined}
-                className={
-                  active
-                    ? "text-sm font-semibold text-(--color-primary) underline underline-offset-4"
-                    : "text-sm text-(--color-text-muted) hover:text-(--color-text)"
-                }
+                className="qcms-nav__link"
               >
                 {item.label}
               </Link>

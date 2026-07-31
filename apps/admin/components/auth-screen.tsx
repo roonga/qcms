@@ -33,26 +33,31 @@ export function AuthScreen({
 }) {
   return (
     <main
-      id="admin-main"
+      id="main-content"
       className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center p-4"
     >
-      <Card padding="lg" radius="md" border>
-        <div className="flex flex-col gap-4">
-          <h1 className="text-xl font-semibold text-(--color-text)">{title}</h1>
-          {intro !== undefined && <p className="text-sm text-(--color-text-muted)">{intro}</p>}
-          {error !== undefined && (
-            /* `autoFocus` is required by the wireframe's a11y notes ("sign-in error
-               alert receives focus") and is safe here specifically because this
-               element only exists on the response to a failed POST: it is never
-               competing with another control for initial focus. */
-            <div tabIndex={-1} autoFocus>
-              <Alert variant="error">{error}</Alert>
-            </div>
-          )}
-          {children}
-        </div>
-      </Card>
-      <p className="mt-4 text-center text-xs text-(--color-text-muted)">{t("app.title")}</p>
+      {/* `qcms-card` carries the app's layered shadow. The vendored `Card` takes no
+          className (ADR-22: it is the component, not a QCMS variant of it), so the
+          chrome the theme adds rides on the element around it. */}
+      <div className="qcms-card">
+        <Card padding="lg" radius="md" border>
+          <div className="flex flex-col gap-4">
+            <h1 className="text-xl font-bold text-(--color-text)">{title}</h1>
+            {intro !== undefined && <p className="text-sm text-(--color-text-muted)">{intro}</p>}
+            {error !== undefined && (
+              /* `autoFocus` is required by the wireframe's a11y notes ("sign-in error
+                 alert receives focus") and is safe here specifically because this
+                 element only exists on the response to a failed POST: it is never
+                 competing with another control for initial focus. */
+              <div tabIndex={-1} autoFocus>
+                <Alert variant="error">{error}</Alert>
+              </div>
+            )}
+            {children}
+          </div>
+        </Card>
+      </div>
+      <p className="qcms-wordmark mt-5 text-center text-xs">{t("app.title")}</p>
     </main>
   );
 }

@@ -1,0 +1,274 @@
+import type { Locator, Page } from "@playwright/test";
+
+import { expect, test } from "../../portal/e2e/support/gates.js";
+
+import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
+import { readSetupKey, signInWithTotp, submitSignIn, submitTotp } from "./support/flow.js";
+
+/**
+ * The QCMS app's appearance behaviour (task 055, exit criteria 3 and 4).
+ *
+ * What is asserted here, and why each one is a browser test rather than a unit test:
+ *
+ *  - **The default follows `prefers-color-scheme`.** That signal exists only in a
+ *    real browser, and the mechanism carrying it is a media block inside the token
+ *    sheet - CSS that no unit test can execute.
+ *  - **High-contrast is never inferred.** The interesting case is `prefers-contrast:
+ *    more`, where the portal DOES switch to High-contrast and this app deliberately
+ *    does not. Only a browser can tell the two apps apart on that input.
+ *  - **A choice persists and repaints with no flash.** The proof that the server
+ *    stamped the class rather than a script correcting it after load is a
+ *    measurement of the first painted frames, which needs a compositor.
+ *  - **Lexend actually loads.** A computed `font-family` proves the token; the
+ *    `FontFace` status proves the file behind it was fetched and parsed rather than
+ *    silently falling back to the system stack.
+ *
+ * NOTHING here hard-codes a colour. Every assertion reads the token the sheet
+ * resolved and compares its luminance, so a future palette revision changes the
+ * numbers without touching this file - and a palette that stopped switching at all
+ * still fails.
+ */
+
+test.describe.configure({ mode: "serial" });
+
+const EMAIL = uniqueAdminEmail("appearance");
+const MODES = ["light", "dark", "hc"] as const;
+type Mode = (typeof MODES)[number];
+
+/** Set by the first test, which walks the account through enrollment. */
+let totpSecret = "";
+
+test.beforeAll(async () => {
+  await createTestAdmin(EMAIL);
+});
+
+/** The mode classes present on the root element, in the sheet's own vocabulary. */
+async function rootModes(page: Page): Promise<string[]> {
+  const className = await page.evaluate(() => document.documentElement.className);
+  return MODES.filter((mode) => className.split(/\s+/u).includes(mode));
+}
+
+/**
+ * The resolved value of a colour token, normalised to `rgb(...)` by the browser.
+ *
+ * Read through a probe element rather than from the custom property directly,
+ * because `getPropertyValue` hands back the authored text (`#0b0f1a`) while
+ * everything worth comparing it to is computed (`rgb(11, 15, 26)`). Setting the
+ * probe's `color` and reading it back makes the browser do the conversion.
+ */
+async function token(page: Page, name: string): Promise<string> {
+  return page.evaluate((property) => {
+    const probe = document.createElement("span");
+    probe.style.color = `var(${property})`;
+    document.body.append(probe);
+    const value = getComputedStyle(probe).color;
+    probe.remove();
+    return value;
+  }, name);
+}
+
+/** WCAG relative luminance of an `rgb(...)` string, 0 (black) to 1 (white). */
+function luminance(rgb: string): number {
+  const parts =
+    rgb
+      .match(/\d+(?:\.\d+)?/gu)
+      ?.slice(0, 3)
+      .map(Number) ?? [];
+  const channels = parts.map((value) => {
+    const s = value / 255;
+    return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * (channels[0] ?? 0) + 0.7152 * (channels[1] ?? 0) + 0.0722 * (channels[2] ?? 0);
+}
+
+/**
+ * Assert the page is painted in `mode`, from the tokens rather than from a list of
+ * colours: Light and High-contrast are both light-on-dark-text but High-contrast
+ * pushes text to pure black, and Dark inverts the pair entirely.
+ */
+async function expectPalette(page: Page, mode: Mode, label: string): Promise<void> {
+  const background = luminance(await token(page, "--color-background"));
+  const text = luminance(await token(page, "--color-text"));
+  // The body actually wears the background token - the theme is applied, not just declared.
+  expect(
+    await computed(page.locator("body"), "background-color"),
+    `${label}: body background`,
+  ).toBe(await token(page, "--color-background"));
+
+  if (mode === "dark") {
+    expect(background, `${label}: background should be dark`).toBeLessThan(0.1);
+    expect(text, `${label}: text should be light`).toBeGreaterThan(0.5);
+    return;
+  }
+  expect(background, `${label}: background should be light`).toBeGreaterThan(0.8);
+  expect(text, `${label}: text should be dark`).toBeLessThan(0.1);
+  // High-contrast is the only mode that takes text all the way to black.
+  if (mode === "hc") expect(text, `${label}: HC text is pure black`).toBe(0);
+  else expect(text, `${label}: Light text is not pure black`).toBeGreaterThan(0);
+}
+
+async function computed(locator: Locator, property: string): Promise<string> {
+  return locator.evaluate(
+    (element, name) => getComputedStyle(element).getPropertyValue(name),
+    property,
+  );
+}
+
+/** The mode chip for one mode, by its stable data hook. */
+function chip(page: Page, mode: Mode): Locator {
+  return page.locator(`.qcms-mode__chip[data-value="${mode}"]`);
+}
+
+test("enrolls the account the shell tests sign in with", async ({ page }) => {
+  await submitSignIn(page, EMAIL);
+  await expect(page).toHaveURL(/\/two-factor\/enroll$/);
+  totpSecret = await readSetupKey(page);
+  await submitTotp(page, totpSecret);
+  await expect(page).toHaveURL(/\/two-factor\/recovery-codes$/);
+  await page.getByRole("button", { name: "I have saved these codes" }).click();
+  await expect(page).toHaveURL(/\/questions$/);
+});
+
+test("with no choice made, the app follows prefers-color-scheme", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light", contrast: "no-preference" });
+  await page.goto("/sign-in");
+  // No class at all: Light is the sheet's bare `:root` block, and the absence is
+  // what lets the media block take over when the machine prefers dark.
+  expect(await rootModes(page)).toEqual([]);
+  await expectPalette(page, "light", "OS prefers light");
+
+  await page.emulateMedia({ colorScheme: "dark" });
+  expect(await rootModes(page)).toEqual([]);
+  await expectPalette(page, "dark", "OS prefers dark");
+
+  // Nothing was persisted: an operator who has expressed no preference has no cookie.
+  const cookies = await page.context().cookies();
+  expect(cookies.map((c) => c.name)).not.toContain("qcms-app-mode");
+});
+
+test("high-contrast is never inferred, whatever the machine asks for", async ({ page }) => {
+  // The portal DOES resolve `prefers-contrast: more` to High-contrast (task 053).
+  // This app deliberately does not: HC changes far more than a palette, and the
+  // operator chooses it or it does not happen.
+  await page.emulateMedia({ colorScheme: "light", contrast: "more" });
+  await page.goto("/sign-in");
+  expect(await rootModes(page), "prefers-contrast must not select HC").toEqual([]);
+  await expectPalette(page, "light", "OS prefers contrast, light");
+
+  await page.emulateMedia({ colorScheme: "dark", contrast: "more" });
+  expect(await rootModes(page), "prefers-contrast must not select HC").toEqual([]);
+  await expectPalette(page, "dark", "OS prefers contrast, dark");
+});
+
+test("Lexend is the app face, and the file behind it really loaded", async ({ page }) => {
+  await page.goto("/sign-in");
+  await expect
+    .poll(async () => computed(page.locator("body"), "font-family"))
+    .toMatch(/^"?Lexend"?/u);
+
+  // The token reaches the vendored controls too, which inherit rather than declare.
+  await expect(page.getByLabel("Email")).toHaveCSS("font-family", /Lexend/u);
+
+  const statuses = await page.evaluate(async () => {
+    await document.fonts.ready;
+    return [...document.fonts].filter((face) => face.family === "Lexend").map((f) => f.status);
+  });
+  expect(statuses, "the Lexend face should be declared once and loaded").toEqual(["loaded"]);
+});
+
+test("the mode control moves through all three modes and persists across a reload", async ({
+  page,
+}) => {
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await expect(page.getByTestId("mode-control")).toBeVisible();
+
+  for (const mode of MODES) {
+    await chip(page, mode).click();
+    expect(await rootModes(page), `after choosing ${mode}`).toEqual([mode]);
+    await expectPalette(page, mode, `after choosing ${mode}`);
+
+    // The reload is the persistence proof, and it is a SERVER-side one: the class is
+    // in the HTML the server sent, so nothing had to run in the document to fix it.
+    await page.reload();
+    expect(await rootModes(page), `${mode} survives a reload`).toEqual([mode]);
+    await expect(chip(page, mode)).toHaveAttribute("data-selected", "true");
+    await expectPalette(page, mode, `${mode} after reload`);
+  }
+});
+
+test("an explicit Light choice outranks a dark-preferring machine", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "dark" });
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await chip(page, "light").click();
+  await page.reload();
+  expect(await rootModes(page)).toEqual(["light"]);
+  await expectPalette(page, "light", "explicit Light on a dark machine");
+});
+
+test("a persisted choice is on screen in the first painted frame", async ({ page }) => {
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await chip(page, "dark").click();
+
+  /*
+   * The no-flash proof has to be a measurement, not an assertion about the end state,
+   * which is always right by the time a test looks. A `requestAnimationFrame`
+   * callback runs immediately BEFORE the browser paints that frame, so the first
+   * sample with a `<body>` in it is the earliest frame in which the page background
+   * could have appeared at all. If that colour is already the settled one, no other
+   * colour was ever on screen. (`querySelector` rather than `document.body` purely
+   * for the type: the DOM lib declares `body` non-nullable, and during parsing it
+   * genuinely is not there yet - which is exactly the frame worth sampling.)
+   */
+  await page.addInitScript(() => {
+    const store = window as unknown as { __qcmsFrames?: { cls: string; bg: string | null }[] };
+    store.__qcmsFrames = [];
+    const sample = (): void => {
+      const frames = store.__qcmsFrames;
+      if (frames === undefined || frames.length >= 6) return;
+      const body = document.querySelector("body");
+      frames.push({
+        cls: document.documentElement.className,
+        bg: body === null ? null : getComputedStyle(body).backgroundColor,
+      });
+      requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+  });
+
+  await page.reload();
+  const settled = await computed(page.locator("body"), "background-color");
+  const frames = await page.evaluate(
+    () =>
+      (window as unknown as { __qcmsFrames: { cls: string; bg: string | null }[] }).__qcmsFrames,
+  );
+
+  expect(frames.length, "no frames were sampled").toBeGreaterThan(0);
+  for (const [index, frame] of frames.entries()) {
+    expect(frame.cls.split(/\s+/u), `frame ${index} classes`).toContain("dark");
+  }
+  const firstPainted = frames.find((frame) => frame.bg !== null);
+  expect(firstPainted, "no sampled frame had a <body>").toBeDefined();
+  expect(
+    firstPainted?.bg,
+    `the first painted frame was ${String(firstPainted?.bg)} but the page settled at ${settled} - that difference IS the flash`,
+  ).toBe(settled);
+});
+
+test("the selected chip is distinguishable without colour, including in High-contrast", async ({
+  page,
+}) => {
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await chip(page, "hc").click();
+  expect(await rootModes(page)).toEqual(["hc"]);
+
+  const selected = chip(page, "hc");
+  const unselected = chip(page, "light");
+  // Three non-colour differences, each of which survives a two-colour palette.
+  expect(await computed(selected, "border-top-width")).toBe("2px");
+  expect(await computed(unselected, "border-top-width")).toBe("1px");
+  expect(Number(await computed(selected, "font-weight"))).toBeGreaterThan(
+    Number(await computed(unselected, "font-weight")),
+  );
+  await expect(selected.locator(".qcms-mode__mark")).toHaveText("✓");
+  await expect(unselected.locator(".qcms-mode__mark")).toHaveText("");
+});

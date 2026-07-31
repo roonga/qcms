@@ -102,6 +102,57 @@
   --shadow-color: 222deg 60% 2%;
 }
 
+/* Auto: with no mode class on the root, the sheet follows the operating system.
+   This is what makes "no explicit choice" resolve to the machine's preference
+   with no script and no flash - the server can stamp a class only when the
+   operator has chosen one, and this block covers the case where it cannot.
+   Dark is the ONLY inferred mode: there is deliberately no prefers-contrast
+   companion, because .hc is only ever an explicit choice.
+   :not(.light) is what makes an explicit Light choice stick on a
+   dark-preferring machine. Light is the bare :root block above, so the
+   light class carries no values of its own and exists only to opt out here. */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light):not(.dark):not(.hc) {
+    --color-primary: #7aa2ff;
+    --color-primary-hover: #8fb1ff;
+    --color-primary-active: #a1beff;
+    --color-primary-foreground: #0b0f1a;
+    --color-secondary: #97a2b8;
+    --color-secondary-hover: #a3adc1;
+    --color-secondary-active: #aeb6c8;
+    --color-secondary-foreground: #0b0f1a;
+    --color-danger: #ff7b80;
+    --color-danger-hover: #ff8b8f;
+    --color-danger-active: #ff989c;
+    --color-danger-foreground: #0b0f1a;
+    --color-danger-subtle: #2b1615;
+    --color-danger-fg: #ffb3b5;
+    --color-ghost: transparent;
+    --color-ghost-hover: #1b2230;
+    --color-ghost-active: #232c3c;
+    --color-info: #7aa2ff;
+    --color-info-subtle: #16233a;
+    --color-info-fg: #a9c4ff;
+    --color-success: #46c08a;
+    --color-success-subtle: #132a20;
+    --color-success-fg: #8fe0bd;
+    --color-warning: #e0a93b;
+    --color-warning-subtle: #2a2110;
+    --color-warning-fg: #f0cd85;
+    --color-text: #e6eaf2;
+    --color-text-muted: #97a2b8;
+    --color-border: #262e3d;
+    --color-border-strong: #626c88;
+    --color-background: #0b0f1a;
+    --color-background-muted: #10151f;
+    --color-surface: #141a26;
+    --color-surface-hover: #1b2230;
+    --color-focus-ring: #7aa2ff;
+    --color-overlay: rgb(0 0 0 / 0.6);
+    --shadow-color: 222deg 60% 2%;
+  }
+}
+
 /* High-contrast: the universal HC mode-layer (carried verbatim from the 051
    registry so this sheet is self-contained) plus the QCMS app's cobalt accent -
    the accent is the only part the QCMS app contributes, like any theme. */

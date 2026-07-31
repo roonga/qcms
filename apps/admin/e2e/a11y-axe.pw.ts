@@ -25,8 +25,22 @@ import { readSetupKey, signInWithTotp, submitSignIn, submitTotp } from "./suppor
  * fix (docs/RETRO.md).
  *
  * `color-contrast` is enabled here, unlike in the jsdom component tests where no canvas
- * exists to measure it: this is a real browser, and the admin's Cobalt palette against the
+ * exists to measure it: this is a real browser, and the app's Cobalt palette against the
  * shared neutrals is precisely the pair worth checking.
+ *
+ * ## Every state, in every mode (task 055, exit criterion 5)
+ *
+ * `color-contrast` is the one axe rule whose answer depends on the mode, and it is
+ * exactly the rule an operator relies on, so running the gate only in the mode the test
+ * machine happens to prefer would leave two thirds of the palette unchecked. Each state is
+ * therefore analysed three times.
+ *
+ * The mode is applied by setting the root class directly rather than by re-navigating with
+ * a cookie, and the saving is the point: the class is the only input the palette has, and a
+ * re-navigation per mode would triple the sign-ins and page loads in this file to measure
+ * the same pixels. That the class arrives correctly from a cookie, from
+ * `prefers-color-scheme`, and from the control itself is proved in `appearance.pw.ts`,
+ * which is where that mechanism belongs.
  *
  * Each test signs in for itself: Playwright gives every test a fresh browser context, and
  * sharing one would disable the shared console gate (see `support/flow.ts`).
@@ -35,6 +49,32 @@ import { readSetupKey, signInWithTotp, submitSignIn, submitTotp } from "./suppor
 test.describe.configure({ mode: "serial" });
 
 const EMAIL = uniqueAdminEmail("a11y");
+
+/**
+ * Wait until every running transition has finished.
+ *
+ * Load-bearing, and it cost a cycle to find: the vendored controls carry
+ * `transition-colors`, so switching the mode class starts a colour animation, and axe
+ * sampling immediately measured a MID-TRANSITION pair - a white-fading-to-dark label
+ * over a blue-fading-to-light button, at a ratio (3.72, then 2.17 on the next run)
+ * that exists for a tenth of a second and is nobody's experience. Two runs disagreeing
+ * on the number is the signature.
+ *
+ * `document.getAnimations()` is the exact question ("is anything still animating?"),
+ * so this settles as fast as the page does. A `waitForTimeout` would have hidden the
+ * same race behind a number that is too small on a loaded machine, and emulating
+ * reduced motion would have measured a configuration rather than removing the race.
+ */
+async function settleTransitions(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    await new Promise((resolve) => {
+      requestAnimationFrame(() => resolve(undefined));
+    });
+    await Promise.all(
+      document.getAnimations().map((animation) => animation.finished.catch(() => undefined)),
+    );
+  });
+}
 
 /** Set by the enrollment test; stable once the factor is confirmed. */
 let totpSecret = "";
@@ -46,14 +86,48 @@ test.beforeAll(async () => {
 /** WCAG 2.2 AA, the same rule set the portal gate uses. */
 const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
+/** The sheet's three mode layers. Light is the bare root, so it has no class. */
+const MODES = [
+  { name: "light", rootClass: "" },
+  { name: "dark", rootClass: "dark" },
+  { name: "high-contrast", rootClass: "hc" },
+] as const;
+
 async function expectNoViolations(page: Page, state: string): Promise<void> {
-  const results = await new AxeBuilder({ page }).withTags(TAGS).analyze();
-  // Name the state and the rules in the failure message: an axe failure reported as a bare
-  // count costs a second run to diagnose.
-  expect(
-    results.violations.map((v) => `${v.id}: ${v.help}`),
-    `axe violations on the ${state} state`,
-  ).toEqual([]);
+  const original = await page.evaluate(() => document.documentElement.className);
+  try {
+    for (const mode of MODES) {
+      await page.evaluate((rootClass) => {
+        for (const candidate of ["light", "dark", "hc"]) {
+          document.documentElement.classList.remove(candidate);
+        }
+        if (rootClass !== "") document.documentElement.classList.add(rootClass);
+      }, mode.rootClass);
+      await settleTransitions(page);
+
+      const results = await new AxeBuilder({ page }).withTags(TAGS).analyze();
+      // Name the state, the mode, the rule AND the element in the failure message. An
+      // axe failure reported as a bare count costs a second run to diagnose; one
+      // reported without the mode costs a third; and a `color-contrast` failure
+      // reported without the node and the measured ratio costs a fourth, because the
+      // whole point of running per mode is that the offender differs between them.
+      expect(
+        results.violations.map(
+          (v) =>
+            `${v.id}: ${v.help} [${v.nodes
+              .map((node) => `${node.target.join(" ")} - ${node.failureSummary ?? ""}`)
+              .join(" | ")}]`,
+        ),
+        `axe violations on the ${state} state in ${mode.name}`,
+      ).toEqual([]);
+    }
+  } finally {
+    // Leave the page as it was found, so a caller that keeps interacting with it is not
+    // silently driving a screen in a mode it never selected.
+    await page.evaluate((className) => {
+      document.documentElement.className = className;
+    }, original);
+  }
 }
 
 test("the signed-out and failure states have zero violations", async ({ page }) => {

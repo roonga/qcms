@@ -46,7 +46,12 @@ export default async function EnrollPage({
   const secret = new URL(totpUri).searchParams.get("secret") ?? "";
   const qrSvg = await QRCode.toString(totpUri, {
     type: "svg",
-    margin: 1,
+    // The quiet zone belongs to the CODE, not to a frame around it. Task 031 got it
+    // with a white CSS background on the wrapper, which was the only literal colour
+    // left in the app and, worse, the wrong mechanism: a scanner needs the light
+    // margin whatever mode the operator is in, and the generated SVG already paints
+    // its own. Two modules is the visual equivalent of the frame it replaces.
+    margin: 2,
     // Fixed size rather than scale: the SVG is inlined and then constrained by CSS,
     // so the intrinsic size only needs to be large enough to stay legible.
     width: 200,
@@ -56,7 +61,7 @@ export default async function EnrollPage({
     <AuthScreen title={t("enroll.title")} intro={t("enroll.intro")} error={error}>
       <div
         aria-hidden="true"
-        className="mx-auto w-[200px] rounded bg-white p-2"
+        className="qcms-qr"
         // The SVG is generated from the otpauth URI by `qrcode` in this process:
         // no user input reaches it, so there is no injection surface here.
         dangerouslySetInnerHTML={{ __html: qrSvg }}

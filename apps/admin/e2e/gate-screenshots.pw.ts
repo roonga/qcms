@@ -1,10 +1,13 @@
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
+import { ADMIN_BASE_URL } from "./support/harness-config.js";
+
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
-import { readSetupKey, signInWithTotp, submitSignIn, submitTotp } from "./support/flow.js";
+import { readSetupKey, submitSignIn, submitTotp } from "./support/flow.js";
 
 /**
- * Capture the static-render screenshot set for the human design gate (task 031).
+ * Capture the screenshot set for the human design gate (task 031; re-shot for the
+ * theme in task 055).
  *
  * **Skipped unless `QCMS_ADMIN_CAPTURE_GATE=1`.** It writes PNGs into a committed
  * directory, so leaving it in the standing suite would make every local
@@ -19,11 +22,21 @@ import { readSetupKey, signInWithTotp, submitSignIn, submitTotp } from "./suppor
  * rather than a mock of them - the gate is only worth anything if it shows what an
  * operator would see.
  *
- * ## Two viewports, and why the dev chrome is removed
+ * ## The set: four screens, two viewports, three modes
  *
- * 390px and 1280px per the Code Owner's 2026-07-25 rule. 390 is not because admins use
+ * Task 055 names the four screens the theme has to be judged on - sign-in, the 2FA
+ * challenge, the shell (Questions) and Settings - and requires each in Light, Dark and
+ * High-contrast. Twenty-four frames, which is the smallest set that shows the theme's
+ * three real risks: the translucent topbar, the auth card away from the shell, and the
+ * high-contrast layer where the accent has to survive a two-colour palette.
+ *
+ * 390px and 1280px per the Code Owner's 2026-07-25 rule. 390 is not because operators use
  * phones (they do not - see the project comment on `admin-chromium`) but because the
  * layout has to survive a narrow window, and the top bar's wrap is the thing to look at.
+ *
+ * The mode is set the way an operator's browser sets it - the `qcms-app-mode` cookie, read
+ * by the root layout - rather than by poking the DOM, because a screenshot that did not go
+ * through the real mechanism is evidence of nothing.
  *
  * The Next dev-tools indicator is removed before every capture. It is dev-server chrome,
  * not product UI, and leaving it in has twice put a floating badge in the corner of
@@ -36,8 +49,9 @@ test.describe.configure({ mode: "serial" });
 test.skip(!CAPTURE, "gate capture runs only with QCMS_ADMIN_CAPTURE_GATE=1");
 
 const EMAIL = uniqueAdminEmail("gate");
-const OUT_DIR = "docs/gates/031";
+const OUT_DIR = "docs/gates/055";
 const WIDTHS = [390, 1280] as const;
+const MODES = ["light", "dark", "hc"] as const;
 
 let totpSecret = "";
 
@@ -91,52 +105,36 @@ async function capture(page: import("@playwright/test").Page, name: string): Pro
   await page.setViewportSize({ width: 1280, height: 800 });
 }
 
-test("captures the signed-out and failure states", async ({ page }) => {
-  await page.goto("/sign-in");
-  await capture(page, "sign-in");
-
-  await page.goto("/sign-in?error=1");
-  await capture(page, "sign-in-error");
-
-  await page.goto("/sign-in?throttled=1");
-  await capture(page, "sign-in-throttled");
-
-  await page.goto("/sign-in?expired=1");
-  await capture(page, "session-expired");
-});
-
-test("captures the 2FA enrollment and recovery-code states", async ({ page }) => {
+test("enrolls the account the rest of the capture signs in with", async ({ page }) => {
   await submitSignIn(page, EMAIL);
   await expect(page).toHaveURL(/\/two-factor\/enroll$/);
-  await capture(page, "2fa-enroll");
-
   totpSecret = await readSetupKey(page);
   await submitTotp(page, totpSecret);
   await expect(page).toHaveURL(/\/two-factor\/recovery-codes$/);
-  await capture(page, "recovery-codes");
-
   await page.getByRole("button", { name: "I have saved these codes" }).click();
   await expect(page).toHaveURL(/\/questions$/);
 });
 
-test("captures the authenticated shell", async ({ page }) => {
-  await signInWithTotp(page, EMAIL, totpSecret);
-  await page.goto("/questions");
-  await capture(page, "shell-questions");
-  await page.goto("/settings");
-  await capture(page, "shell-settings");
-});
+for (const mode of MODES) {
+  test(`captures the ${mode} set`, async ({ page }) => {
+    // `url` rather than `domain` + `path`: Playwright takes one form or the other,
+    // and the base URL is the one this project already knows.
+    await page
+      .context()
+      .addCookies([{ name: "qcms-app-mode", value: mode, url: ADMIN_BASE_URL, sameSite: "Lax" }]);
 
-test("captures the 2FA challenge states", async ({ page }) => {
-  await submitSignIn(page, EMAIL);
-  await expect(page).toHaveURL(/\/two-factor\/challenge$/);
-  await capture(page, "2fa-challenge");
+    await page.goto("/sign-in");
+    await capture(page, `sign-in-${mode}`);
 
-  await page.goto("/two-factor/challenge?error=1");
-  await capture(page, "2fa-challenge-error");
+    await submitSignIn(page, EMAIL);
+    await expect(page).toHaveURL(/\/two-factor\/challenge$/);
+    await capture(page, `2fa-challenge-${mode}`);
 
-  await page.goto("/two-factor/challenge");
-  await page.getByRole("link", { name: "Use a recovery code instead" }).click();
-  await expect(page).toHaveURL(/\/two-factor\/recovery$/);
-  await capture(page, "2fa-recovery-entry");
-});
+    await submitTotp(page, totpSecret);
+    await page.waitForURL(/\/questions$/);
+    await capture(page, `shell-questions-${mode}`);
+
+    await page.goto("/settings");
+    await capture(page, `shell-settings-${mode}`);
+  });
+}
