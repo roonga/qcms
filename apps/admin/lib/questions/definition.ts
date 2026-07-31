@@ -127,23 +127,20 @@ export const CONSTRAINT_FIELDS: Readonly<Record<QuestionType, readonly string[]>
 /**
  * A blank definition of the chosen type, as the creation screen starts from.
  *
- * Choice types start with two options because one option is a question with a single
- * possible answer, which is never what anyone means, and because the kernel requires at
- * least one - starting empty would make the first save fail on a rule the author has not
- * been shown yet.
+ * A choice type starts with **no options at all**, which looks unhelpful and is the only
+ * defensible answer. Pre-seeding two blank rows was tried first and is worse in both
+ * directions: their ids would be minted from an empty label (`opt_option`, `opt_option_2`)
+ * and then frozen, so an author who typed "Red" into the first row would be left with a
+ * permanent id that says nothing about it, forever (R6 - the id cannot be corrected
+ * later). And a blank label is not a legal option anyway, so the pre-seeded rows made the
+ * first save fail with two `OPTION_LABEL_EMPTY` issues on rows the author had not created.
+ *
+ * Adding an option through the add field mints its id from the label it was named with,
+ * which is the whole point of minting once.
  */
 export function blankDefinition(type: QuestionType, questionId: string): QuestionDefinitionView {
-  const base = { questionId, type, label: {}, required: false } as const;
-  if (!hasOptions(type)) return { ...base, constraints: {} };
-  const first = mintOptionId("", []);
-  return {
-    ...base,
-    constraints: {},
-    options: [
-      { optionId: first, label: {} },
-      { optionId: mintOptionId("", [first]), label: {} },
-    ],
-  };
+  const base = { questionId, type, label: {}, required: false, constraints: {} } as const;
+  return hasOptions(type) ? { ...base, options: [] } : base;
 }
 
 /** Replace one option's label, leaving its `optionId` exactly as minted (R6). */

@@ -103,7 +103,13 @@ export async function createQuestionAction(
 
   const result = await createQuestion(session, slug, definition);
   if (!result.ok) {
-    return { status: "error", code: result.code, message: result.message, issues: result.issues };
+    return {
+      status: "error",
+      code: result.code,
+      message: result.message,
+      issues: result.issues,
+      submitted: { slug, definition },
+    };
   }
   revalidatePath("/questions");
   // Outside the guard above on purpose: `redirect` signals by throwing, so it must not
@@ -124,7 +130,13 @@ export async function saveDraftAction(
 
   const result = await saveVersion(session, questionId, version, definition);
   if (!result.ok) {
-    return { status: "error", code: result.code, message: result.message, issues: result.issues };
+    return {
+      status: "error",
+      code: result.code,
+      message: result.message,
+      issues: result.issues,
+      submitted: { slug: readText(formData, "slug"), definition },
+    };
   }
   revalidatePath(`/questions/${questionId}`);
   revalidatePath("/questions");

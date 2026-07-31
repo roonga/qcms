@@ -79,8 +79,26 @@ export function QuestionEditor({
   readonly isFrozen?: boolean;
 }) {
   const [state, formAction, isPending] = useActionState(action, IDLE_MUTATION);
-  const [slug, setSlug] = useState(initialSlug);
-  const [definition, setDefinition] = useState<QuestionDefinitionView>(initialDefinition);
+  // Seeded from the rejected submission when there is one, so a refusal that arrived via
+  // a pre-hydration full POST (see `MutationState.submitted`) still shows the author the
+  // document they wrote rather than an empty form under an error message.
+  const [slug, setSlug] = useState(state.submitted?.slug ?? initialSlug);
+  const [definition, setDefinition] = useState<QuestionDefinitionView>(
+    state.submitted?.definition ?? initialDefinition,
+  );
+  // And the same restoration when the form was hydrated, where the component is not
+  // remounted and the initialiser above never runs again. Adjusting state during render
+  // (rather than in an effect) is React's documented answer for "derive from a prop that
+  // just changed": it re-renders before the browser paints, so no empty intermediate
+  // frame is ever shown.
+  const [seenState, setSeenState] = useState(state);
+  if (seenState !== state) {
+    setSeenState(state);
+    if (state.submitted !== undefined) {
+      setSlug(state.submitted.slug);
+      setDefinition(state.submitted.definition);
+    }
+  }
 
   const isCreate = mode === "create";
   const questionId = isCreate ? questionIdFromSlug(slug) : definition.questionId;
@@ -104,6 +122,9 @@ export function QuestionEditor({
       <input type="hidden" name="definition" value={JSON.stringify(forWire(definition))} />
       <input type="hidden" name="questionId" value={questionId} />
       <input type="hidden" name="version" value={String(version)} />
+      {/* In creation the slug is a real field; here it is carried so a rejected save can
+          echo the whole submission back intact. */}
+      {!isCreate && <input type="hidden" name="slug" value={slug} />}
 
       {state.status === "error" && (
         <Alert variant="error" {...optionalProp("title", state.message)}>

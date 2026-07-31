@@ -218,6 +218,7 @@ export const messages = {
   "questions.detail.publishedAt": "Published {date}",
   "questions.detail.unpublished": "Never published",
   "questions.detail.slug": "Slug",
+  "questions.detail.type": "Type",
   "questions.detail.created": "Created",
   "questions.detail.deprecatedNote":
     "This version is deprecated: no new form can pin it. Forms that already pin it keep working exactly as they are, and no answer already collected changes.",

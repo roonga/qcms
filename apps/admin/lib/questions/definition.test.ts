@@ -126,13 +126,11 @@ describe("localized", () => {
 });
 
 describe("blankDefinition", () => {
-  it("starts a choice question with two options", () => {
-    const definition = blankDefinition("singleChoice", "q_colour");
-    expect(definition.options).toHaveLength(2);
-    // Distinct ids from the very first render: two options minted from the same empty
-    // label must not collide, or the kernel refuses the first save with
-    // DUPLICATE_OPTION_ID on a form the author has not touched.
-    expect(new Set(idsOf(definition.options ?? [])).size).toBe(2);
+  it("starts a choice question with no options at all", () => {
+    // Deliberate, and the alternative was tried: a pre-seeded row would have its id
+    // minted from a blank label and then frozen forever (R6), leaving an author who typed
+    // "Red" with a permanent `opt_option`. Options are added, and named as they are added.
+    expect(blankDefinition("singleChoice", "q_colour").options).toEqual([]);
   });
 
   it("gives a boolean question no options", () => {

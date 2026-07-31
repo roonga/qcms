@@ -93,10 +93,8 @@ export default async function QuestionDetailPage({
         </div>
         <p className="text-sm text-(--color-text-muted)">
           {t("questions.detail.slug")}: {detail.data.slug} · {t("questions.detail.created")}:{" "}
-          {isoDay(detail.data.createdAt)} ·{" "}
-          {t("questions.editor.typeLocked", {
-            type: t(`questions.type.${selected.definition.type}`),
-          })}
+          {isoDay(detail.data.createdAt)} · {t("questions.detail.type")}:{" "}
+          {t(`questions.type.${selected.definition.type}`)}
         </p>
       </div>
 

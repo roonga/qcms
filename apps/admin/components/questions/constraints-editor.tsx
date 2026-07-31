@@ -36,6 +36,20 @@ function numberOrUndefined(value: number): number | undefined {
   return Number.isNaN(value) ? undefined : value;
 }
 
+/**
+ * The inverse: "no constraint" as a value the control can hold.
+ *
+ * `NaN` rather than an omitted prop, and it is load-bearing. Omitting `value` leaves
+ * react-aria's field uncontrolled, so the first keystroke flips it from uncontrolled to
+ * controlled and React logs "A component changed from controlled to uncontrolled" - which
+ * the Playwright console gate treats as a failure, correctly, because a field that changes
+ * mode mid-edit can drop the value the operator just typed. `NaN` is react-aria's own
+ * representation of an empty number field, so the control stays controlled from mount.
+ */
+function numberOrNaN(value: number | undefined): number {
+  return value ?? Number.NaN;
+}
+
 /** A labelled numeric constraint, wired to its kernel error path. */
 function ConstraintNumber({
   field,
@@ -56,7 +70,7 @@ function ConstraintNumber({
     <NumberField
       label={label}
       isDisabled={isFrozen}
-      {...optionalProp("value", value)}
+      value={numberOrNaN(value)}
       {...optionalProp("step", step)}
       {...fieldErrorProps(issues, `constraints.${field}`)}
       onChange={(next) => {

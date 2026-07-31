@@ -5,7 +5,14 @@ import { generate } from "otplib";
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { TEST_PASSWORD, createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
-import { readSetupKey, signInWithTotp, submitSignIn, submitTotp } from "./support/flow.js";
+import {
+  fillStable,
+  readSetupKey,
+  signInWithTotp,
+  submitSignIn,
+  submitTotp,
+} from "./support/flow.js";
+import { chooseType, field } from "./support/questions.js";
 
 /**
  * The admin's axe gate (task 031, exit criterion 5; policies inherited from task 030).
@@ -167,6 +174,55 @@ test("the authenticated shell states have zero violations", async ({ page }) => 
     await page.goto(path);
     await expectNoViolations(page, `shell ${path}`);
   }
+});
+
+test("the question library, its editor and a question's detail have zero violations", async ({
+  page,
+}) => {
+  // Task 032, exit criterion 4. These are the app's first screens with real data density -
+  // an interactive table, a form with grouped constraint panels, and a modal confirmation -
+  // so they are where a label, a group name or a contrast pair is most likely to be missed.
+  //
+  // `expectNoViolations` runs each state in light, dark and high contrast, so this covers
+  // all three modes by construction.
+  test.setTimeout(180_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+
+  await page.goto("/questions");
+  await expectNoViolations(page, "question library list");
+
+  await page.goto("/questions/new");
+  await expectNoViolations(page, "question editor, empty");
+
+  // A choice type, because that is the shape with the most to get wrong: an option list
+  // whose reorder controls have to be distinguishable from one another by name alone.
+  await chooseType(page, "Single choice");
+  await expectNoViolations(page, "question editor, option list");
+
+  const slug = `a11y-question-${Date.now().toString(36)}`;
+  await fillStable(field(page, "Slug"), slug);
+  await fillStable(field(page, "Label"), "Which cover applies?");
+  await fillStable(field(page, "Label for option 1"), "Comprehensive");
+  await fillStable(field(page, "Label for option 2"), "Third party");
+  await Promise.all([
+    page.waitForURL(/\/questions\/q_/),
+    page.getByRole("button", { name: "Create draft" }).click(),
+  ]);
+  await expectNoViolations(page, "question detail with preview");
+
+  // The confirmation dialog is analysed open: a focus-trapped alertdialog is exactly the
+  // state a first-render-only gate would miss.
+  await page.getByRole("button", { name: /^Publish version 1$/ }).click();
+  await expect(page.getByRole("alertdialog")).toBeVisible();
+  await expectNoViolations(page, "publish confirmation");
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+
+  await page.getByRole("button", { name: /^Publish version 1$/ }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Publish", exact: true }).click();
+  await expect(page.getByRole("alertdialog")).toBeHidden();
+  // A frozen version renders the same form disabled, which is a different contrast
+  // question in every mode than the live one above.
+  await expectNoViolations(page, "frozen published version");
 });
 
 test("the 2FA challenge and its recovery variant have zero violations", async ({ page }) => {

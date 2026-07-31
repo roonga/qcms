@@ -101,3 +101,27 @@ export async function signInWithTotp(page: Page, email: string, secret: string):
   await submitTotp(page, secret);
   await page.waitForURL(/\/questions$/);
 }
+
+/**
+ * Take a brand-new account all the way from first sign-in to the shell, and return its
+ * TOTP secret so later tests in the file can sign in again.
+ *
+ * Every spec that needs an authenticated screen has to do this once, because enforced 2FA
+ * means a fresh account's first sign-in lands on enrollment rather than on the shell. The
+ * steps are the real screens throughout: nothing here reaches into better-auth to mark a
+ * factor confirmed, so a regression in enrollment fails the specs that depend on it
+ * rather than being quietly bypassed.
+ *
+ * Read the secret inside the flow, never cached across tests: a sign-in by an account
+ * with no confirmed factor re-provisions enrollment, so each visit carries a new one.
+ */
+export async function enrollNewAdmin(page: Page, email: string): Promise<string> {
+  await submitSignIn(page, email);
+  await expect(page).toHaveURL(/\/two-factor\/enroll$/);
+  const secret = await readSetupKey(page);
+  await submitTotp(page, secret);
+  await expect(page).toHaveURL(/\/two-factor\/recovery-codes$/);
+  await page.getByRole("button", { name: "I have saved these codes" }).click();
+  await page.waitForURL(/\/questions$/);
+  return secret;
+}
