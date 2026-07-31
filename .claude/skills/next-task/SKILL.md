@@ -19,7 +19,9 @@ Select and execute the next task - or, with a count argument N, up to N **pairwi
    - Branch has a committed `HANDOFF.md` → dispatch the executor with the handoff.
    - Branch exists but no `HANDOFF.md` (the session died mid-task) → dispatch the executor with: "task NNN was interrupted; reconstruct state from `git log`/`git diff main...<branch>` and the task file, then continue on this branch." Remove any leftover worktree for it first.
    - Claim exists but no branch → the claim is vapor; reset the row to `todo` and treat as fresh.
+   - **In every recovery case, rebase first:** before dispatching or continuing, rebase the branch onto current `origin/main` (run `pnpm install` if the lockfile moved), and only then let the executor proceed. A branch that sat idle has usually been lapped by main; work and gates must run on the tree that will actually merge.
 4. **Serial (no count argument):** invoke the **task** skill with the selected number and let it run to completion.
+   - **No stale-base PRs (added 2026-07-31, after 031 arrived carrying a rebase IOU):** a task PR is opened only from a branch already rebased onto current `origin/main`, with the full gates (`TURBO_FORCE=true pnpm verify`; `pnpm verify:browser` when `apps/portal`, `apps/admin` or `@qcms/ui` is touched; `pnpm exec turbo run test --force` showing 0 cached) run on the rebased tree. Never open a PR whose body promises to rebase later - the CI run reviewers and gates rely on must test the tree that merges. If main moves again while the PR is open, rebase and re-run before merge as usual.
 5. **Parallel (count N given):** extend the selection to up to N candidates that are **pairwise independent**:
    - No dependency path between any two selected tasks (check `Depends on` transitively).
    - Disjoint expected file footprints - different packages or different slice folders. When in doubt about overlap, don't parallelize; drop to the smaller set.
