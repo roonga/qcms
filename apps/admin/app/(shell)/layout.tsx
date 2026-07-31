@@ -57,7 +57,7 @@ export default async function ShellLayout({ children }: { readonly children: Rea
           </div>
         </div>
       </header>
-      <main id="admin-main" className="mx-auto w-full max-w-5xl flex-1 p-6">
+      <main id="main-content" className="mx-auto w-full max-w-5xl flex-1 p-6">
         {children}
       </main>
       {/* The email is shell chrome, not a credential; it tells an operator which

@@ -61,7 +61,7 @@ export default async function AdminRootLayout({ children }: { readonly children:
         </noscript>
       </head>
       <body>
-        <a href="#admin-main" className="skip-link">
+        <a href="#main-content" className="skip-link">
           {t("action.skipToContent")}
         </a>
         {children}

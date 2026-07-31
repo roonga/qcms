@@ -33,7 +33,7 @@ export function AuthScreen({
 }) {
   return (
     <main
-      id="admin-main"
+      id="main-content"
       className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center p-4"
     >
       {/* `qcms-card` carries the app's layered shadow. The vendored `Card` takes no

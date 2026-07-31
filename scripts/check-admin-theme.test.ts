@@ -30,7 +30,7 @@ describe("literal colour detection", () => {
   it("accepts every token-derived form the app actually uses", () => {
     for (const line of [
       "a { color: var(--color-text); }",
-      '<a href="#admin-main">skip</a>',
+      '<a href="#main-content">skip</a>',
       "a { box-shadow: 0 1px 2px hsl(var(--shadow-color) / 0.06); }",
       "a { background: color-mix(in srgb, var(--color-background) 88%, transparent); }",
       '<div className="text-(--color-text-muted) border-(--color-border)" />',

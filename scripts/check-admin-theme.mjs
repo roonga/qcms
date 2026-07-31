@@ -43,7 +43,7 @@ const SCAN_DIRS = ["apps/admin/app", "apps/admin/components"];
 const SCAN_EXTENSIONS = [".css", ".ts", ".tsx"];
 
 /**
- * A hex colour. Bounded at the end so an element id (`#admin-main`) never matches:
+ * A hex colour. Bounded at the end so an element id (`#main-content`) never matches:
  * after the run of hex digits the next character has to be a non-word one.
  */
 const HEX = /#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b/g;
