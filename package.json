@@ -17,6 +17,7 @@
     "dev:portal": "node scripts/dev-portal.mjs",
     "artifacts": "node scripts/serve-artifacts.mjs",
     "qcms:create-admin": "pnpm --filter qcms-admin create-admin",
+    "qcms:seed-fixtures": "pnpm --filter qcms-api seed-fixtures",
     "devcontainer": "bash scripts/devcontainer.sh",
     "claude": "bash scripts/claude-session.sh",
     "test": "turbo run test && pnpm test:tooling",

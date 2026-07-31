@@ -12,7 +12,7 @@ import {
   submitSignIn,
   submitTotp,
 } from "./support/flow.js";
-import { chooseType, field } from "./support/questions.js";
+import { addOption, chooseType, field } from "./support/questions.js";
 
 /**
  * The admin's axe gate (task 031, exit criterion 5; policies inherited from task 030).
@@ -197,13 +197,13 @@ test("the question library, its editor and a question's detail have zero violati
   // A choice type, because that is the shape with the most to get wrong: an option list
   // whose reorder controls have to be distinguishable from one another by name alone.
   await chooseType(page, "Single choice");
-  await expectNoViolations(page, "question editor, option list");
-
   const slug = `a11y-question-${Date.now().toString(36)}`;
   await fillStable(field(page, "Slug"), slug);
   await fillStable(field(page, "Label"), "Which cover applies?");
-  await fillStable(field(page, "Label for option 1"), "Comprehensive");
-  await fillStable(field(page, "Label for option 2"), "Third party");
+  await addOption(page, "Comprehensive");
+  await addOption(page, "Third party");
+  await expectNoViolations(page, "question editor, option list");
+
   await Promise.all([
     page.waitForURL(/\/questions\/q_/),
     page.getByRole("button", { name: "Create draft" }).click(),

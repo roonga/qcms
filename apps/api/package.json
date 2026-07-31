@@ -21,7 +21,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --root ../.. --project qcms-api --project qcms-api-e2e",
     "lint": "eslint src e2e scripts",
-    "start": "node dist/serve.js"
+    "start": "node dist/serve.js",
+    "seed-fixtures": "node scripts/seed-fixtures.ts"
   },
   "dependencies": {
     "@hono/node-server": "^2.0.12",
