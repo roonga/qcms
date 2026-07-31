@@ -3,6 +3,7 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 import { TEST_PASSWORD, createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { ADMIN_BASE_URL } from "./support/harness-config.js";
 import {
+  fillStable,
   readSetupKey,
   signInWithTotp,
   submitRecoveryCode,
@@ -81,7 +82,7 @@ test("first sign-in is forced into 2FA enrollment, which a wrong code cannot byp
   await page.goto("/questions");
   await expect(page).toHaveURL(/\/two-factor\/enroll$/);
 
-  await page.getByLabel(/Six-digit code/).fill("000000");
+  await fillStable(page.getByLabel(/Six-digit code/), "000000");
   await page.getByRole("button", { name: "Verify" }).click();
   await expect(page).toHaveURL(/\/two-factor\/enroll\?error=1$/);
   await expect(page.getByRole("alert")).toContainText("Those details did not match");
@@ -140,7 +141,7 @@ test("a later sign-in demands the second factor before any session exists", asyn
 
 test("a wrong TOTP code is rejected with the same generic message", async ({ page }) => {
   await submitSignIn(page, EMAIL);
-  await page.getByLabel(/Six-digit code/).fill("000000");
+  await fillStable(page.getByLabel(/Six-digit code/), "000000");
   await page.getByRole("button", { name: "Verify" }).click();
   await expect(page).toHaveURL(/\/two-factor\/challenge\?error=1$/);
   await expect(page.getByRole("alert")).toContainText("Those details did not match");
@@ -213,6 +214,13 @@ test("a second recovery code still works, and the TOTP factor is unaffected", as
   await submitRecoveryCode(page, code!);
   await expect(page).toHaveURL(/\/questions$/);
   await page.getByRole("button", { name: "Sign out" }).click();
+  // Wait for sign-out to land before starting the next flow. `click()` returns once the
+  // navigation is *initiated*, so without this the sign-out POST is still in flight when
+  // `signInWithTotp` calls `goto("/sign-in")`, and the late response can replace the
+  // document between the code field being filled and Verify being clicked - which submits
+  // an empty field, and the browser's own `required` validation then blocks the submit
+  // with no navigation and no server error to show for it (the hazard flow.ts documents).
+  await expect(page).toHaveURL(/\/sign-in$/);
 
   // Redeeming recovery codes does not disturb the authenticator factor.
   await signInWithTotp(page, EMAIL, totpSecret);
@@ -224,8 +232,8 @@ test("changing the password reports success and keeps this session signed in", a
   await page.goto("/settings");
 
   // A rejected change must be indistinguishable from any other auth failure (SEC-1).
-  await page.getByLabel("Current password").fill("not-the-current-password");
-  await page.getByLabel("New password").fill("another-long-enough-passphrase");
+  await fillStable(page.getByLabel("Current password"), "not-the-current-password");
+  await fillStable(page.getByLabel("New password"), "another-long-enough-passphrase");
   await page.getByRole("button", { name: "Change password" }).click();
   await expect(page).toHaveURL(/\/settings\?error=1$/);
   await expect(page.getByRole("alert")).toContainText("Those details did not match");
