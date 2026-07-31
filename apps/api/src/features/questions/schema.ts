@@ -26,6 +26,24 @@ export const VersionParam = z.object({
   v: z.string().openapi({ param: { name: "v", in: "path" }, example: "1" }),
 });
 
+/**
+ * `GET /admin/questions/:id/versions/:v/preview` query - the locale the preview
+ * resolves its labels in. Optional and free-form here (the handler coerces an
+ * unrecognized code to `en` rather than erroring): a preview is a display aid,
+ * so a bad locale must never cost the author their preview.
+ */
+export const PreviewQuestionVersionQuery = z.object({
+  locale: z
+    .string()
+    .optional()
+    .openapi({
+      param: { name: "locale", in: "query", required: false },
+      description:
+        "Locale to resolve labels/help in (ADR-11 subset, e.g. `en` or `en-AU`). Defaults to `en`; an unparseable value falls back to `en`.",
+      example: "en",
+    }),
+});
+
 /** `GET /admin/questions` query filters. */
 export const ListQuestionsQuery = z.object({
   status: z
@@ -106,6 +124,29 @@ export const QuestionListItem = z
 export const ListQuestionsResponse = z
   .object({ questions: z.array(QuestionListItem) })
   .openapi("ListQuestionsResponse");
+
+/**
+ * `GET /admin/questions/:id/versions/:v/preview`: one question compiled to a
+ * single-question A2UI document the admin renders through the shared renderer
+ * (028). Shaped like a served step document (`stepId` + `root`) so the renderer
+ * needs no preview-specific branch, plus the two ADR-18 version stamps so a
+ * renderer can tell which compiler and spec produced the tree.
+ *
+ * `root` is opaque to the API (the renderer interprets it), so it is `unknown`
+ * rather than a recursive schema the API would have to keep in step with the
+ * compiler - same reasoning as `StepDocument` on the respondent side.
+ */
+export const QuestionPreviewResponse = z
+  .object({
+    stepId: z.string().openapi({
+      description: "Always the synthetic `stp_preview` - a preview is not a real step.",
+      example: "stp_preview",
+    }),
+    root: z.unknown(),
+    a2uiSpecVersion: z.string().openapi({ example: "1.0.0-preview.7" }),
+    compilerVersion: z.string().openapi({ example: "0.1.0" }),
+  })
+  .openapi("QuestionPreviewResponse");
 
 /** `GET /admin/questions/:id`: the identity with every version, oldest first. */
 export const QuestionDetailResponse = z

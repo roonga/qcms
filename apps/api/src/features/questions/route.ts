@@ -30,6 +30,7 @@ import {
   makeEditVersionHandler,
   makeGetQuestionHandler,
   makeListQuestionsHandler,
+  makePreviewQuestionVersionHandler,
   makePublishVersionHandler,
 } from "./handler.js";
 import {
@@ -38,8 +39,10 @@ import {
   EditVersionBody,
   ListQuestionsQuery,
   ListQuestionsResponse,
+  PreviewQuestionVersionQuery,
   QuestionDetailResponse,
   QuestionIdParam,
+  QuestionPreviewResponse,
   QuestionVersionView,
   VersionParam,
 } from "./schema.js";
@@ -169,6 +172,33 @@ export const getQuestionRoute = createRoute({
 });
 
 /**
+ * Compile one version to a single-question A2UI document for the admin's
+ * preview pane (032). A **read** (`questions:read`): it stores nothing and
+ * changes nothing, it just projects the stored definition through the compiler
+ * so the admin can draw a draft with the shared renderer without ever importing
+ * the compiler or the kernel (R2 - the admin is a strict BFF).
+ *
+ * Deliberately on the admin group and deliberately not the serving path: this
+ * recompiles a possibly-unpublished draft on demand, while the portal serves the
+ * stored compiled document from a pinned snapshot, forever (ADR-18).
+ */
+export const previewQuestionVersionRoute = createRoute({
+  method: "get",
+  path: "/questions/{id}/versions/{v}/preview",
+  summary: "Compile one question version to a single-question A2UI preview document (admin)",
+  tags,
+  request: { params: VersionParam, query: PreviewQuestionVersionQuery },
+  responses: {
+    200: {
+      description: "The single-question A2UI document, with the ADR-18 version stamps",
+      content: { "application/json": { schema: QuestionPreviewResponse } },
+    },
+    ...errorResponses(400, 401, 404),
+  },
+  ...withScopes("questions:read"),
+});
+
+/**
  * Register every admin question route on an admin group. The admin-auth gate
  * (`registerAdminAuth`) must precede this in the admin bucket so it runs first.
  */
@@ -180,4 +210,5 @@ export const registerQuestions: SliceRegistrar = (group, deps: Deps): void => {
   group.openapi(deprecateVersionRoute, makeDeprecateVersionHandler(deps));
   group.openapi(listQuestionsRoute, makeListQuestionsHandler(deps));
   group.openapi(getQuestionRoute, makeGetQuestionHandler(deps));
+  group.openapi(previewQuestionVersionRoute, makePreviewQuestionVersionHandler(deps));
 };

@@ -272,6 +272,32 @@
           "versions"
         ]
       },
+      "QuestionPreviewResponse": {
+        "type": "object",
+        "properties": {
+          "stepId": {
+            "type": "string",
+            "description": "Always the synthetic `stp_preview` - a preview is not a real step.",
+            "example": "stp_preview"
+          },
+          "root": {
+            "nullable": true
+          },
+          "a2uiSpecVersion": {
+            "type": "string",
+            "example": "1.0.0-preview.7"
+          },
+          "compilerVersion": {
+            "type": "string",
+            "example": "0.1.0"
+          }
+        },
+        "required": [
+          "stepId",
+          "a2uiSpecVersion",
+          "compilerVersion"
+        ]
+      },
       "CreatedFormResponse": {
         "type": "object",
         "properties": {
@@ -1876,6 +1902,94 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/QuestionDetailResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/questions/{id}/versions/{v}/preview": {
+      "get": {
+        "summary": "Compile one question version to a single-question A2UI preview document (admin)",
+        "tags": [
+          "questions"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "questions:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "q_favourite_colour"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "1"
+            },
+            "required": true,
+            "name": "v",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Locale to resolve labels/help in (ADR-11 subset, e.g. `en` or `en-AU`). Defaults to `en`; an unparseable value falls back to `en`.",
+              "example": "en"
+            },
+            "required": false,
+            "description": "Locale to resolve labels/help in (ADR-11 subset, e.g. `en` or `en-AU`). Defaults to `en`; an unparseable value falls back to `en`.",
+            "name": "locale",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The single-question A2UI document, with the ADR-18 version stamps",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionPreviewResponse"
                 }
               }
             }

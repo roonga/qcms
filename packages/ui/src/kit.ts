@@ -9,6 +9,14 @@
  * alerts come from here: the same vendored files the A2UI renderer uses, exported
  * on their own subpath as plain React components.
  *
+ * Task 032 adds the four input primitives the question editor needs (`Select`,
+ * `Checkbox`, `NumberField`, `DatePicker`). They are the same vendored files the
+ * renderer already maps A2UI nodes onto, so an operator authoring a `number`
+ * constraint types into literally the component a respondent will answer with.
+ * Nothing was vendored to add them: they were already here, reachable only by the
+ * renderer's registry, and the barrel is what makes them reachable by an admin
+ * screen as well.
+ *
  * That is the whole content of this module, and the restraint is deliberate:
  *
  * - **No wrappers.** Every export is the vendored component itself, so an admin
@@ -34,8 +42,13 @@ export { Breadcrumb } from "./components/a2ui/breadcrumb/index.ts";
 export type { BreadcrumbItem } from "./components/a2ui/breadcrumb/index.ts";
 export { Button } from "./components/a2ui/button/index.ts";
 export { Card } from "./components/a2ui/card/index.ts";
+export { Checkbox } from "./components/a2ui/checkbox/index.ts";
+export { DatePicker } from "./components/a2ui/date-picker/index.ts";
 export { Dialog } from "./components/a2ui/dialog/index.ts";
 export { Form } from "./components/a2ui/form/index.ts";
+export { NumberField } from "./components/a2ui/number-field/index.ts";
+export { Select } from "./components/a2ui/select/index.ts";
+export type { SelectItem } from "./components/a2ui/select/index.ts";
 export { Table } from "./components/a2ui/table/index.ts";
 export type { TableColumn, TableRow } from "./components/a2ui/table/index.ts";
 export { Text } from "./components/a2ui/text/index.ts";

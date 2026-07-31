@@ -9,8 +9,13 @@
  *  2. R6 - recreate-after-deprecate with the same id is rejected, a new id is fine;
  *  3. malformed definitions return 422 with the kernel's coded issues and paths;
  *  4. (the auth-seam 401 and public-only 404 are the no-DB `admin-mount.test.ts`).
+ *
+ * Task 032 adds the preview route's coverage at the bottom: one version compiled
+ * to a single-question A2UI document, wrapper shape, no abuse decoy, and the
+ * ADR-18 version stamps.
  */
 
+import { A2UI_SPEC_VERSION, COMPILER_VERSION, HONEYPOT_NODE_TYPE } from "@qcms/a2ui-compiler";
 import { startTestDb, type TestDb } from "@qcms/db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -369,5 +374,115 @@ describe("GET /admin/questions - summary, status filter, search", () => {
       questions: Array<{ questionId: string }>;
     };
     expect(byLabel.questions.map((q) => q.questionId)).toContain("q_list_apple");
+  });
+});
+
+// --- preview: one version → a single-question A2UI document (032) -----------
+
+interface PreviewNode {
+  type: string;
+  props?: Record<string, unknown>;
+  children?: PreviewNode[] | string;
+}
+interface PreviewBody {
+  stepId: string;
+  root: PreviewNode;
+  a2uiSpecVersion: string;
+  compilerVersion: string;
+}
+
+/** Child nodes of a node (a `Text` node's `children` is a string, not a list). */
+function childrenOf(node: PreviewNode): PreviewNode[] {
+  return Array.isArray(node.children) ? node.children : [];
+}
+
+/** Every node of a tree, depth-first - so absence can be asserted over all of it. */
+function flatten(node: PreviewNode): PreviewNode[] {
+  return [node, ...childrenOf(node).flatMap(flatten)];
+}
+
+describe("GET /admin/questions/:id/versions/:v/preview (032)", () => {
+  beforeAll(async () => {
+    await post("/questions", {
+      slug: "preview-draft",
+      definition: shortText("q_preview_draft", "Draft colour"),
+    });
+    await post("/questions", {
+      slug: "preview-published",
+      definition: shortText("q_preview_published", "Published colour"),
+    });
+    await post("/questions/q_preview_published/versions/1/publish");
+  });
+
+  it("previews a draft: Form → Flex → the mapped control, and no honeypot decoy", async () => {
+    const res = await get("/questions/q_preview_draft/versions/1/preview");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as PreviewBody;
+
+    expect(body.stepId).toBe("stp_preview");
+
+    // The wrapper is the compiled-step shape minus headings, so the shared
+    // renderer needs no preview-specific branch.
+    expect(body.root.type).toBe("Form");
+    const flex = childrenOf(body.root)[0];
+    expect(flex?.type).toBe("Flex");
+    expect(flex?.props?.direction).toBe("column");
+
+    // The one control the compiler maps a shortText to, label resolved to a
+    // plain string (not the locale map) for the requested locale.
+    const control = childrenOf(flex ?? body.root)[0];
+    expect(control?.type).toBe("TextField");
+    expect(control?.props?.label).toBe("Draft colour");
+    expect(control?.props?.name).toBe("q_preview_draft");
+
+    // An abuse decoy belongs to respondent-facing steps only (026): a preview
+    // is authenticated, never submitted, and must not carry one anywhere.
+    expect(flatten(body.root).map((n) => n.type)).not.toContain(HONEYPOT_NODE_TYPE);
+  });
+
+  it("previews a published version too (the route is a read, not a draft tool)", async () => {
+    const res = await get("/questions/q_preview_published/versions/1/preview");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as PreviewBody;
+    const control = childrenOf(childrenOf(body.root)[0] ?? body.root)[0];
+    expect(control?.type).toBe("TextField");
+    expect(control?.props?.label).toBe("Published colour");
+  });
+
+  it("stamps the compiler and A2UI spec versions the compiler exports (ADR-18)", async () => {
+    const body = (await (
+      await get("/questions/q_preview_draft/versions/1/preview")
+    ).json()) as PreviewBody;
+    expect(body.a2uiSpecVersion).toBe(A2UI_SPEC_VERSION);
+    expect(body.compilerVersion).toBe(COMPILER_VERSION);
+  });
+
+  it("an unparseable ?locale= falls back to en rather than erroring", async () => {
+    const res = await get("/questions/q_preview_draft/versions/1/preview?locale=not-a-locale");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as PreviewBody;
+    const control = childrenOf(childrenOf(body.root)[0] ?? body.root)[0];
+    expect(control?.props?.label).toBe("Draft colour");
+  });
+
+  it("unknown question → 404 QUESTION_NOT_FOUND; unknown version → 404 VERSION_NOT_FOUND", async () => {
+    const noQuestion = await get("/questions/q_preview_absent/versions/1/preview");
+    expect(noQuestion.status).toBe(404);
+    expect(((await noQuestion.json()) as ErrBody).error.code).toBe("QUESTION_NOT_FOUND");
+
+    const noVersion = await get("/questions/q_preview_draft/versions/9/preview");
+    expect(noVersion.status).toBe(404);
+    expect(((await noVersion.json()) as ErrBody).error.code).toBe("VERSION_NOT_FOUND");
+
+    // A non-integer version is the same "no such version", not a parse error.
+    const notANumber = await get("/questions/q_preview_draft/versions/abc/preview");
+    expect(notANumber.status).toBe(404);
+    expect(((await notANumber.json()) as ErrBody).error.code).toBe("VERSION_NOT_FOUND");
+  });
+
+  it("a malformed question id → 400 INVALID_QUESTION_ID", async () => {
+    const res = await get("/questions/not-a-q-id/versions/1/preview");
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as ErrBody).error.code).toBe("INVALID_QUESTION_ID");
   });
 });

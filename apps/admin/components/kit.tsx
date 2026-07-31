@@ -21,5 +21,19 @@
  * off.
  */
 
-export { Alert, Breadcrumb, Button, Card, Form, Table, Text, TextField } from "@qcms/ui/kit";
-export type { BreadcrumbItem, TableColumn, TableRow } from "@qcms/ui/kit";
+export {
+  Alert,
+  Breadcrumb,
+  Button,
+  Card,
+  Checkbox,
+  DatePicker,
+  Dialog,
+  Form,
+  NumberField,
+  Select,
+  Table,
+  Text,
+  TextField,
+} from "@qcms/ui/kit";
+export type { BreadcrumbItem, SelectItem, TableColumn, TableRow } from "@qcms/ui/kit";
