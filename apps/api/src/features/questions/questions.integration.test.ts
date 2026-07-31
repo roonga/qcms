@@ -346,13 +346,56 @@ describe("GET /admin/questions - summary, status filter, search", () => {
     await post("/questions/q_list_apple/versions/1/publish");
   });
 
-  it("returns the latest-version summary with its label", async () => {
+  it("returns the latest-version summary with its label and type", async () => {
     const body = (await (await get("/questions")).json()) as {
-      questions: Array<{ questionId: string; latestStatus: string; label?: { en?: string } }>;
+      questions: Array<{
+        questionId: string;
+        latestStatus: string;
+        label?: { en?: string };
+        type?: string;
+      }>;
     };
     const apple = body.questions.find((q) => q.questionId === "q_list_apple");
     expect(apple?.latestStatus).toBe("published");
     expect(apple?.label?.en).toBe("Apple");
+    // The type rides along on the read the label already needed (issue #218): the
+    // library list draws a type column, and without this it could only get one by
+    // issuing a detail read per row.
+    expect(apple?.type).toBe("shortText");
+  });
+
+  it("filters by the latest version's type", async () => {
+    await post("/questions", {
+      slug: "list-cherry-count",
+      definition: {
+        questionId: "q_list_cherry_count",
+        type: "number",
+        label: { en: "Cherries" },
+      },
+    });
+
+    const numbers = (await (await get("/questions?type=number")).json()) as {
+      questions: Array<{ questionId: string; type: string }>;
+    };
+    expect(numbers.questions.map((q) => q.questionId)).toContain("q_list_cherry_count");
+    expect(numbers.questions.every((q) => q.type === "number")).toBe(true);
+    // The shortText rows are the ones this has to exclude, and they are still there
+    // under their own type - so the filter narrowed rather than emptied.
+    expect(numbers.questions.some((q) => q.questionId === "q_list_apple")).toBe(false);
+
+    const shortTexts = (await (await get("/questions?type=shortText")).json()) as {
+      questions: Array<{ questionId: string }>;
+    };
+    expect(shortTexts.questions.map((q) => q.questionId)).toContain("q_list_apple");
+  });
+
+  it("combines the type filter with status and search", async () => {
+    const body = (await (
+      await get("/questions?type=shortText&status=draft&search=banana")
+    ).json()) as {
+      questions: Array<{ questionId: string }>;
+    };
+    expect(body.questions.map((q) => q.questionId)).toEqual(["q_list_banana"]);
   });
 
   it("filters by latest status", async () => {

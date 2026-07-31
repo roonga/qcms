@@ -44,12 +44,32 @@ export const PreviewQuestionVersionQuery = z.object({
     }),
 });
 
+/**
+ * The seven question types (§4.2). Declared here rather than imported from the
+ * kernel because this is the *route* contract: it is what the OpenAPI document
+ * publishes and what a client may filter by, and it changes only when the API
+ * decides to expose a new one.
+ */
+const QuestionTypeEnum = z.enum([
+  "shortText",
+  "longText",
+  "number",
+  "date",
+  "boolean",
+  "singleChoice",
+  "multiChoice",
+]);
+
 /** `GET /admin/questions` query filters. */
 export const ListQuestionsQuery = z.object({
   status: z
     .enum(["draft", "published", "deprecated"])
     .optional()
     .openapi({ param: { name: "status", in: "query" }, example: "published" }),
+  type: QuestionTypeEnum.optional().openapi({
+    param: { name: "type", in: "query" },
+    example: "number",
+  }),
   search: z
     .string()
     .optional()
@@ -118,8 +138,17 @@ export const QuestionListItem = z
     publishedAt: z.iso.datetime().nullable(),
     /** The latest version's localized label (locale → text); [] of loading only. */
     label: z.unknown(),
+    /**
+     * The latest version's question type, or `null` when that version is missing.
+     *
+     * Free to carry: the handler already loads each latest definition to read its
+     * label, so this is one more field off an object it is holding rather than a
+     * second read (issue #218).
+     */
+    type: QuestionTypeEnum.nullable(),
   })
   .openapi("QuestionListItem");
+export type QuestionListItem = z.infer<typeof QuestionListItem>;
 
 export const ListQuestionsResponse = z
   .object({ questions: z.array(QuestionListItem) })

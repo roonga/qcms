@@ -225,6 +225,31 @@ test("the list filters, and says something useful when it finds nothing", async 
   await expect(page.getByRole("grid", { name: "Question library" })).toBeVisible();
 });
 
+test("the type column and the type filter narrow the library (issue #218)", async ({ page }) => {
+  await signInWithTotp(page, EMAIL, totpSecret);
+
+  // Scoped to this run's questions, so the assertions do not depend on what else the
+  // harness database happens to hold.
+  await page.goto(`/questions?q=e2e-number-${RUN}`);
+  const numberRow = page.getByRole("row").filter({ hasText: questionIdFor("number") });
+  await expect(numberRow).toContainText("Number");
+
+  // The filter is the API's, so it has to survive the round trip rather than hide rows
+  // client-side: the date question exists and matches the search, and must still be gone.
+  await page.goto(`/questions?q=e2e-&type=date`);
+  await expect(page.getByRole("row").filter({ hasText: questionIdFor("date") })).toBeVisible();
+  await expect(page.getByRole("row").filter({ hasText: questionIdFor("number") })).toHaveCount(0);
+
+  // And it is reachable from the toolbar, not just from a hand-written URL.
+  await page.goto("/questions");
+  const picker = page.getByRole("button", { name: /Type$/ });
+  await picker.click();
+  await page.getByRole("option", { name: "Yes or no", exact: true }).click();
+  await page.getByRole("button", { name: "Apply" }).click();
+  await expect(page).toHaveURL(/[?&]type=boolean/);
+  await expect(page.getByRole("row").filter({ hasText: questionIdFor("number") })).toHaveCount(0);
+});
+
 test("a row opens its question from the keyboard alone", async ({ page }) => {
   // Not an axe check: axe cannot tell whether a row is *reachable*. The vendored table's
   // rows are the navigation, so if they are not keyboard-operable the library has no

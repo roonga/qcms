@@ -5,32 +5,39 @@ import { QuestionsTable } from "@/components/questions/questions-table";
 import { t } from "@/lib/i18n/en";
 import { textOf } from "@/lib/questions/definition";
 import { optionalProp } from "@/lib/questions/errors";
-import type { QuestionListItem, QuestionStatus } from "@/lib/questions/types";
+import {
+  QUESTION_TYPES,
+  type QuestionListItem,
+  type QuestionStatus,
+  type QuestionType,
+} from "@/lib/questions/types";
 import { listQuestions } from "@/lib/server/questions";
 import { requireAdminSession } from "@/lib/server/session";
 
 /**
  * The question library list (task 032; wireframe "list toolbar" + "list `table`").
  *
- * A server component that proxies one call and renders the answer. Both filters are the
- * API's own (`status`, and `search` which matches the slug or any locale of the label),
- * which is why they live in the URL rather than in component state: a filtered library is
- * a place an author can link to and come back to, and the filtering stays where the data
- * is instead of being re-implemented over a page of rows.
+ * A server component that proxies one call and renders the answer. Every filter is the
+ * API's own (`status`, `type`, and `search` which matches the slug or any locale of the
+ * label), which is why they live in the URL rather than in component state: a filtered
+ * library is a place an author can link to and come back to, and the filtering stays
+ * where the data is instead of being re-implemented over a page of rows.
  *
- * ## The two columns the wireframe asks for that are not here
+ * ## The one column the wireframe asks for that is not here
  *
- * **Type** and **updated** are drawn in the wireframe, and neither is in the payload
- * `GET /admin/questions` returns: it carries `questionId`, `slug`, `createdAt`,
- * `latestVersion`, `latestStatus`, `publishedAt` and the label, and nothing about the
- * question's type or its last edit. A type column would need either a read per row or a
- * new field on the API, and 032 is an `apps/admin` task, so this ships the columns the
- * API affords and the gap is recorded as an issue rather than papered over with a fetch
- * storm. The type is shown on the detail screen, where the definition is in hand.
+ * **Updated** is drawn in the wireframe and there is nothing to draw it from: nothing in
+ * the schema records when a version was last edited. `question_versions` carries
+ * `published_at` and nothing else, and `questions.created_at` is the identity's birthday
+ * rather than the latest version's. So the honest options are a `question_versions`
+ * schema change (a new column plus a touch-on-write trigger, on the table whose whole
+ * point is that published rows are frozen - I1) or a column labelled "Updated" showing a
+ * publish date and blank for every draft, which is precisely the row that changes most.
+ * Neither is this screen's call to make, so the created date is what is shown, under its
+ * own name, and the choice is recorded on issue #218 for the Code Owner.
  *
- * Pagination is absent for the same reason: the list route takes no page or cursor
- * parameter, and client-side paging over a full result set would be a worse answer than
- * none at launch scale.
+ * Pagination is absent by the wireframe's own note (`[upstream gap]`): the list route
+ * takes no page or cursor parameter, and client-side paging over a full result set would
+ * be a worse answer than none at launch scale.
  */
 
 /** One raw search-param value, as Next hands it over. */
@@ -40,6 +47,12 @@ type SearchParam = string | string[] | undefined;
 function parseStatus(raw: SearchParam): QuestionStatus | undefined {
   const value = Array.isArray(raw) ? raw[0] : raw;
   return value === "draft" || value === "published" || value === "deprecated" ? value : undefined;
+}
+
+/** The type filter's eight states. `undefined` means "any". */
+function parseType(raw: SearchParam): QuestionType | undefined {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return QUESTION_TYPES.find((type) => type === value);
 }
 
 function firstValue(raw: SearchParam): string {
@@ -58,6 +71,12 @@ function toRow(question: QuestionListItem): TableRow {
     data: {
       questionId: question.questionId,
       label: textOf(question.label ?? undefined),
+      // A row whose latest version has gone missing has no type to name; an em dash is
+      // not available and a blank cell reads as "none", so say it in words.
+      type:
+        question.type === null
+          ? t("questions.column.typeUnknown")
+          : t(`questions.type.${question.type}`),
       version: `v${String(question.latestVersion)}`,
       status: t(`questions.status.${question.latestStatus}`),
       created: isoDay(question.createdAt),
@@ -73,10 +92,15 @@ export default async function QuestionsPage({
   const session = await requireAdminSession();
   const params = await searchParams;
   const status = parseStatus(params["status"]);
+  const type = parseType(params["type"]);
   const search = firstValue(params["q"]);
-  const isFiltered = status !== undefined || search.trim() !== "";
+  const isFiltered = status !== undefined || type !== undefined || search.trim() !== "";
 
-  const result = await listQuestions(session, { ...optionalProp("status", status), search });
+  const result = await listQuestions(session, {
+    ...optionalProp("status", status),
+    ...optionalProp("type", type),
+    search,
+  });
 
   return (
     <div className="flex flex-col gap-6">
@@ -114,6 +138,19 @@ export default async function QuestionsPage({
                     { label: t("questions.status.draft"), value: "draft" },
                     { label: t("questions.status.published"), value: "published" },
                     { label: t("questions.status.deprecated"), value: "deprecated" },
+                  ]}
+                />
+                <Select
+                  name="type"
+                  label={t("questions.filter.type")}
+                  defaultValue={type ?? ""}
+                  placeholder={t("questions.filter.typeAll")}
+                  items={[
+                    { label: t("questions.filter.typeAll"), value: "" },
+                    ...QUESTION_TYPES.map((value) => ({
+                      label: t(`questions.type.${value}`),
+                      value,
+                    })),
                   ]}
                 />
                 <div className="flex items-end gap-2">
@@ -160,6 +197,7 @@ export default async function QuestionsPage({
             columns={[
               { id: "questionId", label: t("questions.column.id"), isRowHeader: true },
               { id: "label", label: t("questions.column.label") },
+              { id: "type", label: t("questions.column.type") },
               { id: "version", label: t("questions.column.version") },
               { id: "status", label: t("questions.column.status") },
               { id: "created", label: t("questions.column.created") },

@@ -122,6 +122,8 @@ export const messages = {
   "questions.filter.searchHint": "Matches the slug and the label text.",
   "questions.filter.status": "Status",
   "questions.filter.statusAll": "Any status",
+  "questions.filter.type": "Type",
+  "questions.filter.typeAll": "Any type",
   "questions.filter.apply": "Apply",
   "questions.filter.clear": "Clear filters",
 
@@ -129,6 +131,8 @@ export const messages = {
   "questions.table.hint": "Open a question with Enter, or by clicking its row.",
   "questions.column.id": "Question ID",
   "questions.column.label": "Label",
+  "questions.column.type": "Type",
+  "questions.column.typeUnknown": "Unknown",
   "questions.column.version": "Latest",
   "questions.column.status": "Status",
   "questions.column.created": "Created",

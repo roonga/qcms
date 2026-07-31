@@ -105,6 +105,8 @@ export interface QuestionListItem {
   readonly publishedAt: string | null;
   /** The latest version's localized label, or `null` when that version is missing. */
   readonly label: LocalizedText | null;
+  /** The latest version's type, or `null` when that version is missing. */
+  readonly type: QuestionType | null;
 }
 
 /** `GET /admin/questions/{id}`, versions oldest first. */

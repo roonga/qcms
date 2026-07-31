@@ -6,6 +6,7 @@ import type {
   QuestionDetail,
   QuestionListItem,
   QuestionStatus,
+  QuestionType,
   QuestionVersion,
 } from "../questions/types.ts";
 
@@ -66,10 +67,15 @@ async function read<T>(response: Response): Promise<ApiResult<T>> {
 /** `GET /admin/questions` - status and free-text filters are the API's, not ours. */
 export async function listQuestions(
   session: AdminSession,
-  filters: { readonly status?: QuestionStatus; readonly search?: string } = {},
+  filters: {
+    readonly status?: QuestionStatus;
+    readonly type?: QuestionType;
+    readonly search?: string;
+  } = {},
 ): Promise<ApiResult<readonly QuestionListItem[]>> {
   const query = new URLSearchParams();
   if (filters.status !== undefined) query.set("status", filters.status);
+  if (filters.type !== undefined) query.set("type", filters.type);
   if (filters.search !== undefined && filters.search.trim() !== "") {
     query.set("search", filters.search.trim());
   }

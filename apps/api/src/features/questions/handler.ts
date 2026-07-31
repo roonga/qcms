@@ -69,7 +69,7 @@ import type {
   previewQuestionVersionRoute,
   publishVersionRoute,
 } from "./route.js";
-import type { QuestionVersionView } from "./schema.js";
+import type { QuestionListItem, QuestionVersionView } from "./schema.js";
 
 // --- typed failures (envelope codes the admin app keys off, 032) -------------
 
@@ -142,6 +142,17 @@ function toVersionView(row: QuestionVersionRow): QuestionVersionView {
 /** The localized label carried by any definition (used for list display/search). */
 function labelOf(definition: QuestionDefinition): unknown {
   return (definition as { label?: unknown }).label;
+}
+
+/**
+ * The question type carried by any definition (list display + type filter).
+ *
+ * Read positionally like {@link labelOf} rather than narrowed through the kernel
+ * union: a stored definition is already kernel-valid, so its `type` is one of the
+ * seven, and the response schema is what pins that for clients.
+ */
+function typeOf(definition: QuestionDefinition): QuestionListItem["type"] {
+  return (definition as { type: QuestionListItem["type"] }).type;
 }
 
 /**
@@ -318,16 +329,16 @@ export function makeListQuestionsHandler(
   deps: Deps,
 ): RouteHandler<typeof listQuestionsRoute, ApiEnv> {
   return async (c) => {
-    const { status, search } = c.req.valid("query");
+    const { status, type, search } = c.req.valid("query");
     const summaries = await listQuestions(deps.db);
 
     const byStatus =
       status === undefined ? summaries : summaries.filter((s) => s.latestStatus === status);
 
-    // Load each latest definition for its label (display + label search). One
-    // read per row is fine at launch admin scale; a JOIN/denormalized label is
-    // a Phase-4 optimization, not a launch need (R7). Sequential so the reads
-    // never overlap on a shared connection handle.
+    // Load each latest definition for its label and type (display + label search
+    // + type filter). One read per row is fine at launch admin scale; a JOIN or a
+    // denormalized label is a Phase-4 optimization, not a launch need (R7).
+    // Sequential so the reads never overlap on a shared connection handle.
     const items = [];
     for (const s of byStatus) {
       const latest = await getQuestionVersion(deps.db, s.questionId, s.latestVersion);
@@ -340,14 +351,21 @@ export function makeListQuestionsHandler(
         latestStatus: s.latestStatus,
         publishedAt: s.publishedAt === null ? null : s.publishedAt.toISOString(),
         label,
+        type: latest === undefined ? null : typeOf(latest.definition),
       });
     }
+
+    // The type filter is applied here rather than in the query above because the
+    // type lives in the definition JSON these reads just fetched, not in the
+    // summary row. A row whose latest version is missing has no type, so it can
+    // never match a type filter.
+    const byType = type === undefined ? items : items.filter((q) => q.type === type);
 
     const needle = search?.trim().toLowerCase();
     const questions =
       needle === undefined || needle === ""
-        ? items
-        : items.filter(
+        ? byType
+        : byType.filter(
             (q) => q.slug.toLowerCase().includes(needle) || labelMatches(q.label, needle),
           );
 

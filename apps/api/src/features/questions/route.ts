@@ -142,7 +142,7 @@ export const listQuestionsRoute = createRoute({
   method: "get",
   path: "/questions",
   summary:
-    "List questions with a latest-version summary; filter by status, search slug/label (admin)",
+    "List questions with a latest-version summary; filter by status and type, search slug/label (admin)",
   tags,
   request: { query: ListQuestionsQuery },
   responses: {
