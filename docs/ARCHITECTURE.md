@@ -168,9 +168,11 @@ In the API (guards the data model): per-session and per-IP rate limits on answer
 # Enterprise
 internet ──▶ portal (SSR + BFF) ─────┐
 vpn ───────▶ admin ──▶ /admin ───────┤
-                                     ▼
-                          api-internal ──▶ postgres
-                          (outbox deliverer + sweep run here)
+                │                    ▼
+                │         api-internal ──▶ postgres
+                │         (outbox deliverer + sweep run here)
+                │                    │
+                └─▶ postgres (better-auth tables only, ADR-35)
                                      │
         on submit: signed webhook ───▶ downstream systems
         pull path: reporting view ───▶ BI / ETL
@@ -182,6 +184,8 @@ portal · admin · api (all groups + workers; no published port) · postgres
 ```
 
 Both topologies run the same images; the difference is instance count and mount flags. The solo shape - four containers (portal, admin, api, postgres), one a database, with TLS/ingress supplied by the operator (ADR-20) - is the operability budget and the reference deployment the scaffold produces.
+
+Database clients (ADR-35): the API is the sole client of the domain tables; the admin connects for better-auth's tables only, on a dedicated Postgres role scoped to that surface (issue #211); the portal holds no database handle at all.
 
 ## 10. Operations
 
