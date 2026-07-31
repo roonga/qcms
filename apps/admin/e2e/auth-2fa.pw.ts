@@ -152,7 +152,7 @@ test("a real otplib code completes the challenge and the shell nav marks the act
   await signInWithTotp(page, EMAIL, totpSecret);
   await expect(page).toHaveURL(/\/questions$/);
 
-  const nav = page.getByRole("navigation", { name: "Admin sections" });
+  const nav = page.getByRole("navigation", { name: "Primary" });
   for (const item of ["Questions", "Forms", "Responses", "Webhooks", "Settings"]) {
     await expect(nav.getByRole("link", { name: item })).toBeVisible();
   }

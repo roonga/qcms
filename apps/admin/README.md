@@ -19,11 +19,20 @@ screens are placeholders that name the task filling them.
 ## Running it
 
 ```bash
-cp apps/admin/.env.example apps/admin/.env.local   # then edit
-pnpm --filter @qcms/db exec drizzle-kit migrate     # auth tables must exist
+pnpm dev:portal                                    # dev Postgres up and migrated to head
+cp apps/admin/.env.example apps/admin/.env.local   # then edit; DATABASE_URL -> port 7020
 QCMS_ADMIN_EMAIL=you@example.test QCMS_ADMIN_PASSWORD='a long passphrase' pnpm qcms:create-admin
 pnpm --filter qcms-admin dev                        # http://localhost:3000
 ```
+
+Migrations are applied **programmatically**, not by the drizzle-kit CLI: `packages/db/drizzle.config.ts`
+declares no `dbCredentials` (it exists to generate migrations, not to run them), so
+`drizzle-kit migrate` cannot connect. `scripts/dev-portal.mjs` (`pnpm dev:portal`) brings up
+the dev Postgres from `docker-compose.dev.yml` on port 7020 and migrates it to head with
+the same package-owned migration set adopters run; it then also starts the portal and API,
+which the admin does not need but which cost nothing to leave running. Point the admin's
+`DATABASE_URL` at that database (`postgres://qcms:qcms@127.0.0.1:7020/qcms`), or at your own
+Postgres migrated the same way.
 
 `pnpm qcms:create-admin` is the **only** way an admin account is created, and it refuses
 to run once any account exists (SEC-1: no self-registration path exists in any

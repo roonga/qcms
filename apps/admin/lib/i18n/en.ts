@@ -28,7 +28,7 @@ export const messages = {
   "action.continue": "Continue",
   "action.savePassword": "Change password",
 
-  "nav.label": "Admin sections",
+  "nav.label": "Primary",
   "nav.questions": "Questions",
   "nav.forms": "Forms",
   "nav.responses": "Responses",
