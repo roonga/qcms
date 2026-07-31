@@ -56,6 +56,19 @@ const PRIMITIVES = [
       <kit.TextField label="Name" name="name" />
     </kit.Form>,
   ],
+  // The vendored `Menu` renders its own trigger and stays closed until pressed, which
+  // is its mounted state - the open popover is react-aria overlay layout and belongs in
+  // Playwright (ADR-23), the same call `Dialog` above makes.
+  [
+    "Menu",
+    <kit.Menu
+      triggerLabel="Options"
+      items={[
+        { id: "publish", label: "Publish" },
+        { id: "deprecate", label: "Deprecate" },
+      ]}
+    />,
+  ],
   ["NumberField", <kit.NumberField label="Minimum" name="min" />],
   [
     "Select",
@@ -89,6 +102,13 @@ describe("@qcms/ui/kit surface", () => {
   it("exports exactly the admin kit primitives, all callable", () => {
     // Pinned rather than counted: a primitive silently disappearing from the barrel
     // would otherwise only show up as a build error in a later task.
+    //
+    // Only the plain function exports are listed. The menu primitives task 032 added
+    // are re-exported react-aria-components, and most of them arrive as forwardRef or
+    // context objects rather than functions, so they never reach this filter -
+    // `MenuTrigger` and the vendored `Menu` are the two that do. That is a property of
+    // how react-aria packages them, not a statement about which of them matter; the
+    // whole set is exercised together in `menu-keyboard.test.tsx`.
     const exported = Object.entries(kit).filter(([, value]) => typeof value === "function");
     expect(new Set(exported.map(([name]) => name))).toEqual(
       new Set([
@@ -100,6 +120,8 @@ describe("@qcms/ui/kit surface", () => {
         "DatePicker",
         "Dialog",
         "Form",
+        "Menu",
+        "MenuTrigger",
         "NumberField",
         "Select",
         "Table",
