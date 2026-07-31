@@ -45,12 +45,18 @@ export default async function ShellLayout({ children }: { readonly children: Rea
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="qcms-topbar">
-        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-x-5 gap-y-2 px-4 py-2">
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
-            {/* "QCMS" and nothing else. No sub-label, and no word here names this app
-                to an operator: the product is QCMS and the respondent app is the
-                Portal (Code Owner naming call, 2026-07-30). */}
-            <span className="qcms-wordmark">{t("app.title")}</span>
+        {/* Three siblings of one wrapping row, not two nested groups, and the design
+            card's 390px demo is why (task 032): the nav is the only elastic member
+            (`flex-1 basis-40 min-w-0`), so as the bar narrows the nav shrinks and its
+            own items wrap onto further lines while the trailing controls stay on the
+            top row beside the wordmark. Nested inside a "wordmark plus nav" group they
+            were pushed onto a row of their own below the whole nav instead. */}
+        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-x-5 gap-y-2 px-4 py-2">
+          {/* "QCMS" and nothing else. No sub-label, and no word here names this app
+              to an operator: the product is QCMS and the respondent app is the
+              Portal (Code Owner naming call, 2026-07-30). */}
+          <span className="qcms-wordmark flex-shrink-0">{t("app.title")}</span>
+          <div className="min-w-0 flex-1 basis-40">
             <AdminNav />
           </div>
           <div className="flex flex-shrink-0 items-center gap-x-2">
