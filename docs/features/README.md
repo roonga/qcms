@@ -1,6 +1,6 @@
 # features/ - Ordered task files
 
-Each file is a self-contained work order for one agent session (or one focused human session). Execute in numeric order (exceptions: 040 runs after 036, before 038; 041 runs any time after 034 and **never gates 038** - ADR-25; 042 runs after 027, before 029 and 031–035 - the wireframe pass; 043 runs after 029, before 030 and 031–035 - the neutral-domain rename; 044 runs any time after 029 and **never gates launch** - the no-JS submission gap); the **Depends on** header lists hard prerequisites. Files never expand their own scope - discoveries become issues.
+Each file is a self-contained work order for one agent session (or one focused human session). Execute in numeric order (exceptions: 040 runs after 036, before 038; 041 runs any time after 034 and **never gates 038** - ADR-25; 042 runs after 027, before 029 and 031–035 - the wireframe pass; 043 runs after 029, before 030 and 031–035 - the neutral-domain rename; 044 runs any time after 029 and **never gates launch** - the no-JS submission gap; 055 runs after 031, before 032 - the QCMS app theme); the **Depends on** header lists hard prerequisites. Files never expand their own scope - discoveries become issues.
 
 **Self-containedness convention:** a task is self-contained *given the repo's `docs/` set* - task files carry the what/why/done, and point at the specific doc sections that carry contracts (schemas, semantics, layouts) so those live in one place and can't drift. 001 bootstraps the docs into the repo, so every later session finds its references locally. If a referenced section is missing or contradicts the task, that's a blocking issue - stop and surface it, don't improvise. Tasks needing anything *outside* the repo (e.g. the `a2-react-aria` repo in 011/028) declare it in an **External input required** header.
 
@@ -72,6 +72,7 @@ Status values: `todo` · `in-progress (branch)` · `blocked (issue #)` · `done 
 | 049 | Admin theme editor: customize tokens + save named custom theme (ADR-30 amended 2026-07-25 to launch tier; folds #26) | 8a | todo (after 031 + 047) |
 | 050 | Answer retraction: tombstone append resolved to unanswered by latestAnswers (ADR-33; folds #95) | 7 | done (PR #97; kernel unchanged per the accepted ADR-33 divergence; landed before PR #90, which rebases over it) |
 | 054 | Observability: OTel tracing baseline (portal -> API -> pg via traceparent) + pino trace-correlated logs + SEC-13 redaction allowlist (ADR-34) | 8b | done (PR #181; traced e2e via in-test OTLP receiver; SEC-13 redaction; whole Playwright suite runs traced) |
+| 055 | QCMS app theme application: Cobalt tokens + Lexend + sharp corners + mode control (after 031, before 032; UI screenshot gate) | 8a | todo |
 | 036 | Production images, compose, ops docs | 8b | todo |
 | 037 | create-qcms-app CLI | 8b | todo |
 | 040 | Security review and hardening (runs after 036, before 038) | 8b | todo |
