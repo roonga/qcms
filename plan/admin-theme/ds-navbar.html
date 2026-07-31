@@ -246,17 +246,40 @@ code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; bord
 .topbar .signout { height: var(--admin-control-h); padding: 0 0.9rem; border-radius: var(--radius-control); border: 1px solid var(--color-border-strong); background: var(--color-ghost); color: var(--color-text); cursor: pointer; flex-shrink: 0; }
 .topbar .signout:hover { background: var(--color-ghost-hover); }
 
-/* Appearance mode control: a compact chip radiogroup in the topbar's trailing
-   group, before Sign out. 32px keeps it inside a 48px-content bar where
-   --admin-control-h (40px) would crowd the row; the group centers via the
-   topbar's own align-items. Selected state never relies on colour alone:
-   border weight + font weight + a leading check glyph. */
-.topbar .modes { display: flex; align-items: center; gap: 0.35rem; flex-shrink: 0; }
-.modechip { display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0 0.65rem; border-radius: var(--radius-control); border: 1px solid var(--color-border); background: var(--color-ghost); color: var(--color-text); font-size: 0.85rem; cursor: pointer; }
-.modechip:hover { background: var(--color-ghost-hover); }
-.modechip .check { font-weight: 700; }
-.modechip.is-selected { border: 2px solid var(--color-border-strong); font-weight: 600; }
-.demo-hc .modechip.is-selected { border-color: var(--color-primary); }
+/* Appearance mode control (rework 2026-07-31, Code Owner call): the earlier
+   three-chip radiogroup read as too many buttons in the topbar, replaced by
+   one compact dropdown. The trigger matches .signout exactly (same height,
+   radius, border, ghost fill) so it reads as one more topbar control, not a
+   separate widget; the open menu reuses the dropdown-menu language from
+   ds-overlays.html (surface, border, radius, shadow) so the two cards agree.
+   Checked state never relies on colour alone: a leading check glyph, font
+   weight, and an inset accent edge carry it together. */
+.topbar .mode { position: relative; flex-shrink: 0; }
+.modetrigger { display: inline-flex; align-items: center; gap: 6px; height: var(--admin-control-h); padding: 0 0.75rem; border-radius: var(--radius-control); border: 1px solid var(--color-border-strong); background: var(--color-ghost); color: var(--color-text); font-size: 0.9rem; cursor: pointer; }
+.modetrigger:hover { background: var(--color-ghost-hover); }
+.modetrigger .caret { font-size: 0.7rem; color: var(--color-text-muted); }
+.modemenu { position: absolute; top: calc(100% + 6px); right: 0; min-width: 180px; background: var(--color-surface); border: 1px solid var(--color-border-strong); border-radius: var(--radius-card); padding: 6px; box-shadow: 0 2px 4px hsl(var(--shadow-color) / 0.1), 0 30px 70px -30px hsl(var(--shadow-color) / 0.4); }
+.demo-hc .modemenu { box-shadow: none; }
+.modeitem { display: flex; align-items: center; gap: 8px; width: 100%; height: 38px; padding: 0 10px; border: none; border-radius: var(--radius-sm); background: none; color: var(--color-text); font-size: 0.9rem; text-align: left; cursor: pointer; }
+.modeitem:hover { background: var(--color-ghost-hover); }
+.modeitem .check { width: 1em; flex-shrink: 0; font-weight: 700; }
+.modeitem.is-checked { font-weight: 600; box-shadow: inset 2px 0 0 var(--color-border-strong); }
+.demo-hc .modeitem.is-checked { box-shadow: inset 2px 0 0 var(--color-primary); }
+
+/* Account menu (added 2026-07-31, Code Owner call): the trailing group's
+   second consolidated control, absorbing the standalone Sign out button.
+   The trigger and menu deliberately reuse .modetrigger/.modemenu/.modeitem
+   as-is (same recipe as the appearance dropdown) rather than fork a parallel
+   set of classes; .account only adds what differs - a shrinkable wrapper so
+   a long email truncates instead of overflowing the bar, and the
+   non-interactive "signed in as" header row the appearance menu has no
+   equivalent for. */
+.topbar .account { position: relative; flex-shrink: 1; min-width: 0; }
+.account .modetrigger { min-width: 0; max-width: 100%; }
+.account .modetrigger .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1 1 auto; }
+.acctinfo { display: block; padding: 6px 10px 8px; }
+.acctinfo .who { display: block; font-size: 0.75rem; color: var(--color-text-muted); }
+.acctinfo .email { display: block; font-size: 0.85rem; font-weight: 600; color: var(--color-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .frame { border: 1px solid var(--color-border); border-radius: var(--radius-card); overflow: hidden; }
 .demo-fill { padding: 0.85rem 1.5rem; color: var(--color-text-muted); font-size: 0.85rem; background: var(--color-background); }
@@ -354,9 +377,9 @@ code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; bord
 
 <div class="card">
   <h2>Appearance mode control</h2>
-  <p class="note">Default follows prefers-color-scheme; an explicit choice persists per operator; High contrast is only ever explicit, never inferred. The selected chip is distinguishable without colour: border weight, label weight, and a leading check glyph carry the state, not colour alone.</p>
+  <p class="note">One compact control replaces the three-button chip row (Code Owner call, 2026-07-31). Default follows prefers-color-scheme; an explicit choice persists per operator; High contrast is only ever explicit, never inferred. The checked item is distinguishable without colour: a leading check glyph, font weight, and an inset accent edge carry the state, not colour alone. Keyboard: the trigger opens with Enter, Space, or Arrow Down; the open menu is arrow-navigated; Escape closes it and returns focus to the trigger (the vendored a2-react-aria menu provides this).</p>
 
-  <h3>Light / default, Dark selected</h3>
+  <h3>Closed, Dark selected</h3>
   <div class="frame">
     <header class="topbar">
       <span class="brand"><span class="mark">QCMS</span></span>
@@ -367,17 +390,17 @@ code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; bord
         <a href="#" class="navitem">Webhooks</a>
         <a href="#" class="navitem">Settings</a>
       </nav>
-      <div class="modes" role="radiogroup" aria-label="Appearance">
-        <button type="button" class="modechip" role="radio" aria-checked="false">Light</button>
-        <button type="button" class="modechip is-selected" role="radio" aria-checked="true"><span class="check" aria-hidden="true">✓</span>Dark</button>
-        <button type="button" class="modechip" role="radio" aria-checked="false">High contrast</button>
+      <div class="mode">
+        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="false">
+          <span class="glyph" aria-hidden="true">&#9680;</span><span class="label">Dark</span><span class="caret" aria-hidden="true">&#9662;</span>
+        </button>
       </div>
       <button class="signout">Sign out</button>
     </header>
   </div>
 
-  <h3>High-contrast treatment, High contrast selected</h3>
-  <div class="frame demo-hc">
+  <h3>Open, Dark selected</h3>
+  <div class="frame" style="min-height: 230px;">
     <header class="topbar">
       <span class="brand"><span class="mark">QCMS</span></span>
       <nav aria-label="Primary">
@@ -387,16 +410,46 @@ code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; bord
         <a href="#" class="navitem">Webhooks</a>
         <a href="#" class="navitem">Settings</a>
       </nav>
-      <div class="modes" role="radiogroup" aria-label="Appearance">
-        <button type="button" class="modechip" role="radio" aria-checked="false">Light</button>
-        <button type="button" class="modechip" role="radio" aria-checked="false">Dark</button>
-        <button type="button" class="modechip is-selected" role="radio" aria-checked="true"><span class="check" aria-hidden="true">✓</span>High contrast</button>
+      <div class="mode">
+        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="true">
+          <span class="glyph" aria-hidden="true">&#9680;</span><span class="label">Dark</span><span class="caret" aria-hidden="true">&#9662;</span>
+        </button>
+        <div class="modemenu" role="menu" aria-label="Appearance">
+          <button type="button" class="modeitem" role="menuitemradio" aria-checked="false"><span class="check" aria-hidden="true"></span>Light</button>
+          <button type="button" class="modeitem is-checked" role="menuitemradio" aria-checked="true"><span class="check" aria-hidden="true">&#10003;</span>Dark</button>
+          <button type="button" class="modeitem" role="menuitemradio" aria-checked="false"><span class="check" aria-hidden="true"></span>High contrast</button>
+        </div>
       </div>
       <button class="signout">Sign out</button>
     </header>
   </div>
 
-  <h3>Narrow viewport (390px)</h3>
+  <h3>High-contrast treatment, open, High contrast selected</h3>
+  <div class="frame demo-hc" style="min-height: 230px;">
+    <header class="topbar">
+      <span class="brand"><span class="mark">QCMS</span></span>
+      <nav aria-label="Primary">
+        <a href="#" class="navitem" aria-current="page">Questions</a>
+        <a href="#" class="navitem">Forms</a>
+        <a href="#" class="navitem">Responses</a>
+        <a href="#" class="navitem">Webhooks</a>
+        <a href="#" class="navitem">Settings</a>
+      </nav>
+      <div class="mode">
+        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="true">
+          <span class="glyph" aria-hidden="true">&#9680;</span><span class="label">High contrast</span><span class="caret" aria-hidden="true">&#9662;</span>
+        </button>
+        <div class="modemenu" role="menu" aria-label="Appearance">
+          <button type="button" class="modeitem" role="menuitemradio" aria-checked="false"><span class="check" aria-hidden="true"></span>Light</button>
+          <button type="button" class="modeitem" role="menuitemradio" aria-checked="false"><span class="check" aria-hidden="true"></span>Dark</button>
+          <button type="button" class="modeitem is-checked" role="menuitemradio" aria-checked="true"><span class="check" aria-hidden="true">&#10003;</span>High contrast</button>
+        </div>
+      </div>
+      <button class="signout">Sign out</button>
+    </header>
+  </div>
+
+  <h3>Narrow viewport (390px), closed</h3>
   <div class="frame" style="width: 390px;">
     <header class="topbar">
       <span class="brand"><span class="mark">QCMS</span></span>
@@ -407,12 +460,131 @@ code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; bord
         <a href="#" class="navitem">Webhooks</a>
         <a href="#" class="navitem">Settings</a>
       </nav>
-      <div class="modes" role="radiogroup" aria-label="Appearance">
-        <button type="button" class="modechip" role="radio" aria-checked="false">Light</button>
-        <button type="button" class="modechip is-selected" role="radio" aria-checked="true"><span class="check" aria-hidden="true">✓</span>Dark</button>
-        <button type="button" class="modechip" role="radio" aria-checked="false">High contrast</button>
+      <div class="mode">
+        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="false">
+          <span class="glyph" aria-hidden="true">&#9680;</span><span class="label">Dark</span><span class="caret" aria-hidden="true">&#9662;</span>
+        </button>
       </div>
       <button class="signout">Sign out</button>
+    </header>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Account menu</h2>
+  <p class="note">The account menu absorbs the standalone Sign out button (Code Owner call, 2026-07-31): the earlier sections' bare Sign out demos document the pre-032 state, and the .signout spec remains the ghost-button reference; new builds compose the trailing group as appearance dropdown plus account menu. Sign out inside the menu keeps its confirmation-free immediate behavior; Change password routes to the settings password screen. Same keyboard contract as the appearance menu: the trigger opens with Enter, Space, or Arrow Down, the menu is arrow-navigated, and Escape closes it and returns focus to the trigger.</p>
+
+  <h3>Closed, trailing group composition</h3>
+  <div class="frame">
+    <header class="topbar">
+      <span class="brand"><span class="mark">QCMS</span></span>
+      <nav aria-label="Primary">
+        <a href="#" class="navitem" aria-current="page">Questions</a>
+        <a href="#" class="navitem">Forms</a>
+        <a href="#" class="navitem">Responses</a>
+        <a href="#" class="navitem">Webhooks</a>
+        <a href="#" class="navitem">Settings</a>
+      </nav>
+      <div class="mode">
+        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="false">
+          <span class="glyph" aria-hidden="true">&#9680;</span><span class="label">Dark</span><span class="caret" aria-hidden="true">&#9662;</span>
+        </button>
+      </div>
+      <div class="account">
+        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="false">
+          <span class="label">op@example.test</span><span class="caret" aria-hidden="true">&#9662;</span>
+        </button>
+      </div>
+    </header>
+  </div>
+
+  <h3>Open, account menu</h3>
+  <div class="frame" style="min-height: 200px;">
+    <header class="topbar">
+      <span class="brand"><span class="mark">QCMS</span></span>
+      <nav aria-label="Primary">
+        <a href="#" class="navitem" aria-current="page">Questions</a>
+        <a href="#" class="navitem">Forms</a>
+        <a href="#" class="navitem">Responses</a>
+        <a href="#" class="navitem">Webhooks</a>
+        <a href="#" class="navitem">Settings</a>
+      </nav>
+      <div class="mode">
+        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="false">
+          <span class="glyph" aria-hidden="true">&#9680;</span><span class="label">Dark</span><span class="caret" aria-hidden="true">&#9662;</span>
+        </button>
+      </div>
+      <div class="account">
+        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="true">
+          <span class="label">op@example.test</span><span class="caret" aria-hidden="true">&#9662;</span>
+        </button>
+        <div class="modemenu" role="menu" aria-label="Account">
+          <div class="acctinfo" role="presentation">
+            <span class="who">Signed in as</span>
+            <span class="email">op@example.test</span>
+          </div>
+          <div style="height: 1px; background: var(--color-border); margin: 6px 4px;"></div>
+          <button type="button" class="modeitem" role="menuitem">Change password</button>
+          <button type="button" class="modeitem" role="menuitem">Sign out</button>
+        </div>
+      </div>
+    </header>
+  </div>
+
+  <h3>High-contrast treatment, open</h3>
+  <div class="frame demo-hc" style="min-height: 200px;">
+    <header class="topbar">
+      <span class="brand"><span class="mark">QCMS</span></span>
+      <nav aria-label="Primary">
+        <a href="#" class="navitem" aria-current="page">Questions</a>
+        <a href="#" class="navitem">Forms</a>
+        <a href="#" class="navitem">Responses</a>
+        <a href="#" class="navitem">Webhooks</a>
+        <a href="#" class="navitem">Settings</a>
+      </nav>
+      <div class="mode">
+        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="false">
+          <span class="glyph" aria-hidden="true">&#9680;</span><span class="label">Dark</span><span class="caret" aria-hidden="true">&#9662;</span>
+        </button>
+      </div>
+      <div class="account">
+        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="true">
+          <span class="label">op@example.test</span><span class="caret" aria-hidden="true">&#9662;</span>
+        </button>
+        <div class="modemenu" role="menu" aria-label="Account">
+          <div class="acctinfo" role="presentation">
+            <span class="who">Signed in as</span>
+            <span class="email">op@example.test</span>
+          </div>
+          <div style="height: 1px; background: var(--color-border); margin: 6px 4px;"></div>
+          <button type="button" class="modeitem" role="menuitem">Change password</button>
+          <button type="button" class="modeitem" role="menuitem">Sign out</button>
+        </div>
+      </div>
+    </header>
+  </div>
+
+  <h3>Narrow viewport (390px), closed, email truncated</h3>
+  <div class="frame" style="width: 390px;">
+    <header class="topbar">
+      <span class="brand"><span class="mark">QCMS</span></span>
+      <nav aria-label="Primary">
+        <a href="#" class="navitem" aria-current="page">Questions</a>
+        <a href="#" class="navitem">Forms</a>
+        <a href="#" class="navitem">Responses</a>
+        <a href="#" class="navitem">Webhooks</a>
+        <a href="#" class="navitem">Settings</a>
+      </nav>
+      <div class="mode">
+        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="false">
+          <span class="glyph" aria-hidden="true">&#9680;</span><span class="label">Dark</span><span class="caret" aria-hidden="true">&#9662;</span>
+        </button>
+      </div>
+      <div class="account" style="max-width: 120px;">
+        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="false">
+          <span class="label">op@example.test</span><span class="caret" aria-hidden="true">&#9662;</span>
+        </button>
+      </div>
     </header>
   </div>
 </div>
