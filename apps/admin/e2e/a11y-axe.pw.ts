@@ -6,7 +6,10 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { TEST_PASSWORD, createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import {
+  accountTrigger,
+  appearanceTrigger,
   fillStable,
+  openMenu,
   readSetupKey,
   signInWithTotp,
   submitSignIn,
@@ -174,6 +177,35 @@ test("the authenticated shell states have zero violations", async ({ page }) => 
     await page.goto(path);
     await expectNoViolations(page, `shell ${path}`);
   }
+});
+
+test("both topbar menus have zero violations while OPEN, in every mode", async ({ page }) => {
+  // Task 032. A closed menu is a button; the accessibility risk is entirely in the
+  // open state, and a gate that only ever sampled first render would miss all of it:
+  // a portalled popover outside the landmark structure, two wordless triggers whose
+  // only name is an `aria-label`, and a checked row whose state must not be colour
+  // alone. `expectNoViolations` runs each state in light, dark and high contrast, and
+  // high contrast is the case that matters most here - it is where a two-colour
+  // palette would expose a state carried by colour and nothing else.
+  //
+  // The mode is chosen through the real control before the sweep, so the CHECKED row
+  // is a different row in each pass rather than always the first one.
+  await signInWithTotp(page, EMAIL, totpSecret);
+
+  await openMenu(appearanceTrigger(page));
+  await expectNoViolations(page, "appearance menu open");
+
+  // Move the check to a different row and sweep again: the checked row's own
+  // treatment (glyph, weight, inset edge) is what the "never colour alone"
+  // requirement lands on, so it has to be measured where it actually is.
+  await page.getByRole("menuitemradio", { name: "High contrast", exact: true }).click();
+  await openMenu(appearanceTrigger(page));
+  await expectNoViolations(page, "appearance menu open, High contrast checked");
+  await page.keyboard.press("Escape");
+
+  await openMenu(accountTrigger(page));
+  await expectNoViolations(page, "account menu open");
+  await page.keyboard.press("Escape");
 });
 
 test("the question library, its editor and a question's detail have zero violations", async ({

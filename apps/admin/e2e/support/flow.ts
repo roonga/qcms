@@ -103,6 +103,53 @@ export async function signInWithTotp(page: Page, email: string, secret: string):
 }
 
 /**
+ * The topbar's two menu triggers (task 032), by their accessible names.
+ *
+ * By NAME and not by class, because the name is the contract: both triggers are
+ * wordless (a glyph, two decorative letters), so `aria-label` is the entire control
+ * as far as a screen reader is concerned, and a test that found them by class would
+ * keep passing after the labels went missing.
+ *
+ * The appearance trigger's name carries its current mode, so the match is a prefix.
+ */
+export function appearanceTrigger(page: Page): Locator {
+  return page.getByRole("button", { name: /^Appearance: / });
+}
+
+export function accountTrigger(page: Page): Locator {
+  return page.getByRole("button", { name: /^Account menu for / });
+}
+
+/** Open a menu from its trigger and wait for the popover to be on screen. */
+export async function openMenu(trigger: Locator): Promise<void> {
+  await trigger.click();
+  await expect(trigger).toHaveAttribute("aria-expanded", "true");
+  await expect(trigger.page().getByRole("menu")).toBeVisible();
+}
+
+/**
+ * Sign out through the account menu.
+ *
+ * There are two sign-out controls in the DOM on every authenticated page and only
+ * one of them is ever reachable: the menu item, and the `<noscript>` fallback form's
+ * button, which CSS keeps hidden while scripts run. A bare
+ * `getByRole("button", { name: "Sign out" })` therefore matches nothing in a scripted
+ * browser (Playwright's role engine skips what is hidden from the accessibility
+ * tree), which is why every caller goes through here.
+ *
+ * The wait is the same one the old standalone button needed: `click()` resolves when
+ * the navigation is initiated, so without it the POST is still in flight when the
+ * next flow starts.
+ */
+export async function signOut(page: Page): Promise<void> {
+  await openMenu(accountTrigger(page));
+  await Promise.all([
+    page.waitForURL(/\/sign-in/),
+    page.getByRole("menuitem", { name: "Sign out" }).click(),
+  ]);
+}
+
+/**
  * Take a brand-new account all the way from first sign-in to the shell, and return its
  * TOTP secret so later tests in the file can sign in again.
  *

@@ -3,7 +3,14 @@ import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
-import { readSetupKey, signInWithTotp, submitSignIn, submitTotp } from "./support/flow.js";
+import {
+  appearanceTrigger,
+  openMenu,
+  readSetupKey,
+  signInWithTotp,
+  submitSignIn,
+  submitTotp,
+} from "./support/flow.js";
 
 /**
  * The QCMS app's appearance behaviour (task 055, exit criteria 3 and 4).
@@ -114,9 +121,25 @@ async function computed(locator: Locator, property: string): Promise<string> {
   );
 }
 
-/** The mode chip for one mode, by its stable data hook. */
-function chip(page: Page, mode: Mode): Locator {
-  return page.locator(`.qcms-mode__chip[data-value="${mode}"]`);
+/** The human label for a mode, which is what the menu row and the trigger both say. */
+const LABEL: Record<Mode, string> = { light: "Light", dark: "Dark", hc: "High contrast" };
+
+/** One row of the open appearance menu, by role and accessible name. */
+function row(page: Page, mode: Mode): Locator {
+  return page.getByRole("menuitemradio", { name: LABEL[mode], exact: true });
+}
+
+/**
+ * Choose a mode the way an operator does: open the menu, click the row.
+ *
+ * Every step is the real control (task 032). Nothing here reaches for a class or
+ * pokes the root element, because what is under test is whether the CONTROL applies
+ * the mode - a test that set the class itself would pass with the control removed.
+ */
+async function choose(page: Page, mode: Mode): Promise<void> {
+  await openMenu(appearanceTrigger(page));
+  await row(page, mode).click();
+  await expect(page.getByRole("menu")).toBeHidden();
 }
 
 test("enrolls the account the shell tests sign in with", async ({ page }) => {
@@ -180,34 +203,86 @@ test("the mode control moves through all three modes and persists across a reloa
   page,
 }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
-  await expect(page.getByTestId("mode-control")).toBeVisible();
+  await expect(appearanceTrigger(page)).toBeVisible();
 
   for (const mode of MODES) {
-    await chip(page, mode).click();
+    await choose(page, mode);
     expect(await rootModes(page), `after choosing ${mode}`).toEqual([mode]);
     await expectPalette(page, mode, `after choosing ${mode}`);
+    // The trigger is wordless, so its accessible name is the only place the chosen
+    // mode is spelled out. It has to follow the choice or a screen-reader operator
+    // has no way to read the state at all.
+    await expect(appearanceTrigger(page)).toHaveAccessibleName(`Appearance: ${LABEL[mode]}`);
 
     // The reload is the persistence proof, and it is a SERVER-side one: the class is
     // in the HTML the server sent, so nothing had to run in the document to fix it.
     await page.reload();
     expect(await rootModes(page), `${mode} survives a reload`).toEqual([mode]);
-    await expect(chip(page, mode)).toHaveAttribute("data-selected", "true");
     await expectPalette(page, mode, `${mode} after reload`);
+    await openMenu(appearanceTrigger(page));
+    await expect(row(page, mode)).toHaveAttribute("aria-checked", "true");
+    await page.keyboard.press("Escape");
   }
+});
+
+test("the menu opens, navigates and closes from the keyboard alone", async ({ page }) => {
+  // The trigger has no text, so a keyboard operator reaches it by tab order and reads
+  // it by name; if either the roving order or the name breaks, the control is
+  // unusable in a way axe cannot detect (the issue #144 defect class).
+  await signInWithTotp(page, EMAIL, totpSecret);
+  const trigger = appearanceTrigger(page);
+  await trigger.focus();
+  await expect(trigger).toBeFocused();
+
+  await page.keyboard.press("ArrowDown");
+  await expect(page.getByRole("menu")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toBeHidden();
+  // Escape returns focus to the trigger rather than dropping it to the body, which is
+  // what keeps a keyboard operator's place in the bar.
+  await expect(trigger).toBeFocused();
+
+  // Enter opens too, and a row chosen with Enter applies the mode.
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("menu")).toBeVisible();
+  await row(page, "hc").focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("menu")).toBeHidden();
+  expect(await rootModes(page)).toEqual(["hc"]);
 });
 
 test("an explicit Light choice outranks a dark-preferring machine", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "dark" });
   await signInWithTotp(page, EMAIL, totpSecret);
-  await chip(page, "light").click();
+  await choose(page, "light");
   await page.reload();
   expect(await rootModes(page)).toEqual(["light"]);
   await expectPalette(page, "light", "explicit Light on a dark machine");
 });
 
+test("choosing the mode already shown still persists it", async ({ page }) => {
+  // The opt-out that is easy to lose. With no cookie, the control displays what the
+  // machine prefers, so an operator on a light machine who wants to STAY light when
+  // the machine flips to dark at sunset has to be able to choose Light - the mode the
+  // menu already shows as checked. A selection callback would report no change and do
+  // nothing; `onAction` is what makes this write the cookie.
+  await page.emulateMedia({ colorScheme: "light" });
+  await signInWithTotp(page, EMAIL, totpSecret);
+  expect(await rootModes(page), "no cookie yet, so no class").toEqual([]);
+
+  await choose(page, "light");
+  const stored = (await page.context().cookies()).find((c) => c.name === "qcms-app-mode");
+  expect(stored?.value, "choosing the displayed mode has to persist it").toBe("light");
+
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.reload();
+  expect(await rootModes(page), "the choice outranks the machine").toEqual(["light"]);
+  await expectPalette(page, "light", "pinned Light after the machine went dark");
+});
+
 test("a persisted choice is on screen in the first painted frame", async ({ page }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
-  await chip(page, "dark").click();
+  await choose(page, "dark");
 
   /*
    * The no-flash proof has to be a measurement, not an assertion about the end state,
@@ -254,21 +329,48 @@ test("a persisted choice is on screen in the first painted frame", async ({ page
   ).toBe(settled);
 });
 
-test("the selected chip is distinguishable without colour, including in High-contrast", async ({
+test("the checked menu row is distinguishable without colour, including in High-contrast", async ({
   page,
 }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
-  await chip(page, "hc").click();
+  await choose(page, "hc");
   expect(await rootModes(page)).toEqual(["hc"]);
 
-  const selected = chip(page, "hc");
-  const unselected = chip(page, "light");
-  // Three non-colour differences, each of which survives a two-colour palette.
-  expect(await computed(selected, "border-top-width")).toBe("2px");
-  expect(await computed(unselected, "border-top-width")).toBe("1px");
-  expect(Number(await computed(selected, "font-weight"))).toBeGreaterThan(
-    Number(await computed(unselected, "font-weight")),
+  await openMenu(appearanceTrigger(page));
+  const checked = row(page, "hc");
+  const unchecked = row(page, "light");
+
+  // Three non-colour differences, each of which survives a two-colour palette. The
+  // check glyph is the one a screen magnifier user reads at a glance; the inset edge
+  // is the one that survives a monochrome rendering; the weight carries at distance.
+  await expect(checked.locator(".qcms-menu__check")).toHaveText("✓");
+  await expect(unchecked.locator(".qcms-menu__check")).toHaveText("");
+  expect(Number(await computed(checked, "font-weight"))).toBeGreaterThan(
+    Number(await computed(unchecked, "font-weight")),
   );
-  await expect(selected.locator(".qcms-mode__mark")).toHaveText("✓");
-  await expect(unselected.locator(".qcms-mode__mark")).toHaveText("");
+  // `box-shadow` rather than a border, so the row's box never moves between states.
+  expect(await computed(checked, "box-shadow"), "the checked row's inset accent edge").toMatch(
+    /inset/u,
+  );
+  expect(await computed(unchecked, "box-shadow")).toBe("none");
+  // And the semantics behind all three, which is what a screen reader actually uses.
+  await expect(checked).toHaveAttribute("aria-checked", "true");
+  await expect(unchecked).toHaveAttribute("aria-checked", "false");
+});
+
+test("the appearance trigger is borderless at rest and bordered in High-contrast", async ({
+  page,
+}) => {
+  // The card's one deliberate high-contrast exception, and the kind of detail a theme
+  // change silently drops: at rest the glyph alone is the button, but in HC a
+  // borderless icon is precisely what an operator cannot find, so the border returns.
+  await signInWithTotp(page, EMAIL, totpSecret);
+  const trigger = appearanceTrigger(page);
+
+  await choose(page, "light");
+  expect(await computed(trigger, "border-top-width")).toBe("0px");
+  expect(await computed(trigger, "background-color")).toBe("rgba(0, 0, 0, 0)");
+
+  await choose(page, "hc");
+  expect(await computed(trigger, "border-top-width")).toBe("1px");
 });
