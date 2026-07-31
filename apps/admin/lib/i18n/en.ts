@@ -27,14 +27,25 @@ export const messages = {
   "action.verify": "Verify",
   "action.continue": "Continue",
   "action.savePassword": "Change password",
+  "action.changePassword": "Change password",
 
-  // The colour-mode control (task 055). Every label an operator reads goes through
-  // here, mode names included (ADR-27) - a control that exists to make the app
-  // usable is the last one that should be hard-coded to English.
+  // The colour-mode control (task 055; a menu since 032). Every label an operator
+  // reads goes through here, mode names included (ADR-27) - a control that exists to
+  // make the app usable is the last one that should be hard-coded to English.
   "appearance.mode.legend": "Appearance",
   "appearance.mode.light": "Light",
   "appearance.mode.dark": "Dark",
   "appearance.mode.hc": "High contrast",
+  // The trigger shows a glyph and no words, so this string is the entire control as
+  // far as a screen reader is concerned. It names the control AND its current value,
+  // which is what the visible chip used to do between its border and its check mark.
+  "appearance.trigger": "Appearance: {mode}",
+
+  // The account menu (task 032). The trigger is two decorative letters, so the same
+  // rule applies: its accessible name is the only thing announcing what it opens.
+  "account.trigger": "Account menu for {email}",
+  "account.menuLabel": "Account",
+  "account.signedInAs": "Signed in as",
 
   "nav.label": "Primary",
   "nav.questions": "Questions",
