@@ -250,17 +250,23 @@ code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; bord
    three-chip radiogroup read as too many buttons in the topbar, replaced by
    one compact dropdown. Third pass, same day: the trigger drops the visible
    mode word too - the interface itself already shows the mode, so a status
-   glyph is a nicer text-free cue than a label. Square, sharp-cornered
-   (var(--radius-control), deliberately contrasting the account avatar's
-   circular identity-glyph exception below), same ghost/border tokens as
-   .signout. aria-label carries what the visual dropped; the open menu is
-   unchanged and reuses the dropdown-menu language from ds-overlays.html
-   (surface, border, radius, shadow) so the two cards agree. Checked state
-   in the menu never relies on colour alone: a leading check glyph, font
-   weight, and an inset accent edge carry it together. */
+   glyph is a nicer text-free cue than a label. Fourth pass, same day: the
+   trigger drops its border and fill at rest too - the icon alone is the
+   button, the 32px box stays only as the hit area (var(--radius-control)
+   sizes the hover/focus shapes that still use it), and var(--color-ghost-
+   hover) fill materializes the box on hover or while open, so the anchored
+   menu visually connects to something. .demo-hc keeps a permanent 1px
+   strong border at rest as a deliberate, documented exception: a borderless
+   icon is exactly what high-contrast users struggle to locate, and
+   boundaries are the point of the mode. aria-label carries what the visual
+   dropped; the open menu is unchanged and reuses the dropdown-menu language
+   from ds-overlays.html (surface, border, radius, shadow) so the two cards
+   agree. Checked state in the menu never relies on colour alone: a leading
+   check glyph, font weight, and an inset accent edge carry it together. */
 .topbar .mode { position: relative; flex-shrink: 0; }
-.modetrigger { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--radius-control); border: 1px solid var(--color-border-strong); background: var(--color-ghost); color: var(--color-text); font-size: 1rem; cursor: pointer; flex-shrink: 0; }
-.modetrigger:hover { background: var(--color-ghost-hover); }
+.modetrigger { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--radius-control); border: none; background: var(--color-ghost); color: var(--color-text); font-size: 1.05rem; cursor: pointer; flex-shrink: 0; }
+.modetrigger:hover, .modetrigger[aria-expanded="true"] { background: var(--color-ghost-hover); }
+.demo-hc .modetrigger { border: 1px solid var(--color-border-strong); }
 .modemenu { position: absolute; top: calc(100% + 6px); right: 0; min-width: 180px; background: var(--color-surface); border: 1px solid var(--color-border-strong); border-radius: var(--radius-card); padding: 6px; box-shadow: 0 2px 4px hsl(var(--shadow-color) / 0.1), 0 30px 70px -30px hsl(var(--shadow-color) / 0.4); }
 .demo-hc .modemenu { box-shadow: none; }
 .modeitem { display: flex; align-items: center; gap: 8px; width: 100%; height: 38px; padding: 0 10px; border: none; border-radius: var(--radius-sm); background: none; color: var(--color-text); font-size: 0.9rem; text-align: left; cursor: pointer; }
@@ -392,7 +398,7 @@ code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; bord
 
 <div class="card">
   <h2>Appearance mode control</h2>
-  <p class="note">One compact control replaces the three-button chip row (Code Owner call, 2026-07-31). Default follows prefers-color-scheme; an explicit choice persists per operator; High contrast is only ever explicit, never inferred. The checked item is distinguishable without colour: a leading check glyph, font weight, and an inset accent edge carry the state, not colour alone. Keyboard: the trigger opens with Enter, Space, or Arrow Down; the open menu is arrow-navigated; Escape closes it and returns focus to the trigger (the vendored a2-react-aria menu provides this). The trigger is icon-only, no mode word in the bar (Code Owner, 2026-07-31): the word is redundant, since the interface itself already displays the mode; the accessible name and the menu carry the words instead.</p>
+  <p class="note">One compact control replaces the three-button chip row (Code Owner call, 2026-07-31). Default follows prefers-color-scheme; an explicit choice persists per operator; High contrast is only ever explicit, never inferred. The checked item is distinguishable without colour: a leading check glyph, font weight, and an inset accent edge carry the state, not colour alone. Keyboard: the trigger opens with Enter, Space, or Arrow Down; the open menu is arrow-navigated; Escape closes it and returns focus to the trigger (the vendored a2-react-aria menu provides this). The trigger is icon-only, no mode word in the bar (Code Owner, 2026-07-31): the word is redundant, since the interface itself already displays the mode; the accessible name and the menu carry the words instead. The trigger is also borderless at rest (Code Owner, 2026-07-31): the icon alone is the button, and hover or open materializes the ghost-fill surface around it; high contrast keeps a permanent border by design, since a borderless icon is exactly what high-contrast users struggle to locate.</p>
 
   <h3>Closed, Dark selected</h3>
   <div class="frame">
