@@ -53,8 +53,33 @@ const EMAIL = uniqueAdminEmail("gate033");
 const capture = captureInto("docs/gates/033");
 const RUN = Date.now().toString(36);
 
-const COVER = `gate-cover-level-${RUN}`;
-const NOTES = `gate-claim-notes-${RUN}`;
+/**
+ * The captured questions' slugs, sized to what an author actually types.
+ *
+ * These used to be `gate-cover-level-${RUN}` with the full 8-character base36 timestamp,
+ * minting 27-character question ids and a 29-character rule id. Nothing in the repo is that
+ * long: `q_at_fault_accident` (19) and `q_accident_count` (16) are the canonical ids in
+ * `docs/wireframes/admin-form-builder.md`. The extra characters were pure test scaffolding,
+ * and they pushed the rule card past the 390px viewport, so six frames came out 434px wide
+ * while their filenames said 390 (PR #245 review). Measured at a 390px viewport: 19/16-char
+ * ids give a 390px document in all four captured states, the 27-char ids gave 435px.
+ *
+ * So the tail is trimmed to 5 characters, which keeps the ids at exactly the canonical
+ * length (`q_cover_level_XXXXX` is 19, `rul_cover_level_XXXXX` is 21) while still making
+ * each run unique: the e2e database persists between runs and R6 refuses a reused id. Five
+ * base36 characters of the millisecond clock repeat about every 17 hours, and a collision
+ * fails loudly with the R6 message rather than silently.
+ *
+ * A longer id overflowing is a real and separate finding, raised for the Code Owner rather
+ * than fixed here: an author's id is unbounded, `overflow-wrap: anywhere` on
+ * `.qcms-question-id` alone only takes 435px down to 403px (measured), and deciding how the
+ * builder should render a very long id at a phone width is a design question, not a
+ * review-fix. `captureInto` now refuses to shoot an overflowing frame either way, so the
+ * evidence can no longer misdescribe itself while that is decided.
+ */
+const TAIL = RUN.slice(-5);
+const COVER = `cover-level-${TAIL}`;
+const NOTES = `claim-notes-${TAIL}`;
 
 /** Set by the first test, which enrolls the account the rest sign in with. */
 let totpSecret = "";
@@ -93,7 +118,9 @@ for (const mode of CAPTURE_MODES) {
     await page.goto("/forms");
     await capture(page, `form-library-${mode}`);
 
-    await createForm(page, `gate-vehicle-insurance-${mode}-${RUN}`, "Vehicle insurance");
+    // Same sizing argument as COVER/NOTES above: `frm_vehicle_ins_light_XXXXX` rather than a
+    // full timestamp, so the library row and the builder header show a plausible id.
+    await createForm(page, `vehicle-ins-${mode}-${TAIL}`, "Vehicle insurance");
     await addStep(page, "Driving history");
     await pinQuestion(page, questionIdFor(COVER), 1);
     await addStep(page, "Claim details");
