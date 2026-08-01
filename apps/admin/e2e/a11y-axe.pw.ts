@@ -16,7 +16,24 @@ import {
   submitSignIn,
   submitTotp,
 } from "./support/flow.js";
-import { addOption, chooseType, field } from "./support/questions.js";
+import {
+  addRule,
+  addStep,
+  chooseOption,
+  createForm,
+  pinQuestion,
+  rule,
+  toggleTarget,
+  waitForSaved,
+} from "./support/forms.js";
+import {
+  addOption,
+  chooseType,
+  confirmLifecycle,
+  createDraft,
+  field,
+  optionIds,
+} from "./support/questions.js";
 
 /**
  * The admin's axe gate (task 031, exit criterion 5; policies inherited from task 030).
@@ -230,6 +247,74 @@ test("the question library, its editor and a question's detail have zero violati
   // A frozen version renders the same form disabled, which is a different contrast
   // question in every mode than the live one above.
   await expectNoViolations(page, "frozen published version");
+});
+
+test("the form builder and the condition editor have zero violations", async ({ page }) => {
+  // Task 033, exit criterion 5. The builder is the densest screen the admin has: a
+  // navigation rail whose rows carry menus, a modal picker over an interactive table, a
+  // recursive tree of grouped controls, a live region that re-announces on every debounce,
+  // and a CodeMirror surface whose only accessible name is an attribute. Every one of those
+  // is a different way to lose a name or a role, and none of them exists on first render -
+  // which is exactly why the sweep walks the states rather than the URL.
+  //
+  // `expectNoViolations` analyses each state in light, dark and high contrast.
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+
+  const run = Date.now().toString(36);
+  const choiceSlug = `a11y-cover-${run}`;
+  const textSlug = `a11y-notes-${run}`;
+  await createDraft(page, choiceSlug, "Single choice");
+  await confirmLifecycle(page, /^Publish version 1$/, "Publish");
+  const choiceOption = (await optionIds(page))[0] ?? "";
+  await createDraft(page, textSlug, "Long text");
+  await confirmLifecycle(page, /^Publish version 1$/, "Publish");
+
+  const choiceId = `q_${choiceSlug.replaceAll("-", "_")}`;
+  const textId = `q_${textSlug.replaceAll("-", "_")}`;
+
+  await page.goto("/forms");
+  await expectNoViolations(page, "form library");
+
+  await createForm(page, `a11y-form-${run}`, "Accessibility sweep form");
+  // A brand-new form has no steps, which is the autosave-paused state and its own layout.
+  await expectNoViolations(page, "form builder, empty");
+
+  await addStep(page, "Cover");
+  // The library picker is a focus-trapped dialog over an interactive table: the state a
+  // first-render-only gate would miss entirely.
+  await page.getByRole("button", { name: "Add question from library" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expectNoViolations(page, "library picker dialog");
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+
+  await pinQuestion(page, choiceId, 1);
+  await addStep(page, "Details");
+  await pinQuestion(page, textId, 1);
+  await waitForSaved(page);
+  await expectNoViolations(page, "form builder with steps and pins");
+
+  const ruleId = await addRule(page);
+  const scope = rule(page, ruleId);
+  await chooseOption(scope, "Operator", "equals (the whole answer)");
+  await chooseOption(scope, "Value", choiceOption);
+  await toggleTarget(page, ruleId, textId, true);
+  await expectNoViolations(page, "condition editor with a complete rule");
+
+  // The flagged state: an inline warning alert beside the picker that raised it, plus the
+  // engine's issue rendered at the rule and linked from the panel.
+  await toggleTarget(page, ruleId, choiceId, true);
+  await expect(page.getByTestId("qcms-backward-flag")).toBeVisible();
+  await expect(scope.locator('[data-issue-code="RULE_BACKWARD_TARGET"]')).toBeVisible({
+    timeout: 30_000,
+  });
+  await expectNoViolations(page, "condition editor with a backward target flagged");
+
+  // The two collapsible panels, open: a settings switch with its unenforceable warning, and
+  // the read-only test bench with its own live region.
+  await page.getByText("Rule test bench").click();
+  await page.getByRole("checkbox", { name: "Require a challenge before answering" }).click();
+  await expectNoViolations(page, "settings panel and rule test bench open");
 });
 
 test("the 2FA challenge and its recovery variant have zero violations", async ({ page }) => {
