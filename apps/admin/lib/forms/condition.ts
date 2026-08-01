@@ -204,12 +204,19 @@ function startingOperand(kind: OperandKind, options: readonly string[]): DraftAn
       return options[0] ?? "";
     case "optionList":
       return options[0] === undefined ? [] : [options[0]];
+    // The three scalar list kinds return their ELEMENT, not a one-element array.
+    // `DraftAnswerValue` is a single answer, and its only array member is the
+    // `readonly string[]` a multiChoice answer is - so `[0]` is not one, and typing it as
+    // one was the defect here. `asList` wraps these for `in`/`containsAny`, which take
+    // `readonly DraftAnswerValue[]`: a list OF answers, which is a different type.
+    // `optionList` stays an array because there it genuinely IS a whole answer (ADR-21
+    // set equality), and `asList` passes an array through untouched.
     case "textList":
-      return [""];
+      return "";
     case "numberList":
-      return [0];
+      return 0;
     case "dateList":
-      return [DATE_OPERAND_PLACEHOLDER];
+      return DATE_OPERAND_PLACEHOLDER;
     case "text":
     case "none":
     case "unsupported":
