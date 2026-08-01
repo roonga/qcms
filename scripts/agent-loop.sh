@@ -11,8 +11,10 @@
 # (Docker Desktop or Codespaces). Outside the container, the interactive
 # fallback is `/loop /next-task`.
 #
-# Usage:  bash scripts/agent-loop.sh [-p 3] [-r 30] [-m 100] [-s 010]
-#           -p, --parallel N          executors per batch (pairwise-independent tasks only)
+# Usage:  bash scripts/agent-loop.sh [-p 3] [-r 30] [-m 100] [-s 010] [-P /next-issue] [-M dev2]
+#           -p, --parallel N          executors per batch (pairwise-independent tasks only; /next-task lane only)
+#           -P, --prompt CMD          the skill each iteration runs (default /next-task; e.g. /next-issue for a second, issue-lane agent)
+#           -M, --mailbox NAME        seat-mail identity under ../seat-mail/ (default dev; a second lane gets its own, e.g. dev2)
 #           -r, --retry-minutes N     wait between retries when usage-limited / crashed
 #           -m, --max-iterations N    hard stop so a logic bug cannot loop forever
 #           -s, --stop-after-task ID  e.g. "010" - stop once this task lands
@@ -22,6 +24,8 @@ set -uo pipefail
 
 parallel=1
 retry_minutes=30
+prompt_cmd="/next-task"
+mailbox="dev"
 max_iterations=100
 stop_after_task=""
 
@@ -53,6 +57,19 @@ while [ $# -gt 0 ]; do
     -p | --parallel)
       need_value "$1" "${2:-}"
       parallel="$2"
+      shift 2
+      ;;
+    -P | --prompt)
+      need_value "$1" "${2:-}"
+      prompt_cmd="$2"
+      shift 2
+      ;;
+    -M | --mailbox)
+      need_value "$1" "${2:-}"
+      case "$2" in
+        */* | *..*) die "--mailbox must be a plain folder name, got '$2'" ;;
+      esac
+      mailbox="$2"
       shift 2
       ;;
     -r | --retry-minutes)
@@ -90,6 +107,7 @@ positive_int --max-iterations "$max_iterations"
 
 cd "$(dirname "$0")/.."
 log_file="$PWD/agent-loop.log"
+[ "$mailbox" != "dev" ] && log_file="$PWD/agent-loop-${mailbox}.log"
 log() {
   local line
   line="$(date '+%Y-%m-%d %H:%M:%S')  $1"
@@ -97,9 +115,9 @@ log() {
   echo "$line" >>"$log_file"
 }
 
-prompt="/next-task"
-[ "$parallel" -gt 1 ] && prompt="/next-task $parallel"
-log "supervisor start: '$prompt', retry ${retry_minutes}m, max $max_iterations iterations"
+prompt="$prompt_cmd"
+[ "$parallel" -gt 1 ] && [ "$prompt_cmd" = "/next-task" ] && prompt="/next-task $parallel"
+log "supervisor start: '$prompt' (mailbox: $mailbox), retry ${retry_minutes}m, max $max_iterations iterations"
 
 # Sentinel and usage-limit matching are case-insensitive, like the .ps1 mirror.
 shopt -s nocasematch
@@ -114,7 +132,7 @@ for ((i = 1; i <= max_iterations; i++)); do
   # Act-then-move gives at-least-once: a crashed iteration redelivers.
   iter_prompt="$prompt"
   mail=""
-  for f in "$PWD/../seat-mail/dev/"*.txt; do
+  for f in "$PWD/../seat-mail/${mailbox}/"*.txt; do
     [ -e "$f" ] || continue
     mail="$mail
 --- seat mail: $(basename "$f") ---
@@ -124,15 +142,20 @@ $(cat "$f")"
     log "seat mail: delivering $(printf '%s' "$mail" | grep -c '^--- seat mail:') message(s) into the prompt"
     iter_prompt="$prompt
 
-Seat mail from the PO seat (act on each, then move its file to ../seat-mail/dev/read/ as the ack):$mail"
+Seat mail from the PO seat (act on each, then move its file to ../seat-mail/${mailbox}/read/ as the ack):$mail"
   fi
   # --model is pinned so an unattended run cannot silently move models when the
   # CLI default changes (same reasoning as the agent-brief frontmatter pins).
+  if [ "$mailbox" != "dev" ]; then
+    iter_prompt="$iter_prompt
+
+Lane identity: your seat-mail inbox is ../seat-mail/${mailbox}/ (ack into its read/); sign outbound mail to ../seat-mail/pm/ as 'From: ${mailbox} lane'. Follow the second-lane discipline in the next-issue skill (bug/security tier only while the e2e chain runs; avoid the live feat/* claim's footprint; flock the shared browser-gate lock)."
+  fi
   out="$(claude -p "$iter_prompt" --model claude-opus-5 --permission-mode bypassPermissions --output-format text 2>&1)"
   echo "$out" >>"$log_file"
-  sentinel="$(echo "$out" | grep '^NEXT-TASK:' | tail -n 1)"
+  sentinel="$(echo "$out" | grep -E '^NEXT-(TASK|ISSUE):' | tail -n 1)"
 
-  if [[ "$sentinel" =~ NEXT-TASK:\ (LANDED|RESUMED) ]]; then
+  if [[ "$sentinel" =~ NEXT-(TASK|ISSUE):\ (LANDED|RESUMED|PR[[:space:]]*#) ]]; then
     log "$sentinel"
     # Strip leading zeros so "010" matches a sentinel that says "10".
     if [ -n "$stop_after_task" ] &&
@@ -141,13 +164,13 @@ Seat mail from the PO seat (act on each, then move its file to ../seat-mail/dev/
       break
     fi
     continue
-  elif [[ "$sentinel" =~ NEXT-TASK:\ NOTHING ]]; then
+  elif [[ "$sentinel" =~ NEXT-(TASK|ISSUE):\ NOTHING ]]; then
     log "$sentinel - ledger exhausted, stopping."
     break
-  elif [[ "$sentinel" =~ NEXT-TASK:\ AWAITING-HUMAN ]]; then
+  elif [[ "$sentinel" =~ NEXT-(TASK|ISSUE):\ AWAITING-HUMAN ]]; then
     log "$sentinel - human gate reached, stopping. See ledger for what's needed."
     break
-  elif [[ "$sentinel" =~ NEXT-TASK:\ BLOCKED ]]; then
+  elif [[ "$sentinel" =~ NEXT-(TASK|ISSUE):\ BLOCKED ]]; then
     log "$sentinel - needs a decision, stopping."
     break
   fi
