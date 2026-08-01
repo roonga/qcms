@@ -69,7 +69,7 @@ Status values: `todo` · `blocked (issue #)` · `done (PR #)`. A row goes `todo`
 | 030 | Portal accessibility pass | 7 | in-progress (automated portion landed 2026-07-22; 045 landed so the full flow is navigable; manual NVDA/VoiceOver pass DEFERRED by the Code Owner 2026-08-01 until the end-to-end chain 033-035 is complete, then run as a human gate - not selectable before then) |
 | 031 | Admin shell and 2FA auth | 8a | done (PR #205; screenshot gate signed by the Code Owner 2026-07-31; areas 032-035 land as placeholders) |
 | 032 | Admin question library | 8a | done (PR #228; #218 type column and the topbar rebuild ridden along; "Updated" column dropped as an accepted deviation) |
-| 033 | Admin form builder and condition editor | 8a | todo |
+| 033 | Admin form builder and condition editor | 8a | done (PR #245; CodeMirror adopted as the ADR-22 exception the signed wireframe names; the ADR-31 same-step warning in the deliverables does not exist upstream, filed as #246) |
 | 034 | Admin publish, preview, versions, secure links | 8a | todo |
 | 035 | Admin responses, erasure, webhook operations | 8a | todo |
 | 041 | Agent-assisted form building (flag-gated; off the launch gate - ADR-25) | 8a | todo |
