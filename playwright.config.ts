@@ -22,7 +22,11 @@ import {
   OTLP_SCHEDULE_DELAY_MS,
   PORTAL_PORT,
 } from "./apps/portal/e2e/support/harness-config.js";
-import { PORT_SEAT, seatPreflight } from "./apps/portal/e2e/support/port-seat.js";
+import {
+  PORT_SEAT,
+  PREFLIGHT_DONE_VAR,
+  seatPreflight,
+} from "./apps/portal/e2e/support/port-seat.js";
 
 /**
  * Root Playwright configuration (task 029, ADR-23; viewports + gates from 045).
@@ -86,15 +90,21 @@ import { PORT_SEAT, seatPreflight } from "./apps/portal/e2e/support/port-seat.js
  * by which time globalSetup has bound the API and OTLP ports, and those two are never
  * adoptable. See `seatPreflight`.
  */
+// Read BEFORE the preflight, which is what sets the sentinel.
+const FIRST_LOAD = process.env[PREFLIGHT_DONE_VAR] !== "1";
 const ADOPTABLE = seatPreflight();
 
-// Announce the seat on every run. A run's own output is then self-describing ("this
-// was seat 2, on 17200/17210/17230/17240"), which is what a reviewer needs to tell two
-// concurrent seats' evidence apart without going back to the process table.
-process.stdout.write(
-  `[playwright] port seat ${String(PORT_SEAT)}: portal ${String(PORTAL_PORT)}, ` +
-    `api ${String(API_PORT)}, admin ${String(ADMIN_PORT)}, otlp ${String(OTLP_PORT)}\n`,
-);
+// Announce the seat ONCE per invocation. A run's own output is then self-describing
+// ("this was seat 2, on 17200/17210/17230/17240"), which is what a reviewer needs to
+// tell two concurrent seats' evidence apart without going back to the process table.
+// Guarded because Playwright reloads this config in every worker, so an unguarded
+// write prints once per process and noises up the CI log for no extra information.
+if (FIRST_LOAD) {
+  process.stdout.write(
+    `[playwright] port seat ${String(PORT_SEAT)}: portal ${String(PORTAL_PORT)}, ` +
+      `api ${String(API_PORT)}, admin ${String(ADMIN_PORT)}, otlp ${String(OTLP_PORT)}\n`,
+  );
+}
 
 const PORT = PORTAL_PORT;
 

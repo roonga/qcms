@@ -49,7 +49,7 @@ import { get } from "node:http";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// Required, never defaulted. The port belongs to the run's lane (`QCMS_PORT_LANE`,
+// Required, never defaulted. The port belongs to the run's seat (`QCMS_PORT_SEAT`,
 // see docs/PORTS.md) and Playwright's webServer entry always passes it in; a literal
 // fallback here would be a second, silently divergent source of truth for the one
 // thing issue #255 was about. A wrapper started without it is a harness bug, so say

@@ -42,7 +42,7 @@ import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // Required, never defaulted, for the same reason as the portal wrapper: the port
-// belongs to the run's lane (`QCMS_PORT_LANE`, see docs/PORTS.md) and Playwright
+// belongs to the run's seat (`QCMS_PORT_SEAT`, see docs/PORTS.md) and Playwright
 // always passes it in, so a literal fallback would be a second source of truth for
 // exactly the thing issue #255 was about.
 const port = process.env.ADMIN_PORT;

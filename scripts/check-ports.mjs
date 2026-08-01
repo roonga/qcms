@@ -46,6 +46,8 @@
 
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { argv } from "node:process";
+import { pathToFileURL } from "node:url";
 
 import { MAX_PORT_SEAT, MIN_PORT_SEAT, harnessPorts, stablePort } from "./ports.mjs";
 
@@ -74,12 +76,18 @@ const EXCLUDES = [":!packages/ui/src/components/**", ":!plan/**"];
 /**
  * Ports that are legitimately not ours, pinned to the file that may say so.
  *
- * `file` is matched as a suffix of the repo-relative path, so a rule cannot silently
- * apply to a different file with the same basename elsewhere.
+ * `file` is the **exact repo-relative path**, compared with `===`. Not a substring,
+ * and not a suffix. Two reasons, and they matter more here than in ordinary code
+ * because this is the gate itself: a substring test silently exempts any path that
+ * merely contains an entry (`docs/PORTS.md.bak`, `vendor/docs/PORTS.md`), so a real
+ * violation is waved through and the run still prints "OK" - the one failure mode a
+ * gate exists to prevent, and invisible when it happens. And every entry below is
+ * already a full repo-relative path, so exactness costs nothing and makes an
+ * exemption unambiguously about one file.
  *
  * @type {{ file: string; value: number; why: string }[]}
  */
-const ALLOWED = [
+export const ALLOWED = [
   {
     file: "docker-compose.dev.yml",
     value: 5432,
@@ -213,7 +221,7 @@ const ALLOWED = [
  * Computed from `scripts/ports.mjs` rather than listed, so the gate can never drift
  * from the arithmetic it is enforcing.
  */
-function sanctionedPorts() {
+export function sanctionedPorts() {
   const allowed = new Set();
   for (let seat = MIN_PORT_SEAT; seat <= MAX_PORT_SEAT; seat += 1) {
     for (const service of ["portal", "api", "postgres", "artifacts", "admin"]) {
@@ -263,12 +271,16 @@ function tracked() {
 }
 
 /**
- * @param {string} file
- * @param {number} value
- * @returns {string | undefined} the exemption reason, when one applies.
+ * The exemption reason for `file` and `value`, when one applies.
+ *
+ * Exact repo-relative path, never a substring or suffix - see ALLOWED above for why.
+ *
+ * @param {string} file repo-relative path, as `git ls-files` reports it.
+ * @param {number} value the port found in that file.
+ * @returns {string | undefined}
  */
-function exemption(file, value) {
-  return ALLOWED.find((rule) => file.includes(rule.file) && rule.value === value)?.why;
+export function exemption(file, value) {
+  return ALLOWED.find((rule) => rule.file === file && rule.value === value)?.why;
 }
 
 /**
@@ -277,7 +289,7 @@ function exemption(file, value) {
  * @param {string} text
  * @returns {{ port: number; line: number; source: string }[]}
  */
-function portsIn(text) {
+export function portsIn(text) {
   const lines = text.split("\n");
   const found = [];
   lines.forEach((line, index) => {
@@ -298,24 +310,30 @@ function portsIn(text) {
   return found;
 }
 
-const sanctioned = sanctionedPorts();
-const violations = [];
+/** Run the gate over the tracked tree. Returns the process exit code. */
+export function main() {
+  const sanctioned = sanctionedPorts();
+  const violations = [];
 
-for (const file of tracked()) {
-  let text;
-  try {
-    text = readFileSync(file, "utf8");
-  } catch {
-    continue;
+  for (const file of tracked()) {
+    let text;
+    try {
+      text = readFileSync(file, "utf8");
+    } catch {
+      continue;
+    }
+    for (const { port, line, source } of portsIn(text)) {
+      if (sanctioned.has(port)) continue;
+      if (exemption(file, port) !== undefined) continue;
+      violations.push(`  ${file}:${line}  port ${String(port)}  (matched as: ${source})`);
+    }
   }
-  for (const { port, line, source } of portsIn(text)) {
-    if (sanctioned.has(port)) continue;
-    if (exemption(file, port) !== undefined) continue;
-    violations.push(`  ${file}:${line}  port ${String(port)}  (matched as: ${source})`);
-  }
-}
 
-if (violations.length > 0) {
+  if (violations.length === 0) {
+    console.log("check-ports: OK - every declared port is inside the QCMS allocation.");
+    return 0;
+  }
+
   console.error("check-ports: port(s) outside the QCMS allocation (R8, docs/PORTS.md):\n");
   for (const violation of violations.slice(0, 50)) console.error(violation);
   if (violations.length > 50) console.error(`  ... and ${violations.length - 50} more`);
@@ -332,7 +350,11 @@ if (violations.length > 0) {
       "reason. Never invent a port. See docs/PORTS.md.",
     ].join("\n"),
   );
-  process.exit(1);
+  return 1;
 }
 
-console.log("check-ports: OK - every declared port is inside the QCMS allocation.");
+// Only when run as a command, so `check-ports.test.ts` can import the pure helpers
+// above without the scan firing (and without `process.exit` killing the test run).
+if (argv[1] !== undefined && import.meta.url === pathToFileURL(argv[1]).href) {
+  process.exit(main());
+}

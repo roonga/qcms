@@ -349,7 +349,7 @@ export function adoptableServices(
  * a separate process. Playwright spawns workers from the runner, so a value set here
  * during the runner's own config load is inherited by every worker.
  */
-const PREFLIGHT_DONE_VAR = "QCMS_PORT_SEAT_PREFLIGHT_DONE";
+export const PREFLIGHT_DONE_VAR = "QCMS_PORT_SEAT_PREFLIGHT_DONE";
 
 /**
  * The whole startup preflight, run exactly once per Playwright invocation.

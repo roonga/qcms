@@ -263,22 +263,22 @@ describe("assertSeatPortsUsable", () => {
     // this run wants. Before the seat scheme, Playwright adopted it and the run went
     // green against that other tree.
     const call = () =>
-      assertSeatPortsUsable(0, "/home/dev/qcms", [
-        occupant({ pid: 4242, cwd: "/home/dev/qcms-other-worktree" }),
+      assertSeatPortsUsable(0, "/repo/qcms", [
+        occupant({ pid: 4242, cwd: "/repo/qcms-other-worktree" }),
       ]);
     expect(call).toThrow("pid 4242");
-    expect(call).toThrow("/home/dev/qcms-other-worktree");
+    expect(call).toThrow("/repo/qcms-other-worktree");
     expect(call).toThrow(PORT_SEAT_ENV_VAR);
   });
 
   it("adopts a dev server from THIS worktree, which is what local reuse is for", () => {
     expect(() =>
-      assertSeatPortsUsable(0, "/home/dev/qcms", [occupant({ cwd: "/home/dev/qcms" })]),
+      assertSeatPortsUsable(0, "/repo/qcms", [occupant({ cwd: "/repo/qcms" })]),
     ).not.toThrow();
     // A trailing slash is how `HARNESS_REPO_ROOT` arrives and not how `/proc` reports
     // a cwd, so the comparison has to survive it or every reuse would be refused.
     expect(() =>
-      assertSeatPortsUsable(0, "/home/dev/qcms/", [occupant({ cwd: "/home/dev/qcms" })]),
+      assertSeatPortsUsable(0, "/repo/qcms/", [occupant({ cwd: "/repo/qcms" })]),
     ).not.toThrow();
   });
 
@@ -286,7 +286,7 @@ describe("assertSeatPortsUsable", () => {
     // "Cannot tell whose it is" and "it is mine" must never collapse into the same
     // outcome: that collapse is precisely how a false green is produced.
     expect(() =>
-      assertSeatPortsUsable(0, "/home/dev/qcms", [occupant({ pid: undefined, cwd: undefined })]),
+      assertSeatPortsUsable(0, "/repo/qcms", [occupant({ pid: undefined, cwd: undefined })]),
     ).toThrow("unidentified process");
   });
 
@@ -295,8 +295,8 @@ describe("assertSeatPortsUsable", () => {
     // listener on either is a leak or a concurrent run, never something to join.
     for (const service of ["api", "otlp"] as const) {
       expect(() =>
-        assertSeatPortsUsable(0, "/home/dev/qcms", [
-          occupant({ service, port: harnessPort(service, 0), cwd: "/home/dev/qcms" }),
+        assertSeatPortsUsable(0, "/repo/qcms", [
+          occupant({ service, port: harnessPort(service, 0), cwd: "/repo/qcms" }),
         ]),
       ).toThrow(String(harnessPort(service, 0)));
     }
@@ -334,44 +334,40 @@ describe("adoptableServices", () => {
     // run claims it a second later: with reuse OFF that ends in EADDRINUSE, which is
     // the direction the race has to fail in. With reuse ON it would end in a green
     // suite run against the winner's tree, which is issue #255 exactly.
-    expect(adoptableServices(0, "/home/dev/qcms", [])).toEqual(new Set());
+    expect(adoptableServices(0, "/repo/qcms", [])).toEqual(new Set());
   });
 
   it("adopts only a same-worktree dev server", () => {
-    const mine = occupant({ cwd: "/home/dev/qcms" });
-    const theirs = occupant({ service: "admin", cwd: "/home/dev/other" });
-    expect(adoptableServices(0, "/home/dev/qcms", [mine, theirs])).toEqual(new Set(["portal"]));
+    const mine = occupant({ cwd: "/repo/qcms" });
+    const theirs = occupant({ service: "admin", cwd: "/repo/other" });
+    expect(adoptableServices(0, "/repo/qcms", [mine, theirs])).toEqual(new Set(["portal"]));
   });
 
   it("recognises a dev server by its APP directory, not the repo root", () => {
     // `next dev` runs with its cwd inside the app, so a live portal server reports
     // `<repo>/apps/portal`. An equality test made every one of our own servers
     // unadoptable, which the first concurrent-seat proof run caught.
-    const portal = occupant({ cwd: "/home/dev/qcms/apps/portal" });
-    const admin = occupant({ service: "admin", cwd: "/home/dev/qcms/apps/admin" });
-    expect(adoptableServices(0, "/home/dev/qcms", [portal, admin])).toEqual(
+    const portal = occupant({ cwd: "/repo/qcms/apps/portal" });
+    const admin = occupant({ service: "admin", cwd: "/repo/qcms/apps/admin" });
+    expect(adoptableServices(0, "/repo/qcms", [portal, admin])).toEqual(
       new Set(["portal", "admin"]),
     );
     // A sibling worktree whose path merely starts with the same characters is not us.
-    expect(
-      isAdoptable(occupant({ cwd: "/home/dev/qcms-other/apps/portal" }), "/home/dev/qcms"),
-    ).toBe(false);
+    expect(isAdoptable(occupant({ cwd: "/repo/qcms-other/apps/portal" }), "/repo/qcms")).toBe(
+      false,
+    );
   });
 });
 
 describe("isAdoptable", () => {
   it("is false for a different tree, an unknown tree, and a non-reusable service", () => {
-    expect(isAdoptable(occupant({ cwd: "/other" }), "/home/dev/qcms")).toBe(false);
-    expect(isAdoptable(occupant({ cwd: undefined }), "/home/dev/qcms")).toBe(false);
-    expect(isAdoptable(occupant({ service: "api", cwd: "/home/dev/qcms" }), "/home/dev/qcms")).toBe(
-      false,
-    );
+    expect(isAdoptable(occupant({ cwd: "/other" }), "/repo/qcms")).toBe(false);
+    expect(isAdoptable(occupant({ cwd: undefined }), "/repo/qcms")).toBe(false);
+    expect(isAdoptable(occupant({ service: "api", cwd: "/repo/qcms" }), "/repo/qcms")).toBe(false);
   });
 
   it("is true only for a reusable service in this exact tree", () => {
-    expect(isAdoptable(occupant({ cwd: "/home/dev/qcms" }), "/home/dev/qcms")).toBe(true);
-    expect(
-      isAdoptable(occupant({ service: "admin", cwd: "/home/dev/qcms" }), "/home/dev/qcms"),
-    ).toBe(true);
+    expect(isAdoptable(occupant({ cwd: "/repo/qcms" }), "/repo/qcms")).toBe(true);
+    expect(isAdoptable(occupant({ service: "admin", cwd: "/repo/qcms" }), "/repo/qcms")).toBe(true);
   });
 });
