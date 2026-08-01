@@ -64,8 +64,16 @@ It is a **development** tool. It writes the database directly, which is why it l
 ## How it is put together
 
 - **`app/(shell)/`** is the authenticated route group. Its layout calls
-  `requireAdminSession()`, so **every** screen placed in it is gated by construction. Auth
+  `requireAdminSession()`, so every **page** placed in it is gated by construction. Auth
   screens sit outside the group.
+- **A layout gates pages, not request handlers** (issue #177). A Next layout never runs
+  for a `route.ts` or a `"use server"` action, so each of those applies the policy itself:
+  an action calls `requireAdminSession()`, a route handler calls
+  `requireAdminSessionForRequest()` (the same three gates, answered as a 303 rather than
+  as the 307 a thrown `redirect()` would produce). Both share one decision function in
+  `lib/server/session.ts`, so a gate added there reaches pages and handlers together, and
+  `lib/server/shell-route-guards.test.ts` fails if a handler under `(shell)` names
+  neither.
 - **Question mutations are server actions** (`app/(shell)/questions/actions.ts`), unlike
   031's auth screens, which are route handlers behind full-page POSTs. The editor holds a
   live document and its failure mode is a validation error that has to land on a field
@@ -109,7 +117,8 @@ It is a **development** tool. It writes the database directly, which is why it l
   one. High-contrast is never inferred.
 - **`proxy.ts`** sets the security headers (SEC-9) and deliberately does **not**
   authenticate: a cookie-presence check there would look like security while proving
-  nothing. See `lib/server/session.ts` for why the authority is the layout.
+  nothing. See `lib/server/session.ts` for why the authority is a database read there,
+  applied by the layout for pages and by each request handler for itself.
 
 ## Tests
 

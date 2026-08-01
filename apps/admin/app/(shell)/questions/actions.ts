@@ -37,8 +37,9 @@ import { requireAdminSession } from "@/lib/server/session";
  * A server action is a POST endpoint, exactly like a route handler, and the `(shell)`
  * layout does not run for either (a layout wraps the page tree, not a request handler).
  * So every action below starts with `requireAdminSession()` rather than assuming the
- * screen that rendered the form was itself guarded. That is the same gap issue #177
- * recorded for `settings/password/route.ts`, closed here by construction.
+ * screen that rendered the form was itself guarded. That is the gap issue #177
+ * recorded; `lib/server/shell-route-guards.test.ts` now fails if an action added here
+ * omits the call, so it is structural rather than remembered.
  *
  * ## Still a proxy (R2)
  *

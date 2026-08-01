@@ -17,11 +17,13 @@ import { requireAdminSession } from "@/lib/server/session";
  * new area cannot ship accidentally public. Auth screens sit outside the group, which
  * is why they are unaffected by it.
  *
- * It does **not** cover a `route.ts` in the group: a Next layout wraps the page tree
- * and never runs for a route handler. A route handler under here guards itself, and
- * `settings/password/route.ts` currently does not (issue #177) - it fails closed on
- * authentication via better-auth, but skips the absolute-lifetime and 2FA-enrollment
- * gates that `requireAdminSession()` adds.
+ * It covers **pages only**. A Next layout wraps the page tree and never runs for a
+ * `route.ts` or a `"use server"` action in the same segment: both are request handlers
+ * the browser reaches directly. Being inside `(shell)` is therefore no evidence that
+ * one of those authenticated, and each guards itself - a server action with
+ * `requireAdminSession()`, a route handler with `requireAdminSessionForRequest()`.
+ * `lib/server/shell-route-guards.test.ts` is the structural tripwire that fails when a
+ * new handler here does not (issue #177); do not weaken it into a comment.
  *
  * Sign-out is a form POST rather than a link, because signing out is a state change
  * and a GET link would let a prefetch or a crawler end someone's session. It is the
