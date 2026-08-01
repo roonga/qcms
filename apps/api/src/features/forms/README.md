@@ -17,7 +17,9 @@ the *only* caller of `compileForm`.
 | `GET /admin/forms` | `forms:read` | List forms with draft/published status. |
 | `GET /admin/forms/:id` | `forms:read` | Detail: identity, the current draft (open, else **seeded** from the latest published version), version summary. |
 | `PUT /admin/forms/:id/draft` | `forms:write` | Replace the draft definition (kernel-parsed, 004; parse errors → 422). Returns `{ draft, issues }` - advisory validation for the editor. Issues never block saving; they block publishing. |
-| `POST /admin/forms/:id/draft/validate` | `forms:write` | Dry-run publish validation (no save) for editor debounce. |
+| `POST /admin/forms/:id/draft/validate` | `forms:write` | Dry-run publish validation (no save) for editor debounce. Includes `analyzeRuleGraph`'s backward-target and cycle findings, because `compileDraft` runs it. |
+| `POST /admin/forms/:id/draft/preview-condition` | `forms:write` | Rule test bench (033): evaluate one rule's condition against hypothetical answers on a synthetic snapshot. Read-only. |
+| `PATCH /admin/forms/:id/settings` | `forms:write` | Per-form abuse-control settings (`challengeRequired`, `minSubmitMs`) - ADR-24 tier 2, columns from 026. Partial body. |
 | `POST /admin/forms/:id/publish` | `forms:write` | The aggregate (below). |
 | `POST /admin/forms/:id/close` | `forms:write` | Close to **new** sessions; in-flight sessions finish on their pinned version (R1). |
 | `POST /admin/forms/:id/reopen` | `forms:write` | Reopen a closed form. |
@@ -25,6 +27,46 @@ the *only* caller of `compileForm`.
 
 Scopes are **inert at launch** - the `/api/v1` surface is reserved (R7). They ride
 in the generated OpenAPI document so Phase-4 activation is wiring, not archaeology.
+
+## The rule test bench (033)
+
+`POST .../draft/preview-condition` answers one question: *does this rule's
+condition match these hypothetical answers?* The admin app cannot answer it -
+it is a strict BFF with no `@qcms/core` value import at all (R2, enforced by its
+`r2-import-surface.test.ts`) - so the evaluator runs here, exactly as 032 put the
+question-preview compile here. The 042 wireframe's original "client-side
+evaluation" wording is amended to match (2026-08-01, PO seat).
+
+`evaluateRules` answers "what is visible", not "did this condition match", so the
+handler builds a **synthetic two-step snapshot**: step 1 holds every question the
+condition reads at its pinned version in the draft's own document order, step 2
+holds one synthetic probe question targeted by this rule alone. A rule target is
+hidden unless a targeting rule matches, so "the probe is visible" *is* "the
+condition matched", and nothing else in the snapshot can move it. Laying the
+inputs strictly before the probe also keeps the bench answering while the
+author's real placement is still backwards, which is when they need it most:
+whether the placement is legal is `analyzeRuleGraph`'s verdict, delivered by
+`draft/validate`.
+
+Nothing is stored and nothing is compiled. The hypothetical answers are
+answer-shaped data (SEC-13, ADR-34): read, never logged, never persisted, never
+echoed back. The kernel's evaluation errors name ids and operators only.
+
+The draft travels in the request body rather than being read from storage,
+because the bench is a live authoring aid: an author tries a condition before
+deciding to keep it.
+
+## Per-form settings (033)
+
+`challengeRequired` and `minSubmitMs` live on the mutable `forms` identity row,
+not in the immutable published definition (ADR-24 tier 2, task 026). That is the
+whole point of the tier: an operator turns a challenge on for a live form without
+republishing it, and an in-flight session's frozen snapshot (R1) is untouched.
+`GET /admin/forms/:id` carries them so the builder's settings panel renders in one
+read; `PATCH .../settings` writes them. The body is partial (an absent key leaves
+its setting alone) and `minSubmitMs: null` means "use the deployment's configured
+floor", not "no floor". `slug`, `defaultLocale` and `status` are deliberately not
+reachable through it - they have their own doors.
 
 ## Publish (the aggregate)
 

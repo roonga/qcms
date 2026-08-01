@@ -55,6 +55,92 @@ export const CreateFormBody = z
 /** `PUT /admin/forms/:id/draft` and `POST .../draft/validate` - a full definition. */
 export const DraftBody = z.object({ definition: OpaqueDefinition }).openapi("DraftBody");
 
+/**
+ * `POST /admin/forms/:id/draft/preview-condition` - the rule test bench (033).
+ *
+ * The unsaved draft travels with the request (like `DraftBody`) so the bench
+ * answers the definition on the author's screen, not the last one persisted.
+ *
+ * `answers` is a `questionId -> AnswerValue` map of **hypothetical** answers the
+ * author typed into the bench. They are answer-shaped, so they are handled under
+ * the answer rules (SEC-13 / ADR-34): never logged, never persisted, never
+ * echoed back in a response or an error message.
+ */
+export const PreviewConditionBody = z
+  .object({
+    definition: OpaqueDefinition,
+    ruleId: z.string().min(1).openapi({ example: "rul_at_fault" }),
+    answers: z
+      .record(z.string(), z.unknown())
+      .openapi({ description: "Hypothetical answers, keyed by questionId (never logged)." }),
+  })
+  .openapi("PreviewConditionBody");
+
+/**
+ * The longest min-time floor a form may set, in milliseconds (one hour).
+ *
+ * An input guard, not a domain rule: the floor exists to make a bot's instant
+ * submit fail (026), and a value past an hour stops being a floor and becomes a
+ * lockout an author cannot have meant. Bounding it here keeps a mistyped field
+ * from becoming a form nobody can submit.
+ */
+const MAX_MIN_SUBMIT_MS = 60 * 60 * 1000;
+
+/**
+ * `PATCH /admin/forms/:id/settings` - the per-form abuse-control settings (026,
+ * ADR-24 tier 2), edited by the builder's settings panel (033).
+ *
+ * A **partial** body: an absent key leaves that setting alone, which is what lets
+ * the panel save one control without echoing the other back. `minSubmitMs: null`
+ * is a value rather than an omission and means "use the deployment's configured
+ * floor", so the field is nullable *and* optional and the two mean different
+ * things.
+ */
+export const UpdateFormSettingsBody = z
+  .object({
+    challengeRequired: z.boolean().optional().openapi({ example: true }),
+    minSubmitMs: z
+      .number()
+      .int()
+      .min(0)
+      .max(MAX_MIN_SUBMIT_MS)
+      .nullable()
+      .optional()
+      .openapi({ example: 3000 }),
+  })
+  .openapi("UpdateFormSettingsBody");
+
+/** The per-form abuse-control settings, as every read and the patch return them. */
+export const FormSettings = z
+  .object({
+    /** When true, start-session demands a passing challenge (026). */
+    challengeRequired: z.boolean().openapi({ example: false }),
+    /** Min-time floor override in ms; `null` means the deployment default applies. */
+    minSubmitMs: z.number().int().nullable().openapi({ example: 3000 }),
+  })
+  .openapi("FormSettings");
+
+/** `PATCH /admin/forms/:id/settings` result: the settings as they now stand. */
+export const FormSettingsResponse = z
+  .object({ formId: z.string().openapi({ example: "frm_signup" }), settings: FormSettings })
+  .openapi("FormSettingsResponse");
+
+/** `POST .../draft/preview-condition` result: does the condition match, or why not. */
+export const PreviewConditionResponse = z
+  .object({
+    ruleId: z.string().openapi({ example: "rul_accident_followup" }),
+    /** The question ids the condition reads, in the draft's document order. */
+    references: z.array(z.string()),
+    /** `true`/`false` when the condition could be evaluated, `null` when it could not. */
+    matches: z.boolean().nullable().openapi({ example: true }),
+    /** The kernel's typed evaluation error, or `null`. Names ids, never values. */
+    error: z
+      .object({ code: z.string(), message: z.string() })
+      .nullable()
+      .openapi({ example: null }),
+  })
+  .openapi("PreviewConditionResponse");
+
 // --- responses --------------------------------------------------------------
 
 const FormStatus = z.enum(["open", "closed"]);
@@ -117,6 +203,8 @@ export const FormDetailResponse = z
     /** Where `draft` came from: an open draft, a seed, or none. */
     draftSource: z.enum(["open", "seeded", "none"]).openapi({ example: "open" }),
     versions: z.array(FormVersionSummary),
+    /** The per-form abuse-control settings (026), which the builder panel edits (033). */
+    settings: FormSettings,
   })
   .openapi("FormDetailResponse");
 

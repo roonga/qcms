@@ -27,9 +27,11 @@ import {
   makeGetFormHandler,
   makeGetFormVersionHandler,
   makeListFormsHandler,
+  makePreviewConditionHandler,
   makePublishFormHandler,
   makePutDraftHandler,
   makeReopenFormHandler,
+  makeUpdateFormSettingsHandler,
   makeValidateDraftHandler,
 } from "./handler.js";
 import {
@@ -38,12 +40,16 @@ import {
   DraftBody,
   FormDetailResponse,
   FormIdParam,
+  FormSettingsResponse,
   FormStatusResponse,
   FormVersionParam,
   FormVersionSnapshotResponse,
   ListFormsResponse,
+  PreviewConditionBody,
+  PreviewConditionResponse,
   PublishedResponse,
   SavedDraftResponse,
+  UpdateFormSettingsBody,
   ValidateDraftResponse,
 } from "./schema.js";
 
@@ -138,6 +144,46 @@ export const validateDraftRoute = createRoute({
   ...withScopes("forms:write"),
 });
 
+export const previewConditionRoute = createRoute({
+  method: "post",
+  path: "/forms/{id}/draft/preview-condition",
+  summary: "Evaluate one rule's condition against hypothetical answers (admin test bench)",
+  tags,
+  request: {
+    params: FormIdParam,
+    body: { required: true, content: { "application/json": { schema: PreviewConditionBody } } },
+  },
+  responses: {
+    200: {
+      description: "The match verdict, or the typed reason it could not be reached",
+      content: { "application/json": { schema: PreviewConditionResponse } },
+    },
+    // 404: no such form, or no such rule in the submitted definition.
+    // 422: the definition is not parseable, or a referenced question is not pinned.
+    ...errorResponses(400, 401, 404, 422),
+  },
+  ...withScopes("forms:write"),
+});
+
+export const updateFormSettingsRoute = createRoute({
+  method: "patch",
+  path: "/forms/{id}/settings",
+  summary: "Update the per-form abuse-control settings (admin)",
+  tags,
+  request: {
+    params: FormIdParam,
+    body: { required: true, content: { "application/json": { schema: UpdateFormSettingsBody } } },
+  },
+  responses: {
+    200: {
+      description: "The settings as they now stand",
+      content: { "application/json": { schema: FormSettingsResponse } },
+    },
+    ...errorResponses(400, 401, 404),
+  },
+  ...withScopes("forms:write"),
+});
+
 export const publishFormRoute = createRoute({
   method: "post",
   path: "/forms/{id}/publish",
@@ -213,6 +259,8 @@ export const registerForms: SliceRegistrar = (group, deps: Deps): void => {
   group.openapi(getFormRoute, makeGetFormHandler(deps));
   group.openapi(putDraftRoute, makePutDraftHandler(deps));
   group.openapi(validateDraftRoute, makeValidateDraftHandler(deps));
+  group.openapi(previewConditionRoute, makePreviewConditionHandler(deps));
+  group.openapi(updateFormSettingsRoute, makeUpdateFormSettingsHandler(deps));
   group.openapi(publishFormRoute, makePublishFormHandler(deps));
   group.openapi(closeFormRoute, makeCloseFormHandler(deps));
   group.openapi(reopenFormRoute, makeReopenFormHandler(deps));
