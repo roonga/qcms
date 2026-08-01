@@ -180,7 +180,7 @@ export function FormBuilder({
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-[16rem_1fr]">
+      <div className="grid gap-4 md:grid-cols-[18rem_minmax(0,1fr)]">
         <StepsRail
           draft={draft}
           issueCounts={counts}
@@ -202,9 +202,10 @@ export function FormBuilder({
           }}
         />
 
-        {selectedStep === undefined ? (
-          <p className="text-sm text-(--color-text-muted)">{t("forms.steps.empty")}</p>
-        ) : (
+        {/* Nothing rather than a second copy of the rail's own empty-state sentence: a
+            step editor with no step is exactly the state the rail is already explaining,
+            and saying it twice reads as two different facts. */}
+        {selectedStep === undefined ? null : (
           <StepEditor
             draft={draft}
             step={selectedStep}
@@ -226,7 +227,7 @@ export function FormBuilder({
         )}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-[1fr_20rem]">
+      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_20rem]">
         <RulesSection draft={draft} library={library} issues={issues} onChange={mutate} />
         <ValidationPanel draft={draft} issues={issues} status={status} lastSavedAt={lastSavedAt} />
       </div>

@@ -72,7 +72,12 @@ export function StepsRail({
   return (
     <nav
       aria-label={t("forms.steps.title")}
-      className="flex flex-col gap-3 rounded-md border border-(--color-border) bg-(--color-surface) p-4"
+      // `min-w-0` and the wrapping rows below are load-bearing, not tidiness: this is a
+      // grid item in a fixed-width track, and a grid item's default `min-width: auto` lets
+      // its content push it wider than the track. The add-step row (a text field beside a
+      // button) does exactly that, and the overflowing button then sits UNDER the next
+      // column, which paints over it - a control that is visible, enabled, and unclickable.
+      className="flex min-w-0 flex-col gap-3 rounded-md border border-(--color-border) bg-(--color-surface) p-4"
     >
       <h2 className="text-base font-semibold text-(--color-text)">{t("forms.steps.title")}</h2>
 
@@ -113,7 +118,7 @@ export function StepsRail({
         ))}
       </ol>
 
-      <div className="flex items-end gap-2">
+      <div className="flex flex-wrap items-end gap-2">
         <TextField label={t("forms.steps.newTitle")} value={newTitle} onChange={setNewTitle} />
         <Button
           variant="secondary"
@@ -191,9 +196,9 @@ function StepRow(props: StepRowProps) {
   const title = titleOf(step);
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       {isRenaming ? (
-        <div className="flex flex-1 items-end gap-2">
+        <div className="flex flex-1 flex-wrap items-end gap-2">
           <TextField
             label={t("forms.steps.renameLabel", { title })}
             value={textOf(step.title)}
