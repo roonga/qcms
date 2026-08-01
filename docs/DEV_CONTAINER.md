@@ -29,6 +29,8 @@ First start pulls the base image and runs `.devcontainer/post-create.sh` (corepa
 
 In VS Code, *Reopen in Container* does the same thing, and its integrated terminal is already inside.
 
+**`stop`, `down` and `rebuild` refuse to run from inside the container they target.** The container mounts the host Docker socket so Testcontainers works (ADR-29), which also means a process inside it can destroy the container it is running in, killing every session in there with no surviving process able to report why. That happened on 2026-08-01: a clean exit 0, 4m38s of downtime, and a `137` from the killed processes that reads exactly like an out-of-memory kill (issues #244, #260). Run those three from the host. The guard identifies the container by the `QCMS_DEVCONTAINER` marker in `containerEnv`, falling back to matching the shell's hostname against the container id, because `containerEnv` does not reach a container that is already running.
+
 ### Why a wrapper rather than the raw CLI
 
 The raw equivalents work fine:

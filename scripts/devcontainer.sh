@@ -37,6 +37,53 @@ devcontainer_cli() {
 is_running() { [ -n "$(docker ps -q --filter "name=^${CONTAINER}$" 2>/dev/null)" ]; }
 exists() { [ -n "$(docker ps -aq --filter "name=^${CONTAINER}$" 2>/dev/null)" ]; }
 
+# The container mounts the host Docker socket so Testcontainers works (ADR-29),
+# which also hands anything running inside it the authority to stop that same
+# container - killing every session in there, with no surviving process able to
+# report why. That is not hypothetical: on 2026-08-01 the container recorded a
+# clean exit 0 and 4m38s of downtime because a test invoked `stop` for real
+# (issues #244 and #260), and the 137 the killed processes report reads exactly
+# like an out-of-memory kill, so it was misdiagnosed twice.
+#
+# The destructive verbs therefore refuse from inside the target container. This
+# is a chokepoint every caller of this script passes through rather than a
+# convention each of them has to remember, which is the whole point: a rule only
+# works while everyone obeys it, and its failure mode here is silent and total.
+#
+# Detection is deliberately two-sided. The marker is authoritative, but
+# containerEnv does not reach an already-running container (the same trap
+# warn_if_stale exists for), so it only arrives on the next rebuild. Matching the
+# hostname against the container's own id covers every container created before
+# this landed, including the one this is landing from.
+MARKER_ENV="QCMS_DEVCONTAINER"
+
+inside_target_container() {
+  [ "${QCMS_DEVCONTAINER:-}" = "$CONTAINER" ] && return 0
+  [ -f /.dockerenv ] || return 1
+
+  local host id
+  host="$(hostname 2>/dev/null)" || return 1
+  # An empty hostname would turn the prefix test below into a match against
+  # everything, so the guard would fire on the host and block legitimate use.
+  [ -n "$host" ] || return 1
+  id="$(docker inspect -f '{{.Id}}' "$CONTAINER" 2>/dev/null)" || return 1
+  [ -n "$id" ] || return 1
+
+  # Docker sets the container's hostname to its short id unless the config
+  # overrides it; this config does not. A prefix strip that changes the string
+  # means the id starts with our hostname, so we are that container.
+  [ "${id#"$host"}" != "$id" ]
+}
+
+refuse_from_inside() {
+  local verb="$1"
+  die "refusing to $verb $CONTAINER from inside $CONTAINER.
+                 This shell is running in the container it was asked to $verb, so doing it
+                 would kill this process and every other session in there. Run it from the
+                 host instead. The guard identifies the container by $MARKER_ENV, or by
+                 matching this hostname against the container id when that is not set."
+}
+
 # The workspace path inside the container is a property of the container, not of
 # wherever this script is invoked from - deriving it from the local directory
 # name is wrong the moment the two differ (a worktree, a second clone). Ask the
@@ -76,6 +123,7 @@ cmd_up() {
 }
 
 cmd_rebuild() {
+  inside_target_container && refuse_from_inside rebuild
   # Remove by name rather than relying on `--remove-existing-container`. That
   # flag finds the container through a `devcontainer.local_folder` label, and
   # the two launchers disagree about the same folder: VS Code on Windows records
@@ -132,6 +180,9 @@ cmd_status() {
 }
 
 cmd_stop() {
+  # Guard before the is_running probe, so the refusal does not depend on the
+  # daemon answering: the point is that this path never reaches `docker stop`.
+  inside_target_container && refuse_from_inside stop
   is_running || {
     echo "$CONTAINER is not running"
     return 0
