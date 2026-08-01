@@ -35,10 +35,10 @@ function isoDay(timestamp: string): string {
 }
 
 function publishedCell(form: FormListItem): string {
-  if (form.latestVersion === null) return t("forms.published.none");
+  if (form.latestVersion === null) return t("forms.version.none");
   return form.publishedAt === null
-    ? t("forms.published.version", { version: form.latestVersion })
-    : t("forms.published.versionAt", {
+    ? t("forms.version.value", { version: form.latestVersion })
+    : t("forms.version.valueAt", {
         version: form.latestVersion,
         date: isoDay(form.publishedAt),
       });
@@ -52,7 +52,7 @@ function toRow(form: FormListItem): TableRow {
       formId: form.formId,
       locale: form.defaultLocale,
       status: t(`forms.status.${form.status}`),
-      draft: form.hasDraft ? t("forms.draft.present") : t("forms.draft.absent"),
+      draft: form.hasDraft ? t("forms.draft.present") : t("forms.draft.none"),
       published: publishedCell(form),
     },
   };
@@ -94,11 +94,11 @@ export default async function FormsPage() {
             rows={result.data.map(toRow)}
             columns={[
               { id: "slug", label: t("forms.column.slug"), isRowHeader: true },
-              { id: "formId", label: t("forms.column.id") },
+              { id: "formId", label: t("forms.column.formId") },
               { id: "locale", label: t("forms.column.locale") },
               { id: "status", label: t("forms.column.status") },
               { id: "draft", label: t("forms.column.draft") },
-              { id: "published", label: t("forms.column.published") },
+              { id: "published", label: t("forms.column.version") },
             ]}
           />
           <p className="text-sm text-(--color-text-muted)">{t("forms.table.hint")}</p>

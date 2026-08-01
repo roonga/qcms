@@ -308,6 +308,7 @@ export const messages = {
   "forms.table.hint": "Open a form with Enter, or by clicking its row.",
   "forms.column.formId": "Form ID",
   "forms.column.slug": "Slug",
+  "forms.column.locale": "Locale",
   "forms.column.status": "Status",
   "forms.column.draft": "Draft",
   "forms.column.version": "Published",
@@ -317,6 +318,7 @@ export const messages = {
   "forms.draft.none": "No draft",
   "forms.version.none": "Never published",
   "forms.version.value": "v{version}",
+  "forms.version.valueAt": "v{version} on {date}",
 
   "forms.empty.title": "No forms yet",
   "forms.empty.body":
@@ -334,11 +336,20 @@ export const messages = {
   "forms.create.locale": "Default locale",
   "forms.create.localeHint": "The locale every step and question must have text for.",
   "forms.create.submit": "Create form",
+  "forms.create.submitting": "Creating the form...",
+  "forms.create.idPreview": "This form will be created as {formId}, permanently.",
 
   "forms.builder.crumbs": "Forms",
   "forms.builder.crumbBuilder": "Builder",
   "forms.builder.crumbLabel": "Breadcrumb",
   "forms.builder.heading": "{slug}",
+  "forms.builder.formId": "Form ID",
+  "forms.builder.locale": "Default locale",
+  "forms.builder.status": "Status",
+  "forms.builder.draftSource.open": "Editing the saved draft.",
+  "forms.builder.draftSource.seeded":
+    "Started from the newest published version. Nothing is stored until the first save.",
+  "forms.builder.draftSource.none": "Nothing has been drafted or published for this form yet.",
   "forms.builder.formTitle": "Form title",
   "forms.builder.formTitleHint": "Shown to a respondent. Saved with the draft.",
   "forms.builder.publish": "Publish",
@@ -550,6 +561,7 @@ export const messages = {
   "forms.error.rateLimited": "Too many requests just now. Try again shortly.",
   "forms.error.internal": "Something went wrong on the server. Try again.",
   "forms.error.unknown": "The request failed ({code}).",
+  "forms.error.unknownCreate": "The form could not be created. Try again.",
   "forms.error.listFailed": "The form library could not be loaded. {message}",
   "forms.error.libraryFailed": "The question library could not be loaded. {message}",
 } as const;

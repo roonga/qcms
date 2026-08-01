@@ -52,7 +52,7 @@ export function CreateForm({
         <form action={formAction} className="flex flex-col gap-4">
           <fieldset className="qcms-fieldset qcms-fieldset--flat">
             <legend className="text-base font-semibold text-(--color-text)">
-              {t("forms.create.legend")}
+              {t("forms.create.title")}
             </legend>
 
             {state.status === "error" && (

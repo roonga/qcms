@@ -87,15 +87,15 @@ export default async function FormBuilderPage({
 
   const form = seedTitle(detail.data, firstValue(query["title"]).trim());
   const crumbs: BreadcrumbItem[] = [
-    { id: "forms", label: t("forms.breadcrumb.root"), href: "/forms" },
+    { id: "forms", label: t("forms.builder.crumbs"), href: "/forms" },
     { id: form.formId, label: form.slug, href: `/forms/${encodeURIComponent(form.formId)}` },
-    { id: "builder", label: t("forms.breadcrumb.builder") },
+    { id: "builder", label: t("forms.builder.crumbBuilder") },
   ];
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
-        <Breadcrumb items={crumbs} ariaLabel={t("forms.breadcrumb.label")} />
+        <Breadcrumb items={crumbs} ariaLabel={t("forms.builder.crumbLabel")} />
         <h1 className="text-xl font-semibold text-(--color-text)">
           {t("forms.builder.heading", { slug: form.slug })}
         </h1>
