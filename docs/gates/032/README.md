@@ -1,8 +1,27 @@
 # Gate evidence - task 032 (admin question library)
 
-**Unsigned.** This is round two of the 032 design gate. Round one had no screenshot set at
-all: the capture spec was backed out rather than shipped failing (issue #220), and the
-topbar in it was still 055's composition, which the Code Owner had since superseded.
+**Unsigned.** This is round three of the 032 design gate, and the set is a full recapture.
+
+Round one had no screenshot set at all: the capture spec was backed out rather than
+shipped failing (issue #220), and the topbar in it was still 055's composition, which the
+Code Owner had since superseded.
+
+Round two's 18 frames were signed on 2026-08-01 and that signature **does not carry
+forward**, because the live review that produced it also found three defects in the very
+geometry the frames depicted. Those are fixed, so the old set now shows a rendering that
+no longer exists and every frame here has been recaptured on the fixed one:
+
+- the account monogram is a **circle**; it was an oval, because a `min-block-size` control
+  floor of 40px beat the declared 32px height on both trailing controls;
+- the appearance glyph draws at **28px**, not 24px: a 1.75-weight outline at 24 read as
+  visibly lighter than the filled 32px disc beside it, so the card's claim of optical
+  parity was not what the eye saw;
+- hover and focus on both triggers draw a **circular** ring rather than a rounded square,
+  so the two controls read as a pair.
+
+The design card `plan/admin-theme/ds-navbar.html` is being reconciled to these values by
+the design seat, which adopts the implementation as ground truth: these were the Code
+Owner's own live calls.
 
 Approve two things at once, because they land together:
 
@@ -39,6 +58,12 @@ What is **not** in these frames, and where to find it instead:
 - **Sign-out without JavaScript.** Kept, per the Code Owner's 2026-07-31 decision: with
   scripts off, both triggers hide and a plain POST form appears in their place. Proved in
   `auth-2fa.pw.ts` rather than shot, since the frames here are all scripted.
+- **The preview's interactivity.** The detail frames show the preview at rest, which is
+  how it renders before anyone touches it. That it now ACCEPTS input - a checkbox can be
+  ticked, and nothing is sent anywhere when it is - was the Code Owner's other live
+  finding, and it is proved in `questions-lifecycle.pw.ts` rather than shown, because a
+  static frame cannot depict the difference between a live control and a frozen one. That
+  is exactly why the defect survived round two's set.
 
 Two notes on the data, so the frames are read for what they are: the library holds the
 insurance seed plus a few questions this capture authors (the `q_gate_*` rows), and the
