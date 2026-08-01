@@ -7,16 +7,19 @@
 
 The preview shows a question through the real respondent renderer, but always in one visual context. Authors need to see their content under the respondent themes and modes a deployment can serve - especially high contrast, where label/option treatments change materially. The switch must be an **island**: it themes the preview container only, while the admin chrome around it stays on the app's own Cobalt theme and the operator's own mode, unaffected.
 
+**The island is portal-themed from its first paint (Code Owner addition, 2026-08-01: "the preview should use the portal theme").** The preview never renders in the admin's Cobalt styling - not by default, not as a fallback. Its default is the **deployment's configured portal theme**: the admin reads the same deployment configuration value the portal reads for its managed-theme selection (composition supplies that knob to both apps; `apps/admin/.env.example` documents it), falling back to the token contract's base theme when unset. The switcher then lets the author explore the other themes and modes from that starting point.
+
 ## Deliverables
 
 - **Scoped theme application:** the preview container applies a selected predefined portal theme (the 051 set) and mode (light / dark / high contrast) via the token contract, container-scoped - custom properties and mode classes set on the island element, never on `:root`. The admin's own stylesheet and mode control are untouched; nothing leaks in either direction (the island's tokens do not inherit admin Cobalt values for renderer-consumed variables).
-- **Switcher UI** above the preview: two compact labeled controls (theme, mode) in the design system's control language, defaulting to the base theme in light mode, **ephemeral** - no persistence, resets per page load. Labels through the i18n catalog (ADR-27).
+- **Switcher UI** above the preview: two compact labeled controls (theme, mode) in the design system's control language, **defaulting to the deployment's configured portal theme** (same config value the portal reads, supplied by composition; base theme when unset) in light mode, **ephemeral** - no persistence, resets per page load. Labels through the i18n catalog (ADR-27).
 - **Reusable shape:** the island (container + switcher + scoping) is one component the 034 form-level preview can mount as-is; 049's custom themes extend the theme list later without structural change (note the seam in the component doc).
 - **Read-only consumption:** theme definitions come from `@qcms/ui`'s shipped assets; no copy of token values into the admin, no new API surface.
 
 ## Exit criteria
 
-1. Switching theme and mode restyles the island only: an e2e asserts computed styles change on a control inside the island while the admin topbar's computed background/color are byte-identical before and after, in both directions (admin mode switch leaves the island's selection alone too).
+1. **The island is portal-themed at first paint:** with the deployment theme knob set, the untouched preview renders that theme's known token values (asserted computed-style), and in no state does an island control resolve an admin-Cobalt token value; with the knob unset, the base theme renders. The knob is documented in `apps/admin/.env.example` and named identically to the portal's.
+2. Switching theme and mode restyles the island only: an e2e asserts computed styles change on a control inside the island while the admin topbar's computed background/color are byte-identical before and after, in both directions (admin mode switch leaves the island's selection alone too).
 2. All 051 predefined themes and all three modes selectable; HC inside the island renders the portal HC layer (assert a known HC token value on an island control).
 3. Interactivity from 032's preview round still works under a switched theme (tick a checkbox while the island is in dark harbor, for instance).
 4. axe green with the island in HC while the admin chrome is in light, and vice versa (the mixed states are the novel a11y surface).
