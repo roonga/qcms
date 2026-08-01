@@ -96,7 +96,13 @@
     "COREPACK_ENABLE_DOWNLOAD_PROMPT": "0",
     // Keep Claude Code's config + credentials in the mounted ~/.claude, so a
     // container rebuild does not throw away the login.
-    "CLAUDE_CONFIG_DIR": "/home/vscode/.claude"
+    "CLAUDE_CONFIG_DIR": "/home/vscode/.claude",
+    // Tells scripts/devcontainer.sh that it is executing inside the container it
+    // targets, so `stop`, `down` and `rebuild` refuse instead of destroying the
+    // environment they are running in (issues #244, #260). The script also falls
+    // back to matching this hostname against the container id, because
+    // containerEnv does not reach an already-running container.
+    "QCMS_DEVCONTAINER": "qcms-dev-container"
     // The dev database address is not set here: scripts/dev-portal.mjs detects
     // it, which keeps host and container checkouts on the same code path.
   },
