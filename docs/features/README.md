@@ -86,6 +86,7 @@ Status values: `todo` · `blocked (issue #)` · `done (PR #)`. A row goes `todo`
 | 049 | Admin theme editor: customize tokens + save named custom theme (ADR-30 amended 2026-07-25 to launch tier; folds #26) | 8a | todo (after 031 + 047) |
 | 057 | Option grid: inline-editable table for choice options (Code Owner direction 2026-08-01; card `ds-option-grid.html` frozen before dispatch; UI screenshot gate) | 8a | todo (after 048) |
 | 050 | Answer retraction: tombstone append resolved to unanswered by latestAnswers (ADR-33; folds #95) | 7 | done (PR #97; kernel unchanged per the accepted ADR-33 divergence; landed before PR #90, which rebases over it) |
+| 058 | Preview theme island: respondent theme/mode switch scoped to the admin preview (Code Owner direction 2026-08-01; reused by 034; UI screenshot gate) | 8a | todo (after 032) |
 | 054 | Observability: OTel tracing baseline (portal -> API -> pg via traceparent) + pino trace-correlated logs + SEC-13 redaction allowlist (ADR-34) | 8b | done (PR #181; traced e2e via in-test OTLP receiver; SEC-13 redaction; whole Playwright suite runs traced) |
 | 055 | QCMS app theme application: Cobalt tokens + Lexend + sharp corners + mode control (after 031, before 032; UI screenshot gate) | 8a | done (PR #214; screenshot gate signed by the Code Owner 2026-07-31) |
 | 056 | Auth consolidation: better-auth moves into the API, admin loses its DB handle (ADR-35 amendment 2026-07-31; supersedes #211; after 035, before 036) | 8b | todo |
