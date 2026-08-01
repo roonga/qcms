@@ -17,9 +17,16 @@ describe("devcontainer.sh", () => {
 
     expect(res.status).toBe(2);
     expect(res.stderr).toContain("unknown command: bogus");
-    for (const cmd of ["up", "rebuild", "shell", "run", "status", "stop"]) {
+    for (const cmd of ["up", "rebuild", "shell", "run", "status", "stop", "down"]) {
       expect(res.stderr).toContain(cmd);
     }
+  });
+
+  it("accepts stop as a backwards-compatible alias for down", () => {
+    const res = run("stop");
+
+    expect(res.status).toBe(0);
+    expect(res.stdout).toMatch(/qcms-dev-container (is not running|stopped)/);
   });
 
   it("refuses to run with no command rather than defaulting to one", () => {

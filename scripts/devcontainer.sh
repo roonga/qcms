@@ -8,7 +8,8 @@
 #   shell     open zsh inside (repeat for more terminals)
 #   run <cmd> run one command inside and exit
 #   status    what is running, and whether the config has drifted
-#   stop      stop the container (there is no `devcontainer down`)
+#   stop      stop the container (deprecated, kept for compatibility)
+#   down      stop the container
 #
 # Exercising this path is also evidence for exit criterion 1, which is worded
 # against `devcontainer up` rather than the VS Code route.
@@ -138,7 +139,7 @@ cmd_stop() {
   docker stop "$CONTAINER" >/dev/null && echo "stopped $CONTAINER"
 }
 
-[ "$#" -gt 0 ] || die "no command given. One of: up, rebuild, shell, run, status, stop"
+[ "$#" -gt 0 ] || die "no command given. One of: up, rebuild, shell, run, status, stop, down"
 command="$1"
 shift
 
@@ -148,7 +149,7 @@ case "$command" in
   shell) cmd_shell ;;
   run) cmd_run "$@" ;;
   status) cmd_status ;;
-  stop) cmd_stop ;;
+  stop|down) cmd_stop ;;
   -h | --help | help) sed -n '2,13p' "$0" ;;
-  *) die "unknown command: $command (expected up, rebuild, shell, run, status, stop)" ;;
+  *) die "unknown command: $command (expected up, rebuild, shell, run, status, stop, down)" ;;
 esac
