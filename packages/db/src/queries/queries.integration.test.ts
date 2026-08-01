@@ -333,15 +333,17 @@ describe("forms helpers", () => {
     await createForm(testDb.db, { formId, slug: "frm-abuse-patch", defaultLocale: "en" });
 
     // One key at a time: the other column keeps its value rather than resetting.
-    expect((await updateFormSettings(testDb.db, formId, { challengeRequired: true }))?.minSubmitMs)
-      .toBeNull();
+    expect(
+      (await updateFormSettings(testDb.db, formId, { challengeRequired: true }))?.minSubmitMs,
+    ).toBeNull();
     const withFloor = await updateFormSettings(testDb.db, formId, { minSubmitMs: 4_000 });
     expect(withFloor?.challengeRequired).toBe(true);
     expect(withFloor?.minSubmitMs).toBe(4_000);
 
     // `null` is a value, not an omission: it restores the deployment default.
-    expect((await updateFormSettings(testDb.db, formId, { minSubmitMs: null }))?.minSubmitMs)
-      .toBeNull();
+    expect(
+      (await updateFormSettings(testDb.db, formId, { minSubmitMs: null }))?.minSubmitMs,
+    ).toBeNull();
 
     // An empty patch is a legal no-op read, not a SQL error.
     const untouched = await updateFormSettings(testDb.db, formId, {});
