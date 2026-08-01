@@ -117,6 +117,13 @@ function runWithSessionStub(stubBody: string, timeoutMs = SUPERVISOR_KILL_MS) {
 // marginal under load. `/proc` rather than `kill(pid, 0)` because a SIGKILLed
 // process lingers as a zombie its parent has not collected yet, and a zombie
 // still answers signal 0 - the exact trap #165 calls out.
+//
+// That makes these tests Linux-only. Absent /proc, isRunning() would report
+// every pid as dead and the assertions would pass without proving anything, so
+// the suite skips explicitly rather than going vacuously green (the canonical
+// environment is the Ubuntu dev container, ADR-29, and CI runs on ubuntu).
+const HAS_PROCFS = existsSync("/proc/self/stat");
+
 function isRunning(pid: number): boolean {
   let stat: string;
   try {
@@ -242,7 +249,7 @@ describe("agent-loop.sh supervisor loop", () => {
 // running. One that keeps draining ../seat-mail/<mailbox>/ can eat a steer meant
 // for the LIVE iteration, and the bus is at-most-once per file, so the message
 // is simply lost. Every test here fails against the pre-fix supervisor.
-describe("agent-loop.sh session process groups (issue #240)", () => {
+describe.skipIf(!HAS_PROCFS)("agent-loop.sh session process groups (issue #240)", () => {
   it("terminates background work the session left behind", () => {
     // Models a background task that writes somewhere other than the session's
     // stdout, which is what the CLI's own background tasks do.
