@@ -19,11 +19,13 @@ import type { Mode } from "@/lib/appearance";
  * `aria-hidden` on every one. The trigger's `aria-label` carries the mode in words,
  * because the glyph is a status cue and not the name of the control.
  *
- * The moon and the half-disc are the card's own paths, copied. The sun is not: the
- * card names three glyphs in its prose but its markup only ever demonstrates Dark
- * and High contrast, so no Light state is drawn anywhere in it. This one is authored
- * in the same idiom (a `r=4` core, eight rays between radius 6.5 and 9, the same
- * stroke weight and caps) and is the one geometry here a design pass has not seen.
+ * All three glyphs are the card's own geometry as reconciled. The moon and the
+ * half-disc were copied from it directly. The sun ran the other way: the card named
+ * three glyphs in its prose while its markup only ever demonstrated Dark and High
+ * contrast, so this one was authored here in the same idiom (a `r=4` core, eight rays
+ * between radius 6.5 and 9, the same stroke weight and caps) and the design seat then
+ * adopted it into the card. The card remains the authority for all three - a change to
+ * any of them belongs there first.
  */
 
 /**

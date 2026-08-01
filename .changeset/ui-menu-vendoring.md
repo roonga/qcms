@@ -4,8 +4,9 @@
 
 Vendor the a2-react-aria `menu` component and open the kit's menu surface (task
 032). `src/components/a2ui/menu/` comes from the pinned registry commit and is
-byte-identical to it (`a2ra diff` clean); `@qcms/ui/kit` now exports `Menu` and
-`MenuItemEntry` alongside the other vendored controls.
+byte-identical to it (`a2ra diff` clean, transcript in `packages/ui/a2ra-diff.md`);
+`@qcms/ui/kit` now exports `Menu` and `MenuItemEntry` alongside the other vendored
+controls.
 
 The kit also re-exports the react-aria popup primitives the QCMS app's topbar
 composes (`MenuTrigger`, `MenuTriggerButton`, `MenuPopover`, `MenuList`,

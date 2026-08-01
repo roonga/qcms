@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import type { MutationState } from "@/lib/questions/editor-state";
+import { messageForCode } from "@/lib/questions/errors";
 import type { QuestionDefinitionView } from "@/lib/questions/types";
 import {
   createQuestion,
@@ -82,12 +83,15 @@ function readText(formData: FormData, name: string): string {
  *
  * It reuses the kernel's own code so the editor has one error path rather than two: as
  * far as the screen is concerned, a definition it could not serialize and a definition
- * the engine rejected are the same event.
+ * the engine rejected are the same event. The sentence comes from the same place too -
+ * `messageForCode` over the catalog, never a literal here (ADR-27): an operator-visible
+ * string written inline is one the catalog cannot translate and one a wording change
+ * would miss.
  */
 const MALFORMED: MutationState = {
   status: "error",
   code: "INVALID_QUESTION_DEFINITION",
-  message: "The editor could not send this draft. Reload the page and try again.",
+  message: messageForCode("INVALID_QUESTION_DEFINITION"),
   issues: [],
 };
 

@@ -61,9 +61,11 @@
  * or Arrow Down opens; arrows navigate; Escape closes and returns focus) comes from
  * `MenuTrigger` either way - it is the same machinery, reached one layer lower.
  *
- * Closing the gap upstream (a `trigger` slot and richer item content on the
- * registry's `Menu`) is tracked as a cross-repo issue, per ADR-22's rule that a
- * shortfall in a vendored component is fixed in a2-react-aria, never forked here.
+ * Closing the gap upstream (a `trigger` slot, a menu `aria-label`, richer item
+ * content, a header slot and a separator on the registry's `Menu`) is tracked as a
+ * cross-repo issue pair, per ADR-22's rule that a shortfall in a vendored component
+ * is fixed in a2-react-aria and never forked here: `roonga/a2-react-aria#75`
+ * upstream, `roonga/qcms#234` here for the adoption that follows it.
  */
 
 export { Alert } from "./components/a2ui/alert/index.ts";

@@ -55,6 +55,9 @@ The a2ra components are **vendored source**, not imported from `@a2ra/core`:
   vendored files.
 - Upgrades are deliberate events: pull with `@a2ra/cli diff`, then the
   conformance suite must stay green.
+- Fidelity is provable only by that command, so its transcript is committed:
+  [`a2ra-diff.md`](./a2ra-diff.md), refreshed whenever the pin moves or a
+  component is added or overwritten.
 
 > **Registry pin note.** `@a2ra/core@1.0.0-preview.7` ships `TextArea`, but
 > `@a2ra/cli@1.0.0-preview.4`'s _default_ registry commit predates it. `a2ra.json`
