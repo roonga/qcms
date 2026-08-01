@@ -190,6 +190,9 @@ describe("tree editing", () => {
       conditions: [{ op: "answered", questionId: "q_one" }],
     };
     expect(removeBranch(single, [], 0)).toBe(single);
-    expect(removeBranch(tree, [], 0)).toMatchObject({ op: "and", conditions: [tree.conditions[1]] });
+    expect(removeBranch(tree, [], 0)).toMatchObject({
+      op: "and",
+      conditions: [tree.conditions[1]],
+    });
   });
 });

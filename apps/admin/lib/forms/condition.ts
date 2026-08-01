@@ -186,6 +186,11 @@ export const DATE_OPERAND_PLACEHOLDER = "2000-01-01";
  * `.min(1)` on `in`/`containsAny`, `""` would fail the date pattern, and `""` is not an
  * `opt_`-prefixed option id. Every value produced here parses.
  */
+// The heterogeneous return is the point of this function, not an accident of it: an
+// operand's runtime type IS the thing being decided, and `DraftAnswerValue` is the closed
+// union the kernel's schema accepts. Splitting it per type would push the same switch up
+// into every caller, which is strictly worse.
+// eslint-disable-next-line sonarjs/function-return-type
 function startingOperand(kind: OperandKind, options: readonly string[]): DraftAnswerValue {
   switch (kind) {
     case "number":
@@ -269,9 +274,17 @@ export function conditionForOp(
   }
 }
 
-/** A starting operand as the non-empty list `in`/`containsAny` require (`.min(1)`). */
+/**
+ * A starting operand as the non-empty list `in`/`containsAny` require (`.min(1)`).
+ *
+ * Narrowed with `typeof === "object"` rather than `Array.isArray`, which is not merely a
+ * style choice: `Array.isArray` is typed to narrow to the mutable `any[]`, so against a
+ * union whose only array member is `readonly string[]` it widens the result to `any` and
+ * the lint gate rejects the unsafe return. A `readonly string[]` is the one object member
+ * of {@link DraftAnswerValue}, so the `typeof` test is exact.
+ */
 function asList(starting: DraftAnswerValue): readonly DraftAnswerValue[] {
-  return Array.isArray(starting) ? starting : [starting];
+  return typeof starting === "object" ? starting : [starting];
 }
 
 /** The children a combinator keeps when the author switches between `and`/`or`/`not`. */
