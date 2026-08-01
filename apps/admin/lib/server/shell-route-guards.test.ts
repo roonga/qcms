@@ -38,8 +38,12 @@ import { describe, expect, it } from "vitest";
  *    the 307 a thrown `redirect()` produces (which would re-post the credential).
  * 2. Every exported function in a `"use server"` module under `(shell)` calls
  *    `requireAdminSession()`.
- * 3. A state-changing route handler also calls `isSameOriginPost()` (SEC-9's CSRF belt).
- *    Server actions do not need it: Next verifies the origin of every action call.
+ * 3. A state-changing route handler also calls `isSameOriginPost()` (SEC-9's CSRF belt),
+ *    checked in that handler's own body rather than anywhere in its file, so a second
+ *    handler cannot free-ride on its neighbour's check. A route handler that changes no
+ *    state has nothing for this rule to require, so a `route.ts` exporting only `GET`
+ *    passes it. Server actions do not need the belt at all: Next verifies the origin of
+ *    every action call.
  * 4. Every `export` in those files is in a shape rules 1-3 can actually see. A guard the
  *    scanner cannot read is a guard this test cannot vouch for, so an unfamiliar export
  *    fails loudly and asks to be added here rather than passing silently.
@@ -150,6 +154,28 @@ function exportedFunctions(source: string): ExportedFunction[] {
   }));
 }
 
+/**
+ * The state-changing handlers of a route module that never check the request origin.
+ *
+ * Rule 3, per handler body rather than per file. The file-level spelling of this
+ * (`source.includes(SAME_ORIGIN_CHECK)`) let a second mutating handler in the same file
+ * free-ride on its neighbour's check, which is the one shape rules 1 and 2 already refuse.
+ *
+ * A module with no mutating verb returns `[]` and so passes: `isSameOriginPost()` is
+ * SEC-9's belt for state changes, and a read-only `GET` handler has no state change to
+ * belt. Requiring one there would be a tripwire that cries on correct code.
+ *
+ * Not paired with a `length > 0` vacuity guard on purpose: rule 1 already asserts that
+ * every one of these files has at least one handler `exportedFunctions()` can see, using
+ * this same parser, so a parser regression fails there rather than silently emptying this.
+ */
+function uncheckedMutatingHandlers(source: string): string[] {
+  return exportedFunctions(source)
+    .filter((handler) => MUTATING_VERBS.has(handler.name))
+    .filter((handler) => !handler.body.includes(SAME_ORIGIN_CHECK))
+    .map((handler) => handler.name);
+}
+
 /** Exports rule 4 refuses: anything that is neither a scannable handler nor plain data. */
 function unscannableExports(source: string): string[] {
   return source
@@ -192,11 +218,9 @@ describe("issue #177: request handlers under app/(shell) carry their own session
   });
 
   it.each(files.filter((file) => file.kind === "route"))(
-    "$path checks the request origin on state-changing verbs (rule 3, SEC-9)",
+    "$path checks the request origin in each state-changing handler (rule 3, SEC-9)",
     (file) => {
-      const mutating = exportedFunctions(file.source).filter((h) => MUTATING_VERBS.has(h.name));
-      expect(mutating.length).toBeGreaterThan(0);
-      expect(file.source.includes(SAME_ORIGIN_CHECK)).toBe(true);
+      expect(uncheckedMutatingHandlers(file.source)).toEqual([]);
     },
   );
 
@@ -207,5 +231,68 @@ describe("issue #177: request handlers under app/(shell) carry their own session
     // rename could make one satisfy the other's rule for free. Pin it.
     expect(ROUTE_GUARD.includes(ACTION_GUARD)).toBe(false);
     expect(ACTION_GUARD.includes(ROUTE_GUARD)).toBe(false);
+  });
+});
+
+/**
+ * Rule 3's own tests, over sources written here rather than files on disk.
+ *
+ * The rules above are only worth having while they fail against a broken shape, and the
+ * two shapes rule 3 has to get right are ones no file in the tree has today: a route
+ * handler that changes no state (must pass) and two mutating handlers where one checks
+ * the origin and the other does not (must fail, naming the one that does not). Neither
+ * can be demonstrated by scanning `(shell)`, so they are demonstrated on fixtures. Both
+ * fail against the file-level `source.includes(...)` version of the rule this replaced.
+ */
+describe("issue #177 rule 3: origin checks are per handler, and only for state changes", () => {
+  const BELT_LINE = "  if (!isSameOriginPost(request)) return new Response(null, { status: 403 });";
+
+  /** One exported handler, session-guarded, belted with `isSameOriginPost()` if asked. */
+  const handler = (verb: string, { belted }: { belted: boolean }): string =>
+    [
+      `export async function ${verb}(request: Request): Promise<Response> {`,
+      "  const denied = await requireAdminSessionForRequest(request);",
+      "  if (denied !== null) return denied;",
+      ...(belted ? [BELT_LINE] : []),
+      "  return new Response(null, { status: 204 });",
+      "}",
+    ].join("\n");
+
+  /**
+   * A `route.ts` as the scanner sees one: its imports, then the handlers given.
+   *
+   * Both imports appear in every fixture, including the ones with no belted handler.
+   * That is deliberate: it pins that an `import { isSameOriginPost }` line does not by
+   * itself satisfy rule 3 (the rule matches `isSameOriginPost(`, and an import names the
+   * symbol without calling it), which a fixture that only imported what it used could
+   * not show.
+   */
+  const route = (...handlers: string[]): string =>
+    [
+      'import { isSameOriginPost } from "@/lib/server/origin";',
+      'import { requireAdminSessionForRequest } from "@/lib/server/session";',
+      "",
+      ...handlers,
+    ].join("\n\n");
+
+  it("asks nothing of a route that exports only GET", () => {
+    // The defect this replaced: the old rule required a mutating verb of every route.ts
+    // under (shell), so a correct read-only handler would have failed a SEC-9 assertion
+    // that does not apply to it. A tripwire that cries on correct code gets deleted.
+    expect(uncheckedMutatingHandlers(route(handler("GET", { belted: false })))).toEqual([]);
+  });
+
+  it("names a mutating handler that free-rides on its neighbour's origin check", () => {
+    // The hole this replaced: `source.includes(SAME_ORIGIN_CHECK)` is satisfied by POST's
+    // check on DELETE's behalf, so this shape passed rule 3 while DELETE was unbelted.
+    const source = route(handler("POST", { belted: true }), handler("DELETE", { belted: false }));
+    expect(uncheckedMutatingHandlers(source)).toEqual(["DELETE"]);
+  });
+
+  it("passes both handlers once each checks for itself", () => {
+    // Pins the failure above to the missing check rather than to the second handler
+    // merely existing.
+    const source = route(handler("POST", { belted: true }), handler("DELETE", { belted: true }));
+    expect(uncheckedMutatingHandlers(source)).toEqual([]);
   });
 });
