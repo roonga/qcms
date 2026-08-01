@@ -57,7 +57,7 @@ Everything is named and grouped, so `docker ps` reads at a glance and Docker Des
 | `qcms-dev-container` | the dev container itself |
 | `qcms-dev-postgres-1` | the dev database from `docker-compose.dev.yml` |
 
-Both carry the `qcms-dev` compose project, and the database keeps that name whatever your checkout folder is called. Testcontainers spawns its own short-lived containers with generated names: those belong to a test run, not the dev stack.
+Both carry the `qcms-dev` compose project **at the default seat 0**, and the database keeps that name whatever your checkout folder is called. Another seat gets its own project and so its own container and volume (`qcms-dev-s1-postgres-1` at seat 1) - see [`docs/PORTS.md`](PORTS.md) for why that has to move with the port. Testcontainers spawns its own short-lived containers with generated names: those belong to a test run, not the dev stack.
 
 ## Running the app
 
@@ -91,7 +91,7 @@ The practical rule: **one container machine-wide, and one side per checkout at a
 | Symptom | Cause and fix |
 |---|---|
 | `Bind for 0.0.0.0:7020 failed: port is already allocated` | Another dev database already holds seat 0's database port, often from an older checkout. `docker ps -a --filter publish=7020`, then `docker rm -f <name>`. Or take another seat: `QCMS_PORT_SEAT=1 pnpm dev:portal` ([`docs/PORTS.md`](PORTS.md)). |
-| Container creation fails on 7000 or 7010 | A host process or another qcms dev container holds them. `pnpm devcontainer status`, then stop the other one. |
+| Container creation fails on 7000 or 7010 | A host process or another qcms dev container holds them. `pnpm devcontainer status`, then stop the other one **from the host** (`stop`, `down` and `rebuild` refuse to run from inside the container they target). |
 | `The container name "/qcms-dev-container" is already in use` | A stopped container still holds the name. `pnpm devcontainer rebuild` removes it by name first. |
 | Config edits seem to have no effect | `up` reused the container. `pnpm devcontainer rebuild`. `status` warns when this has happened. |
 | `ERR_PNPM_MISSING_PACKAGE_INDEX_FILE` on the host | That checkout's `node_modules` is linked to the container's pnpm store. Run `pnpm install` on the host. |

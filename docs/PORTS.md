@@ -144,7 +144,7 @@ The root cause was not carelessness: there was no mechanism by which two lanes *
 - **The stable block is exclusive per machine, per seat.** Seat 0's 7000 / 7010 / 7020 / 7030 are host binds. Two checkouts, two developers, or two dev containers on one host cannot all run seat 0's stable stack: the second one fails to bind.
 - **The dev container name is exclusive too, and collides first.** `.devcontainer/devcontainer.json` pins `--name=qcms-dev-container`. Two seats would clash on that name before they ever clashed on a port. A seat-suffixed name is the obvious shape; see the devcontainer note below.
 - **The harness block is exclusive per seat but cheap to move.** It is bound by whichever host runs the tests, for the duration of the run.
-- **The Compose project name matters as much as the port.** Two Compose stacks with the same project name **are the same stack**. A second seat that moved only `QCMS_DB_PORT` would get its own listener and the first seat's data directory, silently. `composeProjectName()` returns `qcms-dev` at seat 0 and `qcms-dev-s<N>` otherwise; `scripts/dev-portal.mjs` exports it as `COMPOSE_PROJECT_NAME`, which outranks the `name:` in the compose file. Named volumes are namespaced by project, so a distinct name gives a seat its own data as well as its own container. *(Proven for seat 0 by the existing dev path; the seat-N branch is unit-tested, not yet run.)*
+- **The Compose project name matters as much as the port, and the failure is worse than sharing.** Two Compose stacks with the same project name **are the same stack**. A second seat that moved only `QCMS_DB_PORT` would hand Compose the same project with a changed port mapping, so `docker compose up -d` **recreates** the running container on the new port against the same volume: seat 1 does not quietly join seat 0's database, it **takes it away mid-session**, leaving seat 0's processes dialling a port nothing serves. Nothing errors on either side. That is what makes the project name necessary rather than tidy. `composeProjectName()` returns `qcms-dev` at seat 0 and `qcms-dev-s<N>` otherwise; `scripts/dev-portal.mjs` exports it as `COMPOSE_PROJECT_NAME`, which outranks the `name:` in the compose file. Named volumes are namespaced by project, so a distinct name gives a seat its own data as well as its own container. *(Proven for seat 0 by the existing dev path; the seat-N branch is unit-tested, not yet run.)*
 
 ### How a seat claims its number
 
@@ -206,6 +206,27 @@ Export it once per shell if a lane runs several commands. Every consumer reads t
 Take a seat, do not invent a number.
 
 A worked example, from the night this allocation was written: a preview stack for the Code Owner was put on **3300 / 3301**, with its database on 7020 and a second artifacts server on 7031. Every one of those is outside the allocation, and 7031 in particular is inside the stable block but not on any grid line, which makes it invisible to anyone reading the table. Under this rule that stack is long-running and human-facing, so it is `7Sxx` shaped: it takes a free seat and runs on `7S00`/`7S10`/`7S20`/`7S30`. Nothing about it needed a new number.
+
+## What the gate can and cannot see
+
+`pnpm check:ports` matches a number only where the surrounding syntax says "this is a port": a URL authority, a `--port` flag, a `docker run -p` host side, an assignment or property named `port`/`*_PORT`/`*Port`, a devcontainer `appPort`/`forwardPorts` array, a `${VAR:-NNNN}` default, and the prose form `port NNNN`. It deliberately does **not** scan for bare four-digit numbers: years, byte caps, timeouts and pixel sizes are everywhere, and a gate that fired on those would be switched off within a week.
+
+The other half of that has to be written down too, because an unwritten limit is how a gate gets trusted beyond its reach - exactly how the #74 GHCR mirror stayed bypassed inside `verify` for weeks. These three evasions were **measured** against a clean tree and all three passed:
+
+| Evasion | Why it slips through |
+|---|---|
+| `const PORT = 9998;` | a standalone all-caps `PORT` is not in the identifier alternation (which covers `port`, `Port`, `_PORT`, `xPort`) |
+| a `--port NNNN` flag in `package.json` | a shape the scanner *does* recognise, in a file it does not read. Broad `.json` is excluded on purpose: the append-only golden corpus (ADR-18) must never be something a gate can demand an edit to. A coverage gap, not a pattern gap |
+| `- "9988:5432"` in a Compose file | only the `${VAR:-NNNN}` default form is scanned, not a bare publish mapping - the form `docker-compose.dev.yml` uses for its own port |
+
+A port built by arithmetic or assembled in a template literal is inherently out of reach. That is not a defect to fix; it is why **R8 is a rule about derivation, not a rule about literals**. Deriving from `scripts/ports.mjs` is the only thing that makes those cases safe.
+
+So: **a clean run means "no port is written in one of the recognised shapes", never "no port outside the allocation exists".**
+
+Two more things the numbers can mislead about:
+
+- **8 of the 25 `ALLOWED` entries never fire.** They were written defensively while migrating, and the file's other 17 are what the gate actually leans on. The list therefore overstates the gate's reach: an entry existing is not evidence the gate sees that file.
+- **The startup occupancy check depends on `/proc`.** `occupantOfPort` returns `undefined` when `/proc/net/tcp` is unreadable, so on a platform without it (macOS, or a restricted container) the refusal is **silently inert** and a run proceeds as though the ports were free. It degrades safely rather than dangerously - per-seat isolation is untouched, and `reuseExistingServer` stays off for a port that looks free - but the refusal is not the absolute backstop the section above might read as. It is a Linux convenience on top of the seat, not a substitute for one.
 
 ## What this does not cover
 

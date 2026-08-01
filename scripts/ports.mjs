@@ -183,9 +183,13 @@ export function harnessPorts(seat = PORT_SEAT) {
 /**
  * The Compose project name for `seat`'s dev database.
  *
- * Two Compose stacks with the same project name ARE the same stack, so a second seat
- * that only moved `QCMS_DB_PORT` would silently attach to the first seat's database
- * instead of getting its own: shared state, no error, much worse than a port clash.
+ * Two Compose stacks with the same project name ARE the same stack, and the failure is
+ * worse than sharing. A second seat that moved only `QCMS_DB_PORT` would present
+ * Compose with the same project and a changed port mapping, so `docker compose up -d`
+ * RECREATES the running container on the new port against the same volume: seat 1 does
+ * not quietly join seat 0's database, it takes it away mid-session. Seat 0's processes
+ * keep dialling a port nothing serves any more. That is what makes the project name
+ * necessary rather than tidy.
  * `COMPOSE_PROJECT_NAME` takes precedence over the `name:` in
  * `docker-compose.dev.yml`, and the named volume is namespaced by project, so a
  * distinct name gives a seat its own container AND its own data directory.

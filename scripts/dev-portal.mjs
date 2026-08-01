@@ -216,9 +216,11 @@ function composeUp() {
     shell: IS_WINDOWS,
     env: {
       ...process.env,
-      // Two Compose stacks sharing a project name ARE one stack. Moving only the
-      // port would give a second seat its own listener and the FIRST seat's data
-      // directory, silently - worse than a port clash, because nothing errors. The
+      // Two Compose stacks sharing a project name ARE one stack, and moving only
+      // the port does not share it - it TAKES it: same project plus a changed port
+      // mapping makes `up -d` recreate the running container on the new port against
+      // the same volume, so seat 0 loses its database mid-session and keeps dialling
+      // a port nothing serves. Nothing errors on either side. The
       // project name is what makes a seat's database its own; `COMPOSE_PROJECT_NAME`
       // outranks the `name:` in the compose file, and named volumes are namespaced
       // by project. Seat 0 resolves to the unchanged `qcms-dev`.

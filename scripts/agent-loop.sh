@@ -15,6 +15,7 @@
 #           -p, --parallel N          executors per batch (pairwise-independent tasks only; /next-task lane only)
 #           -P, --prompt CMD          the skill each iteration runs (default /next-task; e.g. /next-issue for a second, issue-lane agent)
 #           -M, --mailbox NAME        seat-mail identity under ../seat-mail/ (default dev; a second lane gets its own, e.g. dev2)
+#           -S, --seat N              port seat 0-9 for this lane (default: derived from --mailbox; see docs/PORTS.md)
 #           -r, --retry-minutes N     wait between retries when usage-limited / crashed
 #           -m, --max-iterations N    hard stop so a logic bug cannot loop forever
 #           -s, --stop-after-task ID  e.g. "010" - stop once this task lands
@@ -27,6 +28,7 @@ parallel=1
 retry_minutes=30
 prompt_cmd="/next-task"
 mailbox="dev"
+seat=""
 max_iterations=100
 stop_after_task=""
 
@@ -73,6 +75,11 @@ while [ $# -gt 0 ]; do
       mailbox="$2"
       shift 2
       ;;
+    -S | --seat)
+      need_value "$1" "${2:-}"
+      seat="$2"
+      shift 2
+      ;;
     -r | --retry-minutes)
       need_value "$1" "${2:-}"
       retry_minutes="$2"
@@ -89,7 +96,7 @@ while [ $# -gt 0 ]; do
       shift 2
       ;;
     -h | --help)
-      sed -n '2,20p' "$0"
+      sed -n '2,21p' "$0"
       exit 0
       ;;
     *)
@@ -105,6 +112,42 @@ positive_int --max-iterations "$max_iterations"
 # at sentinel-match time, where a non-numeric value throws a bash arithmetic
 # error mid-run and the stop check then silently never fires.
 [ -z "$stop_after_task" ] || positive_int --stop-after-task "$stop_after_task"
+
+# --- port seat (R8, docs/PORTS.md, issue #255) -------------------------------
+#
+# Every lane runs its work in a linked git worktree, and the browser harness
+# REFUSES to start in a worktree with no seat chosen - deliberately, because two
+# lanes that both fall back to the default seat contend for the same four ports.
+# The supervisor is the right place to answer that question: it is the only thing
+# that knows there is more than one lane. Without this, the first `/task` or
+# `/next-issue` iteration after the seat scheme landed would hit the refusal and
+# its error message would be the only documentation of it.
+#
+# Derived from the mailbox, which is already this lane's identity: `dev` -> seat 0
+# (the single-lane default, and what CI uses), `dev2` -> seat 2, and so on. A
+# mailbox with no trailing digit is seat 0; one with more than a single trailing
+# digit has no obvious seat, so it is an error rather than a guess. `--seat`
+# overrides either way.
+#
+# Note the two mechanisms are not redundant. The seat stops two lanes SHARING a
+# server (silently testing each other's worktree - issue #255). The
+# `../seat-mail/.gates.lock` flock the skills wrap `verify:browser` in stops two
+# lanes running heavy browser suites AT ONCE (the load-flake recipe). A lane needs
+# both: distinct ports do not make one machine able to run two Chromium suites.
+if [ -z "$seat" ]; then
+  case "$mailbox" in
+    *[0-9]) seat="${mailbox##*[!0-9]}" ;;
+    *) seat=0 ;;
+  esac
+fi
+case "$seat" in
+  [0-9]) ;;
+  *) die "--seat must be a single digit 0-9 (got '$seat'); see docs/PORTS.md" ;;
+esac
+# Exported, not passed in the prompt: every consumer (the Playwright config, the
+# dev scripts, turbo's globalPassThroughEnv) reads the environment, and a value in
+# a prompt is a suggestion the session can forget.
+export QCMS_PORT_SEAT="$seat"
 
 cd "$(dirname "$0")/.."
 log_file="$PWD/agent-loop.log"
@@ -244,7 +287,7 @@ Seat mail from the PO seat (act on each, then move its file to ../seat-mail/${ma
   if [ "$mailbox" != "dev" ]; then
     iter_prompt="$iter_prompt
 
-Lane identity: your seat-mail inbox is ../seat-mail/${mailbox}/ (ack into its read/); sign outbound mail to ../seat-mail/pm/ as 'From: ${mailbox} lane'. Follow the second-lane discipline in the next-issue skill (bug/security tier only while the e2e chain runs; avoid the live feat/* claim's footprint; flock the shared browser-gate lock)."
+Lane identity: your seat-mail inbox is ../seat-mail/${mailbox}/ (ack into its read/); sign outbound mail to ../seat-mail/pm/ as 'From: ${mailbox} lane'. Your port seat is QCMS_PORT_SEAT=${seat}, already exported into this session - keep it in the environment of anything you spawn, and never hard-code a port (R8, docs/PORTS.md). Follow the second-lane discipline in the next-issue skill (bug/security tier only while the e2e chain runs; avoid the live feat/* claim's footprint; flock the shared browser-gate lock)."
   fi
   #
   # The session's output goes to a file, not a command substitution. A command

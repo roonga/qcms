@@ -5,7 +5,7 @@
 
 ## Ground rules
 
-The reference documents in `docs/` are authoritative; the discipline rules R1–R8 and decisions ADR-01…35 / SEC-1…13 are not relitigated in PRs - a PR that violates them is not mergeable regardless of quality. Conflicts with a decision are raised as an issue proposing a new ADR, never resolved silently in code. The launch cut-line (R7) applies to contributions: out-of-scope features become `phase-4` issues, not PRs.
+The reference documents in `docs/` are authoritative; the discipline rules R1–R8 and decisions ADR-01…37 / SEC-1…13 are not relitigated in PRs - a PR that violates them is not mergeable regardless of quality. Conflicts with a decision are raised as an issue proposing a new ADR, never resolved silently in code. The launch cut-line (R7) applies to contributions: out-of-scope features become `phase-4` issues, not PRs.
 
 ## Development environment
 
@@ -127,6 +127,7 @@ pnpm verify:browser   # the Playwright suite (portal e2e + a11y + Lighthouse), s
 | `pnpm check:no-control-chars` | `pnpm check:all` |
 | `pnpm check:licenses` | `pnpm check:all` |
 | `pnpm check:no-em-dash` | `pnpm check:all` |
+| `pnpm check:ports` | `pnpm check:all` |
 | `pnpm check:duplication` | `pnpm check:all` |
 | `pnpm check:admin-theme` | `pnpm check:all` |
 | `e2e` job (`--project qcms-api-e2e`) | `pnpm test` (apps/api's `test` script runs that project) |

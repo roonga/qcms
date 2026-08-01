@@ -41,6 +41,33 @@
  * Anything genuinely exempt is in ALLOWED below, each with its reason inline, and
  * each pinned to a specific file so an exemption cannot leak elsewhere.
  *
+ * ## What it cannot see
+ *
+ * Written down because an unwritten limit is how a gate gets trusted beyond its
+ * reach: that is precisely how the #74 GHCR mirror stayed bypassed inside `verify`
+ * for weeks. Measured evasions, all of which pass a clean run today:
+ *
+ *   - `const PORT = 9998;` - a bare all-caps `PORT` is not in the identifier
+ *     alternation, which covers `port`, `Port`, `_PORT` and `xPort` but not a
+ *     standalone `PORT`.
+ *   - a `--port NNNN` flag inside `package.json` - a shape the scanner DOES
+ *     recognise, in a file it does not read. Broad `.json` is excluded on purpose
+ *     (the append-only golden corpus must never be editable by a gate's demand) and
+ *     the named-file list does not include `package.json`. So this one is a coverage
+ *     gap, not a pattern gap, which is the cheaper of the two to close if it ever
+ *     bites.
+ *   - `- "9988:5432"` in a Compose file - only the `${VAR:-NNNN}` default form is
+ *     scanned, not a bare publish mapping, which is the very form
+ *     `docker-compose.dev.yml` uses for its own port.
+ *
+ * Inherently out of reach, and not worth chasing: a port built by arithmetic or
+ * assembled in a template literal. Deriving it from `scripts/ports.mjs` is the only
+ * thing that makes those safe, which is why R8 is a rule about derivation rather
+ * than a rule about literals.
+ *
+ * Treat a clean run as "no port written in one of the recognised shapes", never as
+ * "no port outside the allocation exists".
+ *
  * Usage:  node scripts/check-ports.mjs
  */
 
