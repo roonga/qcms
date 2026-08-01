@@ -1,4 +1,9 @@
-import type { LocalizedText, QuestionDefinitionView, QuestionStatus } from "../questions/types.ts";
+import type {
+  LocalizedText,
+  QuestionDefinitionView,
+  QuestionStatus,
+  QuestionType,
+} from "../questions/types.ts";
 
 /**
  * The form builder's **view shapes** (task 033).
@@ -199,7 +204,16 @@ export interface PinnableQuestion {
   readonly questionId: string;
   readonly slug: string;
   readonly label: LocalizedText | null;
-  readonly type: string | null;
+  /**
+   * The question's type, or `null` when the library row carried none.
+   *
+   * `QuestionType` rather than `string`: the i18n catalog keys these as
+   * `questions.type.<type>`, and a bare `string` widens that template literal past the
+   * catalog's key union, so every caller that labels a type fails to compile. Narrowing
+   * here rather than at each call site keeps the one validation in one place - the API
+   * response is parsed into this shape once, in `lib/server/forms.ts`.
+   */
+  readonly type: QuestionType | null;
   /** Every version, oldest first, with the status that decides whether it is pinnable. */
   readonly versions: readonly PinnableVersion[];
 }
