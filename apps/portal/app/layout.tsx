@@ -3,15 +3,10 @@ import { cookies, headers } from "next/headers";
 import type { ReactNode } from "react";
 
 import { AppearanceProvider, type AppearanceState } from "@/components/appearance-context";
-import {
-  APPEARANCE_MODES,
-  DENSITY_COOKIE,
-  FONT_COOKIE,
-  MODE_COOKIE,
-  type AppearanceMode,
-} from "@/lib/appearance";
+import { DENSITY_COOKIE, FONT_COOKIE, MODE_COOKIE } from "@/lib/appearance";
 import { t } from "@/lib/i18n/en";
 import { isProduction } from "@/lib/server/config";
+import { modeBootstrapScript } from "@/lib/server/mode-bootstrap";
 import {
   modeClass,
   portalBrand,
@@ -21,7 +16,6 @@ import {
   portalTheme,
   resolveAppearance,
   rootClassName,
-  type PortalMode,
 } from "@/lib/server/theme";
 
 import "./globals.css";
@@ -41,63 +35,6 @@ export const viewport: Viewport = {
  */
 export function generateMetadata(): Metadata {
   return { title: portalBrand().name, description: t("app.description") };
-}
-
-/** The three colour modes of the token contract (ADR-30); `light` is the base. */
-const MODE_CLASS_LIST = `['${APPEARANCE_MODES.join("','")}']`;
-
-/**
- * Colour-mode bootstrap (runs before first paint, so no flash).
- *
- * Mode is the ONE axis that still needs a script, and it is worth being precise
- * about why, because font and density deliberately do not have one. All three
- * choices are cookies, so the server resolves them and stamps the root classes
- * into the first byte of HTML - no script, no flash, nothing to correct. But mode
- * has a fourth input the server cannot see: the respondent's OS signals. Only the
- * browser knows `prefers-color-scheme` and `prefers-contrast`, so when there is no
- * explicit choice to honour, this script is the only thing that can apply them,
- * and it runs synchronously in `<head>` so it does so before anything is painted.
- *
- * Priority: an explicit `?mode=` URL param, then the `qcms-theme` cookie, then -
- * only when the deployment's configured default is `auto` - the OS signals, and
- * otherwise the configured mode. `auto` is precisely the config value that means
- * "ask the OS", so a deployment that pins a mode is not second-guessed here.
- *
- * Among the OS signals, `prefers-contrast: more` wins over
- * `prefers-color-scheme: dark`. A contrast preference is an accessibility need
- * stated by someone who went into their system settings to state it; a colour
- * preference is usually comfort. Honouring the weaker signal first would hand a
- * respondent who asked for more contrast a dark theme instead.
- *
- * It only toggles a class on `<html>`; the token values live in theme.css. This is
- * theme chrome, not client data state (ADR-26 keeps the portal fetch-only).
- * `forced-colors` / Windows High Contrast Mode is a separate baseline (issue #28)
- * and is deliberately NOT read here.
- */
-function themeBootstrap(configuredMode: PortalMode, cookieMode: AppearanceMode | null): string {
-  // `configuredMode` is one of four literals validated by `portalMode()` and
-  // `cookieMode` one of three or null, so the interpolations below cannot carry
-  // anything but a known keyword.
-  const osFallback = "(c?'hc':d?'dark':'light')";
-  const fallback = configuredMode === "auto" ? osFallback : `'${configuredMode}'`;
-  // The server already stamped the cookie's mode, so re-reading the cookie here
-  // would be redundant work in the common case. It is still read, and it is read
-  // FIRST, because a cookie written by the controls after this page was served (a
-  // back navigation to a cached document) must not be overridden by config.
-  const cookie = cookieMode === null ? "null" : `'${cookieMode}'`;
-  return `(function(){try{
-var v=${MODE_CLASS_LIST};
-var q=new URLSearchParams(location.search).get('mode');
-var k=document.cookie.match(/(?:^|; )qcms-theme=(dark|light|hc)/);
-var m=window.matchMedia;
-var d=m&&m('(prefers-color-scheme: dark)').matches;
-var c=m&&m('(prefers-contrast: more)').matches;
-var t=q||(k&&k[1])||${cookie}||${fallback};
-if(v.indexOf(t)<0)t='light';
-var r=document.documentElement;
-for(var i=0;i<v.length;i++)r.classList.remove(v[i]);
-r.classList.add(t);
-}catch(e){}})();`;
 }
 
 export default async function RootLayout({ children }: { readonly children: ReactNode }) {
@@ -122,8 +59,9 @@ export default async function RootLayout({ children }: { readonly children: Reac
   // What the header's controls need. Everything in it is already visible in the
   // served HTML (the root classes) or is public config; nothing server-only crosses
   // this boundary. `mode` here is the class this render STAMPED, which the controls
-  // hydrate against and then reconcile with the live root class - the script above
-  // can have landed elsewhere from a `?mode=` parameter or the OS signals.
+  // hydrate against and then reconcile with the live root class - the pre-paint
+  // bootstrap can have landed elsewhere from a valid `?mode=` parameter or the OS
+  // signals (`lib/server/mode-bootstrap.ts`).
   const state: AppearanceState = {
     mode: modeClass(appearance.mode),
     font: appearance.font,
@@ -171,7 +109,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
           nonce={nonce}
           suppressHydrationWarning
           dangerouslySetInnerHTML={{
-            __html: themeBootstrap(configuredMode, appearance.modeChosen ? state.mode : null),
+            __html: modeBootstrapScript(configuredMode, appearance.modeChosen ? state.mode : null),
           }}
         />
         {/* Without scripting the appearance controls cannot do anything, and a
