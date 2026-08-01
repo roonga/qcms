@@ -37,7 +37,11 @@ import type {
  * be easier to get wrong than right.
  */
 
-/** The kernel's `CONDITION_MAX_DEPTH` (`visibility-rule.ts`). `analysis.test.ts` pins it. */
+/**
+ * The kernel's `CONDITION_MAX_DEPTH` (`visibility-rule.ts`), restated rather than imported:
+ * `@qcms/core` is not importable from this app. `condition.test.ts` pins the two together,
+ * and it may import the kernel because a `.test.ts` is outside the import-surface scan.
+ */
 export const MAX_CONDITION_DEPTH = 8;
 
 /** The three combinators, which read no question of their own. */
@@ -332,10 +336,7 @@ function collect(condition: DraftCondition, out: string[]): void {
 export type ConditionPath = readonly number[];
 
 /** Read the node at `path`, or `undefined` when the path does not resolve. */
-export function nodeAt(
-  condition: DraftCondition,
-  path: ConditionPath,
-): DraftCondition | undefined {
+export function nodeAt(condition: DraftCondition, path: ConditionPath): DraftCondition | undefined {
   let current: DraftCondition | undefined = condition;
   for (const index of path) {
     if (current === undefined) return undefined;

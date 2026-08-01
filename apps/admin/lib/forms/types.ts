@@ -18,8 +18,10 @@ import type { LocalizedText, QuestionDefinitionView, QuestionStatus } from "../q
  * The ids are plain strings for the second half of the same reason: a half-built draft
  * holds ids the kernel has not blessed yet, and branding them here would put a second
  * validator in the BFF (R2). The kernel is still the only thing that decides whether a
- * draft is legal; `analysis.ts` is the single module that crosses back, and the fuzz test
- * in `condition.test.ts` is what proves the editor only ever emits shapes it accepts.
+ * draft is legal, and it decides it in the API: the import-surface test bans `@qcms/core`
+ * in this app outright, so nothing here crosses back. The fuzz test in `condition.test.ts`
+ * is what proves the editor only ever emits shapes the kernel accepts, and it can import
+ * the kernel because a `.test.ts` is outside that scan.
  */
 
 /** A pinned question inside a step: the R6 identity plus the frozen version it points at. */

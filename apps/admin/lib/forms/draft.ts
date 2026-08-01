@@ -6,9 +6,10 @@ import type { DraftForm, DraftPin, DraftRule, DraftStep, PinnableQuestion } from
  * Pure draft mutations for the form builder (task 033).
  *
  * Every function here takes a draft and returns a new one. Nothing validates: whether a
- * draft is legal is the kernel's answer, reached through the API's `draft/validate` and
- * advised client-side by `analysis.ts`. What this module owns is the *shape* of an edit,
- * and two shapes in particular are load-bearing.
+ * draft is legal is the kernel's answer, and the kernel runs in the API. The admin reaches
+ * it through `POST .../draft/validate`, never by importing it (the import-surface test
+ * bans `@qcms/core` in this app outright). What this module owns is the *shape* of an
+ * edit, and two shapes in particular are load-bearing.
  *
  * **A pin is manual, always (R7).** `movePin` is the only function that changes a
  * `version`, it changes exactly one pin, and it is only ever called from a per-ref menu.
@@ -235,9 +236,11 @@ export interface DraftPosition {
  * The draft's document order.
  *
  * This mirrors the kernel's `documentOrder` and exists because the builder needs it on a
- * draft the kernel cannot parse yet (an empty step, a step with no pins). `analysis.ts`
- * uses the kernel's own function once the draft parses; the pickers use this one always,
- * so a target list is never empty just because the draft is half-built.
+ * draft the kernel cannot parse yet (an empty step, a step with no pins), and because the
+ * kernel is not importable here at all. It is pure draft geometry, so it is instant: it is
+ * what gives {@link eligibleTargets} its answer before any round trip. The authority is
+ * still the validate endpoint, which reports `RULE_BACKWARD_TARGET` from the kernel's own
+ * `analyzeRuleGraph`; this only lets the picker teach the rule a debounce earlier.
  */
 export function draftDocumentOrder(draft: DraftForm): readonly DraftPosition[] {
   return draft.steps.flatMap((step) =>
