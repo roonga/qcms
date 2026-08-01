@@ -20,7 +20,8 @@ import type { DraftForm, DraftPin, DraftRule, DraftStep, PinnableQuestion } from
  *
  * **A step id is minted once.** Like an `optionId` (032), a `stepId` is a permanent name
  * a rule can target, so renaming a step carries its id through untouched. Only
- * {@link addStep} mints one.
+ * {@link addStep} mints one, and it mints against {@link reservedStepIds} so a retired
+ * name is never handed out a second time.
  */
 
 /** Steps and rules both need a stable, human-meaningful id minted from a title. */
@@ -56,14 +57,30 @@ export function blankDraft(formId: string, defaultLocale = DEFAULT_LOCALE): Draf
 
 // --- steps ------------------------------------------------------------------
 
+/**
+ * Every step id that is spoken for: the ones a step currently carries, plus every id any
+ * rule still names in `show`.
+ *
+ * The second half is the load-bearing one. {@link removeStep} deliberately leaves a
+ * dangling `show: ["stp_gone"]` behind so the author is told about it (`DANGLING_STEP_REF`)
+ * and decides what the rule should say now. That only works while the retired name stays
+ * retired: minting against live steps alone, a later step titled the way the deleted one
+ * was gets `stp_gone` minted a second time, the orphaned rule silently re-attaches to a
+ * step nobody pointed it at, and the issue the author was meant to answer disappears with
+ * no signal. Reserving referenced ids keeps the deletion visible until it is dealt with.
+ *
+ * `show` also holds question ids, which are `q_`-prefixed and so can never collide with a
+ * `stp_` candidate. They are included rather than filtered out because the union is the
+ * honest statement of "names a rule is still using", and narrowing it would be a filter
+ * that has to stay in step with the id prefixes forever.
+ */
+function reservedStepIds(draft: DraftForm): readonly string[] {
+  return [...draft.steps.map((step) => step.stepId), ...draft.rules.flatMap((rule) => rule.show)];
+}
+
 /** Append a step with a freshly minted, permanent id. */
 export function addStep(draft: DraftForm, title: string): DraftForm {
-  const stepId = mintId(
-    "stp_",
-    title,
-    draft.steps.map((step) => step.stepId),
-    "step",
-  );
+  const stepId = mintId("stp_", title, reservedStepIds(draft), "step");
   const step: DraftStep = { stepId, title: localizedDraft(title) ?? {}, items: [] };
   return { ...draft, steps: [...draft.steps, step] };
 }
@@ -105,6 +122,9 @@ export function moveStep(draft: DraftForm, stepId: string, delta: -1 | 1): Draft
  * an author's rules while they delete a step is the kind of helpfulness that loses work
  * without a trace; the validation panel instead reports `DANGLING_STEP_REF` against the
  * rule, anchored to it, and the author decides what the rule should say now.
+ *
+ * The id itself stays reserved while that rule still names it - see {@link reservedStepIds}
+ * - so re-adding a step under the old title cannot quietly adopt the orphaned rule.
  */
 export function removeStep(draft: DraftForm, stepId: string): DraftForm {
   return { ...draft, steps: draft.steps.filter((step) => step.stepId !== stepId) };
