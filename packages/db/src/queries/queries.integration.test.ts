@@ -37,6 +37,7 @@ import {
   getQuestionVersion,
   listQuestionVersions,
   updateDraftDefinition,
+  getForm,
   getSecureLink,
   getSession,
   getSubmission,
@@ -58,6 +59,7 @@ import {
   reopenForm,
   resetForRedelivery,
   revokeSecureLink,
+  updateFormSettings,
   upsertDraft,
 } from "./index.js";
 
@@ -324,6 +326,31 @@ describe("forms helpers", () => {
     const gated = await getFormBySlug(testDb.db, "frm-abuse-gated");
     expect(gated?.challengeRequired).toBe(true);
     expect(gated?.minSubmitMs).toBe(3_000);
+  });
+
+  it("patches the abuse settings one field at a time (task 033's settings panel)", async () => {
+    const formId = FormId.parse("frm_abuse_patch");
+    await createForm(testDb.db, { formId, slug: "frm-abuse-patch", defaultLocale: "en" });
+
+    // One key at a time: the other column keeps its value rather than resetting.
+    expect(
+      (await updateFormSettings(testDb.db, formId, { challengeRequired: true }))?.minSubmitMs,
+    ).toBeNull();
+    const withFloor = await updateFormSettings(testDb.db, formId, { minSubmitMs: 4_000 });
+    expect(withFloor?.challengeRequired).toBe(true);
+    expect(withFloor?.minSubmitMs).toBe(4_000);
+
+    // `null` is a value, not an omission: it restores the deployment default.
+    expect(
+      (await updateFormSettings(testDb.db, formId, { minSubmitMs: null }))?.minSubmitMs,
+    ).toBeNull();
+
+    // An empty patch is a legal no-op read, not a SQL error.
+    const untouched = await updateFormSettings(testDb.db, formId, {});
+    expect(untouched?.challengeRequired).toBe(true);
+
+    // Settings live on the identity row, so they are visible to every reader of it.
+    expect((await getForm(testDb.db, formId))?.challengeRequired).toBe(true);
   });
 });
 

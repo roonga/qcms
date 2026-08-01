@@ -272,6 +272,300 @@ export const messages = {
   "questions.error.internal": "Something went wrong on the server. Try again.",
   "questions.error.unknown": "The request failed ({code}).",
   "questions.error.listFailed": "The library could not be loaded. {message}",
+
+  // ---------------------------------------------------------------------------
+  // The form builder and condition editor (task 033).
+  //
+  // Four rules the wording teaches, stated once here rather than argued in each
+  // string. Every sentence below that touches one of them is written to make the
+  // rule obvious at the moment an author meets it, because these are the rules
+  // that make a questionnaire engine trustworthy and the UI is where they are
+  // learned (ADR-02).
+  //
+  // 1. **A pin is manual, always (R6/R7).** Every reference shows
+  //    `questionId@version`, a moved pin moves one pin, and publishing question v3
+  //    changes nothing about a form pinned to v2. There is no auto-upgrade and no
+  //    bulk move, and the copy says so rather than leaving the absence to be
+  //    discovered.
+  // 2. **Evaluation is one forward pass (ADR-16).** A rule can only show something
+  //    that comes *after* every question its condition reads. Ineligible targets
+  //    stay selectable so the mistake can be made and explained, and the sentences
+  //    name the reason rather than reporting a refusal.
+  // 3. **Set equality is not containment (ADR-21).** On a multiple-choice question
+  //    `equals` compares the whole answer, and `contains` / `containsAny` are the
+  //    membership tests. The operator names say which is which.
+  // 4. **A challenge is a deployment capability (ADR-24).** Requiring one on a form
+  //    does nothing while the deployment's provider is `none`, so the panel says
+  //    that out loud instead of showing a switch that promises protection it
+  //    cannot deliver.
+  // ---------------------------------------------------------------------------
+  "forms.title": "Forms",
+  "forms.intro": "Compose published questions into steps, and branch between them with rules.",
+  "forms.new": "New form",
+  "forms.backToList": "Back to forms",
+
+  "forms.table.label": "Form library",
+  "forms.table.hint": "Open a form with Enter, or by clicking its row.",
+  "forms.column.formId": "Form ID",
+  "forms.column.slug": "Slug",
+  "forms.column.locale": "Locale",
+  "forms.column.status": "Status",
+  "forms.column.draft": "Draft",
+  "forms.column.version": "Published",
+  "forms.status.open": "Open",
+  "forms.status.closed": "Closed",
+  "forms.draft.present": "Unpublished draft",
+  "forms.draft.none": "No draft",
+  "forms.version.none": "Never published",
+  "forms.version.value": "v{version}",
+  "forms.version.valueAt": "v{version} on {date}",
+
+  "forms.empty.title": "No forms yet",
+  "forms.empty.body":
+    "Create the first form, then pin published questions into its steps. A question has to be published before a form can pin it.",
+
+  "forms.create.title": "New form",
+  "forms.create.slug": "Slug",
+  "forms.create.slugHint": "Lower-case words separated by hyphens, for example vehicle-insurance.",
+  "forms.create.id": "Form ID",
+  "forms.create.idPending": "Enter a slug to see the ID this form will carry.",
+  "forms.create.idNote":
+    "Generated from the slug and permanent from the moment you create it. An ID is never reused for a different meaning, so a form with the wrong ID is replaced by a new one, never renamed (R6).",
+  "forms.create.formTitle": "Title",
+  "forms.create.formTitleHint": "What a respondent sees at the top of the questionnaire.",
+  "forms.create.locale": "Default locale",
+  "forms.create.localeHint": "The locale every step and question must have text for.",
+  "forms.create.submit": "Create form",
+  "forms.create.submitting": "Creating the form...",
+  "forms.create.idPreview": "This form will be created as {formId}, permanently.",
+
+  "forms.builder.crumbs": "Forms",
+  "forms.builder.crumbBuilder": "Builder",
+  "forms.builder.crumbLabel": "Breadcrumb",
+  "forms.builder.heading": "{slug}",
+  "forms.builder.formId": "Form ID",
+  "forms.builder.locale": "Default locale",
+  "forms.builder.status": "Status",
+  "forms.builder.draftSource.open": "Editing the saved draft.",
+  "forms.builder.draftSource.seeded":
+    "Started from the newest published version. Nothing is stored until the first save.",
+  "forms.builder.draftSource.none": "Nothing has been drafted or published for this form yet.",
+  "forms.builder.formTitle": "Form title",
+  "forms.builder.formTitleHint": "Shown to a respondent. Saved with the draft.",
+  "forms.builder.publish": "Publish",
+  "forms.builder.publishNote": "Publishing is task 034. A draft with issues cannot be published.",
+  "forms.builder.seeded":
+    "This draft was started from the newest published version and has not been saved yet. Your first change stores it.",
+  "forms.builder.concurrent":
+    "Autosave replaces the stored draft outright: if another author has this form open, whichever of you saves last wins and the other's change is gone. There is no locking at launch, so coordinate before editing the same form.",
+  "forms.builder.saveFailed": "This draft could not be saved. {message}",
+  "forms.builder.closed":
+    "This form is closed to new responses. Editing the draft is still allowed; publishing is what makes a change live.",
+
+  "forms.save.idle": "No changes yet.",
+  "forms.save.saving": "Saving...",
+  "forms.save.saved": "Saved {time}",
+  "forms.save.validating": "Checking...",
+  "forms.save.failed": "The last save failed.",
+  "forms.save.pausedNoSteps":
+    "Autosave is paused: a form needs at least one step before it can be stored.",
+  "forms.save.pausedEmptyStep":
+    "Autosave is paused: every step needs at least one question before the draft can be stored.",
+  "forms.save.pausedNoTarget":
+    "Autosave is paused: every rule needs at least one question or step to show before the draft can be stored.",
+
+  "forms.validation.title": "Validation",
+  "forms.validation.none": "No issues. Everything here would pass a publish.",
+  "forms.validation.countOne": "1 issue would block a publish.",
+  "forms.validation.count": "{count} issues would block a publish.",
+  "forms.validation.checking": "Checking the draft...",
+
+  "forms.steps.title": "Steps",
+  "forms.steps.add": "Add step",
+  "forms.steps.newTitle": "New step title",
+  "forms.steps.select": "Open step {title}",
+  "forms.steps.menu": "Actions for step {title}",
+  "forms.steps.rename": "Rename",
+  "forms.steps.renameLabel": "Title for step {title}",
+  "forms.steps.renameDone": "Done",
+  "forms.steps.moveUp": "Move up",
+  "forms.steps.moveDown": "Move down",
+  "forms.steps.remove": "Remove",
+  "forms.steps.issuesOne": "1 issue",
+  "forms.steps.issues": "{count} issues",
+  "forms.steps.untitled": "Untitled step",
+  "forms.steps.empty": "No steps yet. Add the first one to start pinning questions.",
+  "forms.steps.confirmRemoveTitle": "Remove step {title}?",
+  "forms.steps.confirmRemoveBody":
+    "The step and its pins go with it. Rules that named the step are left exactly as they are, so a rule pointing at it will be reported as a dangling reference rather than being rewritten for you.",
+  "forms.steps.confirmRemove": "Remove step",
+
+  "forms.step.heading": "Step: {title}",
+  "forms.step.titleLabel": "Step title",
+  "forms.step.pins": "Questions in this step",
+  "forms.step.empty": "No questions pinned yet.",
+  "forms.step.addQuestion": "Add question from library",
+  "forms.step.pinNote":
+    "A pin names one frozen version. Publishing a newer version of a question changes nothing here until someone moves this pin by hand (R7).",
+  "forms.step.movePin": "Move pin for {questionId}",
+  "forms.step.movePinTo": "Move to v{version}",
+  "forms.step.movePinNone": "No other published version",
+  "forms.step.removePin": "Remove {questionId}",
+  "forms.step.pinUp": "Move {questionId} up",
+  "forms.step.pinDown": "Move {questionId} down",
+  "forms.step.pinDeprecated": "Deprecated version",
+  "forms.step.pinDraft": "Unpublished version",
+  "forms.step.pinMissing": "Version not found",
+
+  "forms.picker.title": "Add a question to {title}",
+  "forms.picker.description":
+    "Published versions only. A deprecated version is listed but cannot be pinned, and a question already in this form cannot be pinned twice.",
+  "forms.picker.search": "Search",
+  "forms.picker.tableLabel": "Question versions",
+  "forms.picker.hint": "Choose a row to pin that question at that version.",
+  "forms.picker.column.questionId": "Question ID",
+  "forms.picker.column.label": "Label",
+  "forms.picker.column.type": "Type",
+  "forms.picker.column.version": "Version",
+  "forms.picker.column.state": "State",
+  "forms.picker.statePinnable": "Pinnable",
+  "forms.picker.stateDeprecated": "Deprecated",
+  "forms.picker.statePinned": "Already in this form",
+  "forms.picker.empty": "No published question version matches this search.",
+  "forms.picker.close": "Close",
+
+  "forms.rules.title": "Conditions",
+  "forms.rules.add": "Add rule",
+  "forms.rules.empty": "No rules yet. A rule shows questions or steps when its condition matches.",
+  "forms.rules.needPin": "Pin a question first: a condition has to read one.",
+
+  "forms.rule.heading": "Rule {ruleId}",
+  "forms.rule.remove": "Remove rule {ruleId}",
+  "forms.rule.when": "When",
+  "forms.rule.show": "Show",
+  "forms.rule.op": "Operator",
+  "forms.rule.question": "Question",
+  "forms.rule.value": "Value",
+  "forms.rule.branchAdd": "Add branch",
+  "forms.rule.branchRemove": "Remove branch {position}",
+  "forms.rule.branchHeading": "Branch {position}",
+  "forms.rule.depthReached": "Nesting is capped at {max} levels, which this condition has reached.",
+  "forms.rule.targetsEligible": "Comes after this condition",
+  "forms.rule.targetsIneligible": "Comes before this condition",
+  "forms.rule.targetsNone":
+    "Nothing in this form comes after the questions this condition reads, so the rule has nowhere to point yet.",
+  "forms.rule.targetStep": "Step {stepId}",
+  "forms.rule.backwardWarning":
+    "{targets} comes before a question this condition reads. Answers are evaluated in one forward pass, so a rule can only show something that comes later (ADR-16). Publishing will refuse this.",
+  "forms.rule.issues": "Issues with this rule",
+
+  "forms.op.answered": "has been answered",
+  "forms.op.equals": "equals (the whole answer)",
+  "forms.op.notEquals": "does not equal (the whole answer)",
+  "forms.op.in": "is one of",
+  "forms.op.contains": "includes the option",
+  "forms.op.containsAny": "includes any of",
+  "forms.op.gt": "is greater than",
+  "forms.op.gte": "is greater than or equal to",
+  "forms.op.lt": "is less than",
+  "forms.op.lte": "is less than or equal to",
+  "forms.op.and": "all of",
+  "forms.op.or": "any of",
+  "forms.op.not": "not",
+
+  "forms.operand.true": "Yes",
+  "forms.operand.false": "No",
+  "forms.operand.item": "Value {position}",
+  "forms.operand.add": "Add value",
+  "forms.operand.remove": "Remove value {position}",
+  "forms.operand.noOptions": "The pinned version of this question declares no options.",
+  "forms.operand.unsupported": "This operator does not apply to this question's type.",
+
+  "forms.json.title": "Condition JSON",
+  "forms.json.label": "Condition JSON for rule {ruleId}",
+  "forms.json.note":
+    "The same condition as the pickers above, in the engine's own DSL. Editing here updates the pickers; the pickers are the primary surface (ADR-19). Autocomplete offers operators, pinned question IDs, and the option IDs of the referenced question's pinned version.",
+  "forms.json.parseError":
+    "Not valid JSON yet, so the condition above is unchanged. The pickers still hold the last version that parsed.",
+  "forms.json.shapeError": "Valid JSON, but not a condition this editor can render.",
+
+  "forms.bench.title": "Rule test bench",
+  "forms.bench.note":
+    "A read-only preview. Answers typed here are evaluated against the draft on your screen and are never saved, never logged, and never seen by a respondent.",
+  "forms.bench.rule": "Rule",
+  "forms.bench.answers": "Hypothetical answers",
+  "forms.bench.run": "Run preview",
+  "forms.bench.noRules": "Add a rule to try it here.",
+  "forms.bench.noReferences": "This condition reads no question yet.",
+  "forms.bench.unpinned":
+    "{questionId} is not pinned in this form, so there is no version to answer it against and it counts as unanswered.",
+  "forms.bench.match": "Matches. The rule's targets would be shown.",
+  "forms.bench.noMatch": "Does not match. The rule's targets would stay hidden.",
+  "forms.bench.unavailable": "Could not be evaluated, which is not the same as not matching.",
+  "forms.bench.reason.unparseableDraft":
+    "The draft is not a form the engine can compile yet, so no rule in it can be evaluated.",
+  "forms.bench.reason.ruleNotFound": "That rule is not in the draft that was sent.",
+  "forms.bench.reason.noTarget": "This rule shows nothing, so there is no outcome to preview.",
+  "forms.bench.reason.unresolvedAnswers":
+    "One of the questions this condition reads has no answer the engine could resolve.",
+  "forms.bench.failed": "The preview could not be run. {message}",
+
+  "forms.settings.title": "Form settings",
+  "forms.settings.note": "Abuse controls for this form. They apply the next time it is published.",
+  "forms.settings.challengeRequired": "Require a challenge before answering",
+  "forms.settings.challengeHint":
+    "Starting a session has to pass the deployment's challenge provider first.",
+  "forms.settings.challengeUnenforceable":
+    "This deployment's challenge provider is set to none, so requiring a challenge here enforces nothing until an operator configures one.",
+  "forms.settings.minSubmitDefault": "Use the deployment's minimum time",
+  "forms.settings.minSubmit": "Minimum time before a submit is accepted (milliseconds)",
+  "forms.settings.minSubmitHint":
+    "A submit that arrives faster than this is refused. It exists to make an instant automated post fail, so keep it well under the time a person needs.",
+  "forms.settings.save": "Save settings",
+  "forms.settings.saved": "Settings saved.",
+  "forms.settings.failed": "The settings could not be saved. {message}",
+
+  "forms.action.cancel": "Cancel",
+
+  "forms.issue.danglingQuestion":
+    "This names a question the form does not pin. Pin it, or change the reference.",
+  "forms.issue.danglingOption":
+    "This names an option the pinned version of that question does not declare. Moving a pin can do this: option IDs belong to a version.",
+  "forms.issue.danglingStep": "This names a step the form does not have.",
+  "forms.issue.unpublishedPin":
+    "A form can only pin a published version. Publish that version, or pin one that already is.",
+  "forms.issue.localeIncomplete": "This has no text for the form's default locale.",
+  "forms.issue.backwardTarget":
+    "A rule can only show something that comes after every question its condition reads. Answers are evaluated in one forward pass (ADR-16), so a backward target could never fire.",
+  "forms.issue.cycle":
+    "These rules depend on each other in a loop, so no order of evaluation resolves them.",
+  "forms.issue.depthExceeded": "This condition is nested deeper than the engine evaluates.",
+  "forms.issue.typeMismatch":
+    "This operator does not apply to the type of the question it reads. On a multiple-choice question, equals compares the whole answer and contains tests membership (ADR-21).",
+  "forms.issue.duplicateQuestion":
+    "A question can appear in a form once. Remove one of the two pins.",
+  "forms.issue.duplicateStep": "Two steps share an ID, so a rule targeting it would be ambiguous.",
+  "forms.issue.deprecatedPin":
+    "This pin points at a deprecated version. It keeps working exactly as it is, and a new pin cannot be made to it.",
+  "forms.issue.unknown": "The engine reported an issue this screen has no wording for ({code}).",
+
+  "forms.error.invalidId": "That is not a valid form ID.",
+  "forms.error.invalidLocale": "That is not a locale the engine recognises.",
+  "forms.error.idTaken":
+    "A form already uses that ID. IDs are never reused for a different meaning, so choose a different slug (R6).",
+  "forms.error.notFound": "That form does not exist.",
+  "forms.error.idMismatch": "This draft names a different form than the one being edited.",
+  "forms.error.invalidDefinition":
+    "The engine could not read this draft. The details are in the validation panel.",
+  "forms.error.ruleNotFound": "That rule is not in the draft that was sent.",
+  "forms.error.invalidSettings": "Those settings were not accepted.",
+  "forms.error.unauthorized": "Your session is no longer valid. Sign in again.",
+  "forms.error.rateLimited": "Too many requests just now. Try again shortly.",
+  "forms.error.internal": "Something went wrong on the server. Try again.",
+  "forms.error.unknown": "The request failed ({code}).",
+  "forms.error.unknownCreate": "The form could not be created. Try again.",
+  "forms.error.listFailed": "The form library could not be loaded. {message}",
+  "forms.error.libraryFailed": "The question library could not be loaded. {message}",
 } as const;
 
 export type MessageKey = keyof typeof messages;

@@ -476,6 +476,13 @@
             "items": {
               "$ref": "#/components/schemas/FormVersionSummary"
             }
+          },
+          "settings": {
+            "$ref": "#/components/schemas/FormSettings"
+          },
+          "challengeProvider": {
+            "type": "string",
+            "example": "none"
           }
         },
         "required": [
@@ -484,7 +491,9 @@
           "defaultLocale",
           "status",
           "draftSource",
-          "versions"
+          "versions",
+          "settings",
+          "challengeProvider"
         ]
       },
       "FormVersionSummary": {
@@ -519,6 +528,24 @@
           "compilerVersion",
           "a2uiSpecVersion",
           "semanticsVersion"
+        ]
+      },
+      "FormSettings": {
+        "type": "object",
+        "properties": {
+          "challengeRequired": {
+            "type": "boolean",
+            "example": false
+          },
+          "minSubmitMs": {
+            "type": "integer",
+            "nullable": true,
+            "example": 3000
+          }
+        },
+        "required": [
+          "challengeRequired",
+          "minSubmitMs"
         ]
       },
       "SavedDraftResponse": {
@@ -574,6 +601,107 @@
           "valid",
           "issues"
         ]
+      },
+      "PreviewConditionResponse": {
+        "type": "object",
+        "properties": {
+          "ruleId": {
+            "type": "string",
+            "example": "rul_accident_followup"
+          },
+          "references": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "match",
+              "noMatch",
+              "unavailable"
+            ],
+            "example": "match"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "unparseableDraft",
+              "ruleNotFound",
+              "noTarget",
+              "unresolvedAnswers"
+            ],
+            "example": "ruleNotFound"
+          }
+        },
+        "required": [
+          "ruleId",
+          "references",
+          "outcome"
+        ]
+      },
+      "PreviewConditionBody": {
+        "type": "object",
+        "properties": {
+          "definition": {
+            "$ref": "#/components/schemas/FormDefinitionInput"
+          },
+          "ruleId": {
+            "type": "string",
+            "minLength": 1,
+            "example": "rul_at_fault"
+          },
+          "answers": {
+            "type": "object",
+            "additionalProperties": {
+              "nullable": true
+            },
+            "description": "Hypothetical answers, keyed by questionId (never logged)."
+          }
+        },
+        "required": [
+          "definition",
+          "ruleId",
+          "answers"
+        ]
+      },
+      "FormSettingsResponse": {
+        "type": "object",
+        "properties": {
+          "formId": {
+            "type": "string",
+            "example": "frm_signup"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/FormSettings"
+          },
+          "challengeProvider": {
+            "type": "string",
+            "example": "none"
+          }
+        },
+        "required": [
+          "formId",
+          "settings",
+          "challengeProvider"
+        ]
+      },
+      "UpdateFormSettingsBody": {
+        "type": "object",
+        "properties": {
+          "challengeRequired": {
+            "type": "boolean",
+            "example": true
+          },
+          "minSubmitMs": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0,
+            "maximum": 3600000,
+            "example": 3000
+          }
+        }
       },
       "PublishedResponse": {
         "type": "object",
@@ -2395,6 +2523,172 @@
           },
           "422": {
             "description": "Unprocessable entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/forms/{id}/draft/preview-condition": {
+      "post": {
+        "summary": "Evaluate one rule's condition against hypothetical answers (admin test bench)",
+        "tags": [
+          "forms"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_signup"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewConditionBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The match verdict, or the typed reason it could not be reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewConditionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/forms/{id}/settings": {
+      "patch": {
+        "summary": "Update the per-form abuse-control settings (admin)",
+        "tags": [
+          "forms"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_signup"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateFormSettingsBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The settings as they now stand",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormSettingsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
             "content": {
               "application/json": {
                 "schema": {

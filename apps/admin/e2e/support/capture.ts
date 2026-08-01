@@ -94,6 +94,33 @@ export async function hideDevChrome(page: Page): Promise<void> {
 }
 
 /**
+ * Refuse to shoot a frame whose document is wider than the viewport it claims to be.
+ *
+ * `page.screenshot({ fullPage: true })` sizes the PNG to the document, not the viewport, so
+ * a screen that overflows horizontally produces a file that is silently wider than the
+ * width in its own filename. That is worse than a plain bug: the gate's whole job is to be
+ * evidence, and a `*-390.png` that is 434 wide misdescribes itself to a reviewer who has no
+ * way to check a PNG's pixel width in a GitHub diff. PR #245 shipped six such frames and
+ * they were signed off before anyone measured them.
+ *
+ * It is also an accessibility check the automated sweep cannot make. Horizontal overflow at
+ * a phone width is WCAG 2.2 AA SC 1.4.10 Reflow, and axe-core does not test 1.4.10, so an
+ * all-green axe run says nothing either way. Failing here is the only place it gets caught.
+ */
+async function assertFitsViewport(page: Page, width: number, name: string): Promise<void> {
+  const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+  if (scrollWidth > width) {
+    throw new Error(
+      `Capture "${name}" overflows its ${String(width)}px viewport: the document is ` +
+        `${String(scrollWidth)}px wide, so the full-page PNG would be ${String(scrollWidth)}px ` +
+        `and not the ${String(width)}px its filename claims. This is WCAG 2.2 AA SC 1.4.10 ` +
+        `Reflow, which axe does not test. Fix the layout (a long unbreakable token usually ` +
+        `wants overflow-wrap) rather than the capture.`,
+    );
+  }
+}
+
+/**
  * A capture function bound to one output directory.
  *
  * Order is deliberate: hydrate, then suppress the dev chrome, then resize and shoot.
@@ -117,6 +144,7 @@ export function captureInto(outDir: string): (page: Page, name: string) => Promi
       await page.evaluate(() => {
         globalThis.scrollTo(0, 0);
       });
+      await assertFitsViewport(page, width, `${name}-${width}`);
       await page.screenshot({
         path: `${outDir}/${name}-${width}.png`,
         fullPage: true,

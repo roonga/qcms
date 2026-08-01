@@ -1,6 +1,8 @@
 # Wireframe - Admin form builder + condition editor
 
-**Status:** Signed off: Code Owner, 2026-07-21 · **Consumed by:** 033 · **Renders:** 022 (drafts, validate), 021 (library reads), 005 (`analyzeRuleGraph` client-side)
+**Status:** Signed off: Code Owner, 2026-07-21 · amended 2026-08-01 (PO seat: kernel moves server-side, see below) · **Consumed by:** 033 · **Renders:** 022 (drafts, validate), 021 (library reads), 005 (`analyzeRuleGraph`, server-side inside validate)
+
+> **Amendment, 2026-08-01 (PO seat).** This wireframe originally placed `analyzeRuleGraph` and the test bench's evaluator **client-side**. Landed enforcement forbids it: rule 1 of `apps/admin/lib/server/r2-import-surface.test.ts` bans `@qcms/core` imports in the admin, and that test stands. Both now run in the API. `analyzeRuleGraph` needed no new route (the kernel's `compileDraft`, which `draft/validate` runs, already includes it); the bench gets `POST .../draft/preview-condition`. The instant pre-round-trip target flag is pure draft geometry (`eligibleTargets`), not a kernel call. Nothing about the layout, regions or states changes.
 
 ## ASCII sketch
 
@@ -28,7 +30,7 @@
 - **condition editor** (per rule; rules listed with add/remove):
   - schema-aware JSON editor - **CodeMirror** (the recorded ADR-22 exception) with autocomplete for `op` (incl. `contains`/`containsAny` - ADR-21), `questionId` (pinned questions only), `optionId` (from the referenced question's pinned version).
   - `show` target picker `select` (multi) - pre-filtered to questions/steps **after** the rule's referenced questions via client-side `documentOrder` (teaches ADR-16 before publish rejects).
-- **validation panel**: live `PublishError[]` from debounced `POST .../draft/validate` (022) + instant client-side `analyzeRuleGraph` findings; each entry anchored - click scrolls/focuses the offending rule/step/question via the structured `path`.
+- **validation panel**: live `PublishError[]` from debounced `POST .../draft/validate` (022), which already carries the kernel's `analyzeRuleGraph` findings (`RULE_BACKWARD_TARGET`, `RULE_CYCLE`), plus the instant target-eligibility flag the picker raises from `eligibleTargets` before the round trip; each entry anchored - click scrolls/focuses the offending rule/step/question via the structured `path`.
 - **test bench** (collapsible `accordion`): pick a rule → enter hypothetical answers for its referenced questions (controls per type) → match/no-match result (`text`), clearly labeled read-only preview.
 - **settings panel** (`accordion`): `challengeRequired` `switch` - inline warning `alert` when enabled with deployment provider `none` (ADR-24) · min-time floor `number-field` (026).
 - **agent panel** (flag-conditional): see `admin-agent-panel.md` - docked right of the builder.

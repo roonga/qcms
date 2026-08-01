@@ -444,3 +444,283 @@ describe("publish is all-or-nothing (exit criterion 5)", () => {
     expect(await publishedEventCount("frm_atom")).toBe(0);
   });
 });
+
+// --- 033: the rule test bench and the per-form settings ---------------------
+
+/** Seed a published choice question, so a rule can compare option ids. */
+async function seedPublishedChoice(id: string, optionIds: readonly string[]): Promise<void> {
+  const questionId = QuestionId.parse(id);
+  const parsed = parseQuestionDefinition({
+    questionId: id,
+    type: "singleChoice",
+    label: { en: id },
+    options: optionIds.map((optionId) => ({ optionId, label: { en: optionId } })),
+  });
+  if (!parsed.ok) throw new Error(`fixture question ${id} did not parse`);
+  await createQuestion(testDb.db, { questionId, slug: id.replace(/_/g, "-") });
+  await createQuestionVersion(testDb.db, { questionId, definition: parsed.value });
+  await publishQuestionVersion(testDb.db, { questionId, version: 1 });
+}
+
+interface BenchBody {
+  ruleId: string;
+  references: string[];
+  outcome: "match" | "noMatch" | "unavailable";
+  reason?: string;
+}
+
+async function bench(formId: string, body: unknown): Promise<Response> {
+  return post(`/forms/${formId}/draft/preview-condition`, body);
+}
+
+describe("preview-condition: the rule test bench (033)", () => {
+  const formId = "frm_bench";
+  const rule = {
+    ruleId: "rul_bench",
+    when: { op: "equals", questionId: "q_bench_choice", value: "opt_yes" },
+    show: ["q_bench_followup"],
+  };
+  const definition = formDefinition(
+    formId,
+    [
+      ["stp_bench_one", ["q_bench_choice"]],
+      ["stp_bench_two", ["q_bench_followup"]],
+    ],
+    [rule],
+  );
+
+  beforeAll(async () => {
+    await seedPublishedChoice("q_bench_choice", ["opt_yes", "opt_no"]);
+    await seedPublishedQuestion("q_bench_followup", "Tell us more");
+    await post("/forms", { formId, slug: "bench", defaultLocale: "en" });
+    await put(`/forms/${formId}/draft`, { definition });
+  }, BOOT_TIMEOUT);
+
+  it("reports a match for answers the condition accepts", async () => {
+    const res = await bench(formId, {
+      definition,
+      ruleId: "rul_bench",
+      answers: { q_bench_choice: "opt_yes" },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as BenchBody;
+    expect(body).toMatchObject({
+      ruleId: "rul_bench",
+      references: ["q_bench_choice"],
+      outcome: "match",
+    });
+    // `reason` is the unavailable-only channel: a real verdict carries none.
+    expect(body.reason).toBeUndefined();
+  });
+
+  it("reports no match for a different answer, and for no answer at all", async () => {
+    const miss = await bench(formId, {
+      definition,
+      ruleId: "rul_bench",
+      answers: { q_bench_choice: "opt_no" },
+    });
+    expect(((await miss.json()) as BenchBody).outcome).toBe("noMatch");
+
+    const empty = await bench(formId, { definition, ruleId: "rul_bench", answers: {} });
+    expect(((await empty.json()) as BenchBody).outcome).toBe("noMatch");
+  });
+
+  it("answers for the submitted definition, not the saved draft (a live authoring aid)", async () => {
+    // The saved draft still compares against `opt_yes`; this body flips the rule
+    // without saving, so a bench that read storage would give the stale verdict.
+    const unsaved = {
+      ...definition,
+      rules: [{ ...rule, when: { op: "equals", questionId: "q_bench_choice", value: "opt_no" } }],
+    };
+    const res = await bench(formId, {
+      definition: unsaved,
+      ruleId: "rul_bench",
+      answers: { q_bench_choice: "opt_no" },
+    });
+    expect(((await res.json()) as BenchBody).outcome).toBe("match");
+    // And storage is untouched: the bench is read-only.
+    const saved = await getDraft(testDb.db, FormId.parse(formId));
+    expect((saved?.definition as FormDefinition).rules[0]?.when).toMatchObject({
+      value: "opt_yes",
+    });
+  });
+
+  it("still answers when the rule points backwards (placement is validate's verdict)", async () => {
+    // Reversed layout: the target sits *before* the question the rule reads, so
+    // `analyzeRuleGraph` rejects the placement. The bench must still say whether
+    // the condition matches - that is the question the author came here with, and
+    // it is exactly why the bench evaluates a synthetic forward layout instead of
+    // the draft.
+    const backwards = formDefinition(
+      formId,
+      [
+        ["stp_bench_two", ["q_bench_followup"]],
+        ["stp_bench_one", ["q_bench_choice"]],
+      ],
+      [rule],
+    );
+    const preview = await bench(formId, {
+      definition: backwards,
+      ruleId: "rul_bench",
+      answers: { q_bench_choice: "opt_yes" },
+    });
+    expect(((await preview.json()) as BenchBody).outcome).toBe("match");
+
+    // The same definition through validate reports the placement error. That is
+    // the division of labour the two routes exist to keep: the bench answers
+    // "does it match", validate answers "is it legal" (and runs analyzeRuleGraph
+    // server-side, which is why the builder needs no kernel of its own).
+    const validated = await post(`/forms/${formId}/draft/validate`, { definition: backwards });
+    const issues = ((await validated.json()) as { issues: Issue[] }).issues;
+    expect(issues.map((issue) => issue.code)).toContain("RULE_BACKWARD_TARGET");
+  });
+
+  it("declines to answer for a malformed answer, without echoing the value", async () => {
+    const res = await bench(formId, {
+      definition,
+      ruleId: "rul_bench",
+      // An object is not a canonical AnswerValue encoding (DOMAIN_SCHEMA §2.4).
+      answers: { q_bench_choice: { not: "an answer" } },
+    });
+    expect(res.status).toBe(200);
+    const raw = await res.text();
+    const body = JSON.parse(raw) as BenchBody;
+    // Tri-state matters here: this is NOT a `noMatch`, and the panel must be able
+    // to tell the difference.
+    expect(body.outcome).toBe("unavailable");
+    expect(body.reason).toBe("unresolvedAnswers");
+    // SEC-13 / ADR-34: the hypothetical answer never comes back out.
+    expect(raw).not.toContain("an answer");
+  });
+
+  it("declines to answer for an unknown ruleId, as a verdict rather than an error", async () => {
+    const res = await bench(formId, { definition, ruleId: "rul_not_here", answers: {} });
+    // 200, not 404: an author scrolling the rule list past a stale id should see
+    // the bench say so, not an error envelope.
+    expect(res.status).toBe(200);
+    expect((await res.json()) as BenchBody).toMatchObject({
+      ruleId: "rul_not_here",
+      outcome: "unavailable",
+      reason: "ruleNotFound",
+    });
+  });
+
+  it("declines to answer for a half-built draft that does not parse", async () => {
+    const res = await bench(formId, {
+      definition: { formId, defaultLocale: "en", title: { en: "wip" } },
+      ruleId: "rul_bench",
+      answers: {},
+    });
+    // The bench reads work in progress: an unparseable draft is an ordinary
+    // state, not a 422 that would blank the panel mid-edit.
+    expect(res.status).toBe(200);
+    expect((await res.json()) as BenchBody).toMatchObject({
+      outcome: "unavailable",
+      reason: "unparseableDraft",
+    });
+  });
+
+  it("declines to answer when the rule shows nothing the draft pins", async () => {
+    const noTarget = {
+      ...definition,
+      rules: [{ ...rule, show: ["q_bench_absent"] }],
+    };
+    const res = await bench(formId, { definition: noTarget, ruleId: "rul_bench", answers: {} });
+    expect((await res.json()) as BenchBody).toMatchObject({
+      outcome: "unavailable",
+      reason: "noTarget",
+    });
+  });
+
+  it("declines to answer when the condition reads only unpinned questions", async () => {
+    // Nothing to vary: the bench form's input step would be empty, so there is no
+    // answer that could change the verdict.
+    const unpinned = {
+      ...definition,
+      rules: [
+        {
+          ruleId: "rul_bench",
+          when: { op: "answered", questionId: "q_bench_absent" },
+          show: ["q_bench_followup"],
+        },
+      ],
+    };
+    const res = await bench(formId, { definition: unpinned, ruleId: "rul_bench", answers: {} });
+    expect((await res.json()) as BenchBody).toMatchObject({
+      outcome: "unavailable",
+      reason: "unresolvedAnswers",
+    });
+  });
+
+  it("404s an unknown form (the route is still scoped to one)", async () => {
+    const res = await bench("frm_no_such_bench", { definition, ruleId: "rul_bench", answers: {} });
+    expect(res.status).toBe(404);
+    expect(((await res.json()) as ErrBody).error.code).toBe("FORM_NOT_FOUND");
+  });
+});
+
+interface SettingsBody {
+  formId: string;
+  settings: { challengeRequired: boolean; minSubmitMs: number | null };
+  challengeProvider: string;
+}
+
+async function patchSettings(formId: string, body: unknown): Promise<Response> {
+  return app.request(`/admin/forms/${formId}/settings`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify(body),
+  });
+}
+
+describe("per-form settings (033 settings panel)", () => {
+  const formId = "frm_settings";
+
+  beforeAll(async () => {
+    await post("/forms", { formId, slug: "settings", defaultLocale: "en" });
+  }, BOOT_TIMEOUT);
+
+  it("defaults to challenge off and no min-time override, and the detail read carries them", async () => {
+    const res = await get(`/forms/${formId}`);
+    const body = (await res.json()) as SettingsBody;
+    expect(body).toMatchObject({ settings: { challengeRequired: false, minSubmitMs: null } });
+    // The provider rides the detail read so the panel can warn on load that
+    // `challengeRequired` is unenforceable while it is "none" (033).
+    expect(body.challengeProvider).toBe(deps.config.flags.challengeProvider);
+  });
+
+  it("patches one field at a time and leaves the other alone", async () => {
+    const one = await patchSettings(formId, { challengeRequired: true });
+    expect(one.status).toBe(200);
+    const first = (await one.json()) as SettingsBody;
+    expect(first).toMatchObject({
+      formId,
+      settings: { challengeRequired: true, minSubmitMs: null },
+    });
+    // The write answers with the provider too, so the warning re-renders without
+    // a follow-up read.
+    expect(first.challengeProvider).toBe(deps.config.flags.challengeProvider);
+
+    const two = await patchSettings(formId, { minSubmitMs: 3000 });
+    expect((await two.json()) as SettingsBody).toMatchObject({
+      settings: { challengeRequired: true, minSubmitMs: 3000 },
+    });
+
+    // `null` is a value: it restores the deployment's configured floor.
+    const three = await patchSettings(formId, { minSubmitMs: null });
+    expect((await three.json()) as SettingsBody).toMatchObject({
+      settings: { challengeRequired: true, minSubmitMs: null },
+    });
+
+    const detail = (await (await get(`/forms/${formId}`)).json()) as SettingsBody;
+    expect(detail.settings.challengeRequired).toBe(true);
+  });
+
+  it("rejects an absurd min-time floor, an empty patch, and an unknown form", async () => {
+    expect((await patchSettings(formId, { minSubmitMs: 999_999_999 })).status).toBe(400);
+    // An all-absent patch is refused at the schema, which is what keeps the
+    // helper's `undefined` return meaning exactly "no such form" below.
+    expect((await patchSettings(formId, {})).status).toBe(400);
+    expect((await patchSettings("frm_no_such_form", { challengeRequired: true })).status).toBe(404);
+  });
+});

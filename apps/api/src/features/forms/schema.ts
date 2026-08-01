@@ -55,6 +55,130 @@ export const CreateFormBody = z
 /** `PUT /admin/forms/:id/draft` and `POST .../draft/validate` - a full definition. */
 export const DraftBody = z.object({ definition: OpaqueDefinition }).openapi("DraftBody");
 
+/**
+ * `POST /admin/forms/:id/draft/preview-condition` - the rule test bench (033).
+ *
+ * The unsaved draft travels with the request (like `DraftBody`) so the bench
+ * answers the definition on the author's screen, not the last one persisted.
+ *
+ * `answers` is a `questionId -> AnswerValue` map of **hypothetical** answers the
+ * author typed into the bench. They are answer-shaped, so they are handled under
+ * the answer rules (SEC-13 / ADR-34): never logged, never persisted, never
+ * echoed back in a response or an error message.
+ */
+export const PreviewConditionBody = z
+  .object({
+    definition: OpaqueDefinition,
+    ruleId: z.string().min(1).openapi({ example: "rul_at_fault" }),
+    answers: z
+      .record(z.string(), z.unknown())
+      .openapi({ description: "Hypothetical answers, keyed by questionId (never logged)." }),
+  })
+  .openapi("PreviewConditionBody");
+
+/**
+ * The longest min-time floor a form may set, in milliseconds (one hour).
+ *
+ * An input guard, not a domain rule: the floor exists to make a bot's instant
+ * submit fail (026), and a value past an hour stops being a floor and becomes a
+ * lockout an author cannot have meant. Bounding it here keeps a mistyped field
+ * from becoming a form nobody can submit.
+ */
+const MAX_MIN_SUBMIT_MS = 60 * 60 * 1000;
+
+/**
+ * `PATCH /admin/forms/:id/settings` - the per-form abuse-control settings (026,
+ * ADR-24 tier 2), edited by the builder's settings panel (033).
+ *
+ * A **partial** body: an absent key leaves that setting alone, which is what lets
+ * the panel save one control without echoing the other back. `minSubmitMs: null`
+ * is a value rather than an omission and means "use the deployment's configured
+ * floor", so the field is nullable *and* optional and the two mean different
+ * things.
+ */
+export const UpdateFormSettingsBody = z
+  .object({
+    challengeRequired: z.boolean().optional().openapi({ example: true }),
+    minSubmitMs: z
+      .number()
+      .int()
+      .min(0)
+      .max(MAX_MIN_SUBMIT_MS)
+      .nullable()
+      .optional()
+      .openapi({ example: 3000 }),
+  })
+  // At least one field must be present. A partial body plus an all-absent body
+  // would make the helper's return value ambiguous downstream: `undefined` would
+  // mean either "no such form" (a 404) or "nothing asked for" (a 200), two
+  // different answers behind one sentinel. Rejecting the empty patch at the
+  // schema boundary keeps `undefined` meaning exactly "no such form", so the
+  // handler needs no pre-read to tell the two apart.
+  .refine(
+    (body) => body.challengeRequired !== undefined || body.minSubmitMs !== undefined,
+    "Provide at least one of challengeRequired or minSubmitMs",
+  )
+  .openapi("UpdateFormSettingsBody");
+
+/** The per-form abuse-control settings, as every read and the patch return them. */
+export const FormSettings = z
+  .object({
+    /** When true, start-session demands a passing challenge (026). */
+    challengeRequired: z.boolean().openapi({ example: false }),
+    /** Min-time floor override in ms; `null` means the deployment default applies. */
+    minSubmitMs: z.number().int().nullable().openapi({ example: 3000 }),
+  })
+  .openapi("FormSettings");
+
+/**
+ * The deployment's configured challenge provider (`deps.config.flags`).
+ *
+ * Typed as a plain string rather than the config union on purpose: the admin
+ * panel only needs to compare it against `"none"` to warn that a form's
+ * `challengeRequired` is unenforceable (033's settings panel, task line 18).
+ * Pinning the wire type to today's provider names would make adding a provider a
+ * breaking API change for a field nobody switches on exhaustively.
+ */
+const ChallengeProvider = z.string().openapi({ example: "none" });
+
+/** `PATCH /admin/forms/:id/settings` result: the settings as they now stand. */
+export const FormSettingsResponse = z
+  .object({
+    formId: z.string().openapi({ example: "frm_signup" }),
+    settings: FormSettings,
+    challengeProvider: ChallengeProvider,
+  })
+  .openapi("FormSettingsResponse");
+
+/**
+ * `POST .../draft/preview-condition` result: did the condition match, or why the
+ * bench could not answer.
+ *
+ * `outcome` is deliberately tri-state rather than a nullable boolean: "could not
+ * evaluate" must not be readable as "no match". The bench is a read-only aid over
+ * a draft that may be half-built, so being unable to answer is an ordinary,
+ * frequent state that the panel has to render differently from a real `noMatch`.
+ * `reason` is the single error channel and is present only when `outcome` is
+ * `"unavailable"`.
+ */
+export const PreviewConditionResponse = z
+  .object({
+    ruleId: z.string().openapi({ example: "rul_accident_followup" }),
+    /**
+     * The question ids the condition reads: those the draft pins first, in the
+     * draft's document order, then any it does not pin. The bench prompts for
+     * these; an unpinned one has no resolvable version, so it reads as unanswered.
+     */
+    references: z.array(z.string()),
+    outcome: z.enum(["match", "noMatch", "unavailable"]).openapi({ example: "match" }),
+    /** Why the bench could not answer. Present only when `outcome` is `unavailable`. */
+    reason: z
+      .enum(["unparseableDraft", "ruleNotFound", "noTarget", "unresolvedAnswers"])
+      .optional()
+      .openapi({ example: "ruleNotFound" }),
+  })
+  .openapi("PreviewConditionResponse");
+
 // --- responses --------------------------------------------------------------
 
 const FormStatus = z.enum(["open", "closed"]);
@@ -117,6 +241,14 @@ export const FormDetailResponse = z
     /** Where `draft` came from: an open draft, a seed, or none. */
     draftSource: z.enum(["open", "seeded", "none"]).openapi({ example: "open" }),
     versions: z.array(FormVersionSummary),
+    /** The per-form abuse-control settings (026), which the builder panel edits (033). */
+    settings: FormSettings,
+    /**
+     * The deployment's challenge provider. Carried on the detail read, not only
+     * on a settings write, because the panel has to warn that `challengeRequired`
+     * is unenforceable while the provider is `"none"` the moment the form opens.
+     */
+    challengeProvider: ChallengeProvider,
   })
   .openapi("FormDetailResponse");
 
