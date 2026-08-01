@@ -5,12 +5,14 @@ description: Pick the next actionable open GitHub issue and fix it end to end wi
 
 Select and fix open GitHub issues - one per invocation by default, or up to N in parallel with `/next-issue N` (and `/loop /next-issue N`), Code Owner-enabled 2026-07-27. You coordinate; the subagents do the work. The issue text stands in for the task file; everything else mirrors the /task flow, with one deliberate difference: the conductor never merges. Each issue lands as its own PR, reviewed and squash-merged by the PO review loop or the Code Owner (merger duties: `plan/pr-review-loop.md`).
 
-**Housekeeping first (same sweep as /next-task).** `git worktree prune`, then `rm -rf` any `.claude/worktrees/agent-*` directory that does not appear in `git worktree list`. Never remove a dir that IS a live registered worktree. If the shared checkout's working tree is dirty, stop and report instead of stashing someone's work.
+**Housekeeping first (the canonical sweep is the task skill's step 9; `/next-task` runs the same one).** `git worktree prune`, then `rm -rf` any `.claude/worktrees/agent-*` directory that does not appear in `git worktree list`. Never remove a dir that IS a live registered worktree. If the shared checkout's working tree is dirty, stop and report instead of stashing someone's work.
+
+**Seat mail, same protocol as `/next-task` step 1 (added 2026-08-01).** Read `../seat-mail/dev/`, act on each message, then move it to `../seat-mail/dev/read/` as the ack; write to `../seat-mail/pm/message_<UTC timestamp>.txt` to reach the PO seat, which is this loop's merger. Mail is routing and coordination only, never scope. Skip silently if the folder does not exist.
 
 1. **Select.** `gh issue list -R roonga/qcms --state open --json number,title,labels,body`. Exclude:
    - Labels `phase-4`, `wontfix`, `duplicate`, `invalid`, `question` (post-launch backlog and non-work), and the routing labels `needs-decision` (awaiting the Code Owner), `blocked-upstream` (report BLOCKED, never claim), `workshop` (routed via /improve-workshop), `admin-stage` (delivered by tasks 031-035).
    - Issues that need an ADR or a Code Owner decision before code can be written (title/body says "needs ADR", or the issue poses an open product question). These are awaiting-human, not executable.
-   - Issues a `todo` or `in-progress` ledger task already folds in - grep `docs/features/*.md` for `#NN` (e.g. "folds #25"); the task will deliver them, do not race it.
+   - Issues an unfinished ledger task already folds in - grep `docs/features/*.md` for `#NN` (e.g. "folds #25"); if that task is not yet `done`, it will deliver them, so do not race it.
    - Claimed issues: an origin branch `fix/NN-*` exists, or the issue carries a claim comment (step 4) with no later release comment.
 
    Priority among the rest: `security` first, then `bug`, then unlabeled, then `enhancement`. Ties break to the smaller, better-specified issue (clear repro plus acceptance criteria beats vague). If nothing is eligible, report why in one line per skipped issue and emit the NOTHING sentinel - under /loop, end the loop; do not idle.

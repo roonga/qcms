@@ -129,13 +129,15 @@ Notes worth having before you go looking for a missing span:
 
 | You type | What happens |
 |---|---|
-| `/task 002` | One plan task, full relay: **claim** (ledger row → `in-progress`, committed) → **task-executor** implements in an isolated worktree on `feat/002-slug` → *(UI tasks: pauses at the screenshot gate for your sign-off)* → **task-reviewer** verifies every exit criterion + rule against the diff → rebase onto current main, re-run gates, squash-merge → ledger → `done`. |
-| `/next-task` | Picks the next executable `todo` (numeric order; exceptions: 040 after 036 before 038 · 041 after 034 · 042 after 027 before UI tasks) and runs the `/task` flow. |
+| `/task 002` | One plan task, full relay: **claim** (push `feat/002-slug` to origin - the live branch *is* the lock) → **task-executor** implements in an isolated worktree on that branch → *(UI tasks: pauses at the screenshot gate for your sign-off, evidence committed under `docs/gates/002/`)* → **task-reviewer** verifies every exit criterion + rule against the diff → rebase onto current main, re-run gates, flip the ledger row to `done (PR #N)` as a commit **on the branch**, open the PR, wait for green checks **and for a `PO-REVIEW: APPROVE @<headRefOid>` sentinel bound to that head**, then `gh pr merge --squash`. |
+| `/next-task` | Picks the next executable `todo` (numeric order, honoring the ordering-exception table in `features/README.md`) and runs the `/task` flow. |
 | `/loop /next-task` | Autonomous run, task after task. Stops at human gates, on blocks, or when nothing is executable. |
 | `/loop /next-task 3` | Same, up to 3 **pairwise-independent** tasks per batch (parallel executors, serialized merges). |
 | `/next-issue` | Picks the next actionable GitHub issue by label tier (`security` > `bug` > unlabeled > `enhancement`; the routing labels `needs-decision`/`blocked-upstream`/`workshop`/`admin-stage` and `phase-4` are excluded) and runs the same executor+reviewer relay on `fix/NN-slug` - then **opens one PR per issue** (body: acceptance checklist, `Fixes #NN`, reviewer verdict, retro lines; respondent-visible changes carry gate screenshots under `docs/gates/pr-NN/`). The conductor never merges. |
 | `/next-issue 3` / `/loop /next-issue 3` | Up to 3 **pairwise-independent** issues per batch (disjoint packages/seams; when in doubt, not batched) - own claim, executor worktree, reviewer, and PR each, no cross-batch barrier. Safe because conductors never merge; the PO loop serializes landings. |
 | `/loop /next-issue` | Issue after issue until nothing is executable or a stated repo-wide blocker. Human gates park **the PR**, never the run; an open PR whose newest `PO-REVIEW: CHANGES-REQUESTED @<headRefOid>` sentinel (the full head SHA) matches the current head is picked up as a findings cycle before fresh work. |
+
+**Task PRs need a review sentinel before they merge.** `/task` opens the PR and then polls it for ~30 minutes for a `PO-REVIEW:` sentinel bound to the current head: `APPROVE @<headRefOid>` authorizes the squash-merge, `CHANGES-REQUESTED @<headRefOid>` becomes the work order, and no sentinel at all ends the iteration as `NEXT-TASK: AWAITING-HUMAN po-review <NNN>`. Since `scripts/agent-loop.sh` stops on `AWAITING-HUMAN`, **an unattended `/loop /next-task` run only chains past one task if the PO seat's review loop is running too** (or you post the sentinel yourself as a PR comment). That is the intended coupling, not a bug - but it is the reason a supervisor run can look like it "stopped for no reason" after a single landing.
 
 Issue PRs are reviewed and squash-merged by the **PO seat's review loop** (procedure: `plan/pr-review-loop.md`): stranger review, a Copilot-comment sweep where every comment gets a fix or a reasoned reply, verdicts ending in a head-bound `PO-REVIEW:` sentinel, merge when every check concludes SUCCESS except at most the node-26 `verify` leg, which is `continue-on-error` by design and may be waived with the waiver recorded in the verdict, then the retro append. You can also review and merge yourself - the sentinel comment is the only protocol.
 
@@ -161,6 +163,8 @@ bash scripts/agent-loop.sh --help           # all options
 
 This is the only supervisor. `agent-loop.ps1` was **retired** (ADR-29 amended 2026-07-25): a Windows contributor's supported path is the container itself, via Docker Desktop or Codespaces. Outside the container the interactive fallback is `/loop /next-task`, which does not survive a usage-limit window.
 
+**The supervisor drives `/next-task` only.** It parses `NEXT-TASK:` sentinels; the issue loop's `NEXT-ISSUE:` sentinels have no consumer, so `/loop /next-issue` is an in-session loop and does not survive a usage-limit window. Running the issue loop unattended would need a supervisor of its own.
+
 The script runs `/next-task` in a **fresh headless session per iteration** (safe because the repo is the memory: claims, branches, HANDOFFs), reads the `NEXT-TASK:` sentinel each session emits, and: continues immediately on `LANDED`/`RESUMED`, stops on `AWAITING-HUMAN`/`BLOCKED`/`NOTHING`, and on *no sentinel* (usage limit or crash) waits the retry interval (`--retry-minutes`, default 30) and retries - the next session's stale-claim recovery picks up whatever the killed one left mid-flight. Progress is in `agent-loop.log` and, as always, the ledger.
 
 ## Editing skills/agents while a loop is running
@@ -170,14 +174,15 @@ A long-lived session follows the instructions it already read - edits to `.claud
 ## Monitoring and control
 
 - **State:** `docs/features/README.md` (the ledger) is always current; `git log --oneline` shows what landed; `git worktree list` shows live executors.
-- **Interrupt safely:** Esc stops the current session; in-flight executor branches survive. A stopped task should end `blocked (…)`, `in-progress` with a committed `HANDOFF.md`, or be resumed later - `/next-task` prefers resuming handoffs over starting fresh.
-- **Stale claim cleanup** (a session died mid-task): check the branch for a `HANDOFF.md`; either resume via `/task NNN`, or reset the ledger row to `todo`, delete the branch, and `git worktree remove` any leftover under `.claude/worktrees/`.
+- **Seat mail (a machine-local bus between the two seats, never committed):** `../seat-mail/dev/` is the dev loop's inbox, `../seat-mail/pm/` the PO seat's - both sibling folders of the checkout. Drop a plain-text `message_<UTC timestamp>.txt` in either to steer the other seat's next iteration ("PR #NNN is waiting on review", "skip X today"); each loop reads its inbox at the top of a run, acts, then moves the file to the sibling `read/` folder as the ack. `scripts/agent-loop.sh` injects the dev inbox into every headless iteration. Mail carries routing and coordination only, never scope. Neither folder existing is fine - both seats skip silently.
+- **Interrupt safely:** Esc stops the current session; in-flight executor branches survive, and because the pushed branch is the claim, the claim survives with them. A stopped task ends as a live `origin/feat/NNN-*` branch (ideally with a committed `HANDOFF.md`) or as a `blocked (issue #)` ledger row - `/next-task` prefers resuming a handoff over starting fresh.
+- **Stale claim cleanup** (a session died mid-task): check the branch for a `HANDOFF.md`; either resume via `/task NNN`, or, if there is nothing worth keeping, **delete the remote branch** - that releases the claim, with no ledger edit needed (and none possible: `main` cannot be pushed directly). Then `git worktree remove` any leftover under `.claude/worktrees/`.
 
 ## Permissions tuning
 
 - Allowlist lives in `.claude/settings.json`, as `Bash(...)` families (rules are per-tool). Inside the dev container the loop runs in `bypassPermissions`, so the allowlist only matters for interactive sessions. The `PowerShell(...)` families are retired along with `agent-loop.ps1` (ADR-29 amended 2026-07-25).
 - Getting prompted for something routine? Run `/fewer-permission-prompts` - it scans real transcripts and proposes evidence-based allowlist additions.
-- Denied on purpose (don't relax): `npm`/`yarn` (pnpm-only), `git push --force`.
+- Denied on purpose (don't relax): `npm`, `npx` and `yarn` (pnpm-only; `npx` was allowlisted until 2026-08-01, which left the rule bypassable - use `pnpm exec` or `pnpm dlx`), `git push --force`.
 
 ## Conventions the agents follow (so you can spot violations)
 

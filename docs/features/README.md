@@ -1,6 +1,18 @@
 # features/ - Ordered task files
 
-Each file is a self-contained work order for one agent session (or one focused human session). Execute in numeric order (exceptions: 040 runs after 036, before 038; 041 runs any time after 034 and **never gates 038** - ADR-25; 042 runs after 027, before 029 and 031–035 - the wireframe pass; 043 runs after 029, before 030 and 031–035 - the neutral-domain rename; 044 runs any time after 029 and **never gates launch** - the no-JS submission gap; 055 runs after 031, before 032 - the QCMS app theme; 056 runs after 035, before 036 - the auth consolidation, so compose never provisions an admin database credential); the **Depends on** header lists hard prerequisites. Files never expand their own scope - discoveries become issues.
+Each file is a self-contained work order for one agent session (or one focused human session). Execute in numeric order, subject to the ordering exceptions below; the **Depends on** header lists hard prerequisites. Files never expand their own scope - discoveries become issues.
+
+## Ordering exceptions (single source of truth)
+
+A task's **Depends on** header already expresses every "runs *after* X" constraint, and selection honors it mechanically. This table carries only what `Depends on` cannot express: "runs *before* Y" and "never gates Y". `/next-task` reads this table; do not keep a second copy anywhere else.
+
+| Task | Constraint | Why |
+|---|---|---|
+| 040 | before 038 | security review and hardening precede the external-tester launch gate |
+| 041 | never gates 038 | agent-assisted authoring is flag-gated and off the launch gate (ADR-25) |
+| 056 | before 036 | auth consolidates into the API before compose provisions containers, so compose never provisions an admin database credential it would immediately have to take away |
+
+Exceptions retire when their task lands: 042, 043, 044, 045 and 055 all carried one and are now `done`.
 
 **Self-containedness convention:** a task is self-contained *given the repo's `docs/` set* - task files carry the what/why/done, and point at the specific doc sections that carry contracts (schemas, semantics, layouts) so those live in one place and can't drift. 001 bootstraps the docs into the repo, so every later session finds its references locally. If a referenced section is missing or contradicts the task, that's a blocking issue - stop and surface it, don't improvise. Tasks needing anything *outside* the repo (e.g. the `a2-react-aria` repo in 011/028) declare it in an **External input required** header.
 
@@ -11,7 +23,7 @@ Each file is a self-contained work order for one agent session (or one focused h
 1. Read `PROJECT_INSTRUCTIONS.md` (rules R1–R7 + amendments), then the task file, then the **References** it lists. Check the **progress ledger below** and `git log` - trust the repo over memory.
 2. Do only what the task's Deliverables and Exit criteria require. **Out of scope** sections are binding. Blocked on a genuine decision → stop and ask; never choose silently.
 3. Tests ship with the code; docs named in the task are updated in the same change.
-4. A task is done only when every exit criterion passes and **`pnpm verify`** is green at the repo root - one command, a superset of CI's unit job (`check:all` = em dash, control chars, changeset, golden-append-only, licenses, duplication; then build, typecheck, lint, test, golden-drift). Add `pnpm verify:browser` (the Playwright suite, the one CI job `verify` omits) when the task touches `apps/portal`, `apps/admin`, or `@qcms/ui`. **Update the ledger status in the same PR.**
+4. A task is done only when every exit criterion passes and **`pnpm verify`** is green at the repo root, plus **`pnpm verify:browser`** when the task touches `apps/portal`, `apps/admin`, or `@qcms/ui`. What each gate covers and how it maps to CI: `CONTRIBUTING.md` (the merge gate section owns that mapping). **Update the ledger status in the same PR.**
 5. **Green or clean:** if a session can't finish, either revert to green or park on the task branch with a `HANDOFF.md` (state, next step, what's red). Never merge red; never leave main broken.
 6. Branch `feat/NNN-slug`; task number in commit messages; PR description is the exit-criteria checklist, checked off.
 7. **Review before merge:** a human, or a second agent session given only the task file + diff, verifies exit criteria and rule compliance (R1–R7, cut-line, SEC controls). The reviewer verifies; it never extends the work.
@@ -19,7 +31,9 @@ Each file is a self-contained work order for one agent session (or one focused h
 
 ## Index and progress ledger
 
-Status values: `todo` · `in-progress (branch)` · `blocked (issue #)` · `done (PR #)`. Update in the completing PR - this table is the cross-session source of truth for plan state.
+Status values: `todo` · `blocked (issue #)` · `done (PR #)`. A row goes `todo` -> `done (PR #N)` exactly once, inside the completing PR - this table is the cross-session source of truth for plan state.
+
+**`in-progress` is retired as a claim.** Since 2026-07-31 the **pushed task branch is the claim lock**: a live `origin/feat/NNN-*` branch claims task NNN (the `protect-main` ruleset blocks the direct ledger commit the old `in-progress` claim needed). Never write the status to claim work, and never read it as evidence that work is live - check `git ls-remote --heads origin 'feat/*'` instead. One legacy row survives: **030**, which is genuinely part-landed and parked on its human gate (the manual screen-reader pass); it gets its final status in its completing PR.
 
 | # | Task | Stage | Status |
 |---|---|---|---|
@@ -80,4 +94,4 @@ Status values: `todo` · `in-progress (branch)` · `blocked (issue #)` · `done 
 | 038 | Launch-gate validation | 8b | todo |
 | 039 | Phase-4 backlog recording | 9 | todo |
 
-Note: 040 was added after initial numbering; it executes between 036/037 and 038. Security controls are designed in `SECURITY_DESIGN.md` (SEC-1…12) and largely delivered inside feature tasks - 040 verifies them as a system.
+Note: 040 was added after initial numbering; it executes between 036/037 and 038. Security controls are designed in `SECURITY_DESIGN.md` (SEC-1…13) and largely delivered inside feature tasks - 040 verifies them as a system.

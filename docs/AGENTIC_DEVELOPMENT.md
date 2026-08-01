@@ -13,11 +13,11 @@
 
 The persistent state of the project is its document set, not anyone's head. Therefore: few documents, each authoritative for one concern, current, and cross-referenced - agents follow references well but cannot guess which of several stale docs wins.
 
-This project's set: `PROJECT_GOAL.md` (vision, scope, ADRs) · `ARCHITECTURE.md` (system design, repo layout) · `DOMAIN_SCHEMA.md` (domain model) · `SECURITY_DESIGN.md` (SEC decisions) · `IMPLEMENTATION_PLAN.md` (stages) · `features/` (task files) · `PROJECT_INSTRUCTIONS.md` (read-first rules). **Staleness rule:** a doc contradicted by a newer decision is corrected or banner-marked as superseded *in the same change that makes the decision* - a stale authoritative doc is worse than none, because an agent will follow it.
+This project's set (all under `docs/` except the read-first file and `CONTRIBUTING.md`, which sit at the repo root): `docs/PROJECT_GOAL.md` (vision, scope, ADRs) · `docs/ARCHITECTURE.md` (system design, repo layout) · `docs/DOMAIN_SCHEMA.md` (domain model) · `docs/SECURITY_DESIGN.md` (SEC decisions) · `docs/IMPLEMENTATION_PLAN.md` (stages) · `docs/features/` (task files, ledger, ordering exceptions) · `docs/COMPONENT_GUIDELINES.md` (binding for input-control work) · `PROJECT_INSTRUCTIONS.md` (read-first rules) · `CONTRIBUTING.md` (standards and the merge gate). Alongside them, three docs that are authoritative for *how the work runs* rather than for the product: `docs/DEVELOPER_GUIDE.md` (the operator runbook), `docs/PRODUCT_OWNER.md` (the PO seat's charter) and `docs/AUDIT_AGENT.md` (a charter only, not wired to any agent). **Staleness rule:** a doc contradicted by a newer decision is corrected or banner-marked as superseded *in the same change that makes the decision* - a stale authoritative doc is worse than none, because an agent will follow it.
 
 ### 1.2 Decisions carry rationale (ADRs)
 
-An agent that knows *what* was chosen but not *why* will "improve" it. Every decision that must survive contact with future agents is recorded with its why (ADR-01…25, SEC-1…12) and never relitigated in a task - conflicts are flagged, not resolved ad hoc.
+An agent that knows *what* was chosen but not *why* will "improve" it. Every decision that must survive contact with future agents is recorded with its why (ADR-01…35, SEC-1…13) and never relitigated in a task - conflicts are flagged, not resolved ad hoc.
 
 ### 1.3 Short, numbered, checkable rules
 
@@ -57,12 +57,12 @@ The human owns decisions, taste, and review; agents own execution and verificati
 
 ## 3. Session protocol (normative - agents follow this)
 
-**Start:** read `PROJECT_INSTRUCTIONS.md` → the task file → its listed references. Check the progress ledger (`features/README.md` status column) and `git log` for the actual repo state - trust the repo over memory.
+**Start:** read `PROJECT_INSTRUCTIONS.md` → the task file → its listed references. Check the progress ledger (`docs/features/README.md` status column) and `git log` for the actual repo state - trust the repo over memory.
 
 **During:** work only within deliverables/exit criteria; run tests continuously; when blocked by a genuine decision (not a lookup), stop and surface the question rather than choosing silently.
 
 **End - every session leaves the repo green or clean:**
-- Done: all exit criteria pass, `pnpm verify` green at root (one command, a superset of CI - see `CONTRIBUTING.md`; add `pnpm verify:browser` for portal/admin/`@qcms/ui` work), docs updated, ledger updated.
+- Done: all exit criteria pass, `pnpm verify` green at root (add `pnpm verify:browser` for portal/admin/`@qcms/ui` work; gate contents and the CI mapping are owned by `CONTRIBUTING.md`), docs updated, and the ledger row flipped to `done (PR #N)` **inside the completing PR**. The claim is the pushed `feat/NNN-slug` branch, not a ledger edit - so there is no mid-task ledger write, and under the `/task` flow the orchestrator lands the row change, never the executor.
 - Not done: either revert to green, or park on the task branch with a `HANDOFF.md` note (state, next step, what's red) - **never merge red, never leave main broken.**
 
 **Conventions:** one branch per task (`feat/NNN-slug`); task number in commit messages; PR description = exit-criteria checklist checked off.
