@@ -8,6 +8,7 @@ import {
   conditionReferences,
   optionIdsOfVersion,
   typeOfPinnedVersion,
+  type OperandKind,
 } from "@/lib/forms/condition";
 import { draftDocumentOrder } from "@/lib/forms/draft";
 import type { DraftForm, DraftRule, PinnableQuestion } from "@/lib/forms/types";
@@ -124,7 +125,7 @@ export function RuleTestBench({
                       await previewCondition({
                         draft,
                         ruleId: rule.ruleId,
-                        answers: { ...answers },
+                        answers: answersToSend(draft, library, references, answers),
                       }),
                     );
                   });
@@ -159,8 +160,8 @@ function AnswerControl({
   readonly value: OperandValue | undefined;
   readonly onChange: (value: OperandValue) => void;
 }) {
-  const pin = draftDocumentOrder(draft).find((entry) => entry.questionId === questionId);
-  if (pin === undefined) {
+  const control = controlFor(draft, library, questionId);
+  if (control === undefined) {
     // An unpinned reference has no version, so there is nothing to answer it against. The
     // API reads it as unanswered, and saying so here beats rendering a control whose value
     // would be ignored.
@@ -171,25 +172,72 @@ function AnswerControl({
     );
   }
 
-  const question = library.find((entry) => entry.questionId === questionId);
-  const type = typeOfPinnedVersion(question, pin.version);
-  const options = optionIdsOfVersion(question, pin.version);
-  const kind = answerKindForType(type);
-
   return (
     <OperandControl
-      kind={kind}
-      label={`${questionId}@${String(pin.version)}`}
-      options={options}
-      value={value ?? startingAnswer(kind, options)}
+      kind={control.kind}
+      label={`${questionId}@${String(control.version)}`}
+      options={control.options}
+      value={value ?? startingAnswer(control.kind, control.options)}
       onChange={onChange}
     />
   );
 }
 
+interface AnswerControlShape {
+  readonly kind: OperandKind;
+  readonly options: readonly string[];
+  readonly version: number;
+}
+
+/** What control one referenced question needs, or `undefined` when it is not pinned. */
+function controlFor(
+  draft: DraftForm,
+  library: readonly PinnableQuestion[],
+  questionId: string,
+): AnswerControlShape | undefined {
+  const pin = draftDocumentOrder(draft).find((entry) => entry.questionId === questionId);
+  if (pin === undefined) return undefined;
+  const question = library.find((entry) => entry.questionId === questionId);
+  return {
+    kind: answerKindForType(typeOfPinnedVersion(question, pin.version)),
+    options: optionIdsOfVersion(question, pin.version),
+    version: pin.version,
+  };
+}
+
+/**
+ * The payload: exactly what the controls are showing, including the ones nobody touched.
+ *
+ * A control cannot start empty (an empty date is malformed, not unfinished), so every
+ * reference renders with a starting value the moment the bench opens. Sending only the
+ * values the author *changed* would therefore make the bench lie: the screen would show
+ * "opt_yes" beside a verdict computed against no answer at all, and a vendored `Select`
+ * does not even fire a change when the author picks the value it is already displaying, so
+ * the two disagree precisely when the author thinks they have confirmed their intent. What
+ * is on screen is what is evaluated.
+ *
+ * An unpinned reference is still omitted, and that is not the same thing: there is no
+ * version to answer it against, the bench says so instead of rendering a control, and the
+ * engine reads it as unanswered.
+ */
+function answersToSend(
+  draft: DraftForm,
+  library: readonly PinnableQuestion[],
+  references: readonly string[],
+  entered: Readonly<Record<string, OperandValue>>,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const questionId of references) {
+    const control = controlFor(draft, library, questionId);
+    if (control === undefined) continue;
+    payload[questionId] = entered[questionId] ?? startingAnswer(control.kind, control.options);
+  }
+  return payload;
+}
+
 /** A control's value before the author touches it, always a shape the engine parses. */
 // eslint-disable-next-line sonarjs/function-return-type -- the union is what a type decides.
-function startingAnswer(kind: string, options: readonly string[]): OperandValue {
+function startingAnswer(kind: OperandKind, options: readonly string[]): OperandValue {
   if (kind === "number") return 0;
   if (kind === "boolean") return false;
   if (kind === "option") return options[0] ?? "";
