@@ -3,7 +3,15 @@ import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
-import { readSetupKey, signInWithTotp, submitSignIn, submitTotp } from "./support/flow.js";
+import {
+  appearanceTrigger,
+  openMenu,
+  readSetupKey,
+  settleTransitions,
+  signInWithTotp,
+  submitSignIn,
+  submitTotp,
+} from "./support/flow.js";
 
 /**
  * The QCMS app's appearance behaviour (task 055, exit criteria 3 and 4).
@@ -114,9 +122,38 @@ async function computed(locator: Locator, property: string): Promise<string> {
   );
 }
 
-/** The mode chip for one mode, by its stable data hook. */
-function chip(page: Page, mode: Mode): Locator {
-  return page.locator(`.qcms-mode__chip[data-value="${mode}"]`);
+/**
+ * A LENGTH token as it resolves on one element, trimmed.
+ *
+ * Custom properties compute to their authored text, so `--radius-card` comes back as
+ * `"8px"` (often with the leading space the declaration was written with) while
+ * `border-radius` computes to `"8px"`. Trimming is the whole conversion; the colour
+ * equivalent needs the probe element in `token` above, because a colour's authored text
+ * (`#0b0f1a`) never matches its computed form.
+ */
+async function tokenLength(locator: Locator, property: string): Promise<string> {
+  return (await computed(locator, property)).trim();
+}
+
+/** The human label for a mode, which is what the menu row and the trigger both say. */
+const LABEL: Record<Mode, string> = { light: "Light", dark: "Dark", hc: "High contrast" };
+
+/** One row of the open appearance menu, by role and accessible name. */
+function row(page: Page, mode: Mode): Locator {
+  return page.getByRole("menuitemradio", { name: LABEL[mode], exact: true });
+}
+
+/**
+ * Choose a mode the way an operator does: open the menu, click the row.
+ *
+ * Every step is the real control (task 032). Nothing here reaches for a class or
+ * pokes the root element, because what is under test is whether the CONTROL applies
+ * the mode - a test that set the class itself would pass with the control removed.
+ */
+async function choose(page: Page, mode: Mode): Promise<void> {
+  await openMenu(appearanceTrigger(page));
+  await row(page, mode).click();
+  await expect(page.getByRole("menu")).toBeHidden();
 }
 
 test("enrolls the account the shell tests sign in with", async ({ page }) => {
@@ -180,34 +217,86 @@ test("the mode control moves through all three modes and persists across a reloa
   page,
 }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
-  await expect(page.getByTestId("mode-control")).toBeVisible();
+  await expect(appearanceTrigger(page)).toBeVisible();
 
   for (const mode of MODES) {
-    await chip(page, mode).click();
+    await choose(page, mode);
     expect(await rootModes(page), `after choosing ${mode}`).toEqual([mode]);
     await expectPalette(page, mode, `after choosing ${mode}`);
+    // The trigger is wordless, so its accessible name is the only place the chosen
+    // mode is spelled out. It has to follow the choice or a screen-reader operator
+    // has no way to read the state at all.
+    await expect(appearanceTrigger(page)).toHaveAccessibleName(`Appearance: ${LABEL[mode]}`);
 
     // The reload is the persistence proof, and it is a SERVER-side one: the class is
     // in the HTML the server sent, so nothing had to run in the document to fix it.
     await page.reload();
     expect(await rootModes(page), `${mode} survives a reload`).toEqual([mode]);
-    await expect(chip(page, mode)).toHaveAttribute("data-selected", "true");
     await expectPalette(page, mode, `${mode} after reload`);
+    await openMenu(appearanceTrigger(page));
+    await expect(row(page, mode)).toHaveAttribute("aria-checked", "true");
+    await page.keyboard.press("Escape");
   }
+});
+
+test("the menu opens, navigates and closes from the keyboard alone", async ({ page }) => {
+  // The trigger has no text, so a keyboard operator reaches it by tab order and reads
+  // it by name; if either the roving order or the name breaks, the control is
+  // unusable in a way axe cannot detect (the issue #144 defect class).
+  await signInWithTotp(page, EMAIL, totpSecret);
+  const trigger = appearanceTrigger(page);
+  await trigger.focus();
+  await expect(trigger).toBeFocused();
+
+  await page.keyboard.press("ArrowDown");
+  await expect(page.getByRole("menu")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toBeHidden();
+  // Escape returns focus to the trigger rather than dropping it to the body, which is
+  // what keeps a keyboard operator's place in the bar.
+  await expect(trigger).toBeFocused();
+
+  // Enter opens too, and a row chosen with Enter applies the mode.
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("menu")).toBeVisible();
+  await row(page, "hc").focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("menu")).toBeHidden();
+  expect(await rootModes(page)).toEqual(["hc"]);
 });
 
 test("an explicit Light choice outranks a dark-preferring machine", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "dark" });
   await signInWithTotp(page, EMAIL, totpSecret);
-  await chip(page, "light").click();
+  await choose(page, "light");
   await page.reload();
   expect(await rootModes(page)).toEqual(["light"]);
   await expectPalette(page, "light", "explicit Light on a dark machine");
 });
 
+test("choosing the mode already shown still persists it", async ({ page }) => {
+  // The opt-out that is easy to lose. With no cookie, the control displays what the
+  // machine prefers, so an operator on a light machine who wants to STAY light when
+  // the machine flips to dark at sunset has to be able to choose Light - the mode the
+  // menu already shows as checked. A selection callback would report no change and do
+  // nothing; `onAction` is what makes this write the cookie.
+  await page.emulateMedia({ colorScheme: "light" });
+  await signInWithTotp(page, EMAIL, totpSecret);
+  expect(await rootModes(page), "no cookie yet, so no class").toEqual([]);
+
+  await choose(page, "light");
+  const stored = (await page.context().cookies()).find((c) => c.name === "qcms-app-mode");
+  expect(stored?.value, "choosing the displayed mode has to persist it").toBe("light");
+
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.reload();
+  expect(await rootModes(page), "the choice outranks the machine").toEqual(["light"]);
+  await expectPalette(page, "light", "pinned Light after the machine went dark");
+});
+
 test("a persisted choice is on screen in the first painted frame", async ({ page }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
-  await chip(page, "dark").click();
+  await choose(page, "dark");
 
   /*
    * The no-flash proof has to be a measurement, not an assertion about the end state,
@@ -254,21 +343,149 @@ test("a persisted choice is on screen in the first painted frame", async ({ page
   ).toBe(settled);
 });
 
-test("the selected chip is distinguishable without colour, including in High-contrast", async ({
+test("the checked menu row is distinguishable without colour, including in High-contrast", async ({
   page,
 }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
-  await chip(page, "hc").click();
+  await choose(page, "hc");
   expect(await rootModes(page)).toEqual(["hc"]);
 
-  const selected = chip(page, "hc");
-  const unselected = chip(page, "light");
-  // Three non-colour differences, each of which survives a two-colour palette.
-  expect(await computed(selected, "border-top-width")).toBe("2px");
-  expect(await computed(unselected, "border-top-width")).toBe("1px");
-  expect(Number(await computed(selected, "font-weight"))).toBeGreaterThan(
-    Number(await computed(unselected, "font-weight")),
+  await openMenu(appearanceTrigger(page));
+  const checked = row(page, "hc");
+  const unchecked = row(page, "light");
+
+  // Three non-colour differences, each of which survives a two-colour palette. The
+  // check glyph is the one a screen magnifier user reads at a glance; the inset edge
+  // is the one that survives a monochrome rendering; the weight carries at distance.
+  await expect(checked.locator(".qcms-menu__check")).toHaveText("✓");
+  await expect(unchecked.locator(".qcms-menu__check")).toHaveText("");
+  expect(Number(await computed(checked, "font-weight"))).toBeGreaterThan(
+    Number(await computed(unchecked, "font-weight")),
   );
-  await expect(selected.locator(".qcms-mode__mark")).toHaveText("✓");
-  await expect(unselected.locator(".qcms-mode__mark")).toHaveText("");
+  // `box-shadow` rather than a border, so the row's box never moves between states.
+  expect(await computed(checked, "box-shadow"), "the checked row's inset accent edge").toMatch(
+    /inset/u,
+  );
+  expect(await computed(unchecked, "box-shadow")).toBe("none");
+  // And the semantics behind all three, which is what a screen reader actually uses.
+  await expect(checked).toHaveAttribute("aria-checked", "true");
+  await expect(unchecked).toHaveAttribute("aria-checked", "false");
+});
+
+test("the appearance trigger is borderless at rest and bordered in High-contrast", async ({
+  page,
+}) => {
+  // The card's one deliberate high-contrast exception, and the kind of detail a theme
+  // change silently drops: at rest the glyph alone is the button, but in HC a
+  // borderless icon is precisely what an operator cannot find, so the border returns.
+  await signInWithTotp(page, EMAIL, totpSecret);
+  const trigger = appearanceTrigger(page);
+
+  await choose(page, "light");
+  expect(await computed(trigger, "border-top-width")).toBe("0px");
+  expect(await computed(trigger, "background-color")).toBe("rgba(0, 0, 0, 0)");
+
+  await choose(page, "hc");
+  expect(await computed(trigger, "border-top-width")).toBe("1px");
+});
+
+test("both topbar triggers are 32px squares, not stretched by the control floor", async ({
+  page,
+}) => {
+  // A regression the screenshot gate caught by eye: the bare `button` rule sets
+  // `min-block-size: var(--admin-control-h)` (40px), and a min-block-size beats a
+  // block-size, so both triggers rendered 32 wide by 40 tall. On the avatar, whose
+  // `border-radius: 50%` turns any non-square box into an oval, it was obvious; on the
+  // appearance trigger it was a quieter rectangle. Measuring the rendered box is the
+  // only assertion that catches this - every property the CSS declares was already
+  // correct on its own.
+  await signInWithTotp(page, EMAIL, totpSecret);
+
+  for (const trigger of [
+    appearanceTrigger(page),
+    page.getByRole("button", { name: /Account menu/ }),
+  ]) {
+    const box = await trigger.boundingBox();
+    expect(box).not.toBeNull();
+    expect(Math.round(box!.width)).toBe(32);
+    expect(Math.round(box!.height)).toBe(32);
+  }
+});
+
+/**
+ * COMPONENT_GUIDELINES step 9, the popover side (task 032 review batch, item 3).
+ *
+ * The trigger-side assertions are the two tests above. This is the other half of the new
+ * menu surface: the popover's own box and its rows, which no test touched.
+ *
+ * Every number below is read from a TOKEN rather than written down, exactly as the rest
+ * of this file works. Step 9's contract is "styles consume the four token groups only",
+ * so an assertion that hardcoded `8px` would keep passing after the radius stopped coming
+ * from `--radius-card`, which is the failure it exists to catch.
+ *
+ * A note on where these rules live, because it is not where step 9 says to look. The
+ * menu box that actually paints in this app is `.qcms-menu` in `app/globals.css`: this
+ * app does NOT import `@qcms/ui/theme-components.css` (only the portal does), so the menu
+ * rules added to that sheet reach no host yet. They are correct and they are the right
+ * place for a menu rendered inside `[data-qcms-field]`, but the chrome menus here are
+ * styled by the app, and asserting the sheet the app does not load would prove nothing
+ * about the pixels. The DOM-shape assertion at the end is what keeps the shared sheet
+ * honest for the host that does load it.
+ */
+test("the menu popover and its rows take their metrics from the tokens", async ({ page }) => {
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await openMenu(appearanceTrigger(page));
+
+  const popover = page.locator(".qcms-menu");
+  const item = page.getByRole("menuitemradio", { name: LABEL.light, exact: true });
+
+  // The popover is a panel, so it takes the card radius; a row is a small inset shape,
+  // so it takes the small one. Reading both tokens off the popover itself means the
+  // comparison survives a corner-preset change that moves every number at once.
+  expect(await computed(popover, "border-radius")).toBe(
+    await tokenLength(popover, "--radius-card"),
+  );
+  expect(await computed(item, "border-radius")).toBe(await tokenLength(popover, "--radius-sm"));
+
+  // Row metrics: a 38px row with 10px of inline padding, per the card. These are the
+  // numbers that make the check glyph and the label sit where they were drawn, and a
+  // silent change to either is exactly what a screenshot gate cannot be relied on to
+  // catch at a glance.
+  expect(await computed(item, "block-size")).toBe("38px");
+  expect(await computed(item, "padding-inline-start")).toBe("10px");
+  expect(await computed(item, "padding-inline-end")).toBe("10px");
+
+  // The checked row is never colour alone (WCAG 1.4.1): the inset accent edge is drawn
+  // with a box-shadow, so its presence is the assertion.
+  const checked = page.getByRole("menuitemradio", { checked: true });
+  expect(await computed(checked, "box-shadow")).toContain("inset");
+  expect(await computed(checked, "font-weight")).toBe("600");
+});
+
+test("the menu popover carries the high-contrast border treatment", async ({ page }) => {
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await choose(page, "hc");
+  await openMenu(appearanceTrigger(page));
+  // Never sample a colour straight after a mode-class swap: the vendored kit carries
+  // `transition-colors`, so an immediate read returns a mid-transition value and two
+  // runs disagree on the number.
+  await settleTransitions(page);
+
+  const popover = page.locator(".qcms-menu");
+  // HC's border treatment is a hard edge at full contrast plus a flat surface. The
+  // colour comes from `--color-border-strong`, which the HC layer takes to pure black,
+  // and the shadow that gives the menu depth in the other two modes is removed - depth
+  // cues are exactly what an operator in this mode cannot resolve.
+  expect(await computed(popover, "border-top-color")).toBe(
+    await token(page, "--color-border-strong"),
+  );
+  expect(Number.parseFloat(await computed(popover, "border-top-width"))).toBeGreaterThan(0);
+  expect(await computed(popover, "box-shadow")).toBe("none");
+
+  // And the shared sheet's selector still has something to match. `theme-components.css`
+  // reaches the menu through `[data-rac]:has(> [role="menu"])` because `MenuTrigger`
+  // portals the popover out of the field it belongs to; if react-aria ever nests the
+  // menu one level deeper, that rule silently stops applying in every host that DOES
+  // import the sheet, and nothing else in the repo would notice.
+  await expect(page.locator('[data-rac]:has(> [role="menu"])')).toHaveCount(1);
 });

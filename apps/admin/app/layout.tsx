@@ -55,9 +55,18 @@ export default async function AdminRootLayout({ children }: { readonly children:
       <head>
         {/* Hidden with CSS rather than by not rendering it, so a scripted operator
             gets no hydration boundary and no layout shift. `style-src` already
-            allows inline styles, so no nonce is involved. */}
+            allows inline styles, so no nonce is involved.
+            Task 032: both topbar triggers are popup menus, which need JavaScript to
+            open, so both go. Sign-out does not - ending a session has to stay
+            possible with scripts off (Code Owner decision, 2026-07-31), so the same
+            rule reveals the plain POST form the account menu submits when it is
+            scripted (`components/account-menu.tsx`). The appearance control has no
+            such fallback and needs none: the sheet's `prefers-color-scheme` block
+            still paints the page correctly, and a preference is not a session. */}
         <noscript>
-          <style>{".qcms-mode{display:none}"}</style>
+          <style>
+            {".qcms-appearance,.qcms-avatar{display:none}.qcms-signout-fallback{display:block}"}
+          </style>
         </noscript>
       </head>
       <body>

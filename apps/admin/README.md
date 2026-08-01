@@ -11,10 +11,11 @@ topology it is protected by TLS plus 2FA instead (ADR-20).
 | --- | --- |
 | Sign-in, TOTP 2FA enrollment, recovery codes, 2FA challenge, sign-out | built (031) |
 | Settings: change password, 2FA status | built (031) |
-| Questions, Forms, Responses, Webhooks | placeholders; tasks 032-035 |
+| Questions: library list, editor, version timeline, preview, lifecycle | built (032) |
+| Forms, Responses, Webhooks | placeholders; tasks 033-035 |
 
-The shell nav, the auth gate, and the shared UI kit are what 031 delivers; the area
-screens are placeholders that name the task filling them.
+The shell nav, the auth gate, and the shared UI kit are what 031 delivers; the remaining
+area screens are placeholders that name the task filling them.
 
 ## Running it
 
@@ -43,11 +44,43 @@ recovery codes once.
 reads the same variable, so relaxing it in one place and not the other fails closed
 (every admin API call 401s).
 
+### Content to look at
+
+An empty question library hides every state worth reviewing, so there is a seed:
+
+```bash
+DATABASE_URL=postgres://qcms:qcms@127.0.0.1:7020/qcms pnpm qcms:seed-fixtures
+```
+
+It loads the kernel's sample question corpus (`packages/core/fixtures/questions`) through
+`parseQuestionDefinition`, never as raw inserts, and arranges the results so that all three
+status badges, a multi-version timeline, a frozen version and a deprecated version all
+exist without anyone clicking through the lifecycle first. It is idempotent: a question
+that already exists is left alone, because an id is permanent (R6).
+
+It is a **development** tool. It writes the database directly, which is why it lives in
+`apps/api` rather than here: the admin never touches a domain table (R2).
+
 ## How it is put together
 
 - **`app/(shell)/`** is the authenticated route group. Its layout calls
   `requireAdminSession()`, so **every** screen placed in it is gated by construction. Auth
   screens sit outside the group.
+- **Question mutations are server actions** (`app/(shell)/questions/actions.ts`), unlike
+  031's auth screens, which are route handlers behind full-page POSTs. The editor holds a
+  live document and its failure mode is a validation error that has to land on a field
+  without discarding unsaved work, which a redirect-with-an-error-code round trip cannot
+  do. A server action is still a POST endpoint that nothing guards for you, so each one
+  calls `requireAdminSession()` itself, and each returns the rejected submission alongside
+  the error so the form can be restored (a form submitted before hydration posts as a full
+  navigation, which resets client state).
+- **The single-question preview is compiled by the API**, at
+  `GET /admin/questions/{id}/versions/{v}/preview`, and only rendered here, through
+  `A2UIStepRenderer` from `@qcms/ui`. Compiling in the app would put the compiler and the
+  kernel behind it inside the BFF; leaving it in the API means preview and publish run the
+  same code in the same process, so fidelity cannot drift. It is a recompilation of a
+  possibly unpublished draft, which is why it exists only on the admin surface: the portal
+  serves the stored compiled document and never recompiles (ADR-18).
 - **`lib/server/`** is server-only and never reaches the client bundle: the better-auth
   instance, the database handle (auth only), the session reader, the CSP builder, and the
   one API client. `lib/server/r2-import-surface.test.ts` enforces that boundary, plus R2

@@ -16,6 +16,22 @@ version lifecycle is a set of single-row state checks this slice owns.
 | `POST /admin/questions/:id/versions/:v/deprecate` | `questions:write` | Published → deprecated (blocks **new** pins only; existing pins/history untouched). |
 | `GET /admin/questions` | `questions:read` | List with latest-version summary; `?status=` filter, `?search=` over slug/label. |
 | `GET /admin/questions/:id` | `questions:read` | One question with every version, oldest first. |
+| `GET /admin/questions/:id/versions/:v/preview` | `questions:read` | Compile one version to a single-question A2UI document (`{ stepId: "stp_preview", root, a2uiSpecVersion, compilerVersion }`) for the admin preview pane. `?locale=` (default `en`, unparseable falls back to `en`). |
+
+## The preview route is not the serving path (ADR-18)
+
+`…/preview` **recompiles** a stored definition on demand - usually an
+unpublished draft - so an author can see their question drawn by the shared
+renderer (028) while editing it. That is why it lives on the admin group: the
+respondent-facing path serves the *stored* compiled document from a pinned
+snapshot and never a recompilation (ADR-18). Nothing the preview produces is
+stored, pinned, or reachable from the portal.
+
+The document is wrapped exactly like a compiled step (`Form → Flex(column)`) so
+the renderer needs no preview-specific branch, minus two things a real step
+carries: no headings (a library question belongs to no form or step here) and
+**no honeypot** - the decoy is an abuse control for respondent-facing steps
+(026), and an authenticated preview that is never submitted must not carry one.
 
 Scopes are **inert at launch** - the `/api/v1` surface is reserved (R7). They ride
 in the generated OpenAPI document so Phase-4 activation is wiring, not archaeology.

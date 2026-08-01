@@ -19,10 +19,10 @@ import { axeViolations } from "./test-support/a11y.ts";
  *    the a2ra CLI owns, so a rename upstream, a missed file, or a typo in a
  *    re-export is a QCMS defect. Every export is checked to be a callable
  *    component.
- * 2. **Each primitive renders at all, standalone.** Three of them (`Table`,
- *    `Dialog`, `Breadcrumb`) have no consumer until tasks 032-035, so without this
- *    a broken vendoring would sit undetected for three tasks and then surface as
- *    someone else's bug. Rendering them once here is the cheapest possible tripwire.
+ * 2. **Each primitive renders at all, standalone.** `Breadcrumb` still has no consumer
+ *    until tasks 033-035, so without this a broken vendoring would sit undetected for
+ *    two tasks and then surface as someone else's bug. Rendering them once here is the
+ *    cheapest possible tripwire.
  * 3. **No axe violations in their default rendering.** The admin's own axe gate runs
  *    in a real browser over real screens; this is the earlier, faster signal for a
  *    primitive nothing has wired up yet.
@@ -47,12 +47,39 @@ const PRIMITIVES = [
   ],
   ["Button", <kit.Button variant="primary">Save</kit.Button>],
   ["Card", <kit.Card padding="md">Card body.</kit.Card>],
+  ["Checkbox", <kit.Checkbox label="Required" name="required" />],
+  ["DatePicker", <kit.DatePicker label="Earliest" name="min" />],
   ["Dialog", <kit.Dialog triggerLabel="Open" title="Confirm" description="Are you sure?" />],
   [
     "Form",
     <kit.Form>
       <kit.TextField label="Name" name="name" />
     </kit.Form>,
+  ],
+  // The vendored `Menu` renders its own trigger and stays closed until pressed, which
+  // is its mounted state - the open popover is react-aria overlay layout and belongs in
+  // Playwright (ADR-23), the same call `Dialog` above makes.
+  [
+    "Menu",
+    <kit.Menu
+      triggerLabel="Options"
+      items={[
+        { id: "publish", label: "Publish" },
+        { id: "deprecate", label: "Deprecate" },
+      ]}
+    />,
+  ],
+  ["NumberField", <kit.NumberField label="Minimum" name="min" />],
+  [
+    "Select",
+    <kit.Select
+      label="Type"
+      name="type"
+      items={[
+        { label: "Short text", value: "shortText" },
+        { label: "Number", value: "number" },
+      ]}
+    />,
   ],
   [
     "Table",
@@ -75,6 +102,13 @@ describe("@qcms/ui/kit surface", () => {
   it("exports exactly the admin kit primitives, all callable", () => {
     // Pinned rather than counted: a primitive silently disappearing from the barrel
     // would otherwise only show up as a build error in a later task.
+    //
+    // Only the plain function exports are listed. The menu primitives task 032 added
+    // are re-exported react-aria-components, and most of them arrive as forwardRef or
+    // context objects rather than functions, so they never reach this filter -
+    // `MenuTrigger` and the vendored `Menu` are the two that do. That is a property of
+    // how react-aria packages them, not a statement about which of them matter; the
+    // whole set is exercised together in `menu-keyboard.test.tsx`.
     const exported = Object.entries(kit).filter(([, value]) => typeof value === "function");
     expect(new Set(exported.map(([name]) => name))).toEqual(
       new Set([
@@ -82,8 +116,14 @@ describe("@qcms/ui/kit surface", () => {
         "Breadcrumb",
         "Button",
         "Card",
+        "Checkbox",
+        "DatePicker",
         "Dialog",
         "Form",
+        "Menu",
+        "MenuTrigger",
+        "NumberField",
+        "Select",
         "Table",
         "Text",
         "TextField",

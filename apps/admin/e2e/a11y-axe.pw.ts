@@ -5,7 +5,18 @@ import { generate } from "otplib";
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { TEST_PASSWORD, createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
-import { readSetupKey, signInWithTotp, submitSignIn, submitTotp } from "./support/flow.js";
+import {
+  accountTrigger,
+  appearanceTrigger,
+  fillStable,
+  openMenu,
+  readSetupKey,
+  settleTransitions,
+  signInWithTotp,
+  submitSignIn,
+  submitTotp,
+} from "./support/flow.js";
+import { addOption, chooseType, field } from "./support/questions.js";
 
 /**
  * The admin's axe gate (task 031, exit criterion 5; policies inherited from task 030).
@@ -49,32 +60,6 @@ import { readSetupKey, signInWithTotp, submitSignIn, submitTotp } from "./suppor
 test.describe.configure({ mode: "serial" });
 
 const EMAIL = uniqueAdminEmail("a11y");
-
-/**
- * Wait until every running transition has finished.
- *
- * Load-bearing, and it cost a cycle to find: the vendored controls carry
- * `transition-colors`, so switching the mode class starts a colour animation, and axe
- * sampling immediately measured a MID-TRANSITION pair - a white-fading-to-dark label
- * over a blue-fading-to-light button, at a ratio (3.72, then 2.17 on the next run)
- * that exists for a tenth of a second and is nobody's experience. Two runs disagreeing
- * on the number is the signature.
- *
- * `document.getAnimations()` is the exact question ("is anything still animating?"),
- * so this settles as fast as the page does. A `waitForTimeout` would have hidden the
- * same race behind a number that is too small on a loaded machine, and emulating
- * reduced motion would have measured a configuration rather than removing the race.
- */
-async function settleTransitions(page: Page): Promise<void> {
-  await page.evaluate(async () => {
-    await new Promise((resolve) => {
-      requestAnimationFrame(() => resolve(undefined));
-    });
-    await Promise.all(
-      document.getAnimations().map((animation) => animation.finished.catch(() => undefined)),
-    );
-  });
-}
 
 /** Set by the enrollment test; stable once the factor is confirmed. */
 let totpSecret = "";
@@ -167,6 +152,84 @@ test("the authenticated shell states have zero violations", async ({ page }) => 
     await page.goto(path);
     await expectNoViolations(page, `shell ${path}`);
   }
+});
+
+test("both topbar menus have zero violations while OPEN, in every mode", async ({ page }) => {
+  // Task 032. A closed menu is a button; the accessibility risk is entirely in the
+  // open state, and a gate that only ever sampled first render would miss all of it:
+  // a portalled popover outside the landmark structure, two wordless triggers whose
+  // only name is an `aria-label`, and a checked row whose state must not be colour
+  // alone. `expectNoViolations` runs each state in light, dark and high contrast, and
+  // high contrast is the case that matters most here - it is where a two-colour
+  // palette would expose a state carried by colour and nothing else.
+  //
+  // The mode is chosen through the real control before the sweep, so the CHECKED row
+  // is a different row in each pass rather than always the first one.
+  await signInWithTotp(page, EMAIL, totpSecret);
+
+  await openMenu(appearanceTrigger(page));
+  await expectNoViolations(page, "appearance menu open");
+
+  // Move the check to a different row and sweep again: the checked row's own
+  // treatment (glyph, weight, inset edge) is what the "never colour alone"
+  // requirement lands on, so it has to be measured where it actually is.
+  await page.getByRole("menuitemradio", { name: "High contrast", exact: true }).click();
+  await openMenu(appearanceTrigger(page));
+  await expectNoViolations(page, "appearance menu open, High contrast checked");
+  await page.keyboard.press("Escape");
+
+  await openMenu(accountTrigger(page));
+  await expectNoViolations(page, "account menu open");
+  await page.keyboard.press("Escape");
+});
+
+test("the question library, its editor and a question's detail have zero violations", async ({
+  page,
+}) => {
+  // Task 032, exit criterion 4. These are the app's first screens with real data density -
+  // an interactive table, a form with grouped constraint panels, and a modal confirmation -
+  // so they are where a label, a group name or a contrast pair is most likely to be missed.
+  //
+  // `expectNoViolations` runs each state in light, dark and high contrast, so this covers
+  // all three modes by construction.
+  test.setTimeout(180_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+
+  await page.goto("/questions");
+  await expectNoViolations(page, "question library list");
+
+  await page.goto("/questions/new");
+  await expectNoViolations(page, "question editor, empty");
+
+  // A choice type, because that is the shape with the most to get wrong: an option list
+  // whose reorder controls have to be distinguishable from one another by name alone.
+  await chooseType(page, "Single choice");
+  const slug = `a11y-question-${Date.now().toString(36)}`;
+  await fillStable(field(page, "Slug"), slug);
+  await fillStable(field(page, "Label"), "Which cover applies?");
+  await addOption(page, "Comprehensive");
+  await addOption(page, "Third party");
+  await expectNoViolations(page, "question editor, option list");
+
+  await Promise.all([
+    page.waitForURL(/\/questions\/q_/),
+    page.getByRole("button", { name: "Create draft" }).click(),
+  ]);
+  await expectNoViolations(page, "question detail with preview");
+
+  // The confirmation dialog is analysed open: a focus-trapped alertdialog is exactly the
+  // state a first-render-only gate would miss.
+  await page.getByRole("button", { name: /^Publish version 1$/ }).click();
+  await expect(page.getByRole("alertdialog")).toBeVisible();
+  await expectNoViolations(page, "publish confirmation");
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+
+  await page.getByRole("button", { name: /^Publish version 1$/ }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Publish", exact: true }).click();
+  await expect(page.getByRole("alertdialog")).toBeHidden();
+  // A frozen version renders the same form disabled, which is a different contrast
+  // question in every mode than the live one above.
+  await expectNoViolations(page, "frozen published version");
 });
 
 test("the 2FA challenge and its recovery variant have zero violations", async ({ page }) => {

@@ -105,6 +105,23 @@
   padding-inline: var(--space-control-pad-x);
 }
 
+/* The vendored `Menu`'s popover and its rows (task 032), matched at document scope
+   for the same reason the listbox above is: `MenuTrigger` portals the popover to the
+   body, so it is never a descendant of the field it belongs to. The radius and the
+   inline padding are the only things claimed here - a menu row's colour, weight and
+   focus treatment are the component's own, and a host that wants the design card's
+   shapes styles its own classes rather than reaching in through these selectors. */
+[data-rac]:has(> [role="menu"]) {
+  border-radius: var(--radius-card);
+}
+
+[role="menuitem"][data-rac],
+[role="menuitemradio"][data-rac],
+[role="menuitemcheckbox"][data-rac] {
+  border-radius: var(--radius-sm);
+  padding-inline: var(--space-control-pad-x);
+}
+
 /* Checkbox indicator: a small square. The radio indicator stays a circle, so it
    is deliberately not matched here. */
 [data-qcms-field] label[data-rac]:has(input[type="checkbox"]) > div {
@@ -180,7 +197,8 @@ form:has([data-qcms-field]) {
   border-color: var(--color-border-strong);
 }
 
-:root.hc [data-rac]:has(> [role="listbox"]) {
+:root.hc [data-rac]:has(> [role="listbox"]),
+:root.hc [data-rac]:has(> [role="menu"]) {
   border-width: 2px;
   border-color: var(--color-border-strong);
 }

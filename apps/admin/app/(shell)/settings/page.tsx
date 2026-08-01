@@ -47,7 +47,9 @@ export default async function SettingsPage({
         </Card>
       </div>
 
-      <div className="qcms-card">
+      {/* The account menu's Change password item links straight here (task 032), so
+          the anchor is part of that control's contract rather than decoration. */}
+      <div className="qcms-card" id="change-password">
         <Card padding="md" radius="md" border>
           <div className="flex flex-col gap-4">
             <h2 className="text-base font-semibold text-(--color-text)">

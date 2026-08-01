@@ -26,12 +26,50 @@ export const VersionParam = z.object({
   v: z.string().openapi({ param: { name: "v", in: "path" }, example: "1" }),
 });
 
+/**
+ * `GET /admin/questions/:id/versions/:v/preview` query - the locale the preview
+ * resolves its labels in. Optional and free-form here (the handler coerces an
+ * unrecognized code to `en` rather than erroring): a preview is a display aid,
+ * so a bad locale must never cost the author their preview.
+ */
+export const PreviewQuestionVersionQuery = z.object({
+  locale: z
+    .string()
+    .optional()
+    .openapi({
+      param: { name: "locale", in: "query", required: false },
+      description:
+        "Locale to resolve labels/help in (ADR-11 subset, e.g. `en` or `en-AU`). Defaults to `en`; an unparseable value falls back to `en`.",
+      example: "en",
+    }),
+});
+
+/**
+ * The seven question types (§4.2). Declared here rather than imported from the
+ * kernel because this is the *route* contract: it is what the OpenAPI document
+ * publishes and what a client may filter by, and it changes only when the API
+ * decides to expose a new one.
+ */
+const QuestionTypeEnum = z.enum([
+  "shortText",
+  "longText",
+  "number",
+  "date",
+  "boolean",
+  "singleChoice",
+  "multiChoice",
+]);
+
 /** `GET /admin/questions` query filters. */
 export const ListQuestionsQuery = z.object({
   status: z
     .enum(["draft", "published", "deprecated"])
     .optional()
     .openapi({ param: { name: "status", in: "query" }, example: "published" }),
+  type: QuestionTypeEnum.optional().openapi({
+    param: { name: "type", in: "query" },
+    example: "number",
+  }),
   search: z
     .string()
     .optional()
@@ -100,12 +138,44 @@ export const QuestionListItem = z
     publishedAt: z.iso.datetime().nullable(),
     /** The latest version's localized label (locale → text); [] of loading only. */
     label: z.unknown(),
+    /**
+     * The latest version's question type, or `null` when that version is missing.
+     *
+     * Free to carry: the handler already loads each latest definition to read its
+     * label, so this is one more field off an object it is holding rather than a
+     * second read (issue #218).
+     */
+    type: QuestionTypeEnum.nullable(),
   })
   .openapi("QuestionListItem");
+export type QuestionListItem = z.infer<typeof QuestionListItem>;
 
 export const ListQuestionsResponse = z
   .object({ questions: z.array(QuestionListItem) })
   .openapi("ListQuestionsResponse");
+
+/**
+ * `GET /admin/questions/:id/versions/:v/preview`: one question compiled to a
+ * single-question A2UI document the admin renders through the shared renderer
+ * (028). Shaped like a served step document (`stepId` + `root`) so the renderer
+ * needs no preview-specific branch, plus the two ADR-18 version stamps so a
+ * renderer can tell which compiler and spec produced the tree.
+ *
+ * `root` is opaque to the API (the renderer interprets it), so it is `unknown`
+ * rather than a recursive schema the API would have to keep in step with the
+ * compiler - same reasoning as `StepDocument` on the respondent side.
+ */
+export const QuestionPreviewResponse = z
+  .object({
+    stepId: z.string().openapi({
+      description: "Always the synthetic `stp_preview` - a preview is not a real step.",
+      example: "stp_preview",
+    }),
+    root: z.unknown(),
+    a2uiSpecVersion: z.string().openapi({ example: "1.0.0-preview.7" }),
+    compilerVersion: z.string().openapi({ example: "0.1.0" }),
+  })
+  .openapi("QuestionPreviewResponse");
 
 /** `GET /admin/questions/:id`: the identity with every version, oldest first. */
 export const QuestionDetailResponse = z

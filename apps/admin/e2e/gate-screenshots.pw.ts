@@ -3,6 +3,7 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 import { ADMIN_BASE_URL } from "./support/harness-config.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
+import { CAPTURE_ENABLED, CAPTURE_MODES, captureInto } from "./support/capture.js";
 import { readSetupKey, submitSignIn, submitTotp } from "./support/flow.js";
 
 /**
@@ -38,72 +39,30 @@ import { readSetupKey, submitSignIn, submitTotp } from "./support/flow.js";
  * by the root layout - rather than by poking the DOM, because a screenshot that did not go
  * through the real mechanism is evidence of nothing.
  *
- * The Next dev-tools indicator is removed before every capture. It is dev-server chrome,
+ * The Next dev-tools indicator is suppressed before every capture. It is dev-server chrome,
  * not product UI, and leaving it in has twice put a floating badge in the corner of
- * evidence a human is asked to approve.
+ * evidence a human is asked to approve. Task 032 moved the hydration wait, the suppression
+ * and the width handling into `support/capture.ts`, shared with 032's own capture, and
+ * changed the suppression from removing `nextjs-portal` to hiding it with a stylesheet
+ * (issue #220 - removing a React-owned node mid-hydration is its own race).
+ *
+ * NOTE: this set is task 055's and re-shooting it is not part of 032, so the topbar in
+ * these frames is the pre-032 composition (three mode chips, a standalone Sign out). The
+ * current bar is in `docs/gates/032/`.
  */
 
-const CAPTURE = process.env.QCMS_ADMIN_CAPTURE_GATE === "1";
-
 test.describe.configure({ mode: "serial" });
-test.skip(!CAPTURE, "gate capture runs only with QCMS_ADMIN_CAPTURE_GATE=1");
+test.skip(!CAPTURE_ENABLED, "gate capture runs only with QCMS_ADMIN_CAPTURE_GATE=1");
 
 const EMAIL = uniqueAdminEmail("gate");
-const OUT_DIR = "docs/gates/055";
-const WIDTHS = [390, 1280] as const;
-const MODES = ["light", "dark", "hc"] as const;
+const MODES = CAPTURE_MODES;
+const capture = captureInto("docs/gates/055");
 
 let totpSecret = "";
 
 test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
 });
-
-/**
- * Wait until React has finished hydrating before touching the DOM.
- *
- * Not defensive padding: `hideDevChrome` below removes `nextjs-portal`, which is a
- * React-owned element, and doing that while hydration is still in flight made React report
- * a hydration mismatch on an unrelated input (`style={{caret-color:"transparent"}}` against
- * `style={undefined}`) - which the shared console gate correctly failed the run on. Waiting
- * removes the race rather than allowlisting its symptom.
- *
- * React tags every host node it owns with a `__reactFiber$...` property when it hydrates, so
- * the presence of one is the attachment signal itself rather than a proxy for it. Every
- * screen captured here renders at least one `<button>`, so that is the probe.
- */
-async function waitForHydration(page: import("@playwright/test").Page): Promise<void> {
-  await page.waitForFunction(() => {
-    const button = document.querySelector("button");
-    if (button === null) return false;
-    return Object.keys(button).some((key) => key.startsWith("__reactFiber$"));
-  });
-}
-
-/**
- * Remove the Next dev-tools indicator. It lives in a custom element Next injects
- * (`nextjs-portal`) plus a couple of legacy ids, and it is only present under `next dev`,
- * so every selector here is expected to match nothing in a production build.
- */
-async function hideDevChrome(page: import("@playwright/test").Page): Promise<void> {
-  await page.evaluate(() => {
-    for (const selector of ["nextjs-portal", "#__next-build-watcher", "[data-nextjs-toast]"]) {
-      for (const element of Array.from(document.querySelectorAll(selector))) element.remove();
-    }
-  });
-}
-
-/** Capture one named state at both widths. */
-async function capture(page: import("@playwright/test").Page, name: string): Promise<void> {
-  await waitForHydration(page);
-  for (const width of WIDTHS) {
-    await page.setViewportSize({ width, height: width === 390 ? 844 : 800 });
-    await hideDevChrome(page);
-    await page.screenshot({ path: `${OUT_DIR}/${name}-${width}.png`, fullPage: true });
-  }
-  // Leave the page at the wide viewport so the next navigation starts from a known shape.
-  await page.setViewportSize({ width: 1280, height: 800 });
-}
 
 test("enrolls the account the rest of the capture signs in with", async ({ page }) => {
   await submitSignIn(page, EMAIL);

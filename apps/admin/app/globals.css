@@ -259,82 +259,496 @@ th,
 }
 
 /*
- * THE MODE CONTROL (task 055).
+ * THE TOPBAR'S TRAILING GROUP (task 032; supersedes 055's three-chip mode control).
  *
- * Structure and behaviour are the portal's segmented control (task 053), for the
- * same reasons: a native radio group in a fieldset/legend gets roving tab order,
- * arrow-key traversal, the group name announced with each option and the "N of 3"
- * position count from the browser, none of which then has to be reimplemented. The
- * input is invisible but real and stretched over the whole chip, so the WCAG 2.5.8
- * target and the visible chip are the same rectangle.
+ * Two 32px controls and nothing else: an icon-only appearance trigger and a circular
+ * account monogram, each opening a menu. The shapes below are the frozen design card
+ * (`plan/admin-theme/ds-navbar.html`, sections "Appearance mode control" and "Account
+ * menu"); the card is the authority, not this file, and a change belongs there first.
  *
- * The selected chip is never colour-only - a heavier border, a bolder label and a
- * check glyph survive high-contrast, where the palette collapses to two colours and
- * where the operator most needs to see which mode they are in.
+ * Both menus are react-aria `MenuTrigger` popovers, so the popover is PORTALLED to
+ * the document body and is never a descendant of `.qcms-appearance` or
+ * `.qcms-account`. That is why every `.qcms-menu*` rule below is written at document
+ * scope rather than nested under either: nesting them would have styled nothing, and
+ * the failure would have looked like a specificity problem rather than a tree one.
+ *
+ * State comes off react-aria's own data attributes (`data-hovered`, `data-focused`,
+ * `data-selected`, `data-pressed`) plus `aria-expanded` on the triggers, so nothing
+ * here duplicates state the component already publishes.
  */
-.qcms-mode {
-  margin: 0;
-  padding: 0;
-  border: 0;
-  min-inline-size: 0;
+
+/* The appearance trigger: BORDERLESS AND FILL-LESS AT REST, deliberately. The glyph
+   alone is the button; the 32px box exists as the hit area (WCAG 2.5.8) and as the
+   shape hover and focus draw. `--color-ghost` is `transparent` in every mode, so
+   naming it rather than writing `none` keeps the surface a token decision. */
+.qcms-modetrigger {
+  inline-size: 32px;
+  block-size: 32px;
+  /* Opt out of the 40px control floor the bare `button` rule sets. A `min-block-size`
+     beats a `block-size`, so without this the trigger renders 32 wide by 40 tall and
+     the square becomes a rectangle. The floor is right for controls a pointer aims at
+     in a form; these two topbar triggers are 32px by design, per the card. */
+  min-block-size: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  /* Circular, to match the avatar beside it. At rest this is invisible - the surface is
+     transparent - so the radius only ever shows as the shape hover and focus draw, and a
+     4px-radius square lighting up next to a circular one read as two unrelated controls
+     (Code Owner, 2026-08-01). The card names `--radius-control` here, from before the
+     avatar became a disc; the app follows the pair as it now is. */
+  border-radius: 50%;
+  background-color: var(--color-ghost);
+  color: var(--color-text);
+  cursor: pointer;
+  flex-shrink: 0;
 }
-.qcms-mode__legend {
-  padding: 0;
+/* The fill holds while the menu is open, so the anchored popover visually connects
+   to something rather than floating off a bare glyph. */
+.qcms-modetrigger[data-hovered],
+.qcms-modetrigger[aria-expanded="true"] {
+  background-color: var(--color-ghost-hover);
+  /* The same ring the avatar draws. The card asks for "2px strong ring on both"; the
+     fill alone left the two triggers lighting up in different languages. */
+  box-shadow: 0 0 0 2px var(--color-border-strong);
+}
+/* High-contrast keeps a permanent border. A documented exception, not an oversight:
+   a borderless icon is exactly what an operator in this mode struggles to locate,
+   and boundaries are what the mode is for. */
+:root.hc .qcms-modetrigger {
+  border: 1px solid var(--color-border-strong);
+}
+
+/* The account trigger: a full circle, the one deliberate exception to this app's
+   sharp-corner character. It is an identity glyph, not a control surface. */
+.qcms-avatar {
+  inline-size: 32px;
+  block-size: 32px;
+  /* Same opt-out as the appearance trigger, and here it is visible rather than subtle:
+     with the 40px floor applied, a `border-radius: 50%` box 32 wide by 40 tall reads as
+     an elongated oval instead of the intended circle. */
+  min-block-size: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background-color: var(--color-primary);
+  color: var(--color-primary-foreground);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.qcms-avatar[data-hovered],
+.qcms-avatar[aria-expanded="true"] {
+  box-shadow: 0 0 0 2px var(--color-border-strong);
+  /* The disc itself lifts too. A ring alone around an already-solid shape barely reads
+     as a state change, so the monogram did not look interactive next to the appearance
+     trigger, whose whole surface fills (Code Owner, 2026-08-01). */
+  background-color: var(--color-primary-hover);
+}
+:root.hc .qcms-avatar {
+  border: 1px solid var(--color-border-strong);
+}
+
+/* The shared menu surface. Both menus use it: one recipe, not two that drift. */
+.qcms-menu {
+  min-inline-size: 180px;
+  padding: 6px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-card);
+  background-color: var(--color-surface);
+  box-shadow:
+    0 2px 4px hsl(var(--shadow-color) / 0.1),
+    0 30px 70px -30px hsl(var(--shadow-color) / 0.4);
+}
+:root.hc .qcms-menu {
+  box-shadow: none;
+}
+.qcms-menu__list {
+  outline: none;
+}
+.qcms-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  inline-size: 100%;
+  block-size: 38px;
+  padding-inline: 10px;
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-size: 0.9rem;
+  text-align: start;
+  text-decoration: none;
+  cursor: pointer;
+  outline: none;
+}
+/* react-aria moves `data-focused` with the pointer as well as the keyboard, so this
+   one rule is both the hover and the arrow-key highlight. */
+.qcms-menu__item[data-focused],
+.qcms-menu__item[data-hovered] {
+  background-color: var(--color-ghost-hover);
+}
+/* Never colour alone (WCAG 1.4.1). Three signals carry the chosen mode: the check
+   glyph in the markup, the weight here, and the inset accent edge - and all three
+   survive high-contrast, which is the mode where an operator most needs to read it. */
+.qcms-menu__item[data-selected] {
+  font-weight: 600;
+  box-shadow: inset 2px 0 0 var(--color-border-strong);
+}
+:root.hc .qcms-menu__item[data-selected] {
+  box-shadow: inset 2px 0 0 var(--color-primary);
+}
+/* Always present and always this wide, so choosing a row moves no text. */
+.qcms-menu__check {
+  inline-size: 1em;
+  flex-shrink: 0;
+  font-weight: 700;
+}
+.qcms-menu__sep {
+  block-size: 1px;
+  margin: 6px 4px;
+  border: 0;
+  background-color: var(--color-border);
+}
+/* The account menu's header. The full email lives here, which is what lets the
+   trigger be two letters. */
+.qcms-menu__info {
+  display: block;
+  padding: 6px 10px 8px;
+}
+.qcms-menu__who {
+  display: block;
   font-size: 0.75rem;
   color: var(--color-text-muted);
 }
-.qcms-mode__row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
-  margin-block-start: 0.2rem;
+.qcms-menu__email {
+  display: block;
+  overflow: hidden;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.qcms-mode__chip {
-  position: relative;
+
+/*
+ * The no-JS sign-out fallback (Code Owner decision, 2026-07-31).
+ *
+ * Rendered on every page and hidden here; the `<noscript>` block in `app/layout.tsx`
+ * reveals it and hides both menu triggers. `display: none` does not stop
+ * `requestSubmit()`, so the scripted account menu submits this very form - one
+ * sign-out path in the app, not two.
+ */
+.qcms-signout-fallback {
+  display: none;
+}
+.qcms-signout-fallback__button {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
   min-block-size: var(--admin-control-h);
   padding-inline: var(--admin-control-pad-x);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-control);
-  background-color: var(--color-surface);
+  background-color: var(--color-ghost);
   color: var(--color-text);
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   cursor: pointer;
 }
-.qcms-mode__chip:hover {
+.qcms-signout-fallback__button:hover {
   background-color: var(--color-ghost-hover);
 }
-.qcms-mode__input {
-  position: absolute;
-  inset: 0;
-  inline-size: 100%;
-  block-size: 100%;
-  min-block-size: 0;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  opacity: 0;
-  cursor: pointer;
+
+/*
+ * QUESTION LIBRARY (task 032). The classes below style the question list,
+ * detail, edit and version-history screens: a status tag, the monospace id
+ * heading, plain and button-styled links, a scrollable table wrapper, the
+ * filter form, fieldset grouping, the constraints grid, the option list
+ * editor, the id derivation callout, the version timeline row and a
+ * visually-hidden utility. Kept in one section because they land together
+ * and share the density and radius tokens above.
+ */
+
+/* A small inline status badge. Text is always spelled out (WCAG 1.4.1), so the
+   colour only reinforces what the label already says. Draft reads as neutral
+   information, published as success, deprecated as a warning - the three
+   semantic families each carry a subtle background plus a foreground tuned
+   for contrast on it. */
+.qcms-tag {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding-inline: 0.4em;
+  padding-block: 0.1em;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
 }
-/* Focus lands on the hidden input, so the visible ring is drawn on the chip. */
-.qcms-mode__chip:has(.qcms-mode__input:focus-visible) {
-  outline: 2px solid var(--color-focus-ring);
-  outline-offset: 2px;
+.qcms-tag--draft {
+  background-color: var(--color-info-subtle);
+  color: var(--color-info-fg);
+  border-color: var(--color-info-subtle);
 }
-.qcms-mode__chip[data-selected="true"] {
+.qcms-tag--published {
+  background-color: var(--color-success-subtle);
+  color: var(--color-success-fg);
+  border-color: var(--color-success-subtle);
+}
+.qcms-tag--deprecated {
+  background-color: var(--color-warning-subtle);
+  color: var(--color-warning-fg);
+  border-color: var(--color-warning-subtle);
+}
+/* Subtle backgrounds collapse toward the page background in high contrast, so
+   the border does the differentiating work there instead: thicker, and the
+   universal strong-border token rather than the (now invisible) tint. */
+:root.hc .qcms-tag {
   border-width: 2px;
-  border-color: var(--color-primary);
+  border-color: var(--color-border-strong);
+}
+
+/* The question id heading on the detail screen (e.g. q_at_fault_accident).
+   Monospace so the id reads as an identifier, sized like a heading without
+   being shouty, and tracked tighter than prose since mono glyphs already run
+   wide. */
+.qcms-question-id {
+  font-family: var(--font-mono);
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+}
+
+/* A plain inline text link (back links, "Clear filters"). The focus ring
+   comes from the app-wide :where(a, button, ...) rule above; this class only
+   owns colour and the hover underline. */
+.qcms-text-link {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+.qcms-text-link:hover {
+  text-decoration: underline;
+}
+
+/* An <a> styled as the vendored kit's primary button ("New question"), built
+   from the same density tokens every real button uses so the two are
+   indistinguishable. */
+.qcms-button-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: var(--admin-control-h);
+  padding-inline: var(--admin-control-pad-x);
+  border-radius: var(--radius-control);
   background-color: var(--color-primary);
   color: var(--color-primary-foreground);
   font-weight: 600;
+  text-decoration: none;
 }
-/* Always present and always this wide, so selecting a chip moves no text. */
-.qcms-mode__mark {
-  display: inline-block;
-  inline-size: 0.85em;
-  text-align: center;
+.qcms-button-link:hover {
+  background-color: var(--color-primary-hover);
+}
+.qcms-button-link:active {
+  background-color: var(--color-primary-active);
+}
+
+/* Wraps the vendored Table so a wide question grid scrolls inside its own
+   box rather than the page body scrolling sideways. React-aria rows here are
+   interactive (they navigate to the question), so give [role="row"] a hover
+   background and pointer cursor - scoped to this wrapper only, never the
+   portal's own tables. */
+.qcms-table {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+}
+.qcms-table [role="row"]:hover {
+  background-color: var(--color-surface-hover);
+  cursor: pointer;
+}
+
+/* The GET filter form. The outer element stacks its row(s) with the app's
+   standard rhythm; the row itself is a wrapping flex line with fields
+   aligned to their own bottom edge, so the submit button lines up with the
+   bottom of the inputs beside it regardless of whether a field also carries
+   a label above it. Fields (everything but the submit control) get a
+   sensible floor so they never collapse to an unreadable width when the row
+   wraps. */
+.qcms-filters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--admin-stack);
+}
+.qcms-filters__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--admin-stack);
+}
+.qcms-filters__row > *:not(button):not(a) {
+  min-inline-size: 10rem;
+}
+
+/* A bordered grouping box (constraints panel, option list) and its flat
+   variant, which keeps the accessible fieldset/legend semantics for the
+   filter form without drawing a visible box around it. */
+.qcms-fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--admin-stack);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: var(--admin-section-pad);
+}
+.qcms-fieldset__legend {
+  padding: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+.qcms-fieldset--flat {
+  border: 0;
+  padding: 0;
+}
+
+/* A responsive two-column grid of constraint controls. __wide spans every
+   column for a control that does not fit the two-up layout (e.g. a helper
+   message field). */
+.qcms-constraints {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--admin-stack);
+}
+.qcms-constraints__wide {
+  grid-column: 1 / -1;
+}
+
+/* One row of the option list editor. Wraps on narrow screens, aligned to the
+   bottom edge so the up/down/remove buttons sit level with the label field.
+   __id is the immutable option id: a small monospace chip that reads as
+   fixed rather than editable; __label grows to fill the remaining space. */
+/* One row of the option list editor. Wraps on narrow screens, aligned to the
+   bottom edge so the up/down/remove buttons sit level with the label field.
+   __id is the immutable option id: a small monospace chip that reads as
+   fixed rather than editable; __label grows to fill the remaining space. */
+.qcms-option-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--admin-stack);
+}
+.qcms-option-row__id {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  background-color: var(--color-background-muted);
+  border-radius: var(--radius-sm);
+  padding-inline: 0.4em;
+  padding-block: 0.2em;
+}
+.qcms-option-row__label {
+  flex: 1;
+  min-inline-size: 12rem;
+}
+
+/* The "new option label + Add option" row under the list, set off from it by
+   a top border. */
+.qcms-option-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--admin-stack);
+  border-block-start: 1px solid var(--color-border);
+  padding-block-start: var(--admin-stack);
+}
+
+/* The permanent-id callout on the creation screen. A muted, bordered box;
+   __value is the id itself, sized up and set in the app's default text
+   colour so it reads as the important content of the box, with a wrap
+   rule so a long slug never overflows it. */
+.qcms-id-callout {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background-color: var(--color-background-muted);
+  padding: var(--admin-section-pad);
+}
+.qcms-id-callout__value {
+  display: block;
+  margin-block-start: 0.25rem;
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+/* One row of the version timeline. A full-width link at the dense row
+   height, with the currently selected version marked by more than colour
+   alone (WCAG 1.4.1): heavier weight, a left accent bar and a muted
+   background, driven off aria-current rather than a class so the state
+   can never drift from the accessible name. */
+.qcms-version-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--admin-stack);
+  min-block-size: var(--admin-table-row-h);
+  padding-inline: var(--admin-control-pad-x);
+  border-radius: var(--radius-control);
+  color: var(--color-text);
+  text-decoration: none;
+}
+.qcms-version-row:hover {
+  background-color: var(--color-ghost-hover);
+}
+.qcms-version-row[aria-current="true"] {
+  background-color: var(--color-background-muted);
+}
+.qcms-version-row[aria-current="true"]::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  inline-size: 3px;
+  background-color: var(--color-primary);
+  border-radius: var(--radius-sm);
+}
+.qcms-version-row__name {
+  flex-shrink: 0;
+  font-weight: 400;
+}
+.qcms-version-row[aria-current="true"] .qcms-version-row__name {
+  font-weight: 600;
+}
+
+/* The window onto the shared A2UI renderer: it draws a respondent-facing
+   control, which is deliberately not this screen's own surface, so the
+   border and background break from .qcms-card rather than matching it. */
+.qcms-preview {
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-card);
+  background-color: var(--color-background);
+  padding: var(--admin-section-pad);
+}
+
+/* Standard clip-rect visually hidden utility: present for assistive tech,
+   removed from the visual layout without display:none, which would also
+   remove it from the accessibility tree. */
+.qcms-visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {

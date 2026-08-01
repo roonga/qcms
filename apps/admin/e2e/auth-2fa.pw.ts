@@ -3,9 +3,13 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 import { TEST_PASSWORD, createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { ADMIN_BASE_URL } from "./support/harness-config.js";
 import {
+  accountTrigger,
+  appearanceTrigger,
   fillStable,
+  openMenu,
   readSetupKey,
   signInWithTotp,
+  signOut,
   submitRecoveryCode,
   submitSignIn,
   submitTotp,
@@ -176,8 +180,7 @@ test("the session persists across navigation and reload, then sign-out ends it",
   await page.reload();
   await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
 
-  await page.getByRole("button", { name: "Sign out" }).click();
-  await expect(page).toHaveURL(/\/sign-in$/);
+  await signOut(page);
   // Server-side invalidation, not just a cleared cookie: the shell is gone for good.
   await page.goto("/questions");
   await expect(page).toHaveURL(/\/sign-in$/);
@@ -193,8 +196,7 @@ test("a recovery code signs in once and then never again", async ({ page }) => {
   await submitRecoveryCode(page, code!);
   await expect(page).toHaveURL(/\/questions$/);
 
-  await page.getByRole("button", { name: "Sign out" }).click();
-  await expect(page).toHaveURL(/\/sign-in$/);
+  await signOut(page);
 
   // Single use is the whole security property of a recovery code, so a passing happy path
   // proves nothing without this.
@@ -213,14 +215,14 @@ test("a second recovery code still works, and the TOTP factor is unaffected", as
   await page.goto("/two-factor/recovery");
   await submitRecoveryCode(page, code!);
   await expect(page).toHaveURL(/\/questions$/);
-  await page.getByRole("button", { name: "Sign out" }).click();
-  // Wait for sign-out to land before starting the next flow. `click()` returns once the
-  // navigation is *initiated*, so without this the sign-out POST is still in flight when
-  // `signInWithTotp` calls `goto("/sign-in")`, and the late response can replace the
-  // document between the code field being filled and Verify being clicked - which submits
-  // an empty field, and the browser's own `required` validation then blocks the submit
-  // with no navigation and no server error to show for it (the hazard flow.ts documents).
-  await expect(page).toHaveURL(/\/sign-in$/);
+  // `signOut` waits for sign-out to land before this test starts the next flow, and
+  // that wait is load-bearing: a click resolves once the navigation is *initiated*,
+  // so without it the sign-out POST is still in flight when `signInWithTotp` calls
+  // `goto("/sign-in")`, and the late response can replace the document between the
+  // code field being filled and Verify being clicked - which submits an empty field,
+  // and the browser's own `required` validation then blocks the submit with no
+  // navigation and no server error to show for it (the hazard flow.ts documents).
+  await signOut(page);
 
   // Redeeming recovery codes does not disturb the authenticator factor.
   await signInWithTotp(page, EMAIL, totpSecret);
@@ -237,4 +239,55 @@ test("changing the password reports success and keeps this session signed in", a
   await page.getByRole("button", { name: "Change password" }).click();
   await expect(page).toHaveURL(/\/settings\?error=1$/);
   await expect(page.getByRole("alert")).toContainText("Those details did not match");
+});
+
+test("the account menu names the operator and routes to the password screen", async ({ page }) => {
+  // Task 032. The trigger is two decorative letters, so everything an operator needs
+  // to know about which account is acting lives in the accessible name and in the
+  // menu's own header - and both are worth asserting, because a monogram that names
+  // the wrong session is worse than no monogram at all.
+  await signInWithTotp(page, EMAIL, totpSecret);
+  const trigger = accountTrigger(page);
+  await expect(trigger).toHaveAccessibleName(`Account menu for ${EMAIL}`);
+
+  await openMenu(trigger);
+  const menu = page.getByRole("menu");
+  // The full email lives here, which is what lets the trigger be a circle. It sits in
+  // the popover BESIDE the menu rather than inside it, on purpose: it labels the menu
+  // and is not a stop in it, so it is located from the popover and not from the menu.
+  await expect(page.locator(".qcms-menu .qcms-menu__email")).toHaveText(EMAIL);
+  // The header is a label, not a stop: exactly two items are reachable.
+  await expect(menu.getByRole("menuitem")).toHaveText(["Change password", "Sign out"]);
+
+  await menu.getByRole("menuitem", { name: "Change password" }).click();
+  await expect(page).toHaveURL(/\/settings#change-password$/);
+  await expect(page.getByLabel("Current password")).toBeVisible();
+});
+
+test.describe("without JavaScript", () => {
+  test.use({ javaScriptEnabled: false });
+
+  test("sign-out still works, and the menu triggers are gone", async ({ page }) => {
+    // The Code Owner's 2026-07-31 decision, and the reason a `<noscript>` block exists
+    // at all: a menu cannot open without scripts, so moving sign-out into one would
+    // have removed the ability to END A SESSION on a machine where scripts are
+    // blocked. The auth screens were always native forms, so the whole loop below runs
+    // with no client JavaScript whatsoever.
+    await signInWithTotp(page, EMAIL, totpSecret);
+
+    // Both triggers are hidden by the noscript rule: a control an operator can focus
+    // but never open is worse than no control at all.
+    await expect(appearanceTrigger(page)).toBeHidden();
+    await expect(accountTrigger(page)).toBeHidden();
+
+    // And the fallback is the same POST the scripted menu item submits, not a second
+    // sign-out path with its own behaviour to get wrong.
+    const fallback = page.getByRole("button", { name: "Sign out" });
+    await expect(fallback).toBeVisible();
+    await Promise.all([page.waitForURL(/\/sign-in/), fallback.click()]);
+
+    // Server-side invalidation, exactly as in the scripted path.
+    await page.goto("/questions");
+    await expect(page).toHaveURL(/\/sign-in$/);
+  });
 });
