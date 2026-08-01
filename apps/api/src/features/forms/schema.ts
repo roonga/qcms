@@ -108,6 +108,16 @@ export const UpdateFormSettingsBody = z
       .optional()
       .openapi({ example: 3000 }),
   })
+  // At least one field must be present. A partial body plus an all-absent body
+  // would make the helper's return value ambiguous downstream: `undefined` would
+  // mean either "no such form" (a 404) or "nothing asked for" (a 200), two
+  // different answers behind one sentinel. Rejecting the empty patch at the
+  // schema boundary keeps `undefined` meaning exactly "no such form", so the
+  // handler needs no pre-read to tell the two apart.
+  .refine(
+    (body) => body.challengeRequired !== undefined || body.minSubmitMs !== undefined,
+    "Provide at least one of challengeRequired or minSubmitMs",
+  )
   .openapi("UpdateFormSettingsBody");
 
 /** The per-form abuse-control settings, as every read and the patch return them. */
@@ -120,24 +130,52 @@ export const FormSettings = z
   })
   .openapi("FormSettings");
 
+/**
+ * The deployment's configured challenge provider (`deps.config.flags`).
+ *
+ * Typed as a plain string rather than the config union on purpose: the admin
+ * panel only needs to compare it against `"none"` to warn that a form's
+ * `challengeRequired` is unenforceable (033's settings panel, task line 18).
+ * Pinning the wire type to today's provider names would make adding a provider a
+ * breaking API change for a field nobody switches on exhaustively.
+ */
+const ChallengeProvider = z.string().openapi({ example: "none" });
+
 /** `PATCH /admin/forms/:id/settings` result: the settings as they now stand. */
 export const FormSettingsResponse = z
-  .object({ formId: z.string().openapi({ example: "frm_signup" }), settings: FormSettings })
+  .object({
+    formId: z.string().openapi({ example: "frm_signup" }),
+    settings: FormSettings,
+    challengeProvider: ChallengeProvider,
+  })
   .openapi("FormSettingsResponse");
 
-/** `POST .../draft/preview-condition` result: does the condition match, or why not. */
+/**
+ * `POST .../draft/preview-condition` result: did the condition match, or why the
+ * bench could not answer.
+ *
+ * `outcome` is deliberately tri-state rather than a nullable boolean: "could not
+ * evaluate" must not be readable as "no match". The bench is a read-only aid over
+ * a draft that may be half-built, so being unable to answer is an ordinary,
+ * frequent state that the panel has to render differently from a real `noMatch`.
+ * `reason` is the single error channel and is present only when `outcome` is
+ * `"unavailable"`.
+ */
 export const PreviewConditionResponse = z
   .object({
     ruleId: z.string().openapi({ example: "rul_accident_followup" }),
-    /** The question ids the condition reads, in the draft's document order. */
+    /**
+     * The question ids the condition reads: those the draft pins first, in the
+     * draft's document order, then any it does not pin. The bench prompts for
+     * these; an unpinned one has no resolvable version, so it reads as unanswered.
+     */
     references: z.array(z.string()),
-    /** `true`/`false` when the condition could be evaluated, `null` when it could not. */
-    matches: z.boolean().nullable().openapi({ example: true }),
-    /** The kernel's typed evaluation error, or `null`. Names ids, never values. */
-    error: z
-      .object({ code: z.string(), message: z.string() })
-      .nullable()
-      .openapi({ example: null }),
+    outcome: z.enum(["match", "noMatch", "unavailable"]).openapi({ example: "match" }),
+    /** Why the bench could not answer. Present only when `outcome` is `unavailable`. */
+    reason: z
+      .enum(["unparseableDraft", "ruleNotFound", "noTarget", "unresolvedAnswers"])
+      .optional()
+      .openapi({ example: "ruleNotFound" }),
   })
   .openapi("PreviewConditionResponse");
 
@@ -205,6 +243,12 @@ export const FormDetailResponse = z
     versions: z.array(FormVersionSummary),
     /** The per-form abuse-control settings (026), which the builder panel edits (033). */
     settings: FormSettings,
+    /**
+     * The deployment's challenge provider. Carried on the detail read, not only
+     * on a settings write, because the panel has to warn that `challengeRequired`
+     * is unenforceable while the provider is `"none"` the moment the form opens.
+     */
+    challengeProvider: ChallengeProvider,
   })
   .openapi("FormDetailResponse");
 
