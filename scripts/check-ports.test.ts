@@ -60,17 +60,37 @@ describe("exemption matching", () => {
   });
 });
 
+/**
+ * Sample ports for the detector cases, kept as numbers and interpolated in.
+ *
+ * Deliberately not written as literals inside the sample strings: this file is
+ * tracked, the gate scans tracked files, and a fixture spelling one of these out in
+ * port syntax would be a real finding in its own source (it was, twice, while this
+ * test was being written). Composing the text at runtime exercises
+ * exactly the same code path without needing an ALLOWED entry - and NOT adding one
+ * matters, because a blanket exemption on the gate's own test is precisely the hole
+ * the exact-match fix above exists to close.
+ */
+const IN_URL = 9999;
+const IN_ASSIGNMENT = 8888;
+const IN_FLAG = 7777;
+
 describe("port detection", () => {
   it("finds a port where the syntax says it is one", () => {
     const found = portsIn(
-      ['const url = "http://localhost:9999/x";', "  PORTAL_PORT = 8888", "run --port 7777"].join(
-        "\n",
-      ),
+      [
+        `const url = "http://localhost:${String(IN_URL)}/x";`,
+        `  PORTAL_PORT = ${String(IN_ASSIGNMENT)}`,
+        `run --port ${String(IN_FLAG)}`,
+      ].join("\n"),
     );
-    // Deduplicated: one number can match more than one pattern (`--port 7777` is
-    // both the flag form and the prose form), which is fine - the gate reports a
-    // finding either way.
-    expect([...new Set(found.map((entry) => entry.port))].sort()).toEqual([7777, 8888, 9999]);
+    // Deduplicated: one number can match more than one pattern (the flag form is
+    // also the prose form), which is fine - the gate reports a finding either way.
+    expect([...new Set(found.map((entry) => entry.port))].sort()).toEqual([
+      IN_FLAG,
+      IN_ASSIGNMENT,
+      IN_URL,
+    ]);
   });
 
   it("ignores four-digit numbers that are not ports", () => {
