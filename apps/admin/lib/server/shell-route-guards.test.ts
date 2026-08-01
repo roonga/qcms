@@ -35,7 +35,11 @@ import { describe, expect, it } from "vitest";
  *
  * 1. Every exported function in a `route.ts` under `(shell)` calls
  *    `requireAdminSessionForRequest()` - the guard that answers with a 303 rather than
- *    the 307 a thrown `redirect()` produces (which would re-post the credential).
+ *    the 307 a thrown `redirect()` produces (which would re-post the credential) - and
+ *    **uses the `Response` it hands back**, by narrowing on `instanceof Response` or by
+ *    returning it. That guard returns its refusal instead of throwing, so calling it and
+ *    discarding the answer is a call site that compiles, lints clean, and continues
+ *    unauthenticated.
  * 2. Every exported function in a `"use server"` module under `(shell)` calls
  *    `requireAdminSession()`.
  * 3. A state-changing route handler also calls `isSameOriginPost()` (SEC-9's CSRF belt),
@@ -47,6 +51,10 @@ import { describe, expect, it } from "vitest";
  * 4. Every `export` in those files is in a shape rules 1-3 can actually see. A guard the
  *    scanner cannot read is a guard this test cannot vouch for, so an unfamiliar export
  *    fails loudly and asks to be added here rather than passing silently.
+ *
+ * All four read a handler's **own** body: its `export` line to its own closing brace,
+ * comments removed (see {@link handlerBody}). Neither a neighbour's JSDoc nor a prose
+ * mention of a guard's name earns a pass.
  *
  * Auth-flow handlers (`app/sign-in/submit`, `app/two-factor/**`) sit **outside** the
  * group on purpose and are not scanned: requiring a completed, enrolled session is
@@ -94,8 +102,15 @@ interface HandlerFile {
   readonly kind: "route" | "action";
 }
 
-/** The two spellings of the directive that makes a module a server-action module. */
-const USE_SERVER = new Set(['"use server";', "'use server';"]);
+/**
+ * The spellings of the directive that makes a module a server-action module.
+ *
+ * The semicolon-less pair is here because omitting it is a *silent skip* rather than a
+ * failure: an `actions.ts` the scanner does not recognise is simply never scanned. Prettier's
+ * `semi: true` makes that unlikely under `lint`, but a tripwire whose miss mode is silence
+ * should not depend on a formatter (raised in review of PR #250).
+ */
+const USE_SERVER = new Set(['"use server";', "'use server';", '"use server"', "'use server'"]);
 
 /**
  * Whether a module declares `"use server"`.
@@ -134,9 +149,16 @@ function handlerFiles(dir: string, prefix = ""): HandlerFile[] {
   return out;
 }
 
+/** A closing brace in the first column: where a top-level function body ends. */
+const BODY_END = /^\}/;
+/** A line whose content is a comment, in any of the three spellings Prettier produces. */
+const COMMENT_LINE = /^\s*(?:\/\/|\/\*|\*)/;
+/** A trailing `//` comment. The leading `(^|\s)` keeps it off the `//` in a URL literal. */
+const TRAILING_COMMENT = /(^|\s)\/\/.*$/;
+
 interface ExportedFunction {
   readonly name: string;
-  /** The source from this function's `export` keyword to the start of the next one. */
+  /** This function's own code: its `export` line to its own closing brace, comments removed. */
   readonly body: string;
 }
 
@@ -150,8 +172,54 @@ function exportedFunctions(source: string): ExportedFunction[] {
   }
   return starts.map((start, position) => ({
     name: start.name,
-    body: lines.slice(start.line, starts[position + 1]?.line ?? lines.length).join("\n"),
+    body: handlerBody(lines, start.line, starts[position + 1]?.line ?? lines.length),
   }));
+}
+
+/**
+ * The code of the handler starting at `start`, bounded by its own closing brace.
+ *
+ * Two bounds, closing two different halves of the same defect (found in review of #250).
+ *
+ * **The brace, not the next `export` line.** Slicing forward to the next handler's export
+ * line attributes everything in between to the earlier handler: blank lines, private
+ * helpers, and the next handler's JSDoc. Since JSDoc here names the guards, an unguarded
+ * handler placed *above* a documented neighbour inherited its neighbour's paperwork and
+ * passed every rule. `/^\}/` is the closing brace of a top-level function and nothing
+ * else: Prettier indents every nested one, so the first column-0 `}` after the `export`
+ * line ends the body exactly.
+ *
+ * **Comments removed.** All three rules are substring matches, so a body may not earn a
+ * pass from prose. Without this, `// requireAdminSessionForRequest() is not needed here`
+ * inside the handler satisfies rule 1 as readily as calling it.
+ *
+ * A body no closing brace bounds (an unformatted file, or a shape this parser was not
+ * written for) is reported as empty, which fails rules 1-3 naming the handler. Fail
+ * closed and loud: the point of rule 4 is that a guard the scanner cannot read is a
+ * guard this test cannot vouch for.
+ */
+function handlerBody(lines: string[], start: number, limit: number): string {
+  const end = lines.findIndex((line, index) => index > start && BODY_END.test(line));
+  if (end === -1 || end > limit) return "";
+  return stripComments(lines.slice(start, end + 1)).join("\n");
+}
+
+/** The given lines with comment lines dropped and trailing comments cut. */
+function stripComments(lines: string[]): string[] {
+  const code: string[] = [];
+  let inBlockComment = false;
+  for (const line of lines) {
+    if (inBlockComment) {
+      if (line.includes("*/")) inBlockComment = false;
+      continue;
+    }
+    if (COMMENT_LINE.test(line)) {
+      inBlockComment = line.trimStart().startsWith("/*") && !line.includes("*/");
+      continue;
+    }
+    code.push(line.replace(TRAILING_COMMENT, ""));
+  }
+  return code;
 }
 
 /**
@@ -174,6 +242,46 @@ function uncheckedMutatingHandlers(source: string): string[] {
     .filter((handler) => MUTATING_VERBS.has(handler.name))
     .filter((handler) => !handler.body.includes(SAME_ORIGIN_CHECK))
     .map((handler) => handler.name);
+}
+
+/**
+ * The two ways a route handler may honour the `Response` its guard hands back.
+ *
+ * `requireAdminSessionForRequest()` **returns** the refusal rather than throwing it, which
+ * is what lets a route handler answer 303 rather than the 307 a thrown `redirect()`
+ * produces. The cost is that ignoring the return value compiles and lints clean, and
+ * `await requireAdminSessionForRequest();` is exactly the transliteration of the bare
+ * `await requireAdminSession();` an author writes in a page or an action that does not
+ * need the session object. So rule 1 asks for the answer to be used, not only for the
+ * call to appear: either narrowed on with `instanceof Response`, or returned directly.
+ */
+const NARROWS_REFUSAL = "instanceof Response";
+const RETURNS_REFUSAL = [`return ${ROUTE_GUARD}`, `return await ${ROUTE_GUARD}`];
+
+/** Whether a route handler's body does something with the refusal its guard returns. */
+function usesRefusal(body: string): boolean {
+  return (
+    body.includes(NARROWS_REFUSAL) || RETURNS_REFUSAL.some((spelling) => body.includes(spelling))
+  );
+}
+
+/**
+ * The handlers of a module whose own body does not stop an unauthenticated request.
+ *
+ * Rules 1 and 2, as a named predicate so the fixtures below can exercise them the same
+ * way the scan over `(shell)` does. A server action needs only the call: its guard throws
+ * `redirect()`, so there is no returned answer to discard.
+ */
+function unguardedHandlers(source: string, kind: HandlerFile["kind"]): string[] {
+  const guard = kind === "route" ? ROUTE_GUARD : ACTION_GUARD;
+  return exportedFunctions(source)
+    .filter((handler) => !handler.body.includes(guard) || !honoursGuard(handler.body, kind))
+    .map((handler) => handler.name);
+}
+
+/** The extra thing rule 1 asks of a route handler, and rule 2 does not ask of an action. */
+function honoursGuard(body: string, kind: HandlerFile["kind"]): boolean {
+  return kind !== "route" || usesRefusal(body);
 }
 
 /** Exports rule 4 refuses: anything that is neither a scannable handler nor plain data. */
@@ -208,13 +316,8 @@ describe("issue #177: request handlers under app/(shell) carry their own session
   });
 
   it.each(files)("$path guards every exported handler (rules 1 and 2)", (file) => {
-    const guard = file.kind === "route" ? ROUTE_GUARD : ACTION_GUARD;
-    const handlers = exportedFunctions(file.source);
-    expect(handlers.length).toBeGreaterThan(0);
-    const unguarded = handlers
-      .filter((handler) => !handler.body.includes(guard))
-      .map((h) => h.name);
-    expect(unguarded).toEqual([]);
+    expect(exportedFunctions(file.source).length).toBeGreaterThan(0);
+    expect(unguardedHandlers(file.source, file.kind)).toEqual([]);
   });
 
   it.each(files.filter((file) => file.kind === "route"))(
@@ -234,58 +337,106 @@ describe("issue #177: request handlers under app/(shell) carry their own session
   });
 });
 
-/**
- * Rule 3's own tests, over sources written here rather than files on disk.
+/*
+ * Fixtures for the rule tests below, over sources written here rather than files on disk.
  *
  * The rules above are only worth having while they fail against a broken shape, and the
- * two shapes rule 3 has to get right are ones no file in the tree has today: a route
- * handler that changes no state (must pass) and two mutating handlers where one checks
- * the origin and the other does not (must fail, naming the one that does not). Neither
- * can be demonstrated by scanning `(shell)`, so they are demonstrated on fixtures. Both
- * fail against the file-level `source.includes(...)` version of the rule this replaced.
+ * shapes that matter are ones no file in the tree has today: a second handler in an
+ * existing `route.ts`, a read-only handler, a handler that calls its guard and throws the
+ * answer away. None can be demonstrated by scanning `(shell)`, so they are written here.
  */
+
+const BELT_LINE = "  if (!isSameOriginPost(request)) return new Response(null, { status: 403 });";
+
+/** The correct call site: narrow on the type, return the refusal. */
+const GUARD_LINES = [
+  "  const session = await requireAdminSessionForRequest();",
+  "  if (session instanceof Response) return session;",
+];
+
+/** The misuse from the review: the guard runs, and its refusal is discarded. */
+const DISCARDED_GUARD_LINES = ["  void requireAdminSessionForRequest();"];
+
+/** Paperwork rather than a call: the guard's name appears only inside a comment. */
+const COMMENTED_GUARD_LINES = [
+  "  // requireAdminSessionForRequest() is not called here, and session instanceof Response",
+  "  // is therefore never checked either.",
+];
+
+/** How a fixture handler treats its session guard. */
+type GuardShape = "used" | "discarded" | "commented" | "absent";
+
+const GUARD_BODY: Readonly<Record<GuardShape, readonly string[]>> = {
+  used: GUARD_LINES,
+  discarded: DISCARDED_GUARD_LINES,
+  commented: COMMENTED_GUARD_LINES,
+  absent: [],
+};
+
+/**
+ * JSDoc naming both guards, which is the paperwork a neighbouring handler used to inherit.
+ *
+ * Every handler in this repo carries a comment in roughly this shape, which is what made
+ * the slice-to-the-next-export defect exploitable rather than theoretical.
+ */
+const DOC_LINES = [
+  "/**",
+  " * Documented neighbour.",
+  " *",
+  " * Calls requireAdminSessionForRequest() and returns it if it is instanceof Response,",
+  " * then checks isSameOriginPost(request) before changing anything.",
+  " */",
+];
+
+interface HandlerShape {
+  /** Whether the body calls SEC-9's `isSameOriginPost()`. Default: no. */
+  readonly belted?: boolean;
+  /** What the body does about the session guard. Default: uses it correctly. */
+  readonly guard?: GuardShape;
+  /** Whether a JSDoc block naming both guards precedes the `export` line. Default: no. */
+  readonly documented?: boolean;
+}
+
+/** One exported handler, in whichever of the shapes above the fixture asks for. */
+const handler = (verb: string, shape: HandlerShape = {}): string =>
+  [
+    ...(shape.documented === true ? DOC_LINES : []),
+    `export async function ${verb}(request: Request): Promise<Response> {`,
+    ...GUARD_BODY[shape.guard ?? "used"],
+    ...(shape.belted === true ? [BELT_LINE] : []),
+    "  return new Response(null, { status: 204 });",
+    "}",
+  ].join("\n");
+
+/**
+ * A `route.ts` as the scanner sees one: its imports, then the handlers given.
+ *
+ * Both imports appear in every fixture, including the ones with no belted handler.
+ * That is deliberate: it pins that an `import { isSameOriginPost }` line does not by
+ * itself satisfy rule 3 (the rule matches `isSameOriginPost(`, and an import names the
+ * symbol without calling it), which a fixture that only imported what it used could
+ * not show.
+ */
+const route = (...handlers: string[]): string =>
+  [
+    'import { isSameOriginPost } from "@/lib/server/origin";',
+    'import { requireAdminSessionForRequest } from "@/lib/server/session";',
+    "",
+    ...handlers,
+  ].join("\n\n");
+
 describe("issue #177 rule 3: origin checks are per handler, and only for state changes", () => {
-  const BELT_LINE = "  if (!isSameOriginPost(request)) return new Response(null, { status: 403 });";
-
-  /** One exported handler, session-guarded, belted with `isSameOriginPost()` if asked. */
-  const handler = (verb: string, { belted }: { belted: boolean }): string =>
-    [
-      `export async function ${verb}(request: Request): Promise<Response> {`,
-      "  const denied = await requireAdminSessionForRequest(request);",
-      "  if (denied !== null) return denied;",
-      ...(belted ? [BELT_LINE] : []),
-      "  return new Response(null, { status: 204 });",
-      "}",
-    ].join("\n");
-
-  /**
-   * A `route.ts` as the scanner sees one: its imports, then the handlers given.
-   *
-   * Both imports appear in every fixture, including the ones with no belted handler.
-   * That is deliberate: it pins that an `import { isSameOriginPost }` line does not by
-   * itself satisfy rule 3 (the rule matches `isSameOriginPost(`, and an import names the
-   * symbol without calling it), which a fixture that only imported what it used could
-   * not show.
-   */
-  const route = (...handlers: string[]): string =>
-    [
-      'import { isSameOriginPost } from "@/lib/server/origin";',
-      'import { requireAdminSessionForRequest } from "@/lib/server/session";',
-      "",
-      ...handlers,
-    ].join("\n\n");
-
   it("asks nothing of a route that exports only GET", () => {
     // The defect this replaced: the old rule required a mutating verb of every route.ts
     // under (shell), so a correct read-only handler would have failed a SEC-9 assertion
     // that does not apply to it. A tripwire that cries on correct code gets deleted.
-    expect(uncheckedMutatingHandlers(route(handler("GET", { belted: false })))).toEqual([]);
+    expect(uncheckedMutatingHandlers(route(handler("GET")))).toEqual([]);
   });
 
   it("names a mutating handler that free-rides on its neighbour's origin check", () => {
     // The hole this replaced: `source.includes(SAME_ORIGIN_CHECK)` is satisfied by POST's
     // check on DELETE's behalf, so this shape passed rule 3 while DELETE was unbelted.
-    const source = route(handler("POST", { belted: true }), handler("DELETE", { belted: false }));
+    const source = route(handler("POST", { belted: true }), handler("DELETE"));
     expect(uncheckedMutatingHandlers(source)).toEqual(["DELETE"]);
   });
 
@@ -294,5 +445,112 @@ describe("issue #177 rule 3: origin checks are per handler, and only for state c
     // merely existing.
     const source = route(handler("POST", { belted: true }), handler("DELETE", { belted: true }));
     expect(uncheckedMutatingHandlers(source)).toEqual([]);
+  });
+});
+
+/**
+ * A handler is judged on its own body, not on the text that happens to follow it.
+ *
+ * The review of PR #250 found the earlier parser attributed everything between one
+ * `export` line and the next to the first handler: blank lines, private helpers, and the
+ * next handler's JSDoc. Since JSDoc in this repo names the guards, an unguarded handler
+ * placed **above** a documented neighbour inherited its neighbour's paperwork and passed
+ * every rule. The regression table this file shipped with only ever added a handler in a
+ * new file or last in an existing one, so ordering was never varied and the hole stayed
+ * open in exactly the direction task 035's second handler would take.
+ */
+describe("issue #177: a handler is judged on its own body, whatever follows it", () => {
+  it("names an unguarded handler that sits above a documented neighbour (rule 1)", () => {
+    // The reviewer's proof, verbatim: a diligent author adds the SEC-9 belt and forgets
+    // the session guard, and puts the new verb first. Rules 1, 2, 3 and 4 all passed.
+    const source = route(
+      handler("DELETE", { guard: "absent", belted: true }),
+      handler("POST", { documented: true, belted: true }),
+    );
+    expect(unguardedHandlers(source, "route")).toEqual(["DELETE"]);
+  });
+
+  it("names an unbelted handler that sits above a documented neighbour (rule 3)", () => {
+    // Same defect, other rule: the neighbour's JSDoc names `isSameOriginPost()` too.
+    const source = route(handler("DELETE"), handler("POST", { documented: true, belted: true }));
+    expect(uncheckedMutatingHandlers(source)).toEqual(["DELETE"]);
+  });
+
+  it("does not let a handler ride a private helper defined after it", () => {
+    // The same slice swallowed anything between the two exports, not only comments.
+    const helper = [
+      "async function auditLog(request: Request): Promise<void> {",
+      "  const session = await requireAdminSessionForRequest();",
+      "  if (session instanceof Response) return;",
+      "  if (!isSameOriginPost(request)) return;",
+      "}",
+    ].join("\n");
+    const source = route(
+      handler("DELETE", { guard: "absent" }),
+      helper,
+      handler("POST", { belted: true }),
+    );
+    expect(unguardedHandlers(source, "route")).toEqual(["DELETE"]);
+    expect(uncheckedMutatingHandlers(source)).toEqual(["DELETE"]);
+  });
+
+  it("still passes a correctly guarded pair in either order", () => {
+    // Pins the failures above to the missing guard rather than to ordering itself.
+    const source = route(
+      handler("DELETE", { belted: true }),
+      handler("POST", { documented: true, belted: true }),
+    );
+    expect(unguardedHandlers(source, "route")).toEqual([]);
+    expect(uncheckedMutatingHandlers(source)).toEqual([]);
+  });
+});
+
+/**
+ * Calling the route guard is not enough: the handler has to use the answer.
+ *
+ * `requireAdminSessionForRequest()` *returns* the refusal rather than throwing it, which
+ * is what lets a route handler answer 303 instead of the 307 a thrown `redirect()`
+ * produces. The cost is that ignoring the return value compiles, lints clean, and reads
+ * like the `await requireAdminSession();` an author writes in a page or an action when
+ * they do not need the session object. Rule 1 is a substring match on the guard's name,
+ * so that transliteration used to pass while the request continued unauthenticated.
+ */
+describe("issue #177 rule 1: a route handler must use the refusal its guard returns", () => {
+  it("names a handler that calls the guard and discards its answer", () => {
+    const source = route(handler("DELETE", { guard: "discarded", belted: true }));
+    expect(unguardedHandlers(source, "route")).toEqual(["DELETE"]);
+  });
+
+  it("names a handler whose only mention of the guard is in a comment", () => {
+    const source = route(handler("DELETE", { guard: "commented", belted: true }));
+    expect(unguardedHandlers(source, "route")).toEqual(["DELETE"]);
+  });
+
+  it("accepts a handler that returns the guard's result directly", () => {
+    // The other honest shape: hand the refusal straight back. Both forms are accepted so
+    // the rule pins the answer being used, not one spelling of using it.
+    const source = [
+      'import { requireAdminSessionForRequest } from "@/lib/server/session";',
+      "",
+      "export async function GET(): Promise<Response> {",
+      "  return await requireAdminSessionForRequest();",
+      "}",
+    ].join("\n");
+    expect(unguardedHandlers(source, "route")).toEqual([]);
+  });
+
+  it("asks nothing of the kind for a server action", () => {
+    // `requireAdminSession()` throws, so there is no returned answer to discard and no
+    // narrowing to require. Rule 2 stays a call check.
+    const source = [
+      '"use server";',
+      "",
+      'import { requireAdminSession } from "@/lib/server/session";',
+      "",
+      "export async function saveAction(): Promise<void> {",
+      "  await requireAdminSession();",
+      "}",
+    ].join("\n");
+    expect(unguardedHandlers(source, "action")).toEqual([]);
   });
 });
