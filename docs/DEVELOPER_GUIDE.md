@@ -131,7 +131,7 @@ Notes worth having before you go looking for a missing span:
 |---|---|
 | `/task 002` | One plan task, full relay: **claim** (push `feat/002-slug` to origin - the live branch *is* the lock) → **task-executor** implements in an isolated worktree on that branch → *(UI tasks: pauses at the screenshot gate for your sign-off, evidence committed under `docs/gates/002/`)* → **task-reviewer** verifies every exit criterion + rule against the diff → rebase onto current main, re-run gates, flip the ledger row to `done (PR #N)` as a commit **on the branch**, open the PR, wait for green checks **and for a `PO-REVIEW: APPROVE @<headRefOid>` sentinel bound to that head**, then `gh pr merge --squash`. |
 | `/next-task` | Picks the next executable `todo` (numeric order, honoring the ordering-exception table in `docs/features/README.md`) and runs the `/task` flow. |
-| `/loop /next-task` | Autonomous run, task after task. Stops at human gates, on blocks, or when nothing is executable. |
+| `/loop /next-task` | Autonomous run, task after task. **A gate parks that task, not the run:** the task keeps its branch claim plus a `HANDOFF: AWAITING-HUMAN` record, its worktree is torn down, and the loop moves to the next pairwise-independent task in a fresh worktree - or to an eligible GitHub issue if no task qualifies. It stops only when everything remaining is a gate, a `blocked` row, or a parked claim (and never holds more than 3 parked at once). |
 | `/loop /next-task 3` | Same, up to 3 **pairwise-independent** tasks per batch (parallel executors, serialized merges). |
 | `/next-issue` | Picks the next actionable GitHub issue by label tier (`security` > `bug` > unlabeled > `enhancement`; the routing labels `needs-decision`/`blocked-upstream`/`workshop`/`admin-stage` and `phase-4` are excluded) and runs the same executor+reviewer relay on `fix/NN-slug` - then **opens one PR per issue** (body: acceptance checklist, `Fixes #NN`, reviewer verdict, retro lines; respondent-visible changes carry gate screenshots under `docs/gates/pr-NN/`). The conductor never merges. |
 | `/next-issue 3` / `/loop /next-issue 3` | Up to 3 **pairwise-independent** issues per batch (disjoint packages/seams; when in doubt, not batched) - own claim, executor worktree, reviewer, and PR each, no cross-batch barrier. Safe because conductors never merge; the PO loop serializes landings. |
@@ -143,7 +143,9 @@ Issue PRs are reviewed and squash-merged by the **PO seat's review loop** (proce
 
 **Never run two interactive sessions in one checkout.** If you want a second hands-on session, give it its own `git worktree add ../qcms-me main`.
 
-## Your gates (the agent stops and waits for you)
+## Your gates (the agent parks the task and works around you)
+
+Since 2026-08-01 a gate no longer halts the run: the agent commits the evidence, parks the task with a `HANDOFF: AWAITING-HUMAN` record on its branch, and moves to independent work. Your sign-off is still what unparks it, and nothing proceeds on *that* task without you - you are just no longer the bottleneck for everything else.
 
 - **Wireframe sign-off (042):** review `docs/wireframes/*.md`, then flip each file's status line to `Signed off: <you>, <date>`.
 - **Screenshot gate (every UI task):** the agent presents static-render screenshots (screen × state × theme); reply with approval or corrections - wiring starts only after your OK.
@@ -176,6 +178,7 @@ A long-lived session follows the instructions it already read - edits to `.claud
 - **State:** `docs/features/README.md` (the ledger) is always current; `git log --oneline` shows what landed; `git worktree list` shows live executors.
 - **Seat mail (a machine-local bus between the two seats, never committed):** `../seat-mail/dev/` is the dev loop's inbox, `../seat-mail/pm/` the PO seat's - both sibling folders of the checkout. Drop a plain-text `message_<UTC timestamp>.txt` in either to steer the other seat's next iteration ("PR #NNN is waiting on review", "skip X today"); each loop reads its inbox at the top of a run, acts, then moves the file to the sibling `read/` folder as the ack. `scripts/agent-loop.sh` injects the dev inbox into every headless iteration. Mail carries routing and coordination only, never scope. Neither folder existing is fine - both seats skip silently.
 - **Interrupt safely:** Esc stops the current session; in-flight executor branches survive, and because the pushed branch is the claim, the claim survives with them. A stopped task ends as a live `origin/feat/NNN-*` branch (ideally with a committed `HANDOFF.md`) or as a `blocked (issue #)` ledger row - `/next-task` prefers resuming a handoff over starting fresh.
+- **What is waiting on you:** `git ls-remote --heads origin 'feat/*'` lists live claims; for each, the branch tip's `HANDOFF.md` first line says which kind of park it is. `HANDOFF: AWAITING-HUMAN <what>` is one the loop deliberately stepped over and will not resume until you act - those are your queue, and the loop will keep working around them (up to three) rather than stopping. `INTERRUPTED` and `BLOCKED` are ones it will pick back up itself.
 - **Stale claim cleanup** (a session died mid-task): check the branch for a `HANDOFF.md`; either resume via `/task NNN`, or, if there is nothing worth keeping, **delete the remote branch** - that releases the claim, with no ledger edit needed (and none possible: `main` cannot be pushed directly). Then `git worktree remove` any leftover under `.claude/worktrees/`.
 
 ## Permissions tuning
