@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { getAuth, twoFactorOptional } from "./auth.ts";
 import { sessionPolicy } from "./config.ts";
+import { redirectAfterPost } from "./route-helpers.ts";
 
 /**
  * The one place an admin page or route handler asks "who is signed in, and may
@@ -18,6 +19,22 @@ import { sessionPolicy } from "./config.ts";
  * {@link requireAdminSession}, which every page under it inherits. A page added to
  * that group in tasks 032-035 is gated by construction rather than by remembering
  * to add a guard.
+ *
+ * ## Why a layout gate is not the whole story (issue #177)
+ *
+ * A Next layout wraps the **page** tree. It never runs for a `route.ts` or for a
+ * `"use server"` action in the same segment: both are request handlers the browser
+ * reaches directly. So "it is inside `(shell)`" is not evidence that anything
+ * authenticated it, and each handler applies the policy itself - a server action via
+ * {@link requireAdminSession}, a route handler via
+ * {@link requireAdminSessionForRequest}, which is the same three gates answered as a
+ * redirect response rather than a thrown `redirect()`.
+ *
+ * Both are one policy, not two copies: they share {@link sessionOutcome} below. A
+ * handler that open-coded `currentAdminSession()` plus its own enrollment check would
+ * enforce today's gates and silently miss tomorrow's fourth one, which is the failure
+ * this module exists to prevent. `shell-route-guards.test.ts` is the structural
+ * tripwire that keeps every handler under `app/(shell)/` naming one of the two.
  *
  * ## What "may they be here" means at launch
  *
@@ -90,16 +107,56 @@ export async function currentAdminSession(): Promise<AdminSession | undefined> {
   };
 }
 
+/** Where the three gates land: a session, or the path the visitor is sent to. */
+type SessionOutcome =
+  | { readonly session: AdminSession; readonly redirectTo?: undefined }
+  | { readonly session?: undefined; readonly redirectTo: typeof SIGN_IN_PATH | typeof ENROLL_PATH };
+
 /**
- * The authenticated-shell guard: return the session or redirect. Applies all three
- * gates. `redirect()` throws, so the return type is honest - callers get a session
- * or never continue.
+ * The three gates, decided but not yet acted on.
+ *
+ * Deciding and answering are separated because the two callers below have to answer
+ * differently (a thrown `redirect()` for a page, a 303 `Response` for a request
+ * handler) while agreeing exactly on the policy. Every gate is added here, so both
+ * inherit it.
+ */
+async function sessionOutcome(): Promise<SessionOutcome> {
+  const session = await currentAdminSession();
+  if (session === undefined) return { redirectTo: SIGN_IN_PATH };
+  if (!session.twoFactorEnabled && !twoFactorOptional()) return { redirectTo: ENROLL_PATH };
+  return { session };
+}
+
+/**
+ * The authenticated-shell guard for **pages and server actions**: return the session
+ * or redirect. Applies all three gates. `redirect()` throws, so the return type is
+ * honest - callers get a session or never continue.
  */
 export async function requireAdminSession(): Promise<AdminSession> {
-  const session = await currentAdminSession();
-  if (session === undefined) redirect(SIGN_IN_PATH);
-  if (!session.twoFactorEnabled && !twoFactorOptional()) redirect(ENROLL_PATH);
-  return session;
+  const outcome = await sessionOutcome();
+  if (outcome.session === undefined) redirect(outcome.redirectTo);
+  return outcome.session;
+}
+
+/**
+ * The same guard for a **route handler**: the session, or the `Response` to return.
+ *
+ * A route handler cannot call {@link requireAdminSession}. `redirect()` signals with a
+ * `NEXT_REDIRECT` throw that Next answers with **307**, and a 307 asks the browser to
+ * repeat the request - so refusing a form POST that way re-posts the credential at the
+ * sign-in screen. `redirectAfterPost` answers 303 instead, which the browser follows
+ * with a GET.
+ *
+ * The call site narrows on the type rather than on a flag:
+ *
+ * ```ts
+ * const session = await requireAdminSessionForRequest();
+ * if (session instanceof Response) return session;
+ * ```
+ */
+export async function requireAdminSessionForRequest(): Promise<AdminSession | Response> {
+  const outcome = await sessionOutcome();
+  return outcome.session ?? redirectAfterPost(outcome.redirectTo);
 }
 
 /**
