@@ -120,6 +120,21 @@ describe("the pre-paint mode bootstrap", () => {
     }
   });
 
+  // A link can pick up a second `?mode=` from any number of accidents (a template
+  // that appends one, a redirect that re-adds it). The guarantee is that this is
+  // never ambiguous: the leftmost occurrence is the only one that speaks, so a
+  // trailing duplicate can neither rescue an invalid value nor override a valid
+  // one. Both cases below are discriminating - reading the LAST value would give a
+  // different answer than the one asserted.
+  it("reads only the first of a repeated ?mode=", () => {
+    expect(
+      resolved(autoNoCookie, { search: "?mode=potato&mode=hc", cookie: `${MODE_COOKIE}=dark` }),
+    ).toBe("dark");
+    expect(
+      resolved(autoNoCookie, { search: "?mode=hc&mode=dark", cookie: `${MODE_COOKIE}=light` }),
+    ).toBe("hc");
+  });
+
   it("keeps falling past an invalid parameter to the OS signals, then to config", () => {
     // No cookie at all: the chain continues into the OS signals, which is the only
     // place the respondent's intent can still be read.

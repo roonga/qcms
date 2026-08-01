@@ -101,8 +101,8 @@ export default async function RootLayout({ children }: { readonly children: Reac
             own real value, and reports an attribute difference it explicitly does
             not patch up. The DOM, the executed script, and the enforcing nonce are
             all unaffected: only the warning is spurious, and this element's only
-            other prop is the bootstrap source built by `themeBootstrap` from
-            validated mode keywords, so nothing real can hide behind the
+            other prop is the bootstrap source built by `modeBootstrapScript`
+            from validated mode keywords, so nothing real can hide behind the
             suppression. Weakening the CSP to silence it is never an option.
             `e2e/csp-nonce.pw.ts` proves the whole chain instead. */}
         <script
