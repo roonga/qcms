@@ -11,6 +11,7 @@ import {
   fillStable,
   openMenu,
   readSetupKey,
+  settleTransitions,
   signInWithTotp,
   submitSignIn,
   submitTotp,
@@ -59,32 +60,6 @@ import { addOption, chooseType, field } from "./support/questions.js";
 test.describe.configure({ mode: "serial" });
 
 const EMAIL = uniqueAdminEmail("a11y");
-
-/**
- * Wait until every running transition has finished.
- *
- * Load-bearing, and it cost a cycle to find: the vendored controls carry
- * `transition-colors`, so switching the mode class starts a colour animation, and axe
- * sampling immediately measured a MID-TRANSITION pair - a white-fading-to-dark label
- * over a blue-fading-to-light button, at a ratio (3.72, then 2.17 on the next run)
- * that exists for a tenth of a second and is nobody's experience. Two runs disagreeing
- * on the number is the signature.
- *
- * `document.getAnimations()` is the exact question ("is anything still animating?"),
- * so this settles as fast as the page does. A `waitForTimeout` would have hidden the
- * same race behind a number that is too small on a loaded machine, and emulating
- * reduced motion would have measured a configuration rather than removing the race.
- */
-async function settleTransitions(page: Page): Promise<void> {
-  await page.evaluate(async () => {
-    await new Promise((resolve) => {
-      requestAnimationFrame(() => resolve(undefined));
-    });
-    await Promise.all(
-      document.getAnimations().map((animation) => animation.finished.catch(() => undefined)),
-    );
-  });
-}
 
 /** Set by the enrollment test; stable once the factor is confirmed. */
 let totpSecret = "";

@@ -144,7 +144,7 @@ export default async function QuestionDetailPage({
               {t("questions.preview.title")}
             </h2>
             {preview.ok ? (
-              <QuestionPreview preview={preview.data} />
+              <QuestionPreview preview={preview.data} resetKey={selected.version} />
             ) : (
               <Alert variant="warning">
                 {t("questions.preview.unavailable", { message: preview.message })}

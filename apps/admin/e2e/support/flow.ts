@@ -128,6 +128,35 @@ export async function openMenu(trigger: Locator): Promise<void> {
 }
 
 /**
+ * Wait until every running transition and animation has finished.
+ *
+ * Load-bearing before any computed-style read that follows a mode-class swap, and it
+ * cost a cycle to find the first time: the vendored controls carry `transition-colors`,
+ * so changing the root class starts a colour animation and an immediate sample measures
+ * a MID-TRANSITION value - a colour that exists for a tenth of a second and is nobody's
+ * experience. Two runs disagreeing on the number is the signature.
+ *
+ * `document.getAnimations()` asks the exact question ("is anything still animating?"),
+ * so this settles as fast as the page does. A `waitForTimeout` would have hidden the
+ * same race behind a number that is too small on a loaded machine, and emulating reduced
+ * motion would have measured a configuration rather than removing the race.
+ *
+ * Lives here rather than in one spec because two specs need it: the axe gate samples
+ * colour after a mode swap, and the theming assertions in `appearance.pw.ts` do the
+ * same. One copy, so a fix to the wait cannot reach only half the callers.
+ */
+export async function settleTransitions(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    await new Promise((resolve) => {
+      requestAnimationFrame(() => resolve(undefined));
+    });
+    await Promise.all(
+      document.getAnimations().map((animation) => animation.finished.catch(() => undefined)),
+    );
+  });
+}
+
+/**
  * Sign out through the account menu.
  *
  * There are two sign-out controls in the DOM on every authenticated page and only

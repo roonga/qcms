@@ -161,6 +161,92 @@ test("the version preview renders the real control for the type", async ({ page 
   await expect(preview.locator("[name^=qcms_]")).toHaveCount(0);
 });
 
+/**
+ * The preview is LOCALLY interactive: a control accepts input, and nothing leaves the
+ * browser (task 032 review batch, item 7).
+ *
+ * Both halves matter, and the first one is a regression test for a real defect the Code
+ * Owner found at the gate. The renderer is controlled, so the original component - which
+ * passed a document but no `onChange` - produced controls that were focusable and looked
+ * live but were FROZEN: every click wrote back the value the control already had, and a
+ * checkbox could not be ticked. That is not "what a respondent sees" either, which was
+ * the whole reason the preview deliberately avoids `disabled`/`inert`, and it left the
+ * on-screen promise that nothing is saved describing behaviour the control could not
+ * exhibit.
+ *
+ * The second half is the property that makes the first one safe, and it is asserted as an
+ * ABSENCE of requests rather than as "the click worked". An absence is only worth
+ * asserting if the instrument was armed, so the recorder stays attached through a
+ * positive control at the end: an action that must talk to the server, proving the same
+ * listener does see traffic when traffic exists.
+ */
+test("a preview control accepts input, and nothing leaves the browser", async ({ page }) => {
+  test.setTimeout(120_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  // Multiple choice, because the checkbox is the control the defect was found on and the
+  // one whose frozen state is most obviously wrong to a human.
+  await createDraft(page, slugFor("interactive"), "Multiple choice");
+
+  const preview = page.locator(".qcms-preview");
+  const yes = preview.getByRole("checkbox", { name: "Yes, always", exact: true });
+  const no = preview.getByRole("checkbox", { name: "No, never", exact: true });
+  // Clicked by their visible label text, not by the input: react-aria puts a decorative
+  // indicator over the real checkbox, which intercepts pointer events. This is the same
+  // convention `apps/portal/e2e/support/kitchen-sink.ts` encodes for the same controls.
+  const tick = async (label: string): Promise<void> => {
+    await preview.getByText(label, { exact: true }).click();
+  };
+  await expect(yes).not.toBeChecked();
+
+  /**
+   * Every request the page issues from here on.
+   *
+   * `_next/static` chunks and the favicon are the dev server's own asset traffic, not
+   * this app talking to its BFF: `next dev` compiles routes on demand, so a chunk can
+   * arrive at any moment for reasons that have nothing to do with the click.
+   */
+  const requests: string[] = [];
+  const record = (url: string): void => {
+    if (url.includes("/_next/static/") || url.includes("/_next/image")) return;
+    if (url.endsWith("/favicon.ico")) return;
+    requests.push(url);
+  };
+  page.on("request", (request) => {
+    record(request.url());
+  });
+
+  // THE CLICK LANDS. This is the assertion the frozen preview failed.
+  await tick("Yes, always");
+  await expect(yes).toBeChecked();
+  // A second control, so the answers map is proven to hold more than one entry rather
+  // than to be a single latched boolean, and the first one is proven not to be cleared.
+  await tick("No, never");
+  await expect(no).toBeChecked();
+  await expect(yes).toBeChecked();
+
+  // AND NOTHING WAS SENT. Ticking two boxes is two ADR-31 commit moments' worth of
+  // gesture on the respondent side; here it must produce no request at all, because the
+  // preview has no `postAnswer`, no fetch and nothing to persist to.
+  expect(requests, "a preview interaction must issue no request").toEqual([]);
+
+  // POSITIVE CONTROL: the recorder above is armed. Saving the draft is the same screen's
+  // one deliberate trip to the server, so if this list were also empty the assertion
+  // above would be measuring a listener that never fires.
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByText("Draft saved.")).toBeVisible();
+  expect(requests.length, "the request recorder sees traffic when traffic exists").toBeGreaterThan(
+    0,
+  );
+
+  // The answers are discarded on a version switch. The switch is a `?v=` navigation on
+  // the same route, so React can reconcile the preview in place and keep its state; v1's
+  // ticks must not reappear under v2's controls, whichever navigation kind Next chooses.
+  await confirmLifecycle(page, /^Publish version 1$/, "Publish");
+  await confirmLifecycle(page, /^New version$/, "Create draft");
+  await page.waitForURL(/\?v=2$/);
+  await expect(preview.getByRole("checkbox", { name: "Yes, always" })).not.toBeChecked();
+});
+
 test("errors from the API are readable, and land on the field that caused them", async ({
   page,
 }) => {

@@ -1,6 +1,12 @@
 "use client";
 
-import { A2UIStepRenderer, type A2UIStepDocument } from "@qcms/ui";
+import {
+  A2UIStepRenderer,
+  type A2UIAnswerValue,
+  type A2UIStepDocument,
+  type A2UIValues,
+} from "@qcms/ui";
+import { useCallback, useState } from "react";
 
 import { t } from "@/lib/i18n/en";
 import type { PreviewDocument } from "@/lib/questions/types";
@@ -37,15 +43,44 @@ import type { PreviewDocument } from "@/lib/questions/types";
  * with (ARCHITECTURE §6). No admin-side rendering of A2UI exists anywhere else, which
  * `questions-import-surface.test.ts` asserts rather than trusts.
  *
- * ## Why it is left interactive
+ * ## Why it is interactive, and what "interactive" had to be made to mean
  *
- * The renderer is controlled and this component passes no `onChange`, so nothing an
- * operator types is recorded, read, or sent. It is deliberately NOT disabled or `inert`:
- * a disabled copy of a control is not what a respondent sees (it is greyed, it is not
- * focusable, and a screen reader skips it), so disabling it would trade the one property
- * the preview exists to provide. The note above it says so in words.
+ * It is deliberately NOT disabled or `inert`: a disabled copy of a control is not what a
+ * respondent sees (it is greyed, it is not focusable, and a screen reader skips it), so
+ * disabling it would trade away the one property the preview exists to provide.
+ *
+ * That reasoning was right and the first implementation did not deliver it. The renderer
+ * is CONTROLLED, so passing `values` without an `onChange` does not make a control
+ * read-only, it makes it **frozen**: focusable, apparently live, and incapable of ever
+ * showing a change, because every keystroke and click is written back as the value it
+ * already had. A checkbox could not be ticked. The Code Owner found it at the gate, and
+ * it also made the note below describe behaviour the control could not exhibit - the
+ * note promises nothing is saved, which only means something if something can be
+ * entered.
+ *
+ * So this component owns an answers map and passes it with an `onChange`, which is the
+ * same controlled contract the portal's `step-flow.tsx` uses. The difference is entirely
+ * in what is absent: there is no `postAnswer`, no fetch, no ADR-31 commit moment and no
+ * persistence of any kind. The state lives in this component and dies with it - on
+ * unmount, and on a version switch, which `resetKey` below makes explicit.
  */
-export function QuestionPreview({ preview }: { readonly preview: PreviewDocument }) {
+export function QuestionPreview({
+  preview,
+  resetKey,
+}: {
+  readonly preview: PreviewDocument;
+  /**
+   * Discards the typed answers when it changes. The selected version, in practice.
+   *
+   * It has to be passed in, because the thing that actually changes between versions is
+   * not visible here: the API stamps every preview with the same constant `stepId`, so
+   * `preview` alone cannot tell one version's document from another's. And the switch is
+   * a `?v=` navigation on the SAME route, so React reconciles this component in place
+   * and keeps its state unless something says otherwise. Without this, v1's typed
+   * answers would reappear underneath v2's controls.
+   */
+  readonly resetKey: string | number;
+}) {
   // `root` crosses the wire as `unknown` because the A2UI node tree is opaque to both
   // the API's schema and this BFF: the renderer's registry is the only thing that knows
   // what a node means. Naming the renderer's own prop type keeps that narrowing here,
@@ -54,11 +89,39 @@ export function QuestionPreview({ preview }: { readonly preview: PreviewDocument
     stepId: preview.stepId,
     root: preview.root as A2UIStepDocument["root"],
   };
+
+  // Reset during render rather than in an effect: an effect would paint one frame of the
+  // previous version's answers under the new version's controls before clearing them.
+  const [answers, setAnswers] = useState<{ key: string | number; values: A2UIValues }>({
+    key: resetKey,
+    values: {},
+  });
+  if (answers.key !== resetKey) setAnswers({ key: resetKey, values: {} });
+
+  const handleChange = useCallback((name: string, value: A2UIAnswerValue | undefined): void => {
+    setAnswers((previous) => {
+      const values = { ...previous.values };
+      // Deleting rather than storing `undefined` is what the portal does and it matters
+      // for the same reason (COMPONENT_GUIDELINES item 11): the adapters read "no answer"
+      // as an absent key, and a present key holding `undefined` sends react-aria down its
+      // uncontrolled path, where a control serves its own last internal value instead of
+      // the one passed to it.
+      if (value === undefined) delete values[name];
+      else values[name] = value;
+      return { key: previous.key, values };
+    });
+  }, []);
+
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm text-(--color-text-muted)">{t("questions.preview.note")}</p>
       <div className="qcms-preview">
-        <A2UIStepRenderer document={document} specVersion={preview.a2uiSpecVersion} />
+        <A2UIStepRenderer
+          document={document}
+          specVersion={preview.a2uiSpecVersion}
+          values={answers.values}
+          onChange={handleChange}
+        />
       </div>
     </div>
   );

@@ -7,6 +7,7 @@ import {
   appearanceTrigger,
   openMenu,
   readSetupKey,
+  settleTransitions,
   signInWithTotp,
   submitSignIn,
   submitTotp,
@@ -119,6 +120,19 @@ async function computed(locator: Locator, property: string): Promise<string> {
     (element, name) => getComputedStyle(element).getPropertyValue(name),
     property,
   );
+}
+
+/**
+ * A LENGTH token as it resolves on one element, trimmed.
+ *
+ * Custom properties compute to their authored text, so `--radius-card` comes back as
+ * `"8px"` (often with the leading space the declaration was written with) while
+ * `border-radius` computes to `"8px"`. Trimming is the whole conversion; the colour
+ * equivalent needs the probe element in `token` above, because a colour's authored text
+ * (`#0b0f1a`) never matches its computed form.
+ */
+async function tokenLength(locator: Locator, property: string): Promise<string> {
+  return (await computed(locator, property)).trim();
 }
 
 /** The human label for a mode, which is what the menu row and the trigger both say. */
@@ -396,4 +410,82 @@ test("both topbar triggers are 32px squares, not stretched by the control floor"
     expect(Math.round(box!.width)).toBe(32);
     expect(Math.round(box!.height)).toBe(32);
   }
+});
+
+/**
+ * COMPONENT_GUIDELINES step 9, the popover side (task 032 review batch, item 3).
+ *
+ * The trigger-side assertions are the two tests above. This is the other half of the new
+ * menu surface: the popover's own box and its rows, which no test touched.
+ *
+ * Every number below is read from a TOKEN rather than written down, exactly as the rest
+ * of this file works. Step 9's contract is "styles consume the four token groups only",
+ * so an assertion that hardcoded `8px` would keep passing after the radius stopped coming
+ * from `--radius-card`, which is the failure it exists to catch.
+ *
+ * A note on where these rules live, because it is not where step 9 says to look. The
+ * menu box that actually paints in this app is `.qcms-menu` in `app/globals.css`: this
+ * app does NOT import `@qcms/ui/theme-components.css` (only the portal does), so the menu
+ * rules added to that sheet reach no host yet. They are correct and they are the right
+ * place for a menu rendered inside `[data-qcms-field]`, but the chrome menus here are
+ * styled by the app, and asserting the sheet the app does not load would prove nothing
+ * about the pixels. The DOM-shape assertion at the end is what keeps the shared sheet
+ * honest for the host that does load it.
+ */
+test("the menu popover and its rows take their metrics from the tokens", async ({ page }) => {
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await openMenu(appearanceTrigger(page));
+
+  const popover = page.locator(".qcms-menu");
+  const item = page.getByRole("menuitemradio", { name: LABEL.light, exact: true });
+
+  // The popover is a panel, so it takes the card radius; a row is a small inset shape,
+  // so it takes the small one. Reading both tokens off the popover itself means the
+  // comparison survives a corner-preset change that moves every number at once.
+  expect(await computed(popover, "border-radius")).toBe(
+    await tokenLength(popover, "--radius-card"),
+  );
+  expect(await computed(item, "border-radius")).toBe(await tokenLength(popover, "--radius-sm"));
+
+  // Row metrics: a 38px row with 10px of inline padding, per the card. These are the
+  // numbers that make the check glyph and the label sit where they were drawn, and a
+  // silent change to either is exactly what a screenshot gate cannot be relied on to
+  // catch at a glance.
+  expect(await computed(item, "block-size")).toBe("38px");
+  expect(await computed(item, "padding-inline-start")).toBe("10px");
+  expect(await computed(item, "padding-inline-end")).toBe("10px");
+
+  // The checked row is never colour alone (WCAG 1.4.1): the inset accent edge is drawn
+  // with a box-shadow, so its presence is the assertion.
+  const checked = page.getByRole("menuitemradio", { checked: true });
+  expect(await computed(checked, "box-shadow")).toContain("inset");
+  expect(await computed(checked, "font-weight")).toBe("600");
+});
+
+test("the menu popover carries the high-contrast border treatment", async ({ page }) => {
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await choose(page, "hc");
+  await openMenu(appearanceTrigger(page));
+  // Never sample a colour straight after a mode-class swap: the vendored kit carries
+  // `transition-colors`, so an immediate read returns a mid-transition value and two
+  // runs disagree on the number.
+  await settleTransitions(page);
+
+  const popover = page.locator(".qcms-menu");
+  // HC's border treatment is a hard edge at full contrast plus a flat surface. The
+  // colour comes from `--color-border-strong`, which the HC layer takes to pure black,
+  // and the shadow that gives the menu depth in the other two modes is removed - depth
+  // cues are exactly what an operator in this mode cannot resolve.
+  expect(await computed(popover, "border-top-color")).toBe(
+    await token(page, "--color-border-strong"),
+  );
+  expect(Number.parseFloat(await computed(popover, "border-top-width"))).toBeGreaterThan(0);
+  expect(await computed(popover, "box-shadow")).toBe("none");
+
+  // And the shared sheet's selector still has something to match. `theme-components.css`
+  // reaches the menu through `[data-rac]:has(> [role="menu"])` because `MenuTrigger`
+  // portals the popover out of the field it belongs to; if react-aria ever nests the
+  // menu one level deeper, that rule silently stops applying in every host that DOES
+  // import the sheet, and nothing else in the repo would notice.
+  await expect(page.locator('[data-rac]:has(> [role="menu"])')).toHaveCount(1);
 });
