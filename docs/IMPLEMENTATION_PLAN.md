@@ -103,7 +103,7 @@ Demand-ordered, never pre-built: OTP + social via better-auth; library cascade U
 
 ## Working agreements
 
-**Definition of done, every task:** tests written with the code (kernel property/golden tests, API slice tests, renderer conformance tests), including **e2e coverage at the highest layer that exists for the feature - HTTP scenarios for headless work, a passing Playwright spec for anything browser-facing (ADR-23)**; documentation updated in the same PR; discipline rules R1–R7 hold - a task violating them is not done regardless of function.
+**Definition of done, every task:** tests written with the code (kernel property/golden tests, API slice tests, renderer conformance tests), including **e2e coverage at the highest layer that exists for the feature - HTTP scenarios for headless work, a passing Playwright spec for anything browser-facing (ADR-23)**; documentation updated in the same PR; discipline rules R1–R8 hold - a task violating them is not done regardless of function.
 
 **The cut-line is enforced at review, not remembered:** no impact analysis, no `/api/v1`, no second locale, no BFF logic before their stage. Itches become `phase-4` issues.
 

@@ -22,7 +22,11 @@ import {
   OTLP_SCHEDULE_DELAY_MS,
   PORTAL_PORT,
 } from "./apps/portal/e2e/support/harness-config.js";
-import { PORT_SEAT, assertSeatUsable } from "./apps/portal/e2e/support/port-seat.js";
+import {
+  PORT_SEAT,
+  adoptableServices,
+  assertSeatUsable,
+} from "./apps/portal/e2e/support/port-seat.js";
 
 /**
  * Root Playwright configuration (task 029, ADR-23; viewports + gates from 045).
@@ -49,26 +53,44 @@ import { PORT_SEAT, assertSeatUsable } from "./apps/portal/e2e/support/port-seat
  * API, two frontends.
  */
 /**
- * Two refusals, both at config load, which is before Playwright evaluates any
+ * Startup refusals, all at config load, which is before Playwright evaluates any
  * `webServer` entry and therefore before `reuseExistingServer` can adopt anything
- * (issue #255).
+ * (issue #255). In order:
  *
- * The first checks that this seat's ports are legal to hold: a fixed listener inside
- * the kernel's ephemeral range would lose an occasional race against an auto-assigned
- * socket, which is a flake nobody could reproduce.
+ *  - **A worktree must name its seat.** Concurrent lanes run in worktrees, and two
+ *    lanes that both fall back to the default seat collide on every port. The primary
+ *    checkout and CI keep the silent default.
+ *  - **The seat's ports must be legal to hold.** A fixed listener inside the kernel's
+ *    ephemeral range loses an occasional race to an auto-assigned socket, which is a
+ *    flake nobody could reproduce.
+ *  - **Nothing else may already hold them.** This one is a *diagnostic*, not the
+ *    safety property: it is a fast, clear error for the common case (someone forgot a
+ *    seat), and it names the occupant's pid and `/proc/<pid>/cwd` rather than making
+ *    the next person read `/proc` by hand, the way the original collision was found.
+ *    It cannot make concurrent binding safe - between the probe and the bind another
+ *    run can still take the port. Per-seat isolation is what makes sharing not happen.
  *
- * The second checks that nothing else already holds them. Before the seat scheme, a
- * second agent lane starting a run while the first lane's dev servers were up did not
- * fail and did not warn: Playwright reused those servers, so the second lane's specs
- * ran against the first lane's worktree and still reported a full green suite. Ports
- * now differ per seat, so that cannot happen between seats at all; this refusal is the
- * backstop for everything else that might be sitting on the block, and it names the
- * occupant's pid and cwd rather than making the next person read `/proc` by hand, the
- * way the original collision was found. A dev server left behind by a previous run in
- * THIS worktree is still adopted, because that is a genuine local convenience and it
- * tests the tree you are in.
+ * Before the seat scheme, a second agent lane starting a run while the first lane's
+ * dev servers were up did not fail and did not warn: Playwright reused those servers,
+ * so the second lane's specs ran against the first lane's worktree and still reported
+ * a full green suite.
  */
 assertSeatUsable();
+
+/**
+ * `reuseExistingServer` is the amplifier, so it is enabled only where reuse is
+ * provably safe.
+ *
+ * Without it a collision is a noisy `EADDRINUSE`; with it a collision is a silent
+ * green run against another tree. That asymmetry is why issue #255 is a gate-integrity
+ * item and not an inconvenience. It therefore stays on locally ONLY for a dev server
+ * that is already listening and whose working directory is this exact worktree, which
+ * is the case it was actually there for. When the port is free at config load the flag
+ * is off, so a run that loses the bind race to a process arriving in the meantime
+ * fails loudly instead of adopting the winner. That is the direction a race has to
+ * fail in, and it is precisely what a probe on its own cannot deliver.
+ */
+const ADOPTABLE = process.env.CI ? new Set<string>() : adoptableServices();
 
 // Announce the seat on every run. A run's own output is then self-describing ("this
 // was seat 2, on 17200/17210/17230/17240"), which is what a reviewer needs to tell two
@@ -169,7 +191,9 @@ export default defineConfig({
       // by globalSetup; both sides share the synthetic SEC-4 internal token.
       command: `node ./apps/portal/e2e/support/portal-server.mjs`,
       url: `http://localhost:${PORT}`,
-      reuseExistingServer: !process.env.CI,
+      // Only when a portal dev server from THIS worktree is already listening. See
+      // ADOPTABLE above for why a free port means `false` rather than `true`.
+      reuseExistingServer: ADOPTABLE.has("portal"),
       timeout: 180_000,
       env: {
         PORTAL_PORT: String(PORT),
@@ -225,7 +249,8 @@ export default defineConfig({
       // globalSetup on webServer readiness, so probing a page that needs the database
       // would wait for the very thing globalSetup is about to create.
       url: `${ADMIN_BASE_URL}/healthz`,
-      reuseExistingServer: !process.env.CI,
+      // Same rule as the portal's: adopt only a verified same-worktree server.
+      reuseExistingServer: ADOPTABLE.has("admin"),
       timeout: 180_000,
       env: {
         ADMIN_PORT: String(ADMIN_PORT),

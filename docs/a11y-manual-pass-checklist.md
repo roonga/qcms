@@ -52,8 +52,9 @@ docker compose -f docker-compose.dev.yml down
 
 The `dev:portal` script generates the internal service token in memory per run
 and never writes a secret to disk. Ports are overridable via env
-(`QCMS_DEV_PORTAL_PORT`, `QCMS_DEV_API_PORT`, `QCMS_DB_PORT`) if 7000 / 7010 /
-7020 are taken on your machine.
+(`QCMS_DEV_PORTAL_PORT`, `QCMS_DEV_API_PORT`, `QCMS_DB_PORT`) if seat 0's ports are
+taken on your machine, or take a whole seat with `QCMS_PORT_SEAT` - see
+`docs/PORTS.md`, which is the only place the allocation is written down.
 
 ## Environment (fill in)
 

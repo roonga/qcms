@@ -20,13 +20,13 @@ Exceptions retire when their task lands: 042, 043, 044, 045 and 055 all carried 
 
 (Normative long form: `AGENTIC_DEVELOPMENT.md` §3.)
 
-1. Read `PROJECT_INSTRUCTIONS.md` (rules R1–R7 + amendments), then the task file, then the **References** it lists. Check the **progress ledger below** and `git log` - trust the repo over memory.
+1. Read `PROJECT_INSTRUCTIONS.md` (rules R1–R8 + amendments), then the task file, then the **References** it lists. Check the **progress ledger below** and `git log` - trust the repo over memory.
 2. Do only what the task's Deliverables and Exit criteria require. **Out of scope** sections are binding. Blocked on a genuine decision → stop and ask; never choose silently.
 3. Tests ship with the code; docs named in the task are updated in the same change.
 4. A task is done only when every exit criterion passes and **`pnpm verify`** is green at the repo root, plus **`pnpm verify:browser`** when the task touches `apps/portal`, `apps/admin`, or `@qcms/ui`. What each gate covers and how it maps to CI: `CONTRIBUTING.md` (the merge gate section owns that mapping). **Update the ledger status in the same PR.**
 5. **Green or clean:** if a session can't finish, either revert to green or park on the task branch with a `HANDOFF.md` (state, next step, what's red). Never merge red; never leave main broken.
 6. Branch `feat/NNN-slug`; task number in commit messages; PR description is the exit-criteria checklist, checked off.
-7. **Review before merge:** a human, or a second agent session given only the task file + diff, verifies exit criteria and rule compliance (R1–R7, cut-line, SEC controls). The reviewer verifies; it never extends the work.
+7. **Review before merge:** a human, or a second agent session given only the task file + diff, verifies exit criteria and rule compliance (R1–R8, cut-line, SEC controls). The reviewer verifies; it never extends the work.
 8. Record anything tempting-but-out-of-scope as a GitHub issue (label `phase-4` if it's beyond the cut-line).
 
 ## Index and progress ledger

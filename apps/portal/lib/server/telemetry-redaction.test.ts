@@ -29,8 +29,8 @@ describe("redactPath", () => {
   it("replaces a secure-link token with the route pattern", () => {
     expect(redactPath("/l/lnk_tok_abcdef123456")).toBe("/l/[token]");
     expect(redactPath("GET /l/lnk_tok_abcdef123456")).toBe("GET /l/[token]");
-    expect(redactPath("http://localhost:3100/l/lnk_tok_abcdef123456")).toBe(
-      "http://localhost:3100/l/[token]",
+    expect(redactPath("http://localhost:7000/l/lnk_tok_abcdef123456")).toBe(
+      "http://localhost:7000/l/[token]",
     );
   });
 
@@ -67,7 +67,7 @@ describe("sanitizeAttributes", () => {
   it("redacts the token out of every path-shaped attribute it keeps", () => {
     const attributes: Attributes = {
       "http.target": "/l/lnk_tok_secret",
-      "http.url": "http://localhost:3100/l/lnk_tok_secret",
+      "http.url": "http://localhost:7000/l/lnk_tok_secret",
       "next.span_name": "GET /l/lnk_tok_secret",
       "resource.name": "GET /l/lnk_tok_secret",
     };

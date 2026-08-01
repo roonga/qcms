@@ -82,6 +82,11 @@ export const STABLE_SERVICES = {
   api: 10,
   postgres: 20,
   artifacts: 30,
+  // The admin dev server. Allocated at offset 40 so the two blocks stay the same
+  // shape (the harness admin is at `17S40`), rather than picked. It is an allocation
+  // and not yet a published port: there is no `pnpm dev:admin`, and the devcontainer's
+  // `appPort` is deliberately untouched by this change. See docs/PORTS.md.
+  admin: 40,
 };
 
 /** Ephemeral test-harness services and their offset inside a seat's `17Sxx` block. */

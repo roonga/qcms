@@ -5,7 +5,7 @@
 
 ## Ground rules
 
-The reference documents in `docs/` are authoritative; the discipline rules R1–R7 and decisions ADR-01…35 / SEC-1…13 are not relitigated in PRs - a PR that violates them is not mergeable regardless of quality. Conflicts with a decision are raised as an issue proposing a new ADR, never resolved silently in code. The launch cut-line (R7) applies to contributions: out-of-scope features become `phase-4` issues, not PRs.
+The reference documents in `docs/` are authoritative; the discipline rules R1–R8 and decisions ADR-01…35 / SEC-1…13 are not relitigated in PRs - a PR that violates them is not mergeable regardless of quality. Conflicts with a decision are raised as an issue proposing a new ADR, never resolved silently in code. The launch cut-line (R7) applies to contributions: out-of-scope features become `phase-4` issues, not PRs.
 
 ## Development environment
 
@@ -53,7 +53,7 @@ use `pnpm devcontainer rebuild` after editing `devcontainer.json`.
 - Lint rules live in the **root flat config** (`eslint.config.js`); per-package additions only for package-specific import-surface rules (e.g. core's no-db-import). Formatting is owned by Prettier and never discussed in review. Lint rules are the standard - if a convention matters, encode it as a rule or import-surface test, don't police it by hand.
 - **Static analysis (issue #14):** `eslint-plugin-sonarjs` runs inside lint (bugs, code smells, cognitive complexity); its project tuning is documented inline in `eslint.config.js` (each disable carries a rationale, e.g. the kernel's essential-complexity algorithms). Copy-paste detection is `pnpm check:duplication` (jscpd, `.jscpd.json`, 3% threshold) - it accepts the deliberate vertical-slice repetition (R5) and fails only on a real regression. Both run in CI.
 - Comments explain *why*, not *what*. JSDoc on exported package APIs. Every `TODO` references an issue number; free-floating TODOs fail review.
-- **No em dash (Unicode U+2014), anywhere** - prose, comments, commit messages, or UI strings. It reads as an AI-generated tell and QCMS is public. Use a colon, comma, parentheses, a period, or a spaced hyphen (` - `) instead. The en dash (`–`) is fine for numeric ranges (`R1–R7`); the hyphen (`-`) is always fine. Enforced by the `check:no-em-dash` gate in CI.
+- **No em dash (Unicode U+2014), anywhere** - prose, comments, commit messages, or UI strings. It reads as an AI-generated tell and QCMS is public. Use a colon, comma, parentheses, a period, or a spaced hyphen (` - `) instead. The en dash (`–`) is fine for numeric ranges (`R1–R8`); the hyphen (`-`) is always fine. Enforced by the `check:no-em-dash` gate in CI.
 
 ### Dependencies (mirrors `a2-react-aria`'s approval policy)
 
@@ -148,7 +148,7 @@ pnpm verify:browser   # the Playwright suite (portal e2e + a11y + Lighthouse), s
 - **PR scope:** one task (or less) per PR. If a diff wants to do two things, it's two PRs.
 - **PR description:** the task's exit-criteria checklist, checked off, plus anything a reviewer needs to verify locally. For non-task PRs: what, why, and how it was tested.
 - **Merge requirements:** CI green (no skips); `pnpm verify` green locally *after* the final rebase; a Changeset for any change to a publishable package (enforced by `check:changeset`) (patch/minor/major honestly chosen - snapshot formats and golden corpora are public contracts); progress ledger updated for task PRs; review approval per below. Squash-merge; the squash message follows the commit convention.
-- **Review:** the reviewer (human, or a second agent session given only the task file + diff) verifies exit criteria, R1–R7, cut-line, and security standards - and never extends the work. Author responds to every comment (fix or reasoned pushback); style nits that aren't lint rules are suggestions, not blockers.
+- **Review:** the reviewer (human, or a second agent session given only the task file + diff) verifies exit criteria, R1–R8, cut-line, and security standards - and never extends the work. Author responds to every comment (fix or reasoned pushback); style nits that aren't lint rules are suggestions, not blockers.
 - **Never merge red; never leave `main` broken.** Incomplete work parks on its branch with a `HANDOFF.md` (state, next step, what's red).
 
 ## External contributions

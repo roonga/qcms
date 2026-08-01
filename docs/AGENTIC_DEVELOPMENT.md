@@ -21,7 +21,7 @@ An agent that knows *what* was chosen but not *why* will "improve" it. Every dec
 
 ### 1.3 Short, numbered, checkable rules
 
-Discipline rules (R1–R7) are enforceable at review by mechanical checks where possible ("core never imports db" → import-surface test), not vibes ("keep it clean"). The read-first file (`PROJECT_INSTRUCTIONS.md`) is small enough to actually be read at the start of every session.
+Discipline rules (R1–R8) are enforceable at review by mechanical checks where possible ("core never imports db" → import-surface test), not vibes ("keep it clean"). The read-first file (`PROJECT_INSTRUCTIONS.md`) is small enough to actually be read at the start of every session.
 
 ### 1.4 Ambiguity is resolved in documents, before code
 

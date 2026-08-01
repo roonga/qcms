@@ -10,7 +10,7 @@ Ship the qcms public launch - the Stage 8b gate: an external tester completes sc
 
 - **Plan integrity:** docs are the memory; staleness rule enforced in the same change as any decision; ADR conflicts flagged, never silently resolved; the cut-line enforced at review. Substantive plan changes = new ADR in `docs/PROJECT_GOAL.md`.
 - **Stage-boundary audits:** at each stage close, independently verify exit criteria against the repo (fresh gate runs, invariant-test spot checks) - never trust reports blind; checks are snapshots.
-- **Workshop improvement:** run `/improve-workshop` over `docs/RETRO.md` at stage boundaries; edits need the Code Owner's approval; never weaken R1–R7, ADR/SEC decisions, human gates, or reviewer independence.
+- **Workshop improvement:** run `/improve-workshop` over `docs/RETRO.md` at stage boundaries; edits need the Code Owner's approval; never weaken R1–R8, ADR/SEC decisions, human gates, or reviewer independence.
 - **Gate preparation:** wireframe/screenshot sign-offs, 030 manual a11y, 040 security sign-off, 038 launch validation - agent-prepared so the Code Owner only has to decide.
 - **Cross-repo health:** the `a2-react-aria` co-evolution contract (ADR-22); upstream component gaps must land before the stage that needs them.
 - **Dependency policy:** CONTRIBUTING thresholds; watch items better-auth and drizzle.

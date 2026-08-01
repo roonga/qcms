@@ -1,6 +1,6 @@
 # QCMS - Project Instructions (read first, every session)
 
-**Status:** v2.6 · supersedes v1 · reflects the formal plan set (2026-07-18, last amended 2026-08-01) including ADR-01…35 and SEC-1…13
+**Status:** v2.7 · supersedes v1 · reflects the formal plan set (2026-07-18, last amended 2026-08-02) including ADR-01…37 and SEC-1…13
 
 **This file lives at the repo root.** Every reference document listed below is under `docs/`, except `CONTRIBUTING.md`, which is also at the root.
 
@@ -8,7 +8,8 @@ You are working on **QCMS**: an MIT-licensed, TypeScript, open-source engine for
 
 ## Reference documents (authoritative set - nothing outside it wins)
 
-- `docs/PROJECT_GOAL.md` - vision, audiences, launch gate, cut-line, **ADR-01…35**
+- `docs/PROJECT_GOAL.md` - vision, audiences, launch gate, cut-line, **ADR-01…37**
+- `docs/PORTS.md` - **the port allocation** (R8, ADR-37): the only table, the seat scheme, the runbook
 - `docs/ARCHITECTURE.md` - system design, component/repo layout (§13 full tree), ops commitments
 - `docs/DOMAIN_SCHEMA.md` (v1.2) - domain model, rules DSL, **ADR-16 evaluation semantics**, invariants I1–I11
 - `docs/SECURITY_DESIGN.md` - authn/authz/scopes, token & key inventory, **SEC-1…13**, traceability matrix
@@ -33,10 +34,11 @@ Node LTS everywhere · pnpm + Turborepo · Zod as the single schema language · 
 - **R5** Invariant spanning more than one field/row → core function; otherwise plain transaction script. No repositories-as-interfaces, no mediator, no NestJS.
 - **R6** `questionId`/`optionId` are stable forever and never reused with a different meaning.
 - **R7** The launch cut-line holds: no impact analysis, no `/api/v1`, no second locale, no multi-tenancy, no visual rule builder before Phase 4. Record itches as `phase-4` issues; don't build them.
+- **R8** Ports come from `docs/PORTS.md` - `7Sxx` human-facing, `17Sxx` ephemeral harness, seat `S` from `QCMS_PORT_SEAT`. Never invent a port.
 
 And from the newer decisions: rule evaluation is a **forward pass, never a fixpoint** (ADR-16); the portal serves the **stored compiled A2UI, never a recompilation** (ADR-18); the golden corpus is **append-only** (ADR-18); multiChoice comparisons are **set equality** and containment uses `contains`/`containsAny` (ADR-21); the solo topology has **no bundled proxy** - TLS/ingress is operator infrastructure and the API container is never published (ADR-20); both frontends use **only** the `a2-react-aria` stack - `@a2ra/core` exact-pinned, components vendored via the a2ra CLI, design tokens single-sourced upstream, no other component library ever (ADR-22); feature flags are the typed env registry only - no client-side flag evaluation, no flag service; form-scoped toggles are form settings, not flags (ADR-24); agents assist **authoring only** - the agent proposes, the kernel validates, the human publishes; the serving path never sees an LLM and the agent's tool surface never reaches respondent data (ADR-25); security controls follow `docs/SECURITY_DESIGN.md` - notably: no CORS headers ever, answer values never logged, secrets never echoed.
 
-And from ADR-26…35 (titles and rationale in `docs/PROJECT_GOAL.md` §6): client data/state and the two-surface design mandate extend ADR-22 (**ADR-26**); i18n is first-class in both apps and **no user-facing string is ever hardcoded** (**ADR-27**); the portal uses an **explicit step cursor** (Continue/Back/Submit), never collapse-on-answer (**ADR-28**); the **dev container is the canonical environment** and `scripts/agent-loop.sh` is the only supervisor (**ADR-29**, amended 2026-07-25); portal theming is managed themes + respondent runtime controls over a four-group token contract (**ADR-30**); answer commitment semantics and conditional reveal cadence are fixed (**ADR-31**); validation messages are author-supplied with edit-level default fallback (**ADR-32**); retraction is a **tombstone append**, never a delete (**ADR-33**); observability is an OTel baseline with trace-correlated logs and the SEC-13 redaction allowlist (**ADR-34**); the **API is the sole domain-data client**, the admin's auth handle being the one scoped exception, itself closing in task 056 (**ADR-35**).
+And from ADR-26…35 (titles and rationale in `docs/PROJECT_GOAL.md` §6): client data/state and the two-surface design mandate extend ADR-22 (**ADR-26**); i18n is first-class in both apps and **no user-facing string is ever hardcoded** (**ADR-27**); the portal uses an **explicit step cursor** (Continue/Back/Submit), never collapse-on-answer (**ADR-28**); the **dev container is the canonical environment** and `scripts/agent-loop.sh` is the only supervisor (**ADR-29**, amended 2026-07-25); portal theming is managed themes + respondent runtime controls over a four-group token contract (**ADR-30**); answer commitment semantics and conditional reveal cadence are fixed (**ADR-31**); validation messages are author-supplied with edit-level default fallback (**ADR-32**); retraction is a **tombstone append**, never a delete (**ADR-33**); observability is an OTel baseline with trace-correlated logs and the SEC-13 redaction allowlist (**ADR-34**); the **API is the sole domain-data client**, the admin's auth handle being the one scoped exception, itself closing in task 056 (**ADR-35**); boolean yes/no labels are author-localizable content over a lexicon fallback (**ADR-36**); **ports come from one allocation** - `7Sxx` human-facing, `17Sxx` ephemeral harness, one seat index, gated by `check:ports` (**ADR-37**, R8).
 
 ## Session protocol (normative - AGENTIC_DEVELOPMENT.md §3 in brief)
 

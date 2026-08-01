@@ -22,7 +22,7 @@
  * hand - by reading `/proc/<pid>/cwd`.
  */
 
-import { existsSync, readFileSync, readdirSync, readlinkSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, readlinkSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -251,8 +251,79 @@ export function assertSeatPortsUsable(
   );
 }
 
-/** Both startup refusals, in the order a run needs them. */
+/**
+ * Refuse an unset seat when running from a linked git worktree.
+ *
+ * This is the one mechanism here that addresses the residual risk, and it is worth
+ * being precise about why the others do not. Per-seat isolation makes two seats
+ * unable to meet. The occupancy refusal above is only a **diagnostic**: between its
+ * probe and the actual bind there is a window in which another run can claim the
+ * port, and a sibling lane lost exactly that race on 2026-08-02. So the remaining way
+ * this fails is not a port collision, it is a **seat collision**: two runs that both
+ * default to seat 0.
+ *
+ * The default cannot simply be removed, because seat 0 must stay byte-identical for
+ * an existing developer and for CI. But the population that collides is not those
+ * two: it is concurrent agent lanes, and by this repo's own rules every one of them
+ * runs in a `git worktree`. A linked worktree has a `.git` **file** (`gitdir: ...`)
+ * where the primary checkout has a directory, which is a reliable, zero-cost tell.
+ *
+ * So: primary checkout and CI keep the silent default; a worktree must say which seat
+ * it wants. "I forgot" becomes a startup error naming the variable, before anything
+ * binds, rather than a second run silently on seat 0.
+ */
+export function assertSeatChosen(
+  repoRoot: string = HARNESS_REPO_ROOT,
+  raw: string | undefined = process.env[PORT_SEAT_ENV_VAR],
+): void {
+  if ((raw ?? "").trim() !== "") return;
+  let gitEntry;
+  try {
+    gitEntry = statSync(`${withoutTrailingSlash(repoRoot)}/.git`);
+  } catch {
+    // No `.git` at all (a tarball, a container copy): nothing reliable to infer.
+    return;
+  }
+  if (!gitEntry.isFile()) return;
+  throw new Error(
+    [
+      `${PORT_SEAT_ENV_VAR} is not set, and this is a linked git worktree:`,
+      `  ${repoRoot}`,
+      "",
+      "Concurrent lanes run in worktrees, and two lanes that both fall back to the",
+      "default seat collide on every harness port. Say which seat this run owns:",
+      "",
+      `  ${PORT_SEAT_ENV_VAR}=<${String(MIN_PORT_SEAT)}-${String(MAX_PORT_SEAT)}> pnpm verify:browser`,
+      "",
+      `${PORT_SEAT_ENV_VAR}=0 is a valid answer when nothing else is running. See docs/PORTS.md.`,
+    ].join("\n"),
+  );
+}
+
+/**
+ * Which of this seat's reusable servers are provably ours, right now.
+ *
+ * Playwright's `reuseExistingServer` is the amplifier that turns a collision from a
+ * noisy `EADDRINUSE` into a silent green run against somebody else's tree. It is
+ * therefore enabled only where reuse is provably safe: a live portal or admin dev
+ * server whose `/proc/<pid>/cwd` is this exact worktree. When the port is free at
+ * config load it is left OFF, so a run that loses the bind race to another process
+ * fails loudly instead of adopting the winner. That is the direction the race must
+ * fail in, and it is the part a probe alone cannot give you.
+ */
+export function adoptableServices(
+  seat: number = PORT_SEAT,
+  repoRoot: string = HARNESS_REPO_ROOT,
+  occupants: readonly SeatPortOccupant[] = seatOccupants(seat),
+): Set<HarnessService> {
+  return new Set(
+    occupants.filter((occupant) => isAdoptable(occupant, repoRoot)).map(({ service }) => service),
+  );
+}
+
+/** Every startup refusal, in the order a run needs them. */
 export function assertSeatUsable(seat: number = PORT_SEAT): void {
+  assertSeatChosen();
   assertSeatPortsOutsideEphemeralRange(seat);
   assertSeatPortsUsable(seat);
 }

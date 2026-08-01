@@ -1,7 +1,9 @@
-import { readlinkSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readlinkSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, describe, expect, it } from "vitest";
 
 import { API_PORT, OTLP_PORT, PORTAL_PORT } from "./harness-config.js";
 import {
@@ -12,6 +14,8 @@ import {
   PORT_SEAT,
   PORT_SEAT_ENV_VAR,
   type SeatPortOccupant,
+  adoptableServices,
+  assertSeatChosen,
   assertSeatPortsOutsideEphemeralRange,
   assertSeatPortsUsable,
   composeProjectName,
@@ -87,6 +91,18 @@ async function listenOnFreePort(): Promise<{ port: number; server: Server }> {
 function occupant(overrides: Partial<SeatPortOccupant> = {}): SeatPortOccupant {
   return { service: "portal", port: 17_000, pid: 4242, cwd: "/elsewhere/qcms", ...overrides };
 }
+
+/** A checkout shape whose `.git` is a directory (a normal clone, and CI). */
+const primaryCheckout = mkdtempSync(join(tmpdir(), "port-seat-primary-"));
+mkdirSync(join(primaryCheckout, ".git"));
+
+/** A checkout shape whose `.git` is a file (`gitdir: ...`), i.e. a linked worktree. */
+const linkedWorktree = mkdtempSync(join(tmpdir(), "port-seat-worktree-"));
+writeFileSync(join(linkedWorktree, ".git"), "gitdir: /somewhere/.git/worktrees/x\n", "utf8");
+
+afterAll(() => {
+  for (const dir of [primaryCheckout, linkedWorktree]) rmSync(dir, { recursive: true, force: true });
+});
 
 describe("seat 0 is today's allocation", () => {
   it("puts the human-facing services exactly where they already are", () => {
@@ -283,6 +299,47 @@ describe("assertSeatPortsUsable", () => {
         ]),
       ).toThrow(String(harnessPort(service, 0)));
     }
+  });
+});
+
+describe("assertSeatChosen", () => {
+  it("lets the primary checkout and CI keep the silent default", () => {
+    // `.git` is a directory in a normal clone, which is what CI checks out.
+    expect(() => assertSeatChosen(primaryCheckout, undefined)).not.toThrow();
+  });
+
+  it("refuses an unset seat in a linked worktree, where lanes actually run", () => {
+    // The residual risk after per-seat isolation is not a port collision, it is a
+    // SEAT collision: two lanes that both fall back to the default. Every lane runs
+    // in a worktree, and a linked worktree has a `.git` FILE, so "I forgot" becomes
+    // a startup error before anything binds rather than a second run on seat 0.
+    const call = () => assertSeatChosen(linkedWorktree, undefined);
+    expect(call).toThrow(PORT_SEAT_ENV_VAR);
+    expect(call).toThrow("linked git worktree");
+    expect(() => assertSeatChosen(linkedWorktree, "")).toThrow(PORT_SEAT_ENV_VAR);
+  });
+
+  it("accepts any explicit seat in a worktree, including 0", () => {
+    // Seat 0 is a legitimate answer when nothing else is running. What is refused is
+    // silence, not the value.
+    expect(() => assertSeatChosen(linkedWorktree, "0")).not.toThrow();
+    expect(() => assertSeatChosen(linkedWorktree, "3")).not.toThrow();
+  });
+});
+
+describe("adoptableServices", () => {
+  it("is empty when the ports are free, so a lost bind race fails loudly", () => {
+    // This is the case a probe alone cannot cover. Port free at config load, another
+    // run claims it a second later: with reuse OFF that ends in EADDRINUSE, which is
+    // the direction the race has to fail in. With reuse ON it would end in a green
+    // suite run against the winner's tree, which is issue #255 exactly.
+    expect(adoptableServices(0, "/home/dev/qcms", [])).toEqual(new Set());
+  });
+
+  it("adopts only a same-worktree dev server", () => {
+    const mine = occupant({ cwd: "/home/dev/qcms" });
+    const theirs = occupant({ service: "admin", cwd: "/home/dev/other" });
+    expect(adoptableServices(0, "/home/dev/qcms", [mine, theirs])).toEqual(new Set(["portal"]));
   });
 });
 

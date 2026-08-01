@@ -2,7 +2,7 @@
 
 **QCMS** is an MIT-licensed TypeScript engine for questionnaires with deeply conditional logic, distributed shadcn-style (owned scaffolded shell + versioned `@qcms/*` packages).
 
-**Read first, every session: `PROJECT_INSTRUCTIONS.md`** (repo root) - the binding rules (R1–R7), decisions (ADR-01…35, SEC-1…13), and session protocol. This file adds only harness wiring; where they overlap, PROJECT_INSTRUCTIONS wins.
+**Read first, every session: `PROJECT_INSTRUCTIONS.md`** (repo root) - the binding rules (R1–R8), decisions (ADR-01…35, SEC-1…13), and session protocol. This file adds only harness wiring; where they overlap, PROJECT_INSTRUCTIONS wins.
 
 **Roles:** sessions in this checkout are **implementation** sessions (this file governs them). The product-owner role exists separately, seated outside this checkout - its charter is `docs/PRODUCT_OWNER.md`. Never assume the PO role in a session here.
 

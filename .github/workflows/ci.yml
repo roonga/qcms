@@ -94,6 +94,10 @@ jobs:
       # Em dash (U+2014) is banned in prose/comments/UI strings (AI tell; public repo).
       - run: pnpm check:no-em-dash
 
+      # Ports come from the allocation, never from a literal (R8, ADR-37, issue #255):
+      # 7Sxx human-facing, 17Sxx ephemeral harness, seat S from QCMS_PORT_SEAT.
+      - run: pnpm check:ports
+
       # The QCMS app theme (task 055): the token sheet is the only source of colour in
       # apps/admin, it has not drifted from the design copy it is generated into, and no
       # user-facing string names the app "admin".

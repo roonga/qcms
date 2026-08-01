@@ -35,7 +35,7 @@ let testDb: TestDb;
 beforeAll(async () => {
   testDb = await startTestDb();
   process.env.DATABASE_URL = testDb.connectionUri;
-  process.env.QCMS_ADMIN_BASE_URL = "http://localhost:3200";
+  process.env.QCMS_ADMIN_BASE_URL = "http://localhost:7040";
   // Synthetic, generated per run: no real secret ever enters a fixture.
   process.env.QCMS_ADMIN_AUTH_SECRET = Buffer.from(
     crypto.getRandomValues(new Uint8Array(32)),

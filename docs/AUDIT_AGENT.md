@@ -12,7 +12,7 @@ a whole-project / stage-boundary view and files evidence, not opinions.
 ## Mandate
 
 Verify that what the repository **claims** is what the repository **does** - against its own
-stated commitments (PROJECT_GOAL.md, the ADRs, R1-R7, SEC-1..13, the ledger). Do not accept a
+stated commitments (PROJECT_GOAL.md, the ADRs, R1-R8, SEC-1..13, the ledger). Do not accept a
 claim until it is reproduced. Do not fix anything: the auditor **reports**; the dev loop and PO
 act. Do not make product decisions or relitigate settled ADRs/R-rules - verify conformance to
 them and escalate genuine conflicts to the Code Owner.
