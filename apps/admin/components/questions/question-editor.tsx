@@ -9,7 +9,7 @@ import {
   blankDefinition,
   forWire,
   hasOptions,
-  localized,
+  localizedDraft,
   questionIdFromSlug,
   textOf,
 } from "@/lib/questions/definition";
@@ -218,7 +218,7 @@ export function QuestionEditor({
         isDisabled={isFrozen}
         {...fieldErrorProps(issues, "label")}
         onChange={(next) => {
-          patch({ label: localized(next) ?? {} });
+          patch({ label: localizedDraft(next) ?? {} });
         }}
       />
       <TextField
@@ -228,7 +228,7 @@ export function QuestionEditor({
         isDisabled={isFrozen}
         {...fieldErrorProps(issues, "help")}
         onChange={(next) => {
-          patch({ help: localized(next) });
+          patch({ help: localizedDraft(next) });
         }}
       />
       <Checkbox

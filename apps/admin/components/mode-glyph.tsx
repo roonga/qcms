@@ -26,11 +26,23 @@ import type { Mode } from "@/lib/appearance";
  * stroke weight and caps) and is the one geometry here a design pass has not seen.
  */
 
-/** Shared across all three, straight off the card's `<svg>` attributes. */
+/**
+ * Shared across all three, straight off the card's `<svg>` attributes, with one
+ * deliberate departure: the card draws the glyph at 24px inside the 32px hit box and
+ * calls that optical parity with the avatar. It is not. The avatar is a **filled**
+ * 32px disc and this is a 1.75-weight **outline**, so a filled shape at 32 next to an
+ * outline at 24 reads as two different sizes - which is exactly how the Code Owner
+ * saw it at the gate (2026-08-01). Drawing at 28 closes most of that gap while
+ * keeping the rest state borderless and fill-less, which was its own deliberate
+ * decision two passes earlier and is the thing a background would have undone.
+ *
+ * The viewBox stays 24 units, so every path here is still the card's geometry
+ * unscaled - only the rendered size changes.
+ */
 const SVG_PROPS = {
   viewBox: "0 0 24 24",
-  width: 24,
-  height: 24,
+  width: 28,
+  height: 28,
   fill: "none",
   stroke: "currentColor",
   strokeWidth: 1.75,

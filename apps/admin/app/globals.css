@@ -284,11 +284,21 @@ th,
 .qcms-modetrigger {
   inline-size: 32px;
   block-size: 32px;
+  /* Opt out of the 40px control floor the bare `button` rule sets. A `min-block-size`
+     beats a `block-size`, so without this the trigger renders 32 wide by 40 tall and
+     the square becomes a rectangle. The floor is right for controls a pointer aims at
+     in a form; these two topbar triggers are 32px by design, per the card. */
+  min-block-size: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border: none;
-  border-radius: var(--radius-control);
+  /* Circular, to match the avatar beside it. At rest this is invisible - the surface is
+     transparent - so the radius only ever shows as the shape hover and focus draw, and a
+     4px-radius square lighting up next to a circular one read as two unrelated controls
+     (Code Owner, 2026-08-01). The card names `--radius-control` here, from before the
+     avatar became a disc; the app follows the pair as it now is. */
+  border-radius: 50%;
   background-color: var(--color-ghost);
   color: var(--color-text);
   cursor: pointer;
@@ -299,6 +309,9 @@ th,
 .qcms-modetrigger[data-hovered],
 .qcms-modetrigger[aria-expanded="true"] {
   background-color: var(--color-ghost-hover);
+  /* The same ring the avatar draws. The card asks for "2px strong ring on both"; the
+     fill alone left the two triggers lighting up in different languages. */
+  box-shadow: 0 0 0 2px var(--color-border-strong);
 }
 /* High-contrast keeps a permanent border. A documented exception, not an oversight:
    a borderless icon is exactly what an operator in this mode struggles to locate,
@@ -312,6 +325,10 @@ th,
 .qcms-avatar {
   inline-size: 32px;
   block-size: 32px;
+  /* Same opt-out as the appearance trigger, and here it is visible rather than subtle:
+     with the 40px floor applied, a `border-radius: 50%` box 32 wide by 40 tall reads as
+     an elongated oval instead of the intended circle. */
+  min-block-size: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -328,6 +345,10 @@ th,
 .qcms-avatar[data-hovered],
 .qcms-avatar[aria-expanded="true"] {
   box-shadow: 0 0 0 2px var(--color-border-strong);
+  /* The disc itself lifts too. A ring alone around an already-solid shape barely reads
+     as a state change, so the monogram did not look interactive next to the appearance
+     trigger, whose whole surface fills (Code Owner, 2026-08-01). */
+  background-color: var(--color-primary-hover);
 }
 :root.hc .qcms-avatar {
   border: 1px solid var(--color-border-strong);
@@ -607,6 +628,10 @@ th,
   grid-column: 1 / -1;
 }
 
+/* One row of the option list editor. Wraps on narrow screens, aligned to the
+   bottom edge so the up/down/remove buttons sit level with the label field.
+   __id is the immutable option id: a small monospace chip that reads as
+   fixed rather than editable; __label grows to fill the remaining space. */
 /* One row of the option list editor. Wraps on narrow screens, aligned to the
    bottom edge so the up/down/remove buttons sit level with the label field.
    __id is the immutable option id: a small monospace chip that reads as

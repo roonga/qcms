@@ -6,6 +6,7 @@ import {
   blankDefinition,
   forWire,
   localized,
+  localizedDraft,
   mintOptionId,
   moveOption,
   questionIdFromSlug,
@@ -191,5 +192,53 @@ describe("CONSTRAINT_FIELDS", () => {
     expect(Object.keys(CONSTRAINT_FIELDS).sort()).toEqual(
       ["boolean", "date", "longText", "multiChoice", "number", "shortText", "singleChoice"].sort(),
     );
+  });
+});
+
+describe("text a author is still typing", () => {
+  it("keeps a trailing space so a sentence can be typed normally", () => {
+    // The bug this pins: `localized` trims, and in a fully controlled field the trimmed
+    // value flows straight back into the input, so the space is gone before the next
+    // keystroke. An author could add a space mid-sentence but never at the end.
+    expect(localizedDraft("Your policy number ")).toEqual({ en: "Your policy number " });
+    expect(localizedDraft(" leading")).toEqual({ en: " leading" });
+    expect(localizedDraft("  ")).toEqual({ en: "  " });
+  });
+
+  it("still treats a genuinely empty field as absent", () => {
+    // The kernel rejects an empty LocalizedText value, so an untouched optional field
+    // has to be absent rather than { en: "" }.
+    expect(localizedDraft("")).toBeUndefined();
+  });
+
+  it("normalizes at the wire boundary instead", () => {
+    const wire = forWire({
+      questionId: "q_policy",
+      type: "shortText",
+      label: { en: "  Policy number  " },
+      help: { en: "As printed  " },
+    } as never) as unknown as { label: unknown; help: unknown };
+    expect(wire.label).toEqual({ en: "Policy number" });
+    expect(wire.help).toEqual({ en: "As printed" });
+  });
+
+  it("drops a whitespace-only optional field at the wire boundary", () => {
+    const wire = forWire({
+      questionId: "q_policy",
+      type: "shortText",
+      label: { en: "Policy" },
+      help: { en: "   " },
+    } as never) as unknown as Record<string, unknown>;
+    expect("help" in wire).toBe(false);
+  });
+
+  it("trims option labels at the wire boundary without touching their ids", () => {
+    const wire = forWire({
+      questionId: "q_colour",
+      type: "singleChoice",
+      label: { en: "Colour" },
+      options: [{ optionId: "opt_red", label: { en: "Red  " } }],
+    } as never) as unknown as { options: { optionId: string; label: unknown }[] };
+    expect(wire.options[0]).toEqual({ optionId: "opt_red", label: { en: "Red" } });
   });
 });

@@ -374,3 +374,26 @@ test("the appearance trigger is borderless at rest and bordered in High-contrast
   await choose(page, "hc");
   expect(await computed(trigger, "border-top-width")).toBe("1px");
 });
+
+test("both topbar triggers are 32px squares, not stretched by the control floor", async ({
+  page,
+}) => {
+  // A regression the screenshot gate caught by eye: the bare `button` rule sets
+  // `min-block-size: var(--admin-control-h)` (40px), and a min-block-size beats a
+  // block-size, so both triggers rendered 32 wide by 40 tall. On the avatar, whose
+  // `border-radius: 50%` turns any non-square box into an oval, it was obvious; on the
+  // appearance trigger it was a quieter rectangle. Measuring the rendered box is the
+  // only assertion that catches this - every property the CSS declares was already
+  // correct on its own.
+  await signInWithTotp(page, EMAIL, totpSecret);
+
+  for (const trigger of [
+    appearanceTrigger(page),
+    page.getByRole("button", { name: /Account menu/ }),
+  ]) {
+    const box = await trigger.boundingBox();
+    expect(box).not.toBeNull();
+    expect(Math.round(box!.width)).toBe(32);
+    expect(Math.round(box!.height)).toBe(32);
+  }
+});

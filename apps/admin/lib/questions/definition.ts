@@ -97,6 +97,36 @@ export function localized(text: string, locale = DEFAULT_LOCALE): LocalizedText 
   return trimmed === "" ? undefined : { [locale]: trimmed };
 }
 
+/**
+ * The same thing, for a field the author is **actively typing into**.
+ *
+ * Whitespace is preserved exactly. `localized` trims, and in a fully controlled field
+ * that makes a trailing space unwritable: the keystroke lands, the trim strips it, the
+ * trimmed value flows back through state, and the caret ends up where it started - so
+ * an author can add a space in the middle of a sentence but never at the end, and
+ * cannot type a normal sentence at all (Code Owner, 2026-08-01).
+ *
+ * Only a genuinely empty string becomes `undefined`, because the kernel's
+ * `LocalizedText` rejects an empty value and an untouched optional field has to be
+ * absent rather than `{ en: "" }`. Whitespace-only text stays as typed here and is
+ * normalized once, at {@link forWire}, which is the right boundary for it: what the
+ * author sees while editing is exactly what they typed, and what is stored is tidy.
+ */
+export function localizedDraft(text: string, locale = DEFAULT_LOCALE): LocalizedText | undefined {
+  return text === "" ? undefined : { [locale]: text };
+}
+
+/** Trim every locale of a text, dropping the field entirely when nothing survives. */
+function trimLocalized(text: LocalizedText | undefined): LocalizedText | undefined {
+  if (text === undefined) return undefined;
+  const out: Record<string, string> = {};
+  for (const [locale, value] of Object.entries(text)) {
+    const trimmed = value.trim();
+    if (trimmed !== "") out[locale] = trimmed;
+  }
+  return Object.keys(out).length === 0 ? undefined : out;
+}
+
 /** Types that carry an option list. */
 export function hasOptions(type: QuestionType): boolean {
   return type === "singleChoice" || type === "multiChoice";
@@ -150,7 +180,7 @@ export function relabelOption(
   label: string,
 ): readonly ChoiceOptionView[] {
   return options.map((option, at) =>
-    at === index ? { optionId: option.optionId, label: localized(label) ?? {} } : option,
+    at === index ? { optionId: option.optionId, label: localizedDraft(label) ?? {} } : option,
   );
 }
 
@@ -188,7 +218,7 @@ export function addOption(
     label,
     options.map((option) => option.optionId),
   );
-  return [...options, { optionId, label: localized(label) ?? {} }];
+  return [...options, { optionId, label: localizedDraft(label) ?? {} }];
 }
 
 /** Remove one option. Nothing is renumbered: the survivors keep their ids. */
@@ -210,10 +240,19 @@ export function removeOption(
  * legal.
  */
 export function forWire(definition: QuestionDefinitionView): QuestionDefinitionView {
-  const { type, constraints, options, help, ...rest } = definition;
+  const { type, constraints, options, help, label, ...rest } = definition;
   const wire: Record<string, unknown> = { ...rest, type };
-  if (help !== undefined && textOf(help) !== "") wire["help"] = help;
-  if (hasOptions(type)) wire["options"] = options ?? [];
+  // Trim here rather than on every keystroke: this is the one boundary where the text
+  // stops being something the author is still typing. See `localizedDraft`.
+  wire["label"] = trimLocalized(label) ?? {};
+  const trimmedHelp = trimLocalized(help);
+  if (trimmedHelp !== undefined) wire["help"] = trimmedHelp;
+  if (hasOptions(type)) {
+    wire["options"] = (options ?? []).map((option) => ({
+      optionId: option.optionId,
+      label: trimLocalized(option.label) ?? {},
+    }));
+  }
   const owned = CONSTRAINT_FIELDS[type];
   if (owned.length > 0) wire["constraints"] = pruneConstraints(constraints ?? {}, owned);
   return wire as unknown as QuestionDefinitionView;
