@@ -18,8 +18,9 @@
 #           -r, --retry-minutes N     wait between retries when usage-limited / crashed
 #           -m, --max-iterations N    hard stop so a logic bug cannot loop forever
 #           -s, --stop-after-task ID  e.g. "010" - stop once this task lands
-# Stop:   Ctrl+C anytime - worst case is one interrupted task, which the next
-#         run's stale-claim recovery picks up.
+# Stop:   Ctrl+C anytime - the running session and every process it spawned are
+#         terminated with it, and the worst case is one interrupted task, which
+#         the next run's stale-claim recovery picks up.
 set -uo pipefail
 
 parallel=1
@@ -111,9 +112,103 @@ log_file="$PWD/agent-loop.log"
 log() {
   local line
   line="$(date '+%Y-%m-%d %H:%M:%S')  $1"
-  echo "$line"
-  echo "$line" >>"$log_file"
+  # Writing to a terminal that has gone away raises SIGPIPE, whose default action
+  # kills the shell outright - skipping the EXIT trap, and so leaving behind
+  # exactly the orphans this script now exists to prevent (issue #240). Ignoring
+  # it inside a subshell downgrades that to a discarded write. The subshell
+  # matters: a trap set to a command is reset in children, but one set to ''
+  # is inherited as "ignored", and a session that starts life with SIGPIPE
+  # ignored is not something to hand a CLI.
+  (
+    trap '' PIPE
+    echo "$line"
+    echo "$line" >>"$log_file"
+  ) 2>/dev/null
 }
+
+# --- session process groups (issue #240) ------------------------------------
+#
+# A session spawns background work of its own: subagents, backgrounded bash
+# tasks, watchers. When the session process ends - normally, on a crash, or
+# because the CLI gave up on its own background tasks and terminated them - those
+# descendants are reparented to init and keep running. An orphan belonging to a
+# DEAD iteration that still drains ../seat-mail/<mailbox>/ can consume a steer
+# the LIVE iteration then never sees: the bus is at-most-once per file
+# (act-then-move ack), so a stolen message is simply lost.
+#
+# The supervisor therefore launches each session in its own process group and
+# terminates the whole group once the session's own process has exited. `set -m`
+# (job control) is what creates the group: bash gives a background job a process
+# group whose id is the job's pid, and it does so before the exec, so `$!` IS the
+# group id - no lookup, and no race. `setsid` (this issue's suggested means) gets
+# to the same place, but the group id then has to be read back out of /proc after
+# the fact, racing with setsid's own setsid(2) call.
+session_reap_grace_sec=5
+session_pgid=""
+# Reaping a group by id is only safe if that id is not the supervisor's own, so
+# the guard below needs to know what ours is.
+own_pgid="$(ps -o pgid= -p $$ 2>/dev/null | tr -d ' ')"
+
+# Succeeds while at least one process in group $1 is alive. After the group
+# leader exits, the id stays valid (and unreused) as long as any member remains,
+# which is exactly the orphan case this exists to detect.
+group_alive() { # $1 = pgid
+  kill -0 -- "-$1" 2>/dev/null
+}
+
+# Terminate everything left in the finished session's process group. Idempotent:
+# it clears session_pgid first, so the EXIT trap after a signal handler is a
+# no-op rather than a second round of kills against a recycled id.
+reap_session_group() {
+  local pgid="$session_pgid" waited=0
+  session_pgid=""
+  [ -n "$pgid" ] || return 0
+  # If job control did not take, the session shares our group and killing it
+  # would kill this supervisor (and whatever else sits in the group). Leaving a
+  # potential orphan is the lesser failure, so say so loudly and stop.
+  if [ -n "$own_pgid" ] && [ "$pgid" = "$own_pgid" ]; then
+    log "WARNING: session shares the supervisor's process group ($pgid) - not reaping, orphans may survive"
+    return 0
+  fi
+  group_alive "$pgid" || return 0
+  log "session left processes running - terminating its process group ($pgid)"
+  kill -TERM -- "-$pgid" 2>/dev/null
+  while [ "$waited" -lt $((session_reap_grace_sec * 10)) ]; do
+    group_alive "$pgid" || return 0
+    sleep 0.1
+    waited=$((waited + 1))
+  done
+  # The session is over either way, so there is nothing left to shut down
+  # gracefully and no reason to keep waiting on a process that ignored SIGTERM.
+  kill -KILL -- "-$pgid" 2>/dev/null
+  waited=0
+  while [ "$waited" -lt $((session_reap_grace_sec * 10)) ]; do
+    group_alive "$pgid" || return 0
+    sleep 0.1
+    waited=$((waited + 1))
+  done
+  # `kill -0` cannot tell a live member from an unreaped zombie, so this can also
+  # mean the group is dead but something has not collected it yet. Either way no
+  # orphan is left running, which is what the reap exists to guarantee; the cost
+  # of the ambiguity is this warning and the wait above.
+  log "WARNING: process group $pgid still present after SIGKILL - check for stuck processes"
+}
+
+# The session now lives in its own process group, so a terminal Ctrl+C reaches
+# the supervisor but NOT the session. Forwarding it here is what keeps the
+# documented "Ctrl+C anytime" true, and makes it stricter than before: the whole
+# tree goes, not just the process that happened to be in the foreground.
+on_signal() { # $1 = signal name
+  log "received SIG$1 - stopping the current session and everything it spawned"
+  reap_session_group
+  trap - "$1"
+  kill -"$1" $$
+}
+trap 'on_signal INT' INT
+trap 'on_signal TERM' TERM
+trap 'on_signal HUP' HUP
+trap reap_session_group EXIT
+# ----------------------------------------------------------------------------
 
 prompt="$prompt_cmd"
 [ "$parallel" -gt 1 ] && [ "$prompt_cmd" = "/next-task" ] && prompt="/next-task $parallel"
@@ -151,7 +246,26 @@ Seat mail from the PO seat (act on each, then move its file to ../seat-mail/${ma
 
 Lane identity: your seat-mail inbox is ../seat-mail/${mailbox}/ (ack into its read/); sign outbound mail to ../seat-mail/pm/ as 'From: ${mailbox} lane'. Follow the second-lane discipline in the next-issue skill (bug/security tier only while the e2e chain runs; avoid the live feat/* claim's footprint; flock the shared browser-gate lock)."
   fi
-  out="$(claude -p "$iter_prompt" --model claude-opus-5 --permission-mode bypassPermissions --output-format text 2>&1)"
+  #
+  # The session's output goes to a file, not a command substitution. A command
+  # substitution does not return until every process holding the write end of
+  # the pipe has exited, so a single background descendant that inherited stdout
+  # used to hang the supervisor indefinitely instead of letting it reap and move
+  # on - the same orphan, wearing a different symptom.
+  session_log="$(mktemp "${TMPDIR:-/tmp}/agent-loop-session-XXXXXX")"
+  # Job control for this launch only, so the session gets its own process group.
+  # stdin comes from /dev/null: a background process group that reads the
+  # terminal is stopped with SIGTTIN, and a headless session has no use for it.
+  set -m
+  claude -p "$iter_prompt" --model claude-opus-5 --permission-mode bypassPermissions \
+    --output-format text >"$session_log" 2>&1 </dev/null &
+  session_pid=$!
+  set +m
+  session_pgid="$session_pid"
+  wait "$session_pid"
+  reap_session_group
+  out="$(cat "$session_log")"
+  rm -f "$session_log"
   echo "$out" >>"$log_file"
   sentinel="$(echo "$out" | grep -E '^NEXT-(TASK|ISSUE):' | tail -n 1)"
 
