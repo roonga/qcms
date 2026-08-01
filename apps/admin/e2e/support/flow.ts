@@ -144,15 +144,42 @@ export async function openMenu(trigger: Locator): Promise<void> {
  * Lives here rather than in one spec because two specs need it: the axe gate samples
  * colour after a mode swap, and the theming assertions in `appearance.pw.ts` do the
  * same. One copy, so a fix to the wait cannot reach only half the callers.
+ *
+ * TWO FRAMES, AND A LOOP, both earned the hard way.
+ *
+ * A single `requestAnimationFrame` is not enough. A CSS transition does not exist as an
+ * animation until the style change that starts it has been recomputed, and the callback
+ * of the first frame can run BEFORE that recalculation - so `getAnimations()` returns an
+ * empty list, this resolves immediately, and the sample lands in the middle of a
+ * transition that had not started being observable yet. That is a race the caller wins
+ * most of the time, which is the worst kind: it surfaced only when an unrelated change on
+ * the same page (a preview that now holds state) shifted the render timing by a frame.
+ *
+ * The loop is for the same reason one layer out: finishing one set of transitions can
+ * start another (a dialog that fades in, then its contents settling), so re-asking until
+ * the page reports nothing running is the only wait that is actually about the page. The
+ * bound exists so an infinite animation cannot hang the suite; it is a safety net, not a
+ * timing knob, and hitting it does not fail anything.
  */
 export async function settleTransitions(page: Page): Promise<void> {
   await page.evaluate(async () => {
-    await new Promise((resolve) => {
-      requestAnimationFrame(() => resolve(undefined));
-    });
-    await Promise.all(
-      document.getAnimations().map((animation) => animation.finished.catch(() => undefined)),
-    );
+    // Named rather than inlined into the `new Promise(...)` below: an arrow inside an
+    // executor inside a helper inside this callback is five levels of nesting, which
+    // `sonarjs/no-nested-functions` rejects.
+    const onNextFrame = (resolve: (value: unknown) => void): void => {
+      requestAnimationFrame(resolve);
+    };
+    const frame = async (): Promise<void> => {
+      await new Promise(onNextFrame);
+    };
+    await frame();
+    await frame();
+    for (let round = 0; round < 5; round += 1) {
+      const running = document.getAnimations();
+      if (running.length === 0) return;
+      await Promise.all(running.map((animation) => animation.finished.catch(() => undefined)));
+      await frame();
+    }
   });
 }
 
