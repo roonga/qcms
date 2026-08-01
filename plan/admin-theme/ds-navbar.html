@@ -252,31 +252,36 @@ code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; bord
    mode word too - the interface itself already shows the mode, so a status
    glyph is a nicer text-free cue than a label. Fourth pass, same day: the
    trigger drops its border and fill at rest too - the icon alone is the
-   button, the 32px box stays only as the hit area (var(--radius-control)
-   sizes the hover/focus shapes that still use it), and var(--color-ghost-
-   hover) fill materializes the box on hover or while open, so the anchored
-   menu visually connects to something. .demo-hc keeps a permanent 1px
-   strong border at rest as a deliberate, documented exception: a borderless
-   icon is exactly what high-contrast users struggle to locate, and
-   boundaries are the point of the mode. Fifth pass, same day: the character
-   glyphs (circle/half-circle text characters) become owned inline SVGs -
-   sun, crescent moon, half-filled circle - stroke="currentColor" so they
-   inherit .modetrigger's color like the rest of the button, no icon library.
-   Sized at 24px (viewBox units map 1:1 to px) inside the 32px hit box: a
-   thin stroke icon carries far less optical mass than the avatar's solid
-   32px disc below, so it has to claim proportionally more of its box to
-   read with comparable weight; 22px left it looking closer to half the
-   avatar's visual size side by side, 24px (4px margin per side, matching
-   the box's own padding conventions elsewhere in the file) closed most of
-   that gap without crowding the hit area. aria-hidden on the svg; aria-
-   label carries what the visual drops. The open menu is unchanged and
-   reuses the dropdown-menu language from ds-overlays.html (surface, border,
-   radius, shadow) so the two cards agree. Checked state in the menu never
-   relies on colour alone: a leading check glyph, font weight, and an inset
-   accent edge carry it together. */
+   button, and the 32px box stays only as the hit area, with var(--color-
+   ghost-hover) fill materializing the box on hover or while open, so the
+   anchored menu visually connects to something. .demo-hc keeps a permanent
+   1px strong border at rest as a deliberate, documented exception: a
+   borderless icon is exactly what high-contrast users struggle to locate,
+   and boundaries are the point of the mode. Fifth pass, same day: the
+   character glyphs (circle/half-circle text characters) become owned
+   inline SVGs - sun, crescent moon, half-filled circle -
+   stroke="currentColor" so they inherit .modetrigger's color like the rest
+   of the button, no icon library. aria-hidden on the svg; aria-label
+   carries what the visual drops. Seventh pass, Code Owner live review of
+   the built topbar, 2026-08-01: sizes and shapes are now measured against
+   the running app rather than reasoned. The glyph renders at 28px: this
+   card previously sized it at 24px and called that optical parity with the
+   avatar, but that reasoning was empirically wrong at the gate - a filled
+   32px disc beside a 1.75-stroke outline at 24px reads as two different
+   sizes (22px, tried even earlier, read closer to half the avatar's
+   weight); 28px is the measured match. The box's corner shape is circular
+   at rest too now, matching the avatar, not var(--radius-control): a
+   4px-radius square lighting up next to a circular avatar read as two
+   unrelated controls. Hover and open draw the same 2px
+   var(--color-border-strong) ring the avatar draws, on top of the
+   ghost-hover fill, so the two triggers light up in one language instead
+   of two. The open menu is unchanged and reuses the dropdown-menu language
+   from ds-overlays.html (surface, border, radius, shadow) so the two cards
+   agree. Checked state in the menu never relies on colour alone: a leading
+   check glyph, font weight, and an inset accent edge carry it together. */
 .topbar .mode { position: relative; flex-shrink: 0; }
-.modetrigger { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--radius-control); border: none; background: var(--color-ghost); color: var(--color-text); cursor: pointer; flex-shrink: 0; }
-.modetrigger:hover, .modetrigger[aria-expanded="true"] { background: var(--color-ghost-hover); }
+.modetrigger { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; border: none; background: var(--color-ghost); color: var(--color-text); cursor: pointer; flex-shrink: 0; }
+.modetrigger:hover, .modetrigger[aria-expanded="true"] { background: var(--color-ghost-hover); box-shadow: 0 0 0 2px var(--color-border-strong); }
 .demo-hc .modetrigger { border: 1px solid var(--color-border-strong); }
 .modemenu { position: absolute; top: calc(100% + 6px); right: 0; min-width: 180px; background: var(--color-surface); border: 1px solid var(--color-border-strong); border-radius: var(--radius-card); padding: 6px; box-shadow: 0 2px 4px hsl(var(--shadow-color) / 0.1), 0 30px 70px -30px hsl(var(--shadow-color) / 0.4); }
 .demo-hc .modemenu { box-shadow: none; }
@@ -306,11 +311,15 @@ code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; bord
    (radius-control/radius-card/radius-sm are all near-flat elsewhere in this
    file) - the account trigger is an identity glyph, not a control surface,
    so a full circle reads correctly. No caret, no visible text: the initials
-   are decorative, and aria-label carries the accessible name. */
+   are decorative, and aria-label carries the accessible name. Seventh pass,
+   Code Owner live review, 2026-08-01: hover/open also lifts the fill to
+   var(--color-primary-hover), not just the ring - a ring alone around an
+   already-solid disc barely read as a state change next to the appearance
+   trigger, whose whole surface fills on the same interaction. */
 .avatar { width: 32px; height: 32px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
   background: var(--color-primary); color: var(--color-primary-foreground); font-weight: 600; font-size: 0.72rem; letter-spacing: 0.02em;
   border: none; cursor: pointer; flex-shrink: 0; }
-.avatar:hover, .avatar[aria-expanded="true"] { box-shadow: 0 0 0 2px var(--color-border-strong); }
+.avatar:hover, .avatar[aria-expanded="true"] { box-shadow: 0 0 0 2px var(--color-border-strong); background: var(--color-primary-hover); }
 .demo-hc .avatar { border: 1px solid var(--color-border-strong); }
 
 .frame { border: 1px solid var(--color-border); border-radius: var(--radius-card); overflow: hidden; }
@@ -318,10 +327,14 @@ code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; bord
 
 /* High-contrast treatment demo: the exact universal HC mode-layer values
    plus the QCMS app's cobalt accent (tokens.css ":root.hc"), scoped to this box
-   so it renders correctly regardless of the page-level switcher above. */
+   so it renders correctly regardless of the page-level switcher above.
+   --color-primary-hover joined the set in the seventh pass (2026-08-01),
+   once the avatar's hover/open state started reading it - copied from this
+   file's own :root.hc block above, not a new value. */
 .demo-hc { --color-ghost-hover: #eceef1; --color-text: #000000; --color-text-muted: #22262e;
   --color-border: #5a616e; --color-border-strong: #000000; --color-background: #ffffff;
-  --color-surface: #ffffff; --color-focus-ring: #0a3ea8; --color-primary: #0a3ea8; }
+  --color-surface: #ffffff; --color-focus-ring: #0a3ea8; --color-primary: #0a3ea8;
+  --color-primary-hover: #08348f; }
 .demo-hc .topbar { background: var(--color-surface); backdrop-filter: none; border-bottom: 2px solid var(--color-border-strong); }
 
 .portal-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.75rem 1.5rem;
@@ -409,7 +422,7 @@ code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; bord
 
 <div class="card">
   <h2>Appearance mode control</h2>
-  <p class="note">One compact control replaces the three-button chip row (Code Owner call, 2026-07-31). Default follows prefers-color-scheme; an explicit choice persists per operator; High contrast is only ever explicit, never inferred. The checked item is distinguishable without colour: a leading check glyph, font weight, and an inset accent edge carry the state, not colour alone. Keyboard: the trigger opens with Enter, Space, or Arrow Down; the open menu is arrow-navigated; Escape closes it and returns focus to the trigger (the vendored a2-react-aria menu provides this). The trigger is icon-only, no mode word in the bar (Code Owner, 2026-07-31): the word is redundant, since the interface itself already displays the mode; the accessible name and the menu carry the words instead. The trigger is also borderless at rest (Code Owner, 2026-07-31): the icon alone is the button, and hover or open materializes the ghost-fill surface around it; high contrast keeps a permanent border by design, since a borderless icon is exactly what high-contrast users struggle to locate. The mode glyphs are owned inline SVGs, not an icon library (Code Owner call, 2026-07-31): sun, crescent moon, and half-filled circle, drawn with stroke="currentColor" so each inherits the trigger's colour like everything else in the file. The Light glyph was adopted from the 032 implementation (2026-08-01), making the card complete across all three modes.</p>
+  <p class="note">One compact control replaces the three-button chip row (Code Owner call, 2026-07-31). Default follows prefers-color-scheme; an explicit choice persists per operator; High contrast is only ever explicit, never inferred. The checked item is distinguishable without colour: a leading check glyph, font weight, and an inset accent edge carry the state, not colour alone. Keyboard: the trigger opens with Enter, Space, or Arrow Down; the open menu is arrow-navigated; Escape closes it and returns focus to the trigger (the vendored a2-react-aria menu provides this). The trigger is icon-only, no mode word in the bar (Code Owner, 2026-07-31): the word is redundant, since the interface itself already displays the mode; the accessible name and the menu carry the words instead. The trigger is also borderless at rest (Code Owner, 2026-07-31): the icon alone is the button, and hover or open materializes the ghost-fill surface around it; high contrast keeps a permanent border by design, since a borderless icon is exactly what high-contrast users struggle to locate. The mode glyphs are owned inline SVGs, not an icon library (Code Owner call, 2026-07-31): sun, crescent moon, and half-filled circle, drawn with stroke="currentColor" so each inherits the trigger's colour like everything else in the file. The Light glyph was adopted from the 032 implementation (2026-08-01), making the card complete across all three modes. Seventh pass, Code Owner live review of the built topbar (2026-08-01): sizes and shapes are now measured against the running app rather than reasoned. The glyph renders at 28px, not the 24px this card previously called optical parity with the avatar - a filled 32px disc beside a 1.75-stroke outline at 24px reads as two different sizes. The trigger's hover/open shape is circular, matching the avatar's own ring language, not the square var(--radius-control) shape this card used to draw.</p>
 
   <h3>Light, closed</h3>
   <div class="frame">
@@ -423,7 +436,7 @@ code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; bord
         <a href="#" class="navitem">Settings</a>
       </nav>
       <div class="mode">
-        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="false" aria-label="Appearance: Light"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.64 5.64 7.4 7.4M16.6 16.6l1.76 1.76M5.64 18.36 7.4 16.6M16.6 7.4l1.76-1.76"/></svg></button>
+        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="false" aria-label="Appearance: Light"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.64 5.64 7.4 7.4M16.6 16.6l1.76 1.76M5.64 18.36 7.4 16.6M16.6 7.4l1.76-1.76"/></svg></button>
       </div>
       <button class="signout">Sign out</button>
     </header>
@@ -441,7 +454,7 @@ code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; bord
         <a href="#" class="navitem">Settings</a>
       </nav>
       <div class="mode">
-        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="false" aria-label="Appearance: Dark"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M15 8 A5 5 0 1 0 15 16 A4 4 0 0 1 15 8 Z"/></svg></button>
+        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="false" aria-label="Appearance: Dark"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M15 8 A5 5 0 1 0 15 16 A4 4 0 0 1 15 8 Z"/></svg></button>
       </div>
       <button class="signout">Sign out</button>
     </header>
@@ -459,7 +472,7 @@ code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; bord
         <a href="#" class="navitem">Settings</a>
       </nav>
       <div class="mode">
-        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="true" aria-label="Appearance: Dark"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M15 8 A5 5 0 1 0 15 16 A4 4 0 0 1 15 8 Z"/></svg></button>
+        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="true" aria-label="Appearance: Dark"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M15 8 A5 5 0 1 0 15 16 A4 4 0 0 1 15 8 Z"/></svg></button>
         <div class="modemenu" role="menu" aria-label="Appearance">
           <button type="button" class="modeitem" role="menuitemradio" aria-checked="false"><span class="check" aria-hidden="true"></span>Light</button>
           <button type="button" class="modeitem is-checked" role="menuitemradio" aria-checked="true"><span class="check" aria-hidden="true">&#10003;</span>Dark</button>
@@ -482,7 +495,7 @@ code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; bord
         <a href="#" class="navitem">Settings</a>
       </nav>
       <div class="mode">
-        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="true" aria-label="Appearance: High contrast"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="5"/><path d="M12 7 A5 5 0 0 0 12 17 Z" fill="currentColor" stroke="none"/></svg></button>
+        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="true" aria-label="Appearance: High contrast"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="5"/><path d="M12 7 A5 5 0 0 0 12 17 Z" fill="currentColor" stroke="none"/></svg></button>
         <div class="modemenu" role="menu" aria-label="Appearance">
           <button type="button" class="modeitem" role="menuitemradio" aria-checked="false"><span class="check" aria-hidden="true"></span>Light</button>
           <button type="button" class="modeitem" role="menuitemradio" aria-checked="false"><span class="check" aria-hidden="true"></span>Dark</button>
@@ -505,7 +518,7 @@ code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; bord
         <a href="#" class="navitem">Settings</a>
       </nav>
       <div class="mode">
-        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="false" aria-label="Appearance: Dark"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M15 8 A5 5 0 1 0 15 16 A4 4 0 0 1 15 8 Z"/></svg></button>
+        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="false" aria-label="Appearance: Dark"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M15 8 A5 5 0 1 0 15 16 A4 4 0 0 1 15 8 Z"/></svg></button>
       </div>
       <button class="signout">Sign out</button>
     </header>
@@ -514,7 +527,7 @@ code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; bord
 
 <div class="card">
   <h2>Account menu</h2>
-  <p class="note">The account menu absorbs the standalone Sign out button (Code Owner call, 2026-07-31): the earlier sections' bare Sign out demos document the pre-032 state, and the .signout spec remains the ghost-button reference; new builds compose the trailing group as appearance dropdown plus account menu. Sign out inside the menu keeps its confirmation-free immediate behavior; Change password routes to the settings password screen. Same keyboard contract as the appearance menu: the trigger opens with Enter, Space, or Arrow Down, the menu is arrow-navigated, and Escape closes it and returns focus to the trigger. The trigger itself is an initials monogram (second Code Owner pass, 2026-07-31), not an external avatar service: the app makes zero off-origin requests and there is no image upload today, and if an avatar image field ever ships it slots into this same circle without a layout change. The full email now lives only in the menu's Signed in as header row, since the circular trigger no longer shows it. The circle is a deliberate, documented exception to the file's sharp-corners character: an identity glyph, not a control surface. The header sits outside the menu element so assistive tech counts exactly two menu items (aligned to the shipped 032 structure, 2026-08-01).</p>
+  <p class="note">The account menu absorbs the standalone Sign out button (Code Owner call, 2026-07-31): the earlier sections' bare Sign out demos document the pre-032 state, and the .signout spec remains the ghost-button reference; new builds compose the trailing group as appearance dropdown plus account menu. Sign out inside the menu keeps its confirmation-free immediate behavior; Change password routes to the settings password screen. Same keyboard contract as the appearance menu: the trigger opens with Enter, Space, or Arrow Down, the menu is arrow-navigated, and Escape closes it and returns focus to the trigger. The trigger itself is an initials monogram (second Code Owner pass, 2026-07-31), not an external avatar service: the app makes zero off-origin requests and there is no image upload today, and if an avatar image field ever ships it slots into this same circle without a layout change. The full email now lives only in the menu's Signed in as header row, since the circular trigger no longer shows it. The circle is a deliberate, documented exception to the file's sharp-corners character: an identity glyph, not a control surface. The header sits outside the menu element so assistive tech counts exactly two menu items (aligned to the shipped 032 structure, 2026-08-01). Seventh pass, same live review: the avatar's hover/open state also lifts the fill to var(--color-primary-hover), not just the ring, since a ring alone around an already-solid disc barely read as a state change next to the appearance trigger's own hover fill.</p>
 
   <h3>Closed, trailing group composition</h3>
   <div class="frame">
@@ -528,7 +541,7 @@ code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; bord
         <a href="#" class="navitem">Settings</a>
       </nav>
       <div class="mode">
-        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="false" aria-label="Appearance: Dark"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M15 8 A5 5 0 1 0 15 16 A4 4 0 0 1 15 8 Z"/></svg></button>
+        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="false" aria-label="Appearance: Dark"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M15 8 A5 5 0 1 0 15 16 A4 4 0 0 1 15 8 Z"/></svg></button>
       </div>
       <div class="account">
         <button type="button" class="avatar" aria-haspopup="menu" aria-expanded="false" aria-label="Account menu for op@example.test">OP</button>
@@ -548,7 +561,7 @@ code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; bord
         <a href="#" class="navitem">Settings</a>
       </nav>
       <div class="mode">
-        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="false" aria-label="Appearance: Dark"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M15 8 A5 5 0 1 0 15 16 A4 4 0 0 1 15 8 Z"/></svg></button>
+        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="false" aria-label="Appearance: Dark"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M15 8 A5 5 0 1 0 15 16 A4 4 0 0 1 15 8 Z"/></svg></button>
       </div>
       <div class="account">
         <button type="button" class="avatar" aria-haspopup="menu" aria-expanded="true" aria-label="Account menu for op@example.test">OP</button>
@@ -579,7 +592,7 @@ code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; bord
         <a href="#" class="navitem">Settings</a>
       </nav>
       <div class="mode">
-        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="false" aria-label="Appearance: High contrast"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="5"/><path d="M12 7 A5 5 0 0 0 12 17 Z" fill="currentColor" stroke="none"/></svg></button>
+        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="false" aria-label="Appearance: High contrast"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="5"/><path d="M12 7 A5 5 0 0 0 12 17 Z" fill="currentColor" stroke="none"/></svg></button>
       </div>
       <div class="account">
         <button type="button" class="avatar" aria-haspopup="menu" aria-expanded="true" aria-label="Account menu for op@example.test">OP</button>
@@ -610,7 +623,7 @@ code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; bord
         <a href="#" class="navitem">Settings</a>
       </nav>
       <div class="mode">
-        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="false" aria-label="Appearance: Dark"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M15 8 A5 5 0 1 0 15 16 A4 4 0 0 1 15 8 Z"/></svg></button>
+        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="false" aria-label="Appearance: Dark"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M15 8 A5 5 0 1 0 15 16 A4 4 0 0 1 15 8 Z"/></svg></button>
       </div>
       <div class="account">
         <button type="button" class="avatar" aria-haspopup="menu" aria-expanded="false" aria-label="Account menu for op@example.test">OP</button>
