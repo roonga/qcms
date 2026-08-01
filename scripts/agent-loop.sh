@@ -253,6 +253,16 @@ Lane identity: your seat-mail inbox is ../seat-mail/${mailbox}/ (ack into its re
   # used to hang the supervisor indefinitely instead of letting it reap and move
   # on - the same orphan, wearing a different symptom.
   session_log="$(mktemp "${TMPDIR:-/tmp}/agent-loop-session-XXXXXX")"
+  # The launch window - from the fork to the moment session_pgid is known - is
+  # the one stretch where a handler would find no group id and reap nothing,
+  # leaving behind exactly the orphan this code exists to prevent. Recording the
+  # signal here and replaying it below closes that window rather than merely
+  # narrowing it: assignment order alone cannot help, because the pid does not
+  # exist until the fork has already happened.
+  deferred_signal=""
+  trap 'deferred_signal=INT' INT
+  trap 'deferred_signal=TERM' TERM
+  trap 'deferred_signal=HUP' HUP
   # Job control for this launch only, so the session gets its own process group.
   # stdin comes from /dev/null: a background process group that reads the
   # terminal is stopped with SIGTTIN, and a headless session has no use for it.
@@ -260,8 +270,16 @@ Lane identity: your seat-mail inbox is ../seat-mail/${mailbox}/ (ack into its re
   claude -p "$iter_prompt" --model claude-opus-5 --permission-mode bypassPermissions \
     --output-format text >"$session_log" 2>&1 </dev/null &
   session_pid=$!
-  set +m
+  # Immediately, and before `set +m`: with job control on the job's pid IS its
+  # process group id, so nothing has to be looked up and nothing can race.
   session_pgid="$session_pid"
+  set +m
+  trap 'on_signal INT' INT
+  trap 'on_signal TERM' TERM
+  trap 'on_signal HUP' HUP
+  # A signal that arrived while the group id was unknown is acted on now that it
+  # is known, so the reap still happens and the supervisor still dies from it.
+  [ -z "$deferred_signal" ] || on_signal "$deferred_signal"
   wait "$session_pid"
   reap_session_group
   out="$(cat "$session_log")"

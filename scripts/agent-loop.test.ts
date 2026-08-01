@@ -80,17 +80,59 @@ function runWithStubbedClaude(stubOutput: string, ...args: string[]) {
 const SUPERVISOR_KILL_MS = 60_000;
 const INTERRUPT_AFTER_MS = 3_000;
 
+// Whatever this returns is pushed to spawnedPids and later handed to
+// process.kill(), so a value that is not a live pid is not a cosmetic problem:
+// Number("") is 0, and signalling pid 0 hits the caller's entire process group,
+// which here is the Vitest runner - a test helper capable of killing its own
+// runner. Number("garbage") is NaN, no better. Everything that is not a positive
+// integer is therefore rejected right where it is parsed, naming what was read,
+// so a malformed stub write surfaces as a clear failure rather than a mystery
+// runner death.
+function readBackgroundPid(pidFile: string): number {
+  const raw = existsSync(pidFile) ? readFileSync(pidFile, "utf8").trim() : "";
+  if (raw === "") throw new Error("the session stub never recorded a background pid");
+  if (!/^[1-9][0-9]*$/.test(raw)) {
+    throw new Error(`the session stub recorded a background pid that is not a pid: '${raw}'`);
+  }
+  return Number(raw);
+}
+
+// Holds the supervisor's launch window open: the stretch between forking the
+// session and knowing the process group id to reap. A signal landing in there is
+// the case fix-2 is about, and it is far too narrow to aim at, so the test
+// widens it. `set +m` is the anchor because it sits INSIDE that window in the
+// shape being guarded against (group id assigned after it) and outside it in the
+// current shape (assigned before it, signals deferred across it) - so the same
+// injected delay puts the signal in the window for the old shape and proves the
+// new one survives it. Asserting the match count keeps a future rename from
+// turning this into a test that passes without exercising anything.
+const LAUNCH_WINDOW_HOLD_SEC = 5;
+const LAUNCH_WINDOW_INTERRUPT_MS = 1_500;
+
+function holdLaunchWindowOpen(source: string): string {
+  const anchor = "\n  set +m\n";
+  const found = source.split(anchor).length - 1;
+  if (found !== 1) {
+    throw new Error(`expected exactly one '  set +m' line in the supervisor, found ${found}`);
+  }
+  return source.replace(anchor, `${anchor}  sleep ${LAUNCH_WINDOW_HOLD_SEC}\n`);
+}
+
 // Same throwaway workspace as above, but the caller writes the whole stub body:
 // these tests need a `claude` that spawns background work of its own, which is
 // the thing the supervisor has to clean up. `--mailbox` is always overridden to
 // a lane-specific name so a run can never read or ack a real seat-mail inbox.
-function runWithSessionStub(stubBody: string, timeoutMs = SUPERVISOR_KILL_MS) {
+function runWithSessionStub(
+  stubBody: string,
+  timeoutMs = SUPERVISOR_KILL_MS,
+  transformSource: (source: string) => string = (source) => source,
+) {
   const root = mkdtempSync(join(tmpdir(), "agent-loop-240-"));
   workspaces.push(root);
   mkdirSync(join(root, "scripts"));
   mkdirSync(join(root, "bin"));
   const copied = join(root, "scripts", "agent-loop.sh");
-  copyFileSync(SUPERVISOR, copied);
+  writeFileSync(copied, transformSource(readFileSync(SUPERVISOR, "utf8")));
 
   const stub = join(root, "bin", "claude");
   const pidFile = join(root, "background.pid");
@@ -103,9 +145,7 @@ function runWithSessionStub(stubBody: string, timeoutMs = SUPERVISOR_KILL_MS) {
     env: { ...process.env, PATH: `${join(root, "bin")}:${process.env.PATH ?? ""}` },
   });
 
-  const raw = existsSync(pidFile) ? readFileSync(pidFile, "utf8").trim() : "";
-  if (raw === "") throw new Error("the session stub never recorded a background pid");
-  const backgroundPid = Number(raw);
+  const backgroundPid = readBackgroundPid(pidFile);
   spawnedPids.push(backgroundPid);
   return { ...res, backgroundPid };
 }
@@ -139,6 +179,34 @@ function isRunning(pid: number): boolean {
     .split(/\s+/)[0];
   return state !== "Z";
 }
+
+describe("session-stub background pid parsing", () => {
+  function pidFileContaining(contents: string): string {
+    const dir = mkdtempSync(join(tmpdir(), "agent-loop-pid-"));
+    workspaces.push(dir);
+    const file = join(dir, "background.pid");
+    writeFileSync(file, contents);
+    return file;
+  }
+
+  // "0" is the dangerous one and the reason this guard exists: process.kill(0)
+  // signals the caller's process group, so a stub that wrote a zero would have
+  // this suite kill the Vitest runner it is running inside.
+  it.each(["0", "-1", "12.5", "not-a-pid", ""])(
+    "refuses to hand '%s' to process.kill",
+    (written) => {
+      expect(() => readBackgroundPid(pidFileContaining(`${written}\n`))).toThrow(/background pid/);
+    },
+  );
+
+  it("names the offending value so a malformed stub write is diagnosable", () => {
+    expect(() => readBackgroundPid(pidFileContaining("0\n"))).toThrow("'0'");
+  });
+
+  it("accepts a well-formed pid, trailing newline and all", () => {
+    expect(readBackgroundPid(pidFileContaining("4321\n"))).toBe(4321);
+  });
+});
 
 describe("agent-loop.sh argument validation", () => {
   // The regression that motivated this: the numeric flags reach arithmetic
@@ -306,5 +374,33 @@ describe.skipIf(!HAS_PROCFS)("agent-loop.sh session process groups (issue #240)"
     // Derived from the interrupt it has to outlive rather than written out, so
     // the two cannot drift (the convention issue #165 asks for).
     INTERRUPT_AFTER_MS * 4,
+  );
+
+  it(
+    "still reaps when the signal lands before the group id is known",
+    () => {
+      // The launch window, held open (see holdLaunchWindowOpen) so the signal
+      // can be aimed into it. With the group id assigned after `set +m` the
+      // handler finds nothing to reap and this orphan outlives the supervisor,
+      // which is the whole "on every path out" claim failing on the one path
+      // that matters most. The interrupt lands ~1.5s into a ~5s window, so
+      // nothing here depends on hitting a narrow moment.
+      const res = runWithSessionStub(
+        [
+          "sleep 600 >/dev/null 2>&1 &",
+          'echo "$!" >"$PID_FILE"',
+          // Outlives the interrupt, so the session really is mid-flight.
+          "sleep 600",
+        ].join("\n"),
+        LAUNCH_WINDOW_INTERRUPT_MS,
+        holdLaunchWindowOpen,
+      );
+
+      expect(res.signal).toBe("SIGTERM");
+      expect(isRunning(res.backgroundPid)).toBe(false);
+    },
+    // The held window plus the interrupt it has to outlive, with headroom -
+    // derived, not a written-out number, so the two cannot drift.
+    (LAUNCH_WINDOW_HOLD_SEC * 1000 + LAUNCH_WINDOW_INTERRUPT_MS) * 3,
   );
 });
