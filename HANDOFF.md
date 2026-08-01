@@ -1,32 +1,47 @@
-HANDOFF: INTERRUPTED 033 admin form builder - UI complete, gates in progress
+HANDOFF: AWAITING-HUMAN screenshot gate sign-off for 033 - review the PNGs in `docs/gates/033/` from GitHub and approve or reject
 
-Kept current deliberately. If you are reading this, nothing here is blocked on a human
-except the screenshot gate (which is a review, not a decision) and nothing needs a
-decision: the branch needs an executor to finish running the gates.
+The implementation is complete and every gate is green. Nothing is blocked on a decision
+and nothing is red. The only thing left is the Code Owner's screenshot review, which is a
+human gate by rule and is never simulated.
 
-## Done and evidenced
+## Exit criteria, all met
 
-| What | Evidence |
-|---|---|
-| `@qcms/db` `updateFormSettings` (+ 3-place edit, changeset) | `@qcms/db` typecheck clean, import-surface 3/3 |
-| API: `preview-condition` + `PATCH /settings` routes and integration coverage | `qcms-api` typecheck green |
-| Admin lib layer (`lib/forms/**`) | eslint clean, fuzz **166 green** |
-| Admin i18n catalog, pages and actions (`app/(shell)/forms/**`) | `qcms-admin` typecheck green |
-| Admin components (`components/forms/**`, all nine) | `qcms-admin` typecheck + eslint green, `next build` green |
-| Playwright specs: `e2e/forms-builder.pw.ts`, `e2e/support/forms.ts` | see gates below |
-| axe sweep extended for the builder and condition editor | `e2e/a11y-axe.pw.ts` |
-| Screenshot gate capture spec | `e2e/gate-screenshots-033.pw.ts`, writes `docs/gates/033/` |
+| # | Criterion | Evidence |
+|---|---|---|
+| 1 | Playwright build-the-insurance-form suite green | `forms-builder.pw.ts:97` green |
+| 2 | Backward target: instant flag *and* validate-endpoint error at the rule | `forms-builder.pw.ts:143` green |
+| 3 | Pin move re-runs validation and surfaces the broken optionId | `forms-builder.pw.ts:179` green |
+| 4 | Editor never emits DSL the schema rejects | `lib/forms/condition.test.ts`, 166 tests, parsed with the kernel's own `parseVisibilityRule` |
+| 5 | axe pass on builder and condition editor | `a11y-axe.pw.ts:253` green |
 
-**Exit criterion 4 is MET and evidenced**: `apps/admin/lib/forms/condition.test.ts`, 166
-tests, fuzzes every operator against every question type, with and without declared
-options, and every ordered pair of operator switches, parsing each result with the kernel's
-own `parseVisibilityRule`. Run it with:
-`pnpm exec vitest run --root . --project qcms-admin apps/admin/lib/forms/condition.test.ts`
+## Gates run on this branch
+
+- `pnpm verify` -> **exit 0**, end to end, including `check:all`, build, typecheck, lint,
+  test and golden-drift (65 golden tests).
+- `pnpm exec turbo run test --force --concurrency=1` -> **0 cached, 14 total**, 1545 tests
+  passing. This is the run that proves the test leg actually executed: a plain `verify` in a
+  fresh worktree replays the main checkout's turbo cache and reports `FULL TURBO` having run
+  nothing.
+- `pnpm verify:browser` -> **152 passed, 18 skipped**. The skips are the three opt-in
+  screenshot-capture specs, which only run under `QCMS_ADMIN_CAPTURE_GATE=1`.
+- Screenshot gate captured green under that flag (4 specs, light/dark/high-contrast).
+
+## Where the gates have to run on this machine
+
+`pnpm verify` cannot be run from inside `qcms-dev-container`. The tooling Vitest project
+includes `scripts/devcontainer.test.ts`, which drives the devcontainer CLI's `stop`/`down`
+commands, so the suite stops the very container it is running in and the run dies with exit
+137 partway through. Run the gates either with the dev container stopped, or from a
+disposable container started from the same image. Two smaller traps in the same territory:
+the worktree's `.git` file records a host-absolute gitdir, so a container needs that path
+present (a symlink to the mount) plus `git config --global --add safe.directory "*"`; and
+the host and the container see the same tree at different absolute paths, so Turbopack's
+`.next`/`.next-dev` caches must be cleared when switching between them.
 
 ## Decisions already closed - do NOT relitigate
 
-1. **CodeMirror stands.** Six official `@codemirror/*` packages, exact-pinned, all MIT.
-   The SIGNED wireframe (`docs/wireframes/admin-form-builder.md`) names CodeMirror as the
+1. **CodeMirror stands.** Six official `@codemirror/*` packages, exact-pinned, all MIT. The
+   SIGNED wireframe (`docs/wireframes/admin-form-builder.md`) names CodeMirror as the
    recorded ADR-22 exception. An editor widget is not a form control; a2ra remains the only
    form-control stack and CodeMirror renders in `apps/admin` only.
 2. **The kernel runs server-side; the import-surface test is NOT weakened.** Rule 1 of
@@ -51,42 +66,25 @@ fail builds.
 
 ## Bugs the browser run found (fixed, keep them fixed)
 
-1. **The steps rail overflowed its grid track.** A grid item's default `min-width: auto`
-   let the add-step row push the rail wider than its 16rem track, so the next column's
-   paragraph painted over the "Add step" button: visible, enabled, unclickable. Fixed with
-   `min-w-0` plus wrapping rows on the rail and `minmax(0,1fr)` tracks in the builder.
+1. **The steps rail overflowed its grid track.** A grid item's default `min-width: auto` let
+   the add-step row push the rail wider than its 16rem track, so the next column's paragraph
+   painted over the "Add step" button: visible, enabled, unclickable. Fixed with `min-w-0`
+   plus wrapping rows on the rail and `minmax(0,1fr)` tracks in the builder.
 2. **A rule with no target is an UNPARSEABLE draft, not an inconsistent one.**
-   `VisibilityRule.show` is `.min(1)`, so a rule the author has just added 422s at
-   `PUT .../draft`. `unsaveableReason` now returns `ruleWithoutTarget` and autosave pauses
-   with a sentence instead of showing a failed save until a target is picked.
+   `VisibilityRule.show` is `.min(1)`, so a rule the author has just added 422s at `PUT
+   .../draft`. `unsaveableReason` returns `ruleWithoutTarget` and autosave pauses with a
+   sentence instead of showing a failed save until a target is picked.
 3. **Bound server actions change identity on every server render**, and a successful save
-   calls `revalidatePath`, which causes one. Listing them in the autosave effect's deps is
-   an infinite save loop; they are held in a ref instead.
-4. Two e2e conventions, both already encoded elsewhere in the suite and both worth a
-   comment where they are used: a vendored `Select` trigger's accessible name is **value
-   then label** (so match a suffix, which is what `chooseType`'s `/Type$/` was saying), and
-   a vendored `Checkbox` must be clicked by its visible **label**, because react-aria puts a
-   decorative indicator over the real input.
+   calls `revalidatePath`, which causes one. Listing them in the autosave effect's deps is an
+   infinite save loop; they are held in a ref instead.
+4. Two e2e conventions, both already encoded elsewhere in the suite: a vendored `Select`
+   trigger's accessible name is **value then label** (so match a suffix), and a vendored
+   `Checkbox` must be clicked by its visible **label**, because react-aria puts a decorative
+   indicator over the real input.
 
-## What is left
+## What the human does next
 
-1. `pnpm exec playwright test --project=admin-chromium forms-builder` green (exit 1, 2, 3).
-2. `pnpm exec playwright test --project=admin-chromium a11y-axe` green (exit 5).
-3. Capture the screenshot gate and commit the PNGs:
-   `QCMS_ADMIN_CAPTURE_GATE=1 pnpm exec playwright test --project=admin-chromium gate-screenshots-033`
-   `docs/gates/033/README.md` is already written.
-4. `pnpm verify` at root, then `pnpm verify:browser`.
-
-## Gate discipline on this machine
-
-`../seat-mail` does not exist right now, so there is no gate lock to take. Confirm the test
-leg actually ran: a fresh worktree resolves turbo's cache to the main checkout's and reports
-`FULL TURBO` without executing anything. Pair `verify` with `pnpm exec turbo run test
---force` and check for `0 cached`. `pnpm test --force` does NOT work: pnpm appends the flag
-to the chained script and the bare-Vitest leg dies on `CACError: Unknown option --force`.
-
-## What is red
-
-Nothing known. `qcms-admin` typecheck, eslint and `next build` are green; the admin's Vitest
-suite is 251/251. No root gate has been run on this branch yet and none should be reported
-as passing until it has.
+Review the 24 PNGs in `docs/gates/033/` (library, builder, condition editor, backward-target
+state, each at 390px and 1280px in light, dark and high contrast) from the PR body, and
+approve or reject. On approval this branch is ready for review and merge; nothing further is
+needed from an executor.
