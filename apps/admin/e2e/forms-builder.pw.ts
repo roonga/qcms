@@ -17,6 +17,7 @@ import {
   pinQuestion,
   rule,
   ruleIds,
+  toggleCheckbox,
   toggleTarget,
   waitForSaved,
 } from "./support/forms.js";
@@ -236,7 +237,7 @@ test("the settings panel says a required challenge is unenforceable here", async
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/forms/${insuranceFormId}`);
 
-  await page.getByRole("checkbox", { name: "Require a challenge before answering" }).click();
+  await toggleCheckbox(page, "Require a challenge before answering", true);
   await expect(page.getByTestId("qcms-challenge-unenforceable")).toBeVisible();
 
   await page.getByRole("button", { name: "Save settings", exact: true }).click();

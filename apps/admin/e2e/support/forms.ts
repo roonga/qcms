@@ -139,15 +139,39 @@ function escapeForName(label: string): string {
   return label.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/** Tick or untick one `show` target of a rule. */
+/**
+ * Tick or untick one `show` target of a rule.
+ *
+ * Clicked by its visible label rather than by the checkbox itself, which is the convention
+ * `questions-lifecycle.pw.ts` and `apps/portal/e2e/support/kitchen-sink.ts` both encode for
+ * the same vendored control: react-aria puts a decorative indicator over the real input, so
+ * a click aimed at the input is intercepted. The assertion still reads the input, because
+ * checked-ness is what is being asserted.
+ */
 export async function toggleTarget(
   page: Page,
   ruleId: string,
   target: string,
   shouldBeSelected: boolean,
 ): Promise<void> {
-  const box = rule(page, ruleId).getByRole("checkbox", { name: target, exact: true });
-  if ((await box.isChecked()) !== shouldBeSelected) await box.click();
+  const scope = rule(page, ruleId);
+  const box = scope.getByRole("checkbox", { name: target, exact: true });
+  if ((await box.isChecked()) !== shouldBeSelected) {
+    await scope.getByText(target, { exact: true }).click();
+  }
+  await expect(box).toBeChecked({ checked: shouldBeSelected });
+}
+
+/** Tick or untick a checkbox anywhere on the page, by its visible label. */
+export async function toggleCheckbox(
+  page: Page,
+  label: string,
+  shouldBeSelected: boolean,
+): Promise<void> {
+  const box = page.getByRole("checkbox", { name: label, exact: true });
+  if ((await box.isChecked()) !== shouldBeSelected) {
+    await page.getByText(label, { exact: true }).click();
+  }
   await expect(box).toBeChecked({ checked: shouldBeSelected });
 }
 

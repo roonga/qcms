@@ -23,6 +23,7 @@ import {
   createForm,
   pinQuestion,
   rule,
+  toggleCheckbox,
   toggleTarget,
   waitForSaved,
 } from "./support/forms.js";
@@ -313,7 +314,7 @@ test("the form builder and the condition editor have zero violations", async ({ 
   // The two collapsible panels, open: a settings switch with its unenforceable warning, and
   // the read-only test bench with its own live region.
   await page.getByText("Rule test bench").click();
-  await page.getByRole("checkbox", { name: "Require a challenge before answering" }).click();
+  await toggleCheckbox(page, "Require a challenge before answering", true);
   await expectNoViolations(page, "settings panel and rule test bench open");
 });
 
