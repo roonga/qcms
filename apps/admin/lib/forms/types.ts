@@ -1,30 +1,25 @@
-import type { Condition } from "@qcms/core";
-
 import type { LocalizedText, QuestionDefinitionView, QuestionStatus } from "../questions/types.ts";
 
 /**
- * The form builder's view types (task 033).
+ * The form builder's **view shapes** (task 033).
  *
- * ## Why these are hand-written next to types the kernel already exports
+ * ## Why these are structural mirrors rather than the kernel's own types
  *
- * `@qcms/core` exports `FormDefinition`, and the builder does import it - for parsing and
- * for the advisory analysis (see `analysis.ts`). But a *draft under edit* is not a
- * `FormDefinition` and cannot be typed as one: a form the author has just created has zero
- * steps, and a step they have just added has zero pins, both of which the kernel's schema
- * rejects outright (`.min(1)` on `steps` and on `Step.items`). Typing the working document
- * as `FormDefinition` would mean either lying with a cast on every render or forbidding the
- * empty state the author has to pass through to reach a legal form.
+ * The same reason 032's `questions/types.ts` gives, plus one that is specific to a form
+ * under construction.
  *
- * So the working document is `DraftForm`: the same field names and the same shape, with the
- * cardinality rules relaxed. It is deliberately structural rather than branded - the ids in
- * it are plain strings, because a half-built draft holds ids the kernel has not blessed yet.
- * `analysis.ts` is the one place that crosses back, parsing a `DraftForm` into a real
- * `FormDefinition` and reporting what the kernel said about it.
+ * The kernel's `FormDefinition` is a *publishable* form: `steps` is `.min(1)` and each
+ * step's `items` is `.min(1)`. A form the author has just created has zero steps, and a
+ * step they have just added has zero pins - both states the author must pass through to
+ * reach a legal form, and both of which the kernel's schema rejects outright. Typing the
+ * working document as `FormDefinition` would mean either a cast on every render or
+ * forbidding the empty state.
  *
- * `Condition` is the exception: it comes straight from the kernel, unrelaxed. The structured
- * pickers only ever emit complete conditions (a new rule starts as `answered`, which needs
- * no operand), so there is no partially-built condition state to model, and exit criterion 4
- * is exactly the promise that this stays true.
+ * The ids are plain strings for the second half of the same reason: a half-built draft
+ * holds ids the kernel has not blessed yet, and branding them here would put a second
+ * validator in the BFF (R2). The kernel is still the only thing that decides whether a
+ * draft is legal; `analysis.ts` is the single module that crosses back, and the fuzz test
+ * in `condition.test.ts` is what proves the editor only ever emits shapes it accepts.
  */
 
 /** A pinned question inside a step: the R6 identity plus the frozen version it points at. */
@@ -40,10 +35,61 @@ export interface DraftStep {
   readonly items: readonly DraftPin[];
 }
 
+/**
+ * The condition tree, mirroring the kernel's closed union (`visibility-rule.ts`, ADR-03)
+ * with plain-string ids.
+ *
+ * Closed here too, and deliberately: the structured editor renders one control set per
+ * `op`, so a variant the kernel does not have could not be built by the pickers and a
+ * variant it does have that were missing here would be unreachable in the UI. `contains`
+ * and `containsAny` are multiChoice membership (ADR-21); `equals` on a multiChoice
+ * question is whole-answer set equality, never containment, which is why its value is an
+ * option-id array rather than a single id.
+ */
+export type DraftCondition =
+  | { readonly op: "equals"; readonly questionId: string; readonly value: DraftAnswerValue }
+  | { readonly op: "notEquals"; readonly questionId: string; readonly value: DraftAnswerValue }
+  | { readonly op: "in"; readonly questionId: string; readonly values: readonly DraftAnswerValue[] }
+  | { readonly op: "gt"; readonly questionId: string; readonly value: number | string }
+  | { readonly op: "gte"; readonly questionId: string; readonly value: number | string }
+  | { readonly op: "lt"; readonly questionId: string; readonly value: number | string }
+  | { readonly op: "lte"; readonly questionId: string; readonly value: number | string }
+  | { readonly op: "answered"; readonly questionId: string }
+  | { readonly op: "contains"; readonly questionId: string; readonly value: string }
+  | { readonly op: "containsAny"; readonly questionId: string; readonly values: readonly string[] }
+  | { readonly op: "and"; readonly conditions: readonly DraftCondition[] }
+  | { readonly op: "or"; readonly conditions: readonly DraftCondition[] }
+  | { readonly op: "not"; readonly condition: DraftCondition };
+
+/** The canonical answer encodings a condition can compare against (`DOMAIN_SCHEMA` §2.4). */
+export type DraftAnswerValue = string | number | boolean | readonly string[];
+
+/** Every `op` the DSL carries, in the order the operator picker lists them. */
+export const CONDITION_OPS = [
+  "answered",
+  "equals",
+  "notEquals",
+  "in",
+  "contains",
+  "containsAny",
+  "gt",
+  "gte",
+  "lt",
+  "lte",
+  "and",
+  "or",
+  "not",
+] as const;
+
+export type ConditionOp = (typeof CONDITION_OPS)[number];
+
+/** The ops that read one question (everything except the three combinators). */
+export type LeafConditionOp = Exclude<ConditionOp, "and" | "or" | "not">;
+
 /** One visibility rule of the working draft. */
 export interface DraftRule {
   readonly ruleId: string;
-  readonly when: Condition;
+  readonly when: DraftCondition;
   /** Question ids and step ids, mixed, exactly as the kernel's `show` allows. */
   readonly show: readonly string[];
 }
@@ -87,10 +133,9 @@ export interface FormVersionSummary {
 /**
  * `GET /admin/forms/{id}`.
  *
- * `draftSource` is worth reading before trusting `draft`: `"open"` means a saved draft row,
- * `"seeded"` means the API handed back the newest published definition as a starting point
- * that **is not stored yet**, and `"none"` means there is nothing at all. The builder treats
- * `"seeded"` as dirty-from-birth, because the first save is what creates the row.
+ * `draftSource` is worth reading before trusting `draft`: `"open"` means a saved draft
+ * row, `"seeded"` means the API handed back the newest published definition as a starting
+ * point that **is not stored yet**, and `"none"` means there is nothing at all.
  */
 export interface FormDetail {
   readonly formId: string;
@@ -103,8 +148,8 @@ export interface FormDetail {
   readonly settings: FormSettings;
   /**
    * The deployment's configured challenge provider (ADR-24). `"none"` is the default and
-   * makes `challengeRequired` unenforceable, which the settings panel says out loud rather
-   * than letting an author believe a switch is protecting them.
+   * makes `challengeRequired` unenforceable, which the settings panel says out loud
+   * rather than letting an author believe a switch is protecting them.
    */
   readonly challengeProvider: string;
 }
@@ -112,32 +157,22 @@ export interface FormDetail {
 /**
  * One publish issue, as `PUT .../draft` and `POST .../draft/validate` return them.
  *
- * The kernel models eleven codes and the API adds a twelfth (`DEPRECATED_PIN`), and the
- * route schema types the array as `unknown`, so this union is hand-written and has to stay
- * in step with `packages/core/src/publish-error.ts` plus the API's forms handler. It is
- * kept structural (plain `string` ids) for the same reason `DraftForm` is: an issue names
- * ids in a draft the kernel has not blessed.
+ * The kernel models the codes and the API adds `DEPRECATED_PIN`; the route schema types
+ * the array as `unknown`, so this is a view of the bytes rather than a re-declaration of
+ * the union. `code` stays a plain `string` on purpose: a code this build has never heard
+ * of must still render its message rather than disappear.
  *
- * `path` is the whole point. Every code carries a *structured domain path* rather than a
- * positional index, which is what lets the validation panel turn an issue into a link that
- * moves focus to the rule, step, or pin that caused it (`issues.ts`).
+ * `path` is the whole point. Every issue carries a *structured domain path* rather than a
+ * positional index, which is what lets the validation panel turn an issue into a link
+ * that moves focus to the rule, step, or pin that caused it (`issues.ts`).
  */
-export type FormIssue =
-  | { readonly code: "DANGLING_QUESTION_REF"; readonly message: string; readonly path: IssuePath }
-  | { readonly code: "DANGLING_OPTION_REF"; readonly message: string; readonly path: IssuePath }
-  | { readonly code: "DANGLING_STEP_REF"; readonly message: string; readonly path: IssuePath }
-  | { readonly code: "UNPUBLISHED_QUESTION_PIN"; readonly message: string; readonly path: IssuePath }
-  | { readonly code: "LOCALE_INCOMPLETE"; readonly message: string; readonly path: IssuePath }
-  | { readonly code: "RULE_BACKWARD_TARGET"; readonly message: string; readonly path: IssuePath }
-  | { readonly code: "RULE_CYCLE"; readonly message: string; readonly path: IssuePath }
-  | { readonly code: "RULE_DEPTH_EXCEEDED"; readonly message: string; readonly path: IssuePath }
-  | { readonly code: "RULE_TYPE_MISMATCH"; readonly message: string; readonly path: IssuePath }
-  | { readonly code: "DUPLICATE_QUESTION_IN_FORM"; readonly message: string; readonly path: IssuePath }
-  | { readonly code: "DUPLICATE_STEP_ID"; readonly message: string; readonly path: IssuePath }
-  | { readonly code: "DEPRECATED_PIN"; readonly message: string; readonly path: IssuePath }
-  | { readonly code: string; readonly message: string; readonly path?: IssuePath | undefined };
+export interface FormIssue {
+  readonly code: string;
+  readonly message: string;
+  readonly path?: IssuePath | undefined;
+}
 
-/** The union of every field the twelve issue paths use. Each code populates a subset. */
+/** The union of every field the issue paths use. Each code populates a subset. */
 export interface IssuePath {
   readonly rule?: string | undefined;
   readonly rules?: readonly string[] | undefined;
@@ -152,11 +187,11 @@ export interface IssuePath {
 /**
  * A question the builder can pin, with every version it could pin to.
  *
- * Assembled in the BFF from `GET /admin/questions` plus a detail read per question, because
- * the list route reports only the *latest* version and its status: a question whose latest
- * version is a draft on top of a published v1 shows `latestStatus: "draft"` and gives no
- * hint that v1 exists and is pinnable. The picker and the "move pin" menu both need the
- * full version list, so it is fetched once and shared.
+ * Assembled in the BFF from `GET /admin/questions` plus a detail read per question,
+ * because the list route reports only the *latest* version and its status: a question
+ * whose latest version is a draft on top of a published v1 shows `latestStatus: "draft"`
+ * and gives no hint that v1 exists and is pinnable. The picker and the "move pin" menu
+ * both need the full version list, so it is fetched once and shared.
  */
 export interface PinnableQuestion {
   readonly questionId: string;
