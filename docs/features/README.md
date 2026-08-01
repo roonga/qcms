@@ -68,7 +68,7 @@ Status values: `todo` · `blocked (issue #)` · `done (PR #)`. A row goes `todo`
 | 029 | Portal app (SSR + BFF) | 7 | done (design signed off by the Code Owner 2026-07-22; no-JS-submission clause of exit-2 waived → task 044/#17) |
 | 030 | Portal accessibility pass | 7 | in-progress (automated portion landed 2026-07-22; 045 landed so the full flow is navigable; manual NVDA/VoiceOver pass now READY, human gate) |
 | 031 | Admin shell and 2FA auth | 8a | done (PR #205; screenshot gate signed by the Code Owner 2026-07-31; areas 032-035 land as placeholders) |
-| 032 | Admin question library | 8a | todo |
+| 032 | Admin question library | 8a | done (PR #228; #218 type column and the topbar rebuild ridden along; "Updated" column dropped as an accepted deviation) |
 | 033 | Admin form builder and condition editor | 8a | todo |
 | 034 | Admin publish, preview, versions, secure links | 8a | todo |
 | 035 | Admin responses, erasure, webhook operations | 8a | todo |
