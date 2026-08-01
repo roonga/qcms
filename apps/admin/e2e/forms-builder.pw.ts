@@ -13,6 +13,7 @@ import {
   issueSummary,
   movePin,
   openStep,
+  pinLabel,
   pinQuestion,
   rule,
   ruleIds,
@@ -135,7 +136,7 @@ test("builds the insurance form through the UI and saves it (exit criterion 1)",
   await expect(page.getByRole("button", { name: "Open step Driving history" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Open step Claim details" })).toBeVisible();
   await expect(page.locator("[data-rule-id]")).toHaveCount(1);
-  await expect(page.getByText(`${questionIdFor(AT_FAULT)}@1`, { exact: true })).toBeVisible();
+  await expect(pinLabel(page, questionIdFor(AT_FAULT), 1)).toBeVisible();
 });
 
 test("a backward target is flagged instantly and refused by the engine (exit criterion 2)", async ({
@@ -222,7 +223,7 @@ test("moving a pin re-runs validation and surfaces the broken option ref (exit c
 
   // The version change is on screen, validation re-ran on its own, and the consequence is
   // reported at the rule that carries the now-dangling option id.
-  await expect(page.getByText(`${questionIdFor(COVER_LEVEL)}@2`, { exact: true })).toBeVisible();
+  await expect(pinLabel(page, questionIdFor(COVER_LEVEL), 2)).toBeVisible();
   await expect(issue(scope, "DANGLING_OPTION_REF")).toBeVisible({ timeout: 30_000 });
   await expect(issueSummary(page)).toContainText("would block a publish");
 });
@@ -259,7 +260,9 @@ test("the rule test bench answers with the engine's own verdict", async ({ page 
 
   await page.getByText("Rule test bench").click();
   const bench = page.getByTestId("qcms-bench-outcome");
-  await chooseOption(page.locator("body"), "Value", atFaultYesOption);
+  // The bench labels each answer control with the pin it is answering for, not "Value":
+  // the author is entering an ANSWER to a pinned question, not an operand of a condition.
+  await chooseOption(page.locator("body"), `${questionIdFor(AT_FAULT)}@1`, atFaultYesOption);
   await page.getByRole("button", { name: "Run preview", exact: true }).click();
   await expect(bench).toHaveAttribute("data-outcome", "match", { timeout: 30_000 });
   await expect(bench).toContainText("Matches.");

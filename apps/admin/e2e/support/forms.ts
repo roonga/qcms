@@ -77,7 +77,19 @@ export async function pinQuestion(page: Page, questionId: string, version: numbe
     .first()
     .click();
   await expect(dialog).toBeHidden();
-  await expect(page.getByText(`${questionId}@${String(version)}`, { exact: true })).toBeVisible();
+  await expect(pinLabel(page, questionId, version)).toBeVisible();
+}
+
+/**
+ * The pin row's `questionId@version` badge.
+ *
+ * `.first()` is not laziness: the same string is also the label of the condition editor's
+ * question picker, so once a rule exists the bare text matches twice and a strict-mode
+ * locator throws. The pin row is the first of them in document order, and it is the one
+ * every caller here means.
+ */
+export function pinLabel(page: Page, questionId: string, version: number): Locator {
+  return page.getByText(`${questionId}@${String(version)}`, { exact: true }).first();
 }
 
 /** Add a rule and return the id the builder minted for it. */
@@ -141,7 +153,7 @@ export async function movePin(page: Page, questionId: string, version: number): 
     .first()
     .click();
   await page.getByRole("menuitem", { name: `Move to v${String(version)}`, exact: true }).click();
-  await expect(page.getByText(`${questionId}@${String(version)}`, { exact: true })).toBeVisible();
+  await expect(pinLabel(page, questionId, version)).toBeVisible();
 }
 
 /**
