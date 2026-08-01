@@ -199,11 +199,26 @@ function withoutTrailingSlash(path: string): string {
   return path.slice(0, end);
 }
 
+/**
+ * True when `cwd` is inside `repoRoot` (or is it).
+ *
+ * A prefix test rather than equality, because the dev servers do not sit at the repo
+ * root: `next dev` runs with its cwd in the app directory, so a live portal server
+ * reports `<repo>/apps/portal` and the admin `<repo>/apps/admin`. Measured, not
+ * assumed - an equality test made every one of our own servers unadoptable. The
+ * trailing separator is what keeps `/repo` from matching `/repo-other`.
+ */
+function isInside(cwd: string, repoRoot: string): boolean {
+  const root = withoutTrailingSlash(repoRoot);
+  const path = withoutTrailingSlash(cwd);
+  return path === root || path.startsWith(`${root}/`);
+}
+
 /** True when this occupant is a server this run may adopt rather than refuse. */
 export function isAdoptable(occupant: SeatPortOccupant, repoRoot: string): boolean {
   if (!HARNESS_SERVICE_REUSE[occupant.service].reusable) return false;
   if (occupant.cwd === undefined) return false;
-  return withoutTrailingSlash(occupant.cwd) === withoutTrailingSlash(repoRoot);
+  return isInside(occupant.cwd, repoRoot);
 }
 
 /** How one refused occupant reads in the thrown message. */
@@ -321,7 +336,39 @@ export function adoptableServices(
   );
 }
 
-/** Every startup refusal, in the order a run needs them. */
+/**
+ * Sentinel marking that the preflight has already run in this process tree.
+ *
+ * Playwright loads `playwright.config.ts` again in every worker process, and by then
+ * `globalSetup` has bound the composed API and the OTLP receiver on this seat's
+ * ports. Those two are never adoptable by design, so a second, unguarded preflight
+ * would refuse the run's *own* servers partway through - measured, not theorised: it
+ * failed the first concurrent-seat proof run in exactly that way.
+ *
+ * An environment sentinel rather than a module-level boolean, because each worker is
+ * a separate process. Playwright spawns workers from the runner, so a value set here
+ * during the runner's own config load is inherited by every worker.
+ */
+const PREFLIGHT_DONE_VAR = "QCMS_PORT_SEAT_PREFLIGHT_DONE";
+
+/**
+ * The whole startup preflight, run exactly once per Playwright invocation.
+ *
+ * Returns the services this run may adopt, which is what `reuseExistingServer` is
+ * driven from. In a worker (or any second load) it returns an empty set and checks
+ * nothing: the `webServer` entries are only acted on by the runner anyway.
+ */
+export function seatPreflight(seat: number = PORT_SEAT): Set<HarnessService> {
+  if (process.env[PREFLIGHT_DONE_VAR] === "1") return new Set();
+  assertSeatChosen();
+  assertSeatPortsOutsideEphemeralRange(seat);
+  const occupants = seatOccupants(seat);
+  assertSeatPortsUsable(seat, HARNESS_REPO_ROOT, occupants);
+  process.env[PREFLIGHT_DONE_VAR] = "1";
+  return adoptableServices(seat, HARNESS_REPO_ROOT, occupants);
+}
+
+/** Every startup refusal, in the order a run needs them. Exported for tests. */
 export function assertSeatUsable(seat: number = PORT_SEAT): void {
   assertSeatChosen();
   assertSeatPortsOutsideEphemeralRange(seat);

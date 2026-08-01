@@ -22,11 +22,7 @@ import {
   OTLP_SCHEDULE_DELAY_MS,
   PORTAL_PORT,
 } from "./apps/portal/e2e/support/harness-config.js";
-import {
-  PORT_SEAT,
-  adoptableServices,
-  assertSeatUsable,
-} from "./apps/portal/e2e/support/port-seat.js";
+import { PORT_SEAT, seatPreflight } from "./apps/portal/e2e/support/port-seat.js";
 
 /**
  * Root Playwright configuration (task 029, ADR-23; viewports + gates from 045).
@@ -53,7 +49,7 @@ import {
  * API, two frontends.
  */
 /**
- * Startup refusals, all at config load, which is before Playwright evaluates any
+ * Startup preflight, at config load, which is before Playwright evaluates any
  * `webServer` entry and therefore before `reuseExistingServer` can adopt anything
  * (issue #255). In order:
  *
@@ -74,23 +70,23 @@ import {
  * dev servers were up did not fail and did not warn: Playwright reused those servers,
  * so the second lane's specs ran against the first lane's worktree and still reported
  * a full green suite.
- */
-assertSeatUsable();
-
-/**
- * `reuseExistingServer` is the amplifier, so it is enabled only where reuse is
- * provably safe.
  *
- * Without it a collision is a noisy `EADDRINUSE`; with it a collision is a silent
- * green run against another tree. That asymmetry is why issue #255 is a gate-integrity
- * item and not an inconvenience. It therefore stays on locally ONLY for a dev server
- * that is already listening and whose working directory is this exact worktree, which
+ * The preflight also returns what this run may ADOPT, which is what drives
+ * `reuseExistingServer` below. That flag is the amplifier: without it a collision is a
+ * noisy `EADDRINUSE`, with it a collision is a silent green run against another tree,
+ * and that asymmetry is why issue #255 is a gate-integrity item rather than an
+ * inconvenience. So it is no longer `!CI`. It is on only for a dev server that is
+ * already listening and whose working directory is inside this exact worktree, which
  * is the case it was actually there for. When the port is free at config load the flag
- * is off, so a run that loses the bind race to a process arriving in the meantime
- * fails loudly instead of adopting the winner. That is the direction a race has to
- * fail in, and it is precisely what a probe on its own cannot deliver.
+ * is off, so a run that loses the bind race to a process arriving a second later fails
+ * loudly instead of adopting the winner. That is the direction a race has to fail in,
+ * and it is precisely what a probe on its own cannot deliver.
+ *
+ * It runs exactly once per invocation: Playwright reloads this config in every worker,
+ * by which time globalSetup has bound the API and OTLP ports, and those two are never
+ * adoptable. See `seatPreflight`.
  */
-const ADOPTABLE = process.env.CI ? new Set<string>() : adoptableServices();
+const ADOPTABLE = seatPreflight();
 
 // Announce the seat on every run. A run's own output is then self-describing ("this
 // was seat 2, on 17200/17210/17230/17240"), which is what a reviewer needs to tell two
@@ -193,7 +189,7 @@ export default defineConfig({
       url: `http://localhost:${PORT}`,
       // Only when a portal dev server from THIS worktree is already listening. See
       // ADOPTABLE above for why a free port means `false` rather than `true`.
-      reuseExistingServer: ADOPTABLE.has("portal"),
+      reuseExistingServer: !process.env.CI && ADOPTABLE.has("portal"),
       timeout: 180_000,
       env: {
         PORTAL_PORT: String(PORT),
@@ -250,7 +246,7 @@ export default defineConfig({
       // would wait for the very thing globalSetup is about to create.
       url: `${ADMIN_BASE_URL}/healthz`,
       // Same rule as the portal's: adopt only a verified same-worktree server.
-      reuseExistingServer: ADOPTABLE.has("admin"),
+      reuseExistingServer: !process.env.CI && ADOPTABLE.has("admin"),
       timeout: 180_000,
       env: {
         ADMIN_PORT: String(ADMIN_PORT),

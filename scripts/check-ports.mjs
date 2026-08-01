@@ -138,7 +138,7 @@ const ALLOWED = [
   {
     file: "apps/portal/e2e/support/portal-server.test.ts",
     value: 99999,
-    why: "deliberately invalid: the fixture reproduces `next dev --port 99999`, the issue #58 fatal-startup shape. Not an allocation, and not bindable by construction.",
+    why: "deliberately invalid: the fixture reproduces the out-of-range `next dev` startup failure from issue #58. Not an allocation, and not bindable by construction.",
   },
   {
     file: "apps/portal/e2e/support/gates.test.ts",

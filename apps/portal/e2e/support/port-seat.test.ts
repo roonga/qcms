@@ -305,7 +305,7 @@ describe("assertSeatPortsUsable", () => {
 describe("assertSeatChosen", () => {
   it("lets the primary checkout and CI keep the silent default", () => {
     // `.git` is a directory in a normal clone, which is what CI checks out.
-    expect(() => assertSeatChosen(primaryCheckout, undefined)).not.toThrow();
+    expect(() => assertSeatChosen(primaryCheckout, "")).not.toThrow();
   });
 
   it("refuses an unset seat in a linked worktree, where lanes actually run", () => {
@@ -313,7 +313,7 @@ describe("assertSeatChosen", () => {
     // SEAT collision: two lanes that both fall back to the default. Every lane runs
     // in a worktree, and a linked worktree has a `.git` FILE, so "I forgot" becomes
     // a startup error before anything binds rather than a second run on seat 0.
-    const call = () => assertSeatChosen(linkedWorktree, undefined);
+    const call = () => assertSeatChosen(linkedWorktree, "");
     expect(call).toThrow(PORT_SEAT_ENV_VAR);
     expect(call).toThrow("linked git worktree");
     expect(() => assertSeatChosen(linkedWorktree, "")).toThrow(PORT_SEAT_ENV_VAR);
@@ -340,6 +340,21 @@ describe("adoptableServices", () => {
     const mine = occupant({ cwd: "/home/dev/qcms" });
     const theirs = occupant({ service: "admin", cwd: "/home/dev/other" });
     expect(adoptableServices(0, "/home/dev/qcms", [mine, theirs])).toEqual(new Set(["portal"]));
+  });
+
+  it("recognises a dev server by its APP directory, not the repo root", () => {
+    // `next dev` runs with its cwd inside the app, so a live portal server reports
+    // `<repo>/apps/portal`. An equality test made every one of our own servers
+    // unadoptable, which the first concurrent-seat proof run caught.
+    const portal = occupant({ cwd: "/home/dev/qcms/apps/portal" });
+    const admin = occupant({ service: "admin", cwd: "/home/dev/qcms/apps/admin" });
+    expect(adoptableServices(0, "/home/dev/qcms", [portal, admin])).toEqual(
+      new Set(["portal", "admin"]),
+    );
+    // A sibling worktree whose path merely starts with the same characters is not us.
+    expect(isAdoptable(occupant({ cwd: "/home/dev/qcms-other/apps/portal" }), "/home/dev/qcms")).toBe(
+      false,
+    );
   });
 });
 
