@@ -533,7 +533,11 @@ describe("a declared request failure exempts only itself (issue #166)", () => {
 
   it("does not exempt the declared status on a different request", () => {
     expect(
-      matchExpectedFailure(DECLARED, ANSWERS_422, `http://localhost:${String(PORTAL_PORT)}/s/ses_abc/submit`),
+      matchExpectedFailure(
+        DECLARED,
+        ANSWERS_422,
+        `http://localhost:${String(PORTAL_PORT)}/s/ses_abc/submit`,
+      ),
     ).toBeUndefined();
   });
 

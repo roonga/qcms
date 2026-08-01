@@ -101,7 +101,8 @@ const linkedWorktree = mkdtempSync(join(tmpdir(), "port-seat-worktree-"));
 writeFileSync(join(linkedWorktree, ".git"), "gitdir: /somewhere/.git/worktrees/x\n", "utf8");
 
 afterAll(() => {
-  for (const dir of [primaryCheckout, linkedWorktree]) rmSync(dir, { recursive: true, force: true });
+  for (const dir of [primaryCheckout, linkedWorktree])
+    rmSync(dir, { recursive: true, force: true });
 });
 
 describe("seat 0 is today's allocation", () => {
@@ -352,9 +353,9 @@ describe("adoptableServices", () => {
       new Set(["portal", "admin"]),
     );
     // A sibling worktree whose path merely starts with the same characters is not us.
-    expect(isAdoptable(occupant({ cwd: "/home/dev/qcms-other/apps/portal" }), "/home/dev/qcms")).toBe(
-      false,
-    );
+    expect(
+      isAdoptable(occupant({ cwd: "/home/dev/qcms-other/apps/portal" }), "/home/dev/qcms"),
+    ).toBe(false);
   });
 });
 

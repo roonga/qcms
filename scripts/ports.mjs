@@ -237,9 +237,14 @@ export function ephemeralPortRange(path = EPHEMERAL_RANGE_PATH) {
  * @param {{ low: number; high: number } | undefined} [range]
  * @returns {void}
  */
-export function assertSeatPortsOutsideEphemeralRange(seat = PORT_SEAT, range = ephemeralPortRange()) {
+export function assertSeatPortsOutsideEphemeralRange(
+  seat = PORT_SEAT,
+  range = ephemeralPortRange(),
+) {
   if (range === undefined) return;
-  const inside = harnessPorts(seat).filter((entry) => entry.port >= range.low && entry.port <= range.high);
+  const inside = harnessPorts(seat).filter(
+    (entry) => entry.port >= range.low && entry.port <= range.high,
+  );
   if (inside.length === 0) return;
   throw new Error(
     [

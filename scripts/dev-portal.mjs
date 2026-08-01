@@ -207,7 +207,9 @@ function ensureBuilt() {
 // 1. Dev Postgres up + migrated.
 // ---------------------------------------------------------------------------
 function composeUp() {
-  log(`bringing up dev Postgres (docker-compose.dev.yml, project ${COMPOSE_PROJECT}, port ${DB_PORT})...`);
+  log(
+    `bringing up dev Postgres (docker-compose.dev.yml, project ${COMPOSE_PROJECT}, port ${DB_PORT})...`,
+  );
   const res = spawnSync("docker", ["compose", "-f", "docker-compose.dev.yml", "up", "-d"], {
     cwd: REPO_ROOT,
     stdio: "inherit",
@@ -403,7 +405,9 @@ function shutdown(signal) {
     }
   }
   log("stopped. The Postgres container is still running.");
-  log(`Remove it with:  COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT} docker compose -f docker-compose.dev.yml down`);
+  log(
+    `Remove it with:  COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT} docker compose -f docker-compose.dev.yml down`,
+  );
   process.exit(0);
 }
 
