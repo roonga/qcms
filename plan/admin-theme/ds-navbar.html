@@ -409,7 +409,25 @@ code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; bord
 
 <div class="card">
   <h2>Appearance mode control</h2>
-  <p class="note">One compact control replaces the three-button chip row (Code Owner call, 2026-07-31). Default follows prefers-color-scheme; an explicit choice persists per operator; High contrast is only ever explicit, never inferred. The checked item is distinguishable without colour: a leading check glyph, font weight, and an inset accent edge carry the state, not colour alone. Keyboard: the trigger opens with Enter, Space, or Arrow Down; the open menu is arrow-navigated; Escape closes it and returns focus to the trigger (the vendored a2-react-aria menu provides this). The trigger is icon-only, no mode word in the bar (Code Owner, 2026-07-31): the word is redundant, since the interface itself already displays the mode; the accessible name and the menu carry the words instead. The trigger is also borderless at rest (Code Owner, 2026-07-31): the icon alone is the button, and hover or open materializes the ghost-fill surface around it; high contrast keeps a permanent border by design, since a borderless icon is exactly what high-contrast users struggle to locate. The mode glyphs are owned inline SVGs, not an icon library (Code Owner call, 2026-07-31): sun, crescent moon, and half-filled circle, drawn with stroke="currentColor" so each inherits the trigger's colour like everything else in the file.</p>
+  <p class="note">One compact control replaces the three-button chip row (Code Owner call, 2026-07-31). Default follows prefers-color-scheme; an explicit choice persists per operator; High contrast is only ever explicit, never inferred. The checked item is distinguishable without colour: a leading check glyph, font weight, and an inset accent edge carry the state, not colour alone. Keyboard: the trigger opens with Enter, Space, or Arrow Down; the open menu is arrow-navigated; Escape closes it and returns focus to the trigger (the vendored a2-react-aria menu provides this). The trigger is icon-only, no mode word in the bar (Code Owner, 2026-07-31): the word is redundant, since the interface itself already displays the mode; the accessible name and the menu carry the words instead. The trigger is also borderless at rest (Code Owner, 2026-07-31): the icon alone is the button, and hover or open materializes the ghost-fill surface around it; high contrast keeps a permanent border by design, since a borderless icon is exactly what high-contrast users struggle to locate. The mode glyphs are owned inline SVGs, not an icon library (Code Owner call, 2026-07-31): sun, crescent moon, and half-filled circle, drawn with stroke="currentColor" so each inherits the trigger's colour like everything else in the file. The Light glyph was adopted from the 032 implementation (2026-08-01), making the card complete across all three modes.</p>
+
+  <h3>Light, closed</h3>
+  <div class="frame">
+    <header class="topbar">
+      <span class="brand"><span class="mark">QCMS</span></span>
+      <nav aria-label="Primary">
+        <a href="#" class="navitem" aria-current="page">Questions</a>
+        <a href="#" class="navitem">Forms</a>
+        <a href="#" class="navitem">Responses</a>
+        <a href="#" class="navitem">Webhooks</a>
+        <a href="#" class="navitem">Settings</a>
+      </nav>
+      <div class="mode">
+        <button type="button" class="modetrigger" aria-haspopup="menu" aria-expanded="false" aria-label="Appearance: Light"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.64 5.64 7.4 7.4M16.6 16.6l1.76 1.76M5.64 18.36 7.4 16.6M16.6 7.4l1.76-1.76"/></svg></button>
+      </div>
+      <button class="signout">Sign out</button>
+    </header>
+  </div>
 
   <h3>Closed, Dark selected</h3>
   <div class="frame">
@@ -496,7 +514,7 @@ code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; bord
 
 <div class="card">
   <h2>Account menu</h2>
-  <p class="note">The account menu absorbs the standalone Sign out button (Code Owner call, 2026-07-31): the earlier sections' bare Sign out demos document the pre-032 state, and the .signout spec remains the ghost-button reference; new builds compose the trailing group as appearance dropdown plus account menu. Sign out inside the menu keeps its confirmation-free immediate behavior; Change password routes to the settings password screen. Same keyboard contract as the appearance menu: the trigger opens with Enter, Space, or Arrow Down, the menu is arrow-navigated, and Escape closes it and returns focus to the trigger. The trigger itself is an initials monogram (second Code Owner pass, 2026-07-31), not an external avatar service: the app makes zero off-origin requests and there is no image upload today, and if an avatar image field ever ships it slots into this same circle without a layout change. The full email now lives only in the menu's Signed in as header row, since the circular trigger no longer shows it. The circle is a deliberate, documented exception to the file's sharp-corners character: an identity glyph, not a control surface.</p>
+  <p class="note">The account menu absorbs the standalone Sign out button (Code Owner call, 2026-07-31): the earlier sections' bare Sign out demos document the pre-032 state, and the .signout spec remains the ghost-button reference; new builds compose the trailing group as appearance dropdown plus account menu. Sign out inside the menu keeps its confirmation-free immediate behavior; Change password routes to the settings password screen. Same keyboard contract as the appearance menu: the trigger opens with Enter, Space, or Arrow Down, the menu is arrow-navigated, and Escape closes it and returns focus to the trigger. The trigger itself is an initials monogram (second Code Owner pass, 2026-07-31), not an external avatar service: the app makes zero off-origin requests and there is no image upload today, and if an avatar image field ever ships it slots into this same circle without a layout change. The full email now lives only in the menu's Signed in as header row, since the circular trigger no longer shows it. The circle is a deliberate, documented exception to the file's sharp-corners character: an identity glyph, not a control surface. The header sits outside the menu element so assistive tech counts exactly two menu items (aligned to the shipped 032 structure, 2026-08-01).</p>
 
   <h3>Closed, trailing group composition</h3>
   <div class="frame">
@@ -534,14 +552,16 @@ code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; bord
       </div>
       <div class="account">
         <button type="button" class="avatar" aria-haspopup="menu" aria-expanded="true" aria-label="Account menu for op@example.test">OP</button>
-        <div class="modemenu" role="menu" aria-label="Account">
+        <div class="modemenu">
           <div class="acctinfo" role="presentation">
             <span class="who">Signed in as</span>
             <span class="email">op@example.test</span>
           </div>
           <div style="height: 1px; background: var(--color-border); margin: 6px 4px;"></div>
-          <button type="button" class="modeitem" role="menuitem">Change password</button>
-          <button type="button" class="modeitem" role="menuitem">Sign out</button>
+          <div role="menu" aria-label="Account">
+            <button type="button" class="modeitem" role="menuitem">Change password</button>
+            <button type="button" class="modeitem" role="menuitem">Sign out</button>
+          </div>
         </div>
       </div>
     </header>
@@ -563,14 +583,16 @@ code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; bord
       </div>
       <div class="account">
         <button type="button" class="avatar" aria-haspopup="menu" aria-expanded="true" aria-label="Account menu for op@example.test">OP</button>
-        <div class="modemenu" role="menu" aria-label="Account">
+        <div class="modemenu">
           <div class="acctinfo" role="presentation">
             <span class="who">Signed in as</span>
             <span class="email">op@example.test</span>
           </div>
           <div style="height: 1px; background: var(--color-border); margin: 6px 4px;"></div>
-          <button type="button" class="modeitem" role="menuitem">Change password</button>
-          <button type="button" class="modeitem" role="menuitem">Sign out</button>
+          <div role="menu" aria-label="Account">
+            <button type="button" class="modeitem" role="menuitem">Change password</button>
+            <button type="button" class="modeitem" role="menuitem">Sign out</button>
+          </div>
         </div>
       </div>
     </header>
