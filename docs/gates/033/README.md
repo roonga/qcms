@@ -1,0 +1,1 @@
+Approve the task 033 form builder and condition editor: the library list, the builder with steps and pinned `questionId@version` rows, the condition editor with a complete rule, and the backward-target state showing both the instant inline flag and the engine's issue at the rule - each at 390px and 1280px in light, dark and high contrast.

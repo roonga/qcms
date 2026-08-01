@@ -1,27 +1,12 @@
 # 033 - component API contract (working appendix, not a task file)
 
-> Companion to `docs/features/033-admin-form-builder-conditions.md`. Written by the task
-> executor before splitting the admin UI across two agents, and kept in the branch
-> because it is load-bearing for their work. Delete or fold into the task file when 033
-> lands; it records HOW the pieces fit, not WHAT the task requires.
-
-
-Written by the task executor before the presentation/wiring split. **Neither agent may
-change a shape here unilaterally.** If the code argues for a different shape, stop and ask
-the executor; do not just change it and let the other side discover it at typecheck.
-
-Path ownership, enforced:
-
-| Path | Owner |
-|---|---|
-| `apps/admin/lib/forms/**` | **executor (FROZEN)** - ask before changing |
-| `apps/admin/components/forms/**` | Agent A (presentation) |
-| `apps/admin/lib/i18n/en.ts` | Agent A (presentation) |
-| `apps/admin/lib/server/forms.ts` | Agent B (wiring) |
-| `apps/admin/app/(shell)/forms/**` | Agent B (wiring) |
-| `apps/admin/e2e/**` | nobody yet - specs come after the UI exists |
-
-Stage only your own paths. Never `git add -A`, never `git commit`. The executor commits.
+> Companion to `docs/features/033-admin-form-builder-conditions.md`. It records HOW the
+> admin's form-builder pieces fit, not WHAT the task requires. Originally written to
+> coordinate a split across two agents; that split is over and every path below landed in
+> one lane, so the coordination scaffolding is gone and what remains is the contract the
+> code actually holds to. Read it before changing any shape here: the prop types, the four
+> server-action signatures and the import-surface rules are what keep the builder's state
+> ownership and its `"use client"` boundary intact.
 
 ## Who owns state
 
@@ -31,8 +16,7 @@ Everything below it is presentational and takes `value` + `on*` callbacks. No ch
 no child holds a copy of the draft, no child calls a server action directly except through
 a callback prop handed down from `FormBuilder`.
 
-Server actions are passed **in as props** from the page (Agent B writes them, Agent A calls
-them). That keeps `components/forms/**` free of any `lib/server/` import, which the R2
+Server actions are passed **in as props** from the page. That keeps `components/forms/**` free of any `lib/server/` import, which the R2
 import-surface test requires of a `"use client"` module.
 
 ## Shared types (already landed, import them; do not redeclare)
@@ -59,7 +43,7 @@ From `@/lib/forms/builder-state`: `CreateFormState`, `SaveDraftState`, `Validate
 `SettingsState`, `PreviewConditionState`, `PreviewOutcome`, `PreviewReason`, and the
 `IDLE_*` constants.
 
-## Server-action prop signatures (Agent B implements, Agent A calls)
+## Server-action prop signatures (`app/(shell)/forms/actions.ts`)
 
 These are the ONLY four the builder needs. All are `async`, all already authenticated.
 
@@ -75,10 +59,11 @@ type PreviewCondition = (input: {
 }) => Promise<PreviewConditionState>;
 ```
 
-`UpdateSettings` takes a **partial** patch and Agent B must send only the changed keys: the
-API rejects an empty patch at the schema level, so never call it with `{}`.
+`UpdateSettings` takes a **partial** patch and the caller must send only the changed keys:
+the API rejects an empty patch at the schema level, so never call it with `{}`. The
+settings panel tracks what the author actually changed for exactly this reason.
 
-## Components (Agent A)
+## Components (`components/forms/**`)
 
 ```ts
 // form-builder.tsx  -- "use client", the state owner
