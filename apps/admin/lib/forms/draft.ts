@@ -293,16 +293,24 @@ export function eligibleTargets(
  *
  * The API saves an *inconsistent* draft happily (022's advisory semantics: dangling refs
  * and backward targets are issues, not save failures), but it cannot save an
- * **unparseable** one: `FormDefinition` requires at least one step and at least one pin
- * per step, so those two states 422 rather than round-tripping. Mirroring that here is
- * presentation, not authority - it tells the author why autosave is paused instead of
- * letting a red error appear every few seconds while they build the first step.
+ * **unparseable** one: `FormDefinition` requires at least one step, at least one pin per
+ * step, and at least one target per rule, so those three states 422 rather than
+ * round-tripping. Mirroring that here is presentation, not authority - it tells the author
+ * why autosave is paused instead of letting a red error appear every few seconds while
+ * they build the first step.
+ *
+ * The third one is the least obvious and cost a browser run to find: a rule the author has
+ * just added has an empty `show`, because who it shows is the next decision they make.
+ * `VisibilityRule.show` is `.min(1)` in the kernel, so that entirely ordinary intermediate
+ * state is an unparseable draft rather than an inconsistent one, and without this the
+ * builder shows "the last save failed" for as long as it takes to pick a target.
  */
-export type UnsaveableReason = "noSteps" | "emptyStep";
+export type UnsaveableReason = "noSteps" | "emptyStep" | "ruleWithoutTarget";
 
 export function unsaveableReason(draft: DraftForm): UnsaveableReason | undefined {
   if (draft.steps.length === 0) return "noSteps";
   if (draft.steps.some((step) => step.items.length === 0)) return "emptyStep";
+  if (draft.rules.some((rule) => rule.show.length === 0)) return "ruleWithoutTarget";
   return undefined;
 }
 

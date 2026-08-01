@@ -371,6 +371,8 @@ export const messages = {
     "Autosave is paused: a form needs at least one step before it can be stored.",
   "forms.save.pausedEmptyStep":
     "Autosave is paused: every step needs at least one question before the draft can be stored.",
+  "forms.save.pausedNoTarget":
+    "Autosave is paused: every rule needs at least one question or step to show before the draft can be stored.",
 
   "forms.validation.title": "Validation",
   "forms.validation.none": "No issues. Everything here would pass a publish.",

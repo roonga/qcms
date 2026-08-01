@@ -33,7 +33,7 @@ import type {
   FormIssue,
   PinnableQuestion,
 } from "@/lib/forms/types";
-import { t } from "@/lib/i18n/en";
+import { t, type MessageKey } from "@/lib/i18n/en";
 import { textOf } from "@/lib/questions/definition";
 
 import { ConditionEditor } from "./condition-editor";
@@ -126,6 +126,15 @@ export function FormBuilder({
     setDraft(next);
   };
 
+  // The two actions live in a ref, and that is not a style choice. They arrive already
+  // bound to this route's form id, so the page hands down a NEW function identity on every
+  // server render - and a successful save calls `revalidatePath`, which causes one. An
+  // effect that depended on them would therefore re-arm its debounce because it had just
+  // saved, save again, revalidate again, and never stop. Reading them through a ref keeps
+  // the effect's inputs what they actually are: the draft, and whether it can be stored.
+  const actions = useRef({ saveDraft, validateDraft });
+  actions.current = { saveDraft, validateDraft };
+
   const paused = unsaveableReason(draft);
 
   useEffect(() => {
@@ -133,7 +142,7 @@ export function FormBuilder({
     setStatus("saving");
     const timer = setTimeout(() => {
       void (async () => {
-        const saved = await saveDraft(draft);
+        const saved = await actions.current.saveDraft(draft);
         setIssues(saved.issues);
         if (saved.status === "error") {
           setSaveError(saved.message);
@@ -143,7 +152,10 @@ export function FormBuilder({
         setSaveError(undefined);
         setLastSavedAt(new Date().toLocaleTimeString());
         setStatus("validating");
-        const validated = await validateDraft(draft);
+        // The second round trip is the one the wireframe calls live validation. It does not
+        // store, and it is where `RULE_BACKWARD_TARGET` and `RULE_CYCLE` come from: the
+        // kernel's `analyzeRuleGraph` runs inside the same compile.
+        const validated = await actions.current.validateDraft(draft);
         setIssues(validated.issues);
         setStatus(validated.status === "error" ? "error" : "saved");
       })();
@@ -151,10 +163,7 @@ export function FormBuilder({
     return () => {
       clearTimeout(timer);
     };
-    // Deliberately just the draft and the pause reason. `saveDraft` and `validateDraft` are
-    // bound server actions whose identity changes on every server render, so listing them
-    // would re-run the debounce for a reason that is not an edit.
-  }, [draft, paused, saveDraft, validateDraft]);
+  }, [draft, paused]);
 
   const selectedStep = draft.steps.find((step) => step.stepId === selectedStepId) ?? draft.steps[0];
   const counts = stepIssueCounts(issues, draft);
@@ -249,6 +258,19 @@ export function FormBuilder({
   );
 }
 
+/**
+ * Why autosave is paused, in the author's words.
+ *
+ * A table rather than a chain of ternaries so that adding a fourth unsaveable state is a
+ * compile error here until it has a sentence: `Record<UnsaveableReason, MessageKey>` is
+ * exhaustive by construction.
+ */
+const PAUSE_MESSAGES: Readonly<Record<UnsaveableReason, MessageKey>> = {
+  noSteps: "forms.save.pausedNoSteps",
+  emptyStep: "forms.save.pausedEmptyStep",
+  ruleWithoutTarget: "forms.save.pausedNoTarget",
+};
+
 /** The standing notices: where this draft came from, and what autosave is doing. */
 function BuilderNotices({
   detail,
@@ -265,10 +287,8 @@ function BuilderNotices({
       {detail.status === "closed" && <Alert variant="info">{t("forms.builder.closed")}</Alert>}
       <Alert variant="info">{t("forms.builder.concurrent")}</Alert>
       {paused !== undefined && (
-        <div data-testid="qcms-autosave-paused">
-          <Alert variant="warning">
-            {paused === "noSteps" ? t("forms.save.pausedNoSteps") : t("forms.save.pausedEmptyStep")}
-          </Alert>
+        <div data-testid="qcms-autosave-paused" data-paused-reason={paused}>
+          <Alert variant="warning">{t(PAUSE_MESSAGES[paused])}</Alert>
         </div>
       )}
       {saveError !== undefined && (

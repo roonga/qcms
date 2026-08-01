@@ -119,14 +119,24 @@ export function rule(page: Page, ruleId: string): Locator {
 /**
  * Choose a value in one of the vendored `Select` controls.
  *
- * The trigger's accessible name is its label followed by the current value, so the match
- * is a prefix rather than an exact string: the name changes every time the value does.
+ * The trigger's accessible name is its **current value followed by its label** - react-aria
+ * labels the button with the value element and then the label element, in that order - so
+ * the match is a suffix. Getting this backwards costs a five-minute timeout with a call log
+ * that only says the locator never resolved, which is what `chooseType` in `questions.ts`
+ * encodes as `/Type$/` without saying why.
  */
 export async function chooseOption(scope: Locator, label: string, option: string): Promise<void> {
-  const trigger = scope.getByRole("button", { name: new RegExp(`^${label}`) }).first();
+  const trigger = scope
+    .getByRole("button", { name: new RegExp(`${escapeForName(label)}$`) })
+    .first();
   await trigger.click();
   await scope.page().getByRole("option", { name: option, exact: true }).click();
   await expect(trigger).toContainText(option);
+}
+
+/** A label used inside a name regex, with the characters a regex would otherwise read. */
+function escapeForName(label: string): string {
+  return label.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /** Tick or untick one `show` target of a rule. */
