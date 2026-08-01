@@ -135,9 +135,11 @@ export function ConditionJsonPane({
       created.current?.destroy();
       view.current = null;
     };
-    // The label is read once, when the editor is built; a wording change is a reload.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    // The label alone: it is baked into the editor's content attributes at build time, so a
+    // different accessible name means a different editor. It is derived from the rule id and
+    // therefore constant for the life of one pane, so in practice this runs exactly once and
+    // the author's cursor is never rebuilt underneath them.
+  }, [label]);
 
   // Push a condition the PICKERS changed into the document, and nothing else. When the
   // author is the one typing, the text they typed and the condition it produced are the
@@ -265,7 +267,7 @@ type CompletableKey = (typeof COMPLETABLE_KEYS)[number];
  * keystroke) and what makes it correct inside a nested `and` / `or` tree.
  */
 function completeCondition(context: CompletionContext, pane: PaneContext): CompletionResult | null {
-  const match = context.matchBefore(/"[A-Za-z0-9_]*/);
+  const match = context.matchBefore(/"\w*/);
   if (match === null) return null;
   const before = context.state.doc.sliceString(0, match.from);
   const key = nearestKey(before);
