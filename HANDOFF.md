@@ -49,6 +49,25 @@ own `parseVisibilityRule`. Run it with:
 owns state, the four server-action signatures, and the import-surface rules that silently
 fail builds.
 
+## Bugs the browser run found (fixed, keep them fixed)
+
+1. **The steps rail overflowed its grid track.** A grid item's default `min-width: auto`
+   let the add-step row push the rail wider than its 16rem track, so the next column's
+   paragraph painted over the "Add step" button: visible, enabled, unclickable. Fixed with
+   `min-w-0` plus wrapping rows on the rail and `minmax(0,1fr)` tracks in the builder.
+2. **A rule with no target is an UNPARSEABLE draft, not an inconsistent one.**
+   `VisibilityRule.show` is `.min(1)`, so a rule the author has just added 422s at
+   `PUT .../draft`. `unsaveableReason` now returns `ruleWithoutTarget` and autosave pauses
+   with a sentence instead of showing a failed save until a target is picked.
+3. **Bound server actions change identity on every server render**, and a successful save
+   calls `revalidatePath`, which causes one. Listing them in the autosave effect's deps is
+   an infinite save loop; they are held in a ref instead.
+4. Two e2e conventions, both already encoded elsewhere in the suite and both worth a
+   comment where they are used: a vendored `Select` trigger's accessible name is **value
+   then label** (so match a suffix, which is what `chooseType`'s `/Type$/` was saying), and
+   a vendored `Checkbox` must be clicked by its visible **label**, because react-aria puts a
+   decorative indicator over the real input.
+
 ## What is left
 
 1. `pnpm exec playwright test --project=admin-chromium forms-builder` green (exit 1, 2, 3).
