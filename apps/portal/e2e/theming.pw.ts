@@ -27,10 +27,11 @@
 import AxeBuilder from "@axe-core/playwright";
 import type { Locator, Page } from "@playwright/test";
 
+import { MODE_COOKIE } from "../lib/appearance.js";
 import { readFixtures } from "./support/fixtures.js";
 import { ACCIDENT_LABEL, startAnonymousFlow } from "./support/flow.js";
 import { expect, test } from "./support/gates.js";
-import { HARNESS_CORNERS, HARNESS_THEME } from "./support/harness-config.js";
+import { HARNESS_CORNERS, HARNESS_THEME, PORTAL_PORT } from "./support/harness-config.js";
 import { KS, startKitchenSink } from "./support/kitchen-sink.js";
 
 /** The four corner presets and the `--radius-control` / `--radius-card` they set. */
@@ -43,6 +44,9 @@ const CORNER_PRESETS = [
 
 const THEMES = ["slate", "harbor", "sand", "plum"] as const;
 const MODES = ["light", "dark", "hc"] as const;
+
+/** The origin the harness serves, for cookies seeded before a navigation. */
+const ORIGIN = `http://localhost:${PORTAL_PORT}`;
 
 /**
  * Wait for every running CSS transition to finish, which is load-bearing rather
@@ -147,10 +151,26 @@ test("the pre-paint bootstrap accepts every mode and rejects anything else", asy
     await expect(root).toHaveClass(new RegExp(`\\b${mode}\\b`));
   }
 
-  // An unknown value can never become a class: it falls back to Light.
+  // An unknown value can never become a class. With nothing below it to fall
+  // through to (no cookie, no OS signal in this browser), the chain runs out at
+  // the configured deployment default, which for `auto` is Light.
   await page.goto(`/f/${slug}?mode=sepia`);
   await expect(root).toHaveClass(/\blight\b/u);
   await expect(root).not.toHaveClass(/\bsepia\b/u);
+
+  // Issue #197, in a real browser and in the shape it was reported: a respondent
+  // who chose High contrast follows a link carrying a malformed parameter. The
+  // parameter has to FALL THROUGH to their cookie rather than force Light over
+  // it, which is the regression that silently discarded the one choice least able
+  // to be shrugged off. Before the fix the pre-paint script took the parameter
+  // before checking it, so it overwrote the server-stamped `hc` with `light`.
+  // The unit half of this lives in `lib/server/mode-bootstrap.test.ts`; only a
+  // browser proves the emitted script and the served HTML agree.
+  await page.context().addCookies([{ name: MODE_COOKIE, value: "hc", url: ORIGIN }]);
+  await page.goto(`/f/${slug}?mode=sepia`);
+  await expect(root).toHaveClass(/\bhc\b/u);
+  await expect(root).not.toHaveClass(/\blight\b/u);
+  await page.context().clearCookies();
 });
 
 test("radius presets apply across controls, the step card and a banner", async ({ page }) => {

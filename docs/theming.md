@@ -469,6 +469,14 @@ Mode precedence, highest first:
    for.
 4. The configured mode.
 
+**Every door is a fallback for the one above it.** A layer only wins when it yields
+a *known* mode, so an unrecognised value at any door falls through to the next
+input rather than resolving to Light: `?mode=potato` lands on the respondent's
+`qcms-theme` cookie, and a hand-edited `qcms-theme=darkish` lands on the OS signals
+or the configured mode. Treating "present" as "decided" would make a malformed link
+stronger than a valid choice, which is how a High-contrast setting once got
+silently discarded (issue #197).
+
 These cookies are presentation chrome, never a credential: no `httpOnly` (the
 browser has to write them), `SameSite=Lax`, `Path=/`, one year, and `Secure` in
 production. Nothing about a session, an identity or an answer is inferable from a
