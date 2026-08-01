@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -105,21 +105,27 @@ function declaresUseServer(source: string): boolean {
   return source.split("\n").some((line) => USE_SERVER.has(line.trim()));
 }
 
-/** Every `route.ts` and `"use server"` module under `app/(shell)/`, recursively. */
+/**
+ * Every `route.ts` and `"use server"` module under `app/(shell)/`, recursively.
+ *
+ * `withFileTypes` rather than a `statSync` on each entry: the directory listing already
+ * knows what each entry is, so asking again is both a wasted syscall and a check-then-use
+ * pair (CodeQL's `js/file-system-race`) that this walk has no need to create.
+ */
 function handlerFiles(dir: string, prefix = ""): HandlerFile[] {
   const out: HandlerFile[] = [];
-  for (const entry of readdirSync(dir)) {
-    const full = `${dir}/${entry}`;
-    if (statSync(full).isDirectory()) {
-      out.push(...handlerFiles(full, `${prefix}${entry}/`));
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const name = entry.name;
+    if (entry.isDirectory()) {
+      out.push(...handlerFiles(`${dir}/${name}`, `${prefix}${name}/`));
       continue;
     }
-    if (!/\.tsx?$/.test(entry) || /\.test\.tsx?$/.test(entry)) continue;
-    const source = readFileSync(full, "utf8");
-    const isRoute = /^route\.tsx?$/.test(entry);
-    if (isRoute) out.push({ path: `${prefix}${entry}`, source, kind: "route" });
+    if (!/\.tsx?$/.test(name) || /\.test\.tsx?$/.test(name)) continue;
+    const source = readFileSync(`${dir}/${name}`, "utf8");
+    const isRoute = /^route\.tsx?$/.test(name);
+    if (isRoute) out.push({ path: `${prefix}${name}`, source, kind: "route" });
     else if (declaresUseServer(source))
-      out.push({ path: `${prefix}${entry}`, source, kind: "action" });
+      out.push({ path: `${prefix}${name}`, source, kind: "action" });
   }
   return out;
 }
