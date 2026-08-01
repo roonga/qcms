@@ -41,7 +41,15 @@ import { get } from "node:http";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const port = process.env.ADMIN_PORT ?? "3200";
+// Required, never defaulted, for the same reason as the portal wrapper: the port
+// belongs to the run's lane (`QCMS_PORT_LANE`, see docs/PORTS.md) and Playwright
+// always passes it in, so a literal fallback would be a second source of truth for
+// exactly the thing issue #255 was about.
+const port = process.env.ADMIN_PORT;
+if (port === undefined || port === "") {
+  writeSync(2, "[admin-server] ADMIN_PORT is not set. See docs/PORTS.md.\n");
+  process.exit(1);
+}
 const logPath = fileURLToPath(new URL("../../.playwright/server-logs/admin.log", import.meta.url));
 const repoRoot = fileURLToPath(new URL("../../../../", import.meta.url));
 

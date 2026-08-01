@@ -7,6 +7,7 @@ import {
 } from "./apps/admin/e2e/support/harness-config.js";
 import {
   API_BASE_URL,
+  API_PORT,
   FIXED_INTERNAL_TOKEN,
   FIXTURES_PATH,
   HARNESS_BRAND_LOGO,
@@ -17,9 +18,11 @@ import {
   HARNESS_THEME,
   OTEL_SERVICE_NAMES,
   OTLP_ENDPOINT,
+  OTLP_PORT,
   OTLP_SCHEDULE_DELAY_MS,
   PORTAL_PORT,
 } from "./apps/portal/e2e/support/harness-config.js";
+import { PORT_SEAT, assertSeatUsable } from "./apps/portal/e2e/support/port-seat.js";
 
 /**
  * Root Playwright configuration (task 029, ADR-23; viewports + gates from 045).
@@ -45,6 +48,36 @@ import {
  * run's Postgres and composed API, which is also the real topology: one database, one
  * API, two frontends.
  */
+/**
+ * Two refusals, both at config load, which is before Playwright evaluates any
+ * `webServer` entry and therefore before `reuseExistingServer` can adopt anything
+ * (issue #255).
+ *
+ * The first checks that this seat's ports are legal to hold: a fixed listener inside
+ * the kernel's ephemeral range would lose an occasional race against an auto-assigned
+ * socket, which is a flake nobody could reproduce.
+ *
+ * The second checks that nothing else already holds them. Before the seat scheme, a
+ * second agent lane starting a run while the first lane's dev servers were up did not
+ * fail and did not warn: Playwright reused those servers, so the second lane's specs
+ * ran against the first lane's worktree and still reported a full green suite. Ports
+ * now differ per seat, so that cannot happen between seats at all; this refusal is the
+ * backstop for everything else that might be sitting on the block, and it names the
+ * occupant's pid and cwd rather than making the next person read `/proc` by hand, the
+ * way the original collision was found. A dev server left behind by a previous run in
+ * THIS worktree is still adopted, because that is a genuine local convenience and it
+ * tests the tree you are in.
+ */
+assertSeatUsable();
+
+// Announce the seat on every run. A run's own output is then self-describing ("this
+// was seat 2, on 17200/17210/17230/17240"), which is what a reviewer needs to tell two
+// concurrent seats' evidence apart without going back to the process table.
+process.stdout.write(
+  `[playwright] port seat ${String(PORT_SEAT)}: portal ${String(PORTAL_PORT)}, ` +
+    `api ${String(API_PORT)}, admin ${String(ADMIN_PORT)}, otlp ${String(OTLP_PORT)}\n`,
+);
+
 const PORT = PORTAL_PORT;
 
 // The flow + accessibility specs that must run at every viewport (exit 2). Other
