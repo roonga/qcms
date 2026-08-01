@@ -28,6 +28,7 @@
 import type { RouteHandler } from "@hono/zod-openapi";
 import { compileForm } from "@qcms/a2ui-compiler";
 import {
+  type AnswerMap,
   type AnswerValue,
   compileDraft,
   type DraftInput,
@@ -35,14 +36,17 @@ import {
   type FormDefinition,
   type FormId,
   type FrozenSnapshot,
+  isStepId,
+  parseAnswerValue,
   parseFormDefinition,
   parseFormId,
   parseLocaleCode,
   parseQuestionId,
   type PublishError,
-  type QuestionDefinition,
   type QuestionId,
+  type QuestionRef,
   type QuestionVersionRecord,
+  type ResolveQuestion,
   type ResolveQuestionVersion,
   ruleReferences,
   type StepId,
@@ -57,7 +61,6 @@ import {
   getForm,
   getFormVersion,
   getLatestPublishedVersion,
-  getQuestionVersion,
   insertFormVersion,
   listForms,
   listFormVersions,
@@ -123,25 +126,14 @@ const fail = {
   versionNotFound: (): ApiError => new ApiError("VERSION_NOT_FOUND", 404, "No such form version"),
   publishRejected: (issues: readonly PublishIssue[]): ApiError =>
     new ApiError("PUBLISH_REJECTED", 422, "The draft cannot be published", { issues }),
-  ruleNotFound: (): ApiError =>
-    new ApiError("RULE_NOT_FOUND", 404, "The definition carries no rule with that ruleId"),
-  // The bench cannot answer for a question the form does not pin: there is no
-  // version to resolve it against, so there is no defined answer shape either.
-  // Named as a distinct code so the panel can say which reference is unpinned
-  // rather than showing a generic failure.
-  unpinnedReference: (questionIds: readonly QuestionId[]): ApiError =>
-    new ApiError(
-      "UNPINNED_CONDITION_REFERENCE",
-      422,
-      "The condition reads question(s) this form does not pin",
-      { questionIds },
-    ),
-  unresolvablePin: (questionId: QuestionId, version: number): ApiError =>
-    new ApiError("UNRESOLVABLE_PIN", 422, "A pinned question version does not exist", {
-      questionId,
-      version,
-    }),
 } as const;
+
+// The rule test bench deliberately adds no failure codes here. Everything it
+// cannot answer (an unparseable draft, an unknown ruleId, an unresolvable target,
+// answers it cannot evaluate) comes back as a 200 `unavailable` verdict carrying
+// a typed `reason`: one error channel, because the bench is a read-only aid over
+// a draft that is legitimately half-built and those states are ordinary, not
+// exceptional.
 
 // --- shared helpers ---------------------------------------------------------
 
@@ -430,6 +422,10 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
           challengeRequired: form.challengeRequired,
           minSubmitMs: form.minSubmitMs,
         },
+        // The deployment-level provider rides along so the panel can warn on load
+        // that `challengeRequired` is unenforceable while the provider is "none"
+        // (033), rather than only discovering it after a write.
+        challengeProvider: deps.config.flags.challengeProvider,
       },
       200,
     );
@@ -478,60 +474,124 @@ export function makeValidateDraftHandler(
 // --- POST /admin/forms/:id/draft/preview-condition --------------------------
 
 /**
- * The synthetic ids the rule test bench's probe snapshot carries.
- *
- * A preview snapshot is built, evaluated, and thrown away inside one request: it
- * is never persisted, never pinned, and never published, so these cannot collide
- * with authored ids in storage (R6). They can collide with ids in the *submitted*
- * definition, which is why the probe question id is uniquified below rather than
- * used as a constant.
+ * The two synthetic step ids the bench form carries. The bench form is built,
+ * evaluated, and thrown away inside one request: it is never persisted, never
+ * pinned, and never published, so these cannot collide with authored ids in
+ * storage (R6).
  */
 // Cast justification (both): string literals written to the `stp_[a-z0-9_]+` id
 // grammar, so the brand is a compile-time label over a value that is correct by
 // construction. Parsing them would be a runtime check of a constant.
-const PREVIEW_INPUT_STEP_ID = "stp_preview_condition_inputs" as StepId;
-const PREVIEW_RESULT_STEP_ID = "stp_preview_condition_result" as StepId;
-const PREVIEW_PROBE_BASE = "q_preview_condition_probe";
+const BENCH_READS_STEP_ID = "stp_bench_reads" as StepId;
+const BENCH_TARGET_STEP_ID = "stp_bench_target" as StepId;
 
-/** A probe id no question in the definition uses. */
-function mintProbeId(taken: ReadonlySet<string>): QuestionId {
-  let candidate = PREVIEW_PROBE_BASE;
-  let suffix = 2;
-  while (taken.has(candidate)) {
-    candidate = `${PREVIEW_PROBE_BASE}_${String(suffix)}`;
-    suffix += 1;
-  }
-  // Constructed from a literal matching the `q_[a-z0-9_]+` id grammar, so the
-  // parse cannot fail; parsed anyway so the brand is earned, never cast.
-  const parsed = parseQuestionId(candidate);
-  /* v8 ignore next 1 -- unreachable: the candidate is built to the id grammar */
-  if (!parsed.ok) throw new Error("preview probe id failed to parse");
-  return parsed.value;
+/** Why the bench could not answer. The response's single failure channel. */
+type PreviewReason = "unparseableDraft" | "ruleNotFound" | "noTarget" | "unresolvedAnswers";
+
+/** The preview response body, shaped once so every exit agrees on it. */
+interface PreviewVerdict {
+  readonly ruleId: string;
+  readonly references: string[];
+  readonly outcome: "match" | "noMatch" | "unavailable";
+  readonly reason?: PreviewReason;
 }
 
 /**
- * The rule's referenced questions, ordered and version-pinned as the draft has
- * them. A forward pass is order-sensitive (ADR-16), so the probe snapshot has to
- * preserve the draft's own document order; a reference the form does not pin has
- * no version to resolve against and is a 422 rather than a silent "unanswered".
+ * An "I cannot answer that" verdict. Tri-state `outcome` plus a typed `reason`,
+ * never a nullable boolean: the panel must be able to tell "could not evaluate"
+ * from a real "no match", and a half-built draft makes the former ordinary.
  */
-function orderReferences(
+function unavailable(
+  ruleId: string,
+  references: readonly QuestionId[],
+  reason: PreviewReason,
+): PreviewVerdict {
+  return { ruleId, references: [...references], outcome: "unavailable", reason };
+}
+
+/**
+ * Every questionId the definition pins, mapped to the version it pins it at.
+ * A parsed definition pins each question at most once (the kernel rejects
+ * `DUPLICATE_QUESTION_IN_FORM`), so this map is total and unambiguous.
+ */
+function pinsByQuestion(definition: FormDefinition): Map<QuestionId, number> {
+  const pins = new Map<QuestionId, number>();
+  for (const step of definition.steps) {
+    for (const item of step.items) pins.set(item.questionId, item.version);
+  }
+  return pins;
+}
+
+/**
+ * The questions the condition reads: those the draft pins first, in the draft's
+ * own document order, then any it does not pin. Document order is the meaningful
+ * order because the forward pass is order-sensitive (ADR-16); the unpinned tail
+ * still ships so the panel can show a reference that has no resolvable version
+ * (it reads as unanswered rather than silently vanishing).
+ */
+function orderedReferences(
   definition: FormDefinition,
   rule: VisibilityRule,
-): { ordered: QuestionId[]; pinByQuestion: Map<QuestionId, number> } {
+  pins: ReadonlyMap<QuestionId, number>,
+): QuestionId[] {
   const referenced = new Set<QuestionId>(ruleReferences(rule));
-  const pinByQuestion = new Map<QuestionId, number>();
-  const ordered: QuestionId[] = [];
+  const pinned: QuestionId[] = [];
   for (const step of definition.steps) {
     for (const item of step.items) {
-      if (!referenced.has(item.questionId) || pinByQuestion.has(item.questionId)) continue;
-      pinByQuestion.set(item.questionId, item.version);
-      ordered.push(item.questionId);
+      if (referenced.has(item.questionId)) pinned.push(item.questionId);
     }
   }
-  const unpinned = [...referenced].filter((questionId) => !pinByQuestion.has(questionId));
-  if (unpinned.length > 0) throw fail.unpinnedReference(unpinned);
-  return { ordered, pinByQuestion };
+  return [...pinned, ...[...referenced].filter((questionId) => !pins.has(questionId))];
+}
+
+/**
+ * The rule's bench target: the first `show` entry that resolves to a question the
+ * draft pins. A step target stands for its first question, because that is the
+ * first thing a respondent would actually see the step reveal.
+ */
+function benchTarget(
+  definition: FormDefinition,
+  rule: VisibilityRule,
+  pins: ReadonlyMap<QuestionId, number>,
+): QuestionRef | undefined {
+  for (const target of rule.show) {
+    if (isStepId(target)) {
+      const first = definition.steps.find((step) => step.stepId === target)?.items[0];
+      if (first !== undefined) return first;
+      continue;
+    }
+    const version = pins.get(target);
+    if (version !== undefined) return { questionId: target, version };
+  }
+  return undefined;
+}
+
+/**
+ * The hypothetical answers, narrowed to what the bench form pins and parsed into
+ * canonical `AnswerValue`s. Keys that are not question ids, and answers for
+ * questions the bench form does not pin, are ignored - the same rule the
+ * evaluator applies to a stray answer-map key. A *relevant* value that is not a
+ * canonical encoding returns `undefined` (an `unresolvedAnswers` verdict):
+ * declining to answer beats silently treating it as unanswered and reporting a
+ * confident `noMatch` the author would have to debug.
+ *
+ * SEC-13 / ADR-34: these are answer-shaped values. They are read here and never
+ * logged, never persisted, and never echoed into a response or an error message.
+ */
+function collectBenchAnswers(
+  supplied: Readonly<Record<string, unknown>>,
+  pins: ReadonlyMap<QuestionId, number>,
+): AnswerMap | undefined {
+  const answers = new Map<QuestionId, AnswerValue>();
+  for (const [key, value] of Object.entries(supplied)) {
+    if (value === undefined) continue;
+    const questionId = parseQuestionId(key);
+    if (!questionId.ok || !pins.has(questionId.value)) continue;
+    const answer = parseAnswerValue(value);
+    if (!answer.ok) return undefined;
+    answers.set(questionId.value, answer.value);
+  }
+  return answers;
 }
 
 /**
@@ -541,33 +601,39 @@ function orderReferences(
  *
  * The bench needs `@qcms/core`'s evaluator, and the admin app is a strict BFF
  * that imports no kernel value at all (R2, enforced by the admin's
- * `r2-import-surface.test.ts`). So the evaluator runs where it already lives,
- * exactly as 032 resolved the same tension for the question preview pane. The
- * wireframe's original "client-side evaluation" wording is amended accordingly
- * (2026-08-01, PO seat).
+ * `r2-import-surface.test.ts`). So the evaluator runs where it already lives.
+ * The task file's original "client-side evaluation" wording is amended
+ * accordingly (2026-08-01, PO seat).
  *
- * ## The synthetic snapshot, and why it is not the draft itself
+ * ## Why a synthetic two-step form, and not the draft itself
  *
- * `evaluateRules` answers "what is visible", not "did this condition match", and
- * running the real draft would conflate the two: a target can be hidden by a
- * *different* rule, and a rule placed backwards (ADR-16) has no well-defined
- * effect at all. So the bench evaluates a purpose-built two-step form:
+ * ADR-16 evaluation is a single forward pass, so a target's visibility is only
+ * well-defined when it sits after every question the condition reads. The real
+ * draft need not satisfy that, and a backward target is precisely one of the
+ * things an author comes to the bench to understand: evaluating the draft
+ * directly would answer "what is visible right now", which is a different
+ * question, and would conflate this rule's verdict with every other rule that
+ * happens to target the same question.
  *
- *   step 1 - every question the condition reads, at its pinned version, in the
- *            draft's own document order;
- *   step 2 - one synthetic probe question, targeted by this one rule.
+ * So the bench evaluates a purpose-built form that isolates the one question it
+ * actually asks:
  *
- * A rule target is hidden unless a targeting rule matches, so "the probe is
- * visible" *is* "the condition matched" - nothing else in the snapshot can move
- * it. Laying the inputs strictly before the probe also means the bench keeps
- * answering while the author's real placement is still wrong, which is precisely
- * when they need it. Whether the rule is legally placed is `analyzeRuleGraph`'s
- * verdict, delivered separately by `draft/validate`.
+ *   step 1 `stp_bench_reads`  - the questions this condition reads, at the
+ *                               versions the draft pins them at;
+ *   step 2 `stp_bench_target` - the rule's target, alone;
+ *   rules                     - this one rule, nothing else.
  *
- * Nothing is stored and nothing is compiled. The hypothetical answers are
- * answer-shaped data (SEC-13, ADR-34): they are read here and never logged, never
- * persisted, and never echoed back - the kernel's own evaluation errors name ids
- * and operators only.
+ * The target is excluded from step 1 even when the condition reads it, because
+ * the kernel rejects a question pinned twice in one form; a self-reference then
+ * correctly reads as unanswered, which is what a forward pass would do anyway.
+ * Since the target is hidden unless a targeting rule matches and this form has
+ * exactly one rule, "the target is visible" *is* "the condition matched".
+ *
+ * Whether the rule is *legally placed* is `analyzeRuleGraph`'s answer, already
+ * reported by `draft/validate` as `RULE_BACKWARD_TARGET`/`RULE_CYCLE`. This
+ * endpoint deliberately does not duplicate that verdict.
+ *
+ * Nothing is stored and nothing is compiled.
  */
 export function makePreviewConditionHandler(
   deps: Deps,
@@ -575,81 +641,85 @@ export function makePreviewConditionHandler(
   return async (c) => {
     const formId = requireFormId(c.req.valid("param").id);
     const body = c.req.valid("json");
-    const definition = requireDefinition(body.definition);
-    if (definition.formId !== formId) throw fail.idMismatch();
 
+    // The form must exist for the route to mean anything, so an unknown form is a
+    // 404 exactly as it is on validate - never a 200 "unavailable".
     const form = await getForm(deps.db, formId);
     if (form === undefined) throw fail.formNotFound();
 
-    const rule = definition.rules.find((r) => r.ruleId === body.ruleId);
-    if (rule === undefined) throw fail.ruleNotFound();
+    // Unlike validate, an unparseable definition is NOT an error here: the bench
+    // is a read-only aid over a draft that is legitimately half-built while the
+    // author works, so it reports an ordinary `unavailable` verdict instead of
+    // blanking the panel with a 422 at the moment it is most wanted.
+    const parsed = parseFormDefinition(body.definition);
+    if (!parsed.ok) return c.json(unavailable(body.ruleId, [], "unparseableDraft"), 200);
+    const definition = parsed.value;
+    // Identity is fixed: a preview cannot be run against another form's draft.
+    if (definition.formId !== formId) throw fail.idMismatch();
 
-    const { ordered, pinByQuestion } = orderReferences(definition, rule);
+    const rule = definition.rules.find((candidate) => candidate.ruleId === body.ruleId);
+    if (rule === undefined) return c.json(unavailable(body.ruleId, [], "ruleNotFound"), 200);
 
-    // Resolve every referenced pin to the exact version it names (R1): a rule is
-    // checked against the frozen content it was written for, never against
-    // whatever the question's newest version happens to say now.
-    const resolved = new Map<QuestionId, QuestionDefinition>();
-    for (const [questionId, version] of pinByQuestion) {
-      const row = await getQuestionVersion(deps.db, questionId, version);
-      if (row === undefined) throw fail.unresolvablePin(questionId, version);
-      resolved.set(questionId, row.definition);
+    const pins = pinsByQuestion(definition);
+    const references = orderedReferences(definition, rule, pins);
+
+    const target = benchTarget(definition, rule, pins);
+    if (target === undefined) return c.json(unavailable(rule.ruleId, references, "noTarget"), 200);
+
+    const reads: QuestionRef[] = [];
+    for (const questionId of references) {
+      if (questionId === target.questionId) continue;
+      const version = pins.get(questionId);
+      if (version !== undefined) reads.push({ questionId, version });
+    }
+    // No readable input means no answer the bench could vary: the condition can
+    // only read questions the draft does not pin, so there is nothing to evaluate.
+    if (reads.length === 0) {
+      return c.json(unavailable(rule.ruleId, references, "unresolvedAnswers"), 200);
     }
 
-    const probeId = mintProbeId(new Set(pinnedQuestionIds(definition)));
-    const probe: QuestionDefinition = {
-      questionId: probeId,
-      type: "boolean",
-      label: { [definition.defaultLocale]: "condition preview probe" },
-      required: false,
-    };
-    const snapshot: FormDefinition = {
+    const bench = parseFormDefinition({
       formId: definition.formId,
       defaultLocale: definition.defaultLocale,
       title: definition.title,
       steps: [
-        {
-          stepId: PREVIEW_INPUT_STEP_ID,
-          title: definition.title,
-          items: ordered.map((questionId) => ({
-            questionId,
-            version: pinByQuestion.get(questionId) ?? 1,
-          })),
-        },
-        {
-          stepId: PREVIEW_RESULT_STEP_ID,
-          title: definition.title,
-          items: [{ questionId: probeId, version: 1 }],
-        },
+        { stepId: BENCH_READS_STEP_ID, title: definition.title, items: reads },
+        { stepId: BENCH_TARGET_STEP_ID, title: definition.title, items: [target] },
       ],
-      rules: [{ ruleId: rule.ruleId, when: rule.when, show: [probeId] }],
+      rules: [{ ruleId: rule.ruleId, when: rule.when, show: [target.questionId] }],
+    });
+    if (!bench.ok) return c.json(unavailable(rule.ruleId, references, "unresolvedAnswers"), 200);
+
+    // Version-exact resolution through the same path publish uses, so the bench
+    // and publish can never disagree about which content a pin names (R1).
+    // `loadQuestionLookups` hands back a `ResolveQuestionVersion` (id + version)
+    // while the evaluator wants a `ResolveQuestion` (id only); the bench form's
+    // own pin map is what bridges the two, and it is what keeps this lookup
+    // version-exact instead of silently resolving to a question's newest version.
+    const { resolveQuestion } = await loadQuestionLookups(deps, bench.value);
+    const benchPins = pinsByQuestion(bench.value);
+    const resolve: ResolveQuestion = (questionId) => {
+      const version = benchPins.get(questionId);
+      return version === undefined ? undefined : resolveQuestion(questionId, version)?.definition;
     };
 
-    // Only the referenced questions carry answers into the pass; anything else in
-    // the submitted map is not in the snapshot and is ignored by the evaluator.
-    const answers = new Map<QuestionId, AnswerValue>();
-    for (const questionId of ordered) {
-      const supplied = body.answers[questionId];
-      if (supplied === undefined) continue;
-      // Cast justification: the bench's answers are unknown JSON by design. The
-      // evaluator re-parses every entry through `AnswerValue` and reports a bad
-      // one as MALFORMED_ANSWER_VALUE, so this is a shape assertion the kernel
-      // immediately re-checks, not a trusted narrowing.
-      answers.set(questionId, supplied as AnswerValue);
+    const answers = collectBenchAnswers(body.answers, benchPins);
+    if (answers === undefined) {
+      return c.json(unavailable(rule.ruleId, references, "unresolvedAnswers"), 200);
     }
 
-    const outcome = evaluateRules(snapshot, answers, (questionId) =>
-      questionId === probeId ? probe : resolved.get(questionId),
-    );
+    const flow = evaluateRules(bench.value, answers, resolve);
+    // A typed evaluation failure (an unresolvable pin, a type mismatch) is the
+    // bench declining to answer, not an API error: same read-only-aid reasoning
+    // as the unparseable draft above.
+    if (!flow.ok) return c.json(unavailable(rule.ruleId, references, "unresolvedAnswers"), 200);
 
+    const matched = flow.value.visible.some((entry) => entry.questionId === target.questionId);
     return c.json(
       {
         ruleId: rule.ruleId,
-        references: [...ordered],
-        matches: outcome.ok
-          ? outcome.value.visible.some((entry) => entry.questionId === probeId)
-          : null,
-        error: outcome.ok ? null : { code: outcome.error.code, message: outcome.error.message },
+        references: [...references],
+        outcome: matched ? ("match" as const) : ("noMatch" as const),
       },
       200,
     );
@@ -673,6 +743,15 @@ export function makePreviewConditionHandler(
  * back, and `minSubmitMs: null` means "use the deployment's configured floor"
  * rather than "no floor". Neither `slug` nor `status` is reachable here: they
  * have their own doors.
+ *
+ * There is no pre-read to distinguish "no such form" from "nothing to update":
+ * the body schema rejects an all-absent patch, so `updateFormSettings` returning
+ * `undefined` can only mean the form does not exist. That is the same single-read
+ * 404 shape `closeForm`/`reopenForm` use, and it keeps the sentinel unambiguous.
+ *
+ * The response carries the deployment's `challengeProvider` alongside the saved
+ * settings so the panel can re-render its "unenforceable while the provider is
+ * none" warning from the write's own answer, with no follow-up read.
  */
 export function makeUpdateFormSettingsHandler(
   deps: Deps,
@@ -681,16 +760,12 @@ export function makeUpdateFormSettingsHandler(
     const formId = requireFormId(c.req.valid("param").id);
     const body = c.req.valid("json");
 
-    const form = await getForm(deps.db, formId);
-    if (form === undefined) throw fail.formNotFound();
-
     const updated = await updateFormSettings(deps.db, formId, {
       ...(body.challengeRequired === undefined
         ? {}
         : { challengeRequired: body.challengeRequired }),
       ...(body.minSubmitMs === undefined ? {} : { minSubmitMs: body.minSubmitMs }),
     });
-    /* v8 ignore next 1 -- the row existed a statement ago; a gone row is a 404 */
     if (updated === undefined) throw fail.formNotFound();
 
     return c.json(
@@ -700,6 +775,7 @@ export function makeUpdateFormSettingsHandler(
           challengeRequired: updated.challengeRequired,
           minSubmitMs: updated.minSubmitMs,
         },
+        challengeProvider: deps.config.flags.challengeProvider,
       },
       200,
     );

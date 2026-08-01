@@ -72,8 +72,8 @@ export async function listForms(exec: Executor): Promise<FormRow[]> {
  * Create a form identity. Defaults to `open` (accepting new sessions) with no
  * abuse-control gates. The optional per-form abuse settings (task 026) may be
  * set here or left to their column defaults (`challengeRequired = false`,
- * `minSubmitMs = NULL` → use the config default floor); the admin builder (034)
- * is their normal authoring path.
+ * `minSubmitMs = NULL` → use the config default floor); the admin builder's
+ * settings panel (033) is their normal authoring path, via `updateFormSettings`.
  */
 export async function createForm(
   exec: Executor,

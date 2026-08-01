@@ -158,8 +158,10 @@ export const previewConditionRoute = createRoute({
       description: "The match verdict, or the typed reason it could not be reached",
       content: { "application/json": { schema: PreviewConditionResponse } },
     },
-    // 404: no such form, or no such rule in the submitted definition.
-    // 422: the definition is not parseable, or a referenced question is not pinned.
+    // 404: no such form. 422: the definition's formId contradicts the path id.
+    // Note what is deliberately NOT an error: an unparseable draft, an unknown
+    // ruleId, and answers the evaluator cannot use all return 200 with an
+    // `unavailable` outcome, because the bench reads a work-in-progress draft.
     ...errorResponses(400, 401, 404, 422),
   },
   ...withScopes("forms:write"),
