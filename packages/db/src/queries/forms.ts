@@ -230,3 +230,37 @@ export async function reopenForm(exec: Executor, formId: FormId): Promise<FormRo
     .returning();
   return row;
 }
+
+/**
+ * Update the per-form abuse-control settings (task 026's domain config, ADR-24
+ * tier 2), as the form builder's settings panel edits them (033).
+ *
+ * A partial update: an absent key leaves that column alone, so the panel can save
+ * one switch without echoing the other back. `minSubmitMs: null` is a real value
+ * and means "use the deployment's configured floor", which is why it is expressed
+ * as an explicit `null` rather than by omission.
+ *
+ * Deliberately narrow. `slug`, `defaultLocale` and `status` are also columns on
+ * this row and are **not** reachable here: status has its own lifecycle doors
+ * (`closeForm`/`reopenForm`), and slug/locale are identity an author names once.
+ * A settings panel that could rewrite a live form's slug is a different feature
+ * with different consequences.
+ */
+export async function updateFormSettings(
+  exec: Executor,
+  formId: FormId,
+  settings: { challengeRequired?: boolean; minSubmitMs?: number | null },
+): Promise<FormRow | undefined> {
+  const patch = {
+    ...(settings.challengeRequired === undefined
+      ? {}
+      : { challengeRequired: settings.challengeRequired }),
+    ...(settings.minSubmitMs === undefined ? {} : { minSubmitMs: settings.minSubmitMs }),
+  };
+  // An empty `set` is a SQL syntax error in Drizzle, and "save nothing" is a
+  // legitimate call from a panel whose fields are all unchanged: answer it with
+  // the current row rather than a 500.
+  if (Object.keys(patch).length === 0) return getForm(exec, formId);
+  const [row] = await exec.update(forms).set(patch).where(eq(forms.formId, formId)).returning();
+  return row;
+}

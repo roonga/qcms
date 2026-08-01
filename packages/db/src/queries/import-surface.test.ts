@@ -43,6 +43,7 @@ describe("query helper import surface", () => {
     "listFormVersions",
     "closeForm",
     "reopenForm",
+    "updateFormSettings",
     // sessions
     "createSession",
     "getSession",

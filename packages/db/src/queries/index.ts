@@ -48,6 +48,7 @@ export {
   listFormVersions,
   closeForm,
   reopenForm,
+  updateFormSettings,
 } from "./forms.js";
 
 export {
