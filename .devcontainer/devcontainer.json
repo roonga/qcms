@@ -94,7 +94,10 @@
   // hunting a random Docker name. The matching compose-project label groups it
   // with the dev database in Docker Desktop, so the whole dev environment reads
   // as one unit. Both are safe because only one of these can run at a time
-  // anyway: `appPort` already makes the ports exclusive machine-wide.
+  // anyway: `appPort` already makes the ports exclusive machine-wide. That is a
+  // property of THIS config, not of the allocation - `docs/PORTS.md` defines seats
+  // 0-9 and records what a second container seat would need (a distinct name and
+  // distinct publishes), marked as design intent rather than something exercised.
   "runArgs": [
     "--init",
     "--ipc=host",
