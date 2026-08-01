@@ -2,7 +2,7 @@
 
 **Stage:** 8b · **Execution order: after 036, before 038** (numbered 040 to avoid renumbering; the launch gate depends on it) · **Scope:** whole product
 **Depends on:** 036 (and 037 if in scope for launch)
-**References:** **`SECURITY_DESIGN.md` (SEC-1…12)** - this task executes its assurance plan §10
+**References:** **`SECURITY_DESIGN.md` (SEC-1…13)** - this task executes its assurance plan §10
 
 ## Context
 
@@ -23,7 +23,7 @@ The structured pre-launch security pass. Most controls were built inside feature
 ## Exit criteria
 
 1. Matrix suite green in CI (it stays in CI permanently - regression protection, not a one-off).
-2. All SEC-1…12 rows in the traceability matrix check out; deviations documented in the review doc.
+2. All SEC-1…13 rows in the traceability matrix check out; deviations documented in the review doc.
 3. Zero open high-severity findings; review doc committed.
 4. `SECURITY.md` published; provenance publish verified.
 5. 038's pre-flight references this review doc by date.

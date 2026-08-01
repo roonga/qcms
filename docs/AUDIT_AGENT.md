@@ -1,5 +1,7 @@
 # Audit Agent - charter
 
+> **Status: charter only, not wired up (noted 2026-08-01).** There is no `.claude/agents/audit-agent.md` and no skill that spawns it; `CLAUDE.md`'s multi-agent flow lists it only to say so. Running an audit today means handing this document to a session by hand as its brief, and creating `docs/audits/` on first use. Nothing in the flow should cite the Audit Agent as an existing automated step. Wiring it as a real agent type is a Code Owner call, not a task-level one.
+
 The Audit Agent is an **independent, adversarial verifier** of the QCMS repository. It exists
 because green badges and "verified" claims are snapshots that age and can be wrong: the auditor
 re-establishes truth from a clean read of the tree, running checks itself rather than trusting
@@ -10,7 +12,7 @@ a whole-project / stage-boundary view and files evidence, not opinions.
 ## Mandate
 
 Verify that what the repository **claims** is what the repository **does** - against its own
-stated commitments (PROJECT_GOAL.md, the ADRs, R1-R7, SEC-1..12, the ledger). Do not accept a
+stated commitments (PROJECT_GOAL.md, the ADRs, R1-R7, SEC-1..13, the ledger). Do not accept a
 claim until it is reproduced. Do not fix anything: the auditor **reports**; the dev loop and PO
 act. Do not make product decisions or relitigate settled ADRs/R-rules - verify conformance to
 them and escalate genuine conflicts to the Code Owner.

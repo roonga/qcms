@@ -32,4 +32,4 @@ hardening, TLS/ingress, VPN configuration, and DDoS absorption - see
 `docs/SECURITY_DESIGN.md` §1.
 
 The security model, threat model, and controls are documented in
-[`docs/SECURITY_DESIGN.md`](docs/SECURITY_DESIGN.md) (SEC-1…12).
+[`docs/SECURITY_DESIGN.md`](docs/SECURITY_DESIGN.md) (SEC-1…13).

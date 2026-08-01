@@ -57,10 +57,10 @@ Details, including how to reach the dev database from inside the container: [`CO
 
 ## Documentation
 
-- [`docs/PROJECT_GOAL.md`](docs/PROJECT_GOAL.md) - vision, scope, and the architectural decision records (ADR-01…25)
+- [`docs/PROJECT_GOAL.md`](docs/PROJECT_GOAL.md) - vision, scope, and the architectural decision records (ADR-01…35)
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) - system design and repository structure
 - [`docs/DOMAIN_SCHEMA.md`](docs/DOMAIN_SCHEMA.md) - the domain model, rules DSL, and invariants
-- [`docs/SECURITY_DESIGN.md`](docs/SECURITY_DESIGN.md) - threat model and security controls (SEC-1…12)
+- [`docs/SECURITY_DESIGN.md`](docs/SECURITY_DESIGN.md) - threat model and security controls (SEC-1…13)
 - [`docs/features/`](docs/features/) - the numbered task plan and progress ledger
 
 ## Contributing

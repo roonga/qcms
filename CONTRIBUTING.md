@@ -5,7 +5,7 @@
 
 ## Ground rules
 
-The reference documents in `docs/` are authoritative; the discipline rules R1–R7 and decisions ADR-01…25 / SEC-1…12 are not relitigated in PRs - a PR that violates them is not mergeable regardless of quality. Conflicts with a decision are raised as an issue proposing a new ADR, never resolved silently in code. The launch cut-line (R7) applies to contributions: out-of-scope features become `phase-4` issues, not PRs.
+The reference documents in `docs/` are authoritative; the discipline rules R1–R7 and decisions ADR-01…35 / SEC-1…13 are not relitigated in PRs - a PR that violates them is not mergeable regardless of quality. Conflicts with a decision are raised as an issue proposing a new ADR, never resolved silently in code. The launch cut-line (R7) applies to contributions: out-of-scope features become `phase-4` issues, not PRs.
 
 ## Development environment
 
@@ -143,7 +143,7 @@ pnpm verify:browser   # the Playwright suite (portal e2e + a11y + Lighthouse), s
 
 ## Git and PR rules
 
-- **Branches:** `feat/NNN-slug` for plan tasks, `fix/slug`, `docs/slug`, `chore/slug` otherwise. Never force-push `main`; force-push your own branch freely before review.
+- **Branches:** `feat/NNN-slug` for plan tasks (NNN = the ledger task number), **`fix/NN-slug` for a GitHub issue fix** (NN = the issue number - the `/next-issue` flow treats a live `fix/NN-*` branch as the claim on issue NN, so the number is load-bearing, not decoration), `docs/slug`, `chore/slug` otherwise. Task numbers and issue numbers share a numeric space, which is exactly why the prefixes differ: `feat/` is reserved for ledger tasks. Never force-push `main`; force-push your own branch freely before review.
 - **Commits:** Conventional Commits (`feat:`, `fix:`, `docs:`, `test:`, `chore:`); include the task number for plan work (`feat(core): 006 forward-pass evaluator`).
 - **PR scope:** one task (or less) per PR. If a diff wants to do two things, it's two PRs.
 - **PR description:** the task's exit-criteria checklist, checked off, plus anything a reviewer needs to verify locally. For non-task PRs: what, why, and how it was tested.
@@ -158,7 +158,7 @@ pnpm verify:browser   # the Playwright suite (portal e2e + a11y + Lighthouse), s
 - **Talk first for anything non-trivial:** open an issue before a PR; design-affecting proposals sketch an ADR (context, decision, consequences). Typo/docs/small-fix PRs are welcome directly.
 - **Licensing:** MIT, inbound = outbound - submitting a PR licenses your contribution under MIT. Sign-off (`git commit -s`, DCO) required.
 - **Security vulnerabilities:** never as public issues - use the private reporting channel in `SECURITY.md`.
-- **Scope:** the roadmap is demand-ordered (`ROADMAP.md`); PRs implementing deferred features unprompted will likely be declined with thanks - open the issue and make the demand case instead.
+- **Scope:** the roadmap is demand-ordered and post-launch work is never pre-built; the launch cut-line is `docs/PROJECT_GOAL.md` §5 (deferred items are tracked as `phase-4` issues). PRs implementing deferred features unprompted will likely be declined with thanks - open the issue and make the demand case instead.
 - **Conduct:** be kind, assume good faith, argue about code not people. Maintainers may close disrespectful threads.
 
 ## Quick pre-PR checklist
