@@ -106,7 +106,11 @@ export function RuleTestBench({
                       questionId={questionId}
                       value={answers[questionId]}
                       onChange={(value) => {
-                        setAnswers({ ...answers, [questionId]: value });
+                        // Functional form on purpose: the handler outlives the render it
+                        // was created in, so spreading the `answers` it closed over drops
+                        // any sibling answer set since. Issue #224 is that exact loss in
+                        // the question editor, with two controls changed in one tick.
+                        setAnswers((previous) => ({ ...previous, [questionId]: value }));
                       }}
                     />
                   ))}

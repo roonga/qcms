@@ -71,7 +71,9 @@ export function FormSettingsPanel({
             label={t("forms.settings.challengeRequired")}
             isSelected={draft.challengeRequired}
             onChange={(isSelected) => {
-              setDraft({ ...draft, challengeRequired: isSelected });
+              // Functional form for the reason the bench records: a handler that spreads
+              // the state it closed over loses a sibling change made in the same tick.
+              setDraft((previous) => ({ ...previous, challengeRequired: isSelected }));
             }}
           />
           <p className="text-sm text-(--color-text-muted)">{t("forms.settings.challengeHint")}</p>
@@ -87,7 +89,10 @@ export function FormSettingsPanel({
             label={t("forms.settings.minSubmitDefault")}
             isSelected={usesDefault}
             onChange={(isSelected) => {
-              setDraft({ ...draft, minSubmitMs: isSelected ? null : (stored.minSubmitMs ?? 0) });
+              setDraft((previous) => ({
+                ...previous,
+                minSubmitMs: isSelected ? null : (stored.minSubmitMs ?? 0),
+              }));
             }}
           />
           {!usesDefault && (
@@ -97,7 +102,10 @@ export function FormSettingsPanel({
               value={draft.minSubmitMs ?? 0}
               minValue={0}
               onChange={(next) => {
-                setDraft({ ...draft, minSubmitMs: Number.isFinite(next) ? next : 0 });
+                setDraft((previous) => ({
+                  ...previous,
+                  minSubmitMs: Number.isFinite(next) ? next : 0,
+                }));
               }}
             />
           )}

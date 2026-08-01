@@ -83,10 +83,16 @@ const MALFORMED_CODE = "INVALID_FORM_DEFINITION";
  * is applied to the bytes this app would *send* rather than to the bytes it received. It
  * still does the job it is here for: nothing unbounded leaves the BFF, and a document that
  * cannot be serialized at all (a cycle) is refused rather than thrown.
+ *
+ * The measurement is the **UTF-8 byte length**, not the string length: a JS string is
+ * counted in UTF-16 code units, so a CJK character scores 1 against the 3 bytes it costs
+ * on the wire and an astral emoji scores 2 against 4. Counting code units would therefore
+ * let a localized draft through at up to three times the cap this constant names, and
+ * localized content is the normal case for a questionnaire rather than an edge of it.
  */
 function withinCap(document: unknown): boolean {
   try {
-    return JSON.stringify(document).length <= MAX_DEFINITION_BYTES;
+    return Buffer.byteLength(JSON.stringify(document), "utf8") <= MAX_DEFINITION_BYTES;
   } catch {
     return false;
   }
@@ -118,11 +124,24 @@ export async function createFormAction(
   const formId = formIdFromSlug(slug);
   const submitted = { slug, title, defaultLocale };
 
-  if (formId === "" || defaultLocale === "") {
+  // Two distinct failures, kept distinct: a slug that yields no id and a blank default
+  // locale are different mistakes on different fields, and the catalog already has a
+  // sentence for each. Collapsing them would tell an author with an empty locale box that
+  // their (perfectly good) slug is invalid, and would leave `INVALID_DEFAULT_LOCALE`
+  // mapped but unreachable from this screen.
+  if (formId === "") {
     return {
       status: "error",
       code: "INVALID_FORM_ID",
       message: messageForFormCode("INVALID_FORM_ID"),
+      submitted,
+    };
+  }
+  if (defaultLocale === "") {
+    return {
+      status: "error",
+      code: "INVALID_DEFAULT_LOCALE",
+      message: messageForFormCode("INVALID_DEFAULT_LOCALE"),
       submitted,
     };
   }
