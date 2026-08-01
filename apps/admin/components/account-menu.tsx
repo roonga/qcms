@@ -11,6 +11,7 @@ import {
   MenuTriggerButton,
 } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
+import { initialsFor } from "@/lib/initials";
 
 /**
  * The account control in the topbar's trailing group (task 032).
@@ -50,23 +51,6 @@ import { t } from "@/lib/i18n/en";
  * The form is hidden with CSS rather than by not rendering it, so nothing has to
  * know whether scripts ran, and `display: none` does not stop `requestSubmit()`.
  */
-
-/**
- * Two letters for the disc: initials of the display name, or of the email's local
- * part when there is no name (`op@example.test` gives `OP`).
- *
- * Deliberately not clever about it. Splitting on the separators people actually use
- * in an address (`.`, `_`, `-`, `+`) covers `ada.lovelace@` and `ada_lovelace@`;
- * anything else falls back to the first two characters, which is always SOMETHING
- * rather than a blank circle. The result is decorative - `aria-label` carries the
- * accessible name - so an imperfect guess costs nobody anything.
- */
-export function initialsFor(email: string, name?: string): string {
-  const source = name !== undefined && name.trim() !== "" ? name : (email.split("@")[0] ?? email);
-  const parts = source.split(/[\s._\-+]+/u).filter((part) => part !== "");
-  if (parts.length >= 2) return `${parts[0]?.[0] ?? ""}${parts[1]?.[0] ?? ""}`.toUpperCase();
-  return (parts[0] ?? source).slice(0, 2).toUpperCase();
-}
 
 export function AccountMenu({ email, name }: { readonly email: string; readonly name?: string }) {
   const signOutForm = useRef<HTMLFormElement>(null);
