@@ -10,5 +10,8 @@
 - [Filesystem scope boundary](filesystem-scope-boundary.md) - never read/edit local folders outside the parent folder holding the project checkouts (any machine/mount)
 - [qcms PR flow](qcms-pr-flow.md) - two-seat PR-per-issue: dev loop opens with gate screenshots, this seat sweeps/merges via head-bound PO-REVIEW sentinels; idle ticks do docs/non-func work
 - [PM pre-PR self-review gate](pm-pr-self-review.md) - diff-as-stranger + grep added lines for em dash / owner name / user paths; verify against rules, not gates
+- [PM delegation and routing](pm-delegation-and-routing.md) - the main session is a router; design artifacts go to a Sonnet subagent, ad-hoc dev work to `dev-task` on Opus 5; the 26-minute silent-conductor incident
+- [Freeze design before briefing dev](freeze-design-before-briefing-dev.md) - one pause heads-up, then a single frozen brief; three superseded topbar briefs reached a live executor on 2026-07-31
+- [Plan against official docs](plan-against-official-docs.md) - external-tech plans are checked against docs, registry and source at drafting time; the hand-rolled OTel draft is the precedent
 
 _Note: this memory was migrated from the retired `qcms-plan` project (2026-07-23). The PO seat now runs from the qcms repo checkout (`plan/` folder); the qcms-plan folder is archived. Working/planning artifacts live in the repo's `plan/` folder; formal decisions in `docs/`._
