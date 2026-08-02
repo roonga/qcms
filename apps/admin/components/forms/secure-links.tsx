@@ -8,7 +8,8 @@ import type { MintLinksState, RevokeLinkState } from "@/lib/forms/builder-state"
 import { IDLE_MINT, IDLE_REVOKE } from "@/lib/forms/builder-state";
 import { isRevocable, mintedLinksCsv, mintedLinksFilename } from "@/lib/forms/links";
 import type { MintedLink, SecureLink } from "@/lib/forms/types";
-import { t } from "@/lib/i18n/en";
+import { formatDateTime } from "@/lib/i18n/format";
+import { t, tPlural } from "@/lib/i18n/en";
 
 /**
  * The secure-link screen: mint, list, copy, export, revoke (task 034; wireframe "secure
@@ -303,7 +304,7 @@ function MintedPanel({
       className="flex flex-col gap-3 rounded-md border border-(--color-border-strong) bg-(--color-background-muted) p-4"
     >
       <h3 id="qcms-minted-heading" className="text-base font-semibold text-(--color-text)">
-        {t("forms.links.mintedTitle", { count: links.length })}
+        {tPlural("forms.links.mintedTitle.one", "forms.links.mintedTitle.other", links.length)}
       </h3>
       <p className="text-sm text-(--color-text-muted)">{t("forms.links.mintedOnce")}</p>
       <ul className="flex flex-col gap-2">
@@ -378,9 +379,9 @@ function LinksTable({
               <LinkStateTag state={link.state} />
             </td>
             <td>{link.oneTime ? t("forms.links.yes") : t("forms.links.no")}</td>
-            <td>{link.expiresAt}</td>
-            <td>{link.consumedAt ?? t("forms.links.none")}</td>
-            <td>{link.createdAt}</td>
+            <td>{formatDateTime(link.expiresAt, t("forms.links.none"))}</td>
+            <td>{formatDateTime(link.consumedAt, t("forms.links.none"))}</td>
+            <td>{formatDateTime(link.createdAt, t("forms.links.none"))}</td>
             <td>
               {isRevocable(link.state) && (
                 <Button

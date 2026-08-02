@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { Button, Select, Table } from "@/components/kit";
 import { diffDefinitions, type DiffRow } from "@/lib/forms/version-diff";
 import type { FormVersionSummary } from "@/lib/forms/types";
+import { formatDay } from "@/lib/i18n/format";
 import { t } from "@/lib/i18n/en";
 
 /**
@@ -82,7 +83,7 @@ export function VersionHistory({
             id: String(version.version),
             data: {
               version: t("forms.version.value", { version: version.version }),
-              publishedAt: version.publishedAt,
+              publishedAt: formatDay(version.publishedAt),
               compilerVersion: version.compilerVersion,
               a2uiSpecVersion: version.a2uiSpecVersion,
               semanticsVersion: version.semanticsVersion,
@@ -133,7 +134,7 @@ export function VersionHistory({
               setNewer("");
             }}
           >
-            {t("forms.preview.reset")}
+            {t("forms.history.clearCompare")}
           </Button>
         </div>
 

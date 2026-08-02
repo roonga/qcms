@@ -9,7 +9,7 @@ import type { FormStatusState, PublishState } from "@/lib/forms/builder-state";
 import { IDLE_FORM_STATUS, IDLE_PUBLISH } from "@/lib/forms/builder-state";
 import { freezeSummary, nextVersion } from "@/lib/forms/publish";
 import type { DraftForm, FormIssue } from "@/lib/forms/types";
-import { t } from "@/lib/i18n/en";
+import { t, tPlural } from "@/lib/i18n/en";
 
 /**
  * The form-level actions: publish, and close/reopen (task 034; wireframe
@@ -172,9 +172,21 @@ export function FormActions({
           <div className="flex flex-col gap-4">
             <p className="text-sm text-(--color-text)" data-testid="qcms-freeze-summary">
               {t("forms.publish.freezes", {
-                steps: summary.steps,
-                pins: summary.pins,
-                rules: summary.rules,
+                steps: tPlural(
+                  "forms.publish.freezes.steps.one",
+                  "forms.publish.freezes.steps.other",
+                  summary.steps,
+                ),
+                pins: tPlural(
+                  "forms.publish.freezes.pins.one",
+                  "forms.publish.freezes.pins.other",
+                  summary.pins,
+                ),
+                rules: tPlural(
+                  "forms.publish.freezes.rules.one",
+                  "forms.publish.freezes.rules.other",
+                  summary.rules,
+                ),
               })}
             </p>
             <p className="text-sm text-(--color-text-muted)">

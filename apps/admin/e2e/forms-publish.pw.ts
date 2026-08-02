@@ -140,7 +140,7 @@ test("publishes a draft and reports what it froze (exit criterion 1)", async ({ 
   const dialog = page.getByRole("alertdialog");
   await expect(dialog).toBeVisible();
   await expect(page.getByTestId("qcms-freeze-summary")).toHaveText(
-    "Freezes 2 steps, 3 pinned questions, 1 rules.",
+    "Freezes 2 steps, 3 pinned questions, 1 rule.",
   );
   await expect(dialog).toContainText("finish on the version they started");
 

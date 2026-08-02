@@ -165,5 +165,22 @@ for (const mode of CAPTURE_MODES) {
     await page.getByRole("dialog").getByRole("button", { name: "Mint", exact: true }).click();
     await expect(page.getByTestId("qcms-minted-links")).toBeVisible({ timeout: 30_000 });
     await capture(page, `links-minted-${mode}`);
+
+    // The revoked chip. Across the rest of this set and the whole axe sweep the only link
+    // state ever drawn is Active, so a reviewer would be signing off a four-state chip
+    // having seen one of them - and this gate is the admin's primary visual accessibility
+    // evidence while 030's manual pass waits behind the 033-035 chain. Consumed and Expired
+    // need a respondent session and a clock this suite does not have; they are recorded as
+    // a gap rather than faked here.
+    await page.getByTestId("qcms-minted-links").getByRole("button", { name: "Done" }).click();
+    await page
+      .getByTestId("qcms-links-table")
+      .getByRole("button", { name: "Revoke" })
+      .first()
+      .click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Revoke it" }).click();
+    await expect(page.getByText("That link is revoked.")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("qcms-links-table").getByText("Revoked")).toBeVisible();
+    await capture(page, `links-revoked-${mode}`);
   });
 }

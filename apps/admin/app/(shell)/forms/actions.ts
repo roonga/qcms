@@ -429,12 +429,19 @@ export async function mintLinksAction(
 }
 
 /**
- * Widen a calendar day to the instant it ends.
+ * Widen a calendar day to the instant it ends, in UTC.
  *
  * The mint dialog asks for a day, because "which day does this stop working" is the
  * question an author has, and a date picker is the control for it. The API wants an
  * instant. Taking the **end** of the chosen day rather than its start is the direction that
  * matches what the author was told: a link dated the 31st works on the 31st.
+ *
+ * The zone is UTC and the dialog's hint says so, which is the second half of the same
+ * decision. Widening in the author's local zone would make the stored instant depend on the
+ * machine the link was minted from - two operators picking the same day would mint links
+ * that die up to a day apart - and it would contradict the links table, which renders every
+ * timestamp in UTC for the same reason (`lib/i18n/format.ts`). One clock, named in the copy,
+ * beats a local one nobody can see afterwards.
  *
  * A value that already carries a time is passed through untouched, so a future control
  * with finer granularity needs no change here.

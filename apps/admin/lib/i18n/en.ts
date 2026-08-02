@@ -586,7 +586,17 @@ export const messages = {
 
   "forms.publish.action": "Publish",
   "forms.publish.title": "Publish {slug}?",
-  "forms.publish.freezes": "Freezes {steps} steps, {pins} pinned questions, {rules} rules.",
+  // Assembled from three counted phrases rather than written as one sentence with three
+  // numbers in it, because "Freezes 1 steps, 1 pinned questions, 1 rules." is what the
+  // single-sentence version says on a small form - and a small form is what an author
+  // publishes first. `tPlural` picks the form; the sentence just joins them.
+  "forms.publish.freezes": "Freezes {steps}, {pins}, {rules}.",
+  "forms.publish.freezes.steps.one": "1 step",
+  "forms.publish.freezes.steps.other": "{count} steps",
+  "forms.publish.freezes.pins.one": "1 pinned question",
+  "forms.publish.freezes.pins.other": "{count} pinned questions",
+  "forms.publish.freezes.rules.one": "1 rule",
+  "forms.publish.freezes.rules.other": "{count} rules",
   "forms.publish.sessions":
     "New sessions get v{version}. Sessions already under way finish on the version they started (R1).",
   "forms.publish.immutable":
@@ -654,12 +664,11 @@ export const messages = {
   "forms.history.stepOf": "Step {index} of {total}: {title}",
   "forms.history.failed": "That version could not be loaded. {message}",
   "forms.history.compare": "Compare",
+  "forms.history.clearCompare": "Clear comparison",
   "forms.history.olderLabel": "Older version",
   "forms.history.newerLabel": "Newer version",
   "forms.history.compareNone": "Pick two versions to compare their definitions.",
   "forms.history.compareHeading": "v{older} compared with v{newer}",
-  "forms.history.compareOlder": "v{version} (older)",
-  "forms.history.compareNewer": "v{version} (newer)",
   "forms.history.compareIdentical": "These two definitions are identical.",
   "forms.history.compareCounts": "{added} lines added, {removed} lines removed.",
   "forms.history.compareTooLarge":
@@ -684,7 +693,8 @@ export const messages = {
   "forms.links.pending": "Minting...",
   "forms.links.cancel": "Cancel",
   "forms.links.mintFailed": "No links were minted. {message}",
-  "forms.links.mintedTitle": "{count} links minted",
+  "forms.links.mintedTitle.one": "1 link minted",
+  "forms.links.mintedTitle.other": "{count} links minted",
   "forms.links.mintedOnce":
     "Copy these now. The server stores a link's state, never its token, so these URLs cannot be shown again.",
   "forms.links.copy": "Copy URL",
@@ -727,6 +737,27 @@ export const messages = {
 } as const;
 
 export type MessageKey = keyof typeof messages;
+
+/**
+ * Resolve a counted message, picking the singular or the plural form.
+ *
+ * Both keys are passed in rather than assembled from a base string, so a missing form is a
+ * type error here instead of a `undefined` rendered to an operator. `count` is substituted
+ * as `{count}` on top of any other parameters.
+ *
+ * English has two forms, which is what this covers. A locale with more (Polish has four,
+ * Arabic six) needs `Intl.PluralRules` to choose between a wider key set - a change to this
+ * one function and to the catalog, which is exactly the seam ADR-27 asks for and the reason
+ * the plural choice does not live at the call sites.
+ */
+export function tPlural(
+  one: MessageKey,
+  other: MessageKey,
+  count: number,
+  params?: Readonly<Record<string, string | number>>,
+): string {
+  return t(count === 1 ? one : other, { ...params, count });
+}
 
 /** Resolve a message, substituting `{name}` placeholders. */
 export function t(key: MessageKey, params?: Readonly<Record<string, string | number>>): string {

@@ -47,7 +47,8 @@ import { t } from "@/lib/i18n/en";
  * the preview that could disagree with what a respondent gets.
  *
  * Answers change, the pane re-asks, the API answers with the visible set. The answers live
- * in this component and die with it: no persistence, no session, nothing stored anywhere. *
+ * in this component and die with it: no persistence, no session, nothing stored anywhere.
+ *
  * ## The rendered step sits inside a styling seam
  *
  * `qcms-preview-surface` is a single container element that owns the preview's styling
@@ -208,7 +209,23 @@ export function DraftPreview({
               onChange={handleChange}
               specVersion={state.preview.a2uiSpecVersion}
             />
+            {/* A visible step whose every question is currently hidden renders as an empty
+                box, which reads as a broken preview rather than as the branch state it is.
+                Whether that is the case is pure draft geometry - which questions this step
+                pins, intersected with the visible set the API returned - so it needs no
+                knowledge of what an A2UI node means (`renderer-surface.test.ts`). */}
+            {!hasVisibleQuestion(draft, step.stepId, state.preview.flow.visibleQuestions) && (
+              <p className="text-sm text-(--color-text-muted)" data-testid="qcms-preview-empty">
+                {t("forms.preview.emptyStep")}
+              </p>
+            )}
           </div>
+
+          {state.preview.flow.complete && (
+            <p className="text-sm text-(--color-text-muted)" data-testid="qcms-preview-complete">
+              {t("forms.preview.complete")}
+            </p>
+          )}
 
           <div className="flex flex-wrap items-center gap-2">
             <Button
@@ -260,6 +277,25 @@ function stepTitle(draft: DraftForm | null, stepId: string): string {
   const step = draft?.steps.find((candidate) => candidate.stepId === stepId);
   const title = step?.title[draft?.defaultLocale ?? ""];
   return title === undefined || title === "" ? stepId : title;
+}
+
+/**
+ * Whether any question this step pins is in the visible set.
+ *
+ * Read from the draft rather than by walking the compiled tree, for the same reason
+ * `stepTitle` is: the node tree belongs to the renderer, and this app is not allowed to
+ * know what a node means. A step whose pins are all hidden is a real branch state, not a
+ * failure, and saying so is the difference between a preview and an empty box.
+ */
+function hasVisibleQuestion(
+  draft: DraftForm | null,
+  stepId: string,
+  visibleQuestions: readonly string[],
+): boolean {
+  const step = draft?.steps.find((candidate) => candidate.stepId === stepId);
+  if (step === undefined) return true;
+  const visible = new Set(visibleQuestions);
+  return step.items.some((pin) => visible.has(pin.questionId));
 }
 
 /**
