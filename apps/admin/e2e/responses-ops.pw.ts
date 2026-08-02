@@ -280,7 +280,7 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
       // intro promising "every submission" would be a sentence the same diff disproves.
       // Asserted rather than reviewed, because that copy shipped once already.
       await expect(page.getByTestId("qcms-webhook-config")).toContainText(
-        "withheld until an admin releases it",
+        "withheld until an operator releases it",
       );
       const broken = await deadUrl();
       await page.getByRole("button", { name: "Add endpoint" }).click();

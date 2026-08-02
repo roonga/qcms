@@ -930,10 +930,12 @@ export const messages = {
   // "except a flagged one" is not a hedge, it is what the submit slice does:
   // `apps/api/src/features/responses/submit/handler.ts` enqueues `response.submitted`
   // only when `flaggedReason === undefined`, and the release door is the unflag action
-  // on the response detail (`ops.detail.unflag`). The earlier wording promised "every
-  // submission", which this task's own unflag flow disproves.
+  // on the response detail (`ops.detail.unflag`). "Operator" rather than "admin":
+  // `scripts/check-admin-theme.mjs` fails any user-facing string naming this app that,
+  // and operator is the vocabulary the rest of the catalog uses. The earlier wording
+  // promised "every submission", which this task's own unflag flow disproves.
   "ops.webhooks.intro":
-    "Each active endpoint receives a signed response.submitted request for every submission except a flagged one, whose event is withheld until an admin releases it on the response.",
+    "Each active endpoint receives a signed response.submitted request for every submission except a flagged one, whose event is withheld until an operator releases it on the response.",
   "ops.webhooks.add": "Add endpoint",
   "ops.webhooks.addTitle": "Add a webhook endpoint",
   "ops.webhooks.url": "Endpoint URL",

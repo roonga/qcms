@@ -157,7 +157,7 @@ for (const mode of CAPTURE_MODES) {
       // submission" while the submit slice withholds a flagged one - so the capture now
       // refuses to photograph the screen unless the corrected sentence is on it.
       await expect(page.getByTestId("qcms-webhook-config")).toContainText(
-        "withheld until an admin releases it",
+        "withheld until an operator releases it",
       );
       await capture(page, `${mode}-webhooks-none`);
 
