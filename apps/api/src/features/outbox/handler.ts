@@ -19,6 +19,7 @@
 import type { RouteHandler } from "@hono/zod-openapi";
 import { parseFormId } from "@qcms/core";
 import {
+  deliveryTargetsErasedSession,
   getForm,
   listDeadLetterDeliveries,
   listRecentDeliveries,
@@ -36,6 +37,12 @@ const fail = {
     new ApiError("DELIVERY_NOT_FOUND", 404, "No such webhook delivery"),
   invalidId: (): ApiError => new ApiError("INVALID_FORM_ID", 400, "Malformed form id"),
   formNotFound: (): ApiError => new ApiError("FORM_NOT_FOUND", 404, "No such form"),
+  sessionErased: (): ApiError =>
+    new ApiError(
+      "DELIVERY_SESSION_ERASED",
+      409,
+      "This delivery carries an erased session's response and will not be re-sent",
+    ),
 } as const;
 
 /** How many deliveries a dashboard page shows when the caller names no limit. */
@@ -136,6 +143,16 @@ export function makeDeliveriesHandler(deps: Deps): RouteHandler<typeof deliverie
 export function makeRedeliverHandler(deps: Deps): RouteHandler<typeof redeliverRoute, ApiEnv> {
   return async (c) => {
     const { id } = c.req.valid("param");
+
+    // ADR-17: refuse before resetting. The outbox payload still holds the whole locked
+    // answer set - `eraseSession` deletes the ledger and the submission, not the queued
+    // event - so redelivering an erased session's event would transmit exactly what the
+    // erasure removed from the list, the detail and the export. Checked here rather than
+    // in the deliverer because this is the door THIS task opened: an operator clearing a
+    // stuck queue must not be the reason those answers go out. Bulk redelivery is the
+    // same endpoint called per item, so it is covered by construction.
+    if (await deliveryTargetsErasedSession(deps.db, id)) throw fail.sessionErased();
+
     const reset = await resetDeliveryForRedelivery(deps.db, id, deps.clock.now());
     if (reset === undefined) throw fail.deliveryNotFound();
     return c.json(

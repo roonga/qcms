@@ -251,7 +251,7 @@ public-only process has no admin group, so they 404 (ADR-09).
 | Route | Effect |
 |---|---|
 | `GET /admin/outbox/dead-letters` | List dead-lettered deliveries newest-first, each with its `eventId`, `eventType`, `webhookId`, `url`, `attempts`, and `lastError` (attempt history). |
-| `POST /admin/outbox/:id/redeliver` | Reset one dead-lettered **delivery** (`:id` is a delivery id) to due-now - clears the dead-letter flag, resets attempts and the whole last-attempt record, and the next pass re-attempts it. `404` if unknown. |
+| `POST /admin/outbox/:id/redeliver` | `409 DELIVERY_SESSION_ERASED` when the delivery's event names a session that has been erased (ADR-17) - its queued payload still holds the answers erasure removed everywhere else, so it is never re-sent. Otherwise: reset one dead-lettered **delivery** (`:id` is a delivery id) to due-now - clears the dead-letter flag, resets attempts and the whole last-attempt record, and the next pass re-attempts it. `404` if unknown. |
 | `GET /admin/forms/:id/deliveries?limit=` | (035) One form's recent deliveries, newest first, each with its derived `status` (`delivered` / `deadLettered` / `pending`), `attempts`, `lastError`, and the last-attempt record above - `lastStatus`, `latencyMs`, `requestHeaders` (signature masked), `responseSnippet`. Default 50, capped at 200. |
 
 A dead-letter is a single `(event, webhook)` delivery, not the whole event:

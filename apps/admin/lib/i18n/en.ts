@@ -838,8 +838,13 @@ export const messages = {
   "ops.export.dayHint": "Whole days, in UTC.",
   "ops.export.download": "Download",
   "ops.export.noVersions": "This form has no published version, so there is nothing to export.",
-  "ops.export.emptyNote":
-    "An export that matches nothing downloads as a file with only its header row.",
+  // One sentence per format, because they are different files: an empty CSV is its
+  // header row, an empty JSON export is `[]`. The dialog already knows the selected
+  // format (`ops.export.versionIgnored` turns on it), so a single sentence describing
+  // CSV while JSON was selectable was a claim the control above it disproved.
+  "ops.export.emptyNote.csv":
+    "A CSV export that matches nothing downloads as a file with only its header row.",
+  "ops.export.emptyNote.json": "A JSON export that matches nothing downloads as an empty list.",
 
   // The response detail.
   "ops.detail.heading": "Response {sessionId}",
@@ -883,12 +888,22 @@ export const messages = {
   // Erasure (ADR-17).
   "ops.erase.button": "Erase respondent data…",
   "ops.erase.title": "Erase this respondent's data?",
+  // "nothing this screen can restore from" rather than the old "nothing to restore
+  // from": an undelivered outbox event for this session still carries the whole locked
+  // answer set (`eraseSession` deletes the ledger and the submission, not the queued
+  // event), so the flat claim was false in exactly the case the next sentence now
+  // covers. Do not soften this back without changing what erasure deletes.
   "ops.erase.irreversible":
-    "This deletes every answer and the submission for this session. There is no undo: no archive, no soft delete, nothing to restore from.",
+    "This deletes every answer and the submission for this session. There is no undo: no soft delete, and nothing this screen can restore from.",
   "ops.erase.tombstoneStays":
     "A tombstone remains - the session id, the form, the version, when it was erased and why. That is the compliance record, and it holds no answers.",
+  // Two different facts, and the old wording only told the first. A delivered event is
+  // beyond reach - true, and the operator's own downstream-erasure job. An event still
+  // QUEUED for this session is not: erasure does not withdraw it, and the scheduler
+  // sends it on its next pass. Redelivery from the dead-letter queue is refused
+  // (`DELIVERY_SESSION_ERASED`), which is the one door this app controls.
   "ops.erase.consumersUnaffected":
-    "Webhook consumers are not affected. Any response.submitted event already delivered stays delivered; erasing here cannot reach a consumer's copy.",
+    "Erasing here does not reach a webhook consumer. An event already delivered stays delivered, and an event for this session still waiting to be delivered is not withdrawn by this action: it may still be sent. Redelivering it from the dead-letter queue is refused.",
   "ops.erase.reason": "Reason",
   "ops.erase.reason.subject_request": "Data subject request",
   "ops.erase.reason.retention_policy": "Retention policy",
@@ -908,6 +923,11 @@ export const messages = {
   "ops.tombstone.formVersion": "Form version",
   "ops.tombstone.erasedAt": "Erased",
   "ops.tombstone.reason": "Reason",
+  // A reason this build does not recognise is quoted back inside a sentence rather
+  // than rendered raw as if it were prose - the same closed-vocabulary-plus-fallback
+  // shape `flagReasonText` uses. The column is free text at the database, so an
+  // unrecognised value has to survive as far as here.
+  "ops.erase.reason.unknown": "Recorded as {reason}",
 
   // The erasure log.
   "ops.erasures.title": "Erasure log",
@@ -1057,6 +1077,13 @@ export const messages = {
   "ops.error.webhookUrlRejected":
     "That URL was refused: it must be an absolute https URL that does not point at a private address.",
   "ops.error.deliveryNotFound": "That delivery no longer exists.",
+  // A server action that REJECTED rather than returning a failure state - a transport
+  // error, or a body that would not parse. Deliberately says nothing about the thrown
+  // value: it can carry a URL or a body fragment, and neither belongs on screen.
+  "ops.error.unexpected":
+    "That did not reach the server, so nothing changed. Check the connection and try again.",
+  "ops.error.deliverySessionErased":
+    "That delivery carries a response that has been erased, so it will not be re-sent.",
   // Reachable only from a forged or malformed action payload: the dialog offers a
   // closed set of reasons and the action re-checks it, because the value is written
   // onto a tombstone that outlives the data it describes. It is in the catalog anyway

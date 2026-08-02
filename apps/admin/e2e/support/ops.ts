@@ -228,6 +228,8 @@ const PASS_STRIDE_MS = 7 * 60 * 60 * 1000;
 export function openDeliverer(): {
   pass: (at?: Date) => Promise<void>;
   drive: (passes: number) => Promise<void>;
+  deliveryIdsForSession: (sessionId: string) => Promise<string[]>;
+  outboxPayloadsForSession: (sessionId: string) => Promise<Record<string, unknown>[]>;
   close: () => Promise<void>;
 } {
   const fixtures = readFixtures();
@@ -276,6 +278,40 @@ export function openDeliverer(): {
         }
         clock += PASS_STRIDE_MS;
       }
+    },
+    /**
+     * Every delivery row whose outbox event names this session.
+     *
+     * The dead-letter table addresses rows by `data-delivery-id` and shows no session,
+     * so a test that needs to press the button on a SPECIFIC session's delivery (or
+     * deliberately avoid it) has to resolve the id here. Reading it rather than
+     * guessing is what makes the ADR-17 assertions deterministic rather than
+     * dependent on which row happens to sort first.
+     */
+    async deliveryIdsForSession(sessionId: string) {
+      const result = await pool.query<{ id: string }>(
+        `select d.id
+           from webhook_deliveries d
+           join outbox o on o.id = d.outbox_id
+          where o.payload ->> 'sessionId' = $1
+          order by d.created_at asc, d.id asc`,
+        [sessionId],
+      );
+      return result.rows.map((row) => row.id);
+    },
+    /**
+     * The raw outbox payloads queued for this session.
+     *
+     * Used to state as a test, rather than as prose, that erasure does NOT reach the
+     * queued copy: the row survives with the locked answers still in it. That is the
+     * fact the erase dialog now admits and the fact the redeliver refusal contains.
+     */
+    async outboxPayloadsForSession(sessionId: string) {
+      const result = await pool.query<{ payload: Record<string, unknown> }>(
+        `select payload from outbox where payload ->> 'sessionId' = $1`,
+        [sessionId],
+      );
+      return result.rows.map((row) => row.payload);
     },
     async close() {
       await pool.end();

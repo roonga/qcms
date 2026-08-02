@@ -116,6 +116,17 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
 
     await page.goto(`/forms/${FORM_ID}/responses`);
     await expect(page.getByTestId("qcms-responses-table")).toBeVisible();
+
+    // The controls re-seed from what the SERVER applied. Navigating back to a filtered
+    // URL used to leave them showing the previous set, so the toolbar and the table
+    // beside it disagreed about what was on screen.
+    await page.goto(`/forms/${FORM_ID}/responses?flagged=true`);
+    await expect(
+      page.getByRole("button", { name: /Flagged$/ }),
+      "the toolbar shows the filter the server applied",
+    ).toContainText("Flagged only");
+    await page.goBack();
+    await expect(page.getByRole("button", { name: /Flagged$/ })).toContainText("Any");
   });
 
   test("the ledger timeline matches the append-only history for a revised session", async ({
@@ -164,6 +175,20 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     await expect(dialog.getByRole("button", { name: "Download" })).toBeDisabled();
     await expect(dialog).toContainText("a version is required");
 
+    // The empty-result sentence describes the file the SELECTED format would produce.
+    // An empty CSV is its header row; an empty JSON export is a list with nothing in
+    // it, and one sentence claiming a header row for both was wrong for whichever
+    // format was not chosen.
+    const emptyNote = dialog.getByTestId("qcms-export-empty-note");
+    await expect(emptyNote).toContainText("only its header row");
+    await dialog.getByRole("button", { name: /Format$/ }).click();
+    await page.getByRole("option", { name: "JSON", exact: true }).click();
+    await expect(emptyNote).toContainText("an empty list");
+    await expect(emptyNote).not.toContainText("header row");
+    await dialog.getByRole("button", { name: /Format$/ }).click();
+    await page.getByRole("option", { name: "CSV", exact: true }).click();
+    await expect(emptyNote).toContainText("only its header row");
+
     await dialog.getByRole("button", { name: /Version$/ }).click();
     await page.getByRole("option", { name: "v1", exact: true }).click();
 
@@ -207,7 +232,13 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     // ADR-17 facts, and the confirm button is inert until the id is typed back.
     await expect(dialog).toContainText("There is no undo");
     await expect(dialog).toContainText("A tombstone remains");
-    await expect(dialog).toContainText("Webhook consumers are not affected");
+    // The consumer sentence is the one that was wrong. It must state BOTH halves: an
+    // already-delivered event is beyond reach, and an event still queued for this
+    // session is not withdrawn by erasing. The second half is the ADR-17 gap this diff
+    // contains rather than closes, so an operator has to be told it here.
+    await expect(dialog).toContainText("An event already delivered stays delivered");
+    await expect(dialog).toContainText("still waiting to be delivered is not withdrawn");
+    await expect(dialog).toContainText("it may still be sent");
     const confirm = dialog.getByRole("button", { name: "Erase permanently" });
     await expect(confirm).toBeDisabled();
 
@@ -221,7 +252,9 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     const tombstone = page.getByTestId("qcms-tombstone");
     await expect(tombstone).toBeVisible();
     await expect(tombstone).toContainText(erasable);
-    await expect(page.getByTestId("qcms-tombstone-reason")).toHaveText("subject_request");
+    // The compliance surface must not leak the machine enum: the dialog that recorded
+    // this offered "Data subject request", and the record of it has to say the same.
+    await expect(page.getByTestId("qcms-tombstone-reason")).toHaveText("Data subject request");
     // The answers are gone from the screen that was showing them a moment ago.
     await expect(page.getByTestId("qcms-locked-answers")).toBeHidden();
 
@@ -243,9 +276,13 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
 
     // Present in the erasure log, which is the compliance evidence that replaces it.
     await page.goto("/responses/erasures");
-    await expect(
-      page.getByTestId("qcms-erasures-table").locator(`[data-session-id="${erasable}"]`),
-    ).toBeVisible();
+    const logged = page
+      .getByTestId("qcms-erasures-table")
+      .locator(`[data-session-id="${erasable}"]`);
+    await expect(logged).toBeVisible();
+    await expect(logged, "the log reads as evidence, not as a database dump").toContainText(
+      "Data subject request",
+    );
 
     // The detail URL keeps working and keeps telling the truth: the tombstone, served
     // from the erasure log, rather than a stale render or a 404 for a URL an operator
@@ -353,6 +390,29 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
       );
       await expect(page.getByTestId("qcms-dead-letter-error").first()).toHaveText("network_error");
 
+      // 3b. ADR-17, and the reason this test is shaped the way it is.
+      //
+      //     `erasable` was submitted in test 1 and ERASED in test 5. Its answers are
+      //     gone from the list, the detail and the CSV - and its outbox event is not,
+      //     because `eraseSession` deletes the ledger and the submission and leaves the
+      //     queue alone. So one of the dead-lettered deliveries above carries the whole
+      //     locked answer set of a respondent this product has told an operator it
+      //     erased. That is asserted here rather than described in a comment, because
+      //     the erase dialog now admits it in exactly these terms.
+      const queuedForErased = await deliverer.outboxPayloadsForSession(erasable);
+      expect(
+        queuedForErased.length,
+        "an erased session still has its event queued (ADR-17 gap, escalated)",
+      ).toBeGreaterThan(0);
+      expect(
+        queuedForErased[0]?.["answers"],
+        "and that queued event still carries the answers erasure removed everywhere else",
+      ).toBeDefined();
+
+      const erasedDeliveries = await deliverer.deliveryIdsForSession(erasable);
+      expect(erasedDeliveries.length, "the erased session fanned out to this endpoint").toBe(1);
+      const erasedDeliveryId = erasedDeliveries[0] ?? "";
+
       // 4. Fix the target through the UI, then redeliver ONE from the queue.
       await openWebhooks(page, FORM_ID);
       await webhookRow(page).getByRole("button", { name: "Change URL" }).click();
@@ -362,9 +422,14 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
       await expect(webhookRow(page)).toContainText(consumer.url());
 
       await page.goto("/webhooks");
-      await page
-        .getByRole("button", { name: /^Redeliver response\.submitted to / })
+      const queue = page.getByTestId("qcms-dead-letters-table");
+      // A row that is NOT the erased session's, resolved by id rather than by position:
+      // the erased one is refused below, and which row sorts first is not this test's
+      // to assume.
+      await queue
+        .locator(`tr[data-delivery-id]:not([data-delivery-id="${erasedDeliveryId}"])`)
         .first()
+        .getByRole("button", { name: /^Redeliver response\.submitted to / })
         .click();
       // The button queues; it does not deliver, and the message says exactly that.
       await expect(page.getByTestId("qcms-redeliver-summary")).toHaveText(
@@ -387,30 +452,56 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
       // that column counts (`markDeliveryDelivered` in @qcms/db explains why).
       await expect(deliveredRow.getByTestId("qcms-delivery-attempts")).toHaveText("0");
 
-      // 6. Bulk redeliver clears what is left, and reports the count it queued.
+      // 6. Bulk redeliver takes everything that is left - and REFUSES the erased one.
+      //    `deadCount` rows, minus the one already redelivered, minus the erased one
+      //    the API answers 409 for, so the summary is the partial sentence rather than
+      //    a success claiming a number it did not achieve.
       await page.goto("/webhooks");
-      const remaining = deadCount - 1;
-      if (remaining > 0) {
-        await page.getByRole("button", { name: "Redeliver all" }).click();
-        await page
-          .getByRole("alertdialog")
-          .getByRole("button", { name: "Redeliver all of them" })
-          .click();
-        await expect(page.getByTestId("qcms-redeliver-summary")).toHaveText(
-          `${String(remaining)} deliveries are queued for the next pass.`,
-        );
-        await deliverer.pass();
-        expect(consumer.received.length, "every redelivered event reached the consumer").toBe(
-          deadCount,
-        );
+      const remaining = deadCount - 2;
+      await page.getByRole("button", { name: "Redeliver all" }).click();
+      await page
+        .getByRole("alertdialog")
+        .getByRole("button", { name: "Redeliver all of them" })
+        .click();
+      await expect(page.getByTestId("qcms-redeliver-summary")).toHaveText(
+        `${String(remaining)} queued, 1 refused. The refused ones are still in the queue below.`,
+      );
+
+      await deliverer.pass();
+      expect(consumer.received.length, "every ALLOWED redelivery reached the consumer").toBe(
+        deadCount - 1,
+      );
+
+      // 7. The payload assertion this whole test exists for: nothing the consumer
+      //    received names the erased session. Same shape as the CSV assertion three
+      //    tests up, pointed at the bytes that actually leave the deployment.
+      for (const request of consumer.received) {
+        expect(
+          request.body,
+          "an erased respondent's answers must never reach a consumer through redelivery",
+        ).not.toContain(erasable);
       }
 
+      // 8. The erased delivery is still in the queue, and pressing its own button says
+      //    why rather than failing silently or quietly succeeding.
       await page.goto("/webhooks");
-      await expect(page.getByTestId("qcms-dead-letters-empty")).toBeVisible();
+      const stillQueued = page
+        .getByTestId("qcms-dead-letters-table")
+        .locator(`tr[data-delivery-id="${erasedDeliveryId}"]`);
+      await expect(stillQueued).toBeVisible();
+      await stillQueued.getByRole("button", { name: /^Redeliver response\.submitted to / }).click();
+      await expect(page.getByTestId("qcms-dead-letters")).toContainText(
+        "carries a response that has been erased",
+      );
+
       await openWebhooks(page, FORM_ID);
       await expect(
         page.getByTestId("qcms-deliveries-table").locator('[data-status="delivered"]'),
-      ).toHaveCount(deadCount);
+      ).toHaveCount(deadCount - 1);
+      await expect(
+        page.getByTestId("qcms-deliveries-table").locator('[data-status="deadLettered"]'),
+        "the erased session's delivery stays dead-lettered, by refusal",
+      ).toHaveCount(1);
     } finally {
       await deliverer.close();
       await consumer.stop();

@@ -1,8 +1,8 @@
-import { and, asc, desc, eq, isNotNull, isNull, lte } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, lte, sql } from "drizzle-orm";
 
 import type { FormId } from "@qcms/core";
 
-import { outbox, webhookDeliveries, webhooks } from "../schema/index.js";
+import { erasureTombstones, outbox, webhookDeliveries, webhooks } from "../schema/index.js";
 import type { Executor } from "./executor.js";
 import { computeBackoff } from "./outbox.js";
 
@@ -286,6 +286,49 @@ export async function resetDeliveryForRedelivery(
     .where(eq(webhookDeliveries.id, id))
     .returning();
   return row;
+}
+
+/**
+ * Whether the session a delivery would transmit has been erased (ADR-17).
+ *
+ * ## The gap this closes, and the much larger one it does not
+ *
+ * A `response.submitted` outbox row carries the respondent's **whole locked answer
+ * set** in its payload. `eraseSession` deletes the `answers` and `submissions` rows
+ * and writes a tombstone; it does not touch `outbox` or `webhook_deliveries`. So an
+ * undelivered event for an erased session still holds that content, and anything
+ * that reads the payload back can transmit it.
+ *
+ * This helper exists so the **manual redeliver** door can refuse: an operator
+ * clearing a stuck queue must not be the reason an erased respondent's answers reach
+ * a consumer. It is a read, and deliberately only a read - whether erasure should
+ * purge or redact those rows is an ADR-17 amendment question for the Code Owner, and
+ * it is escalated rather than decided here. Until it is answered, a **pending**
+ * delivery for an erased session is still sent by the scheduler on its next pass, and
+ * the erase dialog and `docs/erasure.md` now say so instead of promising otherwise.
+ *
+ * `false` when the delivery is unknown, when its payload carries no `sessionId`
+ * (event types other than `response.submitted`), or when no tombstone exists.
+ */
+export async function deliveryTargetsErasedSession(
+  exec: Executor,
+  deliveryId: string,
+): Promise<boolean> {
+  const [event] = await exec
+    .select({ sessionId: sql<string | null>`${outbox.payload} ->> 'sessionId'` })
+    .from(webhookDeliveries)
+    .innerJoin(outbox, eq(webhookDeliveries.outboxId, outbox.id))
+    .where(eq(webhookDeliveries.id, deliveryId))
+    .limit(1);
+  const sessionId = event?.sessionId;
+  if (sessionId === undefined || sessionId === null || sessionId === "") return false;
+
+  const [tombstone] = await exec
+    .select({ sessionId: erasureTombstones.sessionId })
+    .from(erasureTombstones)
+    .where(eq(erasureTombstones.sessionId, sql`${sessionId}`))
+    .limit(1);
+  return tombstone !== undefined;
 }
 
 /**

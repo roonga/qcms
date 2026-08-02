@@ -11,12 +11,21 @@
  * `apps/api/src/schedulers/webhook-delivery.integration.test.ts`; what this file
  * proves is that the read path passes through what was stored rather than
  * re-deriving (and so re-leaking) anything.
+ *
+ * It also covers `POST /admin/outbox/:id/redeliver` refusing a delivery whose event
+ * names an **erased** session (ADR-17). That refusal is the one door this task
+ * controls over a real gap: `eraseSession` deletes the ledger and the submission and
+ * leaves the queued outbox payload - which still holds the whole locked answer set -
+ * untouched. Whether erasure should reach those rows is an ADR-17 amendment question
+ * and is escalated, so what is pinned here is that the operator-facing redeliver
+ * button cannot be the thing that sends them.
  */
 
-import { FormId } from "@qcms/core";
+import { FormId, SessionId } from "@qcms/core";
 import {
   createForm,
   enqueue,
+  erasureTombstones,
   insertDelivery,
   insertWebhook,
   markDeliveryDelivered,
@@ -47,6 +56,15 @@ const DEFAULT_DELIVERY_LIMIT = 50;
 const FORM_A = FormId.parse("frm_outbox_a");
 const FORM_B = FormId.parse("frm_outbox_b");
 const FORM_BULK = FormId.parse("frm_outbox_bulk");
+/**
+ * A form of its own for the ADR-17 refusal cases.
+ *
+ * Not FORM_A: those fixtures are stamped `created_at` values that the newest-first
+ * and `?limit` assertions read positionally, and a delivery seeded here at "now"
+ * silently became the newest row of that form. A separate form keeps each describe's
+ * fixtures its own.
+ */
+const FORM_ERASED = FormId.parse("frm_outbox_erased");
 
 let testDb: TestDb;
 let deps: Deps;
@@ -140,6 +158,7 @@ beforeAll(async () => {
   await createForm(testDb.db, { formId: FORM_A, slug: "ops-a", defaultLocale: "en" });
   await createForm(testDb.db, { formId: FORM_B, slug: "ops-b", defaultLocale: "en" });
   await createForm(testDb.db, { formId: FORM_BULK, slug: "ops-bulk", defaultLocale: "en" });
+  await createForm(testDb.db, { formId: FORM_ERASED, slug: "ops-erased", defaultLocale: "en" });
 
   pendingId = await seedDelivery(FORM_A, new Date("2026-07-20T00:00:00.000Z"));
   deliveredId = await seedDelivery(FORM_A, new Date("2026-07-20T00:01:00.000Z"));
@@ -260,6 +279,93 @@ describe("GET /admin/forms/:id/deliveries - scoping, ordering and derived status
     expect(delivered.requestHeaders?.["x-qcms-event"]).toBe("response.submitted");
     // The whole response, not just the one field: no HMAC-shaped value anywhere.
     expect(JSON.stringify(items)).not.toMatch(/v1=[0-9a-f]{64}/);
+  });
+});
+
+describe("POST /admin/outbox/:id/redeliver - the ADR-17 refusal", () => {
+  /**
+   * A delivery on FORM_ERASED whose event names `sessionId` (or none), so the
+   * tombstone join has something to find. `sessionId: null` seeds an event with no
+   * session at all, which is what every non-`response.submitted` type looks like.
+   */
+  async function seedDeliveryForSession(sessionId: string | null): Promise<string> {
+    seq += 1;
+    const webhookId = `whk_erased_${seq}`;
+    await insertWebhook(testDb.db, {
+      webhookId,
+      formId: FORM_ERASED,
+      url: `https://consumer.example.com/erased-${seq}`,
+      secretEncrypted: "v1.opaque-ciphertext",
+      active: true,
+    });
+    const event = await enqueue(testDb.db, {
+      eventType: "response.submitted",
+      // The shape the submit slice enqueues: the whole locked answer set travels
+      // with the event, which is exactly why an erased session's copy matters.
+      payload:
+        sessionId === null
+          ? { formId: FORM_ERASED }
+          : { sessionId, formId: FORM_ERASED, answers: { q_secret: "42" } },
+    });
+    await insertDelivery(testDb.db, { outboxId: event.id, webhookId });
+    const [row] = await testDb.db
+      .select({ id: webhookDeliveries.id })
+      .from(webhookDeliveries)
+      .where(
+        and(eq(webhookDeliveries.outboxId, event.id), eq(webhookDeliveries.webhookId, webhookId)),
+      );
+    return row!.id;
+  }
+
+  async function redeliver(deliveryId: string): Promise<{ status: number; code: string | null }> {
+    const res = await app.request(`/admin/outbox/${deliveryId}/redeliver`, {
+      method: "POST",
+      headers: headers(),
+    });
+    if (res.ok) return { status: res.status, code: null };
+    const body = (await res.json()) as { error?: { code?: string } };
+    return { status: res.status, code: body.error?.code ?? null };
+  }
+
+  it("409s a delivery whose session has been erased, and leaves the row alone", async () => {
+    const sessionId = "ses_erased_for_redeliver";
+    const deliveryId = await seedDeliveryForSession(sessionId);
+    for (let i = 0; i < OUTBOX_MAX_ATTEMPTS; i++) {
+      await recordDeliveryFailure(testDb.db, deliveryId, "http_500", new Date());
+    }
+    await testDb.db.insert(erasureTombstones).values({
+      sessionId: SessionId.parse(sessionId),
+      formId: FORM_ERASED,
+      formVersion: 1,
+      erasedAt: new Date(),
+      reason: "subject_request",
+    });
+
+    expect(await redeliver(deliveryId)).toEqual({ status: 409, code: "DELIVERY_SESSION_ERASED" });
+
+    // Refused, not reset: the row keeps its dead-lettered state, so the delivery is
+    // still visible to an operator rather than quietly re-queued.
+    const [after] = await testDb.db
+      .select({
+        attempts: webhookDeliveries.attempts,
+        deadLetteredAt: webhookDeliveries.deadLetteredAt,
+      })
+      .from(webhookDeliveries)
+      .where(eq(webhookDeliveries.id, deliveryId));
+    expect(after?.attempts).toBe(OUTBOX_MAX_ATTEMPTS);
+    expect(after?.deadLetteredAt).not.toBeNull();
+  });
+
+  it("still redelivers a delivery whose session was never erased", async () => {
+    const deliveryId = await seedDeliveryForSession("ses_alive_for_redeliver");
+    expect((await redeliver(deliveryId)).status).toBe(200);
+  });
+
+  it("still redelivers an event that names no session at all", async () => {
+    // `form.published` and friends carry no `sessionId`; the guard must read that as
+    // "not erased" rather than refusing every non-response event.
+    const deliveryId = await seedDeliveryForSession(null);
+    expect((await redeliver(deliveryId)).status).toBe(200);
   });
 });
 

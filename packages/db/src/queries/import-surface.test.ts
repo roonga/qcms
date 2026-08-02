@@ -110,6 +110,9 @@ describe("query helper import surface", () => {
     // The operator dashboard's form-scoped list (task 035): the same delivery rows
     // plus the last-attempt record the deliverer writes.
     "listRecentDeliveries",
+    // The ADR-17 guard the manual redeliver door reads (035): an undelivered outbox
+    // payload still holds the answers erasure removed everywhere else.
+    "deliveryTargetsErasedSession",
     "resetDeliveryForRedelivery",
     // admin identity reads (task 031) - reads only. better-auth owns every write
     // to the auth tables, so no helper here creates, refreshes or deletes a

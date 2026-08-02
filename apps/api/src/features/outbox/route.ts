@@ -76,8 +76,9 @@ export const redeliverRoute = createRoute({
       description: "The delivery, reset to due-now; the next pass re-attempts it",
       content: { "application/json": { schema: RedeliverResponse } },
     },
-    // 404: no such delivery.
-    ...errorResponses(401, 404),
+    // 404: no such delivery. 409: the session it carries has been erased (ADR-17),
+    // so its queued payload must not be re-sent.
+    ...errorResponses(401, 404, 409),
   },
   ...withScopes("webhooks:manage"),
 });

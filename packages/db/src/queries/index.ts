@@ -152,6 +152,7 @@ export {
   claimDueDeliveries,
   markDeliveryDelivered,
   recordDeliveryFailure,
+  deliveryTargetsErasedSession,
   listDeadLetterDeliveries,
   listRecentDeliveries,
   resetDeliveryForRedelivery,

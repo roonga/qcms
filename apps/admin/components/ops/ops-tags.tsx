@@ -1,3 +1,4 @@
+import { isErasureReason } from "@/lib/ops/erasure";
 import type { DeliveryStatus } from "@/lib/ops/types";
 import { t } from "@/lib/i18n/en";
 
@@ -57,4 +58,22 @@ export function flagReasonText(reason: string): string {
     default:
       return t("ops.responses.reason.unknown", { reason });
   }
+}
+
+/**
+ * The sentence for one recorded erasure reason.
+ *
+ * Same shape as {@link flagReasonText} and for the same reason: the vocabulary is
+ * closed (`ERASURE_REASONS`) but the column it lands in is free text, so a value this
+ * build has never heard of is quoted back inside a sentence rather than rendered raw.
+ *
+ * The tombstone and the erasure log are **compliance evidence**, which is exactly the
+ * surface where a machine enum leaking through is worst: `subject_request` is not a
+ * reason a person reads, and the erase dialog that recorded it already showed "Data
+ * subject request" from this same catalog.
+ */
+export function erasureReasonText(reason: string): string {
+  return isErasureReason(reason)
+    ? t(`ops.erase.reason.${reason}`)
+    : t("ops.erase.reason.unknown", { reason });
 }

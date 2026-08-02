@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { Alert } from "@/components/kit";
+import { erasureReasonText } from "@/components/ops/ops-tags";
 import { formatDateTime } from "@/lib/i18n/format";
 import { t, tPlural } from "@/lib/i18n/en";
 import { listErasures } from "@/lib/server/responses";
@@ -72,7 +73,7 @@ export default async function ErasureLogPage() {
                   </td>
                   <td>v{row.formVersion}</td>
                   <td>{formatDateTime(row.erasedAt, t("ops.common.none"))}</td>
-                  <td>{row.reason}</td>
+                  <td>{erasureReasonText(row.reason)}</td>
                 </tr>
               ))}
             </tbody>

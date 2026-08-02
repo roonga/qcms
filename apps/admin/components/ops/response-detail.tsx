@@ -10,6 +10,7 @@ import { answerText } from "@/lib/ops/answers";
 import type { ErasureReason } from "@/lib/ops/erasure";
 import { DEFAULT_ERASURE_REASON, ERASURE_REASONS, isErasureConfirmed } from "@/lib/ops/erasure";
 import { labelFor, orderedAnswerKeys, type QuestionPin } from "@/lib/ops/labels";
+import { unexpected } from "@/lib/ops/unexpected";
 import type {
   EraseOutcome,
   ResponseDetail as ResponseDetailData,
@@ -76,38 +77,54 @@ export function ResponseDetail({
 
   const runUnflag = useCallback(() => {
     startTransition(() => {
-      void unflag(detail.sessionId).then((state) => {
-        if (state.status === "error") {
-          setUnflagNote(t("ops.detail.unflagFailed", { message: state.message ?? "" }));
-          return;
-        }
-        // `released` distinguishes "this call released the withheld event" from "there
-        // was nothing withheld", so the confirmation never claims the first for both.
-        setUnflagNote(
-          state.released === true ? t("ops.detail.unflagged") : t("ops.detail.unflagNoop"),
-        );
-        setFlagged(null);
-        setDialog(null);
-      });
+      void unflag(detail.sessionId)
+        .then((state) => {
+          if (state.status === "error") {
+            setUnflagNote(t("ops.detail.unflagFailed", { message: state.message ?? "" }));
+            return;
+          }
+          // `released` distinguishes "this call released the withheld event" from "there
+          // was nothing withheld", so the confirmation never claims the first for both.
+          setUnflagNote(
+            state.released === true ? t("ops.detail.unflagged") : t("ops.detail.unflagNoop"),
+          );
+          setFlagged(null);
+          setDialog(null);
+        })
+        // `.catch` is not defensive decoration. `adminApiFetch` documents that it does not
+        // throw for a non-2xx, which is true and is the trap: a transport failure still
+        // rejects with a TypeError, and `readResult`'s `response.json()` rejects on a
+        // truncated body. Without this the promise rejects unhandled, no state is set,
+        // and the dialog sits there looking like a slow network forever.
+        .catch(() => {
+          setUnflagNote(t("ops.detail.unflagFailed", { message: unexpected() }));
+        });
     });
   }, [unflag, detail.sessionId]);
 
   const runErase = useCallback(
     (reason: ErasureReason) => {
       startTransition(() => {
-        void erase(detail.sessionId, reason).then((state) => {
-          if (state.status === "error" || state.data === undefined) {
-            setErasureNote(t("ops.erase.failed", { message: state.message ?? "" }));
-            return;
-          }
-          setTombstone(state.data);
-          setErasureNote(
-            state.data.alreadyErased
-              ? t("ops.erase.alreadyErased")
-              : t("ops.erase.done", { sessionId: detail.sessionId }),
-          );
-          setDialog(null);
-        });
+        void erase(detail.sessionId, reason)
+          .then((state) => {
+            if (state.status === "error" || state.data === undefined) {
+              setErasureNote(t("ops.erase.failed", { message: state.message ?? "" }));
+              return;
+            }
+            setTombstone(state.data);
+            setErasureNote(
+              state.data.alreadyErased
+                ? t("ops.erase.alreadyErased")
+                : t("ops.erase.done", { sessionId: detail.sessionId }),
+            );
+            setDialog(null);
+          })
+          // The same trap as the other three call sites, and the worst place for it:
+          // a silent failure here leaves an operator staring at a confirmed erasure
+          // dialog with no idea whether an irreversible ADR-17 action ran (it did not).
+          .catch(() => {
+            setErasureNote(t("ops.erase.failed", { message: unexpected() }));
+          });
       });
     },
     [erase, detail.sessionId],

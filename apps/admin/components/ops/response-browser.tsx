@@ -56,11 +56,30 @@ export function ResponseBrowser({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
+  // The controls are a DRAFT of the next filter set. `filters` is what the server
+  // actually applied, and the two are not the same thing the moment an operator types
+  // without pressing Apply.
   const [version, setVersion] = useState(filters.version);
   const [from, setFrom] = useState(filters.from);
   const [to, setTo] = useState(filters.to);
   const [flagged, setFlagged] = useState(filters.flagged);
   const [exporting, setExporting] = useState(false);
+
+  // Re-seed the draft whenever the APPLIED set changes under it. `useState` reads its
+  // initializer once, so back/forward navigation (and the push below) re-rendered this
+  // component with new props and left the controls showing the previous filter set -
+  // controls that disagree with the table beside them. Keying off a serialization of
+  // the applied set rather than an effect keeps it a render-time derivation, which is
+  // what it is: no effect, no flash of the stale value.
+  const applied = `${filters.version}|${filters.from}|${filters.to}|${filters.flagged}`;
+  const [seeded, setSeeded] = useState(applied);
+  if (seeded !== applied) {
+    setSeeded(applied);
+    setVersion(filters.version);
+    setFrom(filters.from);
+    setTo(filters.to);
+    setFlagged(filters.flagged);
+  }
 
   const base = `/forms/${encodeURIComponent(formId)}/responses`;
 
@@ -93,9 +112,19 @@ export function ResponseBrowser({
   }, [go]);
 
   const pages = Math.max(1, Math.ceil(page.total / Math.max(1, page.pageSize)));
+
+  /**
+   * A link to another page of the CURRENT result set.
+   *
+   * Built from `filters` - what the server applied - and never from the draft state
+   * above. Building it from the controls meant a date typed into "From" and never
+   * applied rode along with a "Next page" click: the operator asked to page through
+   * the results they were looking at and silently got a different query, with the
+   * count and the page number they had just read no longer describing anything.
+   */
   const pageQuery = (target: number): string => {
     const search = new URLSearchParams();
-    for (const [key, value] of Object.entries({ version, from, to, flagged })) {
+    for (const [key, value] of Object.entries(filters)) {
       if (value !== "") search.set(key, value);
     }
     search.set("page", String(target));
@@ -335,7 +364,9 @@ function ExportDialog({
             {t("ops.export.noVersions")}
           </p>
         )}
-        <p className="text-sm text-(--color-text-muted)">{t("ops.export.emptyNote")}</p>
+        <p className="text-sm text-(--color-text-muted)" data-testid="qcms-export-empty-note">
+          {t(`ops.export.emptyNote.${format}`)}
+        </p>
         <div className="flex flex-wrap gap-2">
           {ready ? (
             <a

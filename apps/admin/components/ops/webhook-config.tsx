@@ -4,6 +4,7 @@ import { useCallback, useState, useTransition } from "react";
 
 import { Alert, Button, Checkbox, Dialog, TextField } from "@/components/kit";
 import type { RevealedWebhook, WebhookSummary } from "@/lib/ops/types";
+import { unexpected } from "@/lib/ops/unexpected";
 import { formatDateTime } from "@/lib/i18n/format";
 import { t } from "@/lib/i18n/en";
 
@@ -70,12 +71,21 @@ export function WebhookConfig({
 
   const run = useCallback((call: () => Promise<WebhookActionState>) => {
     startTransition(() => {
-      void call().then((next) => {
-        setState(next);
-        if (next.status !== "done") return;
-        setDialog(null);
-        if (next.revealed !== undefined) setRevealed(next.revealed);
-      });
+      void call()
+        .then((next) => {
+          setState(next);
+          if (next.status !== "done") return;
+          setDialog(null);
+          if (next.revealed !== undefined) setRevealed(next.revealed);
+        })
+        // `.catch` is not defensive decoration. `adminApiFetch` documents that it does not
+        // throw for a non-2xx, which is true and is the trap: a transport failure still
+        // rejects with a TypeError, and `readResult`'s `response.json()` rejects on a
+        // truncated body. Without this the promise rejects unhandled, no state is set,
+        // and the dialog sits there looking like a slow network forever.
+        .catch(() => {
+          setState({ status: "error", message: unexpected() });
+        });
     });
   }, []);
 

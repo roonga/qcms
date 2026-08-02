@@ -4,6 +4,7 @@ import { useCallback, useState, useTransition } from "react";
 
 import { Alert, Button, Dialog } from "@/components/kit";
 import type { DeadLetterItem } from "@/lib/ops/types";
+import { unexpected } from "@/lib/ops/unexpected";
 import { formatDateTime } from "@/lib/i18n/format";
 import { t, tPlural } from "@/lib/i18n/en";
 
@@ -55,10 +56,19 @@ export function DeadLetters({
 
   const run = useCallback((call: () => Promise<RedeliverState>) => {
     startTransition(() => {
-      void call().then((next) => {
-        setState(next);
-        if (next.status !== "error") setConfirming(false);
-      });
+      void call()
+        .then((next) => {
+          setState(next);
+          if (next.status !== "error") setConfirming(false);
+        })
+        // `.catch` is not defensive decoration. `adminApiFetch` documents that it does not
+        // throw for a non-2xx, which is true and is the trap: a transport failure still
+        // rejects with a TypeError, and `readResult`'s `response.json()` rejects on a
+        // truncated body. Without this the promise rejects unhandled, no state is set,
+        // and the dialog sits there looking like a slow network forever.
+        .catch(() => {
+          setState({ status: "error", message: unexpected() });
+        });
     });
   }, []);
 
