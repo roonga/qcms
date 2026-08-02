@@ -47,7 +47,23 @@ import { t } from "@/lib/i18n/en";
  * the preview that could disagree with what a respondent gets.
  *
  * Answers change, the pane re-asks, the API answers with the visible set. The answers live
- * in this component and die with it: no persistence, no session, nothing stored anywhere.
+ * in this component and die with it: no persistence, no session, nothing stored anywhere. *
+ * ## The rendered step sits inside a styling seam
+ *
+ * `qcms-preview-surface` is a single container element that owns the preview's styling
+ * boundary, and it is the *only* element the rendered step hangs off (Code Owner ruling,
+ * 2026-08-02). Two things follow, and both are structural rather than visual:
+ *
+ * - Nothing in this path assumes the preview shares the admin's theme context. The
+ *   surface is where a step's styling begins, so a change of styling context is a change
+ *   to that one element and to nothing else.
+ * - Task 058 mounts its theme island on this container. This task builds the boundary and
+ *   deliberately not the switcher: there is no theme selection here, no mode switching,
+ *   and no portal-theme defaulting.
+ *
+ * It also protects exit criterion 3. The fidelity comparison is of the rendered form
+ * subtree *inside* the surface, so wrapping the surface later changes nothing the
+ * deep-match asserts.
  */
 
 /** How long to wait after the last keystroke before re-asking for the projection. */
@@ -180,7 +196,7 @@ export function DraftPreview({
             })}
           </p>
 
-          <div className="qcms-preview">
+          <div className="qcms-preview qcms-preview-surface" data-testid="qcms-preview-surface">
             <A2UIStepRenderer
               document={documentForVisible(
                 { stepId: step.stepId, root: step.root as A2UIStepDocument["root"] },

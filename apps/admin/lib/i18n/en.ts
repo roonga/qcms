@@ -352,8 +352,6 @@ export const messages = {
   "forms.builder.draftSource.none": "Nothing has been drafted or published for this form yet.",
   "forms.builder.formTitle": "Form title",
   "forms.builder.formTitleHint": "Shown to a respondent. Saved with the draft.",
-  "forms.builder.publish": "Publish",
-  "forms.builder.publishNote": "Publishing is task 034. A draft with issues cannot be published.",
   "forms.builder.seeded":
     "This draft was started from the newest published version and has not been saved yet. Your first change stores it.",
   "forms.builder.concurrent":

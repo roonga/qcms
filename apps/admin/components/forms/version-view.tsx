@@ -40,6 +40,15 @@ import { t } from "@/lib/i18n/en";
  *
  * "Read only" on this screen means the **definition** is immutable (R1), which is what the
  * copy says.
+ *
+ * ## The same styling seam as the draft preview
+ *
+ * The rendered step hangs off one `qcms-preview-surface` container, which owns its styling
+ * boundary and assumes nothing about the admin's theme context (Code Owner ruling,
+ * 2026-08-02). A published version is the strongest case for that boundary being real: what
+ * it shows is what a respondent saw, so the admin's own chrome has no business leaking into
+ * it. Task 058 mounts its theme island on this container; this task builds only the
+ * boundary, with no theme selection, no mode switching and no portal-theme defaulting.
  */
 export function VersionView({ snapshot }: { readonly snapshot: FormVersionSnapshot }) {
   const [answers, setAnswers] = useState<{ key: number; values: A2UIValues }>({
@@ -99,7 +108,7 @@ export function VersionView({ snapshot }: { readonly snapshot: FormVersionSnapsh
             })}
           </p>
 
-          <div className="qcms-preview">
+          <div className="qcms-preview qcms-preview-surface" data-testid="qcms-preview-surface">
             <A2UIStepRenderer
               document={{ stepId: step.stepId, root: step.root as A2UIStepDocument["root"] }}
               values={answers.values}

@@ -172,22 +172,18 @@ export function FormBuilder({
     <div className="flex flex-col gap-6">
       <BuilderNotices detail={detail} paused={paused} saveError={saveError} />
 
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <TextField
-          label={t("forms.builder.formTitle")}
-          description={t("forms.builder.formTitleHint")}
-          value={textOf(draft.title, draft.defaultLocale)}
-          onChange={(next) => {
-            mutate({ ...draft, title: { ...draft.title, [draft.defaultLocale]: next } });
-          }}
-        />
-        <div className="flex flex-col gap-1">
-          <Button variant="primary" size="md" isDisabled>
-            {t("forms.builder.publish")}
-          </Button>
-          <p className="text-xs text-(--color-text-muted)">{t("forms.builder.publishNote")}</p>
-        </div>
-      </div>
+      {/* 033 stood a disabled Publish button here with a note saying publishing was
+          task 034's. It is, and it landed: the real control lives in `FormActions`
+          above this component, where a refused publish can render its anchored work
+          list beside the rules it points at. */}
+      <TextField
+        label={t("forms.builder.formTitle")}
+        description={t("forms.builder.formTitleHint")}
+        value={textOf(draft.title, draft.defaultLocale)}
+        onChange={(next) => {
+          mutate({ ...draft, title: { ...draft.title, [draft.defaultLocale]: next } });
+        }}
+      />
 
       <div className="grid gap-4 md:grid-cols-[18rem_minmax(0,1fr)]">
         <StepsRail

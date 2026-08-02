@@ -888,6 +888,19 @@ th,
   outline-offset: -1px;
 }
 
+/* The preview's STYLING SEAM (task 034, Code Owner ruling 2026-08-02).
+   One container element, and the rendered step hangs off it and nothing else.
+   It is a boundary rather than a theme: `isolation` gives it its own stacking
+   context and `container-type: inline-size` its own layout context, so what is
+   inside it is sized and stacked against the surface rather than against the
+   admin page around it. Task 058 mounts a theme island on this element; this
+   task deliberately ships no theme selection, no mode switching and no
+   portal-theme defaulting, so nothing here reads a theme knob. */
+.qcms-preview-surface {
+  isolation: isolate;
+  container-type: inline-size;
+}
+
 /* Standard clip-rect visually hidden utility: present for assistive tech,
    removed from the visual layout without display:none, which would also
    remove it from the accessibility tree. */

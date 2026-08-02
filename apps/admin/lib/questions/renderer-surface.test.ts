@@ -105,6 +105,35 @@ describe("A2UI rendering surface (exit criterion 3)", () => {
     expect(preview!.text).toContain('from "@qcms/ui"');
   });
 
+  it("mounts the two form-level renders inside the preview styling seam", () => {
+    // Code Owner ruling, 2026-08-02: the preview renders inside a SINGLE container that
+    // owns its styling boundary, and nothing in the path assumes it shares the admin's
+    // theme context. Task 058 mounts a theme island on that container, so this asserts
+    // the boundary exists and is where the renderer hangs off - not that anything themes
+    // it, which 034 deliberately does not do.
+    for (const path of ["components/forms/draft-preview.tsx", "components/forms/version-view.tsx"]) {
+      const module = files.find((file) => file.path === path);
+      expect(module, `${path} should be scanned`).toBeDefined();
+      const text = stripComments(module!.text);
+      expect(text, `${path} should render inside the seam`).toContain("qcms-preview-surface");
+      // One container, not two: a second would make "the styling boundary" ambiguous.
+      expect(text.split("qcms-preview-surface").length - 1).toBe(2);
+    }
+  });
+
+  it("selects no theme or mode for the preview (058 owns that, not 034)", () => {
+    // The amendment is explicit that 034 builds the boundary and NOT the switcher. A
+    // theme knob reaching the preview would be the overshoot it names, so it is asserted
+    // against rather than left to review.
+    const forbidden = ["qcms-app-mode", "QCMS_PORTAL_THEME", "portalTheme", "setTheme"];
+    for (const path of ["components/forms/draft-preview.tsx", "components/forms/version-view.tsx"]) {
+      const text = stripComments(files.find((file) => file.path === path)?.text ?? "");
+      for (const needle of forbidden) {
+        expect(text, `${path} must not read ${needle}`).not.toContain(needle);
+      }
+    }
+  });
+
   it("reaches no renderer engine directly", () => {
     expect(modulesMentioning("@a2ra/core")).toEqual([]);
   });
