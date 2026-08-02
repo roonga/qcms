@@ -1,8 +1,10 @@
-import type { Page, Request } from "@playwright/test";
+import type { Locator, Page, Request } from "@playwright/test";
 
+import { PORTAL_PORT } from "../../portal/e2e/support/harness-config.js";
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
+import { domShape } from "./support/dom-shape.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import {
   addRule,
@@ -75,6 +77,8 @@ const NO_LABEL = "No, never";
 
 let atFaultYesOption = "";
 let formId = "";
+/** The form's slug, which is also the portal's entry path for it. */
+const FORM_SLUG = `e2e-pub-insurance-${RUN}`;
 
 test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
@@ -107,7 +111,7 @@ test("publishes a draft and reports what it froze (exit criterion 1)", async ({ 
   await publishQuestion(page, ACCIDENT_COUNT, "Number");
   await publishQuestion(page, CLAIM_NOTES, "Long text");
 
-  formId = await createForm(page, `e2e-pub-insurance-${RUN}`, "Vehicle insurance");
+  formId = await createForm(page, FORM_SLUG, "Vehicle insurance");
 
   await addStep(page, "Driving history");
   await pinQuestion(page, questionIdFor(AT_FAULT), 1);
@@ -170,6 +174,60 @@ test("walks the draft's branches in the shared renderer (exit criterion 1)", asy
   await page.getByRole("button", { name: "Reset answers" }).click();
   await page.getByRole("button", { name: "Next step" }).click();
   await expect(preview.getByText(NOTES_LABEL)).toBeVisible({ timeout: 30_000 });
+});
+
+
+test("the preview's step DOM deep-matches the portal's (exit criterion 3)", async ({
+  page,
+  context,
+}) => {
+  test.setTimeout(240_000);
+
+  /**
+   * ## What is compared, and why it is the same document
+   *
+   * The form published above is one definition seen from two sides. The **portal** serves a
+   * respondent the compiled documents stored at publish time (ADR-18), projected onto the
+   * API's `visibleQuestions` and drawn by `A2UIStepRenderer`. The **admin preview** compiles
+   * the same definition (the draft the API seeds back from the newest published version) and
+   * draws it with the same projection and the same renderer.
+   *
+   * Same definition in, same compiler, same projection, same renderer. If those four are
+   * genuinely shared the two DOM subtrees are identical, and this says so. Give the admin
+   * its own renderer, its own projection, or its own compiler, and this is what fails -
+   * which is the point, because a screenshot could not tell.
+   *
+   * ## Why not a screenshot
+   *
+   * The two apps legitimately differ in theme tokens, fonts and surrounding chrome (ADR-30,
+   * and 034's preview is deliberately its own styling seam), so a pixel comparison would
+   * fail for reasons that are not fidelity while still missing a swapped control that
+   * happened to look similar. The comparison is of rendered *structure*: elements, classes,
+   * semantic and state attributes and text, with generated ids normalized away
+   * (`support/dom-shape.ts`).
+   */
+
+  // --- the respondent's side ------------------------------------------------
+  const portal = await context.newPage();
+  await portal.goto(`http://localhost:${String(PORTAL_PORT)}/f/${FORM_SLUG}`);
+  await portal.getByRole("button", { name: "Start" }).click();
+  await portal.waitForURL(/\/s\/ses_/);
+  await expect(portal.getByText(AT_FAULT_LABEL)).toBeVisible({ timeout: 60_000 });
+  await waitForReactAttached(portal);
+  const respondent = await domShape(rendererRoot(portal));
+  await portal.close();
+
+  // --- the author's side ----------------------------------------------------
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.goto(`/forms/${formId}/preview`);
+  const surface = page.getByTestId("qcms-preview-surface");
+  await expect(surface.getByText(AT_FAULT_LABEL)).toBeVisible({ timeout: 60_000 });
+  const author = await domShape(surface.locator("form").first());
+
+  // A sanity check first, so a failure below reads as a divergence rather than as two
+  // empty trees agreeing with each other.
+  expect(author.children.length, "the preview should render controls").toBeGreaterThan(0);
+  expect(author).toEqual(respondent);
 });
 
 test("history renders the stored compiled document and never previews (exit criterion 4)", async ({
@@ -304,3 +362,30 @@ test("closes the form to new sessions and reopens it (deliverable: close/reopen)
   await page.getByRole("alertdialog").getByRole("button", { name: "Reopen it" }).click();
   await expect(page.getByTestId("qcms-form-closed")).toHaveCount(0, { timeout: 30_000 });
 });
+
+/**
+ * The portal's rendered step: the `form` the A2UI root node produces.
+ *
+ * `.last()` rather than `.first()`: before hydration the page carries the no-JS fallback
+ * form (task 044), which React replaces rather than adopts, so the first match can be the
+ * pre-hydration document. The renderer's own form is the last one in the flow page.
+ */
+function rendererRoot(page: Page): Locator {
+  return page.locator("form").last();
+}
+
+/**
+ * Wait until React owns the rendered tree, so the shape read is the hydrated one.
+ *
+ * React tags every host node it owns with a `__reactFiber$...` property, which is the
+ * attachment signal itself rather than a proxy for it (the same probe the gate captures
+ * use). Comparing a server-rendered tree against a hydrated one would be comparing two
+ * different things and would fail for a reason that is not fidelity.
+ */
+async function waitForReactAttached(page: Page): Promise<void> {
+  await page.waitForFunction(() => {
+    const form = document.querySelector("form");
+    if (form === null) return false;
+    return Object.keys(form).some((key) => key.startsWith("__reactFiber$"));
+  });
+}
