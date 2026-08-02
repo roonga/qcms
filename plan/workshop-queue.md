@@ -97,3 +97,50 @@ One entry per finding: what is wrong, the evidence, and what the edit would be. 
 **Why it matters more than a slow cycle.** The only thing standing between this and a bad outcome was that the reviewer reads the tree rather than the report. Had the report been trusted, the Code Owner would have been asked to sign a gate whose evidence contradicted the copy the PR claimed to have. That is the same lesson as holding a screenshot gate until its PR exists: the artifact is the truth, the summary is a claim about it.
 
 **Candidate edit.** Two lines in the task-executor instructions. First: before reporting a fix round complete, grep the diff for each claimed resolution and quote the evidence - a report is a claim about the tree and has to be checked against it. Second: never write a comment describing content another file is supposed to contain; if the comment is only true once a sibling lands, it is not yet true. Consider whether the reviewer's re-verification should be stated as load-bearing in the flow docs, since it is currently the only mechanism that catches this and is not described as serving that purpose.
+
+---
+
+## The review sweep misses the surface where line-anchored findings live, and skips entirely on a re-review
+
+**Raised:** 2026-08-02, from PR #274 (task 034). Both seats failed the same way on the same PR.
+**Status:** queued. This is a process defect with two distinct halves, and neither is a doc typo.
+
+**What happened.** GitHub's automated reviewer posted three line-anchored threads on #274. Two were real bugs: a blob URL revoked synchronously after `anchor.click()`, giving intermittently empty or truncated CSV exports in browsers that lose that race, and `fail.previewRejected([])` raising an error whose admin copy promises "The reasons are listed below" with nothing to list. Neither review read them.
+
+**Half one - the sweep skipped on a re-review.** The timeline is exact (SHAs abbreviated here for reading; a real sentinel carries the **full** `headRefOid`, and a truncated one binds to nothing):
+
+```
+06:13:25Z  PO-REVIEW: CHANGES-REQUESTED @b332c442   (PO seat)
+06:14:35Z  thread: secure-links.tsx
+06:14:35Z  thread: version-view.tsx
+06:14:36Z  thread: handler.ts
+06:15:41Z  PO-REVIEW: APPROVE @14eb0f5c             (PO seat)
+```
+
+The threads were visible for 66 seconds before the approval. The PO seat had scoped the re-review to the one-line ledger diff and said so explicitly - "the re-review is that one line, not a fresh pass" - and ran no sweep. `plan/pr-review-loop.md` requires the sweep as its own step whose output is read before any merge command; on a task PR the sentinel *is* the merge authorization, so the requirement binds at least as hard there.
+
+The tempting reasoning is that a one-line diff cannot have new findings. That is true of the diff and false of the PR: the comment surface moves independently of the tree.
+
+**Half two - nothing polls threads at all.** The conductor found those threads at 07:45 by chance, while checking whether the gate had been signed, not because any step directed it to. Its poll loop reads issue comments for the PO sentinel. Issue comments and review comments are **different API surfaces**: `gh api repos/<o>/<r>/issues/<n>/comments` versus `gh api repos/<o>/<r>/pulls/<n>/comments`. A comments-only poll is structurally blind to the half where line-anchored findings live, which is where both of this PR's real late-stage bugs were.
+
+So the process failed twice, from two seats, on one PR, and was rescued by unrelated curiosity.
+
+**Candidate edit.**
+
+1. State in `plan/pr-review-loop.md` that the sweep runs on **every sentinel-bearing review, including a re-review of a one-line diff**, and that it covers both surfaces explicitly - naming both commands, because "read the comments" does not disambiguate them.
+2. Give the dev loop's poll the same treatment wherever it reads for a sentinel.
+3. Consider whether a stale-sentinel rule should be mechanical: a sentinel whose head no longer matches is already treated as stale, but a sentinel emitted *before* an unread thread has no such marker.
+
+---
+
+## Every gate-frame claim also needs a DOM assertion
+
+**Raised:** 2026-08-02, task 034. Recorded on main in `docs/RETRO.md` under `## 034`; this entry exists so the boundary pass finds it in the queue it works from.
+
+**Source, quotable verbatim from the retro:**
+
+> a fix visible only in a committed gate frame has no automated check behind it. 034's ADR-27 violation was found by a reviewer reading PNGs, and a cycle-1 resolution that was claimed but never landed was invisible for the same reason. The general fix is that every gate-frame claim also gets a DOM assertion: cycle 2's `expect(dialog).toContainText("UTC")` asserts the string reaches a rendered operator dialog rather than merely existing in the catalog, and is exactly the check that would have caught the miss. Screenshots are evidence for a human gate, not a substitute for an assertion.
+
+**Why it belongs in the queue and not only in the retro.** The retro records what happened on one task; the queue is what the boundary pass edits instructions from. This one has a concrete candidate edit: when a task's exit criteria include a screenshot gate, the same properties the frames are meant to show should be asserted in the browser suite, so a regression fails a test rather than waiting for a human to notice it in a PNG. 034 demonstrates both directions - the ADR-27 violation was caught by a human reading frames, and the missing UTC hint was caught only after a DOM assertion existed for it.
+
+**Related.** This is the same lesson as the copy-from-intent pattern in the same retro, seen from the evidence side: the screenshot shows what the system did once, the assertion states what it must always do.
