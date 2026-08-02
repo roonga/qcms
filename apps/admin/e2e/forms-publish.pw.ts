@@ -92,6 +92,9 @@ async function publishQuestion(page: Page, slug: string, typeLabel: string): Pro
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
 }
 
+/** A raw API timestamp, which no operator-facing table may render (ADR-27). */
+const ISO_TIMESTAMP = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
+
 /** Every request the browser made to the draft-preview endpoint, for exit criterion 4. */
 function watchPreviewCalls(page: Page): string[] {
   const seen: string[] = [];
@@ -243,6 +246,8 @@ test("history renders the stored compiled document and never previews (exit crit
   const table = page.getByRole("grid", { name: "Published versions" });
   await expect(table).toBeVisible();
   await expect(table).toContainText("v1");
+  // ADR-27: what an operator reads is a formatted date, never the wire representation.
+  await expect(table).not.toContainText(ISO_TIMESTAMP);
 
   await page.getByRole("link", { name: "View v1" }).click();
   await expect(page.getByTestId("qcms-version-view")).toBeVisible({ timeout: 30_000 });
@@ -350,6 +355,9 @@ test("mints, copies, exports and revokes a secure link (exit criterion 1)", asyn
 
   await page.reload();
   await expect(page.getByTestId("qcms-links-table").getByText("Revoked")).toBeVisible();
+  // Same ADR-27 assertion as the history table. The CSV downloaded above deliberately
+  // keeps ISO: that is a machine artifact, and a spreadsheet wants it.
+  await expect(page.getByTestId("qcms-links-table")).not.toContainText(ISO_TIMESTAMP);
 });
 
 test("closes the form to new sessions and reopens it (deliverable: close/reopen)", async ({
