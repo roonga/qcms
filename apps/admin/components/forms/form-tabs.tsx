@@ -6,7 +6,8 @@ import { usePathname } from "next/navigation";
 import { t } from "@/lib/i18n/en";
 
 /**
- * The four sections of one form: builder, preview, history, links (task 034).
+ * The sections of one form: builder, preview, history, links, responses, webhooks
+ * (task 034; the last two added by 035).
  *
  * A `nav` of ordinary links rather than a tab widget, and the difference matters. These
  * are four routes, not four panels: each is separately addressable, separately
@@ -25,6 +26,8 @@ export function FormTabs({ formId }: { readonly formId: string }) {
     { href: `${base}/preview`, label: t("forms.tab.preview") },
     { href: `${base}/versions`, label: t("forms.tab.versions") },
     { href: `${base}/links`, label: t("forms.tab.links") },
+    { href: `${base}/responses`, label: t("forms.tab.responses") },
+    { href: `${base}/webhooks`, label: t("forms.tab.webhooks") },
   ];
 
   return (
