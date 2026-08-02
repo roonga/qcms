@@ -3,6 +3,33 @@
 **Stage:** 8a · **App:** `apps/admin` · **Depends on:** 033, 024 (links API), 028 (renderer)
 **References:** ADR-01, **ADR-18, ADR-19** · `ARCHITECTURE.md` §6 (preview fidelity) · **Wireframe:** `docs/wireframes/admin-publish-preview.md` (042) · task 058 (its theme island mounts on the preview seam this task builds; 058 runs after this task per the Code Owner's 2026-08-01 flow-first aim)
 
+## Amendment (2026-08-02, task 034; staleness rule)
+
+The **Live preview** deliverable below says the preview runs "core evaluator client-side".
+That is not implementable and the identical tension has already been ruled on once: rule 1
+of `apps/admin/lib/server/r2-import-surface.test.ts` bans `@qcms/core` value imports in the
+admin outright, and 033's amendment (2026-08-01, PO seat) resolved it by keeping the kernel
+in the API, where it already lives. The portal is no different: it performs **no** rule
+evaluation either (R2), it receives an authoritative `visibleQuestions` list and projects
+the compiled document onto it.
+
+So `POST /admin/forms/:id/draft/preview` returns both halves of that pair - 011's compiled
+documents *and* the forward pass's visible set for the answers sent with the request - and
+the preview pane projects with `documentForVisible` and renders with `A2UIStepRenderer`.
+`documentForVisible` moved from `apps/portal/lib/visible.ts` into `@qcms/ui` in this change,
+so preview and serving share one projection as well as one renderer. Preview fidelity is
+strengthened rather than weakened by the correction: the admin is not a second
+implementation of visibility, it is the same one, which is what exit criterion 3's
+deep-match then proves.
+
+Two smaller corrections from the same landing, both recorded in the wireframe:
+
+- The mint dialog's one-time control is a vendored **`Checkbox`**, not the `switch` the
+  wireframe names: the a2-react-aria set has no Switch and hand-writing one is what ADR-22
+  forbids. Adding one is a `COMPONENT_GUIDELINES` vendoring in its own right.
+- Link **expiry is chosen as a day** and widened to the end of that day before it reaches
+  024's route, which wants an instant.
+
 ## Context
 
 The moments of truth in the authoring loop: publish (kernel errors verbatim), preview (identical renderer, identical documents), history (immutability made visible), and secure-link distribution (the gap-fix landing its UI).

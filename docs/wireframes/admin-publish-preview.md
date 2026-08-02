@@ -2,6 +2,35 @@
 
 **Status:** Signed off: Code Owner, 2026-07-21 · **Consumed by:** 034 · **Renders:** 022 (publish, versions, close/reopen, draft/preview), 024 (links), 028 (shared renderer)
 
+> **Amendment, 2026-08-02 (task 034, staleness rule).** This wireframe originally placed the
+> preview's rule evaluation **client-side** ("live client-side rule evaluation (core
+> evaluator)"). Landed enforcement forbids it, exactly as it forbade the same thing for the
+> rule test bench: rule 1 of `apps/admin/lib/server/r2-import-surface.test.ts` bans
+> `@qcms/core` imports in the admin, and that test stands. It is also not what the portal
+> does - the portal performs no rule evaluation either (R2), it receives an authoritative
+> `visibleQuestions` list from the API and projects the compiled document onto it.
+>
+> So `POST /admin/forms/:id/draft/preview` returns **both** halves of that pair: 011's
+> compiled documents and the forward pass's visible set for the answers sent with the
+> request. The preview pane projects with `documentForVisible` - the portal's own function,
+> moved into `@qcms/ui` by 034 so there is exactly one of it - and renders with
+> `A2UIStepRenderer`. Fidelity is stronger for the change rather than weaker: the admin is
+> not a second implementation of visibility, it is the same one. Nothing about the layout,
+> regions or states changes.
+>
+> Two smaller notes from the same landing. The mint dialog's **one-time control is a
+> `Checkbox`, not a `switch`**: the vendored a2-react-aria set has no Switch, and
+> hand-writing one is what ADR-22 forbids, so adding one is a `COMPONENT_GUIDELINES`
+> vendoring in its own right rather than a detail of this screen. And the **link expiry is a
+> day** rather than an instant, widened to the end of that day before it reaches the API,
+> because "which day does this stop working" is the question an author has.
+>
+> **Amendment, 2026-08-02 (Code Owner ruling).** The preview renders inside a single
+> container element that owns its styling boundary (`qcms-preview-surface`), and nothing in
+> the preview path assumes it shares the admin's theme context. 034 builds the boundary
+> only: no theme selection, no mode switching, no portal-theme defaulting. Task 058 mounts
+> its theme island on that container.
+
 ## ASCII sketch - publish + preview
 
 ```
