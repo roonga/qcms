@@ -107,7 +107,7 @@ One entry per finding: what is wrong, the evidence, and what the edit would be. 
 
 **What happened.** GitHub's automated reviewer posted three line-anchored threads on #274. Two were real bugs: a blob URL revoked synchronously after `anchor.click()`, giving intermittently empty or truncated CSV exports in browsers that lose that race, and `fail.previewRejected([])` raising an error whose admin copy promises "The reasons are listed below" with nothing to list. Neither review read them.
 
-**Half one - the sweep skipped on a re-review.** The timeline is exact:
+**Half one - the sweep skipped on a re-review.** The timeline is exact (SHAs abbreviated here for reading; a real sentinel carries the **full** `headRefOid`, and a truncated one binds to nothing):
 
 ```
 06:13:25Z  PO-REVIEW: CHANGES-REQUESTED @b332c442   (PO seat)
