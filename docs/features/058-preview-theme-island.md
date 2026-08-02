@@ -1,7 +1,7 @@
 # 058 - Preview theme island: respondent theme and mode switching inside the admin preview
 
-**Stage:** 8a · **Apps/packages:** `apps/admin` (preview surface), consuming `@qcms/ui`'s existing theme assets read-only · **Depends on:** 032 (the preview exists; its interactivity round from PR #228 included).
-**References:** ADR-30 + tasks 051/052/053 (the portal token contract this reuses: predefined themes as CSS custom-property sets, mode as a class layer, one `.hc` layer) · ADR-27 (i18n) · `apps/admin/components/questions/question-preview.tsx` (the island) · task 049 (admin theme editor - future custom themes join this switcher; loose coupling, no dependency) · task 034 (form-level preview reuses this component) · Code Owner direction 2026-08-01 ("the preview should allow island theme switch").
+**Stage:** 8a · **Apps/packages:** `apps/admin` (preview surface), consuming `@qcms/ui`'s existing theme assets read-only · **Depends on:** 032 (the preview exists; its interactivity round from PR #228 included), 034 (builds the preview styling seam this island mounts on), 035 (not technical - editor enrichments run behind the response chain per the Code Owner's 2026-08-01 flow-first aim; recorded here because `Depends on` is the mechanism selection reads for "runs after").
+**References:** ADR-30 + tasks 051/052/053 (the portal token contract this reuses: predefined themes as CSS custom-property sets, mode as a class layer, one `.hc` layer) · ADR-27 (i18n) · `apps/admin/components/questions/question-preview.tsx` (the island) · task 049 (admin theme editor - future custom themes join this switcher; loose coupling, no dependency) · task 034 (builds the preview container styling seam this island mounts on, and runs first) · Code Owner direction 2026-08-01 ("the preview should allow island theme switch").
 
 ## Context
 
@@ -13,7 +13,7 @@ The preview shows a question through the real respondent renderer, but always in
 
 - **Scoped theme application:** the preview container applies a selected predefined portal theme (the 051 set) and mode (light / dark / high contrast) via the token contract, container-scoped - custom properties and mode classes set on the island element, never on `:root`. The admin's own stylesheet and mode control are untouched; nothing leaks in either direction (the island's tokens do not inherit admin Cobalt values for renderer-consumed variables).
 - **Switcher UI** above the preview: two compact labeled controls (theme, mode) in the design system's control language, **defaulting to the deployment's configured portal theme** (same config value the portal reads, supplied by composition; base theme when unset) in light mode, **ephemeral** - no persistence, resets per page load. Labels through the i18n catalog (ADR-27).
-- **Reusable shape:** the island (container + switcher + scoping) is one component the 034 form-level preview can mount as-is; 049's custom themes extend the theme list later without structural change (note the seam in the component doc).
+- **Reusable shape:** the island (switcher + scoping) mounts on the preview container styling seam 034 builds, and applies to both the question preview and 034's form-level preview without either surface being restructured; 049's custom themes extend the theme list later without structural change (note the seam in the component doc).
 - **Read-only consumption:** theme definitions come from `@qcms/ui`'s shipped assets; no copy of token values into the admin, no new API surface.
 
 ## Exit criteria
