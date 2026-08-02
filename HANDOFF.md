@@ -33,8 +33,11 @@ boundary, with no theme selection, no mode switching and no portal-theme default
 
 ## What the human gate needs
 
-`docs/gates/034/` holds **60 PNGs**: ten states x 390px and 1280px x light, dark and high
-contrast, plus a `README.md` naming each state. Capture them again with:
+`docs/gates/034/` holds **66 PNGs**: eleven states x 390px and 1280px x light, dark and high
+contrast, plus a `README.md` naming each state. Timestamps in the operator tables render
+locale-aware in UTC with the zone named (ADR-27); the CSV export keeps ISO. The Consumed and
+Expired link chips are absent by decision: reaching them needs a respondent session and a
+clock this suite does not have, and faking them would be evidence of nothing. Capture them again with:
 
 ```
 QCMS_ADMIN_CAPTURE_GATE=1 QCMS_PORT_SEAT=0 pnpm exec playwright test --project=admin-chromium gate-screenshots-034
