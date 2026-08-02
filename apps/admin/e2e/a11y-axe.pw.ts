@@ -420,6 +420,15 @@ test("publish, preview, history and secure links have zero violations", async ({
     .click();
   await expect(page.getByRole("alertdialog")).toBeVisible();
   await expectNoViolations(page, "revoke confirmation");
+
+  // The revoked chip carries a different token pair from the active one, so it is a
+  // different contrast question in all three modes - and until this state was swept,
+  // Active was the only one of the four chip states the gate had ever measured.
+  await page.getByRole("alertdialog").getByRole("button", { name: "Revoke it" }).click();
+  await expect(page.getByTestId("qcms-links-table").getByText("Revoked")).toBeVisible({
+    timeout: 30_000,
+  });
+  await expectNoViolations(page, "secure links table with a revoked link");
 });
 
 test("the 2FA challenge and its recovery variant have zero violations", async ({ page }) => {

@@ -685,7 +685,11 @@ export const messages = {
   "forms.links.mint": "Mint links",
   "forms.links.mintTitle": "Mint secure links",
   "forms.links.expiresAt": "Expires",
-  "forms.links.expiresAtHint": "The link stops working at the end of this day, used or not.",
+  // The zone is named here because this is where the promise is made. The instant stored
+  // is the end of the chosen day in UTC (`endOfDay` in the forms actions), and the links
+  // table renders every timestamp in the same zone - so an operator who is not on UTC
+  // would otherwise be told a day and given one up to fourteen hours away from it.
+  "forms.links.expiresAtHint": "The link stops working at the end of this day, UTC, used or not.",
   "forms.links.oneTime": "One-time (stops working after the first use)",
   "forms.links.count": "How many",
   "forms.links.countHint": "Up to {max} at a time.",

@@ -318,6 +318,10 @@ test("mints, copies, exports and revokes a secure link (exit criterion 1)", asyn
 
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
+  // The expiry promise names its zone where the promise is made. `endOfDay` widens the
+  // chosen day to the end of that day in UTC, so an operator who is not on UTC would
+  // otherwise be told a day and handed one up to fourteen hours away from it.
+  await expect(dialog).toContainText("UTC");
   await fillDate(page, "Expires", "12312030");
   // The react-aria checkbox's real input sits under a decorative indicator that
   // intercepts pointer events, so the label is what gets clicked (`toggleCheckbox`).
