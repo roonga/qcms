@@ -14,7 +14,7 @@ This seat's main loop reads seat mail, watches PRs and monitors, decides, and re
 
 **Why:** the seat-mail cadence is physically impossible from inside a long tool call. On 2026-08-01 the dev conductor ran the landing gates inline and went silent for 26 minutes with a steer sitting unread. The same failure shape applies here whenever a review or design pass runs synchronously.
 
-**How to apply:** default `run_in_background: true` for Agent spawns doing substantive work; keep inline Bash calls short; when a background result is needed before proceeding, do the waiting by handling other events, not by blocking.
+**How to apply:** spawn substantive work so it runs in the background and reports back, rather than blocking the turn - in the current harness that is the Agent tool's `run_in_background` flag, defaulted on. Keep inline Bash calls short. When a background result is needed before proceeding, do the waiting by handling other events, not by blocking. The directive is the behaviour, not the flag name: if the harness renames or drops the knob, the rule still stands and the mechanism is whatever makes the main loop keep ticking.
 
 **Companion practice (Code Owner, 2026-08-01): ask, don't just diagnose.** When the dev seat is silent past its cadence (~10 minutes), the first move is a "STATUS?" seat mail requesting a state report. Process forensics come second. A quiet seat gets asked; only an unresponsive one gets investigated.
 

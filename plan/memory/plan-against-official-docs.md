@@ -10,6 +10,6 @@ Code Owner directive (2026-07-29), codified as a Ground rule in `plan/CLAUDE.md`
 
 **Why:** the observability plan's first draft sketched hand-rolled OpenTelemetry wiring. The Code Owner redirected to the official OTel JS setup, and verifying against the Next.js OTel guide and the `@hono/otel` source then caught real errors the draft would have shipped: portal fetch double-instrumentation, the `propagateContextUrls` requirement, and the OTLP exporter's localhost default breaking the no-op-by-default principle. Precedent is `plan/observability-plan.md` revs 2 and 3.
 
-**How to apply:** before finalizing any externally-dependent recommendation, WebFetch the official guide, `pnpm view` the package for the real current version, and read the source for any load-bearing claim (for instance: does the middleware actually extract `traceparent`). Fold contradictions back into the draft and record the rev.
+**How to apply:** before finalizing any externally-dependent recommendation, fetch and read the official guide (in the current harness, the WebFetch tool), query the registry for the real current version (`pnpm view <pkg>` - bare `npm view` is denied by the pnpm-only permission rules), and read the source for any load-bearing claim (for instance: does the middleware actually extract `traceparent`). Fold contradictions back into the draft and record the rev. The requirement is that the check happened and is cited; which tool performed the fetch is incidental.
 
 Related: [[pm-delegation-and-routing]], [[code-owner-preferences]].
