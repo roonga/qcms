@@ -15,7 +15,7 @@
 #           -p, --parallel N          executors per batch (pairwise-independent tasks only; /next-task lane only)
 #           -P, --prompt CMD          the skill each iteration runs (default /next-task; e.g. /next-issue for a second, issue-lane agent)
 #           -M, --mailbox NAME        seat-mail identity under ../seat-mail/ (default dev; a second lane gets its own, e.g. dev2)
-#           -S, --seat N              port seat 0-9 for this lane (default: derived from --mailbox; see docs/PORTS.md)
+#           -S, --seat N              port seat 0-9 for this lane (default: the mailbox's last digit, else 0; docs/PORTS.md)
 #           -r, --retry-minutes N     wait between retries when usage-limited / crashed
 #           -m, --max-iterations N    hard stop so a logic bug cannot loop forever
 #           -s, --stop-after-task ID  e.g. "010" - stop once this task lands
@@ -123,11 +123,13 @@ positive_int --max-iterations "$max_iterations"
 # `/next-issue` iteration after the seat scheme landed would hit the refusal and
 # its error message would be the only documentation of it.
 #
-# Derived from the mailbox, which is already this lane's identity: `dev` -> seat 0
-# (the single-lane default, and what CI uses), `dev2` -> seat 2, and so on. A
-# mailbox with no trailing digit is seat 0; one with more than a single trailing
-# digit has no obvious seat, so it is an error rather than a guess. `--seat`
-# overrides either way.
+# Derived from the mailbox, which is already this lane's identity: the LAST
+# character if it is a digit, else 0. So `dev` -> seat 0 (the single-lane default,
+# and what CI uses) and `dev2` -> seat 2, which is the naming the skills actually
+# use. Deliberately total rather than strict: an unusual mailbox name must never
+# hard-fail the supervisor, which would be the same class of bug as the missing
+# seat it exists to prevent. `--seat` is the explicit override for anything whose
+# last digit is not the seat you want.
 #
 # Note the two mechanisms are not redundant. The seat stops two lanes SHARING a
 # server (silently testing each other's worktree - issue #255). The
@@ -136,7 +138,7 @@ positive_int --max-iterations "$max_iterations"
 # both: distinct ports do not make one machine able to run two Chromium suites.
 if [ -z "$seat" ]; then
   case "$mailbox" in
-    *[0-9]) seat="${mailbox##*[!0-9]}" ;;
+    *[0-9]) seat="${mailbox#"${mailbox%?}"}" ;;
     *) seat=0 ;;
   esac
 fi
@@ -351,9 +353,21 @@ Lane identity: your seat-mail inbox is ../seat-mail/${mailbox}/ (ack into its re
   fi
 
   # No sentinel - session died mid-flight: usage limit, network, crash. State is
-  # safe on disk; wait out the window and let recovery handle it. If the error
-  # names the reset time, sleep until then (+3 min buffer) instead of the blind
-  # retry interval.
+  # safe on disk; wait out the window and let recovery handle it.
+  #
+  # Nothing to wait FOR on the last iteration, though: the loop has already
+  # decided it will not run again, so the retry sleep only delays the exit. The
+  # whole effect of getting this wrong is dead waiting, so nothing ever fails and
+  # nobody investigates - invisible at the default -m 100, but `-m 1` (the natural
+  # way to exercise a single iteration, and how agent-loop.test.ts drives it) hung
+  # for a full retry window doing nothing.
+  if [ "$i" -ge "$max_iterations" ]; then
+    log "no sentinel - max $max_iterations iterations reached, stopping."
+    break
+  fi
+
+  # If the error names the reset time, sleep until then (+3 min buffer) instead
+  # of the blind retry interval.
   sleep_sec=$((retry_minutes * 60))
   if [[ "$out" =~ reset[s]?[[:space:]]+(at[[:space:]]+)?([0-9]{1,2}(:[0-9]{2})?[[:space:]]*([ap]m)?) ]]; then
     reset_at="${BASH_REMATCH[2]}"

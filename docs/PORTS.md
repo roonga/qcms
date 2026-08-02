@@ -225,7 +225,7 @@ So: **a clean run means "no port is written in one of the recognised shapes", ne
 
 Two more things the numbers can mislead about:
 
-- **8 of the 25 `ALLOWED` entries never fire.** They were written defensively while migrating, and the file's other 17 are what the gate actually leans on. The list therefore overstates the gate's reach: an entry existing is not evidence the gate sees that file.
+- **The `ALLOWED` list is not a map of what the gate reads.** It was written defensively while migrating and accumulated 8 entries the scan could never reach, so it overstated the gate's reach: an entry existing is not evidence the gate sees that file. Those 8 are gone, and `check-ports.test.ts` now fails on any exemption that stops firing, so the list stays exactly the set of findings the gate really suppresses. It still says nothing about the files or numbers no pattern matches in the first place, which is the whole point of the table above.
 - **The startup occupancy check depends on `/proc`.** `occupantOfPort` returns `undefined` when `/proc/net/tcp` is unreadable, so on a platform without it (macOS, or a restricted container) the refusal is **silently inert** and a run proceeds as though the ports were free. It degrades safely rather than dangerously - per-seat isolation is untouched, and `reuseExistingServer` stays off for a port that looks free - but the refusal is not the absolute backstop the section above might read as. It is a Linux convenience on top of the seat, not a substitute for one.
 
 ## What this does not cover

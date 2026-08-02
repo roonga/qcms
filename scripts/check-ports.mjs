@@ -112,14 +112,18 @@ const EXCLUDES = [":!packages/ui/src/components/**", ":!plan/**"];
  * already a full repo-relative path, so exactness costs nothing and makes an
  * exemption unambiguously about one file.
  *
+ * **Every entry here fires**, and `check-ports.test.ts` fails if one stops. Written
+ * defensively during the migration, this list grew 8 entries the scan could never
+ * reach: numbers sitting in prose the gate deliberately does not scan, and the
+ * container side of a publish mapping, which no pattern captures. A dead exemption
+ * is not harmless - it reads as evidence the gate inspects that file, which is the
+ * misreading `docs/PORTS.md` had to warn about in prose. Pinning the list to what
+ * actually fires makes the warning unnecessary: if an entry goes dead because the
+ * file was reworded, delete it rather than restoring the number.
+ *
  * @type {{ file: string; value: number; why: string }[]}
  */
 export const ALLOWED = [
-  {
-    file: "docker-compose.dev.yml",
-    value: 5432,
-    why: "Postgres inside its own container. The container side of a publish is the image's business, not a QCMS allocation.",
-  },
   {
     file: "docs/DEVELOPER_GUIDE.md",
     value: 4318,
@@ -134,41 +138,6 @@ export const ALLOWED = [
     file: "docs/DEVELOPER_GUIDE.md",
     value: 18888,
     why: "the Aspire dashboard's own UI port, in the third-party viewer recipe.",
-  },
-  {
-    file: "docs/DEVELOPER_GUIDE.md",
-    value: 18889,
-    why: "the Aspire dashboard's own OTLP ingest port, in the third-party viewer recipe.",
-  },
-  {
-    file: "docs/PORTS.md",
-    value: 4318,
-    why: "the authoritative doc explains which outside ports the allocation deliberately avoids.",
-  },
-  {
-    file: "docs/PORTS.md",
-    value: 3100,
-    why: "the authoritative doc records the pre-migration harness ports so the history is legible.",
-  },
-  {
-    file: "docs/PORTS.md",
-    value: 3200,
-    why: "same: the pre-migration admin harness port.",
-  },
-  {
-    file: "docs/PORTS.md",
-    value: 4010,
-    why: "same: the pre-migration composed-API harness port.",
-  },
-  {
-    file: "docs/PORTS.md",
-    value: 4319,
-    why: "same: the pre-migration OTLP receiver port.",
-  },
-  {
-    file: "docs/PORTS.md",
-    value: 5432,
-    why: "the doc explains the container-internal Postgres port that the dev publish maps to.",
   },
   {
     file: "apps/portal/e2e/support/portal-server.test.ts",

@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import { ALLOWED, exemption, portsIn, sanctionedPorts } from "./check-ports.mjs";
@@ -57,6 +59,24 @@ describe("exemption matching", () => {
       expect(rule.file.startsWith("./")).toBe(false);
       expect(rule.why.length).toBeGreaterThan(0);
     }
+  });
+
+  it("keeps every allowlist entry one the scan can actually reach", () => {
+    // A dead exemption is worse than no exemption: it reads as evidence the gate
+    // inspects that file for that number, when in fact the scan never produces the
+    // finding it would suppress. The list carried 8 such entries after the migration
+    // (numbers in prose the gate deliberately does not scan, and the container side
+    // of a publish mapping, which no pattern captures) and so overstated the gate's
+    // reach. This replays main()'s own decision per entry, so the list cannot drift
+    // back: an entry that stops firing gets deleted, not re-justified.
+    const sanctioned = sanctionedPorts();
+    const dead = ALLOWED.filter((rule) => {
+      if (!existsSync(rule.file)) return true;
+      const found = portsIn(readFileSync(rule.file, "utf8"));
+      return !found.some((hit) => hit.port === rule.value && !sanctioned.has(hit.port));
+    }).map((rule) => `${rule.file}:${String(rule.value)}`);
+
+    expect(dead).toEqual([]);
   });
 });
 
