@@ -85,6 +85,13 @@
       "when": 1785147917197,
       "tag": "0011_two_factor_plugin_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1785658045528,
+      "tag": "0012_delivery_attempt_record",
+      "breakpoints": true
     }
   ]
 }

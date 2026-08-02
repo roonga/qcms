@@ -107,6 +107,9 @@ describe("query helper import surface", () => {
     "markDeliveryDelivered",
     "recordDeliveryFailure",
     "listDeadLetterDeliveries",
+    // The operator dashboard's form-scoped list (task 035): the same delivery rows
+    // plus the last-attempt record the deliverer writes.
+    "listRecentDeliveries",
     "resetDeliveryForRedelivery",
     // admin identity reads (task 031) - reads only. better-auth owns every write
     // to the auth tables, so no helper here creates, refreshes or deletes a

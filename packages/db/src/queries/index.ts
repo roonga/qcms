@@ -146,10 +146,13 @@ export {
   type DeliveryRow,
   type DueDelivery,
   type DeadLetterDelivery,
+  type DeliveryAttemptRecord,
+  type DeliveryView,
   insertDelivery,
   claimDueDeliveries,
   markDeliveryDelivered,
   recordDeliveryFailure,
   listDeadLetterDeliveries,
+  listRecentDeliveries,
   resetDeliveryForRedelivery,
 } from "./deliveries.js";
