@@ -13,6 +13,7 @@ import {
   pinQuestion,
   rule,
   ruleIds,
+  toggleCheckbox,
   toggleTarget,
   waitForSaved,
 } from "./support/forms.js";
@@ -246,7 +247,9 @@ test("mints, copies, exports and revokes a secure link (exit criterion 1)", asyn
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
   await fillDate(page, "Expires", "12312030");
-  await dialog.getByRole("checkbox", { name: /One-time/ }).click();
+  // The react-aria checkbox's real input sits under a decorative indicator that
+  // intercepts pointer events, so the label is what gets clicked (`toggleCheckbox`).
+  await toggleCheckbox(page, "One-time (stops working after the first use)", true);
   const count = dialog.getByRole("textbox", { name: "How many" });
   await count.click();
   await count.fill("2");
