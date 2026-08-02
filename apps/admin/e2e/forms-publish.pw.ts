@@ -178,7 +178,6 @@ test("walks the draft's branches in the shared renderer (exit criterion 1)", asy
   await expect(preview.getByText(NOTES_LABEL)).toBeVisible({ timeout: 30_000 });
 });
 
-
 test("the preview's step DOM deep-matches the portal's (exit criterion 3)", async ({
   page,
   context,
@@ -273,7 +272,10 @@ test("a refused publish lists every issue and each one moves focus (exit criteri
   await waitForSaveAfter(page, beforeBreak);
 
   await page.getByRole("button", { name: "Publish", exact: true }).click();
-  await page.getByRole("alertdialog").getByRole("button", { name: /^Publish v/ }).click();
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: /^Publish v/ })
+    .click();
 
   const rejected = page.getByTestId("qcms-publish-rejected");
   await expect(rejected).toBeVisible({ timeout: 30_000 });

@@ -64,7 +64,7 @@ describe("the batch CSV export", () => {
     // of these. A minted URL never starts with `=`, and an export that would hand a
     // formula to an operator if one ever did is not one worth shipping.
     const csv = mintedLinksCsv([minted({ url: "=HYPERLINK(1)" })]);
-    expect(csv).toContain("\"'=HYPERLINK(1)\"");
+    expect(csv).toContain('"\'=HYPERLINK(1)"');
   });
 
   it("names the file after the form it belongs to, with nothing a path could use", () => {
@@ -81,7 +81,9 @@ describe("the publish confirmation's freeze summary", () => {
         { stepId: "stp_one", title: { en: "One" }, items: [{ questionId: "q_a", version: 1 }] },
         { stepId: "stp_two", title: { en: "Two" }, items: [{ questionId: "q_b", version: 2 }] },
       ],
-      rules: [{ ruleId: "rul_a", when: { op: "answered" as const, questionId: "q_a" }, show: ["q_b"] }],
+      rules: [
+        { ruleId: "rul_a", when: { op: "answered" as const, questionId: "q_a" }, show: ["q_b"] },
+      ],
     };
 
     expect(freezeSummary(draft)).toEqual({ steps: 2, pins: 2, rules: 1 });

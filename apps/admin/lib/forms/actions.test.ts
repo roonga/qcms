@@ -35,9 +35,7 @@ const calls = vi.hoisted(() => ({
 }));
 
 /** What the mocked API layer answers with next. Set per test, reset between them. */
-const answers = vi.hoisted(
-  (): { publish?: unknown; preview?: unknown; mint?: unknown } => ({}),
-);
+const answers = vi.hoisted((): { publish?: unknown; preview?: unknown; mint?: unknown } => ({}));
 
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 vi.mock("next/navigation", () => ({

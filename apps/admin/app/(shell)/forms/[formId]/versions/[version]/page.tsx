@@ -51,10 +51,7 @@ export default async function FormVersionPage({
         section="versions"
         status={form.status}
       />
-      <Link
-        className="qcms-text-link"
-        href={`/forms/${encodeURIComponent(form.formId)}/versions`}
-      >
+      <Link className="qcms-text-link" href={`/forms/${encodeURIComponent(form.formId)}/versions`}>
         {t("forms.history.backToHistory")}
       </Link>
       <VersionView snapshot={snapshot.data} />

@@ -81,7 +81,10 @@ function lcsTable(left: readonly string[], right: readonly string[]): Int32Array
     const row = table[i] as Int32Array;
     const next = table[i + 1] as Int32Array;
     for (let j = right.length - 1; j >= 0; j -= 1) {
-      row[j] = left[i] === right[j] ? (next[j + 1] as number) + 1 : Math.max(next[j] as number, row[j + 1] as number);
+      row[j] =
+        left[i] === right[j]
+          ? (next[j + 1] as number) + 1
+          : Math.max(next[j] as number, row[j + 1] as number);
     }
   }
   return table;

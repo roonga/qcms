@@ -139,7 +139,9 @@ export function SecureLinks({
             {t("forms.links.mintFailed", { message: minted.message ?? "" })}
           </Alert>
         )}
-        {revoked.status === "revoked" && <Alert variant="success">{t("forms.links.revoked")}</Alert>}
+        {revoked.status === "revoked" && (
+          <Alert variant="success">{t("forms.links.revoked")}</Alert>
+        )}
         {revoked.status === "error" && (
           <Alert variant="error">
             {t("forms.links.revokeFailed", { message: revoked.message ?? "" })}
@@ -185,11 +187,7 @@ export function SecureLinks({
               value={expiresAt}
               onChange={setExpiresAt}
             />
-            <Checkbox
-              label={t("forms.links.oneTime")}
-              isSelected={oneTime}
-              onChange={setOneTime}
-            />
+            <Checkbox label={t("forms.links.oneTime")} isSelected={oneTime} onChange={setOneTime} />
             <NumberField
               label={t("forms.links.count")}
               description={t("forms.links.countHint", { max: maxBatch })}

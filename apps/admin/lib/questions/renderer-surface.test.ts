@@ -111,7 +111,10 @@ describe("A2UI rendering surface (exit criterion 3)", () => {
     // theme context. Task 058 mounts a theme island on that container, so this asserts
     // the boundary exists and is where the renderer hangs off - not that anything themes
     // it, which 034 deliberately does not do.
-    for (const path of ["components/forms/draft-preview.tsx", "components/forms/version-view.tsx"]) {
+    for (const path of [
+      "components/forms/draft-preview.tsx",
+      "components/forms/version-view.tsx",
+    ]) {
       const module = files.find((file) => file.path === path);
       expect(module, `${path} should be scanned`).toBeDefined();
       const text = stripComments(module!.text);
@@ -126,7 +129,10 @@ describe("A2UI rendering surface (exit criterion 3)", () => {
     // theme knob reaching the preview would be the overshoot it names, so it is asserted
     // against rather than left to review.
     const forbidden = ["qcms-app-mode", "QCMS_PORTAL_THEME", "portalTheme", "setTheme"];
-    for (const path of ["components/forms/draft-preview.tsx", "components/forms/version-view.tsx"]) {
+    for (const path of [
+      "components/forms/draft-preview.tsx",
+      "components/forms/version-view.tsx",
+    ]) {
       const text = stripComments(files.find((file) => file.path === path)?.text ?? "");
       for (const needle of forbidden) {
         expect(text, `${path} must not read ${needle}`).not.toContain(needle);

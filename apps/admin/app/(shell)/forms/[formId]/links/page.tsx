@@ -30,10 +30,7 @@ export default async function FormLinksPage({
   const session = await requireAdminSession();
   const { formId } = await params;
 
-  const [detail, links] = await Promise.all([
-    getForm(session, formId),
-    listLinks(session, formId),
-  ]);
+  const [detail, links] = await Promise.all([getForm(session, formId), listLinks(session, formId)]);
 
   if (!detail.ok) {
     if (detail.code === "FORM_NOT_FOUND" || detail.code === "INVALID_FORM_ID") notFound();

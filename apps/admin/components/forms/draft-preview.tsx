@@ -150,7 +150,9 @@ export function DraftPreview({
         <p className="text-sm text-(--color-text-muted)">{t("forms.preview.explain")}</p>
       </div>
 
-      {draft === null && <p className="text-sm text-(--color-text-muted)">{t("forms.preview.noSteps")}</p>}
+      {draft === null && (
+        <p className="text-sm text-(--color-text-muted)">{t("forms.preview.noSteps")}</p>
+      )}
 
       <div aria-live="polite" className="flex flex-col gap-2">
         {state.status === "loading" && (

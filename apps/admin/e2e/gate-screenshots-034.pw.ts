@@ -113,7 +113,10 @@ for (const mode of CAPTURE_MODES) {
     await waitForSaveAfter(page, beforeBreak);
     await page.reload();
     await page.getByRole("button", { name: "Publish", exact: true }).click();
-    await page.getByRole("alertdialog").getByRole("button", { name: /^Publish v/ }).click();
+    await page
+      .getByRole("alertdialog")
+      .getByRole("button", { name: /^Publish v/ })
+      .click();
     await expect(page.getByTestId("qcms-publish-rejected")).toBeVisible({ timeout: 30_000 });
     await capture(page, `publish-rejected-${mode}`);
 

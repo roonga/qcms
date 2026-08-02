@@ -58,9 +58,7 @@ const CSV_COLUMNS = ["linkId", "url", "expiresAt"] as const;
  */
 export function mintedLinksCsv(links: readonly MintedLink[]): string {
   const header = CSV_COLUMNS.map(csvField).join(",");
-  const rows = links.map((link) =>
-    [link.linkId, link.url, link.expiresAt].map(csvField).join(","),
-  );
+  const rows = links.map((link) => [link.linkId, link.url, link.expiresAt].map(csvField).join(","));
   return [header, ...rows].join("\r\n");
 }
 

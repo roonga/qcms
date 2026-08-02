@@ -375,15 +375,17 @@ test("publish, preview, history and secure links have zero violations", async ({
   await page.keyboard.press("Escape");
 
   await page.goto(`/forms/${formId}/preview`);
-  await expect(page.getByTestId("qcms-draft-preview").getByText("E2E Single choice question")).toBeVisible({
+  await expect(
+    page.getByTestId("qcms-draft-preview").getByText("E2E Single choice question"),
+  ).toBeVisible({
     timeout: 60_000,
   });
   await expectNoViolations(page, "draft preview, first step");
 
   await page.getByTestId("qcms-draft-preview").getByText("Yes, always", { exact: true }).click();
-  await expect(
-    page.getByTestId("qcms-draft-preview").getByText("E2E Number question"),
-  ).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("qcms-draft-preview").getByText("E2E Number question")).toBeVisible(
+    { timeout: 30_000 },
+  );
   await expectNoViolations(page, "draft preview with a branch revealed");
 
   await page.goto(`/forms/${formId}/versions`);
@@ -411,7 +413,11 @@ test("publish, preview, history and secure links have zero violations", async ({
   await expect(page.getByTestId("qcms-links-table")).toBeVisible();
   await expectNoViolations(page, "secure links table");
 
-  await page.getByTestId("qcms-links-table").getByRole("button", { name: "Revoke" }).first().click();
+  await page
+    .getByTestId("qcms-links-table")
+    .getByRole("button", { name: "Revoke" })
+    .first()
+    .click();
   await expect(page.getByRole("alertdialog")).toBeVisible();
   await expectNoViolations(page, "revoke confirmation");
 });

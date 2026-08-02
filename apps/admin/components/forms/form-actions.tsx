@@ -134,14 +134,19 @@ export function FormActions({
 
       <div aria-live="polite" className="flex flex-col gap-2">
         {published.status === "published" && (
-          <Alert variant="success" title={t("forms.publish.published", { version: published.version ?? version })}>
+          <Alert
+            variant="success"
+            title={t("forms.publish.published", { version: published.version ?? version })}
+          >
             <Link className="qcms-text-link" href={`/forms/${encodeURIComponent(formId)}/versions`}>
               {t("forms.publish.viewHistory")}
             </Link>
           </Alert>
         )}
         {published.status === "error" && (
-          <Alert variant="error">{t("forms.publish.failed", { message: published.message ?? "" })}</Alert>
+          <Alert variant="error">
+            {t("forms.publish.failed", { message: published.message ?? "" })}
+          </Alert>
         )}
         {lifecycle.status === "error" && (
           <Alert variant="error">
