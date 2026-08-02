@@ -181,7 +181,7 @@ export function SecureLinks({
             <DatePicker
               label={t("forms.links.expiresAt")}
               description={t("forms.links.expiresAtHint")}
-              granularity="minute"
+              granularity="day"
               value={expiresAt}
               onChange={setExpiresAt}
             />

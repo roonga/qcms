@@ -678,7 +678,8 @@ export const messages = {
   "forms.links.mint": "Mint links",
   "forms.links.mintTitle": "Mint secure links",
   "forms.links.expiresAt": "Expires",
-  "forms.links.expiresAtHint": "After this moment the link stops working, used or not.",
+  "forms.links.expiresAtHint":
+    "The link stops working at the end of this day, used or not.",
   "forms.links.oneTime": "One-time (stops working after the first use)",
   "forms.links.count": "How many",
   "forms.links.countHint": "Up to {max} at a time.",

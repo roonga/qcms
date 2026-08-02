@@ -419,13 +419,28 @@ export async function mintLinksAction(
   }
 
   const result = await mintLinks(session, formId, {
-    expiresAt: request.expiresAt,
+    expiresAt: endOfDay(request.expiresAt),
     oneTime: request.oneTime,
     count,
   });
   if (!result.ok) return { status: "error", message: result.message };
   revalidatePath(`/forms/${formId}/links`);
   return { status: "minted", links: result.data };
+}
+
+/**
+ * Widen a calendar day to the instant it ends.
+ *
+ * The mint dialog asks for a day, because "which day does this stop working" is the
+ * question an author has, and a date picker is the control for it. The API wants an
+ * instant. Taking the **end** of the chosen day rather than its start is the direction that
+ * matches what the author was told: a link dated the 31st works on the 31st.
+ *
+ * A value that already carries a time is passed through untouched, so a future control
+ * with finer granularity needs no change here.
+ */
+function endOfDay(value: string): string {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T23:59:59.999Z` : value;
 }
 
 /** Revoke one link. 018 refuses it from that moment; an in-flight session is unaffected. */
