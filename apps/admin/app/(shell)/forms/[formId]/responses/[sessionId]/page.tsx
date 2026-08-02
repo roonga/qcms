@@ -4,12 +4,13 @@ import { notFound } from "next/navigation";
 import { Alert } from "@/components/kit";
 import { FormPageHeader } from "@/components/forms/form-page-header";
 import { ResponseDetail } from "@/components/ops/response-detail";
+import { TombstoneCard } from "@/components/ops/tombstone-card";
 import { labelsForPins, pinsOf, type QuestionPin } from "@/lib/ops/labels";
 import type { QuestionDetail } from "@/lib/questions/types";
 import { t } from "@/lib/i18n/en";
 import { getForm, getFormVersion } from "@/lib/server/forms";
 import { getQuestion } from "@/lib/server/questions";
-import { getResponse } from "@/lib/server/responses";
+import { getResponse, listErasures } from "@/lib/server/responses";
 import { requireAdminSession } from "@/lib/server/session";
 
 import { eraseSessionAction, unflagResponseAction } from "../../../../responses/actions";
@@ -50,7 +51,15 @@ export default async function ResponseDetailPage({
     return <Alert variant="error">{form.message}</Alert>;
   }
   if (!response.ok) {
-    if (response.code === "RESPONSE_NOT_FOUND") notFound();
+    // A response the API cannot find is usually one that was erased, and this URL is
+    // the one an operator has in a ticket. So the erasure log is consulted before
+    // giving up: a tombstone renders as the tombstone (which is what ADR-17 says the
+    // detail becomes), and only a genuinely unknown session is a 404.
+    const tombstone =
+      response.code === "RESPONSE_NOT_FOUND"
+        ? await findTombstone(session, formId, sessionId)
+        : undefined;
+    if (response.code === "RESPONSE_NOT_FOUND" && tombstone === undefined) notFound();
     return (
       <div className="flex flex-col gap-6">
         <FormPageHeader
@@ -59,7 +68,14 @@ export default async function ResponseDetailPage({
           section="responses"
           status={form.data.status}
         />
-        <Alert variant="error">{t("ops.detail.loadFailed", { message: response.message })}</Alert>
+        <Link className="qcms-text-link" href={`/forms/${encodeURIComponent(formId)}/responses`}>
+          {t("ops.detail.back")}
+        </Link>
+        {tombstone === undefined ? (
+          <Alert variant="error">{t("ops.detail.loadFailed", { message: response.message })}</Alert>
+        ) : (
+          <TombstoneCard tombstone={tombstone} />
+        )}
       </div>
     );
   }
@@ -123,4 +139,20 @@ async function resolveLabels(
     .filter((entry): entry is { ok: true; data: QuestionDetail } => entry.ok)
     .map((entry) => entry.data);
   return { pins, labels: labelsForPins(pins, resolved), failed: false };
+}
+
+/**
+ * The tombstone for one erased session of this form, if there is one.
+ *
+ * Filtered by form at the API rather than fetched whole and searched here: the log is
+ * unbounded over a deployment's lifetime, and this is a lookup, not a listing.
+ */
+async function findTombstone(
+  session: Awaited<ReturnType<typeof requireAdminSession>>,
+  formId: string,
+  sessionId: string,
+) {
+  const erasures = await listErasures(session, formId);
+  if (!erasures.ok) return undefined;
+  return erasures.data.find((row) => row.sessionId === sessionId);
 }

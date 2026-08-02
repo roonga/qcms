@@ -37,6 +37,7 @@ import { createJsonLogger } from "../../../api/src/logger.js";
 
 import {
   API_PORT,
+  FIXED_APP_KEY,
   FIXED_INTERNAL_TOKEN,
   FIXTURES_PATH,
   SERVER_LOG_DIR,
@@ -126,6 +127,10 @@ export async function startApiServer(): Promise<void> {
 
   const env = buildEnv({
     QCMS_INTERNAL_TOKEN: FIXED_INTERNAL_TOKEN,
+    // Fixed rather than generated: the admin operations spec composes its own Deps to
+    // run a delivery pass, and both sides have to decrypt the same webhook secret
+    // (task 035). See FIXED_APP_KEY.
+    QCMS_APP_KEY: FIXED_APP_KEY,
     DATABASE_URL: testDb.connectionUri,
     QCMS_MOUNT: "all",
     // The composed API runs on a FIXED clock, so rate-limit windows never advance

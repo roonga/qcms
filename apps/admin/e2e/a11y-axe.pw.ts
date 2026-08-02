@@ -27,6 +27,7 @@ import {
   toggleTarget,
   waitForSaved,
 } from "./support/forms.js";
+import { deadUrl, submitResponse } from "./support/ops.js";
 import {
   addOption,
   chooseType,
@@ -86,6 +87,10 @@ let totpSecret = "";
 test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
 });
+
+/** The seeded insurance form the operations sweep uses (see `responses-ops.pw.ts`). */
+const OPS_SLUG = "auto";
+const OPS_FORM_ID = "frm_auto_quote";
 
 /** WCAG 2.2 AA, the same rule set the portal gate uses. */
 const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
@@ -429,6 +434,93 @@ test("publish, preview, history and secure links have zero violations", async ({
     timeout: 30_000,
   });
   await expectNoViolations(page, "secure links table with a revoked link");
+});
+
+test("the operations screens have zero violations", async ({ page }) => {
+  // Task 035, exit criterion 5. Eleven states across five screens, and the reason each
+  // is here rather than covered by "the responses page" as one:
+  //
+  //  - Four are **tables whose cells hold badges and buttons**, which is where a name
+  //    is most easily lost, and whose badge tints are a different contrast question in
+  //    each of the three modes (the same lesson 034's revoked chip taught).
+  //  - Three are **dialogs**: an export form, a type-to-confirm erasure with an error
+  //    state, and a destructive confirmation.
+  //  - One is the **one-time secret reveal**, which is an assertive live region.
+  //  - One is a **disclosure inside a table row**, whose panel is a second `<tr>`.
+  //  - One is the **tombstone**, the post-erasure state of a screen that showed answers
+  //    a moment earlier.
+  //
+  // Thirty-three axe runs plus a submission and a webhook, so the budget is generous.
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+
+  // A response to look at, made through the real respondent routes (see support/ops.ts).
+  const sessionId = await submitResponse(OPS_SLUG, [
+    ["q_at_fault_accident", true],
+    ["q_accident_count", 4],
+  ]);
+
+  await page.goto("/responses");
+  await expect(page.getByTestId("qcms-responses-form-list")).toBeVisible();
+  await expectNoViolations(page, "the responses area");
+
+  await page.goto("/responses/erasures");
+  await expect(page.getByRole("heading", { name: "Erasure log" })).toBeVisible();
+  await expectNoViolations(page, "the erasure log");
+
+  await page.goto(`/forms/${OPS_FORM_ID}/responses`);
+  await expect(page.getByTestId("qcms-responses-table")).toBeVisible();
+  await expectNoViolations(page, "the response browser");
+
+  await page.getByRole("button", { name: "Export", exact: true }).click();
+  await expect(page.getByTestId("qcms-export-dialog")).toBeVisible();
+  await expectNoViolations(page, "the export dialog");
+  await page.keyboard.press("Escape");
+
+  await page.goto(`/forms/${OPS_FORM_ID}/responses/${sessionId}`);
+  await expect(page.getByTestId("qcms-response-detail")).toBeVisible();
+  await expectNoViolations(page, "a response detail with its ledger");
+
+  await page.getByRole("button", { name: "Erase respondent data…" }).click();
+  await expect(page.getByTestId("qcms-erase-dialog")).toBeVisible();
+  await expectNoViolations(page, "the erasure confirmation");
+
+  // The invalid state of the confirmation field: an error message wired to an input
+  // inside an alertdialog is a name/description pair axe can actually check.
+  await page
+    .getByTestId("qcms-erase-dialog")
+    .getByRole("textbox", { name: /Type the session id/ })
+    .fill("wrong");
+  await expectNoViolations(page, "the erasure confirmation, mismatched");
+
+  await page
+    .getByTestId("qcms-erase-dialog")
+    .getByRole("textbox", { name: /Type the session id/ })
+    .fill(sessionId);
+  await page.getByRole("button", { name: "Erase permanently" }).click();
+  await expect(page.getByTestId("qcms-tombstone")).toBeVisible({ timeout: 30_000 });
+  await expectNoViolations(page, "the tombstone");
+
+  await page.goto(`/forms/${OPS_FORM_ID}/webhooks`);
+  await expect(page.getByTestId("qcms-webhook-config")).toBeVisible();
+  await expectNoViolations(page, "webhook config with no endpoint");
+
+  await page.getByRole("button", { name: "Add endpoint" }).click();
+  const create = page.getByTestId("qcms-webhook-url-dialog");
+  await expect(create).toBeVisible();
+  await expectNoViolations(page, "the add-endpoint dialog");
+  await create.getByRole("textbox", { name: "Endpoint URL" }).fill(await deadUrl());
+  await create.getByRole("button", { name: "Create endpoint" }).click();
+  await expect(page.getByTestId("qcms-webhook-secret")).toBeVisible({ timeout: 30_000 });
+  await expectNoViolations(page, "the one-time secret reveal");
+
+  await page.getByRole("button", { name: "I have copied it" }).click();
+  await expect(page.getByTestId("qcms-webhooks-table")).toBeVisible();
+  await expectNoViolations(page, "the endpoints table");
+
+  await page.goto("/webhooks");
+  await expect(page.getByRole("heading", { name: "Dead-letter queue" })).toBeVisible();
+  await expectNoViolations(page, "the dead-letter queue");
 });
 
 test("the 2FA challenge and its recovery variant have zero violations", async ({ page }) => {

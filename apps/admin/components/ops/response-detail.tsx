@@ -5,6 +5,7 @@ import { useCallback, useState, useTransition } from "react";
 
 import { Alert, Button, Dialog, Select, TextField } from "@/components/kit";
 import { flagReasonText } from "@/components/ops/ops-tags";
+import { TombstoneCard } from "@/components/ops/tombstone-card";
 import { answerText } from "@/lib/ops/answers";
 import type { ErasureReason } from "@/lib/ops/erasure";
 import { DEFAULT_ERASURE_REASON, ERASURE_REASONS, isErasureConfirmed } from "@/lib/ops/erasure";
@@ -60,9 +61,7 @@ export function ResponseDetail({
     readonly data?: EraseOutcome;
     readonly message?: string;
   }>;
-  readonly unflag: (
-    sessionId: string,
-  ) => Promise<{
+  readonly unflag: (sessionId: string) => Promise<{
     readonly status: "unflagged" | "error";
     readonly released?: boolean;
     readonly message?: string;
@@ -384,34 +383,6 @@ function LedgerTimeline({
           })}
         </ol>
       )}
-    </section>
-  );
-}
-
-/** What remains after erasure. */
-function TombstoneCard({ tombstone }: { readonly tombstone: Tombstone }) {
-  return (
-    <section
-      aria-labelledby="qcms-tombstone-heading"
-      className="qcms-tombstone"
-      data-testid="qcms-tombstone"
-    >
-      <h3 id="qcms-tombstone-heading" className="text-base font-semibold text-(--color-text)">
-        {t("ops.tombstone.title")}
-      </h3>
-      <p className="text-sm text-(--color-text-muted)">{t("ops.tombstone.body")}</p>
-      <dl className="qcms-ops-summary">
-        <dt>{t("ops.tombstone.sessionId")}</dt>
-        <dd>
-          <code className="qcms-link-id">{tombstone.sessionId}</code>
-        </dd>
-        <dt>{t("ops.tombstone.formVersion")}</dt>
-        <dd>v{tombstone.formVersion}</dd>
-        <dt>{t("ops.tombstone.erasedAt")}</dt>
-        <dd>{formatDateTime(tombstone.erasedAt, t("ops.common.none"))}</dd>
-        <dt>{t("ops.tombstone.reason")}</dt>
-        <dd data-testid="qcms-tombstone-reason">{tombstone.reason}</dd>
-      </dl>
     </section>
   );
 }
