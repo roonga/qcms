@@ -332,8 +332,8 @@ test("publish, preview, history and secure links have zero violations", async ({
   //
   // `expectNoViolations` analyses each state in light, dark and high contrast, so twelve
   // states is thirty-six axe runs on top of authoring two questions, building a form and
-  // publishing it. That is why the budget here is far larger than the other sweeps'.
-  test.setTimeout(900_000);
+  // publishing it. Measured at ~50s; the budget is the usual generous multiple of that.
+  test.setTimeout(300_000);
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await signInWithTotp(page, EMAIL, totpSecret);
 

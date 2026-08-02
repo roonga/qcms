@@ -160,9 +160,23 @@ export async function openMenu(trigger: Locator): Promise<void> {
  * the page reports nothing running is the only wait that is actually about the page. The
  * bound exists so an infinite animation cannot hang the suite; it is a safety net, not a
  * timing knob, and hitting it does not fail anything.
+ *
+ * EACH `finished` IS RACED AGAINST A DEADLINE, and that is the other half of the same
+ * safety net (task 034). The round bound above only limits how many times this re-asks; it
+ * does nothing about a single `finished` that never settles, and one of those is enough to
+ * hang the whole suite forever. It is reachable: a CSS transition on an element that stops
+ * being rendered - a mode swap over a page whose modal then hides what it repainted - stays
+ * `running` and never resolves. That state was reproduced on the admin's publish screens
+ * and cost two 15-minute runs before it was recognised as a wait rather than as a slow
+ * page. A transition that has not finished within `MAX_ANIMATION_MS` is one this helper
+ * stops waiting for; every real transition in either app is an order of magnitude shorter
+ * (`duration-200` is the longest), so the race never fires on a healthy page.
  */
+/** How long any one animation may hold up the settle before it is left behind. */
+const MAX_ANIMATION_MS = 1000;
+
 export async function settleTransitions(page: Page): Promise<void> {
-  await page.evaluate(async () => {
+  await page.evaluate(async (maxAnimationMs: number) => {
     // Named rather than inlined into the `new Promise(...)` below: an arrow inside an
     // executor inside a helper inside this callback is five levels of nesting, which
     // `sonarjs/no-nested-functions` rejects.
@@ -172,15 +186,23 @@ export async function settleTransitions(page: Page): Promise<void> {
     const frame = async (): Promise<void> => {
       await new Promise(onNextFrame);
     };
+    // A deadline for one animation, so a `finished` that never settles is left behind
+    // rather than allowed to hang the run.
+    const deadline = async (): Promise<void> => {
+      await new Promise((resolve) => setTimeout(resolve, maxAnimationMs));
+    };
+    const settled = async (animation: Animation): Promise<void> => {
+      await Promise.race([animation.finished.catch(() => undefined), deadline()]);
+    };
     await frame();
     await frame();
     for (let round = 0; round < 5; round += 1) {
       const running = document.getAnimations();
       if (running.length === 0) return;
-      await Promise.all(running.map((animation) => animation.finished.catch(() => undefined)));
+      await Promise.all(running.map(settled));
       await frame();
     }
-  });
+  }, MAX_ANIMATION_MS);
 }
 
 /**
