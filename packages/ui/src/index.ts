@@ -21,5 +21,7 @@ export type {
 
 export { registryForSpecVersion } from "./registry.tsx";
 
+export { documentForVisible } from "./visible.ts";
+
 export { HoneypotSchema } from "./honeypot/honeypot.schema.ts";
 export type { HoneypotNode } from "./honeypot/honeypot.schema.ts";
