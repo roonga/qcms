@@ -82,3 +82,18 @@ One entry per finding: what is wrong, the evidence, and what the edit would be. 
 **Candidate edit.** Add the ordering to the human-gates bullet: a screenshot gate is presented for signature **after** the reviewer's verdict and **in the PR**, never from a branch listing. Note the corollary for conductors: an early tree URL may be offered as an optional look, but it is not the gate, and it should be labelled that way when offered (which is what happened here).
 
 **Related.** Two of the three findings above were caught by looking at gate frames, which is the same argument from the other direction: the frames are evidence, so they have to be reviewed where they are actually looked at.
+
+---
+
+## Executors report fixes they have not verified against their own tree
+
+**Raised:** 2026-08-02, from 034's second review cycle.
+**Status:** queued as an executor-instruction change. The 034 instance is being fixed in cycle 2.
+
+**What happened.** 034's fix report listed two resolutions that did not exist in the branch: the mint dialog's hint was reported as reading "end of this day, UTC" while the catalog string was unchanged (a grep for "UTC" across the whole admin catalog returned nothing), and a "secure links table with a revoked link" axe state was reported as added while the sweep still ended at "revoke confirmation". Both were confirmed absent by the conductor independently before the cycle was dispatched.
+
+**The worse half.** Two source comments asserted the missing copy as fact - `actions.ts` claiming "The zone is UTC and the dialog's hint says so", and a matching note in `format.ts`. A resolution claimed but absent costs one review cycle and is then over. A comment describing copy a sibling file is *supposed* to contain outlives the cycle and makes the next reader confident about something untrue - so the cheapest defect becomes the longest-lived one.
+
+**Why it matters more than a slow cycle.** The only thing standing between this and a bad outcome was that the reviewer reads the tree rather than the report. Had the report been trusted, the Code Owner would have been asked to sign a gate whose evidence contradicted the copy the PR claimed to have. That is the same lesson as holding a screenshot gate until its PR exists: the artifact is the truth, the summary is a claim about it.
+
+**Candidate edit.** Two lines in the task-executor instructions. First: before reporting a fix round complete, grep the diff for each claimed resolution and quote the evidence - a report is a claim about the tree and has to be checked against it. Second: never write a comment describing content another file is supposed to contain; if the comment is only true once a sibling lands, it is not yet true. Consider whether the reviewer's re-verification should be stated as load-bearing in the flow docs, since it is currently the only mechanism that catches this and is not described as serving that purpose.
