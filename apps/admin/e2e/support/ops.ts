@@ -215,7 +215,7 @@ export async function submitSession(session: {
 
 // --- running delivery passes -------------------------------------------------
 
-/** How far each pass advances the clock: past the longest backoff step (6h). */
+/** How far each attempt round advances the clock: past the longest backoff step (6h). */
 const PASS_STRIDE_MS = 7 * 60 * 60 * 1000;
 
 /**
@@ -252,16 +252,28 @@ export function openDeliverer(): {
   let clock = Date.now() + 60 * 60 * 1000;
 
   return {
+    /** One pass at the current clock, without advancing it. */
     async pass(at?: Date) {
       await runDeliveryPass(deps, { now: at ?? new Date(clock) });
     },
     /**
-     * Run `passes` passes, each further past the previous attempt's backoff than the
-     * schedule can require. Ten of them exhaust the retry budget and dead-letter.
+     * Drive every due delivery through `rounds` attempt rounds. Eleven of them exhaust
+     * the ten-attempt retry budget and dead-letter.
+     *
+     * The inner loop is what makes this reliable rather than approximately right. A
+     * pass claims at most `QCMS_WEBHOOK_BATCH_SIZE` deliveries (20), and by the time
+     * the whole browser suite has run there are far more outbox events than that
+     * waiting for this form - so a fixed count of passes gives each delivery some
+     * fraction of an attempt and nothing dead-letters. Running until a pass claims
+     * nothing means "every delivery has had its attempt for this round", which is the
+     * property the round count is counting.
      */
-    async drive(passes: number) {
-      for (let i = 0; i < passes; i += 1) {
-        await runDeliveryPass(deps, { now: new Date(clock) });
+    async drive(rounds: number) {
+      for (let round = 0; round < rounds; round += 1) {
+        for (;;) {
+          const metrics = await runDeliveryPass(deps, { now: new Date(clock) });
+          if (metrics.claimed + metrics.materialized === 0) break;
+        }
         clock += PASS_STRIDE_MS;
       }
     },
@@ -283,4 +295,27 @@ export async function openResponses(page: Page, formId: string): Promise<void> {
 export async function openWebhooks(page: Page, formId: string): Promise<void> {
   await page.goto(`/forms/${formId}/webhooks`);
   await expect(page.getByTestId("qcms-webhook-config")).toBeVisible();
+}
+
+/**
+ * Deactivate every endpoint already configured on a form, through the real controls.
+ *
+ * The suite shares one database across every spec, and an earlier spec may have left an
+ * endpoint on this form (the axe sweep configures one to photograph the secret reveal).
+ * A second active endpoint doubles every fan-out, so a test that counts deliveries would
+ * be counting another spec's as well - and a test that fixes ONE target would then find
+ * half its queue still broken. Deactivating first makes this form's fan-out exactly one
+ * endpoint wide, using the product's own control rather than a database reach-in.
+ */
+export async function deactivateExistingWebhooks(page: Page, formId: string): Promise<void> {
+  await openWebhooks(page, formId);
+  const table = page.getByTestId("qcms-webhooks-table");
+  if ((await table.count()) === 0) return;
+  for (;;) {
+    const deactivate = table.getByRole("button", { name: "Deactivate", exact: true }).first();
+    if ((await deactivate.count()) === 0) return;
+    await deactivate.click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Deactivate it" }).click();
+    await expect(deactivate).toHaveCount(0);
+  }
 }

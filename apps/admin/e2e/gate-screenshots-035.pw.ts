@@ -4,7 +4,12 @@ import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { CAPTURE_ENABLED, CAPTURE_MODES, captureInto } from "./support/capture.js";
 import { ADMIN_BASE_URL } from "./support/harness-config.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
-import { deadUrl, openDeliverer, submitResponse } from "./support/ops.js";
+import {
+  deactivateExistingWebhooks,
+  deadUrl,
+  openDeliverer,
+  submitResponse,
+} from "./support/ops.js";
 
 /**
  * Capture the screenshot set for the task 035 human design gate.
@@ -55,6 +60,8 @@ const capture = captureInto("docs/gates/035");
 
 const SLUG = "auto";
 const FORM_ID = "frm_auto_quote";
+/** A seeded form that never gets an endpoint, so its "none" state stays real. */
+const EMPTY_FORM_ID = "frm_kitchen_sink";
 const ACCIDENT = "q_at_fault_accident";
 const COUNT = "q_accident_count";
 
@@ -135,10 +142,19 @@ for (const mode of CAPTURE_MODES) {
       await expect(page.getByTestId("qcms-erasures-table")).toBeVisible();
       await capture(page, `${mode}-erasure-log`);
 
-      // 8. Webhook config, before anything is configured.
-      await page.goto(`/forms/${FORM_ID}/webhooks`);
-      await expect(page.getByTestId("qcms-webhook-config")).toBeVisible();
+      // 8. Webhook config with nothing configured - shot on a DIFFERENT seeded form,
+      //    and that is the honest way to get this frame. Every mode configures an
+      //    endpoint on the insurance form below, so by the second mode that form's
+      //    "none" state no longer exists, and a frame captured there would be labelled
+      //    `webhooks-none` while showing an endpoint. The kitchen-sink form is seeded
+      //    and never given one, so this state is real in all three modes.
+      await page.goto(`/forms/${EMPTY_FORM_ID}/webhooks`);
+      await expect(page.getByTestId("qcms-webhooks-empty")).toBeVisible();
       await capture(page, `${mode}-webhooks-none`);
+
+      // From here on, the insurance form, with any endpoint an earlier mode left behind
+      // deactivated so the fan-out below is exactly one endpoint wide.
+      await deactivateExistingWebhooks(page, FORM_ID);
 
       // 9. The one-time secret reveal. The endpoint points at a dead port, which is
       //    also what sets up the dead-letter frames below.

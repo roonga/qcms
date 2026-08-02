@@ -1,9 +1,10 @@
-import { expect } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 
 import { test } from "../../portal/e2e/support/gates.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import {
+  deactivateExistingWebhooks,
   deadUrl,
   openDeliverer,
   openResponses,
@@ -51,6 +52,16 @@ let totpSecret = "";
 let erasable = "";
 /** The response whose ledger carries a revision (exit criterion 4). */
 let revised = "";
+/**
+ * The endpoint this spec configures.
+ *
+ * Every row action is scoped to it by `data-webhook-id`. The suite shares one database,
+ * so the endpoints table can hold rows an earlier spec left behind (deactivated by
+ * `deactivateExistingWebhooks`, but still listed - deactivation is soft so the delivery
+ * history survives), and a bare `getByRole("button", { name: "Change URL" })` then
+ * matches every row at once.
+ */
+let opsWebhookId = "";
 
 test.describe.configure({ mode: "serial" });
 
@@ -258,7 +269,9 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     const deliverer = openDeliverer();
     try {
       // 1. Configure an endpoint pointing at nothing. The secret is revealed once.
-      await openWebhooks(page, FORM_ID);
+      //    Any endpoint an earlier spec left on this form is deactivated first, so the
+      //    fan-out is exactly one endpoint wide and the counts below mean what they say.
+      await deactivateExistingWebhooks(page, FORM_ID);
       const broken = await deadUrl();
       await page.getByRole("button", { name: "Add endpoint" }).click();
       const create = page.getByTestId("qcms-webhook-url-dialog");
@@ -271,6 +284,16 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
       const secret = (await page.getByTestId("qcms-webhook-secret-value").textContent()) ?? "";
       expect(secret.length, "a secret was revealed").toBeGreaterThan(0);
       await page.getByRole("button", { name: "I have copied it" }).click();
+
+      // Read the id off the row rather than guessing it, and scope every later action to
+      // it. The row is found by the URL it was just given, which is unique to this spec.
+      opsWebhookId =
+        (await page
+          .getByTestId("qcms-webhooks-table")
+          .locator("tr")
+          .filter({ hasText: broken })
+          .getAttribute("data-webhook-id")) ?? "";
+      expect(opsWebhookId, "the created endpoint owns a row").toMatch(/^whk_/u);
 
       // Reloading proves the reveal was one-time: nothing on the reloaded screen
       // carries the value, because no read route can produce it (SEC-6).
@@ -322,11 +345,11 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
 
       // 4. Fix the target through the UI, then redeliver ONE from the queue.
       await openWebhooks(page, FORM_ID);
-      await page.getByRole("button", { name: "Change URL" }).click();
+      await webhookRow(page).getByRole("button", { name: "Change URL" }).click();
       const retarget = page.getByTestId("qcms-webhook-url-dialog");
       await retarget.getByRole("textbox", { name: "Endpoint URL" }).fill(consumer.url());
       await retarget.getByRole("button", { name: "Save the URL" }).click();
-      await expect(page.getByTestId("qcms-webhooks-table")).toContainText(consumer.url());
+      await expect(webhookRow(page)).toContainText(consumer.url());
 
       await page.goto("/webhooks");
       await page
@@ -390,7 +413,7 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     await signInWithTotp(page, EMAIL, totpSecret);
     await openWebhooks(page, FORM_ID);
 
-    await page.getByRole("button", { name: "Rotate secret" }).click();
+    await webhookRow(page).getByRole("button", { name: "Rotate secret" }).click();
     const rotate = page.getByRole("alertdialog");
     await expect(rotate).toContainText("starts rejecting");
     await rotate.getByRole("button", { name: "Rotate it" }).click();
@@ -401,8 +424,13 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     await page.reload();
     expect(await page.content()).not.toContain(rotated);
 
-    await page.getByRole("button", { name: "Deactivate", exact: true }).click();
+    await webhookRow(page).getByRole("button", { name: "Deactivate", exact: true }).click();
     await page.getByRole("alertdialog").getByRole("button", { name: "Deactivate it" }).click();
-    await expect(page.getByTestId("qcms-webhooks-table")).toContainText("Inactive");
+    await expect(webhookRow(page)).toContainText("Inactive");
   });
 });
+
+/** This spec's endpoint row, by the id read off it when it was created. */
+function webhookRow(page: Page) {
+  return page.getByTestId("qcms-webhooks-table").locator(`tr[data-webhook-id="${opsWebhookId}"]`);
+}
