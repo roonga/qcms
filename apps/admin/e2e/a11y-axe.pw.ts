@@ -33,6 +33,7 @@ import {
   confirmLifecycle,
   createDraft,
   field,
+  fillDate,
   optionIds,
 } from "./support/questions.js";
 
@@ -316,6 +317,118 @@ test("the form builder and the condition editor have zero violations", async ({ 
   await page.getByText("Rule test bench").click();
   await toggleCheckbox(page, "Require a challenge before answering", true);
   await expectNoViolations(page, "settings panel and rule test bench open");
+});
+
+test("publish, preview, history and secure links have zero violations", async ({
+  page,
+  context,
+}) => {
+  // Task 034, exit criterion 5. Six of these states do not exist on first render and four
+  // of them are dialogs, which is where an accessible name is most easily lost: a
+  // confirmation whose body is its `description`, a mint form inside a non-alert dialog, a
+  // panel of one-time URLs, and a destructive confirm. The preview and the version view are
+  // the shared renderer inside an admin page, so this is also the only place the two
+  // stylesheets meet - exactly the pair a contrast rule should be run against.
+  //
+  // `expectNoViolations` analyses each state in light, dark and high contrast, so twelve
+  // states is thirty-six axe runs on top of authoring two questions, building a form and
+  // publishing it. Measured at ~50s; the budget is the usual generous multiple of that.
+  test.setTimeout(300_000);
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await signInWithTotp(page, EMAIL, totpSecret);
+
+  const run = Date.now().toString(36);
+  const choiceSlug = `a11y-pub-choice-${run}`;
+  const countSlug = `a11y-pub-count-${run}`;
+  await createDraft(page, choiceSlug, "Single choice");
+  await confirmLifecycle(page, /^Publish version 1$/, "Publish");
+  const choiceOption = (await optionIds(page))[0] ?? "";
+  await createDraft(page, countSlug, "Number");
+  await confirmLifecycle(page, /^Publish version 1$/, "Publish");
+
+  const choiceId = `q_${choiceSlug.replaceAll("-", "_")}`;
+  const countId = `q_${countSlug.replaceAll("-", "_")}`;
+
+  const formId = await createForm(page, `a11y-pub-form-${run}`, "Publish sweep form");
+  await addStep(page, "Cover");
+  await pinQuestion(page, choiceId, 1);
+  await pinQuestion(page, countId, 1);
+  const ruleId = await addRule(page);
+  const scope = rule(page, ruleId);
+  await chooseOption(scope, "Operator", "equals (the whole answer)");
+  await chooseOption(scope, "Value", choiceOption);
+  await toggleTarget(page, ruleId, countId, true);
+  await waitForSaved(page);
+  await page.reload();
+
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await expect(page.getByRole("alertdialog")).toBeVisible();
+  await expectNoViolations(page, "publish confirmation");
+  await page.getByRole("alertdialog").getByRole("button", { name: "Publish v1" }).click();
+  await expect(page.getByText("Published as v1.")).toBeVisible({ timeout: 30_000 });
+  await expectNoViolations(page, "publish success");
+
+  // The close confirmation, whose whole body is the R1 explanation.
+  await page.getByRole("button", { name: "Close form" }).click();
+  await expect(page.getByRole("alertdialog")).toBeVisible();
+  await expectNoViolations(page, "close-form confirmation");
+  await page.keyboard.press("Escape");
+
+  await page.goto(`/forms/${formId}/preview`);
+  await expect(
+    page.getByTestId("qcms-draft-preview").getByText("E2E Single choice question"),
+  ).toBeVisible({
+    timeout: 60_000,
+  });
+  await expectNoViolations(page, "draft preview, first step");
+
+  await page.getByTestId("qcms-draft-preview").getByText("Yes, always", { exact: true }).click();
+  await expect(page.getByTestId("qcms-draft-preview").getByText("E2E Number question")).toBeVisible(
+    { timeout: 30_000 },
+  );
+  await expectNoViolations(page, "draft preview with a branch revealed");
+
+  await page.goto(`/forms/${formId}/versions`);
+  await expect(page.getByRole("grid", { name: "Published versions" })).toBeVisible();
+  await expectNoViolations(page, "version history");
+
+  await page.getByRole("link", { name: "View v1" }).click();
+  await expect(page.getByTestId("qcms-version-view")).toBeVisible({ timeout: 60_000 });
+  await expectNoViolations(page, "one published version, rendered from storage");
+
+  await page.goto(`/forms/${formId}/links`);
+  await expect(page.getByTestId("qcms-links-empty")).toBeVisible();
+  await expectNoViolations(page, "secure links, none minted");
+
+  await page.getByRole("button", { name: "Mint links" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expectNoViolations(page, "mint dialog");
+
+  await fillDate(page, "Expires", "12312030");
+  await page.getByRole("dialog").getByRole("button", { name: "Mint", exact: true }).click();
+  await expect(page.getByTestId("qcms-minted-links")).toBeVisible({ timeout: 30_000 });
+  await expectNoViolations(page, "minted links, shown once");
+
+  await page.getByTestId("qcms-minted-links").getByRole("button", { name: "Done" }).click();
+  await expect(page.getByTestId("qcms-links-table")).toBeVisible();
+  await expectNoViolations(page, "secure links table");
+
+  await page
+    .getByTestId("qcms-links-table")
+    .getByRole("button", { name: "Revoke" })
+    .first()
+    .click();
+  await expect(page.getByRole("alertdialog")).toBeVisible();
+  await expectNoViolations(page, "revoke confirmation");
+
+  // The revoked chip carries a different token pair from the active one, so it is a
+  // different contrast question in all three modes - and until this state was swept,
+  // Active was the only one of the four chip states the gate had ever measured.
+  await page.getByRole("alertdialog").getByRole("button", { name: "Revoke it" }).click();
+  await expect(page.getByTestId("qcms-links-table").getByText("Revoked")).toBeVisible({
+    timeout: 30_000,
+  });
+  await expectNoViolations(page, "secure links table with a revoked link");
 });
 
 test("the 2FA challenge and its recovery variant have zero violations", async ({ page }) => {

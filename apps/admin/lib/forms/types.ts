@@ -223,3 +223,85 @@ export interface PinnableVersion {
   readonly status: QuestionStatus;
   readonly definition: QuestionDefinitionView;
 }
+
+// --- publish, preview, versions and secure links (task 034) -----------------
+
+/**
+ * One compiled A2UI step document.
+ *
+ * `root` stays `unknown` on the way through this app on purpose: the node tree is
+ * opaque to the API's schema and to this BFF alike, and the renderer's registry is the
+ * only thing that knows what a node means. It is narrowed exactly once, at the renderer
+ * (`@qcms/ui`'s own `A2UIStepDocument`), which is where that knowledge lives.
+ */
+export interface CompiledStep {
+  readonly stepId: string;
+  readonly root: unknown;
+}
+
+/** The forward-pass projection (ADR-16) the preview endpoint returns with the documents. */
+export interface PreviewFlow {
+  readonly visibleSteps: readonly string[];
+  readonly visibleQuestions: readonly string[];
+  readonly complete: boolean;
+}
+
+/**
+ * `POST /admin/forms/{id}/draft/preview` (034): the dry-run compile of the draft on the
+ * author's screen, plus the visible set for the answers they walked in with.
+ *
+ * It is the same pair the portal's serve-step hands a respondent, which is what lets the
+ * preview pane project and render through the identical shared code (ARCHITECTURE §6).
+ * Nothing here is stored: ADR-18's audit copy is written only by publish.
+ */
+export interface DraftPreview {
+  readonly documents: readonly CompiledStep[];
+  readonly compilerVersion: string;
+  readonly a2uiSpecVersion: string;
+  readonly flow: PreviewFlow;
+}
+
+/**
+ * `GET /admin/forms/{id}/versions/{v}` (034): one frozen version, whole.
+ *
+ * `documents` is the **stored** compiled A2UI, read out of the version's JSONB. History
+ * renders that copy and never a recompilation, because the audit promise is "this is
+ * what the respondent saw" and a recompile could only ever weaken it (ADR-18, R1).
+ */
+export interface FormVersionSnapshot {
+  readonly formId: string;
+  readonly version: number;
+  readonly publishedAt: string;
+  readonly compilerVersion: string;
+  readonly a2uiSpecVersion: string;
+  readonly semanticsVersion: string;
+  readonly definition: unknown;
+  readonly documents: readonly CompiledStep[];
+}
+
+/** A secure link's lifecycle state, as the API derives it (024). */
+export type LinkState = "active" | "consumed" | "expired" | "revoked";
+
+/** One row of `GET /admin/forms/{id}/links`. The token itself is never stored or listed. */
+export interface SecureLink {
+  readonly linkId: string;
+  readonly state: LinkState;
+  readonly oneTime: boolean;
+  readonly expiresAt: string;
+  readonly consumedAt: string | null;
+  readonly revokedAt: string | null;
+  readonly createdAt: string;
+}
+
+/**
+ * One freshly minted link.
+ *
+ * `url` carries the signed token and exists **only in this response**: the API mints it,
+ * never persists it, and cannot show it again. That is why the mint result list is a
+ * distinct screen state with copy and CSV export on it, rather than a row in the table.
+ */
+export interface MintedLink {
+  readonly linkId: string;
+  readonly url: string;
+  readonly expiresAt: string;
+}

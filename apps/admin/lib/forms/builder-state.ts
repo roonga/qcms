@@ -1,4 +1,4 @@
-import type { FormIssue, FormSettings } from "./types.ts";
+import type { DraftPreview, FormIssue, FormSettings, MintedLink } from "./types.ts";
 
 /**
  * What each form-builder mutation reports back to the screen (task 033).
@@ -80,3 +80,68 @@ export interface PreviewConditionState {
 }
 
 export const IDLE_PREVIEW: PreviewConditionState = { status: "idle" };
+
+// --- publish, preview, lifecycle and secure links (task 034) ----------------
+
+/**
+ * The publish attempt's result.
+ *
+ * `rejected` is a first-class status rather than a flavour of `error`, because the two ask
+ * different things of the screen: an `error` is a sentence, while a `rejected` publish is
+ * a work list - every issue the kernel raised, each one anchored to the rule, step or pin
+ * that caused it, and nothing persisted.
+ */
+export interface PublishState {
+  readonly status: "idle" | "published" | "rejected" | "error";
+  readonly version?: number;
+  readonly publishedAt?: string;
+  readonly issues?: readonly FormIssue[];
+  readonly message?: string;
+}
+
+export const IDLE_PUBLISH: PublishState = { status: "idle" };
+
+/**
+ * The draft preview's result: the compiled documents plus the visible set for the answers
+ * that were sent, or the issues that stop the draft compiling at all.
+ */
+export interface DraftPreviewState {
+  readonly status: "idle" | "loading" | "ok" | "rejected" | "error";
+  readonly preview?: DraftPreview;
+  readonly issues?: readonly FormIssue[];
+  readonly message?: string;
+}
+
+export const IDLE_DRAFT_PREVIEW: DraftPreviewState = { status: "idle" };
+
+/** Close/reopen. The screen re-reads the form afterwards; this only reports the outcome. */
+export interface FormStatusState {
+  readonly status: "idle" | "changed" | "error";
+  readonly formStatus?: "open" | "closed";
+  readonly message?: string;
+}
+
+export const IDLE_FORM_STATUS: FormStatusState = { status: "idle" };
+
+/**
+ * A mint result.
+ *
+ * The URLs live here and nowhere else for as long as the screen is open: the API stores a
+ * link's state and never its token, so this is the only moment they can be copied.
+ */
+export interface MintLinksState {
+  readonly status: "idle" | "minted" | "error";
+  readonly links?: readonly MintedLink[];
+  readonly message?: string;
+}
+
+export const IDLE_MINT: MintLinksState = { status: "idle" };
+
+/** A revoke attempt. */
+export interface RevokeLinkState {
+  readonly status: "idle" | "revoked" | "error";
+  readonly linkId?: string;
+  readonly message?: string;
+}
+
+export const IDLE_REVOKE: RevokeLinkState = { status: "idle" };

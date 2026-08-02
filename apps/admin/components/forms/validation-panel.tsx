@@ -82,7 +82,22 @@ function saveSummary(status: BuilderStatus, lastSavedAt: string | undefined): st
   return t("forms.save.idle");
 }
 
-function IssueEntry({ issue, draft }: { readonly issue: FormIssue; readonly draft: DraftForm }) {
+/**
+ * One issue, rendered as a link into the builder when its path resolves to something on
+ * screen and as plain text when it does not.
+ *
+ * Exported because 034's publish-rejection list is the same object in a different place:
+ * the issues a publish refuses on are the issues validate reports, and an author should
+ * not meet two different renderings of the same sentence depending on which button they
+ * pressed.
+ */
+export function IssueEntry({
+  issue,
+  draft,
+}: {
+  readonly issue: FormIssue;
+  readonly draft: DraftForm;
+}) {
   const anchor = anchorFor(issue, draft);
   const where = locationOf(issue);
   const body = (

@@ -352,8 +352,6 @@ export const messages = {
   "forms.builder.draftSource.none": "Nothing has been drafted or published for this form yet.",
   "forms.builder.formTitle": "Form title",
   "forms.builder.formTitleHint": "Shown to a respondent. Saved with the draft.",
-  "forms.builder.publish": "Publish",
-  "forms.builder.publishNote": "Publishing is task 034. A draft with issues cannot be published.",
   "forms.builder.seeded":
     "This draft was started from the newest published version and has not been saved yet. Your first change stores it.",
   "forms.builder.concurrent":
@@ -566,9 +564,209 @@ export const messages = {
   "forms.error.unknownCreate": "The form could not be created. Try again.",
   "forms.error.listFailed": "The form library could not be loaded. {message}",
   "forms.error.libraryFailed": "The question library could not be loaded. {message}",
+
+  // --- publish, preview, version history, secure links (task 034) -----------
+  //
+  // Two wording constraints run through this whole block and are not stylistic.
+  //
+  // R1 is taught, never assumed. Publishing, closing and reopening all change what
+  // happens to *new* sessions and never to in-flight ones, and an author who does not
+  // know that will read "close" as "stop everything". Every one of those three controls
+  // says what happens to sessions already under way.
+  //
+  // A secure-link URL is shown exactly once. The API stores a state row and never the
+  // token, so it genuinely cannot be shown again - the copy says so at the moment it
+  // matters rather than leaving an operator to discover it.
+
+  "forms.tab.label": "Form sections",
+  "forms.tab.builder": "Builder",
+  "forms.tab.preview": "Preview",
+  "forms.tab.versions": "History",
+  "forms.tab.links": "Links",
+
+  "forms.publish.action": "Publish",
+  "forms.publish.title": "Publish {slug}?",
+  // Assembled from three counted phrases rather than written as one sentence with three
+  // numbers in it, because "Freezes 1 steps, 1 pinned questions, 1 rules." is what the
+  // single-sentence version says on a small form - and a small form is what an author
+  // publishes first. `tPlural` picks the form; the sentence just joins them.
+  "forms.publish.freezes": "Freezes {steps}, {pins}, {rules}.",
+  "forms.publish.freezes.steps.one": "1 step",
+  "forms.publish.freezes.steps.other": "{count} steps",
+  "forms.publish.freezes.pins.one": "1 pinned question",
+  "forms.publish.freezes.pins.other": "{count} pinned questions",
+  "forms.publish.freezes.rules.one": "1 rule",
+  "forms.publish.freezes.rules.other": "{count} rules",
+  "forms.publish.sessions":
+    "New sessions get v{version}. Sessions already under way finish on the version they started (R1).",
+  "forms.publish.immutable":
+    "A published version is never edited. Your next change starts a fresh draft, seeded from this one.",
+  "forms.publish.confirm": "Publish v{version}",
+  "forms.publish.cancel": "Cancel",
+  "forms.publish.pending": "Publishing...",
+  "forms.publish.noDraft": "There is nothing to publish: this form has no draft.",
+  "forms.publish.blocked": "This draft cannot be published yet.",
+  "forms.publish.blockedCount": "{count} issues block publishing. Each one links to its cause.",
+  "forms.publish.goToIssue": "Go to",
+  "forms.publish.published": "Published as v{version}.",
+  "forms.publish.viewHistory": "View version history",
+  "forms.publish.failed": "The form was not published. {message}",
+
+  "forms.lifecycle.close": "Close form",
+  "forms.lifecycle.reopen": "Reopen form",
+  "forms.lifecycle.closeTitle": "Close {slug} to new sessions?",
+  "forms.lifecycle.closeBody":
+    "No one can start this form after it closes. Sessions already under way keep going and finish on the version they pinned (R1); their answers are unaffected.",
+  "forms.lifecycle.reopenTitle": "Reopen {slug}?",
+  "forms.lifecycle.reopenBody": "New sessions can start again, on the newest published version.",
+  "forms.lifecycle.confirmClose": "Close it",
+  "forms.lifecycle.confirmReopen": "Reopen it",
+  "forms.lifecycle.cancel": "Cancel",
+  "forms.lifecycle.pending": "Working...",
+  "forms.lifecycle.failed": "The form status did not change. {message}",
+  "forms.lifecycle.closedNote":
+    "This form is closed. New sessions are refused; in-flight sessions finish normally.",
+
+  "forms.preview.heading": "Preview",
+  "forms.preview.banner": "Preview - not published",
+  "forms.preview.explain":
+    "This is your draft compiled and rendered through the same renderer a respondent uses. Answer the questions to walk your own branches. Nothing here is saved.",
+  "forms.preview.stepOf": "Step {index} of {total}: {title}",
+  "forms.preview.previous": "Previous step",
+  "forms.preview.next": "Next step",
+  "forms.preview.reset": "Reset answers",
+  "forms.preview.loading": "Compiling the draft...",
+  "forms.preview.unavailable": "This draft cannot be previewed yet.",
+  "forms.preview.unavailableHint":
+    "A preview of a draft that publish would refuse would be a promise about what a respondent sees that publish will not keep. Fix these first.",
+  "forms.preview.failed": "The preview could not be loaded. {message}",
+  "forms.preview.emptyStep": "Nothing on this step is visible for the answers so far.",
+  "forms.preview.noSteps": "This draft has no steps to preview yet.",
+  "forms.preview.complete": "Every required question on every visible step is answered.",
+  "forms.preview.stamps": "Compiler {compilerVersion} · A2UI spec {a2uiSpecVersion}",
+
+  "forms.history.heading": "Version history",
+  "forms.history.intro":
+    "Every published version, frozen exactly as it was. Viewing one renders the compiled documents stored at publish time, which is what respondents on that version saw (ADR-18).",
+  "forms.history.empty": "This form has never been published.",
+  "forms.history.table": "Published versions",
+  "forms.history.column.version": "Version",
+  "forms.history.column.publishedAt": "Published",
+  "forms.history.column.compilerVersion": "Compiler",
+  "forms.history.column.a2uiSpecVersion": "A2UI spec",
+  "forms.history.column.semanticsVersion": "Semantics",
+  "forms.history.view": "View v{version}",
+  "forms.history.viewing": "Viewing v{version}",
+  "forms.history.stored":
+    "Rendered from the compiled documents stored with v{version}. Nothing was recompiled.",
+  "forms.history.readOnly": "Read only: a published version is never edited (R1).",
+  "forms.history.backToHistory": "Back to version history",
+  "forms.history.stepOf": "Step {index} of {total}: {title}",
+  "forms.history.failed": "That version could not be loaded. {message}",
+  "forms.history.compare": "Compare",
+  "forms.history.clearCompare": "Clear comparison",
+  "forms.history.olderLabel": "Older version",
+  "forms.history.newerLabel": "Newer version",
+  "forms.history.compareNone": "Pick two versions to compare their definitions.",
+  "forms.history.compareHeading": "v{older} compared with v{newer}",
+  "forms.history.compareIdentical": "These two definitions are identical.",
+  "forms.history.compareCounts": "{added} lines added, {removed} lines removed.",
+  "forms.history.compareTooLarge":
+    "These definitions are too large to compare line by line on screen.",
+  "forms.history.compareRowAdded": "Added",
+  "forms.history.compareRowRemoved": "Removed",
+  "forms.history.compareRowSame": "Unchanged",
+
+  "forms.links.heading": "Secure links",
+  "forms.links.intro":
+    "A secure link is a signed, expiring invitation to one form. Mint them here, hand them out, and revoke any that should stop working.",
+  "forms.links.needsPublish":
+    "Publish this form before minting links: a link opens the newest published version, and there is not one yet.",
+  "forms.links.mint": "Mint links",
+  "forms.links.mintTitle": "Mint secure links",
+  "forms.links.expiresAt": "Expires",
+  // The zone is named here because this is where the promise is made. The instant stored
+  // is the end of the chosen day in UTC (`endOfDay` in the forms actions), and the links
+  // table renders every timestamp in the same zone - so an operator who is not on UTC
+  // would otherwise be told a day and given one up to fourteen hours away from it.
+  "forms.links.expiresAtHint": "The link stops working at the end of this day, UTC, used or not.",
+  "forms.links.oneTime": "One-time (stops working after the first use)",
+  "forms.links.count": "How many",
+  "forms.links.countHint": "Up to {max} at a time.",
+  "forms.links.confirmMint": "Mint",
+  "forms.links.pending": "Minting...",
+  "forms.links.cancel": "Cancel",
+  "forms.links.mintFailed": "No links were minted. {message}",
+  "forms.links.mintedTitle.one": "1 link minted",
+  "forms.links.mintedTitle.other": "{count} links minted",
+  "forms.links.mintedOnce":
+    "Copy these now. The server stores a link's state, never its token, so these URLs cannot be shown again.",
+  "forms.links.copy": "Copy URL",
+  "forms.links.copied": "Link copied to the clipboard.",
+  "forms.links.copyFailed": "The link could not be copied. Select the text and copy it manually.",
+  "forms.links.exportCsv": "Download as CSV",
+  "forms.links.dismissMinted": "Done",
+  "forms.links.table": "Secure links",
+  "forms.links.column.linkId": "Link",
+  "forms.links.column.state": "State",
+  "forms.links.column.oneTime": "One-time",
+  "forms.links.column.expiresAt": "Expires",
+  "forms.links.column.createdAt": "Minted",
+  "forms.links.column.usedAt": "Used",
+  "forms.links.empty": "No links have been minted for this form.",
+  "forms.links.yes": "Yes",
+  "forms.links.no": "No",
+  "forms.links.none": "-",
+  "forms.links.state.active": "Active",
+  "forms.links.state.consumed": "Used",
+  "forms.links.state.expired": "Expired",
+  "forms.links.state.revoked": "Revoked",
+  "forms.links.revoke": "Revoke",
+  "forms.links.revokeTitle": "Revoke this link?",
+  "forms.links.revokeBody":
+    "The link stops working immediately and cannot be restored. A session already started with it finishes normally (R1).",
+  "forms.links.confirmRevoke": "Revoke it",
+  "forms.links.revoked": "That link is revoked.",
+  "forms.links.revokeFailed": "The link was not revoked. {message}",
+  "forms.links.listFailed": "The links could not be loaded. {message}",
+
+  "forms.error.invalidLinkId": "That is not a valid link.",
+  "forms.error.linkNotFound": "That link no longer exists, or it is already revoked.",
+  "forms.error.linkExpiryInvalid": "Pick an expiry in the future.",
+  "forms.error.invalidLinkBatch": "Ask for between 1 and {max} links.",
+  "forms.error.noDraft": "There is no draft to publish.",
+  "forms.error.publishRejected": "The draft cannot be published yet. The reasons are listed below.",
+  "forms.error.previewRejected": "The draft cannot be previewed yet. The reasons are listed below.",
+  // The rules-would-not-evaluate case, which has nothing to list. It exists so the
+  // sentence above can keep promising a list: a code that carries no issues gets its own
+  // copy rather than borrowing one that describes a screen the author is not looking at.
+  "forms.error.previewUnavailable":
+    "This draft compiled, but its rules could not be evaluated for the answers entered. Reset the answers to start again.",
+  "forms.error.versionNotFound": "That version does not exist.",
 } as const;
 
 export type MessageKey = keyof typeof messages;
+
+/**
+ * Resolve a counted message, picking the singular or the plural form.
+ *
+ * Both keys are passed in rather than assembled from a base string, so a missing form is a
+ * type error here instead of a `undefined` rendered to an operator. `count` is substituted
+ * as `{count}` on top of any other parameters.
+ *
+ * English has two forms, which is what this covers. A locale with more (Polish has four,
+ * Arabic six) needs `Intl.PluralRules` to choose between a wider key set - a change to this
+ * one function and to the catalog, which is exactly the seam ADR-27 asks for and the reason
+ * the plural choice does not live at the call sites.
+ */
+export function tPlural(
+  one: MessageKey,
+  other: MessageKey,
+  count: number,
+  params?: Readonly<Record<string, string | number>>,
+): string {
+  return t(count === 1 ? one : other, { ...params, count });
+}
 
 /** Resolve a message, substituting `{name}` placeholders. */
 export function t(key: MessageKey, params?: Readonly<Record<string, string | number>>): string {

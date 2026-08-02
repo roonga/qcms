@@ -77,6 +77,29 @@ export const PreviewConditionBody = z
   .openapi("PreviewConditionBody");
 
 /**
+ * `POST /admin/forms/:id/draft/preview` - the live draft preview (034).
+ *
+ * The unsaved draft travels with the request, exactly as it does for validate and
+ * for the rule test bench, so the preview shows the definition on the author's
+ * screen rather than the last one persisted.
+ *
+ * `answers` is the author's walk-through state: a `questionId -> AnswerValue` map
+ * they built by clicking through their own branches. It is answer-shaped, so it
+ * is handled under the answer rules (SEC-13 / ADR-34): never logged, never
+ * persisted, never echoed back in a response or an error message. It is optional
+ * because the first render of the pane has no answers yet.
+ */
+export const PreviewDraftBody = z
+  .object({
+    definition: OpaqueDefinition,
+    answers: z
+      .record(z.string(), z.unknown())
+      .optional()
+      .openapi({ description: "Walk-through answers, keyed by questionId (never logged)." }),
+  })
+  .openapi("PreviewDraftBody");
+
+/**
  * The longest min-time floor a form may set, in milliseconds (one hour).
  *
  * An input guard, not a domain rule: the floor exists to make a bot's instant
@@ -268,6 +291,39 @@ export const ValidateDraftResponse = z
     issues: z.array(PublishIssue),
   })
   .openapi("ValidateDraftResponse");
+
+/**
+ * `POST /admin/forms/:id/draft/preview`: the dry-run compile of the draft (034).
+ *
+ * The payload is 011's `CompiledForm` (documents + both version stamps) plus the
+ * forward-pass projection for the answers that came with the request. It is the
+ * same pair of things the portal's serve-step hands a respondent - full compiled
+ * document, authoritative visible set - which is what lets the admin project and
+ * render it through exactly the portal's code path (ARCHITECTURE §6).
+ *
+ * Nothing here is persisted and nothing recompiles at serve time: this is the
+ * admin-side dry run, and ADR-18's stored audit copy is written only by publish.
+ */
+export const PreviewDraftResponse = z
+  .object({
+    /** One compiled A2UI document per step, in the draft's own step order. */
+    documents: z.array(
+      z.object({
+        stepId: z.string().openapi({ example: "stp_driver" }),
+        /** The A2UI node tree, opaque here: the renderer's registry reads it. */
+        root: z.unknown(),
+      }),
+    ),
+    compilerVersion: z.string().openapi({ example: "0.1.0" }),
+    a2uiSpecVersion: z.string().openapi({ example: "0.1.0" }),
+    /** The forward-pass result (ADR-16) for the supplied answers. */
+    flow: z.object({
+      visibleSteps: z.array(z.string()),
+      visibleQuestions: z.array(z.string()),
+      complete: z.boolean(),
+    }),
+  })
+  .openapi("PreviewDraftResponse");
 
 /** `POST /admin/forms/:id/publish`: the new version and when it was frozen. */
 export const PublishedResponse = z

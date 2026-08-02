@@ -201,6 +201,30 @@ export async function waitForSaved(page: Page): Promise<void> {
   await expect(page.getByTestId("qcms-save-state")).toContainText(/^Saved /, { timeout: 30_000 });
 }
 
+/** The save indicator's current sentence, so a caller can wait for it to CHANGE. */
+export function saveState(page: Page): Locator {
+  return page.getByTestId("qcms-save-state");
+}
+
+/**
+ * Wait for a NEW autosave to land, given the indicator's text from before the edit.
+ *
+ * `waitForSaved` on its own is not enough after an edit, and 034's gate capture is where
+ * that stopped being theoretical: "Saved 10:14:02" is already on screen from the previous
+ * save, so it returns immediately and the caller races the round trip it meant to wait
+ * for. Publishing straight afterwards then freezes - or refuses to freeze - the PREVIOUS
+ * draft, which reads as a bug in publish rather than as a test that jumped the queue.
+ *
+ * Waiting for the validation panel instead does not fix it either: validate is a separate
+ * debounced call, so the panel can report the engine's verdict on a document the server
+ * has not been given. The indicator carries a clock time with seconds, so a *different*
+ * sentence is the one signal that another save completed.
+ */
+export async function waitForSaveAfter(page: Page, previous: string): Promise<void> {
+  await expect(saveState(page)).not.toHaveText(previous, { timeout: 30_000 });
+  await waitForSaved(page);
+}
+
 /** The issue summary the validation panel announces. */
 export function issueSummary(page: Page): Locator {
   return page.getByTestId("qcms-issue-summary");

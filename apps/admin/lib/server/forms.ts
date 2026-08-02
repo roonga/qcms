@@ -1,18 +1,22 @@
 import type { PreviewOutcome, PreviewReason } from "../forms/builder-state.ts";
-import { messageForFormCode } from "../forms/errors.ts";
 import { parseIssues } from "../forms/issues.ts";
 import type {
+  CompiledStep,
   DraftForm,
+  DraftPreview,
   FormDetail,
   FormIssue,
   FormListItem,
   FormSettings,
+  FormVersionSnapshot,
   FormVersionSummary,
   PinnableQuestion,
 } from "../forms/types.ts";
 import type { QuestionDetail, QuestionListItem } from "../questions/types.ts";
 
 import { adminApiFetch } from "./api.ts";
+import type { ApiResult } from "./api-result.ts";
+import { readResult as read } from "./api-result.ts";
 import type { AdminSession } from "./session.ts";
 
 /**
@@ -26,8 +30,9 @@ import type { AdminSession } from "./session.ts";
  *
  * Two normalisations happen here, and both are presentation rather than authority:
  *
- * - **`ApiResult`**, the shape `questions.ts` already settled on, so every screen has one
- *   error shape to render instead of re-deriving the API's two envelopes.
+ * - **`ApiResult`**, the shape `questions.ts` settled on and `api-result.ts` now owns, so
+ *   every screen has one error shape to render instead of re-deriving the API's two
+ *   envelopes.
  * - **Reading the `unknown`s.** The route schemas type `draft` and `issues[]` as
  *   `unknown`, because the kernel owns those shapes and the API declines to restate them.
  *   A screen still has to render them, so they are read into the view types here, in one
@@ -35,44 +40,7 @@ import type { AdminSession } from "./session.ts";
  *   rather than dropped.
  */
 
-/** Success carries the parsed payload; failure carries the API's code and its issues. */
-export type ApiResult<T> =
-  | { readonly ok: true; readonly data: T }
-  | {
-      readonly ok: false;
-      readonly code: string;
-      readonly message: string;
-      readonly issues: readonly FormIssue[];
-    };
-
-/**
- * Read a non-2xx into the failure shape.
- *
- * Two envelopes exist and both have to be survivable, exactly as `questions.ts` records:
- * the API's own errors are `{ error: { code, message, details } }`, while a request that
- * fails a route's Zod schema before any handler runs is answered by the validator
- * middleware with a body carrying no `code` at all. `details.issues` is where a 422 puts
- * the kernel's `PublishError[]`, so a rejected save arrives with the same issue list a
- * successful one would have carried and the panel renders it the same way.
- */
-async function readFailure(response: Response): Promise<ApiResult<never>> {
-  const body: unknown = await response.json().catch(() => undefined);
-  const envelope = (body as { error?: { code?: unknown; details?: unknown } } | undefined)?.error;
-  const code = typeof envelope?.code === "string" ? envelope.code : `http_${response.status}`;
-  const details = envelope?.details as { issues?: unknown } | undefined;
-  return {
-    ok: false,
-    code,
-    message: messageForFormCode(code),
-    issues: parseIssues(details?.issues),
-  };
-}
-
-/** Parse a 2xx body, or normalise the failure. */
-async function read<T>(response: Response): Promise<ApiResult<T>> {
-  if (!response.ok) return readFailure(response);
-  return { ok: true, data: (await response.json()) as T };
-}
+export type { ApiResult };
 
 // --- the form library -------------------------------------------------------
 
@@ -233,6 +201,132 @@ export async function previewCondition(
   };
 }
 
+// --- publish, preview, versions and lifecycle (task 034) --------------------
+
+/**
+ * `POST /admin/forms/{id}/publish` - freeze a version.
+ *
+ * The failure this screen exists to render is a 422 whose `details.issues` is the
+ * kernel's `PublishError[]` verbatim, which `readFailure` already lifts into
+ * `result.issues`. Nothing is decided here and nothing is filtered: publish either
+ * happened, or the author gets every reason it did not.
+ */
+export async function publishForm(
+  session: AdminSession,
+  formId: string,
+): Promise<ApiResult<{ readonly version: number; readonly publishedAt: string }>> {
+  const result = await read<{ version?: unknown; publishedAt?: unknown }>(
+    await adminApiFetch(session, `/forms/${encodeURIComponent(formId)}/publish`, {
+      method: "POST",
+    }),
+  );
+  if (!result.ok) return result;
+  return {
+    ok: true,
+    data: {
+      version: typeof result.data.version === "number" ? result.data.version : 0,
+      publishedAt: asString(result.data.publishedAt, ""),
+    },
+  };
+}
+
+/**
+ * `POST /admin/forms/{id}/draft/preview` - the dry-run compile the preview pane renders.
+ *
+ * The draft on the author's screen travels with the request (like validate and like the
+ * rule bench) so the pane previews the unsaved edit rather than the last one persisted.
+ * `answers` is the author's walk-through state and is handled under the answer rules
+ * (SEC-13 / ADR-34): forwarded, never logged here, never stored, never echoed back.
+ */
+export async function previewDraft(
+  session: AdminSession,
+  formId: string,
+  request: {
+    readonly definition: DraftForm;
+    readonly answers: Readonly<Record<string, unknown>>;
+  },
+): Promise<ApiResult<DraftPreview>> {
+  const result = await read<Record<string, unknown>>(
+    await adminApiFetch(session, `/forms/${encodeURIComponent(formId)}/draft/preview`, {
+      method: "POST",
+      body: request,
+    }),
+  );
+  if (!result.ok) return result;
+  const raw = result.data;
+  const flow = (raw["flow"] ?? {}) as Record<string, unknown>;
+  return {
+    ok: true,
+    data: {
+      documents: parseCompiledSteps(raw["documents"]),
+      compilerVersion: asString(raw["compilerVersion"], ""),
+      a2uiSpecVersion: asString(raw["a2uiSpecVersion"], ""),
+      flow: {
+        visibleSteps: asStringList(flow["visibleSteps"]),
+        visibleQuestions: asStringList(flow["visibleQuestions"]),
+        complete: flow["complete"] === true,
+      },
+    },
+  };
+}
+
+/**
+ * `GET /admin/forms/{id}/versions/{v}` - one frozen snapshot, whole.
+ *
+ * The compiled documents come back out of the version's JSONB, which is the entire point
+ * of the history screen: it renders the **stored** audit copy, so what it shows is what
+ * respondents on that version actually saw (ADR-18). There is deliberately no call to the
+ * draft-preview endpoint anywhere on this path.
+ */
+export async function getFormVersion(
+  session: AdminSession,
+  formId: string,
+  version: number,
+): Promise<ApiResult<FormVersionSnapshot>> {
+  const result = await read<Record<string, unknown>>(
+    await adminApiFetch(
+      session,
+      `/forms/${encodeURIComponent(formId)}/versions/${encodeURIComponent(String(version))}`,
+    ),
+  );
+  if (!result.ok) return result;
+  const raw = result.data;
+  const compiled = (raw["compiled"] ?? {}) as Record<string, unknown>;
+  return {
+    ok: true,
+    data: {
+      formId: asString(raw["formId"], formId),
+      version: typeof raw["version"] === "number" ? raw["version"] : version,
+      publishedAt: asString(raw["publishedAt"], ""),
+      compilerVersion: asString(raw["compilerVersion"], ""),
+      a2uiSpecVersion: asString(raw["a2uiSpecVersion"], ""),
+      semanticsVersion: asString(raw["semanticsVersion"], ""),
+      definition: raw["definition"],
+      documents: parseCompiledSteps(compiled["documents"]),
+    },
+  };
+}
+
+/**
+ * `POST /admin/forms/{id}/close` and `/reopen` - the door for *new* sessions only.
+ *
+ * R1 is the thing the UI copy has to teach here: closing stops new sessions and leaves
+ * every in-flight one to finish on the version it pinned. This proxy just forwards.
+ */
+export async function setFormStatus(
+  session: AdminSession,
+  formId: string,
+  action: "close" | "reopen",
+): Promise<ApiResult<{ readonly status: "open" | "closed" }>> {
+  const result = await read<{ status?: unknown }>(
+    await adminApiFetch(session, `/forms/${encodeURIComponent(formId)}/${action}`, {
+      method: "POST",
+    }),
+  );
+  if (!result.ok) return result;
+  return { ok: true, data: { status: result.data.status === "closed" ? "closed" : "open" } };
+}
+
 // --- the pinnable library ---------------------------------------------------
 
 /**
@@ -332,6 +426,19 @@ function objectsWith(raw: unknown, key: string): readonly Record<string, unknown
       (entry): entry is Record<string, unknown> => typeof entry === "object" && entry !== null,
     )
     .filter((entry) => entry[key] !== undefined);
+}
+
+/**
+ * Read the compiled documents out of a preview payload or a stored snapshot.
+ *
+ * `root` is carried through untouched: this app cannot validate an A2UI node tree and
+ * must not try, because the only thing that knows what a node means is the renderer's
+ * registry. A document with no `stepId` is dropped rather than rendered nameless.
+ */
+function parseCompiledSteps(raw: unknown): readonly CompiledStep[] {
+  return objectsWith(raw, "stepId")
+    .filter((entry) => typeof entry["stepId"] === "string")
+    .map((entry) => ({ stepId: entry["stepId"] as string, root: entry["root"] }));
 }
 
 function parseVersions(raw: unknown): readonly FormVersionSummary[] {
