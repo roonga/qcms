@@ -264,9 +264,9 @@ function parseWebhook(entry: Record<string, unknown>): WebhookSummary {
  *
  * A response with no `secret` is a failure of this app's contract, not a variant to
  * render: the two routes that reach here always rotate. It reads as an empty string
- * rather than throwing so the operator still gets the webhook row and an explicit
- * "no secret was returned" on screen, which is recoverable (rotate again) in a way
- * that a crashed screen is not.
+ * rather than throwing, and the reveal panel renders `ops.webhooks.secretMissing` for
+ * that case - recoverable (rotate again) in a way that a crashed screen is not, and
+ * stated rather than shown as an empty box under "Copy this secret now".
  */
 function parseRevealed(entry: Record<string, unknown>): RevealedWebhook {
   return {

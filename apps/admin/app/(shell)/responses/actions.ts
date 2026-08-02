@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import type { ErasureReason } from "@/lib/ops/erasure";
 import { isErasureReason } from "@/lib/ops/erasure";
 import type { EraseOutcome } from "@/lib/ops/types";
+import { t } from "@/lib/i18n/en";
 import { eraseSession, unflagResponse } from "@/lib/server/responses";
 import { requireAdminSession } from "@/lib/server/session";
 
@@ -58,7 +59,7 @@ export async function eraseSessionAction(
 ): Promise<EraseState> {
   const session = await requireAdminSession();
   if (!isErasureReason(reason)) {
-    return { status: "error", message: "The erasure reason was not one this build records." };
+    return { status: "error", message: t("ops.error.invalidErasureReason") };
   }
   const result = await eraseSession(session, sessionId, reason);
   if (!result.ok) return { status: "error", message: result.message };

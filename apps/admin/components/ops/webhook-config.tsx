@@ -321,24 +321,36 @@ function SecretPanel({
         {t("ops.webhooks.secretTitle")}
       </h3>
       <p className="text-sm text-(--color-text-muted)">{t("ops.webhooks.secretOnce")}</p>
-      <p className="flex flex-wrap items-center gap-2">
-        <span className="qcms-visually-hidden">
-          {t("ops.webhooks.secretLabel", { webhookId: revealed.webhookId })}
-        </span>
-        <code className="qcms-link-url" data-testid="qcms-webhook-secret-value">
-          {revealed.secret}
-        </code>
-      </p>
+      {revealed.secret === "" ? (
+        // The API always returns a secret from create and rotate, so this is a broken
+        // contract rather than a variant - but an empty `<code>` under "Copy this
+        // secret now" would read as "your secret is nothing", which is worse than
+        // saying what happened and how to recover.
+        <p className="text-sm text-(--color-text)" data-testid="qcms-webhook-secret-missing">
+          {t("ops.webhooks.secretMissing")}
+        </p>
+      ) : (
+        <p className="flex flex-wrap items-center gap-2">
+          <span className="qcms-visually-hidden">
+            {t("ops.webhooks.secretLabel", { webhookId: revealed.webhookId })}
+          </span>
+          <code className="qcms-link-url" data-testid="qcms-webhook-secret-value">
+            {revealed.secret}
+          </code>
+        </p>
+      )}
       <div className="flex flex-wrap gap-2">
-        <Button
-          variant="secondary"
-          size="md"
-          onPress={() => {
-            onCopy(revealed.secret);
-          }}
-        >
-          {t("ops.common.copy")}
-        </Button>
+        {revealed.secret !== "" && (
+          <Button
+            variant="secondary"
+            size="md"
+            onPress={() => {
+              onCopy(revealed.secret);
+            }}
+          >
+            {t("ops.common.copy")}
+          </Button>
+        )}
         <Button variant="ghost" size="md" onPress={onDismiss}>
           {t("ops.webhooks.secretDismiss")}
         </Button>

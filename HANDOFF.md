@@ -7,8 +7,9 @@ left is the human screenshot gate, which only the Code Owner can sign.
 
 ## State
 
-- Branch `feat/035-admin-responses-webhooks-ops`, pushed, four commits on top of
-  `4e22b3d`.
+- Branch `feat/035-admin-responses-webhooks-ops`, pushed, on top of `4e22b3d`. (No
+  commit count here on purpose: it goes stale on every review round, and a park record
+  that carries a wrong number is the same defect this task was rejected for twice.)
 - `pnpm verify` green at the repo root (exit 0), with `pnpm exec turbo run test --force`
   reporting `0 cached, 14/14` so the test leg is proven to have executed.
 - `QCMS_PORT_SEAT=0 pnpm verify:browser` green: 168 passed, 26 skipped (the four gate

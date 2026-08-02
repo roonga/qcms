@@ -959,6 +959,11 @@ export const messages = {
   "ops.webhooks.secretOnce":
     "This is the only time this secret is shown. The server keeps it encrypted and has no way to show it again; if it is lost, rotate to a new one.",
   "ops.webhooks.secretLabel": "Signing secret for {webhookId}",
+  // The API's create and rotate routes always return a secret, so this is the shape of
+  // a broken contract rather than a variant. It says so plainly and names the recovery,
+  // because an empty box under "Copy this secret now" tells an operator nothing.
+  "ops.webhooks.secretMissing":
+    "The server returned no secret for this endpoint. Rotate the secret to get one.",
   "ops.webhooks.secretDismiss": "I have copied it",
   "ops.webhooks.rotate": "Rotate secret",
   "ops.webhooks.rotateTitle": "Rotate this endpoint's secret?",
@@ -1052,6 +1057,12 @@ export const messages = {
   "ops.error.webhookUrlRejected":
     "That URL was refused: it must be an absolute https URL that does not point at a private address.",
   "ops.error.deliveryNotFound": "That delivery no longer exists.",
+  // Reachable only from a forged or malformed action payload: the dialog offers a
+  // closed set of reasons and the action re-checks it, because the value is written
+  // onto a tombstone that outlives the data it describes. It is in the catalog anyway
+  // (ADR-27) - a defensive branch that renders is still a rendered string.
+  "ops.error.invalidErasureReason":
+    "That erasure reason is not one this build records, so nothing was erased.",
 } as const;
 
 export type MessageKey = keyof typeof messages;
