@@ -1,3 +1,5 @@
+import type { Page } from "@playwright/test";
+
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
@@ -38,6 +40,10 @@ import {
  * sentence, and reaching it needs a second form authored purely for the frame) and
  * **"flagged present"** (a flagged submission requires the honeypot or minimum-time
  * path, which is 020/026's surface and not reachable from these routes).
+ *
+ * Frames are named `<state>-<mode>-<viewport>`, matching 033 and 034. State first is
+ * what makes a directory listing group by the thing a reviewer is judging rather than
+ * by the colour it is judged in.
  *
  * 390px and 1280px per the Code Owner's 2026-07-25 rule; the mode comes from the real
  * `qcms-app-mode` cookie rather than from poking the DOM. Everything else - hydration
@@ -102,24 +108,24 @@ for (const mode of CAPTURE_MODES) {
       // 1. The browser.
       await page.goto(`/forms/${FORM_ID}/responses`);
       await expect(page.getByTestId("qcms-responses-table")).toBeVisible();
-      await capture(page, `${mode}-responses-browser`);
+      await capture(page, `responses-browser-${mode}`);
 
       // 2. Filtered-empty: a real filter that matches nothing, not an empty form.
       await page.goto(`/forms/${FORM_ID}/responses?from=2020-01-01&to=2020-01-02`);
       await expect(page.getByTestId("qcms-responses-empty")).toBeVisible();
-      await capture(page, `${mode}-responses-filtered-empty`);
+      await capture(page, `responses-filtered-empty-${mode}`);
 
       // 3. The detail, with the locked answers and the ledger timeline.
       await page.goto(`/forms/${FORM_ID}/responses/${erasable}`);
       await expect(page.getByTestId("qcms-ledger")).toBeVisible();
-      await capture(page, `${mode}-response-detail`);
+      await capture(page, `response-detail-${mode}`);
 
       // 4. The export dialog, on the state a reviewer has to judge: CSV chosen, no
       //    version yet, so the hint is showing and the download is inert.
       await page.goto(`/forms/${FORM_ID}/responses`);
       await page.getByRole("button", { name: "Export", exact: true }).click();
       await expect(page.getByTestId("qcms-export-dialog")).toBeVisible();
-      await capture(page, `${mode}-export-dialog`);
+      await capture(page, `export-dialog-${mode}`);
       await page.keyboard.press("Escape");
 
       // 5. The erasure confirmation, with the session id typed so the enabled state of
@@ -130,17 +136,17 @@ for (const mode of CAPTURE_MODES) {
       await expect(erase).toBeVisible();
       await erase.getByRole("textbox", { name: /Type the session id/ }).fill(erasable);
       await expect(page.getByRole("button", { name: "Erase permanently" })).toBeEnabled();
-      await capture(page, `${mode}-erase-confirm`);
+      await capture(page, `erase-confirm-${mode}`);
 
       // 6. The tombstone that replaces it.
       await page.getByRole("button", { name: "Erase permanently" }).click();
       await expect(page.getByTestId("qcms-tombstone")).toBeVisible({ timeout: 30_000 });
-      await capture(page, `${mode}-tombstone`);
+      await capture(page, `tombstone-${mode}`);
 
       // 7. The erasure log, now with a row in it.
       await page.goto("/responses/erasures");
       await expect(page.getByTestId("qcms-erasures-table")).toBeVisible();
-      await capture(page, `${mode}-erasure-log`);
+      await capture(page, `erasure-log-${mode}`);
 
       // 8. Webhook config with nothing configured - shot on a DIFFERENT seeded form,
       //    and that is the honest way to get this frame. Every mode configures an
@@ -159,7 +165,7 @@ for (const mode of CAPTURE_MODES) {
       await expect(page.getByTestId("qcms-webhook-config")).toContainText(
         "withheld until an operator releases it",
       );
-      await capture(page, `${mode}-webhooks-none`);
+      await capture(page, `webhooks-none-${mode}`);
 
       // From here on, the insurance form, with any endpoint an earlier mode left behind
       // deactivated so the fan-out below is exactly one endpoint wide.
@@ -172,12 +178,13 @@ for (const mode of CAPTURE_MODES) {
       await create.getByRole("textbox", { name: "Endpoint URL" }).fill(await deadUrl());
       await create.getByRole("button", { name: "Create endpoint" }).click();
       await expect(page.getByTestId("qcms-webhook-secret")).toBeVisible({ timeout: 30_000 });
-      await capture(page, `${mode}-secret-reveal`);
+      await maskSecret(page);
+      await capture(page, `secret-reveal-${mode}`);
 
       // 10. The endpoints table, secrets masked.
       await page.getByRole("button", { name: "I have copied it" }).click();
       await expect(page.getByTestId("qcms-webhooks-table")).toBeVisible();
-      await capture(page, `${mode}-webhooks-table`);
+      await capture(page, `webhooks-table-${mode}`);
 
       // 11. The delivery dashboard with one delivery's detail open. Driven to
       //     dead-letter first, so the frame shows a real failure record rather than a
@@ -191,21 +198,54 @@ for (const mode of CAPTURE_MODES) {
         .first()
         .click();
       await expect(page.getByTestId("qcms-delivery-detail")).toBeVisible();
-      await capture(page, `${mode}-delivery-detail`);
+      await capture(page, `delivery-detail-${mode}`);
 
       // 12. The dead-letter queue, and the same queue after a redelivery is reported.
       await page.goto("/webhooks");
       await expect(page.getByTestId("qcms-dead-letters-table")).toBeVisible();
-      await capture(page, `${mode}-dead-letters`);
+      await capture(page, `dead-letters-${mode}`);
 
+      // Not `.first()`: this mode erased a response above, and its queued event is in
+      // this queue too. Pressing ITS button is correctly refused (ADR-17), which is a
+      // real state but not the one this frame is for - `redeliver-queued` exists to
+      // show the success message that says "queued for the next pass", not delivered.
+      const erasedDeliveries = await deliverer.deliveryIdsForSession(erasable);
+      const exclusion = erasedDeliveries.map((id) => `:not([data-delivery-id="${id}"])`).join("");
       await page
-        .getByRole("button", { name: /^Redeliver response\.submitted to / })
+        .getByTestId("qcms-dead-letters-table")
+        .locator(`tr[data-delivery-id]${exclusion}`)
         .first()
+        .getByRole("button", { name: /^Redeliver response\.submitted to / })
         .click();
       await expect(page.getByTestId("qcms-redeliver-summary")).toBeVisible();
-      await capture(page, `${mode}-redeliver-queued`);
+      await capture(page, `redeliver-queued-${mode}`);
     } finally {
       await deliverer.close();
     }
   });
+}
+
+/**
+ * Replace the revealed secret with a placeholder before the frame is shot.
+ *
+ * The gate frames are committed to the repository and embedded in a PR body, so
+ * whatever is on screen when the shutter goes is published. These secrets are minted
+ * against an ephemeral Testcontainers database for endpoints on dead loopback ports,
+ * so none of them has ever authenticated anything - but "the credential in the
+ * committed image was worthless" is a property of how this spec happens to be wired
+ * today, not a protection, and the next person to re-shoot this set should not have to
+ * re-derive it. Masking makes it structural.
+ *
+ * A direct DOM mutation rather than a prop: React owns this node, and the shot is
+ * taken immediately after with no state change in between, so there is no re-render to
+ * restore the real value. Deliberately NOT done by hiding the element - the frame's
+ * whole subject is that a secret is shown exactly once, and an empty box would not show
+ * that.
+ */
+async function maskSecret(page: Page): Promise<void> {
+  const masked = "whsec_EXAMPLE_VALUE_NOT_A_REAL_SECRET";
+  await page.getByTestId("qcms-webhook-secret-value").evaluate((node, value) => {
+    node.textContent = value;
+  }, masked);
+  await expect(page.getByTestId("qcms-webhook-secret-value")).toHaveText(masked);
 }

@@ -143,6 +143,16 @@ export function captureInto(outDir: string): (page: Page, name: string) => Promi
       // band. The bar is what this gate reviews, so that is not a cosmetic problem.
       await page.evaluate(() => {
         globalThis.scrollTo(0, 0);
+        // And every horizontally-scrolled container back to its start. The operations
+        // tables are `overflow-x: auto`, so clicking a control in their right-hand
+        // column scrolls the container to bring it into view - and a full-page shot
+        // then paints the table at that offset, with its first column clipped off the
+        // left edge. Three of 035's delivery-detail frames shipped that way: the
+        // content was correct and the frame looked broken, which is the worst failure
+        // mode for evidence. Same reasoning as the window reset above, one axis over.
+        for (const box of document.querySelectorAll("*")) {
+          if (box.scrollLeft !== 0) box.scrollLeft = 0;
+        }
       });
       await assertFitsViewport(page, width, `${name}-${width}`);
       await page.screenshot({
