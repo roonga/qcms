@@ -38,7 +38,7 @@ One entry per finding: what is wrong, the evidence, and what the edit would be. 
 
 **Why it is a pattern and not an incident.** 032 avoided it only by dropping its "Updated" column for unrelated reasons - the trap was there and was sidestepped by accident. Two consecutive admin tasks, no mechanical guard. Every new operator table is another chance.
 
-**Candidate edit.** A gate is the natural fix: nothing in `check:all` looks for an ISO-shaped string rendered as a JSX child. A check in the shape of `check-admin-theme.mjs` (scan `apps/admin` sources, flag a datetime-typed field interpolated directly into JSX) would make this mechanical instead of a review catch. Consider also a COMPONENT_GUIDELINES or CLAUDE.md line naming the shared formatter as the only way to render a timestamp, with the CSV exception stated (machine artifacts keep ISO - localizing those would be the actual bug).
+**Candidate edit.** A gate is the natural fix: nothing in `check:all` looks for an ISO-shaped string rendered as a JSX child. A check in the shape of `scripts/check-admin-theme.mjs` (scan `apps/admin` sources, flag a datetime-typed field interpolated directly into JSX) would make this mechanical instead of a review catch. Consider also a line in `docs/COMPONENT_GUIDELINES.md` or `CLAUDE.md` naming the shared formatter as the only way to render a timestamp, with the CSV exception stated (machine artifacts keep ISO - localizing those would be the actual bug).
 
 **Note for whoever picks this up.** The gate frames are what made it visible. That is an argument for the screenshot gate being reviewed in the PR, where the images are actually looked at, rather than signed from a branch listing.
 
