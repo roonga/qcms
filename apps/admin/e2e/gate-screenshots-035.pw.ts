@@ -150,6 +150,15 @@ for (const mode of CAPTURE_MODES) {
       //    and never given one, so this state is real in all three modes.
       await page.goto(`/forms/${EMPTY_FORM_ID}/webhooks`);
       await expect(page.getByTestId("qcms-webhooks-empty")).toBeVisible();
+      // Copy is BAKED into a committed PNG, so a capture run is the last place a wrong
+      // sentence can still be caught cheaply: after this, fixing one word costs a
+      // re-shoot and, if the Code Owner has already signed, a second gate round. This
+      // claim in particular shipped wrong once - it promised consumers "every
+      // submission" while the submit slice withholds a flagged one - so the capture now
+      // refuses to photograph the screen unless the corrected sentence is on it.
+      await expect(page.getByTestId("qcms-webhook-config")).toContainText(
+        "withheld until an admin releases it",
+      );
       await capture(page, `${mode}-webhooks-none`);
 
       // From here on, the insurance form, with any endpoint an earlier mode left behind

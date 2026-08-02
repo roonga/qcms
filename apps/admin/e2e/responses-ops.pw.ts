@@ -125,9 +125,9 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     await page.goto(`/forms/${FORM_ID}/responses/${revised}`);
     await expect(page.getByTestId("qcms-response-detail")).toBeVisible();
 
-    // Exit criterion 4. Four revisions were written: accident, then count three times
-    // (2, 3 at revise time, and the first count answer). The timeline shows every one
-    // of them, in order, and the LOCKED answer is only the last.
+    // Exit criterion 4. Three revisions were written: the accident answer, then the
+    // count twice (2, then 3). The timeline shows every one of them, in order, and the
+    // LOCKED answer is only the last.
     const entries = page.getByTestId("qcms-ledger").locator("li");
     await expect(entries).toHaveCount(3);
     await expect(entries.nth(0)).toHaveAttribute("data-question-id", ACCIDENT);
@@ -272,6 +272,16 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
       //    Any endpoint an earlier spec left on this form is deactivated first, so the
       //    fan-out is exactly one endpoint wide and the counts below mean what they say.
       await deactivateExistingWebhooks(page, FORM_ID);
+
+      // The screen's own claim about what consumers receive, pinned. The submit slice
+      // enqueues `response.submitted` only for an unflagged submission
+      // (`apps/api/src/features/responses/submit/handler.ts`), and this task ships the
+      // unflag action whose whole premise is that a flagged one was withheld - so an
+      // intro promising "every submission" would be a sentence the same diff disproves.
+      // Asserted rather than reviewed, because that copy shipped once already.
+      await expect(page.getByTestId("qcms-webhook-config")).toContainText(
+        "withheld until an admin releases it",
+      );
       const broken = await deadUrl();
       await page.getByRole("button", { name: "Add endpoint" }).click();
       const create = page.getByTestId("qcms-webhook-url-dialog");
