@@ -26,3 +26,42 @@ One entry per finding: what is wrong, the evidence, and what the edit would be. 
 **Candidate edit** (the workshop pass decides, not this file). Rewrite the token-efficiency bullets so the context-discipline advice - filter at the source, screenshots to files referenced by path, finish the interaction once verified - attaches to the Playwright/gate-capture path this repo actually uses, and name `QCMS_ADMIN_CAPTURE_GATE=1` with the spec-per-task convention. Decide separately whether the two dead allow rules come out or an MCP browser is actually wanted; if neither is wanted, removing them keeps the instruction from re-growing.
 
 **Why it matters beyond tidiness.** A UI task's executor reading CLAUDE.md today is told to reach for a tool that is not installed. It would fail fast rather than silently, but at the cost of a live cycle - and the instruction is most likely to be read at exactly the moment a screenshot gate is due.
+
+---
+
+## Raw API timestamps reach JSX, and it is now a recurring admin-train pattern
+
+**Raised:** 2026-08-02 by 034's reviewer (REJECT finding), seconded by the PM seat.
+**Status:** the 034 instance is being fixed in its own PR. Queued here is the *pattern*, not that fix.
+
+**What is wrong.** ADR-27 requires locale-aware presentation, but API ISO strings keep reaching the DOM verbatim in operator tables. 034 shipped four such columns (`version-history.tsx` Published; `secure-links.tsx` expiresAt, consumedAt, createdAt) and it was visible in the committed gate frames: `version-history-light-1280.png` showed `2026-07-20T00:00:00.000Z`, `links-minted-*` showed `2030-12-31T23:59:59.999Z`.
+
+**Why it is a pattern and not an incident.** 032 avoided it only by dropping its "Updated" column for unrelated reasons - the trap was there and was sidestepped by accident. Two consecutive admin tasks, no mechanical guard. Every new operator table is another chance.
+
+**Candidate edit.** A gate is the natural fix: nothing in `check:all` looks for an ISO-shaped string rendered as a JSX child. A check in the shape of `check-admin-theme.mjs` (scan `apps/admin` sources, flag a datetime-typed field interpolated directly into JSX) would make this mechanical instead of a review catch. Consider also a COMPONENT_GUIDELINES or CLAUDE.md line naming the shared formatter as the only way to render a timestamp, with the CSV exception stated (machine artifacts keep ISO - localizing those would be the actual bug).
+
+**Note for whoever picks this up.** The gate frames are what made it visible. That is an argument for the screenshot gate being reviewed in the PR, where the images are actually looked at, rather than signed from a branch listing.
+
+---
+
+## The i18n catalog has no plural machinery, so `{count}` keys produce "1 links"
+
+**Raised:** 2026-08-02 by 034's reviewer.
+**Status:** the specific broken strings are fixed in 034's PR. The absence of the machinery is queued here.
+
+**What is wrong.** `t()` has no plural forms. Keys that interpolate a count therefore emit "1 steps", "1 rules", "1 links minted" whenever the count is one. Worse, e2e assertions written against the rendered output then *enshrine* the broken string, so the bug acquires a test defending it.
+
+**Why it matters beyond grammar.** ADR-27 commits the product to internationalization. Plural rules are not a polish item in that commitment - languages with more than two plural categories cannot be served by string concatenation at all, so the absence is architectural rather than cosmetic. Fixing it after several locales exist is materially harder than fixing it now, while English is the only catalog.
+
+**Candidate edit.** Decide the plural mechanism for the catalog (`Intl.PluralRules` is in the platform and needs no dependency), then sweep existing `{count}` keys. The sweep must also revisit any e2e assertion that currently encodes a singular-broken string, or the fix will fail tests that are asserting the bug.
+
+---
+
+## The wireframe's normative history multi-version and diff state has no visual evidence
+
+**Raised:** 2026-08-02 by 034's reviewer.
+**Status:** queued. Not a 034 blocker - the diff is unit tested and the state is reachable.
+
+**What is wrong.** `docs/wireframes/` inventories are normative (per CLAUDE.md), and the admin publish/preview wireframe carries a "history multi-version + diff" state. 034's evidence covers it by unit test only: no browser assertion, no gate frame. So a normative state has no evidence in the form the gate reviews.
+
+**Candidate question for the workshop pass.** This is really about whether "normative wireframe state" implies "must appear in the gate set". If it does, that belongs written down, because it changes how every future UI task sizes its capture matrix. If it does not, the wireframe inventories need a way to mark which states are gate-bearing, so the distinction is visible rather than a judgement call made per task.
