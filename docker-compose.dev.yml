@@ -1,11 +1,20 @@
 # Dev database only. Copy .env.example to .env first (compose reads .env for
 # variable substitution); the defaults below match .env.example's DATABASE_URL.
 #
+# Ports and the project name both come from the machine SEAT (`QCMS_PORT_SEAT`,
+# default 0). `scripts/dev-portal.mjs` sets `QCMS_DB_PORT` to this seat's 7S20 and
+# `COMPOSE_PROJECT_NAME` to its project. The allocation and the reasoning live in
+# `docs/PORTS.md`, which is the only place the table is written down. Note that a
+# second seat needs BOTH: two stacks sharing a project name are the same stack, so
+# moving only the port would silently share the first seat's data directory.
+#
 # The project name is pinned so the container is always `qcms-dev-postgres-1`,
 # whatever the checkout directory is called, and so it groups with the dev
 # container (which carries the matching compose-project label). Without this,
 # Compose derives the project from the folder name and two checkouts produce
-# two differently-named databases that both try to bind port 7020.
+# two differently-named databases that both try to bind the same port. It is a
+# default, not a lock: `COMPOSE_PROJECT_NAME` outranks it, which is the seam a seat
+# uses.
 name: qcms-dev
 
 services:

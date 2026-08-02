@@ -1,18 +1,22 @@
 // Serve repo artifacts (gate evidence, design previews) read-only over HTTP so
-// they can be viewed from the host browser: http://localhost:7030 (published by
-// the devcontainer's appPort). Roots:
+// they can be viewed from the host browser on this machine seat's artifacts port
+// (7S30, so http://localhost:7030 at the default seat 0; published by the
+// devcontainer's appPort). The allocation rule and table: docs/PORTS.md. Roots:
 //   /gates/      -> docs/gates/                       (landed gate evidence)
 //   /plan/       -> plan/                             (design previews, specs)
 //   /worktrees/  -> .claude/worktrees/<name>/docs/gates/  (in-flight task evidence)
-// Start with `pnpm artifacts`. Port override: QCMS_ARTIFACTS_PORT.
+// Start with `pnpm artifacts`. Seat: QCMS_PORT_SEAT. Port override (wins over the
+// seat, for an unusual machine): QCMS_ARTIFACTS_PORT.
 
 import { createServer } from "node:http";
 import { readFile, readdir } from "node:fs/promises";
 import { join, resolve, extname, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { stablePort } from "./ports.mjs";
+
 const repoRoot = resolve(fileURLToPath(import.meta.url), "..", "..");
-const port = Number(process.env.QCMS_ARTIFACTS_PORT ?? 7030);
+const port = Number(process.env.QCMS_ARTIFACTS_PORT ?? stablePort("artifacts"));
 
 const roots = {
   gates: join(repoRoot, "docs", "gates"),

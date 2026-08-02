@@ -40,9 +40,22 @@
     "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
   },
 
-  // Dev ports (7xxx). `next dev` and the Hono `serve()` both listen on 0.0.0.0
-  // by default, so a host browser can reach them once the ports leave the
-  // container (verified in task 046; no source change needed).
+  // Dev ports. THE allocation table is `docs/PORTS.md` (R8, ADR-37) and is not
+  // restated here: in brief, `7Sxx` is the stable human-facing block and `17Sxx`
+  // the ephemeral test-harness block, for machine seat S (`QCMS_PORT_SEAT`,
+  // default 0). The values below are seat 0.
+  //
+  // The harness block is deliberately absent: those ports are bound by whichever
+  // host runs the tests, are reached only from that same host, and are never
+  // published out of the container. So this list needs nothing for it.
+  //
+  // `appPort` is static JSON and cannot read a runtime value, so a SECOND seat
+  // cannot be served from here; `docs/PORTS.md` records the honest alternatives
+  // and marks them as design intent rather than something exercised.
+  //
+  // `next dev` and the Hono `serve()` both listen on 0.0.0.0 by default, so a host
+  // browser can reach them once the ports leave the container (verified in task
+  // 046; no source change needed).
   //
   // TWO mechanisms, because they cover different launchers:
   //   - `appPort` publishes the ports on the Docker host (`docker run -p`), so
@@ -51,7 +64,7 @@
   //   - `forwardPorts` is the VS Code / Codespaces editor tunnel, which also
   //     gives the labels below. It does nothing on the CLI route.
   //
-  // 7020 is deliberately NOT in `appPort`: nothing in this container listens on
+  // 7020 (seat 0's 7S20) is deliberately NOT in `appPort`: nothing here listens on
   // it. The dev Postgres runs on the HOST via docker-compose.dev.yml, which
   // publishes 7020 itself, so claiming it here would take the port away from the
   // database and make `docker compose -f docker-compose.dev.yml up -d` fail with
@@ -81,7 +94,10 @@
   // hunting a random Docker name. The matching compose-project label groups it
   // with the dev database in Docker Desktop, so the whole dev environment reads
   // as one unit. Both are safe because only one of these can run at a time
-  // anyway: `appPort` already makes the ports exclusive machine-wide.
+  // anyway: `appPort` already makes the ports exclusive machine-wide. That is a
+  // property of THIS config, not of the allocation - `docs/PORTS.md` defines seats
+  // 0-9 and records what a second container seat would need (a distinct name and
+  // distinct publishes), marked as design intent rather than something exercised.
   "runArgs": [
     "--init",
     "--ipc=host",

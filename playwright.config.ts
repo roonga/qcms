@@ -7,6 +7,7 @@ import {
 } from "./apps/admin/e2e/support/harness-config.js";
 import {
   API_BASE_URL,
+  API_PORT,
   FIXED_INTERNAL_TOKEN,
   FIXTURES_PATH,
   HARNESS_BRAND_LOGO,
@@ -17,9 +18,15 @@ import {
   HARNESS_THEME,
   OTEL_SERVICE_NAMES,
   OTLP_ENDPOINT,
+  OTLP_PORT,
   OTLP_SCHEDULE_DELAY_MS,
   PORTAL_PORT,
 } from "./apps/portal/e2e/support/harness-config.js";
+import {
+  PORT_SEAT,
+  PREFLIGHT_DONE_VAR,
+  seatPreflight,
+} from "./apps/portal/e2e/support/port-seat.js";
 
 /**
  * Root Playwright configuration (task 029, ADR-23; viewports + gates from 045).
@@ -45,6 +52,60 @@ import {
  * run's Postgres and composed API, which is also the real topology: one database, one
  * API, two frontends.
  */
+/**
+ * Startup preflight, at config load, which is before Playwright evaluates any
+ * `webServer` entry and therefore before `reuseExistingServer` can adopt anything
+ * (issue #255). In order:
+ *
+ *  - **A worktree must name its seat.** Concurrent lanes run in worktrees, and two
+ *    lanes that both fall back to the default seat collide on every port. The primary
+ *    checkout and CI keep the silent default.
+ *  - **The seat's ports must be legal to hold.** A fixed listener inside the kernel's
+ *    ephemeral range loses an occasional race to an auto-assigned socket, which is a
+ *    flake nobody could reproduce.
+ *  - **Nothing else may already hold them.** This one is a *diagnostic*, not the
+ *    safety property: it is a fast, clear error for the common case (someone forgot a
+ *    seat), and it names the occupant's pid and `/proc/<pid>/cwd` rather than making
+ *    the next person read `/proc` by hand, the way the original collision was found.
+ *    It cannot make concurrent binding safe - between the probe and the bind another
+ *    run can still take the port. Per-seat isolation is what makes sharing not happen.
+ *
+ * Before the seat scheme, a second agent lane starting a run while the first lane's
+ * dev servers were up did not fail and did not warn: Playwright reused those servers,
+ * so the second lane's specs ran against the first lane's worktree and still reported
+ * a full green suite.
+ *
+ * The preflight also returns what this run may ADOPT, which is what drives
+ * `reuseExistingServer` below. That flag is the amplifier: without it a collision is a
+ * noisy `EADDRINUSE`, with it a collision is a silent green run against another tree,
+ * and that asymmetry is why issue #255 is a gate-integrity item rather than an
+ * inconvenience. So it is no longer `!CI`. It is on only for a dev server that is
+ * already listening and whose working directory is inside this exact worktree, which
+ * is the case it was actually there for. When the port is free at config load the flag
+ * is off, so a run that loses the bind race to a process arriving a second later fails
+ * loudly instead of adopting the winner. That is the direction a race has to fail in,
+ * and it is precisely what a probe on its own cannot deliver.
+ *
+ * It runs exactly once per invocation: Playwright reloads this config in every worker,
+ * by which time globalSetup has bound the API and OTLP ports, and those two are never
+ * adoptable. See `seatPreflight`.
+ */
+// Read BEFORE the preflight, which is what sets the sentinel.
+const FIRST_LOAD = process.env[PREFLIGHT_DONE_VAR] !== "1";
+const ADOPTABLE = seatPreflight();
+
+// Announce the seat ONCE per invocation. A run's own output is then self-describing
+// ("this was seat 2, on 17200/17210/17230/17240"), which is what a reviewer needs to
+// tell two concurrent seats' evidence apart without going back to the process table.
+// Guarded because Playwright reloads this config in every worker, so an unguarded
+// write prints once per process and noises up the CI log for no extra information.
+if (FIRST_LOAD) {
+  process.stdout.write(
+    `[playwright] port seat ${String(PORT_SEAT)}: portal ${String(PORTAL_PORT)}, ` +
+      `api ${String(API_PORT)}, admin ${String(ADMIN_PORT)}, otlp ${String(OTLP_PORT)}\n`,
+  );
+}
+
 const PORT = PORTAL_PORT;
 
 // The flow + accessibility specs that must run at every viewport (exit 2). Other
@@ -136,7 +197,9 @@ export default defineConfig({
       // by globalSetup; both sides share the synthetic SEC-4 internal token.
       command: `node ./apps/portal/e2e/support/portal-server.mjs`,
       url: `http://localhost:${PORT}`,
-      reuseExistingServer: !process.env.CI,
+      // Only when a portal dev server from THIS worktree is already listening. See
+      // ADOPTABLE above for why a free port means `false` rather than `true`.
+      reuseExistingServer: !process.env.CI && ADOPTABLE.has("portal"),
       timeout: 180_000,
       env: {
         PORTAL_PORT: String(PORT),
@@ -192,7 +255,8 @@ export default defineConfig({
       // globalSetup on webServer readiness, so probing a page that needs the database
       // would wait for the very thing globalSetup is about to create.
       url: `${ADMIN_BASE_URL}/healthz`,
-      reuseExistingServer: !process.env.CI,
+      // Same rule as the portal's: adopt only a verified same-worktree server.
+      reuseExistingServer: !process.env.CI && ADOPTABLE.has("admin"),
       timeout: 180_000,
       env: {
         ADMIN_PORT: String(ADMIN_PORT),

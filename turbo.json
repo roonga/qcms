@@ -37,7 +37,18 @@
   // local trace viewer silently turns exporting on inside `pnpm test`. If a future
   // turbo-run task ever must read one, add it here and prove it arrives the way the
   // Postgres-image note below describes.
+  //
+  // `QCMS_PORT_SEAT` (issue #255) is listed for exactly the reason above. It picks
+  // both the `7Sxx` and `17Sxx` blocks this machine seat binds (docs/PORTS.md), and
+  // the portal project's unit tests read it through
+  // `apps/portal/e2e/support/harness-config.ts`. Without the passthrough a seat
+  // running `QCMS_PORT_SEAT=1 pnpm test` would see seat 0 inside Vitest and seat 1
+  // everywhere else, which is the same silent-divergence class the whole issue is
+  // about. It is passThrough rather than `env` because the seat chooses *where*
+  // identical work binds, not what the work computes: hashing it would miss the cache
+  // on every seat for byte-identical results.
   "globalPassThroughEnv": [
+    "QCMS_PORT_SEAT",
     "QCMS_TEST_POSTGRES_IMAGE",
     "TESTCONTAINERS_RYUK_DISABLED",
     "RYUK_CONTAINER_IMAGE",

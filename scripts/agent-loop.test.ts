@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import {
   chmodSync,
   copyFileSync,
@@ -16,6 +16,8 @@ import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
 
 const SUPERVISOR = fileURLToPath(new URL("agent-loop.sh", import.meta.url));
+/** How long `runUntilLogged` waits for its line before giving up and asserting. */
+const WAIT_FOR_LOG_MS = 10_000;
 const workspaces: string[] = [];
 // Anything a session-stub test spawns, so a failing assertion cannot leak a
 // long-lived process onto the machine running the suite.
@@ -42,6 +44,59 @@ function runArgs(...args: string[]) {
 // throwaway workspace and a stub `claude` on PATH. Without the stub this would
 // launch a real session and claim a ledger task.
 function runWithStubbedClaude(stubOutput: string, ...args: string[]) {
+  return runSupervisorWithStub(stubOutput, args);
+}
+
+// Same setup, but for the one case that asserts the supervisor DOES sleep: it
+// waits for a line to appear in the supervisor's own log file, then kills the run
+// instead of waiting the retry window out.
+//
+// Detached, and killed by process GROUP, because neither half is optional here.
+// `spawnSync`'s own `timeout` cannot end this run: bash defers a trapped signal
+// until the current foreground command returns, so SIGTERM arriving during
+// `sleep 1800` is handled 30 minutes later - and killing bash alone would leave
+// the `sleep` holding the stdout pipe open, which is the same hang wearing a
+// different hat. Reading the log FILE rather than the pipe keeps the observation
+// independent of either.
+async function runUntilLogged(pattern: RegExp, stubOutput: string, ...args: string[]) {
+  const { root, copied, env } = supervisorWorkspace(stubOutput);
+  const child = spawn("bash", [copied, ...args], { detached: true, stdio: "ignore", env });
+  if (child.pid !== undefined) spawnedPids.push(-child.pid);
+
+  const logFile = join(root, "agent-loop.log");
+  const deadline = Date.now() + WAIT_FOR_LOG_MS;
+  let log = "";
+  while (Date.now() < deadline) {
+    log = existsSync(logFile) ? readFileSync(logFile, "utf8") : "";
+    if (pattern.test(log)) break;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  if (child.pid !== undefined) {
+    try {
+      process.kill(-child.pid, "SIGKILL");
+    } catch {
+      // Already exited, which the caller's assertion will report far better than
+      // a teardown throw would.
+    }
+  }
+  return log;
+}
+
+function runSupervisorWithStub(stubOutput: string, args: string[], timeoutMs?: number) {
+  const { root, copied, env } = supervisorWorkspace(stubOutput);
+
+  const res = spawnSync("bash", [copied, ...args], { encoding: "utf8", timeout: timeoutMs, env });
+
+  const argvLog = join(root, "claude-argv.txt");
+  const seatLog = join(root, "claude-seat.txt");
+  const claudeArgv = existsSync(argvLog)
+    ? readFileSync(argvLog, "utf8").split("\n").filter(Boolean)
+    : [];
+  const seat = existsSync(seatLog) ? readFileSync(seatLog, "utf8") : "<no session>";
+  return { ...res, claudeArgv, seat };
+}
+
+function supervisorWorkspace(stubOutput: string) {
   const root = mkdtempSync(join(tmpdir(), "agent-loop-"));
   workspaces.push(root);
 
@@ -53,24 +108,32 @@ function runWithStubbedClaude(stubOutput: string, ...args: string[]) {
   copyFileSync(SUPERVISOR, copied);
 
   // The stub records the argv it was launched with, one argument per line, so a
-  // test can assert what the supervisor actually passes to `claude`.
+  // test can assert what the supervisor actually passes to `claude`. It also
+  // records `QCMS_PORT_SEAT` from its own environment, which is the only way to
+  // observe that the supervisor EXPORTED the seat rather than merely computing it
+  // (issue #255): every consumer downstream reads the environment.
   const stub = join(root, "bin", "claude");
   const argvLog = join(root, "claude-argv.txt");
+  const seatLog = join(root, "claude-seat.txt");
   writeFileSync(
     stub,
-    `#!/usr/bin/env bash\nprintf '%s\\n' "$@" >>'${argvLog}'\ncat <<'OUT'\n${stubOutput}\nOUT\n`,
+    `#!/usr/bin/env bash\nprintf '%s\\n' "$@" >>'${argvLog}'\n` +
+      `printf '%s' "\${QCMS_PORT_SEAT-<unset>}" >'${seatLog}'\n` +
+      `cat <<'OUT'\n${stubOutput}\nOUT\n`,
   );
   chmodSync(stub, 0o755);
 
-  const res = spawnSync("bash", [copied, ...args], {
-    encoding: "utf8",
-    env: { ...process.env, PATH: `${join(root, "bin")}:${process.env.PATH ?? ""}` },
-  });
-
-  const claudeArgv = existsSync(argvLog)
-    ? readFileSync(argvLog, "utf8").split("\n").filter(Boolean)
-    : [];
-  return { ...res, claudeArgv };
+  return {
+    root,
+    copied,
+    // `QCMS_PORT_SEAT` is cleared, so a seat leaking in from the developer's own
+    // shell cannot make a derivation test pass for the wrong reason.
+    env: {
+      ...process.env,
+      QCMS_PORT_SEAT: undefined,
+      PATH: `${join(root, "bin")}:${process.env.PATH ?? ""}`,
+    },
+  };
 }
 
 // A regression leaves the supervisor blocked on the session's descendants
@@ -309,6 +372,45 @@ describe("agent-loop.sh supervisor loop", () => {
     expect(res.stdout).toContain("human gate reached");
     expect(res.stdout).not.toContain("iteration 2");
   });
+
+  it("exits on the last iteration instead of paying the retry window first", () => {
+    // The no-sentinel path is the retry path: the session died, so wait out the
+    // limit window and try again. On the LAST iteration there is no again, and
+    // the sleep used to run unconditionally anyway. The whole effect is dead
+    // waiting - nothing fails, so nothing ever surfaced it - but `-m 1` is the
+    // natural way to drive a single iteration and it hung for the full retry
+    // window (30 minutes at the default), which is what hung this suite.
+    //
+    // `-r 30` makes the assertion unambiguous: a run that finishes in seconds
+    // cannot have slept, whatever else it did.
+    const started = Date.now();
+    const res = runWithStubbedClaude("no sentinel here", "-m", "1", "-r", "30");
+    const elapsedSec = (Date.now() - started) / 1000;
+
+    expect(res.status).toBe(0);
+    expect(res.stdout).toContain("max 1 iterations reached");
+    expect(res.stdout).not.toContain("retrying in 30 minutes");
+    expect(elapsedSec).toBeLessThan(60);
+  }, 90_000);
+
+  it("still waits out the retry window when another iteration is left to run", async () => {
+    // The other half of the same condition, and the reason it is a condition
+    // rather than a deletion: skipping the sleep whenever a session produced no
+    // sentinel would turn the supervisor into a hot loop through its entire
+    // iteration budget during exactly the usage-limit window it exists to wait
+    // out. Observed by the line printed immediately before the sleep, then killed.
+    const log = await runUntilLogged(
+      /retrying in 30 minutes/,
+      "no sentinel",
+      "-m",
+      "2",
+      "-r",
+      "30",
+    );
+
+    expect(log).toContain("retrying in 30 minutes");
+    expect(log).not.toContain("max 2 iterations reached");
+  }, 30_000);
 });
 
 // Issue #240: an iteration's session spawns background work of its own, and
@@ -403,4 +505,61 @@ describe.skipIf(!HAS_PROCFS)("agent-loop.sh session process groups (issue #240)"
     // derived, not a written-out number, so the two cannot drift.
     (LAUNCH_WINDOW_HOLD_SEC * 1000 + LAUNCH_WINDOW_INTERRUPT_MS) * 3,
   );
+});
+
+describe("agent-loop.sh port seat (R8, issue #255)", () => {
+  // Why the supervisor owns this at all: every lane works in a linked git
+  // worktree, and the browser harness REFUSES to start in a worktree with no seat
+  // chosen, because two lanes that both fall back to the default contend for the
+  // same four ports. The supervisor is the only thing that knows there is more
+  // than one lane, so it is the only thing that can answer without a human.
+  // Without it, the first iteration after the seat scheme landed would hit the
+  // refusal and its error text would be the only documentation of it.
+  it.each([
+    ["dev", "0"],
+    ["dev2", "2"],
+    ["dev9", "9"],
+  ])("derives seat %s -> %s from the lane's mailbox", (mailbox, expected) => {
+    const res = runWithStubbedClaude("done", "-m", "1", "-M", mailbox);
+
+    expect(res.seat).toBe(expected);
+  });
+
+  it.each(["devx", "test240"])(
+    "still produces a seat for an unusual mailbox like '%s'",
+    (mailbox) => {
+      // Total, not strict, and deliberately so: a mailbox name the derivation did
+      // not anticipate must never hard-fail the supervisor. That would be the same
+      // class of bug as the missing seat this exists to prevent, and it is not
+      // hypothetical - an earlier strict version died on the `test240` mailbox this
+      // suite's own fixtures use.
+      const res = runWithStubbedClaude("done", "-m", "1", "-M", mailbox);
+
+      expect(res.seat).toMatch(/^[0-9]$/);
+    },
+  );
+
+  it("lets --seat override the derivation", () => {
+    const res = runWithStubbedClaude("done", "-m", "1", "-M", "dev2", "-S", "7");
+
+    expect(res.seat).toBe("7");
+  });
+
+  it("exports the seat rather than only computing it", () => {
+    // The stub reads it from its own environment, which is the property that
+    // matters: the Playwright config, the dev scripts and turbo's
+    // globalPassThroughEnv all read the environment, and a value that never left
+    // the supervisor would be a value nothing downstream can see.
+    const res = runWithStubbedClaude("done", "-m", "1", "-M", "dev3");
+
+    expect(res.seat).not.toBe("<unset>");
+    expect(res.seat).toBe("3");
+  });
+
+  it.each(["12", "-1", "a", ""])("rejects --seat '%s' rather than binding nonsense", (value) => {
+    const res = runArgs("-S", value, "-m", "1");
+
+    expect(res.status).toBe(2);
+    expect(res.stderr).toMatch(/seat|requires a value/);
+  });
 });

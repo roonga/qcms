@@ -16,23 +16,35 @@
 
 import { fileURLToPath } from "node:url";
 
+import { PORT_SEAT, harnessPort } from "./port-seat.js";
+
+/**
+ * Every port below is derived from the run's **seat** (`QCMS_PORT_SEAT`, default 0),
+ * never written as a literal. Stable human-facing services take the 4-digit `7Sxx`
+ * block; an ephemeral test harness like this one takes the 5-digit `17Sxx` block.
+ * The authoritative table and the reasoning are in **`docs/PORTS.md`**; the
+ * arithmetic is in `scripts/ports.mjs` and the startup refusals in `./port-seat.ts`.
+ */
+
 /** The port the composed API listens on (in the globalSetup process). */
-export const API_PORT = 4010;
+export const API_PORT = harnessPort("api", PORT_SEAT);
 
 /** The base URL the portal BFF calls (server-only `QCMS_API_BASE_URL`). */
 export const API_BASE_URL = `http://127.0.0.1:${API_PORT}`;
 
 /** The port the portal dev server listens on. */
-export const PORTAL_PORT = 3100;
+export const PORTAL_PORT = harnessPort("portal", PORT_SEAT);
 
 /**
  * The in-test OTLP receiver's port and base endpoint (task 054).
  *
- * Deliberately NOT 4318 (the OTLP/HTTP default): a developer running the
- * documented local trace viewer holds that port, and the suite must not silently
- * export into it - or fail to bind because it is taken.
+ * Deliberately NOT 4318 (the OTLP/HTTP default): a developer running the documented
+ * local trace viewer holds that port, and the suite must neither silently export
+ * into it nor fail to bind because it is taken. The seat scheme now satisfies that
+ * intent by construction rather than by a chosen constant: every seat's receiver sits
+ * inside `17Sxx`, and 4318 is outside the repo's whole allocation entirely.
  */
-export const OTLP_PORT = 4319;
+export const OTLP_PORT = harnessPort("otlp", PORT_SEAT);
 
 /** What both traced processes get as `OTEL_EXPORTER_OTLP_ENDPOINT`. */
 export const OTLP_ENDPOINT = `http://127.0.0.1:${OTLP_PORT}`;

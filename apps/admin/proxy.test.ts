@@ -13,7 +13,7 @@ import { config, proxy } from "./proxy";
 
 const NONCE = "dGVzdC1ub25jZS0xMjM0NTY3OA==";
 
-function responseFor(url = "http://localhost:3200/questions"): NextLikeResponse {
+function responseFor(url = "http://localhost:7040/questions"): NextLikeResponse {
   // `proxy` reads only the request's headers, so a plain Request is enough; NextRequest's
   // extra surface is unused here.
   return proxy(new Request(url) as never);
@@ -94,7 +94,7 @@ describe("admin security headers", () => {
   it("covers the auth screens too, not just the authenticated shell", () => {
     // A matcher that skipped `/sign-in` would ship the one page that handles a credential
     // without a CSP.
-    expect(cspOf(responseFor("http://localhost:3200/sign-in"))).toContain("default-src 'self'");
+    expect(cspOf(responseFor("http://localhost:7040/sign-in"))).toContain("default-src 'self'");
   });
 
   it("matches every route except Next's static assets", () => {

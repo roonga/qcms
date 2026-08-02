@@ -6,7 +6,7 @@
  * e2e globalSetup, which lives and dies with the test run. This script makes it
  * a repeatable thing a human can drive:
  *
- *   1. Bring up the dev Postgres (docker-compose.dev.yml, QCMS_DB_PORT=7020) and
+ *   1. Bring up the dev Postgres (docker-compose.dev.yml, on this seat's 7S20) and
  *      migrate it to head (the same package-owned migration set adopters run).
  *   2. Seed AND PUBLISH the kitchen-sink form (frm_kitchen_sink) through the
  *      exact same publish pipeline the e2e seed uses - the published @qcms/db
@@ -33,12 +33,22 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { composeProjectName, stablePort } from "./ports.mjs";
+
 const REPO_ROOT = fileURLToPath(new URL("../", import.meta.url));
 
 // ---------------------------------------------------------------------------
 // Tunables (all overridable via env so the script never hard-codes a machine).
+//
+// The three ports come from this machine's SEAT (`QCMS_PORT_SEAT`, default 0) via
+// `scripts/ports.mjs`, never from a literal here: seat S runs the human-facing stack
+// on 7S00 / 7S10 / 7S20, and seat 0 is exactly today's 7000 / 7010 / 7020. The rule,
+// the table and the reasoning are in `docs/PORTS.md`. The individual
+// `QCMS_DEV_*_PORT` / `QCMS_DB_PORT` overrides still win where they are set, so an
+// unusual machine can still move one service without moving the whole seat.
 // ---------------------------------------------------------------------------
-const DB_PORT = process.env.QCMS_DB_PORT ?? "7020";
+const COMPOSE_PROJECT = process.env.COMPOSE_PROJECT_NAME ?? composeProjectName();
+const DB_PORT = process.env.QCMS_DB_PORT ?? String(stablePort("postgres"));
 const DB_USER = process.env.QCMS_DB_USER ?? "qcms";
 const DB_PASSWORD = process.env.QCMS_DB_PASSWORD ?? "qcms";
 const DB_NAME = process.env.QCMS_DB_NAME ?? "qcms";
@@ -48,7 +58,7 @@ const DB_NAME = process.env.QCMS_DB_NAME ?? "qcms";
 // not: `docker compose` there talks to the mounted host socket
 // (docker-outside-of-docker, ADR-29), so the database starts as a SIBLING
 // published on the host's loopback, and this container's own localhost has
-// nothing on 7020.
+// nothing on that port.
 //
 // The address that works is the default-route gateway. `host.docker.internal`
 // looks right and even accepts a TCP connection on Docker Desktop, but a real
@@ -72,8 +82,8 @@ const DATABASE_URL =
   process.env.DATABASE_URL ??
   `postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}`;
 
-const API_PORT = process.env.QCMS_DEV_API_PORT ?? "7010";
-const PORTAL_PORT = process.env.QCMS_DEV_PORTAL_PORT ?? "7000";
+const API_PORT = process.env.QCMS_DEV_API_PORT ?? String(stablePort("api"));
+const PORTAL_PORT = process.env.QCMS_DEV_PORTAL_PORT ?? String(stablePort("portal"));
 const API_BASE_URL = `http://127.0.0.1:${API_PORT}`;
 const PORTAL_BASE_URL = `http://localhost:${PORTAL_PORT}`;
 
@@ -197,13 +207,24 @@ function ensureBuilt() {
 // 1. Dev Postgres up + migrated.
 // ---------------------------------------------------------------------------
 function composeUp() {
-  log(`bringing up dev Postgres (docker-compose.dev.yml, port ${DB_PORT})...`);
+  log(
+    `bringing up dev Postgres (docker-compose.dev.yml, project ${COMPOSE_PROJECT}, port ${DB_PORT})...`,
+  );
   const res = spawnSync("docker", ["compose", "-f", "docker-compose.dev.yml", "up", "-d"], {
     cwd: REPO_ROOT,
     stdio: "inherit",
     shell: IS_WINDOWS,
     env: {
       ...process.env,
+      // Two Compose stacks sharing a project name ARE one stack, and moving only
+      // the port does not share it - it TAKES it: same project plus a changed port
+      // mapping makes `up -d` recreate the running container on the new port against
+      // the same volume, so seat 0 loses its database mid-session and keeps dialling
+      // a port nothing serves. Nothing errors on either side. The
+      // project name is what makes a seat's database its own; `COMPOSE_PROJECT_NAME`
+      // outranks the `name:` in the compose file, and named volumes are namespaced
+      // by project. Seat 0 resolves to the unchanged `qcms-dev`.
+      COMPOSE_PROJECT_NAME: COMPOSE_PROJECT,
       QCMS_DB_PORT: DB_PORT,
       QCMS_DB_USER: DB_USER,
       QCMS_DB_PASSWORD: DB_PASSWORD,
@@ -386,7 +407,9 @@ function shutdown(signal) {
     }
   }
   log("stopped. The Postgres container is still running.");
-  log("Remove it with:  docker compose -f docker-compose.dev.yml down");
+  log(
+    `Remove it with:  COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT} docker compose -f docker-compose.dev.yml down`,
+  );
   process.exit(0);
 }
 
@@ -419,7 +442,7 @@ async function main() {
       "  Use this for the task-030 manual screen-reader accessibility pass.",
       "",
       "  Stop:  press Ctrl+C  (stops the API + portal)",
-      "  Then:  docker compose -f docker-compose.dev.yml down   (removes the DB)",
+      `  Then:  COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT} docker compose -f docker-compose.dev.yml down   (removes the DB)`,
       "==================================================================",
       "",
     ].join("\n") + "\n",

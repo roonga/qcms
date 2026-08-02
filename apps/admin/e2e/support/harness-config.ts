@@ -1,5 +1,7 @@
 import { fileURLToPath } from "node:url";
 
+import { PORT_SEAT, harnessPort } from "../../../portal/e2e/support/port-seat.js";
+
 /**
  * Shared constants for the admin Playwright harness (task 031).
  *
@@ -16,8 +18,17 @@ import { fileURLToPath } from "node:url";
  * makes a reused dev server safe across runs.
  */
 
-/** The port the admin dev server listens on (the portal uses 3100). */
-export const ADMIN_PORT = 3200;
+/**
+ * The port the admin dev server listens on.
+ *
+ * Derived from the run's seat rather than written down: seat S owns `17S00`-`17S99`
+ * and the admin sits at `17S40` (the portal is at `17S00`). The rule, the table and
+ * the reasoning are in `docs/PORTS.md`; the arithmetic is in `scripts/ports.mjs`,
+ * reached here through the portal harness's `port-seat.ts` for the same reason the
+ * fixtures path and the SEC-4 token come from there: one database, one API, two
+ * frontends, so one set of constants.
+ */
+export const ADMIN_PORT = harnessPort("admin", PORT_SEAT);
 
 /** The admin app's own base URL, which better-auth scopes its cookies to. */
 export const ADMIN_BASE_URL = `http://localhost:${ADMIN_PORT}`;

@@ -4,6 +4,7 @@ import { join } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { API_PORT, PORTAL_PORT } from "./harness-config.js";
 import { browserConsoleFault, matchExpectedFailure, scanAppended } from "./gates.js";
 import type { ExpectedRequestFailure } from "./gates.js";
 
@@ -98,7 +99,12 @@ function reportedText(c: Case): string {
 /** Fault spellings the pattern already caught before #120; these must not regress. */
 const CAUGHT_BEFORE: readonly Case[] = [
   { why: "Next.js error glyph", line: "⨯ unhandledRejection: [Error: boom]" },
-  { why: "a bare thrown Error:", line: "Error: connect ECONNREFUSED 127.0.0.1:4010" },
+  {
+    why: "a bare thrown Error:",
+    // The composed API's own harness port, derived rather than written: R8 keeps
+    // even a synthetic log line off an invented number (docs/PORTS.md).
+    line: `Error: connect ECONNREFUSED 127.0.0.1:${String(API_PORT)}`,
+  },
   { why: "the unhandledRejection event name", line: "unhandledRejection [Error: boom]" },
   { why: "Node's UnhandledPromiseRejection spelling", line: "UnhandledPromiseRejection: boom" },
   { why: "a 5xx in the request log", line: "POST /r/tok_abc 500 in 42ms" },
@@ -510,7 +516,7 @@ describe("info, log and debug are not gated (issue #147)", () => {
  */
 const ANSWERS_422 =
   "Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)";
-const ANSWERS_URL = "http://localhost:3100/s/ses_abc/answers";
+const ANSWERS_URL = `http://localhost:${String(PORTAL_PORT)}/s/ses_abc/answers`;
 const EXPECT_422: ExpectedRequestFailure = { status: 422, url: /\/answers$/ };
 const DECLARED: readonly ExpectedRequestFailure[] = [EXPECT_422];
 
@@ -527,7 +533,11 @@ describe("a declared request failure exempts only itself (issue #166)", () => {
 
   it("does not exempt the declared status on a different request", () => {
     expect(
-      matchExpectedFailure(DECLARED, ANSWERS_422, "http://localhost:3100/s/ses_abc/submit"),
+      matchExpectedFailure(
+        DECLARED,
+        ANSWERS_422,
+        `http://localhost:${String(PORTAL_PORT)}/s/ses_abc/submit`,
+      ),
     ).toBeUndefined();
   });
 

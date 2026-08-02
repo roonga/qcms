@@ -57,7 +57,7 @@ Everything is named and grouped, so `docker ps` reads at a glance and Docker Des
 | `qcms-dev-container` | the dev container itself |
 | `qcms-dev-postgres-1` | the dev database from `docker-compose.dev.yml` |
 
-Both carry the `qcms-dev` compose project, and the database keeps that name whatever your checkout folder is called. Testcontainers spawns its own short-lived containers with generated names: those belong to a test run, not the dev stack.
+Both carry the `qcms-dev` compose project **at the default seat 0**, and the database keeps that name whatever your checkout folder is called. Another seat gets its own project and so its own container and volume (`qcms-dev-s1-postgres-1` at seat 1) - see [`docs/PORTS.md`](PORTS.md) for why that has to move with the port. Testcontainers spawns its own short-lived containers with generated names: those belong to a test run, not the dev stack.
 
 ## Running the app
 
@@ -65,7 +65,7 @@ Both carry the `qcms-dev` compose project, and the database keeps that name what
 pnpm dev:portal
 ```
 
-Brings the dev database up, seeds and publishes the kitchen-sink form, then starts the API on 7010 and the portal on 7000. Open **`http://localhost:7000/f/kitchen-sink`** in your *host* browser.
+Brings the dev database up, seeds and publishes the kitchen-sink form, then starts the API and the portal on this machine seat's ports. At the default seat 0 that is 7010 and 7000: open **`http://localhost:7000/f/kitchen-sink`** in your *host* browser. The allocation, the seat scheme and the runbook are in [`docs/PORTS.md`](PORTS.md), which is the only place the table is written down.
 
 The dev servers listen on all interfaces inside the container (`next dev` and Hono's `serve()` both bind `0.0.0.0` by default). Ports **7000** and **7010** leave the container two ways: `appPort` publishes them on the Docker host under any launcher including a bare CLI `up`, and `forwardPorts` adds the VS Code / Codespaces editor tunnel with labels. If you launch the container by hand with plain `docker run`, publish them yourself (`-p 7000:7000 -p 7010:7010`).
 
@@ -79,19 +79,19 @@ It is additive to the *repo* but not invisible to your *machine*. The conflict r
 
 | Resource | What happens | Consequence |
 |---|---|---|
-| Ports 7000 / 7010 | Published on the Docker host via `appPort` | Anything already holding them blocks container creation: a host process, or a dev container from another checkout. Only one qcms dev container runs at a time, machine-wide. Stop the other first: `pnpm devcontainer stop`, or `docker stop qcms-dev-container`. |
-| Port 7020 | **Not** taken by the container; owned by host `docker-compose.dev.yml` | Safe by design. Do not add 7020 to `appPort`, or the database and the container will fight over it. |
+| Ports 7000 / 7010 (seat 0) | Published on the Docker host via `appPort` | Anything already holding them blocks container creation: a host process, or a dev container from another checkout. **As shipped, one qcms dev container runs at a time, machine-wide** - `appPort` is static and `--name=qcms-dev-container` is fixed, so a second one collides on the name before it collides on a port. Stop the other first, **from the host**: `pnpm devcontainer stop`, or `docker stop qcms-dev-container` (the guard above refuses those from inside the container they target). A second *seat* is designed for and documented in [`docs/PORTS.md`](PORTS.md), but running two containers has not been exercised; the tested second-seat path is a host checkout with `QCMS_PORT_SEAT` set. |
+| Port 7020 (seat 0) | **Not** taken by the container; owned by host `docker-compose.dev.yml` | Safe by design. Do not add it to `appPort`, or the database and the container will fight over it ([`docs/PORTS.md`](PORTS.md) explains why). |
 | `node_modules/` + the pnpm store | The workspace is bind-mounted, so the in-container `pnpm install` relinks `node_modules` to the container's store | Host-side pnpm in that checkout can then fail with `ERR_PNPM_MISSING_PACKAGE_INDEX_FILE`. Recover with `pnpm install` on the host, which relinks it back. |
 | Docker daemon | Mounted host socket (`docker-outside-of-docker`) | Testcontainers starts *sibling* containers on your host, visible to `docker ps`. ADR-29 records this trade-off. |
 
-The practical rule: **one container machine-wide, and one side per checkout at a time.** A second checkout is fine for editing, but its container will not start while another holds the ports. Alternating host and container pnpm in one directory is supported but costs a re-`install` each way; if you switch often, keep a second `git worktree` for the host side.
+The practical rule: **one container machine-wide, and one side per checkout at a time.** (That is a property of the shipped devcontainer config, not of the port allocation: [`docs/PORTS.md`](PORTS.md) defines seats 0-9 and what a second seat would need.) A second checkout is fine for editing, but its container will not start while another holds the ports. Alternating host and container pnpm in one directory is supported but costs a re-`install` each way; if you switch often, keep a second `git worktree` for the host side.
 
 ## Troubleshooting
 
 | Symptom | Cause and fix |
 |---|---|
-| `Bind for 0.0.0.0:7020 failed: port is already allocated` | Another dev database already holds 7020, often from an older checkout. `docker ps -a --filter publish=7020`, then `docker rm -f <name>`. |
-| Container creation fails on 7000 or 7010 | A host process or another qcms dev container holds them. `pnpm devcontainer status`, then stop the other one. |
+| `Bind for 0.0.0.0:7020 failed: port is already allocated` | Another dev database already holds seat 0's database port, often from an older checkout. `docker ps -a --filter publish=7020`, then `docker rm -f <name>`. Or take another seat: `QCMS_PORT_SEAT=1 pnpm dev:portal` ([`docs/PORTS.md`](PORTS.md)). |
+| Container creation fails on 7000 or 7010 | A host process or another qcms dev container holds them. `pnpm devcontainer status`, then stop the other one **from the host** (`stop`, `down` and `rebuild` refuse to run from inside the container they target). |
 | `The container name "/qcms-dev-container" is already in use` | A stopped container still holds the name. `pnpm devcontainer rebuild` removes it by name first. |
 | Config edits seem to have no effect | `up` reused the container. `pnpm devcontainer rebuild`. `status` warns when this has happened. |
 | `ERR_PNPM_MISSING_PACKAGE_INDEX_FILE` on the host | That checkout's `node_modules` is linked to the container's pnpm store. Run `pnpm install` on the host. |

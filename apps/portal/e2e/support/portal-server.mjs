@@ -49,7 +49,16 @@ import { get } from "node:http";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const port = process.env.PORTAL_PORT ?? "3100";
+// Required, never defaulted. The port belongs to the run's seat (`QCMS_PORT_SEAT`,
+// see docs/PORTS.md) and Playwright's webServer entry always passes it in; a literal
+// fallback here would be a second, silently divergent source of truth for the one
+// thing issue #255 was about. A wrapper started without it is a harness bug, so say
+// so rather than binding some other lane's port.
+const port = process.env.PORTAL_PORT;
+if (port === undefined || port === "") {
+  writeSync(2, "[portal-server] PORTAL_PORT is not set. See docs/PORTS.md.\n");
+  process.exit(1);
+}
 const defaultLogPath = fileURLToPath(
   new URL("../../.playwright/server-logs/portal.log", import.meta.url),
 );

@@ -5,7 +5,7 @@
 
 ## Ground rules
 
-The reference documents in `docs/` are authoritative; the discipline rules R1–R7 and decisions ADR-01…35 / SEC-1…13 are not relitigated in PRs - a PR that violates them is not mergeable regardless of quality. Conflicts with a decision are raised as an issue proposing a new ADR, never resolved silently in code. The launch cut-line (R7) applies to contributions: out-of-scope features become `phase-4` issues, not PRs.
+The reference documents in `docs/` are authoritative; the discipline rules R1–R8 and decisions ADR-01…37 / SEC-1…13 are not relitigated in PRs - a PR that violates them is not mergeable regardless of quality. Conflicts with a decision are raised as an issue proposing a new ADR, never resolved silently in code. The launch cut-line (R7) applies to contributions: out-of-scope features become `phase-4` issues, not PRs.
 
 ## Development environment
 
@@ -53,7 +53,7 @@ use `pnpm devcontainer rebuild` after editing `devcontainer.json`.
 - Lint rules live in the **root flat config** (`eslint.config.js`); per-package additions only for package-specific import-surface rules (e.g. core's no-db-import). Formatting is owned by Prettier and never discussed in review. Lint rules are the standard - if a convention matters, encode it as a rule or import-surface test, don't police it by hand.
 - **Static analysis (issue #14):** `eslint-plugin-sonarjs` runs inside lint (bugs, code smells, cognitive complexity); its project tuning is documented inline in `eslint.config.js` (each disable carries a rationale, e.g. the kernel's essential-complexity algorithms). Copy-paste detection is `pnpm check:duplication` (jscpd, `.jscpd.json`, 3% threshold) - it accepts the deliberate vertical-slice repetition (R5) and fails only on a real regression. Both run in CI.
 - Comments explain *why*, not *what*. JSDoc on exported package APIs. Every `TODO` references an issue number; free-floating TODOs fail review.
-- **No em dash (Unicode U+2014), anywhere** - prose, comments, commit messages, or UI strings. It reads as an AI-generated tell and QCMS is public. Use a colon, comma, parentheses, a period, or a spaced hyphen (` - `) instead. The en dash (`–`) is fine for numeric ranges (`R1–R7`); the hyphen (`-`) is always fine. Enforced by the `check:no-em-dash` gate in CI.
+- **No em dash (Unicode U+2014), anywhere** - prose, comments, commit messages, or UI strings. It reads as an AI-generated tell and QCMS is public. Use a colon, comma, parentheses, a period, or a spaced hyphen (` - `) instead. The en dash (`–`) is fine for numeric ranges (`R1–R8`); the hyphen (`-`) is always fine. Enforced by the `check:no-em-dash` gate in CI.
 
 ### Dependencies (mirrors `a2-react-aria`'s approval policy)
 
@@ -112,7 +112,7 @@ No secrets in code, fixtures, or logs; answer values never logged; queries param
 
 ```sh
 pnpm verify           # the landing gate: check:all, then build, typecheck, lint, test, golden-drift
-pnpm verify:browser   # the Playwright suite (portal e2e + a11y + Lighthouse), see below
+QCMS_PORT_SEAT=0 pnpm verify:browser   # the Playwright suite (portal e2e + a11y + Lighthouse), see below
 ```
 
 | `.github/workflows/ci.yml` step | Covered by |
@@ -127,6 +127,7 @@ pnpm verify:browser   # the Playwright suite (portal e2e + a11y + Lighthouse), s
 | `pnpm check:no-control-chars` | `pnpm check:all` |
 | `pnpm check:licenses` | `pnpm check:all` |
 | `pnpm check:no-em-dash` | `pnpm check:all` |
+| `pnpm check:ports` | `pnpm check:all` |
 | `pnpm check:duplication` | `pnpm check:all` |
 | `pnpm check:admin-theme` | `pnpm check:all` |
 | `e2e` job (`--project qcms-api-e2e`) | `pnpm test` (apps/api's `test` script runs that project) |
@@ -137,7 +138,7 @@ pnpm verify:browser   # the Playwright suite (portal e2e + a11y + Lighthouse), s
 
 **`check:admin-theme` in one paragraph** (task 055). Three properties of the QCMS app's own styling, none of which a diff shows once the app grows: every colour in `apps/admin` outside `apps/admin/app/theme.css` is a `var(--...)` reference (a raw hex or a Tailwind palette utility looks right in whichever mode the author had open and is wrong in the other two); the landed sheet is byte-identical to `plan/admin-theme/tokens.css`, which is generated behind a WCAG contrast gate, so a hand-edit cannot keep the published contrast table while losing the property it certifies; and no value in the app's message catalog names the app "admin" (the product is QCMS and the respondent app is the Portal - code identifiers such as `apps/admin` and `qcms-admin` are deliberately untouched). Comments are excluded from both scans, so a comment citing `issue #177` or describing the app by its directory is fine.
 
-**Why the browser suite is separate.** `verify` is minutes long already; adding a browser boot, Docker Postgres, and two Lighthouse runs to *every* iteration is how a gate gets routed around. Run `pnpm verify:browser` before landing anything that touches `apps/portal`, `apps/admin`, or `@qcms/ui` - and note it is the only part of CI a green `verify` does not vouch for.
+**Why the browser suite is separate.** `verify` is minutes long already; adding a browser boot, Docker Postgres, and two Lighthouse runs to *every* iteration is how a gate gets routed around. Run `QCMS_PORT_SEAT=<0-9> pnpm verify:browser` before landing anything that touches `apps/portal`, `apps/admin`, or `@qcms/ui` - and note it is the only part of CI a green `verify` does not vouch for. The seat is **not optional from a linked worktree**, which is where every agent lane works: the harness refuses an unset seat there rather than silently adopting another lane's dev servers and reporting green for a tree it never loaded (R8, `docs/PORTS.md`, issue #255). `0` is the right answer whenever nothing else is running.
 
 **`check:changeset` in one paragraph.** It fails when the diff against `origin/main` touches a publishable package with no changeset **added in the same diff** naming that package (an unreleased changeset already on `main` does not count). The publishable set is derived from each `package.json`'s `private` field plus `.changeset/config.json`'s `ignore`, so it never goes stale. Exempt: markdown anywhere (docs, package READMEs, CHANGELOGs), private packages (`apps/*`), and test files/directories inside a publishable package (`*.test.ts`, `*.e2e.ts`, `e2e/`, `__tests__/`, `test/`) - a test-only change alters nothing a consumer can call, and a changeset that is not required is still allowed. `packages/db/src/testing/` is **not** exempt: it is the published `@qcms/db/testing` subpath. A `changeset version` release diff (which deletes changesets) is passed through, so the release PR is never blocked by the gate it spends. It reads committed state, so commit before you trust its verdict.
 
@@ -148,7 +149,7 @@ pnpm verify:browser   # the Playwright suite (portal e2e + a11y + Lighthouse), s
 - **PR scope:** one task (or less) per PR. If a diff wants to do two things, it's two PRs.
 - **PR description:** the task's exit-criteria checklist, checked off, plus anything a reviewer needs to verify locally. For non-task PRs: what, why, and how it was tested.
 - **Merge requirements:** CI green (no skips); `pnpm verify` green locally *after* the final rebase; a Changeset for any change to a publishable package (enforced by `check:changeset`) (patch/minor/major honestly chosen - snapshot formats and golden corpora are public contracts); progress ledger updated for task PRs; review approval per below. Squash-merge; the squash message follows the commit convention.
-- **Review:** the reviewer (human, or a second agent session given only the task file + diff) verifies exit criteria, R1–R7, cut-line, and security standards - and never extends the work. Author responds to every comment (fix or reasoned pushback); style nits that aren't lint rules are suggestions, not blockers.
+- **Review:** the reviewer (human, or a second agent session given only the task file + diff) verifies exit criteria, R1–R8, cut-line, and security standards - and never extends the work. Author responds to every comment (fix or reasoned pushback); style nits that aren't lint rules are suggestions, not blockers.
 - **Never merge red; never leave `main` broken.** Incomplete work parks on its branch with a `HANDOFF.md` (state, next step, what's red).
 
 ## External contributions

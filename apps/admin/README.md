@@ -23,7 +23,7 @@ area screens are placeholders that name the task filling them.
 pnpm dev:portal                                    # dev Postgres up and migrated to head
 cp apps/admin/.env.example apps/admin/.env.local   # then edit; DATABASE_URL -> port 7020
 QCMS_ADMIN_EMAIL=you@example.test QCMS_ADMIN_PASSWORD='a long passphrase' pnpm qcms:create-admin
-pnpm --filter qcms-admin dev                        # http://localhost:3000
+pnpm --filter qcms-admin dev --port 7040            # http://localhost:7040
 ```
 
 Migrations are applied **programmatically**, not by the drizzle-kit CLI: `packages/db/drizzle.config.ts`
