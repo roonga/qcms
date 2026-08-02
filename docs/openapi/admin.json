@@ -666,6 +666,86 @@
           "answers"
         ]
       },
+      "PreviewDraftResponse": {
+        "type": "object",
+        "properties": {
+          "documents": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "stepId": {
+                  "type": "string",
+                  "example": "stp_driver"
+                },
+                "root": {
+                  "nullable": true
+                }
+              },
+              "required": [
+                "stepId"
+              ]
+            }
+          },
+          "compilerVersion": {
+            "type": "string",
+            "example": "0.1.0"
+          },
+          "a2uiSpecVersion": {
+            "type": "string",
+            "example": "0.1.0"
+          },
+          "flow": {
+            "type": "object",
+            "properties": {
+              "visibleSteps": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "visibleQuestions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "complete": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "visibleSteps",
+              "visibleQuestions",
+              "complete"
+            ]
+          }
+        },
+        "required": [
+          "documents",
+          "compilerVersion",
+          "a2uiSpecVersion",
+          "flow"
+        ]
+      },
+      "PreviewDraftBody": {
+        "type": "object",
+        "properties": {
+          "definition": {
+            "$ref": "#/components/schemas/FormDefinitionInput"
+          },
+          "answers": {
+            "type": "object",
+            "additionalProperties": {
+              "nullable": true
+            },
+            "description": "Walk-through answers, keyed by questionId (never logged)."
+          }
+        },
+        "required": [
+          "definition"
+        ]
+      },
       "FormSettingsResponse": {
         "type": "object",
         "properties": {
@@ -2575,6 +2655,94 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PreviewConditionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/forms/{id}/draft/preview": {
+      "post": {
+        "summary": "Dry-run compile of a draft plus its forward-pass projection (admin preview)",
+        "tags": [
+          "forms"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_signup"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewDraftBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The compiled draft documents and the visible set for the given answers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewDraftResponse"
                 }
               }
             }

@@ -81,6 +81,7 @@ import type {
   getFormVersionRoute,
   listFormsRoute,
   previewConditionRoute,
+  previewDraftRoute,
   publishFormRoute,
   putDraftRoute,
   reopenFormRoute,
@@ -126,6 +127,8 @@ const fail = {
   versionNotFound: (): ApiError => new ApiError("VERSION_NOT_FOUND", 404, "No such form version"),
   publishRejected: (issues: readonly PublishIssue[]): ApiError =>
     new ApiError("PUBLISH_REJECTED", 422, "The draft cannot be published", { issues }),
+  previewRejected: (issues: readonly PublishIssue[]): ApiError =>
+    new ApiError("PREVIEW_REJECTED", 422, "The draft cannot be previewed", { issues }),
 } as const;
 
 // The rule test bench deliberately adds no failure codes here. Everything it
@@ -720,6 +723,126 @@ export function makePreviewConditionHandler(
         ruleId: rule.ruleId,
         references: [...references],
         outcome: matched ? ("match" as const) : ("noMatch" as const),
+      },
+      200,
+    );
+  };
+}
+
+// --- POST /admin/forms/:id/draft/preview ------------------------------------
+
+/**
+ * Read the author's walk-through answers into an `AnswerMap`.
+ *
+ * Unlike the bench's collector this **skips** what it cannot read rather than
+ * refusing the whole request. The values arrive straight from the shared
+ * renderer's canonical `AnswerValue` shape, so an unreadable entry means the
+ * author changed the draft under their own answers (a pin moved, a question was
+ * removed) - and the honest rendering of that is the question reading as
+ * unanswered, not a preview pane that goes blank while they edit.
+ *
+ * Answers are never logged and never persisted here (SEC-13, ADR-34).
+ */
+function collectPreviewAnswers(
+  supplied: Readonly<Record<string, unknown>> | undefined,
+  pins: ReadonlyMap<QuestionId, number>,
+): AnswerMap {
+  const answers = new Map<QuestionId, AnswerValue>();
+  for (const [key, value] of Object.entries(supplied ?? {})) {
+    if (value === undefined) continue;
+    const questionId = parseQuestionId(key);
+    if (!questionId.ok || !pins.has(questionId.value)) continue;
+    const answer = parseAnswerValue(value);
+    if (!answer.ok) continue;
+    answers.set(questionId.value, answer.value);
+  }
+  return answers;
+}
+
+/**
+ * The live draft preview (034): compile the draft the author is looking at, and
+ * project it for the answers they have walked in with.
+ *
+ * ## Why the API compiles, and the admin does not
+ *
+ * The same reasoning 032's question preview settled and 033's rule bench
+ * repeated: compiling in the admin would put `@qcms/a2ui-compiler` and
+ * `@qcms/core` inside a strict BFF, which is exactly the capability the admin's
+ * `r2-import-surface.test.ts` exists to keep out (R2). Running it here also makes
+ * preview fidelity **structural** rather than a version coincidence: preview and
+ * publish call the same `compileForm` in the same process, so they cannot drift.
+ *
+ * ## Why the visible set comes back with it
+ *
+ * The task file and the wireframe both describe the author walking branches with
+ * "the core evaluator client-side". That is not implementable and has already
+ * been ruled on once: rule evaluation lives in the API (033's amendment,
+ * 2026-08-01, PO seat), and the portal does no rule evaluation either - it
+ * receives an authoritative `visibleQuestions` list and projects the full
+ * compiled document onto it (`documentForVisible`, R2). So this route returns the
+ * *same pair* the portal's serve-step returns, and the admin projects and renders
+ * it through the identical shared code. Preview fidelity is stronger for it: the
+ * admin is not a second implementation of visibility, it is the same one.
+ *
+ * ## Why a draft that will not compile is a 422 and not a blank pane
+ *
+ * A preview of an unpublishable draft would be a claim about what a respondent
+ * would see that publish would then refuse to honour. The issues come back
+ * verbatim in the same `details.issues` envelope publish uses, so the pane
+ * renders the author's real next action instead of an empty step.
+ *
+ * Nothing here writes. The draft is not saved, the answers are not stored, and
+ * the compiled output is not the ADR-18 audit copy: only publish writes that.
+ */
+export function makePreviewDraftHandler(
+  deps: Deps,
+): RouteHandler<typeof previewDraftRoute, ApiEnv> {
+  return async (c) => {
+    const formId = requireFormId(c.req.valid("param").id);
+    const body = c.req.valid("json");
+
+    const form = await getForm(deps.db, formId);
+    if (form === undefined) throw fail.formNotFound();
+
+    const definition = requireDefinition(body.definition);
+    if (definition.formId !== formId) throw fail.idMismatch();
+
+    const { issues, snapshot } = await validateDraft(deps, definition);
+    if (issues.length > 0 || snapshot === undefined) throw fail.previewRejected(issues);
+
+    const compiled = compileForm(snapshot, {});
+
+    // The snapshot already carries the version-exact question records the pins
+    // resolved to, so the evaluator's resolver is built from it rather than by
+    // reading the library a second time. Version-exact matters (R1): resolving a
+    // pin to a question's newest version would preview content the draft does
+    // not name.
+    const definitionByQuestion = new Map(
+      snapshot.questions.map((record) => [record.questionId, record.definition] as const),
+    );
+    const resolve: ResolveQuestion = (questionId) => definitionByQuestion.get(questionId);
+
+    const answers = collectPreviewAnswers(body.answers, pinsByQuestion(definition));
+    const flow = evaluateRules(snapshot, answers, resolve);
+    // A clean draft plus renderer-shaped answers cannot fail the forward pass:
+    // every pin resolves and every rule type-checked during validation above. If
+    // it does, the pane is told the preview is unavailable rather than shown a
+    // projection built from a failed evaluation.
+    if (!flow.ok) throw fail.previewRejected([]);
+
+    return c.json(
+      {
+        documents: compiled.documents.map((document) => ({
+          stepId: document.stepId,
+          root: document.root,
+        })),
+        compilerVersion: compiled.compilerVersion,
+        a2uiSpecVersion: compiled.a2uiSpecVersion,
+        flow: {
+          visibleSteps: [...flow.value.visibleSteps],
+          visibleQuestions: flow.value.visible.map((entry) => entry.questionId),
+          complete: flow.value.complete,
+        },
       },
       200,
     );

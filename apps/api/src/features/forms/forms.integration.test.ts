@@ -724,3 +724,172 @@ describe("per-form settings (033 settings panel)", () => {
     expect((await patchSettings("frm_no_such_form", { challengeRequired: true })).status).toBe(404);
   });
 });
+
+// --- the live draft preview (034) -------------------------------------------
+
+interface PreviewBody {
+  documents: { stepId: string; root: unknown }[];
+  compilerVersion: string;
+  a2uiSpecVersion: string;
+  flow: { visibleSteps: string[]; visibleQuestions: string[]; complete: boolean };
+}
+
+async function preview(formId: string, body: unknown): Promise<Response> {
+  return post(`/forms/${formId}/draft/preview`, body);
+}
+
+describe("draft preview: the dry-run compile the admin renders (034)", () => {
+  const formId = "frm_preview";
+  const rule = {
+    ruleId: "rul_preview",
+    when: { op: "equals", questionId: "q_preview_choice", value: "opt_yes" },
+    show: ["q_preview_followup"],
+  };
+  const definition = formDefinition(
+    formId,
+    [
+      ["stp_preview_one", ["q_preview_choice"]],
+      ["stp_preview_two", ["q_preview_followup"]],
+    ],
+    [rule],
+    "Preview me",
+  );
+
+  beforeAll(async () => {
+    await seedPublishedChoice("q_preview_choice", ["opt_yes", "opt_no"]);
+    await seedPublishedQuestion("q_preview_followup", "How many?");
+    await post("/forms", { formId, slug: "preview", defaultLocale: "en" });
+    await put(`/forms/${formId}/draft`, { definition });
+  }, BOOT_TIMEOUT);
+
+  it("compiles the submitted draft and stamps both versions", async () => {
+    const res = await preview(formId, { definition });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as PreviewBody;
+
+    expect(body.documents.map((document) => document.stepId)).toEqual([
+      "stp_preview_one",
+      "stp_preview_two",
+    ]);
+    expect(body.compilerVersion).not.toBe("");
+    expect(body.a2uiSpecVersion).not.toBe("");
+  });
+
+  it("is byte-identical to what publishing this draft would freeze (fidelity)", async () => {
+    // The whole point of the endpoint: the author's preview and the respondent's
+    // served document come out of the same `compileForm` call in the same
+    // process, so they cannot drift (ARCHITECTURE §6, ADR-18).
+    const previewed = (await (await preview(formId, { definition })).json()) as PreviewBody;
+
+    const published = await post(`/forms/${formId}/publish`);
+    expect(published.status).toBe(200);
+    const version = (await published.json()) as { version: number };
+    const snapshot = (await (
+      await get(`/forms/${formId}/versions/${String(version.version)}`)
+    ).json()) as {
+      compiled: { documents: { stepId: string; root: unknown }[] };
+      compilerVersion: string;
+      a2uiSpecVersion: string;
+    };
+
+    expect(previewed.documents).toEqual(snapshot.compiled.documents);
+    expect(previewed.compilerVersion).toBe(snapshot.compilerVersion);
+    expect(previewed.a2uiSpecVersion).toBe(snapshot.a2uiSpecVersion);
+
+    // Publishing consumed the draft; restore one so the rest of the block reads
+    // the same definition it started with.
+    await put(`/forms/${formId}/draft`, { definition });
+  });
+
+  it("walks a branch: the follow-up appears only for the answer that shows it", async () => {
+    const none = (await (await preview(formId, { definition })).json()) as PreviewBody;
+    expect(none.flow.visibleQuestions).toEqual(["q_preview_choice"]);
+
+    const shown = (await (
+      await preview(formId, { definition, answers: { q_preview_choice: "opt_yes" } })
+    ).json()) as PreviewBody;
+    expect(shown.flow.visibleQuestions).toEqual(["q_preview_choice", "q_preview_followup"]);
+    expect(shown.flow.visibleSteps).toEqual(["stp_preview_one", "stp_preview_two"]);
+
+    const hidden = (await (
+      await preview(formId, { definition, answers: { q_preview_choice: "opt_no" } })
+    ).json()) as PreviewBody;
+    expect(hidden.flow.visibleQuestions).toEqual(["q_preview_choice"]);
+  });
+
+  it("previews the definition on the author's screen, not the saved draft", async () => {
+    const edited = formDefinition(
+      formId,
+      [
+        ["stp_preview_one", ["q_preview_choice"]],
+        ["stp_preview_two", ["q_preview_followup"]],
+      ],
+      [{ ...rule, when: { op: "equals", questionId: "q_preview_choice", value: "opt_no" } }],
+      "Preview me",
+    );
+    const body = (await (
+      await preview(formId, { definition: edited, answers: { q_preview_choice: "opt_no" } })
+    ).json()) as PreviewBody;
+    expect(body.flow.visibleQuestions).toContain("q_preview_followup");
+  });
+
+  it("refuses a draft that could not be published, with the issues verbatim", async () => {
+    const backward = formDefinition(
+      formId,
+      [
+        ["stp_preview_one", ["q_preview_choice"]],
+        ["stp_preview_two", ["q_preview_followup"]],
+      ],
+      [
+        {
+          ruleId: "rul_backward",
+          when: { op: "equals", questionId: "q_preview_followup", value: "x" },
+          show: ["q_preview_choice"],
+        },
+      ],
+    );
+    const res = await preview(formId, { definition: backward });
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as ErrBody;
+    expect(body.error.code).toBe("PREVIEW_REJECTED");
+    expect(body.error.details?.issues?.map((issue) => issue.code)).toContain(
+      "RULE_BACKWARD_TARGET",
+    );
+  });
+
+  it("treats an unreadable answer as unanswered rather than failing the pane", async () => {
+    const res = await preview(formId, {
+      definition,
+      answers: { q_preview_choice: { smuggled: "answer-value-that-must-not-come-back" } },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as PreviewBody;
+    expect(body.flow.visibleQuestions).toEqual(["q_preview_choice"]);
+    // SEC-13: the rejected value is never echoed back.
+    expect(JSON.stringify(body)).not.toContain("answer-value-that-must-not-come-back");
+  });
+
+  it("writes nothing: no version, no outbox event, and the draft is untouched", async () => {
+    const before = await publishedEventCount(formId);
+    await preview(formId, { definition, answers: { q_preview_choice: "opt_yes" } });
+    expect(await publishedEventCount(formId)).toBe(before);
+
+    const detail = (await (await get(`/forms/${formId}`)).json()) as {
+      draft: { title: Record<string, string> };
+      versions: unknown[];
+    };
+    expect(detail.draft.title["en"]).toBe("Preview me");
+    expect(detail.versions).toHaveLength(1);
+  });
+
+  it("400s a malformed id, 404s an unknown form, and 422s a foreign definition", async () => {
+    expect((await preview("nope", { definition })).status).toBe(400);
+    expect((await preview("frm_no_such_form", { definition })).status).toBe(404);
+
+    const foreign = await preview(formId, {
+      definition: formDefinition("frm_someone_else", [["stp_preview_one", ["q_preview_choice"]]]),
+    });
+    expect(foreign.status).toBe(422);
+    expect(((await foreign.json()) as ErrBody).error.code).toBe("FORM_ID_MISMATCH");
+  });
+});

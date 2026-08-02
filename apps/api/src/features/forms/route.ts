@@ -28,6 +28,7 @@ import {
   makeGetFormVersionHandler,
   makeListFormsHandler,
   makePreviewConditionHandler,
+  makePreviewDraftHandler,
   makePublishFormHandler,
   makePutDraftHandler,
   makeReopenFormHandler,
@@ -47,6 +48,8 @@ import {
   ListFormsResponse,
   PreviewConditionBody,
   PreviewConditionResponse,
+  PreviewDraftBody,
+  PreviewDraftResponse,
   PublishedResponse,
   SavedDraftResponse,
   UpdateFormSettingsBody,
@@ -167,6 +170,36 @@ export const previewConditionRoute = createRoute({
   ...withScopes("forms:write"),
 });
 
+/**
+ * The live draft preview (034).
+ *
+ * Deliberately absent from the frozen 027 contract, which predates it: the
+ * wireframe records it as a thin extension of 022's draft slice that task 034
+ * lands. It is a dry run in the strictest sense - it compiles, it evaluates, and
+ * it writes nothing.
+ */
+export const previewDraftRoute = createRoute({
+  method: "post",
+  path: "/forms/{id}/draft/preview",
+  summary: "Dry-run compile of a draft plus its forward-pass projection (admin preview)",
+  tags,
+  request: {
+    params: FormIdParam,
+    body: { required: true, content: { "application/json": { schema: PreviewDraftBody } } },
+  },
+  responses: {
+    200: {
+      description: "The compiled draft documents and the visible set for the given answers",
+      content: { "application/json": { schema: PreviewDraftResponse } },
+    },
+    // 422 carries the publish issues verbatim when the draft cannot compile: a
+    // preview of a draft that could not be published would be a lie about what a
+    // respondent would see, so the pane renders the issue list instead.
+    ...errorResponses(400, 401, 404, 422),
+  },
+  ...withScopes("forms:write"),
+});
+
 export const updateFormSettingsRoute = createRoute({
   method: "patch",
   path: "/forms/{id}/settings",
@@ -262,6 +295,7 @@ export const registerForms: SliceRegistrar = (group, deps: Deps): void => {
   group.openapi(putDraftRoute, makePutDraftHandler(deps));
   group.openapi(validateDraftRoute, makeValidateDraftHandler(deps));
   group.openapi(previewConditionRoute, makePreviewConditionHandler(deps));
+  group.openapi(previewDraftRoute, makePreviewDraftHandler(deps));
   group.openapi(updateFormSettingsRoute, makeUpdateFormSettingsHandler(deps));
   group.openapi(publishFormRoute, makePublishFormHandler(deps));
   group.openapi(closeFormRoute, makeCloseFormHandler(deps));
