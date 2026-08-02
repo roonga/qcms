@@ -112,7 +112,7 @@ No secrets in code, fixtures, or logs; answer values never logged; queries param
 
 ```sh
 pnpm verify           # the landing gate: check:all, then build, typecheck, lint, test, golden-drift
-pnpm verify:browser   # the Playwright suite (portal e2e + a11y + Lighthouse), see below
+QCMS_PORT_SEAT=0 pnpm verify:browser   # the Playwright suite (portal e2e + a11y + Lighthouse), see below
 ```
 
 | `.github/workflows/ci.yml` step | Covered by |
@@ -138,7 +138,7 @@ pnpm verify:browser   # the Playwright suite (portal e2e + a11y + Lighthouse), s
 
 **`check:admin-theme` in one paragraph** (task 055). Three properties of the QCMS app's own styling, none of which a diff shows once the app grows: every colour in `apps/admin` outside `apps/admin/app/theme.css` is a `var(--...)` reference (a raw hex or a Tailwind palette utility looks right in whichever mode the author had open and is wrong in the other two); the landed sheet is byte-identical to `plan/admin-theme/tokens.css`, which is generated behind a WCAG contrast gate, so a hand-edit cannot keep the published contrast table while losing the property it certifies; and no value in the app's message catalog names the app "admin" (the product is QCMS and the respondent app is the Portal - code identifiers such as `apps/admin` and `qcms-admin` are deliberately untouched). Comments are excluded from both scans, so a comment citing `issue #177` or describing the app by its directory is fine.
 
-**Why the browser suite is separate.** `verify` is minutes long already; adding a browser boot, Docker Postgres, and two Lighthouse runs to *every* iteration is how a gate gets routed around. Run `pnpm verify:browser` before landing anything that touches `apps/portal`, `apps/admin`, or `@qcms/ui` - and note it is the only part of CI a green `verify` does not vouch for.
+**Why the browser suite is separate.** `verify` is minutes long already; adding a browser boot, Docker Postgres, and two Lighthouse runs to *every* iteration is how a gate gets routed around. Run `QCMS_PORT_SEAT=<0-9> pnpm verify:browser` before landing anything that touches `apps/portal`, `apps/admin`, or `@qcms/ui` - and note it is the only part of CI a green `verify` does not vouch for. The seat is **not optional from a linked worktree**, which is where every agent lane works: the harness refuses an unset seat there rather than silently adopting another lane's dev servers and reporting green for a tree it never loaded (R8, `docs/PORTS.md`, issue #255). `0` is the right answer whenever nothing else is running.
 
 **`check:changeset` in one paragraph.** It fails when the diff against `origin/main` touches a publishable package with no changeset **added in the same diff** naming that package (an unreleased changeset already on `main` does not count). The publishable set is derived from each `package.json`'s `private` field plus `.changeset/config.json`'s `ignore`, so it never goes stale. Exempt: markdown anywhere (docs, package READMEs, CHANGELOGs), private packages (`apps/*`), and test files/directories inside a publishable package (`*.test.ts`, `*.e2e.ts`, `e2e/`, `__tests__/`, `test/`) - a test-only change alters nothing a consumer can call, and a changeset that is not required is still allowed. `packages/db/src/testing/` is **not** exempt: it is the published `@qcms/db/testing` subpath. A `changeset version` release diff (which deletes changesets) is passed through, so the release PR is never blocked by the gate it spends. It reads committed state, so commit before you trust its verdict.
 
