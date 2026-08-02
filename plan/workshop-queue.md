@@ -65,3 +65,20 @@ One entry per finding: what is wrong, the evidence, and what the edit would be. 
 **What is wrong.** `docs/wireframes/` inventories are normative (per CLAUDE.md), and the admin publish/preview wireframe carries a "history multi-version + diff" state. 034's evidence covers it by unit test only: no browser assertion, no gate frame. So a normative state has no evidence in the form the gate reviews.
 
 **Candidate question for the workshop pass.** This is really about whether "normative wireframe state" implies "must appear in the gate set". If it does, that belongs written down, because it changes how every future UI task sizes its capture matrix. If it does not, the wireframe inventories need a way to mark which states are gate-bearing, so the distinction is visible rather than a judgement call made per task.
+
+---
+
+## A screenshot gate signed before its PR exists is signed against a state the work will not land in
+
+**Raised:** 2026-08-02, both seats, from 034's concrete near-miss.
+**Status:** queued. This is a rule the workshop pass should consider writing down, not a bug.
+
+**What is missing.** CLAUDE.md already says a screenshot gate's evidence is committed in the diff rather than shown in the session, that it lives under `docs/gates/<NNN>/` with a README naming what to approve, and that the Code Owner reviews from GitHub. What it does not say is **when**: nothing currently rules out signing from a branch tree listing before the PR exists.
+
+**Why the timing is load-bearing and not a formality.** The PR is what embeds the images by raw branch URL, and it is also the point at which the work has passed review. A gate signed earlier is signed against evidence that has not been through the reviewer, so it can be signed against frames the fix round is about to replace - which makes the signature a statement about a state the repo will never contain.
+
+**The concrete instance.** On 2026-08-02 the Code Owner declined to sign 034's gate because no PR existed yet and the 60 PNGs were only reachable as a branch tree listing. The reviewer then returned REJECT on ADR-27: raw API ISO strings rendered in two operator tables, visible in those very frames (`version-history-light-1280.png` showing `2026-07-20T00:00:00.000Z`, `links-minted-*` showing `2030-12-31T23:59:59.999Z`). Had the gate been signed when the evidence first existed, the Code Owner would have approved frames that are now being recaptured.
+
+**Candidate edit.** Add the ordering to the human-gates bullet: a screenshot gate is presented for signature **after** the reviewer's verdict and **in the PR**, never from a branch listing. Note the corollary for conductors: an early tree URL may be offered as an optional look, but it is not the gate, and it should be labelled that way when offered (which is what happened here).
+
+**Related.** Two of the three findings above were caught by looking at gate frames, which is the same argument from the other direction: the frames are evidence, so they have to be reviewed where they are actually looked at.
