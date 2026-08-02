@@ -58,8 +58,18 @@ export function VersionView({ snapshot }: { readonly snapshot: FormVersionSnapsh
   const [stepIndex, setStepIndex] = useState(0);
 
   // Reset during render rather than in an effect, so v2's controls never paint one frame
-  // holding v1's typed answers.
-  if (answers.key !== snapshot.version) setAnswers({ key: snapshot.version, values: {} });
+  // holding v1's typed answers. This is React's sanctioned "adjusting state when props
+  // change": the component re-runs immediately and the intermediate render is never
+  // committed, which an effect cannot promise - it would commit the stale frame first.
+  //
+  // The step index resets on the SAME condition, and it has to be this one rather than a
+  // clamp. `Math.min` below keeps the index in range, so nothing crashes, but a reader
+  // moving from a five-step version to a two-step one would land on its last step rather
+  // than its first: no error, just the wrong place, which is the harder kind to notice.
+  if (answers.key !== snapshot.version) {
+    setAnswers({ key: snapshot.version, values: {} });
+    setStepIndex(0);
+  }
 
   const handleChange = useCallback((name: string, value: A2UIAnswerValue | undefined): void => {
     setAnswers((previous) => {

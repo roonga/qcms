@@ -737,6 +737,11 @@ export const messages = {
   "forms.error.noDraft": "There is no draft to publish.",
   "forms.error.publishRejected": "The draft cannot be published yet. The reasons are listed below.",
   "forms.error.previewRejected": "The draft cannot be previewed yet. The reasons are listed below.",
+  // The rules-would-not-evaluate case, which has nothing to list. It exists so the
+  // sentence above can keep promising a list: a code that carries no issues gets its own
+  // copy rather than borrowing one that describes a screen the author is not looking at.
+  "forms.error.previewUnavailable":
+    "This draft compiled, but its rules could not be evaluated for the answers entered. Reset the answers to start again.",
   "forms.error.versionNotFound": "That version does not exist.",
 } as const;
 

@@ -855,6 +855,11 @@ describe("draft preview: the dry-run compile the admin renders (034)", () => {
     expect(body.error.details?.issues?.map((issue) => issue.code)).toContain(
       "RULE_BACKWARD_TARGET",
     );
+    // The invariant behind the admin's copy for this code, which promises "the reasons
+    // are listed below": a rejection always has at least one reason. A compile that fails
+    // without saying why answers `PREVIEW_UNAVAILABLE` instead, which has its own
+    // sentence and lists nothing.
+    expect(body.error.details?.issues?.length ?? 0).toBeGreaterThan(0);
   });
 
   it("treats an unreadable answer as unanswered rather than failing the pane", async () => {

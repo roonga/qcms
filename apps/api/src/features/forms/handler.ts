@@ -129,6 +129,17 @@ const fail = {
     new ApiError("PUBLISH_REJECTED", 422, "The draft cannot be published", { issues }),
   previewRejected: (issues: readonly PublishIssue[]): ApiError =>
     new ApiError("PREVIEW_REJECTED", 422, "The draft cannot be previewed", { issues }),
+  // A draft that compiled cleanly but whose rules could not be evaluated. Kept
+  // distinct from `previewRejected` because the two ask different things of the
+  // screen: one is a work list, the other has nothing to list. Carrying no
+  // `details.issues` at all - rather than an empty array - is what stops the
+  // admin rendering "the reasons are listed below" above nothing.
+  previewUnavailable: (): ApiError =>
+    new ApiError(
+      "PREVIEW_UNAVAILABLE",
+      422,
+      "The draft compiled, but its rules could not be evaluated for these answers",
+    ),
 } as const;
 
 // The rule test bench deliberately adds no failure codes here. Everything it
@@ -808,7 +819,15 @@ export function makePreviewDraftHandler(
     if (definition.formId !== formId) throw fail.idMismatch();
 
     const { issues, snapshot } = await validateDraft(deps, definition);
-    if (issues.length > 0 || snapshot === undefined) throw fail.previewRejected(issues);
+    if (issues.length > 0 || snapshot === undefined) {
+      // `PREVIEW_REJECTED` always carries at least one issue, and that is an
+      // invariant rather than a happy accident: the admin's copy for it promises
+      // "the reasons are listed below", so a rejection with nothing to list would
+      // print a promise it cannot keep. A compile that fails without saying why
+      // therefore takes the other door.
+      if (issues.length === 0) throw fail.previewUnavailable();
+      throw fail.previewRejected(issues);
+    }
 
     const compiled = compileForm(snapshot, {});
 
@@ -826,9 +845,10 @@ export function makePreviewDraftHandler(
     const flow = evaluateRules(snapshot, answers, resolve);
     // A clean draft plus renderer-shaped answers cannot fail the forward pass:
     // every pin resolves and every rule type-checked during validation above. If
-    // it does, the pane is told the preview is unavailable rather than shown a
-    // projection built from a failed evaluation.
-    if (!flow.ok) throw fail.previewRejected([]);
+    // it ever does, it fails as what it is - an evaluation that could not run -
+    // rather than as a rejection with an empty issue list, which would show the
+    // author a sentence promising reasons that do not exist.
+    if (!flow.ok) throw fail.previewUnavailable();
 
     return c.json(
       {

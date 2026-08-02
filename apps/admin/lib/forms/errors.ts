@@ -27,6 +27,7 @@ const FORM_CODE_MESSAGES: Readonly<Record<string, MessageKey>> = {
   NO_DRAFT: "forms.error.noDraft",
   PUBLISH_REJECTED: "forms.error.publishRejected",
   PREVIEW_REJECTED: "forms.error.previewRejected",
+  PREVIEW_UNAVAILABLE: "forms.error.previewUnavailable",
   VERSION_NOT_FOUND: "forms.error.versionNotFound",
   INVALID_LINK_ID: "forms.error.invalidLinkId",
   LINK_NOT_FOUND: "forms.error.linkNotFound",

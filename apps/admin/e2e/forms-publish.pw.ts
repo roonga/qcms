@@ -1,4 +1,4 @@
-import type { Locator, Page, Request } from "@playwright/test";
+import type { Download, Locator, Page, Request } from "@playwright/test";
 
 import { PORTAL_PORT } from "../../portal/e2e/support/harness-config.js";
 import { expect, test } from "../../portal/e2e/support/gates.js";
@@ -344,7 +344,24 @@ test("mints, copies, exports and revokes a secure link (exit criterion 1)", asyn
 
   const download = page.waitForEvent("download");
   await minted.getByRole("button", { name: "Download as CSV" }).click();
-  expect((await download).suggestedFilename()).toContain("links.csv");
+  const csvFile = await download;
+  expect(csvFile.suggestedFilename()).toContain("links.csv");
+
+  // Read the BYTES, not just the event: the deliverable promises a CSV of the minted
+  // URLs, and the event fires whether or not the blob survived long enough to be
+  // transferred.
+  //
+  // Stated honestly, because it was measured rather than assumed: this does NOT reproduce
+  // the revoke-too-early race. Restoring the synchronous `URL.revokeObjectURL` and
+  // re-running this whole spec still passes, because Chromium wins that race - which is
+  // precisely why the bug reached review. The race is real in other engines and this suite
+  // is Chromium-only, so the fix stands on the platform contract rather than on this
+  // assertion. What this does buy is the property itself: a truncated or empty export from
+  // ANY cause fails here, where checking only the event would not notice.
+  const csv = await readDownload(csvFile);
+  expect(csv).toContain('"linkId","url","expiresAt"');
+  expect(csv.trimEnd().split("\r\n")).toHaveLength(3);
+  expect(csv).toContain("/l/");
 
   await minted.getByRole("button", { name: "Done" }).click();
   const table = page.getByTestId("qcms-links-table");
@@ -409,4 +426,18 @@ async function waitForReactAttached(page: Page): Promise<void> {
     if (form === null) return false;
     return Object.keys(form).some((key) => key.startsWith("__reactFiber$"));
   });
+}
+
+/**
+ * The bytes of a completed download.
+ *
+ * Playwright hands back a stream rather than a path until the transfer finishes, so this
+ * is also the wait: a truncated or empty body arrives here as a short string rather than
+ * as a timeout.
+ */
+async function readDownload(file: Download): Promise<string> {
+  const stream = await file.createReadStream();
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) chunks.push(Buffer.from(chunk as Buffer));
+  return Buffer.concat(chunks).toString("utf8");
 }

@@ -12,6 +12,16 @@ import { formatDateTime } from "@/lib/i18n/format";
 import { t, tPlural } from "@/lib/i18n/en";
 
 /**
+ * How long a blob URL is kept alive after the download anchor is clicked.
+ *
+ * Long enough that the browser has certainly started the transfer, short enough that the
+ * bytes are not pinned for the life of the screen. A minute is what the common
+ * implementations of this pattern settle on and there is nothing to tune here: the only
+ * failure mode below it is the race this constant exists to avoid.
+ */
+const REVOKE_DELAY_MS = 60_000;
+
+/**
  * The secure-link screen: mint, list, copy, export, revoke (task 034; wireframe "secure
  * links").
  *
@@ -294,7 +304,17 @@ function MintedPanel({
     anchor.href = href;
     anchor.download = mintedLinksFilename(formId);
     anchor.click();
-    URL.revokeObjectURL(href);
+    // Revoked on a later task, never synchronously after `click()`. A download is started
+    // asynchronously by the browser, so revoking on the next line races it: several
+    // browsers free the blob before the transfer has begun and the operator gets an empty
+    // or truncated CSV. It fails intermittently and only in the real product - the e2e
+    // asserts the download EVENT, which fires either way - which is the worst shape a bug
+    // can take on something advertised as a deliverable. The blob still has to be freed
+    // (it pins its bytes in memory for the life of the document), so this is a delay
+    // rather than a leak.
+    setTimeout(() => {
+      URL.revokeObjectURL(href);
+    }, REVOKE_DELAY_MS);
   }, [links, formId]);
 
   return (
