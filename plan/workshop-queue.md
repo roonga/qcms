@@ -26,3 +26,74 @@ One entry per finding: what is wrong, the evidence, and what the edit would be. 
 **Candidate edit** (the workshop pass decides, not this file). Rewrite the token-efficiency bullets so the context-discipline advice - filter at the source, screenshots to files referenced by path, finish the interaction once verified - attaches to the Playwright/gate-capture path this repo actually uses, and name `QCMS_ADMIN_CAPTURE_GATE=1` with the spec-per-task convention. Decide separately whether the two dead allow rules come out or an MCP browser is actually wanted; if neither is wanted, removing them keeps the instruction from re-growing.
 
 **Why it matters beyond tidiness.** A UI task's executor reading CLAUDE.md today is told to reach for a tool that is not installed. It would fail fast rather than silently, but at the cost of a live cycle - and the instruction is most likely to be read at exactly the moment a screenshot gate is due.
+
+---
+
+## Raw API timestamps reach JSX, and it is now a recurring admin-train pattern
+
+**Raised:** 2026-08-02 by 034's reviewer (REJECT finding), seconded by the PM seat.
+**Status:** the 034 instance is being fixed in its own PR. Queued here is the *pattern*, not that fix.
+
+**What is wrong.** ADR-27 requires locale-aware presentation, but API ISO strings keep reaching the DOM verbatim in operator tables. 034 shipped four such columns (`version-history.tsx` Published; `secure-links.tsx` expiresAt, consumedAt, createdAt) and it was visible in the committed gate frames: `version-history-light-1280.png` showed `2026-07-20T00:00:00.000Z`, `links-minted-*` showed `2030-12-31T23:59:59.999Z`.
+
+**Why it is a pattern and not an incident.** 032 avoided it only by dropping its "Updated" column for unrelated reasons - the trap was there and was sidestepped by accident. Two consecutive admin tasks, no mechanical guard. Every new operator table is another chance.
+
+**Candidate edit.** A gate is the natural fix: nothing in `check:all` looks for an ISO-shaped string rendered as a JSX child. A check in the shape of `scripts/check-admin-theme.mjs` (scan `apps/admin` sources, flag a datetime-typed field interpolated directly into JSX) would make this mechanical instead of a review catch. Consider also a line in `docs/COMPONENT_GUIDELINES.md` or `CLAUDE.md` naming the shared formatter as the only way to render a timestamp, with the CSV exception stated (machine artifacts keep ISO - localizing those would be the actual bug).
+
+**Note for whoever picks this up.** The gate frames are what made it visible. That is an argument for the screenshot gate being reviewed in the PR, where the images are actually looked at, rather than signed from a branch listing.
+
+---
+
+## The i18n catalog has no plural machinery, so `{count}` keys produce "1 links"
+
+**Raised:** 2026-08-02 by 034's reviewer.
+**Status:** the specific broken strings are fixed in 034's PR. The absence of the machinery is queued here.
+
+**What is wrong.** `t()` has no plural forms. Keys that interpolate a count therefore emit "1 steps", "1 rules", "1 links minted" whenever the count is one. Worse, e2e assertions written against the rendered output then *enshrine* the broken string, so the bug acquires a test defending it.
+
+**Why it matters beyond grammar.** ADR-27 commits the product to internationalization. Plural rules are not a polish item in that commitment - languages with more than two plural categories cannot be served by string concatenation at all, so the absence is architectural rather than cosmetic. Fixing it after several locales exist is materially harder than fixing it now, while English is the only catalog.
+
+**Candidate edit.** Decide the plural mechanism for the catalog (`Intl.PluralRules` is in the platform and needs no dependency), then sweep existing `{count}` keys. The sweep must also revisit any e2e assertion that currently encodes a singular-broken string, or the fix will fail tests that are asserting the bug.
+
+---
+
+## The wireframe's normative history multi-version and diff state has no visual evidence
+
+**Raised:** 2026-08-02 by 034's reviewer.
+**Status:** queued. Not a 034 blocker - the diff is unit tested and the state is reachable.
+
+**What is wrong.** `docs/wireframes/` inventories are normative (per CLAUDE.md), and the admin publish/preview wireframe carries a "history multi-version + diff" state. 034's evidence covers it by unit test only: no browser assertion, no gate frame. So a normative state has no evidence in the form the gate reviews.
+
+**Candidate question for the workshop pass.** This is really about whether "normative wireframe state" implies "must appear in the gate set". If it does, that belongs written down, because it changes how every future UI task sizes its capture matrix. If it does not, the wireframe inventories need a way to mark which states are gate-bearing, so the distinction is visible rather than a judgement call made per task.
+
+---
+
+## A screenshot gate signed before its PR exists is signed against a state the work will not land in
+
+**Raised:** 2026-08-02, both seats, from 034's concrete near-miss.
+**Status:** queued. This is a rule the workshop pass should consider writing down, not a bug.
+
+**What is missing.** CLAUDE.md already says a screenshot gate's evidence is committed in the diff rather than shown in the session, that it lives under `docs/gates/<NNN>/` with a README naming what to approve, and that the Code Owner reviews from GitHub. What it does not say is **when**: nothing currently rules out signing from a branch tree listing before the PR exists.
+
+**Why the timing is load-bearing and not a formality.** The PR is what embeds the images by raw branch URL, and it is also the point at which the work has passed review. A gate signed earlier is signed against evidence that has not been through the reviewer, so it can be signed against frames the fix round is about to replace - which makes the signature a statement about a state the repo will never contain.
+
+**The concrete instance.** On 2026-08-02 the Code Owner declined to sign 034's gate because no PR existed yet and the 60 PNGs were only reachable as a branch tree listing. The reviewer then returned REJECT on ADR-27: raw API ISO strings rendered in two operator tables, visible in those very frames (`version-history-light-1280.png` showing `2026-07-20T00:00:00.000Z`, `links-minted-*` showing `2030-12-31T23:59:59.999Z`). Had the gate been signed when the evidence first existed, the Code Owner would have approved frames that are now being recaptured.
+
+**Candidate edit.** Add the ordering to the human-gates bullet: a screenshot gate is presented for signature **after** the reviewer's verdict and **in the PR**, never from a branch listing. Note the corollary for conductors: an early tree URL may be offered as an optional look, but it is not the gate, and it should be labelled that way when offered (which is what happened here).
+
+**Related.** Two of the three findings above were caught by looking at gate frames, which is the same argument from the other direction: the frames are evidence, so they have to be reviewed where they are actually looked at.
+
+---
+
+## Executors report fixes they have not verified against their own tree
+
+**Raised:** 2026-08-02, from 034's second review cycle.
+**Status:** queued as an executor-instruction change. The 034 instance is being fixed in cycle 2.
+
+**What happened.** 034's fix report listed two resolutions that did not exist in the branch: the mint dialog's hint was reported as reading "end of this day, UTC" while the catalog string was unchanged (a grep for "UTC" across the whole admin catalog returned nothing), and a "secure links table with a revoked link" axe state was reported as added while the sweep still ended at "revoke confirmation". Both were confirmed absent by the conductor independently before the cycle was dispatched.
+
+**The worse half.** Two source comments asserted the missing copy as fact - `actions.ts` claiming "The zone is UTC and the dialog's hint says so", and a matching note in `format.ts`. A resolution claimed but absent costs one review cycle and is then over. A comment describing copy a sibling file is *supposed* to contain outlives the cycle and makes the next reader confident about something untrue - so the cheapest defect becomes the longest-lived one.
+
+**Why it matters more than a slow cycle.** The only thing standing between this and a bad outcome was that the reviewer reads the tree rather than the report. Had the report been trusted, the Code Owner would have been asked to sign a gate whose evidence contradicted the copy the PR claimed to have. That is the same lesson as holding a screenshot gate until its PR exists: the artifact is the truth, the summary is a claim about it.
+
+**Candidate edit.** Two lines in the task-executor instructions. First: before reporting a fix round complete, grep the diff for each claimed resolution and quote the evidence - a report is a claim about the tree and has to be checked against it. Second: never write a comment describing content another file is supposed to contain; if the comment is only true once a sibling lands, it is not yet true. Consider whether the reviewer's re-verification should be stated as load-bearing in the flow docs, since it is currently the only mechanism that catches this and is not described as serving that purpose.
