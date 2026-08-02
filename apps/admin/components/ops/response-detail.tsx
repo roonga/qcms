@@ -119,7 +119,10 @@ export function ResponseDetail({
       className="flex flex-col gap-6"
       data-testid="qcms-response-detail"
     >
-      <h2 id="qcms-response-heading" className="text-lg font-semibold text-(--color-text)">
+      <h2
+        id="qcms-response-heading"
+        className="qcms-ops-title text-lg font-semibold text-(--color-text)"
+      >
         {t("ops.detail.heading", { sessionId: detail.sessionId })}
       </h2>
 

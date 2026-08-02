@@ -149,6 +149,35 @@ Per-pass counts (`materialized`, `claimed`, `delivered`, `failed`,
 `deadLettered`) are logged as structured fields for observability; ids and counts
 only, never payloads (SEC-8).
 
+### The last-attempt record (task 035)
+
+Every attempt - success or failure - also writes what it actually did onto the
+delivery row, because the operator dashboard has to answer "what went over the wire,
+and what came back" and none of that is derivable from the lifecycle timestamps:
+
+| Column | Holds |
+|---|---|
+| `last_attempt_at` | When the attempt was made. |
+| `last_status` | The HTTP status that came back, or `NULL` when no response ever arrived (timeout, network error). |
+| `last_latency_ms` | How long the attempt took, measured on the monotonic clock. |
+| `last_request_headers` | The header map **as sent**, with `X-QCMS-Signature` already replaced by `v1=<masked>`. |
+| `last_response_snippet` | A bounded prefix (500 characters) of the consumer's response body. |
+
+Two properties are load-bearing. The **signature is masked before storage**, not
+before rendering, so the HMAC is absent from the database entirely and no later
+reader - a screen, a support dump of the row - can leak it by forgetting to redact
+(SEC-6, SEC-13). And **redelivery clears the whole record** alongside `last_error`: a
+reset row has made no attempt since, and leaving a stale `last_status: 500` beside a
+cleared error would put two contradictory statements about one attempt on one screen.
+
+An attempt record is absent only when the attempt never reached the transport at all -
+an SSRF rejection or a secret that would not decrypt - since there is then no request
+to describe. `last_error` still names which.
+
+Last attempt, not every attempt: a per-attempt history table is unbounded growth for a
+screen whose question is "why is this one stuck", and `attempts` + `last_error`
+already carry the shape of the history. A full attempt log is a Phase-4 refinement.
+
 ### At-least-once - consumers must be idempotent
 
 Delivery is at-least-once, so a consumer **can** receive a duplicate - from a
@@ -222,10 +251,31 @@ public-only process has no admin group, so they 404 (ADR-09).
 | Route | Effect |
 |---|---|
 | `GET /admin/outbox/dead-letters` | List dead-lettered deliveries newest-first, each with its `eventId`, `eventType`, `webhookId`, `url`, `attempts`, and `lastError` (attempt history). |
-| `POST /admin/outbox/:id/redeliver` | Reset one dead-lettered **delivery** (`:id` is a delivery id) to due-now - clears the dead-letter flag, resets attempts, and the next pass re-attempts it. `404` if unknown. |
+| `POST /admin/outbox/:id/redeliver` | Reset one dead-lettered **delivery** (`:id` is a delivery id) to due-now - clears the dead-letter flag, resets attempts and the whole last-attempt record, and the next pass re-attempts it. `404` if unknown. |
+| `GET /admin/forms/:id/deliveries?limit=` | (035) One form's recent deliveries, newest first, each with its derived `status` (`delivered` / `deadLettered` / `pending`), `attempts`, `lastError`, and the last-attempt record above - `lastStatus`, `latencyMs`, `requestHeaders` (signature masked), `responseSnippet`. Default 50, capped at 200. |
 
 A dead-letter is a single `(event, webhook)` delivery, not the whole event:
 redelivering one webhook does not touch its siblings for the same event.
+
+**There is no bulk-redelivery route.** The admin's "Redeliver all" loops over the ids
+the operator can see and reports queued and refused separately, which is what lets a
+partly-broken queue say so instead of failing whole or claiming whole.
+
+**`attempts` counts FAILED attempts.** That is what the backoff schedule reads it as,
+so a delivery that succeeded first time reads `0`. The admin labels the column "failed
+attempts" rather than redefining the counter, which would have changed the retry
+schedule's input.
+
+### What an operator does with it (task 035)
+
+The admin renders both of these on two screens. Per-form webhook configuration and the
+delivery dashboard live on the form's **Webhooks** tab; the dead-letter queue is
+deployment-wide and lives at **/webhooks**, because the operator question it answers
+("is anything stuck") is not about one form. The loop the two support is: see the
+dead-letter and its `lastError`, open the delivery detail to see the request that was
+sent and the response that came back, fix the target (Change URL, or fix the consumer),
+then redeliver - per item or in bulk. A redelivered item is **queued** for the next
+delivery pass, not delivered by the button, and the confirmation says so.
 
 ## Config (task 017, extended by 024/025)
 

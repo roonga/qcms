@@ -89,6 +89,27 @@ Only the **two sanctioned whole-session delete paths** set that flag (via
 across statements or connections. Any ad-hoc `DELETE FROM answers` outside a
 transaction that has opened the door is rejected. (See issue #4.)
 
+## Where an operator performs it (task 035)
+
+Erasure has one door in the app, and it is on the **response detail** - the screen
+showing the answers that are about to go, so nobody erases from a list of ids. Pressing
+"Erase respondent data" opens a type-to-confirm dialog that states three separate facts
+rather than asking for certainty: what is deleted (every answer and the submission, with
+no undo, no archive and nothing to restore from), what remains (the tombstone below),
+and what is **not** affected (webhook consumers - see "What erasure does NOT cover").
+The destructive button stays disabled until the operator retypes the session id exactly,
+so there is no single-click path to it.
+
+The reason is chosen from a closed set - data subject request, retention policy, entered
+in error - rather than typed. The reason lands on a tombstone that outlives the data it
+describes, so a free-text box would invite a data subject's name into an audit record.
+
+Afterwards the same URL keeps working and shows the tombstone: an operator with the link
+in a ticket gets "this was erased, here is the record" rather than a 404. Every tombstone
+is also listed at **/responses/erasures**, which is the compliance evidence - a screen
+that can be shown to whoever asks whether a request was honoured, because it holds no
+answers to leak.
+
 ## What erasure does NOT cover
 
 Erasure is honest about its boundaries. It does **not**:

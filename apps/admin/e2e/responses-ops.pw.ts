@@ -275,7 +275,9 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
       // Reloading proves the reveal was one-time: nothing on the reloaded screen
       // carries the value, because no read route can produce it (SEC-6).
       await page.reload();
-      await expect(page.getByTestId("qcms-webhooks-table")).toContainText("Stored, not retrievable");
+      await expect(page.getByTestId("qcms-webhooks-table")).toContainText(
+        "Stored, not retrievable",
+      );
       expect(await page.content()).not.toContain(secret);
 
       // 2. Every event this form has queued fans out to it, and every attempt fails

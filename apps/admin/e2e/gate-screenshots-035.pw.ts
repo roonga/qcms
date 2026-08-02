@@ -1,0 +1,186 @@
+import { expect, test } from "../../portal/e2e/support/gates.js";
+
+import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
+import { CAPTURE_ENABLED, CAPTURE_MODES, captureInto } from "./support/capture.js";
+import { ADMIN_BASE_URL } from "./support/harness-config.js";
+import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
+import { deadUrl, openDeliverer, submitResponse } from "./support/ops.js";
+
+/**
+ * Capture the screenshot set for the task 035 human design gate.
+ *
+ * **Skipped unless `QCMS_ADMIN_CAPTURE_GATE=1`.** It writes PNGs into a committed
+ * directory, so leaving it in the standing suite would make every local
+ * `pnpm verify:browser` dirty the working tree. Run it deliberately:
+ *
+ * ```
+ * QCMS_ADMIN_CAPTURE_GATE=1 pnpm exec playwright test --project=admin-chromium gate-screenshots-035
+ * ```
+ *
+ * ## The set: thirteen states, two viewports, three modes
+ *
+ * The wireframe's States inventory, minus the two this build cannot reach and plus the
+ * detail states the Regions inventory names. In order: the response browser, a
+ * filtered-empty result, a response detail with its ledger, the export dialog, the
+ * type-to-confirm erasure, the tombstone that replaces the response, the erasure log,
+ * webhook config with nothing configured, the one-time secret reveal, the endpoints
+ * table, the delivery dashboard with a delivery detail open, and the dead-letter queue
+ * with a redelivery reported.
+ *
+ * Two of the wireframe's states are deliberately absent and `docs/gates/035/README.md`
+ * says so rather than leaving a reviewer to notice: **"no responses"** (a form that has
+ * collected nothing renders the same component as filtered-empty with one different
+ * sentence, and reaching it needs a second form authored purely for the frame) and
+ * **"flagged present"** (a flagged submission requires the honeypot or minimum-time
+ * path, which is 020/026's surface and not reachable from these routes).
+ *
+ * 390px and 1280px per the Code Owner's 2026-07-25 rule; the mode comes from the real
+ * `qcms-app-mode` cookie rather than from poking the DOM. Everything else - hydration
+ * waits, dev-chrome suppression, the caret fix and the reflow guard - lives in
+ * `support/capture.ts`.
+ *
+ * ## Each mode gets its own form
+ *
+ * Three runs over one form would show the second and third modes a dead-letter queue
+ * the first had already emptied, and a response the first had already erased. Each mode
+ * therefore submits its own responses and configures its own endpoint, which is also
+ * why this file drives the deliverer itself rather than sharing one with the arc spec.
+ */
+
+test.describe.configure({ mode: "serial" });
+test.skip(!CAPTURE_ENABLED, "gate capture runs only with QCMS_ADMIN_CAPTURE_GATE=1");
+
+const EMAIL = uniqueAdminEmail("gate035");
+const capture = captureInto("docs/gates/035");
+
+const SLUG = "auto";
+const FORM_ID = "frm_auto_quote";
+const ACCIDENT = "q_at_fault_accident";
+const COUNT = "q_accident_count";
+
+/** Set by the first test, which enrolls the account the rest sign in with. */
+let totpSecret = "";
+
+test.beforeAll(async () => {
+  await createTestAdmin(EMAIL);
+});
+
+test("enrolls the account the capture signs in with", async ({ page }) => {
+  test.setTimeout(180_000);
+  totpSecret = await enrollNewAdmin(page, EMAIL);
+  expect(totpSecret.length, "the enrollment produced a TOTP secret").toBeGreaterThan(0);
+});
+
+for (const mode of CAPTURE_MODES) {
+  test(`captures the ${mode} set`, async ({ page }) => {
+    test.setTimeout(420_000);
+    await page
+      .context()
+      .addCookies([{ name: "qcms-app-mode", value: mode, url: ADMIN_BASE_URL, sameSite: "Lax" }]);
+    await signInWithTotp(page, EMAIL, totpSecret);
+
+    // No live consumer: every frame here wants the FAILURE record on screen (a
+    // dead-lettered delivery, a queue with something in it), so the endpoint points at
+    // a dead port throughout. The delivered path is the arc spec's job.
+    const deliverer = openDeliverer();
+    try {
+      // Two responses: one to browse and erase, one to leave standing so the list is
+      // never empty in the frames that follow the erasure.
+      const erasable = await submitResponse(SLUG, [
+        [ACCIDENT, true],
+        [COUNT, 2],
+      ]);
+      await submitResponse(SLUG, [[ACCIDENT, false]]);
+
+      // 1. The browser.
+      await page.goto(`/forms/${FORM_ID}/responses`);
+      await expect(page.getByTestId("qcms-responses-table")).toBeVisible();
+      await capture(page, `${mode}-responses-browser`);
+
+      // 2. Filtered-empty: a real filter that matches nothing, not an empty form.
+      await page.goto(`/forms/${FORM_ID}/responses?from=2020-01-01&to=2020-01-02`);
+      await expect(page.getByTestId("qcms-responses-empty")).toBeVisible();
+      await capture(page, `${mode}-responses-filtered-empty`);
+
+      // 3. The detail, with the locked answers and the ledger timeline.
+      await page.goto(`/forms/${FORM_ID}/responses/${erasable}`);
+      await expect(page.getByTestId("qcms-ledger")).toBeVisible();
+      await capture(page, `${mode}-response-detail`);
+
+      // 4. The export dialog, on the state a reviewer has to judge: CSV chosen, no
+      //    version yet, so the hint is showing and the download is inert.
+      await page.goto(`/forms/${FORM_ID}/responses`);
+      await page.getByRole("button", { name: "Export", exact: true }).click();
+      await expect(page.getByTestId("qcms-export-dialog")).toBeVisible();
+      await capture(page, `${mode}-export-dialog`);
+      await page.keyboard.press("Escape");
+
+      // 5. The erasure confirmation, with the session id typed so the enabled state of
+      //    the destructive button is what the Code Owner is signing off.
+      await page.goto(`/forms/${FORM_ID}/responses/${erasable}`);
+      await page.getByRole("button", { name: "Erase respondent data…" }).click();
+      const erase = page.getByTestId("qcms-erase-dialog");
+      await expect(erase).toBeVisible();
+      await erase.getByRole("textbox", { name: /Type the session id/ }).fill(erasable);
+      await expect(page.getByRole("button", { name: "Erase permanently" })).toBeEnabled();
+      await capture(page, `${mode}-erase-confirm`);
+
+      // 6. The tombstone that replaces it.
+      await page.getByRole("button", { name: "Erase permanently" }).click();
+      await expect(page.getByTestId("qcms-tombstone")).toBeVisible({ timeout: 30_000 });
+      await capture(page, `${mode}-tombstone`);
+
+      // 7. The erasure log, now with a row in it.
+      await page.goto("/responses/erasures");
+      await expect(page.getByTestId("qcms-erasures-table")).toBeVisible();
+      await capture(page, `${mode}-erasure-log`);
+
+      // 8. Webhook config, before anything is configured.
+      await page.goto(`/forms/${FORM_ID}/webhooks`);
+      await expect(page.getByTestId("qcms-webhook-config")).toBeVisible();
+      await capture(page, `${mode}-webhooks-none`);
+
+      // 9. The one-time secret reveal. The endpoint points at a dead port, which is
+      //    also what sets up the dead-letter frames below.
+      await page.getByRole("button", { name: "Add endpoint" }).click();
+      const create = page.getByTestId("qcms-webhook-url-dialog");
+      await create.getByRole("textbox", { name: "Endpoint URL" }).fill(await deadUrl());
+      await create.getByRole("button", { name: "Create endpoint" }).click();
+      await expect(page.getByTestId("qcms-webhook-secret")).toBeVisible({ timeout: 30_000 });
+      await capture(page, `${mode}-secret-reveal`);
+
+      // 10. The endpoints table, secrets masked.
+      await page.getByRole("button", { name: "I have copied it" }).click();
+      await expect(page.getByTestId("qcms-webhooks-table")).toBeVisible();
+      await capture(page, `${mode}-webhooks-table`);
+
+      // 11. The delivery dashboard with one delivery's detail open. Driven to
+      //     dead-letter first, so the frame shows a real failure record rather than a
+      //     row that has never been attempted.
+      await submitResponse(SLUG, [[ACCIDENT, false]]);
+      await deliverer.drive(11);
+      await page.goto(`/forms/${FORM_ID}/webhooks`);
+      await expect(page.getByTestId("qcms-deliveries-table")).toBeVisible();
+      await page
+        .getByRole("button", { name: /^Show request and response/ })
+        .first()
+        .click();
+      await expect(page.getByTestId("qcms-delivery-detail")).toBeVisible();
+      await capture(page, `${mode}-delivery-detail`);
+
+      // 12. The dead-letter queue, and the same queue after a redelivery is reported.
+      await page.goto("/webhooks");
+      await expect(page.getByTestId("qcms-dead-letters-table")).toBeVisible();
+      await capture(page, `${mode}-dead-letters`);
+
+      await page
+        .getByRole("button", { name: /^Redeliver response\.submitted to / })
+        .first()
+        .click();
+      await expect(page.getByTestId("qcms-redeliver-summary")).toBeVisible();
+      await capture(page, `${mode}-redeliver-queued`);
+    } finally {
+      await deliverer.close();
+    }
+  });
+}

@@ -903,6 +903,14 @@ th,
   border-color: var(--color-warning-subtle);
 }
 
+/* A heading that carries a machine identifier (a session id in the response detail).
+   `ses_…` has no break opportunity, so at 390px it pushed the DOCUMENT to 393px -
+   WCAG 2.2 AA SC 1.4.10 Reflow, caught by the capture guard and not by axe. Headings
+   are the one place a long token is easy to miss, because the id reads as prose. */
+.qcms-ops-title {
+  overflow-wrap: anywhere;
+}
+
 /* A label/value grid for the response summary, the tombstone and the delivery's
    request headers. Two columns on a wide screen, stacked on a phone: the values
    here include content hashes and URLs, which have no break opportunities of their
