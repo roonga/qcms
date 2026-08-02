@@ -30,8 +30,20 @@ import { describe, expect, it } from "vitest";
 const ADMIN_ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const SCAN_DIRS = ["app", "components", "lib"];
 
-/** The one module allowed to render an A2UI document. */
-const PREVIEW_MODULE = "components/questions/question-preview.tsx";
+/**
+ * The modules allowed to render an A2UI document.
+ *
+ * Three, and each is a different *thing being rendered*, not a different renderer: one
+ * question version (032), a compiled draft (034's preview), and a stored published
+ * snapshot (034's history view). All three mount the same `A2UIStepRenderer` from
+ * `@qcms/ui`, which is what the assertions below check. Adding a fourth entry here is
+ * where review gets to ask why a screen is drawing A2UI.
+ */
+const RENDERING_MODULES = [
+  "components/forms/draft-preview.tsx",
+  "components/forms/version-view.tsx",
+  "components/questions/question-preview.tsx",
+];
 
 function walk(dir: string): string[] {
   const out: string[] = [];
@@ -70,13 +82,26 @@ describe("A2UI rendering surface (exit criterion 3)", () => {
     expect(files.length).toBeGreaterThan(10);
   });
 
-  it("renders A2UI in exactly one module", () => {
-    expect(modulesMentioning("A2UIStepRenderer")).toEqual([PREVIEW_MODULE]);
+  it("renders A2UI only in the modules that are supposed to", () => {
+    expect(modulesMentioning("A2UIStepRenderer")).toEqual(RENDERING_MODULES);
   });
 
-  it("takes the renderer from @qcms/ui and nowhere else", () => {
-    const preview = files.find((file) => file.path === PREVIEW_MODULE);
-    expect(preview, "the preview module should be scanned").toBeDefined();
+  it("takes the renderer from @qcms/ui in every one of them", () => {
+    for (const path of RENDERING_MODULES) {
+      const module = files.find((file) => file.path === path);
+      expect(module, `${path} should be scanned`).toBeDefined();
+      expect(module!.text).toContain('from "@qcms/ui"');
+    }
+  });
+
+  it("takes the visibility projection from @qcms/ui too, so the portal shares it", () => {
+    // The preview drops the questions the flow says are not visible with exactly the
+    // function the portal uses. A local reimplementation here would be the one part of
+    // the preview free to disagree with what a respondent gets (ARCHITECTURE §6).
+    const modules = modulesMentioning("documentForVisible");
+    expect(modules).toEqual(["components/forms/draft-preview.tsx"]);
+    const preview = files.find((file) => file.path === "components/forms/draft-preview.tsx");
+    expect(preview!.text).toContain("documentForVisible");
     expect(preview!.text).toContain('from "@qcms/ui"');
   });
 

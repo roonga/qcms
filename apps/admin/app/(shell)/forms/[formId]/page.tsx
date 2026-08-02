@@ -1,7 +1,9 @@
 import { notFound } from "next/navigation";
 
 import { Alert, Breadcrumb, type BreadcrumbItem } from "@/components/kit";
+import { FormActions } from "@/components/forms/form-actions";
 import { FormBuilder } from "@/components/forms/form-builder";
+import { FormTabs } from "@/components/forms/form-tabs";
 import type { FormDetail } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
 import { getForm, loadPinnableQuestions } from "@/lib/server/forms";
@@ -9,7 +11,9 @@ import { requireAdminSession } from "@/lib/server/session";
 
 import {
   previewConditionAction,
+  publishFormAction,
   saveDraftAction,
+  setFormStatusAction,
   updateSettingsAction,
   validateDraftAction,
 } from "../actions";
@@ -106,7 +110,22 @@ export default async function FormBuilderPage({
         <p className="text-sm text-(--color-text-muted)">
           {t(`forms.builder.draftSource.${form.draftSource}`)}
         </p>
+        <FormTabs formId={form.formId} />
       </div>
+
+      {/* Publish and close/reopen sit above the builder rather than on a screen of their
+          own, because a refused publish renders an anchored work list whose links move
+          focus into the rules and steps below it. The builder has to be on the page for
+          that to mean anything. */}
+      <FormActions
+        formId={form.formId}
+        slug={form.slug}
+        status={form.status}
+        draft={form.draft}
+        latestVersion={form.versions[0]?.version}
+        publish={publishFormAction.bind(null, form.formId)}
+        setStatus={setFormStatusAction.bind(null, form.formId)}
+      />
 
       {!library.ok && (
         <Alert variant="warning">

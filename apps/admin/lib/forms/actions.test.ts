@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { t } from "../i18n/en.ts";
 
@@ -26,7 +26,20 @@ import type { DraftForm } from "./types.ts";
 /** Mirrors the cap in `actions.ts`, which a `"use server"` module cannot export. */
 const MAX_DEFINITION_BYTES = 64 * 1024;
 
-const calls = vi.hoisted(() => ({ saveDraft: 0, previewCondition: 0 }));
+const calls = vi.hoisted(() => ({
+  saveDraft: 0,
+  previewCondition: 0,
+  previewDraft: 0,
+  publishForm: 0,
+  mintLinks: 0,
+}));
+
+/** What the mocked API layer answers with next. Set per test, reset between them. */
+const answers = vi.hoisted(() => ({
+  publish: undefined as unknown,
+  preview: undefined as unknown,
+  mint: undefined as unknown,
+}));
 
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 vi.mock("next/navigation", () => ({
@@ -57,13 +70,48 @@ vi.mock("@/lib/server/forms", () => ({
     calls.previewCondition += 1;
     return Promise.resolve({ ok: true, data: { outcome: "match", references: [] } });
   },
+  publishForm: () => {
+    calls.publishForm += 1;
+    return Promise.resolve(answers.publish ?? { ok: true, data: { version: 1, publishedAt: "" } });
+  },
+  previewDraft: () => {
+    calls.previewDraft += 1;
+    return Promise.resolve(
+      answers.preview ?? {
+        ok: true,
+        data: {
+          documents: [],
+          compilerVersion: "0.1.0",
+          a2uiSpecVersion: "0.1.0",
+          flow: { visibleSteps: [], visibleQuestions: [], complete: false },
+        },
+      },
+    );
+  },
+  setFormStatus: () => Promise.resolve({ ok: true, data: { status: "closed" } }),
+}));
+vi.mock("@/lib/server/links", () => ({
+  MAX_LINK_BATCH: 100,
+  mintLinks: () => {
+    calls.mintLinks += 1;
+    return Promise.resolve(answers.mint ?? { ok: true, data: [] });
+  },
+  listLinks: () => Promise.resolve({ ok: true, data: [] }),
+  revokeLink: () => Promise.resolve({ ok: true, data: { linkId: "lnk_1", revokedAt: "" } }),
 }));
 vi.mock("@/lib/forms/draft", async () => await import("./draft.ts"));
 vi.mock("@/lib/forms/errors", async () => await import("./errors.ts"));
 vi.mock("@/lib/forms/builder-state", async () => await import("./builder-state.ts"));
+vi.mock("@/lib/i18n/en", async () => await import("../i18n/en.ts"));
 
-const { createFormAction, previewConditionAction, saveDraftAction } =
-  await import("../../app/(shell)/forms/actions.ts");
+const {
+  createFormAction,
+  mintLinksAction,
+  previewConditionAction,
+  previewDraftAction,
+  publishFormAction,
+  saveDraftAction,
+} = await import("../../app/(shell)/forms/actions.ts");
 
 /**
  * A draft whose serialization is exactly `bytes` bytes of UTF-8.
@@ -155,5 +203,108 @@ describe("createFormAction names the field that is actually wrong", () => {
     expect(state.message).not.toBe(t("forms.error.invalidId"));
     // The slug was fine, so it comes back for redisplay rather than being blamed.
     expect(state.submitted?.slug).toBe("demo-form");
+  });
+});
+
+describe("034's actions keep a refusal distinct from an error", () => {
+  beforeEach(() => {
+    answers.publish = undefined;
+    answers.preview = undefined;
+    answers.mint = undefined;
+  });
+
+  /** A 422 as the proxy normalises it: a code, a sentence, and the kernel's issues. */
+  function rejection(code: string) {
+    return {
+      ok: false,
+      code,
+      message: "refused",
+      issues: [{ code: "RULE_BACKWARD_TARGET", message: "backwards", path: { rule: "rul_a" } }],
+    };
+  }
+
+  it("reports a refused publish as `rejected`, carrying every issue", async () => {
+    answers.publish = rejection("PUBLISH_REJECTED");
+    const state = await publishFormAction("frm_demo_form");
+
+    // `rejected` rather than `error`, because the screen owes the author a work list
+    // here and a sentence there.
+    expect(state.status).toBe("rejected");
+    expect(state.issues).toHaveLength(1);
+    expect(state.version).toBeUndefined();
+  });
+
+  it("reports a publish failure with no issues as an ordinary error", async () => {
+    answers.publish = { ok: false, code: "internal", message: "boom", issues: [] };
+    const state = await publishFormAction("frm_demo_form");
+
+    expect(state.status).toBe("error");
+    expect(state.issues).toBeUndefined();
+  });
+
+  it("reports a draft that will not compile as `rejected`, with its issues", async () => {
+    answers.preview = rejection("PREVIEW_REJECTED");
+    const state = await previewDraftAction("frm_demo_form", {
+      draft: blankDraft("frm_demo_form", "en"),
+      answers: {},
+    });
+
+    expect(state.status).toBe("rejected");
+    expect(state.issues).toHaveLength(1);
+  });
+
+  it("refuses to forward an unserializable preview payload, and does not call the API", async () => {
+    const cyclic: Record<string, unknown> = {};
+    cyclic["itself"] = cyclic;
+
+    const before = calls.previewDraft;
+    const state = await previewDraftAction("frm_demo_form", {
+      draft: blankDraft("frm_demo_form", "en"),
+      answers: { q_a: cyclic },
+    });
+
+    expect(state.status).toBe("error");
+    expect(calls.previewDraft).toBe(before);
+  });
+
+  it("bounds the mint batch before the request leaves the BFF", async () => {
+    const before = calls.mintLinks;
+    const tooMany = await mintLinksAction("frm_demo_form", {
+      expiresAt: "2030-01-01T00:00:00.000Z",
+      oneTime: false,
+      count: 1000,
+    });
+    const tooFew = await mintLinksAction("frm_demo_form", {
+      expiresAt: "2030-01-01T00:00:00.000Z",
+      oneTime: false,
+      count: 0,
+    });
+
+    expect(tooMany.status).toBe("error");
+    expect(tooFew.status).toBe("error");
+    expect(calls.mintLinks).toBe(before);
+  });
+
+  it("refuses a mint with no expiry rather than sending one the route will reject", async () => {
+    const before = calls.mintLinks;
+    const state = await mintLinksAction("frm_demo_form", {
+      expiresAt: "  ",
+      oneTime: true,
+      count: 1,
+    });
+
+    expect(state).toMatchObject({ status: "error" });
+    expect(state.message).toBe(t("forms.error.linkExpiryInvalid"));
+    expect(calls.mintLinks).toBe(before);
+  });
+
+  it("never echoes an answer value in a preview failure message (SEC-13)", async () => {
+    answers.preview = { ok: false, code: "internal", message: "boom", issues: [] };
+    const state = await previewDraftAction("frm_demo_form", {
+      draft: blankDraft("frm_demo_form", "en"),
+      answers: { q_a: "answer-value-that-must-not-come-back" },
+    });
+
+    expect(state.message).not.toContain("answer-value-that-must-not-come-back");
   });
 });

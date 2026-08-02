@@ -5,21 +5,31 @@ import { redirect } from "next/navigation";
 
 import type {
   CreateFormState,
+  DraftPreviewState,
+  FormStatusState,
+  MintLinksState,
   PreviewConditionState,
+  PublishState,
+  RevokeLinkState,
   SaveDraftState,
   SettingsState,
   ValidateDraftState,
 } from "@/lib/forms/builder-state";
 import { formIdFromSlug } from "@/lib/forms/draft";
+import { t } from "@/lib/i18n/en";
 import { messageForFormCode } from "@/lib/forms/errors";
 import type { DraftForm } from "@/lib/forms/types";
 import {
   createForm,
   previewCondition,
+  previewDraft,
+  publishForm,
   saveDraft,
+  setFormStatus,
   updateSettings,
   validateDraft,
 } from "@/lib/server/forms";
+import { MAX_LINK_BATCH, mintLinks, revokeLink } from "@/lib/server/links";
 import { requireAdminSession } from "@/lib/server/session";
 
 /**
@@ -287,4 +297,145 @@ export async function previewConditionAction(
   return reason === undefined
     ? { status: "ok", outcome, references }
     : { status: "ok", outcome, reason, references };
+}
+
+// --- publish, preview, lifecycle and secure links (task 034) ----------------
+
+/**
+ * Publish the stored draft: freeze a version (022's aggregate).
+ *
+ * The draft is **not** sent. Publish reads the stored one on purpose - it is the only
+ * operation here that writes something immutable, and freezing a document the server has
+ * never seen persisted would make "what was published" a claim about a browser tab. The
+ * builder autosaves before opening the confirm dialog, which is what makes those the same
+ * document.
+ *
+ * A 422 is not an error state: it is the kernel's full issue list, which the screen turns
+ * into a work list anchored to the offending rule, step or pin.
+ */
+export async function publishFormAction(formId: string): Promise<PublishState> {
+  const session = await requireAdminSession();
+  const result = await publishForm(session, formId);
+  if (!result.ok) {
+    if (result.issues.length > 0) {
+      return { status: "rejected", issues: result.issues, message: result.message };
+    }
+    return { status: "error", message: result.message };
+  }
+  revalidatePath("/forms");
+  revalidatePath(`/forms/${formId}`);
+  return {
+    status: "published",
+    version: result.data.version,
+    publishedAt: result.data.publishedAt,
+  };
+}
+
+/** What the preview pane sends: the draft on screen, and the answers walked in with. */
+interface DraftPreviewRequest {
+  readonly draft: DraftForm;
+  readonly answers: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * Compile the draft on the author's screen and project it for their answers.
+ *
+ * SEC-13 / ADR-34 again: `answers` is answer-shaped, so it is forwarded and nothing more.
+ * It is never logged here, never stored, and the failure path returns a catalog sentence
+ * rather than anything derived from the request.
+ *
+ * Rule evaluation happens in the API, where the kernel lives. That is not a shortcut: the
+ * admin imports no `@qcms/core` value at all (R2), and the portal does not evaluate rules
+ * either - it renders an authoritative visible set the API computed. Running the preview
+ * the same way is what makes it a preview rather than a lookalike.
+ */
+export async function previewDraftAction(
+  formId: string,
+  input: DraftPreviewRequest,
+): Promise<DraftPreviewState> {
+  const session = await requireAdminSession();
+  if (!withinCap(input)) {
+    return { status: "error", message: messageForFormCode(MALFORMED_CODE) };
+  }
+
+  const result = await previewDraft(session, formId, {
+    definition: input.draft,
+    answers: input.answers,
+  });
+  if (!result.ok) {
+    if (result.issues.length > 0) {
+      return { status: "rejected", issues: result.issues, message: result.message };
+    }
+    return { status: "error", message: result.message };
+  }
+  return { status: "ok", preview: result.data };
+}
+
+/**
+ * Close a form to new sessions, or reopen it.
+ *
+ * R1 is the whole of the semantics and the dialog copy carries it: this changes what
+ * happens to sessions that have not started. Every session already under way keeps its
+ * pinned version and finishes normally.
+ */
+export async function setFormStatusAction(
+  formId: string,
+  action: "close" | "reopen",
+): Promise<FormStatusState> {
+  const session = await requireAdminSession();
+  const result = await setFormStatus(session, formId, action);
+  if (!result.ok) return { status: "error", message: result.message };
+  revalidatePath("/forms");
+  revalidatePath(`/forms/${formId}`);
+  return { status: "changed", formStatus: result.data.status };
+}
+
+/** What the mint dialog sends. `count` is bounded here as well as at the route. */
+interface MintRequest {
+  readonly expiresAt: string;
+  readonly oneTime: boolean;
+  readonly count: number;
+}
+
+/**
+ * Mint one or more secure links.
+ *
+ * The returned URLs carry signed tokens and are bearer credentials for the form. They are
+ * handed straight back to the screen that asked for them and are not logged, stored or
+ * revalidated into any cache here (SEC-13). The API cannot reissue them: it stores a
+ * link's state row and never its token.
+ */
+export async function mintLinksAction(
+  formId: string,
+  request: MintRequest,
+): Promise<MintLinksState> {
+  const session = await requireAdminSession();
+  const count = Math.trunc(request.count);
+  if (!Number.isFinite(count) || count < 1 || count > MAX_LINK_BATCH) {
+    return { status: "error", message: t("forms.error.invalidLinkBatch", { max: MAX_LINK_BATCH }) };
+  }
+  if (request.expiresAt.trim() === "") {
+    return { status: "error", message: messageForFormCode("LINK_EXPIRY_INVALID") };
+  }
+
+  const result = await mintLinks(session, formId, {
+    expiresAt: request.expiresAt,
+    oneTime: request.oneTime,
+    count,
+  });
+  if (!result.ok) return { status: "error", message: result.message };
+  revalidatePath(`/forms/${formId}/links`);
+  return { status: "minted", links: result.data };
+}
+
+/** Revoke one link. 018 refuses it from that moment; an in-flight session is unaffected. */
+export async function revokeLinkAction(
+  formId: string,
+  linkId: string,
+): Promise<RevokeLinkState> {
+  const session = await requireAdminSession();
+  const result = await revokeLink(session, linkId);
+  if (!result.ok) return { status: "error", message: result.message };
+  revalidatePath(`/forms/${formId}/links`);
+  return { status: "revoked", linkId: result.data.linkId };
 }

@@ -736,6 +736,158 @@ th,
   padding: var(--admin-section-pad);
 }
 
+
+/* --- publish, preview, version history, secure links (task 034) ---------- */
+
+/* The four section links under a form's heading. Ordinary links, so the current
+   one is marked by aria-current and the underline is only the visual echo of
+   that (never the sole signal). The 2px inline-size keeps the row from shifting
+   when the marker moves. */
+.qcms-form-tab {
+  display: inline-block;
+  padding-inline: 0.75rem;
+  padding-block: 0.5rem;
+  border-block-end: 2px solid transparent;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+.qcms-form-tab:hover {
+  color: var(--color-text);
+}
+.qcms-form-tab[aria-current="page"] {
+  color: var(--color-text);
+  border-block-end-color: var(--color-primary);
+}
+
+/* "Preview - not published". Deliberately loud: an author looking at a working
+   preview must never mistake it for the published form. It is prose rather than
+   an Alert because it is always on screen and announces no change. */
+.qcms-preview-banner {
+  align-self: flex-start;
+  border: 1px solid var(--color-warning-subtle);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-warning-subtle);
+  color: var(--color-warning-fg);
+  padding-inline: 0.6em;
+  padding-block: 0.2em;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+:root.hc .qcms-preview-banner {
+  border-width: 2px;
+  border-color: var(--color-border-strong);
+}
+
+/* Link lifecycle badges, the same family as the question status tags above. The
+   word is always rendered; these tints are the secondary signal only. */
+.qcms-tag--link-active {
+  background-color: var(--color-success-subtle);
+  color: var(--color-success-fg);
+  border-color: var(--color-success-subtle);
+}
+.qcms-tag--link-consumed {
+  background-color: var(--color-info-subtle);
+  color: var(--color-info-fg);
+  border-color: var(--color-info-subtle);
+}
+.qcms-tag--link-expired {
+  background-color: var(--color-warning-subtle);
+  color: var(--color-warning-fg);
+  border-color: var(--color-warning-subtle);
+}
+.qcms-tag--link-revoked {
+  background-color: var(--color-danger-subtle);
+  color: var(--color-danger-fg);
+  border-color: var(--color-danger-subtle);
+}
+
+/* A minted link URL and a link id. Monospace, selectable, and allowed to wrap
+   at any character: a signed token has no spaces and would otherwise force the
+   whole page to scroll sideways on a phone. */
+.qcms-link-url,
+.qcms-link-id {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+
+/* The secure-link lifecycle table. A hand-authored table rather than the kit's,
+   because its cells hold a badge and a revoke button and a kit table cell is
+   text (ADR-22 forbids wrapping the vendored component to change that). It
+   scrolls inside its own box so a wide table never scrolls the page. */
+.qcms-links-table {
+  display: block;
+  overflow-x: auto;
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.qcms-links-table th,
+.qcms-links-table td {
+  padding-inline: 0.5rem;
+  padding-block: 0.5rem;
+  text-align: start;
+  vertical-align: middle;
+  border-block-end: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+.qcms-links-table thead th {
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+.qcms-links-table tbody th {
+  font-weight: 400;
+}
+
+/* The side-by-side definition diff. Every row carries a textual marker and a
+   visually-hidden word naming its kind, so the tints below are never the only
+   thing distinguishing an addition from a removal (WCAG 1.4.1). It scrolls in
+   its own box; JSON lines are long. */
+.qcms-diff {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-background);
+}
+.qcms-diff-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-inline-size: max-content;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+.qcms-diff-row {
+  display: grid;
+  grid-template-columns: 1.5rem minmax(12rem, 1fr) minmax(12rem, 1fr);
+  gap: 0.5rem;
+  padding-inline: 0.5rem;
+  white-space: pre;
+}
+.qcms-diff-marker {
+  color: var(--color-text-muted);
+  text-align: center;
+}
+.qcms-diff-side {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.qcms-diff-row--added {
+  background-color: var(--color-success-subtle);
+}
+.qcms-diff-row--removed {
+  background-color: var(--color-danger-subtle);
+}
+:root.hc .qcms-diff-row--added,
+:root.hc .qcms-diff-row--removed {
+  background-color: transparent;
+  outline: 1px solid var(--color-border-strong);
+  outline-offset: -1px;
+}
+
 /* Standard clip-rect visually hidden utility: present for assistive tech,
    removed from the visual layout without display:none, which would also
    remove it from the accessibility tree. */
