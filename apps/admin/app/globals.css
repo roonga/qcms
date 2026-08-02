@@ -572,6 +572,14 @@ th,
   cursor: pointer;
 }
 
+/* A `qcms-table` whose rows are NOT interactive (the version history: viewing a
+   version is a link beside the table, not a row action). Same scroll box, no
+   hover affordance promising a click that does nothing. */
+.qcms-table--static [role="row"]:hover {
+  background-color: transparent;
+  cursor: default;
+}
+
 /* The GET filter form. The outer element stacks its row(s) with the app's
    standard rhythm; the row itself is a wrapping flex line with fields
    aligned to their own bottom edge, so the submit button lines up with the
@@ -813,12 +821,30 @@ th,
   overflow-wrap: anywhere;
 }
 
+/* The URL takes a row of its own inside the minted-link row, with its copy button
+   under it. `overflow-wrap` alone is not enough for a flex item: the default
+   `min-width: auto` refuses to shrink below the content's intrinsic size, so a
+   token with no break opportunity pushed the page to 858px at a 390px viewport
+   (WCAG 2.2 AA SC 1.4.10 Reflow, caught by the capture guard). Taking the whole
+   basis and zeroing the minimum is what lets the wrapping actually happen. */
+.qcms-link-url {
+  flex: 1 1 100%;
+  min-inline-size: 0;
+}
+
 /* The secure-link lifecycle table. A hand-authored table rather than the kit's,
    because its cells hold a badge and a revoke button and a kit table cell is
    text (ADR-22 forbids wrapping the vendored component to change that). It
    scrolls inside its own box so a wide table never scrolls the page. */
 .qcms-links-table {
   display: block;
+  /* A containing block for its own absolutely-positioned descendants. The revoke
+     column's header is a visually-hidden span, and `.qcms-visually-hidden` is
+     `position: absolute`: without this it resolves against the page instead of
+     this box, escapes the scroll clip, and stretches the DOCUMENT to the table's
+     full width - 863px at a 390px viewport, which is WCAG 2.2 AA SC 1.4.10
+     Reflow and was caught by the capture guard rather than by axe. */
+  position: relative;
   overflow-x: auto;
   inline-size: 100%;
   border-collapse: collapse;

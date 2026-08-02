@@ -15,8 +15,10 @@ import {
   pinQuestion,
   rule,
   ruleIds,
+  saveState,
   toggleCheckbox,
   toggleTarget,
+  waitForSaveAfter,
   waitForSaved,
 } from "./support/forms.js";
 import { confirmLifecycle, createDraft, fillDate, optionIds } from "./support/questions.js";
@@ -264,8 +266,11 @@ test("a refused publish lists every issue and each one moves focus (exit criteri
   // condition reads, which the forward pass cannot honour (ADR-16).
   const ruleId = (await ruleIds(page))[0] ?? "";
   expect(ruleId).toMatch(/^rul_/u);
+  const beforeBreak = (await saveState(page).textContent()) ?? "";
   await toggleTarget(page, ruleId, questionIdFor(AT_FAULT), true);
-  await waitForSaved(page);
+  // Publish reads the STORED draft, so the wait is about the save landing rather than
+  // about the validation panel agreeing (`waitForSaveAfter` records why).
+  await waitForSaveAfter(page, beforeBreak);
 
   await page.getByRole("button", { name: "Publish", exact: true }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: /^Publish v/ }).click();
@@ -286,8 +291,10 @@ test("a refused publish lists every issue and each one moves focus (exit criteri
 
   // Leave the draft publishable again for whatever runs next.
   await page.goto(`/forms/${formId}`);
-  await toggleTarget(page, (await ruleIds(page))[0] ?? "", questionIdFor(AT_FAULT), false);
-  await waitForSaved(page);
+  const restored = (await ruleIds(page))[0] ?? "";
+  const beforeFix = (await saveState(page).textContent()) ?? "";
+  await toggleTarget(page, restored, questionIdFor(AT_FAULT), false);
+  await waitForSaveAfter(page, beforeFix);
 });
 
 test("mints, copies, exports and revokes a secure link (exit criterion 1)", async ({

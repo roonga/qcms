@@ -63,26 +63,33 @@ export function VersionHistory({
 
   return (
     <div className="flex flex-col gap-6">
-      <Table
-        ariaLabel={t("forms.history.table")}
-        columns={[
-          { id: "version", label: t("forms.history.column.version"), isRowHeader: true },
-          { id: "publishedAt", label: t("forms.history.column.publishedAt") },
-          { id: "compilerVersion", label: t("forms.history.column.compilerVersion") },
-          { id: "a2uiSpecVersion", label: t("forms.history.column.a2uiSpecVersion") },
-          { id: "semanticsVersion", label: t("forms.history.column.semanticsVersion") },
-        ]}
-        rows={versions.map((version) => ({
-          id: String(version.version),
-          data: {
-            version: t("forms.version.value", { version: version.version }),
-            publishedAt: version.publishedAt,
-            compilerVersion: version.compilerVersion,
-            a2uiSpecVersion: version.a2uiSpecVersion,
-            semanticsVersion: version.semanticsVersion,
-          },
-        }))}
-      />
+      {/* The scroll box, not the page: five stamp columns of monospace do not fit a
+          390px viewport, and a table that made the page body scroll sideways would fail
+          WCAG 2.2 AA SC 1.4.10 Reflow. `qcms-table` is the same wrapper the question
+          library uses; its interactive-row styling is inert here because these rows have
+          no row action (viewing a version is the link list below). */}
+      <div className="qcms-table qcms-table--static">
+        <Table
+          ariaLabel={t("forms.history.table")}
+          columns={[
+            { id: "version", label: t("forms.history.column.version"), isRowHeader: true },
+            { id: "publishedAt", label: t("forms.history.column.publishedAt") },
+            { id: "compilerVersion", label: t("forms.history.column.compilerVersion") },
+            { id: "a2uiSpecVersion", label: t("forms.history.column.a2uiSpecVersion") },
+            { id: "semanticsVersion", label: t("forms.history.column.semanticsVersion") },
+          ]}
+          rows={versions.map((version) => ({
+            id: String(version.version),
+            data: {
+              version: t("forms.version.value", { version: version.version }),
+              publishedAt: version.publishedAt,
+              compilerVersion: version.compilerVersion,
+              a2uiSpecVersion: version.a2uiSpecVersion,
+              semanticsVersion: version.semanticsVersion,
+            },
+          }))}
+        />
+      </div>
 
       {/* The view links live outside the table because a kit table cell is text: a row
           holding an anchor is not something the vendored component renders (ADR-22, no
@@ -178,7 +185,9 @@ function DiffView({
           <ol className="qcms-diff-rows">
             {rows.map((row, index) => (
               <li key={index} className={`qcms-diff-row qcms-diff-row--${row.kind}`}>
-                <span className="qcms-visually-hidden">{t(`forms.history.compareRow${kindKey(row)}`)}</span>
+                <span className="qcms-visually-hidden">
+                  {t(`forms.history.compareRow${kindKey(row)}`)}
+                </span>
                 <span aria-hidden="true" className="qcms-diff-marker">
                   {row.marker}
                 </span>

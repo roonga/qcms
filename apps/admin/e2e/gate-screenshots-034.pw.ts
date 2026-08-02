@@ -11,7 +11,9 @@ import {
   createForm,
   pinQuestion,
   rule,
+  saveState,
   toggleTarget,
+  waitForSaveAfter,
   waitForSaved,
 } from "./support/forms.js";
 import { confirmLifecycle, createDraft, fillDate, optionIds } from "./support/questions.js";
@@ -104,8 +106,11 @@ for (const mode of CAPTURE_MODES) {
     await waitForSaved(page);
 
     // --- a refused publish, first: it needs the draft to be broken ----------
+    // Publish reads the STORED draft, so the wait has to be about the save rather than
+    // about the panel: see `waitForSaveAfter`.
+    const beforeBreak = (await saveState(page).textContent()) ?? "";
     await toggleTarget(page, ruleId, questionIdFor(ACCIDENT), true);
-    await waitForSaved(page);
+    await waitForSaveAfter(page, beforeBreak);
     await page.reload();
     await page.getByRole("button", { name: "Publish", exact: true }).click();
     await page.getByRole("alertdialog").getByRole("button", { name: /^Publish v/ }).click();
@@ -113,8 +118,9 @@ for (const mode of CAPTURE_MODES) {
     await capture(page, `publish-rejected-${mode}`);
 
     // --- and then the confirmation over a draft that will publish ----------
+    const beforeFix = (await saveState(page).textContent()) ?? "";
     await toggleTarget(page, ruleId, questionIdFor(ACCIDENT), false);
-    await waitForSaved(page);
+    await waitForSaveAfter(page, beforeFix);
     await page.reload();
     await page.getByRole("button", { name: "Publish", exact: true }).click();
     await expect(page.getByRole("alertdialog")).toBeVisible();
