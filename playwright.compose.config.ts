@@ -9,6 +9,13 @@ const adminUrl = process.env.QCMS_COMPOSE_E2E_ADMIN_URL ?? "http://localhost:179
 export default defineConfig({
   testDir: "./apps/admin/e2e",
   testMatch: "compose-conditional-form.pw.ts",
+  reporter: process.env.CI
+    ? [
+        ["line"],
+        ["html", { outputFolder: "playwright-report/compose-e2e", open: "never" }],
+        ["junit", { outputFile: "test-results/compose-e2e/junit.xml" }],
+      ]
+    : "list",
   fullyParallel: false,
   workers: 1,
   timeout: 180_000,

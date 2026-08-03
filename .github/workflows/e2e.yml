@@ -5,10 +5,15 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      run_label:
+        description: "Optional label for this manual Compose E2E run"
+        required: false
+        type: string
 
 jobs:
   compose-e2e:
-    name: Compose browser flow
+    name: Compose E2E
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -30,16 +35,23 @@ jobs:
       - name: Install Playwright Chromium
         run: pnpm exec playwright install --with-deps chromium
 
-      # up:e2e creates an isolated Compose project, bootstraps its first admin,
-      # runs the browser flow, then removes containers and volumes in finally.
-      - name: Run Compose E2E
-        run: pnpm up:e2e
+      - name: Start Compose E2E stack
+        run: pnpm docker:up
 
-      - name: Upload Playwright artifacts
-        if: ${{ failure() }}
+      - name: Run Compose E2E browser flow
+        run: pnpm test:e2e
+
+      - name: Stop Compose E2E stack
+        if: ${{ always() }}
+        run: pnpm docker:down
+
+      - name: Upload Compose E2E report
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
-          name: compose-e2e-playwright-artifacts
-          path: test-results/
+          name: compose-e2e-report
+          path: |
+            playwright-report/compose-e2e/
+            test-results/compose-e2e/
           if-no-files-found: ignore
           retention-days: 7
