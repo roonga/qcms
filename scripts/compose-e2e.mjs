@@ -67,7 +67,18 @@ function down() {
   if (existsSync(credentialsPath)) unlinkSync(credentialsPath);
 }
 
+function buildTestDependencies() {
+  // Playwright imports the admin's auth helper in its host-side setup. Unlike the
+  // Compose images, that process resolves workspace packages from their local
+  // dist directories, so build the database package and its workspace closure
+  // before starting the runner.
+  const args = ["--filter", "@qcms/db...", "build"];
+  if (pnpmEntrypoint !== undefined) run(process.execPath, [pnpmEntrypoint, ...args], e2eEnvironment);
+  else run(pnpm, args, e2eEnvironment);
+}
+
 function test({ headed = false } = {}) {
+  buildTestDependencies();
   const args = [
     "exec",
     "playwright",
