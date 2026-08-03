@@ -30,6 +30,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --root ../.. --project @qcms/db",
     "lint": "eslint src",
+    "migrate": "node dist/migrate.js",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {

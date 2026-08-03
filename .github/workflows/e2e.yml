@@ -1,0 +1,42 @@
+name: Compose E2E
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  compose-e2e:
+    name: Compose browser flow
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      # up:e2e creates an isolated Compose project, bootstraps its first admin,
+      # runs the browser flow, then removes containers and volumes in finally.
+      - name: Run Compose E2E
+        run: pnpm up:e2e
+
+      - name: Upload Playwright artifacts
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: compose-e2e-playwright-artifacts
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7

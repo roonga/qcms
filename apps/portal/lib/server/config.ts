@@ -32,7 +32,23 @@ export function internalToken(): string {
   return required("QCMS_INTERNAL_TOKEN");
 }
 
-/** Cookies are `secure` in production only, so local http dev still works. */
+/** Public portal origin used for redirects produced inside the container. */
+export function portalBaseUrl(): string {
+  let base = required("QCMS_PORTAL_BASE_URL");
+  while (base.endsWith("/")) base = base.slice(0, -1);
+  return base;
+}
+
+/**
+ * Whether browser cookies must carry the Secure attribute.
+ *
+ * Production is the safe default. Compose's documented localhost profile is the
+ * deliberate exception: browsers never return Secure cookies over plain HTTP,
+ * so its portal could create a session but could not resume it after Start.
+ */
 export function isProduction(): boolean {
+  const configured = process.env.QCMS_SECURE_COOKIES;
+  if (configured === "true") return true;
+  if (configured === "false") return false;
   return process.env.NODE_ENV === "production";
 }
