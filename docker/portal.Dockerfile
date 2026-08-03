@@ -10,7 +10,10 @@ COPY packages ./packages
 COPY scripts ./scripts
 
 RUN pnpm install --frozen-lockfile
-RUN pnpm --filter qcms-portal... build
+# Next type-checks the portal E2E support files, which import @qcms/db even
+# though the production portal has no runtime database dependency. Build that
+# package explicitly in a fresh Docker context before compiling the portal.
+RUN pnpm --filter @qcms/db build && pnpm --filter qcms-portal... build
 RUN pnpm --filter qcms-portal deploy --legacy --prod /opt/qcms
 
 FROM node:24-bookworm-slim AS runtime

@@ -6,17 +6,15 @@ import { fileURLToPath } from "node:url";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const project = "qcms-compose-e2e";
-const dockerForWindows = join(
-  process.env.ProgramFiles ?? "C:\\Program Files",
-  "Docker",
-  "Docker",
-  "resources",
-  "bin",
-  "docker.exe",
-);
+const dockerForWindows =
+  process.env.ProgramFiles === undefined
+    ? undefined
+    : join(process.env.ProgramFiles, "Docker", "Docker", "resources", "bin", "docker.exe");
 const docker =
   process.env.QCMS_DOCKER_BIN ??
-  (process.platform === "win32" && existsSync(dockerForWindows) ? dockerForWindows : "docker");
+  (process.platform === "win32" && dockerForWindows !== undefined && existsSync(dockerForWindows)
+    ? dockerForWindows
+    : "docker");
 const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 const pnpmEntrypoint = process.env.npm_execpath;
 const compose = ["compose", "--project-name", project, "--env-file", ".env.compose.example"];
