@@ -12,7 +12,7 @@ on:
         type: string
 
 jobs:
-  compose-e2e:
+  full-stack-e2e:
     name: E2E
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -35,13 +35,13 @@ jobs:
       - name: Install Playwright Chromium
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Start Compose E2E stack
+      - name: Start full-stack E2E stack
         run: pnpm docker:up
 
-      - name: Run Compose E2E browser flow
+      - name: Run full-stack E2E browser flow
         run: pnpm test:e2e
 
-      - name: Stop Compose E2E stack
+      - name: Stop full-stack E2E stack
         if: ${{ always() }}
         run: pnpm docker:down
 
@@ -51,7 +51,7 @@ jobs:
         with:
           name: e2e-report
           path: |
-            playwright-report/compose-e2e/
-            test-results/compose-e2e/
+            playwright-report/full-stack-e2e/
+            test-results/full-stack-e2e/
           if-no-files-found: ignore
           retention-days: 7

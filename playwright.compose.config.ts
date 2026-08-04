@@ -7,13 +7,13 @@ const adminUrl = process.env.QCMS_COMPOSE_E2E_ADMIN_URL ?? "http://localhost:179
  * it owns its own Compose project and creates its own first administrator.
  */
 export default defineConfig({
-  testDir: "./apps/admin/e2e",
-  testMatch: "compose-conditional-form.pw.ts",
+  testDir: "./apps/e2e",
+  testMatch: "full-stack-conditional-form.pw.ts",
   reporter: process.env.CI
     ? [
         ["line"],
-        ["html", { outputFolder: "playwright-report/compose-e2e", open: "never" }],
-        ["junit", { outputFile: "test-results/compose-e2e/junit.xml" }],
+        ["html", { outputFolder: "playwright-report/full-stack-e2e", open: "never" }],
+        ["junit", { outputFile: "test-results/full-stack-e2e/junit.xml" }],
       ]
     : "list",
   fullyParallel: false,

@@ -70,12 +70,13 @@ export async function pinQuestion(page: Page, questionId: string, version: numbe
   await page.getByRole("button", { name: "Add question from library" }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
-  await dialog
+  const row = dialog
     .getByRole("row")
     .filter({ hasText: questionId })
     .filter({ hasText: `v${String(version)}` })
-    .first()
-    .click();
+    .first();
+  await expect(row).toBeVisible();
+  await row.click();
   await expect(dialog).toBeHidden();
   await expect(pinLabel(page, questionId, version)).toBeVisible();
 }

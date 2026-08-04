@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
-const project = "qcms-compose-e2e";
+const project = "qcms-full-stack-e2e";
 const dockerForWindows =
   process.env.ProgramFiles === undefined
     ? undefined
@@ -18,7 +18,7 @@ const docker =
 const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 const pnpmEntrypoint = process.env.npm_execpath;
 const compose = ["compose", "--project-name", project, "--env-file", ".env.compose.example"];
-const credentialsPath = join(root, ".e2e-compose-credentials.json");
+const credentialsPath = join(root, ".e2e-full-stack-credentials.json");
 const e2eEnvironment = {
   ...process.env,
   QCMS_ADMIN_PORT: "17940",

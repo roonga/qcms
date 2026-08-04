@@ -14,15 +14,15 @@ import {
   rule,
   toggleTarget,
   waitForSaved,
-} from "./support/forms.js";
-import { confirmLifecycle, createDraft } from "./support/questions.js";
+} from "../admin/e2e/support/forms.js";
+import { confirmLifecycle, createDraft } from "../admin/e2e/support/questions.js";
 
-const REPOSITORY_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
+const REPOSITORY_ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const ADMIN_URL = process.env.QCMS_COMPOSE_E2E_ADMIN_URL ?? "http://localhost:17940";
 const PORTAL_PORT = process.env.QCMS_COMPOSE_E2E_PORTAL_PORT ?? "17900";
 const PORTAL_URL = `http://localhost:${PORTAL_PORT}`;
-const credentialsPath = join(REPOSITORY_ROOT, ".e2e-compose-credentials.json");
-const authStatePath = join(REPOSITORY_ROOT, "test-results", "compose-e2e", "admin-state.json");
+const credentialsPath = join(REPOSITORY_ROOT, ".e2e-full-stack-credentials.json");
+const authStatePath = join(REPOSITORY_ROOT, "test-results", "full-stack-e2e", "admin-state.json");
 if (!existsSync(credentialsPath)) {
   throw new Error("Missing E2E credentials. Run pnpm docker:up before pnpm test:e2e.");
 }
@@ -34,7 +34,7 @@ const EMAIL = credentials.email;
 const PASSWORD = credentials.password;
 
 const RUN = Date.now().toString(36);
-const FORM_SLUG = `compose-e2e-conditional-${RUN}`;
+const FORM_SLUG = `full-stack-e2e-conditional-${RUN}`;
 const QUESTION_TYPES = [
   { slug: "short-text", type: "Short text" },
   { slug: "long-text", type: "Long text" },
@@ -51,7 +51,7 @@ const QUESTION_IDS = Object.fromEntries(
 let formId = "";
 
 function questionId(slug: string): string {
-  return `q_compose_e2e_${slug}_${RUN}`.replaceAll("-", "_");
+  return `q_full_stack_e2e_${slug}_${RUN}`.replaceAll("-", "_");
 }
 
 function questionLabel(type: string): string {
@@ -135,13 +135,13 @@ test.describe.serial("conditional form journey", () => {
 
     for (const question of QUESTION_TYPES) {
       test(`publishes a ${question.type} question`, async ({ page }) => {
-        await createDraft(page, `compose-e2e-${question.slug}-${RUN}`, question.type);
+        await createDraft(page, `full-stack-e2e-${question.slug}-${RUN}`, question.type);
         await confirmLifecycle(page, /^Publish version 1$/, "Publish");
       });
     }
 
     test("builds the form steps from published questions", async ({ page }) => {
-      formId = await createForm(page, FORM_SLUG, "Compose conditional flow");
+      formId = await createForm(page, FORM_SLUG, "Full stack conditional flow");
       await addStep(page, "Start");
       for (const slug of ["short-text", "date", "boolean"] as const) {
         await pinQuestion(page, QUESTION_IDS[slug], 1);
