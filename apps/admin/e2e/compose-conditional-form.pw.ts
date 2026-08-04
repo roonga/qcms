@@ -1,8 +1,8 @@
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, unlinkSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { generate } from "otplib";
 
 import {
@@ -22,6 +22,7 @@ const ADMIN_URL = process.env.QCMS_COMPOSE_E2E_ADMIN_URL ?? "http://localhost:17
 const PORTAL_PORT = process.env.QCMS_COMPOSE_E2E_PORTAL_PORT ?? "17900";
 const PORTAL_URL = `http://localhost:${PORTAL_PORT}`;
 const credentialsPath = join(REPOSITORY_ROOT, ".e2e-compose-credentials.json");
+const authStatePath = join(REPOSITORY_ROOT, "test-results", "compose-e2e", "admin-state.json");
 if (!existsSync(credentialsPath)) {
   throw new Error("Missing E2E credentials. Run pnpm docker:up before pnpm test:e2e.");
 }
@@ -43,6 +44,11 @@ const QUESTION_TYPES = [
   { slug: "single-choice", type: "Single choice" },
   { slug: "multi-choice", type: "Multiple choice" },
 ] as const;
+const QUESTION_IDS = Object.fromEntries(
+  QUESTION_TYPES.map((question) => [question.slug, questionId(question.slug)]),
+) as Record<(typeof QUESTION_TYPES)[number]["slug"], string>;
+
+let formId = "";
 
 function questionId(slug: string): string {
   return `q_compose_e2e_${slug}_${RUN}`.replaceAll("-", "_");
@@ -52,16 +58,13 @@ function questionLabel(type: string): string {
   return `E2E ${type} question`;
 }
 
-async function continueOrSubmit(page: import("@playwright/test").Page): Promise<void> {
+async function continueOrSubmit(page: Page): Promise<void> {
   const next = page.getByRole("button", { name: /^(Continue|Submit)$/ });
   await next.click();
 }
 
 /** Start a portal session through the form's BFF endpoint and follow its redirect. */
-async function startPortalSession(
-  page: import("@playwright/test").Page,
-  formSlug: string,
-): Promise<void> {
+async function startPortalSession(page: Page, formSlug: string): Promise<void> {
   const response = await page.request.post(`${PORTAL_URL}/f/${formSlug}/start`, {
     maxRedirects: 0,
   });
@@ -91,116 +94,134 @@ async function startPortalSession(
   await page.goto(`${PORTAL_URL}${sessionPath}`);
 }
 
+async function openFormBuilder(page: Page): Promise<void> {
+  expect(formId, "the form must be created before its builder is opened").not.toBe("");
+  await page.goto(`/forms/${formId}`);
+  await expect(page).toHaveURL(new RegExp(`/forms/${formId}$`));
+}
+
 test.beforeAll(async () => {
+  mkdirSync(dirname(authStatePath), { recursive: true });
+  if (existsSync(authStatePath)) unlinkSync(authStatePath);
   const response = await fetch(`${ADMIN_URL}/sign-in`);
   expect(response.ok, "run pnpm docker:up before pnpm test:e2e").toBe(true);
 });
 
-test("creates, publishes, and completes every branch of a conditional form", async ({ page }) => {
-  test.setTimeout(600_000);
+test.describe.serial("conditional form journey", () => {
+  test("enrolls the bootstrap admin in MFA", async ({ page }) => {
+    // docker:up bootstraps a first admin in the fresh test database. This flow
+    // proves that account can complete the required MFA enrollment in the browser.
+    await page.goto("/sign-in");
+    await page.getByLabel("Email").fill(EMAIL);
+    await page.getByLabel("Password").fill(PASSWORD);
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect(page).toHaveURL(/\/two-factor\/enroll$/);
 
-  // docker:up bootstraps a first admin in the fresh test database. This flow
-  // proves that account can complete the required MFA enrollment in the browser.
-  await page.goto("/sign-in");
-  await page.getByLabel("Email").fill(EMAIL);
-  await page.getByLabel("Password").fill(PASSWORD);
-  await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/two-factor\/enroll$/);
+    const setupKey = await page.getByLabel(/Setup key/).inputValue();
+    await page.getByLabel(/Six-digit code/).fill(await generate({ secret: setupKey }));
+    await page.getByRole("button", { name: "Verify" }).click();
+    await expect(page).toHaveURL(/\/two-factor\/recovery-codes$/);
 
-  const setupKey = await page.getByLabel(/Setup key/).inputValue();
-  await page.getByLabel(/Six-digit code/).fill(await generate({ secret: setupKey }));
-  await page.getByRole("button", { name: "Verify" }).click();
-  await expect(page).toHaveURL(/\/two-factor\/recovery-codes$/);
+    await page.getByRole("button", { name: "I have saved these codes" }).click();
+    await expect(page).toHaveURL(/\/questions$/);
+    await expect(page.getByRole("heading", { name: "Questions" })).toBeVisible();
+    // Keep the real post-enrolment session while each later checkpoint runs
+    // in its own fresh browser context.
+    await page.context().storageState({ path: authStatePath });
+  });
 
-  await page.getByRole("button", { name: "I have saved these codes" }).click();
-  await expect(page).toHaveURL(/\/questions$/);
-  await expect(page.getByRole("heading", { name: "Questions" })).toBeVisible();
+  test.describe("signed-in authoring and respondent flow", () => {
+    test.use({ storageState: authStatePath });
 
-  // Every renderer shape must be created and published before it can be pinned
-  // into the form library. Choice types receive their required options through
-  // the shared authoring helper.
-  for (const question of QUESTION_TYPES) {
-    await createDraft(page, `compose-e2e-${question.slug}-${RUN}`, question.type);
-    await confirmLifecycle(page, /^Publish version 1$/, "Publish");
-  }
-
-  const ids = Object.fromEntries(
-    QUESTION_TYPES.map((question) => [question.slug, questionId(question.slug)]),
-  ) as Record<(typeof QUESTION_TYPES)[number]["slug"], string>;
-
-  await createForm(page, FORM_SLUG, "Compose conditional flow");
-  await addStep(page, "Start");
-  for (const slug of ["short-text", "date", "boolean"] as const) {
-    await pinQuestion(page, ids[slug], 1);
-  }
-  await addStep(page, "Your route");
-  for (const slug of ["number", "multi-choice", "single-choice", "long-text"] as const) {
-    await pinQuestion(page, ids[slug], 1);
-  }
-
-  // True reveals number + long text; false reveals multi + single choice. The
-  // two respondent sessions below fill both projections, so all question types
-  // are exercised by the portal as well as authored by the admin UI.
-  for (const [value, targets] of [
-    ["Yes", [ids.number, ids["long-text"]]],
-    ["No", [ids["multi-choice"], ids["single-choice"]]],
-  ] as const) {
-    for (const target of targets) {
-      const ruleId = await addRule(page);
-      const scope = rule(page, ruleId);
-      await chooseOption(scope, "Question", `${ids.boolean}@1`);
-      await chooseOption(scope, "Operator", "equals (the whole answer)");
-      await chooseOption(scope, "Value", value);
-      await toggleTarget(page, ruleId, target, true);
+    for (const question of QUESTION_TYPES) {
+      test(`publishes a ${question.type} question`, async ({ page }) => {
+        await createDraft(page, `compose-e2e-${question.slug}-${RUN}`, question.type);
+        await confirmLifecycle(page, /^Publish version 1$/, "Publish");
+      });
     }
-  }
-  await waitForSaved(page);
 
-  await page.getByRole("button", { name: "Publish", exact: true }).click();
-  const publish = page.getByRole("alertdialog");
-  await expect(publish).toBeVisible();
-  await publish.getByRole("button", { name: "Publish v1" }).click();
-  await expect(page.getByText("Published as v1.")).toBeVisible({ timeout: 30_000 });
+    test("builds the form steps from published questions", async ({ page }) => {
+      formId = await createForm(page, FORM_SLUG, "Compose conditional flow");
+      await addStep(page, "Start");
+      for (const slug of ["short-text", "date", "boolean"] as const) {
+        await pinQuestion(page, QUESTION_IDS[slug], 1);
+      }
+      await addStep(page, "Your route");
+      for (const slug of ["number", "multi-choice", "single-choice", "long-text"] as const) {
+        await pinQuestion(page, QUESTION_IDS[slug], 1);
+      }
+      await waitForSaved(page);
+    });
 
-  // A separate page keeps the anonymous respondent session independent from
-  // the signed-in author while exercising the normal, JavaScript-enabled portal.
-  const portal = await page.context().newPage();
-  try {
-    // The affirmative branch: number and long text appear, while both false
-    // branch controls are absent. Values are posted before advancing each step.
-    await portal.goto(`${PORTAL_URL}/f/${FORM_SLUG}`);
-    await startPortalSession(portal, FORM_SLUG);
-    await expect(portal.getByText(questionLabel("Short text"))).toBeVisible();
-    await portal.getByText("Yes", { exact: true }).click();
-    await continueOrSubmit(portal);
-    await expect(portal.getByRole("textbox", { name: questionLabel("Number") })).toBeVisible();
-    await expect(portal.getByRole("textbox", { name: questionLabel("Long text") })).toBeVisible();
-    await expect(portal.getByRole("checkbox", { name: "Yes, always" })).toHaveCount(0);
-    await expect(portal.getByRole("radio", { name: "Yes, always" })).toHaveCount(0);
-    await continueOrSubmit(portal);
-    await expect(portal).toHaveURL(/\/done/);
+    test("adds the affirmative conditional route", async ({ page }) => {
+      await openFormBuilder(page);
+      for (const target of [QUESTION_IDS.number, QUESTION_IDS["long-text"]]) {
+        const ruleId = await addRule(page);
+        const scope = rule(page, ruleId);
+        await chooseOption(scope, "Question", `${QUESTION_IDS.boolean}@1`);
+        await chooseOption(scope, "Operator", "equals (the whole answer)");
+        await chooseOption(scope, "Value", "Yes");
+        await toggleTarget(page, ruleId, target, true);
+      }
+      await waitForSaved(page);
+    });
 
-    // A second anonymous session selects the other condition and receives the
-    // complementary controls. This proves the branch is a live projection, not
-    // a one-way reveal left behind by the first respondent.
-    await portal.goto(`${PORTAL_URL}/f/${FORM_SLUG}`);
-    await startPortalSession(portal, FORM_SLUG);
-    await expect(portal.getByText(questionLabel("Short text"))).toBeVisible();
-    await portal.getByText("No", { exact: true }).click();
-    await continueOrSubmit(portal);
-    await expect(portal.getByRole("checkbox", { name: "Yes, always" })).toBeVisible();
-    await expect(portal.getByRole("radio", { name: "Yes, always" })).toBeVisible();
-    await expect(portal.getByRole("textbox", { name: questionLabel("Number") })).toHaveCount(0);
-    await expect(portal.getByRole("textbox", { name: questionLabel("Long text") })).toHaveCount(0);
-    // React Aria keeps the native checkbox input visually hidden under its
-    // painted control. Click its label text (the respondent's hit target),
-    // rather than the hidden input exposed by the role locator.
-    const yesAlways = portal.getByText("Yes, always", { exact: true });
-    await yesAlways.first().click();
-    await yesAlways.last().click();
-    await continueOrSubmit(portal);
-    await expect(portal).toHaveURL(/\/done/);
-  } finally {
-    await portal.close();
-  }
+    test("adds the negative conditional route", async ({ page }) => {
+      await openFormBuilder(page);
+      for (const target of [QUESTION_IDS["multi-choice"], QUESTION_IDS["single-choice"]]) {
+        const ruleId = await addRule(page);
+        const scope = rule(page, ruleId);
+        await chooseOption(scope, "Question", `${QUESTION_IDS.boolean}@1`);
+        await chooseOption(scope, "Operator", "equals (the whole answer)");
+        await chooseOption(scope, "Value", "No");
+        await toggleTarget(page, ruleId, target, true);
+      }
+      await waitForSaved(page);
+    });
+
+    test("publishes the conditional form", async ({ page }) => {
+      await openFormBuilder(page);
+      await page.getByRole("button", { name: "Publish", exact: true }).click();
+      const publish = page.getByRole("alertdialog");
+      await expect(publish).toBeVisible();
+      await publish.getByRole("button", { name: "Publish v1" }).click();
+      await expect(page.getByText("Published as v1.")).toBeVisible({ timeout: 30_000 });
+    });
+
+    test("completes the affirmative respondent route", async ({ page }) => {
+      // The affirmative branch: number and long text appear, while both false
+      // branch controls are absent. Values are posted before advancing each step.
+      await page.goto(`${PORTAL_URL}/f/${FORM_SLUG}`);
+      await startPortalSession(page, FORM_SLUG);
+      await expect(page.getByText(questionLabel("Short text"))).toBeVisible();
+      await page.getByText("Yes", { exact: true }).click();
+      await continueOrSubmit(page);
+      await expect(page.getByRole("textbox", { name: questionLabel("Number") })).toBeVisible();
+      await expect(page.getByRole("textbox", { name: questionLabel("Long text") })).toBeVisible();
+      await expect(page.getByRole("checkbox", { name: "Yes, always" })).toHaveCount(0);
+      await expect(page.getByRole("radio", { name: "Yes, always" })).toHaveCount(0);
+      await continueOrSubmit(page);
+      await expect(page).toHaveURL(/\/done/);
+    });
+
+    test("completes the negative respondent route", async ({ page }) => {
+      await page.goto(`${PORTAL_URL}/f/${FORM_SLUG}`);
+      await startPortalSession(page, FORM_SLUG);
+      await expect(page.getByText(questionLabel("Short text"))).toBeVisible();
+      await page.getByText("No", { exact: true }).click();
+      await continueOrSubmit(page);
+      await expect(page.getByRole("checkbox", { name: "Yes, always" })).toBeVisible();
+      await expect(page.getByRole("radio", { name: "Yes, always" })).toBeVisible();
+      await expect(page.getByRole("textbox", { name: questionLabel("Number") })).toHaveCount(0);
+      await expect(page.getByRole("textbox", { name: questionLabel("Long text") })).toHaveCount(0);
+      // React Aria keeps the native checkbox input visually hidden under its
+      // painted control. Click its label text (the respondent's hit target),
+      // rather than the hidden input exposed by the role locator.
+      const yesAlways = page.getByText("Yes, always", { exact: true });
+      await yesAlways.first().click();
+      await yesAlways.last().click();
+      await continueOrSubmit(page);
+      await expect(page).toHaveURL(/\/done/);
+    });
+  });
 });
