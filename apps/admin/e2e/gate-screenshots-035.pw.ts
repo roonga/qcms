@@ -209,8 +209,16 @@ for (const mode of CAPTURE_MODES) {
       // this queue too. Pressing ITS button is correctly refused (ADR-17), which is a
       // real state but not the one this frame is for - `redeliver-queued` exists to
       // show the success message that says "queued for the next pass", not delivered.
-      const erasedDeliveries = await deliverer.deliveryIdsForSession(erasable);
-      const exclusion = erasedDeliveries.map((id) => `:not([data-delivery-id="${id}"])`).join("");
+      //
+      // EVERY erased session, not only this mode's. The three modes share one database
+      // and each one erases a response, so by the dark pass the queue also holds the
+      // light pass's refused delivery, and excluding only the current `erasable` left
+      // which row got clicked to sort order. That is a frame that silently captures the
+      // wrong state, which is the worst thing a gate capture can do.
+      const erased = await deliverer.erasedDeliveries();
+      const exclusion = erased
+        .map((row) => `:not([data-delivery-id="${row.deliveryId}"])`)
+        .join("");
       await page
         .getByTestId("qcms-dead-letters-table")
         .locator(`tr[data-delivery-id]${exclusion}`)

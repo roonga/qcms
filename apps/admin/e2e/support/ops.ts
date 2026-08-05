@@ -228,7 +228,6 @@ const PASS_STRIDE_MS = 7 * 60 * 60 * 1000;
 export function openDeliverer(): {
   pass: (at?: Date) => Promise<void>;
   drive: (passes: number) => Promise<void>;
-  deliveryIdsForSession: (sessionId: string) => Promise<string[]>;
   erasedDeliveries: () => Promise<{ deliveryId: string; sessionId: string }[]>;
   outboxPayloadsForSession: (sessionId: string) => Promise<Record<string, unknown>[]>;
   close: () => Promise<void>;
@@ -281,34 +280,19 @@ export function openDeliverer(): {
       }
     },
     /**
-     * Every delivery row whose outbox event names this session.
-     *
-     * The dead-letter table addresses rows by `data-delivery-id` and shows no session,
-     * so a test that needs to press the button on a SPECIFIC session's delivery (or
-     * deliberately avoid it) has to resolve the id here. Reading it rather than
-     * guessing is what makes the ADR-17 assertions deterministic rather than
-     * dependent on which row happens to sort first.
-     */
-    async deliveryIdsForSession(sessionId: string) {
-      const result = await pool.query<{ id: string }>(
-        `select d.id
-           from webhook_deliveries d
-           join outbox o on o.id = d.outbox_id
-          where o.payload ->> 'sessionId' = $1
-          order by d.created_at asc, d.id asc`,
-        [sessionId],
-      );
-      return result.rows.map((row) => row.id);
-    },
-    /**
      * Every delivery in the database whose event names an **erased** session.
      *
-     * A test cannot assume there is exactly one. The whole browser suite shares a
-     * database, and more than one spec erases a response on the seeded form (the axe
-     * sweep does it to photograph the tombstone state), so "the erased one" is a set
-     * whose size depends on which specs ran. Computing it is what makes the redelivery
-     * assertions hold in isolation AND inside the full run; hard-coding one cost a
-     * green single-spec run and a red suite.
+     * The dead-letter table addresses rows by `data-delivery-id` and shows no session,
+     * so a test that needs to avoid pressing an erased session's button has to resolve
+     * the ids here rather than guess which row sorts first.
+     *
+     * A caller cannot assume there is exactly one. The whole browser suite shares a
+     * database, more than one spec erases a response on the seeded form (the axe sweep
+     * does it to photograph the tombstone state), and the gate capture erases one per
+     * appearance mode. So "the erased one" is a set whose size depends on which specs
+     * ran: computing it is what makes the redelivery assertions hold in isolation AND
+     * inside the full run, and hard-coding one cost a green single-spec run and a red
+     * suite.
      */
     async erasedDeliveries() {
       const result = await pool.query<{ id: string; session_id: string }>(
