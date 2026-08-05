@@ -1,7 +1,10 @@
 /**
- * The Compose browser-smoke harness (task 036): bring the solo stack up in an
- * isolated Compose project, bootstrap a first administrator in it, drive
- * `playwright.compose.config.ts` against it, and take it back down again.
+ * The full-stack browser-smoke harness (task 036): bring the solo Compose stack up
+ * in an isolated Compose project, bootstrap a first administrator in it, drive
+ * `playwright.compose.config.ts` against it, and take it back down again. The flow
+ * is called "full-stack" everywhere it is named - the CI job, the report
+ * directories, the spec in `apps/e2e/` - and this file keeps its Compose-shaped
+ * filename only because it is what `package.json` and the workflow already invoke.
  *
  * ## Ports and the project name
  *
@@ -13,10 +16,11 @@
  *
  * The project name matters as much as the ports. Two Compose stacks sharing a
  * project name ARE one stack, so a second seat would recreate the first seat's
- * containers rather than run beside them. It is derived per seat as well, with an
- * `-e2e` suffix so this throwaway stack can never be confused with (or torn down
- * on top of) the dev database `scripts/dev-portal.mjs` runs under the same seat's
- * project name: `down --volumes --remove-orphans` here would otherwise delete it.
+ * containers rather than run beside them. It is derived per seat as well, with a
+ * `-full-stack-e2e` suffix so this throwaway stack can never be confused with (or
+ * torn down on top of) the dev database `scripts/dev-portal.mjs` runs under the
+ * same seat's project name: `down --volumes --remove-orphans` here would otherwise
+ * delete it.
  *
  * `playwright.compose.config.ts` and the spec read the two base URLs exported
  * below and nothing else, so the allocation reaches the browser side through one
