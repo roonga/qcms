@@ -73,7 +73,8 @@ function buildTestDependencies() {
   // dist directories, so build the database package and its workspace closure
   // before starting the runner.
   const args = ["--filter", "@qcms/db...", "build"];
-  if (pnpmEntrypoint !== undefined) run(process.execPath, [pnpmEntrypoint, ...args], e2eEnvironment);
+  if (pnpmEntrypoint !== undefined)
+    run(process.execPath, [pnpmEntrypoint, ...args], e2eEnvironment);
   else run(pnpm, args, e2eEnvironment);
 }
 
