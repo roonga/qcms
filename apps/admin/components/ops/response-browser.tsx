@@ -6,6 +6,8 @@ import { useCallback, useState, useTransition } from "react";
 
 import { Button, DatePicker, Dialog, Select } from "@/components/kit";
 import { FlagTag } from "@/components/ops/ops-tags";
+import type { AppliedFilters } from "@/lib/ops/browse";
+import { responsePageLink } from "@/lib/ops/browse";
 import type { ExportChoice, ExportFormat } from "@/lib/ops/export";
 import { exportQuery, isExportable, versionRequired } from "@/lib/ops/export";
 import type { ResponsePage } from "@/lib/ops/types";
@@ -44,12 +46,8 @@ export function ResponseBrowser({
   readonly page: ResponsePage;
   /** The form's published versions, newest first, for the two version controls. */
   readonly versions: readonly number[];
-  readonly filters: {
-    readonly version: string;
-    readonly from: string;
-    readonly to: string;
-    readonly flagged: string;
-  };
+  /** What the server actually applied, which is also what a page link carries. */
+  readonly filters: AppliedFilters;
   /** Whether any filter is applied, which decides which empty message is true. */
   readonly hasFilters: boolean;
 }) {
@@ -116,20 +114,15 @@ export function ResponseBrowser({
   /**
    * A link to another page of the CURRENT result set.
    *
-   * Built from `filters` - what the server applied - and never from the draft state
-   * above. Building it from the controls meant a date typed into "From" and never
-   * applied rode along with a "Next page" click: the operator asked to page through
-   * the results they were looking at and silently got a different query, with the
-   * count and the page number they had just read no longer describing anything.
+   * Delegated to `lib/ops/browse.ts` so it is built from `filters` - what the server
+   * applied - and cannot reach the draft state above: the module takes the applied set
+   * as an argument and has no other filters in scope. Building it from the controls
+   * meant a date typed into "From" and never applied rode along with a "Next page"
+   * click, so the operator asked to page through the results they were looking at and
+   * silently got a different query, with the count and the page number they had just
+   * read no longer describing anything.
    */
-  const pageQuery = (target: number): string => {
-    const search = new URLSearchParams();
-    for (const [key, value] of Object.entries(filters)) {
-      if (value !== "") search.set(key, value);
-    }
-    search.set("page", String(target));
-    return `${base}?${search.toString()}`;
-  };
+  const pageQuery = (target: number): string => responsePageLink(formId, filters, target);
 
   return (
     <section

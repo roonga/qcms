@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { answerText } from "./answers.ts";
+import type { AppliedFilters } from "./browse.ts";
+import { responsePageLink } from "./browse.ts";
 import { isErasureConfirmed, isErasureReason } from "./erasure.ts";
 import type { ExportChoice } from "./export.ts";
 import { exportFilename, exportQuery, isExportable, versionRequired } from "./export.ts";
@@ -186,5 +188,42 @@ describe("question labels resolve through the pin", () => {
   it("orders answers in document order, with strays appended", () => {
     const answers = { q_age: 30, q_stray: "x", q_name: "Ada" };
     expect(orderedAnswerKeys(answers, pinsOf(definition))).toEqual(["q_name", "q_age", "q_stray"]);
+  });
+});
+
+describe("response page links", () => {
+  const applied: AppliedFilters = { version: "2", from: "2026-01-01", to: "", flagged: "true" };
+
+  it("carries the applied filter set and the target page", () => {
+    expect(responsePageLink("frm_auto_quote", applied, 3)).toBe(
+      "/forms/frm_auto_quote/responses?version=2&from=2026-01-01&flagged=true&page=3",
+    );
+  });
+
+  it("omits absent filters rather than sending empty values", () => {
+    // `to` is "" above. An empty `to=` is not the same request as no `to` at all, and
+    // the API would have to guess which was meant.
+    expect(responsePageLink("frm_auto_quote", applied, 3)).not.toContain("to=");
+  });
+
+  it("writes page 1 explicitly", () => {
+    // A "Previous page" link that reloads must land on the page it named, not on an
+    // implicit default that a later change to the default could move.
+    expect(responsePageLink("frm_auto_quote", applied, 1)).toContain("page=1");
+  });
+
+  it("cannot carry a filter the operator has not applied", () => {
+    // The regression this function exists for. A date typed into "From" and never
+    // applied used to ride along with a "Next page" click, so the result set changed
+    // for two reasons and the operator had asked for one. There is no draft state in
+    // this module's scope, so a link built here can only ever describe the set the
+    // server applied: the same filters in, the same query out.
+    const draftTyped = { ...applied, from: "1999-12-31" };
+    expect(responsePageLink("frm_auto_quote", applied, 2)).not.toContain("1999-12-31");
+    expect(responsePageLink("frm_auto_quote", draftTyped, 2)).toContain("1999-12-31");
+  });
+
+  it("encodes a form id that would otherwise break the path", () => {
+    expect(responsePageLink("frm a/b", applied, 1)).toContain("/forms/frm%20a%2Fb/responses?");
   });
 });
