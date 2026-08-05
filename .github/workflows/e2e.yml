@@ -1,0 +1,74 @@
+name: Full-stack E2E
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# This job builds three images and boots the whole stack, so a second push to the
+# same branch should replace the run in flight rather than queue behind it. The
+# key is workflow plus ref, so main and each pull request keep their own lane.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The job id IS the check context, deliberately left to name itself: ci.yml
+  # already publishes an `e2e` check (the API scenario suite), and a second
+  # context differing from it only by case is unreadable in a check list.
+  full-stack-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build workspace packages
+        run: pnpm -r build
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      # Resolves the mirrored Postgres reference into QCMS_TEST_POSTGRES_IMAGE and
+      # pre-pulls it, exactly as every other Docker-backed job does (issues #74 and
+      # #150). Compose reads it below as QCMS_POSTGRES_IMAGE.
+      - uses: ./.github/actions/test-postgres-image
+
+      # The three application images build FROM node:24-bookworm-slim, which is not
+      # mirrored yet: accepted for now because a base-image pull is a build-time
+      # dependency this job already has (it builds the images), while the Postgres
+      # pull was a run-time one the mirror already covers everywhere else.
+      - name: Start full-stack E2E stack
+        env:
+          QCMS_POSTGRES_IMAGE: ${{ env.QCMS_TEST_POSTGRES_IMAGE }}
+        run: pnpm docker:up
+
+      - name: Run full-stack E2E browser flow
+        run: pnpm test:e2e
+
+      - name: Stop full-stack E2E stack
+        if: ${{ always() }}
+        env:
+          QCMS_POSTGRES_IMAGE: ${{ env.QCMS_TEST_POSTGRES_IMAGE }}
+        run: pnpm docker:down
+
+      - name: Upload E2E report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: full-stack-e2e-report
+          path: |
+            playwright-report/full-stack-e2e/
+            test-results/full-stack-e2e/
+          if-no-files-found: ignore
+          retention-days: 7

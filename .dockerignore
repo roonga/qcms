@@ -1,0 +1,16 @@
+.git
+.changeset
+.claude
+.devcontainer
+node_modules
+.pnpm-store
+.turbo
+coverage
+dist
+**/.next
+**/.next-dev
+**/coverage
+.env
+.env.*
+!.env.example
+*.log

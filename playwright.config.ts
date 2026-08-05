@@ -181,6 +181,10 @@ export default defineConfig({
       // so a phone project here would test a shape nobody uses.
       name: "admin-chromium",
       testDir: "./apps/admin/e2e",
+      // The full-stack flow lives in `apps/e2e/` and runs through
+      // playwright.compose.config.ts, so no `testIgnore` is needed here: it owns
+      // its own generated credentials and a Compose topology this suite's global
+      // setup deliberately does not use.
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 1280, height: 800 },
@@ -203,6 +207,9 @@ export default defineConfig({
       timeout: 180_000,
       env: {
         PORTAL_PORT: String(PORT),
+        // The start BFF redirects respondents to this public portal origin.
+        // In the browser harness, the portal is reachable at its seat's localhost URL.
+        QCMS_PORTAL_BASE_URL: `http://localhost:${PORT}`,
         QCMS_API_BASE_URL: API_BASE_URL,
         QCMS_INTERNAL_TOKEN: FIXED_INTERNAL_TOKEN,
         // Tracing on, pointed at the in-test OTLP receiver globalSetup boots (task

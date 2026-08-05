@@ -55,6 +55,57 @@ docker compose -f docker-compose.dev.yml up -d   # local Postgres - copy .env.ex
 
 Details, including how to reach the dev database from inside the container: [`CONTRIBUTING.md`](CONTRIBUTING.md#development-environment).
 
+### Run the complete stack with Docker Compose
+
+The solo Compose topology runs Postgres, an explicit one-shot migration, the API,
+the respondent portal, and the authoring admin. The API and database are internal
+to the Compose network; only the two web apps publish host ports.
+
+```sh
+cp .env.compose.example .env  # replace every placeholder secret before use
+docker compose up --build -d
+```
+
+At the default ports, open the portal at `http://localhost:7000` and the admin at
+`http://localhost:7040`. Those are seat 0's stable slots ([`docs/PORTS.md`](docs/PORTS.md)):
+the stack is long-running and human-facing, so it takes a seat's stable block and
+cannot run at the same seat as `pnpm dev:portal`. The migration runs once before the
+API starts; it is not performed by application startup, so operators retain control
+of upgrade ordering. Both published ports bind to loopback (`QCMS_BIND_ADDRESS`), so
+the stack is not reachable from the network until you say otherwise. For an
+internet-facing deployment, place TLS ingress in front of these two apps only; never
+publish the API or Postgres ports.
+
+To run the browser end-to-end flow in an isolated Compose project:
+
+```sh
+pnpm docker:up
+pnpm test:e2e
+pnpm docker:down
+```
+
+`pnpm docker:up` first deletes any previous test containers and volumes, then starts
+a fresh stack on this seat's ephemeral harness ports (`17S00` portal, `17S40` admin,
+where `S` is `QCMS_PORT_SEAT` - see [`docs/PORTS.md`](docs/PORTS.md)) and bootstraps a new
+admin with generated credentials (printed once to the terminal locally, and on CI
+only as the path of the file the suite reads). `pnpm test:e2e`
+completes required TOTP enrollment and confirms access to the Questions screen.
+Use `pnpm test:e2e:headed` to watch the browser while that stack remains running.
+
+For a self-contained run that starts the stack, executes the same suite, and
+cleans up automatically, use `pnpm up:e2e`; add `:headed` to watch that run.
+
+The **Full-stack E2E** GitHub Actions workflow can also be run manually from the
+Actions tab: choose the workflow, select **Run workflow**, and choose the branch.
+From a terminal with GitHub CLI authentication, run:
+
+```sh
+gh workflow run e2e.yml --ref <branch>
+```
+
+Each run keeps the Compose startup, browser-flow, and teardown logs in separate
+steps and uploads the Playwright HTML and JUnit report as `full-stack-e2e-report`.
+
 ## Documentation
 
 - [`docs/PROJECT_GOAL.md`](docs/PROJECT_GOAL.md) - vision, scope, and the architectural decision records (ADR-01…35)

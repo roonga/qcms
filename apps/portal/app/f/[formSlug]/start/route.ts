@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { ApiError, startSession } from "@/lib/server/api";
+import { portalBaseUrl } from "@/lib/server/config";
 import { writeSessionToken } from "@/lib/server/session-cookie";
 
 /**
@@ -33,10 +34,10 @@ export async function POST(
       challengeToken === undefined ? { formSlug } : { formSlug, challengeToken },
     );
     await writeSessionToken(session.sessionToken);
-    return NextResponse.redirect(new URL(`/s/${session.sessionId}`, request.url), 303);
+    return NextResponse.redirect(new URL(`/s/${session.sessionId}`, portalBaseUrl()), 303);
   } catch (error) {
     const code = error instanceof ApiError ? error.code : "internal";
     const state = ERROR_STATE[code] ?? "error";
-    return NextResponse.redirect(new URL(`/f/${formSlug}?state=${state}`, request.url), 303);
+    return NextResponse.redirect(new URL(`/f/${formSlug}?state=${state}`, portalBaseUrl()), 303);
   }
 }
