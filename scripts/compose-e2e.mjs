@@ -56,10 +56,41 @@ const e2eEnvironment = {
   QCMS_PORTAL_BASE_URL: `http://localhost:${String(portalPort)}`,
 };
 
+/** A bad or missing subcommand: a user error, so it prints without a stack trace. */
+class UsageError extends Error {
+  /** @param {string} message */
+  constructor(message) {
+    super(message);
+    this.name = "UsageError";
+  }
+}
+
+/** A child process that exited non-zero, carrying its status to the top level. */
+class CommandFailed extends Error {
+  /**
+   * @param {string} command
+   * @param {number} status
+   */
+  constructor(command, status) {
+    super(`${command} exited with status ${String(status)}`);
+    this.name = "CommandFailed";
+    this.status = status;
+  }
+}
+
+/**
+ * Run a child process, and THROW on a non-zero exit rather than exiting here.
+ *
+ * `process.exit()` does not unwind the stack, so calling it from inside `up()` or
+ * `test()` skipped `runComplete()`'s `finally { down(); }` entirely: any failing
+ * run left the containers, the named volume and the credentials file behind, which
+ * is the opposite of what README.md promises. Throwing lets the cleanup run and
+ * lets the top level decide the exit code.
+ */
 function run(command, args, environment = process.env) {
   const result = spawnSync(command, args, { cwd: root, env: environment, stdio: "inherit" });
   if (result.error) throw result.error;
-  if (result.status !== 0) process.exit(result.status ?? 1);
+  if (result.status !== 0) throw new CommandFailed(command, result.status ?? 1);
 }
 
 function up() {
@@ -121,21 +152,54 @@ function test({ headed = false } = {}) {
   else run(pnpm, args, e2eEnvironment);
 }
 
+/**
+ * @param {unknown} error
+ * @returns {string}
+ */
+function describe(error) {
+  if (error instanceof CommandFailed || error instanceof UsageError) return error.message;
+  if (error instanceof Error) return error.stack ?? error.message;
+  return String(error);
+}
+
 function runComplete({ headed = false } = {}) {
+  /** @type {unknown} */
+  let failure;
   try {
     up();
     test({ headed });
-  } finally {
-    down();
+  } catch (error) {
+    failure = error;
   }
+  try {
+    down();
+  } catch (error) {
+    // A failing teardown must never hide why the run failed in the first place.
+    if (failure === undefined) failure = error;
+    else process.stderr.write(`compose-e2e: teardown also failed: ${describe(error)}\n`);
+  }
+  if (failure !== undefined) throw failure;
 }
 
-const command = process.argv[2];
-if (command === "up") up();
-else if (command === "down") down();
-else if (command === "test") test();
-else if (command === "test-headed") test({ headed: true });
-else if (command === "run") runComplete();
-else if (command === "run-headed") runComplete({ headed: true });
-else
-  throw new Error("Usage: node scripts/compose-e2e.mjs <up|down|test|test-headed|run|run-headed>");
+function main() {
+  const command = process.argv[2];
+  if (command === "up") up();
+  else if (command === "down") down();
+  else if (command === "test") test();
+  else if (command === "test-headed") test({ headed: true });
+  else if (command === "run") runComplete();
+  else if (command === "run-headed") runComplete({ headed: true });
+  else
+    throw new UsageError(
+      "Usage: node scripts/compose-e2e.mjs <up|down|test|test-headed|run|run-headed>",
+    );
+}
+
+try {
+  main();
+} catch (error) {
+  // Set the code rather than calling process.exit: the stack has already
+  // unwound through every `finally`, and this lets stdio flush normally.
+  process.exitCode = error instanceof CommandFailed ? error.status : 1;
+  process.stderr.write(`compose-e2e: ${describe(error)}\n`);
+}
