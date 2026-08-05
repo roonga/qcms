@@ -90,3 +90,28 @@ export async function confirmLifecycle(page: Page, open: RegExp, confirm: string
 export function optionIds(page: Page): Promise<string[]> {
   return page.locator(".qcms-option-row__id").allTextContents();
 }
+
+/**
+ * Fill one numeric constraint of the editor and COMMIT it, so anything derived from the
+ * editor's document has caught up before the next step.
+ *
+ * A react-aria `NumberField` filled programmatically reports its value on **blur**, not on
+ * the input event, so `fillStable` alone leaves the number on screen and absent from the
+ * editor's state. Task 048 made that difference visible in two ways, both of which cost a
+ * browser run to find: a message field appears when its constraint commits, so a test that
+ * fills and immediately looks for the field is racing the commit; and the reflow that
+ * insertion causes lands between a following click's mousedown (which fires the blur) and
+ * its mouseup, so the two hit different elements and no `click` event fires at all.
+ *
+ * Blurring here makes the commit the fill's own last step. A test that then clicks a control
+ * BELOW the constraints panel should still anchor on the message field it expects, so the
+ * click waits for a page that has finished moving.
+ */
+export async function setNumericConstraint(
+  page: Page,
+  label: string,
+  value: string,
+): Promise<void> {
+  await fillStable(field(page, label), value);
+  await field(page, label).blur();
+}

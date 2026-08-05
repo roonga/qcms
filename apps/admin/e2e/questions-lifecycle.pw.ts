@@ -12,6 +12,7 @@ import {
   field,
   fillDate,
   optionIds,
+  setNumericConstraint,
 } from "./support/questions.js";
 
 /**
@@ -261,16 +262,12 @@ test("errors from the API are readable, and land on the field that caused them",
   //    MIN_LENGTH_ABOVE_MAX_LENGTH at ["constraints","minLength"], so it has to appear on
   //    the "Shortest answer" field rather than as a banner with no home.
   await createDraft(page, slugFor("invalid"), "Short text");
-  await fillStable(field(page, "Shortest answer"), "10");
-  await fillStable(field(page, "Longest answer"), "5");
-  // Commit the number before clicking Save, and wait for the commit to land (task 048).
-  // A react-aria NumberField filled PROGRAMMATICALLY reports its value on blur, and since
-  // 048 that commit inserts a message field for the constraint just set - which reflows the
-  // page between the click's mousedown (which caused the blur) and its mouseup, so the two
-  // land on different elements and no `click` event fires at all. Blurring first, and
-  // anchoring on the field the commit produces, makes the click land on a page that has
-  // already finished moving.
-  await field(page, "Longest answer").blur();
+  await setNumericConstraint(page, "Shortest answer", "10");
+  await setNumericConstraint(page, "Longest answer", "5");
+  // Anchor on the message field the commit produced before clicking Save (task 048): that
+  // insertion is what reflows the page, and an un-anchored click lands its mousedown and its
+  // mouseup on different elements, so no `click` event fires at all. The full reasoning is
+  // on `setNumericConstraint`.
   await expect(field(page, "Message when the answer is too long")).toBeVisible();
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(alert).toContainText("The engine rejected this draft");
@@ -375,8 +372,10 @@ test("a frozen number version renders cleanly with its bounds saved", async ({ p
   await signInWithTotp(page, EMAIL, totpSecret);
 
   await createDraft(page, slugFor("frozen-number"), "Number");
-  await fillStable(field(page, "Smallest value"), "1");
-  await fillStable(field(page, "Largest value"), "10");
+  await setNumericConstraint(page, "Smallest value", "1");
+  await setNumericConstraint(page, "Largest value", "10");
+  // Same anchor as the API-errors test above, for the same reason (`setNumericConstraint`).
+  await expect(field(page, "Message when the value is too large")).toBeVisible();
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Draft saved.")).toBeVisible();
 
@@ -449,7 +448,7 @@ test("a validation message inherits until it is written, then round-trips (048)"
 
   // Setting the constraint reveals its message field, and the field's PLACEHOLDER is the
   // sentence a respondent would see, with this question's own bound interpolated.
-  await fillStable(field(page, "Shortest answer"), "8");
+  await setNumericConstraint(page, "Shortest answer", "8");
   await expect(field(page, TOO_SHORT)).toHaveAttribute(
     "placeholder",
     "Answer must be at least 8 characters",
@@ -479,12 +478,12 @@ test("a validation message inherits until it is written, then round-trips (048)"
   // And clearing the constraint takes the message with it: the field goes, the next save
   // drops the orphaned key, and bringing the constraint back brings back an EMPTY field
   // rather than a remembered sentence for a rule that stopped existing.
-  await fillStable(field(page, "Shortest answer"), "");
+  await setNumericConstraint(page, "Shortest answer", "");
   await expect(field(page, TOO_SHORT)).toHaveCount(0);
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Draft saved.")).toBeVisible();
   await page.reload();
-  await fillStable(field(page, "Shortest answer"), "8");
+  await setNumericConstraint(page, "Shortest answer", "8");
   await expect(field(page, TOO_SHORT)).toHaveValue("");
 });
 
