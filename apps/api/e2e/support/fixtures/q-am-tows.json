@@ -1,0 +1,8 @@
+{
+  "type": "boolean",
+  "questionId": "q_am_tows",
+  "label": { "en": "Do you tow a trailer?" },
+  "required": true,
+  "yesLabel": { "en": "Yes, I tow" },
+  "noLabel": { "en": "No, I never tow" }
+}

@@ -1,0 +1,122 @@
+{
+  "documents": [
+    {
+      "stepId": "stp_vehicle",
+      "root": {
+        "type": "Form",
+        "children": [
+          {
+            "type": "Flex",
+            "props": {
+              "direction": "column",
+              "gap": "md"
+            },
+            "children": [
+              {
+                "type": "Text",
+                "props": {
+                  "as": "h1"
+                },
+                "children": "Vehicle details"
+              },
+              {
+                "type": "Text",
+                "props": {
+                  "as": "h2"
+                },
+                "children": "The vehicle"
+              },
+              {
+                "type": "TextField",
+                "props": {
+                  "label": "Registration plate",
+                  "name": "q_am_plate",
+                  "isRequired": true,
+                  "messages": {
+                    "required": "Check the vehicle paperwork",
+                    "minLength": "A plate is at least 3 characters",
+                    "pattern": "Use capitals, digits and hyphens only, like ABC-123"
+                  },
+                  "minLength": 3,
+                  "maxLength": 8,
+                  "pattern": "^[A-Z0-9][A-Z0-9-]{2,7}$"
+                }
+              },
+              {
+                "type": "TextField",
+                "props": {
+                  "label": "VIN",
+                  "name": "q_am_vin",
+                  "isRequired": true,
+                  "messages": {
+                    "required": "Check the vehicle paperwork"
+                  },
+                  "maxLength": 17
+                }
+              },
+              {
+                "type": "RadioGroup",
+                "props": {
+                  "label": "Do you tow a trailer?",
+                  "name": "q_am_tows",
+                  "isRequired": true
+                },
+                "children": [
+                  {
+                    "type": "Radio",
+                    "props": {
+                      "value": "true",
+                      "label": "Yes, I tow"
+                    }
+                  },
+                  {
+                    "type": "Radio",
+                    "props": {
+                      "value": "false",
+                      "label": "No, I never tow"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "RadioGroup",
+                "props": {
+                  "label": "Is the vehicle garaged overnight?",
+                  "name": "q_am_garaged",
+                  "isRequired": true
+                },
+                "children": [
+                  {
+                    "type": "Radio",
+                    "props": {
+                      "value": "true",
+                      "label": "Garaged"
+                    }
+                  },
+                  {
+                    "type": "Radio",
+                    "props": {
+                      "value": "false",
+                      "label": "No"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "Honeypot",
+                "props": {
+                  "name": "website",
+                  "autoComplete": "off",
+                  "ariaHidden": true,
+                  "tabIndex": -1
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "compilerVersion": "0.1.0",
+  "a2uiSpecVersion": "1.0.0-preview.7"
+}

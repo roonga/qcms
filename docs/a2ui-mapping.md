@@ -54,7 +54,7 @@ authority.
 | `longText` | `TextArea` (`text-area`) | `label`, `description` (help), `name` = questionId | `isRequired`, `maxLength` |
 | `number` | `NumberField` (`number-field`) | `label`, `description`, `name` | `isRequired`, `minValue`, `maxValue`, `step: 1` when `integer` |
 | `date` | `DatePicker` (`date-picker`) | `label`, `description`, `name`, `granularity: "day"` | `isRequired`, `minValue`, `maxValue` (canonical `YYYY-MM-DD` strings) |
-| `boolean` | `RadioGroup` (`radio`) with two `Radio` children, values `"true"` / `"false"` | `label`, `description`, `name`; child labels are locale-resolved Yes/No text | `isRequired` |
+| `boolean` | `RadioGroup` (`radio`) with two `Radio` children, values `"true"` / `"false"` | `label`, `description`, `name`; child labels are the author's `yesLabel`/`noLabel` if set, else locale-resolved lexicon Yes/No text (ADR-36) | `isRequired` |
 | `singleChoice` (≤ 7 options) | `RadioGroup` (`radio`) with one `Radio` per option, `value` = optionId | `label`, `description`, `name`; child `label` from option label | `isRequired` |
 | `singleChoice` (> 7 options) | `Select` (`select`) with `items` (`value` = optionId) | `label`, `description`, `name`, `items` | `isRequired` |
 | `multiChoice` | `CheckboxGroup` (`checkbox`) with one `Checkbox` child per option, `value` = optionId | `label`, `description`, `name`, `orientation: "vertical"` | `isRequired` (min/maxSelected have no upstream prop - server-only, surfaced in help text by authors if desired) |
@@ -71,10 +71,16 @@ authority.
   kernel distinguishes unanswered from `false` (the `answered` operator, ADR-16 hidden
   exclusion), so the control must too. Radio values are the strings `"true"`/`"false"`,
   mapped to the canonical boolean `AnswerValue` at the answer boundary. Yes/No child labels
-  come from a compiler affirmation lexicon keyed by the locale's language subtag
-  (`BOOLEAN_AFFIRMATION`), English fallback; the lexicon is a compiler constant frozen into
-  output via `compilerVersion`, and gains entries alongside each new launch locale (R7 - no
-  second locale before Phase 4).
+  are **authored content over a lexicon default** (ADR-36, task 048): each label is the
+  question's `yesLabel` / `noLabel` `LocalizedText` resolved for the active locale when the
+  author supplied one, and otherwise the compiler affirmation lexicon entry keyed by the
+  locale's language subtag (`BOOLEAN_AFFIRMATION`), English fallback. The fallback is **per
+  label**, so overriding "Yes" leaves "No" on the lexicon. The lexicon remains a compiler
+  constant frozen into output via `compilerVersion`, and gains entries alongside each new
+  launch locale (R7 - no second locale before Phase 4). An override is presentation payload
+  only: the wire values stay `"true"`/`"false"`, so no rule, export or report changes
+  meaning, and content carrying no override compiles byte-identically (the golden corpus is
+  the proof).
 - **`singleChoice` threshold: 7.** Up to 7 options render as a `RadioGroup` (all options
   visible, one tap, best for the common short list); above 7, a `Select` keeps the step
   scannable. The threshold is a compiler constant (`SINGLE_CHOICE_SELECT_THRESHOLD = 7`)
@@ -96,6 +102,19 @@ Each step compiles to one A2UI document:
 - Error slots: every control node leaves `errorMessage` **unset** in compiled output -
   it is the per-question error slot the renderer (028) fills from server validation
   results. The `name` prop (= questionId) is the key the renderer uses to route errors.
+- **Author validation messages (`messages`, ADR-32, task 048):** a control node MAY carry
+  one extra prop, `messages`, mapping a constraint key (`required`, `minLength`,
+  `maxLength`, `pattern`, `min`, `max`, `integer`, `minSelected`, `maxSelected`) to the
+  author's wording for that constraint, resolved for the active locale. Keys are emitted in
+  `@qcms/core`'s canonical `VALIDATION_MESSAGE_KEYS` order rather than the authored object's
+  own order, so the document is a function of content alone. The prop is **absent** unless
+  the author wrote at least one message, which is what keeps pre-048 content byte-identical.
+  It is payload the host reads when it fills the error slot above, keyed off the `constraint`
+  the API's 422 names; the renderer never evaluates it, and a constraint with no entry falls
+  back to the portal's default catalog wording (per constraint, not per question).
+  `messages` is a **qcms-side extension** to the otherwise-`strict` vendored props: the
+  vendored schemas stay byte-identical (ADR-22), and `@qcms/ui`'s registry wraps each
+  question control's schema in `withAuthorMessages` so a node carrying the prop validates.
 
 ## Honeypot decoy (task 026, abuse controls)
 

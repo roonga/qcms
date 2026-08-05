@@ -560,6 +560,31 @@ describe("typed rejects (exit criterion 3)", () => {
     expect(details.errors.map((e) => e.code)).toContain("VALUE_BELOW_MIN");
   });
 
+  /**
+   * Task 048 regression (ADR-32): author-supplied validation messages are
+   * presentation payload compiled into the A2UI document. The API is unchanged by
+   * them - it keeps emitting the kernel's stable `{ code, constraint, message }`
+   * triples and never reads, resolves or forwards an author message.
+   *
+   * Asserted as BYTES, not shape, and against content that carries no messages
+   * (the `insurance` fixture). A response that gained a field, lost one, reordered
+   * keys, or swapped the kernel's default message for an authored one fails here.
+   * `arrayBuffer` rather than `text` so a stray BOM would also be caught.
+   */
+  it("048: the 422 body is byte-identical for content carrying no author messages", async () => {
+    const { sessionId, sessionToken } = await startSession("auto");
+    await postAnswer(sessionId, sessionToken, "q_at_fault_accident", true);
+    const res = await postAnswer(sessionId, sessionToken, "q_accident_count", -1);
+    expect(res.status).toBe(422);
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    expect(new TextDecoder().decode(bytes)).toBe(
+      '{"error":{"code":"INVALID_ANSWER","message":"The answer failed validation",' +
+        '"details":{"questionId":"q_accident_count","errors":[' +
+        '{"code":"VALUE_BELOW_MIN","constraint":"min","message":"Answer must be at least 0"}' +
+        "]}}}",
+    );
+  });
+
   it("answering a hidden question → 409 QUESTION_NOT_VISIBLE", async () => {
     const { sessionId, sessionToken } = await startSession("auto");
     // q_accident_count is hidden until q_at_fault_accident = true.

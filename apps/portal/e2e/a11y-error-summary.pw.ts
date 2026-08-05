@@ -21,6 +21,7 @@ import { expect, test } from "./support/gates.js";
 import type { Page } from "@playwright/test";
 
 import { readFixtures } from "./support/fixtures.js";
+import { waitForHydration } from "./support/hydration.js";
 import { KS, startKitchenSink } from "./support/kitchen-sink.js";
 
 /** The questionId of the field wrapper the focused control sits in, if any. */
@@ -62,4 +63,58 @@ test("error summary: each link names its own field and jumps to it", async ({ pa
   await fullName.click();
   expect(await focusedQuestion(page)).toBe("q_full_name");
   await expect(page.getByRole("textbox", { name: KS.fullName })).toBeFocused();
+});
+
+/**
+ * Task 048 (ADR-32): author-supplied messages must not be able to undo issue
+ * #21's fix. The hard case is two questions whose authors wrote the SAME custom
+ * `required` wording - the exact shape that produced indistinguishable accessible
+ * names before #21, now reachable through authored content rather than through a
+ * single shared default sentence.
+ *
+ * The composition stays label-anchored, with the author's wording as the sentence
+ * body, so the two entries are still distinct in the browser's accessibility tree.
+ * The `author-messages` fixture's `q_am_plate` and `q_am_vin` carry byte-identical
+ * `required` messages for exactly this test.
+ */
+test("error summary: identical custom messages still have distinct accessible names", async ({
+  page,
+}) => {
+  const { authorMessagesSlug } = readFixtures();
+  await page.goto(`/f/${authorMessagesSlug}`);
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.waitForURL(/\/s\/ses_/);
+  await expect(page.getByRole("textbox", { name: "Registration plate" })).toBeVisible();
+  await waitForHydration(page);
+
+  // Continue with nothing answered: all four required questions are missing.
+  await page.getByTestId("primary-action").click();
+  const summary = page.getByTestId("error-summary");
+  await expect(summary).toBeVisible();
+
+  // Both authors wrote "Check the vehicle paperwork". Each entry is nonetheless
+  // named by its own question, so each of these queries matches exactly one link -
+  // and a bare-message composition would have matched two with one name and zero
+  // with the other.
+  const plate = summary.getByRole("link", {
+    name: "Registration plate: Check the vehicle paperwork",
+  });
+  const vin = summary.getByRole("link", { name: "VIN: Check the vehicle paperwork" });
+  await expect(plate).toHaveCount(1);
+  await expect(vin).toHaveCount(1);
+  await expect(plate).toHaveAttribute("href", "#q_am_plate");
+  await expect(vin).toHaveAttribute("href", "#q_am_vin");
+
+  // The property, stated over the whole summary: as many distinct accessible names
+  // as there are entries. The two booleans carry no `required` message, so they
+  // keep the default sentence - which is also distinct, being label-anchored.
+  const names = await summary
+    .getByRole("link")
+    .evaluateAll((links) => links.map((link) => link.textContent?.trim() ?? ""));
+  expect(names).toHaveLength(4);
+  expect(new Set(names).size).toBe(4);
+
+  // Unchanged behaviour: activating an entry still moves focus into its field.
+  await vin.click();
+  expect(await focusedQuestion(page)).toBe("q_am_vin");
 });
