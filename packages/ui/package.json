@@ -45,8 +45,8 @@
   },
   "dependencies": {
     "@a2ra/core": "1.0.0-preview.7",
-    "@internationalized/date": "^3.12.2",
-    "react-aria-components": "^1.19.0",
+    "@internationalized/date": "^3.12.3",
+    "react-aria-components": "^1.20.0",
     "zod": "^4.4.3"
   },
   "peerDependencies": {
@@ -59,8 +59,8 @@
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.5.2",
     "@types/node": "^24.13.3",
-    "@types/react": "^19.2.0",
-    "@types/react-dom": "^19.2.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
     "axe-core": "^4.10.2",
     "dom-accessibility-api": "^0.7.1",
     "jsdom": "^26.1.0",
