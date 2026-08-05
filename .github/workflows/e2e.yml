@@ -35,7 +35,18 @@ jobs:
       - name: Install Playwright Chromium
         run: pnpm exec playwright install --with-deps chromium
 
+      # Resolves the mirrored Postgres reference into QCMS_TEST_POSTGRES_IMAGE and
+      # pre-pulls it, exactly as every other Docker-backed job does (issues #74 and
+      # #150). Compose reads it below as QCMS_POSTGRES_IMAGE.
+      - uses: ./.github/actions/test-postgres-image
+
+      # The three application images build FROM node:24-bookworm-slim, which is not
+      # mirrored yet: accepted for now because a base-image pull is a build-time
+      # dependency this job already has (it builds the images), while the Postgres
+      # pull was a run-time one the mirror already covers everywhere else.
       - name: Start Compose E2E stack
+        env:
+          QCMS_POSTGRES_IMAGE: ${{ env.QCMS_TEST_POSTGRES_IMAGE }}
         run: pnpm docker:up
 
       - name: Run Compose E2E browser flow
@@ -43,6 +54,8 @@ jobs:
 
       - name: Stop Compose E2E stack
         if: ${{ always() }}
+        env:
+          QCMS_POSTGRES_IMAGE: ${{ env.QCMS_TEST_POSTGRES_IMAGE }}
         run: pnpm docker:down
 
       - name: Upload E2E report

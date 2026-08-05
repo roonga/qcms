@@ -11,7 +11,11 @@ name: qcms
 # at another seat.
 services:
   postgres:
-    image: postgres:16-alpine
+    # Overridable so CI can point at the GHCR mirror the Testcontainers jobs already
+    # use (issues #74 and #150): an unmirrored Docker Hub pull on every pull request
+    # is the availability dependency those issues exist to remove. An operator with
+    # no override gets the same image as before.
+    image: ${QCMS_POSTGRES_IMAGE:-postgres:16-alpine}
     environment:
       POSTGRES_DB: ${QCMS_DB_NAME:-qcms}
       POSTGRES_USER: ${QCMS_DB_USER:-qcms}
