@@ -10,7 +10,7 @@ A task's **Depends on** header already expresses every "runs *after* X" constrai
 |---|---|---|
 | 040 | before 038 | security review and hardening precede the external-tester launch gate |
 | 041 | never gates 038 | agent-assisted authoring is flag-gated and off the launch gate (ADR-25) |
-| 056 | before 036 | auth consolidates into the API before compose provisions containers, so compose never provisions an admin database credential it would immediately have to take away |
+| 056 | before 036 | the ops docs must describe the post-consolidation topology, not one they would immediately outdate. The original reason (compose must never provision an admin database credential) was overtaken on 2026-08-05: PR #286 landed `docker-compose.yml` ahead of this exception, `admin` carries a `DATABASE_URL` today, and removing it is now 056's job rather than something 036 can still avoid |
 
 Exceptions retire when their task lands: 042, 043, 044, 045 and 055 all carried one and are now `done`.
 
@@ -90,7 +90,7 @@ Status values: `todo` · `blocked (issue #)` · `done (PR #)`. A row goes `todo`
 | 054 | Observability: OTel tracing baseline (portal -> API -> pg via traceparent) + pino trace-correlated logs + SEC-13 redaction allowlist (ADR-34) | 8b | done (PR #181; traced e2e via in-test OTLP receiver; SEC-13 redaction; whole Playwright suite runs traced) |
 | 055 | QCMS app theme application: Cobalt tokens + Lexend + sharp corners + mode control (after 031, before 032; UI screenshot gate) | 8a | done (PR #214; screenshot gate signed by the Code Owner 2026-07-31) |
 | 056 | Auth consolidation: better-auth moves into the API, admin loses its DB handle (ADR-35 amendment 2026-07-31; supersedes #211; after 035, before 036) | 8b | todo |
-| 036 | Production images, compose, ops docs | 8b | todo |
+| 036 | Ops docs, ingress recipes, restore drill, image supply chain (the images, the solo compose topology and its full-stack CI smoke run landed early in PR #286; the task file carries only the remainder) | 8b | todo |
 | 037 | create-qcms-app CLI | 8b | todo |
 | 040 | Security review and hardening (runs after 036, before 038) | 8b | todo |
 | 038 | Launch-gate validation | 8b | todo |
