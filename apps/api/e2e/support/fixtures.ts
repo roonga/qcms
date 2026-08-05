@@ -94,11 +94,15 @@ export const KITCHEN_SINK_GOLDEN = readFixture(
  * of what proves both features additive.
  *
  * What each question is here for:
- * - `q_am_plate` - three custom messages (required, minLength, pattern) and a
- *   FOURTH constraint (maxLength) deliberately left un-decorated, which is what
- *   makes the fallback provably per constraint rather than per question.
+ * - `q_am_plate` - three custom messages (required, minLength, pattern), so two
+ *   different constraints on one question show two different authored sentences.
  * - `q_am_vin` - carries the IDENTICAL custom `required` text as the plate, the
- *   case WCAG 3.3.1 distinctness exists for (issue #21, ADR-32).
+ *   case WCAG 3.3.1 distinctness exists for (issue #21, ADR-32), AND a
+ *   deliberately un-decorated `minLength`, which is what makes the fallback
+ *   provably per constraint rather than per question. `minLength` and not
+ *   `maxLength`: the compiler forwards `maxLength` as the input's advisory
+ *   `maxlength` attribute, so the control truncates the value and a browser can
+ *   never provoke that constraint at all.
  * - `q_am_tows` - both boolean labels overridden.
  * - `q_am_garaged` - one label overridden, the other on the lexicon (mixed pair).
  *

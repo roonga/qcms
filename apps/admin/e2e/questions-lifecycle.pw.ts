@@ -263,6 +263,15 @@ test("errors from the API are readable, and land on the field that caused them",
   await createDraft(page, slugFor("invalid"), "Short text");
   await fillStable(field(page, "Shortest answer"), "10");
   await fillStable(field(page, "Longest answer"), "5");
+  // Commit the number before clicking Save, and wait for the commit to land (task 048).
+  // A react-aria NumberField filled PROGRAMMATICALLY reports its value on blur, and since
+  // 048 that commit inserts a message field for the constraint just set - which reflows the
+  // page between the click's mousedown (which caused the blur) and its mouseup, so the two
+  // land on different elements and no `click` event fires at all. Blurring first, and
+  // anchoring on the field the commit produces, makes the click land on a page that has
+  // already finished moving.
+  await field(page, "Longest answer").blur();
+  await expect(field(page, "Message when the answer is too long")).toBeVisible();
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(alert).toContainText("The engine rejected this draft");
   await expect(field(page, "Shortest answer")).toHaveAttribute("aria-invalid", "true");

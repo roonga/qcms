@@ -91,14 +91,23 @@ test("a constraint the author left alone still shows the portal default", async 
   const { authorMessagesSlug } = readFixtures();
   await startAuthorMessages(page, authorMessagesSlug);
 
-  // 9 characters: `maxLength` (8) is the first constraint reported, and it is the
-  // one constraint on this question the author did NOT decorate. So the fallback
-  // is per constraint, not per question - the same field shows authored wording
-  // for minLength and pattern above, and the default here.
-  await commitRefused(page, AM.plate, "ABCDEFGHI");
+  // The VIN carries a custom `required` message but nothing for `minLength` (5),
+  // so two characters is refused on a constraint the author left alone: this one
+  // question shows the author's wording in the summary and the portal's default
+  // here. Per constraint, not per question.
+  //
+  // NOT `maxLength`, which looks like the obvious un-decorated case and is
+  // unreachable from a browser: the compiler forwards it as the input's advisory
+  // `maxlength` attribute, so the control truncates the value and the API is never
+  // asked to refuse it.
+  await commitRefused(page, AM.vin, "AB");
   await expect(page.getByText(DEFAULT_INVALID)).toBeVisible();
-  await expect(page.getByText(AUTHORED.pattern)).toBeHidden();
-  await expect(page.getByText(AUTHORED.minLength)).toBeHidden();
+  await expect(page.getByText(AUTHORED.required)).toBeHidden();
+
+  // Not "everything falls back": the same failing constraint on the neighbouring
+  // question is decorated, so it shows the author's wording instead.
+  await commitRefused(page, AM.plate, "AB");
+  await expect(page.getByText(AUTHORED.minLength)).toBeVisible();
 });
 
 test("an overridden boolean label is what the accessibility tree announces", async ({ page }) => {

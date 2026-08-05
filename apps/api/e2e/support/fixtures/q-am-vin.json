@@ -3,7 +3,7 @@
   "questionId": "q_am_vin",
   "label": { "en": "VIN" },
   "required": true,
-  "constraints": { "maxLength": 17 },
+  "constraints": { "minLength": 5, "maxLength": 17 },
   "messages": {
     "required": { "en": "Check the vehicle paperwork" }
   }

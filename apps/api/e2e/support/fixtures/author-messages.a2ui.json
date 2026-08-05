@@ -51,6 +51,7 @@
                   "messages": {
                     "required": "Check the vehicle paperwork"
                   },
+                  "minLength": 5,
                   "maxLength": 17
                 }
               },
