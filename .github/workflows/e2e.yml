@@ -1,19 +1,23 @@
-name: E2E
+name: Compose E2E
 
 on:
   push:
     branches: [main]
   pull_request:
   workflow_dispatch:
-    inputs:
-      run_label:
-        description: "Optional label for this manual E2E run"
-        required: false
-        type: string
+
+# This job builds three images and boots the whole stack, so a second push to the
+# same branch should replace the run in flight rather than queue behind it. The
+# key is workflow plus ref, so main and each pull request keep their own lane.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  # The job id IS the check context, deliberately left to name itself: ci.yml
+  # already publishes an `e2e` check (the API scenario suite), and a second
+  # context differing from it only by case is unreadable in a check list.
   compose-e2e:
-    name: E2E
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -60,9 +64,9 @@ jobs:
 
       - name: Upload E2E report
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: e2e-report
+          name: compose-e2e-report
           path: |
             playwright-report/compose-e2e/
             test-results/compose-e2e/
