@@ -63,7 +63,7 @@
     "@types/react-dom": "^19.2.0",
     "axe-core": "^4.10.2",
     "dom-accessibility-api": "^0.7.1",
-    "jsdom": "^26.1.0",
+    "jsdom": "^30.0.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   }
