@@ -134,12 +134,20 @@ const samples: { raw: unknown; location: string }[] = [
     },
     location: 'step "stp_history"',
   },
+  {
+    raw: {
+      code: "ORPHAN_MESSAGE_KEY",
+      message: "Question supplies a validation message for a constraint it does not carry",
+      path: { question: "q_at_fault_accident", constraint: "minLength" },
+    },
+    location: 'validation message "minLength" of question "q_at_fault_accident"',
+  },
 ];
 
 describe("PublishError", () => {
   it("codes and union variants stay in lockstep (compile-time)", () => {
     expect(codesInLockstep).toBe(true);
-    expect(PublishErrorCode.options).toHaveLength(11);
+    expect(PublishErrorCode.options).toHaveLength(12);
   });
 
   it.each(

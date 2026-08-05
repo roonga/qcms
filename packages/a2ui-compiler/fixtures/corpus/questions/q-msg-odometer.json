@@ -1,0 +1,12 @@
+{
+  "type": "number",
+  "questionId": "q_msg_odometer",
+  "label": { "en": "Odometer reading" },
+  "required": true,
+  "constraints": { "min": 0, "max": 999999, "integer": true },
+  "messages": {
+    "min": { "en": "An odometer reading cannot be negative" },
+    "max": { "en": "Enter a reading below 1,000,000 km" },
+    "integer": { "en": "Round to the nearest whole kilometre" }
+  }
+}

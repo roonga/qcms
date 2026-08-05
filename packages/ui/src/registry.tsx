@@ -3,6 +3,7 @@ import type { ComponentRegistry } from "@a2ra/core";
 import { useState } from "react";
 import type { ComponentProps, FocusEvent, ReactNode } from "react";
 
+import { withAuthorMessages } from "./author-messages.ts";
 import {
   Checkbox,
   CheckboxGroup,
@@ -508,6 +509,13 @@ function SelectField(props: Readonly<SelectProps>) {
  * Structural nodes (Form/Flex/Text) and the choice leaves (Radio/Checkbox) are
  * the vendored components verbatim; the interactive controls are the qcms
  * controlled adapters above.
+ *
+ * Each question control's schema is wrapped in `withAuthorMessages` (task 048,
+ * ADR-32): the compiler may put the author's per-constraint wording on the
+ * control node as a `messages` prop, and the vendored props objects are
+ * `.strict()`, so the wrapper is what lets a node carrying it validate at all.
+ * The choice leaves and the structural nodes never carry it - a message belongs
+ * to a question, and a question is one control.
  */
 function buildV1Registry(): ComponentRegistry {
   return createRegistry(
@@ -515,15 +523,18 @@ function buildV1Registry(): ComponentRegistry {
       Form: { component: Form, schema: FormSchema },
       Flex: { component: Flex, schema: FlexSchema },
       Text: { component: Text, schema: TextSchema },
-      TextField: { component: TextFieldField, schema: TextFieldSchema },
-      TextArea: { component: TextAreaField, schema: TextAreaSchema },
-      NumberField: { component: NumberFieldField, schema: NumberFieldSchema },
-      DatePicker: { component: DatePickerField, schema: DatePickerSchema },
-      RadioGroup: { component: RadioGroupField, schema: RadioGroupSchema },
+      TextField: { component: TextFieldField, schema: withAuthorMessages(TextFieldSchema) },
+      TextArea: { component: TextAreaField, schema: withAuthorMessages(TextAreaSchema) },
+      NumberField: { component: NumberFieldField, schema: withAuthorMessages(NumberFieldSchema) },
+      DatePicker: { component: DatePickerField, schema: withAuthorMessages(DatePickerSchema) },
+      RadioGroup: { component: RadioGroupField, schema: withAuthorMessages(RadioGroupSchema) },
       Radio: { component: Radio, schema: RadioSchema },
-      CheckboxGroup: { component: CheckboxGroupField, schema: CheckboxGroupSchema },
+      CheckboxGroup: {
+        component: CheckboxGroupField,
+        schema: withAuthorMessages(CheckboxGroupSchema),
+      },
       Checkbox: { component: Checkbox, schema: CheckboxSchema },
-      Select: { component: SelectField, schema: SelectSchema },
+      Select: { component: SelectField, schema: withAuthorMessages(SelectSchema) },
       Honeypot: { component: Honeypot, schema: HoneypotSchema },
       SubmitButton: { component: SubmitButton, schema: SubmitButtonSchema },
     },

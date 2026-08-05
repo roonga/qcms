@@ -1,0 +1,170 @@
+{
+  "documents": [
+    {
+      "stepId": "stp_vehicle",
+      "root": {
+        "type": "Form",
+        "children": [
+          {
+            "type": "Flex",
+            "props": {
+              "direction": "column",
+              "gap": "md"
+            },
+            "children": [
+              {
+                "type": "Text",
+                "props": {
+                  "as": "h1"
+                },
+                "children": "Author-supplied validation messages"
+              },
+              {
+                "type": "Text",
+                "props": {
+                  "as": "h2"
+                },
+                "children": "The vehicle"
+              },
+              {
+                "type": "TextField",
+                "props": {
+                  "label": "Registration plate",
+                  "description": "As printed on the plate, without spaces",
+                  "name": "q_msg_plate",
+                  "isRequired": true,
+                  "messages": {
+                    "required": "We need the plate to look up the vehicle",
+                    "minLength": "A plate is at least 3 characters",
+                    "maxLength": "A plate is at most 8 characters",
+                    "pattern": "Use capitals, digits and hyphens only, like ABC-123"
+                  },
+                  "minLength": 3,
+                  "maxLength": 8,
+                  "pattern": "^[A-Z0-9][A-Z0-9-]{2,7}$"
+                }
+              },
+              {
+                "type": "NumberField",
+                "props": {
+                  "label": "Odometer reading",
+                  "name": "q_msg_odometer",
+                  "isRequired": true,
+                  "messages": {
+                    "min": "An odometer reading cannot be negative",
+                    "max": "Enter a reading below 1,000,000 km",
+                    "integer": "Round to the nearest whole kilometre"
+                  },
+                  "minValue": 0,
+                  "maxValue": 999999,
+                  "step": 1
+                }
+              },
+              {
+                "type": "DatePicker",
+                "props": {
+                  "label": "Last service date",
+                  "name": "q_msg_service_date",
+                  "messages": {
+                    "min": "Our records only go back to the year 2000"
+                  },
+                  "granularity": "day",
+                  "minValue": "2000-01-01",
+                  "maxValue": "2100-12-31"
+                }
+              },
+              {
+                "type": "Honeypot",
+                "props": {
+                  "name": "website",
+                  "autoComplete": "off",
+                  "ariaHidden": true,
+                  "tabIndex": -1
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "stepId": "stp_extras",
+      "root": {
+        "type": "Form",
+        "children": [
+          {
+            "type": "Flex",
+            "props": {
+              "direction": "column",
+              "gap": "md"
+            },
+            "children": [
+              {
+                "type": "Text",
+                "props": {
+                  "as": "h2"
+                },
+                "children": "Extras and notes"
+              },
+              {
+                "type": "CheckboxGroup",
+                "props": {
+                  "label": "Which extras are fitted?",
+                  "name": "q_msg_extras",
+                  "isRequired": true,
+                  "messages": {
+                    "minSelected": "Pick at least one extra, or the none option",
+                    "maxSelected": "We can price two extras at most"
+                  },
+                  "orientation": "vertical"
+                },
+                "children": [
+                  {
+                    "type": "Checkbox",
+                    "props": {
+                      "value": "opt_tow_bar",
+                      "label": "Tow bar"
+                    }
+                  },
+                  {
+                    "type": "Checkbox",
+                    "props": {
+                      "value": "opt_roof_rack",
+                      "label": "Roof rack"
+                    }
+                  },
+                  {
+                    "type": "Checkbox",
+                    "props": {
+                      "value": "opt_dash_camera",
+                      "label": "Dash camera"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "TextArea",
+                "props": {
+                  "label": "Anything else about the vehicle?",
+                  "name": "q_msg_notes",
+                  "maxLength": 200
+                }
+              },
+              {
+                "type": "Honeypot",
+                "props": {
+                  "name": "website",
+                  "autoComplete": "off",
+                  "ariaHidden": true,
+                  "tabIndex": -1
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "compilerVersion": "0.1.0",
+  "a2uiSpecVersion": "1.0.0-preview.7"
+}

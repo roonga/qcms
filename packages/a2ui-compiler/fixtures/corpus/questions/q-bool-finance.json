@@ -1,0 +1,5 @@
+{
+  "type": "boolean",
+  "questionId": "q_bool_finance",
+  "label": { "en": "Is the vehicle under finance?" }
+}

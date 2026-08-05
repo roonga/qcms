@@ -1,0 +1,116 @@
+{
+  "documents": [
+    {
+      "stepId": "stp_usage",
+      "root": {
+        "type": "Form",
+        "children": [
+          {
+            "type": "Flex",
+            "props": {
+              "direction": "column",
+              "gap": "md"
+            },
+            "children": [
+              {
+                "type": "Text",
+                "props": {
+                  "as": "h1"
+                },
+                "children": "Boolean label overrides"
+              },
+              {
+                "type": "Text",
+                "props": {
+                  "as": "h2"
+                },
+                "children": "How the vehicle is used"
+              },
+              {
+                "type": "RadioGroup",
+                "props": {
+                  "label": "Do you tow a trailer?",
+                  "name": "q_bool_towing",
+                  "isRequired": true
+                },
+                "children": [
+                  {
+                    "type": "Radio",
+                    "props": {
+                      "value": "true",
+                      "label": "Yes, I tow"
+                    }
+                  },
+                  {
+                    "type": "Radio",
+                    "props": {
+                      "value": "false",
+                      "label": "No, I never tow"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "RadioGroup",
+                "props": {
+                  "label": "Is the vehicle garaged overnight?",
+                  "name": "q_bool_garaged"
+                },
+                "children": [
+                  {
+                    "type": "Radio",
+                    "props": {
+                      "value": "true",
+                      "label": "Garaged"
+                    }
+                  },
+                  {
+                    "type": "Radio",
+                    "props": {
+                      "value": "false",
+                      "label": "No"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "RadioGroup",
+                "props": {
+                  "label": "Is the vehicle under finance?",
+                  "name": "q_bool_finance"
+                },
+                "children": [
+                  {
+                    "type": "Radio",
+                    "props": {
+                      "value": "true",
+                      "label": "Yes"
+                    }
+                  },
+                  {
+                    "type": "Radio",
+                    "props": {
+                      "value": "false",
+                      "label": "No"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "Honeypot",
+                "props": {
+                  "name": "website",
+                  "autoComplete": "off",
+                  "ariaHidden": true,
+                  "tabIndex": -1
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "compilerVersion": "0.1.0",
+  "a2uiSpecVersion": "1.0.0-preview.7"
+}

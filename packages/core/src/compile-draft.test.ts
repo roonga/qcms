@@ -562,6 +562,139 @@ describe("compileDraft - each invariant violated alone yields only its error", (
   });
 });
 
+describe("compileDraft - author-supplied validation messages (ADR-32, task 048)", () => {
+  /** A shortText question with `minLength` set and the given message map. */
+  const plate = (messages: Record<string, unknown>): QuestionDefinition =>
+    textQ("q_b", { required: true, constraints: { minLength: 3 }, messages });
+
+  it("publishes a message keyed by a constraint the question carries", () => {
+    const draft = twoStepDraft([]);
+    const result = compileDraft({
+      ...draft,
+      ...makeStore([
+        record(boolQ("q_a")),
+        record(plate({ required: { en: "Plate needed" }, minLength: { en: "At least 3" } })),
+      ]),
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it("ORPHAN_MESSAGE_KEY: a message for a constraint the type does not have", () => {
+    const draft = twoStepDraft([]);
+    const errors = errorsOf(
+      compileDraft({
+        ...draft,
+        ...makeStore([record(boolQ("q_a")), record(plate({ minSelected: { en: "Pick one" } }))]),
+      }),
+    );
+    expect(errors).toEqual([
+      expect.objectContaining({
+        code: "ORPHAN_MESSAGE_KEY",
+        path: { question: "q_b", constraint: "minSelected" },
+      }),
+    ]);
+  });
+
+  it("ORPHAN_MESSAGE_KEY: a message for a constraint the type has but this question does not set", () => {
+    const draft = twoStepDraft([]);
+    const errors = errorsOf(
+      compileDraft({
+        ...draft,
+        ...makeStore([record(boolQ("q_a")), record(plate({ maxLength: { en: "Too long" } }))]),
+      }),
+    );
+    expect(errors).toEqual([
+      expect.objectContaining({
+        code: "ORPHAN_MESSAGE_KEY",
+        path: { question: "q_b", constraint: "maxLength" },
+      }),
+    ]);
+  });
+
+  it("ORPHAN_MESSAGE_KEY: a `required` message on a question that is not required", () => {
+    const draft = twoStepDraft([]);
+    const errors = errorsOf(
+      compileDraft({
+        ...draft,
+        ...makeStore([
+          record(boolQ("q_a", { messages: { required: { en: "Answer this" } } })),
+          record(textQ("q_b")),
+        ]),
+      }),
+    );
+    expect(errors).toEqual([
+      expect.objectContaining({
+        code: "ORPHAN_MESSAGE_KEY",
+        path: { question: "q_a", constraint: "required" },
+      }),
+    ]);
+  });
+
+  it("reports every orphan key, in canonical order, never first-only", () => {
+    const draft = twoStepDraft([]);
+    const errors = errorsOf(
+      compileDraft({
+        ...draft,
+        ...makeStore([
+          record(boolQ("q_a")),
+          record(plate({ pattern: { en: "Bad format" }, maxLength: { en: "Too long" } })),
+        ]),
+      }),
+    );
+    expect(errors.map((entry) => entry.code)).toEqual(["ORPHAN_MESSAGE_KEY", "ORPHAN_MESSAGE_KEY"]);
+    expect(errors.map((entry) => (entry.path as { constraint: string }).constraint)).toEqual([
+      "maxLength",
+      "pattern",
+    ]);
+  });
+
+  it("LOCALE_INCOMPLETE: a message missing the default locale (I3 covers messages too)", () => {
+    const draft = twoStepDraft([]);
+    const errors = errorsOf(
+      compileDraft({
+        ...draft,
+        ...makeStore([record(boolQ("q_a")), record(plate({ minLength: { fr: "Au moins 3" } }))]),
+      }),
+    );
+    expect(errors).toEqual([
+      expect.objectContaining({
+        code: "LOCALE_INCOMPLETE",
+        path: { locale: "en", question: "q_b" },
+      }),
+    ]);
+  });
+});
+
+describe("compileDraft - boolean label overrides (ADR-36, task 048)", () => {
+  it("publishes a boolean carrying one or both label overrides", () => {
+    const draft = twoStepDraft([]);
+    const result = compileDraft({
+      ...draft,
+      ...makeStore([
+        record(boolQ("q_a", { yesLabel: { en: "I tow" } })),
+        record(boolQ("q_b", { yesLabel: { en: "Yep" }, noLabel: { en: "Nope" } })),
+      ]),
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it("LOCALE_INCOMPLETE: a boolean label override missing the default locale", () => {
+    const draft = twoStepDraft([]);
+    const errors = errorsOf(
+      compileDraft({
+        ...draft,
+        ...makeStore([record(boolQ("q_a", { noLabel: { fr: "Non" } })), record(boolQ("q_b"))]),
+      }),
+    );
+    expect(errors).toEqual([
+      expect.objectContaining({
+        code: "LOCALE_INCOMPLETE",
+        path: { locale: "en", question: "q_a" },
+      }),
+    ]);
+  });
+});
+
 describe("compileDraft - error accumulation", () => {
   it("a draft violating three invariants reports all three in one result", () => {
     // I2 (dangling pin) + I2 (dangling step target) + I3 (locale) at once.

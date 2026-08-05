@@ -1,0 +1,6 @@
+{
+  "type": "boolean",
+  "questionId": "q_bool_garaged",
+  "label": { "en": "Is the vehicle garaged overnight?" },
+  "yesLabel": { "en": "Garaged" }
+}

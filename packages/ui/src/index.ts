@@ -21,6 +21,9 @@ export type {
 
 export { registryForSpecVersion } from "./registry.tsx";
 
+export { AuthorMessagesSchema, authorMessagesOf, withAuthorMessages } from "./author-messages.ts";
+export type { AuthorMessages } from "./author-messages.ts";
+
 export { documentForVisible } from "./visible.ts";
 
 export { HoneypotSchema } from "./honeypot/honeypot.schema.ts";

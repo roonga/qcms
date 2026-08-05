@@ -1,0 +1,17 @@
+{
+  "formId": "frm_boolean_labels",
+  "defaultLocale": "en",
+  "title": { "en": "Boolean label overrides" },
+  "steps": [
+    {
+      "stepId": "stp_usage",
+      "title": { "en": "How the vehicle is used" },
+      "items": [
+        { "questionId": "q_bool_towing", "version": 1 },
+        { "questionId": "q_bool_garaged", "version": 1 },
+        { "questionId": "q_bool_finance", "version": 1 }
+      ]
+    }
+  ],
+  "rules": []
+}

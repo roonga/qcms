@@ -45,24 +45,52 @@ import type { A2UINode, CompiledForm } from "./types.js";
  */
 
 const CORE_FIXTURES = fileURLToPath(new URL("../../core/fixtures/", import.meta.url));
+/**
+ * Corpus-local fixtures (task 048, `../fixtures/corpus/README.md`): the inputs to
+ * appended corpus entries whose own questions cannot live in the kernel fixture
+ * set (which is asserted to cover each question type exactly once, and whose
+ * forms may pin only questions from it).
+ */
+const LOCAL_FIXTURES = fileURLToPath(new URL("../fixtures/corpus/", import.meta.url));
 const GOLDEN_DIR = fileURLToPath(new URL("../golden/v2/", import.meta.url));
 const GOLDEN_V1_DIR = fileURLToPath(new URL("../golden/v1/", import.meta.url));
 
-/** Corpus membership: `@qcms/core` form fixture → golden document filename. */
-const CORPUS: readonly { readonly fixture: string; readonly golden: string }[] = [
+/**
+ * Corpus membership: form fixture → golden document filename. `local: true` reads
+ * the form from `LOCAL_FIXTURES/forms/` instead of the kernel's
+ * `fixtures/forms/valid/`.
+ *
+ * APPEND ONLY (ADR-18). The last two rows are task 048's: author-supplied
+ * validation messages (ADR-32) and boolean label overrides (ADR-36). Everything
+ * above them was compiled by an earlier compiler and its bytes are frozen; those
+ * forms carry no messages and no label overrides, which is exactly what makes
+ * both features provably additive.
+ */
+const CORPUS: readonly {
+  readonly fixture: string;
+  readonly golden: string;
+  readonly local?: boolean;
+}[] = [
   { fixture: "kitchen-sink.json", golden: "kitchen-sink.a2ui.json" },
   { fixture: "insurance.json", golden: "insurance.a2ui.json" },
   { fixture: "minimal.json", golden: "minimal.a2ui.json" },
   { fixture: "constraints-heavy.json", golden: "constraints-heavy.a2ui.json" },
   { fixture: "deep-nesting-rules.json", golden: "deep-nesting-rules.a2ui.json" },
+  { fixture: "author-messages.json", golden: "author-messages.a2ui.json", local: true },
+  { fixture: "boolean-labels.json", golden: "boolean-labels.a2ui.json", local: true },
 ];
 
 function readJson(...segments: string[]): unknown {
   return JSON.parse(readFileSync(path.join(CORE_FIXTURES, ...segments), "utf8"));
 }
 
-function loadForm(file: string): FormDefinition {
-  const result = parseFormDefinition(readJson("forms", "valid", file));
+function readLocalJson(...segments: string[]): unknown {
+  return JSON.parse(readFileSync(path.join(LOCAL_FIXTURES, ...segments), "utf8"));
+}
+
+function loadForm(file: string, local = false): FormDefinition {
+  const raw = local ? readLocalJson("forms", file) : readJson("forms", "valid", file);
+  const result = parseFormDefinition(raw);
   if (!result.ok) {
     throw new Error(`fixture ${file} did not parse: ${JSON.stringify(result.error)}`);
   }
@@ -78,12 +106,31 @@ function loadForm(file: string): FormDefinition {
 function fixtureStore(): Pick<DraftInput, "resolveQuestion" | "publishedQuestionVersions"> {
   const byKey = new Map<string, QuestionVersionRecord>();
   const published = new Map<QuestionId, Set<number>>();
-  for (const file of readdirSync(path.join(CORE_FIXTURES, "questions", "valid")).sort()) {
-    const parsed = parseQuestionDefinition(readJson("questions", "valid", file));
+  const sources: readonly { readonly dir: string; readonly read: (file: string) => unknown }[] = [
+    {
+      dir: path.join(CORE_FIXTURES, "questions", "valid"),
+      read: (file) => readJson("questions", "valid", file),
+    },
+    {
+      dir: path.join(LOCAL_FIXTURES, "questions"),
+      read: (file) => readLocalJson("questions", file),
+    },
+  ];
+  const files = sources.flatMap(({ dir, read }) =>
+    readdirSync(dir)
+      .filter((file) => file.endsWith(".json"))
+      .sort()
+      .map((file) => ({ file, read })),
+  );
+  for (const { file, read } of files) {
+    const parsed = parseQuestionDefinition(read(file));
     if (!parsed.ok) {
       throw new Error(`fixture question ${file} did not parse: ${JSON.stringify(parsed.error)}`);
     }
     const definition: QuestionDefinition = parsed.value;
+    if (byKey.has(`${definition.questionId}@1`)) {
+      throw new Error(`fixture question ${definition.questionId} is defined in two corpus roots`);
+    }
     for (const version of [1, 2]) {
       byKey.set(`${definition.questionId}@${String(version)}`, {
         questionId: definition.questionId,
@@ -103,8 +150,8 @@ function fixtureStore(): Pick<DraftInput, "resolveQuestion" | "publishedQuestion
 
 const store = fixtureStore();
 
-function buildSnapshot(fixture: string): FrozenSnapshot {
-  const result = compileDraft({ definition: loadForm(fixture), ...store });
+function buildSnapshot(fixture: string, local = false): FrozenSnapshot {
+  const result = compileDraft({ definition: loadForm(fixture, local), ...store });
   if (!result.ok) {
     throw new Error(`fixture ${fixture} did not publish: ${JSON.stringify(result.error)}`);
   }
@@ -145,9 +192,9 @@ function assertValidA2uiNode(node: A2UINode): void {
 }
 
 describe("A2UI golden corpus (v2 - current generation)", () => {
-  for (const { fixture, golden } of CORPUS) {
+  for (const { fixture, golden, local } of CORPUS) {
     describe(golden, () => {
-      const compiled = compileForm(buildSnapshot(fixture), {});
+      const compiled = compileForm(buildSnapshot(fixture, local === true), {});
       const goldenPath = path.join(GOLDEN_DIR, golden);
 
       it("compiles to a spec-valid A2UI document per step", () => {
@@ -213,7 +260,14 @@ describe("A2UI golden corpus (v2 - current generation)", () => {
  * vendored renderer keeps rendering old stored snapshots.
  */
 describe("A2UI golden corpus (v1 - retained, still spec-valid)", () => {
-  for (const { golden } of CORPUS) {
+  // Iterated from disk, not from CORPUS: `v1/` is a closed historical set, so a
+  // corpus entry appended after it was frozen (task 048's two) has no v1 document
+  // and must not be looked for.
+  const v1Goldens = readdirSync(GOLDEN_V1_DIR)
+    .filter((file) => file.endsWith(".a2ui.json"))
+    .sort();
+
+  for (const golden of v1Goldens) {
     it(`${golden} remains a valid @a2ra/core document`, () => {
       const text = readFileSync(path.join(GOLDEN_V1_DIR, golden), "utf8");
       const doc = JSON.parse(text) as CompiledForm;

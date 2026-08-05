@@ -1,0 +1,16 @@
+{
+  "type": "multiChoice",
+  "questionId": "q_msg_extras",
+  "label": { "en": "Which extras are fitted?" },
+  "required": true,
+  "options": [
+    { "optionId": "opt_tow_bar", "label": { "en": "Tow bar" } },
+    { "optionId": "opt_roof_rack", "label": { "en": "Roof rack" } },
+    { "optionId": "opt_dash_camera", "label": { "en": "Dash camera" } }
+  ],
+  "constraints": { "minSelected": 1, "maxSelected": 2 },
+  "messages": {
+    "minSelected": { "en": "Pick at least one extra, or the none option" },
+    "maxSelected": { "en": "We can price two extras at most" }
+  }
+}
