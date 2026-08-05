@@ -16,7 +16,7 @@ The Stage 6 gate: one scripted test drives the whole product over HTTP - no serv
   4. **Mount-split:** the same respondent scenario against a public-only composition (admin 404), with authoring performed against a separate internal composition sharing the database - proving the enterprise topology works.
   5. **Failure tour:** publish with rule errors; invalid answers; expired link; consumed one-time link; submitted-session answer attempt; each asserting typed codes end-to-end through the envelope.
 - Seed/fixture utilities shared with later portal tests (029) - export a `seedInsuranceForm(db)` style toolkit from a test-support package or folder.
-- CI wiring: e2e job runs on every push (harness DB via testcontainers), separate from unit jobs for signal clarity.
+- CI wiring: the `api-e2e` job runs on every push (harness DB via testcontainers), separate from unit jobs for signal clarity.
 - A `docs/api-walkthrough.md` generated-or-written from scenario 1: the curl-level story of the product (becomes README material for 036/038).
 - **Generated OpenAPI documents:** `docs/openapi/respondent.json` and `docs/openapi/admin.json`, generated from the composed app's `@hono/zod-openapi` route definitions (017's convention) and committed; a CI check regenerates and asserts the committed files match (the 036 env-reference pattern). Labeled `x-stability: internal` - descriptive documentation of the current build, not a compatibility promise (the no-stability-contract stance of `ARCHITECTURE.md` §5.1 stands until `/api/v1`).
 

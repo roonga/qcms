@@ -8,7 +8,8 @@ jobs:
   verify:
     # The CI enactment of `pnpm verify` (issue #19 / PR #83): same superset,
     # split into named steps for failure granularity. Renamed from `ci` so the
-    # check list reads as what each job is: verify (node-NN), e2e, portal-e2e.
+    # check list reads as what each job is: verify (node-NN), api-e2e,
+    # portal-e2e, full-stack-e2e.
     name: verify (node-${{ matrix.node-version }})
     runs-on: ubuntu-latest
     strategy:
@@ -116,7 +117,12 @@ jobs:
   # Single Node version - the scenarios exercise runtime behaviour, not the
   # cross-version encoding drift the unit matrix guards. The files parallelise
   # (isolated DBs) so the suite stays well under the 5-minute budget.
-  e2e:
+  #
+  # The job id IS the check context (no `name:`, same as `full-stack-e2e` in
+  # e2e.yml), so it carries its scope: this repo publishes three end-to-end
+  # checks - `api-e2e` here, `portal-e2e` below, `full-stack-e2e` in e2e.yml -
+  # and a bare `e2e` said nothing about which layer had broken.
+  api-e2e:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

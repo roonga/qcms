@@ -15,7 +15,7 @@
   // pulled from Docker Hub inside the `verify` job long after issue #74 pointed
   // QCMS_TEST_POSTGRES_IMAGE at a GHCR mirror: the variable reached the job, not
   // the Vitest process, so the harness asked for the default reference, which was
-  // not the pre-pulled one, and Docker went to Hub for it. The `e2e` and
+  // not the pre-pulled one, and Docker went to Hub for it. The `api-e2e` and
   // `portal-e2e` jobs never had the bug because they invoke Vitest and Playwright
   // directly, without turbo (issue #150).
   //
