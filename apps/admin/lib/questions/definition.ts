@@ -1,9 +1,14 @@
-import type {
-  ChoiceOptionView,
-  ConstraintsView,
-  LocalizedText,
-  QuestionDefinitionView,
-  QuestionType,
+import { t } from "../i18n/en.ts";
+
+import {
+  VALIDATION_MESSAGE_KEYS,
+  type ChoiceOptionView,
+  type ConstraintsView,
+  type LocalizedText,
+  type QuestionDefinitionView,
+  type QuestionType,
+  type ValidationMessageKey,
+  type ValidationMessagesView,
 } from "./types.ts";
 
 /**
@@ -155,6 +160,131 @@ export const CONSTRAINT_FIELDS: Readonly<Record<QuestionType, readonly string[]>
 };
 
 /**
+ * The constraint keys this question **carries**, and therefore the only keys it may hold
+ * an author-supplied message for (task 048, ADR-32). In canonical
+ * {@link VALIDATION_MESSAGE_KEYS} order.
+ *
+ * This restates `authoredMessageKeys` from `@qcms/core`, which the admin cannot import as
+ * a value (R2, `lib/server/r2-import-surface.test.ts`) - exactly as `CONSTRAINT_FIELDS`
+ * above restates the type-to-constraints map. The kernel remains the authority: it reports
+ * `ORPHAN_MESSAGE_KEY` at publish for a message keyed by a constraint the question does not
+ * carry. What this function buys is that the editor never *offers* such a field, so the
+ * error is unreachable from the UI rather than merely caught.
+ *
+ * "Carries" is stricter than "the type could have": a `shortText` with no `minLength` set
+ * can never produce a too-short error, so a message for it could never be shown. Two
+ * consequences the editor depends on - unchecking "an answer is required" and clearing a
+ * constraint each make that message field disappear, and `forWire` drops the message with
+ * it.
+ */
+export function authoredMessageKeys(
+  definition: QuestionDefinitionView,
+): readonly ValidationMessageKey[] {
+  // The same "did the author leave a value here?" test the wire marshalling uses, so a
+  // field that prunes away cannot keep a message field on screen.
+  const active = pruneConstraints(definition.constraints ?? {}, CONSTRAINT_FIELDS[definition.type]);
+  return VALIDATION_MESSAGE_KEYS.filter((key) => {
+    // `required` is a flow concern rather than a constraint, so it lives on the definition
+    // and not in `constraints`. It is also the one key every type can carry.
+    if (key === "required") return definition.required === true;
+    const value = active[key];
+    // `false` is the cleared state of the one boolean constraint (`integer`), and the
+    // kernel reads it the same way: unticked carries no message key.
+    return value !== undefined && value !== false;
+  });
+}
+
+/**
+ * Which bound the shipped default message interpolates, and under which name.
+ *
+ * A key absent from this map has a default with nothing to substitute (`pattern`,
+ * `integer`, `required`). The bound itself is always read from the constraint of the same
+ * name, which is why there is no second table saying where to find it.
+ */
+const MESSAGE_BOUND_PARAM: Readonly<Partial<Record<ValidationMessageKey, "n" | "bound">>> = {
+  minLength: "n",
+  maxLength: "n",
+  min: "bound",
+  max: "bound",
+  minSelected: "n",
+  maxSelected: "n",
+};
+
+/** One constraint's value, when it is a bound a message can name. */
+function boundFor(
+  constraints: ConstraintsView,
+  key: ValidationMessageKey,
+): string | number | undefined {
+  const value = (constraints as Readonly<Record<string, unknown>>)[key];
+  return typeof value === "number" || typeof value === "string" ? value : undefined;
+}
+
+/**
+ * The default message a respondent would see for one constraint of this question: what the
+ * editor shows as the field's **placeholder**, with the question's own bound interpolated.
+ *
+ * The wording is a mirror of the kernel's and the portal's defaults rather than the admin's
+ * own copy - see the note beside `questions.message.default.*` in `lib/i18n/en.ts` for why
+ * that duplication exists and what has to move with it.
+ */
+export function defaultMessageFor(
+  key: ValidationMessageKey,
+  definition: QuestionDefinitionView,
+): string {
+  const param = MESSAGE_BOUND_PARAM[key];
+  if (param === undefined) return t(`questions.message.default.${key}`);
+  const bound = boundFor(definition.constraints ?? {}, key);
+  // A missing bound is unreachable from the editor (the field is only rendered for a
+  // constraint that carries a value), and leaving the `{n}` token visible is the honest
+  // answer if it ever happens: `t` substitutes nothing it was not given.
+  return bound === undefined
+    ? t(`questions.message.default.${key}`)
+    : t(`questions.message.default.${key}`, { [param]: bound });
+}
+
+/**
+ * The label for one message field.
+ *
+ * `min` and `max` are shared by `number` and `date`, and a date's bounds are the same two
+ * keys wearing different words ("too small" beside "Earliest date" makes an author
+ * translate), so those two get their own wording.
+ */
+export function messageLabelFor(
+  key: ValidationMessageKey,
+  definition: QuestionDefinitionView,
+): string {
+  if (definition.type === "date" && (key === "min" || key === "max")) {
+    return t(`questions.message.label.date.${key}`);
+  }
+  return t(`questions.message.label.${key}`);
+}
+
+/**
+ * Set (or clear) one message, keeping the map in canonical key order.
+ *
+ * A blank field removes the key rather than storing an empty text, because an absent key IS
+ * the inheritance (ADR-32) and the kernel rejects an empty `LocalizedText` value anyway.
+ * `localizedDraft`, not `localized`, for the reason it documents: this runs on every
+ * keystroke and a trim here would make a trailing space unwritable.
+ */
+export function withMessage(
+  messages: ValidationMessagesView,
+  key: ValidationMessageKey,
+  text: string,
+): ValidationMessagesView {
+  const draft = localizedDraft(text);
+  const next: Record<string, LocalizedText> = {};
+  // Rebuilt in canonical order rather than spread-and-overwrite, so the key an author fills
+  // in last does not end up last: `forWire` normalizes the order anyway, and a map that
+  // already holds it makes the two impossible to disagree about.
+  for (const existing of VALIDATION_MESSAGE_KEYS) {
+    const value = existing === key ? draft : messages[existing];
+    if (value !== undefined) next[existing] = value;
+  }
+  return next;
+}
+
+/**
  * A blank definition of the chosen type, as the creation screen starts from.
  *
  * A choice type starts with **no options at all**, which looks unhelpful and is the only
@@ -240,7 +370,8 @@ export function removeOption(
  * legal.
  */
 export function forWire(definition: QuestionDefinitionView): QuestionDefinitionView {
-  const { type, constraints, options, help, label, ...rest } = definition;
+  const { type, constraints, options, help, label, messages, yesLabel, noLabel, ...rest } =
+    definition;
   const wire: Record<string, unknown> = { ...rest, type };
   // Trim here rather than on every keystroke: this is the one boundary where the text
   // stops being something the author is still typing. See `localizedDraft`.
@@ -255,7 +386,36 @@ export function forWire(definition: QuestionDefinitionView): QuestionDefinitionV
   }
   const owned = CONSTRAINT_FIELDS[type];
   if (owned.length > 0) wire["constraints"] = pruneConstraints(constraints ?? {}, owned);
+  const authored = pruneMessages(definition, messages ?? {});
+  if (Object.keys(authored).length > 0) wire["messages"] = authored;
+  if (type === "boolean") {
+    const yes = trimLocalized(yesLabel);
+    if (yes !== undefined) wire["yesLabel"] = yes;
+    const no = trimLocalized(noLabel);
+    if (no !== undefined) wire["noLabel"] = no;
+  }
   return wire as unknown as QuestionDefinitionView;
+}
+
+/**
+ * Keep the messages this question can actually show, in canonical key order.
+ *
+ * Iterating {@link authoredMessageKeys} rather than the authored object's own keys does
+ * three jobs at once: it drops an orphan (a message whose constraint was cleared, or which
+ * belonged to the type a draft used to be), it drops a blank field so the absent key can
+ * mean "inherit", and it fixes the serialization order so the same document produces the
+ * same bytes whatever order the boxes were filled in.
+ */
+function pruneMessages(
+  definition: QuestionDefinitionView,
+  messages: ValidationMessagesView,
+): Record<string, LocalizedText> {
+  const out: Record<string, LocalizedText> = {};
+  for (const key of authoredMessageKeys(definition)) {
+    const trimmed = trimLocalized(messages[key]);
+    if (trimmed !== undefined) out[key] = trimmed;
+  }
+  return out;
 }
 
 /**

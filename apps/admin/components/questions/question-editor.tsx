@@ -6,6 +6,7 @@ import { Alert, Button, Checkbox, Select, TextField } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
 import {
   CONSTRAINT_FIELDS,
+  authoredMessageKeys,
   blankDefinition,
   forWire,
   hasOptions,
@@ -26,9 +27,11 @@ import {
   type ConstraintsView,
   type QuestionDefinitionView,
   type QuestionType,
+  type ValidationMessagesView,
 } from "@/lib/questions/types";
 
 import { ConstraintsEditor } from "./constraints-editor";
+import { BooleanLabelsEditor, MessagesEditor } from "./messages-editor";
 import { OptionListEditor } from "./option-list-editor";
 
 /**
@@ -261,6 +264,27 @@ export function QuestionEditor({
         }}
       />
 
+      {/* Below the constraints, and that order is the argument: a message field only
+          exists for a constraint set above it, so an author reads the constraint and then
+          the sentence a respondent gets when they miss it. */}
+      <MessagesEditor
+        definition={definition}
+        issues={issues}
+        isFrozen={isFrozen}
+        onChange={(messages: ValidationMessagesView) => {
+          patch({ messages });
+        }}
+      />
+
+      {definition.type === "boolean" && (
+        <BooleanLabelsEditor
+          definition={definition}
+          issues={issues}
+          isFrozen={isFrozen}
+          onChange={patch}
+        />
+      )}
+
       {!isFrozen && (
         <div>
           <Button type="submit" variant="primary" size="md" isDisabled={isPending}>
@@ -280,6 +304,13 @@ export function QuestionEditor({
 function renderedFields(definition: QuestionDefinitionView): ReadonlySet<string> {
   const fields = new Set<string>(["label", "help", "required", "questionId"]);
   for (const key of CONSTRAINT_FIELDS[definition.type]) fields.add(`constraints.${key}`);
+  // The message fields come and go with the constraints they belong to, so they are derived
+  // from the same function the panel renders from rather than listed (task 048).
+  for (const key of authoredMessageKeys(definition)) fields.add(`messages.${key}`);
+  if (definition.type === "boolean") {
+    fields.add("yesLabel");
+    fields.add("noLabel");
+  }
   (definition.options ?? []).forEach((_option, index) => {
     fields.add(`options.${index}.label`);
   });

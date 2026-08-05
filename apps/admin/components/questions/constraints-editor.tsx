@@ -11,12 +11,14 @@ import type { ConstraintsView, DefinitionIssue, QuestionType } from "@/lib/quest
 /**
  * The per-type constraint panel (task 032; wireframe "constraints panel, per type").
  *
- * One component per type rather than one component with seven branches, and the reason
- * is task 048: ADR-32 adds a per-constraint validation-message field to every one of
- * these controls (default-as-placeholder, blank inherits). That change is a new prop
- * threaded through each row. Kept as small per-type components, 048 edits rows; written
- * as a switch over fields, 048 rewrites this file. The task file asks for exactly this
- * ("leave the constraint editor composable for that").
+ * One component per type rather than one component with seven branches, and 032 kept it
+ * that way for task 048 ("leave the constraint editor composable for that"): ADR-32's
+ * per-constraint validation-message field looked like a new prop threaded through each
+ * row here. **048 did not need that, and this file is unchanged by it.** The message
+ * fields are their own panel (`messages-editor.tsx`) because `required` is not a
+ * constraint at all and the fields have to appear and disappear as constraints come and
+ * go, which is one derived list rather than seven panels each re-deriving it. The
+ * composability still paid off, in the negative: no row had to move.
  *
  * Every control is optional and every empty control means "no constraint", which is why
  * clearing a `NumberField` yields `undefined` rather than `0`. Sending `0` where the

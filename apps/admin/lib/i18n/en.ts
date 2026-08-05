@@ -211,6 +211,56 @@ export const messages = {
   "questions.constraint.minSelected": "Fewest selections",
   "questions.constraint.maxSelected": "Most selections",
 
+  // Author-supplied validation messages (task 048, ADR-32) and the boolean label
+  // overrides (ADR-36). Both are edit-level fallbacks: the field shows the default as its
+  // placeholder and a blank field means "inherit", so nothing here is ever stored.
+  //
+  // THE `questions.message.default.*` AND `questions.booleanLabel.default*` VALUES BELOW
+  // ARE MIRRORS ACROSS THE R2 BOUNDARY, not this app's own wording. They restate what a
+  // respondent would actually be shown, which the admin cannot import: the constraint
+  // messages come from `packages/core/src/validate-answer.ts` (plus the required-answer
+  // sentence from `apps/portal/lib/i18n/en.ts`) and the yes/no labels from
+  // `BOOLEAN_AFFIRMATION` in `packages/a2ui-compiler/src/mapping.ts`. Change one of those
+  // and change the twin here in the same commit, or the editor promises a default that is
+  // not the one shown. `{n}` and `{bound}` are filled with the constraint's own bound.
+  "questions.editor.messages": "Validation messages",
+  "questions.message.note":
+    "Optional. Leave a field blank and the respondent sees the default shown inside it. A field appears only for a constraint this question carries, so clearing the constraint clears its message too.",
+  "questions.message.none":
+    "There is nothing to write a message for yet. Require an answer, or set a constraint above, and a field appears for it.",
+
+  "questions.message.label.required": "Message when no answer is given",
+  "questions.message.label.minLength": "Message when the answer is too short",
+  "questions.message.label.maxLength": "Message when the answer is too long",
+  "questions.message.label.pattern": "Message when the answer does not match the pattern",
+  "questions.message.label.min": "Message when the value is too small",
+  "questions.message.label.max": "Message when the value is too large",
+  "questions.message.label.integer": "Message when the answer is not a whole number",
+  "questions.message.label.minSelected": "Message when too few options are selected",
+  "questions.message.label.maxSelected": "Message when too many options are selected",
+  // A date's bounds are the same two keys wearing different words: "too small" describes a
+  // number, and an author reading it beside "Earliest date" would have to translate.
+  "questions.message.label.date.min": "Message when the date is too early",
+  "questions.message.label.date.max": "Message when the date is too late",
+
+  "questions.message.default.required": "This question needs an answer.",
+  "questions.message.default.minLength": "Answer must be at least {n} characters",
+  "questions.message.default.maxLength": "Answer must be at most {n} characters",
+  "questions.message.default.pattern": "Answer does not match the required format",
+  "questions.message.default.min": "Answer must be at least {bound}",
+  "questions.message.default.max": "Answer must be at most {bound}",
+  "questions.message.default.integer": "Answer must be a whole number",
+  "questions.message.default.minSelected": "Select at least {n} option(s)",
+  "questions.message.default.maxSelected": "Select at most {n} option(s)",
+
+  "questions.editor.booleanLabels": "Yes and no labels",
+  "questions.booleanLabel.note":
+    "Optional. Leave a field blank and the respondent sees the default shown inside it. Each label falls back on its own, so renaming one leaves the other alone. The stored answer is still true or false, so no rule, export or report changes meaning.",
+  "questions.booleanLabel.yes": "Label for the affirmative choice",
+  "questions.booleanLabel.no": "Label for the negative choice",
+  "questions.booleanLabel.defaultYes": "Yes",
+  "questions.booleanLabel.defaultNo": "No",
+
   "questions.options.legend": "Options",
   "questions.options.note":
     "An option ID is generated once, when the option is added, and never changes again. Relabelling and reordering leave it alone, which is what keeps a rule matching the same answer years later (R6).",

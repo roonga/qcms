@@ -256,6 +256,45 @@ test("the question library, its editor and a question's detail have zero violati
   await expectNoViolations(page, "frozen published version");
 });
 
+test("the message and boolean-label fields have zero violations (048)", async ({ page }) => {
+  // Task 048, exit criteria 4 and 5. This is a NEW case rather than an extension of the
+  // sweep above, and deliberately so: every state that sweep visits carries no constraint
+  // and is not required, so the message panel renders its "nothing to write for yet" note
+  // and not one message input. The panel's own two risks are only reachable here - a
+  // placeholder's contrast against its field in each of the three modes (the thing high
+  // contrast is likeliest to get wrong), and nine same-shaped inputs whose accessible names
+  // have to distinguish them from one another and from the constraint controls above.
+  test.setTimeout(180_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+
+  await page.goto("/questions/new");
+  await chooseType(page, "Short text");
+  await fillStable(field(page, "Slug"), `a11y-messages-${Date.now().toString(36)}`);
+  await fillStable(field(page, "Label"), "What is your policy number?");
+  // Every key a short-text question can carry, plus `required`: four message fields, which
+  // is the densest the panel gets.
+  await page.getByText("An answer is required", { exact: true }).click();
+  await fillStable(field(page, "Shortest answer"), "8");
+  await fillStable(field(page, "Longest answer"), "12");
+  await fillStable(field(page, "Pattern"), "^[A-Z]{2}[0-9]{6}$");
+  await expectNoViolations(page, "question editor, message fields on their placeholders");
+
+  // And with content in them, because a placeholder and a value are different renderings
+  // with different contrast pairs.
+  await fillStable(
+    field(page, "Message when the answer is too short"),
+    "A policy number is 8 characters long.",
+  );
+  await expectNoViolations(page, "question editor, message fields overridden");
+
+  await page.goto("/questions/new");
+  await chooseType(page, "Yes or no");
+  await fillStable(field(page, "Slug"), `a11y-bool-labels-${Date.now().toString(36)}`);
+  await fillStable(field(page, "Label"), "Were you at fault?");
+  await fillStable(field(page, "Label for the affirmative choice"), "I was at fault");
+  await expectNoViolations(page, "question editor, boolean label overrides");
+});
+
 test("the form builder and the condition editor have zero violations", async ({ page }) => {
   // Task 033, exit criterion 5. The builder is the densest screen the admin has: a
   // navigation rail whose rows carry menus, a modal picker over an interactive table, a
