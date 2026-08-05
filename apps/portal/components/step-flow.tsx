@@ -31,9 +31,24 @@ import {
 import { missingRequiredEntries } from "@/lib/error-summary";
 import { t } from "@/lib/i18n/en";
 import { buttonClass } from "@/lib/ui";
-import { commitMoments, documentForVisible, DEFAULT_COMMIT_MOMENT } from "@/lib/visible";
+import { authorMessageFor, errorDetailsOf, firstAnswerRejection } from "@/lib/validation-message";
+import {
+  commitMoments,
+  documentForVisible,
+  messagesOf,
+  DEFAULT_COMMIT_MOMENT,
+} from "@/lib/visible";
 import type { CommitMoment } from "@/lib/visible";
 import type { StepResponse } from "@/lib/server/api";
+
+/** A JSON body, or `undefined` when the response carries none (never throws). */
+async function readJsonSafely(res: Response): Promise<unknown> {
+  try {
+    return await res.json();
+  } catch {
+    return undefined;
+  }
+}
 
 /** The localized branch-change announcement for an inserted/removed count. */
 function branchAnnouncement(added: readonly string[], removed: readonly string[]): string {
@@ -255,7 +270,18 @@ export function StepFlow({
           return true;
         }
         if (res.status === 422) {
-          setRejected((prev) => withRejection(prev, name, value, t("answer.invalid")));
+          // The API named which constraint failed; the author may have supplied
+          // their own wording for exactly that constraint (task 048, ADR-32).
+          // Anything else - no message for this constraint, an unauthorable one
+          // like `encoding`, an unreadable body - keeps the default catalog
+          // wording, so the fallback is per constraint and never a blank slot.
+          const rejection = firstAnswerRejection(errorDetailsOf(await readJsonSafely(res)));
+          const authored = authorMessageFor(
+            messagesOf(snapshotRef.current.step as unknown as A2UIStepDocument | null).get(name),
+            rejection?.constraint,
+          );
+          const message = authored ?? t("answer.invalid");
+          setRejected((prev) => withRejection(prev, name, value, message));
           return false;
         }
         if (res.status === 401) {

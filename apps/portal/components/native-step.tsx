@@ -4,7 +4,8 @@ import type { A2UIErrors, A2UIStepDocument, A2UIValues } from "@qcms/ui";
 import { PortalShell } from "@/components/portal-shell";
 import { t } from "@/lib/i18n/en";
 import { buttonClass } from "@/lib/ui";
-import { documentForVisible } from "@/lib/visible";
+import { authorMessageFor } from "@/lib/validation-message";
+import { documentForVisible, messagesOf, questionLabels } from "@/lib/visible";
 import type { StepContext } from "@/lib/server/route-helpers";
 import type { StepResponse } from "@/lib/server/api";
 
@@ -24,6 +25,53 @@ import type { StepResponse } from "@/lib/server/api";
  * `StepResponse` / `StepContext` are imported type-only, so no server module
  * reaches the client bundle (the R2 import-surface test enforces this).
  */
+
+/**
+ * The per-field messages to display: the author's message for the constraint the
+ * API refused each answer on, else the default the BFF route already resolved.
+ */
+function authoredErrors(
+  stepDocument: A2UIStepDocument | null,
+  context: StepContext | undefined,
+): A2UIErrors {
+  const errors = context?.errors ?? {};
+  const constraints = context?.constraints ?? {};
+  if (Object.keys(errors).length === 0) return errors;
+  const messages = messagesOf(stepDocument);
+  const resolved: Record<string, string> = {};
+  for (const [questionId, fallback] of Object.entries(errors)) {
+    const authored = authorMessageFor(messages.get(questionId), constraints[questionId]);
+    resolved[questionId] = authored ?? fallback;
+  }
+  return resolved;
+}
+
+/**
+ * The no-JS error-summary entries: label-anchored, exactly like the controlled
+ * flow's summary (issue #21, WCAG 3.3.1). Without the label prefix two questions
+ * refused for the same reason - and in particular two questions carrying the same
+ * author message (ADR-32) - would produce two links with identical accessible
+ * names and no way to tell which field each jumps to.
+ */
+function summaryEntries(
+  stepDocument: A2UIStepDocument | null,
+  errors: A2UIErrors,
+): readonly { readonly questionId: string; readonly text: string }[] {
+  const labels = stepDocument === null ? undefined : questionLabels(stepDocument);
+  return Object.entries(errors)
+    .filter(([, message]) => message !== undefined)
+    .map(([questionId, message]) => {
+      const label = labels?.get(questionId);
+      return {
+        questionId,
+        text:
+          label === undefined
+            ? (message as string)
+            : t("errorSummary.namedCustom", { label, message: message as string }),
+      };
+    });
+}
+
 export function NativeStep({
   sessionId,
   initial,
@@ -41,7 +89,12 @@ export function NativeStep({
     total: initial.progress.totalVisibleSteps,
   };
 
-  const errors: A2UIErrors = context?.errors ?? {};
+  const stepDocument = initial.step as unknown as A2UIStepDocument | null;
+  // The author's wording wins over the default the BFF resolved, per constraint
+  // (task 048, ADR-32). The route carries the CONSTRAINT rather than the final
+  // string because only this render holds the compiled document the messages ride
+  // on. A question the author left alone keeps the message the route produced.
+  const errors: A2UIErrors = authoredErrors(stepDocument, context);
   // The answers the API holds for this step (issue #146) under the just-submitted
   // ones from the no-JS re-render cookie. The cookie has to win: after a rejected
   // POST it carries the value the respondent typed, which the API refused and so
@@ -49,7 +102,7 @@ export function NativeStep({
   // their error message is about. With no cookie (a plain resume, or the SSR first
   // paint before hydration) the stored answers are what the step displays.
   const values: A2UIValues = { ...initial.values, ...context?.values };
-  const errorEntries = Object.entries(errors).filter(([, message]) => message !== undefined);
+  const errorEntries = summaryEntries(stepDocument, errors);
 
   return (
     <PortalShell progress={progress}>
@@ -65,12 +118,15 @@ export function NativeStep({
               {t("errorSummary.title")}
             </p>
             <ul className="mt-2 flex flex-col gap-1">
-              {errorEntries.map(([questionId, message]) => (
-                <li key={questionId}>
+              {errorEntries.map((entry) => (
+                <li key={entry.questionId}>
                   {/* A plain in-page anchor: no-JS jump to the field, whose wrapper
                       carries id={questionId} (the 030 focus handle). */}
-                  <a href={`#${questionId}`} className="text-sm text-(--color-danger-fg) underline">
-                    {message}
+                  <a
+                    href={`#${entry.questionId}`}
+                    className="text-sm text-(--color-danger-fg) underline"
+                  >
+                    {entry.text}
                   </a>
                 </li>
               ))}

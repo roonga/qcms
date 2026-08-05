@@ -17,6 +17,7 @@ import {
 } from "@/lib/server/route-helpers";
 import { clearSessionToken, readSessionToken } from "@/lib/server/session-cookie";
 import { decodeStepForm } from "@/lib/server/step-form";
+import { firstAnswerRejection } from "@/lib/validation-message";
 
 /**
  * BFF proxy: the no-JS whole-step form POST (task 044). A JavaScript-disabled
@@ -80,11 +81,14 @@ export async function GET(
   }
 }
 
-/** The API's typed 422 detail, surfaced in the field's error slot (WCAG 3.3). */
+/**
+ * The API's typed 422 detail, surfaced in the field's error slot (WCAG 3.3): the
+ * kernel's own message, else the generic catalog entry. This is the DEFAULT
+ * wording; an author message for the same constraint wins over it at render time
+ * (`native-step`), which is where the compiled document is in hand (task 048).
+ */
 function answerErrorMessage(error: ApiError): string {
-  const detail = error.details as { errors?: { message?: unknown }[] } | undefined;
-  const message = detail?.errors?.[0]?.message;
-  return typeof message === "string" && message !== "" ? message : t("answer.invalid");
+  return firstAnswerRejection(error.details)?.message ?? t("answer.invalid");
 }
 
 /** The outcome of forwarding a step's decoded answers to the API. */
@@ -93,6 +97,8 @@ interface Forwarded {
   readonly values: Record<string, A2UIAnswerValue>;
   /** Per-question typed validation errors (422s), for the error slots. */
   readonly errors: Record<string, string>;
+  /** Which constraint each 422 named, so the re-render can pick the author's wording. */
+  readonly constraints: Record<string, string>;
   /** The last projection the API returned (its `readyToSubmit` is authoritative). */
   readonly last: StepResponse | undefined;
   /** A non-recoverable API error (session lost/expired/5xx): re-render the page. */
@@ -111,6 +117,7 @@ async function forwardAnswers(
 ): Promise<Forwarded> {
   const values: Record<string, A2UIAnswerValue> = {};
   const errors: Record<string, string> = {};
+  const constraints: Record<string, string> = {};
   let last: StepResponse | undefined;
   for (const answer of answers) {
     values[answer.questionId] = answer.value as A2UIAnswerValue;
@@ -120,12 +127,14 @@ async function forwardAnswers(
       if (!(error instanceof ApiError)) throw error;
       if (error.status === 422) {
         errors[answer.questionId] = answerErrorMessage(error);
+        const constraint = firstAnswerRejection(error.details)?.constraint;
+        if (constraint !== undefined) constraints[answer.questionId] = constraint;
       } else if (error.code !== "QUESTION_NOT_VISIBLE") {
-        return { values, errors, last, fatal: true };
+        return { values, errors, constraints, last, fatal: true };
       }
     }
   }
-  return { values, errors, last, fatal: false };
+  return { values, errors, constraints, last, fatal: false };
 }
 
 export async function POST(
@@ -146,11 +155,15 @@ export async function POST(
     return backToStep(request, sessionId);
   }
   const { answers, extras } = decodeStepForm(form);
-  const { values, errors, last, fatal } = await forwardAnswers(sessionId, token, answers);
+  const { values, errors, constraints, last, fatal } = await forwardAnswers(
+    sessionId,
+    token,
+    answers,
+  );
 
   if (fatal) return backToStep(request, sessionId);
   if (Object.keys(errors).length > 0) {
-    const context: StepContext = { values, errors };
+    const context: StepContext = { values, errors, constraints };
     await writeStepContext(context);
     return backToStep(request, sessionId);
   }
@@ -168,7 +181,7 @@ export async function POST(
 
   if (!ready) {
     // More questions are now visible: carry the values so the reload keeps them.
-    await writeStepContext({ values, errors: {} });
+    await writeStepContext({ values, errors: {}, constraints: {} });
     return backToStep(request, sessionId);
   }
 

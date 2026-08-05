@@ -31,6 +31,14 @@ const STEP_CTX_MAX_AGE_SECONDS = 15;
 export interface StepContext {
   readonly values: Readonly<Record<string, A2UIAnswerValue>>;
   readonly errors: Readonly<Record<string, string>>;
+  /**
+   * Which constraint the API refused each answer on (task 048, ADR-32). The
+   * default message in `errors` is resolved here in the route; the *author's*
+   * message lives on the compiled step document, which only the re-render has,
+   * so the constraint travels and `native-step` picks the wording. Optional so a
+   * context cookie written by an earlier build still reads.
+   */
+  readonly constraints?: Readonly<Record<string, string>>;
 }
 
 /** Translate an API error into a same-status JSON response the client can branch on. */
@@ -90,6 +98,7 @@ export async function readStepContext(): Promise<StepContext | undefined> {
     return {
       values: parsed.values ?? {},
       errors: parsed.errors ?? {},
+      constraints: parsed.constraints ?? {},
     };
   } catch {
     return undefined;
