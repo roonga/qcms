@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import { generate } from "otplib";
 
+import { COMPOSE_ADMIN_URL, COMPOSE_PORTAL_URL } from "./support/compose-config.js";
 import {
   addRule,
   addStep,
@@ -18,9 +19,8 @@ import {
 import { confirmLifecycle, createDraft } from "./support/questions.js";
 
 const REPOSITORY_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
-const ADMIN_URL = process.env.QCMS_COMPOSE_E2E_ADMIN_URL ?? "http://localhost:17940";
-const PORTAL_PORT = process.env.QCMS_COMPOSE_E2E_PORTAL_PORT ?? "17900";
-const PORTAL_URL = `http://localhost:${PORTAL_PORT}`;
+const ADMIN_URL = COMPOSE_ADMIN_URL;
+const PORTAL_URL = COMPOSE_PORTAL_URL;
 const credentialsPath = join(REPOSITORY_ROOT, ".e2e-compose-credentials.json");
 if (!existsSync(credentialsPath)) {
   throw new Error("Missing E2E credentials. Run pnpm docker:up before pnpm test:e2e.");

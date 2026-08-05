@@ -1,11 +1,38 @@
+/**
+ * The Compose browser-smoke harness (task 036): bring the solo stack up in an
+ * isolated Compose project, bootstrap a first administrator in it, drive
+ * `playwright.compose.config.ts` against it, and take it back down again.
+ *
+ * ## Ports and the project name
+ *
+ * This stack is ephemeral and nothing outside the suite points at it, so it takes
+ * the seat's HARNESS block (`17S00` portal, `17S40` admin) rather than the stable
+ * one the same compose file defaults to for a human-run stack. The numbers are
+ * derived from `scripts/ports.mjs`, never written here: R8 is a rule about
+ * derivation, and a literal is how three copies of an allocation drift apart.
+ *
+ * The project name matters as much as the ports. Two Compose stacks sharing a
+ * project name ARE one stack, so a second seat would recreate the first seat's
+ * containers rather than run beside them. It is derived per seat as well, with an
+ * `-e2e` suffix so this throwaway stack can never be confused with (or torn down
+ * on top of) the dev database `scripts/dev-portal.mjs` runs under the same seat's
+ * project name: `down --volumes --remove-orphans` here would otherwise delete it.
+ *
+ * `playwright.compose.config.ts` and the spec read the two base URLs exported
+ * below and nothing else, so the allocation reaches the browser side through one
+ * set of names.
+ */
+
 import { randomBytes } from "node:crypto";
 import { existsSync, unlinkSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { composeProjectName, harnessPort } from "./ports.mjs";
+
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
-const project = "qcms-compose-e2e";
+const project = `${composeProjectName()}-e2e`;
 const dockerForWindows =
   process.env.ProgramFiles === undefined
     ? undefined
@@ -19,12 +46,14 @@ const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 const pnpmEntrypoint = process.env.npm_execpath;
 const compose = ["compose", "--project-name", project, "--env-file", ".env.compose.example"];
 const credentialsPath = join(root, ".e2e-compose-credentials.json");
+const portalPort = harnessPort("portal");
+const adminPort = harnessPort("admin");
 const e2eEnvironment = {
   ...process.env,
-  QCMS_ADMIN_PORT: "17940",
-  QCMS_PORTAL_PORT: "17900",
-  QCMS_ADMIN_BASE_URL: "http://localhost:17940",
-  QCMS_PORTAL_BASE_URL: "http://localhost:17900",
+  QCMS_ADMIN_PORT: String(adminPort),
+  QCMS_PORTAL_PORT: String(portalPort),
+  QCMS_ADMIN_BASE_URL: `http://localhost:${String(adminPort)}`,
+  QCMS_PORTAL_BASE_URL: `http://localhost:${String(portalPort)}`,
 };
 
 function run(command, args, environment = process.env) {

@@ -83,7 +83,8 @@ pnpm docker:down
 ```
 
 `pnpm docker:up` first deletes any previous test containers and volumes, then starts
-a fresh stack on ports `17900` (portal) and `17940` (admin) and bootstraps a new
+a fresh stack on this seat's ephemeral harness ports (`17S00` portal, `17S40` admin,
+where `S` is `QCMS_PORT_SEAT` - see [`docs/PORTS.md`](docs/PORTS.md)) and bootstraps a new
 admin with generated credentials (printed once to the terminal). `pnpm test:e2e`
 completes required TOTP enrollment and confirms access to the Questions screen.
 Use `pnpm test:e2e:headed` to watch the browser while that stack remains running.
