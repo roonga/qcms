@@ -67,9 +67,14 @@ async function startPortalSession(
   });
   expect(response.status(), "the portal Start BFF route should redirect to a session").toBe(303);
   const location = response.headers()["location"];
-  expect(location, "the portal Start BFF route should return a session location").toMatch(
-    /^http:\/\/(?:localhost:\d+|0\.0\.0\.0:3000)\/s\/ses_/,
-  );
+  // The redirect must carry the PUBLIC portal origin. The container-internal
+  // listen address is exactly what this route used to emit, and a browser outside
+  // the Compose network cannot follow it, so accepting that shape here would
+  // accept the bug the portal's QCMS_PORTAL_BASE_URL read exists to fix.
+  expect(
+    location?.startsWith(`${PORTAL_URL}/s/ses_`),
+    `the Start redirect should target ${PORTAL_URL}/s/ses_..., got ${location ?? "no location header"}`,
+  ).toBe(true);
   const sessionToken = /(?:^|,)\s*qcms_session=([^;]+)/u.exec(
     response.headers()["set-cookie"] ?? "",
   )?.[1];
