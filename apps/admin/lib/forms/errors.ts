@@ -32,6 +32,17 @@ const FORM_CODE_MESSAGES: Readonly<Record<string, MessageKey>> = {
   INVALID_LINK_ID: "forms.error.invalidLinkId",
   LINK_NOT_FOUND: "forms.error.linkNotFound",
   LINK_EXPIRY_INVALID: "forms.error.linkExpiryInvalid",
+  // 035's codes: the response, erasure and webhook-operations routes. They are read
+  // through the same map because a screen has one error path, not two (`api-result.ts`).
+  INVALID_QUERY: "ops.error.invalidQuery",
+  INVALID_SESSION_ID: "ops.error.invalidSessionId",
+  RESPONSE_NOT_FOUND: "ops.error.responseNotFound",
+  SESSION_NOT_FOUND: "ops.error.sessionNotFound",
+  SUBMISSION_NOT_FOUND: "ops.error.submissionNotFound",
+  WEBHOOK_NOT_FOUND: "ops.error.webhookNotFound",
+  WEBHOOK_URL_REJECTED: "ops.error.webhookUrlRejected",
+  DELIVERY_NOT_FOUND: "ops.error.deliveryNotFound",
+  DELIVERY_SESSION_ERASED: "ops.error.deliverySessionErased",
   unauthorized: "forms.error.unauthorized",
   rate_limited: "forms.error.rateLimited",
   internal: "forms.error.internal",

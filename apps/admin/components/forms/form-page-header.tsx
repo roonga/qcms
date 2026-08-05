@@ -3,12 +3,13 @@ import { FormTabs } from "@/components/forms/form-tabs";
 import { t } from "@/lib/i18n/en";
 
 /**
- * The chrome every form section shares: breadcrumb, identity line, section nav (034).
+ * The chrome every form section shares: breadcrumb, identity line, section nav (034;
+ * 035 adds the responses and webhooks sections).
  *
- * A server component, so the four sections stay four ordinary server-rendered routes and
- * only the nav's current-section highlight needs the client. Keeping it in one place is
- * what stops the builder, preview, history and links screens drifting into four slightly
- * different headings for the same form.
+ * A server component, so the sections stay ordinary server-rendered routes and only the
+ * nav's current-section highlight needs the client. Keeping it in one place is what stops
+ * the builder, preview, history, links, responses and webhooks screens drifting into six
+ * slightly different headings for the same form.
  */
 export function FormPageHeader({
   formId,
@@ -19,7 +20,7 @@ export function FormPageHeader({
   readonly formId: string;
   readonly slug: string;
   /** The catalog key of the current section, used for the last breadcrumb crumb. */
-  readonly section: "builder" | "preview" | "versions" | "links";
+  readonly section: "builder" | "preview" | "versions" | "links" | "responses" | "webhooks";
   readonly status?: "open" | "closed";
 }) {
   const crumbs: BreadcrumbItem[] = [

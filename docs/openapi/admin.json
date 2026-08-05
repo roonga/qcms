@@ -1571,6 +1571,126 @@
           "createdAt"
         ]
       },
+      "DeliveriesResponse": {
+        "type": "object",
+        "properties": {
+          "deliveries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeliveryItem"
+            }
+          }
+        },
+        "required": [
+          "deliveries"
+        ]
+      },
+      "DeliveryItem": {
+        "type": "object",
+        "properties": {
+          "deliveryId": {
+            "type": "string",
+            "example": "d290f1ee-6c54-4b01-90e6-d701748f0851"
+          },
+          "eventId": {
+            "type": "string",
+            "example": "a1b2c3d4-0000-0000-0000-000000000000"
+          },
+          "eventType": {
+            "type": "string",
+            "example": "response.submitted"
+          },
+          "webhookId": {
+            "type": "string",
+            "example": "whk_ab12cd34"
+          },
+          "url": {
+            "type": "string",
+            "example": "https://consumer.example.com/qcms-hook"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "delivered",
+              "deadLettered",
+              "pending"
+            ]
+          },
+          "attempts": {
+            "type": "integer",
+            "example": 2
+          },
+          "lastError": {
+            "type": "string",
+            "nullable": true,
+            "example": "http_500"
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2026-07-20T00:00:00.000Z"
+          },
+          "deliveredAt": {
+            "type": "string",
+            "nullable": true,
+            "example": null
+          },
+          "deadLetteredAt": {
+            "type": "string",
+            "nullable": true,
+            "example": null
+          },
+          "nextAttemptAt": {
+            "type": "string",
+            "example": "2026-07-20T00:01:00.000Z"
+          },
+          "lastAttemptAt": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-07-20T00:00:03.000Z"
+          },
+          "lastStatus": {
+            "type": "integer",
+            "nullable": true,
+            "example": 500
+          },
+          "latencyMs": {
+            "type": "integer",
+            "nullable": true,
+            "example": 42
+          },
+          "requestHeaders": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "responseSnippet": {
+            "type": "string",
+            "nullable": true,
+            "example": "upstream unavailable"
+          }
+        },
+        "required": [
+          "deliveryId",
+          "eventId",
+          "eventType",
+          "webhookId",
+          "url",
+          "status",
+          "attempts",
+          "lastError",
+          "createdAt",
+          "deliveredAt",
+          "deadLetteredAt",
+          "nextAttemptAt",
+          "lastAttemptAt",
+          "lastStatus",
+          "latencyMs",
+          "requestHeaders",
+          "responseSnippet"
+        ]
+      },
       "RedeliverResponse": {
         "type": "object",
         "properties": {
@@ -4258,6 +4378,83 @@
         }
       }
     },
+    "/admin/forms/{id}/deliveries": {
+      "get": {
+        "summary": "List a form's recent webhook deliveries with last-attempt detail (admin)",
+        "tags": [
+          "outbox"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "webhooks:manage"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_intake"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "50"
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The form's recent deliveries, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveriesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/admin/outbox/{id}/redeliver": {
       "post": {
         "summary": "Reset a dead-lettered delivery for immediate redelivery (admin)",
@@ -4305,6 +4502,16 @@
           },
           "404": {
             "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
             "content": {
               "application/json": {
                 "schema": {

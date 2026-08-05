@@ -14,6 +14,11 @@
  *    (at-least-once; the duplicate is expected).
  * 5. fan-out: two webhooks on one form, one failing - states independent.
  *
+ * Task 035 adds a sixth group over the same live infrastructure: the per-attempt
+ * record the operator dashboard reads (status, latency, request headers, response
+ * snippet) is written on success, on a non-2xx and on a transport failure, and the
+ * HMAC is masked *before* it reaches the database rather than at render time.
+ *
  * `node:crypto` appears here only as the verification oracle (the consumer
  * recipe); the production signer never imports it.
  */
@@ -47,7 +52,7 @@ import { encryptWebhookSecret } from "../features/webhooks/crypto.js";
 import { registerOutboxOps } from "../features/outbox/route.js";
 import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../middleware/admin-auth.js";
 import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../test-support.js";
-import { runDeliveryPass } from "./outbox-delivery.js";
+import { RESPONSE_SNIPPET_MAX, runDeliveryPass, SIGNATURE_MASK } from "./outbox-delivery.js";
 
 const { Pool } = pg;
 const BOOT_TIMEOUT = 120_000;
@@ -66,6 +71,11 @@ interface Receiver {
   readonly received: Received[];
   /** Per-path response status (default 200). */
   readonly status: Map<string, number>;
+  /**
+   * Per-path response body (default "ok"). 035 stores a snippet of whatever the
+   * consumer answers with, so the body has to be shapeable to assert on it.
+   */
+  readonly body: Map<string, string>;
   setDelay(ms: number): void;
   reset(): void;
   close(): Promise<void>;
@@ -74,6 +84,7 @@ interface Receiver {
 async function startReceiver(): Promise<Receiver> {
   const received: Received[] = [];
   const status = new Map<string, number>();
+  const responseBodies = new Map<string, string>();
   const state = { delayMs: 0 };
 
   const server: Server = createServer((req, res) => {
@@ -91,9 +102,10 @@ async function startReceiver(): Promise<Receiver> {
         },
       });
       const code = status.get(path) ?? 200;
+      const answer = responseBodies.get(path) ?? "ok";
       const respond = (): void => {
         res.writeHead(code, { "content-type": "text/plain" });
-        res.end("ok");
+        res.end(answer);
       };
       if (state.delayMs > 0) setTimeout(respond, state.delayMs);
       else respond();
@@ -107,12 +119,14 @@ async function startReceiver(): Promise<Receiver> {
     origin: `http://127.0.0.1:${port}`,
     received,
     status,
+    body: responseBodies,
     setDelay: (ms) => {
       state.delayMs = ms;
     },
     reset: () => {
       received.length = 0;
       status.clear();
+      responseBodies.clear();
       state.delayMs = 0;
     },
     close: () => new Promise<void>((resolve) => server.close(() => resolve())),
@@ -150,9 +164,15 @@ afterAll(async () => {
   await testDb?.teardown();
 }, BOOT_TIMEOUT);
 
-/** Seed a form + published version, and one active webhook per given path. */
+/**
+ * Seed a form + published version, and one active webhook per given path.
+ *
+ * `origin` defaults to the in-test receiver; a hook overrides it to point somewhere
+ * the receiver is not (a released port), which is how the transport-failure path
+ * gets exercised without stubbing `fetch`.
+ */
 async function seed(
-  hooks: Array<{ path: string; secret: string }>,
+  hooks: Array<{ path: string; secret: string; origin?: string }>,
 ): Promise<{ formId: FormId; version: number; webhookIds: string[] }> {
   seq += 1;
   const formId = FormId.parse(`frm_wd_${seq}`);
@@ -172,7 +192,7 @@ async function seed(
     await insertWebhook(testDb.db, {
       webhookId,
       formId,
-      url: `${receiver.origin}${hooks[i]!.path}`,
+      url: `${hooks[i]!.origin ?? receiver.origin}${hooks[i]!.path}`,
       secretEncrypted,
       active: true,
     });
@@ -451,5 +471,132 @@ describe("exit 5: fan-out - two webhooks, one failing, states independent", () =
     expect(bad?.attempts).toBe(1);
     expect(bad?.lastError).toBe("http_500");
     expect(bad?.deadLetteredAt).toBeNull();
+  });
+});
+
+// --- task 035: the attempt record the operator dashboard reads ---------------
+
+/**
+ * A port nothing is listening on: bind an ephemeral one, then release it.
+ *
+ * Cheaper and far more deterministic than waiting out the delivery timeout, and it
+ * exercises the same catch branch (a transport error rather than a response).
+ */
+async function releasedPort(): Promise<number> {
+  const probe = createServer();
+  await new Promise<void>((resolve) => probe.listen(0, "127.0.0.1", () => resolve()));
+  const port = (probe.address() as AddressInfo).port;
+  await new Promise<void>((resolve) => probe.close(() => resolve()));
+  return port;
+}
+
+describe("035: each attempt is recorded on the row, with the signature masked", () => {
+  it("stores the signature masked while the consumer still receives a real one", async () => {
+    receiver.reset();
+    const secret = "whsec_e2e_mask_0123456789";
+    const { formId, version } = await seed([{ path: "/mask", secret }]);
+    const outboxId = await enqueueSubmitted(formId, version);
+
+    await runDeliveryPass(deps, { now: soon() });
+
+    // The consumer got a genuine, verifying signature: the masking is storage-side
+    // only, not a signer that quietly stopped signing.
+    const hit = receiver.received.find((r) => r.path === "/mask")!;
+    const sent = hit.header("x-qcms-signature")!;
+    expect(sent).toMatch(/^v1=[0-9a-f]{64}$/);
+    expect(verify(secret, hit.header("x-qcms-timestamp")!, hit.body, sent)).toBe(true);
+
+    const [row] = await deliveriesFor(outboxId);
+    expect(row?.lastRequestHeaders?.["x-qcms-signature"]).toBe(SIGNATURE_MASK);
+    // Nothing shaped like an HMAC survives anywhere in the stored blob, under any
+    // key: the check is on the serialized column, not on the one field we masked.
+    const stored = JSON.stringify(row?.lastRequestHeaders);
+    expect(stored).not.toContain(sent);
+    expect(stored).not.toMatch(/v1=[0-9a-f]{64}/);
+    // The header NAME survives, because "this request was signed" is what an
+    // operator debugging a rejecting consumer needs to see.
+    expect(Object.keys(row?.lastRequestHeaders ?? {})).toContain("x-qcms-signature");
+  });
+
+  it("records status, latency, headers and a body snippet for a 2xx", async () => {
+    receiver.reset();
+    receiver.body.set("/attempt-ok", "thanks");
+    const { formId, version } = await seed([
+      { path: "/attempt-ok", secret: "whsec_e2e_ok_01234567890" },
+    ]);
+    const outboxId = await enqueueSubmitted(formId, version);
+
+    await runDeliveryPass(deps, { now: soon() });
+
+    const [row] = await deliveriesFor(outboxId);
+    expect(row?.deliveredAt).toBeInstanceOf(Date);
+    expect(row?.lastStatus).toBe(200);
+    expect(row?.lastAttemptAt).toBeInstanceOf(Date);
+    expect(row?.lastLatencyMs).toBeGreaterThanOrEqual(0);
+    expect(row?.lastResponseSnippet).toBe("thanks");
+    expect(row?.lastRequestHeaders?.["x-qcms-event"]).toBe("response.submitted");
+    expect(row?.lastRequestHeaders?.["x-qcms-timestamp"]).toBeTruthy();
+    // Success does not advance the failed-attempt counter that drives the backoff.
+    expect(row?.attempts).toBe(0);
+  });
+
+  it("records the status and the consumer's own reason on a 500", async () => {
+    receiver.reset();
+    receiver.status.set("/attempt-500", 500);
+    receiver.body.set("/attempt-500", "upstream unavailable");
+    const { formId, version } = await seed([
+      { path: "/attempt-500", secret: "whsec_e2e_500_0123456789" },
+    ]);
+    const outboxId = await enqueueSubmitted(formId, version);
+
+    await runDeliveryPass(deps, { now: soon() });
+
+    const [row] = await deliveriesFor(outboxId);
+    expect(row?.lastStatus).toBe(500);
+    expect(row?.lastError).toBe("http_500");
+    expect(row?.lastResponseSnippet).toBe("upstream unavailable");
+    expect(row?.lastRequestHeaders?.["x-qcms-signature"]).toBe(SIGNATURE_MASK);
+    expect(row?.lastAttemptAt).toBeInstanceOf(Date);
+    expect(row?.deliveredAt).toBeNull();
+    expect(row?.attempts).toBe(1);
+  });
+
+  it("caps the stored snippet at RESPONSE_SNIPPET_MAX", async () => {
+    receiver.reset();
+    const long = "y".repeat(RESPONSE_SNIPPET_MAX + 250);
+    receiver.body.set("/attempt-long", long);
+    const { formId, version } = await seed([
+      { path: "/attempt-long", secret: "whsec_e2e_long_012345678" },
+    ]);
+    const outboxId = await enqueueSubmitted(formId, version);
+
+    await runDeliveryPass(deps, { now: soon() });
+
+    const [row] = await deliveriesFor(outboxId);
+    expect(row?.lastResponseSnippet).toHaveLength(RESPONSE_SNIPPET_MAX);
+    expect(row?.lastResponseSnippet).toBe(long.slice(0, RESPONSE_SNIPPET_MAX));
+  });
+
+  it("records a transport failure with no status and no snippet, but the headers it tried", async () => {
+    receiver.reset();
+    const origin = `http://127.0.0.1:${await releasedPort()}`;
+    const { formId, version } = await seed([
+      { path: "/gone", secret: "whsec_e2e_gone_012345678", origin },
+    ]);
+    const outboxId = await enqueueSubmitted(formId, version);
+
+    await runDeliveryPass(deps, { now: soon() });
+
+    const [row] = await deliveriesFor(outboxId);
+    expect(row?.lastError).toBe("network_error");
+    // No response ever arrived, so there is no status and no body to keep - but the
+    // request is still describable, which is the whole point of storing it.
+    expect(row?.lastStatus).toBeNull();
+    expect(row?.lastResponseSnippet).toBeNull();
+    expect(row?.lastAttemptAt).toBeInstanceOf(Date);
+    expect(row?.lastLatencyMs).toBeGreaterThanOrEqual(0);
+    expect(row?.lastRequestHeaders?.["x-qcms-event"]).toBe("response.submitted");
+    expect(row?.lastRequestHeaders?.["x-qcms-signature"]).toBe(SIGNATURE_MASK);
+    expect(row?.attempts).toBe(1);
   });
 });

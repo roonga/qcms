@@ -66,6 +66,20 @@ export const OTLP_SCHEDULE_DELAY_MS = "500";
 export const FIXED_INTERNAL_TOKEN = "qcms-e2e-portal-shared-internal-token-000000";
 
 /**
+ * Synthetic `QCMS_APP_KEY` for the suite (test-only, never a real key).
+ *
+ * Fixed rather than generated, for the same reason `FIXED_AUTH_SECRET` is: two
+ * processes in this run have to agree on it. `validEnv()` mints a fresh key on every
+ * call, and the app key is what a webhook secret is encrypted under at rest (SEC-6) -
+ * so a spec that composes its own `Deps` to drive a delivery pass would decrypt a
+ * secret the API wrote under a different key, and every delivery would fail with
+ * `secret_decrypt_failed` rather than reaching the receiver (task 035).
+ *
+ * 32+ characters, which is what `QCMS_APP_KEY` requires.
+ */
+export const FIXED_APP_KEY = "qcms-e2e-synthetic-app-key-0000000000000000";
+
+/**
  * Per-deployment theming config the harness runs the portal under (task 051).
  *
  * Deliberately NOT the defaults: the whole browser suite runs on an ALTERNATE

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, integer, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { index, integer, jsonb, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 
 import { outbox } from "./outbox.js";
 import { webhooks } from "./webhooks.js";
@@ -25,6 +25,25 @@ import { webhooks } from "./webhooks.js";
  * is a function of the timestamps, never a redundant stored enum that could drift.
  * At-least-once, never best-effort (a crash between POST and `delivered_at` rolls
  * back and the row is redelivered).
+ *
+ * ## The `last_*` attempt record (task 035)
+ *
+ * The operator dashboard 035 renders has to answer "what actually went over the
+ * wire, and what came back" - status, latency, request headers, a response body
+ * snippet. None of that is derivable from the lifecycle columns above, and a screen
+ * that described the request from the deliverer's *intent* rather than from what it
+ * sent would be a fiction the moment either side changed. So the deliverer records
+ * the most recent attempt here, on the row, and the dashboard reads only this.
+ *
+ * Last attempt, not every attempt: a per-attempt history table is unbounded growth
+ * for a screen whose question is "why is this one stuck", and `attempts` +
+ * `last_error` already carry the shape of the history. A full attempt log is a
+ * Phase-4 refinement if operators ask for it.
+ *
+ * **The signature never lands here.** `last_request_headers` stores the header map
+ * as sent with `x-qcms-signature` already replaced by a mask, so the HMAC is absent
+ * from the database rather than merely hidden by a renderer (SEC-6, SEC-13). The
+ * webhook secret is not in the header set at all.
  */
 export const webhookDeliveries = pgTable(
   "webhook_deliveries",
@@ -45,6 +64,19 @@ export const webhookDeliveries = pgTable(
     deliveredAt: timestamp("delivered_at", { withTimezone: true, mode: "date" }),
     deadLetteredAt: timestamp("dead_lettered_at", { withTimezone: true, mode: "date" }),
     lastError: text("last_error"),
+    /** When the most recent attempt was made (null until one has been). */
+    lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true, mode: "date" }),
+    /**
+     * The HTTP status the most recent attempt got back, or null when it never got
+     * one (timeout, network error, SSRF rejection, secret decrypt failure).
+     */
+    lastStatus: integer("last_status"),
+    /** Wall-clock duration of the most recent attempt, in milliseconds. */
+    lastLatencyMs: integer("last_latency_ms"),
+    /** The headers as sent, with the signature masked before storage. */
+    lastRequestHeaders: jsonb("last_request_headers").$type<Record<string, string>>(),
+    /** A bounded prefix of the most recent response body (diagnostics). */
+    lastResponseSnippet: text("last_response_snippet"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   },
   (t) => [

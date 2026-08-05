@@ -89,6 +89,27 @@ Only the **two sanctioned whole-session delete paths** set that flag (via
 across statements or connections. Any ad-hoc `DELETE FROM answers` outside a
 transaction that has opened the door is rejected. (See issue #4.)
 
+## Where an operator performs it (task 035)
+
+Erasure has one door in the app, and it is on the **response detail** - the screen
+showing the answers that are about to go, so nobody erases from a list of ids. Pressing
+"Erase respondent data" opens a type-to-confirm dialog that states three separate facts
+rather than asking for certainty: what is deleted (every answer and the submission, with
+no undo, no archive and nothing to restore from), what remains (the tombstone below),
+and what is **not** affected (webhook consumers - see "What erasure does NOT cover").
+The destructive button stays disabled until the operator retypes the session id exactly,
+so there is no single-click path to it.
+
+The reason is chosen from a closed set - data subject request, retention policy, entered
+in error - rather than typed. The reason lands on a tombstone that outlives the data it
+describes, so a free-text box would invite a data subject's name into an audit record.
+
+Afterwards the same URL keeps working and shows the tombstone: an operator with the link
+in a ticket gets "this was erased, here is the record" rather than a 404. Every tombstone
+is also listed at **/responses/erasures**, which is the compliance evidence - a screen
+that can be shown to whoever asks whether a request was honoured, because it holds no
+answers to leak.
+
 ## What erasure does NOT cover
 
 Erasure is honest about its boundaries. It does **not**:
@@ -97,6 +118,33 @@ Erasure is honest about its boundaries. It does **not**:
   events to (via the outbox) is an **independent data controller**. Erasure does
   not call them back; you must run your own downstream-erasure process against
   those systems.
+- **Withdraw an event that has not been delivered yet.** This one is sharper than the
+  point above, and it is a live gap rather than a boundary. A `response.submitted`
+  outbox row carries the respondent's **whole locked answer set** in its payload.
+  `eraseSession` deletes the `answers` rows and the `submissions` lock and writes the
+  tombstone; it does **not** touch `outbox` or `webhook_deliveries`. So a session that
+  is gone from the response list, the detail view and every export can still have a
+  queued event holding exactly that content, and the delivery pass sends it on its next
+  tick.
+
+  Two things follow, and only the first is fixed at launch:
+
+  1. **Manual redelivery refuses it.** `POST /admin/outbox/:id/redeliver` answers `409
+     DELIVERY_SESSION_ERASED` when the delivery's event names an erased session, so an
+     operator clearing a stuck dead-letter queue can never be the reason those answers
+     go out. Bulk redelivery is the same endpoint per item, so it is covered too, and
+     the erasure log stays the record of what was erased either way.
+  2. **The scheduler is not gated.** Whether erasure should purge or redact the
+     session's `outbox` rows and their `webhook_deliveries` children is an **ADR-17
+     amendment question**, not an implementation detail: it trades the outbox's
+     at-least-once contract (a consumer that already got a partial fan-out) against the
+     erasure promise, and it is the Code Owner's call. Until it is answered, an
+     operator who needs certainty should erase **before** the delivery window or accept
+     that a queued event may already have left.
+
+  The erase dialog says this in the operator's words rather than leaving it to this
+  document: "an event for this session still waiting to be delivered is not withdrawn
+  by this action: it may still be sent."
 - **Reach physical backups, WAL, or replicas immediately.** A hard delete in the
   primary does not retroactively rewrite base backups, write-ahead logs, or
   streaming replicas. Those copies age out per **your** backup-retention policy.

@@ -12,10 +12,22 @@ topology it is protected by TLS plus 2FA instead (ADR-20).
 | Sign-in, TOTP 2FA enrollment, recovery codes, 2FA challenge, sign-out | built (031) |
 | Settings: change password, 2FA status | built (031) |
 | Questions: library list, editor, version timeline, preview, lifecycle | built (032) |
-| Forms, Responses, Webhooks | placeholders; tasks 033-035 |
+| Forms: builder, condition editor, validation panel, rule bench | built (033) |
+| Forms: publish, draft preview, version history, secure links | built (034) |
+| Responses: browser with filters, detail with the answer ledger, CSV/JSON export, erasure and the erasure log | built (035) |
+| Webhooks: per-form endpoints with one-time secret reveal, delivery dashboard, dead-letter queue with redelivery | built (035) |
 
-The shell nav, the auth gate, and the shared UI kit are what 031 delivers; the remaining
-area screens are placeholders that name the task filling them.
+The shell nav, the auth gate, and the shared UI kit are what 031 delivers.
+
+### Where the operations screens live, and why
+
+Responses and webhook endpoints belong to a **form**, so they are sections of the form
+(`/forms/{id}/responses`, `/forms/{id}/webhooks`) alongside the builder and the links.
+The two top-level areas are the ones whose question is not about a single form: the
+**erasure log** (`/responses/erasures`) is compliance evidence across every form, and
+the **dead-letter queue** (`/webhooks`) is deployment-wide because "is anything stuck"
+is an operational question, not an authoring one. Those are the shapes of the API routes
+behind them (`GET /admin/erasures`, `GET /admin/outbox/dead-letters`), not a preference.
 
 ## Running it
 
@@ -115,6 +127,8 @@ It is a **development** tool. It writes the database directly, which is why it l
   layout; with no choice, the sheet's own `prefers-color-scheme` block follows the machine.
   That split is why there is no pre-paint script here and no `script-src` allowance for
   one. High-contrast is never inferred.
+- **The response export is a route handler, not a server action** (`app/(shell)/forms/[formId]/export/route.ts`), because its product is bytes for the browser to save rather than state for a component to render. The upstream body is passed through untouched: an export larger than this process's memory still works, the API's UTF-8 BOM and CRLF records survive (both of which a re-encode would break), and answer values never exist as a value this app could log or serialize.
+- **A webhook secret exists in this app for one render.** `createWebhookAction` and `rotateSecretAction` are the only functions that ever hold one, and each hands it straight to the panel that shows it once. There is no "show secret" action anywhere, because the API stores ciphertext and has no route that could serve one (SEC-6). The endpoints table says "Stored, not retrievable" where a secret column would otherwise invite someone to look.
 - **`proxy.ts`** sets the security headers (SEC-9) and deliberately does **not**
   authenticate: a cookie-presence check there would look like security while proving
   nothing. See `lib/server/session.ts` for why the authority is a database read there,
@@ -128,6 +142,7 @@ It is a **development** tool. It writes the database directly, which is why it l
 | First-run bootstrap against a real Postgres | `lib/server/bootstrap.integration.test.ts` (Docker) |
 | Browser: the whole 2FA loop, axe in all three modes, keyboard | `e2e/*.pw.ts` (the root Playwright config) |
 | Browser: mode default, persistence, no flash, Lexend | `e2e/appearance.pw.ts` |
+| Browser: the operations arc (browse, export, erase, dead-letter, redeliver) | `e2e/responses-ops.pw.ts` |
 | The theme gates themselves (tokens-only, drift, naming) | `scripts/check-admin-theme.test.ts` |
 
 The browser suite rides on the one root Playwright config as the `admin-chromium` project

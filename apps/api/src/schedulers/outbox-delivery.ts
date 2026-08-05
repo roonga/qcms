@@ -50,6 +50,7 @@ import {
   markDelivered,
   markDeliveryDelivered,
   recordDeliveryFailure,
+  type DeliveryAttemptRecord,
   type DueDelivery,
   type Executor,
   type OutboxRow,
@@ -73,6 +74,25 @@ export type FetchLike = (
     signal: AbortSignal;
   },
 ) => Promise<{ status: number; text(): Promise<string> }>;
+
+/**
+ * What the signature header is replaced by before the header map is stored.
+ *
+ * Masked here, at the point of writing, rather than at the point of rendering: the
+ * HMAC is then absent from the database entirely, so no later reader - a screen, an
+ * export, a support dump of the row - can leak it by forgetting to redact (SEC-6,
+ * SEC-13). The header NAME is kept, because "this request was signed" is exactly
+ * what an operator debugging a rejecting consumer needs to see.
+ */
+export const SIGNATURE_MASK = "v1=<masked>";
+
+/**
+ * How much of a consumer's response body is kept for the delivery detail view.
+ *
+ * Enough to carry an error message and its shape, short enough that a consumer
+ * returning a whole HTML error page cannot bloat the row.
+ */
+export const RESPONSE_SNIPPET_MAX = 500;
 
 export interface DeliveryPassOptions {
   /** HTTP transport; defaults to the global `fetch`. */
@@ -194,10 +214,16 @@ async function deliverDue(
       if (options.afterSend) await options.afterSend(due.deliveryId);
 
       if (result.ok) {
-        await markDeliveryDelivered(tx, due.deliveryId, now);
+        await markDeliveryDelivered(tx, due.deliveryId, now, result.attempt);
         return "delivered" as const;
       }
-      const row = await recordDeliveryFailure(tx, due.deliveryId, result.error, now);
+      const row = await recordDeliveryFailure(
+        tx,
+        due.deliveryId,
+        result.error,
+        now,
+        result.attempt,
+      );
       return row?.deadLetteredAt ? ("deadLettered" as const) : ("failed" as const);
     });
 
@@ -211,8 +237,22 @@ async function deliverDue(
   return { claimed, delivered, failed, deadLettered };
 }
 
-/** The outcome of a single POST attempt: a 2xx, or a value-free failure reason. */
-type DeliveryResult = { readonly ok: true } | { readonly ok: false; readonly error: string };
+/**
+ * The outcome of a single POST attempt: a 2xx, or a value-free failure reason.
+ *
+ * Both carry the attempt record (what was sent, what came back, how long it took)
+ * for the operator dashboard, because a failure is exactly the case where an
+ * operator needs it. It is absent only when the attempt never reached the transport
+ * at all - an SSRF rejection or a secret that would not decrypt - since there is
+ * then no request to describe.
+ */
+type DeliveryResult =
+  | { readonly ok: true; readonly attempt: DeliveryAttemptRecord }
+  | {
+      readonly ok: false;
+      readonly error: string;
+      readonly attempt?: DeliveryAttemptRecord;
+    };
 
 /**
  * Sign and POST one delivery. Re-checks SSRF, decrypts the secret, builds the
@@ -249,29 +289,57 @@ async function deliverOne(
   const timestamp = Math.floor(now.getTime() / 1000).toString();
   const signature = await signWebhookBody(secret, timestamp, body);
 
+  const headers = {
+    "content-type": "application/json",
+    "x-qcms-event": due.eventType,
+    "x-qcms-delivery": crypto.randomUUID(), // unique per attempt
+    "x-qcms-timestamp": timestamp,
+    "x-qcms-signature": signature,
+  };
+  // What gets stored: the same map, with the HMAC replaced. The signed value exists
+  // only in the `headers` object above and in the request it goes out on.
+  const storedHeaders: Record<string, string> = { ...headers, "x-qcms-signature": SIGNATURE_MASK };
+
   const fetchImpl: FetchLike = options.fetchImpl ?? globalThis.fetch;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), deps.config.webhooks.deliveryTimeoutMs);
+  // Measured with the monotonic clock, not `deps.clock`: this is a duration, and
+  // `deps.clock` is frozen in tests, which would make every latency zero.
+  const startedAt = performance.now();
+  const elapsed = (): number => Math.round(performance.now() - startedAt);
   try {
     const res = await fetchImpl(checked.url, {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-qcms-event": due.eventType,
-        "x-qcms-delivery": crypto.randomUUID(), // unique per attempt
-        "x-qcms-timestamp": timestamp,
-        "x-qcms-signature": signature,
-      },
+      headers,
       body,
       signal: controller.signal,
     });
-    // Drain the body so the connection can be reused; the content is ignored.
-    await res.text().catch(() => undefined);
-    if (res.status >= 200 && res.status < 300) return { ok: true };
-    return { ok: false, error: `http_${res.status}` };
+    // Read the body so the connection can be reused, and keep a bounded prefix of it
+    // for the delivery detail view - a rejecting consumer's reason is usually here.
+    const responseBody = await res.text().catch(() => "");
+    const attempt: DeliveryAttemptRecord = {
+      lastAttemptAt: now,
+      lastStatus: res.status,
+      lastLatencyMs: elapsed(),
+      lastRequestHeaders: storedHeaders,
+      lastResponseSnippet: responseBody.slice(0, RESPONSE_SNIPPET_MAX),
+    };
+    if (res.status >= 200 && res.status < 300) return { ok: true, attempt };
+    return { ok: false, error: `http_${res.status}`, attempt };
   } catch (err) {
     const aborted = err instanceof Error && err.name === "AbortError";
-    return { ok: false, error: aborted ? "timeout" : "network_error" };
+    return {
+      ok: false,
+      error: aborted ? "timeout" : "network_error",
+      attempt: {
+        lastAttemptAt: now,
+        // No response ever arrived, so there is no status and no body to keep.
+        lastStatus: null,
+        lastLatencyMs: elapsed(),
+        lastRequestHeaders: storedHeaders,
+        lastResponseSnippet: null,
+      },
+    };
   } finally {
     clearTimeout(timer);
   }

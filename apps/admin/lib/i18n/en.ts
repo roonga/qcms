@@ -743,6 +743,353 @@ export const messages = {
   "forms.error.previewUnavailable":
     "This draft compiled, but its rules could not be evaluated for the answers entered. Reset the answers to start again.",
   "forms.error.versionNotFound": "That version does not exist.",
+
+  // --- operations: responses, erasure, webhooks (task 035) -------------------
+  //
+  // Two families of string here describe what the SYSTEM does rather than what the
+  // screen looks like, and both are asserted in the browser suite rather than left
+  // as prose a later edit could quietly falsify:
+  //
+  // - **`ops.erase.*`** states ADR-17 in the operator's terms: the answers go, the
+  //   tombstone stays, and webhook consumers that already received the submission are
+  //   not affected by any of it. It is worded as consequences, not as "are you sure",
+  //   because the confirmation's job is to make an irreversible act deliberate.
+  // - **`ops.webhooks.secret*`** never promises the secret can be recovered, because
+  //   it cannot: the API stores ciphertext and has no route that decrypts it back out
+  //   (SEC-6). Same rule as `recovery.*` above.
+
+  "forms.tab.responses": "Responses",
+  "forms.tab.webhooks": "Webhooks",
+
+  "ops.common.none": "-",
+  "ops.common.cancel": "Cancel",
+  "ops.common.close": "Close",
+  "ops.common.working": "Working…",
+  "ops.common.copy": "Copy",
+  "ops.common.copied": "Copied to the clipboard.",
+  "ops.common.copyFailed": "That could not be copied. Select the text and copy it manually.",
+
+  // The responses area landing screen: pick a form, or open the erasure log.
+  "ops.area.responses.title": "Responses",
+  "ops.area.responses.intro":
+    "Responses are held per form. Open a form to browse, export or erase what it collected.",
+  "ops.area.responses.pickForm": "Open responses for {title}",
+  "ops.area.responses.noForms": "No forms exist yet, so nothing has been collected.",
+  "ops.area.responses.erasureLog": "Erasure log",
+  "ops.area.responses.formsFailed": "The form list could not be loaded. {message}",
+
+  "ops.area.webhooks.title": "Webhook operations",
+  "ops.area.webhooks.intro":
+    "The dead-letter queue below covers every form. Endpoints are configured per form, on the form's Webhooks tab.",
+  "ops.area.webhooks.pickForm": "Configure webhooks for {title}",
+  "ops.area.webhooks.noForms": "No forms exist yet, so there is nothing to deliver.",
+
+  // The response browser.
+  "ops.responses.heading": "Responses",
+  "ops.responses.filters": "Filters",
+  "ops.responses.filter.version": "Version",
+  "ops.responses.filter.anyVersion": "Any version",
+  "ops.responses.filter.from": "Submitted from",
+  "ops.responses.filter.to": "Submitted to",
+  "ops.responses.filter.flagged": "Flagged",
+  "ops.responses.filter.anyFlag": "Any",
+  "ops.responses.filter.onlyFlagged": "Flagged only",
+  "ops.responses.filter.onlyClean": "Not flagged",
+  "ops.responses.filter.apply": "Apply filters",
+  "ops.responses.filter.clear": "Clear filters",
+  "ops.responses.filter.dayHint": "Whole days, in UTC.",
+  "ops.responses.table": "Submitted responses",
+  "ops.responses.column.sessionId": "Session",
+  "ops.responses.column.version": "Version",
+  "ops.responses.column.submittedAt": "Submitted",
+  "ops.responses.column.access": "Access",
+  "ops.responses.column.flag": "Flag",
+  "ops.responses.access.anonymous": "Anonymous",
+  "ops.responses.access.secure_link": "Secure link",
+  "ops.responses.flag.clean": "Not flagged",
+  "ops.responses.flag.flagged": "Flagged",
+  "ops.responses.reason.HONEYPOT": "Honeypot field was filled",
+  "ops.responses.reason.MIN_TIME": "Submitted faster than the minimum time",
+  "ops.responses.reason.RATE_ANOMALY": "Unusual submission rate",
+  "ops.responses.reason.unknown": "Flagged as {reason}",
+  "ops.responses.empty": "Nothing has been submitted to this form yet.",
+  "ops.responses.filteredEmpty": "No response matches these filters.",
+  "ops.responses.total.one": "1 response",
+  "ops.responses.total.other": "{count} responses",
+  "ops.responses.pageOf": "Page {page} of {pages}",
+  "ops.responses.previous": "Previous page",
+  "ops.responses.next": "Next page",
+  "ops.responses.open": "Open response {sessionId}",
+  "ops.responses.listFailed": "The responses could not be loaded. {message}",
+
+  // Export.
+  "ops.export.open": "Export",
+  "ops.export.title": "Export responses",
+  "ops.export.format": "Format",
+  "ops.export.csv": "CSV",
+  "ops.export.json": "JSON",
+  "ops.export.version": "Version",
+  "ops.export.pickVersion": "Choose a version",
+  "ops.export.versionRequired":
+    "CSV has one column per question of a single version, so a version is required.",
+  "ops.export.versionIgnored": "JSON records carry their own version, so no version is needed.",
+  "ops.export.from": "Submitted from",
+  "ops.export.to": "Submitted to",
+  "ops.export.dayHint": "Whole days, in UTC.",
+  "ops.export.download": "Download",
+  "ops.export.noVersions": "This form has no published version, so there is nothing to export.",
+  // One sentence per format, because they are different files: an empty CSV is its
+  // header row, an empty JSON export is `[]`. The dialog already knows the selected
+  // format (`ops.export.versionIgnored` turns on it), so a single sentence describing
+  // CSV while JSON was selectable was a claim the control above it disproved.
+  "ops.export.emptyNote.csv":
+    "A CSV export that matches nothing downloads as a file with only its header row.",
+  "ops.export.emptyNote.json": "A JSON export that matches nothing downloads as an empty list.",
+
+  // The response detail.
+  "ops.detail.heading": "Response {sessionId}",
+  "ops.detail.back": "Back to responses",
+  "ops.detail.summary": "Summary",
+  "ops.detail.answers": "Locked answers",
+  "ops.detail.answersIntro":
+    "The answers as submitted, captioned with the wording of the question version this form version pinned.",
+  "ops.detail.ledger": "Answer ledger",
+  "ops.detail.ledgerIntro":
+    "Every revision, oldest first. Answers are append-only, so a change adds an entry and never rewrites one.",
+  "ops.detail.ledgerEmpty": "This session has no recorded revisions.",
+  "ops.detail.ledgerRetracted": "cleared",
+  "ops.detail.ledgerAnswered": "answered",
+  "ops.detail.submittedAt": "Submitted",
+  "ops.detail.version": "Form version",
+  "ops.detail.access": "Access",
+  "ops.detail.contentHash": "Content hash",
+  "ops.detail.contentHashHint":
+    "The audit anchor: re-deriving it from the locked answers proves they have not changed.",
+  "ops.detail.noAnswer": "Not answered",
+  "ops.detail.emptyAnswer": "Answered with an empty value",
+  "ops.detail.secureLinkNote":
+    "This response came in through a secure link. Link lifecycle is on the form's Links tab.",
+  "ops.detail.secureLinkGo": "Open the Links tab",
+  "ops.detail.flagged": "Flagged: {reason}",
+  "ops.detail.flaggedNote":
+    "The response is stored, and its webhook event is withheld until it is released.",
+  "ops.detail.unflag": "Release the withheld event",
+  "ops.detail.unflagTitle": "Release this response to webhook consumers?",
+  "ops.detail.unflagBody":
+    "The withheld response.submitted event is queued for delivery. Once a consumer has it, it cannot be recalled.",
+  "ops.detail.confirmUnflag": "Release it",
+  "ops.detail.unflagged": "The withheld event is queued for delivery.",
+  "ops.detail.unflagNoop": "There was no withheld event to release.",
+  "ops.detail.unflagFailed": "The event was not released. {message}",
+  "ops.detail.loadFailed": "This response could not be loaded. {message}",
+  "ops.detail.labelsFailed":
+    "Question wording could not be loaded, so answers are captioned with their question ids.",
+
+  // Erasure (ADR-17).
+  "ops.erase.button": "Erase respondent data…",
+  "ops.erase.title": "Erase this respondent's data?",
+  // "nothing this screen can restore from" rather than the old "nothing to restore
+  // from": an undelivered outbox event for this session still carries the whole locked
+  // answer set (`eraseSession` deletes the ledger and the submission, not the queued
+  // event), so the flat claim was false in exactly the case the next sentence now
+  // covers. Do not soften this back without changing what erasure deletes.
+  "ops.erase.irreversible":
+    "This deletes every answer and the submission for this session. There is no undo: no soft delete, and nothing this screen can restore from.",
+  "ops.erase.tombstoneStays":
+    "A tombstone remains - the session id, the form, the version, when it was erased and why. That is the compliance record, and it holds no answers.",
+  // Two different facts, and the old wording only told the first. A delivered event is
+  // beyond reach - true, and the operator's own downstream-erasure job. An event still
+  // QUEUED for this session is not: erasure does not withdraw it, and the scheduler
+  // sends it on its next pass. Redelivery from the dead-letter queue is refused
+  // (`DELIVERY_SESSION_ERASED`), which is the one door this app controls.
+  "ops.erase.consumersUnaffected":
+    "Erasing here does not reach a webhook consumer. An event already delivered stays delivered, and an event for this session still waiting to be delivered is not withdrawn by this action: it may still be sent. Redelivering it from the dead-letter queue is refused.",
+  "ops.erase.reason": "Reason",
+  "ops.erase.reason.subject_request": "Data subject request",
+  "ops.erase.reason.retention_policy": "Retention policy",
+  "ops.erase.reason.operator_error": "Entered in error",
+  "ops.erase.confirmLabel": "Type the session id to confirm",
+  "ops.erase.confirmHint": "Type {sessionId} exactly.",
+  "ops.erase.mismatch": "That does not match the session id, so erasure is still blocked.",
+  "ops.erase.confirm": "Erase permanently",
+  "ops.erase.done": "The respondent data for {sessionId} has been erased.",
+  "ops.erase.alreadyErased": "That session was already erased. Nothing changed.",
+  "ops.erase.failed": "Nothing was erased. {message}",
+
+  "ops.tombstone.title": "Erased",
+  "ops.tombstone.body":
+    "This session's answers were erased. What remains is the tombstone below (ADR-17).",
+  "ops.tombstone.sessionId": "Session",
+  "ops.tombstone.formVersion": "Form version",
+  "ops.tombstone.erasedAt": "Erased",
+  "ops.tombstone.reason": "Reason",
+  // A reason this build does not recognise is quoted back inside a sentence rather
+  // than rendered raw as if it were prose - the same closed-vocabulary-plus-fallback
+  // shape `flagReasonText` uses. The column is free text at the database, so an
+  // unrecognised value has to survive as far as here.
+  "ops.erase.reason.unknown": "Recorded as {reason}",
+
+  // The erasure log.
+  "ops.erasures.title": "Erasure log",
+  "ops.erasures.intro":
+    "Every erasure, newest first. A row is the evidence that a session existed and was erased; it holds no answers.",
+  "ops.erasures.table": "Erasure tombstones",
+  "ops.erasures.column.sessionId": "Session",
+  "ops.erasures.column.formId": "Form",
+  "ops.erasures.column.formVersion": "Version",
+  "ops.erasures.column.erasedAt": "Erased",
+  "ops.erasures.column.reason": "Reason",
+  "ops.erasures.empty": "Nothing has been erased.",
+  "ops.erasures.total.one": "1 erasure",
+  "ops.erasures.total.other": "{count} erasures",
+  "ops.erasures.loadFailed": "The erasure log could not be loaded. {message}",
+  "ops.erasures.back": "Back to responses",
+
+  // Webhook configuration.
+  "ops.webhooks.heading": "Webhook endpoints",
+  // "except a flagged one" is not a hedge, it is what the submit slice does:
+  // `apps/api/src/features/responses/submit/handler.ts` enqueues `response.submitted`
+  // only when `flaggedReason === undefined`, and the release door is the unflag action
+  // on the response detail (`ops.detail.unflag`). "Operator" rather than "admin":
+  // `scripts/check-admin-theme.mjs` fails any user-facing string naming this app that,
+  // and operator is the vocabulary the rest of the catalog uses. The earlier wording
+  // promised "every submission", which this task's own unflag flow disproves.
+  "ops.webhooks.intro":
+    "Each active endpoint receives a signed response.submitted request for every submission except a flagged one, whose event is withheld until an operator releases it on the response.",
+  "ops.webhooks.add": "Add endpoint",
+  "ops.webhooks.addTitle": "Add a webhook endpoint",
+  "ops.webhooks.url": "Endpoint URL",
+  "ops.webhooks.urlHint": "https, unless this deployment allows private targets.",
+  "ops.webhooks.activeNow": "Deliver to it straight away",
+  "ops.webhooks.create": "Create endpoint",
+  "ops.webhooks.table": "Configured endpoints",
+  "ops.webhooks.column.webhookId": "Endpoint",
+  "ops.webhooks.column.url": "URL",
+  "ops.webhooks.column.state": "State",
+  "ops.webhooks.column.secret": "Secret",
+  "ops.webhooks.column.createdAt": "Created",
+  "ops.webhooks.column.actions": "Actions",
+  "ops.webhooks.state.active": "Active",
+  "ops.webhooks.state.inactive": "Inactive",
+  "ops.webhooks.secretStored": "Stored, not retrievable",
+  "ops.webhooks.empty": "This form has no webhook endpoint configured.",
+  "ops.webhooks.createFailed": "The endpoint was not created. {message}",
+  "ops.webhooks.listFailed": "The endpoints could not be loaded. {message}",
+  "ops.webhooks.secretTitle": "Copy this secret now",
+  "ops.webhooks.secretOnce":
+    "This is the only time this secret is shown. The server keeps it encrypted and has no way to show it again; if it is lost, rotate to a new one.",
+  "ops.webhooks.secretLabel": "Signing secret for {webhookId}",
+  // The API's create and rotate routes always return a secret, so this is the shape of
+  // a broken contract rather than a variant. It says so plainly and names the recovery,
+  // because an empty box under "Copy this secret now" tells an operator nothing.
+  "ops.webhooks.secretMissing":
+    "The server returned no secret for this endpoint. Rotate the secret to get one.",
+  "ops.webhooks.secretDismiss": "I have copied it",
+  "ops.webhooks.rotate": "Rotate secret",
+  "ops.webhooks.rotateTitle": "Rotate this endpoint's secret?",
+  "ops.webhooks.rotateBody":
+    "The next delivery is signed with the new secret, so a consumer still verifying with the old one starts rejecting. The new secret is shown once.",
+  "ops.webhooks.confirmRotate": "Rotate it",
+  "ops.webhooks.rotateFailed": "The secret was not rotated. {message}",
+  "ops.webhooks.deactivate": "Deactivate",
+  "ops.webhooks.deactivateTitle": "Stop delivering to this endpoint?",
+  "ops.webhooks.deactivateBody":
+    "New submissions stop fanning out to it. Its history stays readable, and deliveries already queued keep their own retry state.",
+  "ops.webhooks.confirmDeactivate": "Deactivate it",
+  "ops.webhooks.deactivateFailed": "The endpoint was not deactivated. {message}",
+  "ops.webhooks.reactivate": "Reactivate",
+  "ops.webhooks.reactivateFailed": "The endpoint was not reactivated. {message}",
+  "ops.webhooks.retarget": "Change URL",
+  "ops.webhooks.retargetTitle": "Point this endpoint somewhere else",
+  "ops.webhooks.retargetBody":
+    "Deliveries already queued for this endpoint go to the new URL on their next attempt, including redelivered ones.",
+  "ops.webhooks.confirmRetarget": "Save the URL",
+  "ops.webhooks.retargetFailed": "The URL was not changed. {message}",
+
+  // The delivery dashboard.
+  "ops.deliveries.heading": "Recent deliveries",
+  "ops.deliveries.intro":
+    "One row per event and endpoint. Each row records the most recent attempt made for it.",
+  "ops.deliveries.table": "Recent webhook deliveries",
+  "ops.deliveries.column.event": "Event",
+  "ops.deliveries.column.target": "Endpoint",
+  "ops.deliveries.column.status": "Status",
+  "ops.deliveries.column.attempts": "Failed attempts",
+  "ops.deliveries.column.latency": "Latency",
+  "ops.deliveries.column.lastAttempt": "Last attempt",
+  "ops.deliveries.status.delivered": "Delivered",
+  "ops.deliveries.status.deadLettered": "Dead-lettered",
+  "ops.deliveries.status.pending": "Pending",
+  "ops.deliveries.attemptsHint":
+    "Attempts that failed. A delivery that succeeded first time shows zero.",
+  "ops.deliveries.latency": "{ms} ms",
+  "ops.deliveries.noAttempt": "No attempt has been made yet.",
+  "ops.deliveries.showDetail": "Show request and response for {event}",
+  "ops.deliveries.hideDetail": "Hide request and response for {event}",
+  "ops.deliveries.requestHeaders": "Request headers",
+  "ops.deliveries.signatureMasked":
+    "The signature is masked before it is stored, so this record never held the HMAC.",
+  "ops.deliveries.responseCode": "Response code",
+  // "stored prefix" rather than a character count: the API keeps a bounded prefix and
+  // this app is not told how long the bound is, so naming a number here would be a
+  // claim about a constant in another package that nothing keeps in step.
+  "ops.deliveries.responseBody": "Response body (stored prefix)",
+  "ops.deliveries.noResponse": "No response arrived: {error}",
+  "ops.deliveries.emptyBody": "The response body was empty.",
+  "ops.deliveries.lastError": "Last error",
+  "ops.deliveries.empty": "Nothing has been delivered for this form yet.",
+  "ops.deliveries.loadFailed": "The deliveries could not be loaded. {message}",
+
+  // The dead-letter queue.
+  "ops.deadLetters.heading": "Dead-letter queue",
+  "ops.deadLetters.intro":
+    "Deliveries that exhausted their retries. Fix the target, then redeliver: a redelivered item is queued for the next delivery pass.",
+  "ops.deadLetters.table": "Dead-lettered deliveries",
+  "ops.deadLetters.column.event": "Event",
+  "ops.deadLetters.column.target": "Endpoint",
+  "ops.deadLetters.column.attempts": "Attempts",
+  "ops.deadLetters.column.lastError": "Last error",
+  "ops.deadLetters.column.deadLetteredAt": "Dead-lettered",
+  "ops.deadLetters.empty": "The dead-letter queue is empty.",
+  "ops.deadLetters.total.one": "1 dead-lettered delivery",
+  "ops.deadLetters.total.other": "{count} dead-lettered deliveries",
+  "ops.deadLetters.redeliver": "Redeliver",
+  "ops.deadLetters.redeliverOne": "Redeliver {event} to {target}",
+  "ops.deadLetters.redeliverAll": "Redeliver all",
+  "ops.deadLetters.redeliverAllTitle": "Redeliver every dead-lettered delivery?",
+  "ops.deadLetters.redeliverAllBody":
+    "Each one is reset to due now and re-attempted on the next delivery pass. A target that is still broken dead-letters again.",
+  "ops.deadLetters.confirmRedeliverAll": "Redeliver all of them",
+  "ops.deadLetters.queued.one": "1 delivery is queued for the next pass.",
+  "ops.deadLetters.queued.other": "{count} deliveries are queued for the next pass.",
+  "ops.deadLetters.redeliverFailed": "Nothing was redelivered. {message}",
+  "ops.deadLetters.redeliverPartial":
+    "{queued} queued, {failed} refused. The refused ones are still in the queue below.",
+  "ops.deadLetters.loadFailed": "The dead-letter queue could not be loaded. {message}",
+
+  // Error codes raised by the 023/024/025 routes.
+  "ops.error.invalidQuery": "One of those filters is not a value the server accepts.",
+  "ops.error.invalidSessionId": "That is not a valid session id.",
+  "ops.error.responseNotFound": "There is no such response for this form. It may have been erased.",
+  "ops.error.sessionNotFound": "There is no such session.",
+  "ops.error.submissionNotFound": "That session has not been submitted.",
+  "ops.error.webhookNotFound": "That endpoint no longer exists for this form.",
+  "ops.error.webhookUrlRejected":
+    "That URL was refused: it must be an absolute https URL that does not point at a private address.",
+  "ops.error.deliveryNotFound": "That delivery no longer exists.",
+  // A server action that REJECTED rather than returning a failure state - a transport
+  // error, or a body that would not parse. Deliberately says nothing about the thrown
+  // value: it can carry a URL or a body fragment, and neither belongs on screen.
+  "ops.error.unexpected":
+    "That did not reach the server, so nothing changed. Check the connection and try again.",
+  "ops.error.deliverySessionErased":
+    "That delivery carries a response that has been erased, so it will not be re-sent.",
+  // Reachable only from a forged or malformed action payload: the dialog offers a
+  // closed set of reasons and the action re-checks it, because the value is written
+  // onto a tombstone that outlives the data it describes. It is in the catalog anyway
+  // (ADR-27) - a defensive branch that renders is still a rendered string.
+  "ops.error.invalidErasureReason":
+    "That erasure reason is not one this build records, so nothing was erased.",
 } as const;
 
 export type MessageKey = keyof typeof messages;

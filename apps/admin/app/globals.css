@@ -835,7 +835,13 @@ th,
    because its cells hold a badge and a revoke button and a kit table cell is
    text (ADR-22 forbids wrapping the vendored component to change that). It
    scrolls inside its own box so a wide table never scrolls the page. */
-.qcms-links-table {
+/* `qcms-ops-table` is 035's operations tables (responses, erasures, webhook
+   endpoints, deliveries, dead letters). Same rule as the links table below and
+   deliberately the same selector list rather than a copy: every one of them holds
+   badges and buttons in its cells, and every one of them has to scroll inside its
+   own box for the same Reflow reason. */
+.qcms-links-table,
+.qcms-ops-table {
   display: block;
   /* A containing block for its own absolutely-positioned descendants. The revoke
      column's header is a visually-hidden span, and `.qcms-visually-hidden` is
@@ -850,7 +856,9 @@ th,
   font-size: 0.875rem;
 }
 .qcms-links-table th,
-.qcms-links-table td {
+.qcms-links-table td,
+.qcms-ops-table th,
+.qcms-ops-table td {
   padding-inline: 0.5rem;
   padding-block: 0.5rem;
   text-align: start;
@@ -858,12 +866,127 @@ th,
   border-block-end: 1px solid var(--color-border);
   white-space: nowrap;
 }
-.qcms-links-table thead th {
+.qcms-links-table thead th,
+.qcms-ops-table thead th {
   color: var(--color-text-muted);
   font-weight: 600;
 }
-.qcms-links-table tbody th {
+.qcms-links-table tbody th,
+.qcms-ops-table tbody th {
   font-weight: 400;
+}
+
+/* The operations badges (task 035), same family as the link and question tags: the
+   word is always rendered and these tints are the secondary signal only, so the
+   table still reads in high contrast and to a colour-blind operator. */
+.qcms-tag--delivery-delivered,
+.qcms-tag--hook-active {
+  background-color: var(--color-success-subtle);
+  color: var(--color-success-fg);
+  border-color: var(--color-success-subtle);
+}
+.qcms-tag--delivery-pending,
+.qcms-tag--flag-clean {
+  background-color: var(--color-info-subtle);
+  color: var(--color-info-fg);
+  border-color: var(--color-info-subtle);
+}
+.qcms-tag--delivery-deadLettered {
+  background-color: var(--color-danger-subtle);
+  color: var(--color-danger-fg);
+  border-color: var(--color-danger-subtle);
+}
+.qcms-tag--flag-flagged,
+.qcms-tag--hook-inactive {
+  background-color: var(--color-warning-subtle);
+  color: var(--color-warning-fg);
+  border-color: var(--color-warning-subtle);
+}
+
+/* A heading that carries a machine identifier (a session id in the response detail).
+   `ses_…` has no break opportunity, so at 390px it pushed the DOCUMENT to 393px -
+   WCAG 2.2 AA SC 1.4.10 Reflow, caught by the capture guard and not by axe. Headings
+   are the one place a long token is easy to miss, because the id reads as prose. */
+.qcms-ops-title {
+  overflow-wrap: anywhere;
+}
+
+/* A label/value grid for the response summary, the tombstone and the delivery's
+   request headers. Two columns on a wide screen, stacked on a phone: the values
+   here include content hashes and URLs, which have no break opportunities of their
+   own, so a fixed two-column grid at 390px is a Reflow failure waiting to happen. */
+.qcms-ops-summary {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.25rem 1rem;
+  margin: 0;
+  font-size: 0.875rem;
+}
+.qcms-ops-summary dt {
+  color: var(--color-text-muted);
+}
+.qcms-ops-summary dd {
+  margin: 0;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+  min-inline-size: 0;
+}
+@media (min-width: 40rem) {
+  .qcms-ops-summary {
+    grid-template-columns: minmax(8rem, 14rem) minmax(0, 1fr);
+  }
+}
+
+/* The answer ledger: an ordered list whose chronology is in the text of each item,
+   never in the layout (the wireframe's a11y note). The marker is suppressed because
+   each item already carries its own timestamp; a number beside a time reads as a
+   second, contradictory ordering. */
+.qcms-ledger {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+}
+.qcms-ledger li {
+  overflow-wrap: anywhere;
+}
+.qcms-ledger-when {
+  font-family: var(--font-mono);
+  color: var(--color-text-muted);
+}
+.qcms-ledger-value {
+  font-weight: 600;
+}
+
+/* What remains after an erasure. Bordered and tinted so the state is visible at a
+   glance, and captioned in words above it so the tint is never the only signal. */
+.qcms-tombstone {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-background-muted);
+  padding: 1rem;
+}
+
+/* A consumer's response body. Pre-formatted (it is bytes off the wire, and its own
+   line breaks are information) but wrapped and scroll-capped, because a rejecting
+   consumer that returns an HTML error page must not stretch the page or the row. */
+.qcms-snippet {
+  margin: 0;
+  max-block-size: 12rem;
+  overflow: auto;
+  padding: 0.5rem;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-background-muted);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 /* The side-by-side definition diff. Every row carries a textual marker and a

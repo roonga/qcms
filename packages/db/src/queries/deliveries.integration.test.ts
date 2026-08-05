@@ -9,7 +9,7 @@
  */
 
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
-import { and, eq } from "drizzle-orm";
+import { and, eq, notInArray } from "drizzle-orm";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -25,10 +25,12 @@ import {
   insertDelivery,
   insertWebhook,
   listDeadLetterDeliveries,
+  listRecentDeliveries,
   markDeliveryDelivered,
   OUTBOX_MAX_ATTEMPTS,
   recordDeliveryFailure,
   resetDeliveryForRedelivery,
+  type DeliveryAttemptRecord,
   type DeliveryRow,
 } from "./index.js";
 
@@ -180,6 +182,212 @@ describe("webhook-delivery helpers", () => {
   });
 });
 
+// --- the last-attempt record and the form-scoped list (task 035) -------------
+
+/**
+ * A stand-in for what the deliverer writes after one attempt.
+ *
+ * The header map arrives here already masked, because masking happens at the
+ * deliverer, before this layer ever sees it - so a record built by hand carries a
+ * mask too, and no test in this file can accidentally assert that the query layer
+ * is what keeps an HMAC out of the column.
+ */
+function attemptRecord(overrides: Partial<DeliveryAttemptRecord> = {}): DeliveryAttemptRecord {
+  return {
+    lastAttemptAt: new Date("2026-07-20T00:00:05.000Z"),
+    lastStatus: 200,
+    lastLatencyMs: 42,
+    lastRequestHeaders: {
+      "x-qcms-event": "response.submitted",
+      "x-qcms-signature": "v1=<masked>",
+    },
+    lastResponseSnippet: "ok",
+    ...overrides,
+  };
+}
+
+/**
+ * Seed one form with `count` webhooks fanned out from a single event, and stamp
+ * each delivery's `created_at` a second apart.
+ *
+ * The stamp is not cosmetic: `listRecentDeliveries` orders by `created_at`, and
+ * rows inserted back to back can land close enough together that "newest first"
+ * would be asserting on insert timing rather than on the query. Returned ids are
+ * oldest-first, so the expected list order is the reverse.
+ */
+async function seedFormWithDeliveries(
+  count: number,
+): Promise<{ formId: FormId; deliveryIds: string[] }> {
+  seq += 1;
+  const formId = FormId.parse(`frm_list_${seq}`);
+  await createForm(testDb.db, { formId, slug: `list-${seq}`, defaultLocale: "en" });
+  const event = await enqueue(testDb.db, {
+    eventType: "response.submitted",
+    payload: { formId },
+  });
+  const deliveryIds: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const webhookId = `whk_list_${seq}_${i}`;
+    await insertWebhook(testDb.db, {
+      webhookId,
+      formId,
+      url: `https://consumer.example.com/list-${seq}-${i}`,
+      secretEncrypted: "v1.opaque",
+      active: true,
+    });
+    await insertDelivery(testDb.db, { outboxId: event.id, webhookId });
+    const id = await deliveryIdFor(event.id, webhookId);
+    await testDb.db
+      .update(webhookDeliveries)
+      .set({ createdAt: new Date(Date.UTC(2026, 6, 20, 0, 0, i)) })
+      .where(eq(webhookDeliveries.id, id));
+    deliveryIds.push(id);
+  }
+  return { formId, deliveryIds };
+}
+
+describe("last-attempt record + listRecentDeliveries (task 035)", () => {
+  it("markDeliveryDelivered persists the attempt record and leaves attempts at 0", async () => {
+    const { outboxId, webhookId } = await seedEventWithWebhook();
+    await insertDelivery(testDb.db, { outboxId, webhookId });
+    const deliveryId = await deliveryIdFor(outboxId, webhookId);
+
+    const attempt = attemptRecord();
+    await markDeliveryDelivered(testDb.db, deliveryId, new Date(), attempt);
+
+    const row = await readDelivery(deliveryId);
+    expect(row?.lastAttemptAt?.toISOString()).toBe(attempt.lastAttemptAt.toISOString());
+    expect(row?.lastStatus).toBe(200);
+    expect(row?.lastLatencyMs).toBe(42);
+    expect(row?.lastRequestHeaders).toEqual(attempt.lastRequestHeaders);
+    expect(row?.lastResponseSnippet).toBe("ok");
+    // `attempts` counts FAILED attempts - it is the retry schedule's input - so a
+    // first-time success deliberately stays at 0 even though an attempt was made.
+    expect(row?.attempts).toBe(0);
+  });
+
+  it("recordDeliveryFailure persists the attempt record alongside the error", async () => {
+    const { outboxId, webhookId } = await seedEventWithWebhook();
+    await insertDelivery(testDb.db, { outboxId, webhookId });
+    const deliveryId = await deliveryIdFor(outboxId, webhookId);
+
+    const attempt = attemptRecord({
+      lastStatus: 500,
+      lastLatencyMs: 7,
+      lastResponseSnippet: "upstream unavailable",
+    });
+    const row = await recordDeliveryFailure(
+      testDb.db,
+      deliveryId,
+      "http_500",
+      new Date("2026-07-20T00:00:00.000Z"),
+      attempt,
+    );
+
+    expect(row?.attempts).toBe(1);
+    expect(row?.lastError).toBe("http_500");
+    expect(row?.lastStatus).toBe(500);
+    expect(row?.lastLatencyMs).toBe(7);
+    expect(row?.lastResponseSnippet).toBe("upstream unavailable");
+    expect(row?.lastRequestHeaders).toEqual(attempt.lastRequestHeaders);
+    expect(row?.lastAttemptAt?.toISOString()).toBe(attempt.lastAttemptAt.toISOString());
+  });
+
+  it("an attempt record is optional: omitting it leaves the last_* columns untouched", async () => {
+    const { outboxId, webhookId } = await seedEventWithWebhook();
+    await insertDelivery(testDb.db, { outboxId, webhookId });
+    const deliveryId = await deliveryIdFor(outboxId, webhookId);
+
+    await recordDeliveryFailure(testDb.db, deliveryId, "http_500", new Date(), attemptRecord());
+    // A caller that has no attempt to describe (an SSRF rejection, say) must not
+    // wipe the record of the attempt that did happen.
+    await recordDeliveryFailure(testDb.db, deliveryId, "url_rejected", new Date());
+
+    const row = await readDelivery(deliveryId);
+    expect(row?.lastError).toBe("url_rejected");
+    expect(row?.lastStatus).toBe(200);
+    expect(row?.lastRequestHeaders).not.toBeNull();
+  });
+
+  it("resetDeliveryForRedelivery clears the whole attempt record, not just lastError", async () => {
+    const { outboxId, webhookId } = await seedEventWithWebhook();
+    await insertDelivery(testDb.db, { outboxId, webhookId });
+    const deliveryId = await deliveryIdFor(outboxId, webhookId);
+    await recordDeliveryFailure(
+      testDb.db,
+      deliveryId,
+      "http_500",
+      new Date(),
+      attemptRecord({ lastStatus: 500 }),
+    );
+    expect((await readDelivery(deliveryId))?.lastStatus).toBe(500);
+
+    const reset = await resetDeliveryForRedelivery(testDb.db, deliveryId);
+
+    // No contradictory statements on one screen: a reset row has made no attempt
+    // since, so every field describing "the last attempt" reads empty, not stale.
+    expect(reset?.lastError).toBeNull();
+    expect(reset?.lastAttemptAt).toBeNull();
+    expect(reset?.lastStatus).toBeNull();
+    expect(reset?.lastLatencyMs).toBeNull();
+    expect(reset?.lastRequestHeaders).toBeNull();
+    expect(reset?.lastResponseSnippet).toBeNull();
+  });
+
+  it("listRecentDeliveries is form-scoped and newest first, and honours the limit", async () => {
+    const a = await seedFormWithDeliveries(3);
+    const b = await seedFormWithDeliveries(1);
+    const newestFirst = [...a.deliveryIds].reverse();
+
+    const all = await listRecentDeliveries(testDb.db, a.formId, 10);
+    expect(all.map((r) => r.deliveryId)).toEqual(newestFirst);
+    // Form B's delivery is invisible from form A, and vice versa: the list is
+    // scoped through the webhook's form, not filtered by the caller.
+    expect(all.some((r) => b.deliveryIds.includes(r.deliveryId))).toBe(false);
+    expect((await listRecentDeliveries(testDb.db, b.formId, 10)).map((r) => r.deliveryId)).toEqual(
+      b.deliveryIds,
+    );
+
+    const limited = await listRecentDeliveries(testDb.db, a.formId, 2);
+    expect(limited.map((r) => r.deliveryId)).toEqual(newestFirst.slice(0, 2));
+
+    // The joined columns an operator reads the row by are present.
+    expect(all[0]?.eventType).toBe("response.submitted");
+    expect(all[0]?.url).toContain("https://consumer.example.com/list-");
+  });
+
+  it("listRecentDeliveries carries the attempt record and the lifecycle timestamps", async () => {
+    const { formId, deliveryIds } = await seedFormWithDeliveries(2);
+    const [pendingId, failedId] = deliveryIds as [string, string];
+
+    const attempt = attemptRecord({ lastStatus: 502, lastResponseSnippet: "bad gateway" });
+    await recordDeliveryFailure(testDb.db, failedId, "http_502", new Date(), attempt);
+
+    const rows = await listRecentDeliveries(testDb.db, formId, 10);
+    const failed = rows.find((r) => r.deliveryId === failedId);
+    expect(failed?.lastStatus).toBe(502);
+    expect(failed?.lastLatencyMs).toBe(42);
+    expect(failed?.lastResponseSnippet).toBe("bad gateway");
+    expect(failed?.lastRequestHeaders).toEqual(attempt.lastRequestHeaders);
+    expect(failed?.lastAttemptAt?.toISOString()).toBe(attempt.lastAttemptAt.toISOString());
+    expect(failed?.lastError).toBe("http_502");
+    expect(failed?.deliveredAt).toBeNull();
+
+    // An untouched delivery reads as "nothing attempted yet" on every field.
+    const pending = rows.find((r) => r.deliveryId === pendingId);
+    expect(pending?.deliveredAt).toBeNull();
+    expect(pending?.deadLetteredAt).toBeNull();
+    expect(pending?.lastAttemptAt).toBeNull();
+    expect(pending?.lastStatus).toBeNull();
+    expect(pending?.lastRequestHeaders).toBeNull();
+
+    // A delivered row carries its success timestamp into the same view.
+    await markDeliveryDelivered(testDb.db, pendingId, new Date(), attemptRecord());
+    const after = await listRecentDeliveries(testDb.db, formId, 10);
+    expect(after.find((r) => r.deliveryId === pendingId)?.deliveredAt).toBeInstanceOf(Date);
+  });
+});
+
 // Genuine concurrency needs a real pool: the single harness client cannot run
 // two transactions with overlapping open locks.
 describe("delivery claim concurrency (live, pooled connections)", () => {
@@ -219,6 +427,16 @@ describe("delivery claim concurrency (live, pooled connections)", () => {
     }
     const idSet = new Set(ids);
     const due = new Date(Date.now() + 1000);
+
+    // Park every other still-due delivery this file left behind. The claim limit
+    // below is per claimer and deliberately smaller than the two claimers' combined
+    // budget, so any unrelated due row eats into it and the pair stops seeing all
+    // six - which reads as a SKIP LOCKED failure but is only fixture bleed. Pinning
+    // the due set to exactly these six makes the assertion about the lock again.
+    await testDb.db
+      .update(webhookDeliveries)
+      .set({ nextAttemptAt: new Date(Date.UTC(2099, 0, 1)) })
+      .where(notInArray(webhookDeliveries.id, ids));
 
     // Barrier: both transactions hold their claimed locks until both have claimed,
     // so SKIP LOCKED must hand them disjoint delivery rows.
