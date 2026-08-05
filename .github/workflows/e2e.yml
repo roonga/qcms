@@ -14,9 +14,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # The job id IS the check context, deliberately left to name itself: ci.yml
-  # already publishes an `e2e` check (the API scenario suite), and a second
-  # context differing from it only by case is unreadable in a check list.
+  # The job id IS the check context, deliberately left to name itself. ci.yml
+  # publishes the other two end-to-end checks (`api-e2e`, `portal-e2e`), so all
+  # three read as one set named by scope, and a red check says which layer broke
+  # before anyone opens the run.
   full-stack-e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 20
