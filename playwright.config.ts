@@ -181,11 +181,10 @@ export default defineConfig({
       // so a phone project here would test a shape nobody uses.
       name: "admin-chromium",
       testDir: "./apps/admin/e2e",
-      // The Compose flow owns its generated credentials and runs through
-      // playwright.compose.config.ts. It must not be collected by the regular
-      // browser suite, whose global setup intentionally uses a separate
-      // Testcontainers-backed topology.
-      testIgnore: "**/compose-conditional-form.pw.ts",
+      // The full-stack flow lives in `apps/e2e/` and runs through
+      // playwright.compose.config.ts, so no `testIgnore` is needed here: it owns
+      // its own generated credentials and a Compose topology this suite's global
+      // setup deliberately does not use.
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 1280, height: 800 },

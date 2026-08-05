@@ -1,4 +1,4 @@
-name: Compose E2E
+name: Full-stack E2E
 
 on:
   push:
@@ -17,7 +17,7 @@ jobs:
   # The job id IS the check context, deliberately left to name itself: ci.yml
   # already publishes an `e2e` check (the API scenario suite), and a second
   # context differing from it only by case is unreadable in a check list.
-  compose-e2e:
+  full-stack-e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -48,15 +48,15 @@ jobs:
       # mirrored yet: accepted for now because a base-image pull is a build-time
       # dependency this job already has (it builds the images), while the Postgres
       # pull was a run-time one the mirror already covers everywhere else.
-      - name: Start Compose E2E stack
+      - name: Start full-stack E2E stack
         env:
           QCMS_POSTGRES_IMAGE: ${{ env.QCMS_TEST_POSTGRES_IMAGE }}
         run: pnpm docker:up
 
-      - name: Run Compose E2E browser flow
+      - name: Run full-stack E2E browser flow
         run: pnpm test:e2e
 
-      - name: Stop Compose E2E stack
+      - name: Stop full-stack E2E stack
         if: ${{ always() }}
         env:
           QCMS_POSTGRES_IMAGE: ${{ env.QCMS_TEST_POSTGRES_IMAGE }}
@@ -66,9 +66,9 @@ jobs:
         if: ${{ always() }}
         uses: actions/upload-artifact@v7
         with:
-          name: compose-e2e-report
+          name: full-stack-e2e-report
           path: |
-            playwright-report/compose-e2e/
-            test-results/compose-e2e/
+            playwright-report/full-stack-e2e/
+            test-results/full-stack-e2e/
           if-no-files-found: ignore
           retention-days: 7

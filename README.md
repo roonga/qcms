@@ -95,7 +95,7 @@ Use `pnpm test:e2e:headed` to watch the browser while that stack remains running
 For a self-contained run that starts the stack, executes the same suite, and
 cleans up automatically, use `pnpm up:e2e`; add `:headed` to watch that run.
 
-The **Compose E2E** GitHub Actions workflow can also be run manually from the
+The **Full-stack E2E** GitHub Actions workflow can also be run manually from the
 Actions tab: choose the workflow, select **Run workflow**, and choose the branch.
 From a terminal with GitHub CLI authentication, run:
 
@@ -104,7 +104,7 @@ gh workflow run e2e.yml --ref <branch>
 ```
 
 Each run keeps the Compose startup, browser-flow, and teardown logs in separate
-steps and uploads the Playwright HTML and JUnit report as `compose-e2e-report`.
+steps and uploads the Playwright HTML and JUnit report as `full-stack-e2e-report`.
 
 ## Documentation
 

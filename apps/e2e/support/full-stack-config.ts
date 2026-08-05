@@ -1,7 +1,7 @@
-import { PORT_SEAT, harnessPort } from "../../../portal/e2e/support/port-seat.js";
+import { PORT_SEAT, harnessPort } from "../../portal/e2e/support/port-seat.js";
 
 /**
- * Where the Compose smoke stack is reachable from the host (task 036).
+ * Where the full-stack smoke stack is reachable from the host (task 036).
  *
  * `scripts/compose-e2e.mjs` owns that stack: it derives this seat's harness ports
  * from `scripts/ports.mjs`, publishes them, and exports `QCMS_PORTAL_BASE_URL` and
@@ -17,11 +17,11 @@ import { PORT_SEAT, harnessPort } from "../../../portal/e2e/support/port-seat.js
  * derivation, `docs/PORTS.md`).
  */
 
-/** The respondent portal published by the Compose smoke stack. */
-export const COMPOSE_PORTAL_URL =
+/** The respondent portal published by the full-stack smoke stack. */
+export const FULL_STACK_PORTAL_URL =
   process.env.QCMS_PORTAL_BASE_URL ??
   `http://localhost:${String(harnessPort("portal", PORT_SEAT))}`;
 
-/** The authoring admin published by the Compose smoke stack. */
-export const COMPOSE_ADMIN_URL =
+/** The authoring admin published by the full-stack smoke stack. */
+export const FULL_STACK_ADMIN_URL =
   process.env.QCMS_ADMIN_BASE_URL ?? `http://localhost:${String(harnessPort("admin", PORT_SEAT))}`;

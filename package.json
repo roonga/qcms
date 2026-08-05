@@ -52,6 +52,7 @@
     "@playwright/test": "^1.62.0",
     "@vitest/coverage-v8": "4.1.10",
     "chrome-launcher": "^1.2.1",
+    "otplib": "^13.4.1",
     "eslint": "^10.8.0",
     "eslint-plugin-sonarjs": "^4.2.0",
     "jscpd": "^5.0.14",
