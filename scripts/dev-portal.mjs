@@ -369,6 +369,11 @@ async function startPortal(internalToken) {
   startChild("portal", "pnpm", ["--filter", "qcms-portal", "dev", "--port", PORTAL_PORT], {
     QCMS_API_BASE_URL: API_BASE_URL,
     QCMS_INTERNAL_TOKEN: internalToken,
+    // The Start BFF route builds its 303 redirect against the public portal
+    // origin (apps/portal/lib/server/config.ts), and that read is required: with
+    // it unset the respondent's first click 500s instead of opening a session.
+    // The API child above is handed the same value for its own link building.
+    QCMS_PORTAL_BASE_URL: PORTAL_BASE_URL,
     NODE_ENV: "development",
   });
   // next dev compiles routes on first hit, so the entry page is the real
