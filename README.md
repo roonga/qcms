@@ -71,8 +71,10 @@ At the default ports, open the portal at `http://localhost:7000` and the admin a
 the stack is long-running and human-facing, so it takes a seat's stable block and
 cannot run at the same seat as `pnpm dev:portal`. The migration runs once before the
 API starts; it is not performed by application startup, so operators retain control
-of upgrade ordering. For an internet-facing deployment, place TLS ingress in front of
-these two apps only; never publish the API or Postgres ports.
+of upgrade ordering. Both published ports bind to loopback (`QCMS_BIND_ADDRESS`), so
+the stack is not reachable from the network until you say otherwise. For an
+internet-facing deployment, place TLS ingress in front of these two apps only; never
+publish the API or Postgres ports.
 
 To run the browser end-to-end flow in an isolated Compose project:
 
@@ -85,7 +87,8 @@ pnpm docker:down
 `pnpm docker:up` first deletes any previous test containers and volumes, then starts
 a fresh stack on this seat's ephemeral harness ports (`17S00` portal, `17S40` admin,
 where `S` is `QCMS_PORT_SEAT` - see [`docs/PORTS.md`](docs/PORTS.md)) and bootstraps a new
-admin with generated credentials (printed once to the terminal). `pnpm test:e2e`
+admin with generated credentials (printed once to the terminal locally, and on CI
+only as the path of the file the suite reads). `pnpm test:e2e`
 completes required TOTP enrollment and confirms access to the Questions screen.
 Use `pnpm test:e2e:headed` to watch the browser while that stack remains running.
 

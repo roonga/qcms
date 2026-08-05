@@ -119,7 +119,14 @@ function up() {
     ],
     e2eEnvironment,
   );
-  process.stdout.write(`E2E admin: ${credentials.email}\nE2E password: ${credentials.password}\n`);
+  // Printed for a human who wants to sign in to the stack by hand, and suppressed
+  // on CI: the workflow log of a public repository is a public log, and the spec
+  // reads the credentials file rather than this output.
+  if (process.env.CI === undefined || process.env.CI === "")
+    process.stdout.write(
+      `E2E admin: ${credentials.email}\nE2E password: ${credentials.password}\n`,
+    );
+  else process.stdout.write(`E2E admin credentials written to ${credentialsPath}\n`);
 }
 
 function down() {

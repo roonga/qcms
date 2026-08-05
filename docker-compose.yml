@@ -9,6 +9,12 @@ name: qcms
 # portal and admin slots (7000 / 7040) and cannot run alongside `pnpm dev:portal`
 # at the same seat. Move both with QCMS_PORTAL_PORT / QCMS_ADMIN_PORT to run it
 # at another seat.
+#
+# Both publishes name an explicit bind address, and it defaults to loopback. A
+# bare "PORT:3000" makes Docker listen on 0.0.0.0, which puts the authoring admin
+# on every network the host can reach, past any host firewall (Docker's own
+# forwarding rules sit ahead of it). Set QCMS_BIND_ADDRESS=0.0.0.0 only where a
+# separate ingress host has to reach these containers.
 services:
   postgres:
     # Overridable so CI can point at the GHCR mirror the Testcontainers jobs already
@@ -75,7 +81,7 @@ services:
       api:
         condition: service_healthy
     ports:
-      - "${QCMS_PORTAL_PORT:-7000}:3000"
+      - "${QCMS_BIND_ADDRESS:-127.0.0.1}:${QCMS_PORTAL_PORT:-7000}:3000"
     restart: unless-stopped
 
   admin:
@@ -93,7 +99,7 @@ services:
       api:
         condition: service_healthy
     ports:
-      - "${QCMS_ADMIN_PORT:-7040}:3000"
+      - "${QCMS_BIND_ADDRESS:-127.0.0.1}:${QCMS_ADMIN_PORT:-7040}:3000"
     restart: unless-stopped
 
 volumes:
