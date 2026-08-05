@@ -66,11 +66,13 @@ cp .env.compose.example .env  # replace every placeholder secret before use
 docker compose up --build -d
 ```
 
-At the default ports, open the portal at `http://localhost:17000` and the admin
-at `http://localhost:17040`. The migration runs once before the API starts; it is
-not performed by application startup, so operators retain control of upgrade
-ordering. For an internet-facing deployment, place TLS ingress in front of these
-two apps only; never publish the API or Postgres ports.
+At the default ports, open the portal at `http://localhost:7000` and the admin at
+`http://localhost:7040`. Those are seat 0's stable slots ([`docs/PORTS.md`](docs/PORTS.md)):
+the stack is long-running and human-facing, so it takes a seat's stable block and
+cannot run at the same seat as `pnpm dev:portal`. The migration runs once before the
+API starts; it is not performed by application startup, so operators retain control
+of upgrade ordering. For an internet-facing deployment, place TLS ingress in front of
+these two apps only; never publish the API or Postgres ports.
 
 To run the browser end-to-end flow in an isolated Compose project:
 

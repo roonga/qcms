@@ -2,6 +2,13 @@ name: qcms
 
 # The solo topology. TLS and public routing are deliberately outside this file:
 # an operator-provided ingress publishes portal and admin only (ADR-20).
+#
+# The two published ports come from the STABLE 7Sxx block (R8, docs/PORTS.md):
+# this stack is long-running and human-facing, which is what decides the block,
+# not the fact that a test suite can also drive it. It therefore takes seat 0's
+# portal and admin slots (7000 / 7040) and cannot run alongside `pnpm dev:portal`
+# at the same seat. Move both with QCMS_PORTAL_PORT / QCMS_ADMIN_PORT to run it
+# at another seat.
 services:
   postgres:
     image: postgres:16-alpine
@@ -64,7 +71,7 @@ services:
       api:
         condition: service_healthy
     ports:
-      - "${QCMS_PORTAL_PORT:-17000}:3000"
+      - "${QCMS_PORTAL_PORT:-7000}:3000"
     restart: unless-stopped
 
   admin:
@@ -82,7 +89,7 @@ services:
       api:
         condition: service_healthy
     ports:
-      - "${QCMS_ADMIN_PORT:-17040}:3000"
+      - "${QCMS_ADMIN_PORT:-7040}:3000"
     restart: unless-stopped
 
 volumes:

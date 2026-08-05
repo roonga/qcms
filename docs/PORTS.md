@@ -25,11 +25,11 @@ Seat `S`, where `S` is `0`-`9`:
 
 | Port | Service | Block | Notes |
 |---|---|---|---|
-| `7S00` | portal dev server | stable | `pnpm dev:portal`. Published out of the dev container. |
+| `7S00` | portal dev server | stable | `pnpm dev:portal`. Published out of the dev container. The solo Compose stack (`docker-compose.yml`) publishes its portal here too: same audience, same lifetime, so it takes a seat's stable slot rather than a number of its own, and it cannot run at the same seat as `pnpm dev:portal`. |
 | `7S10` | API dev server | stable | `pnpm dev:portal` starts it. Published out of the dev container. |
 | `7S20` | dev Postgres | stable | `docker-compose.dev.yml`, **host-owned**. Deliberately *not* in the container's `appPort`. |
 | `7S30` | artifacts server | stable | `pnpm artifacts`. Published out of the dev container. |
-| `7S40` | admin dev server | stable | **Allocated, not yet published**: there is no `pnpm dev:admin`, and `appPort` is unchanged by this allocation. Start it with `pnpm --filter qcms-admin dev --port 7040`. |
+| `7S40` | admin dev server | stable | **Allocated, not yet published**: there is no `pnpm dev:admin`, and `appPort` is unchanged by this allocation. Start it with `pnpm --filter qcms-admin dev --port 7040`. The solo Compose stack publishes its admin here as well, for the same reason as `7S00`. |
 | `17S00` | portal dev server (harness) | harness | Playwright `webServer`. |
 | `17S10` | composed API (harness) | harness | Bound by the Playwright runner in `globalSetup`. |
 | `17S20` | *(unused, deliberately)* | harness | Mirrors `7S20`. A harness run boots a Testcontainers Postgres on a kernel-assigned port and never wants a fixed one. The slot stays empty so `17S{nn}` maps onto `7S{nn}` without a second table. |
