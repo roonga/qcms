@@ -229,6 +229,7 @@ export function openDeliverer(): {
   pass: (at?: Date) => Promise<void>;
   drive: (passes: number) => Promise<void>;
   deliveryIdsForSession: (sessionId: string) => Promise<string[]>;
+  erasedDeliveries: () => Promise<{ deliveryId: string; sessionId: string }[]>;
   outboxPayloadsForSession: (sessionId: string) => Promise<Record<string, unknown>[]>;
   close: () => Promise<void>;
 } {
@@ -298,6 +299,25 @@ export function openDeliverer(): {
         [sessionId],
       );
       return result.rows.map((row) => row.id);
+    },
+    /**
+     * Every delivery in the database whose event names an **erased** session.
+     *
+     * A test cannot assume there is exactly one. The whole browser suite shares a
+     * database, and more than one spec erases a response on the seeded form (the axe
+     * sweep does it to photograph the tombstone state), so "the erased one" is a set
+     * whose size depends on which specs ran. Computing it is what makes the redelivery
+     * assertions hold in isolation AND inside the full run; hard-coding one cost a
+     * green single-spec run and a red suite.
+     */
+    async erasedDeliveries() {
+      const result = await pool.query<{ id: string; session_id: string }>(
+        `select d.id, t.session_id
+           from webhook_deliveries d
+           join outbox o on o.id = d.outbox_id
+           join erasure_tombstones t on t.session_id = o.payload ->> 'sessionId'`,
+      );
+      return result.rows.map((row) => ({ deliveryId: row.id, sessionId: row.session_id }));
     },
     /**
      * The raw outbox payloads queued for this session.
