@@ -95,8 +95,9 @@ Erasure has one door in the app, and it is on the **response detail** - the scre
 showing the answers that are about to go, so nobody erases from a list of ids. Pressing
 "Erase respondent data" opens a type-to-confirm dialog that states three separate facts
 rather than asking for certainty: what is deleted (every answer and the submission, with
-no undo, no archive and nothing to restore from), what remains (the tombstone below),
-and what is **not** affected (webhook consumers - see "What erasure does NOT cover").
+no undo, no soft delete, and nothing this screen can restore from), what remains (the
+tombstone below), and what erasing cannot reach (a webhook consumer's copy, and an event
+for this session still queued - see "What erasure does NOT cover").
 The destructive button stays disabled until the operator retypes the session id exactly,
 so there is no single-click path to it.
 
