@@ -287,9 +287,7 @@ export async function listDeadLetterDeliveries(
     .from(webhookDeliveries)
     .innerJoin(outbox, eq(webhookDeliveries.outboxId, outbox.id))
     .innerJoin(webhooks, eq(webhookDeliveries.webhookId, webhooks.webhookId))
-    .where(
-      and(isNotNull(webhookDeliveries.deadLetteredAt), isNull(webhookDeliveries.cancelledAt)),
-    )
+    .where(and(isNotNull(webhookDeliveries.deadLetteredAt), isNull(webhookDeliveries.cancelledAt)))
     .orderBy(desc(webhookDeliveries.deadLetteredAt));
   return limit === undefined ? base : base.limit(limit);
 }

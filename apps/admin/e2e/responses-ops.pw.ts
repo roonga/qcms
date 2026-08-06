@@ -237,8 +237,12 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     // one fails here rather than passing on the other two; the behaviour behind each is
     // asserted in test 6 below and in the @qcms/db integration suite.
     await expect(dialog).toContainText("An event already delivered stays delivered");
-    await expect(dialog).toContainText("the consumer's to erase, as an independent data controller");
-    await expect(dialog).toContainText("has not been delivered is cancelled and will never be sent");
+    await expect(dialog).toContainText(
+      "the consumer's to erase, as an independent data controller",
+    );
+    await expect(dialog).toContainText(
+      "has not been delivered is cancelled and will never be sent",
+    );
     await expect(dialog).toContainText("QCMS's own stored copy of the answers");
     await expect(dialog).toContainText("is redacted");
     const confirm = dialog.getByRole("button", { name: "Erase permanently" });

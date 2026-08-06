@@ -157,8 +157,7 @@ function DeliveryRows({
                   event is still waiting to go out. */}
               {row.cancelledAt !== null && (
                 <p className="text-sm text-(--color-text)" data-testid="qcms-delivery-cancelled">
-                  {cancelledReasonText(row.cancelledReason)}{" "}
-                  {t("ops.deliveries.cancelledAt")}:{" "}
+                  {cancelledReasonText(row.cancelledReason)} {t("ops.deliveries.cancelledAt")}:{" "}
                   {formatDateTime(row.cancelledAt, t("ops.common.none"))}
                 </p>
               )}
