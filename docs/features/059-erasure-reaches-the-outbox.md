@@ -32,7 +32,7 @@
 ## Out of scope
 
 - **Deleting outbox rows.** The ADR chose redaction; do not delete. If the executor finds itself writing a `DELETE` against `outbox` or `webhook_deliveries`, it has overshot and must stop and ask.
-- **A retention sweep for delivered outbox rows.** Real, tracked separately as its own issue; not this task.
+- **A retention sweep for delivered outbox rows.** Real, tracked as issue #329; not this task. Its fix reuses this task's redaction mechanism once fan-out is terminal, so it is small after 059 and would have made this task's review harder if folded in.
 - **Crypto-shredding**, considered and rejected in the ADR.
 - **Closing the in-flight-request window.** Documented as a known limit; closing it would mean holding a lock across a network call.
 - **Anything in the admin beyond the two copy surfaces named above.**
