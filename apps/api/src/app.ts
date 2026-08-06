@@ -42,13 +42,28 @@ export interface RouteGroups {
   readonly public?: readonly SliceRegistrar[];
   readonly internal?: readonly SliceRegistrar[];
   readonly admin?: readonly SliceRegistrar[];
+  /**
+   * The admin's identity provider (task 056): better-auth's own endpoint set,
+   * mounted on its documented base path. It rides the **admin** mount flag rather
+   * than a flag of its own - an authoring surface always needs somewhere to sign
+   * in, and a respondent-only process must not carry one - but it is a separate
+   * group because it is the one admin-facing surface that cannot sit behind the
+   * admin-session gate: it is what issues the session in the first place.
+   */
+  readonly auth?: readonly SliceRegistrar[];
 }
 
-/** Mount prefixes per surface (admin isolated under `/admin`, ARCHITECTURE §5.1). */
+/**
+ * Mount prefixes per surface (admin isolated under `/admin`, ARCHITECTURE §5.1).
+ *
+ * `auth` is better-auth's `basePath` default and is matched by the instance's own
+ * `basePath` option, so the library builds the same URLs it is served at.
+ */
 const MOUNT_PREFIX = {
   public: "/",
   internal: "/internal",
   admin: "/admin",
+  auth: "/api/auth",
 } as const;
 
 export interface CreateAppOptions {
@@ -116,6 +131,13 @@ export function createApp(
   mount(flags.public, MOUNT_PREFIX.public, groups.public);
   mount(flags.internal, MOUNT_PREFIX.internal, groups.internal);
   mount(flags.admin, MOUNT_PREFIX.admin, groups.admin);
+  // The identity provider, mounted with (and only with) the admin surface. It is
+  // still behind the SEC-4 internal token, which `mount` installs: these endpoints
+  // are unauthenticated in the *user* sense (no session exists before sign-in), and
+  // the channel gate is what keeps them off any public network. See
+  // `features/auth/route.ts` for why the group is an allowlist and not a bare
+  // catch-all.
+  mount(flags.admin, MOUNT_PREFIX.auth, groups.auth);
 
   return app;
 }

@@ -187,6 +187,9 @@ importers:
       '@qcms/db':
         specifier: workspace:*
         version: link:../../packages/db
+      better-auth:
+        specifier: ^1.6.25
+        version: 1.6.25(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.3)(kysely@0.29.4)(pg@8.22.0))(next@16.2.12(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(pg@8.22.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.10)
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.3)(kysely@0.29.4)(pg@8.22.0)
@@ -215,6 +218,9 @@ importers:
       '@types/pg':
         specifier: ^8.20.3
         version: 8.20.3
+      otplib:
+        specifier: ^13.4.1
+        version: 13.4.1
 
   apps/e2e:
     devDependencies:

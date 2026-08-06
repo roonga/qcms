@@ -14,6 +14,7 @@
  */
 
 import type { RouteGroups } from "./app.js";
+import { registerAdminAuthProxy, registerAdminRecoveryCodes } from "./features/auth/route.js";
 import { registerForms } from "./features/forms/route.js";
 import { registerLinks } from "./features/links/route.js";
 import { registerOutboxOps } from "./features/outbox/route.js";
@@ -33,6 +34,11 @@ import { registerAdminAuth } from "./middleware/admin-auth.js";
  * `registerAdminAuth` MUST be first in `admin`: it installs the admin-session
  * gate every admin route below sits behind (021; 031 swaps the stub for real
  * better-auth verification).
+ *
+ * The `auth` bucket is the admin's identity provider (task 056), mounted on
+ * `/api/auth` with the admin surface but deliberately outside the admin group: it is
+ * what issues the session the admin group's gate then verifies, so it cannot sit
+ * behind that gate. `app.ts` still puts the SEC-4 channel token in front of it.
  */
 export const appGroups: RouteGroups = {
   public: [registerStartSession, registerServeStep, registerSubmit],
@@ -45,5 +51,7 @@ export const appGroups: RouteGroups = {
     registerLinks,
     registerWebhooks,
     registerOutboxOps,
+    registerAdminRecoveryCodes,
   ],
+  auth: [registerAdminAuthProxy],
 };

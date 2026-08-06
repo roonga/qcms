@@ -126,8 +126,8 @@ export interface Config {
   };
   /**
    * Admin-session policy the admin-auth middleware enforces (SEC-1, task 031).
-   * Idle expiry itself is better-auth's business (it maintains `session.expiresAt`
-   * in the shared Postgres); what the API adds is the **absolute** cap, because
+   * Idle expiry is better-auth's own bookkeeping (it maintains
+   * `session.expiresAt`); what the verifier adds is the **absolute** cap, because
    * an idle window alone can be renewed indefinitely by a warm session.
    */
   readonly adminSession: {
@@ -137,6 +137,38 @@ export interface Config {
      * admin API call 401s regardless of activity; the admin must sign in again.
      */
     readonly maxAgeMs: number;
+  };
+  /**
+   * better-auth's own configuration (task 056, ADR-35 as amended 2026-07-31).
+   *
+   * The instance lives in this process now, so these are API env vars. They are
+   * required **iff** the admin surface is mounted (`QCMS_MOUNT` includes `admin`
+   * or `all`): a public-only respondent process has no identity provider and must
+   * not be made to carry its secret.
+   */
+  readonly adminAuth: {
+    /** better-auth signing secret (`QCMS_ADMIN_AUTH_SECRET`, >= 32 chars, SEC-7). */
+    readonly secret: string;
+    /**
+     * The **admin app's public origin** (`QCMS_ADMIN_BASE_URL`), not this API's.
+     * better-auth is reached through the admin's BFF, so the origin its cookies
+     * belong to and the origin it must trust are both the browser-facing admin
+     * one. Configured explicitly rather than inferred from a request header,
+     * which is what the vendor's options reference recommends for a proxied
+     * deployment.
+     */
+    readonly baseUrl: string;
+    /** Idle session window in ms (`QCMS_ADMIN_SESSION_IDLE_MS`, default 1h, SEC-1). */
+    readonly idleMs: number;
+    /**
+     * Whether cookies carry `Secure` (`QCMS_ADMIN_SECURE_COOKIES`). Defaults to
+     * `NODE_ENV === "production"`, which is the rule the admin applied while it
+     * owned the instance. It is a knob rather than only an inference because the
+     * flag has to describe the **browser-facing** origin's scheme, and this
+     * process cannot see it: a container marked production behind a plain-HTTP
+     * ingress needs `false`, and nothing about `NODE_ENV` says so.
+     */
+    readonly secureCookies: boolean;
   };
   readonly readiness: {
     /** `/ready` DB-probe timeout in ms (`QCMS_READY_DB_TIMEOUT_MS`). */
@@ -268,12 +300,18 @@ function parseOptionalString(env: Env, name: string, fallback: string): string {
 /**
  * A required absolute http(s) URL knob (e.g. the portal base URL). Records an
  * issue - by env-var name only, never echoing the value - when absent or not a
- * parseable absolute http/https URL.
+ * parseable absolute http/https URL. `what` names the thing the URL points at, so
+ * the message tells an operator which origin is missing.
  */
-function parseRequiredHttpUrl(env: Env, name: string, issues: string[]): string {
+function parseRequiredHttpUrl(
+  env: Env,
+  name: string,
+  issues: string[],
+  what = "the respondent portal",
+): string {
   const raw = env[name];
   if (raw === undefined || raw.trim() === "") {
-    issues.push(`${name} is required (absolute http(s) URL of the respondent portal)`);
+    issues.push(`${name} is required (absolute http(s) URL of ${what})`);
     return "";
   }
   const value = raw.trim();
@@ -406,6 +444,7 @@ const DEFAULTS = {
   retentionSweepIntervalMs: 60 * 60 * 1000, // 1h
   readyDbTimeoutMs: 2_000,
   adminSessionMaxAgeMs: 12 * 60 * 60 * 1000, // 12h absolute admin session (SEC-1)
+  adminSessionIdleMs: 60 * 60 * 1000, // 1h idle admin session (SEC-1)
   webhookTimeoutMs: 10_000, // 10s per delivery attempt (025)
   webhookBatchSize: 20, // deliveries processed per pass (025)
   bodyLimitBytes: 1_000_000, // 1MB (SEC-9)
@@ -429,6 +468,56 @@ function parseRateClass(
     max: parseInt_(env, `${prefix}_MAX`, fallback.max, 1, issues),
   };
 }
+
+/**
+ * better-auth's configuration (task 056), appended to `issues` rather than thrown
+ * for, so one boot reports every problem at once.
+ *
+ * Exported because the first-run bootstrap CLI needs exactly this slice and nothing
+ * else: making an operator supply link keys, session keys and an app encryption key
+ * in order to create the very first account would be a config wall around a single
+ * insert, and none of those values is read on that path.
+ */
+export function parseAdminAuth(env: Env, issues: string[]): Config["adminAuth"] {
+  return {
+    secret: parseRequiredString(env, "QCMS_ADMIN_AUTH_SECRET", MIN_SECRET_LENGTH, issues),
+    baseUrl: parseRequiredHttpUrl(env, "QCMS_ADMIN_BASE_URL", issues, "the authoring admin app"),
+    idleMs: parseInt_(env, "QCMS_ADMIN_SESSION_IDLE_MS", DEFAULTS.adminSessionIdleMs, 1_000, issues),
+    secureCookies: parseBool(
+      env,
+      "QCMS_ADMIN_SECURE_COOKIES",
+      env.NODE_ENV === "production",
+      issues,
+    ),
+  };
+}
+
+/**
+ * The admin-auth configuration and the database URL, validated on their own and
+ * thrown for. The bootstrap CLI's whole configuration surface.
+ */
+export function loadAdminAuthConfig(env: Env): {
+  readonly databaseUrl: string;
+  readonly adminAuth: Config["adminAuth"];
+} {
+  const issues: string[] = [];
+  const databaseUrl = parseRequiredString(env, "DATABASE_URL", 1, issues);
+  const adminAuth = parseAdminAuth(env, issues);
+  if (issues.length > 0) throw new ConfigError(issues);
+  return { databaseUrl, adminAuth };
+}
+
+/**
+ * Inert admin-auth values for a process that does not mount the admin surface. No
+ * better-auth instance is built there (`createApp` skips the group entirely), so
+ * nothing ever reads these; they exist so `Config` stays a total record.
+ */
+const UNMOUNTED_ADMIN_AUTH: Config["adminAuth"] = {
+  secret: "",
+  baseUrl: "",
+  idleMs: 0,
+  secureCookies: false,
+};
 
 /**
  * Validate an environment record into a {@link Config}, failing fast with a
@@ -527,6 +616,8 @@ export function loadConfig(env: Env): Config {
         issues,
       ),
     },
+    // Required only where the identity provider is mounted (task 056).
+    adminAuth: mount.admin ? parseAdminAuth(env, issues) : UNMOUNTED_ADMIN_AUTH,
     readiness: {
       dbTimeoutMs: parseInt_(env, "QCMS_READY_DB_TIMEOUT_MS", DEFAULTS.readyDbTimeoutMs, 1, issues),
     },
