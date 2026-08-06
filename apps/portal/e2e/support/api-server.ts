@@ -36,10 +36,7 @@ import {
 } from "../../../api/e2e/support/index.js";
 import { createJsonLogger } from "../../../api/src/logger.js";
 
-import {
-  ADMIN_BASE_URL,
-  FIXED_AUTH_SECRET,
-} from "../../../admin/e2e/support/harness-config.js";
+import { ADMIN_BASE_URL, FIXED_AUTH_SECRET } from "../../../admin/e2e/support/harness-config.js";
 
 import {
   API_PORT,

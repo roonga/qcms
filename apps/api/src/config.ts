@@ -482,7 +482,13 @@ export function parseAdminAuth(env: Env, issues: string[]): Config["adminAuth"] 
   return {
     secret: parseRequiredString(env, "QCMS_ADMIN_AUTH_SECRET", MIN_SECRET_LENGTH, issues),
     baseUrl: parseRequiredHttpUrl(env, "QCMS_ADMIN_BASE_URL", issues, "the authoring admin app"),
-    idleMs: parseInt_(env, "QCMS_ADMIN_SESSION_IDLE_MS", DEFAULTS.adminSessionIdleMs, 1_000, issues),
+    idleMs: parseInt_(
+      env,
+      "QCMS_ADMIN_SESSION_IDLE_MS",
+      DEFAULTS.adminSessionIdleMs,
+      1_000,
+      issues,
+    ),
     secureCookies: parseBool(
       env,
       "QCMS_ADMIN_SECURE_COOKIES",
