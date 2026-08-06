@@ -3,6 +3,13 @@ name: CI
 on:
   push:
   pull_request:
+  # Lets a check be requested on demand for a specific ref. Needed when webhook
+  # delivery is throttled and push/pull_request stop creating runs at all, which
+  # is not hypothetical: during the 2026-08-06 Actions outage main took two merges
+  # with no checks whatsoever, and there was no way to ask for one. `e2e.yml` has
+  # carried this since it was written; CI is the workflow that produces three of
+  # the four contexts `protect-main` requires, so it is the one that most needs it.
+  workflow_dispatch:
 
 jobs:
   verify:
