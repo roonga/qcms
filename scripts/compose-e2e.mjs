@@ -31,7 +31,7 @@ import { randomBytes } from "node:crypto";
 import { existsSync, unlinkSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { publishedPortHost, publishedPortOrigin } from "./docker-host.mjs";
 import { assertPortSeatChosen, composeProjectName, harnessPort } from "./ports.mjs";
@@ -64,37 +64,79 @@ const adminPort = harnessPort("admin");
 const publishHost = publishedPortHost();
 
 /**
- * The host interface Compose publishes on, which has to be one `publishHost` reaches.
+ * Everything that has to move when the stack is addressed by something other than
+ * `localhost`, as a pure function of the resolved host.
  *
- * This is the half of #316 that the URL alone does not fix. `docker-compose.yml`
- * publishes to `${QCMS_BIND_ADDRESS:-127.0.0.1}` deliberately: a bare `PORT:3000`
- * would put the authoring admin on every network the host can reach, past the host
- * firewall, because Docker's forwarding rules sit ahead of it. But a listener on the
- * host's loopback is unreachable from a sibling container whatever address it dials,
- * so resolving the gateway and leaving the bind alone would still be refused.
+ * Pure and exported so all three environments are testable without being in them.
+ * The three knobs below are not independent: moving the address without moving the
+ * other two produces a stack that comes up healthy and fails anyway, which is the
+ * shape of #316 twice over.
  *
- * The answer is to publish on the gateway interface itself rather than on `0.0.0.0`.
- * That address is the Docker bridge on the host, so the stack becomes reachable from
- * this container and from the host, and from nothing else: the property the default
- * exists to protect is kept, not widened. An explicit `QCMS_BIND_ADDRESS` still wins,
- * and a host checkout and CI are unchanged at `127.0.0.1`.
+ * **The publish interface.** `docker-compose.yml` publishes to
+ * `${QCMS_BIND_ADDRESS:-127.0.0.1}` deliberately: a bare `PORT:3000` would put the
+ * authoring admin on every network the host can reach, past the host firewall,
+ * because Docker's forwarding rules sit ahead of it. But a listener on the host's
+ * loopback is unreachable from a sibling container whatever address it dials, so
+ * resolving the gateway and leaving the bind alone would still be refused. The
+ * answer is the gateway interface itself rather than `0.0.0.0`: that is the Docker
+ * bridge on the host, so the stack is reachable from this container and from the
+ * host, and from nothing else. The property the default protects is kept, not
+ * widened. (`api` and `postgres` have no `ports:` key at all, so this cannot expose
+ * them either way, and ADR-20 stands.)
+ *
+ * **The admin's `Secure` cookie flag.** A `Secure` cookie can only be stored by a
+ * trustworthy origin. `http://localhost` is trustworthy, which is why CI has never
+ * needed this; a bare IPv4 gateway is not, so Chromium silently drops the
+ * `Set-Cookie` and sign-in appears to succeed and bounce. Unset, the containers'
+ * `NODE_ENV=production` decides and marks them `Secure`
+ * (`apps/api/src/config.ts:502-507` -> `features/auth/instance.ts:167`), so moving
+ * the origin off loopback without moving this flag breaks the admin half of the
+ * spec: sign-in, the `/two-factor/enroll` redirect and the TOTP verification all
+ * need that cookie. `.env.compose.example` documents this exact case, in the comment
+ * above `QCMS_ADMIN_SECURE_COOKIES`: "Set it to false only if the admin is reached
+ * over plain HTTP at a NON-loopback hostname". This is that configuration. The
+ * portal side already sets `QCMS_SECURE_COOKIES=false` in the env file and needs
+ * nothing here.
+ *
+ * An explicit value from the environment wins in both cases, and a `localhost` host
+ * (a plain checkout, and CI) produces byte-identical output to before this existed:
+ * `127.0.0.1`, and no cookie override at all.
+ *
+ * @param {object} options
+ * @param {string} options.publishHost the address this process reaches the stack on.
+ * @param {number} options.portalPort
+ * @param {number} options.adminPort
+ * @param {Record<string, string | undefined>} [options.env] the ambient environment.
+ * @returns {Record<string, string>}
  */
-const bindAddress =
-  process.env.QCMS_BIND_ADDRESS ?? (publishHost === "localhost" ? "127.0.0.1" : publishHost);
+export function composeEnvironmentOverrides({
+  publishHost,
+  portalPort,
+  adminPort,
+  env = process.env,
+}) {
+  const loopback = publishHost === "localhost";
+  return {
+    QCMS_BIND_ADDRESS: env.QCMS_BIND_ADDRESS ?? (loopback ? "127.0.0.1" : publishHost),
+    QCMS_ADMIN_PORT: String(adminPort),
+    QCMS_PORTAL_PORT: String(portalPort),
+    // The two `*_PORT` values are what Compose publishes ON THE DOCKER HOST; the two
+    // `*_BASE_URL` values are how this process, the Playwright runner it starts, and
+    // the browser that runner drives all reach the result. Both apps also read their
+    // own base URL at container boot (better-auth scopes admin cookies to that exact
+    // origin, and the portal builds respondent redirects from it), so the two must
+    // agree: one resolution, used for the publish, the runner and the containers.
+    QCMS_ADMIN_BASE_URL: publishedPortOrigin(adminPort, { override: publishHost }),
+    QCMS_PORTAL_BASE_URL: publishedPortOrigin(portalPort, { override: publishHost }),
+    ...(loopback || env.QCMS_ADMIN_SECURE_COOKIES !== undefined
+      ? {}
+      : { QCMS_ADMIN_SECURE_COOKIES: "false" }),
+  };
+}
 
-// The two `*_PORT` values are what Compose publishes ON THE DOCKER HOST; the two
-// `*_BASE_URL` values are how this process, the Playwright runner it starts, and the
-// browser that runner drives all reach the result. Both apps also read their own
-// base URL at container boot (better-auth scopes admin cookies to that exact origin,
-// and the portal builds respondent redirects from it), so the two must agree: one
-// resolution, used for the publish, the runner and the containers alike.
 const e2eEnvironment = {
   ...process.env,
-  QCMS_BIND_ADDRESS: bindAddress,
-  QCMS_ADMIN_PORT: String(adminPort),
-  QCMS_PORTAL_PORT: String(portalPort),
-  QCMS_ADMIN_BASE_URL: publishedPortOrigin(adminPort, { override: publishHost }),
-  QCMS_PORTAL_BASE_URL: publishedPortOrigin(portalPort, { override: publishHost }),
+  ...composeEnvironmentOverrides({ publishHost, portalPort, adminPort }),
 };
 
 /** A bad or missing subcommand: a user error, so it prints without a stack trace. */
@@ -234,6 +276,28 @@ function runComplete({ headed = false } = {}) {
   if (failure !== undefined) throw failure;
 }
 
+/**
+ * The `pnpm` script a given subcommand was almost certainly reached through.
+ *
+ * So the seat refusal offers the fix for the command in front of the reader rather
+ * than for a different one. Unknown or missing subcommands get the self-contained
+ * entry point, which is also what the usage error is about to recommend.
+ *
+ * @param {string | undefined} command
+ * @returns {string}
+ */
+function invokedAs(command) {
+  const scripts = {
+    up: "docker:up",
+    down: "docker:down",
+    test: "test:e2e",
+    "test-headed": "test:e2e:headed",
+    run: "up:e2e",
+    "run-headed": "up:e2e:headed",
+  };
+  return `pnpm ${(command !== undefined && scripts[command]) || "up:e2e"}`;
+}
+
 function main() {
   const command = process.argv[2];
   // Before anything is spawned. A silent fallback to seat 0 here is worse than it is
@@ -241,7 +305,15 @@ function main() {
   // NAME, and `down()` runs `docker compose down --volumes --remove-orphans` under
   // it, so an adopted seat does not just read another lane's stack, it deletes it.
   // The primary checkout and CI keep the silent default, exactly as they do today.
-  assertPortSeatChosen(root, "pnpm up:e2e");
+  //
+  // Rethrown as a UsageError because that is exactly what it is: it prints its
+  // message without a stack trace, like the usage error below, and a stack trace on
+  // a "you forgot a variable" message buries the one line that matters.
+  try {
+    assertPortSeatChosen(root, invokedAs(command));
+  } catch (error) {
+    throw new UsageError(error instanceof Error ? error.message : String(error));
+  }
   if (command === "up") up();
   else if (command === "down") down();
   else if (command === "test") test();
@@ -254,11 +326,16 @@ function main() {
     );
 }
 
-try {
-  main();
-} catch (error) {
-  // Set the code rather than calling process.exit: the stack has already
-  // unwound through every `finally`, and this lets stdio flush normally.
-  process.exitCode = error instanceof CommandFailed ? error.status : 1;
-  process.stderr.write(`compose-e2e: ${describe(error)}\n`);
+// Only when run as a command, so `compose-e2e.test.ts` can import the pure helper
+// above without a Compose run firing on import. Same guard as `check-ports.mjs` and
+// `check-changeset.mjs`.
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  try {
+    main();
+  } catch (error) {
+    // Set the code rather than calling process.exit: the stack has already
+    // unwound through every `finally`, and this lets stdio flush normally.
+    process.exitCode = error instanceof CommandFailed ? error.status : 1;
+    process.stderr.write(`compose-e2e: ${describe(error)}\n`);
+  }
 }

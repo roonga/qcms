@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 
 import { afterAll, describe, expect, it } from "vitest";
 
+import { composeEnvironmentOverrides } from "./compose-e2e.mjs";
+
 /**
  * The full-stack Compose harness must refuse an unset seat from a linked worktree
  * (issue #296), and it must refuse it BEFORE it spawns anything.
@@ -69,10 +71,23 @@ describe("compose-e2e seat refusal", () => {
 
   it("names the command the reader was actually running", () => {
     // The browser harness says `pnpm verify:browser`; this one has to say its own,
-    // or the fix offered does not match the failure in front of the reader.
-    const { stderr } = runWithoutSeat(checkout("worktree"), []);
-    expect(stderr).toContain("pnpm up:e2e");
-    expect(stderr).not.toContain("verify:browser");
+    // or the fix offered does not match the failure in front of the reader. Each
+    // subcommand maps to the script it is reached through, rather than every refusal
+    // recommending the self-contained entry point whatever was run.
+    const root = checkout("worktree");
+    const cases: readonly (readonly [string[], string])[] = [
+      [[], "pnpm up:e2e"],
+      [["run"], "pnpm up:e2e"],
+      [["up"], "pnpm docker:up"],
+      [["down"], "pnpm docker:down"],
+      [["test"], "pnpm test:e2e"],
+      [["test-headed"], "pnpm test:e2e:headed"],
+    ];
+    for (const [args, expected] of cases) {
+      const { stderr } = runWithoutSeat(root, args);
+      expect(stderr).toContain(expected);
+      expect(stderr).not.toContain("verify:browser");
+    }
   });
 
   it("refuses before it dispatches the subcommand, so nothing is ever spawned", () => {
@@ -81,7 +96,15 @@ describe("compose-e2e seat refusal", () => {
     const { status, stderr } = runWithoutSeat(checkout("worktree"), ["down"]);
     expect(status).toBe(1);
     expect(stderr).toContain("QCMS_PORT_SEAT");
-    expect(stderr).not.toContain("docker");
+    expect(stderr).not.toContain("docker compose");
+    expect(stderr).not.toContain("exited with status");
+  });
+
+  it("prints the refusal without a stack trace", () => {
+    // The convention two lines away in the script: a user error prints its message.
+    // A stack trace on "you forgot a variable" buries the one line that matters.
+    const { stderr } = runWithoutSeat(checkout("worktree"), ["down"]);
+    expect(stderr).not.toMatch(/\n\s+at /);
   });
 
   it("keeps the silent default in a primary checkout, which is also CI", () => {
@@ -106,5 +129,61 @@ describe("compose-e2e seat refusal", () => {
       expect(result.stderr).toContain("Usage:");
       expect(result.stderr).not.toContain("linked git worktree");
     }
+  });
+});
+
+describe("composeEnvironmentOverrides", () => {
+  const ports = { portalPort: 17100, adminPort: 17140 };
+
+  it("is byte-identical to the pre-#316 behaviour on a plain checkout and on CI", () => {
+    // The whole safety argument for this change is that the localhost path does not
+    // move. Loopback bind, localhost URLs, and NO cookie override at all: unset is
+    // what lets the containers' NODE_ENV decide, which is correct behind TLS.
+    const overrides = composeEnvironmentOverrides({ publishHost: "localhost", ...ports, env: {} });
+    expect(overrides).toEqual({
+      QCMS_BIND_ADDRESS: "127.0.0.1",
+      QCMS_ADMIN_PORT: "17140",
+      QCMS_PORTAL_PORT: "17100",
+      QCMS_ADMIN_BASE_URL: "http://localhost:17140",
+      QCMS_PORTAL_BASE_URL: "http://localhost:17100",
+    });
+    expect("QCMS_ADMIN_SECURE_COOKIES" in overrides).toBe(false);
+  });
+
+  it("moves the bind, the URLs and the cookie flag together off loopback", () => {
+    // All three or none. A `Secure` cookie can only be stored by a trustworthy
+    // origin: http://localhost is trustworthy, a bare gateway IPv4 is not, so
+    // Chromium drops the Set-Cookie and admin sign-in appears to succeed and bounce.
+    // Moving the origin without moving this flag is a stack that comes up healthy
+    // and fails in the spec's two-factor enrolment.
+    const overrides = composeEnvironmentOverrides({ publishHost: "172.17.0.1", ...ports, env: {} });
+    expect(overrides).toEqual({
+      QCMS_BIND_ADDRESS: "172.17.0.1",
+      QCMS_ADMIN_PORT: "17140",
+      QCMS_PORTAL_PORT: "17100",
+      QCMS_ADMIN_BASE_URL: "http://172.17.0.1:17140",
+      QCMS_PORTAL_BASE_URL: "http://172.17.0.1:17100",
+      QCMS_ADMIN_SECURE_COOKIES: "false",
+    });
+  });
+
+  it("publishes on the gateway interface, never on 0.0.0.0", () => {
+    // Widening the bind to every interface would also work and would give away the
+    // property the loopback default exists to protect. The bridge address does not.
+    const { QCMS_BIND_ADDRESS } = composeEnvironmentOverrides({
+      publishHost: "172.17.0.1",
+      ...ports,
+      env: {},
+    });
+    expect(QCMS_BIND_ADDRESS).toBe("172.17.0.1");
+    expect(QCMS_BIND_ADDRESS).not.toBe("0.0.0.0");
+  });
+
+  it("lets an explicit bind address and cookie flag win", () => {
+    const env = { QCMS_BIND_ADDRESS: "0.0.0.0", QCMS_ADMIN_SECURE_COOKIES: "true" };
+    const overrides = composeEnvironmentOverrides({ publishHost: "172.17.0.1", ...ports, env });
+    expect(overrides.QCMS_BIND_ADDRESS).toBe("0.0.0.0");
+    // Not overridden back to "false": an operator who says Secure gets Secure.
+    expect("QCMS_ADMIN_SECURE_COOKIES" in overrides).toBe(false);
   });
 });
