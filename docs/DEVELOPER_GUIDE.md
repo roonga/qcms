@@ -53,17 +53,24 @@ pnpm dev:portal   # finds the dev DB itself; see CONTRIBUTING for why not host.d
 ```
 
 **Running the admin app (task 031).** Same dev DB, one extra step first: the admin has no
-self-registration path (SEC-1), so the deployment's first account comes from a command.
+self-registration path (SEC-1), so the deployment's first account comes from a command. Since
+task 056 the admin itself holds no database handle - better-auth lives in the API - so the
+bootstrap command is an **API-side** one and takes the API's env, not the admin's.
 
 ```sh
-cp apps/admin/.env.example apps/admin/.env.local        # then edit
+cp apps/admin/.env.example apps/admin/.env.local        # then edit QCMS_INTERNAL_TOKEN
 pnpm --filter @qcms/db exec drizzle-kit migrate          # the auth tables must exist
-QCMS_ADMIN_EMAIL=you@example.test QCMS_ADMIN_PASSWORD='a long passphrase' pnpm qcms:create-admin
+DATABASE_URL=postgres://qcms:qcms@127.0.0.1:7020/qcms \
+  QCMS_ADMIN_BASE_URL=http://localhost:7040 \
+  QCMS_ADMIN_AUTH_SECRET='a 32-char-plus random secret' \
+  QCMS_ADMIN_EMAIL=you@example.test QCMS_ADMIN_PASSWORD='a long passphrase' \
+  pnpm qcms:create-admin
 pnpm --filter qcms-admin dev
 ```
 
-The command refuses to run once any admin account exists, so it is safe in a runbook and
-safe to re-run by accident. On first sign-in you must enroll a TOTP factor before reaching
+`QCMS_ADMIN_AUTH_SECRET` must be the same value the running API has, or the cookies it
+mints are not the cookies the API verifies. The command refuses to run once any admin
+account exists, so it is safe in a runbook and safe to re-run by accident. On first sign-in you must enroll a TOTP factor before reaching
 anything else, and the recovery codes are shown once. `QCMS_ADMIN_2FA=optional` skips
 enrollment for development; the API reads the same variable, so relaxing it in one place
 only means every admin API call 401s. The admin adopts the same `.next` / `.next-dev`

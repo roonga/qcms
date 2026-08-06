@@ -115,6 +115,7 @@ One Hono codebase defines all routes as composable groups; a deployment flag con
 |---|---|---|---|---|
 | Portal-internal endpoints | Portal BFF only | Session token binding | Internal network | None - internal contract |
 | `/admin` | Admin app BFF | better-auth session (2FA) | VPN / internal | None - internal contract |
+| `/api/auth/*` | Admin app BFF | Internal token only (it issues the session) | VPN / internal | Vendor's (better-auth), endpoint set allowlisted |
 | `/health`, `/ready` | Orchestrators, monitors | None (liveness) / internal | Both processes | Stable by convention |
 | `/api/v1` *(reserved)* | Third parties | Scoped tokens | Internet | Versioned + generated OpenAPI |
 
@@ -132,6 +133,8 @@ apps/api/src/features/
               list/ · export/ · erase/ · …
   links/      mint-secure-link/ · …
   webhooks/   configure/ · deliver/ (worker, not a route) · redeliver/ · …
+  auth/       better-auth instance · allowlisted /api/auth mount ·
+              first-run bootstrap · recovery-code read      (056)
 app.ts        # composes slices, applies mount flags, mounts middleware
 ```
 
@@ -156,7 +159,7 @@ One framework for both frontends: one router, one data-fetching idiom, one auth 
 
 ## 7. Identity and access
 
-Admin identity: **better-auth**, configured in owned shell code, data in the deployment's own Postgres, **TOTP 2FA enabled at launch** for accounts that can publish forms and read responses. The instance is hosted in the admin app until **task 056** moves it into the API behind an admin-proxied `/api/auth/*` (ADR-35 as amended 2026-07-31), after which the API is the deployment's only database client. Respondent access at launch: **anonymous sessions** and **secure links** - signed, expiring, single-form tokens minted and verified by core functions (key material supplied by the shell; rotation documented). Secure-link generation is an admin feature (mint from the form view, copy/export URLs). OTP and social are Phase 4 via the same library; external IdPs are a documented swap recipe.
+Admin identity: **better-auth**, configured in owned shell code, data in the deployment's own Postgres, **TOTP 2FA enabled at launch** for accounts that can publish forms and read responses. The instance is hosted in **the API** (task 056; ADR-35 as amended 2026-07-31), mounted on `/api/auth/*` behind the SEC-4 internal token and an explicit endpoint allowlist, so the API is the deployment's only database client. The browser never reaches it: the admin app forwards one named operation per auth step (sign-in, the two 2FA verifications, sign-out, password change, session read) over the internal channel and re-emits better-auth's `Set-Cookie` headers on its own redirect, so cookies stay first-party to the admin origin and no CORS surface exists. The allowlist is what keeps SEC-1's "no self-registration path exists in any composition" true over a library whose documented mount is a catch-all: `sign-up/email` is absent, so it 404s, and the only caller of `signUpEmail` is the first-run CLI. Respondent access at launch: **anonymous sessions** and **secure links** - signed, expiring, single-form tokens minted and verified by core functions (key material supplied by the shell; rotation documented). Secure-link generation is an admin feature (mint from the form view, copy/export URLs). OTP and social are Phase 4 via the same library; external IdPs are a documented swap recipe.
 
 ## 8. Abuse resistance
 
@@ -166,16 +169,14 @@ In the API (guards the data model): per-session and per-IP rate limits on answer
 
 ```
 # Enterprise
-internet ──▶ portal (SSR + BFF) ─────┐
-vpn ───────▶ admin ──▶ /admin ───────┤
-                │                    ▼
-                │         api-internal ──▶ postgres
-                │         (outbox deliverer + sweep run here)
-                │                    │
-                └─▶ postgres (better-auth tables only, ADR-35)
-                                     │
-        on submit: signed webhook ───▶ downstream systems
-        pull path: reporting view ───▶ BI / ETL
+internet ──▶ portal (SSR + BFF) ───────────────┐
+vpn ───────▶ admin ──▶ /admin ─────────────────┤
+                  └─▶ /api/auth (better-auth)  ▼
+                                    api-internal ──▶ postgres
+                                    (outbox deliverer + sweep run here)
+                                               │
+        on submit: signed webhook ─────────────▶ downstream systems
+        pull path: reporting view ─────────────▶ BI / ETL
 
 # Solo (docker-compose default)
 operator ingress (TLS - cloud LB or optional Caddy overlay, ADR-20)
@@ -185,7 +186,7 @@ portal · admin · api (all groups + workers; no published port) · postgres
 
 Both topologies run the same images; the difference is instance count and mount flags. The solo shape - four containers (portal, admin, api, postgres), one a database, with TLS/ingress supplied by the operator (ADR-20) - is the operability budget and the reference deployment the scaffold produces.
 
-Database clients (ADR-35): the API is the sole client of the domain tables; the admin connects for better-auth's tables only until task 056 (before 036) removes that edge by moving the better-auth instance into the API; the portal holds no database handle at all. The diagram's admin-to-postgres edge is transitional and disappears with 056 - no production composition ever includes it.
+Database clients (ADR-35, as amended 2026-07-31 and implemented by task 056): **the API is the only process in either topology that holds a database handle.** Neither frontend has one - not the portal, which never did, and not the admin, whose better-auth exception closed when the instance moved into the API. Concretely: `apps/admin` declares no `pg`, `drizzle-orm` or `@qcms/db` dependency, its Compose service is given no `DATABASE_URL`, and its import-surface test enforces an **empty** allowlist of `@qcms/db` value bindings as the regression gate. No admin-to-postgres edge exists in any composition, and none ever shipped: 056 landed before 036, so no production topology was ever published with one.
 
 ## 10. Operations
 
@@ -315,6 +316,7 @@ qcms/
 │   │   │   ├── workers/          # outbox deliverer · sweep         (017, 025)
 │   │   │   ├── serve.ts          # entry: telemetry, then main       (017, 054)
 │   │   │   ├── main.ts           # composes deps, binds port, workers (017)
+│   │   │   ├── create-admin.ts   # first-run bootstrap CLI entry      (056)
 │   │   │   ├── telemetry.ts      # gated NodeSDK + SEC-13 redaction  (054)
 │   │   │   └── features/
 │   │   │       ├── responses/  start-session/ (018) · get-step/ · submit-answer/ (019)
@@ -322,7 +324,9 @@ qcms/
 │   │   │       ├── questions/  create/ · versions/ · publish/ · deprecate/ (021)
 │   │   │       ├── forms/      drafts/ · validate/ · publish/ · versions/ (022)
 │   │   │       ├── links/      mint/ · revoke/                     (024)
-│   │   │       └── webhooks/   configure/ · redeliver/             (024, 025)
+│   │   │       ├── webhooks/   configure/ · redeliver/             (024, 025)
+│   │   │       └── auth/       better-auth instance · /api/auth mount ·
+│   │   │                       bootstrap · recovery codes          (056)
 │   │   ├── e2e/                  # scenario suite + security matrix (027, 040)
 │   │   └── CONTRIBUTING.md       # slice conventions                (017)
 │   │
@@ -332,6 +336,7 @@ qcms/
 │   │                 api/        # BFF route handlers - proxy only  (029)
 │   │
 │   └── admin/                    # Next.js · client-heavy + BFF · VPN deployable
+│       │                         # no database handle, no better-auth (056)
 │       └── src/app/  (auth)/ sign-in · 2fa                         (031)
 │                     questions/ (032) · forms/[id]/ builder · publish ·
 │                     preview · versions · links (033, 034)

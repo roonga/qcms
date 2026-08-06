@@ -1,9 +1,15 @@
 # Swapping admin identity for an external IdP
 
-**Status:** pointer, not an implementation (task 031). Launch ships better-auth with
-email + password and TOTP 2FA (SEC-1). This page records **where** the seams are, so an
-operator who must use their own identity provider can see the shape of the work before
-starting it, and so a future task does not have to rediscover it.
+**Status:** pointer, not an implementation (task 031; seam locations updated by task 056).
+Launch ships better-auth with email + password and TOTP 2FA (SEC-1). This page records
+**where** the seams are, so an operator who must use their own identity provider can see
+the shape of the work before starting it, and so a future task does not have to
+rediscover it.
+
+Task 056 moved the better-auth instance from the admin app into the API (ADR-35 as amended
+2026-07-31). The three seams below are unchanged in *kind* - what changed is which
+workspace holds seam 2, and the move made the swap slightly smaller: the library is now
+linked by exactly one process.
 
 Nothing here is on the launch gate. OTP and social sign-in for admins are Phase 4 via the
 same library (SEC-1); this document is about replacing the library.
@@ -13,11 +19,13 @@ same library (SEC-1); this document is about replacing the library.
 Two decisions from before better-auth was chosen are what keep this small, and both are
 worth knowing before you touch anything:
 
-1. **The API never links better-auth.** It authenticates an admin by resolving a session
-   token to a row (`apps/api/src/middleware/admin-auth.ts` →
-   `getAdminSessionByToken`). So the API does not care *which* library issued the
-   session, only that a row exists, is in policy, and belongs to an account with a
-   second factor.
+1. **The API's *verifier* never touches better-auth**, even now that the API hosts it. It
+   authenticates an admin by resolving a session token to a row
+   (`apps/api/src/middleware/admin-auth.ts` → `getAdminSessionByToken`). So the verifier
+   does not care *which* library issued the session, only that a row exists, is in policy,
+   and belongs to an account with a second factor. Task 056 put the issuing side in the
+   same process without joining the two: `middleware/admin-auth.ts` still imports nothing
+   from `features/auth/`.
 2. **Authorization is enforced in the API layer, never in the BFF** (SEC-3, R2). So the
    admin app holds credentials and proxies; it decides nothing. Replacing the thing that
    issues credentials therefore cannot change any authorization behaviour.
@@ -45,12 +53,19 @@ interface: request in, `AdminPrincipal` or `undefined` out. `registerAdminAuth` 
   Launch issues a single `admin` value and nothing branches on it, so a mapping can be
   added without touching a route.
 
-### 2. The auth instance and the screens (admin side)
+### 2. The auth instance (API side) and the screens (admin side)
 
-`apps/admin/lib/server/auth.ts` is the only file that constructs better-auth.
-`apps/admin/lib/server/session.ts` is the only file that reads a session. Everything
-else - the sign-in screen, the 2FA screens, sign-out - is a form POST to a route handler
-under `apps/admin/app/`.
+`apps/api/src/features/auth/instance.ts` is the only file that constructs better-auth, and
+`apps/api/src/features/auth/route.ts` is the only file that exposes it (on `/api/auth/*`,
+behind an endpoint allowlist). On the admin side, `apps/admin/lib/server/auth-api.ts` is
+the only file that calls it and `apps/admin/lib/server/session.ts` the only file that
+reads a session. Everything else - the sign-in screen, the 2FA screens, sign-out - is a
+form POST to a route handler under `apps/admin/app/`.
+
+The admin's seven forwarded operations are the practical inventory of what a replacement
+has to answer, and they are listed in one place (`ALLOWED_AUTH_ENDPOINTS`). An IdP swap
+that keeps the BFF shape can reimplement that surface; one that redirects to a provider
+replaces the screens instead and leaves it unmounted.
 
 An OIDC swap replaces the screens with a redirect to the provider and a callback route,
 and replaces `currentAdminSession()` with a read of whatever the provider's SDK stores.
@@ -59,10 +74,11 @@ Two rules survive the swap:
 - **The BFF still forwards the user's own credential to the API** on the admin-session
   header (SEC-4). Whatever the new session is, the API must be able to verify it: seam 1
   and seam 2 have to be replaced together.
-- **No self-registration path may appear.** better-auth's catch-all handler is
-  deliberately not mounted today for exactly this reason (see the file header), and an
-  IdP swap must not mount an equivalent. If the IdP creates accounts on first sign-in,
-  that is a provisioning policy decision to record, not a default to inherit.
+- **No self-registration path may appear.** better-auth's catch-all is mounted today only
+  behind an explicit endpoint allowlist that omits `sign-up/email`, for exactly this
+  reason (`apps/api/src/features/auth/route.ts`), and an IdP swap must not mount an
+  equivalent. If the IdP creates accounts on first sign-in, that is a provisioning policy
+  decision to record, not a default to inherit.
 
 ### 3. The tables and the bootstrap
 
@@ -71,10 +87,11 @@ external IdP that holds identity itself makes `user`/`account`/`twoFactor` unuse
 **a session table is still the API's verification surface** unless seam 1 is replaced with
 token introspection.
 
-`pnpm qcms:create-admin` (`apps/admin/lib/server/bootstrap.ts`) exists because there is
-no other way to create the first account. Under an IdP the first admin is whoever the IdP
-says, so the command becomes unnecessary - but it must not simply be deleted while the
-better-auth path still exists in any supported composition.
+`pnpm qcms:create-admin` (`apps/api/src/features/auth/bootstrap.ts`, entry
+`apps/api/src/create-admin.ts`) exists because there is no other way to create the first
+account. Under an IdP the first admin is whoever the IdP says, so the command becomes
+unnecessary - but it must not simply be deleted while the better-auth path still exists in
+any supported composition.
 
 ## What a swap must not change
 

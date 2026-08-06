@@ -1,9 +1,17 @@
 # qcms-admin
 
-The QCMS authoring app (task 031): a Next.js app-router front end with a strict BFF and
-its own better-auth instance. A separate deployable from the portal because the
-enterprise topology puts it behind a VPN (`docs/ARCHITECTURE.md` §6); in the solo
-topology it is protected by TLS plus 2FA instead (ADR-20).
+The QCMS authoring app (task 031): a Next.js app-router front end that is a strict BFF and
+nothing else. A separate deployable from the portal because the enterprise topology puts it
+behind a VPN (`docs/ARCHITECTURE.md` §6); in the solo topology it is protected by TLS plus
+2FA instead (ADR-20).
+
+**It holds no database handle** (task 056; ADR-35 as amended 2026-07-31). better-auth runs
+in the API, mounted on `/api/auth/*`, and this app forwards one named operation per auth
+step over the SEC-4 internal channel, re-emitting the resulting cookies on its own
+redirect. So the browser still only ever talks to the admin origin, cookies stay
+first-party to it, and the API is the deployment's only database client. There is no
+`DATABASE_URL` and no `QCMS_ADMIN_AUTH_SECRET` in this app's environment, and
+`lib/server/r2-import-surface.test.ts` fails if either comes back.
 
 ## What is here at launch
 
@@ -32,25 +40,46 @@ behind them (`GET /admin/erasures`, `GET /admin/outbox/dead-letters`), not a pre
 ## Running it
 
 ```bash
-pnpm dev:portal                                    # dev Postgres up and migrated to head
-cp apps/admin/.env.example apps/admin/.env.local   # then edit; DATABASE_URL -> port 7020
-QCMS_ADMIN_EMAIL=you@example.test QCMS_ADMIN_PASSWORD='a long passphrase' pnpm qcms:create-admin
-pnpm --filter qcms-admin dev --port 7040            # http://localhost:7040
+pnpm dev:portal                                    # dev Postgres up and migrated, portal + API running
+cp apps/admin/.env.example apps/admin/.env.local   # then edit QCMS_INTERNAL_TOKEN to match the API's
+DATABASE_URL=postgres://qcms:qcms@127.0.0.1:7020/qcms \
+  QCMS_ADMIN_BASE_URL=http://localhost:7040 \
+  QCMS_ADMIN_AUTH_SECRET='a 32-char-plus random secret' \
+  QCMS_ADMIN_EMAIL=you@example.test QCMS_ADMIN_PASSWORD='a long passphrase' \
+  pnpm qcms:create-admin
+pnpm --filter qcms-admin dev --port 7040           # http://localhost:7040
 ```
 
 Migrations are applied **programmatically**, not by the drizzle-kit CLI: `packages/db/drizzle.config.ts`
 declares no `dbCredentials` (it exists to generate migrations, not to run them), so
 `drizzle-kit migrate` cannot connect. `scripts/dev-portal.mjs` (`pnpm dev:portal`) brings up
 the dev Postgres from `docker-compose.dev.yml` on port 7020 and migrates it to head with
-the same package-owned migration set adopters run; it then also starts the portal and API,
-which the admin does not need but which cost nothing to leave running. Point the admin's
-`DATABASE_URL` at that database (`postgres://qcms:qcms@127.0.0.1:7020/qcms`), or at your own
-Postgres migrated the same way.
+the same package-owned migration set adopters run; it then also starts the portal and the
+API, and the admin **does** need that API - every screen and every auth step goes through
+it.
 
-`pnpm qcms:create-admin` is the **only** way an admin account is created, and it refuses
-to run once any account exists (SEC-1: no self-registration path exists in any
-composition). On first sign-in you are required to enroll a TOTP factor and are shown
-recovery codes once.
+### The first admin (`pnpm qcms:create-admin`)
+
+Still the **only** way an admin account is created, and it still refuses to run once any
+account exists (SEC-1: no self-registration path exists in any composition). Since task 056
+it is an **API-side** command, because the API is the process with the database and the
+better-auth instance:
+
+- Its environment is the API's, not this app's: `DATABASE_URL`, `QCMS_ADMIN_AUTH_SECRET`
+  and `QCMS_ADMIN_BASE_URL` (plus `QCMS_ADMIN_EMAIL` / `QCMS_ADMIN_PASSWORD`, and
+  optionally `QCMS_ADMIN_NAME`). It deliberately does **not** ask for the link keys,
+  session keys or app key the running API needs - none is read on this path.
+- Credentials go in the environment, never in arguments: an argument lands in shell
+  history and in every `ps` listing while the command runs.
+- It builds first (`pnpm --filter qcms-api... build`) because the entry is compiled
+  (`apps/api/dist/create-admin.js`), which is what makes it available inside the API
+  container image.
+- In a Compose deployment, run it there: `docker compose exec -e QCMS_ADMIN_EMAIL=... -e
+  QCMS_ADMIN_PASSWORD=... api node dist/create-admin.js`. The env the service already
+  carries supplies the rest.
+
+On first sign-in you are required to enroll a TOTP factor and are shown recovery codes
+once.
 
 `QCMS_ADMIN_2FA=optional` skips enrollment. It is a development escape hatch and the API
 reads the same variable, so relaxing it in one place and not the other fails closed
