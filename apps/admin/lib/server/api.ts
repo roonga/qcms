@@ -1,6 +1,7 @@
 import {
   ADMIN_SESSION_HEADER,
   INTERNAL_TOKEN_HEADER,
+  adminBaseUrl,
   apiBaseUrl,
   internalToken,
 } from "./config.ts";
@@ -91,10 +92,13 @@ export type AuthApiPath = `/${string}`;
  *
  * - **`host` and `content-length` describe the wrong request.** They belong to the
  *   browser-to-admin hop, not the admin-to-API one, and forwarding them makes the
- *   second hop lie about itself.
- * - **`cookie` and `origin` are the two better-auth genuinely reads.** The session and
- *   two-factor cookies are its credential store, and `origin` is what its CSRF check
- *   compares against `trustedOrigins` (the admin's public origin).
+ *   second hop lie about itself. (`content-length` in particular: the forwarded body is
+ *   JSON, the browser's was a form encoding of a different length.)
+ * - **`cookie`, `origin` and the Fetch Metadata triplet are what better-auth reads.**
+ *   The session and two-factor cookies are its credential store, and `origin` plus
+ *   `sec-fetch-site`/`-mode`/`-dest` are its CSRF inputs - it blocks a cross-site
+ *   navigation login on the metadata and validates the origin against
+ *   `trustedOrigins`. Dropping the triplet would take a control away from it.
  * - **`x-forwarded-for` keeps SEC-1's per-IP sign-in throttling honest.** better-auth
  *   resolves the client address from it; dropping it would key every attempt in a
  *   deployment to the admin container's own address, quietly collapsing per-IP backoff
@@ -107,14 +111,68 @@ export type AuthApiPath = `/${string}`;
  */
 const FORWARDED_AUTH_HEADERS = [
   "cookie",
-  "origin",
   "referer",
+  "sec-fetch-site",
+  "sec-fetch-mode",
+  "sec-fetch-dest",
   "user-agent",
   "accept-language",
   "x-forwarded-for",
   "x-forwarded-proto",
   "x-real-ip",
 ] as const;
+
+/**
+ * Resolve the `Origin` header for the forwarded request.
+ *
+ * **This app's own responses carry `Referrer-Policy: no-referrer`** (`lib/server/csp.ts`,
+ * SEC-9), and a browser that is told not to send a referrer sends `Origin: null` on a
+ * form POST as well - along with no `Referer` at all. So the origin better-auth would see
+ * on every single legitimate no-JS sign-in is the literal string `null`, which it refuses
+ * `403 MISSING_OR_NULL_ORIGIN`. Measured, not theorized: it is what the admin Playwright
+ * suite reported the first time this hop ran.
+ *
+ * There are three ways out and only one of them is not a weakening:
+ *
+ * 1. Relax `Referrer-Policy` so the browser volunteers an origin. That trades a privacy
+ *    header away to satisfy a library, and referrer leakage is exactly what an
+ *    authoring tool full of form ids should not have.
+ * 2. Set better-auth's `disableCSRFCheck`. That removes the check for *every* request,
+ *    including one carrying a genuinely foreign origin.
+ * 3. **Substitute this app's own origin when, and only when, the browser sent none.**
+ *
+ * Option 3 is what happens here, and it is an assertion of something already verified
+ * rather than a bypass. Every handler that reaches an auth POST calls
+ * `isSameOriginPost()` first and refuses otherwise, and that check is the *stronger* one
+ * for this app precisely because it knows about the referrer policy: it reads
+ * `sec-fetch-site` first and only falls back to `Origin`. A foreign origin is still
+ * forwarded verbatim, so better-auth rejects it; the Fetch Metadata headers travel too,
+ * so its cross-site-navigation block still fires. What the substitution removes is a
+ * false negative, not a control.
+ */
+function forwardedOrigin(from: Headers): string {
+  const browserOrigin = from.get("origin");
+  if (browserOrigin !== null && browserOrigin !== "" && browserOrigin !== "null") {
+    return browserOrigin;
+  }
+  return adminBaseUrl();
+}
+
+/**
+ * Build the headers for one forwarded auth request. Exported for its unit test: the
+ * allowlist and the origin substitution are security-relevant and cheap to assert
+ * directly, and doing so needs no server.
+ */
+export function authRequestHeaders(from: Headers | undefined): Headers {
+  const headers = new Headers({ [INTERNAL_TOKEN_HEADER]: internalToken() });
+  if (from === undefined) return headers;
+  for (const name of FORWARDED_AUTH_HEADERS) {
+    const value = from.get(name);
+    if (value !== null) headers.set(name, value);
+  }
+  headers.set("origin", forwardedOrigin(from));
+  return headers;
+}
 
 export interface AuthApiOptions {
   readonly method?: "GET" | "POST";
@@ -136,14 +194,7 @@ export interface AuthApiOptions {
  * chooses, not an exception (`route-helpers.ts` explains the trap this replaced).
  */
 export function authApiFetch(path: AuthApiPath, options: AuthApiOptions = {}): Promise<Response> {
-  const headers = new Headers({ [INTERNAL_TOKEN_HEADER]: internalToken() });
-  const from = options.from;
-  if (from !== undefined) {
-    for (const name of FORWARDED_AUTH_HEADERS) {
-      const value = from.get(name);
-      if (value !== null) headers.set(name, value);
-    }
-  }
+  const headers = authRequestHeaders(options.from);
   if (options.body !== undefined) headers.set("content-type", "application/json");
   return fetch(`${apiBaseUrl()}/api/auth${path}`, {
     method: options.method ?? "GET",
