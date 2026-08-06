@@ -155,6 +155,16 @@ export const ALLOWED = [
     why: "the API server's SHIPPED default for adopters, not a QCMS machine allocation (ADR-20: the container is never published). Every QCMS dev path passes 7S10 explicitly.",
   },
   {
+    file: "scripts/loopback-forward.mjs",
+    value: 3000,
+    why: "the app containers' own listening port, in this module's usage example. A container-internal port is the image's business and never a QCMS allocation (same reason as apps/api/src/main.ts above). The forwarder reads the real value from `docker inspect` at runtime rather than assuming it.",
+  },
+  {
+    file: "scripts/loopback-forward.test.ts",
+    value: 3000,
+    why: "the same container-internal port, as route-table fixture data for the parser tests. Nothing dials it.",
+  },
+  {
     file: "apps/api/src/openapi-document.ts",
     value: 5432,
     why: "Postgres's own well-known port, in an adopter-facing example connection string.",
