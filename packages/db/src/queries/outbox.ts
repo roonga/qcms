@@ -80,6 +80,14 @@ export async function enqueue(
  * while the events are delivered and their outcome recorded (via
  * {@link markDelivered} / {@link recordFailure}) before commit - that is what
  * makes the claim exclusive across concurrent deliverers.
+ *
+ * **Redacted rows are never claimed** (ADR-17 amendment, task 059). This is the
+ * deliverer's *materialize* phase, so filtering here means an event whose answers
+ * erasure removed is not fanned out to `webhook_deliveries` in the first place -
+ * the alternative is delivery rows that read "pending" on the operator dashboard
+ * forever while {@link claimDueDeliveries} silently declines to send them. A
+ * redacted, unconsumed row simply stops moving; it is retained as the audit record
+ * of an event that existed and never left.
  */
 export async function claimDue(exec: Executor, limit: number, now?: Date): Promise<OutboxRow[]> {
   const at = now ?? new Date();
@@ -87,7 +95,12 @@ export async function claimDue(exec: Executor, limit: number, now?: Date): Promi
     .select()
     .from(outbox)
     .where(
-      and(isNull(outbox.deliveredAt), isNull(outbox.deadLetteredAt), lte(outbox.nextAttemptAt, at)),
+      and(
+        isNull(outbox.deliveredAt),
+        isNull(outbox.deadLetteredAt),
+        isNull(outbox.payloadRedactedAt),
+        lte(outbox.nextAttemptAt, at),
+      ),
     )
     .orderBy(asc(outbox.nextAttemptAt))
     .limit(limit)

@@ -12,25 +12,29 @@
  * proves is that the read path passes through what was stored rather than
  * re-deriving (and so re-leaking) anything.
  *
- * It also covers `POST /admin/outbox/:id/redeliver` refusing a delivery whose event
- * names an **erased** session (ADR-17). That refusal is the one door this task
- * controls over a real gap: `eraseSession` deletes the ledger and the submission and
- * leaves the queued outbox payload - which still holds the whole locked answer set -
- * untouched. Whether erasure should reach those rows is an ADR-17 amendment question
- * and is escalated, so what is pinned here is that the operator-facing redeliver
- * button cannot be the thing that sends them.
+ * It also covers `POST /admin/outbox/:id/redeliver` refusing a delivery erasure has
+ * reached (ADR-17 as amended 2026-08-02; task 059 replaced 035's version of this).
+ * The refusal is now a property of the data: `eraseSession` cancels the session's
+ * still-sendable deliveries and redacts the outbox payload they would carry, and the
+ * handler reads exactly the two columns `claimDueDeliveries` filters on. These cases
+ * drive real erasures rather than hand-writing a tombstone, so what they pin is the
+ * whole chain from the erase call to the 409.
  */
 
-import { FormId, SessionId } from "@qcms/core";
+import { FormId, SessionId, type FormDefinition } from "@qcms/core";
 import {
   createForm,
+  createSession,
   enqueue,
-  erasureTombstones,
+  eraseSession,
   insertDelivery,
+  insertFormVersion,
   insertWebhook,
   markDeliveryDelivered,
+  DELIVERY_CANCELLED_SESSION_ERASED,
   OUTBOX_MAX_ATTEMPTS,
   outbox,
+  redeliveryRefusalFor,
   recordDeliveryFailure,
   webhookDeliveries,
   type DeliveryAttemptRecord,
@@ -78,12 +82,14 @@ interface DeliveryItem {
   eventType: string;
   webhookId: string;
   url: string;
-  status: "delivered" | "deadLettered" | "pending";
+  status: "delivered" | "cancelled" | "deadLettered" | "pending";
   attempts: number;
   lastError: string | null;
   createdAt: string;
   deliveredAt: string | null;
   deadLetteredAt: string | null;
+  cancelledAt: string | null;
+  cancelledReason: string | null;
   nextAttemptAt: string;
   lastAttemptAt: string | null;
   lastStatus: number | null;
@@ -148,6 +154,7 @@ let deliveredId: string;
 let deadLetteredId: string;
 /** Form B's single delivery - the one that must never appear under form A. */
 let otherFormId: string;
+let erasedFormVersion: number;
 
 beforeAll(async () => {
   testDb = await startTestDb();
@@ -159,6 +166,18 @@ beforeAll(async () => {
   await createForm(testDb.db, { formId: FORM_B, slug: "ops-b", defaultLocale: "en" });
   await createForm(testDb.db, { formId: FORM_BULK, slug: "ops-bulk", defaultLocale: "en" });
   await createForm(testDb.db, { formId: FORM_ERASED, slug: "ops-erased", defaultLocale: "en" });
+  // A published version, so the ADR-17 cases can create real sessions and erase them
+  // rather than hand-writing a tombstone for a session that never existed.
+  erasedFormVersion = (
+    await insertFormVersion(testDb.db, {
+      formId: FORM_ERASED,
+      definition: {} as unknown as FormDefinition,
+      compiled: {} as unknown as Parameters<typeof insertFormVersion>[1]["compiled"],
+      compilerVersion: "1.0.0",
+      a2uiSpecVersion: "1.0.0",
+      semanticsVersion: "1",
+    })
+  ).version;
 
   pendingId = await seedDelivery(FORM_A, new Date("2026-07-20T00:00:00.000Z"));
   deliveredId = await seedDelivery(FORM_A, new Date("2026-07-20T00:01:00.000Z"));
@@ -284,9 +303,25 @@ describe("GET /admin/forms/:id/deliveries - scoping, ordering and derived status
 
 describe("POST /admin/outbox/:id/redeliver - the ADR-17 refusal", () => {
   /**
-   * A delivery on FORM_ERASED whose event names `sessionId` (or none), so the
-   * tombstone join has something to find. `sessionId: null` seeds an event with no
-   * session at all, which is what every non-`response.submitted` type looks like.
+   * A real, submitted session on FORM_ERASED, so `eraseSession` has something to
+   * erase. Returns the id it was created under.
+   */
+  async function seedErasableSession(sessionId: string): Promise<SessionId> {
+    const parsed = SessionId.parse(sessionId);
+    await createSession(testDb.db, {
+      sessionId: parsed,
+      formId: FORM_ERASED,
+      formVersion: erasedFormVersion,
+      accessMode: "anonymous",
+      expiresAt: new Date(Date.now() + 86_400_000),
+    });
+    return parsed;
+  }
+
+  /**
+   * A delivery on FORM_ERASED whose event names `sessionId` (or none).
+   * `sessionId: null` seeds an event with no session at all, which is what every
+   * non-`response.submitted` type looks like.
    */
   async function seedDeliveryForSession(sessionId: string | null): Promise<string> {
     seq += 1;
@@ -327,33 +362,79 @@ describe("POST /admin/outbox/:id/redeliver - the ADR-17 refusal", () => {
     return { status: res.status, code: body.error?.code ?? null };
   }
 
-  it("409s a delivery whose session has been erased, and leaves the row alone", async () => {
-    const sessionId = "ses_erased_for_redeliver";
+  it("409s a delivery erasure cancelled, and leaves the row alone", async () => {
+    const sessionId = await seedErasableSession("ses_erased_for_redeliver");
     const deliveryId = await seedDeliveryForSession(sessionId);
     for (let i = 0; i < OUTBOX_MAX_ATTEMPTS; i++) {
       await recordDeliveryFailure(testDb.db, deliveryId, "http_500", new Date());
     }
-    await testDb.db.insert(erasureTombstones).values({
-      sessionId: SessionId.parse(sessionId),
-      formId: FORM_ERASED,
-      formVersion: 1,
-      erasedAt: new Date(),
-      reason: "subject_request",
-    });
+    // Redeliverable right up to the erasure - so the 409 below is the erasure's
+    // doing and not some pre-existing state of the fixture.
+    expect(await redeliveryRefusalFor(testDb.db, deliveryId)).toBeUndefined();
+
+    await eraseSession(testDb.db, sessionId, "subject_request");
 
     expect(await redeliver(deliveryId)).toEqual({ status: 409, code: "DELIVERY_SESSION_ERASED" });
 
-    // Refused, not reset: the row keeps its dead-lettered state, so the delivery is
-    // still visible to an operator rather than quietly re-queued.
+    // A typed 409, not a 500: the refusal is a modelled outcome the admin renders,
+    // and the payload carries a code rather than a stack.
     const [after] = await testDb.db
       .select({
         attempts: webhookDeliveries.attempts,
         deadLetteredAt: webhookDeliveries.deadLetteredAt,
+        cancelledAt: webhookDeliveries.cancelledAt,
+        cancelledReason: webhookDeliveries.cancelledReason,
       })
       .from(webhookDeliveries)
       .where(eq(webhookDeliveries.id, deliveryId));
+    // Refused, not reset: the row keeps its attempt history and its dead-letter
+    // stamp, and now carries the cancelled state on top of them.
     expect(after?.attempts).toBe(OUTBOX_MAX_ATTEMPTS);
     expect(after?.deadLetteredAt).not.toBeNull();
+    expect(after?.cancelledAt).not.toBeNull();
+    expect(after?.cancelledReason).toBe(DELIVERY_CANCELLED_SESSION_ERASED);
+  });
+
+  it("409s a delivery that was already delivered when its session was erased", async () => {
+    // Erasure cancels only the still-sendable rows, so this one is not cancelled -
+    // its payload is redacted instead. Both halves must reach the same refusal, or
+    // an operator could re-post an event with no answers left in it.
+    const sessionId = await seedErasableSession("ses_erased_after_delivery");
+    const deliveryId = await seedDeliveryForSession(sessionId);
+    await markDeliveryDelivered(testDb.db, deliveryId, new Date());
+    await eraseSession(testDb.db, sessionId, "subject_request");
+
+    expect(await redeliveryRefusalFor(testDb.db, deliveryId)).toBe("payloadRedacted");
+    expect(await redeliver(deliveryId)).toEqual({ status: 409, code: "DELIVERY_SESSION_ERASED" });
+  });
+
+  it("drops a cancelled delivery from the dead-letter queue but keeps it on the dashboard", async () => {
+    const sessionId = await seedErasableSession("ses_erased_dead_letter_queue");
+    const deliveryId = await seedDeliveryForSession(sessionId);
+    for (let i = 0; i < OUTBOX_MAX_ATTEMPTS; i++) {
+      await recordDeliveryFailure(testDb.db, deliveryId, "http_500", new Date());
+    }
+    const onQueue = async (): Promise<boolean> => {
+      const res = await app.request("/admin/outbox/dead-letters", { headers: headers() });
+      const body = (await res.json()) as { deadLetters: Array<{ deliveryId: string }> };
+      return body.deadLetters.some((d) => d.deliveryId === deliveryId);
+    };
+    expect(await onQueue(), "dead-lettered, so on the queue").toBe(true);
+
+    await eraseSession(testDb.db, sessionId, "subject_request");
+
+    // Off the worklist - every row there is being offered for redelivery, and this
+    // one may never be sent.
+    expect(await onQueue(), "cancelled, so off the queue").toBe(false);
+
+    // But not hidden: the dashboard shows it with the cancelled status and reason,
+    // so "what happened to that delivery" has an answer.
+    const listed = (await listDeliveries(FORM_ERASED)).items.find(
+      (d) => d.deliveryId === deliveryId,
+    );
+    expect(listed?.status).toBe("cancelled");
+    expect(listed?.cancelledReason).toBe(DELIVERY_CANCELLED_SESSION_ERASED);
+    expect(listed?.cancelledAt).not.toBeNull();
   });
 
   it("still redelivers a delivery whose session was never erased", async () => {

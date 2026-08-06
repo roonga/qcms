@@ -250,12 +250,35 @@ public-only process has no admin group, so they 404 (ADR-09).
 
 | Route | Effect |
 |---|---|
-| `GET /admin/outbox/dead-letters` | List dead-lettered deliveries newest-first, each with its `eventId`, `eventType`, `webhookId`, `url`, `attempts`, and `lastError` (attempt history). |
-| `POST /admin/outbox/:id/redeliver` | `409 DELIVERY_SESSION_ERASED` when the delivery's event names a session that has been erased (ADR-17) - its queued payload still holds the answers erasure removed everywhere else, so it is never re-sent. Otherwise: reset one dead-lettered **delivery** (`:id` is a delivery id) to due-now - clears the dead-letter flag, resets attempts and the whole last-attempt record, and the next pass re-attempts it. `404` if unknown. |
-| `GET /admin/forms/:id/deliveries?limit=` | (035) One form's recent deliveries, newest first, each with its derived `status` (`delivered` / `deadLettered` / `pending`), `attempts`, `lastError`, and the last-attempt record above - `lastStatus`, `latencyMs`, `requestHeaders` (signature masked), `responseSnippet`. Default 50, capped at 200. |
+| `GET /admin/outbox/dead-letters` | List dead-lettered deliveries newest-first, each with its `eventId`, `eventType`, `webhookId`, `url`, `attempts`, and `lastError` (attempt history). **Cancelled deliveries are excluded** (059): the queue is a worklist of rows being offered back for redelivery, and a cancelled row may never be sent. |
+| `POST /admin/outbox/:id/redeliver` | `409 DELIVERY_SESSION_ERASED` when the delivery is cancelled or its event's payload has been redacted (ADR-17 as amended 2026-08-02) - erasure has reached this event, so it is never re-sent. Otherwise: reset one dead-lettered **delivery** (`:id` is a delivery id) to due-now - clears the dead-letter flag, resets attempts and the whole last-attempt record, and the next pass re-attempts it. `404` if unknown. |
+| `GET /admin/forms/:id/deliveries?limit=` | (035) One form's recent deliveries, newest first, each with its derived `status` (`delivered` / `cancelled` / `deadLettered` / `pending`), `attempts`, `lastError`, `cancelledAt`, `cancelledReason`, and the last-attempt record above - `lastStatus`, `latencyMs`, `requestHeaders` (signature masked), `responseSnippet`. Default 50, capped at 200. |
 
 A dead-letter is a single `(event, webhook)` delivery, not the whole event:
 redelivering one webhook does not touch its siblings for the same event.
+
+### Payload lifetime, and what erasure does to it (ADR-17 as amended, task 059)
+
+`outbox.payload` for a `response.submitted` event carries the respondent's **whole
+locked answer set**, written in the submit transaction and read back by the delivery
+pass. It is QCMS's own copy of the answers, and erasure reaches it:
+
+- **Erasing a session redacts its outbox payloads in place** - envelope kept
+  (`sessionId`, `formId`, `formVersion`, `submittedAt`, `contentHash`), `answers`
+  removed, `payload_redacted_at` stamped. The row survives as the audit record of an
+  event that existed; nothing deletes an outbox row.
+- **Every undelivered delivery for that session is terminally cancelled**
+  (`cancelled_at`, `cancelled_reason = 'session_erased'`), whether it was pending or
+  dead-lettered. A **delivered** row is left alone: that event has already left, and
+  the consumer's copy is theirs to erase as an independent controller.
+- **Both claim queries enforce it.** The fan-out claim skips redacted events, so a
+  session erased before its event was materialized never gets a delivery row; the
+  delivery claim skips cancelled rows and redacted payloads. A redacted payload has no
+  path to the transport whatever a future caller does.
+
+Outside erasure, an outbox row's payload lives **indefinitely** once delivered - there
+is no retention sweep for it yet (issue #329, which reuses the redaction mechanism
+above). Plan your database retention accordingly.
 
 **There is no bulk-redelivery route.** The admin's "Redeliver all" loops over the ids
 the operator can see and reports queued and refused separately, which is what lets a

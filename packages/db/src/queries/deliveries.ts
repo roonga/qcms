@@ -1,12 +1,19 @@
-import { and, asc, desc, eq, isNotNull, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, lte } from "drizzle-orm";
 
 import type { FormId } from "@qcms/core";
 
-import { erasureTombstones, outbox, webhookDeliveries, webhooks } from "../schema/index.js";
+import { outbox, webhookDeliveries, webhooks } from "../schema/index.js";
 import type { Executor } from "./executor.js";
 import { computeBackoff } from "./outbox.js";
 
 export type DeliveryRow = typeof webhookDeliveries.$inferSelect;
+
+/**
+ * The `cancelled_reason` erasure writes (ADR-17 as amended 2026-08-02, task 059).
+ * A value-free code, never respondent data: it names *why* the delivery will never
+ * be attempted, and the admin maps it to an operator-facing sentence.
+ */
+export const DELIVERY_CANCELLED_SESSION_ERASED = "session_erased";
 
 /**
  * One claimed, due delivery joined to everything the deliverer needs to POST it:
@@ -41,6 +48,10 @@ export interface DeadLetterDelivery {
   readonly nextAttemptAt: Date;
   readonly deadLetteredAt: Date | null;
   readonly createdAt: Date;
+  /** Set when the delivery was terminally cancelled and will never be sent (059). */
+  readonly cancelledAt: Date | null;
+  /** The value-free code naming why, e.g. {@link DELIVERY_CANCELLED_SESSION_ERASED}. */
+  readonly cancelledReason: string | null;
 }
 
 /**
@@ -111,6 +122,24 @@ export async function insertDelivery(
  * {@link markDeliveryDelivered} / {@link recordDeliveryFailure}) before commit -
  * that is what makes the claim exclusive across concurrent deliverers, and what
  * makes a crash between POST and commit roll back to a redeliverable state.
+ *
+ * ## Erasure is enforced here, structurally (ADR-17 amendment, task 059)
+ *
+ * Two of the predicates exist so an erased respondent's answers have **no path to
+ * the transport, whatever a future caller does**:
+ *
+ * - `webhook_deliveries.cancelled_at is null` - erasure terminally cancels every
+ *   still-sendable delivery for the session, and this is what makes that stick.
+ *   Before 059 the only guard was a check inside the redeliver handler, so any
+ *   other caller of {@link resetDeliveryForRedelivery} would have re-armed the row.
+ * - `outbox.payload_redacted_at is null` - the belt to that brace, and not
+ *   redundant: a session erased *before* its event was fanned out has no delivery
+ *   rows to cancel yet, so the redacted parent is the only marker the rows
+ *   materialized later carry. It also means no reset can put a row back into a
+ *   sendable state while its payload has no answers left in it.
+ *
+ * Posting a redacted payload would be a malformed message for the consumer anyway;
+ * not posting it is both the honest and the correct outcome.
  */
 export async function claimDueDeliveries(
   exec: Executor,
@@ -136,6 +165,8 @@ export async function claimDueDeliveries(
       and(
         isNull(webhookDeliveries.deliveredAt),
         isNull(webhookDeliveries.deadLetteredAt),
+        isNull(webhookDeliveries.cancelledAt),
+        isNull(outbox.payloadRedactedAt),
         lte(webhookDeliveries.nextAttemptAt, at),
       ),
     )
@@ -226,6 +257,13 @@ export async function recordDeliveryFailure(
 /**
  * List dead-lettered deliveries (retries exhausted) for the admin redelivery
  * view, newest first, joined to event type and target url.
+ *
+ * **Cancelled rows are excluded** (task 059). The dead-letter queue is a worklist:
+ * every row on it is being offered back for redelivery, and a cancelled row is one
+ * nobody may ever send. Listing it would invite the exact click the redeliver
+ * endpoint then refuses. The row is not hidden from the operator - the delivery
+ * dashboard ({@link listRecentDeliveries}) shows it with its cancelled state and
+ * reason, which is where "what happened to that delivery" gets answered.
  */
 export async function listDeadLetterDeliveries(
   exec: Executor,
@@ -243,11 +281,15 @@ export async function listDeadLetterDeliveries(
       nextAttemptAt: webhookDeliveries.nextAttemptAt,
       deadLetteredAt: webhookDeliveries.deadLetteredAt,
       createdAt: webhookDeliveries.createdAt,
+      cancelledAt: webhookDeliveries.cancelledAt,
+      cancelledReason: webhookDeliveries.cancelledReason,
     })
     .from(webhookDeliveries)
     .innerJoin(outbox, eq(webhookDeliveries.outboxId, outbox.id))
     .innerJoin(webhooks, eq(webhookDeliveries.webhookId, webhooks.webhookId))
-    .where(isNotNull(webhookDeliveries.deadLetteredAt))
+    .where(
+      and(isNotNull(webhookDeliveries.deadLetteredAt), isNull(webhookDeliveries.cancelledAt)),
+    )
     .orderBy(desc(webhookDeliveries.deadLetteredAt));
   return limit === undefined ? base : base.limit(limit);
 }
@@ -289,46 +331,53 @@ export async function resetDeliveryForRedelivery(
 }
 
 /**
- * Whether the session a delivery would transmit has been erased (ADR-17).
+ * Why a delivery may not be redelivered, or `undefined` when it may.
  *
- * ## The gap this closes, and the much larger one it does not
- *
- * A `response.submitted` outbox row carries the respondent's **whole locked answer
- * set** in its payload. `eraseSession` deletes the `answers` and `submissions` rows
- * and writes a tombstone; it does not touch `outbox` or `webhook_deliveries`. So an
- * undelivered event for an erased session still holds that content, and anything
- * that reads the payload back can transmit it.
- *
- * This helper exists so the **manual redeliver** door can refuse: an operator
- * clearing a stuck queue must not be the reason an erased respondent's answers reach
- * a consumer. It is a read, and deliberately only a read - whether erasure should
- * purge or redact those rows is an ADR-17 amendment question for the Code Owner, and
- * it is escalated rather than decided here. Until it is answered, a **pending**
- * delivery for an erased session is still sent by the scheduler on its next pass, and
- * the erase dialog and `docs/erasure.md` now say so instead of promising otherwise.
- *
- * `false` when the delivery is unknown, when its payload carries no `sessionId`
- * (event types other than `response.submitted`), or when no tombstone exists.
+ * `"cancelled"` - the delivery itself is terminally cancelled. `"payloadRedacted"` -
+ * the event it would carry has had its `answers` removed, which covers a delivery
+ * that was **already delivered** when its session was erased (erasure cancels only
+ * the still-sendable ones, because a delivered event has already left).
  */
-export async function deliveryTargetsErasedSession(
+export type RedeliveryRefusal = "cancelled" | "payloadRedacted";
+
+/**
+ * Whether this delivery may be redelivered, and if not, why (ADR-17 as amended
+ * 2026-08-02, task 059).
+ *
+ * ## One rule, not two
+ *
+ * This replaces 035's `deliveryTargetsErasedSession`, which asked a *different*
+ * question - "does this delivery's session have a tombstone?" - from the one
+ * {@link claimDueDeliveries} asks. Two rules over the same intent are two rules that
+ * can drift: an operator could be refused a redelivery the scheduler would happily
+ * have made, or the reverse. Both now read the same two columns erasure writes, so
+ * the handler's refusal and the scheduler's filter are the same rule stated in the
+ * two places it has to hold, and neither consults the tombstone table at all.
+ *
+ * It is deliberately expressed over *state*, not over cause. A future producer of
+ * either column (the retention sweep of issue #329, say) is refused for free rather
+ * than needing this helper edited to know about it.
+ *
+ * `undefined` when the delivery is unknown - {@link resetDeliveryForRedelivery} then
+ * reports the not-found, so this helper never has to distinguish the two.
+ */
+export async function redeliveryRefusalFor(
   exec: Executor,
   deliveryId: string,
-): Promise<boolean> {
-  const [event] = await exec
-    .select({ sessionId: sql<string | null>`${outbox.payload} ->> 'sessionId'` })
+): Promise<RedeliveryRefusal | undefined> {
+  const [row] = await exec
+    .select({
+      cancelledAt: webhookDeliveries.cancelledAt,
+      payloadRedactedAt: outbox.payloadRedactedAt,
+    })
     .from(webhookDeliveries)
     .innerJoin(outbox, eq(webhookDeliveries.outboxId, outbox.id))
     .where(eq(webhookDeliveries.id, deliveryId))
     .limit(1);
-  const sessionId = event?.sessionId;
-  if (sessionId === undefined || sessionId === null || sessionId === "") return false;
-
-  const [tombstone] = await exec
-    .select({ sessionId: erasureTombstones.sessionId })
-    .from(erasureTombstones)
-    .where(eq(erasureTombstones.sessionId, sql`${sessionId}`))
-    .limit(1);
-  return tombstone !== undefined;
+  if (row === undefined) return undefined;
+  if (row.cancelledAt !== null) return "cancelled";
+  if (row.payloadRedactedAt !== null) return "payloadRedacted";
+  return undefined;
 }
 
 /**
@@ -363,6 +412,8 @@ export async function listRecentDeliveries(
       lastLatencyMs: webhookDeliveries.lastLatencyMs,
       lastRequestHeaders: webhookDeliveries.lastRequestHeaders,
       lastResponseSnippet: webhookDeliveries.lastResponseSnippet,
+      cancelledAt: webhookDeliveries.cancelledAt,
+      cancelledReason: webhookDeliveries.cancelledReason,
     })
     .from(webhookDeliveries)
     .innerJoin(outbox, eq(webhookDeliveries.outboxId, outbox.id))

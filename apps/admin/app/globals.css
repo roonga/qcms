@@ -896,6 +896,14 @@ th,
   color: var(--color-danger-fg);
   border-color: var(--color-danger-subtle);
 }
+/* Cancelled is terminal but not a failure: erasure did exactly what it promised.
+   Muted rather than danger-tinted, so an operator scanning for problems does not
+   read a correctly-honoured erasure as one (task 059). */
+.qcms-tag--delivery-cancelled {
+  background-color: var(--color-surface-hover);
+  color: var(--color-text-muted);
+  border-color: var(--color-border-strong);
+}
 .qcms-tag--flag-flagged,
 .qcms-tag--hook-inactive {
   background-color: var(--color-warning-subtle);

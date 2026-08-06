@@ -19,10 +19,10 @@
 import type { RouteHandler } from "@hono/zod-openapi";
 import { parseFormId } from "@qcms/core";
 import {
-  deliveryTargetsErasedSession,
   getForm,
   listDeadLetterDeliveries,
   listRecentDeliveries,
+  redeliveryRefusalFor,
   resetDeliveryForRedelivery,
   type DeliveryView,
 } from "@qcms/db";
@@ -37,6 +37,11 @@ const fail = {
     new ApiError("DELIVERY_NOT_FOUND", 404, "No such webhook delivery"),
   invalidId: (): ApiError => new ApiError("INVALID_FORM_ID", 400, "Malformed form id"),
   formNotFound: (): ApiError => new ApiError("FORM_NOT_FOUND", 404, "No such form"),
+  // One refusal for both halves of the cancelled state (059). A cancelled delivery
+  // and a redacted payload are the same fact seen from two rows - erasure reached
+  // this event - so splitting them into two codes would make the client distinguish
+  // something it cannot act on differently. The code is unchanged from 035 so an
+  // existing client's handling of it keeps working.
   sessionErased: (): ApiError =>
     new ApiError(
       "DELIVERY_SESSION_ERASED",
@@ -83,9 +88,15 @@ export function makeDeadLettersHandler(deps: Deps): RouteHandler<typeof deadLett
  * life if it was redelivered after dead-lettering (the reset clears it, but a future
  * caller of `markDeliveryDelivered` need not), so "delivered" is checked first and
  * the most recent outcome wins.
+ *
+ * `cancelled` (059) sits second, above `deadLettered`, for the same reason: erasure
+ * cancels dead-lettered rows too, and cancellation is the later and terminal fact.
+ * It sits *below* `delivered` because erasure never cancels a delivered row - that
+ * event has already left, and saying otherwise on the dashboard would be a fiction.
  */
-function deliveryStatus(row: DeliveryView): "delivered" | "deadLettered" | "pending" {
+function deliveryStatus(row: DeliveryView): "delivered" | "cancelled" | "deadLettered" | "pending" {
   if (row.deliveredAt !== null) return "delivered";
+  if (row.cancelledAt !== null) return "cancelled";
   if (row.deadLetteredAt !== null) return "deadLettered";
   return "pending";
 }
@@ -125,6 +136,8 @@ export function makeDeliveriesHandler(deps: Deps): RouteHandler<typeof deliverie
           createdAt: r.createdAt.toISOString(),
           deliveredAt: iso(r.deliveredAt),
           deadLetteredAt: iso(r.deadLetteredAt),
+          cancelledAt: iso(r.cancelledAt),
+          cancelledReason: r.cancelledReason,
           nextAttemptAt: r.nextAttemptAt.toISOString(),
           lastAttemptAt: iso(r.lastAttemptAt),
           lastStatus: r.lastStatus,
@@ -144,14 +157,16 @@ export function makeRedeliverHandler(deps: Deps): RouteHandler<typeof redeliverR
   return async (c) => {
     const { id } = c.req.valid("param");
 
-    // ADR-17: refuse before resetting. The outbox payload still holds the whole locked
-    // answer set - `eraseSession` deletes the ledger and the submission, not the queued
-    // event - so redelivering an erased session's event would transmit exactly what the
-    // erasure removed from the list, the detail and the export. Checked here rather than
-    // in the deliverer because this is the door THIS task opened: an operator clearing a
-    // stuck queue must not be the reason those answers go out. Bulk redelivery is the
-    // same endpoint called per item, so it is covered by construction.
-    if (await deliveryTargetsErasedSession(deps.db, id)) throw fail.sessionErased();
+    // ADR-17 (as amended 2026-08-02): refuse before resetting. Erasure cancels the
+    // session's still-sendable deliveries and redacts the outbox payload they would
+    // carry, and `redeliveryRefusalFor` reads exactly the two columns
+    // `claimDueDeliveries` filters on - one rule, stated in the two places it has to
+    // hold, rather than 035's separate tombstone lookup that could drift from the
+    // scheduler's behaviour. Resetting anyway would put a row that can never be
+    // claimed back on the queue as "pending", which is a lie on the dashboard even
+    // though the answers could not actually go out. Bulk redelivery is this endpoint
+    // called per item, so it is covered by construction.
+    if ((await redeliveryRefusalFor(deps.db, id)) !== undefined) throw fail.sessionErased();
 
     const reset = await resetDeliveryForRedelivery(deps.db, id, deps.clock.now());
     if (reset === undefined) throw fail.deliveryNotFound();

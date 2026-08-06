@@ -77,3 +77,18 @@ export function erasureReasonText(reason: string): string {
     ? t(`ops.erase.reason.${reason}`)
     : t("ops.erase.reason.unknown", { reason });
 }
+
+/**
+ * The sentence explaining why a delivery was cancelled (task 059).
+ *
+ * The same closed-vocabulary-plus-fallback shape {@link flagReasonText} uses, and for
+ * the same reason: `cancelled_reason` is a text column so a later cancellation cause
+ * needs no migration, which means a value this build has never heard of has to survive
+ * as far as here. A null reason is possible on a hand-written row and reads as the
+ * unknown case rather than as no cancellation - the caller has already established
+ * that the row *is* cancelled before asking.
+ */
+export function cancelledReasonText(reason: string | null): string {
+  if (reason === "session_erased") return t("ops.deliveries.cancelled.session_erased");
+  return t("ops.deliveries.cancelled.unknown", { reason: reason ?? "" });
+}
