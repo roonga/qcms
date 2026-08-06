@@ -10,6 +10,7 @@ A task's **Depends on** header already expresses every "runs *after* X" constrai
 |---|---|---|
 | 040 | before 038 | security review and hardening precede the external-tester launch gate |
 | 041 | never gates 038 | agent-assisted authoring is flag-gated and off the launch gate (ADR-25) |
+| 059 | before 040 | erasure that does not erase cannot pass the security review: QCMS's own `outbox.payload` copy of the answers must be redacted, and undelivered deliveries cancelled, before 040 verifies the ADR-17 control as a system |
 
 Exceptions retire when their task lands: 042, 043, 044, 045, 055 and 056 all carried one and are now `done`.
 
@@ -89,6 +90,7 @@ Status values: `todo` · `blocked (issue #)` · `done (PR #)`. A row goes `todo`
 | 054 | Observability: OTel tracing baseline (portal -> API -> pg via traceparent) + pino trace-correlated logs + SEC-13 redaction allowlist (ADR-34) | 8b | done (PR #181; traced e2e via in-test OTLP receiver; SEC-13 redaction; whole Playwright suite runs traced) |
 | 055 | QCMS app theme application: Cobalt tokens + Lexend + sharp corners + mode control (after 031, before 032; UI screenshot gate) | 8a | done (PR #214; screenshot gate signed by the Code Owner 2026-07-31) |
 | 056 | Auth consolidation: better-auth moves into the API, admin loses its DB handle (ADR-35 amendment 2026-07-31; supersedes #211; after 035, before 036) | 8b | done (PR #320; the vendor Hono catch-all kept with a 7-operation endpoint allowlist in front of it, so SEC-1 is now a request property as well as a structural one; the admin forwards seven named auth operations rather than a blind proxy, preserving 031 no-JS form posts; `QCMS_ADMIN_AUTH_SECRET` recorded in SEC-7 as an at-rest encryption key with no in-place rotation, accepted-list design deferred to Phase 4) |
+| 059 | Erasure reaches the outbox: `outbox.payload` redacted in place and undelivered deliveries terminally cancelled (ADR-17 amendment 2026-08-02; found by the PR #284 review; after 035, before 040) | 8b | todo |
 | 036 | Ops docs, ingress recipes, restore drill, image supply chain (the images, the solo compose topology and its full-stack CI smoke run landed early in PR #286; the task file carries only the remainder) | 8b | todo |
 | 037 | create-qcms-app CLI | 8b | todo |
 | 040 | Security review and hardening (runs after 036, before 038) | 8b | todo |
