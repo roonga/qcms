@@ -84,8 +84,14 @@ const DATABASE_URL =
 
 const API_PORT = process.env.QCMS_DEV_API_PORT ?? String(stablePort("api"));
 const PORTAL_PORT = process.env.QCMS_DEV_PORTAL_PORT ?? String(stablePort("portal"));
+// The admin is not started here, but the API is configured with its origin (task 056:
+// better-auth lives in the API and scopes cookies to the admin's public origin). Derived
+// from the seat rather than written down, and overridable for a developer running the
+// admin on another port - R8 is a rule about derivation (`docs/PORTS.md`).
+const ADMIN_PORT = process.env.QCMS_DEV_ADMIN_PORT ?? String(stablePort("admin"));
 const API_BASE_URL = `http://127.0.0.1:${API_PORT}`;
 const PORTAL_BASE_URL = `http://localhost:${PORTAL_PORT}`;
+const ADMIN_BASE_URL = `http://localhost:${ADMIN_PORT}`;
 
 const FORM_ID = "frm_kitchen_sink";
 const FORM_SLUG = process.env.QCMS_DEV_FORM_SLUG ?? "kitchen-sink";
@@ -356,6 +362,39 @@ async function startApi(internalToken) {
     QCMS_LINK_KEYS: randomSecret(),
     QCMS_SESSION_KEYS: randomSecret(),
     QCMS_APP_KEY: randomSecret(),
+    // `QCMS_MOUNT: "all"` includes the admin surface, and since task 056 that surface
+    // carries better-auth - so this process needs the two values the instance is
+    // configured from, or `loadConfig` refuses to boot and the child dies at startup.
+    //
+    // PIN THIS if you are working on the admin. Unlike the three keys above, a fresh
+    // value here does more than invalidate cookies: it makes an existing TOTP
+    // enrolment permanently unverifiable. `two-factor/enable` stores the TOTP secret
+    // ENCRYPTED under this value (better-auth 1.6.25,
+    // `dist/plugins/two-factor/index.mjs:105`, `symmetricEncrypt({ key:
+    // ctx.context.secretConfig, ... })`) and every verify decrypts with the *current*
+    // one (`dist/plugins/two-factor/totp/index.mjs:188`, and `:122` for the URI
+    // reveal), so after a restart with a new secret the authenticator's codes are
+    // rejected forever. Recovery codes still work - they are stored as plain JSON
+    // unless `storeBackupCodes: "encrypted"` is set, which `features/auth/instance.ts`
+    // does not (`dist/plugins/two-factor/backup-codes/index.mjs:45`) - but there are
+    // only ten of them (`:15`, `amount ?? 10`), the admin has no re-enrolment screen,
+    // and each restart burns one. Ten restarts kill the account in that database.
+    //
+    // So: honoured from the environment when set, exactly like DATABASE_URL and the
+    // ports above, and random only for a zero-config first run. Pin it and an enrolled
+    // admin survives restarts; leave it unset and expect to re-bootstrap.
+    //
+    // It deliberately does NOT have to match the value passed to
+    // `pnpm qcms:create-admin`: that command creates an account (salted password hash,
+    // secret-independent) and enrols no factor, and it revokes the one session it mints,
+    // so nothing it writes is ever decrypted by this process.
+    QCMS_ADMIN_AUTH_SECRET: process.env.QCMS_ADMIN_AUTH_SECRET ?? randomSecret(),
+    // The admin dev server's documented origin: this seat's stable admin port
+    // (`docs/PORTS.md`), which is what `pnpm --filter qcms-admin dev --port <7S40>`
+    // listens on. better-auth scopes its cookies to it and trusts no other origin, so a
+    // developer running the admin somewhere else has to set it here too. This script
+    // does not start the admin itself; it only has to agree with it.
+    QCMS_ADMIN_BASE_URL: ADMIN_BASE_URL,
   });
   await waitFor("API health", async () => {
     const res = await fetch(`${API_BASE_URL}/health`);

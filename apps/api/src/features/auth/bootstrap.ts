@@ -1,17 +1,18 @@
 import { countAdminUsers } from "@qcms/db";
 import type { Executor } from "@qcms/db";
 
-import { getAuth } from "./auth.ts";
-import { MIN_PASSWORD_LENGTH } from "./config.ts";
+import type { AdminAuth } from "./instance.js";
+import { MIN_PASSWORD_LENGTH } from "./instance.js";
 
 /**
- * First-run bootstrap: create the deployment's first admin (task 031, SEC-1).
+ * First-run bootstrap: create the deployment's first admin (task 031, SEC-1; moved
+ * into the API by task 056 along with the better-auth instance it drives).
  *
  * This is the **only** way an admin account comes into existence. There is no
- * self-registration route (see `lib/server/auth.ts` for why the better-auth catch-all
- * handler is not mounted), no invite flow, and no "first visitor becomes admin"
- * shortcut - which is the classic version of this feature and is a hole, because it
- * races anyone who can reach the URL before the operator does.
+ * self-registration route (`route.ts` explains why the endpoint allowlist has no
+ * sign-up entry), no invite flow, and no "first visitor becomes admin" shortcut -
+ * which is the classic version of this feature and is a hole, because it races anyone
+ * who can reach the URL before the operator does.
  *
  * The guard is instead a hard precondition: **zero** admin users. Not "no user with
  * this email", not "upsert": if any account exists, this refuses. That makes the
@@ -32,6 +33,11 @@ import { MIN_PASSWORD_LENGTH } from "./config.ts";
  * 2FA is deliberately not enrolled here. Enrollment needs an authenticator app in the
  * operator's hands, so it happens on their first sign-in, which under the default
  * policy is enforced before the account can reach a single API route.
+ *
+ * `signUpEmail` and `revokeSessions` are called **in process**, not over the auth
+ * mount, and that is the point rather than a convenience: sign-up is not on the
+ * mount's allowlist, so it is not reachable over HTTP in any composition. A CLI is not
+ * HTTP-reachable, which is the distinction SEC-1 draws.
  */
 
 /** Why a bootstrap attempt was refused. Every case is actionable by the operator. */
@@ -45,13 +51,13 @@ export type BootstrapResult =
   | { readonly ok: false; readonly refusal: BootstrapRefusal };
 
 /**
- * A deliberately conservative shape check; the address is never emailed, so this only has to
- * catch a typo like a missing `@`, not implement RFC 5322.
+ * A deliberately conservative shape check; the address is never emailed, so this only
+ * has to catch a typo like a missing `@`, not implement RFC 5322.
  *
  * Written with string operations rather than the obvious `/^[^\s@]+@[^\s@]+\.[^\s@]+$/`,
- * which pairs unbounded quantifiers around a literal and is therefore super-linear on a
- * crafted input - a real (if small) denial-of-service shape on a value that arrives from
- * outside, and one the lint gate rejects.
+ * which pairs unbounded quantifiers around a literal and is therefore super-linear on
+ * a crafted input - a real (if small) denial-of-service shape on a value that arrives
+ * from outside, and one the lint gate rejects.
  */
 function looksLikeEmail(value: string): boolean {
   if (/\s/.test(value)) return false;
@@ -64,11 +70,14 @@ function looksLikeEmail(value: string): boolean {
 }
 
 /**
- * Create the first admin, or refuse with a reason. Takes the executor so the caller
- * (CLI or test) owns the connection, and so the zero-users check and the creation read
- * the same database the auth instance writes to.
+ * Create the first admin, or refuse with a reason.
+ *
+ * Takes the auth instance and the executor so the caller (CLI or test) owns the
+ * connection, and so the zero-users check and the creation read the same database the
+ * auth instance writes to.
  */
 export async function createInitialAdmin(
+  auth: AdminAuth,
   exec: Executor,
   input: { readonly email: string; readonly password: string; readonly name?: string },
 ): Promise<BootstrapResult> {
@@ -83,7 +92,7 @@ export async function createInitialAdmin(
     return { ok: false, refusal: { kind: "weak-password", minLength: MIN_PASSWORD_LENGTH } };
   }
 
-  const created = await getAuth().api.signUpEmail({
+  const created = await auth.api.signUpEmail({
     body: { email: input.email, password: input.password, name: input.name ?? "Administrator" },
     asResponse: true,
   });
@@ -92,7 +101,7 @@ export async function createInitialAdmin(
   // Revoke the session `signUpEmail` issued: a CLI has no browser to hand it to.
   const cookies = created.headers.getSetCookie().map((c) => c.split(";")[0]);
   if (cookies.length > 0) {
-    await getAuth().api.revokeSessions({ headers: new Headers({ cookie: cookies.join("; ") }) });
+    await auth.api.revokeSessions({ headers: new Headers({ cookie: cookies.join("; ") }) });
   }
 
   return { ok: true, userId: body.user.id, email: body.user.email };

@@ -1723,6 +1723,24 @@
           "attempts",
           "nextAttemptAt"
         ]
+      },
+      "AdminRecoveryCodes": {
+        "type": "object",
+        "properties": {
+          "codes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "a1b2c3d4",
+              "e5f6g7h8"
+            ]
+          }
+        },
+        "required": [
+          "codes"
+        ]
       }
     },
     "parameters": {}
@@ -4502,6 +4520,46 @@
           },
           "404": {
             "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/auth/recovery-codes": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Read back the signed-in admin's TOTP recovery codes (admin)",
+        "responses": {
+          "200": {
+            "description": "The account's recovery codes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminRecoveryCodes"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
             "content": {
               "application/json": {
                 "schema": {

@@ -10,9 +10,8 @@ A task's **Depends on** header already expresses every "runs *after* X" constrai
 |---|---|---|
 | 040 | before 038 | security review and hardening precede the external-tester launch gate |
 | 041 | never gates 038 | agent-assisted authoring is flag-gated and off the launch gate (ADR-25) |
-| 056 | before 036 | the ops docs must describe the post-consolidation topology, not one they would immediately outdate. The original reason (compose must never provision an admin database credential) was overtaken on 2026-08-05: PR #286 landed `docker-compose.yml` ahead of this exception, `admin` carries a `DATABASE_URL` today, and removing it is now 056's job rather than something 036 can still avoid |
 
-Exceptions retire when their task lands: 042, 043, 044, 045 and 055 all carried one and are now `done`.
+Exceptions retire when their task lands: 042, 043, 044, 045, 055 and 056 all carried one and are now `done`.
 
 **Self-containedness convention:** a task is self-contained *given the repo's `docs/` set* - task files carry the what/why/done, and point at the specific doc sections that carry contracts (schemas, semantics, layouts) so those live in one place and can't drift. 001 bootstraps the docs into the repo, so every later session finds its references locally. If a referenced section is missing or contradicts the task, that's a blocking issue - stop and surface it, don't improvise. Tasks needing anything *outside* the repo (e.g. the `a2-react-aria` repo in 011/028) declare it in an **External input required** header.
 
@@ -89,7 +88,7 @@ Status values: `todo` · `blocked (issue #)` · `done (PR #)`. A row goes `todo`
 | 058 | Preview theme island: respondent theme/mode switch scoped to the admin preview (Code Owner direction 2026-08-01; mounts on the preview seam 034 builds, so it follows 034 rather than gating it; UI screenshot gate) | 8a | todo (after 034; enrichment tier, so it waits behind 035 per the Code Owner's 2026-08-01 flow-first aim) |
 | 054 | Observability: OTel tracing baseline (portal -> API -> pg via traceparent) + pino trace-correlated logs + SEC-13 redaction allowlist (ADR-34) | 8b | done (PR #181; traced e2e via in-test OTLP receiver; SEC-13 redaction; whole Playwright suite runs traced) |
 | 055 | QCMS app theme application: Cobalt tokens + Lexend + sharp corners + mode control (after 031, before 032; UI screenshot gate) | 8a | done (PR #214; screenshot gate signed by the Code Owner 2026-07-31) |
-| 056 | Auth consolidation: better-auth moves into the API, admin loses its DB handle (ADR-35 amendment 2026-07-31; supersedes #211; after 035, before 036) | 8b | todo |
+| 056 | Auth consolidation: better-auth moves into the API, admin loses its DB handle (ADR-35 amendment 2026-07-31; supersedes #211; after 035, before 036) | 8b | done (PR #320; the vendor Hono catch-all kept with a 7-operation endpoint allowlist in front of it, so SEC-1 is now a request property as well as a structural one; the admin forwards seven named auth operations rather than a blind proxy, preserving 031 no-JS form posts; `QCMS_ADMIN_AUTH_SECRET` recorded in SEC-7 as an at-rest encryption key with no in-place rotation, accepted-list design deferred to Phase 4) |
 | 036 | Ops docs, ingress recipes, restore drill, image supply chain (the images, the solo compose topology and its full-stack CI smoke run landed early in PR #286; the task file carries only the remainder) | 8b | todo |
 | 037 | create-qcms-app CLI | 8b | todo |
 | 040 | Security review and hardening (runs after 036, before 038) | 8b | todo |

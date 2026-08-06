@@ -64,6 +64,12 @@ const CODEGEN_ENV: Record<string, string> = {
   QCMS_INTERNAL_TOKEN: "codegen-openapi-placeholder-value-000000000",
   QCMS_APP_KEY: "codegen-openapi-placeholder-value-000000000",
   QCMS_PORTAL_BASE_URL: "https://forms.example.test",
+  // The admin composition below mounts the identity provider (task 056), so the
+  // config validator asks for its two values. No auth request is made during
+  // generation and no instance is built (the mount is lazy), so these are shape
+  // placeholders exactly like the keys above.
+  QCMS_ADMIN_AUTH_SECRET: "codegen-openapi-placeholder-value-000000000",
+  QCMS_ADMIN_BASE_URL: "https://admin.example.test",
 };
 
 /** A database handle that rejects any use - generation never queries. */

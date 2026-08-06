@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 
-import { isProduction } from "./config.ts";
+import { secureCookies } from "./config.ts";
 
 /**
  * The two short-lived cookies that carry an in-progress 2FA enrollment (task 031).
@@ -65,7 +65,7 @@ function serialize(name: string, value: string, maxAgeSeconds: number): string {
     "HttpOnly",
     "SameSite=Strict",
   ];
-  if (isProduction()) attributes.push("Secure");
+  if (secureCookies()) attributes.push("Secure");
   return attributes.join("; ");
 }
 

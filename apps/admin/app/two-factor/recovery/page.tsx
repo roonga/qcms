@@ -1,11 +1,10 @@
-import { cookies } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { AuthScreen } from "@/components/auth-screen";
 import { Button, TextField } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
-import { TWO_FACTOR_COOKIE } from "@/lib/server/auth";
+import { readAuthCookie, TWO_FACTOR_COOKIE } from "@/lib/server/auth-api";
 import { SIGN_IN_PATH } from "@/lib/server/session";
 
 /**
@@ -25,7 +24,7 @@ export default async function RecoveryEntryPage({
 }: {
   readonly searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const pending = (await cookies()).get(TWO_FACTOR_COOKIE)?.value;
+  const pending = await readAuthCookie(TWO_FACTOR_COOKIE);
   if (pending === undefined || pending === "") redirect(SIGN_IN_PATH);
 
   const error = (await searchParams).error !== undefined ? t("signIn.error") : undefined;

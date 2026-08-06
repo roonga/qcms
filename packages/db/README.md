@@ -156,9 +156,16 @@ job; local runs keep the reaper, because your machine is not.
 adapter expects for its core models plus the `twoFactor` plugin (camelCase
 columns, `text` primary keys), so admin users/sessions/accounts share the
 deployment's one Postgres. They are isolated from the domain schema (no foreign
-keys cross between auth and questionnaire tables). When the auth instance is
-wired in owned shell code (task 031), regenerate this file with
-`@better-auth/cli generate` against the configured plugin set and diff.
+keys cross between auth and questionnaire tables). When the auth instance's plugin
+set changes, regenerate this file with `@better-auth/cli generate` against it and
+diff.
+
+The instance itself lives in `apps/api/src/features/auth/instance.ts` (task 056;
+ADR-35 as amended 2026-07-31). It was in the admin app for tasks 031-035, and the
+consumer matters here for one practical reason: **`qcms-api` is now the only
+workspace that imports these tables as values.** The admin's import-surface test
+asserts an empty allowlist of `@qcms/db` value bindings, so an addition to the auth
+exports has exactly one caller to satisfy.
 
 **Dependency note.** `better-auth` and `drizzle-orm` are both on the
 accepted-with-noted-risk list in `CONTRIBUTING.md` (young, VC-funded; narrow

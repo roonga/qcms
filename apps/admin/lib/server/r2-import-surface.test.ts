@@ -4,55 +4,62 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 /**
- * Exit criterion 4 (R2 audit): the admin BFF stays a proxy.
+ * The R2 audit: the admin BFF stays a proxy, and since task 056 holds **no database
+ * handle at all** (ADR-35 as amended 2026-07-31, exit criterion 1).
  *
- * The portal's audit covers the first two rules below. The admin needs the last three as
- * well, because it holds credentials and a database handle the portal never sees:
+ * The portal's audit covers the first two rules below. The admin needs the rest because
+ * it holds credentials the portal never sees:
  *
  * 1. Nothing imports `@qcms/core` as a value - rule evaluation, validation and publish
  *    aggregation live in the API, and the admin has no authority over any of them.
- * 2. No client component pulls a server-only module in as a value, so the database handle,
- *    the better-auth instance, the signing secret, the internal service token and the
- *    admin's session token cannot reach the browser bundle.
- * 3. The only value bindings taken from `@qcms/db` are the auth ones. The admin genuinely
- *    does own a database handle (better-auth needs one), which is exactly why this has to
- *    be asserted rather than assumed: the temptation in tasks 032-035 is to "just read the
- *    forms table here". Domain data comes from the API's `/admin` group and nowhere else.
- * 4. No Drizzle query is issued outside the auth client module, which closes the gap rule 3
- *    leaves open (the `schema` namespace still reaches every table).
- * 5. `fetch` to the API happens only through `lib/server/api.ts`, so the two credentials are
- *    attached in one place and a new screen cannot forget one.
+ * 2. No client component pulls a server-only module in as a value, so the internal
+ *    service token and the admin's session token cannot reach the browser bundle.
+ * 3. **No database client exists.** The allowlist of `@qcms/db` value bindings is now
+ *    **empty**, and that emptiness is the regression gate ADR-35's amendment asks for:
+ *    task 031 needed seven bindings for better-auth's adapter, and the whole point of
+ *    056 is that it needs none. Nothing imports `pg` or `drizzle-orm` either, and no
+ *    file constructs a Drizzle client.
+ * 4. Nothing imports `better-auth`. The instance lives in `apps/api`; this app carries
+ *    cookies past it and reads a proxied session, which needs no library.
+ * 5. `fetch` to the API happens only through `lib/server/api.ts`, so the credentials are
+ *    attached in one place and a new screen (or a new auth step) cannot forget one.
+ * 6. The **runtime dependency list** carries none of those packages, which is what makes
+ *    the shipped image genuinely incapable of reaching Postgres rather than merely
+ *    disinclined to.
+ *
+ * Rules 1-5 scan the app's own source (`app`, `components`, `lib`, `proxy.ts`) and not
+ * `e2e/`, deliberately: the Playwright support modules run in the runner process, drive
+ * the composed API directly and legitimately make HTTP calls of their own. What keeps
+ * *them* from smuggling a database client into this package is rule 6 plus the fact that
+ * their database access is borrowed from `apps/api`'s harness
+ * (`apps/api/e2e/support/admin-accounts.ts`), so nothing here resolves `pg` at all.
  */
 
 const ADMIN_ROOT = fileURLToPath(new URL("../../", import.meta.url));
-const SCAN_DIRS = ["app", "components", "lib", "scripts"];
+const SCAN_DIRS = ["app", "components", "lib"];
 const EXTRA_FILES = ["proxy.ts"];
 
 /** The one module allowed to build an API request; everything else goes through it. */
 const API_CLIENT_SUFFIX = "/lib/server/api.ts";
 
 /**
- * The complete set of value bindings the admin may take from `@qcms/db`.
+ * The complete set of value bindings the admin may take from `@qcms/db`: **none**.
  *
- * An allowlist rather than a domain-table denylist, because a denylist over names like
- * `forms` and `sessions` cannot tell a Drizzle table from a nav label or a sentence in
- * a doc comment. This list is what "the admin's database access is for auth" means
- * concretely: the five better-auth tables, the one bootstrap read helper, and the
- * schema namespace the Drizzle client is constructed with. A task that needs a domain
- * table has to edit this list, which is where review can see it.
+ * Kept as a set rather than deleted along with its last entry, because an empty
+ * allowlist says something a missing test cannot: that the boundary is checked and the
+ * answer is zero. Widening it is an amendment to ADR-35, not an edit to this line.
  */
-const ALLOWED_DB_VALUE_IMPORTS = new Set([
-  "authUser",
-  "authSession",
-  "authAccount",
-  "authVerification",
-  "authTwoFactor",
-  "countAdminUsers",
-  "schema",
-]);
+const ALLOWED_DB_VALUE_IMPORTS = new Set<string>();
 
-/** Files allowed to construct a Drizzle client at all. */
-const DB_CLIENT_SUFFIX = "/lib/server/db.ts";
+/**
+ * Package specifiers no admin source file may import at all, for any reason.
+ *
+ * `pg` and `drizzle-orm` are database clients and `@qcms/db` is the schema they would
+ * address; `better-auth` is the library that needed them. All four left this app in task
+ * 056 and none of them has a reason to come back: the API is the sole database client
+ * (ADR-35) and the sole better-auth host.
+ */
+const FORBIDDEN_PACKAGES = ["pg", "drizzle-orm", "@qcms/db", "better-auth"];
 
 function isSource(entry: string): boolean {
   const isTs = entry.endsWith(".ts") || entry.endsWith(".tsx");
@@ -100,10 +107,14 @@ function importsOf(text: string): ParsedImport[] {
 /**
  * The **value** bindings a module imports from `@qcms/db`, ignoring type-only ones.
  *
- * Split out of its test rather than inlined so neither this nor the assertion carries the
- * other's complexity, and written with string operations rather than a
- * quantifier-on-quantifier regex (`\s+as\s+` and friends are super-linear, which the lint
- * gate rejects for good reason: these run over every source file in the app).
+ * Kept even though the allowlist is now empty and a blanket "no `@qcms/db` import at
+ * all" check sits beside it, because the two fail differently: this one names the
+ * *binding* a regression reached for, which is the sentence a reviewer needs ("someone
+ * imported `forms`"), while the blanket check only names the module.
+ *
+ * Written with string operations rather than a quantifier-on-quantifier regex
+ * (`\s+as\s+` and friends are super-linear, which the lint gate rejects for good
+ * reason: these run over every source file in the app).
  */
 function dbValueBindings(text: string): string[] {
   return text
@@ -174,18 +185,14 @@ describe("R2 import surface (strict BFF)", () => {
       for (const { spec, isType } of importsOf(text)) {
         const serverOnly =
           spec.includes("lib/server/") ||
-          spec === "better-auth" ||
-          spec.startsWith("better-auth/") ||
-          spec === "@qcms/db" ||
-          spec.startsWith("drizzle-orm") ||
-          spec === "pg";
+          FORBIDDEN_PACKAGES.some((pkg) => spec === pkg || spec.startsWith(`${pkg}/`));
         if (serverOnly && !isType) offenders.push(`${path} -> ${spec}`);
       }
     }
     expect(offenders).toEqual([]);
   });
 
-  it("takes only auth bindings from @qcms/db: domain data comes from the API", () => {
+  it("takes NO value binding from @qcms/db: the allowlist is empty (task 056)", () => {
     const offenders: string[] = [];
     for (const { path, text } of files) {
       for (const binding of dbValueBindings(text)) {
@@ -193,18 +200,59 @@ describe("R2 import surface (strict BFF)", () => {
       }
     }
     expect(offenders).toEqual([]);
+    // Stated separately so a future edit that repopulates the allowlist fails here
+    // rather than passing quietly with a wider surface.
+    expect([...ALLOWED_DB_VALUE_IMPORTS]).toEqual([]);
   });
 
-  it("runs no Drizzle query outside the auth client module (R2)", () => {
-    // The complement of the allowlist above: even with only auth tables imported, a
-    // screen could still reach the domain through the `schema` namespace. No
-    // query-builder call outside the client module means no screen queries anything.
+  it("imports no database client and no auth library, in any form", () => {
     const offenders: string[] = [];
     for (const { path, text } of files) {
-      if (path.endsWith(DB_CLIENT_SUFFIX)) continue;
-      if (/\.(select|insert|update|delete|transaction)\s*\(/.test(text)) offenders.push(path);
+      for (const { spec } of importsOf(text)) {
+        // Type-only imports are erased, but they are refused too: a type from `pg` in
+        // the admin means someone is holding a pool's shape, which is the step before
+        // holding a pool.
+        if (FORBIDDEN_PACKAGES.some((pkg) => spec === pkg || spec.startsWith(`${pkg}/`))) {
+          offenders.push(`${path} -> ${spec}`);
+        }
+      }
     }
     expect(offenders).toEqual([]);
+  });
+
+  it("constructs no Drizzle client and issues no query anywhere (R2, ADR-35)", () => {
+    // Before task 056 exactly one module was allowed to do this. Now none is, so the
+    // check has no exemption to carry: a query builder call anywhere in the admin's
+    // source is a regression by definition.
+    const offenders: string[] = [];
+    for (const { path, text } of files) {
+      if (/\bdrizzle\s*\(/.test(text)) offenders.push(`${path} (drizzle client)`);
+      if (/\.(select|insert|update|delete|transaction)\s*\(/.test(text)) {
+        offenders.push(`${path} (query)`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("declares no database client or auth library as a runtime dependency", () => {
+    const manifest = JSON.parse(readFileSync(`${ADMIN_ROOT}package.json`, "utf8")) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+    const declared = [
+      ...Object.keys(manifest.dependencies ?? {}),
+      ...Object.keys(manifest.devDependencies ?? {}),
+    ];
+    // Both lists, not just `dependencies`: a devDependency would still let a source
+    // file resolve the specifier, and the checks above are only as strong as the
+    // absence of the package.
+    expect(declared.filter((name) => FORBIDDEN_PACKAGES.includes(name))).toEqual([]);
+  });
+
+  it("carries no connection string in its env surface (exit criterion 1)", () => {
+    const example = readFileSync(`${ADMIN_ROOT}.env.example`, "utf8");
+    expect(example).not.toContain("DATABASE_URL");
+    expect(example).not.toContain("QCMS_ADMIN_AUTH_SECRET");
   });
 
   it("issues API requests only through lib/server/api.ts", () => {

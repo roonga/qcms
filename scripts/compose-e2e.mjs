@@ -107,6 +107,11 @@ function up() {
     password: `e2e-${randomBytes(24).toString("base64url")}`,
   };
   writeFileSync(credentialsPath, `${JSON.stringify(credentials)}\n`, { mode: 0o600 });
+  // Bootstrapped through the **api** service, not admin: since task 056 the API owns
+  // better-auth and is the only container with a database credential, so it is the only
+  // one that can create an account (ADR-35 as amended 2026-07-31). The entry is a
+  // compiled one (`dist/create-admin.js`) because the image is built by
+  // `pnpm deploy --prod`, which ships only what the package's `files` field lists.
   run(
     docker,
     [
@@ -117,9 +122,9 @@ function up() {
       `QCMS_ADMIN_EMAIL=${credentials.email}`,
       "--env",
       `QCMS_ADMIN_PASSWORD=${credentials.password}`,
-      "admin",
+      "api",
       "node",
-      "scripts/create-admin.ts",
+      "dist/create-admin.js",
     ],
     e2eEnvironment,
   );
@@ -139,10 +144,10 @@ function down() {
 }
 
 function buildTestDependencies() {
-  // Playwright imports the admin's auth helper in its host-side setup. Unlike the
-  // Compose images, that process resolves workspace packages from their local
-  // dist directories, so build the database package and its workspace closure
-  // before starting the runner.
+  // The full-stack spec imports the admin suite's browser helpers, which reach
+  // workspace packages. Unlike the Compose images, the runner process resolves those
+  // from their local dist directories, so build the database package and its workspace
+  // closure before starting the runner.
   const args = ["--filter", "@qcms/db...", "build"];
   if (pnpmEntrypoint !== undefined)
     run(process.execPath, [pnpmEntrypoint, ...args], e2eEnvironment);

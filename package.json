@@ -22,7 +22,7 @@
     "check:all": "pnpm check:no-em-dash && pnpm check:no-control-chars && pnpm check:ports && pnpm check:changeset && pnpm check:golden-append-only && pnpm check:licenses && pnpm check:duplication && pnpm check:admin-theme",
     "dev:portal": "node scripts/dev-portal.mjs",
     "artifacts": "node scripts/serve-artifacts.mjs",
-    "qcms:create-admin": "pnpm --filter qcms-admin create-admin",
+    "qcms:create-admin": "pnpm --filter qcms-api... build && pnpm --filter qcms-api create-admin",
     "qcms:seed-fixtures": "pnpm --filter qcms-api seed-fixtures",
     "devcontainer": "bash scripts/devcontainer.sh",
     "claude": "bash scripts/claude-session.sh",

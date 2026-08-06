@@ -3,11 +3,7 @@ import type { AddressInfo } from "node:net";
 
 import { expect, type Page } from "@playwright/test";
 
-import { schema } from "@qcms/db";
-import { drizzle } from "drizzle-orm/node-postgres";
-import pg from "pg";
-
-import { buildEnv, composeApi, MOUNT } from "../../../api/e2e/support/index.js";
+import { buildEnv, composeApi, MOUNT, openDbHandle } from "../../../api/e2e/support/index.js";
 import { createNullLogger } from "../../../api/src/logger.js";
 import { runDeliveryPass } from "../../../api/src/schedulers/outbox-delivery.js";
 import {
@@ -233,13 +229,11 @@ export function openDeliverer(): {
   close: () => Promise<void>;
 } {
   const fixtures = readFixtures();
-  // A pool of this spec's own, over the run's database. `pg` is a dependency of
-  // `@qcms/db` and `qcms-api`, resolved here through the same workspace the rest of
-  // this harness imports from, so the admin gains no dependency (the pattern
-  // `apps/portal/e2e/support/db.ts` states).
-  const pool = new pg.Pool({ connectionString: fixtures.databaseUrl });
-  pool.on("error", () => undefined);
-  const db = drizzle(pool, { schema });
+  // A handle of this spec's own, over the run's database, built by the API harness so
+  // the database client resolves from `apps/api` rather than from this package. Since
+  // task 056 the admin declares no `pg`, `drizzle-orm` or `@qcms/db` dependency at all,
+  // which is the point of the boundary and not merely tidiness.
+  const { db, query, close: closePool } = openDbHandle(fixtures.databaseUrl);
   const env = buildEnv({
     DATABASE_URL: fixtures.databaseUrl,
     QCMS_INTERNAL_TOKEN: FIXED_INTERNAL_TOKEN,
@@ -295,7 +289,7 @@ export function openDeliverer(): {
      * suite.
      */
     async erasedDeliveries() {
-      const result = await pool.query<{ id: string; session_id: string }>(
+      const result = await query<{ id: string; session_id: string }>(
         `select d.id, t.session_id
            from webhook_deliveries d
            join outbox o on o.id = d.outbox_id
@@ -311,14 +305,14 @@ export function openDeliverer(): {
      * fact the erase dialog now admits and the fact the redeliver refusal contains.
      */
     async outboxPayloadsForSession(sessionId: string) {
-      const result = await pool.query<{ payload: Record<string, unknown> }>(
+      const result = await query<{ payload: Record<string, unknown> }>(
         `select payload from outbox where payload ->> 'sessionId' = $1`,
         [sessionId],
       );
       return result.rows.map((row) => row.payload);
     },
     async close() {
-      await pool.end();
+      await closePool();
     },
   };
 }

@@ -1,6 +1,4 @@
-import { APIError } from "better-auth/api";
-
-import { getAuth } from "@/lib/server/auth";
+import { verifyBackupCode } from "@/lib/server/auth-api";
 import {
   authRefused,
   cookiesFrom,
@@ -29,17 +27,7 @@ export async function POST(request: Request): Promise<Response> {
   const code = formField(await request.formData(), "code");
   if (code === undefined) return redirectWithGenericFailure("/two-factor/recovery");
 
-  let verified: Response;
-  try {
-    verified = await getAuth().api.verifyBackupCode({
-      body: { code },
-      headers: request.headers,
-      asResponse: true,
-    });
-  } catch (error) {
-    if (error instanceof APIError) return redirectWithGenericFailure("/two-factor/recovery");
-    throw error;
-  }
+  const verified = await verifyBackupCode(request.headers, code);
 
   // A spent or wrong code arrives as a 4xx Response rather than a throw (see
   // `authRefused`), which is the path the single-use assertion exercises.

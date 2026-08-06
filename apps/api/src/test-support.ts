@@ -37,6 +37,12 @@ export function validEnv(
     QCMS_INTERNAL_TOKEN: synthSecret(),
     QCMS_APP_KEY: synthSecret(),
     QCMS_PORTAL_BASE_URL: "https://forms.example.test",
+    // Required because the default mount is `all`, which includes the admin surface
+    // and therefore the better-auth instance (task 056). Synthetic, like every other
+    // secret here; a test that wants a public-only shape passes QCMS_MOUNT and these
+    // become unread.
+    QCMS_ADMIN_AUTH_SECRET: synthSecret(),
+    QCMS_ADMIN_BASE_URL: "https://admin.example.test",
     ...overrides,
   };
 }

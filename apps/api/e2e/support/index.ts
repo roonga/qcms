@@ -4,6 +4,7 @@
  * nothing else beyond `app.request()` - proving the API is usable as a consumer.
  */
 
+export * from "./admin-accounts.js";
 export * from "./types.js";
 export * from "./fixtures.js";
 export * from "./harness.js";

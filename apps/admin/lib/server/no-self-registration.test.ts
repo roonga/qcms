@@ -14,10 +14,18 @@ import { describe, expect, it } from "vitest";
  * check that none of them is that catch-all, and that no route is named for
  * registration.
  *
- * `signUpEmail` is still called, exactly once, from the first-run bootstrap
- * (`lib/server/bootstrap.ts`) behind a zero-admins guard. That is deliberate and is
- * asserted here too: it must be reachable from the CLI and from nowhere under `app/`,
- * because a route is HTTP-reachable and a CLI is not.
+ * Task 056 moved better-auth into the API and this file **stays**, for two reasons. The
+ * temptation it guards against is now stronger rather than weaker: the auth endpoints are
+ * an HTTP surface the admin forwards to, and a blind `/api/auth/[...all]` proxy route in
+ * this app would republish sign-up without ever touching the library. And it is the
+ * cheap half of a two-sided guarantee - the expensive half is in the API, where
+ * `features/auth/auth-mount.test.ts` posts to the sign-up path and requires a 404.
+ *
+ * `signUpEmail` is still called exactly once, from the first-run bootstrap
+ * (`apps/api/src/features/auth/bootstrap.ts`) behind a zero-admins guard, and the
+ * endpoint is deliberately absent from the API's mount allowlist. A CLI is not
+ * HTTP-reachable, which is the whole distinction SEC-1 draws; the assertion below keeps
+ * the admin's own routes on the correct side of it.
  */
 
 const ADMIN_ROOT = fileURLToPath(new URL("../../", import.meta.url));
