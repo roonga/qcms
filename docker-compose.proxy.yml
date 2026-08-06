@@ -1,0 +1,61 @@
+# Optional Caddy ingress overlay for the solo topology (task 036, ADR-20).
+#
+#   docker compose -f docker-compose.yml -f docker-compose.proxy.yml up --detach
+#
+# ADR-20 keeps TLS and public routing out of the base stack: they are operator
+# infrastructure. This overlay is the recipe for the one shape where the operator
+# has no infrastructure to speak of - a single VM with a public IP and two DNS
+# records - and it is opt-in for exactly that reason. On a cloud load balancer
+# (ECS + ALB and friends) you do NOT use this file; see docs/deploy-ingress.md.
+#
+# What it adds is one container and one routing policy: Caddy, terminating TLS
+# with automatic Let's Encrypt certificates, in front of portal and admin. It
+# publishes nothing else, and it cannot: the routing lives in docker/Caddyfile,
+# which names two upstreams and no others. `api` and `postgres` stay unpublished
+# and unrouted, which is the ADR-20 property `scripts/compose-config.test.ts`
+# asserts against this merged configuration rather than trusting a comment.
+#
+# ## The two host publishes the base file still makes
+#
+# Merging cannot remove a `ports` entry, so portal and admin keep the loopback
+# publishes docker-compose.yml makes (QCMS_BIND_ADDRESS defaults to 127.0.0.1).
+# That is deliberate and safe: a loopback publish is reachable only from the VM
+# itself, which is a useful door for `curl` during an incident, and Caddy reaches
+# both apps over the Compose network rather than through it. Leave
+# QCMS_BIND_ADDRESS at its default when you use this overlay. Setting it to
+# 0.0.0.0 would put the two apps on the public interface in plain HTTP, beside
+# the TLS ingress you just installed.
+services:
+  caddy:
+    # Overridable for the same reason the Postgres image is: an operator mirroring
+    # base images into their own registry should not have to fork this file.
+    image: ${QCMS_CADDY_IMAGE:-caddy:2-alpine}
+    # Published on all interfaces, unlike everything in the base file. An ingress
+    # that only listens on loopback is not an ingress; this container is the one
+    # process in the stack whose job is to be publicly reachable.
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      # Substituted into docker/Caddyfile at config-load time.
+      QCMS_PORTAL_DOMAIN: ${QCMS_PORTAL_DOMAIN:?set QCMS_PORTAL_DOMAIN in .env}
+      QCMS_ADMIN_DOMAIN: ${QCMS_ADMIN_DOMAIN:?set QCMS_ADMIN_DOMAIN in .env}
+      QCMS_ACME_EMAIL: ${QCMS_ACME_EMAIL:?set QCMS_ACME_EMAIL in .env}
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificates and account keys. Losing this volume means re-issuing every
+      # certificate on the next boot, which Let's Encrypt rate-limits, so it is a
+      # named volume rather than a container-lifetime scratch directory.
+      - qcms-caddy-data:/data
+      - qcms-caddy-config:/config
+    depends_on:
+      portal:
+        condition: service_healthy
+      admin:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  qcms-caddy-data:
+  qcms-caddy-config:
