@@ -1,8 +1,8 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { getAuth, twoFactorOptional } from "./auth.ts";
-import { sessionPolicy } from "./config.ts";
+import { proxiedSession } from "./auth-api.ts";
+import { sessionMaxAgeMs, twoFactorOptional } from "./config.ts";
 import { redirectAfterPost } from "./route-helpers.ts";
 
 /**
@@ -14,11 +14,18 @@ import { redirectAfterPost } from "./route-helpers.ts";
  * Next's proxy (middleware) runs before every request and would be the cheapest
  * place to bounce an anonymous visitor, but it is the wrong **authority**: it can
  * see a cookie, not whether the session behind it exists, is expired, or has
- * completed 2FA. Answering that needs a database read. So the proxy sets security
- * headers only, and the authenticated route group's layout calls
- * {@link requireAdminSession}, which every page under it inherits. A page added to
- * that group in tasks 032-035 is gated by construction rather than by remembering
+ * completed 2FA. Answering that needs a database read, which since task 056 means a
+ * call to the API's session endpoint - the admin holds no database handle at all. So
+ * the proxy sets security headers only, and the authenticated route group's layout
+ * calls {@link requireAdminSession}, which every page under it inherits. A page added
+ * to that group in tasks 032-035 is gated by construction rather than by remembering
  * to add a guard.
+ *
+ * Nothing here validates a cookie signature. The session is resolved by asking the
+ * API, which reads the row (task 056; before it, the same read happened in process
+ * through better-auth's adapter). A signature would prove the cookie was minted by
+ * this deployment and nothing about whether the session behind it still exists, which
+ * is the property all three gates below actually depend on.
  *
  * ## Why a layout gate is not the whole story (issue #177)
  *
@@ -91,11 +98,11 @@ export const SHELL_HOME_PATH = "/questions";
  */
 export async function currentAdminSession(): Promise<AdminSession | undefined> {
   const requestHeaders = await headers();
-  const result = await getAuth().api.getSession({ headers: requestHeaders });
-  if (result === null) return undefined;
+  const result = await proxiedSession(requestHeaders);
+  if (result === undefined) return undefined;
 
   const issuedAt = new Date(result.session.createdAt).getTime();
-  if (Date.now() - issuedAt >= sessionPolicy().maxAgeMs) return undefined;
+  if (Date.now() - issuedAt >= sessionMaxAgeMs()) return undefined;
 
   return {
     userId: result.user.id,

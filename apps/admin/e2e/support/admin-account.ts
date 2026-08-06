@@ -1,37 +1,35 @@
-import { FIXTURES_PATH } from "../../../portal/e2e/support/harness-config.js";
+import { createTestAdmin as createAdminAccount } from "../../../api/e2e/support/admin-accounts.js";
+import { readFixtures } from "../../../portal/e2e/support/fixtures.js";
 
 import { ADMIN_BASE_URL, FIXED_AUTH_SECRET } from "./harness-config.js";
 
 /**
- * Test-account setup for the admin Playwright suite (task 031).
+ * Test-account setup for the admin Playwright suite (task 031; re-pointed at the API by
+ * task 056).
  *
- * The suite needs an admin account with a password better-auth can verify, and it needs
- * it before the browser opens. It creates one by calling `signUpEmail` in the runner
- * process against the same database the dev server uses, which **deliberately bypasses
- * the CLI's zero-admins guard**. That is not a hole being papered over: the guard is a
- * property of `pnpm qcms:create-admin` (nothing else may create the first account), and
- * it is tested where it lives, against a genuinely empty database, in
- * `lib/server/bootstrap.integration.test.ts`. What this suite is for is the browser
- * flow, and forcing it through a once-per-database command would let it test exactly one
- * account, once.
+ * The suite needs an admin account with a password better-auth can verify, before the
+ * browser opens. The instance that can create one now lives in `apps/api`, so this module
+ * is a thin call into `apps/api/e2e/support/admin-accounts.ts` - which is also what keeps
+ * the admin package free of a database client (`pg`, `drizzle-orm` and `@qcms/db` resolve
+ * from the api workspace there, never from this one).
  *
- * Nothing else about the flow is shortcut. Enrollment, the TOTP secret, the recovery
- * codes and every verification happen in the browser, through the real screens - the
- * specs read the secret and the codes off the page exactly as an operator would.
+ * ## Where the database URL comes from now
  *
- * The environment is set here, at module scope, because `getAuth()` reads it on first
- * use: the same fixtures-file seam the dev server uses (`lib/server/db.ts`) points this
- * process at the run's throwaway Postgres, and the same fixed signing secret means the
- * cookies this process would mint and the ones the dev server mints are interchangeable.
+ * From the fixtures file `globalSetup` writes, read at call time. Before this task the
+ * admin dev server was handed the fixtures **path** through `QCMS_ADMIN_E2E_FIXTURES` and
+ * resolved a connection string per request, because it held better-auth's database handle
+ * and could not be told the URL at spawn time (Playwright starts webServers alongside
+ * globalSetup, not after it). The dev server needs no database at all now, so that seam is
+ * retired: the composed API in `globalSetup` is handed `DATABASE_URL` directly, and this
+ * runner-side helper reads the same fixtures file the specs already read.
+ *
+ * The signing secret is `FIXED_AUTH_SECRET`, the same value the harness gives the composed
+ * API, so a cookie minted on either side verifies on the other.
+ *
+ * Nothing else about the flow is shortcut: enrollment, the TOTP secret, the recovery codes
+ * and every verification happen in the browser, through the real screens, and the specs
+ * read the secret and the codes off the page exactly as an operator would.
  */
-
-process.env.QCMS_ADMIN_E2E_FIXTURES = FIXTURES_PATH;
-process.env.QCMS_ADMIN_BASE_URL = ADMIN_BASE_URL;
-process.env.QCMS_ADMIN_AUTH_SECRET = FIXED_AUTH_SECRET;
-
-// Imported after the environment is populated. The instance is lazy, so a static import
-// would work too; keeping the order explicit documents the dependency.
-const { getAuth } = await import("../../lib/server/auth.ts");
 
 /**
  * A synthetic password for the suite's accounts, **generated per run** rather than written
@@ -49,21 +47,11 @@ export function uniqueAdminEmail(label: string): string {
 
 /** Create an admin account with no TOTP factor yet: enrollment is the browser's job. */
 export async function createTestAdmin(email: string): Promise<void> {
-  await getAuth().api.signUpEmail({
-    body: { email, password: TEST_PASSWORD, name: "E2E Admin" },
-    asResponse: true,
+  await createAdminAccount({
+    databaseUrl: readFixtures().databaseUrl,
+    authSecret: FIXED_AUTH_SECRET,
+    adminBaseUrl: ADMIN_BASE_URL,
+    email,
+    password: TEST_PASSWORD,
   });
 }
-
-/**
- * There is deliberately **no** pool-closing helper here, and the reason is a trap worth
- * recording: closing the pool in a spec file's `afterAll` breaks the *next* spec file.
- * Playwright runs the files of a project in one worker process, so this module's state -
- * including the better-auth instance memoized against its pool - outlives any single file.
- * A file that closed the pool left the following file with a live auth instance over a dead
- * pool, failing its `beforeAll` with a raw `Failed query: select ... from "user"`.
- *
- * Nothing has to be closed. Playwright exits its workers before running globalTeardown, so
- * the pool is gone by the time the container stops. (The Vitest side is different and does
- * need `closeAdminDb()`: there the container teardown runs in the same process as the pool.)
- */

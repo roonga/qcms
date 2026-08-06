@@ -76,7 +76,7 @@ function cookieHeader(response: Response): string {
 }
 
 /** POST an allowlisted auth endpoint the way the admin BFF does. */
-function authPost(path: string, body: unknown, cookie?: string): Promise<Response> {
+async function authPost(path: string, body: unknown, cookie?: string): Promise<Response> {
   return app.request(`/api/auth${path}`, {
     method: "POST",
     headers: {
@@ -91,14 +91,14 @@ function authPost(path: string, body: unknown, cookie?: string): Promise<Respons
   });
 }
 
-function authGetSession(cookie: string): Promise<Response> {
+async function authGetSession(cookie: string): Promise<Response> {
   return app.request("/api/auth/get-session", {
     headers: { "x-qcms-internal-token": channelToken, origin: adminOrigin, cookie },
   });
 }
 
 /** Call an admin-group route with a forwarded session token, as the BFF does. */
-function adminGet(path: string, sessionToken: string): Promise<Response> {
+async function adminGet(path: string, sessionToken: string): Promise<Response> {
   return app.request(`/admin${path}`, {
     headers: {
       "x-qcms-internal-token": channelToken,

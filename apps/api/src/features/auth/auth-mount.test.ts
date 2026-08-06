@@ -25,6 +25,16 @@ interface ErrBody {
   error: { code: string; message: string };
 }
 
+/**
+ * A syntactically valid password for the refused requests below, generated per run.
+ *
+ * Generated rather than written down for the reason the lint gate exists: a literal in
+ * this position is how a real credential eventually gets committed next to it. Nothing
+ * here ever reaches better-auth in any case - every request in this file is expected to
+ * be refused before the handler.
+ */
+const SYNTHETIC_PASSWORD = `probe-${Buffer.from(crypto.getRandomValues(new Uint8Array(12))).toString("base64url")}`;
+
 function compose(flags: typeof ALL | typeof PUBLIC_ONLY) {
   const deps = makeDeps({ env: validEnv() });
   return { deps, app: createApp(deps, flags, groups) };
@@ -46,7 +56,7 @@ describe("SEC-1: no self-registration path exists in any composition", () => {
         "content-type": "application/json",
         "x-qcms-internal-token": internalTokenFor(deps.config),
       },
-      body: JSON.stringify({ email: "intruder@example.test", password: "long-enough-password" }),
+      body: JSON.stringify({ email: "intruder@example.test", password: SYNTHETIC_PASSWORD }),
     });
     expect(res.status).toBe(404);
     expect(((await res.json()) as ErrBody).error.code).toBe("not_found");
@@ -85,7 +95,10 @@ describe("SEC-1: no self-registration path exists in any composition", () => {
     const { deps, app } = compose(ALL);
     const res = await app.request("/api/auth/two-factor/disable", {
       method: "POST",
-      headers: { "content-type": "application/json", "x-qcms-internal-token": internalTokenFor(deps.config) },
+      headers: {
+        "content-type": "application/json",
+        "x-qcms-internal-token": internalTokenFor(deps.config),
+      },
       body: "{}",
     });
     const body = (await res.json()) as ErrBody;
@@ -121,7 +134,7 @@ describe("ADR-09: no identity provider in a respondent-only process", () => {
         "content-type": "application/json",
         "x-qcms-internal-token": internalTokenFor(deps.config),
       },
-      body: JSON.stringify({ email: "a@b.test", password: "long-enough-password" }),
+      body: JSON.stringify({ email: "a@b.test", password: SYNTHETIC_PASSWORD }),
     });
     expect(res.status).toBe(404);
   });

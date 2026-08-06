@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { AuthScreen } from "@/components/auth-screen";
 import { Button, TextField } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
-import { TWO_FACTOR_COOKIE } from "@/lib/server/auth";
+import { TWO_FACTOR_COOKIE } from "@/lib/server/auth-api";
 import { SIGN_IN_PATH } from "@/lib/server/session";
 
 /**

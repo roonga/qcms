@@ -16,7 +16,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * it.
  */
 
-/** better-auth's `getSession` shape, narrowed to the fields `session.ts` reads. */
+/**
+ * The proxied session read, narrowed to the fields `session.ts` uses.
+ *
+ * Task 056 moved the read from an in-process `getAuth().api.getSession()` call to one
+ * HTTP request to the API`s auth mount, so what is mocked below is
+ * `auth-api.proxiedSession` rather than the library. The fields are the same ones
+ * better-auth returns, which is the point: the hop changed, the contract did not.
+ */
 interface AuthSessionResult {
   readonly session: { readonly createdAt: string; readonly token: string };
   readonly user: {
@@ -29,7 +36,7 @@ interface AuthSessionResult {
 }
 
 const mocks = vi.hoisted(() => ({
-  getSession: vi.fn<() => Promise<AuthSessionResult | null>>(),
+  proxiedSession: vi.fn<() => Promise<AuthSessionResult | undefined>>(),
   twoFactorOptional: vi.fn<() => boolean>(),
   // `redirect()` signals by throwing, which is the behaviour under test for pages: a
   // caller must not be able to continue past it. The thrown marker stands in for Next's
@@ -41,8 +48,9 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("next/headers", () => ({ headers: () => Promise.resolve(new Headers()) }));
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
-vi.mock("./auth.ts", () => ({
-  getAuth: () => ({ api: { getSession: mocks.getSession } }),
+vi.mock("./auth-api.ts", () => ({ proxiedSession: mocks.proxiedSession }));
+vi.mock("./config.ts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./config.ts")>()),
   twoFactorOptional: mocks.twoFactorOptional,
 }));
 
@@ -50,7 +58,7 @@ const { ENROLL_PATH, SIGN_IN_PATH, requireAdminSession, requireAdminSessionForRe
   await import("./session.ts");
 
 const HOUR_MS = 60 * 60 * 1000;
-/** SEC-1's absolute lifetime, and `sessionPolicy()`'s default when the env is unset. */
+/** SEC-1's absolute lifetime, and `sessionMaxAgeMs()`'s default when the env is unset. */
 const MAX_AGE_MS = 12 * HOUR_MS;
 
 function signedIn(ageMs: number, twoFactorEnabled: boolean): AuthSessionResult {
@@ -93,7 +101,7 @@ beforeEach(() => {
 
 describe("the three gates, applied identically by both guards (issue #177)", () => {
   const cases = [
-    { name: "no session at all", result: null, expected: () => SIGN_IN_PATH },
+    { name: "no session at all", result: undefined, expected: () => SIGN_IN_PATH },
     {
       name: "a session kept warm past the SEC-1 12h absolute cap",
       result: signedIn(MAX_AGE_MS + HOUR_MS, true),
@@ -112,19 +120,19 @@ describe("the three gates, applied identically by both guards (issue #177)", () 
   ];
 
   it.each(cases)("page guard refuses $name", async ({ result, expected }) => {
-    mocks.getSession.mockResolvedValue(result);
+    mocks.proxiedSession.mockResolvedValue(result);
     expect(await pageRefusal()).toBe(expected());
   });
 
   it.each(cases)("route-handler guard refuses $name", async ({ result, expected }) => {
-    mocks.getSession.mockResolvedValue(result);
+    mocks.proxiedSession.mockResolvedValue(result);
     expect(await requestRefusal()).toEqual({ path: expected(), status: 303 });
   });
 
   it.each(cases)(
     "route-handler guard never reaches the handler body for $name",
     async ({ result }) => {
-      mocks.getSession.mockResolvedValue(result);
+      mocks.proxiedSession.mockResolvedValue(result);
       // The narrowing the call sites use. If this stopped being a `Response`, every
       // handler's `if (x instanceof Response) return x;` would fall through into the
       // credential-changing code path with no session.
@@ -135,7 +143,7 @@ describe("the three gates, applied identically by both guards (issue #177)", () 
 
 describe("a session that passes all three gates", () => {
   beforeEach(() => {
-    mocks.getSession.mockResolvedValue(signedIn(HOUR_MS, true));
+    mocks.proxiedSession.mockResolvedValue(signedIn(HOUR_MS, true));
   });
 
   it("is returned to a page, not redirected", async () => {
@@ -154,12 +162,12 @@ describe("a session that passes all three gates", () => {
 describe("the documented 2FA escape hatch (QCMS_ADMIN_2FA=optional)", () => {
   it("lets an un-enrolled session through both guards, and only that gate", async () => {
     mocks.twoFactorOptional.mockReturnValue(true);
-    mocks.getSession.mockResolvedValue(signedIn(HOUR_MS, false));
+    mocks.proxiedSession.mockResolvedValue(signedIn(HOUR_MS, false));
     await expect(requireAdminSession()).resolves.toMatchObject({ twoFactorEnabled: false });
     expect(await requireAdminSessionForRequest()).not.toBeInstanceOf(Response);
 
     // The cap is not part of the escape hatch: an expired session is still refused.
-    mocks.getSession.mockResolvedValue(signedIn(MAX_AGE_MS + HOUR_MS, false));
+    mocks.proxiedSession.mockResolvedValue(signedIn(MAX_AGE_MS + HOUR_MS, false));
     expect(await pageRefusal()).toBe(SIGN_IN_PATH);
     expect(await requestRefusal()).toEqual({ path: SIGN_IN_PATH, status: 303 });
   });
@@ -167,7 +175,7 @@ describe("the documented 2FA escape hatch (QCMS_ADMIN_2FA=optional)", () => {
 
 describe("the refusal shape a form POST needs", () => {
   it("is a 303 so the browser follows with GET, never a 307 that re-posts", async () => {
-    mocks.getSession.mockResolvedValue(null);
+    mocks.proxiedSession.mockResolvedValue(undefined);
     const outcome = await requireAdminSessionForRequest();
     expect(outcome).toBeInstanceOf(Response);
     if (!(outcome instanceof Response)) return;

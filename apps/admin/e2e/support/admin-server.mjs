@@ -8,18 +8,15 @@
 // it for process-fatal markers, and exits nonzero the moment startup fails.
 //
 // It must NOT wait for the database, and that is worth stating because waiting is the
-// obvious first design and it deadlocks. The admin holds a database connection
-// (better-auth) and the database is the throwaway container `globalSetup` boots on a
-// random port - but Playwright gates `globalSetup` on every webServer being reachable,
-// so a wrapper that blocks until globalSetup has written its fixtures waits for something
-// that is waiting for it. Measured once, as a 150s stall and an "Exit code: 1".
+// obvious first design and it deadlocks: Playwright gates `globalSetup` on every
+// webServer being reachable, so a wrapper that blocks until globalSetup has written its
+// fixtures waits for something that is waiting for it. Measured once, as a 150s stall and
+// an "Exit code: 1".
 //
-// The lazy database seam is what removes the need to wait at all: nothing resolves a
-// connection string until a request needs one (`lib/server/db.ts`), and the harness probes
-// `/healthz`, which touches no database. By the time a spec runs, globalSetup has
-// finished and the fixtures file is there. Reading it per request rather than at spawn
-// time also means a locally reused dev server picks up the current run's database instead
-// of a dead pool from the last one.
+// Since task 056 there is nothing to wait for in any case: the admin holds no database
+// handle at all (better-auth moved into the API), so this dev server has no dependency on
+// the throwaway container `globalSetup` boots. The harness probes `/healthz`, which
+// reaches neither the API nor a database.
 //
 // It carries the portal wrapper's subtree reaping for the same reason: the command runs
 // through `sh -c`, which does not forward signals, and Playwright skips its own

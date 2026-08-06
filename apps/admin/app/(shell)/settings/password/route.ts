@@ -1,6 +1,4 @@
-import { APIError } from "better-auth/api";
-
-import { getAuth } from "@/lib/server/auth";
+import { changePassword } from "@/lib/server/auth-api";
 import {
   authRefused,
   cookiesFrom,
@@ -54,17 +52,7 @@ export async function POST(request: Request): Promise<Response> {
     return redirectWithGenericFailure(SETTINGS_PATH);
   }
 
-  let changed: Response;
-  try {
-    changed = await getAuth().api.changePassword({
-      body: { currentPassword, newPassword, revokeOtherSessions: true },
-      headers: request.headers,
-      asResponse: true,
-    });
-  } catch (error) {
-    if (error instanceof APIError) return redirectWithGenericFailure(SETTINGS_PATH);
-    throw error;
-  }
+  const changed = await changePassword(request.headers, { currentPassword, newPassword });
 
   // A wrong current password or a too-short new one arrives as a 4xx Response rather than
   // a throw (see `authRefused`); both report the same generic sentence (SEC-1).

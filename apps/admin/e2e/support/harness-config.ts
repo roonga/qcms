@@ -11,11 +11,11 @@ import { PORT_SEAT, harnessPort } from "../../../portal/e2e/support/port-seat.js
  * no second API here: the admin dev server points at the same two, which is also the
  * real topology (one Postgres, one API, two frontends).
  *
- * The admin dev server needs the database URL that setup chose, and it cannot be handed
- * it at spawn time (Playwright starts webServers alongside globalSetup, not after it).
- * So it is passed the **path** to the fixtures file setup writes, and reads the URL from
- * there per request - see `lib/server/db.ts` for why that seam exists and why it also
- * makes a reused dev server safe across runs.
+ * Since task 056 the admin dev server needs **no** database URL at all: better-auth lives
+ * in the API, so the admin is a pure BFF and the composed API is handed `DATABASE_URL`
+ * directly by `globalSetup`. That retired the `QCMS_ADMIN_E2E_FIXTURES` seam, which
+ * existed only because the admin held a database handle and could not be told the URL at
+ * spawn time (Playwright starts webServers alongside globalSetup, not after it).
  */
 
 /**
@@ -30,14 +30,20 @@ import { PORT_SEAT, harnessPort } from "../../../portal/e2e/support/port-seat.js
  */
 export const ADMIN_PORT = harnessPort("admin", PORT_SEAT);
 
-/** The admin app's own base URL, which better-auth scopes its cookies to. */
+/**
+ * The admin app's own base URL. The admin reads it for the SEC-9 origin check, and the
+ * composed API reads it as better-auth's `baseURL` and sole trusted origin, so both
+ * sides of the proxied hop agree on which origin the cookies belong to.
+ */
 export const ADMIN_BASE_URL = `http://localhost:${ADMIN_PORT}`;
 
 /**
  * Synthetic better-auth signing secret for the suite (test-only, never a real
- * credential). Fixed rather than random so a reused dev server and a fresh runner agree
- * on it: a rotated secret would invalidate cookies mid-run. Length is over the 32-char
- * minimum `authSecret()` enforces.
+ * credential). Since task 056 it is handed to the **API** (which owns the instance) and
+ * to the runner-side account helper, which must agree with it or the cookies one mints
+ * are not the cookies the other verifies. Fixed rather than random so a reused dev
+ * server and a fresh runner agree on it: a rotated secret would invalidate cookies
+ * mid-run. Length is over the 32-char minimum the config validator enforces.
  */
 export const FIXED_AUTH_SECRET = "qcms-e2e-admin-better-auth-secret-0000000000";
 

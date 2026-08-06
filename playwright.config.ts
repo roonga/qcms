@@ -1,10 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 
-import {
-  ADMIN_BASE_URL,
-  ADMIN_PORT,
-  FIXED_AUTH_SECRET,
-} from "./apps/admin/e2e/support/harness-config.js";
+import { ADMIN_BASE_URL, ADMIN_PORT } from "./apps/admin/e2e/support/harness-config.js";
 import {
   API_BASE_URL,
   API_PORT,
@@ -248,31 +244,29 @@ export default defineConfig({
       },
     },
     {
-      // The admin DEV server (task 031), through its own wrapper. Two things differ
-      // from the portal's: the wrapper waits for `globalSetup` to write the fixtures
-      // file before starting, and the admin is given the fixtures **path** rather than
-      // a database URL. It needs a database (better-auth), the database is a
-      // throwaway container on a random port, and Playwright starts webServers
-      // alongside globalSetup rather than after it - so the URL cannot be known at
-      // spawn time. Reading it per request also means a locally reused dev server
-      // picks up the current run's database instead of a dead pool from the last one
-      // (see `apps/admin/lib/server/db.ts`).
+      // The admin DEV server (task 031), through its own wrapper.
+      //
+      // Since task 056 it is handed **no database URL and no auth secret**: better-auth
+      // lives in the API, so the admin is a pure BFF whose whole configuration is the
+      // API's address, the SEC-4 token, and its own public origin. That retired the
+      // `QCMS_ADMIN_E2E_FIXTURES` seam this entry used to pass, which existed only
+      // because the admin held a database handle and Playwright starts webServers
+      // alongside globalSetup rather than after it, so the container's URL could not be
+      // known at spawn time.
       command: `node ./apps/admin/e2e/support/admin-server.mjs`,
       // `/healthz` rather than `/`: Playwright treats a 5xx as "not started" and gates
-      // globalSetup on webServer readiness, so probing a page that needs the database
-      // would wait for the very thing globalSetup is about to create.
+      // globalSetup on webServer readiness, so probing a page that needs the API would
+      // wait for the very thing globalSetup is about to create.
       url: `${ADMIN_BASE_URL}/healthz`,
       // Same rule as the portal's: adopt only a verified same-worktree server.
       reuseExistingServer: !process.env.CI && ADOPTABLE.has("admin"),
       timeout: 180_000,
       env: {
         ADMIN_PORT: String(ADMIN_PORT),
-        QCMS_ADMIN_E2E_FIXTURES: FIXTURES_PATH,
+        // Its own public origin: the SEC-9 origin check compares every state-changing
+        // POST against it, and the API uses the same value as better-auth's `baseURL`.
         QCMS_ADMIN_BASE_URL: ADMIN_BASE_URL,
-        QCMS_ADMIN_AUTH_SECRET: FIXED_AUTH_SECRET,
-        // The BFF's credentials for the API. No 031 screen proxies yet (the area
-        // screens are 032-035), but the admin shares the portal's synthetic token so
-        // the first screen that does needs no harness change.
+        // The BFF's credentials for the API, now carrying the auth traffic too.
         QCMS_API_BASE_URL: API_BASE_URL,
         QCMS_INTERNAL_TOKEN: FIXED_INTERNAL_TOKEN,
         // Left at the default (`required`) deliberately: enforced-by-default 2FA is

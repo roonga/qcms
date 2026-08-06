@@ -1,6 +1,4 @@
-import { APIError } from "better-auth/api";
-
-import { getAuth } from "@/lib/server/auth";
+import { verifyTotp } from "@/lib/server/auth-api";
 import {
   authRefused,
   cookiesFrom,
@@ -30,17 +28,7 @@ export async function POST(request: Request): Promise<Response> {
   const code = formField(await request.formData(), "code");
   if (code === undefined) return redirectWithGenericFailure("/two-factor/challenge");
 
-  let verified: Response;
-  try {
-    verified = await getAuth().api.verifyTOTP({
-      body: { code },
-      headers: request.headers,
-      asResponse: true,
-    });
-  } catch (error) {
-    if (error instanceof APIError) return redirectWithGenericFailure("/two-factor/challenge");
-    throw error;
-  }
+  const verified = await verifyTotp(request.headers, code);
 
   // A wrong code arrives as a 4xx Response rather than a throw (see `authRefused`).
   if (authRefused(verified)) return redirectWithGenericFailure("/two-factor/challenge");

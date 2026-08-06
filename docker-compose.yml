@@ -48,6 +48,12 @@ services:
       QCMS_INTERNAL_TOKEN: ${QCMS_INTERNAL_TOKEN:?set QCMS_INTERNAL_TOKEN in .env}
       QCMS_APP_KEY: ${QCMS_APP_KEY:?set QCMS_APP_KEY in .env}
       QCMS_PORTAL_BASE_URL: ${QCMS_PORTAL_BASE_URL:?set QCMS_PORTAL_BASE_URL in .env}
+      # better-auth runs in the API since task 056 (ADR-35 as amended), so its two
+      # values belong to this service and not to admin. Both are the ADMIN's public
+      # identity: the browser only ever reaches the admin origin, so that is the origin
+      # cookies are scoped to and the only origin better-auth trusts.
+      QCMS_ADMIN_AUTH_SECRET: ${QCMS_ADMIN_AUTH_SECRET:?set QCMS_ADMIN_AUTH_SECRET in .env}
+      QCMS_ADMIN_BASE_URL: ${QCMS_ADMIN_BASE_URL:?set QCMS_ADMIN_BASE_URL in .env}
       QCMS_MOUNT: all
     depends_on:
       postgres:
@@ -89,12 +95,15 @@ services:
     build:
       context: .
       dockerfile: docker/admin.Dockerfile
+    # No DATABASE_URL, and that absence is a control rather than an omission: after
+    # task 056 the API is the only process in this stack that holds a database
+    # credential of any kind (ADR-35 as amended 2026-07-31). The admin is a pure BFF -
+    # domain data and auth traffic both reach Postgres through the API - so adding one
+    # back here would be a regression the admin's import-surface test also refuses.
     environment:
-      DATABASE_URL: postgres://${QCMS_DB_USER:-qcms}:${QCMS_DB_PASSWORD:?set QCMS_DB_PASSWORD in .env}@postgres:5432/${QCMS_DB_NAME:-qcms}
       QCMS_API_BASE_URL: http://api:3000
       QCMS_INTERNAL_TOKEN: ${QCMS_INTERNAL_TOKEN:?set QCMS_INTERNAL_TOKEN in .env}
       QCMS_ADMIN_BASE_URL: ${QCMS_ADMIN_BASE_URL:?set QCMS_ADMIN_BASE_URL in .env}
-      QCMS_ADMIN_AUTH_SECRET: ${QCMS_ADMIN_AUTH_SECRET:?set QCMS_ADMIN_AUTH_SECRET in .env}
     depends_on:
       api:
         condition: service_healthy

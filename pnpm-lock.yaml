@@ -84,24 +84,12 @@ importers:
       '@codemirror/view':
         specifier: 6.43.7
         version: 6.43.7
-      '@qcms/db':
-        specifier: workspace:*
-        version: link:../../packages/db
       '@qcms/ui':
         specifier: workspace:*
         version: link:../../packages/ui
-      better-auth:
-        specifier: ^1.6.25
-        version: 1.6.25(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.3)(kysely@0.29.4)(pg@8.22.0))(next@16.2.12(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(pg@8.22.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.10)
-      drizzle-orm:
-        specifier: ^0.45.2
-        version: 0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.3)(kysely@0.29.4)(pg@8.22.0)
       next:
         specifier: ^16.2.12
         version: 16.2.12(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      pg:
-        specifier: ^8.22.0
-        version: 8.22.0
       qrcode:
         specifier: ^1.5.4
         version: 1.5.4
@@ -118,15 +106,9 @@ importers:
       '@tailwindcss/postcss':
         specifier: ^4.3.3
         version: 4.3.3
-      '@testcontainers/postgresql':
-        specifier: ^12.0.4
-        version: 12.0.4(supports-color@7.2.0)
       '@types/node':
         specifier: ^24.13.3
         version: 24.13.3
-      '@types/pg':
-        specifier: ^8.20.3
-        version: 8.20.3
       '@types/qrcode':
         specifier: ^1.5.5
         version: 1.5.6

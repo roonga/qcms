@@ -1,6 +1,5 @@
-import { APIError } from "better-auth/api";
-
-import { getAuth, twoFactorOptional } from "@/lib/server/auth";
+import { enableTwoFactor, proxiedSession, signInEmail } from "@/lib/server/auth-api";
+import { twoFactorOptional } from "@/lib/server/config";
 import { pendingEnrollmentCookie } from "@/lib/server/enrollment";
 import {
   authRefused,
@@ -42,6 +41,12 @@ import { ENROLL_PATH, SHELL_HOME_PATH, SIGN_IN_PATH } from "@/lib/server/session
  * actionable and reveals nothing about the account (the wireframe's throttled
  * state). Nothing from the library's message reaches the response, and nothing is
  * logged here: a value-free redirect is the whole error surface (SEC-1, SEC-8).
+ *
+ * Since task 056 each better-auth call is one request to the API's auth mount rather
+ * than an in-process library call, and the three outcomes are decided from exactly the
+ * same statuses and bodies. The `catch (APIError)` blocks are gone with the library:
+ * over HTTP a refusal is always a status, which the checks below already read because
+ * `asResponse: true` made refusals arrive that way in process too.
  */
 export async function POST(request: Request): Promise<Response> {
   // SEC-9's CSRF belt on top of SameSite=Lax.
@@ -54,26 +59,12 @@ export async function POST(request: Request): Promise<Response> {
     return redirectWithGenericFailure(SIGN_IN_PATH);
   }
 
-  let signIn: Response;
-  try {
-    signIn = await getAuth().api.signInEmail({
-      body: { email, password },
-      headers: request.headers,
-      asResponse: true,
-    });
-  } catch (error) {
-    if (error instanceof APIError && error.status === "TOO_MANY_REQUESTS") {
-      return redirectWithGenericFailure(SIGN_IN_PATH, "throttled");
-    }
-    // Includes UNAUTHORIZED (bad password) and the unknown-email path, which
-    // better-auth deliberately reports identically.
-    if (error instanceof APIError) return redirectWithGenericFailure(SIGN_IN_PATH);
-    throw error;
-  }
+  const signIn = await signInEmail(request.headers, { email, password });
 
-  // A refusal arrives as a 4xx Response, not a throw, because of `asResponse: true`
-  // (see `authRefused`). Checking the status is what keeps a wrong password reported as
-  // a wrong password.
+  // A refusal arrives as a 4xx `Response`, never a throw (see `authRefused`). Checking
+  // the status is what keeps a wrong password reported as a wrong password. `429` is
+  // the one refusal with its own message, and better-auth reports an unknown email
+  // and a wrong password identically, which is what SEC-1 asks for.
   if (authRefused(signIn)) {
     return redirectWithGenericFailure(SIGN_IN_PATH, authThrottled(signIn) ? "throttled" : "error");
   }
@@ -86,24 +77,28 @@ export async function POST(request: Request): Promise<Response> {
     return redirectAfterPost("/two-factor/challenge", cookies);
   }
 
-  // A session now exists. Decide between outcomes 2 and 3.
+  // A session now exists, but only in the cookies just issued - the browser has not
+  // seen them yet, so the session read has to be made with them rather than with the
+  // request's own cookie header.
+  const issuedCookie = cookies.map((c) => c.split(";")[0]).join("; ");
   const sessionHeaders = new Headers(request.headers);
-  sessionHeaders.set("cookie", cookies.map((c) => c.split(";")[0]).join("; "));
-  const session = await getAuth().api.getSession({ headers: sessionHeaders });
+  sessionHeaders.set("cookie", issuedCookie);
+  const session = await proxiedSession(sessionHeaders);
   const enrolled = session?.user.twoFactorEnabled === true;
 
   if (!enrolled && !twoFactorOptional()) {
-    // Outcome 2. `enableTwoFactor` returns the otpauth URI and the recovery codes;
+    // Outcome 2. `two-factor/enable` returns the otpauth URI and the recovery codes;
     // only the URI is carried forward, because the codes are read back server-side
     // at display time and never travel through a cookie.
-    const provisioned = await getAuth().api.enableTwoFactor({
-      body: { password },
-      headers: sessionHeaders,
-    });
-    return redirectAfterPost(ENROLL_PATH, [
-      ...cookies,
-      pendingEnrollmentCookie(provisioned.totpURI),
-    ]);
+    const provisioned = await enableTwoFactor(request.headers, password, issuedCookie);
+    // A refusal here is not a credential problem the visitor can act on (the password
+    // was just accepted), so it stays an error rather than becoming a fourth outcome -
+    // the same shape it had while the call was in process and could throw.
+    if (authRefused(provisioned)) {
+      throw new Error(`Failed to provision 2FA enrollment (${String(provisioned.status)})`);
+    }
+    const { totpURI } = (await provisioned.json()) as { totpURI: string };
+    return redirectAfterPost(ENROLL_PATH, [...cookies, pendingEnrollmentCookie(totpURI)]);
   }
 
   // Outcome 3.

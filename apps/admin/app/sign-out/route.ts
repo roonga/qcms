@@ -1,4 +1,4 @@
-import { getAuth } from "@/lib/server/auth";
+import { signOut } from "@/lib/server/auth-api";
 import { cookiesFrom, isSameOriginPost, redirectAfterPost } from "@/lib/server/route-helpers";
 import { SIGN_IN_PATH } from "@/lib/server/session";
 
@@ -17,12 +17,14 @@ import { SIGN_IN_PATH } from "@/lib/server/session";
  *
  * A failure to sign out still lands on sign-in. There is no state in which telling an
  * admin "sign-out failed" and leaving them on an authenticated page is the better
- * answer, and the session row is gone by then in every case that matters.
+ * answer, and the session row is gone by then in every case that matters. The `catch`
+ * therefore still exists after task 056 - it now covers an unreachable API rather than
+ * a library throw, and the answer is the same.
  */
 export async function POST(request: Request): Promise<Response> {
   if (!isSameOriginPost(request)) return redirectAfterPost(SIGN_IN_PATH);
   try {
-    const signedOut = await getAuth().api.signOut({ headers: request.headers, asResponse: true });
+    const signedOut = await signOut(request.headers);
     return redirectAfterPost(SIGN_IN_PATH, cookiesFrom(signedOut));
   } catch {
     return redirectAfterPost(SIGN_IN_PATH);

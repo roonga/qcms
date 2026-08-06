@@ -37,6 +37,11 @@ import {
 import { createJsonLogger } from "../../../api/src/logger.js";
 
 import {
+  ADMIN_BASE_URL,
+  FIXED_AUTH_SECRET,
+} from "../../../admin/e2e/support/harness-config.js";
+
+import {
   API_PORT,
   FIXED_APP_KEY,
   FIXED_INTERNAL_TOKEN,
@@ -139,6 +144,14 @@ export async function startApiServer(): Promise<void> {
     QCMS_APP_KEY: FIXED_APP_KEY,
     DATABASE_URL: testDb.connectionUri,
     QCMS_MOUNT: "all",
+    // better-auth lives here since task 056, so the composed API carries the admin's
+    // identity provider. Both values are the ADMIN's, not this API's: the browser only
+    // ever sees the admin origin, so that is the origin better-auth scopes cookies to
+    // and trusts. `FIXED_AUTH_SECRET` is shared with the runner-side account helper
+    // (`apps/api/e2e/support/admin-accounts.ts`), which is what makes a cookie minted
+    // there verify here.
+    QCMS_ADMIN_AUTH_SECRET: FIXED_AUTH_SECRET,
+    QCMS_ADMIN_BASE_URL: ADMIN_BASE_URL,
     // The composed API runs on a FIXED clock, so rate-limit windows never advance
     // and every session-create / answer / submit across the whole suite counts
     // against one frozen window. This behavioral suite is not a rate-limit test

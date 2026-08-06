@@ -26,10 +26,11 @@ COPY --from=build --chown=node:node /opt/qcms ./
 # pnpm deploy honours .gitignore, so Next's ignored production artifact must be
 # copied explicitly after the pruned runtime tree.
 COPY --from=build --chown=node:node /workspace/apps/admin/.next ./.next
-# Turbopack assigns a content-hashed external name to pg in its server trace
-# (for example `pg-4c0d…`). That name is not a package dependency pnpm can
-# deploy, so make each traced alias resolve to the actual direct pg dependency.
-RUN for module in $(grep -RhoE 'pg-[[:xdigit:]]+' .next/server | sort -u); do ln -s pg "node_modules/$module"; done
+# No `pg` alias fixup here any more. Turbopack used to assign a content-hashed external
+# name to pg in the admin's server trace (for example `pg-4c0d…`), which is not a
+# package pnpm can deploy, so each alias had to be symlinked to the real dependency.
+# Task 056 removed the admin's database client entirely (ADR-35 as amended), so there is
+# no `pg` in this image to alias.
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --retries=6 CMD node -e "fetch('http://127.0.0.1:3000/healthz').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
