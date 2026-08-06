@@ -466,10 +466,13 @@ async function main() {
 // above without a Compose run firing on import. Same guard as `check-ports.mjs` and
 // `check-changeset.mjs`.
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  // `pnpm docker:up` deliberately leaves the stack (and its forwarder) running for a
-  // human to poke at, so only the interrupt paths clean up here. `runComplete` has
-  // its own `down()` on every exit path, and the forwarder additionally dies when
-  // this process's stdin pipe to it closes, whatever kills this process.
+  // `pnpm docker:up` holds this process open rather than backgrounding the stack: the
+  // forwarder is tethered to this process's stdin, so the stack stays reachable for
+  // exactly as long as this command runs, and a second terminal drives the suite
+  // against it. The interrupt paths below are therefore what clean up when a human
+  // stops that command. `runComplete` has its own `down()` on every exit path, and the
+  // forwarder additionally dies when this process's stdin pipe to it closes, whatever
+  // kills this process.
   for (const signal of ["SIGINT", "SIGTERM"]) {
     process.on(signal, () => {
       stopLoopbackForwarding();

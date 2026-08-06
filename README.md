@@ -79,21 +79,40 @@ publish the API or Postgres ports.
 To run the browser end-to-end flow in an isolated Compose project:
 
 ```sh
-pnpm docker:up
-pnpm test:e2e
-pnpm docker:down
+QCMS_PORT_SEAT=<0-9> pnpm up:e2e
 ```
 
-`pnpm docker:up` first deletes any previous test containers and volumes, then starts
-a fresh stack on this seat's ephemeral harness ports (`17S00` portal, `17S40` admin,
-where `S` is `QCMS_PORT_SEAT` - see [`docs/PORTS.md`](docs/PORTS.md)) and bootstraps a new
-admin with generated credentials (printed once to the terminal locally, and on CI
-only as the path of the file the suite reads). `pnpm test:e2e`
-completes required TOTP enrollment and confirms access to the Questions screen.
-Use `pnpm test:e2e:headed` to watch the browser while that stack remains running.
+That form is self-contained: it starts the stack, runs the suite, and cleans up on
+every exit path. Add `:headed` to watch the browser. It first deletes any previous
+test containers and volumes, then starts a fresh stack on this seat's ephemeral
+harness ports (`17S00` portal, `17S40` admin, where `S` is `QCMS_PORT_SEAT` - see
+[`docs/PORTS.md`](docs/PORTS.md)) and bootstraps a new admin with generated
+credentials (printed once to the terminal locally, and on CI only as the path of the
+file the suite reads). The suite completes required TOTP enrollment and confirms
+access to the Questions screen.
 
-For a self-contained run that starts the stack, executes the same suite, and
-cleans up automatically, use `pnpm up:e2e`; add `:headed` to watch that run.
+The seat is refused rather than defaulted from a linked worktree, because it selects
+the Compose project name that teardown deletes; the primary checkout and CI keep the
+silent default.
+
+The steps can also be run separately, which is what you want when you intend to poke
+at a live stack:
+
+```sh
+pnpm docker:up     # holds this terminal, see below
+pnpm test:e2e      # from a second terminal
+pnpm docker:down   # from that second terminal
+```
+
+**Inside the dev container `pnpm docker:up` holds its terminal open, by design.** The
+stack publishes on the Docker host's loopback, which a sibling container cannot reach
+at any address, so the suite reaches it through a forwarder that is tethered to this
+command's lifetime (`scripts/loopback-forward.mjs`, issue #316). The stack is
+reachable for exactly as long as that command runs. Drive the suite from a second
+terminal and stop the stack from there too: interrupting `pnpm docker:up` tears the
+forwarder down, and anything still pointed at the stack then fails with
+`ECONNREFUSED`. On a plain host checkout none of that machinery is built and the
+commands behave as they always did.
 
 The **Full-stack E2E** GitHub Actions workflow can also be run manually from the
 Actions tab: choose the workflow, select **Run workflow**, and choose the branch.
