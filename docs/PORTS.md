@@ -30,11 +30,11 @@ Seat `S`, where `S` is `0`-`9`:
 | `7S20` | dev Postgres | stable | `docker-compose.dev.yml`, **host-owned**. Deliberately *not* in the container's `appPort`. |
 | `7S30` | artifacts server | stable | `pnpm artifacts`. Published out of the dev container. |
 | `7S40` | admin dev server | stable | **Allocated, not yet published**: there is no `pnpm dev:admin`, and `appPort` is unchanged by this allocation. Start it with `pnpm --filter qcms-admin dev --port 7040`. The solo Compose stack publishes its admin here as well, for the same reason as `7S00`. |
-| `17S00` | portal dev server (harness) | harness | Playwright `webServer`. |
+| `17S00` | portal dev server (harness) | harness | Playwright `webServer`. Also the portal **published** by the full-stack Compose stack (`pnpm up:e2e`), which is why those two cannot share a seat. |
 | `17S10` | composed API (harness) | harness | Bound by the Playwright runner in `globalSetup`. |
 | `17S20` | *(unused, deliberately)* | harness | Mirrors `7S20`. A harness run boots a Testcontainers Postgres on a kernel-assigned port and never wants a fixed one. The slot stays empty so `17S{nn}` maps onto `7S{nn}` without a second table. |
 | `17S30` | in-test OTLP receiver | harness | Bound by the Playwright runner. |
-| `17S40` | admin dev server (harness) | harness | Playwright `webServer`. |
+| `17S40` | admin dev server (harness) | harness | Playwright `webServer`. Also the admin **published** by the full-stack Compose stack, for the same reason as `17S00`. |
 
 Concretely:
 
@@ -91,13 +91,15 @@ The range is **read at runtime**, not hard-coded: it is tunable, and CI runners 
 
 ## Startup refusals
 
-Three, all at Playwright config load, which is before any `webServer` entry is evaluated and therefore before `reuseExistingServer` can adopt anything.
+Three in the browser harness, all at Playwright config load, which is before any `webServer` entry is evaluated and therefore before `reuseExistingServer` can adopt anything.
 
 1. **A worktree must name its seat.** If `QCMS_PORT_SEAT` is unset and the repo root is a **linked git worktree** (its `.git` is a file, not a directory), the run refuses. See "the residual risk" below for why this specific tell. The primary checkout and CI keep the silent default.
 2. **Ephemeral-range check** (above).
 3. **Occupancy check.** If anything is already listening on this seat's harness ports, the run refuses and names the occupant's pid and `/proc/<pid>/cwd`. The one exception is a **portal or admin dev server whose cwd is this exact worktree**. The composed API and the OTLP receiver are never adopted, whoever owns them: the runner binds both itself, once per run, so a live listener there is a leak or a concurrent run.
 
 An occupant whose owner **cannot be determined** is refused, not adopted. "Cannot tell whose it is" and "it is mine" must never collapse into the same outcome; that collapse is exactly how a false green is produced.
+
+**Refusal 1 also guards the full-stack Compose harness** (`scripts/compose-e2e.mjs`, issue #296), before it dispatches a subcommand and therefore before it spawns anything. It is the more dangerous of the two callers: the seat selects that stack's Compose **project name**, and teardown runs `docker compose down --volumes --remove-orphans` under it, so a run that silently adopted seat 0 would not merely read another lane's stack, it would delete it. The rule itself lives once, in `scripts/ports.mjs` (`assertPortSeatChosen`); each caller supplies only the command to name in the message. The other two refusals stay Playwright-only: they are about `reuseExistingServer` and about processes bound in-runner, neither of which the Compose harness has.
 
 Reading `/proc/<pid>/cwd` is not incidental: it is how the original collision was caught by hand (issue #255). The refusal automates that read so the next person gets the answer in the error message.
 
@@ -158,7 +160,12 @@ This is the part that is easy to get wrong, so state it precisely:
 
 - **Inside a container, ports do not collide across containers.** Each has its own network namespace, so two dev containers can both have a process on 7000 internally with no conflict at all.
 - **Publishing collides on the host.** `appPort` (and `docker run -p`) bind on the Docker host. Two containers publishing 7000 cannot both start.
-- **The harness block is never published**, and that is why `appPort` and `forwardPorts` need **no change** for this allocation. Harness ports are bound by whichever host runs the tests and are reached only from that same host: the Playwright runner, the Next dev servers and the composed API are all in one place. Nothing outside needs to reach them. *(Verified by inspection of `playwright.config.ts` and both server wrappers: every harness URL is `localhost`/`127.0.0.1`.)*
+- **Most of the harness block is never published**, and that is why `appPort` and `forwardPorts` need **no change** for this allocation. `17S10` (composed API) and `17S30` (OTLP receiver) are bound by the Playwright runner itself, and `17S00`/`17S40` are bound by the Next dev servers under `verify:browser`: all in one process tree on one host, reached only from there. *(Verified by inspection of `playwright.config.ts` and both server wrappers: every URL on that path is `localhost`/`127.0.0.1`.)*
+- **The one exception is the full-stack Compose stack, and it is the exception that produced a bug.** `pnpm up:e2e` genuinely **publishes** `17S00` and `17S40` on the Docker host (task 036), bound to that host's **loopback** by `docker-compose.yml`. Inside the dev container that host is not this process: `docker compose` drives the mounted host socket (docker-outside-of-docker, ADR-29), so the stack comes up as sibling containers and no sibling can reach a host-loopback listener at **any** address. The suite died in `beforeAll` with `ECONNREFUSED` while every container reported healthy, which made `pnpm up:e2e` CI-only from the environment this repo calls canonical (issue #316).
+
+  Two repairs were rejected before the one that landed, and the reasons are the useful part. **Widening the publish** (to `0.0.0.0`, or to the Docker bridge) trades away the property that bind exists to protect and is not available: `docker-compose.yml:12-17` keeps the authoring admin off every network the host can reach, and Docker's forwarding rules sit ahead of the host firewall. **Browsing the host gateway instead of `localhost`** fails for a subtler reason: a `Secure` cookie can only be stored by a **trustworthy origin**, and browsers count `http://localhost` as trustworthy but a bare IPv4 gateway as not. So the gateway drops better-auth's session and two-factor cookies, admin sign-in appears to succeed and bounce, and the only way to make it work is to turn `Secure` off locally, which would make the local run exercise a **different cookie configuration than CI**: the check would keep reporting green having quietly stopped covering the auth boundary it exists for.
+
+  What landed keeps the browsed origin on `http://localhost:<harness port>` in **every** environment, and makes that address real inside the container: the harness joins the Compose network and forwards this container's own loopback to the service containers (`scripts/loopback-forward.mjs`). Publishing then plays no part in how the suite connects, which is exactly why the bind can be left alone. Measured before it was built: from the dev container a sibling's unpublished port times out (Docker's cross-bridge isolation drops it) and connects after `docker network connect`. A plain host checkout and CI never build any of it: `localhost` already reaches the published port there, so `isInDockerContainer` returns false and the forwarder does not exist.
 - **The Testcontainers Postgres is a sibling on the host** with a kernel-assigned port, so it never enters this allocation at all.
 
 ### The devcontainer, honestly

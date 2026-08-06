@@ -41,7 +41,7 @@
  * it, so a differently-tuned machine gets an error naming the cause.
  */
 
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 
 /** The one environment variable that selects a seat. */
 export const PORT_SEAT_ENV_VAR = "QCMS_PORT_SEAT";
@@ -259,6 +259,87 @@ export function assertSeatPortsOutsideEphemeralRange(
       "A fixed listener inside that window loses races against kernel-assigned",
       "sockets, which shows up as a rare unreproducible bind failure. Move the range",
       "(sysctl net.ipv4.ip_local_port_range) or the block. See docs/PORTS.md.",
+    ].join("\n"),
+  );
+}
+
+/**
+ * Drop trailing separators, so `/repo/` and `/repo` compare equal.
+ *
+ * A loop rather than a `/\/+$/` replace: that pattern is super-linear on a long run
+ * of slashes and `sonarjs/super-linear-regex` rejects it, correctly.
+ *
+ * @param {string} path
+ * @returns {string}
+ */
+export function withoutTrailingSlash(path) {
+  let end = path.length;
+  while (end > 0 && path[end - 1] === "/") end -= 1;
+  return path.slice(0, end);
+}
+
+/**
+ * Whether `repoRoot` is a **linked** git worktree.
+ *
+ * A linked worktree has a `.git` FILE (`gitdir: ...`) where a primary checkout has a
+ * directory, which is a reliable, zero-cost tell. No `.git` at all (a tarball, a
+ * container copy) is reported as not-a-worktree: there is nothing reliable to infer,
+ * and inferring anyway would refuse runs that have done nothing wrong.
+ *
+ * @param {string} repoRoot
+ * @returns {boolean}
+ */
+export function isLinkedWorktree(repoRoot) {
+  let gitEntry;
+  try {
+    gitEntry = statSync(`${withoutTrailingSlash(repoRoot)}/.git`);
+  } catch {
+    return false;
+  }
+  return gitEntry.isFile();
+}
+
+/**
+ * Refuse an unset seat when running from a linked git worktree.
+ *
+ * The reasoning is in `docs/PORTS.md` ("startup refusals", and "the residual risk"),
+ * and it is worth restating why the refusal is scoped this way. Per-seat isolation
+ * makes two *different* seats unable to meet. The remaining failure is not a port
+ * collision, it is a **seat collision**: two runs that both fall back to seat 0.
+ *
+ * The default cannot simply be removed, because seat 0 must stay byte-identical for
+ * an existing developer and for CI. But the population that collides is neither: it
+ * is concurrent agent lanes, and by this repo's own rules every one of them runs in a
+ * `git worktree`. So the primary checkout and CI keep the silent default, and a
+ * worktree must say which seat it wants.
+ *
+ * This lives here rather than in one harness because there are now two callers with
+ * the same exposure: the Playwright browser harness
+ * (`apps/portal/e2e/support/port-seat.ts`) and the full-stack Compose harness
+ * (`scripts/compose-e2e.mjs`, issue #296). The Compose one is the more dangerous of
+ * the two: it derives a Compose PROJECT NAME from the seat, boots real containers
+ * under it, and runs `docker compose down --volumes` on teardown, so a silent seat 0
+ * does not merely read another lane's stack, it can delete it.
+ *
+ * @param {string} repoRoot the checkout this run belongs to.
+ * @param {string} command how to spell the fix, e.g. `pnpm up:e2e`.
+ * @param {string | undefined} [raw] the seat as given, normally from the environment.
+ * @returns {void}
+ */
+export function assertPortSeatChosen(repoRoot, command, raw = process.env[PORT_SEAT_ENV_VAR]) {
+  if ((raw ?? "").trim() !== "") return;
+  if (!isLinkedWorktree(repoRoot)) return;
+  throw new Error(
+    [
+      `${PORT_SEAT_ENV_VAR} is not set, and this is a linked git worktree:`,
+      `  ${repoRoot}`,
+      "",
+      "Concurrent lanes run in worktrees, and two lanes that both fall back to the",
+      "default seat collide on every harness port. Say which seat this run owns:",
+      "",
+      `  ${PORT_SEAT_ENV_VAR}=<${String(MIN_PORT_SEAT)}-${String(MAX_PORT_SEAT)}> ${command}`,
+      "",
+      `${PORT_SEAT_ENV_VAR}=0 is a valid answer when nothing else is running. See docs/PORTS.md.`,
     ].join("\n"),
   );
 }
