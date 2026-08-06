@@ -1,4 +1,7 @@
 import { type ChildProcess, spawn } from "node:child_process";
+import { copyFileSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { connect, createServer } from "node:net";
 import { fileURLToPath } from "node:url";
 
@@ -164,5 +167,40 @@ describe("forwarder lifetime", () => {
     });
     rebound.close();
     origin.close();
+  });
+});
+
+describe("entry-point guard", () => {
+  it("still runs main() from a path that percent-encodes", async () => {
+    // The guard compares `import.meta.url` against argv[1]. Built as a `file://`
+    // template it differs the moment the path holds a character that encodes - a
+    // space is enough - and then `main()` silently never runs. The only symptom is
+    // the parent's 30-second "forwarder did not become ready" timeout, which points
+    // nowhere near the cause. `pathToFileURL` is what makes the two comparable.
+    const directory = mkdtempSync(join(tmpdir(), "qcms forward "));
+    const copied = join(directory, "loopback-forward.mjs");
+    copyFileSync(FORWARDER, copied);
+    const origin = await echoServer("through-a-spaced-path");
+    const listenPort = await freePort();
+    const routes = [{ listenPort, targetHost: "127.0.0.1", targetPort: origin.port }];
+    const child = spawn(process.execPath, [copied, JSON.stringify(routes)], {
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    children.push(child);
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("main() never ran")), 10_000);
+      child.stdout?.on("data", (chunk: Buffer) => {
+        if (!chunk.toString().includes("ready")) return;
+        clearTimeout(timer);
+        resolve();
+      });
+      child.on("exit", (code) => {
+        clearTimeout(timer);
+        reject(new Error(`exited early (${String(code)})`));
+      });
+    });
+    expect(await fetchToken(listenPort)).toBe("through-a-spaced-path");
+    origin.close();
+    rmSync(directory, { recursive: true, force: true });
   });
 });

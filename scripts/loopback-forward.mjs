@@ -50,6 +50,7 @@
  */
 
 import { connect, createServer } from "node:net";
+import { pathToFileURL } from "node:url";
 
 /** Loopback only. The forwarder must never widen what Compose chose to expose. */
 const LISTEN_ADDRESS = "127.0.0.1";
@@ -157,7 +158,12 @@ function main() {
   process.stdin.resume();
 }
 
-if (process.argv[1] !== undefined && import.meta.url === `file://${process.argv[1]}`) {
+// `pathToFileURL` rather than a `file://` template: any character in the checkout
+// path that percent-encodes (a space is enough) makes the interpolated string differ
+// from `import.meta.url`, `main()` silently never runs, and the only symptom is the
+// parent's 30-second "forwarder did not become ready" timeout. Same idiom as
+// `compose-e2e.mjs` and the `check:*` gates.
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main();
 }
 /* c8 ignore stop */
