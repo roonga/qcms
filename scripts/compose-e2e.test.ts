@@ -135,55 +135,38 @@ describe("compose-e2e seat refusal", () => {
 describe("composeEnvironmentOverrides", () => {
   const ports = { portalPort: 17100, adminPort: 17140 };
 
-  it("is byte-identical to the pre-#316 behaviour on a plain checkout and on CI", () => {
-    // The whole safety argument for this change is that the localhost path does not
-    // move. Loopback bind, localhost URLs, and NO cookie override at all: unset is
-    // what lets the containers' NODE_ENV decide, which is correct behind TLS.
-    const overrides = composeEnvironmentOverrides({ publishHost: "localhost", ...ports, env: {} });
-    expect(overrides).toEqual({
-      QCMS_BIND_ADDRESS: "127.0.0.1",
+  it("is the same in every environment, which is the whole safety property", () => {
+    // `full-stack-e2e` exists to catch auth-boundary regressions, and while CI is
+    // down a local pass is the only evidence there is. If anything here varied by
+    // environment, the local run would exercise a different configuration than CI
+    // and quietly stop covering what it is run for. There is no environment input.
+    expect(composeEnvironmentOverrides(ports)).toEqual({
       QCMS_ADMIN_PORT: "17140",
       QCMS_PORTAL_PORT: "17100",
       QCMS_ADMIN_BASE_URL: "http://localhost:17140",
       QCMS_PORTAL_BASE_URL: "http://localhost:17100",
     });
-    expect("QCMS_ADMIN_SECURE_COOKIES" in overrides).toBe(false);
   });
 
-  it("moves the bind, the URLs and the cookie flag together off loopback", () => {
-    // All three or none. A `Secure` cookie can only be stored by a trustworthy
-    // origin: http://localhost is trustworthy, a bare gateway IPv4 is not, so
-    // Chromium drops the Set-Cookie and admin sign-in appears to succeed and bounce.
-    // Moving the origin without moving this flag is a stack that comes up healthy
-    // and fails in the spec's two-factor enrolment.
-    const overrides = composeEnvironmentOverrides({ publishHost: "172.17.0.1", ...ports, env: {} });
-    expect(overrides).toEqual({
-      QCMS_BIND_ADDRESS: "172.17.0.1",
-      QCMS_ADMIN_PORT: "17140",
-      QCMS_PORTAL_PORT: "17100",
-      QCMS_ADMIN_BASE_URL: "http://172.17.0.1:17140",
-      QCMS_PORTAL_BASE_URL: "http://172.17.0.1:17100",
-      QCMS_ADMIN_SECURE_COOKIES: "false",
-    });
+  it("never downgrades the admin's Secure cookie flag", () => {
+    // The rejected repair for #316. A Secure cookie can only be stored by a
+    // trustworthy origin, so browsing a gateway address needs this off - and turning
+    // it off is precisely the divergence from CI that must not happen. The origin
+    // stays localhost instead, and this key must never appear.
+    expect("QCMS_ADMIN_SECURE_COOKIES" in composeEnvironmentOverrides(ports)).toBe(false);
   });
 
-  it("publishes on the gateway interface, never on 0.0.0.0", () => {
-    // Widening the bind to every interface would also work and would give away the
-    // property the loopback default exists to protect. The bridge address does not.
-    const { QCMS_BIND_ADDRESS } = composeEnvironmentOverrides({
-      publishHost: "172.17.0.1",
-      ...ports,
-      env: {},
-    });
-    expect(QCMS_BIND_ADDRESS).toBe("172.17.0.1");
-    expect(QCMS_BIND_ADDRESS).not.toBe("0.0.0.0");
+  it("never touches the Compose bind address", () => {
+    // docker-compose.yml publishes to loopback so the authoring admin is not put on
+    // every network the host can reach. That exposure property is not tradeable, so
+    // the harness reaches the stack over the Compose network instead of widening it.
+    expect("QCMS_BIND_ADDRESS" in composeEnvironmentOverrides(ports)).toBe(false);
   });
 
-  it("lets an explicit bind address and cookie flag win", () => {
-    const env = { QCMS_BIND_ADDRESS: "0.0.0.0", QCMS_ADMIN_SECURE_COOKIES: "true" };
-    const overrides = composeEnvironmentOverrides({ publishHost: "172.17.0.1", ...ports, env });
-    expect(overrides.QCMS_BIND_ADDRESS).toBe("0.0.0.0");
-    // Not overridden back to "false": an operator who says Secure gets Secure.
-    expect("QCMS_ADMIN_SECURE_COOKIES" in overrides).toBe(false);
+  it("keeps the browsed origin on localhost, which browsers trust", () => {
+    const { QCMS_ADMIN_BASE_URL, QCMS_PORTAL_BASE_URL } = composeEnvironmentOverrides(ports);
+    for (const url of [QCMS_ADMIN_BASE_URL, QCMS_PORTAL_BASE_URL]) {
+      expect(new URL(url).hostname).toBe("localhost");
+    }
   });
 });

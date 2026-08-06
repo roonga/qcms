@@ -15,10 +15,10 @@
  * while `docker compose ps` reports every service healthy - the exact shape of
  * issue #316, and the reason `pnpm up:e2e` was CI-only from the dev container.
  *
- * The address that does work is the container's **default-route gateway**, which is
- * the host. `scripts/dev-portal.mjs` has reached the dev database that way since
- * task 030; this module is that resolution, extracted so the full-stack harness and
- * the dev script cannot drift apart (they had, which is issue #316).
+ * Where the port is published on **all** interfaces, the address that works is the
+ * container's **default-route gateway**, which is the host. `scripts/dev-portal.mjs`
+ * has reached the dev database that way since task 030, and that is what
+ * `publishedPortHost` below answers.
  *
  * `host.docker.internal` is deliberately not used. It looks right and even accepts a
  * TCP connection on Docker Desktop, but a real Postgres session against it times
@@ -28,17 +28,27 @@
  * ## The three environments, and why the fallback is `localhost`
  *
  * - **Dev container**: `/.dockerenv` exists, a default route exists, so the gateway
- *   is returned. This is the case that was broken.
+ *   is returned.
  * - **Plain host checkout**: no `/.dockerenv`, so `localhost` is returned before any
- *   routing table is consulted. Byte-identical to the old behaviour.
- * - **CI**: the GitHub-hosted runner is a plain host - the workflow runs `pnpm
- *   up:e2e` directly, not inside a container - so it takes the same `localhost`
- *   branch as a host checkout. Unchanged, and deliberately so: the point of this
- *   module is to fix a container-only bug without introducing a CI-only one.
+ *   routing table is consulted.
+ * - **CI**: the GitHub-hosted runner is a plain host, so it takes the same
+ *   `localhost` branch as a host checkout.
  *
  * The final fallback is `localhost` rather than a guess, for the same reason:
  * `localhost` is right in two of the three environments, and where it is wrong it
  * fails fast and legibly (connection refused) instead of hanging.
+ *
+ * ## What this does NOT solve, and why the full-stack harness needs more
+ *
+ * The gateway only reaches a publish that is bound to all interfaces, which is what
+ * `docker-compose.dev.yml` does. The solo stack in `docker-compose.yml` deliberately
+ * binds its publish to the host's **loopback** (a bare `PORT:3000` would put the
+ * authoring admin on every network the host can reach), and no sibling container can
+ * reach a host-loopback listener at any address. Widening that bind is not on the
+ * table, and browsing the gateway would break `Secure` cookies anyway - so the
+ * full-stack harness does not use `publishedPortHost` at all. It uses
+ * `isInDockerContainer` to decide whether to join the Compose network and forward
+ * this container's own loopback instead (`scripts/loopback-forward.mjs`, issue #316).
  */
 
 import { spawnSync } from "node:child_process";
@@ -49,6 +59,22 @@ export const DOCKER_PUBLISH_HOST_ENV_VAR = "QCMS_DOCKER_PUBLISH_HOST";
 
 /** Docker's marker file, present in every container it starts. */
 export const DOCKER_ENV_MARKER = "/.dockerenv";
+
+/**
+ * Whether this process is inside a container, and therefore whether the Docker host
+ * is a different machine from this one.
+ *
+ * The predicate the full-stack harness branches on: on a plain host checkout and on
+ * a CI runner the answer is `false`, `localhost` already reaches a published port,
+ * and none of the container-only machinery (network join, loopback forwarder) is
+ * built at all.
+ *
+ * @param {string} [marker]
+ * @returns {boolean}
+ */
+export function isInDockerContainer(marker = DOCKER_ENV_MARKER) {
+  return existsSync(marker);
+}
 
 /** Linux's IPv4 routing table, the same one `ip route` formats. */
 export const ROUTE_TABLE_PATH = "/proc/net/route";
@@ -168,15 +194,4 @@ export function publishedPortHost({
   // A host checkout and a CI runner both land here, before anything is probed.
   if (!inContainer) return "localhost";
   return gateway() ?? "localhost";
-}
-
-/**
- * The `http` origin a Docker-published port is reachable at from here.
- *
- * @param {number | string} port
- * @param {Parameters<typeof publishedPortHost>[0]} [options]
- * @returns {string}
- */
-export function publishedPortOrigin(port, options) {
-  return `http://${publishedPortHost(options)}:${String(port)}`;
 }

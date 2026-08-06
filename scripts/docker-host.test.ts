@@ -9,8 +9,8 @@ import {
   gatewayFromIpRoute,
   gatewayFromRouteTable,
   ipv4FromRouteField,
+  isInDockerContainer,
   publishedPortHost,
-  publishedPortOrigin,
 } from "./docker-host.mjs";
 
 const temporaryDirectories: string[] = [];
@@ -176,10 +176,15 @@ describe("publishedPortHost", () => {
   });
 });
 
-describe("publishedPortOrigin", () => {
-  it("builds an http origin from the resolved host", () => {
-    const options = { override: "172.17.0.1", inContainer: true, gateway: () => undefined };
-    expect(publishedPortOrigin(17040, options)).toBe("http://172.17.0.1:17040");
-    expect(publishedPortOrigin("17000", options)).toBe("http://172.17.0.1:17000");
+describe("isInDockerContainer", () => {
+  it("is false when the marker is absent, which is a host checkout and CI", () => {
+    // The full-stack harness branches on this to decide whether to build any of its
+    // container-only machinery at all. False here means no Compose network join and
+    // no loopback forwarder, because a published port is already on localhost.
+    expect(isInDockerContainer(join(tmpdir(), "qcms-no-such-dockerenv"))).toBe(false);
+  });
+
+  it("is true when the marker is present", () => {
+    expect(isInDockerContainer(fixture("dockerenv", ""))).toBe(true);
   });
 });

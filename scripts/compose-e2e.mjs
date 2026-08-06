@@ -28,12 +28,12 @@
  */
 
 import { randomBytes } from "node:crypto";
-import { existsSync, unlinkSync, writeFileSync } from "node:fs";
-import { spawnSync } from "node:child_process";
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { publishedPortHost, publishedPortOrigin } from "./docker-host.mjs";
+import { isInDockerContainer } from "./docker-host.mjs";
 import { assertPortSeatChosen, composeProjectName, harnessPort } from "./ports.mjs";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -54,89 +54,43 @@ const credentialsPath = join(root, ".e2e-full-stack-credentials.json");
 const portalPort = harnessPort("portal");
 const adminPort = harnessPort("admin");
 /**
- * The address this process reaches the published stack on (issue #316).
+ * What this harness hands Compose, the Playwright runner and the two application
+ * containers - and, as an invariant, the SAME thing in every environment.
  *
- * `localhost` on a host checkout and on a CI runner; the default-route gateway in
- * the dev container, where `docker compose` drives the mounted host socket and every
- * container it starts is a sibling published on the HOST's loopback, not on this
- * one. See `scripts/docker-host.mjs` for the full reasoning.
- */
-const publishHost = publishedPortHost();
-
-/**
- * Everything that has to move when the stack is addressed by something other than
- * `localhost`, as a pure function of the resolved host.
+ * That invariance is the point, not an accident of the current implementation.
+ * `full-stack-e2e` exists to catch regressions at the auth boundary, and while CI is
+ * down a local pass is the only evidence there is. Anything here that varied by
+ * environment - the bind address, and above all the admin's `Secure` cookie flag -
+ * would make the local run exercise a *different configuration than CI* and quietly
+ * stop covering the thing it is run for. So the browsed origin is `http://localhost`
+ * everywhere, which Chromium treats as a trustworthy origin, so `Secure` cookies
+ * work and `QCMS_ADMIN_SECURE_COOKIES` is never set here at all.
  *
- * Pure and exported so all three environments are testable without being in them.
- * The three knobs below are not independent: moving the address without moving the
- * other two produces a stack that comes up healthy and fails anyway, which is the
- * shape of #316 twice over.
+ * Making `localhost` true inside the dev container is `startLoopbackForwarding`'s
+ * job, below. Notice what is NOT in this object: no `QCMS_BIND_ADDRESS`, so
+ * `docker-compose.yml`'s loopback publish stands untouched (that exposure property
+ * is not tradeable), and no cookie flag, so the containers' own `NODE_ENV` decides
+ * exactly as it does on CI.
  *
- * **The publish interface.** `docker-compose.yml` publishes to
- * `${QCMS_BIND_ADDRESS:-127.0.0.1}` deliberately: a bare `PORT:3000` would put the
- * authoring admin on every network the host can reach, past the host firewall,
- * because Docker's forwarding rules sit ahead of it. But a listener on the host's
- * loopback is unreachable from a sibling container whatever address it dials, so
- * resolving the gateway and leaving the bind alone would still be refused. The
- * answer is the gateway interface itself rather than `0.0.0.0`: that is the Docker
- * bridge on the host, so the stack is reachable from this container and from the
- * host, and from nothing else. The property the default protects is kept, not
- * widened. (`api` and `postgres` have no `ports:` key at all, so this cannot expose
- * them either way, and ADR-20 stands.)
- *
- * **The admin's `Secure` cookie flag.** A `Secure` cookie can only be stored by a
- * trustworthy origin. `http://localhost` is trustworthy, which is why CI has never
- * needed this; a bare IPv4 gateway is not, so Chromium silently drops the
- * `Set-Cookie` and sign-in appears to succeed and bounce. Unset, the containers'
- * `NODE_ENV=production` decides and marks them `Secure`
- * (`apps/api/src/config.ts:502-507` -> `features/auth/instance.ts:167`), so moving
- * the origin off loopback without moving this flag breaks the admin half of the
- * spec: sign-in, the `/two-factor/enroll` redirect and the TOTP verification all
- * need that cookie. `.env.compose.example` documents this exact case, in the comment
- * above `QCMS_ADMIN_SECURE_COOKIES`: "Set it to false only if the admin is reached
- * over plain HTTP at a NON-loopback hostname". This is that configuration. The
- * portal side already sets `QCMS_SECURE_COOKIES=false` in the env file and needs
- * nothing here.
- *
- * An explicit value from the environment wins in both cases, and a `localhost` host
- * (a plain checkout, and CI) produces byte-identical output to before this existed:
- * `127.0.0.1`, and no cookie override at all.
+ * Pure and exported so the invariant is a test rather than a comment.
  *
  * @param {object} options
- * @param {string} options.publishHost the address this process reaches the stack on.
  * @param {number} options.portalPort
  * @param {number} options.adminPort
- * @param {Record<string, string | undefined>} [options.env] the ambient environment.
  * @returns {Record<string, string>}
  */
-export function composeEnvironmentOverrides({
-  publishHost,
-  portalPort,
-  adminPort,
-  env = process.env,
-}) {
-  const loopback = publishHost === "localhost";
+export function composeEnvironmentOverrides({ portalPort, adminPort }) {
   return {
-    QCMS_BIND_ADDRESS: env.QCMS_BIND_ADDRESS ?? (loopback ? "127.0.0.1" : publishHost),
     QCMS_ADMIN_PORT: String(adminPort),
     QCMS_PORTAL_PORT: String(portalPort),
-    // The two `*_PORT` values are what Compose publishes ON THE DOCKER HOST; the two
-    // `*_BASE_URL` values are how this process, the Playwright runner it starts, and
-    // the browser that runner drives all reach the result. Both apps also read their
-    // own base URL at container boot (better-auth scopes admin cookies to that exact
-    // origin, and the portal builds respondent redirects from it), so the two must
-    // agree: one resolution, used for the publish, the runner and the containers.
-    QCMS_ADMIN_BASE_URL: publishedPortOrigin(adminPort, { override: publishHost }),
-    QCMS_PORTAL_BASE_URL: publishedPortOrigin(portalPort, { override: publishHost }),
-    ...(loopback || env.QCMS_ADMIN_SECURE_COOKIES !== undefined
-      ? {}
-      : { QCMS_ADMIN_SECURE_COOKIES: "false" }),
+    QCMS_ADMIN_BASE_URL: `http://localhost:${String(adminPort)}`,
+    QCMS_PORTAL_BASE_URL: `http://localhost:${String(portalPort)}`,
   };
 }
 
 const e2eEnvironment = {
   ...process.env,
-  ...composeEnvironmentOverrides({ publishHost, portalPort, adminPort }),
+  ...composeEnvironmentOverrides({ portalPort, adminPort }),
 };
 
 /** A bad or missing subcommand: a user error, so it prints without a stack trace. */
@@ -176,7 +130,185 @@ function run(command, args, environment = process.env) {
   if (result.status !== 0) throw new CommandFailed(command, result.status ?? 1);
 }
 
-function up() {
+/**
+ * Run a child process and return its stdout, for the `docker inspect` reads below.
+ *
+ * @param {string} command
+ * @param {string[]} args
+ * @returns {string}
+ */
+function capture(command, args) {
+  const result = spawnSync(command, args, { cwd: root, env: e2eEnvironment, encoding: "utf8" });
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new CommandFailed(command, result.status ?? 1);
+  return result.stdout.trim();
+}
+
+// ---------------------------------------------------------------------------
+// Loopback forwarding, so `http://localhost:<port>` is a real address inside the
+// dev container (issue #316).
+//
+// The stack publishes on the Docker host. Inside the dev container that host is
+// another machine (ADR-29: `docker compose` drives the mounted host socket, so the
+// services are sibling containers), and the publish is bound to the host's loopback,
+// which no sibling can reach at any address. Rather than browse a different address
+// - which drops `Secure` cookies and would need the local run to differ from CI -
+// this joins the Compose network and forwards this container's own loopback to the
+// service containers. Publishing then plays no part in how the suite connects, which
+// is exactly why `docker-compose.yml`'s bind can be left alone.
+//
+// Measured before it was built: from this container, a sibling's unpublished port
+// TIMEOUTs (Docker's cross-bridge isolation drops it) and CONNECTs after
+// `docker network connect`. That is the whole reason the join step exists.
+// ---------------------------------------------------------------------------
+
+/** The running forwarder, or `undefined` when there is none. */
+let forwarder;
+
+/** The Compose network this container joined, so teardown can leave it again. */
+let joinedNetwork;
+
+/**
+ * This container's id, which is its hostname unless someone overrode it.
+ *
+ * @returns {string | undefined}
+ */
+function selfContainerId() {
+  try {
+    return readFileSync("/etc/hostname", "utf8").trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * A Compose service's address on the Compose network, and the port it listens on.
+ *
+ * The listening port is read from the container rather than written here: it is the
+ * image's own business, never a QCMS allocation (`docs/PORTS.md`), so hardcoding it
+ * would be inventing a number this repo does not own.
+ *
+ * @param {string} service
+ * @returns {{ network: string; address: string; port: number }}
+ */
+function serviceEndpoint(service) {
+  const containerId = capture(docker, [...compose, "ps", "--quiet", service]);
+  if (containerId === "") throw new Error(`compose-e2e: service ${service} has no container`);
+  const networks = JSON.parse(
+    capture(docker, ["inspect", containerId, "--format", "{{json .NetworkSettings.Networks}}"]),
+  );
+  const network = Object.keys(networks)[0];
+  if (network === undefined) throw new Error(`compose-e2e: ${service} is on no network`);
+  const exposed = JSON.parse(
+    capture(docker, ["inspect", containerId, "--format", "{{json .NetworkSettings.Ports}}"]),
+  );
+  const first = Object.keys(exposed)[0];
+  if (first === undefined) throw new Error(`compose-e2e: ${service} exposes no port`);
+  return {
+    network,
+    address: networks[network].IPAddress,
+    port: Number(first.split("/")[0]),
+  };
+}
+
+/**
+ * Put this seat's harness ports on this container's loopback, pointing at the stack.
+ *
+ * A no-op outside a container: on a plain host checkout and on CI the published port
+ * is already on `localhost` and there is nothing to forward. Same early-return
+ * discipline as `publishedPortHost`, and for the same reason - the container-only
+ * path must never run where it is not needed.
+ *
+ * @returns {Promise<void>}
+ */
+async function startLoopbackForwarding() {
+  if (!isInDockerContainer()) return;
+  const self = selfContainerId();
+  if (self === undefined) throw new Error("compose-e2e: cannot determine this container's id");
+
+  const portal = serviceEndpoint("portal");
+  const admin = serviceEndpoint("admin");
+
+  // Idempotent in effect: a second connect fails harmlessly when the endpoint is
+  // already there, which is the state a previous interrupted run leaves behind.
+  try {
+    run(docker, ["network", "connect", portal.network, self], e2eEnvironment);
+  } catch {
+    // Already attached, which is exactly as good as attaching.
+  }
+  joinedNetwork = portal.network;
+
+  const routes = [
+    { listenPort: portalPort, targetHost: portal.address, targetPort: portal.port },
+    { listenPort: adminPort, targetHost: admin.address, targetPort: admin.port },
+  ];
+  const child = spawn(
+    process.execPath,
+    [join(root, "scripts", "loopback-forward.mjs"), JSON.stringify(routes)],
+    {
+      cwd: root,
+      env: e2eEnvironment,
+      // stdin stays open for the run: its close is how the forwarder notices this
+      // process died without getting to run any teardown.
+      stdio: ["pipe", "pipe", "inherit"],
+    },
+  );
+  forwarder = child;
+
+  await new Promise((resolve, reject) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(new Error("compose-e2e: loopback forwarder did not become ready"));
+    }, 30_000);
+    child.stdout.on("data", (chunk) => {
+      if (settled || !chunk.toString().includes("ready")) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(undefined);
+    });
+    child.on("exit", (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      reject(new Error(`compose-e2e: loopback forwarder exited early (code ${String(code)})`));
+    });
+  });
+  process.stdout.write(
+    `compose-e2e: forwarding localhost:${String(portalPort)} and localhost:${String(adminPort)} to the stack\n`,
+  );
+}
+
+/**
+ * Stop forwarding and leave the Compose network.
+ *
+ * Called from `down()`, which every exit path runs, and deliberately BEFORE
+ * `docker compose down`: Compose cannot remove a network this container is still
+ * attached to, so leaving it late turns teardown into a failure that strands the
+ * network. Both steps tolerate failure, so an already-gone forwarder or an
+ * already-removed network never masks the real reason a run failed.
+ */
+function stopLoopbackForwarding() {
+  if (forwarder !== undefined) {
+    try {
+      forwarder.kill("SIGTERM");
+    } catch {
+      // Already exited.
+    }
+    forwarder = undefined;
+  }
+  // Attempted even when this run never recorded a join, so an interrupted previous
+  // run's leftover endpoint gets cleaned up rather than blocking `compose down`.
+  const network = joinedNetwork ?? `${project}_default`;
+  const self = selfContainerId();
+  if (self !== undefined) {
+    spawnSync(docker, ["network", "disconnect", network, self], { cwd: root, stdio: "ignore" });
+  }
+  joinedNetwork = undefined;
+}
+
+async function up() {
   // This stack is test-only. Removing its named volume makes each browser run
   // independent, including the first-admin bootstrap state.
   down();
@@ -215,9 +347,13 @@ function up() {
       `E2E admin: ${credentials.email}\nE2E password: ${credentials.password}\n`,
     );
   else process.stdout.write(`E2E admin credentials written to ${credentialsPath}\n`);
+  // Last, so it only ever points at a stack that is already up and bootstrapped.
+  await startLoopbackForwarding();
 }
 
 function down() {
+  // Before Compose: it cannot remove a network this container is still attached to.
+  stopLoopbackForwarding();
   run(docker, [...compose, "down", "--volumes", "--remove-orphans"], e2eEnvironment);
   if (existsSync(credentialsPath)) unlinkSync(credentialsPath);
 }
@@ -257,11 +393,11 @@ function describe(error) {
   return String(error);
 }
 
-function runComplete({ headed = false } = {}) {
+async function runComplete({ headed = false } = {}) {
   /** @type {unknown} */
   let failure;
   try {
-    up();
+    await up();
     test({ headed });
   } catch (error) {
     failure = error;
@@ -298,7 +434,7 @@ function invokedAs(command) {
   return `pnpm ${(command !== undefined && scripts[command]) || "up:e2e"}`;
 }
 
-function main() {
+async function main() {
   const command = process.argv[2];
   // Before anything is spawned. A silent fallback to seat 0 here is worse than it is
   // in the browser harness (issue #296): the seat picks this stack's Compose PROJECT
@@ -314,28 +450,36 @@ function main() {
   } catch (error) {
     throw new UsageError(error instanceof Error ? error.message : String(error));
   }
-  if (command === "up") up();
+  if (command === "up") await up();
   else if (command === "down") down();
   else if (command === "test") test();
   else if (command === "test-headed") test({ headed: true });
-  else if (command === "run") runComplete();
-  else if (command === "run-headed") runComplete({ headed: true });
+  else if (command === "run") await runComplete();
+  else if (command === "run-headed") await runComplete({ headed: true });
   else
     throw new UsageError(
       "Usage: node scripts/compose-e2e.mjs <up|down|test|test-headed|run|run-headed>",
     );
 }
 
-// Only when run as a command, so `compose-e2e.test.ts` can import the pure helper
+// Only when run as a command, so `compose-e2e.test.ts` can import the pure helpers
 // above without a Compose run firing on import. Same guard as `check-ports.mjs` and
 // `check-changeset.mjs`.
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  try {
-    main();
-  } catch (error) {
+  // `pnpm docker:up` deliberately leaves the stack (and its forwarder) running for a
+  // human to poke at, so only the interrupt paths clean up here. `runComplete` has
+  // its own `down()` on every exit path, and the forwarder additionally dies when
+  // this process's stdin pipe to it closes, whatever kills this process.
+  for (const signal of ["SIGINT", "SIGTERM"]) {
+    process.on(signal, () => {
+      stopLoopbackForwarding();
+      process.exit(1);
+    });
+  }
+  main().catch((error) => {
     // Set the code rather than calling process.exit: the stack has already
     // unwound through every `finally`, and this lets stdio flush normally.
     process.exitCode = error instanceof CommandFailed ? error.status : 1;
     process.stderr.write(`compose-e2e: ${describe(error)}\n`);
-  }
+  });
 }

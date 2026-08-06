@@ -16,12 +16,11 @@ name: qcms
 # forwarding rules sit ahead of it). Set QCMS_BIND_ADDRESS=0.0.0.0 only where a
 # separate ingress host has to reach these containers.
 #
-# One caller already overrides it, and deliberately not with 0.0.0.0:
-# scripts/compose-e2e.mjs publishes on the Docker BRIDGE address when it runs from
-# inside the dev container, because a host-loopback listener is unreachable from a
-# sibling container whatever address it dials (issue #316). That keeps the property
-# this default protects - reachable from the host and its containers, from no other
-# network - which 0.0.0.0 would give away.
+# Nothing in this repo overrides it. The full-stack harness runs from inside the dev
+# container, where a host-loopback publish is unreachable, and it solves that by
+# joining this stack's network and forwarding rather than by widening the bind
+# (scripts/loopback-forward.mjs, issue #316). This default is load-bearing, not a
+# placeholder.
 services:
   postgres:
     # Overridable so CI can point at the GHCR mirror the Testcontainers jobs already
