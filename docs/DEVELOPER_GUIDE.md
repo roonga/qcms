@@ -68,9 +68,16 @@ DATABASE_URL=postgres://qcms:qcms@127.0.0.1:7020/qcms \
 pnpm --filter qcms-admin dev
 ```
 
-`QCMS_ADMIN_AUTH_SECRET` must be the same value the running API has, or the cookies it
-mints are not the cookies the API verifies. The command refuses to run once any admin
-account exists, so it is safe in a runbook and safe to re-run by accident. On first sign-in you must enroll a TOTP factor before reaching
+`QCMS_ADMIN_AUTH_SECRET` is required here because `loadConfig` validates it, but it does
+**not** have to match the running API's: the account this command creates is
+secret-independent (better-auth salts and hashes the password), and it revokes the one
+session it mints, so nothing it produces is ever verified by another process. What the
+secret does sign is the browser's session cookie, and `pnpm dev:portal` gives the API a
+fresh one per run - so restarting that script signs out any admin session. Enrollment
+survives, because it is database state, so the recovery is one sign-in.
+
+The command refuses to run once any admin account exists, so it is safe in a runbook and
+safe to re-run by accident. On first sign-in you must enroll a TOTP factor before reaching
 anything else, and the recovery codes are shown once. `QCMS_ADMIN_2FA=optional` skips
 enrollment for development; the API reads the same variable, so relaxing it in one place
 only means every admin API call 401s. The admin adopts the same `.next` / `.next-dev`

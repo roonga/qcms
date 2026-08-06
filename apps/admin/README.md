@@ -69,6 +69,9 @@ better-auth instance:
   and `QCMS_ADMIN_BASE_URL` (plus `QCMS_ADMIN_EMAIL` / `QCMS_ADMIN_PASSWORD`, and
   optionally `QCMS_ADMIN_NAME`). It deliberately does **not** ask for the link keys,
   session keys or app key the running API needs - none is read on this path.
+- The secret does not have to match the running API's. It is validated, not used: the
+  account is created with a salted password hash (secret-independent) and the one session
+  the creation mints is revoked immediately, so nothing here is later verified elsewhere.
 - Credentials go in the environment, never in arguments: an argument lands in shell
   history and in every `ps` listing while the command runs.
 - It builds first (`pnpm --filter qcms-api... build`) because the entry is compiled

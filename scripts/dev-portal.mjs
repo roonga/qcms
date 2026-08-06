@@ -84,8 +84,14 @@ const DATABASE_URL =
 
 const API_PORT = process.env.QCMS_DEV_API_PORT ?? String(stablePort("api"));
 const PORTAL_PORT = process.env.QCMS_DEV_PORTAL_PORT ?? String(stablePort("portal"));
+// The admin is not started here, but the API is configured with its origin (task 056:
+// better-auth lives in the API and scopes cookies to the admin's public origin). Derived
+// from the seat rather than written down, and overridable for a developer running the
+// admin on another port - R8 is a rule about derivation (`docs/PORTS.md`).
+const ADMIN_PORT = process.env.QCMS_DEV_ADMIN_PORT ?? String(stablePort("admin"));
 const API_BASE_URL = `http://127.0.0.1:${API_PORT}`;
 const PORTAL_BASE_URL = `http://localhost:${PORTAL_PORT}`;
+const ADMIN_BASE_URL = `http://localhost:${ADMIN_PORT}`;
 
 const FORM_ID = "frm_kitchen_sink";
 const FORM_SLUG = process.env.QCMS_DEV_FORM_SLUG ?? "kitchen-sink";
@@ -356,6 +362,24 @@ async function startApi(internalToken) {
     QCMS_LINK_KEYS: randomSecret(),
     QCMS_SESSION_KEYS: randomSecret(),
     QCMS_APP_KEY: randomSecret(),
+    // `QCMS_MOUNT: "all"` includes the admin surface, and since task 056 that surface
+    // carries better-auth - so this process needs the two values the instance is
+    // configured from, or `loadConfig` refuses to boot and the child dies at startup.
+    //
+    // The secret is per-run, like the three keys above, with the same consequence: a
+    // restart of this script signs out any admin session, because the cookie it signed
+    // can no longer be verified. Enrollment survives (it is database state), so the
+    // recovery is one sign-in. It deliberately does NOT have to match the value passed
+    // to `pnpm qcms:create-admin`: that command's account creation is
+    // secret-independent (better-auth salts and hashes the password) and it revokes the
+    // one session it mints, so nothing it produces is ever verified by this process.
+    QCMS_ADMIN_AUTH_SECRET: randomSecret(),
+    // The admin dev server's documented origin: this seat's stable admin port
+    // (`docs/PORTS.md`), which is what `pnpm --filter qcms-admin dev --port <7S40>`
+    // listens on. better-auth scopes its cookies to it and trusts no other origin, so a
+    // developer running the admin somewhere else has to set it here too. This script
+    // does not start the admin itself; it only has to agree with it.
+    QCMS_ADMIN_BASE_URL: ADMIN_BASE_URL,
   });
   await waitFor("API health", async () => {
     const res = await fetch(`${API_BASE_URL}/health`);

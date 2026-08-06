@@ -107,6 +107,15 @@ async function adminGet(path: string, sessionToken: string): Promise<Response> {
   });
 }
 
+/** One `Set-Cookie` header split into its name and value, attributes discarded. */
+function parseSetCookie(header: string): { readonly name: string; readonly value: string } {
+  const pair = header.split(";")[0] ?? "";
+  const at = pair.indexOf("=");
+  return at === -1
+    ? { name: pair.trim(), value: "" }
+    : { name: pair.slice(0, at).trim(), value: pair.slice(at + 1).trim() };
+}
+
 /** The base32 TOTP secret inside an `otpauth://` URI. */
 function secretFromUri(uri: string): string {
   const secret = new URL(uri).searchParams.get("secret");
@@ -183,17 +192,38 @@ describe("semantics 3 and 4: two-step enrollment, then a withheld session (SEC-1
   });
 
   it("withholds the session on a password-only sign-in once enrolled (semantic 3)", async () => {
+    const before = await testDb.db.select().from(authSession);
+
     // A fresh browser: no cookies from the enrolled session above.
     const res = await authPost("/sign-in/email", { email: EMAIL, password: PASSWORD });
     expect(res.status).toBe(200);
     const body = (await res.json()) as { twoFactorRedirect?: boolean };
     expect(body.twoFactorRedirect).toBe(true);
 
-    // Only the short-lived challenge cookie is set; no session token is issued, so a
-    // password alone cannot produce the row `admin-auth` looks for.
-    const cookies = res.headers.getSetCookie().join("; ");
-    expect(cookies).toContain("qcms_admin.two_factor=");
-    expect(cookies).not.toContain("qcms_admin.session_token=q");
+    // The load-bearing assertion is about the DATABASE, not the response body. What makes
+    // "a session row exists" a meaningful check in `admin-auth` is that a password alone
+    // creates no row, so the claim has to be tested where the row would be: the table is
+    // unchanged across the sign-in.
+    expect(await testDb.db.select().from(authSession)).toHaveLength(before.length);
+
+    // And no usable session token reaches the browser. The assertion is about the cookie
+    // **value**, not the presence of the header, and that distinction is the whole point:
+    // better-auth does emit a `session_token` `Set-Cookie` on this response, as a *clear*
+    // rather than an issue (it expires the cookie along with the session it briefly
+    // created, which also wipes any stale token the browser still held). The obvious "no
+    // session cookie is set" version of this test therefore passes for the wrong reason.
+    //
+    // Names are matched by suffix because better-auth prefixes them under secure cookies
+    // (`__Secure-qcms_admin.session_token`); anchoring to the bare name would quietly stop
+    // covering the production shape.
+    const cookies = res.headers.getSetCookie().map(parseSetCookie);
+    const challenge = cookies.filter((c) => c.name.endsWith("qcms_admin.two_factor"));
+    expect(challenge).toHaveLength(1);
+    expect(challenge[0]?.value).not.toBe("");
+    const issued = cookies.filter(
+      (c) => c.name.endsWith("qcms_admin.session_token") && c.value !== "",
+    );
+    expect(issued).toEqual([]);
   });
 
   it("serves the recovery codes generated at enrollment, and only to the session's own account", async () => {
