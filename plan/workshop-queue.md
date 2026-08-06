@@ -144,3 +144,56 @@ So the process failed twice, from two seats, on one PR, and was rescued by unrel
 **Why it belongs in the queue and not only in the retro.** The retro records what happened on one task; the queue is what the boundary pass edits instructions from. This one has a concrete candidate edit: when a task's exit criteria include a screenshot gate, the same properties the frames are meant to show should be asserted in the browser suite, so a regression fails a test rather than waiting for a human to notice it in a PNG. 034 demonstrates both directions - the ADR-27 violation was caught by a human reading frames, and the missing UTC hint was caught only after a DOM assertion existed for it.
 
 **Related.** This is the same lesson as the copy-from-intent pattern in the same retro, seen from the evidence side: the screenshot shows what the system did once, the assertion states what it must always do.
+
+---
+
+## A gate reached standalone behaves differently from the same gate inside `verify`, and the cheap-iteration path is the one that lies
+
+**Raised:** 2026-08-06, both seats, during the Actions outage (#316 / PR #334 and the retrospective verification of `main`).
+**Status:** queued. Two independent instances in one session, which is what promotes it from anecdote to rule.
+
+**What is wrong.** `CLAUDE.md` tells an executor to run the cheap gates first on new files (`pnpm --filter <pkg> lint` before anything else) and separately warns about turbo's cache. Both are good advice. Neither says the general thing: **the standalone invocation of a gate and the same gate inside `verify` do not observe the same inputs**, so a standalone green is not evidence.
+
+**Evidence, two instances.**
+
+1. **`check:ports` only sees tracked files.** #334's executor ran it standalone against its new `scripts/loopback-forward.mjs` and its test, got OK, and reasonably believed the gate satisfied. It went red the moment the files were committed, because the gate walks git-tracked content. Cost: a full `verify` cycle, and a REJECT verdict from the dev seat's reviewer that was purely mechanical. The repo's own guidance actively steered into this, since "run the cheap gates first on new files" is exactly wrong for any git-driven gate.
+2. **Turbo reports `FULL TURBO` for a test phase that did not run.** Already in `CLAUDE.md`, but seen twice more this session: the dev seat's `verify` on the #316 branch reported `14 cached, FULL TURBO`, and the retrospective verification of `main` reported `14/14 cached` on every phase. In both cases the forced run (`turbo run test --force`, `0 cached`) was the only evidence tests executed.
+
+**Why the pair matters more than either.** One is a git-visibility artifact and the other a cache artifact, but the executor-facing shape is identical: *the cheap way to check produces a green that the expensive way does not honour.* An executor that learns only the turbo case will be caught by the next instance of the general case.
+
+**Candidate edit.** One line in `CLAUDE.md`'s toolchain rules naming the general shape, with both instances as examples, and a correction to the "run the cheap gates first on new files" advice: for any git-driven gate (`check:ports`, `check:changeset`, `check:golden-append-only`, `check:no-em-dash`), **commit first, then run it** - or the gate is reading a tree that does not include the work.
+
+**Related.** The `check:changeset` / `check:golden-append-only` diff-basis note in `plan/ci-outage-protocol.md` is the third member of this family: both diff against `origin/main`, so on a push to `main` they assert nothing at all.
+
+---
+
+## Reporting discipline between conductor and executor: say when you touch a live tree, and quote from output taken at report time
+
+**Raised:** 2026-08-06, dev seat, self-reported during #316 / PR #334. Both halves are the seats' own findings; recorded here because they are instruction edits, not task facts.
+
+**What happened.** The conductor rebased an executor's worktree **while that executor was still live**, and did not tell it. Root cause was a stale shell working directory read as a deleted worktree, which made a false alarm look like uncommitted work at risk. Nothing was lost and the rebase was clean. But the executor noticed only because an empty `HEAD..origin/main` looked wrong and it chased the reflog instead of accepting the reading - had it trusted the first look, it would have reported "already up to date" for a rebase it never ran and could not vouch for.
+
+Separately and in the same session, the same executor reported "working tree clean" from memory when it was not; the conductor caught real uncommitted work (a `pathToFileURL` guard fix plus 38 lines of test) only because it checks the tree before rebasing rather than trusting the claim.
+
+**Candidate edits, two.**
+
+1. **If the conductor operates on a live agent's worktree, it says so in the same message.** Cheap, and it removes a whole class of confidently-wrong reports, because the agent then knows to re-read rather than trust its cached view.
+2. **Anything the conductor will act on without re-verifying must be quoted from output taken at report time**, not stated from memory of having run the command. Head SHAs above all: reviews, sentinels and dispatched checks all bind to them, so a remembered SHA is a stale gate. This is the stronger half and the executor adopted it voluntarily.
+
+**Supporting practice worth naming in the same edit.** The same executor proved its new test by restoring the bug it was written for (the old `file://${process.argv[1]}` interpolation) and watching the test go red, then green again. Its own worktree path contained no percent-encoding character, so without that step it would have shipped a test that passed for the wrong reason. "Prove the test fails without the fix" is the general form.
+
+---
+
+## A docs-heavy change must sweep every doc describing the behaviour it changes, not the ones it happens to be editing
+
+**Raised:** 2026-08-06, PM seat, in the pre-merge review of PR #334.
+
+**What happened.** PR #334 changed how the full-stack harness is invoked from the dev container. It correctly updated `CONTRIBUTING.md`, `CLAUDE.md` and `docs/PORTS.md` to steer at `QCMS_PORT_SEAT=<n> pnpm up:e2e`. It missed `README.md:79-93`, which still presented the split `docker:up` / `test:e2e` / `docker:down` flow as the primary way to run the browser end-to-end suite.
+
+**Why it is worse than an ordinary staleness miss.** That flow now **blocks the terminal** inside the dev container (the forwarder is spawned with ref'd stdio and no `unref`, so parent and child each wait for the other), and a reader who Ctrl-Cs out gets `ECONNREFUSED` on the next step - which is precisely the #316 symptom the PR exists to remove. A README that reproduces the bug is the worst possible artifact of the PR that fixes it. The same PR also left a source comment (`scripts/compose-e2e.mjs:469-471`) describing a state that is now unreachable.
+
+**Contributing cause.** The staleness rule in `CLAUDE.md` says "a doc contradicted by a newer decision is fixed in the same change", which is right, but nothing turns it into an action. Three docs got updated because they were already open; the fourth was not, so nobody looked.
+
+**Candidate edit.** Make the staleness rule operational for behaviour changes: when a change alters how a documented command is invoked, grep the repo for that command string (`docker:up`, `up:e2e`, `verify:browser`, and so on) and fix every hit in the same PR. That is a mechanical sweep, it takes seconds, and it would have caught this one. It is the doc-side twin of the executor's own FRICTION line from the same PR: *"when a change alters an origin or address, grep every consumer of that value, not just the dialler."*
+
+**Note.** The PM seat's own `plan/ci-outage-protocol.md` carried the identical error and was corrected in the same wrap-up. The rule applies to this seat too.

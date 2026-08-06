@@ -1,12 +1,57 @@
 # CI-outage protocol: landing work on local gates while GitHub Actions is down
 
-**Status: ACTIVE, opened 2026-08-06 21:40Z.** Standing instruction from the Code
-Owner: "bypass GH Actions with local checks until this resolves."
+**Status: RETIRED 2026-08-06 23:15Z.** Opened 21:40Z on the Code Owner's standing
+instruction ("bypass GH Actions with local checks until this resolves"); retired
+once CI ran green on `main` again and `push` events resumed creating runs. It was
+in force for roughly 95 minutes and covered two merges.
 
-**This document retires the moment Actions is operational and one clean CI run has
-concluded on `main`.** It is a temporary substitution of evidence, not a change to
-the merge gate. The bar does not move: the same four checks must pass, they just
-pass on this machine and get recorded by hand instead of by a bot.
+**Kept rather than deleted**, for three reasons: the substitution ledger at the foot
+records what merged without CI and needs to stay auditable; the mechanism section is
+the only written account of how a merge is made when checks cannot be produced, which
+is worth having before the next incident rather than during it; and several of the
+traps it documents (the turbo cache trap, seat contention, the `check:changeset`
+diff-basis note) are true regardless of outage.
+
+**Read the situation section as history, not as current state.** Nothing here should
+be acted on while CI is healthy. If it is ever reopened, flip this header first so
+nobody is guessing.
+
+It was a temporary substitution of evidence, never a change to the merge gate: the
+same four checks had to pass, they just passed on this machine and were recorded by
+hand instead of by a bot.
+
+## How it ended
+
+- **22:50Z** - #333 merged, adding `workflow_dispatch` to `ci.yml`. Dispatched
+  against `main` a minute later; it started immediately. That inverted the whole
+  situation: real checks became obtainable on demand, so substitution went from
+  necessary to unnecessary while the outage was still officially ongoing.
+- **23:0xZ** - `main` at `4c0c346` concluded **green on real CI**, all four jobs
+  (`verify (node-24)`, `verify (node-26)`, `api-e2e`, `portal-e2e`). The backfill
+  debt on `f02801a` and `aea47d9` is discharged.
+- **CodeQL green on `main`**, discharging the unrun-security-scanning debt this
+  document recorded as the cost of merging without checks.
+- **23:09Z** - `push`-triggered runs reappeared on `main` (CI, CodeQL, Full-stack
+  E2E, all `event=push`), so webhook delivery is working again.
+- **PR #334** (#316's fix) never needed the protocol at all: the dev seat dispatched
+  real checks rather than posting a substitution block, and all four required
+  contexts concluded on the actual head.
+
+Note the status page lagged reality: GitHub still reported `major_outage` /
+*investigating* well after our own runs were succeeding. **Observed repo behaviour is
+the better signal than the dashboard** - check whether runs are being created, not
+what the incident says.
+
+## Two things worth carrying forward
+
+1. **`workflow_dispatch` on every workflow that produces a required context.** The
+   entire hole was that `ci.yml` could not be asked for a run. #333 fixed it for CI;
+   `e2e.yml` already had it. Any future required-context workflow should carry it
+   from the start.
+2. **Dispatched runs bind to the head SHA and satisfy required contexts**, but
+   `gh pr checks <n>` reports "no checks reported on the branch" for them. Read
+   `gh api repos/<o>/<r>/commits/<sha>/check-runs` instead. Anyone reading the PR
+   view during an incident would wrongly conclude nothing had run.
 
 ## The situation
 
@@ -46,7 +91,18 @@ that reads exactly like the branch's own breakage).
 | (same, evidence leg) | `pnpm exec turbo run test --force` | **Mandatory second run.** See the cache trap below. |
 | `api-e2e` | `pnpm --filter qcms-api exec vitest run --root ../.. --project qcms-api-e2e` | |
 | `portal-e2e` | `QCMS_PORT_SEAT=<0-9> pnpm verify:browser` | Budget 12-15 min, not the ~2 the docs still claim (#299). |
-| `full-stack-e2e` | `pnpm docker:up` then `pnpm test:e2e` then `pnpm docker:down` | **Not reproducible from the dev container at all, and not a one-line fix - see below.** |
+| `full-stack-e2e` | `QCMS_PORT_SEAT=<0-9> pnpm up:e2e` | Was **not reproducible from the dev container at all** while this was in force - see below. Fixed by #316 / PR #334. |
+
+**Corrected 2026-08-06 23:15Z:** this row originally gave the split
+`pnpm docker:up` / `pnpm test:e2e` / `pnpm docker:down` form. That is wrong from the
+dev container even after #316: `docker:up` spawns the loopback forwarder with ref'd
+stdio and no `unref`, so the parent will not exit while the child is alive and the
+child only exits when the parent's stdin closes - each waits for the other, and the
+command blocks the terminal. Ctrl-C then tears the forwarder down, so the following
+`test:e2e` fails with `ECONNREFUSED`, which is the #316 symptom reproduced by
+following the documented steps. `up:e2e` is the single self-contained command and the
+one that is actually tested. (The same error was in `README.md:79-93`, found by the
+pre-merge review of #334 and corrected there.)
 
 **The cache trap, which is the whole reason for the second leg.** Turbo resolves to
 the main checkout's `.turbo/cache`, so a fresh worktree routinely reports the entire
@@ -236,10 +292,22 @@ security scanning**. That debt is tracked here and discharged when Actions retur
 
 | PR | Head | Merged | Contexts substituted | Backfilled |
 |---|---|---|---|---|
-| #320 (056) | `a8a8e396` | 2026-08-06 20:53Z | all four | no |
+| #320 (056) | `a8a8e396` | 2026-08-06 20:53Z | all four | **yes** - `main` green on real CI at `4c0c346`, which contains it |
+| #330 (this doc) | `d0634fe6` | 2026-08-06 22:18Z | all four, `plan/**` only | **yes** - same run |
+| #333 (`ci.yml` dispatch) | `ffbfb912` | 2026-08-06 22:50Z | all four, one workflow trigger | **yes** - same run, and the change verified itself by dispatching |
 
-Append a row per merge. Nothing leaves this table until CI has run over `main` at or
-above that commit.
+Three merges total went in without CI. All three are contained in `4c0c346`, which
+concluded green on real CI across all four jobs, with CodeQL green as well. **The
+substitution debt is fully discharged.**
+
+Windows opened, from ruleset history: 13s (#320), 6s (#330), 4s (#333). Every one
+restored and verified. `deletion`, `non_fast_forward`, `required_linear_history` and
+`pull_request` stayed enforced throughout all three.
+
+Note #334 (#316's fix) is deliberately **not** in this table: it was the first PR to
+be handled after #333 landed, and the dev seat dispatched real checks rather than
+substituting. That is the outcome the protocol was supposed to make unnecessary, and
+it did.
 
 ## Retrospective verification of `main` at `aea47d9` (2026-08-06 22:10Z)
 
