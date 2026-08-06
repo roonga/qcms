@@ -1,6 +1,6 @@
 # Proposal: erasure must reach QCMS's own outbox copy (ADR-17 amendment + task 059)
 
-**Status:** drafted by the PM/PO seat 2026-08-02 on the Code Owner's go-ahead. Two artifacts below are proposed for `docs/`: an ADR-17 amendment for `docs/PROJECT_GOAL.md`, and a new task file `docs/features/059-erasure-reaches-the-outbox.md`. Landing them is the Code Owner's call; this file is the reviewable draft.
+**Status:** LANDED 2026-08-06 on the Code Owner's approval. Artifact 1 is the `**Amendment (2026-08-02, ...)**` block appended to `### ADR-17` in `docs/PROJECT_GOAL.md`; Artifact 2 is `docs/features/059-erasure-reaches-the-outbox.md`, with a ledger row and a `059 | before 040` ordering exception in `docs/features/README.md`. This file is kept as the reasoning trail: the evidence, the rejected alternatives, and the R3/I5 argument that the landed artifacts only summarize. Drafted by the PM/PO seat 2026-08-02.
 
 **Found by:** the PO review of PR #284 (task 035), 2026-08-02. Two review passes converged on it independently and the conductor re-derived it before dispatching, so the gap is confirmed by three separate readings of the code rather than one.
 
