@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { createApp } from "../../app.js";
 import { internalTokenFor, makeDeps, validEnv } from "../../test-support.js";
-import { registerAdminAuthProxy, ALLOWED_AUTH_ENDPOINTS, authSubPath } from "./route.js";
+import { ALLOWED_AUTH_ENDPOINTS, authSubPath, registerAdminAuthProxy } from "./route.js";
 
 /**
  * The auth mount's surface guarantees (task 056; SEC-1, SEC-4, ADR-09).

@@ -99,12 +99,16 @@ export type AuthApiPath = `/${string}`;
  *   `sec-fetch-site`/`-mode`/`-dest` are its CSRF inputs - it blocks a cross-site
  *   navigation login on the metadata and validates the origin against
  *   `trustedOrigins`. Dropping the triplet would take a control away from it.
- * - **`x-forwarded-for` keeps SEC-1's per-IP sign-in throttling honest.** better-auth
+ * - **`x-forwarded-for` is what SEC-1's per-IP sign-in throttling keys on.** better-auth
  *   resolves the client address from it; dropping it would key every attempt in a
- *   deployment to the admin container's own address, quietly collapsing per-IP backoff
- *   into one global bucket. It is passed through exactly as received rather than
- *   appended to, so the value is still the ingress's statement about the client and
- *   nothing is invented here.
+ *   deployment to the admin container's own address, collapsing per-IP backoff into one
+ *   global bucket. It is passed through exactly as received, which is worth stating
+ *   precisely because it is **not** a trustworthy value on its own: it is whatever
+ *   arrived, so absent an ingress that *overwrites* the header rather than appending to
+ *   it, a client can supply its own and shard the backoff into unlimited buckets.
+ *   Forwarding it is therefore strictly better than dropping it and strictly weaker than
+ *   a guarantee - the guarantee has to come from the deployment's proxy, and task 040
+ *   owns verifying SEC-1 as a system rather than as this line.
  *
  * `user-agent` and `accept-language` ride along because better-auth records the former
  * on the session row and neither is a credential. Everything else is dropped.

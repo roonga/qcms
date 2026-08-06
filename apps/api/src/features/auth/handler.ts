@@ -1,4 +1,5 @@
 import type { RouteHandler } from "@hono/zod-openapi";
+import { APIError } from "better-auth/api";
 
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
@@ -30,12 +31,28 @@ export function makeRecoveryCodesHandler(
     let backupCodes: readonly string[];
     try {
       ({ backupCodes } = await auth().api.viewBackupCodes({ body: { userId: principal.userId } }));
-    } catch {
-      // better-auth refuses when the account has no TOTP factor or no stored codes.
-      // That is a state, not a fault, and its message is not repeated: it would tell
-      // the caller about the account's 2FA state (SEC-1: no enumeration). Nothing is
-      // logged either - the thrown error's message can quote a code (SEC-8).
-      throw new ApiError("conflict", 409, "No recovery codes exist for this account");
+    } catch (error) {
+      // ONLY better-auth's own refusal becomes a 409, and the narrowness is the point.
+      //
+      // A bare `catch` here reported a database outage, a dead connection pool and a
+      // library bug as "no recovery codes exist for this account" - a 409 an operator
+      // would read as their own account state while the deployment was on fire. The two
+      // refusals this endpoint can legitimately raise are `BACKUP_CODES_NOT_ENABLED` and
+      // `INVALID_BACKUP_CODE`, both thrown as `APIError.from("BAD_REQUEST", ...)`
+      // (better-auth 1.6.25, `dist/plugins/two-factor/backup-codes/index.mjs:329` and
+      // `:331`), so an `APIError` at `BAD_REQUEST` is exactly the "state, not fault" set.
+      // A driver throw is not an `APIError` at all and now surfaces as the opaque 500 it
+      // is (`middleware/error-envelope.ts`).
+      //
+      // The 409's message is fixed and value-free either way: repeating the library's
+      // would tell the caller about the account's 2FA state (SEC-1: no enumeration), and
+      // the rethrown error's message never reaches a body - the envelope logs it with a
+      // correlation id and answers with internals stripped, which is the API-side form of
+      // the discipline `apps/admin/lib/ops/unexpected.ts` applies to a screen (SEC-8).
+      if (error instanceof APIError && error.status === "BAD_REQUEST") {
+        throw new ApiError("conflict", 409, "No recovery codes exist for this account");
+      }
+      throw error;
     }
     return c.json({ codes: [...backupCodes] }, 200);
   };

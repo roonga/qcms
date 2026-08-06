@@ -54,6 +54,11 @@ services:
       # cookies are scoped to and the only origin better-auth trusts.
       QCMS_ADMIN_AUTH_SECRET: ${QCMS_ADMIN_AUTH_SECRET:?set QCMS_ADMIN_AUTH_SECRET in .env}
       QCMS_ADMIN_BASE_URL: ${QCMS_ADMIN_BASE_URL:?set QCMS_ADMIN_BASE_URL in .env}
+      # One knob for every cookie set on the admin origin. This service decides it for
+      # better-auth's session and two-factor cookies; the admin service reads the same
+      # value for the enrollment, recovery-view and appearance cookies it sets itself.
+      # Empty means unset, so the image's NODE_ENV=production decides (Secure on).
+      QCMS_ADMIN_SECURE_COOKIES: ${QCMS_ADMIN_SECURE_COOKIES:-}
       QCMS_MOUNT: all
     depends_on:
       postgres:
@@ -104,6 +109,11 @@ services:
       QCMS_API_BASE_URL: http://api:3000
       QCMS_INTERNAL_TOKEN: ${QCMS_INTERNAL_TOKEN:?set QCMS_INTERNAL_TOKEN in .env}
       QCMS_ADMIN_BASE_URL: ${QCMS_ADMIN_BASE_URL:?set QCMS_ADMIN_BASE_URL in .env}
+      # The SAME value the api service gets, and it has to be: this service sets the
+      # enrollment, recovery-view and appearance cookies while the API sets better-auth's,
+      # on one origin. If the two disagreed, the browser would keep one family and drop
+      # the other, and enroll would redirect to sign-in which redirects back to enroll.
+      QCMS_ADMIN_SECURE_COOKIES: ${QCMS_ADMIN_SECURE_COOKIES:-}
     depends_on:
       api:
         condition: service_healthy

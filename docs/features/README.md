@@ -10,9 +10,8 @@ A task's **Depends on** header already expresses every "runs *after* X" constrai
 |---|---|---|
 | 040 | before 038 | security review and hardening precede the external-tester launch gate |
 | 041 | never gates 038 | agent-assisted authoring is flag-gated and off the launch gate (ADR-25) |
-| 056 | before 036 | the ops docs must describe the post-consolidation topology, not one they would immediately outdate. The original reason (compose must never provision an admin database credential) was overtaken on 2026-08-05: PR #286 landed `docker-compose.yml` ahead of this exception, `admin` carries a `DATABASE_URL` today, and removing it is now 056's job rather than something 036 can still avoid |
 
-Exceptions retire when their task lands: 042, 043, 044, 045 and 055 all carried one and are now `done`.
+Exceptions retire when their task lands: 042, 043, 044, 045, 055 and 056 all carried one and are now `done`.
 
 **Self-containedness convention:** a task is self-contained *given the repo's `docs/` set* - task files carry the what/why/done, and point at the specific doc sections that carry contracts (schemas, semantics, layouts) so those live in one place and can't drift. 001 bootstraps the docs into the repo, so every later session finds its references locally. If a referenced section is missing or contradicts the task, that's a blocking issue - stop and surface it, don't improvise. Tasks needing anything *outside* the repo (e.g. the `a2-react-aria` repo in 011/028) declare it in an **External input required** header.
 

@@ -50,6 +50,21 @@ function required(name: string): string {
   return value;
 }
 
+/**
+ * A boolean env knob, accepting the **same spellings** as the API's `parseBool`
+ * (`apps/api/src/config.ts`). That symmetry is the point rather than a nicety: an
+ * operator who writes `QCMS_ADMIN_SECURE_COOKIES=off` must get the same answer out of
+ * both processes, or the two cookie families disagree again in a way no test would show.
+ */
+function boolEnv(name: string, fallback: boolean): boolean {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const normalized = raw.trim().toLowerCase();
+  if (["true", "1", "yes", "on"].includes(normalized)) return true;
+  if (["false", "0", "no", "off"].includes(normalized)) return false;
+  throw new Error(`${name} must be a boolean (true/false)`);
+}
+
 function positiveIntEnv(name: string, fallback: number): number {
   const raw = process.env[name];
   if (raw === undefined || raw.trim() === "") return fallback;
@@ -73,12 +88,39 @@ export function internalToken(): string {
 }
 
 /**
- * The enrollment cookies this app writes itself are `secure` in production only, so
- * local http development still works. (better-auth's own cookies are set by the API,
- * which makes the same decision from `QCMS_ADMIN_SECURE_COOKIES`.)
+ * Whether the cookies **this app** sets carry `Secure` (`QCMS_ADMIN_SECURE_COOKIES`,
+ * defaulting to `NODE_ENV === "production"`).
+ *
+ * ## Why this is a knob and not `NODE_ENV`, and why the name changed
+ *
+ * Three cookie families are set for this origin, and they must agree, because a browser
+ * that drops one of them breaks a flow rather than degrading it:
+ *
+ * 1. better-auth's session and two-factor cookies, set by the **API** since task 056 and
+ *    decided there by `config.adminAuth.secureCookies`.
+ * 2. The enrollment and recovery-view cookies (`lib/server/enrollment.ts`).
+ * 3. The appearance/mode cookie the shell's menu writes (`app/(shell)/layout.tsx`).
+ *
+ * Task 056 introduced `QCMS_ADMIN_SECURE_COOKIES` for family 1 while families 2 and 3
+ * still read `NODE_ENV` directly, and that split is a real lockout rather than an
+ * inconsistency: `docker/admin.Dockerfile` bakes `NODE_ENV=production` into the image, so
+ * in the plain-HTTP non-loopback shape `.env.compose.example` documents (knob `false`) the
+ * session cookie would lose `Secure` and be kept while `qcms_admin.enrollment` would keep
+ * it and be dropped - and enroll then redirects to sign-in, which redirects back to
+ * enroll, forever. Before 056 both families keyed off one `isProduction()` and therefore
+ * could not disagree.
+ *
+ * So all three now read this, and the function is named for **what it decides** rather
+ * than for the environment it used to guess from: `isProduction()` invited exactly the
+ * next caller who wanted a production check for an unrelated reason and got a cookie
+ * policy instead. A `Secure` attribute is not a session-policy semantic, which is why
+ * this sits outside the "no session-policy changes" fence task 056 carries.
+ *
+ * Default preserved: with the variable unset the answer is what `isProduction()` returned.
+ * Also closes issue #292 point 3.
  */
-export function isProduction(): boolean {
-  return process.env.NODE_ENV === "production";
+export function secureCookies(): boolean {
+  return boolEnv("QCMS_ADMIN_SECURE_COOKIES", process.env.NODE_ENV === "production");
 }
 
 /**

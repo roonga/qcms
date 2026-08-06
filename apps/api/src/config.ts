@@ -302,6 +302,15 @@ function parseOptionalString(env: Env, name: string, fallback: string): string {
  * issue - by env-var name only, never echoing the value - when absent or not a
  * parseable absolute http/https URL. `what` names the thing the URL points at, so
  * the message tells an operator which origin is missing.
+ *
+ * **Trailing slashes are stripped**, which matters more than tidiness. The admin app
+ * normalizes the same values in `apps/admin/lib/server/config.ts` (`adminBaseUrl`,
+ * `apiBaseUrl`), so without this a `QCMS_ADMIN_BASE_URL=https://admin.example/` would
+ * give the admin `https://admin.example` and better-auth `https://admin.example/` for
+ * both `baseURL` and its sole trusted origin - and an origin comparison is string
+ * equality, so the CSRF check would reject every legitimate POST while cookie scoping
+ * silently changed. The portal URL is normalized by the same stroke, which also fixes
+ * the `//l/<token>` a trailing slash used to put in a minted secure link.
  */
 function parseRequiredHttpUrl(
   env: Env,
@@ -314,7 +323,7 @@ function parseRequiredHttpUrl(
     issues.push(`${name} is required (absolute http(s) URL of ${what})`);
     return "";
   }
-  const value = raw.trim();
+  let value = raw.trim();
   let parsed: URL;
   try {
     parsed = new URL(value);
@@ -325,6 +334,7 @@ function parseRequiredHttpUrl(
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     issues.push(`${name} must use the http or https scheme`);
   }
+  while (value.endsWith("/")) value = value.slice(0, -1);
   return value;
 }
 

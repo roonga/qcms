@@ -5,7 +5,7 @@ import { AccountMenu } from "@/components/account-menu";
 import { AdminNav } from "@/components/admin-nav";
 import { AppearanceMenu } from "@/components/appearance-menu";
 import { MODE_COOKIE, parseMode } from "@/lib/appearance";
-import { isProduction } from "@/lib/server/config";
+import { secureCookies } from "@/lib/server/config";
 import { t } from "@/lib/i18n/en";
 import { requireAdminSession } from "@/lib/server/session";
 
@@ -39,9 +39,11 @@ import { requireAdminSession } from "@/lib/server/session";
 export default async function ShellLayout({ children }: { readonly children: ReactNode }) {
   const session = await requireAdminSession();
   // The topbar's mode control is a client component, so its starting selection comes
-  // in as a prop from the one place that can read a cookie: here. `isProduction()` is
+  // in as a prop from the one place that can read a cookie: here. `secureCookies()` is
   // read here too, for the same reason - `lib/server/` is unreachable from a client
-  // module by construction (the R2 import-surface test).
+  // module by construction (the R2 import-surface test) - and it is the same function
+  // the enrollment cookies and the API's better-auth instance decide from, so all three
+  // cookie families on this origin carry the same `Secure` attribute (see its doc).
   const mode = parseMode((await cookies()).get(MODE_COOKIE)?.value);
 
   return (
@@ -62,7 +64,7 @@ export default async function ShellLayout({ children }: { readonly children: Rea
             <AdminNav />
           </div>
           <div className="flex flex-shrink-0 items-center gap-x-2">
-            <AppearanceMenu mode={mode} secureCookies={isProduction()} />
+            <AppearanceMenu mode={mode} secureCookies={secureCookies()} />
             <AccountMenu email={session.email} name={session.name} />
           </div>
         </div>

@@ -1,3 +1,5 @@
+import { cookies } from "next/headers";
+
 import { authApiFetch } from "./api.ts";
 
 /**
@@ -59,11 +61,45 @@ import { authApiFetch } from "./api.ts";
  */
 const COOKIE_PREFIX = "qcms_admin";
 
-/** The session cookie better-auth issues. */
+/** The session cookie better-auth issues, without its security prefix. */
 export const SESSION_COOKIE = `${COOKIE_PREFIX}.session_token`;
 
-/** The short-lived cookie that carries a pending 2FA challenge. */
+/** The short-lived cookie carrying a pending 2FA challenge, without its security prefix. */
 export const TWO_FACTOR_COOKIE = `${COOKIE_PREFIX}.two_factor`;
+
+/**
+ * Read one of better-auth's cookies by its **unprefixed** name (issue #317).
+ *
+ * better-auth renames its own cookies when it is issuing secure ones:
+ * `createCookieGetter` builds the name as `${secureCookiePrefix}${prefix}.${cookieName}`
+ * and sets `secureCookiePrefix` to `__Secure-` whenever `advanced.useSecureCookies` is
+ * true (better-auth 1.6.25, `dist/cookies/index.mjs:20-21` and `:28-31`). So the cookie
+ * this app has to find is `qcms_admin.two_factor` in development and
+ * `__Secure-qcms_admin.two_factor` in any deployment with secure cookies on - which is
+ * the default compose shape, since `docker/admin.Dockerfile` bakes `NODE_ENV=production`.
+ *
+ * A bare `cookies().get(TWO_FACTOR_COOKIE)` therefore finds nothing in production and the
+ * challenge screen bounces to sign-in forever. The library solves this for itself by
+ * trying both names (`dist/cookies/index.mjs:216`:
+ * `parsedCookie.get(\`__Secure-${name}\`) ?? parsedCookie.get(name)`), and this is that
+ * fallback on our side of the hop.
+ *
+ * It matches by **suffix** rather than by trying the two literal spellings, for the same
+ * reason `auth.integration.test.ts` does: `__Host-` is the other prefix the spec defines
+ * and better-auth already has a constant for it, so an upstream switch to it stays
+ * covered. The suffix is anchored with a leading `.` from `COOKIE_PREFIX`, so
+ * `qcms_admin.session_token` can never satisfy a lookup for `qcms_admin.two_factor`.
+ *
+ * Not caught by any gate we have, which is why it shipped in 031 and survived 056's green
+ * runs: the browser suite runs over http on localhost with secure cookies off, so the
+ * prefixed form never appears in CI.
+ */
+export async function readAuthCookie(unprefixedName: string): Promise<string | undefined> {
+  const jar = await cookies();
+  const exact = jar.get(unprefixedName)?.value;
+  if (exact !== undefined) return exact;
+  return jar.getAll().find((cookie) => cookie.name.endsWith(`-${unprefixedName}`))?.value;
+}
 
 /** The session shape better-auth's `get-session` returns, as the admin reads it. */
 export interface ProxiedSession {
