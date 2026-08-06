@@ -1,0 +1,25 @@
+{
+  "formId": "frm_author_messages",
+  "defaultLocale": "en",
+  "title": { "en": "Author-supplied validation messages" },
+  "steps": [
+    {
+      "stepId": "stp_vehicle",
+      "title": { "en": "The vehicle" },
+      "items": [
+        { "questionId": "q_msg_plate", "version": 1 },
+        { "questionId": "q_msg_odometer", "version": 1 },
+        { "questionId": "q_msg_service_date", "version": 1 }
+      ]
+    },
+    {
+      "stepId": "stp_extras",
+      "title": { "en": "Extras and notes" },
+      "items": [
+        { "questionId": "q_msg_extras", "version": 1 },
+        { "questionId": "q_msg_notes", "version": 1 }
+      ]
+    }
+  ],
+  "rules": []
+}

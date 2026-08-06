@@ -80,3 +80,69 @@ export const Q_COVERAGE_DEF = readFixture(
 export const KITCHEN_SINK_GOLDEN = readFixture(
   "apps/api/e2e/support/fixtures/kitchen-sink.a2ui.json",
 ) as CompiledForm;
+
+// --- author-messages: ADR-32 messages + ADR-36 boolean labels (task 048) -----
+
+/**
+ * The `author-messages` form: one step whose four required questions exercise
+ * author-supplied validation messages (ADR-32) and boolean label overrides
+ * (ADR-36) end to end in the browser.
+ *
+ * A SEPARATE form rather than messages retrofitted onto the kitchen-sink fixture
+ * (task 048 is explicit about appending instead): the kitchen-sink compiled golden
+ * is asserted byte-for-byte by several specs, and its bytes staying still is part
+ * of what proves both features additive.
+ *
+ * What each question is here for:
+ * - `q_am_plate` - three custom messages (required, minLength, pattern), so two
+ *   different constraints on one question show two different authored sentences.
+ * - `q_am_vin` - carries the IDENTICAL custom `required` text as the plate, the
+ *   case WCAG 3.3.1 distinctness exists for (issue #21, ADR-32), AND a
+ *   deliberately un-decorated `minLength`, which is what makes the fallback
+ *   provably per constraint rather than per question. `minLength` and not
+ *   `maxLength`: the compiler forwards `maxLength` as the input's advisory
+ *   `maxlength` attribute, so the control truncates the value and a browser can
+ *   never provoke that constraint at all.
+ * - `q_am_tows` - both boolean labels overridden.
+ * - `q_am_garaged` - one label overridden, the other on the lexicon (mixed pair).
+ *
+ * Vehicle domain throughout (043's neutral-domain rule, guarded by
+ * `scripts/check-fixture-domain.mjs`). The compiled golden is generated from these
+ * definitions via the a2ui-compiler and committed alongside them.
+ */
+export const AUTHOR_MESSAGES_DEF = readFixture(
+  "apps/api/e2e/support/fixtures/author-messages-form.json",
+);
+
+/** The four question definitions the `author-messages` form pins. */
+export const AUTHOR_MESSAGES_QUESTIONS: readonly {
+  readonly questionId: string;
+  readonly slug: string;
+  readonly definition: unknown;
+}[] = [
+  {
+    questionId: "q_am_plate",
+    slug: "am-plate",
+    definition: readFixture("apps/api/e2e/support/fixtures/q-am-plate.json"),
+  },
+  {
+    questionId: "q_am_vin",
+    slug: "am-vin",
+    definition: readFixture("apps/api/e2e/support/fixtures/q-am-vin.json"),
+  },
+  {
+    questionId: "q_am_tows",
+    slug: "am-tows",
+    definition: readFixture("apps/api/e2e/support/fixtures/q-am-tows.json"),
+  },
+  {
+    questionId: "q_am_garaged",
+    slug: "am-garaged",
+    definition: readFixture("apps/api/e2e/support/fixtures/q-am-garaged.json"),
+  },
+];
+
+/** The committed golden compiled A2UI document for the `author-messages` form. */
+export const AUTHOR_MESSAGES_GOLDEN = readFixture(
+  "apps/api/e2e/support/fixtures/author-messages.a2ui.json",
+) as CompiledForm;

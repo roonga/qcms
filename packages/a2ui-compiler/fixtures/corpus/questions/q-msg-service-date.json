@@ -1,0 +1,9 @@
+{
+  "type": "date",
+  "questionId": "q_msg_service_date",
+  "label": { "en": "Last service date" },
+  "constraints": { "min": "2000-01-01", "max": "2100-12-31" },
+  "messages": {
+    "min": { "en": "Our records only go back to the year 2000" }
+  }
+}

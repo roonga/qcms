@@ -1,0 +1,18 @@
+{
+  "formId": "frm_author_messages",
+  "defaultLocale": "en",
+  "title": { "en": "Vehicle details" },
+  "steps": [
+    {
+      "stepId": "stp_vehicle",
+      "title": { "en": "The vehicle" },
+      "items": [
+        { "questionId": "q_am_plate", "version": 1 },
+        { "questionId": "q_am_vin", "version": 1 },
+        { "questionId": "q_am_tows", "version": 1 },
+        { "questionId": "q_am_garaged", "version": 1 }
+      ]
+    }
+  ],
+  "rules": []
+}

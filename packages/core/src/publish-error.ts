@@ -5,6 +5,7 @@ import type { FormDefinition } from "./form-definition.js";
 import { OptionId, QuestionId, RuleId, StepId } from "./ids.js";
 import { LocaleCode } from "./localized-text.js";
 import type { QuestionVersionRecord } from "./question-definition.js";
+import { ValidationMessageKey } from "./validation-message.js";
 
 /**
  * The typed publish error model (task 004, DOMAIN_SCHEMA §4.1). This is the
@@ -33,6 +34,9 @@ export const PublishErrorCode = z.enum([
   // already includes that one): compileDraft accepts a raw draft, so its
   // report must be able to carry the form's parse-level refinements too.
   "DUPLICATE_STEP_ID",
+  // An author-supplied validation message keyed by a constraint the question
+  // does not carry (task 048, ADR-32): a message no respondent could ever see.
+  "ORPHAN_MESSAGE_KEY",
 ]);
 export type PublishErrorCode = z.infer<typeof PublishErrorCode>;
 
@@ -121,6 +125,13 @@ export const PublishError = z.discriminatedUnion("code", [
     message,
     path: z.object({ step: StepId }),
   }),
+  // A question supplies a validation message for a constraint it does not
+  // carry (ADR-32); the path names the question and the offending key.
+  z.object({
+    code: z.literal("ORPHAN_MESSAGE_KEY"),
+    message,
+    path: z.object({ question: QuestionId, constraint: ValidationMessageKey }),
+  }),
 ]);
 export type PublishError = z.infer<typeof PublishError>;
 
@@ -207,6 +218,8 @@ export function publishErrorLocation(error: PublishError): string {
       return `question "${error.path.question}" in step "${error.path.step}"`;
     case "DUPLICATE_STEP_ID":
       return `step "${error.path.step}"`;
+    case "ORPHAN_MESSAGE_KEY":
+      return `validation message "${error.path.constraint}" of question "${error.path.question}"`;
     /* v8 ignore next 2 -- unreachable by construction */
     default:
       return assertNeverPublishError(error);

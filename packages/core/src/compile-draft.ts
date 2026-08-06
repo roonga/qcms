@@ -4,8 +4,13 @@ import type { FormDefinition } from "./form-definition.js";
 import { isStepId, type QuestionId, type StepId } from "./ids.js";
 import { isCompleteFor, type LocaleCode, type LocalizedText } from "./localized-text.js";
 import type { FrozenSnapshot, PublishError, PublishResult } from "./publish-error.js";
-import type { QuestionVersionRecord } from "./question-definition.js";
+import {
+  authoredMessageKeys,
+  type QuestionDefinition,
+  type QuestionVersionRecord,
+} from "./question-definition.js";
 import { analyzeRuleGraph, checkRuleTypes, documentOrder, ruleReferences } from "./rule-graph.js";
+import { VALIDATION_MESSAGE_KEYS } from "./validation-message.js";
 import { CONDITION_MAX_DEPTH, conditionDepth } from "./visibility-rule.js";
 
 /**
@@ -203,6 +208,79 @@ function checkRuleResolution(definition: FormDefinition): PublishError[] {
   return errors;
 }
 
+/** Is this `LocalizedText` present but missing the given locale (invariant I3)? */
+function isIncompleteFor(text: LocalizedText | undefined, locale: LocaleCode): boolean {
+  return text !== undefined && !isCompleteFor(text, locale);
+}
+
+/**
+ * Default-locale completeness for one pinned question version's authored text:
+ * label, help, choice-option labels, the ADR-32 validation messages and the
+ * ADR-36 boolean labels. Every one of these is resolved at compile time by a
+ * resolver that *throws* on a missing default locale, so a gap has to be a
+ * publish error here rather than a compiler crash later.
+ */
+function questionLocaleErrors(question: QuestionDefinition, locale: LocaleCode): PublishError[] {
+  const errors: PublishError[] = [];
+  const at = (field: string): PublishError => ({
+    code: "LOCALE_INCOMPLETE",
+    message: `Question "${question.questionId}" ${field} is missing the default locale "${locale}"`,
+    path: { locale, question: question.questionId },
+  });
+  if (isIncompleteFor(question.label, locale)) errors.push(at("label"));
+  if (isIncompleteFor(question.help, locale)) errors.push(at("help text"));
+  for (const key of VALIDATION_MESSAGE_KEYS) {
+    if (isIncompleteFor(question.messages?.[key], locale)) {
+      errors.push(at(`validation message "${key}"`));
+    }
+  }
+  if (question.type === "boolean") {
+    if (isIncompleteFor(question.yesLabel, locale)) errors.push(at("yesLabel"));
+    if (isIncompleteFor(question.noLabel, locale)) errors.push(at("noLabel"));
+  }
+  if (question.type === "singleChoice" || question.type === "multiChoice") {
+    for (const option of question.options) {
+      if (isIncompleteFor(option.label, locale)) {
+        errors.push({
+          code: "LOCALE_INCOMPLETE",
+          message: `Option "${option.optionId}" of question "${question.questionId}" is missing the default locale "${locale}"`,
+          path: { locale, question: question.questionId, option: option.optionId },
+        });
+      }
+    }
+  }
+  return errors;
+}
+
+/**
+ * Author-supplied validation messages decorate a constraint the question
+ * actually carries (ADR-32). A message keyed by a constraint the question does
+ * not carry can never be shown to a respondent, so it is an authoring mistake
+ * rather than harmless dead content: publish reports it as
+ * `ORPHAN_MESSAGE_KEY`, in canonical key order.
+ */
+function checkAuthoredMessages(
+  resolved: ReadonlyMap<QuestionId, QuestionVersionRecord>,
+): PublishError[] {
+  const errors: PublishError[] = [];
+  for (const record of resolved.values()) {
+    const question = record.definition;
+    const { messages } = question;
+    if (messages === undefined) continue;
+    const carried = new Set(authoredMessageKeys(question));
+    for (const key of VALIDATION_MESSAGE_KEYS) {
+      if (messages[key] !== undefined && !carried.has(key)) {
+        errors.push({
+          code: "ORPHAN_MESSAGE_KEY",
+          message: `Question "${question.questionId}" supplies a validation message for "${key}", which this question does not carry`,
+          path: { question: question.questionId, constraint: key },
+        });
+      }
+    }
+  }
+  return errors;
+}
+
 /**
  * Default-locale completeness (invariant I3): every `LocalizedText` in the
  * form *and* in every pinned question version must carry the form's
@@ -215,8 +293,7 @@ function checkLocaleCompleteness(
 ): PublishError[] {
   const errors: PublishError[] = [];
   const locale: LocaleCode = definition.defaultLocale;
-  const incomplete = (text: LocalizedText | undefined): boolean =>
-    text !== undefined && !isCompleteFor(text, locale);
+  const incomplete = (text: LocalizedText | undefined): boolean => isIncompleteFor(text, locale);
 
   if (incomplete(definition.title)) {
     errors.push({
@@ -237,32 +314,7 @@ function checkLocaleCompleteness(
   // Pinned question content, in document order (unresolved pins were already
   // reported as DANGLING_QUESTION_REF; there is nothing to check for them).
   for (const record of resolved.values()) {
-    const question = record.definition;
-    if (incomplete(question.label)) {
-      errors.push({
-        code: "LOCALE_INCOMPLETE",
-        message: `Question "${question.questionId}" label is missing the default locale "${locale}"`,
-        path: { locale, question: question.questionId },
-      });
-    }
-    if (incomplete(question.help)) {
-      errors.push({
-        code: "LOCALE_INCOMPLETE",
-        message: `Question "${question.questionId}" help text is missing the default locale "${locale}"`,
-        path: { locale, question: question.questionId },
-      });
-    }
-    if (question.type === "singleChoice" || question.type === "multiChoice") {
-      for (const option of question.options) {
-        if (incomplete(option.label)) {
-          errors.push({
-            code: "LOCALE_INCOMPLETE",
-            message: `Option "${option.optionId}" of question "${question.questionId}" is missing the default locale "${locale}"`,
-            path: { locale, question: question.questionId, option: option.optionId },
-          });
-        }
-      }
-    }
+    errors.push(...questionLocaleErrors(record.definition, locale));
   }
   return errors;
 }
@@ -281,7 +333,9 @@ function checkLocaleCompleteness(
  * 4. rule graph forward-only and acyclic (`analyzeRuleGraph`, ADR-16, I10);
  * 5. condition/operator type compatibility against the pinned versions,
  *    including option references (`checkRuleTypes`, ADR-21);
- * 6. default-locale completeness across form and pinned content (I3).
+ * 6. default-locale completeness across form and pinned content (I3);
+ * 7. author-supplied validation messages key only constraints the pinned
+ *    question carries (ADR-32).
  *
  * The snapshot is a deep-frozen *clone* - the caller's draft stays mutable
  * (it is still a draft; only the snapshot is immutable, I1). Pure and
@@ -299,6 +353,7 @@ export function compileDraft(draft: DraftInput): PublishResult {
     ...analyzeRuleGraph(definition),
     ...checkRuleTypes(definition, (questionId) => resolved.get(questionId)?.definition),
     ...checkLocaleCompleteness(definition, resolved),
+    ...checkAuthoredMessages(resolved),
   ];
   if (errors.length > 0) {
     return err(errors);

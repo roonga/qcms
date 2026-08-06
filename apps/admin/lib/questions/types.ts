@@ -75,6 +75,45 @@ export interface ConstraintsView {
   readonly maxSelected?: number | undefined;
 }
 
+/**
+ * The constraint keys an author may write a message for (task 048, ADR-32), in the
+ * kernel's canonical order.
+ *
+ * Restated here rather than imported, for the same R2 reason as everything else in this
+ * module: `@qcms/core` owns `ValidationMessageKey` and the admin may not import it as a
+ * value (`lib/server/r2-import-surface.test.ts`). The order matters beyond tidiness - the
+ * editor renders the fields in it, and `forWire` serializes in it, so a message map is a
+ * function of content rather than of the order an author happened to fill the boxes in.
+ *
+ * Keep in step with `ValidationMessageKey` in `packages/core/src/validation-message.ts`.
+ */
+export const VALIDATION_MESSAGE_KEYS = [
+  "required",
+  "minLength",
+  "maxLength",
+  "pattern",
+  "min",
+  "max",
+  "integer",
+  "minSelected",
+  "maxSelected",
+] as const;
+
+export type ValidationMessageKey = (typeof VALIDATION_MESSAGE_KEYS)[number];
+
+/**
+ * Author-supplied validation messages, one optional text per constraint key.
+ *
+ * Explicitly `| undefined` for the same `exactOptionalPropertyTypes` reason as
+ * {@link ConstraintsView}: a message field an author has **cleared** is
+ * `{ minLength: undefined }` while it is being edited, and only becomes absent when
+ * `forWire` prunes it. An absent key is what "inherit the default" is stored as, so
+ * present-and-empty would be a message no respondent should ever see.
+ */
+export type ValidationMessagesView = Readonly<
+  Partial<Record<ValidationMessageKey, LocalizedText | undefined>>
+>;
+
 /** A question definition as it travels over the wire. */
 export interface QuestionDefinitionView {
   readonly questionId: string;
@@ -84,6 +123,12 @@ export interface QuestionDefinitionView {
   readonly required?: boolean | undefined;
   readonly options?: readonly ChoiceOptionView[] | undefined;
   readonly constraints?: ConstraintsView | undefined;
+  /** Per-constraint message overrides (task 048, ADR-32). Absent key = inherit. */
+  readonly messages?: ValidationMessagesView | undefined;
+  /** boolean only: the displayed affirmative label (task 048, ADR-36). Absent = lexicon. */
+  readonly yesLabel?: LocalizedText | undefined;
+  /** boolean only: the displayed negative label (task 048, ADR-36). Absent = lexicon. */
+  readonly noLabel?: LocalizedText | undefined;
 }
 
 /** One version row of a question (`QuestionVersionView` on the API side). */

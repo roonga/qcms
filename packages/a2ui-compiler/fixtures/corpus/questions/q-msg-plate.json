@@ -1,0 +1,18 @@
+{
+  "type": "shortText",
+  "questionId": "q_msg_plate",
+  "label": { "en": "Registration plate" },
+  "help": { "en": "As printed on the plate, without spaces" },
+  "required": true,
+  "constraints": {
+    "minLength": 3,
+    "maxLength": 8,
+    "pattern": "^[A-Z0-9][A-Z0-9-]{2,7}$"
+  },
+  "messages": {
+    "required": { "en": "We need the plate to look up the vehicle" },
+    "minLength": { "en": "A plate is at least 3 characters" },
+    "maxLength": { "en": "A plate is at most 8 characters" },
+    "pattern": { "en": "Use capitals, digits and hyphens only, like ABC-123" }
+  }
+}

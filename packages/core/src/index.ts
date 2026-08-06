@@ -90,6 +90,7 @@ export {
   QuestionVersionRecord,
   QUESTION_TYPES,
   type QuestionType,
+  authoredMessageKeys,
   optionIdsOf,
   parseQuestionDefinition,
   parseQuestionVersionRecord,
@@ -163,6 +164,12 @@ export {
   ValidationError,
   validateAnswer,
 } from "./validate-answer.js";
+
+export {
+  ValidationMessageKey,
+  ValidationMessages,
+  VALIDATION_MESSAGE_KEYS,
+} from "./validation-message.js";
 
 export {
   SubmissionErrorCode,

@@ -3,18 +3,22 @@ import { describe, expect, it } from "vitest";
 import {
   CONSTRAINT_FIELDS,
   addOption,
+  authoredMessageKeys,
   blankDefinition,
+  defaultMessageFor,
   forWire,
   localized,
   localizedDraft,
+  messageLabelFor,
   mintOptionId,
   moveOption,
   questionIdFromSlug,
   relabelOption,
   removeOption,
   textOf,
+  withMessage,
 } from "./definition.ts";
-import type { ChoiceOptionView } from "./types.ts";
+import { VALIDATION_MESSAGE_KEYS, type ChoiceOptionView } from "./types.ts";
 
 /**
  * Exit criterion 2 lives here, and in the Playwright walk.
@@ -240,5 +244,356 @@ describe("text a author is still typing", () => {
       options: [{ optionId: "opt_red", label: { en: "Red  " } }],
     } as never) as unknown as { options: { optionId: string; label: unknown }[] };
     expect(wire.options[0]).toEqual({ optionId: "opt_red", label: { en: "Red" } });
+  });
+});
+
+/**
+ * Author-supplied validation messages and the boolean label overrides (task 048, ADR-32
+ * and ADR-36), exit criteria 4 and 5.
+ *
+ * Two properties carry this feature and both are silent when broken, which is why they are
+ * pinned here rather than left to the browser walk:
+ *
+ * 1. **A blank field inherits.** ADR-32 puts the fallback at the edit level, so "no
+ *    override" has to reach the wire as an ABSENT key. A `{ en: "" }` or a `messages: {}`
+ *    would each be a stored artefact of an author having looked at the box, and the first
+ *    is a kernel validation error on a field nobody filled in.
+ * 2. **An orphan never leaves the editor.** The editor renders a message field only for a
+ *    constraint the question carries, and `forWire` prunes on the same rule, so clearing
+ *    "Shortest answer" or switching a draft's type takes the message with it. If the two
+ *    ever disagreed, publish would fail with `ORPHAN_MESSAGE_KEY` pointing at a field the
+ *    screen no longer shows.
+ */
+
+const SHORT_TEXT = {
+  questionId: "q_policy",
+  type: "shortText",
+  label: { en: "Policy number" },
+} as const;
+
+describe("VALIDATION_MESSAGE_KEYS", () => {
+  it("restates the kernel's canonical key order exactly", () => {
+    // The admin cannot import `ValidationMessageKey` (R2), so this list is a copy, and the
+    // order is load-bearing twice over: the editor renders the fields in it and `forWire`
+    // serializes in it. A silent reorder here would change the bytes a save sends.
+    expect([...VALIDATION_MESSAGE_KEYS]).toEqual([
+      "required",
+      "minLength",
+      "maxLength",
+      "pattern",
+      "min",
+      "max",
+      "integer",
+      "minSelected",
+      "maxSelected",
+    ]);
+  });
+});
+
+describe("authoredMessageKeys", () => {
+  it("offers a message only for a constraint the question actually carries", () => {
+    // The type COULD have `minLength` and `pattern`; this question does not, so neither
+    // can ever produce an error and neither gets a field.
+    expect(authoredMessageKeys({ ...SHORT_TEXT, constraints: { maxLength: 20 } })).toEqual([
+      "maxLength",
+    ]);
+  });
+
+  it("adds required only when an answer is actually required", () => {
+    expect(authoredMessageKeys({ ...SHORT_TEXT, required: true })).toEqual(["required"]);
+    expect(authoredMessageKeys({ ...SHORT_TEXT, required: false })).toEqual([]);
+    expect(authoredMessageKeys(SHORT_TEXT)).toEqual([]);
+  });
+
+  it("returns the keys in canonical order, not in the order they were set", () => {
+    const keys = authoredMessageKeys({
+      ...SHORT_TEXT,
+      required: true,
+      constraints: { pattern: "^A", maxLength: 20, minLength: 4 },
+    });
+    expect(keys).toEqual(["required", "minLength", "maxLength", "pattern"]);
+  });
+
+  it("drops a constraint the author cleared", () => {
+    // Both cleared states the editor can produce: a `NumberField` emptied to `undefined`
+    // and a `TextField` emptied to `""`. Either has to remove the message field, or the
+    // author is left writing a sentence for a rule that no longer exists.
+    expect(
+      authoredMessageKeys({
+        ...SHORT_TEXT,
+        constraints: { minLength: undefined, pattern: "", maxLength: 20 },
+      }),
+    ).toEqual(["maxLength"]);
+  });
+
+  it("treats an unticked whole-numbers box as no constraint", () => {
+    const base = { questionId: "q_age", type: "number", label: { en: "Age" } } as const;
+    expect(authoredMessageKeys({ ...base, constraints: { integer: false } })).toEqual([]);
+    expect(authoredMessageKeys({ ...base, constraints: { integer: true } })).toEqual(["integer"]);
+  });
+
+  it("ignores a constraint the type does not own", () => {
+    // A leftover from a draft that used to be another type: `pattern` on a number question
+    // is exactly the shape that would become an ORPHAN_MESSAGE_KEY at publish.
+    const keys = authoredMessageKeys({
+      questionId: "q_age",
+      type: "number",
+      label: { en: "Age" },
+      constraints: { min: 18, pattern: "^a$", maxSelected: 2 },
+    });
+    expect(keys).toEqual(["min"]);
+  });
+
+  it("gives the two constraint-free types nothing but required", () => {
+    for (const type of ["boolean", "singleChoice"] as const) {
+      expect(authoredMessageKeys(blankDefinition(type, "q_x"))).toEqual([]);
+      expect(authoredMessageKeys({ ...blankDefinition(type, "q_x"), required: true })).toEqual([
+        "required",
+      ]);
+    }
+  });
+});
+
+describe("defaultMessageFor (the editor's placeholder)", () => {
+  /*
+   * These assertions are the drift alarm for a duplication the R2 boundary forces: the
+   * strings live in `lib/i18n/en.ts` as a mirror of `packages/core/src/validate-answer.ts`
+   * and `apps/portal/lib/i18n/en.ts`, because the admin may not import either. If the
+   * shipped wording changes and the mirror does not, the editor promises a default that no
+   * respondent will ever see, which is worse than no placeholder at all - so the exact
+   * sentences are pinned here rather than the shape of them.
+   */
+  it("interpolates the question's own bound into a length default", () => {
+    expect(defaultMessageFor("minLength", { ...SHORT_TEXT, constraints: { minLength: 4 } })).toBe(
+      "Answer must be at least 4 characters",
+    );
+    expect(defaultMessageFor("maxLength", { ...SHORT_TEXT, constraints: { maxLength: 20 } })).toBe(
+      "Answer must be at most 20 characters",
+    );
+  });
+
+  it("interpolates a numeric bound", () => {
+    const number = { questionId: "q_age", type: "number", label: { en: "Age" } } as const;
+    expect(defaultMessageFor("min", { ...number, constraints: { min: 18 } })).toBe(
+      "Answer must be at least 18",
+    );
+    expect(defaultMessageFor("max", { ...number, constraints: { max: 99 } })).toBe(
+      "Answer must be at most 99",
+    );
+  });
+
+  it("interpolates a date bound as the canonical date the kernel prints", () => {
+    // The kernel formats both bounds with `String(bound)`, so a date's default carries the
+    // stored `YYYY-MM-DD` rather than a locale rendering of it.
+    const date = { questionId: "q_incident", type: "date", label: { en: "Incident" } } as const;
+    expect(defaultMessageFor("min", { ...date, constraints: { min: "2030-01-01" } })).toBe(
+      "Answer must be at least 2030-01-01",
+    );
+  });
+
+  it("interpolates the selection counts", () => {
+    const multi = { questionId: "q_extras", type: "multiChoice", label: { en: "Extras" } } as const;
+    expect(defaultMessageFor("minSelected", { ...multi, constraints: { minSelected: 1 } })).toBe(
+      "Select at least 1 option(s)",
+    );
+    expect(defaultMessageFor("maxSelected", { ...multi, constraints: { maxSelected: 3 } })).toBe(
+      "Select at most 3 option(s)",
+    );
+  });
+
+  it("has nothing to interpolate for the three bound-free keys", () => {
+    expect(defaultMessageFor("required", { ...SHORT_TEXT, required: true })).toBe(
+      "This question needs an answer.",
+    );
+    expect(defaultMessageFor("pattern", { ...SHORT_TEXT, constraints: { pattern: "^A" } })).toBe(
+      "Answer does not match the required format",
+    );
+    expect(
+      defaultMessageFor("integer", {
+        questionId: "q_age",
+        type: "number",
+        label: { en: "Age" },
+        constraints: { integer: true },
+      }),
+    ).toBe("Answer must be a whole number");
+  });
+
+  it("leaves the token visible rather than printing undefined when a bound is missing", () => {
+    // Unreachable from the editor (no constraint, no field), and this is what it would do:
+    // show the template rather than "at least undefined characters".
+    expect(defaultMessageFor("minLength", SHORT_TEXT)).toBe(
+      "Answer must be at least {n} characters",
+    );
+  });
+});
+
+describe("messageLabelFor", () => {
+  it("words a date's bounds as dates rather than as sizes", () => {
+    const date = { questionId: "q_incident", type: "date", label: { en: "Incident" } } as const;
+    expect(messageLabelFor("min", date)).toBe("Message when the date is too early");
+    expect(messageLabelFor("max", date)).toBe("Message when the date is too late");
+  });
+
+  it("keeps the numeric wording for the same two keys on a number question", () => {
+    const number = { questionId: "q_age", type: "number", label: { en: "Age" } } as const;
+    expect(messageLabelFor("min", number)).toBe("Message when the value is too small");
+    expect(messageLabelFor("max", number)).toBe("Message when the value is too large");
+  });
+});
+
+describe("withMessage", () => {
+  it("stores what the author is typing without trimming it", () => {
+    // Same reason as `localizedDraft`: a trim here makes a trailing space unwritable in a
+    // controlled field. The trim happens once, at `forWire`.
+    expect(withMessage({}, "minLength", "Too short ")).toEqual({
+      minLength: { en: "Too short " },
+    });
+  });
+
+  it("removes the key when the field is emptied, so the default is inherited again", () => {
+    expect(withMessage({ minLength: { en: "Too short" } }, "minLength", "")).toEqual({});
+  });
+
+  it("leaves every other message alone", () => {
+    const next = withMessage(
+      { required: { en: "We need this" }, maxLength: { en: "Too long" } },
+      "minLength",
+      "Too short",
+    );
+    expect(next).toEqual({
+      required: { en: "We need this" },
+      minLength: { en: "Too short" },
+      maxLength: { en: "Too long" },
+    });
+  });
+
+  it("keeps the map in canonical order however the boxes were filled", () => {
+    let messages = withMessage({}, "pattern", "Wrong shape");
+    messages = withMessage(messages, "required", "We need this");
+    messages = withMessage(messages, "maxLength", "Too long");
+    expect(Object.keys(messages)).toEqual(["required", "maxLength", "pattern"]);
+  });
+});
+
+describe("forWire: messages", () => {
+  it("sends nothing at all when no message was authored", () => {
+    const wire = forWire({
+      ...SHORT_TEXT,
+      required: true,
+      constraints: { minLength: 4 },
+    }) as unknown as Record<string, unknown>;
+    expect(Object.hasOwn(wire, "messages")).toBe(false);
+  });
+
+  it("omits a blank field so the absent key means inherit", () => {
+    const wire = forWire({
+      ...SHORT_TEXT,
+      constraints: { minLength: 4, maxLength: 20 },
+      // Both blank shapes the editor can hold: a whitespace-only draft and an empty map.
+      messages: { minLength: { en: "   " }, maxLength: {} },
+    }) as unknown as Record<string, unknown>;
+    expect(Object.hasOwn(wire, "messages")).toBe(false);
+  });
+
+  it("sends an authored override, trimmed, in canonical key order", () => {
+    const wire = forWire({
+      ...SHORT_TEXT,
+      required: true,
+      constraints: { minLength: 4, pattern: "^A" },
+      messages: {
+        pattern: { en: "Policy numbers start with A." },
+        required: { en: "  We need your policy number.  " },
+        minLength: { en: "That is too short to be a policy number." },
+      },
+    }) as unknown as { messages: Record<string, unknown> };
+    expect(Object.keys(wire.messages)).toEqual(["required", "minLength", "pattern"]);
+    expect(wire.messages["required"]).toEqual({ en: "We need your policy number." });
+  });
+
+  it("drops the message for a constraint the author cleared", () => {
+    const wire = forWire({
+      ...SHORT_TEXT,
+      constraints: { minLength: undefined, maxLength: 20 },
+      messages: { minLength: { en: "Too short" }, maxLength: { en: "Too long" } },
+    }) as unknown as { messages: Record<string, unknown> };
+    expect(wire.messages).toEqual({ maxLength: { en: "Too long" } });
+  });
+
+  it("drops the message for required once required is unticked", () => {
+    const wire = forWire({
+      ...SHORT_TEXT,
+      required: false,
+      messages: { required: { en: "We need this" } },
+    }) as unknown as Record<string, unknown>;
+    expect(Object.hasOwn(wire, "messages")).toBe(false);
+  });
+
+  it("drops a message orphaned by a change of type", () => {
+    // A draft authored as short text and then switched to number: `pattern` is not a
+    // constraint a number question carries, so its message would be an ORPHAN_MESSAGE_KEY.
+    const wire = forWire({
+      questionId: "q_age",
+      type: "number",
+      label: { en: "Age" },
+      constraints: { min: 18 },
+      messages: { pattern: { en: "Wrong shape" }, min: { en: "Drivers must be 18 or over." } },
+    }) as unknown as { messages: Record<string, unknown> };
+    expect(wire.messages).toEqual({ min: { en: "Drivers must be 18 or over." } });
+  });
+
+  it("carries a message on a type with no constraints at all", () => {
+    // `boolean` has no constraint panel, but every type can be required, so `required` is
+    // the one message key it can hold.
+    const wire = forWire({
+      questionId: "q_at_fault",
+      type: "boolean",
+      label: { en: "At fault?" },
+      required: true,
+      messages: { required: { en: "Tell us whether you were at fault." } },
+    }) as unknown as { messages: Record<string, unknown> };
+    expect(wire.messages).toEqual({ required: { en: "Tell us whether you were at fault." } });
+  });
+});
+
+describe("forWire: boolean labels (ADR-36)", () => {
+  const BOOLEAN = {
+    questionId: "q_at_fault",
+    type: "boolean",
+    label: { en: "At fault?" },
+  } as const;
+
+  it("sends each label only when it was overridden, independently of the other", () => {
+    const wire = forWire({ ...BOOLEAN, yesLabel: { en: "I was at fault" } }) as unknown as Record<
+      string,
+      unknown
+    >;
+    expect(wire["yesLabel"]).toEqual({ en: "I was at fault" });
+    // The other label stays absent, which is what makes it fall back to the compiler's
+    // lexicon on its own rather than being dragged along by its partner.
+    expect(Object.hasOwn(wire, "noLabel")).toBe(false);
+  });
+
+  it("omits a blank label and trims a real one", () => {
+    const wire = forWire({
+      ...BOOLEAN,
+      yesLabel: { en: "  Yes, I was  " },
+      noLabel: { en: "   " },
+    }) as unknown as Record<string, unknown>;
+    expect(wire["yesLabel"]).toEqual({ en: "Yes, I was" });
+    expect(Object.hasOwn(wire, "noLabel")).toBe(false);
+  });
+
+  it("drops both labels for every other type, like options and constraints", () => {
+    for (const type of ["shortText", "singleChoice", "number"] as const) {
+      const wire = forWire({
+        questionId: "q_x",
+        type,
+        label: { en: "X" },
+        yesLabel: { en: "Affirmative" },
+        noLabel: { en: "Negative" },
+      }) as unknown as Record<string, unknown>;
+      expect(Object.hasOwn(wire, "yesLabel"), `${type} should not carry yesLabel`).toBe(false);
+      expect(Object.hasOwn(wire, "noLabel"), `${type} should not carry noLabel`).toBe(false);
+    }
   });
 });

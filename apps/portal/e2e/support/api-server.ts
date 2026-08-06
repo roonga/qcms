@@ -26,6 +26,7 @@ import {
   buildEnv,
   composeApi,
   mintInsuranceLink,
+  seedAuthorMessagesForm,
   seedInsuranceForm,
   seedKitchenSinkForm,
   startTestDb,
@@ -72,6 +73,11 @@ export interface PortalFixtures {
   readonly slug: string;
   /** The kitchen-sink form slug (all seven question types, task 045). */
   readonly kitchenSinkSlug: string;
+  /**
+   * The `author-messages` form slug (task 048): four required questions carrying
+   * ADR-32 validation messages and ADR-36 boolean label overrides.
+   */
+  readonly authorMessagesSlug: string;
   /**
    * The e2e Postgres connection URI, so a spec can open its OWN client and verify
    * persisted answers independently of the API's response echo (task 045, exit
@@ -154,6 +160,9 @@ export async function startApiServer(): Promise<void> {
   const { slug: kitchenSinkSlug } = await seedKitchenSinkForm(testDb.db, {
     sharedQuestionsSeeded: true,
   });
+  // Task 048: author-supplied validation messages (ADR-32) and boolean label
+  // overrides (ADR-36). Its own four questions, so nothing is shared.
+  const { slug: authorMessagesSlug } = await seedAuthorMessagesForm(testDb.db);
 
   const nowMs = NOW.getTime();
   const oneHour = 60 * 60 * 1000;
@@ -206,6 +215,7 @@ export async function startApiServer(): Promise<void> {
   const fixtures: PortalFixtures = {
     slug,
     kitchenSinkSlug,
+    authorMessagesSlug,
     databaseUrl: testDb.connectionUri,
     validToken,
     expiredToken,

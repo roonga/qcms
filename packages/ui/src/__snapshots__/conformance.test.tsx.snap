@@ -352,6 +352,121 @@ exports[`A2UIStepRenderer conformance over the golden corpus > renders v1/minima
 ]
 `;
 
+exports[`A2UIStepRenderer conformance over the golden corpus > renders v2/author-messages/stp_extras and matches its accessibility tree 1`] = `
+[
+  {
+    "name": "Extras and notes",
+    "role": "heading2",
+  },
+  {
+    "name": "Which extras are fitted?",
+    "role": "group",
+  },
+  {
+    "name": "Tow bar",
+    "role": "checkbox",
+  },
+  {
+    "name": "Roof rack",
+    "role": "checkbox",
+  },
+  {
+    "name": "Dash camera",
+    "role": "checkbox",
+  },
+  {
+    "name": "Anything else about the vehicle?",
+    "role": "textbox",
+  },
+]
+`;
+
+exports[`A2UIStepRenderer conformance over the golden corpus > renders v2/author-messages/stp_vehicle and matches its accessibility tree 1`] = `
+[
+  {
+    "name": "Author-supplied validation messages",
+    "role": "heading1",
+  },
+  {
+    "name": "The vehicle",
+    "role": "heading2",
+  },
+  {
+    "name": "Last service date",
+    "role": "group",
+  },
+  {
+    "name": "Registration plate",
+    "role": "textbox",
+  },
+  {
+    "name": "Odometer reading *",
+    "role": "textbox",
+  },
+  {
+    "name": "month, Last service date",
+    "role": "spinbutton",
+  },
+  {
+    "name": "day, Last service date",
+    "role": "spinbutton",
+  },
+  {
+    "name": "year, Last service date",
+    "role": "spinbutton",
+  },
+]
+`;
+
+exports[`A2UIStepRenderer conformance over the golden corpus > renders v2/boolean-labels/stp_usage and matches its accessibility tree 1`] = `
+[
+  {
+    "name": "Boolean label overrides",
+    "role": "heading1",
+  },
+  {
+    "name": "How the vehicle is used",
+    "role": "heading2",
+  },
+  {
+    "name": "Do you tow a trailer?",
+    "role": "radiogroup",
+  },
+  {
+    "name": "Is the vehicle garaged overnight?",
+    "role": "radiogroup",
+  },
+  {
+    "name": "Is the vehicle under finance?",
+    "role": "radiogroup",
+  },
+  {
+    "name": "Yes, I tow",
+    "role": "radio",
+  },
+  {
+    "name": "No, I never tow",
+    "role": "radio",
+  },
+  {
+    "name": "Garaged",
+    "role": "radio",
+  },
+  {
+    "name": "No",
+    "role": "radio",
+  },
+  {
+    "name": "Yes",
+    "role": "radio",
+  },
+  {
+    "name": "No",
+    "role": "radio",
+  },
+]
+`;
+
 exports[`A2UIStepRenderer conformance over the golden corpus > renders v2/constraints-heavy/stp_every_constraint and matches its accessibility tree 1`] = `
 [
   {

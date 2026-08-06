@@ -1,5 +1,5 @@
-import type { A2UIStepDocument } from "@qcms/ui";
-import { documentForVisible } from "@qcms/ui";
+import type { A2UIStepDocument, AuthorMessages } from "@qcms/ui";
+import { authorMessagesOf, documentForVisible } from "@qcms/ui";
 
 /**
  * The document conventions the portal reads out of a compiled step (task 029).
@@ -61,6 +61,37 @@ export function questionLabels(document: A2UIStepDocument): ReadonlyMap<string, 
     if (trimmed !== "") labels.set(name, trimmed);
   });
   return labels;
+}
+
+/**
+ * Map each question in `document` to the author's validation messages, using the
+ * same `name`-prop convention as the label walker above (task 048, ADR-32).
+ *
+ * The messages arrive already resolved for the form's locale, on the control node
+ * the compiler emitted at publish time (ADR-18) - so the portal never resolves a
+ * `LocalizedText`, never calls the API a second time, and never evaluates
+ * anything. A question the author left alone is simply not in the map, and each
+ * key inside an entry is independently absent, which is what makes the fallback
+ * per-constraint rather than per-question.
+ */
+export function questionMessages(document: A2UIStepDocument): ReadonlyMap<string, AuthorMessages> {
+  const messages = new Map<string, AuthorMessages>();
+  forEachNode(document.root, (node) => {
+    const name = questionName(node);
+    if (name === undefined) return;
+    const authored = authorMessagesOf(node.props);
+    if (authored !== undefined) messages.set(name, authored);
+  });
+  return messages;
+}
+
+/**
+ * {@link questionMessages} over a possibly-absent document: a completed flow, or
+ * a step the API returned nothing for, yields an empty map so callers need no
+ * special case.
+ */
+export function messagesOf(document: A2UIStepDocument | null): ReadonlyMap<string, AuthorMessages> {
+  return document === null ? new Map() : questionMessages(document);
 }
 
 /**

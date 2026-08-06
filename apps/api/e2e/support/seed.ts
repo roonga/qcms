@@ -30,6 +30,9 @@ import {
 import type { TestDb } from "@qcms/db/testing";
 
 import {
+  AUTHOR_MESSAGES_DEF,
+  AUTHOR_MESSAGES_GOLDEN,
+  AUTHOR_MESSAGES_QUESTIONS,
   INSURANCE_DEF,
   INSURANCE_GOLDEN,
   KITCHEN_SINK_DEF,
@@ -207,6 +210,39 @@ export async function seedKitchenSinkForm(
     compiled: KS_COMPILED,
     compilerVersion: KITCHEN_SINK_GOLDEN.compilerVersion,
     a2uiSpecVersion: KITCHEN_SINK_GOLDEN.a2uiSpecVersion,
+    semanticsVersion: "1",
+  });
+  return { formId, slug };
+}
+
+/**
+ * Seed the `author-messages` form (task 048): four required questions carrying
+ * author-supplied validation messages (ADR-32) and boolean label overrides
+ * (ADR-36), plus a published version storing its committed golden compiled A2UI
+ * (ADR-18). Its questions are unique to it, so it never collides with the
+ * insurance or kitchen-sink seeds and needs no shared-questions flag.
+ */
+export async function seedAuthorMessagesForm(
+  db: Db,
+  opts: { formId?: string; slug?: string } = {},
+): Promise<SeededForm> {
+  const formId = opts.formId ?? "frm_author_messages";
+  const slug = opts.slug ?? "author-messages";
+  for (const question of AUTHOR_MESSAGES_QUESTIONS) {
+    await seedQuestionVersion(
+      db,
+      question.questionId,
+      question.slug,
+      question.definition as QuestionVersionInput["definition"],
+    );
+  }
+  await createForm(db, { formId: FormId.parse(formId), slug, defaultLocale: "en" });
+  await insertFormVersion(db, {
+    formId: FormId.parse(formId),
+    definition: AUTHOR_MESSAGES_DEF as FormVersionInput["definition"],
+    compiled: AUTHOR_MESSAGES_GOLDEN as unknown as FormVersionInput["compiled"],
+    compilerVersion: AUTHOR_MESSAGES_GOLDEN.compilerVersion,
+    a2uiSpecVersion: AUTHOR_MESSAGES_GOLDEN.a2uiSpecVersion,
     semanticsVersion: "1",
   });
   return { formId, slug };

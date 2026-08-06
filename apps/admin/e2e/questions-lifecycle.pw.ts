@@ -12,6 +12,7 @@ import {
   field,
   fillDate,
   optionIds,
+  setNumericConstraint,
 } from "./support/questions.js";
 
 /**
@@ -261,8 +262,13 @@ test("errors from the API are readable, and land on the field that caused them",
   //    MIN_LENGTH_ABOVE_MAX_LENGTH at ["constraints","minLength"], so it has to appear on
   //    the "Shortest answer" field rather than as a banner with no home.
   await createDraft(page, slugFor("invalid"), "Short text");
-  await fillStable(field(page, "Shortest answer"), "10");
-  await fillStable(field(page, "Longest answer"), "5");
+  await setNumericConstraint(page, "Shortest answer", "10");
+  await setNumericConstraint(page, "Longest answer", "5");
+  // Anchor on the message field the commit produced before clicking Save (task 048): that
+  // insertion is what reflows the page, and an un-anchored click lands its mousedown and its
+  // mouseup on different elements, so no `click` event fires at all. The full reasoning is
+  // on `setNumericConstraint`.
+  await expect(field(page, "Message when the answer is too long")).toBeVisible();
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(alert).toContainText("The engine rejected this draft");
   await expect(field(page, "Shortest answer")).toHaveAttribute("aria-invalid", "true");
@@ -366,8 +372,10 @@ test("a frozen number version renders cleanly with its bounds saved", async ({ p
   await signInWithTotp(page, EMAIL, totpSecret);
 
   await createDraft(page, slugFor("frozen-number"), "Number");
-  await fillStable(field(page, "Smallest value"), "1");
-  await fillStable(field(page, "Largest value"), "10");
+  await setNumericConstraint(page, "Smallest value", "1");
+  await setNumericConstraint(page, "Largest value", "10");
+  // Same anchor as the API-errors test above, for the same reason (`setNumericConstraint`).
+  await expect(field(page, "Message when the value is too large")).toBeVisible();
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Draft saved.")).toBeVisible();
 
@@ -410,6 +418,102 @@ test("a frozen date version renders cleanly with its bounds saved", async ({ pag
 
   await page.goto(`/questions/${questionIdFor("frozen-date")}?v=1`);
   await expect(page.getByRole("group", { name: "Earliest date" })).toContainText("2030");
+});
+
+/*
+ * Author-supplied validation messages and boolean label overrides (task 048, ADR-32 and
+ * ADR-36), exit criteria 4 and 5.
+ *
+ * The property under examination is a **three-state field**: no field at all, a field
+ * showing the default as a placeholder, and a field holding an override. Only the browser
+ * can distinguish the first two, because "the box is empty and the default is visible in it"
+ * is a rendering fact rather than a data one, and the unit tests can only prove what leaves
+ * the editor. Both halves are needed: `lib/questions/definition.test.ts` proves the wire
+ * payload, these prove the author's screen.
+ */
+
+const TOO_SHORT = "Message when the answer is too short";
+
+test("a validation message inherits until it is written, then round-trips (048)", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await createDraft(page, slugFor("messages"), "Short text");
+
+  // NO CONSTRAINT, NO FIELD. This is the whole reason the kernel's ORPHAN_MESSAGE_KEY is
+  // unreachable from this screen rather than merely caught by it.
+  await expect(field(page, TOO_SHORT)).toHaveCount(0);
+  await expect(page.getByText("There is nothing to write a message for yet.")).toBeVisible();
+
+  // Setting the constraint reveals its message field, and the field's PLACEHOLDER is the
+  // sentence a respondent would see, with this question's own bound interpolated.
+  await setNumericConstraint(page, "Shortest answer", "8");
+  await expect(field(page, TOO_SHORT)).toHaveAttribute(
+    "placeholder",
+    "Answer must be at least 8 characters",
+  );
+  await expect(field(page, TOO_SHORT)).toHaveValue("");
+
+  // BLANK INHERITS. Saving an untouched box must store nothing, so after the round trip the
+  // default is still a placeholder rather than having become the author's content - which is
+  // what keeps a later improvement to the shipped wording reaching this question.
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByText("Draft saved.")).toBeVisible();
+  await page.reload();
+  await expect(field(page, TOO_SHORT)).toHaveValue("");
+  await expect(field(page, TOO_SHORT)).toHaveAttribute(
+    "placeholder",
+    "Answer must be at least 8 characters",
+  );
+
+  // NON-BLANK OVERRIDES, through the API and the database and back.
+  const authored = "A policy number is 8 characters long.";
+  await fillStable(field(page, TOO_SHORT), authored);
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByText("Draft saved.")).toBeVisible();
+  await page.reload();
+  await expect(field(page, TOO_SHORT)).toHaveValue(authored);
+
+  // And clearing the constraint takes the message with it: the field goes, the next save
+  // drops the orphaned key, and bringing the constraint back brings back an EMPTY field
+  // rather than a remembered sentence for a rule that stopped existing.
+  await setNumericConstraint(page, "Shortest answer", "");
+  await expect(field(page, TOO_SHORT)).toHaveCount(0);
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByText("Draft saved.")).toBeVisible();
+  await page.reload();
+  await setNumericConstraint(page, "Shortest answer", "8");
+  await expect(field(page, TOO_SHORT)).toHaveValue("");
+});
+
+test("each boolean label overrides independently of the other (048, ADR-36)", async ({ page }) => {
+  test.setTimeout(120_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await createDraft(page, slugFor("bool-labels"), "Yes or no");
+
+  const yes = field(page, "Label for the affirmative choice");
+  const no = field(page, "Label for the negative choice");
+  // Both start on the lexicon, shown as placeholders.
+  await expect(yes).toHaveAttribute("placeholder", "Yes");
+  await expect(no).toHaveAttribute("placeholder", "No");
+  await expect(yes).toHaveValue("");
+
+  // Override ONE. The mixed pair is the case worth the browser: a paired control would have
+  // dragged "No" along, and the compiler's per-label fallback would never be exercised.
+  await fillStable(yes, "I was at fault");
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByText("Draft saved.")).toBeVisible();
+  await page.reload();
+  await expect(field(page, "Label for the affirmative choice")).toHaveValue("I was at fault");
+  await expect(field(page, "Label for the negative choice")).toHaveValue("");
+  await expect(field(page, "Label for the negative choice")).toHaveAttribute("placeholder", "No");
+
+  // The preview is compiled by the API and drawn by the shared renderer, so it is where the
+  // resolved pair shows: the override for one label, the lexicon for the other.
+  const preview = page.locator(".qcms-preview");
+  await expect(preview.getByText("I was at fault", { exact: true })).toBeVisible();
+  await expect(preview.getByText("No", { exact: true })).toBeVisible();
 });
 
 test("the type picker is locked once the question exists", async ({ page }) => {

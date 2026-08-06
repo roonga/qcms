@@ -42,6 +42,13 @@ export const messages = {
   // for (defensively: a control the label walker does not reach, or a label that
   // resolved blank). Unnamed but still readable, and never a broken sentence.
   "errorSummary.missingRequired": "This question needs an answer.",
+  // The same entry when the question's author supplied their own `required`
+  // message (task 048, ADR-32). The label stays the anchor and the author's
+  // wording replaces only the sentence body, so two questions carrying identical
+  // custom text still have distinct accessible names (WCAG 3.3.1). Only the
+  // separator is this catalog's to translate; the message itself is the author's
+  // and is never modified.
+  "errorSummary.namedCustom": "{label}: {message}",
   "answer.invalid": "That answer is not valid.",
   "flow.submitReady": "You have answered everything. Submit your responses when you are ready.",
   "session.lost.title": "Something went wrong",

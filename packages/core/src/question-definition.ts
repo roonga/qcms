@@ -6,6 +6,11 @@ import { OptionId, QuestionId } from "./ids.js";
 import { addCodedIssue as addSharedCodedIssue, toCodedErrors } from "./internal/coded-issues.js";
 import { LocalizedText } from "./localized-text.js";
 import { checkSafePattern } from "./safe-pattern.js";
+import {
+  ValidationMessages,
+  VALIDATION_MESSAGE_KEYS,
+  type ValidationMessageKey,
+} from "./validation-message.js";
 
 /**
  * Question definitions (task 003, DOMAIN_SCHEMA §2.2, ADR-02, R6).
@@ -77,6 +82,15 @@ export const QuestionBase = z.object({
   label: LocalizedText,
   help: LocalizedText.optional(),
   required: z.boolean().default(false),
+  /**
+   * Author-supplied validation messages, one optional {@link LocalizedText} per
+   * constraint (task 048, ADR-32). Additive-optional and versioned with the
+   * question (R6): content stored before 048 parses unchanged, and an absent
+   * key inherits the portal's default. Which keys are *legal* for a given
+   * question is a publish check, not a parse one - see
+   * {@link authoredMessageKeys} and `compileDraft`'s `ORPHAN_MESSAGE_KEY`.
+   */
+  messages: ValidationMessages.optional(),
 });
 export type QuestionBase = z.infer<typeof QuestionBase>;
 
@@ -188,6 +202,19 @@ const DateQuestion = QuestionBase.extend({
 
 const BooleanQuestion = QuestionBase.extend({
   type: z.literal("boolean"),
+  /**
+   * The two displayed labels, as authored content (task 048, ADR-36). Each is
+   * independently optional and falls back on its own to the compiler's
+   * `BOOLEAN_AFFIRMATION` lexicon entry for the active locale, so overriding
+   * "Yes" leaves "No" on the lexicon.
+   *
+   * Presentation payload only: the wire values stay `BOOLEAN_TRUE_VALUE` /
+   * `BOOLEAN_FALSE_VALUE`, the answer stays a boolean, and no rule, export or
+   * report changes meaning. Additive-optional and versioned with the question
+   * (R6) - content stored before 048 parses unchanged.
+   */
+  yesLabel: LocalizedText.optional(),
+  noLabel: LocalizedText.optional(),
 });
 
 const SingleChoiceQuestion = QuestionBase.extend({
@@ -299,6 +326,71 @@ export function optionIdsOf(definition: QuestionDefinition): readonly OptionId[]
     default:
       return assertNeverQuestionType(definition);
   }
+}
+
+/**
+ * The constraint-shaped fields of one definition, keyed by their
+ * {@link ValidationMessageKey}. `undefined` (or `false`, for the boolean
+ * `integer` flag) means the constraint is not active on this question. The
+ * switch is exhaustive over the discriminant with a `never` default - adding a
+ * question type without deciding its message keys is a build error.
+ */
+function constraintBag(
+  definition: QuestionDefinition,
+): Partial<Record<ValidationMessageKey, unknown>> {
+  switch (definition.type) {
+    case "shortText": {
+      const { minLength, maxLength, pattern } = definition.constraints;
+      return { minLength, maxLength, pattern };
+    }
+    case "longText":
+      return { maxLength: definition.constraints.maxLength };
+    case "number": {
+      const { min, max, integer } = definition.constraints;
+      return { min, max, integer };
+    }
+    case "date": {
+      const { min, max } = definition.constraints;
+      return { min, max };
+    }
+    case "boolean":
+    case "singleChoice":
+      // Neither type carries a constraint an author could decorate; `required`
+      // is added by `authoredMessageKeys` for every type.
+      return {};
+    case "multiChoice": {
+      const { minSelected, maxSelected } = definition.constraints;
+      return { minSelected, maxSelected };
+    }
+    /* v8 ignore next 2 -- unreachable by construction */
+    default:
+      return assertNeverQuestionType(definition);
+  }
+}
+
+/**
+ * The constraint keys this question **carries**, and therefore the only keys an
+ * author-supplied message map may use (ADR-32). In canonical
+ * {@link VALIDATION_MESSAGE_KEYS} order.
+ *
+ * "Carries" is stricter than "the type could have": a `shortText` with no
+ * `minLength` set can never produce a `LENGTH_BELOW_MIN` error, so a message for
+ * `minLength` on it could never be shown. Publish reports such a key as
+ * `ORPHAN_MESSAGE_KEY` rather than storing a message no respondent will ever
+ * read, and the authoring editor renders a message field only for the keys this
+ * function returns.
+ */
+export function authoredMessageKeys(
+  definition: QuestionDefinition,
+): readonly ValidationMessageKey[] {
+  const active: Partial<Record<ValidationMessageKey, unknown>> = {
+    required: definition.required,
+    ...constraintBag(definition),
+  };
+  return VALIDATION_MESSAGE_KEYS.filter((key) => {
+    const value = active[key];
+    return value !== undefined && value !== false;
+  });
 }
 
 /**
