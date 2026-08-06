@@ -109,7 +109,7 @@ The service token authorizes no action by itself - it only opens the channel (SE
 |---|---|---|---|---|
 | Admin password | argon2id/scrypt hash | until changed | hashed (better-auth) | user-driven; sessions invalidated |
 | Admin session | better-auth cookie | 12h abs / 1h idle | server-side session | sign-out, password change |
-| Admin auth signing secret | `QCMS_ADMIN_AUTH_SECRET` (≥32 chars) | until rotated | config only, **API process** (task 056) | rotation signs out every admin |
+| Admin auth signing secret | `QCMS_ADMIN_AUTH_SECRET` (≥32 chars) | until rotated | config only, **API process** (task 056) | **no in-place rotation exists** - see the note below |
 | TOTP secret / recovery codes | per better-auth | until re-enrolled | encrypted / hashed | re-enrollment |
 | Respondent session token | HMAC compact (010) | session TTL | not stored (stateless + session row) | key: `QCMS_SESSION_KEYS` list |
 | Secure link | HMAC compact (010) | link expiry | state row (`secure_links`) | key: `QCMS_LINK_KEYS` list |
@@ -120,6 +120,8 @@ The service token authorizes no action by itself - it only opens the channel (SE
 | LLM provider key *(flag-gated, ADR-25)* | `QCMS_AGENT_API_KEY` | until rotated | config only; required iff `QCMS_FLAG_AGENT_AUTHORING` ≠ `none` | rotate at provider + config |
 
 All key-list envs accept multiple keys: first entry signs, all verify (010's rotation model generalized). Rotation runbooks live in `docs/operations.md` (036).
+
+**`QCMS_ADMIN_AUTH_SECRET` is the exception, and it is not a rotation-friendly key (recorded by task 056).** It is not a key list and better-auth keeps no old-key window, so changing it is a break rather than a rotation, and the damage is wider than sessions: the stored TOTP secret is **encrypted under it**, so every enrolled account's authenticator stops verifying permanently. Verified against better-auth 1.6.25's own source rather than inferred - `two-factor/enable` writes `symmetricEncrypt({ key: ctx.context.secretConfig, ... })` (`dist/plugins/two-factor/index.mjs:105`) and both verification paths decrypt with the *current* key (`dist/plugins/two-factor/totp/index.mjs:188`, `:122`). What survives is the recovery codes, because QCMS configures no `storeBackupCodes` and the default path stores them as plain JSON (`dist/plugins/two-factor/backup-codes/index.mjs:45`), ten per account (`:15`, `amount ?? 10`). With no re-enrolment screen at launch, the honest operator procedure after a change is: sign in with a recovery code, then re-bootstrap. An actual rotation story (an accepted-list secret, or re-encrypting stored factors) is Phase 4 work and 036's runbook must say so rather than implying the `QCMS_LINK_KEYS` model applies here.
 
 ## 5. Transport and browser security - SEC-9
 

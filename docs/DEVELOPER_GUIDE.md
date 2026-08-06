@@ -58,23 +58,43 @@ task 056 the admin itself holds no database handle - better-auth lives in the AP
 bootstrap command is an **API-side** one and takes the API's env, not the admin's.
 
 ```sh
+# Pin the auth secret for the whole shell session, BEFORE `pnpm dev:portal` starts the
+# API - an unpinned restart destroys an existing TOTP enrolment, see below. Any value
+# >= 32 chars with no whitespace or commas.
+export QCMS_ADMIN_AUTH_SECRET=$(node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))")
+
 cp apps/admin/.env.example apps/admin/.env.local        # then edit QCMS_INTERNAL_TOKEN
 pnpm --filter @qcms/db exec drizzle-kit migrate          # the auth tables must exist
 DATABASE_URL=postgres://qcms:qcms@127.0.0.1:7020/qcms \
   QCMS_ADMIN_BASE_URL=http://localhost:7040 \
-  QCMS_ADMIN_AUTH_SECRET='a 32-char-plus random secret' \
   QCMS_ADMIN_EMAIL=you@example.test QCMS_ADMIN_PASSWORD='a long passphrase' \
   pnpm qcms:create-admin
 pnpm --filter qcms-admin dev
 ```
 
-`QCMS_ADMIN_AUTH_SECRET` is required here because `loadConfig` validates it, but it does
-**not** have to match the running API's: the account this command creates is
-secret-independent (better-auth salts and hashes the password), and it revokes the one
-session it mints, so nothing it produces is ever verified by another process. What the
-secret does sign is the browser's session cookie, and `pnpm dev:portal` gives the API a
-fresh one per run - so restarting that script signs out any admin session. Enrollment
-survives, because it is database state, so the recovery is one sign-in.
+`QCMS_ADMIN_AUTH_SECRET` is required here because `loadConfig` validates it, but for
+*this command* it does **not** have to match the running API's: `create-admin` creates an
+account (salted password hash, secret-independent) and enrols no second factor, and it
+revokes the one session it mints, so nothing it writes is ever decrypted by another
+process.
+
+**Pin `QCMS_ADMIN_AUTH_SECRET` in your environment before you enrol, though.** It is the
+key better-auth encrypts the stored TOTP secret under, so changing it does not just
+invalidate cookies - it makes an existing enrolment permanently unverifiable. Checked
+against better-auth 1.6.25's own source rather than inferred: `two-factor/enable` stores
+the secret with `symmetricEncrypt({ key: ctx.context.secretConfig, ... })`
+(`dist/plugins/two-factor/index.mjs:105`) and every verification decrypts with the
+*current* key (`dist/plugins/two-factor/totp/index.mjs:188`, and `:122` for the URI
+reveal). `pnpm dev:portal` generates a fresh secret when the variable is unset, so an
+unpinned restart leaves your authenticator's codes rejected for good.
+
+What is left in that state is the recovery codes, and only those. They survive because
+they are stored as plain JSON unless `storeBackupCodes: "encrypted"` is configured, which
+QCMS does not (`dist/plugins/two-factor/backup-codes/index.mjs:45`) - but there are
+**ten** of them (`:15`, `amount ?? 10`), the admin ships no re-enrolment screen, and every
+unpinned restart costs one. After ten, that account is unusable and the fastest way out is
+a fresh database. Setting `QCMS_ADMIN_2FA=optional` afterwards does not rescue it: the
+challenge is demanded whenever the account's `twoFactorEnabled` is true.
 
 The command refuses to run once any admin account exists, so it is safe in a runbook and
 safe to re-run by accident. On first sign-in you must enroll a TOTP factor before reaching

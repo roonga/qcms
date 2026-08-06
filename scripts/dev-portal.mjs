@@ -366,14 +366,29 @@ async function startApi(internalToken) {
     // carries better-auth - so this process needs the two values the instance is
     // configured from, or `loadConfig` refuses to boot and the child dies at startup.
     //
-    // The secret is per-run, like the three keys above, with the same consequence: a
-    // restart of this script signs out any admin session, because the cookie it signed
-    // can no longer be verified. Enrollment survives (it is database state), so the
-    // recovery is one sign-in. It deliberately does NOT have to match the value passed
-    // to `pnpm qcms:create-admin`: that command's account creation is
-    // secret-independent (better-auth salts and hashes the password) and it revokes the
-    // one session it mints, so nothing it produces is ever verified by this process.
-    QCMS_ADMIN_AUTH_SECRET: randomSecret(),
+    // PIN THIS if you are working on the admin. Unlike the three keys above, a fresh
+    // value here does more than invalidate cookies: it makes an existing TOTP
+    // enrolment permanently unverifiable. `two-factor/enable` stores the TOTP secret
+    // ENCRYPTED under this value (better-auth 1.6.25,
+    // `dist/plugins/two-factor/index.mjs:105`, `symmetricEncrypt({ key:
+    // ctx.context.secretConfig, ... })`) and every verify decrypts with the *current*
+    // one (`dist/plugins/two-factor/totp/index.mjs:188`, and `:122` for the URI
+    // reveal), so after a restart with a new secret the authenticator's codes are
+    // rejected forever. Recovery codes still work - they are stored as plain JSON
+    // unless `storeBackupCodes: "encrypted"` is set, which `features/auth/instance.ts`
+    // does not (`dist/plugins/two-factor/backup-codes/index.mjs:45`) - but there are
+    // only ten of them (`:15`, `amount ?? 10`), the admin has no re-enrolment screen,
+    // and each restart burns one. Ten restarts kill the account in that database.
+    //
+    // So: honoured from the environment when set, exactly like DATABASE_URL and the
+    // ports above, and random only for a zero-config first run. Pin it and an enrolled
+    // admin survives restarts; leave it unset and expect to re-bootstrap.
+    //
+    // It deliberately does NOT have to match the value passed to
+    // `pnpm qcms:create-admin`: that command creates an account (salted password hash,
+    // secret-independent) and enrols no factor, and it revokes the one session it mints,
+    // so nothing it writes is ever decrypted by this process.
+    QCMS_ADMIN_AUTH_SECRET: process.env.QCMS_ADMIN_AUTH_SECRET ?? randomSecret(),
     // The admin dev server's documented origin: this seat's stable admin port
     // (`docs/PORTS.md`), which is what `pnpm --filter qcms-admin dev --port <7S40>`
     // listens on. better-auth scopes its cookies to it and trusts no other origin, so a

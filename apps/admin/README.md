@@ -40,11 +40,15 @@ behind them (`GET /admin/erasures`, `GET /admin/outbox/dead-letters`), not a pre
 ## Running it
 
 ```bash
+# Pin the auth secret FIRST, before dev:portal starts the API. Leaving it unset gives the
+# API a fresh one per run, and a fresh secret makes an existing TOTP enrolment
+# permanently unverifiable (see "The first admin" below).
+export QCMS_ADMIN_AUTH_SECRET=$(node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))")
+
 pnpm dev:portal                                    # dev Postgres up and migrated, portal + API running
 cp apps/admin/.env.example apps/admin/.env.local   # then edit QCMS_INTERNAL_TOKEN to match the API's
 DATABASE_URL=postgres://qcms:qcms@127.0.0.1:7020/qcms \
   QCMS_ADMIN_BASE_URL=http://localhost:7040 \
-  QCMS_ADMIN_AUTH_SECRET='a 32-char-plus random secret' \
   QCMS_ADMIN_EMAIL=you@example.test QCMS_ADMIN_PASSWORD='a long passphrase' \
   pnpm qcms:create-admin
 pnpm --filter qcms-admin dev --port 7040           # http://localhost:7040
@@ -69,9 +73,22 @@ better-auth instance:
   and `QCMS_ADMIN_BASE_URL` (plus `QCMS_ADMIN_EMAIL` / `QCMS_ADMIN_PASSWORD`, and
   optionally `QCMS_ADMIN_NAME`). It deliberately does **not** ask for the link keys,
   session keys or app key the running API needs - none is read on this path.
-- The secret does not have to match the running API's. It is validated, not used: the
-  account is created with a salted password hash (secret-independent) and the one session
-  the creation mints is revoked immediately, so nothing here is later verified elsewhere.
+- For *this command* the secret does not have to match the running API's. It is validated,
+  not used: the account is created with a salted password hash (secret-independent), no
+  second factor is enrolled, and the one session the creation mints is revoked immediately,
+  so nothing it writes is later decrypted elsewhere.
+- **But the API's own secret must then stay stable, or enrolment dies.** better-auth stores
+  the TOTP secret encrypted under it and decrypts with whatever the current value is -
+  checked against better-auth 1.6.25's source, not inferred:
+  `symmetricEncrypt({ key: ctx.context.secretConfig, ... })` at
+  `dist/plugins/two-factor/index.mjs:105`, decrypt at
+  `dist/plugins/two-factor/totp/index.mjs:188` (and `:122` for the URI reveal). Change the
+  secret and the authenticator's codes are rejected for good. The only door left is the
+  recovery codes, which do survive (stored as plain JSON, since QCMS sets no
+  `storeBackupCodes`: `dist/plugins/two-factor/backup-codes/index.mjs:45`) - but there are
+  ten (`:15`, `amount ?? 10`), this app has no re-enrolment screen, and each rotation costs
+  one. `pnpm dev:portal` generates a fresh secret when the variable is unset, which is why
+  the block above exports it first.
 - Credentials go in the environment, never in arguments: an argument lands in shell
   history and in every `ps` listing while the command runs.
 - It builds first (`pnpm --filter qcms-api... build`) because the entry is compiled
