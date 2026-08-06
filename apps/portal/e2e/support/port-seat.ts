@@ -22,7 +22,7 @@
  * hand - by reading `/proc/<pid>/cwd`.
  */
 
-import { existsSync, readFileSync, readdirSync, readlinkSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, readlinkSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -31,8 +31,10 @@ import {
   MIN_PORT_SEAT,
   PORT_SEAT,
   PORT_SEAT_ENV_VAR,
+  assertPortSeatChosen,
   assertSeatPortsOutsideEphemeralRange,
   harnessPorts,
+  withoutTrailingSlash,
 } from "../../../../scripts/ports.mjs";
 
 export {
@@ -48,6 +50,7 @@ export {
   ephemeralPortRange,
   harnessPort,
   harnessPorts,
+  isLinkedWorktree,
   resolvePortSeat,
   stablePort,
 } from "../../../../scripts/ports.mjs";
@@ -188,18 +191,6 @@ export function seatOccupants(seat: number = PORT_SEAT): SeatPortOccupant[] {
 }
 
 /**
- * Drop trailing separators, so `/repo/` and `/repo` compare equal.
- *
- * A loop rather than a `/\/+$/` replace: that pattern is super-linear on a long run
- * of slashes and `sonarjs/super-linear-regex` rejects it, correctly.
- */
-function withoutTrailingSlash(path: string): string {
-  let end = path.length;
-  while (end > 0 && path[end - 1] === "/") end -= 1;
-  return path.slice(0, end);
-}
-
-/**
  * True when `cwd` is inside `repoRoot` (or is it).
  *
  * A prefix test rather than equality, because the dev servers do not sit at the repo
@@ -277,42 +268,17 @@ export function assertSeatPortsUsable(
  * this fails is not a port collision, it is a **seat collision**: two runs that both
  * default to seat 0.
  *
- * The default cannot simply be removed, because seat 0 must stay byte-identical for
- * an existing developer and for CI. But the population that collides is not those
- * two: it is concurrent agent lanes, and by this repo's own rules every one of them
- * runs in a `git worktree`. A linked worktree has a `.git` **file** (`gitdir: ...`)
- * where the primary checkout has a directory, which is a reliable, zero-cost tell.
- *
- * So: primary checkout and CI keep the silent default; a worktree must say which seat
- * it wants. "I forgot" becomes a startup error naming the variable, before anything
- * binds, rather than a second run silently on seat 0.
+ * The rule and its reasoning now live in `scripts/ports.mjs`, because the full-stack
+ * Compose harness needs the identical refusal (issue #296) and two copies of a safety
+ * rule are how one of them goes stale. This wrapper keeps the browser harness's own
+ * defaults: the repo root resolved from this file, and a hint naming the command a
+ * reader of this refusal was actually running.
  */
 export function assertSeatChosen(
   repoRoot: string = HARNESS_REPO_ROOT,
   raw: string | undefined = process.env[PORT_SEAT_ENV_VAR],
 ): void {
-  if ((raw ?? "").trim() !== "") return;
-  let gitEntry;
-  try {
-    gitEntry = statSync(`${withoutTrailingSlash(repoRoot)}/.git`);
-  } catch {
-    // No `.git` at all (a tarball, a container copy): nothing reliable to infer.
-    return;
-  }
-  if (!gitEntry.isFile()) return;
-  throw new Error(
-    [
-      `${PORT_SEAT_ENV_VAR} is not set, and this is a linked git worktree:`,
-      `  ${repoRoot}`,
-      "",
-      "Concurrent lanes run in worktrees, and two lanes that both fall back to the",
-      "default seat collide on every harness port. Say which seat this run owns:",
-      "",
-      `  ${PORT_SEAT_ENV_VAR}=<${String(MIN_PORT_SEAT)}-${String(MAX_PORT_SEAT)}> pnpm verify:browser`,
-      "",
-      `${PORT_SEAT_ENV_VAR}=0 is a valid answer when nothing else is running. See docs/PORTS.md.`,
-    ].join("\n"),
-  );
+  assertPortSeatChosen(repoRoot, "pnpm verify:browser", raw);
 }
 
 /**

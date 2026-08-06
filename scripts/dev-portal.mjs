@@ -33,6 +33,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { publishedPortHost } from "./docker-host.mjs";
 import { composeProjectName, stablePort } from "./ports.mjs";
 
 const REPO_ROOT = fileURLToPath(new URL("../", import.meta.url));
@@ -58,24 +59,16 @@ const DB_NAME = process.env.QCMS_DB_NAME ?? "qcms";
 // not: `docker compose` there talks to the mounted host socket
 // (docker-outside-of-docker, ADR-29), so the database starts as a SIBLING
 // published on the host's loopback, and this container's own localhost has
-// nothing on that port.
+// nothing on that port. The address that works is the default-route gateway.
 //
-// The address that works is the default-route gateway. `host.docker.internal`
-// looks right and even accepts a TCP connection on Docker Desktop, but a real
-// Postgres session against it times out - so it is not used here, and a plain
-// TCP reachability check is not sufficient evidence for this path.
+// That resolution used to live here, and living HERE is why issue #316 existed:
+// the full-stack Compose harness hit the identical problem 200 lines away and
+// hardcoded localhost instead. It now lives in `scripts/docker-host.mjs`, which
+// both call, so the two cannot drift apart again. `QCMS_DB_HOST` still wins for
+// this script specifically, ahead of the shared resolution's own override.
 function detectDbHost() {
   if (process.env.QCMS_DB_HOST) return process.env.QCMS_DB_HOST;
-  if (!existsSync("/.dockerenv")) return "localhost";
-
-  const route = spawnSync("ip", ["route"], { encoding: "utf8" });
-  const gateway = route.stdout?.match(/default via (\S+)/)?.[1];
-  if (gateway) return gateway;
-
-  // No `ip`, or no default route. Fall back to localhost rather than
-  // host.docker.internal: it is wrong here, and it fails by timing out, which
-  // is slower and less obvious than the connection refusal localhost gives.
-  return "localhost";
+  return publishedPortHost();
 }
 const DB_HOST = detectDbHost();
 const DATABASE_URL =

@@ -33,7 +33,8 @@ import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { composeProjectName, harnessPort } from "./ports.mjs";
+import { publishedPortHost, publishedPortOrigin } from "./docker-host.mjs";
+import { assertPortSeatChosen, composeProjectName, harnessPort } from "./ports.mjs";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const project = `${composeProjectName()}-full-stack-e2e`;
@@ -52,12 +53,48 @@ const compose = ["compose", "--project-name", project, "--env-file", ".env.compo
 const credentialsPath = join(root, ".e2e-full-stack-credentials.json");
 const portalPort = harnessPort("portal");
 const adminPort = harnessPort("admin");
+/**
+ * The address this process reaches the published stack on (issue #316).
+ *
+ * `localhost` on a host checkout and on a CI runner; the default-route gateway in
+ * the dev container, where `docker compose` drives the mounted host socket and every
+ * container it starts is a sibling published on the HOST's loopback, not on this
+ * one. See `scripts/docker-host.mjs` for the full reasoning.
+ */
+const publishHost = publishedPortHost();
+
+/**
+ * The host interface Compose publishes on, which has to be one `publishHost` reaches.
+ *
+ * This is the half of #316 that the URL alone does not fix. `docker-compose.yml`
+ * publishes to `${QCMS_BIND_ADDRESS:-127.0.0.1}` deliberately: a bare `PORT:3000`
+ * would put the authoring admin on every network the host can reach, past the host
+ * firewall, because Docker's forwarding rules sit ahead of it. But a listener on the
+ * host's loopback is unreachable from a sibling container whatever address it dials,
+ * so resolving the gateway and leaving the bind alone would still be refused.
+ *
+ * The answer is to publish on the gateway interface itself rather than on `0.0.0.0`.
+ * That address is the Docker bridge on the host, so the stack becomes reachable from
+ * this container and from the host, and from nothing else: the property the default
+ * exists to protect is kept, not widened. An explicit `QCMS_BIND_ADDRESS` still wins,
+ * and a host checkout and CI are unchanged at `127.0.0.1`.
+ */
+const bindAddress =
+  process.env.QCMS_BIND_ADDRESS ?? (publishHost === "localhost" ? "127.0.0.1" : publishHost);
+
+// The two `*_PORT` values are what Compose publishes ON THE DOCKER HOST; the two
+// `*_BASE_URL` values are how this process, the Playwright runner it starts, and the
+// browser that runner drives all reach the result. Both apps also read their own
+// base URL at container boot (better-auth scopes admin cookies to that exact origin,
+// and the portal builds respondent redirects from it), so the two must agree: one
+// resolution, used for the publish, the runner and the containers alike.
 const e2eEnvironment = {
   ...process.env,
+  QCMS_BIND_ADDRESS: bindAddress,
   QCMS_ADMIN_PORT: String(adminPort),
   QCMS_PORTAL_PORT: String(portalPort),
-  QCMS_ADMIN_BASE_URL: `http://localhost:${String(adminPort)}`,
-  QCMS_PORTAL_BASE_URL: `http://localhost:${String(portalPort)}`,
+  QCMS_ADMIN_BASE_URL: publishedPortOrigin(adminPort, { override: publishHost }),
+  QCMS_PORTAL_BASE_URL: publishedPortOrigin(portalPort, { override: publishHost }),
 };
 
 /** A bad or missing subcommand: a user error, so it prints without a stack trace. */
@@ -199,6 +236,12 @@ function runComplete({ headed = false } = {}) {
 
 function main() {
   const command = process.argv[2];
+  // Before anything is spawned. A silent fallback to seat 0 here is worse than it is
+  // in the browser harness (issue #296): the seat picks this stack's Compose PROJECT
+  // NAME, and `down()` runs `docker compose down --volumes --remove-orphans` under
+  // it, so an adopted seat does not just read another lane's stack, it deletes it.
+  // The primary checkout and CI keep the silent default, exactly as they do today.
+  assertPortSeatChosen(root, "pnpm up:e2e");
   if (command === "up") up();
   else if (command === "down") down();
   else if (command === "test") test();
