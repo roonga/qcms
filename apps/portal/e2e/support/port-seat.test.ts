@@ -113,6 +113,9 @@ describe("seat 0 is today's allocation", () => {
     expect(stablePort("api", 0)).toBe(7010);
     expect(stablePort("postgres", 0)).toBe(7020);
     expect(stablePort("artifacts", 0)).toBe(7030);
+    // Published out of the dev container since issue #281, so it is now in `appPort`
+    // and in the same contract as the four above rather than a bare allocation.
+    expect(stablePort("admin", 0)).toBe(7040);
   });
 
   it("is what an unset environment resolves to", () => {

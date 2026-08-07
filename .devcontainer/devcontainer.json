@@ -71,13 +71,22 @@
   // "port is already allocated" (and, in the other order, make container
   // creation fail). It stays in `forwardPorts` only for the VS Code label; the
   // editor tunnel is a no-op here, not a host bind.
-  "appPort": [7000, 7010, 7030],
-  "forwardPorts": [7000, 7010, 7020, 7030],
+  //
+  // 7040 (seat 0's 7S40) joined the list for issue #281. The allocation had existed
+  // since ADR-37 but nothing published it, so the admin started fine inside the
+  // container and a host browser got connection refused: the one app in the repo a
+  // human could not open by following the docs. `pnpm dev:admin` listens on it. Adding
+  // it here is a config change like any other on this list, so it only takes effect
+  // after a container REBUILD - `up` reuses a running container and ignores a changed
+  // `appPort` (see docs/DEV_CONTAINER.md).
+  "appPort": [7000, 7010, 7030, 7040],
+  "forwardPorts": [7000, 7010, 7020, 7030, 7040],
   "portsAttributes": {
     "7000": { "label": "portal (next dev)", "onAutoForward": "notify" },
     "7010": { "label": "api (Hono)", "onAutoForward": "silent" },
     "7020": { "label": "dev Postgres (docker-compose.dev.yml)", "onAutoForward": "silent" },
-    "7030": { "label": "artifacts (pnpm artifacts)", "onAutoForward": "silent" }
+    "7030": { "label": "artifacts (pnpm artifacts)", "onAutoForward": "silent" },
+    "7040": { "label": "admin (next dev)", "onAutoForward": "notify" }
   },
 
   // `host.docker.internal` resolves to the host from inside the container: the
