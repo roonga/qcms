@@ -667,12 +667,25 @@ function shutdown(signal) {
 // ---------------------------------------------------------------------------
 
 /**
- * The `pnpm qcms:create-admin` line to print, or `undefined` when the dev database
- * password is not the docker-compose default.
+ * The `pnpm qcms:create-admin` line to print, or `undefined` when this process cannot
+ * prove the connection string holds no real credential.
  *
- * A developer who set `QCMS_DB_PASSWORD` set it to something of their own, and
- * printing a connection string containing it would echo a credential to the terminal
- * (SEC-8). In that case the caller prints the shape and lets them fill it in.
+ * Printing a connection string prints the password inside it, so this may only fire
+ * for the one string this module **built itself out of known-synthetic parts** (SEC-8:
+ * secrets are never echoed). Two routes lead away from that, and both must close:
+ *
+ *   1. `QCMS_DB_PASSWORD` set - the developer chose a password of their own.
+ *   2. `DATABASE_URL` set - a supported override (see the constant above, which is
+ *      `process.env.DATABASE_URL ?? <constructed default>`). This is the route the
+ *      first version of this guard missed: it tested only the password, so a
+ *      developer pointing the launcher at another database with `DATABASE_URL` got
+ *      that database's password echoed verbatim into the banner while
+ *      `QCMS_DB_PASSWORD` sat unset and innocent.
+ *
+ * The test is `!== undefined` rather than a truthiness check on purpose: it mirrors
+ * the `??` that builds `DATABASE_URL`, so "the environment supplied it" means exactly
+ * the same thing in both places. Either route hands the caller the placeholder line
+ * instead, and the developer fills it in.
  *
  * The auth secret in the printed command is generated inline and is deliberately NOT
  * the running API's: `create-admin` validates the value and never uses it (salted
@@ -682,7 +695,7 @@ function shutdown(signal) {
  * @returns {string | undefined}
  */
 function databaseUrlLine() {
-  if (DB_PASSWORD !== "qcms") return undefined;
+  if (process.env.DATABASE_URL !== undefined || DB_PASSWORD !== "qcms") return undefined;
   return `DATABASE_URL=${DATABASE_URL} \\`;
 }
 
@@ -707,36 +720,47 @@ function printPortalBanner() {
   );
 }
 
-function printAdminBanner() {
+/**
+ * The admin banner, as lines, before anything is written.
+ *
+ * Pure and exported so the SEC-8 property is asserted against the text a developer
+ * actually sees (`dev-stack.test.ts`), rather than against the helper that decides one
+ * line of it. A credential-disclosure guard has to be testable at the output.
+ *
+ * @returns {string[]}
+ */
+export function adminBannerLines() {
   const databaseLine = databaseUrlLine() ?? "DATABASE_URL=<your dev database URL> \\";
-  process.stdout.write(
-    [
-      "",
-      "==================================================================",
-      "  Admin is up. Open the authoring app:",
-      "",
-      `      ${ADMIN_BASE_URL}`,
-      "",
-      "  Sign in with an admin account. There is no self-registration path",
-      "  (SEC-1), so if this database has no admin yet, create one from",
-      "  another terminal:",
-      "",
-      `      ${databaseLine}`,
-      `        QCMS_ADMIN_BASE_URL=${ADMIN_BASE_URL} \\`,
-      '        QCMS_ADMIN_AUTH_SECRET="$(node -e \'const{randomBytes}=require("node:crypto");console.log(randomBytes(32).toString("base64url"))\')" \\',
-      "        QCMS_ADMIN_EMAIL=you@example.test QCMS_ADMIN_PASSWORD='a long passphrase' \\",
-      "        pnpm qcms:create-admin",
-      "",
-      "  TOTP enrolment is required by default (SEC-1). To skip it while",
-      "  developing, start this with QCMS_ADMIN_2FA=optional (the API and the",
-      "  admin both read it, so one setting moves both).",
-      "",
-      "  Stop:  press Ctrl+C  (stops the API + admin)",
-      `  Then:  COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT} docker compose -f docker-compose.dev.yml down   (removes the DB)`,
-      "==================================================================",
-      "",
-    ].join("\n") + "\n",
-  );
+  return [
+    "",
+    "==================================================================",
+    "  Admin is up. Open the authoring app:",
+    "",
+    `      ${ADMIN_BASE_URL}`,
+    "",
+    "  Sign in with an admin account. There is no self-registration path",
+    "  (SEC-1), so if this database has no admin yet, create one from",
+    "  another terminal:",
+    "",
+    `      ${databaseLine}`,
+    `        QCMS_ADMIN_BASE_URL=${ADMIN_BASE_URL} \\`,
+    '        QCMS_ADMIN_AUTH_SECRET="$(node -e \'const{randomBytes}=require("node:crypto");console.log(randomBytes(32).toString("base64url"))\')" \\',
+    "        QCMS_ADMIN_EMAIL=you@example.test QCMS_ADMIN_PASSWORD='a long passphrase' \\",
+    "        pnpm qcms:create-admin",
+    "",
+    "  TOTP enrolment is required by default (SEC-1). To skip it while",
+    "  developing, start this with QCMS_ADMIN_2FA=optional (the API and the",
+    "  admin both read it, so one setting moves both).",
+    "",
+    "  Stop:  press Ctrl+C  (stops the API + admin)",
+    `  Then:  COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT} docker compose -f docker-compose.dev.yml down   (removes the DB)`,
+    "==================================================================",
+    "",
+  ];
+}
+
+function printAdminBanner() {
+  process.stdout.write(adminBannerLines().join("\n") + "\n");
 }
 
 // ---------------------------------------------------------------------------

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { apiChildEnv, frontendChildEnv } from "./dev-stack.mjs";
 import { stablePort } from "./ports.mjs";
@@ -89,5 +89,64 @@ describe("the admin's port is derived, never written down (R8)", () => {
   it("puts the admin on this seat's 7S40", () => {
     expect(stablePort("admin", 6)).toBe(7640);
     expect(stablePort("admin", 0)).toBe(7040);
+  });
+});
+
+/**
+ * SEC-8 at the output.
+ *
+ * The banner offers a ready-to-paste `pnpm qcms:create-admin` command, and a connection
+ * string carries a password. That is safe for exactly one string: the one this module
+ * builds itself from known-synthetic parts. Every route where the environment supplied
+ * the credential instead has to fall back to the placeholder.
+ *
+ * Asserted against the whole rendered banner rather than the helper, because what
+ * matters is that the developer never SEES the value. The module reads its environment
+ * once at import, so each case resets the module registry and imports it afresh.
+ */
+describe("the admin banner never echoes a database credential (SEC-8)", () => {
+  /** Recognisably fake. Neither is a credential for anything that exists. */
+  const FAKE_URL_PASSWORD = "hunter2-NOT-A-REAL-PASSWORD";
+  const FAKE_DB_PASSWORD = "swordfish-NOT-A-REAL-PASSWORD";
+  const PLACEHOLDER = "DATABASE_URL=<your dev database URL>";
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  /** The rendered banner, from a fresh import under the currently stubbed environment. */
+  async function banner(): Promise<string> {
+    vi.resetModules();
+    const module = await import("./dev-stack.mjs");
+    return module.adminBannerLines().join("\n");
+  }
+
+  it("suppresses the line when DATABASE_URL is supplied by the environment", async () => {
+    // The route the first version of this guard missed. `DATABASE_URL` is a supported
+    // override, so a developer can point the launcher at a database whose password this
+    // process did not invent - and the old guard only inspected `QCMS_DB_PASSWORD`.
+    vi.stubEnv("DATABASE_URL", `postgres://qcms:${FAKE_URL_PASSWORD}@db.internal:5432/qcms`);
+    const text = await banner();
+    expect(text).not.toContain(FAKE_URL_PASSWORD);
+    expect(text).toContain(PLACEHOLDER);
+  });
+
+  it("suppresses the line when QCMS_DB_PASSWORD is supplied by the environment", async () => {
+    vi.stubEnv("DATABASE_URL", undefined);
+    vi.stubEnv("QCMS_DB_PASSWORD", FAKE_DB_PASSWORD);
+    const text = await banner();
+    expect(text).not.toContain(FAKE_DB_PASSWORD);
+    expect(text).toContain(PLACEHOLDER);
+  });
+
+  it("still prints the ready-to-paste line for the synthetic compose default", async () => {
+    // The guard must not be always-off: suppressing unconditionally would pass both
+    // assertions above while quietly removing the thing the banner exists to offer.
+    vi.stubEnv("DATABASE_URL", undefined);
+    vi.stubEnv("QCMS_DB_PASSWORD", undefined);
+    const text = await banner();
+    expect(text).not.toContain(PLACEHOLDER);
+    expect(text).toMatch(/DATABASE_URL=postgres:\/\/qcms:qcms@/);
   });
 });
