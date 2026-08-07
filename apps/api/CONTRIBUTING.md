@@ -117,6 +117,13 @@ per group in the slices that need it (026). The store is an interface - a
 multi-instance deployment swaps in a Redis-backed implementation of
 `RateLimitStore`; that is an **adopter swap, not a dependency here**.
 
+**Never key a limiter on `X-Forwarded-For` or `X-Real-IP`.** Those are claims the
+caller can write, so keying on one hands every caller a bucket of its own. The
+client address comes from `src/client-address.ts`, which reads the header a BFF
+vouched on after resolving the trust chain (issue #341); it is also the default
+`keyFor`. The value is a bucket key and nothing else: never log it, never put it
+in a span, never persist it.
+
 ## Secrets and logging (SEC-8)
 
 Never write a real secret into any file (code, test, fixture, doc) - reference

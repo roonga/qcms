@@ -354,7 +354,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "3600000 (1h)",
     description:
-      "Rate-limit window for `POST /sessions`. Keyed by client IP where one is visible, which in the shipped topology it is not: see `QCMS_RL_SESSION_CREATE_MAX`.",
+      "Rate-limit window for `POST /sessions`. Keyed by the client address the portal BFF vouched for: see `QCMS_RL_SESSION_CREATE_MAX`.",
   },
   {
     name: "QCMS_RL_SESSION_CREATE_MAX",
@@ -362,7 +362,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "20",
     description:
-      "Sessions that may be started per window. **Read this as a whole-deployment ceiling, not a per-IP one.** The limiter keys on `X-Forwarded-For`/`X-Real-IP` and falls back to a single `unknown-ip` bucket, and the portal BFF builds its API request headers from scratch without forwarding either (R2 makes the BFF the only path to the API), so every respondent shares one bucket today. At the default that is 20 session starts per hour for the entire deployment: raise it to your expected peak.",
+      "Sessions one client address may start per window. The limiter keys on the address the portal BFF vouched for, which it resolves from the ingress's `X-Forwarded-For` by counting `QCMS_PORTAL_TRUSTED_PROXY_HOPS` entries from the right - a client-supplied value cannot move the bucket. **Behind no ingress at all** (the local Compose quickstart, or a deployment where the ingress writes no forwarded header) there is no address to vouch for and every respondent shares one `unknown-ip` bucket, making this a whole-deployment ceiling of 20 session starts per hour: set the ingress up per `docs/deploy-ingress.md`, or raise this to your expected peak.",
   },
   {
     name: "QCMS_RL_ANSWERS_SESSION_WINDOW_MS",
@@ -385,7 +385,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "60000",
     description:
-      "Rate-limit window for answer submission, keyed the same way as `QCMS_RL_SESSION_CREATE_MAX` and subject to the same caveat.",
+      "Rate-limit window for answer submission, keyed the same way as `QCMS_RL_SESSION_CREATE_MAX` and subject to the same no-ingress caveat.",
   },
   {
     name: "QCMS_RL_ANSWERS_IP_MAX",
@@ -393,7 +393,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "300",
     description:
-      "Answers that may be submitted per window across every session sharing one limiter key: the wide backstop against many-session floods. **Whole-deployment in the shipped topology** for the reason given under `QCMS_RL_SESSION_CREATE_MAX`; the per-session limits above are unaffected, because a session id is always visible.",
+      "Answers that may be submitted per window across every session sharing one client address: the wide backstop against many-session floods from one source. Keyed and caveated exactly as `QCMS_RL_SESSION_CREATE_MAX`; the per-session limits above are unaffected either way, because a session id is always visible.",
   },
   {
     name: "QCMS_RL_SUBMIT_SESSION_WINDOW_MS",
@@ -474,6 +474,14 @@ export const ENV_REFERENCE = [
     fallback: "",
     description:
       "This app's own public origin, used to build the redirects a browser follows. Getting it wrong emits a container-internal address a browser cannot reach.",
+  },
+  {
+    name: "QCMS_PORTAL_TRUSTED_PROXY_HOPS",
+    process: "portal",
+    requirement: "optional",
+    fallback: "1",
+    description:
+      "How many proxies you run between the internet and this app. The client address the API's rate limiters key on is the entry that many places from the **right** of the inbound `X-Forwarded-For`, so entries a client wrote itself are never reached. `1` is correct for both recipes in `docs/deploy-ingress.md`. **Setting it higher than the number of proxies that actually exist makes per-address rate limiting bypassable** (the resolver reads into client-supplied text); setting it lower is safe but coarse (respondents get bucketed by a proxy's egress address); `0` trusts no forwarded header and puts every respondent in one bucket. A non-numeric or out-of-range value is refused rather than defaulted.",
   },
   {
     name: "QCMS_SECURE_COOKIES",
