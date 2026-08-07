@@ -155,8 +155,14 @@ export function inspectOciArtifact(directory) {
 export function assertArtifact(directory, version, name) {
   const { labels, predicates } = inspectOciArtifact(directory);
   const problems = [];
-  if (!predicates.includes(SPDX_PREDICATE)) problems.push(`no SBOM (${SPDX_PREDICATE})`);
-  if (!predicates.includes(PROVENANCE_PREDICATE)) {
+  // Whole-element equality, spelled out. `predicates` is an array, so `.includes()` was
+  // already exact - but CodeQL reads it as `String.prototype.includes` and reports
+  // js/incomplete-url-substring-sanitization, since these predicate types are URLs. The
+  // explicit comparison says the same thing in a form no reader has to type-infer.
+  if (!predicates.some((predicate) => predicate === SPDX_PREDICATE)) {
+    problems.push(`no SBOM (${SPDX_PREDICATE})`);
+  }
+  if (!predicates.some((predicate) => predicate === PROVENANCE_PREDICATE)) {
     problems.push(`no provenance (${PROVENANCE_PREDICATE})`);
   }
   const stamped = labels[VERSION_LABEL];
