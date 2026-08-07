@@ -1,6 +1,7 @@
 import type { A2UIAnswerValue } from "@qcms/ui";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { z } from "zod";
 
 import { isProduction } from "./config";
 import { ApiError, type SubmitResponse } from "./api";
@@ -88,19 +89,58 @@ export async function writeStepContext(ctx: StepContext): Promise<void> {
   });
 }
 
-/** Read the no-JS step re-render context on the flow page (044). Best-effort. */
+/**
+ * One answered value as it survives a JSON round trip: the `A2UIAnswerValue`
+ * union, with `readonly string[]` on the wire as a plain array.
+ */
+const answerValueSchema = z.union([z.string(), z.number(), z.boolean(), z.array(z.string())]);
+
+/**
+ * The wire shape of `STEP_CTX_COOKIE` (issue #327). The cookie is `httpOnly`, but
+ * that only blocks script access from the page: it is unsigned, so a respondent
+ * can set it by hand in their own browser and hand this seam any JSON they like.
+ * The kernel parses everything it is handed and this BFF seam does the same, so
+ * the `Partial<StepContext>` the caller gets back is a shape that was checked
+ * rather than one that was asserted.
+ *
+ * Every member is optional because the cookie is a re-render convenience, not a
+ * contract: a context written by an earlier build (before `constraints` existed)
+ * still reads, and a member the writer omitted becomes the empty record below,
+ * exactly as the previous `?? {}` did.
+ *
+ * Keys are unconstrained on purpose. They are question ids plus the honeypot's
+ * name, and narrowing them to a prefix would silently drop answers rather than
+ * hardening anything: the prototype-key hazard lives in the *lookup* that reads
+ * them (`isAuthoredKey`, issue #324), not in carrying the string.
+ */
+const stepContextSchema = z.object({
+  values: z.record(z.string(), answerValueSchema).optional(),
+  errors: z.record(z.string(), z.string()).optional(),
+  constraints: z.record(z.string(), z.string()).optional(),
+});
+
+/**
+ * Read the no-JS step re-render context on the flow page (044). Best-effort, and
+ * total over hostile input: unparseable JSON and JSON that does not match
+ * `stepContextSchema` both degrade to `undefined`, which is what an absent cookie
+ * already returns, so a forged cookie costs the respondent their re-populated
+ * values and nothing else. Never throws into a respondent's render.
+ */
 export async function readStepContext(): Promise<StepContext | undefined> {
   const store = await cookies();
   const raw = store.get(STEP_CTX_COOKIE)?.value;
   if (raw === undefined) return undefined;
+  let json: unknown;
   try {
-    const parsed = JSON.parse(raw) as Partial<StepContext>;
-    return {
-      values: parsed.values ?? {},
-      errors: parsed.errors ?? {},
-      constraints: parsed.constraints ?? {},
-    };
+    json = JSON.parse(raw);
   } catch {
     return undefined;
   }
+  const parsed = stepContextSchema.safeParse(json);
+  if (!parsed.success) return undefined;
+  return {
+    values: parsed.data.values ?? {},
+    errors: parsed.data.errors ?? {},
+    constraints: parsed.data.constraints ?? {},
+  };
 }

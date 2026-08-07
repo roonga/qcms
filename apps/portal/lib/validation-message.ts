@@ -85,9 +85,16 @@ const AUTHORABLE_KEYS: Readonly<Record<keyof AuthorMessages, true>> = {
  * Is `key` a constraint an author may have written a message for? An
  * unauthorable one (`encoding`, `options` - a value that is not a legal answer of
  * the question's type at all) simply misses, and falls through to the default.
+ *
+ * `Object.hasOwn`, never `in` (issue #324): `in` walks the prototype chain, so
+ * `toString`, `constructor`, `valueOf` and `__proto__` would all answer true and
+ * this predicate would narrow untrusted input to a `keyof AuthorMessages` it had
+ * not actually established. The lookup below would then return an inherited
+ * function typed as `string`. The test file pins the four prototype keys so a
+ * later simplification back to `in` fails rather than passing review.
  */
 function isAuthoredKey(key: string): key is keyof AuthorMessages {
-  return key in AUTHORABLE_KEYS;
+  return Object.hasOwn(AUTHORABLE_KEYS, key);
 }
 
 /**
