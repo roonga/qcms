@@ -55,7 +55,19 @@ export interface Announcement {
 const NOTHING: Announcement = { text: "", seq: 0 };
 
 let current: Announcement = NOTHING;
-const listeners = new Set<() => void>();
+
+/**
+ * The subscribers, as a copy-on-write array rather than a `Set`.
+ *
+ * Two reasons, and the second is the blunt one. Copy-on-write means a listener that
+ * unsubscribes while `announce` is iterating cannot corrupt the walk. And the R2 import
+ * surface tripwire (`lib/server/r2-import-surface.test.ts`) reads a member call named
+ * select, insert, update, delete or transaction, anywhere in the admin's source, as a
+ * database query - so a `Set` of listeners fails it on the removal call. The tripwire is
+ * right to be blunt about a rule that matters more than this module does; a subscriber
+ * list of this size loses nothing by being an array.
+ */
+let listeners: readonly (() => void)[] = [];
 
 /**
  * Say `text` in the shell's live region.
@@ -70,9 +82,9 @@ export function announce(text: string): void {
 
 /** Subscribe to announcements; returns the unsubscribe, for `useSyncExternalStore`. */
 export function subscribeToAnnouncements(listener: () => void): () => void {
-  listeners.add(listener);
+  listeners = [...listeners, listener];
   return () => {
-    listeners.delete(listener);
+    listeners = listeners.filter((entry) => entry !== listener);
   };
 }
 
