@@ -650,6 +650,14 @@ async function sweepOperations(
   const secretRegion = page.getByTestId("qcms-webhook-secret-region");
   await expect(secretRegion, "the assertive region exists before any secret does").toBeAttached();
   await expect(secretRegion).toBeEmpty();
+  // And it is still a live region (issue #359). Nothing above asserts that: an empty
+  // div with the attribute deleted is attached, is empty, still nests the secret when
+  // it arrives, and passes axe - which has no rule requiring a live region to exist and
+  // can only judge the ones it finds. Any a11y property whose value comes from an
+  // element merely being present needs saying out loud, or a tidy-up that removes an
+  // "empty div" undoes #307 with a green run.
+  await expect(secretRegion).toHaveAttribute("aria-live", "assertive");
+  await expect(page.getByTestId("qcms-webhook-status")).toHaveAttribute("aria-live", "polite");
   await expectNoViolations(page, "webhook config with no endpoint");
 
   await page.getByRole("button", { name: "Add endpoint" }).click();
@@ -733,6 +741,12 @@ async function sweepDeliveries(
   const queue = page.getByTestId("qcms-dead-letters-table");
   await expect(queue.locator("tr[data-delivery-id]")).toHaveCount(2);
   await expectNoViolations(page, "the dead-letter queue with a stuck delivery");
+  // The redelivery summary below is announced only because this container is a live
+  // region, and nothing else in the suite says so (issue #359). The shell's own region
+  // is asserted here too: it is what carries an outcome whose screen is about to be
+  // replaced (issue #355), and it is on every authenticated page including this one.
+  await expect(page.getByTestId("qcms-dead-letters-status")).toHaveAttribute("aria-live", "polite");
+  await expect(page.getByTestId("qcms-announcer")).toHaveAttribute("aria-live", "polite");
 
   // Fix the consumer, then work the queue. Both actions remove the control that
   // started them, which is why the focus assertions belong here.

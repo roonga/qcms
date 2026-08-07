@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { AccountMenu } from "@/components/account-menu";
 import { AdminNav } from "@/components/admin-nav";
+import { Announcer } from "@/components/announcer";
 import { AppearanceMenu } from "@/components/appearance-menu";
 import { MODE_COOKIE, parseMode } from "@/lib/appearance";
 import { secureCookies } from "@/lib/server/config";
@@ -48,6 +49,11 @@ export default async function ShellLayout({ children }: { readonly children: Rea
 
   return (
     <div className="flex min-h-dvh flex-col">
+      {/* The one live region every authenticated screen speaks into (issue #355). It is
+          here, above the page, because an action that revalidates its own route unmounts
+          the screen that performed it - and a region taken out of the document mid
+          announcement says nothing. See `components/announcer.tsx`. */}
+      <Announcer />
       <header className="qcms-topbar">
         {/* Three siblings of one wrapping row, not two nested groups, and the design
             card's 390px demo is why (task 032): the nav is the only elastic member
