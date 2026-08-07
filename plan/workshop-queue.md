@@ -197,3 +197,91 @@ Separately and in the same session, the same executor reported "working tree cle
 **Candidate edit.** Make the staleness rule operational for behaviour changes: when a change alters how a documented command is invoked, grep the repo for that command string (`docker:up`, `up:e2e`, `verify:browser`, and so on) and fix every hit in the same PR. That is a mechanical sweep, it takes seconds, and it would have caught this one. It is the doc-side twin of the executor's own FRICTION line from the same PR: *"when a change alters an origin or address, grep every consumer of that value, not just the dialler."*
 
 **Note.** The PM seat's own `plan/ci-outage-protocol.md` carried the identical error and was corrected in the same wrap-up. The rule applies to this seat too.
+
+---
+
+## The `timestamptz` note in CLAUDE.md is right about one client and silent about the other, so it is trusted and wrong
+
+**Raised:** 2026-08-07, dev seat, during task 059. Both seats rank this the most urgent item in the queue.
+
+**What is wrong.** `CLAUDE.md` line 38 (the DB/integration-tests bullet) says:
+
+> raw `` sql`` `` reads return timestamptz as a **string** (query builder `mode:"date"` returns a Date) - normalize
+
+That is true of drizzle's raw template. It is **false** of `testDb.client.query`, which is a `pg` client whose default type parser returns a `Date` for timestamptz. The note names neither client, so a reader applies it to whichever one they are holding.
+
+**What it cost.** 059's executor wrote a wrong type annotation and a wrong explanatory comment on the strength of this note, and was corrected only by a failing assertion. The cost is small in isolation; the shape is not.
+
+**Why this is worse than having no note.** A missing rule makes an executor check. A rule that is confidently right about one case and silent about a neighbouring one makes an executor *not* check, and it is trusted precisely because it is specific and correct-sounding. This is the second time this session a documented rule steered into the failure it was meant to prevent - the other being "run the cheap gates first on new files", which is wrong for every git-driven gate. The two belong to one family and could be fixed in one pass.
+
+**Candidate edit.** Name the client in the clause. Something of the shape: *drizzle's raw `` sql`` `` template returns timestamptz as a string, the query builder with `mode:"date"` returns a Date, and `testDb.client.query` (a `pg` client) returns a Date by default - so check which of the three you are holding before normalizing.* The general principle is worth stating once somewhere too: **a trap note that covers one of several adjacent APIs must say which, or it will be read as covering all of them.**
+
+---
+
+## An API route-schema change requires `pnpm openapi:generate`, and nothing says so
+
+**Raised:** 2026-08-07, dev seat, during task 059.
+
+**What is wrong.** Neither the task file nor `CLAUDE.md` mentions that changing an API route schema requires regenerating the OpenAPI document. 059's executor found out when `openapi-document.test.ts` failed inside its first full test run - a 90-second cycle to discover a one-command step.
+
+**Why it belongs here.** This is the same family as the existing note that *"adding a `@qcms/db` query helper is a 3-place edit: `queries/<area>.ts`, the `queries/index.ts` re-export list, and the `import-surface.test.ts` allowlist"*. That note exists because the edit is non-local and the failure is a test that names none of the missing places. The OpenAPI case has exactly that shape: the change is in a route schema, the failure is in a document test, and the fix is a generator nobody told you to run.
+
+**Candidate edit.** Add it beside the 3-place-edit note in `CLAUDE.md`'s toolchain rules: an API route-schema change is a 2-place edit, the schema and `pnpm openapi:generate`, and `openapi-document.test.ts` is what catches you.
+
+---
+
+## A task that closes a known gap should name the tests written to accommodate that gap as expected collateral
+
+**Raised:** 2026-08-07, dev seat, during task 059.
+
+**What happened.** Task 035 had shipped roughly 180 lines of machinery in `apps/admin/e2e/responses-ops.pw.ts` built specifically to work around the pre-059 behaviour - because at the time, an erased session's outbox payload genuinely still carried its answers and the spec had to accommodate that. 059 closed the gap, and all of that machinery became dead or actively false in one step. Reworking it was **the single largest chunk of 059**, and nothing in the task file anticipated it.
+
+**Why it is a workshop item rather than a task fact.** The estimate and the exit criteria both described the production change; the largest piece of actual work was in a test file neither mentioned. That is a systematic blind spot, not a one-off: whenever a task closes a gap that an earlier task had to code around, the earlier task's accommodations are guaranteed collateral, and they are invisible to anyone reading only the new task file.
+
+**Candidate edit.** When a task file's job is to close a known gap (they are usually identifiable - they cite an ADR amendment, a stopgap, or an issue describing behaviour as temporary), it should carry a line naming the specs and helpers written to accommodate that gap, as expected collateral. Cheap to write when the task is drafted - the drafting seat generally knows which stopgap it is retiring - and it sets the scope honestly for whoever executes it.
+
+**Related.** 035's copy was itself described as a truthful stopgap for exactly this gap, so in this instance the pointer existed in prose and simply was not carried into 059's task file.
+
+---
+
+## "X is excluded from the list, so the X handler is unreachable" is unsound wherever a human acts on a page served earlier
+
+**Raised:** 2026-08-07, PM seat, correcting its own ruling during task 059. The dev seat asked for it to be queued in its own right rather than folded into the reviewer-split item, and it is right that it generalises.
+
+**What happened.** 059 left the admin's `DELIVERY_SESSION_ERASED` message path in place while making cancelled rows excluded from the dead-letter queue. Asked whether the now-apparently-dead code should be removed, this seat ruled: keep it, and document it as **unreachable from the dead-letter queue by design**.
+
+The premise was wrong. The reviewer showed the path is **race-reachable**: the dead-letter queue renders, erasure commits, the operator then clicks Redeliver - or "Redeliver all" iterates ids it already displayed - and the API answers 409, which the admin must render as a copy string rather than an internal error. The bulk summary's refused variant at `en.ts:1122` already existed for exactly that race, so the codebase had encoded the answer before anyone asked the question.
+
+**The reasoning error, stated generally.** The ruling reasoned from the **query** (cancelled rows are excluded from the list, therefore the handler that serves them is dead) and forgot that a rendered page is a **snapshot, not a live view**. Any argument of the form *"X no longer appears in the list, so the code path that handles X is unreachable"* is unsound in any system where a human acts on a page they were served earlier. It is the same shape as every TOCTOU bug, and it is specifically the reasoning that makes correct defensive code look deletable.
+
+**Why it is worth an instruction and not just a note.** The failure mode is asymmetric. Applied to a privacy or security control, it deletes a guard that fires only under a race - which is exactly the case that is hardest to test, hardest to notice missing, and worst to be wrong about. And the argument is persuasive: it cites a real query and reaches a confident conclusion.
+
+**Candidate edit.** Where the toolchain rules already say to grep every "sole/only door/path" comment for staleness when a guard changes, add the converse: **before deleting a handler as unreachable, ask whether a user could act on a view rendered before the state changed.** If yes, it is race-reachable, and the comment says *when* it is reachable rather than claiming it is dead. A comment claiming a live path is dead is worse than no comment, because it invites the deletion.
+
+**Postscript worth keeping.** The conclusion (keep the code) survived the wrong premise, and the reason originally given for keeping it - that a dead-code claim invites a future cleanup to delete it - argued *harder* for keeping once the premise was corrected. That is unusual enough to note: a right answer reached by a wrong route is still a wrong route, and the route is what gets reused.
+
+---
+
+## Reviewer and conductor both ran the gates, so the reviewer stalled on runs it did not own
+
+**Raised:** 2026-08-07, dev seat's reviewer, during task 059.
+
+**What is wrong.** The `task-reviewer` charter tells the reviewer to run the gates itself. On 059 the conductor had already dispatched CI against the same head and told the reviewer not to. The reviewer stalled waiting on runs it neither owned nor could see the completion of, and returned without a verdict until the conductor told it explicitly that CI was the conductor's.
+
+**The split that emerged, and worked.** **Reviewer owns static verification** - reading the diff, checking exit criteria, tracing invariants, running targeted unit tests. **Conductor owns the CI it dispatched**, and reports the result to the reviewer rather than the reviewer chasing it. That kept one set of Docker suites running instead of two competing for the same machine, which matters more now that seat contention is a known false-red source.
+
+**Candidate edit.** Write the split into the reviewer instruction, in both directions: a reviewer should not double-run Docker or browser suites against a head where CI is already live, **and** should not block on runs it does not own - if it needs a gate result it does not have, it says so and returns its static verdict rather than waiting. The conductor's half is to state, when dispatching a reviewer, whether CI is already running on that head.
+
+---
+
+## "Every clause has an assertion behind it" cannot be read literally for docs that describe non-behaviours
+
+**Raised:** 2026-08-07, dev seat's reviewer, during task 059.
+
+**What is wrong.** 059's exit criterion 5 required that every clause of the changed operator documentation have behaviour asserted behind it - the copy-from-intent rule, which is a good rule and caught real defects on 034. But part of what an erasure guide must document is what the system **does not** do: the in-flight delivery window, backups aging out on their own schedule, a consumer's independent copy. Those have no behaviour to assert, by construction.
+
+The reviewer had to silently reinterpret the criterion as "every **behavioural** claim has an assertion" in order to pass the task at all.
+
+**Why that is a problem even though it worked.** A rule that requires silent reinterpretation is a rule that will eventually be applied literally by someone stricter, and the outcome then is either a task blocked on an impossible criterion or a doc padded with assertions that assert nothing. The reinterpretation should be in the rule, not in the reviewer.
+
+**Candidate edit.** State the rule as "every behavioural claim in changed copy has an assertion behind it", and add the corollary that a documented **non-behaviour** - a limit, an out-of-scope actor, a window the system does not control - is exempt but should say plainly that it is a limit rather than a promise. That second half is the part that keeps the exemption from becoming a hole.
