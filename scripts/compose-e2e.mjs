@@ -402,6 +402,16 @@ async function startLoopbackForwarding() {
 
   const portal = serviceEndpoint("portal");
   const admin = serviceEndpoint("admin");
+  // One join covers both routes only because both services sit on the same network,
+  // which `docker-compose.yml` arranges by declaring no `networks:` block at all.
+  // Stated rather than assumed: if that ever changed, the admin route would forward to
+  // an address on a network this container never joined, and the symptom would be the
+  // one this whole section exists to stop - a timeout, not a refusal.
+  if (admin.network !== portal.network)
+    throw new Error(
+      `compose-e2e: portal is on ${portal.network} but admin is on ${admin.network}; ` +
+        "the harness joins one network and forwards both, so this stack needs a second join",
+    );
 
   // Recorded before the join is attempted, not after: a connect that half-succeeded
   // and then failed verification still needs teardown to try leaving the network.
