@@ -320,3 +320,58 @@ Three habits, all cheap, each of which would have caught several of the six:
 **Candidate edit.** State the principle once in `CLAUDE.md`, with two or three of the instances as illustration, rather than continuing to accumulate individual trap notes that each teach one case. The existing per-instance notes (the turbo cache trap, the git-driven-gate correction, the standalone-versus-`verify` entry above) then become examples of a stated rule rather than a list to memorise - which matters, because the value is in recognising the seventh instance, and it will not look like any of these six.
 
 **Related.** This subsumes the "gate reached standalone behaves differently from the same gate inside `verify`" entry above, which is instance 1 and 2 seen from one angle. Keep both: that one has a specific candidate edit about git-driven gates, this one is the general rule.
+
+---
+
+## A check that fails on valid input: enumerate what the writer can legitimately produce before choosing a schema's strictness
+
+**Raised:** 2026-08-07, dev seat's executor, during the #327/#324 fix. It caught this in itself, before shipping, and corrected it in a second commit.
+
+**Why this is its own entry.** The queue already carries "a green signal whose scope you did not verify is not evidence", which covers checks that **cannot fail**. This is the opposite failure and it is worse: a check that **fails on valid input**. A vacuous check merely fails to catch bugs; a wrongly-strict check *degrades real users*, and it does so most reliably in the exact circumstances the feature exists for.
+
+**The instance.** The brief said "validate the step-context cookie with Zod" and, separately, "do not alter what a respondent sees outside a hand-forged cookie". For this cookie those pull against each other, and the obvious implementation - one strict schema over the whole payload - ships a regression no test in the repo would have caught.
+
+`step-form.ts` decodes a non-numeric no-JS number field to `NaN`, deliberately, leaving the judgement to the API. `JSON.stringify` writes `NaN` as `null`. So a legitimate cookie this application itself writes looks like:
+
+```
+{"values":{"q_odometer":null,...},"errors":{"q_odometer":"Enter a number."},...}
+```
+
+A strict schema rejects it, and rejecting the cookie drops **the whole step context, including the error message** - in precisely the case where the respondent most needs "Enter a number." rendered back to them. The validation intended to harden the seam would have silently broken the feature the seam exists to serve.
+
+**How it was caught, which is the transferable part.** The executor grepped `step-form.ts` for what values can actually *reach* `writeStepContext` **before** choosing the schema's strictness, rather than writing the schema first and testing afterwards. Its fix: envelope strict, records lenient per entry - a bad entry is dropped, its neighbours survive, and nothing unvalidated reaches the renderer either way.
+
+**Candidate edit,** in the executor's own words, which are better than a paraphrase:
+
+> When adding validation to a seam that previously accepted anything, enumerate what the **writer** can legitimately produce before choosing the schema's strictness, not after.
+
+The generalisation beyond schemas: any time a constraint is added to a previously-permissive boundary - a validator, a type narrowing, an assertion, a lint rule, a CI gate - the question "what does the legitimate producer actually emit?" is a **prerequisite**, not a test case. Tests written after the constraint tend to test the constraint's intent rather than the producer's real output, which is how a wrongly-strict rule survives review.
+
+**Related.** This is the first half of the #327 story. The second half is the next entry: the leniency fix that resolved *this* problem introduced a different one, one seam downstream.
+
+---
+
+## A fix whose correctness depends on a seam it never examined
+
+**Raised:** 2026-08-07, dev seat's reviewer, on the second cycle of #327. The best single finding of the session.
+
+**The instance.** The leniency fix above - drop an unparseable entry, keep its neighbours - is correct at the schema seam and regresses a legitimate case one seam downstream, at a merge the fix never looked at.
+
+A no-JS respondent has a previously **accepted** number answer, say `5`. They edit it to `abc`. The API 422s. The cookie carries `q_x: NaN`, which JSON writes as `null`.
+
+- **Before the fix:** the `null` survived the cast, **won the spread** in `native-step.tsx` (`{...initial.values, ...context?.values}`), and the field rendered **empty** beside "Enter a number."
+- **After the fix:** the entry is dropped, so it no longer overrides, and the field re-renders showing the **stale accepted `5`** next to an error saying the value is not a number.
+
+A contradictory render, with the respondent's refused input silently replaced by an answer they were in the middle of changing.
+
+**The reasoning error, stated generally.** The fix rested on "a dropped entry degrades to the same state as a missing one". That is true, and it is exactly the half that misleads: the pre-fix state for that entry was **not missing** - it was a `null` override. **Absent, present-with-a-value, and present-with-explicit-`undefined` are three different behaviours under a spread**, and two of them look identical in a JSON dump.
+
+Worse, `native-step.tsx` carried a comment **directly above that spread** explaining why it mattered - *"The cookie has to win: re-showing the stored answer instead would hide the input their error message is about"* - so the fix violated its own file's documented intent and left the comment stale.
+
+**Two corroborating details worth keeping.** The commit message claimed "no user-visible behaviour changes: a cookie this app wrote round-trips unchanged" - the `NaN` cookie **is** one this app wrote, does not round-trip, and does change the render. And the test named "keeps the error message when an answer value did not survive JSON" asserted the drop at the **schema** seam and never exercised the merge over `initial.values`, which is where the hole was. A test named for the property, asserting at the wrong seam.
+
+**Candidate edit.** When a change alters what a value *is* - dropped, defaulted, coerced, narrowed - **trace it to every consumer that branches on its presence or absence**, not just to the consumers that read it. The specific trap to name: a value's *absence* is itself a behaviour wherever object spread, `??`, `||`, destructuring defaults or optional chaining are involved, and "it degrades to the same state as missing" is a claim about the consumer, not about the value - so it has to be checked at the consumer.
+
+This is the doc-side twin of an already-queued line - *"when a change alters an origin or address, grep every consumer of that value, not just the dialler"* - arriving from a different direction. Both reduce to: **a fix is only as correct as the seam furthest from it that reads what it changed.**
+
+**Why it is hard to teach.** Unlike the vacuous-check family, this one looks like thoroughness right up until it isn't. The fix was well-reasoned, tested, and wrong. The only thing that caught it was a reviewer reading one seam further than the change.
