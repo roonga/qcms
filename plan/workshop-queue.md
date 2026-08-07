@@ -197,3 +197,47 @@ Separately and in the same session, the same executor reported "working tree cle
 **Candidate edit.** Make the staleness rule operational for behaviour changes: when a change alters how a documented command is invoked, grep the repo for that command string (`docker:up`, `up:e2e`, `verify:browser`, and so on) and fix every hit in the same PR. That is a mechanical sweep, it takes seconds, and it would have caught this one. It is the doc-side twin of the executor's own FRICTION line from the same PR: *"when a change alters an origin or address, grep every consumer of that value, not just the dialler."*
 
 **Note.** The PM seat's own `plan/ci-outage-protocol.md` carried the identical error and was corrected in the same wrap-up. The rule applies to this seat too.
+
+---
+
+## The `timestamptz` note in CLAUDE.md is right about one client and silent about the other, so it is trusted and wrong
+
+**Raised:** 2026-08-07, dev seat, during task 059. Both seats rank this the most urgent item in the queue.
+
+**What is wrong.** `CLAUDE.md` line 38 (the DB/integration-tests bullet) says:
+
+> raw `` sql`` `` reads return timestamptz as a **string** (query builder `mode:"date"` returns a Date) - normalize
+
+That is true of drizzle's raw template. It is **false** of `testDb.client.query`, which is a `pg` client whose default type parser returns a `Date` for timestamptz. The note names neither client, so a reader applies it to whichever one they are holding.
+
+**What it cost.** 059's executor wrote a wrong type annotation and a wrong explanatory comment on the strength of this note, and was corrected only by a failing assertion. The cost is small in isolation; the shape is not.
+
+**Why this is worse than having no note.** A missing rule makes an executor check. A rule that is confidently right about one case and silent about a neighbouring one makes an executor *not* check, and it is trusted precisely because it is specific and correct-sounding. This is the second time this session a documented rule steered into the failure it was meant to prevent - the other being "run the cheap gates first on new files", which is wrong for every git-driven gate. The two belong to one family and could be fixed in one pass.
+
+**Candidate edit.** Name the client in the clause. Something of the shape: *drizzle's raw `` sql`` `` template returns timestamptz as a string, the query builder with `mode:"date"` returns a Date, and `testDb.client.query` (a `pg` client) returns a Date by default - so check which of the three you are holding before normalizing.* The general principle is worth stating once somewhere too: **a trap note that covers one of several adjacent APIs must say which, or it will be read as covering all of them.**
+
+---
+
+## An API route-schema change requires `pnpm openapi:generate`, and nothing says so
+
+**Raised:** 2026-08-07, dev seat, during task 059.
+
+**What is wrong.** Neither the task file nor `CLAUDE.md` mentions that changing an API route schema requires regenerating the OpenAPI document. 059's executor found out when `openapi-document.test.ts` failed inside its first full test run - a 90-second cycle to discover a one-command step.
+
+**Why it belongs here.** This is the same family as the existing note that *"adding a `@qcms/db` query helper is a 3-place edit: `queries/<area>.ts`, the `queries/index.ts` re-export list, and the `import-surface.test.ts` allowlist"*. That note exists because the edit is non-local and the failure is a test that names none of the missing places. The OpenAPI case has exactly that shape: the change is in a route schema, the failure is in a document test, and the fix is a generator nobody told you to run.
+
+**Candidate edit.** Add it beside the 3-place-edit note in `CLAUDE.md`'s toolchain rules: an API route-schema change is a 2-place edit, the schema and `pnpm openapi:generate`, and `openapi-document.test.ts` is what catches you.
+
+---
+
+## A task that closes a known gap should name the tests written to accommodate that gap as expected collateral
+
+**Raised:** 2026-08-07, dev seat, during task 059.
+
+**What happened.** Task 035 had shipped roughly 180 lines of machinery in `apps/admin/e2e/responses-ops.pw.ts` built specifically to work around the pre-059 behaviour - because at the time, an erased session's outbox payload genuinely still carried its answers and the spec had to accommodate that. 059 closed the gap, and all of that machinery became dead or actively false in one step. Reworking it was **the single largest chunk of 059**, and nothing in the task file anticipated it.
+
+**Why it is a workshop item rather than a task fact.** The estimate and the exit criteria both described the production change; the largest piece of actual work was in a test file neither mentioned. That is a systematic blind spot, not a one-off: whenever a task closes a gap that an earlier task had to code around, the earlier task's accommodations are guaranteed collateral, and they are invisible to anyone reading only the new task file.
+
+**Candidate edit.** When a task file's job is to close a known gap (they are usually identifiable - they cite an ADR amendment, a stopgap, or an issue describing behaviour as temporary), it should carry a line naming the specs and helpers written to accommodate that gap, as expected collateral. Cheap to write when the task is drafted - the drafting seat generally knows which stopgap it is retiring - and it sets the scope honestly for whoever executes it.
+
+**Related.** 035's copy was itself described as a truthful stopgap for exactly this gap, so in this instance the pointer existed in prose and simply was not carried into 059's task file.
