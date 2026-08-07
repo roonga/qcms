@@ -52,6 +52,14 @@ docker compose -f docker-compose.dev.yml up -d
 pnpm dev:portal   # finds the dev DB itself; see CONTRIBUTING for why not host.docker.internal
 ```
 
+**`QCMS_DOCKER_PUBLISH_HOST` overrides that detection**, and it is the one escape hatch on this path. `scripts/docker-host.mjs` answers "which host is a Docker-published port on, as seen from *this* process": `localhost` on a plain host checkout and on CI, and the container's default-route gateway inside the dev container, because publishing binds on the Docker host and inside the container that host is another machine. Set the variable and that answer is taken as given, before anything is probed:
+
+```sh
+QCMS_DOCKER_PUBLISH_HOST=172.17.0.1 pnpm dev:portal
+```
+
+Reach for it when the detection is wrong for your setup - an unusual routing table, a rootless or remote daemon, a gateway that is not the host. It is worth knowing about because of what it reaches: the same value picks the **database host** `pnpm dev:portal` dials, so a wrong value there looks like a dev server that cannot find Postgres rather than like a misread route. The full-stack Compose harness does **not** use it (it joins the Compose network and forwards this container's loopback instead, `docs/PORTS.md`), so setting it changes nothing about `pnpm up:e2e`.
+
 **Running the admin app (task 031).** Same dev DB, one extra step first: the admin has no
 self-registration path (SEC-1), so the deployment's first account comes from a command. Since
 task 056 the admin itself holds no database handle - better-auth lives in the API - so the

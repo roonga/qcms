@@ -56,6 +56,22 @@ import { pathToFileURL } from "node:url";
 const LISTEN_ADDRESS = "127.0.0.1";
 
 /**
+ * How long a forwarded connection may spend **establishing** before it is dropped.
+ *
+ * An establishment timeout, deliberately not an idle one. The failure it exists for
+ * is the one shape this path produces: a target that is unreachable rather than
+ * refusing, where the SYN is dropped and the connect sits there for the OS retry
+ * budget (over two minutes on Linux) while the browser waits. Dropping it after ten
+ * seconds turns that into a fast connection error the runner reports against the
+ * request that caused it, instead of a Playwright timeout minutes away.
+ *
+ * An *idle* timeout would be a bug here: a browser holds keep-alive connections open
+ * and idle between actions for far longer than any value that would help above, and
+ * killing those mid-run would look exactly like a flaky application.
+ */
+export const CONNECT_TIMEOUT_MS = 10_000;
+
+/**
  * @typedef {object} ForwardRoute
  * @property {number} listenPort port on this container's loopback.
  * @property {string} targetHost the service container's address.
@@ -102,17 +118,38 @@ export function parseRoutes(raw) {
  * would take down the forwarder and with it the rest of the run.
  *
  * @param {ForwardRoute} route
+ * @param {object} [options]
+ * @param {number} [options.connectTimeoutMs] establishment budget, see
+ *   {@link CONNECT_TIMEOUT_MS}.
+ * @param {(options: { host: string; port: number }) => import("node:net").Socket}
+ *   [options.createConnection] injection point, so the timeout is a test rather than
+ *   a comment: a hang cannot be produced deterministically from a real socket.
  * @returns {import("node:net").Server}
  */
-export function createForwarder({ listenPort, targetHost, targetPort }) {
+export function createForwarder(
+  { listenPort, targetHost, targetPort },
+  { connectTimeoutMs = CONNECT_TIMEOUT_MS, createConnection = connect } = {},
+) {
   const server = createServer((incoming) => {
-    const outgoing = connect({ host: targetHost, port: targetPort });
+    const outgoing = createConnection({ host: targetHost, port: targetPort });
     const shutdown = () => {
       incoming.destroy();
       outgoing.destroy();
     };
     incoming.on("error", shutdown);
     outgoing.on("error", shutdown);
+    // Node's socket timer runs during the connect too, so one timeout covers
+    // establishment - and is then switched OFF, so it can never reach an established
+    // connection that is merely idle between browser actions.
+    outgoing.setTimeout(connectTimeoutMs, () => {
+      process.stderr.write(
+        `loopback-forward: no connection to ${targetHost}:${String(targetPort)} within ${String(connectTimeoutMs)}ms\n`,
+      );
+      shutdown();
+    });
+    outgoing.on("connect", () => {
+      outgoing.setTimeout(0);
+    });
     incoming.pipe(outgoing);
     outgoing.pipe(incoming);
   });
@@ -128,7 +165,9 @@ function main() {
     process.exit(1);
   }
   const routes = parseRoutes(raw);
-  const servers = routes.map(createForwarder);
+  // Not `routes.map(createForwarder)`: `map` would pass the array index as the
+  // options argument.
+  const servers = routes.map((route) => createForwarder(route));
 
   let pending = servers.length;
   for (const server of servers) {

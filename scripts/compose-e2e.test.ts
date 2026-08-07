@@ -6,7 +6,12 @@ import { fileURLToPath } from "node:url";
 
 import { afterAll, describe, expect, it } from "vitest";
 
-import { composeEnvironmentOverrides } from "./compose-e2e.mjs";
+import {
+  composeEnvironmentOverrides,
+  joinComposeNetwork,
+  soleNetworkName,
+  soleTcpPort,
+} from "./compose-e2e.mjs";
 
 /**
  * The full-stack Compose harness must refuse an unset seat from a linked worktree
@@ -168,5 +173,123 @@ describe("composeEnvironmentOverrides", () => {
     for (const url of [QCMS_ADMIN_BASE_URL, QCMS_PORTAL_BASE_URL]) {
       expect(new URL(url).hostname).toBe("localhost");
     }
+  });
+});
+
+/**
+ * Reading the endpoint out of `docker inspect` (issue #335).
+ *
+ * Both of these replaced `Object.keys(...)[0]`, which was right by Docker's Go map
+ * serialization sorting keys lexicographically rather than by anything this harness
+ * chose. The point of the change is that a shape it cannot resolve now FAILS at
+ * `up()`, naming the service, instead of forwarding a wrong number and surfacing as a
+ * Playwright timeout.
+ */
+describe("soleTcpPort", () => {
+  it("reads the one exposed TCP port", () => {
+    expect(soleTcpPort({ "3000/tcp": null }, "portal")).toBe(3000);
+  });
+
+  it("ignores a UDP port, which the forwarder could never use", () => {
+    expect(soleTcpPort({ "5353/udp": null, "3000/tcp": null }, "portal")).toBe(3000);
+  });
+
+  it("refuses to guess between two TCP ports, naming the service and the candidates", () => {
+    // The regression the old code would have shipped: key order is a string sort, so
+    // a debugger on 9229 beside the app on 3000 was right only by luck, and a
+    // hypothetical `10000/tcp` sorts BEFORE `3000/tcp` and would have won.
+    expect(() => soleTcpPort({ "10000/tcp": null, "3000/tcp": null }, "admin")).toThrow(
+      /admin exposes more than one TCP port \(10000\/tcp, 3000\/tcp\)/,
+    );
+  });
+
+  it("refuses a container with no TCP port at all", () => {
+    expect(() => soleTcpPort({ "5353/udp": null }, "portal")).toThrow(/exposes no TCP port/);
+    expect(() => soleTcpPort({}, "portal")).toThrow(/exposes no TCP port/);
+  });
+});
+
+describe("soleNetworkName", () => {
+  it("reads the one network the service is on", () => {
+    expect(soleNetworkName({ stack_default: { IPAddress: "172.20.0.5" } }, "portal")).toBe(
+      "stack_default",
+    );
+  });
+
+  it("refuses to guess between two networks", () => {
+    // Which network to join is a decision about the stack's shape: the forwarder can
+    // only reach an address on the network this container attaches to.
+    expect(() => soleNetworkName({ a_net: {}, b_net: {} }, "portal")).toThrow(
+      /portal is on more than one network \(a_net, b_net\)/,
+    );
+  });
+
+  it("refuses a service on no network", () => {
+    expect(() => soleNetworkName({}, "portal")).toThrow(/is on no network/);
+  });
+});
+
+/**
+ * The network join, which is the expensive one (issue #335).
+ *
+ * The old code wrapped `docker network connect` in `try {} catch {}` meaning "already
+ * attached". It also meant network-not-found, no-such-container and daemon errors,
+ * and the cost of that conflation was out of all proportion: the forwarder still
+ * binds and still prints `ready`, so every forwarded connection then hits Docker's
+ * cross-bridge isolation and TIMES OUT rather than being refused.
+ *
+ * So the outcome is now read back from Docker rather than inferred from an exit
+ * status, and these cases are the whole decision: attached is fine however it got
+ * that way, not attached is fatal however the connect reported.
+ */
+describe("joinComposeNetwork", () => {
+  it("accepts a connect that failed because the endpoint was already there", () => {
+    // The legitimate case the old catch was written for. An interrupted previous run
+    // leaves this state behind, and attached is exactly as good as attaching.
+    expect(() =>
+      joinComposeNetwork("stack_default", "self", {
+        connect: () => ({ failure: "endpoint with name self already exists in network" }),
+        attached: () => ["stack_default"],
+      }),
+    ).not.toThrow();
+  });
+
+  it("throws naming the network when the connect really failed", () => {
+    // What used to be swallowed. `docker network connect` reports one failure for
+    // "already attached", "no such network" and "no such container" alike, so the
+    // message is not what separates them: the read-back is.
+    expect(() =>
+      joinComposeNetwork("stack_default", "self", {
+        connect: () => ({ failure: "Error response from daemon: network stack_default not found" }),
+        attached: () => [],
+      }),
+    ).toThrow(/not attached to the Compose network stack_default/);
+  });
+
+  it("carries Docker's own reason into the error", () => {
+    expect(() =>
+      joinComposeNetwork("stack_default", "self", {
+        connect: () => ({ failure: "Error response from daemon: No such container: self" }),
+        attached: () => [],
+      }),
+    ).toThrow(/No such container: self/);
+  });
+
+  it("says what the swallowed failure would have cost, so the reader stops here", () => {
+    // The message is the fix: the old symptom was a Playwright timeout minutes later
+    // that never mentioned the network, and a reader who lands on this line must not
+    // have to rediscover why an unattached container times out instead of refusing.
+    expect(() =>
+      joinComposeNetwork("stack_default", "self", {
+        connect: () => ({}),
+        attached: () => [],
+      }),
+    ).toThrow(/cross-bridge isolation/);
+  });
+
+  it("fails even when the connect reported success but the container is not attached", () => {
+    expect(() =>
+      joinComposeNetwork("stack_default", "self", { connect: () => ({}), attached: () => [] }),
+    ).toThrow(/after docker network connect\./);
   });
 });
