@@ -208,11 +208,69 @@ function selfContainerId() {
 }
 
 /**
- * A Compose service's address on the Compose network, and the port it listens on.
+ * The single network a Compose service is attached to, named from `.Networks`.
+ *
+ * Deliberately a refusal rather than a pick when there is more than one. The
+ * forwarder dials a container address, which is only reachable from the network this
+ * container joins, so with two networks in play "which one" is a real decision about
+ * the stack's shape, not a default the harness may take on the author's behalf. The
+ * previous `Object.keys(...)[0]` looked like a choice and was Docker's Go map
+ * serialization, which sorts keys lexicographically: the answer was a string-sort
+ * artifact that happened to be right while `docker-compose.yml` declared no
+ * `networks:` block at all.
+ *
+ * @param {Record<string, { IPAddress?: string }>} networks
+ * @param {string} service
+ * @returns {string}
+ */
+export function soleNetworkName(networks, service) {
+  const names = Object.keys(networks ?? {});
+  if (names.length === 0) throw new Error(`compose-e2e: ${service} is on no network`);
+  if (names.length > 1)
+    throw new Error(
+      `compose-e2e: ${service} is on more than one network (${names.join(", ")}); ` +
+        "the harness joins exactly one and cannot guess which carries the service, " +
+        "so name it in scripts/compose-e2e.mjs rather than letting key order decide",
+    );
+  return names[0];
+}
+
+/**
+ * The single TCP port a Compose service listens on, from `.NetworkSettings.Ports`.
  *
  * The listening port is read from the container rather than written here: it is the
  * image's own business, never a QCMS allocation (`docs/PORTS.md`), so hardcoding it
  * would be inventing a number this repo does not own.
+ *
+ * Two hardenings over the `Object.keys(...)[0]` this replaces. UDP keys are filtered
+ * out, because the forwarder speaks TCP and a `/udp` entry is never an answer to this
+ * question. And several TCP ports is a refusal, not a pick: nothing in the port list
+ * says which one serves the application, so "lowest" or "first" would just be another
+ * sort artifact dressed as a rule - a debug port on 2000 beside an app on 3000 would
+ * win under either. A second `EXPOSE` therefore costs one line here, named at `up()`,
+ * instead of a silently wrong forward that surfaces as a Playwright timeout.
+ *
+ * @param {Record<string, unknown>} exposed
+ * @param {string} service
+ * @returns {number}
+ */
+export function soleTcpPort(exposed, service) {
+  const tcp = Object.keys(exposed ?? {}).filter((key) => key.endsWith("/tcp"));
+  if (tcp.length === 0) throw new Error(`compose-e2e: ${service} exposes no TCP port`);
+  if (tcp.length > 1)
+    throw new Error(
+      `compose-e2e: ${service} exposes more than one TCP port (${tcp.join(", ")}); ` +
+        "the harness cannot tell which one serves the application, " +
+        "so name it in scripts/compose-e2e.mjs rather than letting key order decide",
+    );
+  const port = Number(tcp[0].slice(0, -"/tcp".length));
+  if (!Number.isInteger(port) || port <= 0)
+    throw new Error(`compose-e2e: ${service} exposes an unreadable port key ${tcp[0]}`);
+  return port;
+}
+
+/**
+ * A Compose service's address on the Compose network, and the port it listens on.
  *
  * @param {string} service
  * @returns {{ network: string; address: string; port: number }}
@@ -223,18 +281,108 @@ function serviceEndpoint(service) {
   const networks = JSON.parse(
     capture(docker, ["inspect", containerId, "--format", "{{json .NetworkSettings.Networks}}"]),
   );
-  const network = Object.keys(networks)[0];
-  if (network === undefined) throw new Error(`compose-e2e: ${service} is on no network`);
+  const network = soleNetworkName(networks, service);
   const exposed = JSON.parse(
     capture(docker, ["inspect", containerId, "--format", "{{json .NetworkSettings.Ports}}"]),
   );
-  const first = Object.keys(exposed)[0];
-  if (first === undefined) throw new Error(`compose-e2e: ${service} exposes no port`);
   return {
     network,
     address: networks[network].IPAddress,
-    port: Number(first.split("/")[0]),
+    port: soleTcpPort(exposed, service),
   };
+}
+
+/**
+ * The networks Docker reports a container attached to, by name.
+ *
+ * Separate from {@link serviceEndpoint} because the container it is asked about is
+ * *this* one, whose id came from `/etc/hostname` and is therefore an assumption:
+ * true while the container keeps Docker's default hostname, false the moment anyone
+ * passes `--hostname`. Rather than record that as a known soft spot, this makes it
+ * loud - an id Docker cannot resolve fails here, naming where the id came from,
+ * instead of silently skipping the join and leaving the forwarder pointing into an
+ * isolated bridge.
+ *
+ * @param {string} containerId
+ * @returns {string[]}
+ */
+function attachedNetworkNames(containerId) {
+  let raw;
+  try {
+    raw = capture(docker, [
+      "inspect",
+      containerId,
+      "--format",
+      "{{json .NetworkSettings.Networks}}",
+    ]);
+  } catch (error) {
+    throw new Error(
+      `compose-e2e: cannot inspect this container (id ${containerId}, read from /etc/hostname): ` +
+        `${describe(error)}. That file is a container id only while the container keeps ` +
+        "Docker's default hostname; a --hostname override makes it something else.",
+    );
+  }
+  return Object.keys(JSON.parse(raw));
+}
+
+/**
+ * Attach this container to the stack's network, and PROVE it before returning.
+ *
+ * The connect is allowed to fail: attaching an endpoint that is already there is an
+ * error to Docker and a no-op to us, and it is the state an interrupted previous run
+ * leaves behind. What is not allowed is *assuming* that is why it failed. The same
+ * failure covers a missing network, a missing container and a dead daemon, and
+ * swallowing those was expensive out of all proportion to the mistake: the forwarder
+ * still binds and still prints `ready`, every forwarded connection then hits Docker's
+ * cross-bridge isolation and TIMES OUT rather than being refused, and the run dies
+ * minutes later inside a Playwright timeout that never mentions the network (#335).
+ *
+ * So the outcome is read back from Docker instead of inferred from an exit status or
+ * a message string. Attached is attached, however it got that way; anything else
+ * throws here, naming the network, while the failure is still one line from its cause.
+ *
+ * Injectable so the decision is a test rather than a comment: no Docker involved.
+ *
+ * @param {string} network
+ * @param {string} containerId
+ * @param {object} [io]
+ * @param {(network: string, containerId: string) => { failure?: string }} [io.connect]
+ * @param {(containerId: string) => string[]} [io.attached]
+ * @returns {void}
+ */
+export function joinComposeNetwork(network, containerId, io = {}) {
+  const connect = io.connect ?? connectContainerToNetwork;
+  const attached = io.attached ?? attachedNetworkNames;
+  const { failure } = connect(network, containerId);
+  if (attached(containerId).includes(network)) return;
+  throw new Error(
+    `compose-e2e: this container (${containerId}) is not attached to the Compose network ` +
+      `${network} after docker network connect` +
+      (failure === undefined || failure === "" ? "" : `: ${failure}`) +
+      ". Forwarded connections would time out on Docker's cross-bridge isolation rather " +
+      "than be refused, and the run would fail minutes later inside a Playwright timeout.",
+  );
+}
+
+/**
+ * `docker network connect`, reporting its own reason rather than an exit status.
+ *
+ * Captured instead of inherited so the reason ends up inside the thrown error, where
+ * a reader who is looking at one failure line will actually see it.
+ *
+ * @param {string} network
+ * @param {string} containerId
+ * @returns {{ failure?: string }}
+ */
+function connectContainerToNetwork(network, containerId) {
+  const result = spawnSync(docker, ["network", "connect", network, containerId], {
+    cwd: root,
+    env: e2eEnvironment,
+    encoding: "utf8",
+  });
+  if (result.error) return { failure: result.error.message };
+  if (result.status !== 0) return { failure: (result.stderr ?? "").trim() };
+  return {};
 }
 
 /**
@@ -254,15 +402,21 @@ async function startLoopbackForwarding() {
 
   const portal = serviceEndpoint("portal");
   const admin = serviceEndpoint("admin");
+  // One join covers both routes only because both services sit on the same network,
+  // which `docker-compose.yml` arranges by declaring no `networks:` block at all.
+  // Stated rather than assumed: if that ever changed, the admin route would forward to
+  // an address on a network this container never joined, and the symptom would be the
+  // one this whole section exists to stop - a timeout, not a refusal.
+  if (admin.network !== portal.network)
+    throw new Error(
+      `compose-e2e: portal is on ${portal.network} but admin is on ${admin.network}; ` +
+        "the harness joins one network and forwards both, so this stack needs a second join",
+    );
 
-  // Idempotent in effect: a second connect fails harmlessly when the endpoint is
-  // already there, which is the state a previous interrupted run leaves behind.
-  try {
-    run(docker, ["network", "connect", portal.network, self], e2eEnvironment);
-  } catch {
-    // Already attached, which is exactly as good as attaching.
-  }
+  // Recorded before the join is attempted, not after: a connect that half-succeeded
+  // and then failed verification still needs teardown to try leaving the network.
   joinedNetwork = portal.network;
+  joinComposeNetwork(portal.network, self);
 
   const routes = [
     { listenPort: portalPort, targetHost: portal.address, targetPort: portal.port },
@@ -324,8 +478,14 @@ function stopLoopbackForwarding() {
     }
     forwarder = undefined;
   }
-  // Attempted even when this run never recorded a join, so an interrupted previous
-  // run's leftover endpoint gets cleaned up rather than blocking `compose down`.
+  // Container-only, same early-return discipline as `startLoopbackForwarding` and
+  // `publishedPortHost`: outside a container no run of this harness ever joins a
+  // network, so there is no leftover endpoint to clean and this would only fire a
+  // `docker network disconnect` that always fails and is always discarded - on CI and
+  // on every host checkout, at every teardown.
+  if (!isInDockerContainer()) return;
+  // Inside one it IS attempted even when this run recorded no join, so an interrupted
+  // previous run's leftover endpoint gets cleaned up rather than blocking `compose down`.
   const network = joinedNetwork ?? `${project}_default`;
   const self = selfContainerId();
   if (self !== undefined) {
@@ -521,6 +681,12 @@ if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.a
     });
   }
   main().catch((error) => {
+    // Teardown first, because `up` is the one subcommand that leaves the forwarder
+    // running on purpose. On its failure paths (the 30s "did not become ready" reject
+    // above all) that live child keeps this process's event loop alive, so `pnpm
+    // docker:up` printed its error and then HUNG, still attached to the Compose
+    // network. `runComplete` has its own `down()` and this is a no-op after it.
+    stopLoopbackForwarding();
     // Set the code rather than calling process.exit: the stack has already
     // unwound through every `finally`, and this lets stdio flush normally.
     process.exitCode = error instanceof CommandFailed ? error.status : 1;
