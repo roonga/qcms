@@ -335,20 +335,16 @@ function stopLoopbackForwarding() {
 }
 
 /**
- * Create a fresh administrator and write the credentials file the spec reads.
+ * Create the stack's one administrator and write the credentials file the spec reads.
  *
- * Split out of `up()` for `scripts/drill-restore.mjs`, which needs a SECOND
- * administrator after it restores a database. The reason is a property of the spec
- * rather than of the restore: `full-stack-conditional-form.pw.ts` is a
- * `describe.serial` journey whose first step enrols the account in MFA, and enrolment
- * is one-shot. Re-running the suite against an account that already completed it
- * fails on the enrolment step, which says nothing about whether the restore worked.
- * A new account makes the second run a genuine end-to-end exercise of the restored
- * schema instead.
+ * Split out of `up()` only to keep that function readable, and deliberately NOT
+ * exported. `createInitialAdmin` is the sole door an account comes through and it
+ * closes the moment one exists (SEC-1), so "bootstrap another administrator" is not
+ * an operation this harness can offer to anything, including `drill-restore.mjs`.
  *
  * @returns {{ email: string, password: string }}
  */
-export function bootstrapAdmin() {
+function bootstrapAdmin() {
   const credentials = {
     email: `compose.e2e.${Date.now().toString(36)}@admin.test`,
     password: `e2e-${randomBytes(24).toString("base64url")}`,

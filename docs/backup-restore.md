@@ -141,17 +141,25 @@ produces a database the product actually works on. It:
    usable, so these are checked separately, because they fail separately: a dump that
    captured the account but not its two-factor row produces a login nobody can
    complete, which looks like a successful restore until it matters.
-8. **Runs the full-stack suite again on the restored schema, with a freshly
-   bootstrapped administrator.** This authors, publishes and answers a form against
-   restored tables, so a restore that came back missing a constraint, a sequence or a
-   default fails here.
+8. **Starts a real respondent session on a form published before the dump, and reads
+   the first step back.** The drill POSTs to the portal's `/f/:slug/start`, follows the
+   `303` to `/s/:sessionId` with the session cookie the portal issued, and asserts the
+   step page carries a question label taken out of the restored `form_versions.compiled`
+   document. That path is portal -> API -> restored rows -> the stored compilation
+   (ADR-18: the portal serves the stored compilation, never a recompilation), so a
+   restore that came back missing a form, its published version, its compiled document
+   or the ability to insert a session row fails here.
 
-The second administrator is deliberate rather than a workaround. The suite is a
-serial journey whose first step enrols the account in MFA, and enrolment is one-shot,
-so re-running it as the pre-dump account fails on that step for reasons that have
-nothing to do with the restore. Splitting the two claims (the old account is checked
-by identity, the schema is checked by exercising it) tests each with the tool that can
-actually see it.
+Step 8 drives the respondent surface rather than re-running the browser suite, and
+that is forced rather than chosen. The suite is a serial journey whose first step
+enrols its account in MFA, and enrolment is one-shot, so re-running it as the pre-dump
+account fails on that step for reasons that have nothing to do with the restore.
+Bootstrapping a second administrator to run it instead is refused by design:
+`createInitialAdmin` is the only door an account comes through and it closes the moment
+one exists (SEC-1), so a drill that opened it again would be testing a system nobody
+runs. The respondent surface needs no credential at all, which is why it can carry the
+claim. Splitting the two claims (the old account is checked by identity in step 7, the
+schema is checked by being used in step 8) tests each with the tool that can see it.
 
 The seat is required (R8, `docs/PORTS.md`) because the drill drives the same
 throwaway Compose stack as `pnpm up:e2e`, and the seat picks that stack's project

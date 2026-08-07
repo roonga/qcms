@@ -353,14 +353,16 @@ export const ENV_REFERENCE = [
     process: "api",
     requirement: "optional",
     fallback: "3600000 (1h)",
-    description: "Rate-limit window for `POST /sessions`, keyed by client IP.",
+    description:
+      "Rate-limit window for `POST /sessions`. Keyed by client IP where one is visible, which in the shipped topology it is not: see `QCMS_RL_SESSION_CREATE_MAX`.",
   },
   {
     name: "QCMS_RL_SESSION_CREATE_MAX",
     process: "api",
     requirement: "optional",
     fallback: "20",
-    description: "Sessions one client IP may start per window.",
+    description:
+      "Sessions that may be started per window. **Read this as a whole-deployment ceiling, not a per-IP one.** The limiter keys on `X-Forwarded-For`/`X-Real-IP` and falls back to a single `unknown-ip` bucket, and the portal BFF builds its API request headers from scratch without forwarding either (R2 makes the BFF the only path to the API), so every respondent shares one bucket today. At the default that is 20 session starts per hour for the entire deployment: raise it to your expected peak.",
   },
   {
     name: "QCMS_RL_ANSWERS_SESSION_WINDOW_MS",
@@ -382,7 +384,8 @@ export const ENV_REFERENCE = [
     process: "api",
     requirement: "optional",
     fallback: "60000",
-    description: "Rate-limit window for answer submission, keyed by client IP.",
+    description:
+      "Rate-limit window for answer submission, keyed the same way as `QCMS_RL_SESSION_CREATE_MAX` and subject to the same caveat.",
   },
   {
     name: "QCMS_RL_ANSWERS_IP_MAX",
@@ -390,7 +393,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "300",
     description:
-      "Answers one client IP may submit per window: the wide backstop against many-session floods from one source.",
+      "Answers that may be submitted per window across every session sharing one limiter key: the wide backstop against many-session floods. **Whole-deployment in the shipped topology** for the reason given under `QCMS_RL_SESSION_CREATE_MAX`; the per-session limits above are unaffected, because a session id is always visible.",
   },
   {
     name: "QCMS_RL_SUBMIT_SESSION_WINDOW_MS",
@@ -689,7 +692,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "dev",
     description:
-      "Version stamped into the images at build time (`org.opencontainers.image.version`). `pnpm images:build` derives a real one; a bare `docker compose build` leaves it `dev`.",
+      "Version stamped into the images at build time (`org.opencontainers.image.version`). `pnpm qcms:build-images` derives a real one; a bare `docker compose build` leaves it `dev`.",
   },
   {
     name: "QCMS_CADDY_IMAGE",

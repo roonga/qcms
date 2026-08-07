@@ -6,7 +6,9 @@ import { describe, expect, it } from "vitest";
 import { REPOSITORY_ROOT } from "./docker.mjs";
 import {
   apiRequirementFromParsers,
+  BEGIN_MARKER,
   currentBlock,
+  END_MARKER,
   ENV_REFERENCE,
   OPERATIONS_DOC,
   rateClassSuffixes,
@@ -153,8 +155,16 @@ describe("the generated block in the operations guide", () => {
     }
   });
 
-  it("sits inside the published operations guide", () => {
+  it("is the guide's one generated region, delimited once", () => {
+    // Deliberately NOT `expect(doc).toContain(currentBlock())`: `currentBlock()` is a
+    // slice of this very document, so that assertion cannot fail and reads as coverage
+    // it does not provide. What is worth asserting is that there is exactly one region
+    // to slice. A second copy of either marker would leave `currentBlock()` describing
+    // one region while a reader read the other, and the drift test above would then
+    // pass while the visible table rotted.
     const doc = readFileSync(join(REPOSITORY_ROOT, OPERATIONS_DOC), "utf8");
-    expect(doc).toContain(currentBlock());
+    expect(doc.split(BEGIN_MARKER)).toHaveLength(2);
+    expect(doc.split(END_MARKER)).toHaveLength(2);
+    expect(doc.indexOf(BEGIN_MARKER)).toBeLessThan(doc.indexOf(END_MARKER));
   });
 });

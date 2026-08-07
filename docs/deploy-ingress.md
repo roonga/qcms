@@ -109,6 +109,7 @@ the edge:
 | `request_body { max_size 1MB }` | The edge-side match for the API's own `QCMS_BODY_LIMIT_BYTES` cap, so an oversized request is rejected before it crosses into a Node process. Raise both together or neither. |
 | `encode zstd gzip` | Response compression at the edge. |
 | `header_up X-Forwarded-Proto https` (per site) | Invariant 5. The hop to the app is plain HTTP on the bridge network, so nothing else would tell Next the browser-facing scheme. |
+| `header_up X-Forwarded-For {remote_host}` (per site) | **Set, never append.** Caddy appends by default and the API's rate limiter reads the first comma-separated entry, so an appended header would let a caller choose its own limiter bucket. `{remote_host}` is the peer address the edge can actually vouch for. If you put another proxy in front of Caddy, configure `trusted_proxies` there or you are trusting a client header again. Note what this does **not** buy today: the portal BFF builds its API requests from scratch and forwards neither header, so the API still sees one bucket - see the caveat on `QCMS_RL_SESSION_CREATE_MAX` in `docs/operations.md`. |
 
 Caddy redirects HTTP to HTTPS on its own; there is no rule to write for it.
 

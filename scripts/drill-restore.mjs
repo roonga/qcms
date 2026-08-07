@@ -235,13 +235,16 @@ function quoteSql(value) {
 }
 
 /**
- * Request a form the pre-dump suite published, and assert the portal serves it.
+ * The slug of a form the seeding run published, and the labels of its compiled
+ * document, both read back out of the RESTORED database.
  *
- * The slug is read out of the restored database rather than remembered from before
- * the dump, which is the stronger direction: it proves the row came back, and then
- * proves the running product can serve what that row points at.
+ * Reading them from the restore rather than remembering them from before the dump is
+ * the stronger direction: it proves the rows came back, and gives the next step
+ * something to hold the running product against.
+ *
+ * @returns {{ slug: string, labels: string[] }}
  */
-async function assertPublishedFormServes() {
+function readRestoredPublishedForm() {
   const slug = psql([
     "--tuples-only",
     "--no-align",
@@ -259,24 +262,126 @@ async function assertPublishedFormServes() {
       "drill-restore: the restored database has no published form, so the seeding run never got that far",
     );
   }
-  const url = `http://localhost:${String(harnessPort("portal"))}/f/${slug}`;
-  const response = await fetch(url);
-  const body = await response.text();
-  if (!response.ok) {
+  const labelJson = psql([
+    "--tuples-only",
+    "--no-align",
+    "--command",
+    // Every A2UI control carries `props.label` (packages/a2ui-compiler mapping), so
+    // this pulls the visible text out of the stored compilation without the drill
+    // having to know the document's shape. `$.**` walks any depth.
+    `select jsonb_path_query_array(v.compiled, '$.**.label')
+       from forms f
+       join form_versions v on v.form_id = f.form_id
+      where f.slug = ${quoteSql(slug)}
+      order by v.published_at desc
+      limit 1`,
+  ]).trim();
+  /** @type {unknown} */
+  const parsed = JSON.parse(labelJson === "" ? "[]" : labelJson);
+  // Short strings are dropped because the same `label` prop names radio and checkbox
+  // children, and a page that matched only on "Yes" would be matching on a word any
+  // shell might contain. What survives is authored question text.
+  const labels = (Array.isArray(parsed) ? parsed : []).filter(
+    (value) => typeof value === "string" && value.length >= 4,
+  );
+  if (labels.length === 0) {
     throw new Error(
-      `drill-restore: the portal answered ${String(response.status)} for the restored form ${slug} (${url})`,
+      `drill-restore: the restored compiled document for ${slug} carries no question label, so there is nothing to hold the served page against`,
     );
   }
-  // A 200 carrying an error shell would still be a 200. The form's own slug appearing
-  // in the rendered document is the cheapest proof that this is the form it served
-  // and not a generic page.
-  if (!body.includes(slug)) {
+  return { slug, labels: /** @type {string[]} */ (labels) };
+}
+
+/**
+ * Undo the entity escaping Next applies to text it renders into HTML.
+ *
+ * @param {string} html
+ * @returns {string}
+ */
+function decodeEntities(html) {
+  return html
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&#x27;", "'")
+    .replaceAll("&#39;", "'")
+    .replaceAll("&amp;", "&");
+}
+
+/**
+ * Start a real respondent session on `slug` and assert the step it serves came out of
+ * the restored compiled document.
+ *
+ * This is the drill's product-level claim, and every hop of it is load-bearing:
+ *
+ *  - `POST /f/:slug/start` is the BFF route the entry form posts to. It calls the API,
+ *    which must find the form, find its published version and insert a session row -
+ *    all in the restored database. Success is a 303 to `/s/:sessionId`; a lost form
+ *    redirects back to `/f/:slug?state=notfound` and a lost version to `state=closed`,
+ *    so the failure modes are distinguishable rather than merely "not a session".
+ *  - `GET /s/:sessionId` with the cookie the portal just issued renders the first step
+ *    server-side from what the API returns, which is the STORED compilation (ADR-18,
+ *    never a recompilation). Asserting a label from `form_versions.compiled` appears
+ *    there is what proves the restored jsonb is the thing being served.
+ *
+ * `GET /f/:slug` is deliberately not used: that page is static, takes no database and
+ * no API call, and echoes its own slug by construction, so it answers 200 for a slug
+ * that does not exist and against a completely empty database.
+ *
+ * Exported so a probe can point it at a slug that is not there and watch it fail. A
+ * check nobody has seen go red is not yet evidence.
+ *
+ * @param {string} slug
+ * @param {string[]} labels
+ */
+export async function assertPortalServesRestoredForm(slug, labels) {
+  const base = `http://localhost:${String(harnessPort("portal"))}`;
+  const start = await fetch(`${base}/f/${slug}/start`, { method: "POST", redirect: "manual" });
+  if (start.status !== 303) {
     throw new Error(
-      `drill-restore: the portal served ${String(response.status)} for ${slug} but the document does not mention it`,
+      `drill-restore: POST /f/${slug}/start answered ${String(start.status)}, expected a 303 into the flow`,
+    );
+  }
+  const target = new URL(start.headers.get("location") ?? "", base);
+  const refused = target.searchParams.get("state");
+  if (refused !== null) {
+    throw new Error(
+      `drill-restore: the portal refused to start a session on the restored form ${slug} (state=${refused}; "notfound" means the form row did not come back, "closed" means its published version did not)`,
+    );
+  }
+  const sessionId = target.pathname.startsWith("/s/") ? target.pathname.slice(3) : "";
+  if (sessionId === "") {
+    throw new Error(
+      `drill-restore: the portal redirected to ${target.pathname} rather than into a session`,
+    );
+  }
+  // The session bearer lives in an httpOnly cookie the BFF sets on the 303. Replaying
+  // it is what makes the next request the same respondent rather than a new visitor.
+  const cookie = start.headers
+    .getSetCookie()
+    .map((value) => value.split(";")[0])
+    .join("; ");
+  if (cookie === "") {
+    throw new Error(
+      `drill-restore: the portal started session ${sessionId} but issued no session cookie`,
+    );
+  }
+
+  const step = await fetch(`${base}/s/${sessionId}`, { headers: { cookie } });
+  const body = decodeEntities(await step.text());
+  if (!step.ok) {
+    throw new Error(
+      `drill-restore: the portal answered ${String(step.status)} for the restored session ${sessionId}`,
+    );
+  }
+  const served = labels.find((label) => body.includes(label));
+  if (served === undefined) {
+    throw new Error(
+      `drill-restore: the step page for session ${sessionId} carries none of the ${String(labels.length)} question labels in the restored compiled document, so the portal served a recovery or error shell rather than the form`,
     );
   }
   process.stdout.write(
-    `drill-restore: the portal served the pre-dump form ${slug} from the restored database\n`,
+    `drill-restore: started session ${sessionId} on the pre-dump form ${slug} and the portal served its question ${JSON.stringify(served)} from the restored compilation\n`,
   );
 }
 
@@ -341,8 +446,8 @@ async function drill() {
     // performed. That is the half of the restore a fresh-account smoke cannot prove.
     assertAdminSurvived(seededAdmin.email);
 
-    step("serving a pre-dump form from the restored database, through the portal");
-    // The product-level smoke, and it deliberately drives the RESPONDENT surface.
+    step("answering a pre-dump form from the restored database, through the portal");
+    // The product-level claim, and it deliberately drives the RESPONDENT surface.
     //
     // Two controls rule out the obvious alternatives. Both are correct, so the drill
     // works with them rather than around them:
@@ -354,11 +459,16 @@ async function drill() {
     //    the moment one exists (SEC-1). A drill that defeated that control in order to
     //    test a restore would be testing a system nobody runs.
     //
-    // The respondent surface needs no credential, and requesting a form published
-    // BEFORE the dump exercises the whole stack against restored data: the portal
-    // renders, the API reads, and what it serves is the compiled document that came
-    // back in the dump (ADR-18: the stored compilation, never a recompilation).
-    await assertPublishedFormServes();
+    // The respondent surface needs no credential, so it can carry the claim: starting
+    // a session on a form published BEFORE the dump drives portal -> API -> restored
+    // rows, and reading the step back proves what the API served came out of the
+    // restored compilation rather than being regenerated (ADR-18).
+    //
+    // The API was restarted two steps ago, which also resets the in-memory rate-limit
+    // store the seeding run drew down. Without that restart the session start could be
+    // 429'd by the seeding run's own traffic and read as a failed restore.
+    const restored = readRestoredPublishedForm();
+    await assertPortalServesRestoredForm(restored.slug, restored.labels);
 
     step("PASSED: the dump restored and the product works on top of it");
   } finally {

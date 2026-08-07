@@ -47,8 +47,18 @@
 	import qcms_edge
 	# X-Forwarded-Proto is what tells the Next app the browser-facing scheme is
 	# https, even though this hop is plain HTTP on a private bridge network.
+	#
+	# X-Forwarded-For is set, not appended, and that distinction is the control.
+	# Caddy appends by default, and the API's rate limiter takes the FIRST comma
+	# separated entry, so an appended header lets a caller pick its own limiter
+	# bucket by sending an X-Forwarded-For of its choosing. `{remote_host}` is the
+	# address of the peer Caddy is actually talking to, which is the only one the
+	# edge can vouch for. There is no `trusted_proxies` here because there is no
+	# proxy in front of this one in the documented topology; put one in front and
+	# you must configure it, or you are back to trusting a client header.
 	reverse_proxy portal:3000 {
 		header_up X-Forwarded-Proto https
+		header_up X-Forwarded-For {remote_host}
 	}
 }
 
@@ -56,5 +66,6 @@
 	import qcms_edge
 	reverse_proxy admin:3000 {
 		header_up X-Forwarded-Proto https
+		header_up X-Forwarded-For {remote_host}
 	}
 }

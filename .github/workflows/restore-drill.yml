@@ -3,8 +3,9 @@ name: Restore drill
 # Task 036, exit criterion 1. Proves that a pg_dump of a QCMS database restores and
 # that the product still works on top of the restored data. Weekly rather than
 # per-push because it boots the whole Compose stack and runs the full-stack browser
-# suite twice: the value is in catching drift over time (a schema change that does
-# not round-trip, a dump missing something the auth tables need), not in gating a PR.
+# suite to seed real domain data: the value is in catching drift over time (a schema
+# change that does not round-trip, a dump missing something the auth tables need),
+# not in gating a PR.
 #
 # Monday 05:00 UTC: the fourth free weekly slot, after audit (02:00), CodeQL (03:00)
 # and the test-image mirror (04:17). Staggered so four Docker-heavy jobs are not

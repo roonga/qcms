@@ -121,12 +121,12 @@ Validated at boot by `apps/api/src/config.ts`, which collects every problem and 
 | `QCMS_BODY_LIMIT_BYTES` | optional | `1000000 (1MB)` | Maximum request body the API accepts (SEC-9). Keep the ingress ceiling in step with it: both recipes set one. |
 | `QCMS_ANTIABUSE_MIN_SUBMIT_MS` | optional | `0 (off)` | Global floor on the gap between session start and submit. A faster submit is silently flagged; a form may set its own floor that overrides this. |
 | `QCMS_ANTIABUSE_HONEYPOT_FIELD` | optional | `the compiler's HONEYPOT_FIELD_NAME` | Name of the decoy submit field. It is a contract between the compiler and the API, so override it only if you also change the compiler constant. |
-| `QCMS_RL_SESSION_CREATE_WINDOW_MS` | optional | `3600000 (1h)` | Rate-limit window for `POST /sessions`, keyed by client IP. |
-| `QCMS_RL_SESSION_CREATE_MAX` | optional | `20` | Sessions one client IP may start per window. |
+| `QCMS_RL_SESSION_CREATE_WINDOW_MS` | optional | `3600000 (1h)` | Rate-limit window for `POST /sessions`. Keyed by client IP where one is visible, which in the shipped topology it is not: see `QCMS_RL_SESSION_CREATE_MAX`. |
+| `QCMS_RL_SESSION_CREATE_MAX` | optional | `20` | Sessions that may be started per window. **Read this as a whole-deployment ceiling, not a per-IP one.** The limiter keys on `X-Forwarded-For`/`X-Real-IP` and falls back to a single `unknown-ip` bucket, and the portal BFF builds its API request headers from scratch without forwarding either (R2 makes the BFF the only path to the API), so every respondent shares one bucket today. At the default that is 20 session starts per hour for the entire deployment: raise it to your expected peak. |
 | `QCMS_RL_ANSWERS_SESSION_WINDOW_MS` | optional | `5000` | Rate-limit window for answer submission, keyed by session. |
 | `QCMS_RL_ANSWERS_SESSION_MAX` | optional | `10` | Answers one session may submit per window (a burst ceiling, about 2/s sustained). |
-| `QCMS_RL_ANSWERS_IP_WINDOW_MS` | optional | `60000` | Rate-limit window for answer submission, keyed by client IP. |
-| `QCMS_RL_ANSWERS_IP_MAX` | optional | `300` | Answers one client IP may submit per window: the wide backstop against many-session floods from one source. |
+| `QCMS_RL_ANSWERS_IP_WINDOW_MS` | optional | `60000` | Rate-limit window for answer submission, keyed the same way as `QCMS_RL_SESSION_CREATE_MAX` and subject to the same caveat. |
+| `QCMS_RL_ANSWERS_IP_MAX` | optional | `300` | Answers that may be submitted per window across every session sharing one limiter key: the wide backstop against many-session floods. **Whole-deployment in the shipped topology** for the reason given under `QCMS_RL_SESSION_CREATE_MAX`; the per-session limits above are unaffected, because a session id is always visible. |
 | `QCMS_RL_SUBMIT_SESSION_WINDOW_MS` | optional | `60000` | Rate-limit window for `POST /sessions/{id}/submit`, keyed by session. |
 | `QCMS_RL_SUBMIT_SESSION_MAX` | optional | `5` | Submit attempts one session may make per window. |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | optional | (none) | OTLP collector endpoint (ADR-34). Unset is the default and a hard no-op: no SDK starts and no span is produced. Setting it turns on tracing and adds `trace_id`/`span_id` to every log line. |
@@ -186,7 +186,7 @@ Consumed by the Compose files themselves to build the topology; the containers n
 | `QCMS_PORTAL_PORT` | optional | `7000` | Host port the portal is published on. Comes from the stable block in `docs/PORTS.md` (R8); move it to run beside a dev server on the same seat. |
 | `QCMS_ADMIN_PORT` | optional | `7040` | Host port the admin app is published on. Same allocation rules as the portal. |
 | `QCMS_BIND_ADDRESS` | optional | `127.0.0.1` | Interface the two published apps bind to. The loopback default is a control: a bare publish would listen on every interface, ahead of the host firewall. Widen it only when a separate ingress host must reach these containers. |
-| `QCMS_IMAGE_VERSION` | optional | `dev` | Version stamped into the images at build time (`org.opencontainers.image.version`). `pnpm images:build` derives a real one; a bare `docker compose build` leaves it `dev`. |
+| `QCMS_IMAGE_VERSION` | optional | `dev` | Version stamped into the images at build time (`org.opencontainers.image.version`). `pnpm qcms:build-images` derives a real one; a bare `docker compose build` leaves it `dev`. |
 | `QCMS_CADDY_IMAGE` | optional | `caddy:2-alpine` | Ingress image, used only by the `docker-compose.proxy.yml` overlay. |
 | `QCMS_PORTAL_DOMAIN` | conditional | - | Public hostname Caddy serves the portal on. Required by the proxy overlay; unused without it. |
 | `QCMS_ADMIN_DOMAIN` | conditional | - | Public hostname Caddy serves the admin app on. Required by the proxy overlay; unused without it. |
