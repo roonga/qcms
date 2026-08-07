@@ -64,25 +64,59 @@ describe("readStepContext", () => {
     await expect(readCookie("{}")).resolves.toEqual({ values: {}, errors: {}, constraints: {} });
   });
 
-  it("rejects a hand-forged cookie whose members are the wrong type", async () => {
-    // Each of these was previously ACCEPTED verbatim by the bare cast and handed
-    // to the renderer: a non-string error rendered as-is, and a non-string
-    // constraint reached the authored-message lookup.
-    const forged = [
-      JSON.stringify({ errors: { q_plate: 42 } }),
-      JSON.stringify({ errors: { q_plate: { toString: "boom" } } }),
-      JSON.stringify({ constraints: { q_plate: ["pattern"] } }),
-      JSON.stringify({ values: { q_plate: { nested: "object" } } }),
-      JSON.stringify({ values: { q_plate: [1, 2, 3] } }),
-      JSON.stringify({ values: null, errors: null, constraints: null }),
-    ];
-    for (const raw of forged) {
-      await expect(readCookie(raw), raw).resolves.toBeUndefined();
-    }
+  it("drops a hand-forged entry whose value is the wrong type, and keeps the rest", async () => {
+    // Each of these values was previously ACCEPTED verbatim by the bare cast and
+    // handed to the renderer: a non-string error rendered as-is, and a non-string
+    // constraint reached the authored-message lookup. None of them reaches it now.
+    const context = await readCookie(
+      JSON.stringify({
+        values: { q_plate: "ABC-123", q_bad: { nested: "object" }, q_mixed: [1, 2, 3] },
+        errors: { q_plate: "That does not look like a plate.", q_bad: 42 },
+        constraints: { q_plate: "pattern", q_bad: ["pattern"] },
+      }),
+    );
+    expect(context).toEqual({
+      values: { q_plate: "ABC-123" },
+      errors: { q_plate: "That does not look like a plate." },
+      constraints: { q_plate: "pattern" },
+    });
   });
 
-  it("rejects a cookie that is not an object at all", async () => {
-    for (const raw of ["null", '"a string"', "42", "true", "[]"]) {
+  /**
+   * The reason the records are lenient per entry rather than all-or-nothing. A
+   * no-JS number field whose raw text is not numeric decodes to `NaN`
+   * (`step-form.ts`, which leaves the judgement to the API), and `JSON.stringify`
+   * writes `NaN` as `null`. So the cookie legitimately carries an out-of-union
+   * value in exactly the case where the respondent most needs the error message
+   * back. Rejecting the whole context here would blank the step instead.
+   */
+  it("keeps the error message when an answer value did not survive JSON (NaN -> null)", async () => {
+    const written = JSON.stringify({
+      values: { q_odometer: Number("abc"), q_plate: "ABC-123" },
+      errors: { q_odometer: "Enter a number." },
+      constraints: { q_odometer: "encoding" },
+    });
+    expect(written).toContain('"q_odometer":null');
+    await expect(readCookie(written)).resolves.toEqual({
+      values: { q_plate: "ABC-123" },
+      errors: { q_odometer: "Enter a number." },
+      constraints: { q_odometer: "encoding" },
+    });
+  });
+
+  it("rejects the whole cookie when the envelope itself is not a context", async () => {
+    // Structure is strict even though content is lenient: a member that is not a
+    // record at all did not come from `writeStepContext`.
+    for (const raw of [
+      "null",
+      '"a string"',
+      "42",
+      "true",
+      "[]",
+      JSON.stringify({ values: null, errors: null, constraints: null }),
+      JSON.stringify({ errors: "not a record" }),
+      JSON.stringify({ errors: ["not", "a", "record"] }),
+    ]) {
       await expect(readCookie(raw), raw).resolves.toBeUndefined();
     }
   });

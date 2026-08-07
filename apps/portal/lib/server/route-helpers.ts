@@ -96,12 +96,41 @@ export async function writeStepContext(ctx: StepContext): Promise<void> {
 const answerValueSchema = z.union([z.string(), z.number(), z.boolean(), z.array(z.string())]);
 
 /**
+ * A record whose entries must match `value`; an entry that does not is **dropped,
+ * not fatal**. Per entry rather than all-or-nothing because one unreadable answer
+ * must not cost the respondent the error messages sitting beside it.
+ *
+ * The concrete case is not hypothetical. A no-JS number field whose raw text is
+ * not numeric decodes to `NaN` (`step-form.ts` says so, and leaves the judgement
+ * to the API, which refuses it). `JSON.stringify` writes `NaN` as `null`, so the
+ * cookie legitimately carries a value outside `A2UIAnswerValue` in exactly the
+ * case where the respondent most needs the error message back. All-or-nothing
+ * validation would blank the whole step instead of re-rendering "enter a number".
+ */
+function lenientRecord<T>(value: z.ZodType<T>) {
+  return z.record(z.string(), z.unknown()).transform((raw) => {
+    const kept: [string, T][] = [];
+    for (const [key, entry] of Object.entries(raw)) {
+      const parsed = value.safeParse(entry);
+      if (parsed.success) kept.push([key, parsed.data]);
+    }
+    return Object.fromEntries(kept);
+  });
+}
+
+/**
  * The wire shape of `STEP_CTX_COOKIE` (issue #327). The cookie is `httpOnly`, but
  * that only blocks script access from the page: it is unsigned, so a respondent
  * can set it by hand in their own browser and hand this seam any JSON they like.
  * The kernel parses everything it is handed and this BFF seam does the same, so
- * the `Partial<StepContext>` the caller gets back is a shape that was checked
- * rather than one that was asserted.
+ * the `StepContext` the caller gets back is a shape that was checked rather than
+ * one that was asserted.
+ *
+ * Structure is strict and content is lenient, which is the split that matters
+ * here: anything that is not this envelope is not a context we wrote, so it is
+ * refused outright, while a member that IS the right kind of container keeps the
+ * entries that read and drops the ones that do not. Either way nothing
+ * unvalidated reaches the renderer.
  *
  * Every member is optional because the cookie is a re-render convenience, not a
  * contract: a context written by an earlier build (before `constraints` existed)
@@ -114,17 +143,17 @@ const answerValueSchema = z.union([z.string(), z.number(), z.boolean(), z.array(
  * them (`isAuthoredKey`, issue #324), not in carrying the string.
  */
 const stepContextSchema = z.object({
-  values: z.record(z.string(), answerValueSchema).optional(),
-  errors: z.record(z.string(), z.string()).optional(),
-  constraints: z.record(z.string(), z.string()).optional(),
+  values: lenientRecord(answerValueSchema).optional(),
+  errors: lenientRecord(z.string()).optional(),
+  constraints: lenientRecord(z.string()).optional(),
 });
 
 /**
  * Read the no-JS step re-render context on the flow page (044). Best-effort, and
- * total over hostile input: unparseable JSON and JSON that does not match
- * `stepContextSchema` both degrade to `undefined`, which is what an absent cookie
- * already returns, so a forged cookie costs the respondent their re-populated
- * values and nothing else. Never throws into a respondent's render.
+ * total over hostile input: unparseable JSON and JSON that is not the context
+ * envelope both degrade to `undefined`, which is what an absent cookie already
+ * returns, so a forged cookie costs the respondent their re-populated values and
+ * nothing else. Never throws into a respondent's render, which is a blank page.
  */
 export async function readStepContext(): Promise<StepContext | undefined> {
   const store = await cookies();
