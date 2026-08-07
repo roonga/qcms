@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 
 import { Alert, Button, Dialog, Select, TextField } from "@/components/kit";
 import { flagReasonText } from "@/components/ops/ops-tags";
@@ -10,6 +10,7 @@ import { answerText } from "@/lib/ops/answers";
 import type { ErasureReason } from "@/lib/ops/erasure";
 import { DEFAULT_ERASURE_REASON, ERASURE_REASONS, isErasureConfirmed } from "@/lib/ops/erasure";
 import { labelFor, orderedAnswerKeys, type QuestionPin } from "@/lib/ops/labels";
+import { focusPostAction } from "@/lib/ops/post-action-focus";
 import { unexpected } from "@/lib/ops/unexpected";
 import type {
   EraseOutcome,
@@ -73,7 +74,30 @@ export function ResponseDetail({
   const [unflagNote, setUnflagNote] = useState<string>("");
   const [flagged, setFlagged] = useState<string | null>(detail.flaggedReason);
   const [dialog, setDialog] = useState<"erase" | "unflag" | null>(null);
+  const [released, setReleased] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const heading = useRef<HTMLHeadingElement>(null);
+
+  // Both actions on this screen remove the button that opened their confirmation: the
+  // erase button goes with the answers it belonged to, and the release button goes with
+  // the whole flag panel. Focus is therefore placed deliberately (issue #308).
+  //
+  // The two land in different places because different things replaced them. After an
+  // erasure the tombstone IS the post-action state, so its heading is where an operator
+  // should be standing; its id is looked up rather than held in a ref because the card
+  // is also rendered by the route on a later visit, and threading a ref through for one
+  // of its two callers would put this screen's concern inside it. After a release
+  // nothing replaces the panel, so the successor is the screen's own heading, with the
+  // polite region that just announced the outcome directly beneath it.
+  useEffect(() => {
+    if (tombstone === null) return undefined;
+    return focusPostAction(document.getElementById("qcms-tombstone-heading"));
+  }, [tombstone]);
+
+  useEffect(() => {
+    if (!released) return undefined;
+    return focusPostAction(heading.current);
+  }, [released]);
 
   const runUnflag = useCallback(() => {
     startTransition(() => {
@@ -90,6 +114,7 @@ export function ResponseDetail({
           );
           setFlagged(null);
           setDialog(null);
+          setReleased(true);
         })
         // `.catch` is not defensive decoration. `adminApiFetch` documents that it does not
         // throw for a non-2xx, which is true and is the trap: a transport failure still
@@ -138,6 +163,8 @@ export function ResponseDetail({
     >
       <h2
         id="qcms-response-heading"
+        ref={heading}
+        tabIndex={-1}
         className="qcms-ops-title text-lg font-semibold text-(--color-text)"
       >
         {t("ops.detail.heading", { sessionId: detail.sessionId })}

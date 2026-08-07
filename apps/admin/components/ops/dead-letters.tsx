@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 
 import { Alert, Button, Dialog } from "@/components/kit";
+import { focusPostAction } from "@/lib/ops/post-action-focus";
 import type { DeadLetterItem } from "@/lib/ops/types";
 import { unexpected } from "@/lib/ops/unexpected";
 import { formatDateTime } from "@/lib/i18n/format";
@@ -53,6 +54,17 @@ export function DeadLetters({
   const [state, setState] = useState<RedeliverState>(IDLE);
   const [confirming, setConfirming] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const heading = useRef<HTMLHeadingElement>(null);
+
+  // Both redelivery paths remove the control that started them - the row's own button,
+  // or the bulk confirmation whose trigger disappears with the last row - so focus is
+  // placed on the queue's heading rather than left to a restore that has nothing to
+  // restore to (issue #308). `state` is a fresh object on every completed call, so this
+  // fires once per action and not on the `IDLE` reset a button press does first.
+  useEffect(() => {
+    if (state.status !== "done") return undefined;
+    return focusPostAction(heading.current);
+  }, [state]);
 
   const run = useCallback((call: () => Promise<RedeliverState>) => {
     startTransition(() => {
@@ -79,7 +91,12 @@ export function DeadLetters({
       data-testid="qcms-dead-letters"
     >
       <div className="flex flex-col gap-1">
-        <h2 id="qcms-dead-letters-heading" className="text-lg font-semibold text-(--color-text)">
+        <h2
+          id="qcms-dead-letters-heading"
+          ref={heading}
+          tabIndex={-1}
+          className="text-lg font-semibold text-(--color-text)"
+        >
           {t("ops.deadLetters.heading")}
         </h2>
         <p className="text-sm text-(--color-text-muted)">{t("ops.deadLetters.intro")}</p>

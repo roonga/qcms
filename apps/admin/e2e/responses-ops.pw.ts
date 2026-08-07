@@ -489,8 +489,15 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
         .getByRole("alertdialog")
         .getByRole("button", { name: "Redeliver all of them" })
         .click();
+      // Pluralised, because `remaining` is not a fixed number: it is whatever the
+      // outbox held when this test drove its passes, and the axe sweep earlier in the
+      // run now drains the backlog of submissions made before any endpoint existed
+      // (issue #306). The screen says "1 delivery is" for one, and a hard-coded plural
+      // here would fail on the count rather than on the behaviour.
       await expect(page.getByTestId("qcms-redeliver-summary")).toHaveText(
-        `${String(remaining)} deliveries are queued for the next pass.`,
+        remaining === 1
+          ? "1 delivery is queued for the next pass."
+          : `${String(remaining)} deliveries are queued for the next pass.`,
       );
 
       await deliverer.pass();

@@ -194,7 +194,22 @@ function DeliveryRows({
                       <h4 className="text-sm font-semibold text-(--color-text)">
                         {t("ops.deliveries.responseBody")}
                       </h4>
-                      <pre className="qcms-snippet" data-testid="qcms-delivery-response-body">
+                      {/* Focusable, and named, because it scrolls (issue #309). A
+                          rejecting consumer can answer with an HTML error page, and
+                          `.qcms-snippet` caps that at 12rem with `overflow: auto` - so
+                          without `tabIndex` the rest of the body is reachable by mouse
+                          wheel and by nothing else, which is a WCAG 2.1.1 failure and
+                          is what axe reports as `scrollable-region-focusable`. The role
+                          is what lets it carry a name: `aria-label` on a bare `<pre>`
+                          is a prohibited attribute (its role is generic), so the label
+                          would have been dropped rather than announced. */}
+                      <pre
+                        className="qcms-snippet"
+                        tabIndex={0}
+                        role="region"
+                        aria-label={t("ops.deliveries.responseBody")}
+                        data-testid="qcms-delivery-response-body"
+                      >
                         {row.responseSnippet === null || row.responseSnippet === ""
                           ? t("ops.deliveries.emptyBody")
                           : row.responseSnippet}

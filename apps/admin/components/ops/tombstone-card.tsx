@@ -24,7 +24,14 @@ export function TombstoneCard({ tombstone }: { readonly tombstone: Tombstone }) 
       className="qcms-tombstone"
       data-testid="qcms-tombstone"
     >
-      <h3 id="qcms-tombstone-heading" className="text-base font-semibold text-(--color-text)">
+      {/* Focusable so the detail screen can put focus here the moment an erasure
+          replaces the answers with this card (issue #308). `-1` keeps it out of the tab
+          order: it is a destination, not a stop. */}
+      <h3
+        id="qcms-tombstone-heading"
+        tabIndex={-1}
+        className="text-base font-semibold text-(--color-text)"
+      >
         {t("ops.tombstone.title")}
       </h3>
       <p className="text-sm text-(--color-text-muted)">{t("ops.tombstone.body")}</p>
