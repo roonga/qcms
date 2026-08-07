@@ -147,7 +147,7 @@ Read on the server only. The portal holds no database credential and reaches the
 | `QCMS_SECURE_COOKIES` | optional | `true when NODE_ENV=production` | Whether respondent session cookies carry `Secure`. Set it false only for a plain-HTTP local evaluation. |
 | `NODE_ENV` | optional | `production (set by the image)` | Decides the default for `QCMS_SECURE_COOKIES` when that is unset. |
 | `QCMS_FLAG_CHALLENGE_PROVIDER` | optional | `none` | Must match the API's value. `turnstile` makes the portal render the widget; anything else renders none. |
-| `QCMS_TURNSTILE_SITE_KEY` | conditional | - | Turnstile site key for the rendered widget. Required when the portal's challenge provider is `turnstile`. Note the prefix: the API reads the same key as `TURNSTILE_SITE_KEY`, so set both. |
+| `QCMS_TURNSTILE_SITE_KEY` | conditional | - | Turnstile site key for the rendered widget. Required when the portal's challenge provider is `turnstile`. Note the prefix: the API reads the same key under the unprefixed `TURNSTILE_SITE_KEY`, so today you set both. Issue #331 consolidates the two spellings onto this prefixed one. |
 | `QCMS_PORTAL_THEME` | optional | `slate` | Managed portal theme (ADR-30). An unrecognised value falls back silently. |
 | `QCMS_PORTAL_MODE` | optional | `auto` | Default light/dark mode: `light`, `dark` or `auto`. |
 | `QCMS_PORTAL_CORNERS` | optional | `subtle` | Corner-radius token group. |

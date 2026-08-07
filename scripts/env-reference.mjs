@@ -501,7 +501,7 @@ export const ENV_REFERENCE = [
     requirement: "conditional",
     fallback: "",
     description:
-      "Turnstile site key for the rendered widget. Required when the portal's challenge provider is `turnstile`. Note the prefix: the API reads the same key as `TURNSTILE_SITE_KEY`, so set both.",
+      "Turnstile site key for the rendered widget. Required when the portal's challenge provider is `turnstile`. Note the prefix: the API reads the same key under the unprefixed `TURNSTILE_SITE_KEY`, so today you set both. Issue #331 consolidates the two spellings onto this prefixed one.",
   },
   {
     name: "QCMS_PORTAL_THEME",
