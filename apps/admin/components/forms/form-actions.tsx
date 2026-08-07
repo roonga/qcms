@@ -10,6 +10,7 @@ import { IDLE_FORM_STATUS, IDLE_PUBLISH } from "@/lib/forms/builder-state";
 import { freezeSummary, nextVersion } from "@/lib/forms/publish";
 import type { DraftForm, FormIssue } from "@/lib/forms/types";
 import { t, tPlural } from "@/lib/i18n/en";
+import { unexpected } from "@/lib/ops/unexpected";
 
 /**
  * The form-level actions: publish, and close/reopen (task 034; wireframe
@@ -66,23 +67,43 @@ export function FormActions({
 
   const runPublish = useCallback(() => {
     startTransition(() => {
-      void publish().then((state) => {
-        setPublished(state);
-        // A rejection keeps the author in the dialog long enough to read that it
-        // failed, then hands them the anchored list on the page behind it, where
-        // the rules and steps it points at actually are.
-        setDialog(null);
-      });
+      void publish()
+        .then((state) => {
+          setPublished(state);
+          // A rejection keeps the author in the dialog long enough to read that it
+          // failed, then hands them the anchored list on the page behind it, where
+          // the rules and steps it points at actually are.
+          setDialog(null);
+        })
+        // `.catch` is not defensive decoration. `adminApiFetch` documents that it does not
+        // throw for a non-2xx, which is true and is the trap: a transport failure still
+        // rejects with a TypeError, and `readResult`'s `response.json()` rejects on a
+        // truncated body. Without this the promise rejects unhandled, no state is set,
+        // and the dialog sits there looking like a slow network forever.
+        //
+        // The dialog closes on this path for the same reason the resolved one closes it:
+        // the publish result banner lives on the page behind it, so leaving the dialog up
+        // would hide the very sentence that says nothing was published.
+        .catch(() => {
+          setPublished({ status: "error", message: unexpected() });
+          setDialog(null);
+        });
     });
   }, [publish]);
 
   const runStatus = useCallback(
     (action: "close" | "reopen") => {
       startTransition(() => {
-        void setStatus(action).then((state) => {
-          setLifecycle(state);
-          if (state.status === "changed") setDialog(null);
-        });
+        void setStatus(action)
+          .then((state) => {
+            setLifecycle(state);
+            if (state.status === "changed") setDialog(null);
+          })
+          // The same trap as `runPublish`. The dialog stays open here, exactly as it does
+          // for a returned failure, because this dialog renders the lifecycle error itself.
+          .catch(() => {
+            setLifecycle({ status: "error", message: unexpected() });
+          });
       });
     },
     [setStatus],

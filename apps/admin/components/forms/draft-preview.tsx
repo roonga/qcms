@@ -15,6 +15,7 @@ import type { DraftPreviewState } from "@/lib/forms/builder-state";
 import { IDLE_DRAFT_PREVIEW } from "@/lib/forms/builder-state";
 import type { CompiledStep, DraftForm } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
+import { unexpected } from "@/lib/ops/unexpected";
 
 /**
  * The live draft preview (task 034; wireframe "preview").
@@ -97,9 +98,21 @@ export function DraftPreview({
       setState((current) =>
         current.status === "ok" ? current : { ...current, status: "loading" },
       );
-      void preview({ draft, answers }).then((next) => {
-        if (requestId.current === id) setState(next);
-      });
+      void preview({ draft, answers })
+        .then((next) => {
+          if (requestId.current === id) setState(next);
+        })
+        // `.catch` is not defensive decoration. `adminApiFetch` documents that it does not
+        // throw for a non-2xx, which is true and is the trap: a transport failure still
+        // rejects with a TypeError, and `readResult`'s `response.json()` rejects on a
+        // truncated body. Without this the promise rejects unhandled, no state is set,
+        // and the pane sits on "loading" looking like a slow network forever.
+        //
+        // Guarded by the same request id as the success path: a stale rejection has no
+        // more right to write the pane than a stale success does.
+        .catch(() => {
+          if (requestId.current === id) setState({ status: "error", message: unexpected() });
+        });
     }, DEBOUNCE_MS);
     return () => {
       clearTimeout(timer);
