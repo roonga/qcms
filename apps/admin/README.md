@@ -40,27 +40,35 @@ behind them (`GET /admin/erasures`, `GET /admin/outbox/dead-letters`), not a pre
 ## Running it
 
 ```bash
-# Pin the auth secret FIRST, before dev:portal starts the API. Leaving it unset gives the
+# Pin the auth secret FIRST, before dev:admin starts the API. Leaving it unset gives the
 # API a fresh one per run, and a fresh secret makes an existing TOTP enrolment
-# permanently unverifiable (see "The first admin" below).
+# permanently unverifiable (see "The first admin" below). dev:admin warns when it is unset.
 export QCMS_ADMIN_AUTH_SECRET=$(node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))")
 
-pnpm dev:portal                                    # dev Postgres up and migrated, portal + API running
-cp apps/admin/.env.example apps/admin/.env.local   # then edit QCMS_INTERNAL_TOKEN to match the API's
+pnpm dev:admin        # dev Postgres up and migrated, API + admin running, http://localhost:7040
+
+# Second terminal, once per database. dev:admin prints this with the values filled in.
 DATABASE_URL=postgres://qcms:qcms@127.0.0.1:7020/qcms \
   QCMS_ADMIN_BASE_URL=http://localhost:7040 \
+  QCMS_ADMIN_AUTH_SECRET=$QCMS_ADMIN_AUTH_SECRET \
   QCMS_ADMIN_EMAIL=you@example.test QCMS_ADMIN_PASSWORD='a long passphrase' \
   pnpm qcms:create-admin
-pnpm --filter qcms-admin dev --port 7040           # http://localhost:7040
 ```
+
+There is no `.env.local` step and no separate `next dev`, and that is the point of the
+launcher rather than a convenience. The admin needs the **same** `QCMS_INTERNAL_TOKEN` the
+API is running with (SEC-4), and `scripts/dev-stack.mjs` generates that token per run and
+writes it nowhere, so a hand-started admin could only get it by reading the API process's
+environment. Starting both children from one process makes the shared value structural
+(issue #281). `pnpm dev:portal` is the same script with the other front end, and the two
+cannot share a seat because each starts its own API on `7S10` - see `docs/PORTS.md`.
 
 Migrations are applied **programmatically**, not by the drizzle-kit CLI: `packages/db/drizzle.config.ts`
 declares no `dbCredentials` (it exists to generate migrations, not to run them), so
-`drizzle-kit migrate` cannot connect. `scripts/dev-portal.mjs` (`pnpm dev:portal`) brings up
-the dev Postgres from `docker-compose.dev.yml` on port 7020 and migrates it to head with
-the same package-owned migration set adopters run; it then also starts the portal and the
-API, and the admin **does** need that API - every screen and every auth step goes through
-it.
+`drizzle-kit migrate` cannot connect. The launcher brings up the dev Postgres from
+`docker-compose.dev.yml` on port 7020 and migrates it to head with the same package-owned
+migration set adopters run. The admin **does** need the API it starts alongside: every
+screen and every auth step goes through it.
 
 ### The first admin (`pnpm qcms:create-admin`)
 
@@ -87,8 +95,8 @@ better-auth instance:
   recovery codes, which do survive (stored as plain JSON, since QCMS sets no
   `storeBackupCodes`: `dist/plugins/two-factor/backup-codes/index.mjs:45`) - but there are
   ten (`:15`, `amount ?? 10`), this app has no re-enrolment screen, and each rotation costs
-  one. `pnpm dev:portal` generates a fresh secret when the variable is unset, which is why
-  the block above exports it first.
+  one. `pnpm dev:admin` generates a fresh secret when the variable is unset (and says so on
+  startup), which is why the block above exports it first.
 - Credentials go in the environment, never in arguments: an argument lands in shell
   history and in every `ps` listing while the command runs.
 - It builds first (`pnpm --filter qcms-api... build`) because the entry is compiled

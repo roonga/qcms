@@ -4,7 +4,8 @@
  * `docs/PORTS.md` is the authoritative document: the rule, the full table, the
  * reasoning per block, and the multi-seat design intent all live there. This module
  * is its executable half, and it is deliberately the ONLY place the arithmetic is
- * written down. Root scripts (`dev-portal.mjs`, `serve-artifacts.mjs`) import it
+ * written down. Root scripts (`dev-stack.mjs`, behind `pnpm dev:portal` and
+ * `pnpm dev:admin`, and `serve-artifacts.mjs`) import it
  * directly; the Playwright harness imports it through
  * `apps/portal/e2e/support/port-seat.ts`, which adds the occupancy checks.
  *
@@ -83,9 +84,9 @@ export const STABLE_SERVICES = {
   postgres: 20,
   artifacts: 30,
   // The admin dev server. Allocated at offset 40 so the two blocks stay the same
-  // shape (the harness admin is at `17S40`), rather than picked. It is an allocation
-  // and not yet a published port: there is no `pnpm dev:admin`, and the devcontainer's
-  // `appPort` is deliberately untouched by this change. See docs/PORTS.md.
+  // shape (the harness admin is at `17S40`), rather than picked. Real since issue
+  // #281: `pnpm dev:admin` listens on it and the dev container publishes seat 0's
+  // 7040. See docs/PORTS.md.
   admin: 40,
 };
 

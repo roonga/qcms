@@ -25,11 +25,11 @@ Seat `S`, where `S` is `0`-`9`:
 
 | Port | Service | Block | Notes |
 |---|---|---|---|
-| `7S00` | portal dev server | stable | `pnpm dev:portal`. Published out of the dev container. The solo Compose stack (`docker-compose.yml`) publishes its portal here too: same audience, same lifetime, so it takes a seat's stable slot rather than a number of its own, and it cannot run at the same seat as `pnpm dev:portal`. |
-| `7S10` | API dev server | stable | `pnpm dev:portal` starts it. Published out of the dev container. |
+| `7S00` | portal dev server | stable | `pnpm dev:portal` (`pnpm dev:admin` does not start it). Published out of the dev container. The solo Compose stack (`docker-compose.yml`) publishes its portal here too: same audience, same lifetime, so it takes a seat's stable slot rather than a number of its own, and it cannot run at the same seat as `pnpm dev:portal`. |
+| `7S10` | API dev server | stable | `pnpm dev:portal` and `pnpm dev:admin` each start their own, which is why the two cannot share a seat. Published out of the dev container. |
 | `7S20` | dev Postgres | stable | `docker-compose.dev.yml`, **host-owned**. Deliberately *not* in the container's `appPort`. |
 | `7S30` | artifacts server | stable | `pnpm artifacts`. Published out of the dev container. |
-| `7S40` | admin dev server | stable | **Allocated, not yet published**: there is no `pnpm dev:admin`, and `appPort` is unchanged by this allocation. Start it with `pnpm --filter qcms-admin dev --port 7040`. The solo Compose stack publishes its admin here as well, for the same reason as `7S00`. |
+| `7S40` | admin dev server | stable | `pnpm dev:admin` (issue #281). Published out of the dev container, like `7S00`/`7S10`/`7S30`. The solo Compose stack publishes its admin here as well, for the same reason as `7S00`. |
 | `17S00` | portal dev server (harness) | harness | Playwright `webServer`. Also the portal **published** by the full-stack Compose stack (`pnpm up:e2e`), which is why those two cannot share a seat. |
 | `17S10` | composed API (harness) | harness | Bound by the Playwright runner in `globalSetup`. |
 | `17S20` | *(unused, deliberately)* | harness | Mirrors `7S20`. A harness run boots a Testcontainers Postgres on a kernel-assigned port and never wants a fixed one. The slot stays empty so `17S{nn}` maps onto `7S{nn}` without a second table. |
@@ -61,7 +61,7 @@ seat 2                     7200 7210 7220 7230 7240   |   17200 17210 17230 1724
 seat 9                     7900 7910 7920 7930 7940   |   17900 17910 17930 17940
 ```
 
-**Seat 0 is exactly today's allocation.** An existing developer and CI set nothing and see 7000 / 7010 / 7020 / 7030 unchanged. That is a compatibility contract, asserted in `apps/portal/e2e/support/port-seat.test.ts`, not just an intention.
+**Seat 0 is exactly today's allocation.** An existing developer and CI set nothing and see 7000 / 7010 / 7020 / 7030 / 7040 unchanged. That is a compatibility contract, asserted in `apps/portal/e2e/support/port-seat.test.ts`, not just an intention.
 
 ## Where it lives in code
 
@@ -73,7 +73,7 @@ stablePort("portal");        // 7000 at seat 0, 7100 at seat 1
 harnessPort("otlp", 2);      // 17230
 ```
 
-- Root dev scripts (`dev-portal.mjs`, `serve-artifacts.mjs`) import it directly.
+- Root dev scripts import it directly: `dev-stack.mjs` (behind `pnpm dev:portal` and `pnpm dev:admin`, whose entry points are two thin files) and `serve-artifacts.mjs`.
 - The Playwright harness reaches it through `apps/portal/e2e/support/port-seat.ts`, which adds the startup refusals below.
 - `apps/*/e2e/support/harness-config.ts` derive every harness port from it; there are no port literals left in either.
 
@@ -160,10 +160,10 @@ The root cause was not carelessness: there was no mechanism by which two lanes *
 
 ### What is exclusive, and at what scope
 
-- **The stable block is exclusive per machine, per seat.** Seat 0's 7000 / 7010 / 7020 / 7030 are host binds. Two checkouts, two developers, or two dev containers on one host cannot all run seat 0's stable stack: the second one fails to bind.
+- **The stable block is exclusive per machine, per seat.** Seat 0's 7000 / 7010 / 7020 / 7030 / 7040 are host binds. Two checkouts, two developers, or two dev containers on one host cannot all run seat 0's stable stack: the second one fails to bind.
 - **The dev container name is exclusive too, and collides first.** `.devcontainer/devcontainer.json` pins `--name=qcms-dev-container`. Two seats would clash on that name before they ever clashed on a port. A seat-suffixed name is the obvious shape; see the devcontainer note below.
 - **The harness block is exclusive per seat but cheap to move.** It is bound by whichever host runs the tests, for the duration of the run.
-- **The Compose project name matters as much as the port, and the failure is worse than sharing.** Two Compose stacks with the same project name **are the same stack**. A second seat that moved only `QCMS_DB_PORT` would hand Compose the same project with a changed port mapping, so `docker compose up -d` **recreates** the running container on the new port against the same volume: seat 1 does not quietly join seat 0's database, it **takes it away mid-session**, leaving seat 0's processes dialling a port nothing serves. Nothing errors on either side. That is what makes the project name necessary rather than tidy. `composeProjectName()` returns `qcms-dev` at seat 0 and `qcms-dev-s<N>` otherwise; `scripts/dev-portal.mjs` exports it as `COMPOSE_PROJECT_NAME`, which outranks the `name:` in the compose file. Named volumes are namespaced by project, so a distinct name gives a seat its own data as well as its own container. *(Proven for seat 0 by the existing dev path; the seat-N branch is unit-tested, not yet run.)*
+- **The Compose project name matters as much as the port, and the failure is worse than sharing.** Two Compose stacks with the same project name **are the same stack**. A second seat that moved only `QCMS_DB_PORT` would hand Compose the same project with a changed port mapping, so `docker compose up -d` **recreates** the running container on the new port against the same volume: seat 1 does not quietly join seat 0's database, it **takes it away mid-session**, leaving seat 0's processes dialling a port nothing serves. Nothing errors on either side. That is what makes the project name necessary rather than tidy. `composeProjectName()` returns `qcms-dev` at seat 0 and `qcms-dev-s<N>` otherwise; `scripts/dev-stack.mjs` exports it as `COMPOSE_PROJECT_NAME`, which outranks the `name:` in the compose file. Named volumes are namespaced by project, so a distinct name gives a seat its own data as well as its own container. *(Proven for seat 0 by the existing dev path; the seat-N branch is unit-tested, not yet run.)*
 
 ### How a seat claims its number
 
@@ -184,7 +184,7 @@ This is the part that is easy to get wrong, so state it precisely:
 
   What landed keeps the browsed origin on `http://localhost:<harness port>` in **every** environment, and makes that address real inside the container: the harness joins the Compose network and forwards this container's own loopback to the service containers (`scripts/loopback-forward.mjs`). Publishing then plays no part in how the suite connects, which is exactly why the bind can be left alone. Measured before it was built: from the dev container a sibling's unpublished port times out (Docker's cross-bridge isolation drops it) and connects after `docker network connect`. A plain host checkout and CI never build any of it: `localhost` already reaches the published port there, so `isInDockerContainer` returns false and the forwarder does not exist.
 - **The Testcontainers Postgres is a sibling on the host** with a kernel-assigned port, so it never enters this allocation at all.
-- **`QCMS_DOCKER_PUBLISH_HOST` is the escape hatch for the host half of this question, and it is not a port.** This document owns which numbers we allocate; `scripts/docker-host.mjs` owns which *host* a published number is reachable on from the process asking (`localhost` on a host checkout and on CI, the default-route gateway inside the dev container). Setting the variable takes that answer as given before anything is probed, for an unusual routing table, a rootless or remote daemon, or a gateway that is not the host. It is documented for use in [`DEVELOPER_GUIDE.md`](DEVELOPER_GUIDE.md), and noted here because the same value picks the database host `pnpm dev:portal` dials, so a wrong one reads as a dev server that cannot find Postgres. The full-stack Compose harness does not consult it at all (issue #335).
+- **`QCMS_DOCKER_PUBLISH_HOST` is the escape hatch for the host half of this question, and it is not a port.** This document owns which numbers we allocate; `scripts/docker-host.mjs` owns which *host* a published number is reachable on from the process asking (`localhost` on a host checkout and on CI, the default-route gateway inside the dev container). Setting the variable takes that answer as given before anything is probed, for an unusual routing table, a rootless or remote daemon, or a gateway that is not the host. It is documented for use in [`DEVELOPER_GUIDE.md`](DEVELOPER_GUIDE.md), and noted here because the same value picks the database host `pnpm dev:portal` and `pnpm dev:admin` dial, so a wrong one reads as a dev server that cannot find Postgres. The full-stack Compose harness does not consult it at all (issue #335).
 
 ### The devcontainer, honestly
 
@@ -196,7 +196,9 @@ The honest alternatives for a second human seat, in preference order:
 2. Launch the second container by hand with explicit publishes (`docker run -p 7100:7100 -p 7110:7110 -p 7130:7130 ... --name qcms-dev-container-s1`).
 3. Edit `appPort`, `forwardPorts`, `portsAttributes` and `--name` for that machine and rebuild. A local edit, not something to commit.
 
-**No devcontainer change is needed for this allocation, and none was made.** Seat 0 publishes exactly what it published before.
+**The seat *scheme* needed no devcontainer change, and got none.** What did need one is a different question, and issue #281 is the case: `7S40` was in the table from the start, but nothing published it, so the admin answered inside the container and a host browser got connection refused. Seat 0's `7040` is now in `appPort`, `forwardPorts` and `portsAttributes` alongside 7000 / 7010 / 7030. That is a change to the **published set**, not to the allocation, and it inherits the same limits as the rest of this list: static JSON, seat 0 only, and it does not reach a container that is already running.
+
+**A devcontainer edit needs a rebuild.** `devcontainer up` reuses a running container and silently ignores a changed `appPort` (`docs/DEV_CONTAINER.md`), so an existing container keeps publishing what it published when it was created. `pnpm devcontainer status` warns when `devcontainer.json` is newer than the running container; `pnpm devcontainer rebuild`, run **from the host**, is the fix. Until then `pnpm dev:admin` still works inside the container and is reachable from a host browser only through the editor's port forwarding.
 
 ### Remote and Codespaces
 
@@ -213,7 +215,15 @@ Do nothing. You are seat 0, on the ports every document already names.
 ```bash
 QCMS_PORT_SEAT=1 pnpm verify:browser        # harness on 17100/17110/17130/17140
 QCMS_PORT_SEAT=1 pnpm dev:portal            # stable stack on 7100/7110/7120, project qcms-dev-s1
+QCMS_PORT_SEAT=2 pnpm dev:admin             # stable stack on 7240/7210/7220, project qcms-dev-s2
 ```
+
+`dev:portal` and `dev:admin` each start their own API on `7S10`, so they need **different**
+seats rather than different front-end ports. That is the price of the shared SEC-4 token
+being in-memory only: neither can join an API it did not start, because nothing outside
+that process can learn the token (issue #281). Only seat 0's stable block leaves the dev
+container, so a second seat's admin is reachable from a host browser only on a host
+checkout or a hand-published container.
 
 Export it once per shell if a lane runs several commands. Every consumer reads the same variable.
 

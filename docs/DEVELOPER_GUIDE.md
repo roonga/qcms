@@ -41,7 +41,7 @@ Modes: the repo's `.claude/settings.json` sets **acceptEdits** (file edits and a
 
 **Ports: the allocation lives in [`docs/PORTS.md`](PORTS.md).** That is the only table, and it is binding (R8, ADR-37): `7Sxx` for stable human-facing services, `17Sxx` for ephemeral test harnesses, seat `S` from `QCMS_PORT_SEAT` and defaulting to 0. The numbers below are seat 0, which is the default and what every existing setup already runs. Nothing here restates the table; go there to add or move anything.
 
-**Viewing the app from your host browser:** the dev servers listen on all interfaces inside the container (`next dev` and the Hono `serve()` both bind `0.0.0.0` by default, verified by the listen socket). The ports the container serves, **7000 and 7010**, leave it via `appPort` (published on the Docker host by **any** launcher, including a bare CLI `devcontainer up`) plus `forwardPorts` (the VS Code / Codespaces editor tunnel). `http://localhost:7000` on the host reaches the portal on either route: measured `200` from the host against a CLI-launched container running `pnpm exec next dev --port 7000`.
+**Viewing the app from your host browser:** the dev servers listen on all interfaces inside the container (`next dev` and the Hono `serve()` both bind `0.0.0.0` by default, verified by the listen socket). The ports the container serves, **7000, 7010, 7030 and 7040**, leave it via `appPort` (published on the Docker host by **any** launcher, including a bare CLI `devcontainer up`) plus `forwardPorts` (the VS Code / Codespaces editor tunnel). `http://localhost:7000` on the host reaches the portal on either route: measured `200` from the host against a CLI-launched container running `pnpm exec next dev --port 7000`.
 
 **Artifacts over HTTP (7030 at seat 0):** `pnpm artifacts` starts a read-only, dependency-free static server (`scripts/serve-artifacts.mjs`) so gate evidence and design previews render in the host browser instead of being fished out of the container by path. `http://localhost:7030/` indexes three roots: `/gates/` (landed evidence in `docs/gates/`), `/plan/` (design previews and planning artifacts), and `/worktrees/<name>/` (an in-flight task branch's `docs/gates/`, the usual place to review a screenshot set before its PR merges). The port leaves the container the same way as 7000/7010 (`appPort` + `forwardPorts`); a container created before 7030 was added to `appPort` publishes it only after a rebuild.
 
@@ -58,27 +58,41 @@ pnpm dev:portal   # finds the dev DB itself; see CONTRIBUTING for why not host.d
 QCMS_DOCKER_PUBLISH_HOST=172.17.0.1 pnpm dev:portal
 ```
 
-Reach for it when the detection is wrong for your setup - an unusual routing table, a rootless or remote daemon, a gateway that is not the host. It is worth knowing about because of what it reaches: the same value picks the **database host** `pnpm dev:portal` dials, so a wrong value there looks like a dev server that cannot find Postgres rather than like a misread route. The full-stack Compose harness does **not** use it (it joins the Compose network and forwards this container's loopback instead, `docs/PORTS.md`), so setting it changes nothing about `pnpm up:e2e`.
+Reach for it when the detection is wrong for your setup - an unusual routing table, a rootless or remote daemon, a gateway that is not the host. It is worth knowing about because of what it reaches: the same value picks the **database host** `pnpm dev:portal` and `pnpm dev:admin` dial (one script, `scripts/dev-stack.mjs`), so a wrong value there looks like a dev server that cannot find Postgres rather than like a misread route. The full-stack Compose harness does **not** use it (it joins the Compose network and forwards this container's loopback instead, `docs/PORTS.md`), so setting it changes nothing about `pnpm up:e2e`.
 
-**Running the admin app (task 031).** Same dev DB, one extra step first: the admin has no
-self-registration path (SEC-1), so the deployment's first account comes from a command. Since
-task 056 the admin itself holds no database handle - better-auth lives in the API - so the
-bootstrap command is an **API-side** one and takes the API's env, not the admin's.
+**Running the admin app: `pnpm dev:admin`.** It is `pnpm dev:portal`'s twin (same script,
+`scripts/dev-stack.mjs`): dev database up and migrated, kitchen-sink form seeded, API
+started, then the admin on seat 0's **7040**. Both children get the *same* freshly
+generated SEC-4 internal token, which is why the admin cannot simply be pointed at an API
+someone else started: that token exists only in the launching process's memory and is
+written nowhere (issue #281). The cost is that `dev:admin` and `dev:portal` each start an
+API on 7010 and so cannot share a seat: give the second one `QCMS_PORT_SEAT=1`.
+
+One extra step the portal does not need: the admin has no self-registration path (SEC-1),
+so the deployment's first account comes from a command. Since task 056 the admin itself
+holds no database handle - better-auth lives in the API - so that bootstrap command is an
+**API-side** one and takes the API's env, not the admin's.
 
 ```sh
-# Pin the auth secret for the whole shell session, BEFORE `pnpm dev:portal` starts the
+# Pin the auth secret for the whole shell session, BEFORE `pnpm dev:admin` starts the
 # API - an unpinned restart destroys an existing TOTP enrolment, see below. Any value
-# >= 32 chars with no whitespace or commas.
+# >= 32 chars with no whitespace or commas. `pnpm dev:admin` warns when it is unset.
 export QCMS_ADMIN_AUTH_SECRET=$(node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))")
 
-cp apps/admin/.env.example apps/admin/.env.local        # then edit QCMS_INTERNAL_TOKEN
-pnpm --filter @qcms/db exec drizzle-kit migrate          # the auth tables must exist
+pnpm dev:admin        # dev DB + API + admin on http://localhost:7040
+
+# In a second terminal, once only, if this database has no admin yet. The launcher
+# prints this command with the values already filled in.
 DATABASE_URL=postgres://qcms:qcms@127.0.0.1:7020/qcms \
   QCMS_ADMIN_BASE_URL=http://localhost:7040 \
+  QCMS_ADMIN_AUTH_SECRET=$QCMS_ADMIN_AUTH_SECRET \
   QCMS_ADMIN_EMAIL=you@example.test QCMS_ADMIN_PASSWORD='a long passphrase' \
   pnpm qcms:create-admin
-pnpm --filter qcms-admin dev
 ```
+
+7040 leaves the dev container the same way 7000/7010/7030 do (`appPort` + `forwardPorts`),
+and it was added to that list later than the rest: a container created before then
+publishes it only after `pnpm devcontainer rebuild`.
 
 `QCMS_ADMIN_AUTH_SECRET` is required here because `loadConfig` validates it, but for
 *this command* it does **not** have to match the running API's: `create-admin` creates an
@@ -93,8 +107,9 @@ against better-auth 1.6.25's own source rather than inferred: `two-factor/enable
 the secret with `symmetricEncrypt({ key: ctx.context.secretConfig, ... })`
 (`dist/plugins/two-factor/index.mjs:105`) and every verification decrypts with the
 *current* key (`dist/plugins/two-factor/totp/index.mjs:188`, and `:122` for the URI
-reveal). `pnpm dev:portal` generates a fresh secret when the variable is unset, so an
-unpinned restart leaves your authenticator's codes rejected for good.
+reveal). `pnpm dev:portal` and `pnpm dev:admin` generate a fresh secret when the variable
+is unset, so an unpinned restart leaves your authenticator's codes rejected for good.
+`pnpm dev:admin` says so on startup rather than leaving you to remember it.
 
 What is left in that state is the recovery codes, and only those. They survive because
 they are stored as plain JSON unless `storeBackupCodes: "encrypted"` is configured, which
