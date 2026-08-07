@@ -135,9 +135,23 @@ produces a database the product actually works on. It:
    proving nothing.
 5. Restores from the dump and restarts the API.
 6. Compares the fingerprint against the pre-dump one.
-7. **Runs the full-stack suite a second time, signing in with the administrator
-   created before the dump.** This is the assertion that matters. Row counts match
-   whether or not the auth tables came back usable; a sign-in does not.
+7. **Checks the pre-dump administrator survived by identity**: the account row, the
+   credential better-auth signs in against, and the two-factor enrolment the first
+   suite run performed. Row counts match whether or not the auth tables came back
+   usable, so these are checked separately, because they fail separately: a dump that
+   captured the account but not its two-factor row produces a login nobody can
+   complete, which looks like a successful restore until it matters.
+8. **Runs the full-stack suite again on the restored schema, with a freshly
+   bootstrapped administrator.** This authors, publishes and answers a form against
+   restored tables, so a restore that came back missing a constraint, a sequence or a
+   default fails here.
+
+The second administrator is deliberate rather than a workaround. The suite is a
+serial journey whose first step enrols the account in MFA, and enrolment is one-shot,
+so re-running it as the pre-dump account fails on that step for reasons that have
+nothing to do with the restore. Splitting the two claims (the old account is checked
+by identity, the schema is checked by exercising it) tests each with the tool that can
+actually see it.
 
 The seat is required (R8, `docs/PORTS.md`) because the drill drives the same
 throwaway Compose stack as `pnpm up:e2e`, and the seat picks that stack's project

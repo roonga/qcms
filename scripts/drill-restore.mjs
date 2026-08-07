@@ -19,15 +19,26 @@
  * 1. **The data is destroyed for real.** The database is dropped, and the drill
  *    asserts the public schema is genuinely empty before restoring. A drill that
  *    restores over live data silently passes forever.
- * 2. **The application is the judge, not a row count.** After the restore the
- *    full-stack browser suite runs a second time and signs in with the
- *    **pre-dump administrator credentials**. That is the assertion that matters: it
- *    exercises the restored auth tables, the restored schema and the restored domain
- *    data through the real product, rather than trusting `count(*)`.
+ * 2. **The application is a judge, not just a row count.** After the restore, the
+ *    pre-dump administrator is checked by identity (account row, sign-in credential
+ *    and two-factor enrolment, each separately because each fails separately), and a
+ *    form published BEFORE the dump is requested from the running portal. Row counts
+ *    match whether or not the auth tables came back usable; those two checks do not.
  *
- * The second suite run is safe to repeat against a database it has already written
- * to: `apps/e2e/full-stack-conditional-form.pw.ts` derives every slug and question id
- * from a per-run timestamp, so the two runs never collide.
+ * ## Why the browser suite does not simply run a second time
+ *
+ * It cannot, and both reasons are controls working correctly rather than obstacles:
+ *
+ *  - `full-stack-conditional-form.pw.ts` is a `describe.serial` journey whose first
+ *    step enrols the administrator in MFA. Enrolment is one-shot, so a second run
+ *    against the same account fails there and says nothing about the restore.
+ *  - Bootstrapping a second administrator to run it instead is refused by design:
+ *    `createInitialAdmin` is the only door an account comes through and it closes as
+ *    soon as one exists (SEC-1).
+ *
+ * So the post-restore product check drives the **respondent** surface, which needs no
+ * credential: the portal renders a restored form, the API reads it, and what is served
+ * is the compiled document that came back in the dump (ADR-18).
  *
  * ## What is deliberately NOT recreated
  *
@@ -46,14 +57,14 @@
  * own infrastructure. `docs/backup-restore.md` is explicit about that boundary.
  */
 
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { composeCapture, composeRun, down, test, up } from "./compose-e2e.mjs";
+import { composeCapture, composeRun, credentialsPath, down, test, up } from "./compose-e2e.mjs";
 import { REPOSITORY_ROOT } from "./docker.mjs";
-import { assertPortSeatChosen } from "./ports.mjs";
+import { assertPortSeatChosen, harnessPort } from "./ports.mjs";
 
 /** Where the dump lands inside the `postgres` container, and on the host. */
 const CONTAINER_DUMP = "/tmp/qcms-drill.dump.sql";
@@ -179,6 +190,96 @@ function restoreFrom(hostPath) {
   ]);
 }
 
+/**
+ * Assert the administrator created before the dump came back, enrolment and all.
+ *
+ * Three separate facts, because they fail separately: the account row (`user`), the
+ * credential better-auth signs in against (`account`), and the two-factor enrolment
+ * the first suite run performed (`twoFactor`). A dump that captured the first but not
+ * the third produces an account nobody can sign in as, which is a restore that looks
+ * successful right up to the moment it matters.
+ *
+ * Table names are better-auth's, quoted because `user` is reserved and `twoFactor`
+ * is camel-cased (`packages/db/src/schema/auth.ts`).
+ *
+ * @param {string} email
+ */
+function assertAdminSurvived(email) {
+  const counts = psql([
+    "--tuples-only",
+    "--no-align",
+    "--command",
+    `select
+       (select count(*) from "user" where email = ${quoteSql(email)}),
+       (select count(*) from "account" a join "user" u on a."userId" = u.id where u.email = ${quoteSql(email)}),
+       (select count(*) from "twoFactor" t join "user" u on t."userId" = u.id where u.email = ${quoteSql(email)})`,
+  ]);
+  const [user, account, twoFactor] = counts.trim().split("|").map(Number);
+  const problems = [];
+  if (user !== 1) problems.push(`the account row is gone (found ${String(user)})`);
+  if (account !== 1) problems.push(`the sign-in credential is gone (found ${String(account)})`);
+  if (twoFactor !== 1) {
+    problems.push(`the two-factor enrolment is gone (found ${String(twoFactor)})`);
+  }
+  if (problems.length > 0) {
+    throw new Error(
+      `drill-restore: the pre-dump administrator did not survive the restore:\n  ${problems.join("\n  ")}`,
+    );
+  }
+  process.stdout.write(`drill-restore: ${email} survived with its credential and 2FA enrolment\n`);
+}
+
+/** @param {string} value */
+function quoteSql(value) {
+  return `'${value.replaceAll("'", "''")}'`;
+}
+
+/**
+ * Request a form the pre-dump suite published, and assert the portal serves it.
+ *
+ * The slug is read out of the restored database rather than remembered from before
+ * the dump, which is the stronger direction: it proves the row came back, and then
+ * proves the running product can serve what that row points at.
+ */
+async function assertPublishedFormServes() {
+  const slug = psql([
+    "--tuples-only",
+    "--no-align",
+    "--command",
+    // `published_at` is NOT NULL on this table: a row in `form_versions` IS a
+    // published version, and the draft lives in `form_drafts`. So the join is the
+    // whole filter, and the most recent version is the one the seeding run published.
+    `select f.slug from forms f
+       join form_versions v on v.form_id = f.form_id
+      order by v.published_at desc
+      limit 1`,
+  ]).trim();
+  if (slug === "") {
+    throw new Error(
+      "drill-restore: the restored database has no published form, so the seeding run never got that far",
+    );
+  }
+  const url = `http://localhost:${String(harnessPort("portal"))}/f/${slug}`;
+  const response = await fetch(url);
+  const body = await response.text();
+  if (!response.ok) {
+    throw new Error(
+      `drill-restore: the portal answered ${String(response.status)} for the restored form ${slug} (${url})`,
+    );
+  }
+  // A 200 carrying an error shell would still be a 200. The form's own slug appearing
+  // in the rendered document is the cheapest proof that this is the form it served
+  // and not a generic page.
+  if (!body.includes(slug)) {
+    throw new Error(
+      `drill-restore: the portal served ${String(response.status)} for ${slug} but the document does not mention it`,
+    );
+  }
+  process.stdout.write(
+    `drill-restore: the portal served the pre-dump form ${slug} from the restored database\n`,
+  );
+}
+
 /** @param {string} message */
 function step(message) {
   process.stdout.write(`\ndrill-restore: ${message}\n`);
@@ -190,6 +291,10 @@ async function drill() {
   try {
     step("bringing up a fresh stack and bootstrapping an administrator");
     await up();
+    // Read back rather than returned by `up()`: the credentials file is the contract
+    // the spec itself reads, so taking the identity from there means the drill checks
+    // the same account the suite actually signed in as.
+    const seededAdmin = JSON.parse(readFileSync(credentialsPath, "utf8"));
 
     step("seeding real domain data by running the full-stack suite");
     test();
@@ -229,11 +334,31 @@ async function drill() {
     }
     process.stdout.write(`${after}\n`);
 
-    step("re-running the full-stack suite against the restored database");
-    // The assertion that actually matters: this run signs in with the administrator
-    // created BEFORE the dump, so a restore that lost the auth tables fails here even
-    // though the row counts above would have matched.
-    test();
+    step("checking the pre-dump administrator survived the restore");
+    // Row counts alone would match whether or not the auth tables came back usable,
+    // so the account created BEFORE the dump is checked by identity: it must still be
+    // there, and it must still carry the two-factor enrolment the first suite run
+    // performed. That is the half of the restore a fresh-account smoke cannot prove.
+    assertAdminSurvived(seededAdmin.email);
+
+    step("serving a pre-dump form from the restored database, through the portal");
+    // The product-level smoke, and it deliberately drives the RESPONDENT surface.
+    //
+    // Two controls rule out the obvious alternatives. Both are correct, so the drill
+    // works with them rather than around them:
+    //
+    //  - Re-running the browser suite as the pre-dump administrator fails on its very
+    //    first step, which enrols that account in MFA. Enrolment is one-shot.
+    //  - Bootstrapping a second administrator to run it instead is refused by design:
+    //    `createInitialAdmin` is the only door an account comes through, and it closes
+    //    the moment one exists (SEC-1). A drill that defeated that control in order to
+    //    test a restore would be testing a system nobody runs.
+    //
+    // The respondent surface needs no credential, and requesting a form published
+    // BEFORE the dump exercises the whole stack against restored data: the portal
+    // renders, the API reads, and what it serves is the compiled document that came
+    // back in the dump (ADR-18: the stored compilation, never a recompilation).
+    await assertPublishedFormServes();
 
     step("PASSED: the dump restored and the product works on top of it");
   } finally {

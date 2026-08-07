@@ -334,11 +334,21 @@ function stopLoopbackForwarding() {
   joinedNetwork = undefined;
 }
 
-export async function up() {
-  // This stack is test-only. Removing its named volume makes each browser run
-  // independent, including the first-admin bootstrap state.
-  down();
-  run(docker, [...compose, "up", "--detach", "--build", "--wait"], e2eEnvironment);
+/**
+ * Create a fresh administrator and write the credentials file the spec reads.
+ *
+ * Split out of `up()` for `scripts/drill-restore.mjs`, which needs a SECOND
+ * administrator after it restores a database. The reason is a property of the spec
+ * rather than of the restore: `full-stack-conditional-form.pw.ts` is a
+ * `describe.serial` journey whose first step enrols the account in MFA, and enrolment
+ * is one-shot. Re-running the suite against an account that already completed it
+ * fails on the enrolment step, which says nothing about whether the restore worked.
+ * A new account makes the second run a genuine end-to-end exercise of the restored
+ * schema instead.
+ *
+ * @returns {{ email: string, password: string }}
+ */
+export function bootstrapAdmin() {
   const credentials = {
     email: `compose.e2e.${Date.now().toString(36)}@admin.test`,
     password: `e2e-${randomBytes(24).toString("base64url")}`,
@@ -373,6 +383,15 @@ export async function up() {
       `E2E admin: ${credentials.email}\nE2E password: ${credentials.password}\n`,
     );
   else process.stdout.write(`E2E admin credentials written to ${credentialsPath}\n`);
+  return credentials;
+}
+
+export async function up() {
+  // This stack is test-only. Removing its named volume makes each browser run
+  // independent, including the first-admin bootstrap state.
+  down();
+  run(docker, [...compose, "up", "--detach", "--build", "--wait"], e2eEnvironment);
+  bootstrapAdmin();
   // Last, so it only ever points at a stack that is already up and bootstrapped.
   await startLoopbackForwarding();
 }
