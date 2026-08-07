@@ -134,32 +134,47 @@ test("erasing a response leaves focus on the tombstone, not on the body", async 
     .toBe("qcms-tombstone-heading");
 });
 
+/** Where the held region nodes live between the two `evaluate` calls below. */
+const PROBE_KEY = "__qcmsLiveRegionProbe";
+
 /**
- * Mark every live region currently in the document.
+ * Hold a reference to every live region currently in the document.
  *
- * The marks are read back after the action, so only a region that existed **before** it
- * can satisfy the assertion. That is the property under test rather than a convenience:
- * a region created on the far side of the swap, already holding its message, is the
- * shape issue #307 had to remove from the webhook secret panel, because several screen
- * readers only announce mutations of a region they were already observing.
+ * References on `window`, not marks in the DOM. Stamping an attribute onto a node React
+ * owns makes React report a mismatch when it next diffs that element, which is a
+ * console fault the shared gate fails the test on - and it would be measuring the probe
+ * rather than the app.
  *
- * React does not manage this attribute and will not strip it on a re-render.
+ * Only these nodes are read back afterwards, so a region that did not exist before the
+ * action cannot satisfy the assertion. That is the property under test rather than a
+ * convenience: a region created on the far side of the swap with its message already in
+ * it is the shape issue #307 had to remove from the webhook secret panel, because
+ * several screen readers only announce mutations of a region they were already
+ * observing.
  */
-async function markLiveRegions(page: Page): Promise<number> {
-  return page.evaluate(() => {
+async function holdLiveRegions(page: Page): Promise<number> {
+  return page.evaluate((key) => {
     const regions = [...document.querySelectorAll("[aria-live]")];
-    for (const region of regions) region.setAttribute("data-qcms-live-probe", "");
+    (window as unknown as Record<string, unknown>)[key] = regions;
     return regions.length;
-  });
+  }, PROBE_KEY);
 }
 
-/** Everything the pre-existing live regions are saying, right now. */
-async function markedLiveText(page: Page): Promise<string> {
-  return page.evaluate(() =>
-    [...document.querySelectorAll("[data-qcms-live-probe]")]
+/**
+ * What the held regions are saying now, counting only the ones still in the document.
+ *
+ * A full page navigation would throw the references away, so that case reports itself
+ * instead of quietly returning nothing and reading as the defect.
+ */
+async function heldLiveText(page: Page): Promise<string> {
+  return page.evaluate((key) => {
+    const held: unknown = (window as unknown as Record<string, unknown>)[key];
+    if (!Array.isArray(held)) return "<no held regions: the page navigated away>";
+    return held
+      .filter((node): node is Element => node instanceof Element && node.isConnected)
       .map((node) => node.textContent ?? "")
-      .join(" | "),
-  );
+      .join(" | ");
+  }, PROBE_KEY);
 }
 
 test("the erasure outcome is still announced after the revalidation replaces the screen", async ({
@@ -170,9 +185,9 @@ test("the erasure outcome is still announced after the revalidation replaces the
   await page.goto(`/forms/${FORM_ID}/responses/${announceable}`);
   await expect(page.getByTestId("qcms-response-detail")).toBeVisible();
 
-  const marked = await markLiveRegions(page);
+  const held = await holdLiveRegions(page);
   expect(
-    marked,
+    held,
     "a live region has to exist before the action for this to mean anything",
   ).toBeGreaterThan(0);
 
@@ -196,7 +211,7 @@ test("the erasure outcome is still announced after the revalidation replaces the
   // worked. Polled rather than read once, because the assertion is that the message
   // outlives the swap, not that it survived one particular frame of it.
   await expect
-    .poll(() => markedLiveText(page), {
+    .poll(() => heldLiveText(page), {
       message: "the erasure announcement after the route replaced the screen",
       timeout: 10_000,
     })
