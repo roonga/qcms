@@ -10,6 +10,7 @@ import { isRevocable, mintedLinksCsv, mintedLinksFilename } from "@/lib/forms/li
 import type { MintedLink, SecureLink } from "@/lib/forms/types";
 import { formatDateTime } from "@/lib/i18n/format";
 import { t, tPlural } from "@/lib/i18n/en";
+import { unexpected } from "@/lib/ops/unexpected";
 
 /**
  * How long a blob URL is kept alive after the download anchor is clicked.
@@ -81,20 +82,37 @@ export function SecureLinks({
 
   const runMint = useCallback(() => {
     startTransition(() => {
-      void mint({ expiresAt, oneTime, count }).then((state) => {
-        setMinted(state);
-        if (state.status === "minted") setDialog(null);
-      });
+      void mint({ expiresAt, oneTime, count })
+        .then((state) => {
+          setMinted(state);
+          if (state.status === "minted") setDialog(null);
+        })
+        // `.catch` is not defensive decoration. `adminApiFetch` documents that it does not
+        // throw for a non-2xx, which is true and is the trap: a transport failure still
+        // rejects with a TypeError, and `readResult`'s `response.json()` rejects on a
+        // truncated body. Without this the promise rejects unhandled, no state is set,
+        // and the dialog sits there looking like a slow network forever.
+        .catch(() => {
+          setMinted({ status: "error", message: unexpected() });
+        });
     });
   }, [mint, expiresAt, oneTime, count]);
 
   const runRevoke = useCallback(
     (linkId: string) => {
       startTransition(() => {
-        void revoke(linkId).then((state) => {
-          setRevoked(state);
-          if (state.status === "revoked") setRevoking(null);
-        });
+        void revoke(linkId)
+          .then((state) => {
+            setRevoked(state);
+            if (state.status === "revoked") setRevoking(null);
+          })
+          // The same trap as `runMint`. The dialog stays open here, exactly as it does for
+          // a returned failure, and it is the confirmation dialog below that renders the
+          // sentence: a modal covers the page's own alert region, so a revoke failure that
+          // only wrote there would leave the operator staring at an unchanged dialog.
+          .catch(() => {
+            setRevoked({ status: "error", message: unexpected() });
+          });
       });
     },
     [revoke],
@@ -248,27 +266,37 @@ export function SecureLinks({
             if (!isOpen) setRevoking(null);
           }}
         >
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="danger"
-              size="md"
-              isDisabled={isPending}
-              onPress={() => {
-                runRevoke(revoking);
-              }}
-            >
-              {isPending ? t("forms.links.pending") : t("forms.links.confirmRevoke")}
-            </Button>
-            <Button
-              variant="ghost"
-              size="md"
-              isDisabled={isPending}
-              onPress={() => {
-                setRevoking(null);
-              }}
-            >
-              {t("forms.links.cancel")}
-            </Button>
+          <div className="flex flex-col gap-4">
+            {/* The same placement the mint dialog gives its own failure, and for the same
+                reason: this dialog is modal, so the page's alert region is behind it and a
+                failure written only there is a failure the operator cannot see. */}
+            {revoked.status === "error" && (
+              <Alert variant="error">
+                {t("forms.links.revokeFailed", { message: revoked.message ?? "" })}
+              </Alert>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="danger"
+                size="md"
+                isDisabled={isPending}
+                onPress={() => {
+                  runRevoke(revoking);
+                }}
+              >
+                {isPending ? t("forms.links.pending") : t("forms.links.confirmRevoke")}
+              </Button>
+              <Button
+                variant="ghost"
+                size="md"
+                isDisabled={isPending}
+                onPress={() => {
+                  setRevoking(null);
+                }}
+              >
+                {t("forms.links.cancel")}
+              </Button>
+            </div>
           </div>
         </Dialog>
       )}
