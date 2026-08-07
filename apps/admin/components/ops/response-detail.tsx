@@ -10,7 +10,12 @@ import { answerText } from "@/lib/ops/answers";
 import type { ErasureReason } from "@/lib/ops/erasure";
 import { DEFAULT_ERASURE_REASON, ERASURE_REASONS, isErasureConfirmed } from "@/lib/ops/erasure";
 import { labelFor, orderedAnswerKeys, type QuestionPin } from "@/lib/ops/labels";
-import { focusPostAction } from "@/lib/ops/post-action-focus";
+import {
+  claimPostActionFocus,
+  focusPostAction,
+  requestPostActionFocus,
+  TOMBSTONE_HEADING_ID,
+} from "@/lib/ops/post-action-focus";
 import { unexpected } from "@/lib/ops/unexpected";
 import type {
   EraseOutcome,
@@ -91,7 +96,16 @@ export function ResponseDetail({
   // polite region that just announced the outcome directly beneath it.
   useEffect(() => {
     if (tombstone === null) return undefined;
-    return focusPostAction(document.getElementById("qcms-tombstone-heading"));
+    requestPostActionFocus(TOMBSTONE_HEADING_ID);
+    const settled = claimPostActionFocus(TOMBSTONE_HEADING_ID);
+    return () => {
+      settled?.();
+      // Erasing revalidates this response's own route, and the route then renders the
+      // SAME url as its own tombstone - which unmounts this subtree a few hundred
+      // milliseconds after the focus above landed, dropping focus back to the body. So
+      // re-arm on the way out: the card that replaces this one takes the request.
+      requestPostActionFocus(TOMBSTONE_HEADING_ID);
+    };
   }, [tombstone]);
 
   useEffect(() => {
