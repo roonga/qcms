@@ -10,10 +10,13 @@ COPY packages ./packages
 COPY scripts ./scripts
 
 RUN pnpm install --frozen-lockfile
-# Next type-checks the portal E2E support files, which import @qcms/db even
-# though the production portal has no runtime database dependency. Build that
-# package explicitly in a fresh Docker context before compiling the portal.
-RUN pnpm --filter @qcms/db... build && pnpm --filter qcms-portal... build
+# The `pnpm --filter @qcms/db... build` prefix that used to lead this line is gone.
+# It existed because Next type-checked the portal's E2E support files, which import
+# @qcms/db even though the production portal has no runtime database dependency, and
+# building that package was one way to satisfy them. The image now excludes `**/e2e`
+# and `**/*.test.*` from the build context instead (.dockerignore), so those files
+# are not in the image to type-check and the workaround has nothing left to fix.
+RUN pnpm --filter qcms-portal... build
 RUN pnpm --filter qcms-portal deploy --legacy --prod /opt/qcms
 
 FROM node:24-bookworm-slim AS runtime

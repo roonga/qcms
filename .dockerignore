@@ -14,3 +14,23 @@ dist
 .env.*
 !.env.example
 *.log
+
+# Build output at any depth, not just the root `dist` above. Every image builds what
+# it needs inside itself, so a host-built `packages/*/dist` in the context is never
+# used on purpose - only by accident, and that accident is exactly what made the
+# admin image build pass in `full-stack-e2e` (which runs `pnpm -r build` on the
+# runner before `pnpm docker:up`, leaking the declarations in) while failing in the
+# Images job, which builds from a clean checkout the way an adopter's first
+# `docker compose build` does. Excluding it makes the two paths build the same tree.
+**/dist
+
+# Tests and browser specs, which have no business in a production image. Excluding
+# them is load-bearing rather than tidiness: Next type-checks every file its tsconfig
+# includes, and `apps/admin/e2e` reaches into `apps/api/e2e/support`, which imports
+# `@qcms/db`, `drizzle-orm` and `pg`. The admin declares none of the three on purpose
+# (task 056, ADR-35 as amended) and `apps/admin/lib/server/r2-import-surface.test.ts`
+# forbids all three, so the fix is to keep the files out of the image, never to add
+# the dependency that would satisfy their imports.
+**/e2e
+**/*.test.ts
+**/*.test.tsx
