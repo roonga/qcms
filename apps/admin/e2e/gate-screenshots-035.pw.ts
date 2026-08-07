@@ -205,16 +205,14 @@ for (const mode of CAPTURE_MODES) {
       await expect(page.getByTestId("qcms-dead-letters-table")).toBeVisible();
       await capture(page, `dead-letters-${mode}`);
 
-      // Not `.first()`: this mode erased a response above, and its queued event is in
-      // this queue too. Pressing ITS button is correctly refused (ADR-17), which is a
-      // real state but not the one this frame is for - `redeliver-queued` exists to
-      // show the success message that says "queued for the next pass", not delivered.
-      //
-      // EVERY erased session, not only this mode's. The three modes share one database
-      // and each one erases a response, so by the dark pass the queue also holds the
-      // light pass's refused delivery, and excluding only the current `erasable` left
-      // which row got clicked to sort order. That is a frame that silently captures the
-      // wrong state, which is the worst thing a gate capture can do.
+      // The exclusion below used to be load bearing: before task 059 an erased
+      // session's event stayed queued, pressing its button was correctly refused
+      // (ADR-17), and a capture that clicked it photographed the refusal instead of the
+      // success this frame is for. Since 059 erasure cancels those deliveries and the
+      // queue excludes cancelled rows, so the set is normally empty. It is computed
+      // rather than deleted because "empty" is a consequence of the current code, not a
+      // guarantee of the fixture ordering, and a capture that silently shoots the wrong
+      // state is the worst thing a gate can do.
       const erased = await deliverer.erasedDeliveries();
       const exclusion = erased
         .map((row) => `:not([data-delivery-id="${row.deliveryId}"])`)

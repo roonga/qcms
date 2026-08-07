@@ -23,6 +23,24 @@ export const outbox = pgTable(
       .defaultNow(),
     deadLetteredAt: timestamp("dead_lettered_at", { withTimezone: true, mode: "date" }),
     lastError: text("last_error"),
+    /**
+     * When erasure removed the `answers` member from this row's payload (ADR-17 as
+     * amended 2026-08-02, task 059). Null on every live event.
+     *
+     * `outbox.payload` carries a submitted response's **whole locked answer set**,
+     * so it is QCMS's own retained copy of exactly what erasure is asked to remove.
+     * `eraseSession` rewrites the payload in place - envelope kept (`sessionId`,
+     * `formId`, `formVersion`, `submittedAt`, `contentHash`), `answers` dropped -
+     * and stamps this column. Existence without content, the same principle the
+     * tombstone applies one table over.
+     *
+     * The column exists so the redacted state is **queryable** rather than inferred
+     * from the payload's shape: `payload ? 'answers'` is false for any event type
+     * that never had answers, which would make "was this redacted?" unanswerable.
+     * The claim queries filter on this column, so a redacted payload has no path to
+     * the transport whatever a future caller does.
+     */
+    payloadRedactedAt: timestamp("payload_redacted_at", { withTimezone: true, mode: "date" }),
   },
   (t) => [
     // The deliverer's claim query: undelivered, live (not dead-lettered) rows due

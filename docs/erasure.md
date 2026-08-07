@@ -1,9 +1,13 @@
 # Erasure (right-to-erasure) - operator guide
 
-Erasure is qcms's answer to a data-subject erasure request (GDPR Art. 17 and
+Erasure is QCMS's answer to a data-subject erasure request (GDPR Art. 17 and
 equivalents). It **hard-deletes** a single respondent session's content and
 leaves a **tombstone** proving that a response existed - against which form
 version, and when it was erased - without preserving any of the content.
+
+It reaches **three** things, not one (ADR-17 as amended 2026-08-02, task 059):
+the answer ledger and the submission, QCMS's own copy of the answers in the
+webhook outbox, and any undelivered webhook delivery for that session.
 
 Design decision: **ADR-17** (hard delete + tombstone; crypto-shredding rejected
 for launch). Invariant **I11**. Semantics are owned by `@qcms/core`
@@ -21,16 +25,50 @@ transaction that:
 3. **Scrubs respondent-linkable session columns** - see
    [What is retained](#what-is-retained). In the launch schema this set is
    empty; the (now content-free) session row is retained as an audit shell.
-4. **Writes a tombstone** - one `erasure_tombstones` row
+4. **Redacts QCMS's own outbox copy** - every `outbox` row whose payload names
+   this session keeps its envelope (`sessionId`, `formId`, `formVersion`,
+   `submittedAt`, `contentHash`) and loses its `answers` member, and the row is
+   stamped `payload_redacted_at`. Existence without content, the same principle
+   the tombstone applies one table over. The row is **not** deleted: it and its
+   `webhook_deliveries` children are the audit record of what left the building.
+5. **Cancels every undelivered delivery** - each `webhook_deliveries` row for
+   those events that is neither delivered nor already cancelled gets
+   `cancelled_at` and `cancelled_reason = 'session_erased'`. It will never be
+   attempted again.
+6. **Writes a tombstone** - one `erasure_tombstones` row
    `(session_id, form_id, form_version, erased_at, reason)`.
 
 It is **idempotent**: erasing an already-erased session is a no-op that returns
 the existing tombstone. Erasing a session that never existed throws a typed
 `SessionNotFoundError` (`code: "SESSION_NOT_FOUND"`).
 
-All four steps are one transaction: an induced failure at any point (e.g. a
-constraint or trigger error on the tombstone insert) rolls the deletes back -
-the ledger stays intact and no tombstone is written.
+All six steps are one transaction: an induced failure at any point (e.g. a
+constraint or trigger error on the tombstone insert, which runs last) rolls the
+deletes, the redaction and the cancellations back together - the ledger stays
+intact, the payloads still hold their answers, and no tombstone is written.
+
+### Why the cancelled state is its own column
+
+`cancelled_at` is deliberately not `dead_lettered_at`. A dead letter means
+retries were exhausted and the dead-letter queue is offering the row **back**
+for redelivery; a cancelled delivery is one nobody may ever send. Reusing the
+column would have made those two the same value.
+
+The cancellation is enforced structurally, not by convention:
+
+- `claimDueDeliveries` (the scheduler's claim) filters out cancelled rows **and**
+  rows whose outbox payload is redacted, so a redacted payload has no path to the
+  transport whatever a future caller does.
+- `claimDue` (the fan-out claim) filters out redacted rows, so a session erased
+  *before* its event was fanned out never gets a delivery row at all.
+- `POST /admin/outbox/:id/redeliver` reads exactly those two columns and answers
+  `409 DELIVERY_SESSION_ERASED`. One rule, stated in the two places it has to
+  hold, rather than a separate tombstone lookup that could drift from what the
+  scheduler actually does.
+- The dead-letter queue excludes cancelled rows, because every row on it is being
+  offered for redelivery. The **delivery dashboard** still shows them, with the
+  status and the reason, so an operator asking "what happened to that delivery"
+  finds an answer rather than a missing row.
 
 ## What is retained
 
@@ -96,8 +134,10 @@ showing the answers that are about to go, so nobody erases from a list of ids. P
 "Erase respondent data" opens a type-to-confirm dialog that states three separate facts
 rather than asking for certainty: what is deleted (every answer and the submission, with
 no undo, no soft delete, and nothing this screen can restore from), what remains (the
-tombstone below), and what erasing cannot reach (a webhook consumer's copy, and an event
-for this session still queued - see "What erasure does NOT cover").
+tombstone below), and what happens to the webhook copies: an event already delivered
+stays delivered and is the consumer's to erase as an independent controller, an event
+not yet delivered is cancelled and never sent, and QCMS's own stored copy of the answers
+is redacted.
 The destructive button stays disabled until the operator retypes the session id exactly,
 so there is no single-click path to it.
 
@@ -118,34 +158,28 @@ Erasure is honest about its boundaries. It does **not**:
 - **Propagate to webhook consumers.** Anyone you delivered `response.submitted`
   events to (via the outbox) is an **independent data controller**. Erasure does
   not call them back; you must run your own downstream-erasure process against
-  those systems.
-- **Withdraw an event that has not been delivered yet.** This one is sharper than the
-  point above, and it is a live gap rather than a boundary. A `response.submitted`
-  outbox row carries the respondent's **whole locked answer set** in its payload.
-  `eraseSession` deletes the `answers` rows and the `submissions` lock and writes the
-  tombstone; it does **not** touch `outbox` or `webhook_deliveries`. So a session that
-  is gone from the response list, the detail view and every export can still have a
-  queued event holding exactly that content, and the delivery pass sends it on its next
-  tick.
-
-  Two things follow, and only the first is fixed at launch:
-
-  1. **Manual redelivery refuses it.** `POST /admin/outbox/:id/redeliver` answers `409
-     DELIVERY_SESSION_ERASED` when the delivery's event names an erased session, so an
-     operator clearing a stuck dead-letter queue can never be the reason those answers
-     go out. Bulk redelivery is the same endpoint per item, so it is covered too, and
-     the erasure log stays the record of what was erased either way.
-  2. **The scheduler is not gated.** Whether erasure should purge or redact the
-     session's `outbox` rows and their `webhook_deliveries` children is an **ADR-17
-     amendment question**, not an implementation detail: it trades the outbox's
-     at-least-once contract (a consumer that already got a partial fan-out) against the
-     erasure promise, and it is the Code Owner's call. Until it is answered, an
-     operator who needs certainty should erase **before** the delivery window or accept
-     that a queued event may already have left.
-
-  The erase dialog says this in the operator's words rather than leaving it to this
-  document: "an event for this session still waiting to be delivered is not withdrawn
-  by this action: it may still be sent."
+  those systems. This is about a **consumer's** copy, which is genuinely outside
+  our reach. It never governed QCMS's own copy - see below.
+- **Remove the envelope from QCMS's retained copy.** Erasure redacts the outbox
+  payload rather than deleting the row, so what stays behind is the session id,
+  the form, the version, the submission time and the content hash of an event that
+  existed. That is deliberate, and it is the same trade as the tombstone: an
+  operator answering "was this person's data sent anywhere?" needs the record.
+  What is gone is the `answers` member, which is the content. If your threat model
+  cannot tolerate the retained session id, note that the tombstone carries it too,
+  by design.
+- **Reach a delivered outbox row for a session nobody asked to erase.** Nothing
+  removes a **delivered** outbox row today, so every answer set for every response
+  persists in plaintext `jsonb` indefinitely when no erasure request is
+  outstanding. That is a retention gap rather than an erasure gap, tracked as issue
+  #329; its fix reuses this task's redaction mechanism once fan-out is terminal.
+- **Recall an HTTP request already in flight.** A delivery claimed microseconds
+  before the erasure transaction commits may still complete: the deliverer holds
+  the row lock across the POST, so the request is already on the wire. The window
+  is narrow and is documented rather than closed - closing it would mean holding a
+  lock across a network call. An operator who needs certainty about a specific
+  event can confirm it afterwards on the delivery dashboard, which shows whether
+  the row ended up `delivered` or `cancelled`.
 - **Reach physical backups, WAL, or replicas immediately.** A hard delete in the
   primary does not retroactively rewrite base backups, write-ahead logs, or
   streaming replicas. Those copies age out per **your** backup-retention policy.

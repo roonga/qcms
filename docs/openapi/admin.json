@@ -1612,6 +1612,7 @@
             "type": "string",
             "enum": [
               "delivered",
+              "cancelled",
               "deadLettered",
               "pending"
             ]
@@ -1635,6 +1636,16 @@
             "example": null
           },
           "deadLetteredAt": {
+            "type": "string",
+            "nullable": true,
+            "example": null
+          },
+          "cancelledAt": {
+            "type": "string",
+            "nullable": true,
+            "example": null
+          },
+          "cancelledReason": {
             "type": "string",
             "nullable": true,
             "example": null
@@ -1683,6 +1694,8 @@
           "createdAt",
           "deliveredAt",
           "deadLetteredAt",
+          "cancelledAt",
+          "cancelledReason",
           "nextAttemptAt",
           "lastAttemptAt",
           "lastStatus",

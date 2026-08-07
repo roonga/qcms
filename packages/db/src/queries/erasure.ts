@@ -1,8 +1,16 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import type { EraseErrorCode, EraseOutcome, SessionId } from "@qcms/core";
 
-import { answers, erasureTombstones, sessions, submissions } from "../schema/index.js";
+import {
+  answers,
+  erasureTombstones,
+  outbox,
+  sessions,
+  submissions,
+  webhookDeliveries,
+} from "../schema/index.js";
+import { DELIVERY_CANCELLED_SESSION_ERASED } from "./deliveries.js";
 import type { Executor } from "./executor.js";
 
 /**
@@ -57,12 +65,16 @@ export class SessionNotFoundError extends Error {
  *    `linkId` is retained by design - see `@qcms/core` erasure semantics and
  *    `docs/erasure.md`), so the scrub set is empty today; the session row is
  *    retained as an audit shell.
- * 5. Insert the `erasure_tombstones` row `(sessionId, formId, formVersion,
+ * 5. **Redact QCMS's own outbox copy** and **cancel the session's undelivered
+ *    deliveries** (ADR-17 as amended 2026-08-02, task 059) - see
+ *    {@link redactOutboxPayloads} and {@link cancelUndeliveredDeliveries}.
+ * 6. Insert the `erasure_tombstones` row `(sessionId, formId, formVersion,
  *    erasedAt, reason)` and return it (`alreadyErased: false`).
  *
- * All five steps share one transaction, so an induced failure at any point
- * (e.g. the tombstone insert) rolls the deletes back - the ledger stays intact
- * and no tombstone is written (I11 transactionality).
+ * All six steps share one transaction, so an induced failure at any point
+ * (e.g. the tombstone insert, which runs last) rolls the deletes, the redaction
+ * and the cancellations back together - the ledger stays intact, the payloads
+ * still hold their answers, and no tombstone is written (I11 transactionality).
  */
 export async function eraseSession(
   exec: Executor,
@@ -106,7 +118,14 @@ export async function eraseSession(
     //    schema (structural columns only; linkId retained), so this is a
     //    deliberate no-op. Adopters who add PII columns extend it here.
 
-    // 5. Write the tombstone: existence without content.
+    // 5. Erasure reaches QCMS's own queued copy too, not just the ledger.
+    //    Cancellation runs first so it can still see which deliveries were live;
+    //    redaction keeps `sessionId` in the envelope, so the order is not load
+    //    bearing, but reading it in this order matches what the two do.
+    await cancelUndeliveredDeliveries(tx, sessionId);
+    await redactOutboxPayloads(tx, sessionId);
+
+    // 6. Write the tombstone: existence without content.
     const [tombstone] = await tx
       .insert(erasureTombstones)
       .values({
@@ -126,4 +145,79 @@ export async function eraseSession(
       alreadyErased: false,
     };
   });
+}
+
+/**
+ * Every `outbox` row that carries this session's answers, matched on the payload's
+ * own `sessionId`. There is no `outbox.session_id` column - the outbox stores
+ * whole domain events, and a session id is a property of one event *type* - so the
+ * jsonb member is the join key. Event types that carry no `sessionId`
+ * (`form.published`) never match, which is the intended behaviour: they hold no
+ * respondent data.
+ */
+function outboxRowsForSession(sessionId: SessionId) {
+  return sql`${outbox.payload} ->> 'sessionId' = ${sessionId}`;
+}
+
+/**
+ * Redact this session's outbox payloads in place (ADR-17 amendment, task 059).
+ *
+ * `outbox.payload` for a `response.submitted` event is the respondent's **whole
+ * locked answer set**. It is QCMS's own copy of exactly what erasure was asked to
+ * remove, so leaving it meant an erased respondent's answers survived erasure in
+ * our database and stayed deliverable. This drops the `answers` member with the
+ * jsonb `-` operator and keeps the envelope (`sessionId`, `formId`, `formVersion`,
+ * `submittedAt`, `contentHash`) plus the row's `event_type`: existence without
+ * content, the tombstone's principle applied one table over.
+ *
+ * **Redaction, not deletion** - the row and its `webhook_deliveries` children are
+ * the audit record of what left the building, and an operator answering "was this
+ * person's data sent anywhere?" needs it. This adds no new DELETE door: the two
+ * sanctioned whole-session DELETE paths remain `eraseSession` and `purgeExpired`.
+ *
+ * Rows already redacted are skipped so a re-run cannot move the original
+ * `payload_redacted_at`; the `-` operator would be a no-op on them anyway.
+ */
+async function redactOutboxPayloads(exec: Executor, sessionId: SessionId): Promise<void> {
+  await exec
+    .update(outbox)
+    .set({
+      payload: sql`${outbox.payload} - 'answers'`,
+      // The transaction timestamp, so the redaction, the cancellations and the
+      // tombstone's `erasedAt` default all name the same instant.
+      payloadRedactedAt: sql`now()`,
+    })
+    .where(and(outboxRowsForSession(sessionId), isNull(outbox.payloadRedactedAt)));
+}
+
+/**
+ * Terminally cancel every still-sendable delivery for this session (ADR-17
+ * amendment, task 059): anything not already delivered and not already cancelled,
+ * whether it is pending or dead-lettered.
+ *
+ * Posting an event whose `answers` member has just been removed is a malformed
+ * message for the consumer, and posting one that still had them would defeat the
+ * erasure; not sending is the honest outcome. Cancellation is what makes that
+ * structural rather than a convention: `claimDueDeliveries` and the dead-letter
+ * queue both exclude cancelled rows, and the redeliver endpoint refuses them.
+ *
+ * A **delivered** row is deliberately untouched here (beyond its parent's
+ * redaction). That event has already left; pretending otherwise on the dashboard
+ * would be a fiction, and the consumer's copy is theirs to erase as an independent
+ * controller.
+ */
+async function cancelUndeliveredDeliveries(exec: Executor, sessionId: SessionId): Promise<void> {
+  await exec
+    .update(webhookDeliveries)
+    .set({ cancelledAt: sql`now()`, cancelledReason: DELIVERY_CANCELLED_SESSION_ERASED })
+    .where(
+      and(
+        isNull(webhookDeliveries.deliveredAt),
+        isNull(webhookDeliveries.cancelledAt),
+        inArray(
+          webhookDeliveries.outboxId,
+          exec.select({ id: outbox.id }).from(outbox).where(outboxRowsForSession(sessionId)),
+        ),
+      ),
+    );
 }

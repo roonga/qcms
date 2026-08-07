@@ -219,7 +219,12 @@ export async function redeliver(
 
 // --- reading the API's payloads ---------------------------------------------
 
-const DELIVERY_STATUSES: readonly DeliveryStatus[] = ["delivered", "deadLettered", "pending"];
+const DELIVERY_STATUSES: readonly DeliveryStatus[] = [
+  "delivered",
+  "cancelled",
+  "deadLettered",
+  "pending",
+];
 
 function text(raw: unknown, fallback: string): string {
   return typeof raw === "string" && raw !== "" ? raw : fallback;
@@ -298,6 +303,8 @@ function parseDelivery(entry: Record<string, unknown>): DeliveryItem {
     createdAt: text(entry["createdAt"], ""),
     deliveredAt: nullableText(entry["deliveredAt"]),
     deadLetteredAt: nullableText(entry["deadLetteredAt"]),
+    cancelledAt: nullableText(entry["cancelledAt"]),
+    cancelledReason: nullableText(entry["cancelledReason"]),
     nextAttemptAt: text(entry["nextAttemptAt"], ""),
     lastAttemptAt: nullableText(entry["lastAttemptAt"]),
     lastStatus: nullableCount(entry["lastStatus"]),

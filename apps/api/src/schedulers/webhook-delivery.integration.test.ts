@@ -14,6 +14,11 @@
  *    (at-least-once; the duplicate is expected).
  * 5. fan-out: two webhooks on one form, one failing - states independent.
  *
+ * Task 059 adds a seventh group: an erased session's event reaches no consumer in a
+ * real delivery pass, while an unerased session in the *same* pass is delivered
+ * normally. That is the assertion the ADR-17 amendment turns on - before 059 the
+ * erased session's answers went out on the very next tick.
+ *
  * Task 035 adds a sixth group over the same live infrastructure: the per-attempt
  * record the operator dashboard reads (status, latency, request headers, response
  * snippet) is written on success, on a non-2xx and on a transport failure, and the
@@ -32,10 +37,13 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { FormId, type FormDefinition } from "@qcms/core";
+import { FormId, SessionId, type FormDefinition } from "@qcms/core";
 import {
   createForm,
+  createSession,
+  DELIVERY_CANCELLED_SESSION_ERASED,
   enqueue,
+  eraseSession,
   insertFormVersion,
   insertWebhook,
   OUTBOX_MAX_ATTEMPTS,
@@ -598,5 +606,133 @@ describe("035: each attempt is recorded on the row, with the signature masked", 
     expect(row?.lastRequestHeaders?.["x-qcms-event"]).toBe("response.submitted");
     expect(row?.lastRequestHeaders?.["x-qcms-signature"]).toBe(SIGNATURE_MASK);
     expect(row?.attempts).toBe(1);
+  });
+});
+
+// --- exit criterion 2 (task 059) --------------------------------------------
+
+describe("059: an erased session reaches no consumer, while its neighbour is delivered", () => {
+  /**
+   * A real, submitted-enough session plus its queued `response.submitted` event.
+   *
+   * The session row has to exist for `eraseSession` to erase anything, and the
+   * payload has to be the shape the submit slice enqueues (whole locked answer set
+   * inline) for the redaction to have something to remove.
+   */
+  async function seedSessionWithEvent(
+    formId: FormId,
+    version: number,
+    suffix: string,
+  ): Promise<{ sessionId: SessionId; answer: string }> {
+    const sessionId = SessionId.parse(`ses_erase_pass_${suffix}`);
+    const answer = `answer-${suffix}`;
+    await createSession(testDb.db, {
+      sessionId,
+      formId,
+      formVersion: version,
+      accessMode: "anonymous",
+      expiresAt: new Date(Date.now() + 86_400_000),
+    });
+    await enqueue(testDb.db, {
+      eventType: "response.submitted",
+      payload: {
+        sessionId,
+        formId,
+        formVersion: version,
+        submittedAt: new Date().toISOString(),
+        contentHash: `hash_${suffix}`,
+        answers: { q_name: answer },
+      },
+    });
+    return { sessionId, answer };
+  }
+
+  it("delivers the unerased session's event and never sends the erased one", async () => {
+    receiver.reset();
+    const secret = "whsec_e2e_erase_0123456789";
+    const { formId, version } = await seed([{ path: "/erasure", secret }]);
+
+    const erased = await seedSessionWithEvent(formId, version, "erased");
+    const kept = await seedSessionWithEvent(formId, version, "kept");
+
+    // Erase between submit and delivery - the window the whole amendment is about.
+    await eraseSession(testDb.db, erased.sessionId, "subject_request");
+
+    const metrics = await runDeliveryPass(deps, { now: soon() });
+
+    const bodies = receiver.received.filter((r) => r.path === "/erasure").map((r) => r.body);
+
+    // The consumer got exactly one request, and it is the unerased session's.
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0]).toContain(kept.sessionId);
+    expect(bodies[0]).toContain(kept.answer);
+
+    // Nothing about the erased session crossed the wire: not its id, and above all
+    // not its answer. Asserted over the raw bytes of every request in the pass,
+    // rather than over a parsed field, so a payload shape change cannot hide a leak.
+    const allBytes = receiver.received.map((r) => r.body).join("");
+    expect(allBytes, "the erased session's id never left").not.toContain(erased.sessionId);
+    expect(allBytes, "the erased session's answer never left").not.toContain(erased.answer);
+
+    // One event delivered, and the erased one was never even fanned out: its outbox
+    // row is redacted, so the materialize phase declines to claim it.
+    expect(metrics.delivered).toBe(1);
+
+    const rows = await testDb.db.select().from(schema.outbox);
+    const erasedRow = rows.find(
+      (r) => (r.payload as { sessionId?: string }).sessionId === erased.sessionId,
+    );
+    expect(erasedRow?.payloadRedactedAt).toBeInstanceOf(Date);
+    expect(erasedRow?.payload).not.toHaveProperty("answers");
+  });
+
+  it("never claims a delivery cancelled after it was already materialized", async () => {
+    // The other ordering: the event is fanned out to a delivery row *first*, and the
+    // erasure lands before the delivery attempt. Here cancellation is what stops it,
+    // and this is the case 035's handler-only guard did not cover at all.
+    receiver.reset();
+    const secret = "whsec_e2e_erase2_012345678";
+    const { formId, version } = await seed([{ path: "/erasure-late", secret }]);
+    const erased = await seedSessionWithEvent(formId, version, "late");
+
+    // A pass with the receiver refusing everything materializes the delivery row and
+    // leaves it pending rather than delivered.
+    receiver.status.set("/erasure-late", 500);
+    await runDeliveryPass(deps, { now: soon() });
+    const [materialized] = await testDb.db
+      .select()
+      .from(webhookDeliveries)
+      .where(eq(webhookDeliveries.webhookId, `whk_wd_${seq}_0`));
+    expect(materialized?.deliveredAt).toBeNull();
+    expect(materialized?.attempts).toBe(1);
+
+    await eraseSession(testDb.db, erased.sessionId, "subject_request");
+
+    receiver.status.clear();
+    receiver.reset();
+    // Well past the row's scheduled retry, so "not attempted" cannot be read as
+    // "not yet due". Other fixtures in this file share the receiver and the pass,
+    // so the assertions below are scoped to this delivery's own path and row rather
+    // than to the pass-wide metrics.
+    await runDeliveryPass(deps, {
+      now: new Date(materialized!.nextAttemptAt.getTime() + 60_000),
+    });
+
+    expect(
+      receiver.received.filter((r) => r.path === "/erasure-late"),
+      "a cancelled delivery is never claimed, so nothing is POSTed for it",
+    ).toHaveLength(0);
+
+    const [after] = await testDb.db
+      .select()
+      .from(webhookDeliveries)
+      .where(eq(webhookDeliveries.id, materialized!.id));
+    expect(after?.cancelledAt).toBeInstanceOf(Date);
+    expect(after?.cancelledReason).toBe(DELIVERY_CANCELLED_SESSION_ERASED);
+    // The row survives, and the pass did not touch it: still one failed attempt,
+    // still undelivered. Redaction and cancellation, never deletion (ADR-17).
+    expect(after?.attempts).toBe(1);
+    expect(after?.deliveredAt).toBeNull();
+    expect(after?.lastAttemptAt).toEqual(materialized!.lastAttemptAt);
   });
 });

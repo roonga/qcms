@@ -112,8 +112,16 @@ export interface RevealedWebhook {
   readonly secret: string;
 }
 
-/** The delivery lifecycle, as the API derives it from the row's timestamps. */
-export type DeliveryStatus = "delivered" | "deadLettered" | "pending";
+/**
+ * The delivery lifecycle, as the API derives it from the row's timestamps.
+ *
+ * `cancelled` (059) is a delivery erasure terminally stopped: it will never be
+ * attempted, the redeliver action is refused for it, and it is absent from the
+ * dead-letter queue. It is still listed on the dashboard, with its reason, so an
+ * operator asking "what happened to that delivery" finds an answer rather than a
+ * missing row.
+ */
+export type DeliveryStatus = "delivered" | "cancelled" | "deadLettered" | "pending";
 
 /**
  * One row of `GET /admin/forms/{id}/deliveries`.
@@ -138,6 +146,10 @@ export interface DeliveryItem {
   readonly createdAt: string;
   readonly deliveredAt: string | null;
   readonly deadLetteredAt: string | null;
+  /** When erasure cancelled this delivery (059); null on every live row. */
+  readonly cancelledAt: string | null;
+  /** The value-free code naming why, e.g. `session_erased`. */
+  readonly cancelledReason: string | null;
   readonly nextAttemptAt: string;
   readonly lastAttemptAt: string | null;
   /** Null when the attempt never got a response at all (timeout, network error). */

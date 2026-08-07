@@ -92,6 +92,13 @@
       "when": 1785658045528,
       "tag": "0012_delivery_attempt_record",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1786059182060,
+      "tag": "0013_erasure_reaches_outbox",
+      "breakpoints": true
     }
   ]
 }

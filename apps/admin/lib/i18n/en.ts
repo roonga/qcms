@@ -938,22 +938,19 @@ export const messages = {
   // Erasure (ADR-17).
   "ops.erase.button": "Erase respondent data…",
   "ops.erase.title": "Erase this respondent's data?",
-  // "nothing this screen can restore from" rather than the old "nothing to restore
-  // from": an undelivered outbox event for this session still carries the whole locked
-  // answer set (`eraseSession` deletes the ledger and the submission, not the queued
-  // event), so the flat claim was false in exactly the case the next sentence now
-  // covers. Do not soften this back without changing what erasure deletes.
   "ops.erase.irreversible":
     "This deletes every answer and the submission for this session. There is no undo: no soft delete, and nothing this screen can restore from.",
   "ops.erase.tombstoneStays":
     "A tombstone remains - the session id, the form, the version, when it was erased and why. That is the compliance record, and it holds no answers.",
-  // Two different facts, and the old wording only told the first. A delivered event is
-  // beyond reach - true, and the operator's own downstream-erasure job. An event still
-  // QUEUED for this session is not: erasure does not withdraw it, and the scheduler
-  // sends it on its next pass. Redelivery from the dead-letter queue is refused
-  // (`DELIVERY_SESSION_ERASED`), which is the one door this app controls.
+  // Three separate facts, and each has an assertion behind it (task 059): a delivered
+  // event is genuinely beyond reach and the consumer's to erase as an independent
+  // controller; an undelivered one is cancelled by `eraseSession` and filtered out of
+  // both `claimDueDeliveries` and the redeliver door, so "never sent" is structural
+  // rather than a promise; and QCMS's own `outbox.payload` copy of the answers is
+  // redacted in place. 035's wording ("it may still be sent") described the pre-059
+  // behaviour truthfully and is now false - do not restore it.
   "ops.erase.consumersUnaffected":
-    "Erasing here does not reach a webhook consumer. An event already delivered stays delivered, and an event for this session still waiting to be delivered is not withdrawn by this action: it may still be sent. Redelivering it from the dead-letter queue is refused.",
+    "An event already delivered stays delivered: that copy is the consumer's to erase, as an independent data controller. An event for this session that has not been delivered is cancelled and will never be sent. QCMS's own stored copy of the answers, in the queued event, is redacted.",
   "ops.erase.reason": "Reason",
   "ops.erase.reason.subject_request": "Data subject request",
   "ops.erase.reason.retention_policy": "Retention policy",
@@ -1070,6 +1067,14 @@ export const messages = {
   "ops.deliveries.status.delivered": "Delivered",
   "ops.deliveries.status.deadLettered": "Dead-lettered",
   "ops.deliveries.status.pending": "Pending",
+  "ops.deliveries.status.cancelled": "Cancelled",
+  // The cancelled row stays on the dashboard with its reason rather than vanishing,
+  // because the operator question this screen answers is "what happened to that
+  // delivery" and a missing row answers nothing (task 059).
+  "ops.deliveries.cancelled.session_erased":
+    "Cancelled: the respondent's data was erased, so this event was never sent and its stored copy of the answers has been redacted.",
+  "ops.deliveries.cancelled.unknown": "Cancelled. Recorded reason: {reason}.",
+  "ops.deliveries.cancelledAt": "Cancelled",
   "ops.deliveries.attemptsHint":
     "Attempts that failed. A delivery that succeeded first time shows zero.",
   "ops.deliveries.latency": "{ms} ms",
@@ -1132,6 +1137,19 @@ export const messages = {
   // value: it can carry a URL or a body fragment, and neither belongs on screen.
   "ops.error.unexpected":
     "That did not reach the server, so nothing changed. Check the connection and try again.",
+  // Reachable only when an erasure lands between render and click (task 059). Since
+  // 059 erasure cancels the session's still-sendable deliveries and the dead-letter
+  // queue excludes cancelled rows, so an operator looking at a freshly loaded queue
+  // has no erased row to press. The race remains: the queue renders, the erasure
+  // commits, and the operator then presses Redeliver - or "Redeliver all" iterates ids
+  // it displayed before the commit. The API answers 409 DELIVERY_SESSION_ERASED and
+  // this is what the screen must say, rather than an internal error. The bulk
+  // summary's refused variant (`ops.deadLetters.redeliverPartial`) exists for the same
+  // race, which is why it survives 059 too.
+  //
+  // Do NOT re-describe this path as dead. It is a live guard on a privacy control
+  // under a narrow race, and a comment claiming otherwise is an invitation to delete
+  // it - which is exactly how the "sole/only door" comments this repo warns about rot.
   "ops.error.deliverySessionErased":
     "That delivery carries a response that has been erased, so it will not be re-sent.",
   // Reachable only from a forged or malformed action payload: the dialog offers a

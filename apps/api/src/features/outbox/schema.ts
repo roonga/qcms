@@ -58,8 +58,13 @@ export const DeliveriesQuery = z.object({
 /**
  * The derived delivery status. Never stored: it is a function of the lifecycle
  * timestamps (`deliveries.ts` explains why a stored enum could drift from them).
+ *
+ * `cancelled` (059) is a delivery erasure terminally stopped: never attempted
+ * again, refused by the redeliver endpoint, and excluded from the dead-letter
+ * queue. The row is still listed here rather than hidden, because an operator
+ * asking "what happened to that delivery" must find the answer.
  */
-export const DeliveryStatus = z.enum(["delivered", "deadLettered", "pending"]);
+export const DeliveryStatus = z.enum(["delivered", "cancelled", "deadLettered", "pending"]);
 
 /**
  * One delivery in the operator dashboard (task 035), with the record of its most
@@ -84,6 +89,10 @@ export const DeliveryItem = z
     createdAt: z.string().openapi({ example: "2026-07-20T00:00:00.000Z" }),
     deliveredAt: z.string().nullable().openapi({ example: null }),
     deadLetteredAt: z.string().nullable().openapi({ example: null }),
+    /** When erasure terminally cancelled this delivery (059); null on live rows. */
+    cancelledAt: z.string().nullable().openapi({ example: null }),
+    /** The value-free code naming why it was cancelled, e.g. `session_erased`. */
+    cancelledReason: z.string().nullable().openapi({ example: null }),
     nextAttemptAt: z.string().openapi({ example: "2026-07-20T00:01:00.000Z" }),
     lastAttemptAt: z.string().nullable().openapi({ example: "2026-07-20T00:00:03.000Z" }),
     /** Null when the attempt never got a response (timeout, network error). */

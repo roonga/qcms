@@ -232,13 +232,19 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     // ADR-17 facts, and the confirm button is inert until the id is typed back.
     await expect(dialog).toContainText("There is no undo");
     await expect(dialog).toContainText("A tombstone remains");
-    // The consumer sentence is the one that was wrong. It must state BOTH halves: an
-    // already-delivered event is beyond reach, and an event still queued for this
-    // session is not withdrawn by erasing. The second half is the ADR-17 gap this diff
-    // contains rather than closes, so an operator has to be told it here.
+    // The third fact has three clauses, and each is a separate promise about a
+    // different copy of the data (059). Asserted one at a time so a rewrite that drops
+    // one fails here rather than passing on the other two; the behaviour behind each is
+    // asserted in test 6 below and in the @qcms/db integration suite.
     await expect(dialog).toContainText("An event already delivered stays delivered");
-    await expect(dialog).toContainText("still waiting to be delivered is not withdrawn");
-    await expect(dialog).toContainText("it may still be sent");
+    await expect(dialog).toContainText(
+      "the consumer's to erase, as an independent data controller",
+    );
+    await expect(dialog).toContainText(
+      "has not been delivered is cancelled and will never be sent",
+    );
+    await expect(dialog).toContainText("QCMS's own stored copy of the answers");
+    await expect(dialog).toContainText("is redacted");
     const confirm = dialog.getByRole("button", { name: "Erase permanently" });
     await expect(confirm).toBeDisabled();
 
@@ -390,38 +396,42 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
       );
       await expect(page.getByTestId("qcms-dead-letter-error").first()).toHaveText("network_error");
 
-      // 3b. ADR-17, and the reason this test is shaped the way it is.
+      // 3b. ADR-17 as amended 2026-08-02 (task 059): erasure reaches this queue.
       //
-      //     `erasable` was submitted in test 1 and ERASED in test 5. Its answers are
-      //     gone from the list, the detail and the CSV - and its outbox event is not,
-      //     because `eraseSession` deletes the ledger and the submission and leaves the
-      //     queue alone. So one of the dead-lettered deliveries above carries the whole
-      //     locked answer set of a respondent this product has told an operator it
-      //     erased. That is asserted here rather than described in a comment, because
-      //     the erase dialog now admits it in exactly these terms.
-      const queuedForErased = await deliverer.outboxPayloadsForSession(erasable);
+      //     Two orderings matter, and this test now covers both.
+      //
+      //     `erasable` was submitted in test 1 and erased in test 5, BEFORE any
+      //     endpoint existed. Its outbox row was redacted then, so the materialize
+      //     phase above declined to fan it out at all: it never became a delivery.
+      const redactedEarly = await deliverer.outboxPayloadsForSession(erasable);
+      expect(redactedEarly.length, "the erased session's event row survives").toBeGreaterThan(0);
       expect(
-        queuedForErased.length,
-        "an erased session still has its event queued (ADR-17 gap, escalated)",
-      ).toBeGreaterThan(0);
+        redactedEarly[0],
+        "but QCMS's own copy of the answers is gone from it",
+      ).not.toHaveProperty("answers");
       expect(
-        queuedForErased[0]?.["answers"],
-        "and that queued event still carries the answers erasure removed everywhere else",
-      ).toBeDefined();
+        redactedEarly[0]?.["sessionId"],
+        "the envelope stays, so the row is still the audit record of an event",
+      ).toBe(erasable);
+      expect(
+        (await deliverer.cancelledDeliveries(erasable)).length +
+          (await deliverer.erasedDeliveries()).filter((row) => row.sessionId === erasable).length,
+        "a session erased before fan-out never gets a delivery row at all",
+      ).toBe(0);
 
-      // Every delivery whose event names an ERASED session - a set, not a single row.
-      // This spec erases one in test 5 and the axe sweep erases another on the same
-      // seeded form, so how many there are depends on which specs ran: hard-coding one
-      // is green as a single spec and red in the full suite.
-      const erased = await deliverer.erasedDeliveries();
-      const thisSpecsErased = erased.filter((row) => row.sessionId === erasable);
+      //     `stuck` is the other ordering, and the one 035's handler-only guard could
+      //     not reach: submitted at the top of this test, already dead-lettered above,
+      //     and erased now. Its delivery is cancelled in place.
+      await eraseResponse(page, stuck);
+
+      const cancelled = await deliverer.cancelledDeliveries(stuck);
+      expect(cancelled.length, "the dead-lettered delivery was cancelled").toBeGreaterThan(0);
+      expect(cancelled[0]?.cancelledReason).toBe("session_erased");
       expect(
-        thisSpecsErased.length,
-        "the session this spec erased has a delivery among them",
-      ).toBeGreaterThan(0);
-      const notErased = `tr[data-delivery-id]${erased
-        .map((row) => `:not([data-delivery-id="${row.deliveryId}"])`)
-        .join("")}`;
+        (await deliverer.outboxPayloadsForSession(stuck))[0],
+        "and its payload was redacted in the same transaction",
+      ).not.toHaveProperty("answers");
+      const cancelledCount = cancelled.length;
 
       // 4. Fix the target through the UI, then redeliver ONE from the queue.
       await openWebhooks(page, FORM_ID);
@@ -433,18 +443,17 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
 
       await page.goto("/webhooks");
       const queue = page.getByTestId("qcms-dead-letters-table");
-      // A row whose session is NOT erased, resolved by id rather than by position: the
-      // erased ones are refused below, and which row sorts first is not this test's to
-      // assume. `refusedCount` is read off the queue rather than off the erased set,
-      // because an erased session can also own a delivery that never dead-lettered.
-      const queuedRows = await queue.locator("tr[data-delivery-id]").count();
-      const refusedCount = queuedRows - (await queue.locator(notErased).count());
-      expect(
-        refusedCount,
-        "at least one queued delivery belongs to an erased session",
-      ).toBeGreaterThan(0);
+      // The cancelled delivery is OFF this queue (059): the queue is a worklist of rows
+      // being offered back for redelivery, and a cancelled one may never be sent. No
+      // exclusion selector is needed any more - before 059 this test had to compute one
+      // so it would not press a button the API was about to refuse.
+      const queueAfterErasure = deadCount - cancelledCount;
+      await expect(
+        queue.locator("tr[data-delivery-id]"),
+        "the erased session's delivery left the queue",
+      ).toHaveCount(queueAfterErasure);
       await queue
-        .locator(notErased)
+        .locator("tr[data-delivery-id]")
         .first()
         .getByRole("button", { name: /^Redeliver response\.submitted to / })
         .click();
@@ -469,61 +478,61 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
       // that column counts (`markDeliveryDelivered` in @qcms/db explains why).
       await expect(deliveredRow.getByTestId("qcms-delivery-attempts")).toHaveText("0");
 
-      // 6. Bulk redeliver takes everything that is left - and REFUSES the erased one.
-      //    `deadCount` rows, minus the one already redelivered, minus the erased one
-      //    the API answers 409 for, so the summary is the partial sentence rather than
-      //    a success claiming a number it did not achieve.
+      // 6. Bulk redeliver takes everything that is left. Nothing is refused, because
+      //    nothing refusable is on the queue any more - the erased session's row was
+      //    removed from it by the cancellation rather than left on it to be pressed and
+      //    rejected. That is the whole shape of the 059 change in one assertion.
       await page.goto("/webhooks");
-      const remaining = deadCount - 1 - refusedCount;
+      const remaining = queueAfterErasure - 1;
       await page.getByRole("button", { name: "Redeliver all" }).click();
       await page
         .getByRole("alertdialog")
         .getByRole("button", { name: "Redeliver all of them" })
         .click();
       await expect(page.getByTestId("qcms-redeliver-summary")).toHaveText(
-        `${String(remaining)} queued, ${String(refusedCount)} refused. ` +
-          "The refused ones are still in the queue below.",
+        `${String(remaining)} deliveries are queued for the next pass.`,
       );
 
       await deliverer.pass();
-      expect(consumer.received.length, "every ALLOWED redelivery reached the consumer").toBe(
-        deadCount - refusedCount,
+      expect(consumer.received.length, "every queued redelivery reached the consumer").toBe(
+        queueAfterErasure,
       );
 
       // 7. The payload assertion this whole test exists for: nothing the consumer
-      //    received names the erased session. Same shape as the CSV assertion three
-      //    tests up, pointed at the bytes that actually leave the deployment.
+      //    received names an erased session, or carries a redacted answer set. Same
+      //    shape as the CSV assertion three tests up, pointed at the bytes that
+      //    actually leave the deployment.
       for (const request of consumer.received) {
-        for (const row of erased) {
+        for (const erasedSession of [erasable, stuck]) {
           expect(
             request.body,
-            "an erased respondent's answers must never reach a consumer through redelivery",
-          ).not.toContain(row.sessionId);
+            "an erased respondent's answers must never reach a consumer",
+          ).not.toContain(erasedSession);
         }
       }
 
-      // 8. The erased delivery is still in the queue, and pressing its own button says
-      //    why rather than failing silently or quietly succeeding. THIS spec's erased
-      //    session, not any erased session: only this one is known to have been driven
-      //    to dead-letter, so only this one is guaranteed to have a row here.
-      await page.goto("/webhooks");
-      const stillQueued = page
-        .getByTestId("qcms-dead-letters-table")
-        .locator(`tr[data-delivery-id="${thisSpecsErased[0]?.deliveryId ?? ""}"]`);
-      await expect(stillQueued).toBeVisible();
-      await stillQueued.getByRole("button", { name: /^Redeliver response\.submitted to / }).click();
-      await expect(page.getByTestId("qcms-dead-letters")).toContainText(
-        "carries a response that has been erased",
-      );
-
+      // 8. The cancelled delivery is not hidden - it is on the dashboard with its
+      //    status and the reason, which is where "what happened to that delivery" gets
+      //    answered now that it is off the queue.
       await openWebhooks(page, FORM_ID);
+      const table = page.getByTestId("qcms-deliveries-table");
+      await expect(table.locator('[data-status="delivered"]')).toHaveCount(queueAfterErasure);
       await expect(
-        page.getByTestId("qcms-deliveries-table").locator('[data-status="delivered"]'),
-      ).toHaveCount(deadCount - refusedCount);
+        table.locator('[data-status="cancelled"]'),
+        "the erased session's delivery is shown as cancelled, not dropped",
+      ).toHaveCount(cancelledCount);
       await expect(
-        page.getByTestId("qcms-deliveries-table").locator('[data-status="deadLettered"]'),
-        "every erased session's delivery stays dead-lettered, by refusal",
-      ).toHaveCount(refusedCount);
+        table.locator('[data-status="deadLettered"]'),
+        "and nothing is left dead-lettered",
+      ).toHaveCount(0);
+
+      const cancelledRow = table.locator(
+        `tr[data-delivery-id="${cancelled[0]?.deliveryId ?? ""}"]`,
+      );
+      await cancelledRow.getByRole("button", { name: /^Show request and response/ }).click();
+      await expect(page.getByTestId("qcms-delivery-cancelled")).toContainText(
+        "the respondent's data was erased",
+      );
     } finally {
       await deliverer.close();
       await consumer.stop();
@@ -556,4 +565,21 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
 /** This spec's endpoint row, by the id read off it when it was created. */
 function webhookRow(page: Page) {
   return page.getByTestId("qcms-webhooks-table").locator(`tr[data-webhook-id="${opsWebhookId}"]`);
+}
+
+/**
+ * Erase one submitted response through the operator's own door (task 059).
+ *
+ * The same steps test 5 walks in full, minus its copy and disabled-state assertions:
+ * this is used where the erasure is the *setup* for something else, and duplicating
+ * those assertions would spread the dialog's contract across two places.
+ */
+async function eraseResponse(page: Page, sessionId: string): Promise<void> {
+  await page.goto(`/forms/${FORM_ID}/responses/${sessionId}`);
+  await page.getByRole("button", { name: "Erase respondent data…" }).click();
+  const dialog = page.getByTestId("qcms-erase-dialog");
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("textbox", { name: /Type the session id/ }).fill(sessionId);
+  await dialog.getByRole("button", { name: "Erase permanently" }).click();
+  await expect(page.getByTestId("qcms-tombstone")).toBeVisible({ timeout: 30_000 });
 }

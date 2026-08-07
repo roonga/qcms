@@ -78,6 +78,32 @@ export const webhookDeliveries = pgTable(
     /** A bounded prefix of the most recent response body (diagnostics). */
     lastResponseSnippet: text("last_response_snippet"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    /**
+     * When this delivery was terminally cancelled and will never be attempted again
+     * (ADR-17 as amended 2026-08-02, task 059). Null on every live delivery.
+     *
+     * Deliberately **not** `dead_lettered_at`. A dead letter means retries were
+     * exhausted and the dead-letter queue offers the row back for redelivery, which
+     * is the opposite of what this state means: a cancelled delivery is one nobody
+     * may ever send, so it is excluded from the claim query and from the dead-letter
+     * queue, and the redeliver endpoint refuses it. Reusing the dead-letter column
+     * would have made "offer this for redelivery" and "never send this" the same
+     * value.
+     *
+     * The row itself survives. It plus its outbox parent are the audit record of
+     * what did and did not leave the building, and the dashboard shows the state
+     * rather than dropping the row: an operator asking "what happened to that
+     * delivery" must find the answer.
+     */
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true, mode: "date" }),
+    /**
+     * Why the delivery was cancelled: a closed value-free code, never respondent
+     * data. Today the only producer is erasure
+     * ({@link ../queries/deliveries.js#DELIVERY_CANCELLED_SESSION_ERASED}); it is a
+     * text column rather than an enum so a later cancellation cause (the retention
+     * sweep of issue #329, say) does not need a migration on this table.
+     */
+    cancelledReason: text("cancelled_reason"),
   },
   (t) => [
     // Idempotent materialization: one delivery per (event, webhook). A second

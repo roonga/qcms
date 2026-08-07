@@ -8,16 +8,23 @@ import { startTestDb, type TestDb } from "../testing/harness.js";
 import {
   answerLedger,
   appendAnswer,
+  claimDueDeliveries,
   createForm,
   createSession,
+  DELIVERY_CANCELLED_SESSION_ERASED,
+  enqueue,
   eraseSession,
   getSession,
   getSubmission,
+  insertDelivery,
   insertFormVersion,
   insertSubmission,
+  insertWebhook,
   latestAnswers,
+  markDeliveryDelivered,
   markInProgress,
   markSubmitted,
+  redeliveryRefusalFor,
   SessionNotFoundError,
 } from "./index.js";
 
@@ -106,6 +113,90 @@ async function seedSubmittedWithLedger(
     ]),
     submittedAt: new Date("2026-01-02T03:04:05.000Z"),
   });
+}
+
+/**
+ * A queued `response.submitted` event carrying the session's whole locked answer set
+ * (the shape the submit slice enqueues), fanned out to one webhook.
+ *
+ * `webhookSeq` keeps every fixture's endpoint distinct, because a delivery row is
+ * unique per (event, webhook) and the tests seed several against one form.
+ */
+let webhookSeq = 0;
+async function seedQueuedEvent(
+  formId: FormId,
+  version: number,
+  sessionId: SessionId,
+): Promise<{ outboxId: string; deliveryId: string }> {
+  webhookSeq += 1;
+  const webhookId = `whk_erase_${webhookSeq}`;
+  await insertWebhook(testDb.db, {
+    webhookId,
+    formId,
+    url: `https://consumer.example.com/erase-${webhookSeq}`,
+    secretEncrypted: "v1.opaque-ciphertext",
+    active: true,
+  });
+  const event = await enqueue(testDb.db, {
+    eventType: "response.submitted",
+    payload: {
+      sessionId,
+      formId,
+      formVersion: version,
+      submittedAt: "2026-01-02T03:04:05.000Z",
+      contentHash: "0".repeat(64),
+      answers: { q_text: "second", q_num: 42 },
+    },
+  });
+  await insertDelivery(testDb.db, { outboxId: event.id, webhookId });
+  const found = await testDb.client.query<{ id: string }>(
+    `select id from webhook_deliveries where outbox_id = $1 and webhook_id = $2`,
+    [event.id, webhookId],
+  );
+  return { outboxId: event.id, deliveryId: found.rows[0]!.id };
+}
+
+/**
+ * Raw row reads, so the assertions are about the database and not about a helper.
+ *
+ * `testDb.client` is a `pg` client, whose default type parser turns a timestamptz
+ * into a `Date` (a drizzle raw ``sql`` `` read hands back the string instead), so
+ * these come back as Dates and compare with `toEqual` rather than `toBe`.
+ */
+async function outboxRow(
+  outboxId: string,
+): Promise<{ payload: Record<string, unknown>; payloadRedactedAt: Date | null }> {
+  const res = await testDb.client.query<{
+    payload: Record<string, unknown>;
+    payload_redacted_at: Date | null;
+  }>(`select payload, payload_redacted_at from outbox where id = $1`, [outboxId]);
+  const row = res.rows[0]!;
+  return { payload: row.payload, payloadRedactedAt: row.payload_redacted_at };
+}
+
+async function deliveryRow(deliveryId: string): Promise<{
+  deliveredAt: Date | null;
+  deadLetteredAt: Date | null;
+  cancelledAt: Date | null;
+  cancelledReason: string | null;
+}> {
+  const res = await testDb.client.query<{
+    delivered_at: Date | null;
+    dead_lettered_at: Date | null;
+    cancelled_at: Date | null;
+    cancelled_reason: string | null;
+  }>(
+    `select delivered_at, dead_lettered_at, cancelled_at, cancelled_reason
+       from webhook_deliveries where id = $1`,
+    [deliveryId],
+  );
+  const row = res.rows[0]!;
+  return {
+    deliveredAt: row.delivered_at,
+    deadLetteredAt: row.dead_lettered_at,
+    cancelledAt: row.cancelled_at,
+    cancelledReason: row.cancelled_reason,
+  };
 }
 
 async function tombstoneCount(sessionId: SessionId): Promise<number> {
@@ -235,6 +326,11 @@ describe("eraseSession - transactionality (I11, exit criterion 1)", () => {
     const { formId, version } = await seedForm("frm_erase_rollback");
     const sessionId = SessionId.parse("ses_erase_rollback");
     await seedSubmittedWithLedger(formId, version, sessionId);
+    // 059: the redaction and the cancellations run *before* the tombstone insert, so
+    // the induced failure below now proves all four roll back together, not just the
+    // deletes. A partial commit here would be the worst outcome the change can have:
+    // a payload with no answers and no tombstone recording why.
+    const queued = await seedQueuedEvent(formId, version, sessionId);
 
     // Induce a real failure *after* the answer delete: a fault trigger that
     // aborts the tombstone insert, which eraseSession performs last.
@@ -263,5 +359,148 @@ describe("eraseSession - transactionality (I11, exit criterion 1)", () => {
     expect(await tombstoneCount(sessionId)).toBe(0);
     // And the session is still fully visible in reporting (nothing changed).
     expect(await inReportingResponses(sessionId)).toBe(true);
+
+    // 059: the redaction and the cancellation rolled back with them. The payload
+    // still holds the answers and the delivery is still sendable, which is the only
+    // state consistent with "no erasure happened".
+    const rolledBack = await outboxRow(queued.outboxId);
+    expect(rolledBack.payload["answers"]).toBeDefined();
+    expect(rolledBack.payloadRedactedAt).toBeNull();
+    expect((await deliveryRow(queued.deliveryId)).cancelledAt).toBeNull();
+  });
+});
+
+describe("eraseSession - the outbox and its deliveries (059, exit criterion 1)", () => {
+  it("redacts every payload and cancels the undelivered deliveries, sparing the delivered one", async () => {
+    const { formId, version } = await seedForm("frm_erase_outbox");
+    const sessionId = SessionId.parse("ses_erase_outbox");
+    await seedSubmittedWithLedger(formId, version, sessionId);
+
+    // Three deliveries in the three states a real queue holds at erasure time.
+    const done = await seedQueuedEvent(formId, version, sessionId);
+    const pending = await seedQueuedEvent(formId, version, sessionId);
+    const dead = await seedQueuedEvent(formId, version, sessionId);
+    await markDeliveryDelivered(testDb.db, done.deliveryId);
+    await testDb.client.query(
+      `update webhook_deliveries set dead_lettered_at = now(), attempts = 10 where id = $1`,
+      [dead.deliveryId],
+    );
+
+    // A second, unrelated session's event on the same form must be untouched by all
+    // of this - erasure is whole-session, and nothing wider.
+    const bystanderId = SessionId.parse("ses_erase_outbox_bystander");
+    await seedSubmittedWithLedger(formId, version, bystanderId);
+    const bystander = await seedQueuedEvent(formId, version, bystanderId);
+
+    // Pre-condition: the answers really are sitting in every payload.
+    for (const e of [done, pending, dead]) {
+      const before = await outboxRow(e.outboxId);
+      expect(before.payload["answers"]).toBeDefined();
+      expect(before.payloadRedactedAt).toBeNull();
+    }
+
+    await eraseSession(testDb.db, sessionId, "subject_request");
+
+    // 1. All three payloads: answers gone, envelope kept, marked redacted. The mark
+    //    is a column rather than the payload's shape, so "was this redacted?" is
+    //    answerable for an event type that never carried answers in the first place.
+    for (const e of [done, pending, dead]) {
+      const after = await outboxRow(e.outboxId);
+      expect(after.payload).not.toHaveProperty("answers");
+      expect(after.payload).toMatchObject({
+        sessionId,
+        formId,
+        formVersion: version,
+        submittedAt: "2026-01-02T03:04:05.000Z",
+        contentHash: "0".repeat(64),
+      });
+      expect(after.payloadRedactedAt).not.toBeNull();
+    }
+
+    // 2. The pending and dead-lettered deliveries are cancelled, with the reason.
+    for (const e of [pending, dead]) {
+      const row = await deliveryRow(e.deliveryId);
+      expect(row.cancelledAt).not.toBeNull();
+      expect(row.cancelledReason).toBe(DELIVERY_CANCELLED_SESSION_ERASED);
+    }
+    // Cancelling a dead letter does not clear its dead-letter stamp: the row keeps
+    // its whole history, and `cancelled_at` is the new terminal fact on top of it.
+    expect((await deliveryRow(dead.deliveryId)).deadLetteredAt).not.toBeNull();
+
+    // 3. The delivered one is untouched apart from its parent's redaction. That
+    //    event has already left; marking it cancelled would be a fiction.
+    const doneRow = await deliveryRow(done.deliveryId);
+    expect(doneRow.deliveredAt).not.toBeNull();
+    expect(doneRow.cancelledAt).toBeNull();
+    expect(doneRow.cancelledReason).toBeNull();
+
+    // 4. Nothing was deleted - redaction, not deletion (ADR-17 amendment). The rows
+    //    are the audit record of what did and did not leave the building.
+    const rows = await testDb.client.query(
+      `select 1 from webhook_deliveries where id = any($1::uuid[])`,
+      [[done.deliveryId, pending.deliveryId, dead.deliveryId]],
+    );
+    expect(rows.rowCount).toBe(3);
+
+    // 5. The bystander session is completely unaffected.
+    const other = await outboxRow(bystander.outboxId);
+    expect(other.payload["answers"]).toBeDefined();
+    expect(other.payloadRedactedAt).toBeNull();
+    expect((await deliveryRow(bystander.deliveryId)).cancelledAt).toBeNull();
+  });
+
+  it("is idempotent: a second erase does not move the original redaction stamp", async () => {
+    const { formId, version } = await seedForm("frm_erase_outbox_idem");
+    const sessionId = SessionId.parse("ses_erase_outbox_idem");
+    await seedSubmittedWithLedger(formId, version, sessionId);
+    const queued = await seedQueuedEvent(formId, version, sessionId);
+
+    await eraseSession(testDb.db, sessionId, "subject_request");
+    const first = await outboxRow(queued.outboxId);
+    await eraseSession(testDb.db, sessionId, "retention_policy");
+    expect((await outboxRow(queued.outboxId)).payloadRedactedAt).toEqual(first.payloadRedactedAt);
+  });
+});
+
+describe("the cancelled state closes the transport (059, exit criterion 3)", () => {
+  it("claimDueDeliveries cannot return a cancelled row, and refuses redelivery of one", async () => {
+    const { formId, version } = await seedForm("frm_erase_claim");
+    const sessionId = SessionId.parse("ses_erase_claim");
+    await seedSubmittedWithLedger(formId, version, sessionId);
+    const queued = await seedQueuedEvent(formId, version, sessionId);
+
+    // The testcontainer clock runs ahead of the host's, so "due" needs a margin.
+    const due = new Date(Date.now() + 60_000);
+    const before = await claimDueDeliveries(testDb.db, 50, due);
+    expect(
+      before.map((d) => d.deliveryId),
+      "the delivery is claimable before erasure",
+    ).toContain(queued.deliveryId);
+
+    await eraseSession(testDb.db, sessionId, "subject_request");
+
+    const after = await claimDueDeliveries(testDb.db, 50, due);
+    expect(
+      after.map((d) => d.deliveryId),
+      "no cancelled delivery is ever claimed",
+    ).not.toContain(queued.deliveryId);
+
+    // And the one rule the redeliver door reads agrees with the claim filter.
+    expect(await redeliveryRefusalFor(testDb.db, queued.deliveryId)).toBe("cancelled");
+  });
+
+  it("refuses redelivery of a delivered row whose payload was redacted", async () => {
+    // Erasure cancels only the still-sendable deliveries, so a delivered row is not
+    // cancelled. Its payload is redacted, which is the other half of the same rule:
+    // re-sending it would post a message with no answers in it.
+    const { formId, version } = await seedForm("frm_erase_redacted");
+    const sessionId = SessionId.parse("ses_erase_redacted");
+    await seedSubmittedWithLedger(formId, version, sessionId);
+    const queued = await seedQueuedEvent(formId, version, sessionId);
+    await markDeliveryDelivered(testDb.db, queued.deliveryId);
+
+    expect(await redeliveryRefusalFor(testDb.db, queued.deliveryId)).toBeUndefined();
+    await eraseSession(testDb.db, sessionId, "subject_request");
+    expect(await redeliveryRefusalFor(testDb.db, queued.deliveryId)).toBe("payloadRedacted");
   });
 });

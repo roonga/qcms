@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { DeliveryStatusTag } from "@/components/ops/ops-tags";
+import { cancelledReasonText, DeliveryStatusTag } from "@/components/ops/ops-tags";
 import type { DeliveryItem } from "@/lib/ops/types";
 import { formatDateTime } from "@/lib/i18n/format";
 import { t } from "@/lib/i18n/en";
@@ -151,6 +151,16 @@ function DeliveryRows({
         <tr>
           <td colSpan={7}>
             <div id={panelId} className="flex flex-col gap-2" data-testid="qcms-delivery-detail">
+              {/* Cancellation first, and shown whether or not an attempt was ever
+                  made: it is the thing that decides the row's future, and an operator
+                  reading a dead-lettered attempt record without it would conclude the
+                  event is still waiting to go out. */}
+              {row.cancelledAt !== null && (
+                <p className="text-sm text-(--color-text)" data-testid="qcms-delivery-cancelled">
+                  {cancelledReasonText(row.cancelledReason)} {t("ops.deliveries.cancelledAt")}:{" "}
+                  {formatDateTime(row.cancelledAt, t("ops.common.none"))}
+                </p>
+              )}
               {row.lastAttemptAt === null ? (
                 <p className="text-sm text-(--color-text-muted)">{t("ops.deliveries.noAttempt")}</p>
               ) : (

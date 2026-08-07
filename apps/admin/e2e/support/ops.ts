@@ -225,6 +225,9 @@ export function openDeliverer(): {
   pass: (at?: Date) => Promise<void>;
   drive: (passes: number) => Promise<void>;
   erasedDeliveries: () => Promise<{ deliveryId: string; sessionId: string }[]>;
+  cancelledDeliveries: (
+    sessionId: string,
+  ) => Promise<{ deliveryId: string; cancelledReason: string | null }[]>;
   outboxPayloadsForSession: (sessionId: string) => Promise<Record<string, unknown>[]>;
   close: () => Promise<void>;
 } {
@@ -287,6 +290,13 @@ export function openDeliverer(): {
      * ran: computing it is what makes the redelivery assertions hold in isolation AND
      * inside the full run, and hard-coding one cost a green single-spec run and a red
      * suite.
+     *
+     * Since 059 this set is usually **empty**: erasure redacts the outbox payload, and
+     * the materialize phase never fans a redacted event out, so an erased session that
+     * had no delivery row yet never gets one. Rows appear here only when the erasure
+     * landed after the fan-out - and those are cancelled, so they are off the
+     * dead-letter queue too. Callers that used it to *exclude* rows from the queue can
+     * now expect nothing to exclude.
      */
     async erasedDeliveries() {
       const result = await query<{ id: string; session_id: string }>(
@@ -298,11 +308,36 @@ export function openDeliverer(): {
       return result.rows.map((row) => ({ deliveryId: row.id, sessionId: row.session_id }));
     },
     /**
+     * Every delivery this session's erasure terminally cancelled (task 059), with the
+     * reason recorded on the row.
+     *
+     * Read from the database rather than from the screen, because the point being
+     * asserted is that the cancellation is a property of the *data*: the scheduler's
+     * claim query and the redeliver door both read these columns, so a test that only
+     * checked the rendered badge would pass over a row the transport could still pick
+     * up.
+     */
+    async cancelledDeliveries(sessionId: string) {
+      const result = await query<{ id: string; cancelled_reason: string | null }>(
+        `select d.id, d.cancelled_reason
+           from webhook_deliveries d
+           join outbox o on o.id = d.outbox_id
+          where o.payload ->> 'sessionId' = $1
+            and d.cancelled_at is not null`,
+        [sessionId],
+      );
+      return result.rows.map((row) => ({
+        deliveryId: row.id,
+        cancelledReason: row.cancelled_reason,
+      }));
+    },
+    /**
      * The raw outbox payloads queued for this session.
      *
-     * Used to state as a test, rather than as prose, that erasure does NOT reach the
-     * queued copy: the row survives with the locked answers still in it. That is the
-     * fact the erase dialog now admits and the fact the redeliver refusal contains.
+     * Used to state as a test, rather than as prose, what erasure does to QCMS's own
+     * copy (ADR-17 as amended 2026-08-02): the row survives as the audit record of an
+     * event that existed, with the envelope intact and the `answers` member gone. Task
+     * 035 used this helper to assert the opposite, which was the truth at the time.
      */
     async outboxPayloadsForSession(sessionId: string) {
       const result = await query<{ payload: Record<string, unknown> }>(
