@@ -285,3 +285,38 @@ The reviewer had to silently reinterpret the criterion as "every **behavioural**
 **Why that is a problem even though it worked.** A rule that requires silent reinterpretation is a rule that will eventually be applied literally by someone stricter, and the outcome then is either a task blocked on an impossible criterion or a doc padded with assertions that assert nothing. The reinterpretation should be in the rule, not in the reviewer.
 
 **Candidate edit.** State the rule as "every behavioural claim in changed copy has an assertion behind it", and add the corollary that a documented **non-behaviour** - a limit, an out-of-scope actor, a window the system does not control - is exempt but should say plainly that it is a limit rather than a promise. That second half is the part that keeps the exemption from becoming a hole.
+
+---
+
+## A green signal whose scope you did not verify is not evidence (six instances in one session)
+
+**Raised:** 2026-08-07, both seats, synthesising findings from #316/#334, 059, 036 and the CI-outage work of the same night. The compact framing is the dev seat's.
+
+**Why this entry exists.** Several queue entries above describe individual traps. Within a single session, six of them turned out to be the same trap, arriving from six unrelated directions. At that point it stops being a list of gotchas and becomes a principle worth stating once, because the next instance will not resemble any of these six either.
+
+### The six
+
+1. **`check:ports` on new files.** Run standalone against uncommitted work it returns OK, because it walks git-tracked content. It went red the moment the files were committed. Cost #334 a full `verify` cycle and a mechanical REJECT. Our own guidance ("run the cheap gates first on new files") steers directly into it.
+2. **Turbo's `FULL TURBO`.** A `verify` in a fresh worktree routinely reports the whole test phase as `14/14 cached` because turbo resolves to the main checkout's cache. Seen three times in one night. Only `turbo run test --force` reporting `0 cached` is evidence that tests executed.
+3. **`Object.keys()` on a `Map`.** 036's env-reference scan enumerated zero entries and cheerfully reported "no mismatches". Caught only because the executor added a deliberate `expect(size).toBeGreaterThan(10)` guard - which then exposed a real classification bug underneath.
+4. **`gh pr checks <n>` on dispatched runs.** Reports "no checks reported on the branch" while the runs are green and correctly bound to the head SHA. The information is real and the query looks at the wrong surface; `gh api repos/<o>/<r>/commits/<sha>/check-runs` shows them.
+5. **`check:changeset` and `check:golden-append-only` on a push to `main`.** Both diff against `origin/main`, so on `main` itself the diff basis is the commit under test. They pass, and they assert nothing whatsoever.
+6. **A deleted guard.** 058 must relax `renderer-surface.test.ts`'s negative assertions to do anything at all. If it deletes them rather than inverting them, the guard silently becomes a check that looks at nothing - and the suite stays green while the property it protected is gone.
+
+### The shape
+
+The common failure is **not** "tests can be wrong". Every one of these signals was *correct about what it examined*. The failure is that **the scope of what was examined was assumed rather than checked** - tracked files vs all files, executed vs cached, a `Map` vs an object, one API surface vs another, a diff basis that is empty by construction, a guard that no longer runs.
+
+So the principle: **a green signal whose scope you did not verify is not evidence.** It is a green signal.
+
+### What follows from it, practically
+
+Three habits, all cheap, each of which would have caught several of the six:
+
+- **Prefer checks that state their own coverage**, and read the number. `0 cached, 14 total`. `18 passed`. `Map.size > 10`. A check that can only say "OK" cannot distinguish "looked and found nothing wrong" from "looked at nothing".
+- **When a check disagrees with your expectation, suspect its scope before its verdict.** Four of the six were found this way - somebody noticed a count that was too round, an elapsed time that was too short, or a report that was too confident.
+- **When relaxing a guard, invert it - never delete it.** If the property changes, assert the new property. A deleted assertion and a passing assertion are indistinguishable in CI output.
+
+**Candidate edit.** State the principle once in `CLAUDE.md`, with two or three of the instances as illustration, rather than continuing to accumulate individual trap notes that each teach one case. The existing per-instance notes (the turbo cache trap, the git-driven-gate correction, the standalone-versus-`verify` entry above) then become examples of a stated rule rather than a list to memorise - which matters, because the value is in recognising the seventh instance, and it will not look like any of these six.
+
+**Related.** This subsumes the "gate reached standalone behaves differently from the same gate inside `verify`" entry above, which is instance 1 and 2 seen from one angle. Keep both: that one has a specific candidate edit about git-driven gates, this one is the general rule.
