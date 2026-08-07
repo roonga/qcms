@@ -132,16 +132,26 @@ export function WebhookConfig({
         {copyNote !== "" && <p className="text-sm text-(--color-text-muted)">{copyNote}</p>}
       </div>
 
-      {revealed !== null && (
-        <SecretPanel
-          revealed={revealed}
-          onCopy={copy}
-          onDismiss={() => {
-            setRevealed(null);
-            setCopyNote("");
-          }}
-        />
-      )}
+      {/* The secret's live region is mounted from first render and filled later, never
+          mounted together with what it should announce (issue #307). A region that
+          appears already populated is announced unreliably across screen readers -
+          several only observe mutations of a region they were already watching - and
+          this is the one announcement in the app that cannot be repeated, because the
+          value it names is shown exactly once (SEC-6). The `polite` region above and
+          the ones in `dead-letters.tsx` and `response-detail.tsx` have this shape; this
+          one was the exception. */}
+      <div aria-live="assertive" data-testid="qcms-webhook-secret-region">
+        {revealed !== null && (
+          <SecretPanel
+            revealed={revealed}
+            onCopy={copy}
+            onDismiss={() => {
+              setRevealed(null);
+              setCopyNote("");
+            }}
+          />
+        )}
+      </div>
 
       {webhooks.length === 0 ? (
         <p className="text-sm text-(--color-text-muted)" data-testid="qcms-webhooks-empty">
@@ -306,10 +316,12 @@ export function WebhookConfig({
 /**
  * The one moment the secret exists on screen.
  *
- * `aria-live="assertive"` because the wireframe's a11y note asks for it and the
- * reason is the content, not the style: this panel is the only chance to capture the
- * value, and a polite announcement can be queued behind whatever else the page is
- * saying.
+ * The panel is the **content** of an assertive live region rather than the region
+ * itself (issue #307): its caller keeps an empty `aria-live="assertive"` container
+ * mounted and this panel appears inside it. Assertive because the wireframe's a11y
+ * note asks for it and the reason is the content, not the style: this panel is the
+ * only chance to capture the value, and a polite announcement can be queued behind
+ * whatever else the page is saying.
  */
 function SecretPanel({
   revealed,
@@ -322,7 +334,6 @@ function SecretPanel({
 }) {
   return (
     <section
-      aria-live="assertive"
       aria-labelledby="qcms-secret-heading"
       data-testid="qcms-webhook-secret"
       className="flex flex-col gap-3 rounded-md border border-(--color-border-strong) bg-(--color-background-muted) p-4"

@@ -138,6 +138,18 @@ async function api(path: string, init: RequestInit & { token?: string } = {}): P
 export async function submitResponse(
   formSlug: string,
   answers: readonly (readonly [string, unknown])[],
+  options: {
+    /**
+     * Fill the anti-abuse decoy field of this name, which makes the submission
+     * `HONEYPOT`-flagged. The name is the compiler/API contract and is read off the
+     * composed config by {@link openDeliverer}, never spelled out here.
+     *
+     * A flagged submission is answered exactly like a clean one (the flag is silent
+     * by design) and enqueues **no** outbox event, so it costs nothing in delivery
+     * terms - which is what makes it a cheap way to reach the flagged badge.
+     */
+    readonly honeypotField?: string;
+  } = {},
 ): Promise<string> {
   const started = await api("/sessions", {
     method: "POST",
@@ -158,7 +170,9 @@ export async function submitResponse(
   const submitted = await api(`/sessions/${session.sessionId}/submit`, {
     method: "POST",
     token: session.sessionToken,
-    body: JSON.stringify({}),
+    body: JSON.stringify(
+      options.honeypotField === undefined ? {} : { [options.honeypotField]: "bot" },
+    ),
   });
   expect(submitted.status, "submitting the response").toBe(200);
   return session.sessionId;
@@ -222,6 +236,15 @@ const PASS_STRIDE_MS = 7 * 60 * 60 * 1000;
  * this process's stdout.
  */
 export function openDeliverer(): {
+  /**
+   * The anti-abuse decoy field name this deployment is configured with.
+   *
+   * Read off the composed config rather than restated, so a spec that wants a flagged
+   * submission asks the product what the field is called (`submitResponse`'s
+   * `honeypotField` option). The constant itself lives in `@qcms/a2ui-compiler`, which
+   * the admin deliberately does not depend on since task 056.
+   */
+  honeypotField: string;
   pass: (at?: Date) => Promise<void>;
   drive: (passes: number) => Promise<void>;
   erasedDeliveries: () => Promise<{ deliveryId: string; sessionId: string }[]>;
@@ -251,6 +274,7 @@ export function openDeliverer(): {
   let clock = Date.now() + 60 * 60 * 1000;
 
   return {
+    honeypotField: deps.config.antiAbuse.honeypotField,
     /** One pass at the current clock, without advancing it. */
     async pass(at?: Date) {
       await runDeliveryPass(deps, { now: at ?? new Date(clock) });
@@ -370,7 +394,10 @@ export async function openWebhooks(page: Page, formId: string): Promise<void> {
  * Deactivate every endpoint already configured on a form, through the real controls.
  *
  * The suite shares one database across every spec, and an earlier spec may have left an
- * endpoint on this form (the axe sweep configures one to photograph the secret reveal).
+ * endpoint on this form (the gate-capture specs configure one to photograph the secret
+ * reveal; the axe sweep stopped doing so in issue #306, and now runs its whole webhook
+ * half against a form it publishes itself, precisely so this form's delivery counts
+ * stay this spec's own).
  * A second active endpoint doubles every fan-out, so a test that counts deliveries would
  * be counting another spec's as well - and a test that fixes ONE target would then find
  * half its queue still broken. Deactivating first makes this form's fan-out exactly one

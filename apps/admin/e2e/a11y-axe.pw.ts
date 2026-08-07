@@ -7,6 +7,7 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 import { TEST_PASSWORD, createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import {
   accountTrigger,
+  activeElementId,
   appearanceTrigger,
   fillStable,
   openMenu,
@@ -27,7 +28,7 @@ import {
   toggleTarget,
   waitForSaved,
 } from "./support/forms.js";
-import { deadUrl, submitResponse } from "./support/ops.js";
+import { openDeliverer, submitResponse, TestConsumer } from "./support/ops.js";
 import {
   addOption,
   chooseType,
@@ -91,6 +92,45 @@ test.beforeAll(async () => {
 /** The seeded insurance form the operations sweep uses (see `responses-ops.pw.ts`). */
 const OPS_SLUG = "auto";
 const OPS_FORM_ID = "frm_auto_quote";
+
+/**
+ * The form the publish sweep authors and publishes, handed to the operations sweep.
+ *
+ * The webhook half of the operations sweep runs against **this** form rather than the
+ * seeded one, and that is a hard requirement rather than a preference (issue #306). It
+ * has to make real deliveries succeed, fail, dead-letter and be redelivered in order
+ * to render the three `DeliveryStatusTag` tints, and `responses-ops.pw.ts` asserts
+ * exact per-status row counts on the seeded form's dashboard. Two specs writing
+ * delivery rows for one form would make each other's counts unreadable; a form of this
+ * sweep's own keeps both honest.
+ *
+ * Serial mode is what makes the handover legal, exactly as it is for `totpSecret`
+ * above: the publishing test is declared before the operations test and therefore runs
+ * before it. Filtering with `-g` breaks that, which is already true of this file.
+ */
+let pubForm: {
+  readonly formId: string;
+  readonly slug: string;
+  readonly choiceId: string;
+  readonly choiceOption: string;
+  readonly countId: string;
+} | null = null;
+
+/**
+ * A consumer response body tall enough to overflow `.qcms-snippet`'s 12rem cap.
+ *
+ * The overflow is the point, not decoration: a scroll container that no keyboard can
+ * reach is a WCAG 2.1.1 failure (issue #309), and axe only reports
+ * `scrollable-region-focusable` on an element that actually scrolls. A short body
+ * would render the same markup and prove nothing. Kept under the deliverer's
+ * `RESPONSE_SNIPPET_MAX` (500) so what is stored is what is shown, and made of many
+ * short lines rather than one long one because `white-space: pre-wrap` is what turns
+ * them into height.
+ */
+const TALL_RESPONSE_BODY = `{\n${Array.from(
+  { length: 22 },
+  (_, index) => `  "line_${String(index)}": "x"`,
+).join(",\n")}\n}`;
 
 /** WCAG 2.2 AA, the same rule set the portal gate uses. */
 const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
@@ -393,7 +433,8 @@ test("publish, preview, history and secure links have zero violations", async ({
   const choiceId = `q_${choiceSlug.replaceAll("-", "_")}`;
   const countId = `q_${countSlug.replaceAll("-", "_")}`;
 
-  const formId = await createForm(page, `a11y-pub-form-${run}`, "Publish sweep form");
+  const slug = `a11y-pub-form-${run}`;
+  const formId = await createForm(page, slug, "Publish sweep form");
   await addStep(page, "Cover");
   await pinQuestion(page, choiceId, 1);
   await pinQuestion(page, countId, 1);
@@ -411,6 +452,11 @@ test("publish, preview, history and secure links have zero violations", async ({
   await page.getByRole("alertdialog").getByRole("button", { name: "Publish v1" }).click();
   await expect(page.getByText("Published as v1.")).toBeVisible({ timeout: 30_000 });
   await expectNoViolations(page, "publish success");
+
+  // Published, so respondents can submit to it and its submissions can fan out to a
+  // webhook. That is what the operations sweep below needs, and this is the only place
+  // in this file that pays for authoring a form (see `pubForm`).
+  pubForm = { formId, slug, choiceId, choiceOption, countId };
 
   // The close confirmation, whose whole body is the R1 explanation.
   await page.getByRole("button", { name: "Close form" }).click();
@@ -476,28 +522,78 @@ test("publish, preview, history and secure links have zero violations", async ({
 });
 
 test("the operations screens have zero violations", async ({ page }) => {
-  // Task 035, exit criterion 5. Eleven states across five screens, and the reason each
-  // is here rather than covered by "the responses page" as one:
+  // Task 035, exit criterion 5, extended for issue #306. Nineteen states across seven
+  // screens, and the reason each is here rather than covered by "the responses page"
+  // as one:
   //
-  //  - Four are **tables whose cells hold badges and buttons**, which is where a name
+  //  - Six are **tables whose cells hold badges and buttons**, which is where a name
   //    is most easily lost, and whose badge tints are a different contrast question in
-  //    each of the three modes (the same lesson 034's revoked chip taught).
-  //  - Three are **dialogs**: an export form, a type-to-confirm erasure with an error
-  //    state, and a destructive confirmation.
+  //    each of the three modes (the same lesson 034's revoked chip taught). Three of
+  //    the six are the delivery dashboard, once per `DeliveryStatusTag` tint, because
+  //    a dashboard is only ever measured in the statuses it happens to be holding.
+  //  - Four are **dialogs**: an export form, a type-to-confirm erasure with an error
+  //    state, and two destructive confirmations.
   //  - One is the **one-time secret reveal**, which is an assertive live region.
-  //  - One is a **disclosure inside a table row**, whose panel is a second `<tr>`.
+  //  - One is a **disclosure inside a table row**, whose panel is a second `<tr>` and
+  //    carries the consumer's response body in a scroll box.
   //  - One is the **tombstone**, the post-erasure state of a screen that showed answers
   //    a moment earlier.
   //
-  // Thirty-three axe runs plus a submission and a webhook, so the budget is generous.
-  test.setTimeout(300_000);
+  // ## Why the delivery half runs real deliveries
+  //
+  // The three delivery tints and the flagged badge are not render-time variants a
+  // fixture can choose: a row is dead-lettered because ten attempts failed, and it is
+  // delivered because one succeeded. Before #306 this sweep configured an endpoint and
+  // stopped, so `--color-success-subtle`, `--color-info-subtle` and
+  // `--color-danger-subtle` were never measured in any mode and the disclosure panel
+  // was never opened - which is precisely where the `.qcms-snippet` keyboard trap
+  // (#309) had been sitting unseen, since `scrollable-region-focusable` can only fire
+  // on a scroll box that is actually on screen.
+  //
+  // Fifty-seven axe runs plus two forms' worth of submissions and a full retry budget,
+  // so the budget is generous.
+  test.setTimeout(900_000);
   await signInWithTotp(page, EMAIL, totpSecret);
 
+  const pub = pubForm;
+  expect(pub, "the publish sweep above must have published its form first").not.toBeNull();
+  if (pub === null) return;
+
+  const consumer = new TestConsumer();
+  // Rejecting, and verbosely: an HTML-error-page-shaped answer is exactly the case
+  // `.qcms-snippet` exists to contain, and a 5xx keeps a status and a body on the row
+  // where a refused connection would leave neither.
+  consumer.status = 500;
+  consumer.body = TALL_RESPONSE_BODY;
+  await consumer.start();
+  const deliverer = openDeliverer();
+  try {
+    await sweepOperations(page, pub, consumer, deliverer);
+  } finally {
+    await deliverer.close();
+    await consumer.stop();
+  }
+});
+
+/** The body of the operations sweep, so its fixtures can be closed in one `finally`. */
+async function sweepOperations(
+  page: Page,
+  pub: NonNullable<typeof pubForm>,
+  consumer: TestConsumer,
+  deliverer: ReturnType<typeof openDeliverer>,
+): Promise<void> {
   // A response to look at, made through the real respondent routes (see support/ops.ts).
   const sessionId = await submitResponse(OPS_SLUG, [
     ["q_at_fault_accident", true],
     ["q_accident_count", 4],
   ]);
+  // And one the anti-abuse check flags, so the response browser below carries BOTH
+  // `FlagTag` variants. The flagged tint is `--color-warning-subtle` and was
+  // unreachable from this sweep until #306; a flagged submission also enqueues no
+  // outbox event, so it adds nothing to the delivery half.
+  await submitResponse(OPS_SLUG, [["q_at_fault_accident", false]], {
+    honeypotField: deliverer.honeypotField,
+  });
 
   await page.goto("/responses");
   await expect(page.getByTestId("qcms-responses-form-list")).toBeVisible();
@@ -508,7 +604,13 @@ test("the operations screens have zero violations", async ({ page }) => {
   await expectNoViolations(page, "the erasure log");
 
   await page.goto(`/forms/${OPS_FORM_ID}/responses`);
-  await expect(page.getByTestId("qcms-responses-table")).toBeVisible();
+  const responses = page.getByTestId("qcms-responses-table");
+  await expect(responses).toBeVisible();
+  // Asserted, not assumed: the sweep's claim is that it measures BOTH flag tints, and
+  // an ordering change that pushed the flagged submission onto page two would quietly
+  // reduce this back to the coverage #306 was filed about.
+  await expect(responses.locator('[data-flagged="true"]').first()).toBeVisible();
+  await expect(responses.locator('[data-flagged="false"]').first()).toBeVisible();
   await expectNoViolations(page, "the response browser");
 
   await page.getByRole("button", { name: "Export", exact: true }).click();
@@ -540,27 +642,148 @@ test("the operations screens have zero violations", async ({ page }) => {
   await expect(page.getByTestId("qcms-tombstone")).toBeVisible({ timeout: 30_000 });
   await expectNoViolations(page, "the tombstone");
 
-  await page.goto(`/forms/${OPS_FORM_ID}/webhooks`);
+  await page.goto(`/forms/${pub.formId}/webhooks`);
   await expect(page.getByTestId("qcms-webhook-config")).toBeVisible();
+  // Issue #307: the secret's live region is mounted from the first render and is
+  // empty, rather than arriving already full. A region that appears already populated
+  // is announced unreliably, and this is the state where the difference is visible.
+  const secretRegion = page.getByTestId("qcms-webhook-secret-region");
+  await expect(secretRegion, "the assertive region exists before any secret does").toBeAttached();
+  await expect(secretRegion).toBeEmpty();
   await expectNoViolations(page, "webhook config with no endpoint");
 
   await page.getByRole("button", { name: "Add endpoint" }).click();
   const create = page.getByTestId("qcms-webhook-url-dialog");
   await expect(create).toBeVisible();
   await expectNoViolations(page, "the add-endpoint dialog");
-  await create.getByRole("textbox", { name: "Endpoint URL" }).fill(await deadUrl());
+  await create.getByRole("textbox", { name: "Endpoint URL" }).fill(consumer.url());
   await create.getByRole("button", { name: "Create endpoint" }).click();
   await expect(page.getByTestId("qcms-webhook-secret")).toBeVisible({ timeout: 30_000 });
+  // The same region, now filled: the announcement is a content change inside a region
+  // that was already there, which is the shape every other live region in this app has.
+  await expect(secretRegion.getByTestId("qcms-webhook-secret")).toBeVisible();
   await expectNoViolations(page, "the one-time secret reveal");
 
   await page.getByRole("button", { name: "I have copied it" }).click();
   await expect(page.getByTestId("qcms-webhooks-table")).toBeVisible();
   await expectNoViolations(page, "the endpoints table");
 
+  await sweepDeliveries(page, pub, consumer, deliverer);
+}
+
+/**
+ * The delivery states, swept in every mode (issue #306).
+ *
+ * Two submissions rather than one, so the queue can be worked both ways an operator
+ * works it: one row redelivered on its own, and the rest taken in bulk. Both of those
+ * are also the paths where focus used to be dropped on `<body>` when the button that
+ * opened the confirmation went away with the row it belonged to (issue #308), so the
+ * focus target is asserted here where the queue actually exists rather than in a
+ * second setup of its own.
+ *
+ * It leaves the queue **empty**, and that is load-bearing rather than tidy:
+ * `responses-ops.pw.ts` counts every row of the global dead-letter queue later in the
+ * run, and a sweep that walked away from two stuck deliveries would be handing that
+ * spec a number it has no way to explain.
+ */
+async function sweepDeliveries(
+  page: Page,
+  pub: NonNullable<typeof pubForm>,
+  consumer: TestConsumer,
+  deliverer: ReturnType<typeof openDeliverer>,
+): Promise<void> {
+  for (let count = 0; count < 2; count += 1) {
+    await submitResponse(pub.slug, [
+      [pub.choiceId, pub.choiceOption],
+      [pub.countId, 3],
+    ]);
+  }
+
+  // One pass: the events fan out to the endpoint and each attempt is refused with a
+  // 500, which leaves the rows retryable. That is `pending`, `--color-info-subtle`.
+  await deliverer.pass();
+  await page.goto(`/forms/${pub.formId}/webhooks`);
+  const deliveries = page.getByTestId("qcms-deliveries-table");
+  await expect(deliveries.locator('[data-status="pending"]')).toHaveCount(2);
+  await expectNoViolations(page, "the delivery dashboard with a rejected delivery");
+
+  // The disclosure panel, open. Its `<pre>` holds the consumer's answer, which is tall
+  // enough to scroll - so this is the state `scrollable-region-focusable` measures.
+  await deliveries
+    .getByRole("button", { name: /^Show request and response/ })
+    .first()
+    .click();
+  const detail = page.getByTestId("qcms-delivery-detail");
+  await expect(detail.getByTestId("qcms-delivery-response-code")).toHaveText("500");
+  const snippet = detail.getByTestId("qcms-delivery-response-body");
+  await expect(snippet).toContainText('"line_21"');
+  expect(
+    await snippet.evaluate((el) => el.scrollHeight > el.clientHeight),
+    "the response body must actually overflow, or the keyboard-trap rule cannot fire",
+  ).toBe(true);
+  await expectNoViolations(page, "the delivery-detail disclosure");
+
+  // Exhaust the retry budget: `deadLettered`, `--color-danger-subtle`.
+  await deliverer.drive(11);
+  await page.reload();
+  await expect(deliveries.locator('[data-status="deadLettered"]')).toHaveCount(2);
+  await expectNoViolations(page, "the delivery dashboard with a dead-lettered delivery");
+
   await page.goto("/webhooks");
-  await expect(page.getByRole("heading", { name: "Dead-letter queue" })).toBeVisible();
+  const queue = page.getByTestId("qcms-dead-letters-table");
+  await expect(queue.locator("tr[data-delivery-id]")).toHaveCount(2);
+  await expectNoViolations(page, "the dead-letter queue with a stuck delivery");
+
+  // Fix the consumer, then work the queue. Both actions remove the control that
+  // started them, which is why the focus assertions belong here.
+  consumer.status = 200;
+  await queue
+    .locator("tr[data-delivery-id]")
+    .first()
+    .getByRole("button", { name: /^Redeliver response\.submitted to / })
+    .click();
+  await expect(page.getByTestId("qcms-redeliver-summary")).toHaveText(
+    "1 delivery is queued for the next pass.",
+  );
+  // Issue #308: the row carried the button that was pressed, so restoring focus to it
+  // is restoring focus to nothing. The queue's own heading is the successor - the
+  // operator stays on the worklist they are working, with the summary they just earned
+  // directly beneath it.
+  await expect
+    .poll(() => activeElementId(page), {
+      message: "focus after redelivering one stuck delivery",
+      timeout: 5_000,
+    })
+    .toBe("qcms-dead-letters-heading");
+  await expect(queue.locator("tr[data-delivery-id]")).toHaveCount(1);
+
+  await page.getByRole("button", { name: "Redeliver all" }).click();
+  await expect(page.getByRole("alertdialog")).toBeVisible();
+  await expectNoViolations(page, "the redeliver-all confirmation");
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Redeliver all of them" })
+    .click();
+  await expect(page.getByTestId("qcms-redeliver-summary")).toHaveText(
+    "1 delivery is queued for the next pass.",
+  );
+  await expect
+    .poll(() => activeElementId(page), {
+      message: "focus after redelivering the rest of the queue",
+      timeout: 5_000,
+    })
+    .toBe("qcms-dead-letters-heading");
+
+  // The pass that succeeds: `delivered`, `--color-success-subtle`.
+  await deliverer.pass();
+  await page.goto(`/forms/${pub.formId}/webhooks`);
+  await expect(deliveries.locator('[data-status="delivered"]')).toHaveCount(2);
+  await expectNoViolations(page, "the delivery dashboard with a delivered delivery");
+
+  await page.goto("/webhooks");
+  await expect(page.getByTestId("qcms-dead-letters-empty")).toBeVisible();
   await expectNoViolations(page, "the dead-letter queue");
-});
+}
 
 test("the 2FA challenge and its recovery variant have zero violations", async ({ page }) => {
   await submitSignIn(page, EMAIL);

@@ -250,3 +250,20 @@ export async function enrollNewAdmin(page: Page, email: string): Promise<string>
   await page.waitForURL(/\/questions$/);
   return secret;
 }
+
+/**
+ * What currently holds focus, as its `id` when it has one and its tag name otherwise.
+ *
+ * A string rather than a locator assertion, because the interesting failures are the
+ * ones where focus went somewhere nobody chose: `toBeFocused()` reports only that the
+ * expected element is not focused, while this reports `BODY` and names the defect
+ * (issue #308). Poll it - focus after an action that unmounts its own trigger is set
+ * in an effect, and React Aria's own restore runs in the same commit.
+ */
+export function activeElementId(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const active = document.activeElement;
+    if (active === null) return "";
+    return active.id === "" ? active.tagName : active.id;
+  });
+}
