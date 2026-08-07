@@ -46,6 +46,14 @@ services:
     build:
       context: .
       dockerfile: docker/api.Dockerfile
+      # Every Dockerfile declares `ARG VERSION=dev` and stamps it into
+      # `org.opencontainers.image.version`. Without this nothing ever passed a value,
+      # so every locally built image claimed to be `dev` and the label was useless for
+      # telling two builds apart. `pnpm qcms:build-images` derives a real value
+      # (package version + short git SHA); a bare `docker compose build` still gets
+      # `dev`, which is honest about what it is.
+      args: &image-build-args
+        VERSION: ${QCMS_IMAGE_VERSION:-dev}
     command: ["node", "node_modules/@qcms/db/dist/migrate.js"]
     environment: &api-env
       DATABASE_URL: postgres://${QCMS_DB_USER:-qcms}:${QCMS_DB_PASSWORD:?set QCMS_DB_PASSWORD in .env}@postgres:5432/${QCMS_DB_NAME:-qcms}
@@ -76,6 +84,7 @@ services:
     build:
       context: .
       dockerfile: docker/api.Dockerfile
+      args: *image-build-args
     environment:
       <<: *api-env
       PORT: 3000
@@ -89,6 +98,7 @@ services:
     build:
       context: .
       dockerfile: docker/portal.Dockerfile
+      args: *image-build-args
     environment:
       QCMS_API_BASE_URL: http://api:3000
       QCMS_INTERNAL_TOKEN: ${QCMS_INTERNAL_TOKEN:?set QCMS_INTERNAL_TOKEN in .env}
@@ -106,6 +116,7 @@ services:
     build:
       context: .
       dockerfile: docker/admin.Dockerfile
+      args: *image-build-args
     # No DATABASE_URL, and that absence is a control rather than an omission: after
     # task 056 the API is the only process in this stack that holds a database
     # credential of any kind (ADR-35 as amended 2026-07-31). The admin is a pure BFF -

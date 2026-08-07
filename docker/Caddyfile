@@ -1,0 +1,71 @@
+# Caddy ingress for the single-VM solo topology (task 036, ADR-20).
+#
+# This file is the whole routing policy, and it is deliberately short: two site
+# blocks, two upstreams. There is no site block for the API and none for
+# Postgres, and that absence is the control ADR-20 asks for. The API is reachable
+# only by the two BFFs on the Compose-internal network; adding a `reverse_proxy
+# api:3000` here would publish it, which `scripts/compose-config.test.ts` refuses.
+#
+# Caddy substitutes {$VAR} at config-load time from its own environment, which the
+# `caddy` service in docker-compose.proxy.yml passes through from the operator's
+# .env. Set QCMS_PORTAL_DOMAIN and QCMS_ADMIN_DOMAIN to the two public hostnames
+# and QCMS_ACME_EMAIL to the address Let's Encrypt should contact; Caddy then
+# obtains and renews certificates for both names automatically.
+#
+# The two upstreams are written out one per site rather than factored through a
+# snippet argument. One duplicated line buys a file where "what is routed" is
+# readable top to bottom, which is the property the compose-config test and a
+# reviewing operator both check.
+{
+	email {$QCMS_ACME_EMAIL}
+}
+
+# Shared edge policy. Everything here is about the hop the browser can see; the
+# apps behind it are told to assume TLS and never terminate it themselves.
+(qcms_edge) {
+	encode zstd gzip
+
+	header {
+		# HSTS belongs to the ingress, not to the apps (SEC-9): the apps assume
+		# TLS, and this is the layer that can actually promise it. Two years,
+		# subdomains included, preload-eligible. Drop `preload` if any sibling
+		# hostname under the same parent domain still serves plain HTTP.
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		# Caddy's own version banner is not information a respondent needs.
+		-Server
+	}
+
+	# The API enforces its own body cap (QCMS_BODY_LIMIT_BYTES, SEC-9); this is
+	# the matching ceiling at the edge, so an oversized request is rejected before
+	# it crosses into a Node process. Raise both together or neither.
+	request_body {
+		max_size 1MB
+	}
+}
+
+{$QCMS_PORTAL_DOMAIN} {
+	import qcms_edge
+	# X-Forwarded-Proto is what tells the Next app the browser-facing scheme is
+	# https, even though this hop is plain HTTP on a private bridge network.
+	#
+	# X-Forwarded-For is set, not appended, and that distinction is the control.
+	# Caddy appends by default, and the API's rate limiter takes the FIRST comma
+	# separated entry, so an appended header lets a caller pick its own limiter
+	# bucket by sending an X-Forwarded-For of its choosing. `{remote_host}` is the
+	# address of the peer Caddy is actually talking to, which is the only one the
+	# edge can vouch for. There is no `trusted_proxies` here because there is no
+	# proxy in front of this one in the documented topology; put one in front and
+	# you must configure it, or you are back to trusting a client header.
+	reverse_proxy portal:3000 {
+		header_up X-Forwarded-Proto https
+		header_up X-Forwarded-For {remote_host}
+	}
+}
+
+{$QCMS_ADMIN_DOMAIN} {
+	import qcms_edge
+	reverse_proxy admin:3000 {
+		header_up X-Forwarded-Proto https
+		header_up X-Forwarded-For {remote_host}
+	}
+}
