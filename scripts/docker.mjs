@@ -38,7 +38,14 @@ function resolveDocker() {
   const override = process.env.QCMS_DOCKER_BIN;
   if (override !== undefined && override !== "") return override;
   if (process.platform === "win32" && process.env.ProgramFiles !== undefined) {
-    const desktop = join(process.env.ProgramFiles, "Docker", "Docker", "resources", "bin", "docker.exe");
+    const desktop = join(
+      process.env.ProgramFiles,
+      "Docker",
+      "Docker",
+      "resources",
+      "bin",
+      "docker.exe",
+    );
     if (existsSync(desktop)) return desktop;
   }
   return "docker";
@@ -136,7 +143,8 @@ export function composeConfig({ files, env = {}, envFile = ".env.compose.example
  */
 export function publishedPorts(config, service) {
   const definition = config.services?.[service];
-  if (definition === undefined) throw new Error(`no service named "${service}" in this configuration`);
+  if (definition === undefined)
+    throw new Error(`no service named "${service}" in this configuration`);
   const ports = definition.ports ?? [];
   return ports.map(
     /** @param {any} entry */
