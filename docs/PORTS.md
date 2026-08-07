@@ -36,6 +36,21 @@ Seat `S`, where `S` is `0`-`9`:
 | `17S30` | in-test OTLP receiver | harness | Bound by the Playwright runner. |
 | `17S40` | admin dev server (harness) | harness | Playwright `webServer`. Also the admin **published** by the full-stack Compose stack, for the same reason as `17S00`. |
 
+### The one thing outside this allocation: the ingress
+
+The optional Caddy overlay (`docker-compose.proxy.yml`, recipes in
+`docs/deploy-ingress.md`) publishes the two standard web ports, and a cloud
+load-balancer recipe terminates on the same two. They are deliberately **not** seat
+allocated and never will be: they are the numbers a browser assumes, they belong to
+one operator-facing deployment rather than to a developer's lane, and two seats of an
+ingress cannot coexist on one host anyway. This note exists because this document
+claims to be the only place ports are written down, and an operator reading the
+overlay should find that claim honest.
+
+Everything behind that ingress still follows the table: Caddy reaches portal and
+admin over the Compose network, and the API and Postgres publish nothing at all
+(ADR-20).
+
 Concretely:
 
 ```

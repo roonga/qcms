@@ -118,7 +118,9 @@ export function ensureBuilder() {
 export function inspectOciArtifact(directory) {
   /** @param {string} digest */
   const blob = (digest) =>
-    JSON.parse(readFileSync(join(directory, "blobs", "sha256", digest.replace("sha256:", "")), "utf8"));
+    JSON.parse(
+      readFileSync(join(directory, "blobs", "sha256", digest.replace("sha256:", "")), "utf8"),
+    );
 
   const index = JSON.parse(readFileSync(join(directory, "index.json"), "utf8"));
   const manifestList = blob(index.manifests[0].digest);
@@ -159,11 +161,15 @@ export function assertArtifact(directory, version, name) {
   }
   const stamped = labels[VERSION_LABEL];
   if (stamped !== version) {
-    problems.push(`${VERSION_LABEL} is ${JSON.stringify(stamped)}, expected ${JSON.stringify(version)}`);
+    problems.push(
+      `${VERSION_LABEL} is ${JSON.stringify(stamped)}, expected ${JSON.stringify(version)}`,
+    );
   }
   if (stamped === "dev") problems.push("the version stamp is still the Dockerfile default");
   if (problems.length > 0) {
-    throw new Error(`build-images: ${name} failed its supply-chain assertions:\n  ${problems.join("\n  ")}`);
+    throw new Error(
+      `build-images: ${name} failed its supply-chain assertions:\n  ${problems.join("\n  ")}`,
+    );
   }
 }
 
@@ -192,12 +198,15 @@ export function buildImage(image, version, outputRoot) {
     ".",
   ]);
   assertArtifact(destination, version, image.name);
-  process.stdout.write(`build-images: ${image.name} ${version} - SBOM, provenance and stamp present\n`);
+  process.stdout.write(
+    `build-images: ${image.name} ${version} - SBOM, provenance and stamp present\n`,
+  );
 }
 
 export function main(argv = process.argv.slice(2)) {
   const outputIndex = argv.indexOf("--output");
-  const outputRoot = outputIndex === -1 ? join(REPOSITORY_ROOT, "dist-images") : argv[outputIndex + 1];
+  const outputRoot =
+    outputIndex === -1 ? join(REPOSITORY_ROOT, "dist-images") : argv[outputIndex + 1];
   const version = imageVersion();
   process.stdout.write(`build-images: version ${version}\n`);
   ensureBuilder();
@@ -207,7 +216,9 @@ export function main(argv = process.argv.slice(2)) {
     }
     buildImage(image, version, outputRoot);
   }
-  process.stdout.write(`build-images: all ${String(IMAGES.length)} images built into ${outputRoot}\n`);
+  process.stdout.write(
+    `build-images: all ${String(IMAGES.length)} images built into ${outputRoot}\n`,
+  );
   return 0;
 }
 

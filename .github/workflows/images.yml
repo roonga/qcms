@@ -1,0 +1,64 @@
+name: Images
+
+# Task 036: build the three published images on every push, with an SBOM, provenance
+# and a real version stamp, and assert all three are present in the artifact rather
+# than trusting that the right flags were passed.
+#
+# This job builds but does not publish. Publishing is a release concern (Stage 5) and
+# ADR-20 is explicit that the API container is never published at all, so a job that
+# pushed everything it built would be wrong twice over. What it buys today is that a
+# Dockerfile change that breaks the build, or drops the version stamp, fails here
+# instead of at an adopter's first `docker compose build`.
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # imageVersion() stamps the short commit SHA into the label, which needs a
+          # real commit rather than the grafted shallow one a default checkout leaves.
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6.0.9
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # `--sbom` needs the docker-container driver: the default `docker` driver cannot
+      # attach attestations. buildx itself is already on the runner with no setup
+      # action, as mirror-test-images.yml also relies on.
+      - name: Create a buildx builder that can attest
+        run: docker buildx create --name qcms-sbom --driver docker-container
+
+      # Deliberately NOT guarded by .github/actions/assert-no-docker-hub-pulls: the
+      # SBOM step pulls docker/buildkit-syft-scanner, and the images build FROM
+      # node:24-bookworm-slim. Both are build-time pulls, which is the same exception
+      # the full-stack-e2e job already documents for the base image.
+      - name: Build the three images with SBOM, provenance and a version stamp
+        run: pnpm qcms:build-images -- --output "${RUNNER_TEMP}/images"
+
+      # The build asserts as it goes and fails the step on a missing attestation.
+      # This prints what landed, so the log answers "what was in that build" without
+      # re-running anything.
+      - name: Report what was stamped
+        run: |
+          node -e '
+            const { inspectOciArtifact, IMAGES, VERSION_LABEL } = await import("./scripts/build-images.mjs");
+            for (const image of IMAGES) {
+              const { labels, predicates } = inspectOciArtifact(`${process.env.RUNNER_TEMP}/images/${image.name}`);
+              console.log(image.name, labels[VERSION_LABEL], predicates.join(" "));
+            }
+          ' --input-type=module

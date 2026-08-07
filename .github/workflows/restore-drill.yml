@@ -1,0 +1,76 @@
+name: Restore drill
+
+# Task 036, exit criterion 1. Proves that a pg_dump of a QCMS database restores and
+# that the product still works on top of the restored data. Weekly rather than
+# per-push because it boots the whole Compose stack and runs the full-stack browser
+# suite twice: the value is in catching drift over time (a schema change that does
+# not round-trip, a dump missing something the auth tables need), not in gating a PR.
+#
+# Monday 05:00 UTC: the fourth free weekly slot, after audit (02:00), CodeQL (03:00)
+# and the test-image mirror (04:17). Staggered so four Docker-heavy jobs are not
+# competing for the same runner capacity.
+on:
+  schedule:
+    - cron: "0 5 * * 1"
+  workflow_dispatch:
+
+# A second drill running while the first still owns the Compose project would tear
+# the first one's stack down underneath it.
+concurrency:
+  group: restore-drill
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  drill:
+    runs-on: ubuntu-latest
+    # Two full browser-suite runs around a dump and restore, on top of an image build.
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6.0.9
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build workspace packages
+        run: pnpm -r build
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      # Same mirrored Postgres reference every other Docker-backed job uses
+      # (issues #74 and #150). Compose reads it as QCMS_POSTGRES_IMAGE below.
+      - uses: ./.github/actions/test-postgres-image
+
+      - name: Run the restore drill
+        env:
+          QCMS_POSTGRES_IMAGE: ${{ env.QCMS_TEST_POSTGRES_IMAGE }}
+        run: pnpm qcms:drill-restore
+
+      # The drill tears its own stack down on every exit path, but a runner killed
+      # mid-step never reaches that, and a stranded stack would fail the next run.
+      - name: Stop the stack
+        if: ${{ always() }}
+        env:
+          QCMS_POSTGRES_IMAGE: ${{ env.QCMS_TEST_POSTGRES_IMAGE }}
+        run: pnpm docker:down
+
+      - name: Upload drill report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: restore-drill-report
+          path: |
+            playwright-report/full-stack-e2e/
+            test-results/full-stack-e2e/
+          if-no-files-found: ignore
+          retention-days: 7

@@ -262,6 +262,8 @@ async function main() {
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((error) => {
     process.exitCode = 1;
-    process.stderr.write(`drill-restore: ${error instanceof Error ? error.stack : String(error)}\n`);
+    process.stderr.write(
+      `drill-restore: ${error instanceof Error ? error.stack : String(error)}\n`,
+    );
   });
 }

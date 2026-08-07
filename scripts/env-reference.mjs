@@ -49,7 +49,8 @@ import { REPOSITORY_ROOT } from "./docker.mjs";
 export const OPERATIONS_DOC = "docs/operations.md";
 
 /** Fence markers around the generated block; everything between them is machine-owned. */
-export const BEGIN_MARKER = "<!-- BEGIN GENERATED: env-reference (node scripts/env-reference.mjs --write) -->";
+export const BEGIN_MARKER =
+  "<!-- BEGIN GENERATED: env-reference (node scripts/env-reference.mjs --write) -->";
 export const END_MARKER = "<!-- END GENERATED: env-reference -->";
 
 /** Compose files whose `${VAR}` interpolation is part of the operator surface. */
@@ -373,7 +374,8 @@ export const ENV_REFERENCE = [
     process: "api",
     requirement: "optional",
     fallback: "10",
-    description: "Answers one session may submit per window (a burst ceiling, about 2/s sustained).",
+    description:
+      "Answers one session may submit per window (a burst ceiling, about 2/s sustained).",
   },
   {
     name: "QCMS_RL_ANSWERS_IP_WINDOW_MS",
