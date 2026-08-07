@@ -56,6 +56,14 @@ const stepDoc = {
   },
 } as unknown as A2UIStepDocument;
 
+/**
+ * The API's visible set for that step, in document order. The summary reads it
+ * only for the ordinal a label-less entry is named by (issue #326); the honeypot
+ * is in it here so that fallback has a position to use, which the real visible
+ * set would not give it.
+ */
+const VISIBLE = ["q_plate", "q_vin", "q_odometer", "website"];
+
 describe("questionMessages", () => {
   it("reads the author messages off the control nodes, keyed by questionId", () => {
     const messages = questionMessages(stepDoc);
@@ -182,7 +190,7 @@ describe("authorMessageFor", () => {
 
 describe("missingRequiredEntries with author messages", () => {
   it("keeps entries distinct when two questions carry IDENTICAL custom text", () => {
-    const entries = missingRequiredEntries(stepDoc, ["q_plate", "q_vin"]);
+    const entries = missingRequiredEntries(stepDoc, ["q_plate", "q_vin"], VISIBLE);
     expect(entries.map((entry) => entry.message)).toEqual([
       "Registration plate: Check the paperwork",
       "VIN: Check the paperwork",
@@ -192,20 +200,21 @@ describe("missingRequiredEntries with author messages", () => {
   });
 
   it("uses the default sentence for a question with no `required` message", () => {
-    const entries = missingRequiredEntries(stepDoc, ["q_odometer"]);
+    const entries = missingRequiredEntries(stepDoc, ["q_odometer"], VISIBLE);
     expect(entries[0]?.message).toBe("Odometer needs an answer.");
   });
 
   it("ignores a message for another constraint: only `required` reaches the summary", () => {
     // q_plate carries a `pattern` message too; the summary is about presence.
-    const entries = missingRequiredEntries(stepDoc, ["q_plate"]);
+    const entries = missingRequiredEntries(stepDoc, ["q_plate"], VISIBLE);
     expect(entries[0]?.message).not.toContain("ABC-123");
   });
 
-  it("falls back to the unnamed sentence for a label-less question, never a bare message", () => {
+  it("names a label-less question by position, never by a bare message", () => {
     // The honeypot is the real-world shape: a named node with no label. A bare
-    // custom message here could produce two indistinguishable entries.
-    const entries = missingRequiredEntries(stepDoc, ["website"]);
-    expect(entries[0]?.message).toBe("This question needs an answer.");
+    // custom message here could produce two indistinguishable entries, and so
+    // could the constant that stood here before issue #326.
+    const entries = missingRequiredEntries(stepDoc, ["website"], VISIBLE);
+    expect(entries[0]?.message).toBe("Question 4: This question needs an answer.");
   });
 });
