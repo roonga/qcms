@@ -3,6 +3,7 @@ import type { A2UIErrors, A2UIStepDocument, A2UIValues } from "@qcms/ui";
 
 import { PortalShell } from "@/components/portal-shell";
 import { t } from "@/lib/i18n/en";
+import { mergeStepValues } from "@/lib/step-values";
 import { buttonClass } from "@/lib/ui";
 import { authorMessageFor } from "@/lib/validation-message";
 import { documentForVisible, messagesOf, questionLabels } from "@/lib/visible";
@@ -96,12 +97,10 @@ export function NativeStep({
   // on. A question the author left alone keeps the message the route produced.
   const errors: A2UIErrors = authoredErrors(stepDocument, context);
   // The answers the API holds for this step (issue #146) under the just-submitted
-  // ones from the no-JS re-render cookie. The cookie has to win: after a rejected
-  // POST it carries the value the respondent typed, which the API refused and so
-  // does not hold, and re-showing the stored answer instead would hide the input
-  // their error message is about. With no cookie (a plain resume, or the SSR first
-  // paint before hydration) the stored answers are what the step displays.
-  const values: A2UIValues = { ...initial.values, ...context?.values };
+  // ones from the no-JS re-render cookie. The cookie has to win, including when it
+  // CLEARS a field: see `mergeStepValues`, which owns that three-way behaviour and
+  // is tested for it (issue #327).
+  const values: A2UIValues = mergeStepValues(initial.values, context?.values);
   const errorEntries = summaryEntries(stepDocument, errors);
 
   return (

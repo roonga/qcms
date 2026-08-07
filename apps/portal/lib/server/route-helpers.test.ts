@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { mergeStepValues } from "../step-values";
+
 /**
  * The step-context cookie is validated, not asserted (issue #327).
  *
@@ -64,44 +66,55 @@ describe("readStepContext", () => {
     await expect(readCookie("{}")).resolves.toEqual({ values: {}, errors: {}, constraints: {} });
   });
 
-  it("drops a hand-forged entry whose value is the wrong type, and keeps the rest", async () => {
+  it("drops a hand-forged errors or constraints entry, and keeps the rest", async () => {
     // Each of these values was previously ACCEPTED verbatim by the bare cast and
     // handed to the renderer: a non-string error rendered as-is, and a non-string
     // constraint reached the authored-message lookup. None of them reaches it now.
     const context = await readCookie(
       JSON.stringify({
-        values: { q_plate: "ABC-123", q_bad: { nested: "object" }, q_mixed: [1, 2, 3] },
         errors: { q_plate: "That does not look like a plate.", q_bad: 42 },
         constraints: { q_plate: "pattern", q_bad: ["pattern"] },
       }),
     );
-    expect(context).toEqual({
-      values: { q_plate: "ABC-123" },
-      errors: { q_plate: "That does not look like a plate." },
-      constraints: { q_plate: "pattern" },
-    });
+    expect(context?.errors).toEqual({ q_plate: "That does not look like a plate." });
+    expect(context?.constraints).toEqual({ q_plate: "pattern" });
+  });
+
+  it("CLEARS an unreadable values entry rather than dropping it", async () => {
+    // Dropping and clearing are different renders one seam downstream, so the key
+    // survives with an explicit `undefined`. See `step-values.test.ts`.
+    const context = await readCookie(
+      JSON.stringify({ values: { q_plate: "ABC-123", q_bad: { nested: "object" } } }),
+    );
+    expect(Object.hasOwn(context?.values ?? {}, "q_bad")).toBe(true);
+    expect(context?.values.q_bad).toBeUndefined();
+    expect(context?.values.q_plate).toBe("ABC-123");
   });
 
   /**
-   * The reason the records are lenient per entry rather than all-or-nothing. A
-   * no-JS number field whose raw text is not numeric decodes to `NaN`
-   * (`step-form.ts`, which leaves the judgement to the API), and `JSON.stringify`
-   * writes `NaN` as `null`. So the cookie legitimately carries an out-of-union
-   * value in exactly the case where the respondent most needs the error message
-   * back. Rejecting the whole context here would blank the step instead.
+   * The whole regression path in one test: the cookie the route really writes for
+   * a respondent who replaces an accepted number with text, read back and merged
+   * over the answers the API still holds. The stale accepted value must not
+   * reappear next to the error message that refuses it.
    */
-  it("keeps the error message when an answer value did not survive JSON (NaN -> null)", async () => {
+  it("blanks a refused number field instead of restoring the accepted answer (NaN -> null)", async () => {
     const written = JSON.stringify({
       values: { q_odometer: Number("abc"), q_plate: "ABC-123" },
       errors: { q_odometer: "Enter a number." },
       constraints: { q_odometer: "encoding" },
     });
     expect(written).toContain('"q_odometer":null');
-    await expect(readCookie(written)).resolves.toEqual({
-      values: { q_plate: "ABC-123" },
-      errors: { q_odometer: "Enter a number." },
-      constraints: { q_odometer: "encoding" },
-    });
+
+    const context = await readCookie(written);
+    // The error message survives: leniency per entry, not all-or-nothing.
+    expect(context?.errors).toEqual({ q_odometer: "Enter a number." });
+
+    // And the merge over the stored answers clears the field rather than
+    // resurrecting the 5 the API still holds.
+    const stored = { q_odometer: 5, q_plate: "OLD-000" };
+    const merged = mergeStepValues(stored, context?.values);
+    expect(merged.q_odometer).toBeUndefined();
+    expect(merged.q_plate).toBe("ABC-123");
   });
 
   it("rejects the whole cookie when the envelope itself is not a context", async () => {

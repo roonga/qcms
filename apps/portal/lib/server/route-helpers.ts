@@ -30,7 +30,15 @@ const STEP_CTX_MAX_AGE_SECONDS = 15;
 
 /** The no-JS step re-render context (values to re-populate, errors to surface). */
 export interface StepContext {
-  readonly values: Readonly<Record<string, A2UIAnswerValue>>;
+  /**
+   * The just-submitted answers. A key mapped to `undefined` is an explicit
+   * **clear**, not an absence: it means the writer recorded an answer for that
+   * question but the value did not survive the round trip, so the re-render must
+   * blank the field rather than fall back to the answer the API still holds. See
+   * `mergeStepValues`, which is the only correct way to combine this with the
+   * stored answers.
+   */
+  readonly values: Readonly<Record<string, A2UIAnswerValue | undefined>>;
   readonly errors: Readonly<Record<string, string>>;
   /**
    * Which constraint the API refused each answer on (task 048, ADR-32). The
@@ -97,15 +105,13 @@ const answerValueSchema = z.union([z.string(), z.number(), z.boolean(), z.array(
 
 /**
  * A record whose entries must match `value`; an entry that does not is **dropped,
- * not fatal**. Per entry rather than all-or-nothing because one unreadable answer
- * must not cost the respondent the error messages sitting beside it.
+ * not fatal**. Per entry rather than all-or-nothing because one unreadable entry
+ * must not cost the respondent the messages sitting beside it.
  *
- * The concrete case is not hypothetical. A no-JS number field whose raw text is
- * not numeric decodes to `NaN` (`step-form.ts` says so, and leaves the judgement
- * to the API, which refuses it). `JSON.stringify` writes `NaN` as `null`, so the
- * cookie legitimately carries a value outside `A2UIAnswerValue` in exactly the
- * case where the respondent most needs the error message back. All-or-nothing
- * validation would blank the whole step instead of re-rendering "enter a number".
+ * Only for `errors` and `constraints`, where dropping really does mean "no
+ * message for this question" and nothing downstream distinguishes the two. The
+ * `values` record must NOT use this: there, dropping a key and clearing it are
+ * different renders (see `stepValuesSchema`).
  */
 function lenientRecord<T>(value: z.ZodType<T>) {
   return z.record(z.string(), z.unknown()).transform((raw) => {
@@ -117,6 +123,27 @@ function lenientRecord<T>(value: z.ZodType<T>) {
     return Object.fromEntries(kept);
   });
 }
+
+/**
+ * The `values` record: a key whose value does not read is **kept and cleared**
+ * (mapped to an explicit `undefined`), never dropped.
+ *
+ * The distinction is load-bearing one seam downstream. `mergeStepValues` spreads
+ * this over the answers the API still holds, and under a spread *absent*,
+ * *present-but-undefined* and *never-written* are three different results: a
+ * dropped key lets the stored answer show through, an explicit `undefined`
+ * overrides it. So dropping is wrong here even though it is right for `errors`.
+ *
+ * The case that makes it concrete, and it is not hypothetical. A respondent has
+ * an accepted number answer of `5` and edits it to `abc`. `step-form.ts` decodes
+ * that to `NaN` (deliberately: it leaves the judgement to the API, which refuses
+ * it), and `JSON.stringify` writes `NaN` as `null`. Drop that key and the step
+ * re-renders the stale `5` beside "Enter a number", contradicting itself and
+ * quietly replacing what the respondent typed with an old answer. Clearing it
+ * blanks the field, which is what the pre-validation code did (its `null`
+ * survived the cast and won the spread) and what the respondent expects.
+ */
+const stepValuesSchema = z.record(z.string(), answerValueSchema.optional().catch(undefined));
 
 /**
  * The wire shape of `STEP_CTX_COOKIE` (issue #327). The cookie is `httpOnly`, but
@@ -143,7 +170,7 @@ function lenientRecord<T>(value: z.ZodType<T>) {
  * them (`isAuthoredKey`, issue #324), not in carrying the string.
  */
 const stepContextSchema = z.object({
-  values: lenientRecord(answerValueSchema).optional(),
+  values: stepValuesSchema.optional(),
   errors: lenientRecord(z.string()).optional(),
   constraints: lenientRecord(z.string()).optional(),
 });
