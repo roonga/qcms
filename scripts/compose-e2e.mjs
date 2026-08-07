@@ -50,7 +50,7 @@ const docker =
 const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 const pnpmEntrypoint = process.env.npm_execpath;
 const compose = ["compose", "--project-name", project, "--env-file", ".env.compose.example"];
-const credentialsPath = join(root, ".e2e-full-stack-credentials.json");
+export const credentialsPath = join(root, ".e2e-full-stack-credentials.json");
 const portalPort = harnessPort("portal");
 const adminPort = harnessPort("admin");
 /**
@@ -142,6 +142,32 @@ function capture(command, args) {
   if (result.error) throw result.error;
   if (result.status !== 0) throw new CommandFailed(command, result.status ?? 1);
   return result.stdout.trim();
+}
+
+/**
+ * Run a Compose subcommand against THIS harness's stack, streaming its output.
+ *
+ * Exported for `scripts/drill-restore.mjs`, which wraps its own dump/restore steps
+ * around `up()` and `test()` below. The drill must address the same project name and
+ * the same env file, and reconstructing either at the call site is how two copies of
+ * an allocation drift apart (the project name in particular is what `down()` deletes
+ * a stack under, so a drill that guessed it wrong would tear down the wrong stack).
+ *
+ * @param {string[]} args
+ * @returns {void}
+ */
+export function composeRun(args) {
+  run(docker, [...compose, ...args], e2eEnvironment);
+}
+
+/**
+ * As {@link composeRun}, but returns trimmed stdout instead of streaming it.
+ *
+ * @param {string[]} args
+ * @returns {string}
+ */
+export function composeCapture(args) {
+  return capture(docker, [...compose, ...args]);
 }
 
 // ---------------------------------------------------------------------------
@@ -308,7 +334,7 @@ function stopLoopbackForwarding() {
   joinedNetwork = undefined;
 }
 
-async function up() {
+export async function up() {
   // This stack is test-only. Removing its named volume makes each browser run
   // independent, including the first-admin bootstrap state.
   down();
@@ -351,7 +377,7 @@ async function up() {
   await startLoopbackForwarding();
 }
 
-function down() {
+export function down() {
   // Before Compose: it cannot remove a network this container is still attached to.
   stopLoopbackForwarding();
   run(docker, [...compose, "down", "--volumes", "--remove-orphans"], e2eEnvironment);
@@ -369,7 +395,7 @@ function buildTestDependencies() {
   else run(pnpm, args, e2eEnvironment);
 }
 
-function test({ headed = false } = {}) {
+export function test({ headed = false } = {}) {
   buildTestDependencies();
   const args = [
     "exec",

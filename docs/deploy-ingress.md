@@ -88,7 +88,7 @@ never has it. Every subsequent command against this stack needs both files, incl
 
 ### What you get
 
-| | |
+| What the overlay adds | Detail |
 | --- | --- |
 | One new service | `caddy`, `restart: unless-stopped`, waiting on portal and admin `service_healthy` before it starts. An ingress that comes up before its upstreams answers 502 to the first visitor. |
 | The only publicly bound ports in the stack | `80:80`, `443:443`, `443:443/udp`. Bound on all interfaces, unlike everything in the base file: this is the one process whose job is to be publicly reachable. |

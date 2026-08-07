@@ -17,8 +17,10 @@
 #
 # ## The two host publishes the base file still makes
 #
-# Merging cannot remove a `ports` entry, so portal and admin keep the loopback
+# This overlay does not remove them, so portal and admin keep the loopback
 # publishes docker-compose.yml makes (QCMS_BIND_ADDRESS defaults to 127.0.0.1).
+# That is a choice, not a limitation of Compose: `ports: !reset []` would drop
+# them if an operator wanted that.
 # That is deliberate and safe: a loopback publish is reachable only from the VM
 # itself, which is a useful door for `curl` during an incident, and Caddy reaches
 # both apps over the Compose network rather than through it. Leave
