@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { Alert, Button, Dialog, Select, TextField } from "@/components/kit";
 import { flagReasonText } from "@/components/ops/ops-tags";
 import { TombstoneCard } from "@/components/ops/tombstone-card";
+import { announce } from "@/lib/announce";
 import { answerText } from "@/lib/ops/answers";
 import type { ErasureReason } from "@/lib/ops/erasure";
 import { DEFAULT_ERASURE_REASON, ERASURE_REASONS, isErasureConfirmed } from "@/lib/ops/erasure";
@@ -83,6 +84,21 @@ export function ResponseDetail({
   const [isPending, startTransition] = useTransition();
   const heading = useRef<HTMLHeadingElement>(null);
 
+  // Showing an outcome and announcing it are one event, never two, so neither path can
+  // acquire a message the other does not have. The announcement goes to the shell's
+  // live region rather than to the container below, because erasing revalidates this
+  // route and the route unmounts this whole subtree a few hundred milliseconds later -
+  // a region that leaves the document mid announcement says nothing (issue #355,
+  // `lib/announce.ts`).
+  const noteErasure = useCallback((message: string) => {
+    setErasureNote(message);
+    announce(message);
+  }, []);
+  const noteUnflag = useCallback((message: string) => {
+    setUnflagNote(message);
+    announce(message);
+  }, []);
+
   // Both actions on this screen remove the button that opened their confirmation: the
   // erase button goes with the answers it belonged to, and the release button goes with
   // the whole flag panel. Focus is therefore placed deliberately (issue #308).
@@ -93,7 +109,8 @@ export function ResponseDetail({
   // is also rendered by the route on a later visit, and threading a ref through for one
   // of its two callers would put this screen's concern inside it. After a release
   // nothing replaces the panel, so the successor is the screen's own heading, with the
-  // polite region that just announced the outcome directly beneath it.
+  // outcome alert directly beneath it (the announcement of that outcome is made from
+  // the shell's live region, not from here - issue #355).
   useEffect(() => {
     if (tombstone === null) return undefined;
     requestPostActionFocus(TOMBSTONE_HEADING_ID);
@@ -118,12 +135,12 @@ export function ResponseDetail({
       void unflag(detail.sessionId)
         .then((state) => {
           if (state.status === "error") {
-            setUnflagNote(t("ops.detail.unflagFailed", { message: state.message ?? "" }));
+            noteUnflag(t("ops.detail.unflagFailed", { message: state.message ?? "" }));
             return;
           }
           // `released` distinguishes "this call released the withheld event" from "there
           // was nothing withheld", so the confirmation never claims the first for both.
-          setUnflagNote(
+          noteUnflag(
             state.released === true ? t("ops.detail.unflagged") : t("ops.detail.unflagNoop"),
           );
           setFlagged(null);
@@ -136,10 +153,10 @@ export function ResponseDetail({
         // truncated body. Without this the promise rejects unhandled, no state is set,
         // and the dialog sits there looking like a slow network forever.
         .catch(() => {
-          setUnflagNote(t("ops.detail.unflagFailed", { message: unexpected() }));
+          noteUnflag(t("ops.detail.unflagFailed", { message: unexpected() }));
         });
     });
-  }, [unflag, detail.sessionId]);
+  }, [unflag, detail.sessionId, noteUnflag]);
 
   const runErase = useCallback(
     (reason: ErasureReason) => {
@@ -147,11 +164,11 @@ export function ResponseDetail({
         void erase(detail.sessionId, reason)
           .then((state) => {
             if (state.status === "error" || state.data === undefined) {
-              setErasureNote(t("ops.erase.failed", { message: state.message ?? "" }));
+              noteErasure(t("ops.erase.failed", { message: state.message ?? "" }));
               return;
             }
             setTombstone(state.data);
-            setErasureNote(
+            noteErasure(
               state.data.alreadyErased
                 ? t("ops.erase.alreadyErased")
                 : t("ops.erase.done", { sessionId: detail.sessionId }),
@@ -162,11 +179,11 @@ export function ResponseDetail({
           // a silent failure here leaves an operator staring at a confirmed erasure
           // dialog with no idea whether an irreversible ADR-17 action ran (it did not).
           .catch(() => {
-            setErasureNote(t("ops.erase.failed", { message: unexpected() }));
+            noteErasure(t("ops.erase.failed", { message: unexpected() }));
           });
       });
     },
-    [erase, detail.sessionId],
+    [erase, detail.sessionId, noteErasure],
   );
 
   return (
@@ -184,7 +201,15 @@ export function ResponseDetail({
         {t("ops.detail.heading", { sessionId: detail.sessionId })}
       </h2>
 
-      <div aria-live="polite" className="flex flex-col gap-2">
+      {/* Deliberately NOT a live region (issue #355). It was one until an erasure was
+          watched to the end: the action revalidates this route, the route re-renders the
+          same url as its own tombstone, and this whole subtree unmounts a few hundred
+          milliseconds later - taking the region and the sentence it had just been given.
+          The announcement is made through `announce()` into the shell's region, which is
+          above the page and survives that swap; these alerts stay here because what a
+          sighted operator needs is the message beside the state that produced it. Two
+          live regions holding the same sentence would say it twice. */}
+      <div className="flex flex-col gap-2">
         {erasureNote !== "" && (
           <Alert variant={tombstone === null ? "error" : "success"}>{erasureNote}</Alert>
         )}

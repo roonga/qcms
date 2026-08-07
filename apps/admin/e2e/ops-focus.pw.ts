@@ -1,3 +1,5 @@
+import type { Page } from "@playwright/test";
+
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
@@ -5,8 +7,8 @@ import { activeElementId, enrollNewAdmin, signInWithTotp } from "./support/flow.
 import { openDeliverer, submitResponse } from "./support/ops.js";
 
 /**
- * Focus after an operations action that removes the control which started it
- * (issue #308).
+ * What an operator is told after an operations action that removes the control which
+ * started it: where focus went (issue #308) and what was said (issue #355).
  *
  * Two of the four such actions are here; the other two (the per-row and the bulk
  * redelivery) are asserted in `a11y-axe.pw.ts`, where a dead-letter queue already
@@ -32,6 +34,15 @@ import { openDeliverer, submitResponse } from "./support/ops.js";
  * of its fixtures are cheap and neither disturbs the shared delivery counting those
  * specs do: a flagged submission enqueues no outbox event at all, and an erased one
  * has its event redacted before any fan-out (059).
+ *
+ * ## The announcement is a separate test, not a second assertion on the focus one
+ *
+ * They fail for different reasons and one is not evidence for the other. Focus was
+ * fixed by handing a request to the card that arrives after the swap; an announcement
+ * cannot be handed over the same way, because a live region only announces a change to
+ * a region the screen reader was already watching. So the announcement test asserts a
+ * property the focus test cannot: that the region carrying the message existed BEFORE
+ * the action and is still carrying it afterwards.
  */
 
 test.describe.configure({ mode: "serial" });
@@ -47,6 +58,8 @@ let totpSecret = "";
 let flagged = "";
 /** A clean submission, erased by the second test. */
 let erasable = "";
+/** A second clean submission, erased by the third test. */
+let announceable = "";
 
 test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
@@ -63,6 +76,10 @@ test.beforeAll(async () => {
       { honeypotField: deliverer.honeypotField },
     );
     erasable = await submitResponse(SLUG, [[ACCIDENT, false]]);
+    // A second one, because the announcement test needs an un-erased response of its
+    // own: erasing is once-only, and reusing the focus test's session would make the
+    // third test assert against `alreadyErased` rather than against an erasure.
+    announceable = await submitResponse(SLUG, [[ACCIDENT, false]]);
   } finally {
     await deliverer.close();
   }
@@ -115,4 +132,88 @@ test("erasing a response leaves focus on the tombstone, not on the body", async 
       timeout: 5_000,
     })
     .toBe("qcms-tombstone-heading");
+});
+
+/** Where the held region nodes live between the two `evaluate` calls below. */
+const PROBE_KEY = "__qcmsLiveRegionProbe";
+
+/**
+ * Hold a reference to every live region currently in the document.
+ *
+ * References on `window`, not marks in the DOM. Stamping an attribute onto a node React
+ * owns makes React report a mismatch when it next diffs that element, which is a
+ * console fault the shared gate fails the test on - and it would be measuring the probe
+ * rather than the app.
+ *
+ * Only these nodes are read back afterwards, so a region that did not exist before the
+ * action cannot satisfy the assertion. That is the property under test rather than a
+ * convenience: a region created on the far side of the swap with its message already in
+ * it is the shape issue #307 had to remove from the webhook secret panel, because
+ * several screen readers only announce mutations of a region they were already
+ * observing.
+ */
+async function holdLiveRegions(page: Page): Promise<number> {
+  return page.evaluate((key) => {
+    const regions = [...document.querySelectorAll("[aria-live]")];
+    (window as unknown as Record<string, unknown>)[key] = regions;
+    return regions.length;
+  }, PROBE_KEY);
+}
+
+/**
+ * What the held regions are saying now, counting only the ones still in the document.
+ *
+ * A full page navigation would throw the references away, so that case reports itself
+ * instead of quietly returning nothing and reading as the defect.
+ */
+async function heldLiveText(page: Page): Promise<string> {
+  return page.evaluate((key) => {
+    const held: unknown = (window as unknown as Record<string, unknown>)[key];
+    if (!Array.isArray(held)) return "<no held regions: the page navigated away>";
+    return held
+      .filter((node): node is Element => node instanceof Element && node.isConnected)
+      .map((node) => node.textContent ?? "")
+      .join(" | ");
+  }, PROBE_KEY);
+}
+
+test("the erasure outcome is still announced after the revalidation replaces the screen", async ({
+  page,
+}) => {
+  await signInWithTotp(page, EMAIL, totpSecret);
+
+  await page.goto(`/forms/${FORM_ID}/responses/${announceable}`);
+  await expect(page.getByTestId("qcms-response-detail")).toBeVisible();
+
+  const held = await holdLiveRegions(page);
+  expect(
+    held,
+    "a live region has to exist before the action for this to mean anything",
+  ).toBeGreaterThan(0);
+
+  await page.getByRole("button", { name: "Erase respondent data…" }).click();
+  const dialog = page.getByTestId("qcms-erase-dialog");
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("textbox", { name: /Type the session id/ }).fill(announceable);
+  await dialog.getByRole("button", { name: "Erase permanently" }).click();
+
+  // Wait for the REVALIDATION, not merely for a tombstone. The client swaps one in the
+  // moment the action returns, and that state was always correct; the defect is what
+  // the route does a few hundred milliseconds later, when it re-renders this same url
+  // as its own tombstone. The route renders the card without `ResponseDetail` around
+  // it, so that section leaving the document is the signal the second render landed.
+  await expect(page.getByTestId("qcms-tombstone")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("qcms-response-detail")).toHaveCount(0, { timeout: 30_000 });
+
+  // Attached, and still carrying the sentence. Before issue #355 the only region with
+  // this message was inside `ResponseDetail` and went with it, so an operator completed
+  // the least reversible action in the admin and was told nothing about whether it
+  // worked. Polled rather than read once, because the assertion is that the message
+  // outlives the swap, not that it survived one particular frame of it.
+  await expect
+    .poll(() => heldLiveText(page), {
+      message: "the erasure announcement after the route replaced the screen",
+      timeout: 10_000,
+    })
+    .toContain(`The respondent data for ${announceable} has been erased.`);
 });

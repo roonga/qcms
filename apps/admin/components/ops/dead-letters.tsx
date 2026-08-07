@@ -102,7 +102,14 @@ export function DeadLetters({
         <p className="text-sm text-(--color-text-muted)">{t("ops.deadLetters.intro")}</p>
       </div>
 
-      <div aria-live="polite" className="flex flex-col gap-2">
+      {/* Testid on the region rather than only on its contents, so the `aria-live` can
+          be asserted directly: deleting it leaves every content assertion green and axe
+          silent, because axe can only judge regions it finds (#359). */}
+      <div
+        aria-live="polite"
+        className="flex flex-col gap-2"
+        data-testid="qcms-dead-letters-status"
+      >
         {state.status === "error" && (
           <Alert variant="error">
             {t("ops.deadLetters.redeliverFailed", { message: state.message ?? "" })}

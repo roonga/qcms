@@ -127,7 +127,10 @@ export function WebhookConfig({
         </Button>
       </div>
 
-      <div aria-live="polite" className="flex flex-col gap-2">
+      {/* The testid exists so the live region itself can be asserted, not just what it
+          holds: an `aria-live` that is silently deleted leaves every content assertion
+          passing and axe green, because axe can only judge regions it finds (#359). */}
+      <div aria-live="polite" className="flex flex-col gap-2" data-testid="qcms-webhook-status">
         {state.status === "error" && <Alert variant="error">{state.message}</Alert>}
         {copyNote !== "" && <p className="text-sm text-(--color-text-muted)">{copyNote}</p>}
       </div>
@@ -137,8 +140,8 @@ export function WebhookConfig({
           appears already populated is announced unreliably across screen readers -
           several only observe mutations of a region they were already watching - and
           this is the one announcement in the app that cannot be repeated, because the
-          value it names is shown exactly once (SEC-6). The `polite` region above and
-          the ones in `dead-letters.tsx` and `response-detail.tsx` have this shape; this
+          value it names is shown exactly once (SEC-6). The `polite` region above, the
+          one in `dead-letters.tsx` and the shell's `Announcer` all have this shape; this
           one was the exception. */}
       <div aria-live="assertive" data-testid="qcms-webhook-secret-region">
         {revealed !== null && (
