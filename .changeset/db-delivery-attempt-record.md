@@ -23,13 +23,13 @@ The webhook signature never reaches these columns: the deliverer masks
 `x-qcms-signature` before storage, so the HMAC is absent from the database rather
 than hidden by a renderer (SEC-6, SEC-13).
 
-Also new: `deliveryTargetsErasedSession(exec, deliveryId)`, a read reporting whether
-the session a delivery would transmit carries an erasure tombstone. A
-`response.submitted` payload holds the respondent's whole locked answer set, and
-`eraseSession` deletes the `answers` rows and the `submissions` lock without touching
-`outbox` or `webhook_deliveries` - so the manual redelivery door needs to be able to
-refuse. Whether erasure should purge or redact those rows is an ADR-17 amendment
-question and is not decided here; `eraseSession`'s deletion scope is unchanged.
+The manual redelivery door also gains the ability to refuse a delivery whose session
+has been erased: a `response.submitted` payload holds the respondent's whole locked
+answer set, so an operator clearing a stuck queue must not be the reason those answers
+reach a consumer. The helper that answers this is `redeliveryRefusalFor(exec,
+deliveryId)`, added in the same unreleased line by task 059 - which also changed what
+erasure does to those rows. Read that entry for the full story; no published release
+carried an earlier spelling of this helper.
 
 Additive and backward-compatible: the new columns are nullable, the new parameters
 are optional, and existing rows read as "no attempt recorded".

@@ -1137,6 +1137,19 @@ export const messages = {
   // value: it can carry a URL or a body fragment, and neither belongs on screen.
   "ops.error.unexpected":
     "That did not reach the server, so nothing changed. Check the connection and try again.",
+  // Reachable only when an erasure lands between render and click (task 059). Since
+  // 059 erasure cancels the session's still-sendable deliveries and the dead-letter
+  // queue excludes cancelled rows, so an operator looking at a freshly loaded queue
+  // has no erased row to press. The race remains: the queue renders, the erasure
+  // commits, and the operator then presses Redeliver - or "Redeliver all" iterates ids
+  // it displayed before the commit. The API answers 409 DELIVERY_SESSION_ERASED and
+  // this is what the screen must say, rather than an internal error. The bulk
+  // summary's refused variant (`ops.deadLetters.redeliverPartial`) exists for the same
+  // race, which is why it survives 059 too.
+  //
+  // Do NOT re-describe this path as dead. It is a live guard on a privacy control
+  // under a narrow race, and a comment claiming otherwise is an invitation to delete
+  // it - which is exactly how the "sole/only door" comments this repo warns about rot.
   "ops.error.deliverySessionErased":
     "That delivery carries a response that has been erased, so it will not be re-sent.",
   // Reachable only from a forged or malformed action payload: the dialog offers a
