@@ -582,6 +582,46 @@ async function startFrontend(frontend, internalToken) {
 // ---------------------------------------------------------------------------
 // Shutdown.
 // ---------------------------------------------------------------------------
+
+/**
+ * Absolute path to `ps`, or `undefined` where neither location exists.
+ *
+ * Probed rather than resolved through `PATH`: a subprocess launched by bare name is
+ * what `sonarjs/no-os-command-from-path` exists to stop, and both locations are covered
+ * because distributions differ on which is the file and which the symlink.
+ */
+const PS_BINARY = ["/bin/ps", "/usr/bin/ps"].find((candidate) => existsSync(candidate));
+
+/**
+ * Every live descendant pid of `rootPid`, from a single `ps` snapshot.
+ *
+ * @param {number} rootPid
+ * @returns {number[]}
+ */
+function descendantsOf(rootPid) {
+  if (PS_BINARY === undefined) return [];
+  const listed = spawnSync(PS_BINARY, ["-e", "-o", "pid=,ppid="], { encoding: "utf8" });
+  if (listed.status !== 0 || typeof listed.stdout !== "string") return [];
+  const childrenOf = new Map();
+  for (const line of listed.stdout.split("\n")) {
+    const [pid, parentPid] = line.trim().split(/\s+/).map(Number);
+    if (!Number.isInteger(pid) || !Number.isInteger(parentPid)) continue;
+    const siblings = childrenOf.get(parentPid);
+    if (siblings === undefined) childrenOf.set(parentPid, [pid]);
+    else siblings.push(pid);
+  }
+  const found = [];
+  const pending = [rootPid];
+  while (pending.length > 0) {
+    const parent = pending.pop();
+    for (const pid of childrenOf.get(parent) ?? []) {
+      found.push(pid);
+      pending.push(pid);
+    }
+  }
+  return found;
+}
+
 function shutdown(signal) {
   if (shuttingDown) return;
   shuttingDown = true;
@@ -595,7 +635,21 @@ function shutdown(signal) {
         // plain child.kill() leaves orphaned; taskkill /T kills the whole tree.
         spawnSync("taskkill", ["/pid", String(child.pid), "/T", "/F"], { stdio: "ignore" });
       } else {
-        child.kill("SIGTERM");
+        // Signal the whole tree, not just the direct child. A front end is spawned as
+        // `pnpm --filter <app> dev`, and pnpm does not forward a signal to the
+        // `next dev` it runs, so a plain `child.kill()` leaves a `next-server`
+        // holding this seat's `7S00`/`7S40` after Ctrl+C. The next run then dies on
+        // EADDRINUSE, or - worse under the Playwright harness - gets adopted by
+        // `reuseExistingServer` (`docs/PORTS.md`). Same reaping as the harness's own
+        // wrapper (`apps/admin/e2e/support/admin-server.mjs`), one `ps` snapshot,
+        // and children before parents so nothing is re-parented mid-walk.
+        for (const pid of [...descendantsOf(child.pid).reverse(), child.pid]) {
+          try {
+            process.kill(pid, "SIGTERM");
+          } catch {
+            // Already gone, which is the normal case for most of the tree.
+          }
+        }
       }
     } catch {
       // already gone
