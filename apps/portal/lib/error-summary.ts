@@ -51,7 +51,12 @@ import { messagesOf, questionLabels, questionPositions } from "./visible";
  * question asked twice ("what makes an entry distinguishable?"), and answering it
  * independently in each path is exactly how the two answers drifted apart.
  */
-export interface MissingRequiredEntry {
+/**
+ * One summary link. Shared by both compositions, so it is named for the summary
+ * rather than for the missing-required set: the no-JS path lists every refused
+ * answer, not only unanswered required questions.
+ */
+export interface ErrorSummaryEntry {
   /** The question this entry points at; the anchor target is `#<questionId>`. */
   readonly questionId: string;
   /** The link text, and therefore the link's accessible name. */
@@ -86,7 +91,7 @@ export function missingRequiredEntries(
   document: A2UIStepDocument | null,
   missing: readonly string[],
   visibleQuestions: readonly string[],
-): readonly MissingRequiredEntry[] {
+): readonly ErrorSummaryEntry[] {
   if (missing.length === 0) return [];
   const labels = document === null ? undefined : questionLabels(document);
   const messages = messagesOf(document);
@@ -123,7 +128,7 @@ export function errorSummaryEntries(
   document: A2UIStepDocument | null,
   errors: A2UIErrors,
   visibleQuestions: readonly string[],
-): readonly MissingRequiredEntry[] {
+): readonly ErrorSummaryEntry[] {
   const entries = Object.entries(errors).filter(([, message]) => message !== undefined);
   if (entries.length === 0) return [];
   const labels = document === null ? undefined : questionLabels(document);
