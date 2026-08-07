@@ -760,7 +760,10 @@ async function sweepDeliveries(
   await page.getByRole("button", { name: "Redeliver all" }).click();
   await expect(page.getByRole("alertdialog")).toBeVisible();
   await expectNoViolations(page, "the redeliver-all confirmation");
-  await page.getByRole("alertdialog").getByRole("button", { name: "Redeliver all of them" }).click();
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Redeliver all of them" })
+    .click();
   await expect(page.getByTestId("qcms-redeliver-summary")).toHaveText(
     "1 delivery is queued for the next pass.",
   );
