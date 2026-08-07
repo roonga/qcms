@@ -449,24 +449,9 @@ export function apiChildEnv({
   };
 }
 
-async function startApi(internalToken) {
+async function startApi(env) {
   log(`starting API on ${API_BASE_URL} ...`);
-  startChild(
-    "api",
-    "node",
-    ["apps/api/dist/serve.js"],
-    apiChildEnv({
-      databaseUrl: DATABASE_URL,
-      apiPort: API_PORT,
-      portalBaseUrl: PORTAL_BASE_URL,
-      adminBaseUrl: ADMIN_BASE_URL,
-      internalToken,
-      linkKeys: randomSecret(),
-      sessionKeys: randomSecret(),
-      appKey: randomSecret(),
-      adminAuthSecret: process.env.QCMS_ADMIN_AUTH_SECRET ?? randomSecret(),
-    }),
-  );
+  startChild("api", "node", ["apps/api/dist/serve.js"], env);
   await waitFor("API health", async () => {
     const res = await fetch(`${API_BASE_URL}/health`);
     return res.ok;
@@ -526,6 +511,48 @@ export function frontendChildEnv(
 }
 
 /**
+ * Both children's environments, built together from this run's one token.
+ *
+ * This exists to remove a seam rather than to save a line. `apiChildEnv` and
+ * `frontendChildEnv` are pure, so a test that calls them with hand-written inputs
+ * proves only that they copy their arguments through: it stays green if the *call
+ * site* hands the front end a fresh `randomSecret()`, or passes `PORTAL_BASE_URL`
+ * where `ADMIN_BASE_URL` belongs. Those are the two mutations that would break issue
+ * #281's premise while every assertion still passed.
+ *
+ * So the call site is this function, it is exported, and it takes the token **once**.
+ * There is no longer a place for a second token to enter, and the addresses come from
+ * this module's own seat-derived constants rather than from the caller, which is what
+ * lets a test assert the real ones (R8).
+ *
+ * @param {object} options
+ * @param {"portal" | "admin"} options.frontend
+ * @param {string} options.internalToken the shared SEC-4 token, in memory only.
+ * @returns {{ api: Record<string, string>, frontend: Record<string, string> }}
+ */
+export function stackChildEnvs({ frontend, internalToken }) {
+  return {
+    api: apiChildEnv({
+      databaseUrl: DATABASE_URL,
+      apiPort: API_PORT,
+      portalBaseUrl: PORTAL_BASE_URL,
+      adminBaseUrl: ADMIN_BASE_URL,
+      internalToken,
+      linkKeys: randomSecret(),
+      sessionKeys: randomSecret(),
+      appKey: randomSecret(),
+      adminAuthSecret: process.env.QCMS_ADMIN_AUTH_SECRET ?? randomSecret(),
+    }),
+    frontend: frontendChildEnv(frontend, {
+      apiBaseUrl: API_BASE_URL,
+      internalToken,
+      portalBaseUrl: PORTAL_BASE_URL,
+      adminBaseUrl: ADMIN_BASE_URL,
+    }),
+  };
+}
+
+/**
  * What each front end is called, where it listens, and how to tell it is really
  * serving.
  *
@@ -554,20 +581,10 @@ const FRONTENDS = {
   },
 };
 
-async function startFrontend(frontend, internalToken) {
+async function startFrontend(frontend, env) {
   const spec = FRONTENDS[frontend];
   log(`starting ${frontend} (next dev) on ${spec.baseUrl} ...`);
-  startChild(
-    frontend,
-    "pnpm",
-    ["--filter", spec.pkg, "dev", "--port", spec.port],
-    frontendChildEnv(frontend, {
-      apiBaseUrl: API_BASE_URL,
-      internalToken,
-      portalBaseUrl: PORTAL_BASE_URL,
-      adminBaseUrl: ADMIN_BASE_URL,
-    }),
-  );
+  startChild(frontend, "pnpm", ["--filter", spec.pkg, "dev", "--port", spec.port], env);
   await waitFor(
     spec.readyLabel,
     async () => {
@@ -598,7 +615,7 @@ const PS_BINARY = ["/bin/ps", "/usr/bin/ps"].find((candidate) => existsSync(cand
  * @param {number} rootPid
  * @returns {number[]}
  */
-function descendantsOf(rootPid) {
+export function descendantsOf(rootPid) {
   if (PS_BINARY === undefined) return [];
   const listed = spawnSync(PS_BINARY, ["-e", "-o", "pid=,ppid="], { encoding: "utf8" });
   if (listed.status !== 0 || typeof listed.stdout !== "string") return [];
@@ -622,39 +639,60 @@ function descendantsOf(rootPid) {
   return found;
 }
 
+/**
+ * Signal one child's whole process tree, and report which pids were signalled.
+ *
+ * Exported so the reaping path (issue #318) has a test that does not need a stack:
+ * a real tree of `sleep`s stands in for `pnpm` -> `next dev` -> `next-server`.
+ *
+ * **The exited-child guard is the load-bearing line.** `child.kill()` is a no-op once
+ * the child has exited, because Node knows the pid is spent. `process.kill()` has no
+ * such knowledge: it signals whatever holds that number *now*, and after a wait() the
+ * kernel is free to have recycled it onto an unrelated process. Walking a dead child's
+ * tree is worse still, since the `ps` snapshot is taken after the fact. So a child that
+ * has already exited is skipped outright, and nothing is signalled on its behalf.
+ *
+ * @param {import("node:child_process").ChildProcess} child
+ * @returns {number[]} the pids signalled, children before parents. Empty when the child
+ *   never started or has already exited.
+ */
+export function reapChildTree(child) {
+  if (child.pid === undefined) return [];
+  // Exited: the pid may belong to someone else by now. Signal nothing.
+  if (child.exitCode !== null || child.signalCode !== null) return [];
+
+  if (IS_WINDOWS) {
+    // next dev and the shell wrapper spawn a tree of grandchildren that a
+    // plain child.kill() leaves orphaned; taskkill /T kills the whole tree.
+    spawnSync("taskkill", ["/pid", String(child.pid), "/T", "/F"], { stdio: "ignore" });
+    return [child.pid];
+  }
+
+  // Signal the whole tree, not just the direct child. A front end is spawned as
+  // `pnpm --filter <app> dev`, and pnpm does not forward a signal to the
+  // `next dev` it runs, so a plain `child.kill()` leaves a `next-server`
+  // holding this seat's `7S00`/`7S40` after Ctrl+C. The next run then dies on
+  // EADDRINUSE, or - worse under the Playwright harness - gets adopted by
+  // `reuseExistingServer` (`docs/PORTS.md`). Same reaping as the harness's own
+  // wrapper (`apps/admin/e2e/support/admin-server.mjs`), one `ps` snapshot,
+  // and children before parents so nothing is re-parented mid-walk.
+  const tree = [...descendantsOf(child.pid).reverse(), child.pid];
+  for (const pid of tree) {
+    try {
+      process.kill(pid, "SIGTERM");
+    } catch {
+      // Already gone, which is the normal case for most of the tree.
+    }
+  }
+  return tree;
+}
+
 function shutdown(signal) {
   if (shuttingDown) return;
   shuttingDown = true;
   process.stdout.write("\n");
   log(`received ${signal}; stopping ${children.map((c) => c.name).join(" + ")}...`);
-  for (const { child } of children) {
-    if (child.pid === undefined) continue;
-    try {
-      if (IS_WINDOWS) {
-        // next dev and the shell wrapper spawn a tree of grandchildren that a
-        // plain child.kill() leaves orphaned; taskkill /T kills the whole tree.
-        spawnSync("taskkill", ["/pid", String(child.pid), "/T", "/F"], { stdio: "ignore" });
-      } else {
-        // Signal the whole tree, not just the direct child. A front end is spawned as
-        // `pnpm --filter <app> dev`, and pnpm does not forward a signal to the
-        // `next dev` it runs, so a plain `child.kill()` leaves a `next-server`
-        // holding this seat's `7S00`/`7S40` after Ctrl+C. The next run then dies on
-        // EADDRINUSE, or - worse under the Playwright harness - gets adopted by
-        // `reuseExistingServer` (`docs/PORTS.md`). Same reaping as the harness's own
-        // wrapper (`apps/admin/e2e/support/admin-server.mjs`), one `ps` snapshot,
-        // and children before parents so nothing is re-parented mid-walk.
-        for (const pid of [...descendantsOf(child.pid).reverse(), child.pid]) {
-          try {
-            process.kill(pid, "SIGTERM");
-          } catch {
-            // Already gone, which is the normal case for most of the tree.
-          }
-        }
-      }
-    } catch {
-      // already gone
-    }
-  }
+  for (const { child } of children) reapChildTree(child);
   log("stopped. The Postgres container is still running.");
   log(
     `Remove it with:  COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT} docker compose -f docker-compose.dev.yml down`,
@@ -802,9 +840,11 @@ export async function runDevStack({ frontend, name }) {
     // One value, both children. It exists only in this process's memory and in the two
     // environments it hands out, which is why the API cannot be started separately and
     // then joined: nothing outside this process can learn the token (issue #281).
-    const internalToken = randomSecret();
-    await startApi(internalToken);
-    await startFrontend(frontend, internalToken);
+    // Built in one call so there is no seam for a second token to enter; the starters
+    // take a finished environment and cannot reach the token at all.
+    const envs = stackChildEnvs({ frontend, internalToken: randomSecret() });
+    await startApi(envs.api);
+    await startFrontend(frontend, envs.frontend);
 
     if (frontend === "admin") printAdminBanner();
     else printPortalBanner();

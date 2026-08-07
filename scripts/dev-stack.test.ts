@@ -1,6 +1,16 @@
+import { spawn } from "node:child_process";
+import { once } from "node:events";
+import { existsSync } from "node:fs";
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { apiChildEnv, frontendChildEnv } from "./dev-stack.mjs";
+import {
+  apiChildEnv,
+  descendantsOf,
+  frontendChildEnv,
+  reapChildTree,
+  stackChildEnvs,
+} from "./dev-stack.mjs";
 import { stablePort } from "./ports.mjs";
 
 /**
@@ -149,4 +159,122 @@ describe("the admin banner never echoes a database credential (SEC-8)", () => {
     expect(text).not.toContain(PLACEHOLDER);
     expect(text).toMatch(/DATABASE_URL=postgres:\/\/qcms:qcms@/);
   });
+});
+
+/**
+ * The call site, which is what the assertions above cannot reach.
+ *
+ * `apiChildEnv` and `frontendChildEnv` are pure, so calling them with hand-written
+ * inputs proves only that they copy their arguments through. Both of the mutations
+ * that would break issue #281's premise live one level up, at the site that decides
+ * what to pass, and every test above stays green under either of them:
+ *
+ *   1. handing the front end a fresh `randomSecret()` instead of the API's token -
+ *      which is the entire reason `pnpm dev:admin` starts its own API;
+ *   2. passing `PORTAL_BASE_URL` where `ADMIN_BASE_URL` belongs.
+ *
+ * `stackChildEnvs` is that site. It takes the token once and reads the addresses from
+ * the module's own seat-derived constants, so these assertions fail under either.
+ */
+describe("the launcher's call site, not just its pure helpers (issue #281)", () => {
+  const TOKEN = "shared-token-for-this-run";
+
+  it("builds both children from one and the same token", () => {
+    const envs = stackChildEnvs({ frontend: "admin", internalToken: TOKEN });
+    expect(envs.frontend.QCMS_INTERNAL_TOKEN).toBe(envs.api.QCMS_INTERNAL_TOKEN);
+    expect(envs.frontend.QCMS_INTERNAL_TOKEN).toBe(TOKEN);
+  });
+
+  it("does the same for the portal", () => {
+    const envs = stackChildEnvs({ frontend: "portal", internalToken: TOKEN });
+    expect(envs.frontend.QCMS_INTERNAL_TOKEN).toBe(envs.api.QCMS_INTERNAL_TOKEN);
+    expect(envs.frontend.QCMS_INTERNAL_TOKEN).toBe(TOKEN);
+  });
+
+  it("puts the admin on its own origin, which is not the portal's", () => {
+    const envs = stackChildEnvs({ frontend: "admin", internalToken: TOKEN });
+    // Asserted against the derived port rather than against an input this test chose,
+    // so swapping the two constants at the call site cannot pass.
+    expect(envs.frontend.QCMS_ADMIN_BASE_URL).toBe(`http://localhost:${stablePort("admin")}`);
+    expect(envs.frontend.QCMS_ADMIN_BASE_URL).not.toBe(`http://localhost:${stablePort("portal")}`);
+    // And the API, which reads it as better-auth's baseURL, agrees with the admin.
+    expect(envs.api.QCMS_ADMIN_BASE_URL).toBe(envs.frontend.QCMS_ADMIN_BASE_URL);
+  });
+
+  it("still gives the API the portal origin it builds links against", () => {
+    const envs = stackChildEnvs({ frontend: "admin", internalToken: TOKEN });
+    expect(envs.api.QCMS_PORTAL_BASE_URL).toBe(`http://localhost:${stablePort("portal")}`);
+  });
+});
+
+/**
+ * The reaping path (issue #318), against a real process tree.
+ *
+ * This is the one part of the launcher with a genuine process in it, and it is the fix
+ * #318 is about, so it is tested rather than left to the PR's manual evidence. A full
+ * stack boot is not needed: what `reapChildTree` has to get right is generic - find the
+ * grandchildren of a child that does not forward signals, signal them before their
+ * parent, and refuse to signal anything for a child that has already exited. A shell
+ * holding two `sleep`s is that shape, and costs milliseconds.
+ */
+describe("Ctrl+C reaps the whole front-end tree (issue #318)", () => {
+  const SHELL = ["/bin/sh", "/usr/bin/sh"].find((candidate) => existsSync(candidate));
+  const itOnPosix = process.platform !== "win32" && SHELL !== undefined ? it : it.skip;
+
+  /** True once the pid is gone. A signalled process may be a zombie for a moment first. */
+  async function waitUntilGone(pid: number): Promise<boolean> {
+    for (let attempt = 0; attempt < 100; attempt++) {
+      try {
+        process.kill(pid, 0);
+      } catch {
+        return true;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    return false;
+  }
+
+  itOnPosix(
+    "signals the grandchildren a plain child.kill() would orphan",
+    async () => {
+      // `sh` here stands in for `pnpm --filter <app> dev`: it does not forward SIGTERM to
+      // what it spawned, so the two sleeps are exactly the `next-server` that used to be
+      // left holding this seat's 7S00/7S40.
+      const child = spawn(SHELL as string, ["-c", "sleep 30 & sleep 30 & wait"]);
+      await once(child, "spawn");
+      // Give the shell a moment to fork both sleeps before the snapshot is taken.
+      let descendants: number[] = [];
+      for (let attempt = 0; attempt < 100 && descendants.length < 2; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        descendants = descendantsOf(child.pid as number);
+      }
+      expect(descendants.length).toBeGreaterThanOrEqual(2);
+
+      const signalled = reapChildTree(child);
+
+      // Children before parents, so nothing is re-parented mid-walk.
+      expect(signalled.at(-1)).toBe(child.pid);
+      for (const pid of descendants) expect(signalled).toContain(pid);
+
+      await once(child, "close");
+      for (const pid of descendants) {
+        expect(await waitUntilGone(pid), `pid ${pid} survived the reap`).toBe(true);
+      }
+    },
+    20_000,
+  );
+
+  itOnPosix(
+    "signals nothing for a child that has already exited",
+    async () => {
+      // The recycled-pid hazard. `child.kill()` is a no-op after exit because Node knows
+      // the pid is spent; `process.kill()` does not, and would signal whatever holds that
+      // number now. Without the guard this returns the dead pid instead of nothing.
+      const child = spawn(SHELL as string, ["-c", "exit 0"]);
+      await once(child, "exit");
+      expect(child.exitCode ?? child.signalCode).not.toBeNull();
+      expect(reapChildTree(child)).toEqual([]);
+    },
+    20_000,
+  );
 });
