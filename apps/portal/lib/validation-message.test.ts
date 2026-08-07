@@ -150,6 +150,34 @@ describe("authorMessageFor", () => {
   it("returns undefined when the API named no constraint", () => {
     expect(authorMessageFor(messages.get("q_plate"), undefined)).toBeUndefined();
   });
+
+  /**
+   * Issue #324. `AUTHORABLE_KEYS` is a plain object literal, so it inherits from
+   * `Object.prototype`; the membership test used to be `in`, which walks that
+   * chain and answered true for every one of these. The constraint string comes
+   * off a validation-error payload, so it is untrusted input reaching a *type
+   * predicate* - a hit narrowed it to `keyof AuthorMessages` and the lookup
+   * returned an inherited function or object typed as `string`.
+   *
+   * These cases exist so the fix cannot be quietly simplified back: `in` and
+   * `Object.hasOwn` are interchangeable for every authorable key, and differ only
+   * here.
+   */
+  it("rejects prototype-chain keys: an inherited property is not an authored message", () => {
+    for (const key of ["toString", "constructor", "valueOf", "__proto__", "hasOwnProperty"]) {
+      expect(authorMessageFor(messages.get("q_plate"), key), key).toBeUndefined();
+    }
+  });
+
+  it("never returns a non-string, whatever key it is handed", () => {
+    // The observable half of the same defect: `messages["toString"]` is a
+    // function, which survived the `=== undefined || === ""` filter and reached
+    // React (or `String(value)` interpolation) typed as `string`.
+    for (const key of ["toString", "constructor", "valueOf", "__proto__"]) {
+      const result = authorMessageFor(messages.get("q_plate"), key);
+      expect(typeof result, key).toBe("undefined");
+    }
+  });
 });
 
 describe("missingRequiredEntries with author messages", () => {
