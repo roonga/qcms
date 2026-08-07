@@ -10,6 +10,7 @@ A task's **Depends on** header already expresses every "runs *after* X" constrai
 |---|---|---|
 | 040 | before 038 | security review and hardening precede the external-tester launch gate |
 | 041 | never gates 038 | agent-assisted authoring is flag-gated and off the launch gate (ADR-25) |
+| 060 | before 058 | the token sheets match only `:root` until 060 lands the scope carrier, so 058 has nothing to mount on (ADR-38) |
 
 Exceptions retire when their task lands: 042, 043, 044, 045, 055, 056 and 059 all carried one and are now `done`.
 
@@ -85,7 +86,8 @@ Status values: `todo` · `blocked (issue #)` · `done (PR #)`. A row goes `todo`
 | 049 | Admin theme editor: customize tokens + save named custom theme (ADR-30 amended 2026-07-25 to launch tier; folds #26) | 8a | todo (after 031 + 047) |
 | 057 | Option grid: inline-editable table for choice options (Code Owner direction 2026-08-01; card `ds-option-grid.html` frozen before dispatch; UI screenshot gate) | 8a | todo (after 048) |
 | 050 | Answer retraction: tombstone append resolved to unanswered by latestAnswers (ADR-33; folds #95) | 7 | done (PR #97; kernel unchanged per the accepted ADR-33 divergence; landed before PR #90, which rebases over it) |
-| 058 | Preview theme island: respondent theme/mode switch scoped to the admin preview (Code Owner direction 2026-08-01; mounts on the preview seam 034 builds, so it follows 034 rather than gating it; UI screenshot gate) | 8a | todo (after 034; enrichment tier, so it waits behind 035 per the Code Owner's 2026-08-01 flow-first aim) |
+| 058 | Preview theme island: respondent theme/mode switch scoped to the admin preview (Code Owner direction 2026-08-01; mounts on the preview seam 034 builds, so it follows 034 rather than gating it; UI screenshot gate) | 8a | todo (after 060; the 2026-08-07 Code Owner ruling on ADR-38 gave it a scope carrier to mount on - it was parked at its exit-criterion-7 fence, correctly, because the token sheets matched only `:root`) |
+| 060 | Theme scope carrier: token sheets match `:is(:root, [data-qcms-theme-scope])`, treatment sheet re-anchored on the bare attribute, portal stamps it (ADR-38, Code Owner ruling 2026-08-07; unblocks 058) | 8a | todo |
 | 054 | Observability: OTel tracing baseline (portal -> API -> pg via traceparent) + pino trace-correlated logs + SEC-13 redaction allowlist (ADR-34) | 8b | done (PR #181; traced e2e via in-test OTLP receiver; SEC-13 redaction; whole Playwright suite runs traced) |
 | 055 | QCMS app theme application: Cobalt tokens + Lexend + sharp corners + mode control (after 031, before 032; UI screenshot gate) | 8a | done (PR #214; screenshot gate signed by the Code Owner 2026-07-31) |
 | 056 | Auth consolidation: better-auth moves into the API, admin loses its DB handle (ADR-35 amendment 2026-07-31; supersedes #211; after 035, before 036) | 8b | done (PR #320; the vendor Hono catch-all kept with a 7-operation endpoint allowlist in front of it, so SEC-1 is now a request property as well as a structural one; the admin forwards seven named auth operations rather than a blind proxy, preserving 031 no-JS form posts; `QCMS_ADMIN_AUTH_SECRET` recorded in SEC-7 as an at-rest encryption key with no in-place rotation, accepted-list design deferred to Phase 4) |
