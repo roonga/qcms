@@ -1,0 +1,323 @@
+# QCMS operations guide
+
+Running a QCMS deployment: what the processes expect from their environment, what
+their health signals mean, how to upgrade one, and the runbooks for the four things
+that actually page someone.
+
+This guide is topology-agnostic. The two deployment shapes it applies to are the
+single-host Compose stack (`docker-compose.yml`, quickstart in `README.md`) and the
+segmented multi-instance shape (`docs/deploy-enterprise.md`). Ingress and TLS are
+operator infrastructure and live in `docs/deploy-ingress.md` (ADR-20). Backup policy
+and the restore drill live in `docs/backup-restore.md`.
+
+## Process model
+
+| Process | Image | Holds a database credential | Serves |
+| --- | --- | --- | --- |
+| `qcms-api` | `docker/api.Dockerfile` | yes, the only one (ADR-35) | the API route groups its `QCMS_MOUNT` selects |
+| `qcms-portal` | `docker/portal.Dockerfile` | no | the respondent surface, as a strict BFF |
+| `qcms-admin` | `docker/admin.Dockerfile` | no | the authoring surface, as a strict BFF |
+| `migrate` | `docker/api.Dockerfile` | yes | nothing; runs once and exits |
+
+Both front ends reach the API over the internal network and hold no database
+credential of their own. That is a control, not an accident: after task 056 the API
+is the sole domain-data client, so a compromised BFF cannot read the database
+directly. The admin's import-surface test refuses a database import outright.
+
+## Health and readiness
+
+The API mounts two unauthenticated ops endpoints in **every** process shape, because
+an orchestrator has to reach them before any credential exists:
+
+| Endpoint | Meaning | Failure mode |
+| --- | --- | --- |
+| `GET /health` | Liveness. The process is up and serving. Static, touches nothing. | Only fails when the process is gone. |
+| `GET /ready` | Readiness. Probes the database with a bounded timeout (`QCMS_READINESS_DB_TIMEOUT_MS`). | Database down or slow: **503 with a clean JSON body**, never a 500. |
+
+The 503 is deliberate. A failing dependency is an expected state, not a crash, so it
+reports `{ status: "unavailable", checks: { db: "down" } }` and stays up. Point
+load-balancer health checks at `/ready` and restart policies at `/health`: a database
+blip should take an instance out of rotation, not into a restart loop.
+
+The container healthchecks already encode this, and they differ per image because the
+front ends have no database of their own to probe:
+
+| Image | Healthcheck target |
+| --- | --- |
+| `qcms-api` | `/ready` |
+| `qcms-portal` | `/` |
+| `qcms-admin` | `/healthz` |
+
+## Logs
+
+Every process writes **JSON lines to stdout and nothing else**. There is no log file,
+no log shipper in the images, and no bundled observability stack: collection is the
+operator's, and any collector that reads container stdout works unchanged (the Docker
+`json-file` or `journald` drivers, a Fluent Bit or Vector sidecar, a cloud agent).
+
+The line shape is `{ level, time, msg, ...fields }`, with `level` as a word
+(`debug`/`info`/`warn`/`error`) and `time` as an ISO instant. When the OpenTelemetry
+SDK is enabled the pino instrumentation adds `trace_id` and `span_id` to every line,
+so logs correlate to traces with no call-site change (ADR-34). OTel is configured
+through the standard `OTEL_*` variables in the reference below; leave them unset and
+the SDK stays off.
+
+**Answer values are never logged.** Handlers log question ids and counts, never
+content, and a redactor replaces any field whose key looks like a secret or like
+respondent content with `"[REDACTED]"` before serialization (SEC-8). The redactor is
+a backstop, not the primary control: it runs before the serializer sees the field, so
+a careless `logger.info("...", { token })` cannot leak a value even in a crash path.
+Treat a `[REDACTED]` in a log you are reading as the system working, not as a bug.
+
+## Environment reference
+
+Generated from the code that reads each variable, and asserted against it by
+`scripts/env-reference.test.ts`: a variable added to a composition root fails that
+test until it is documented here, and a deleted one fails until its row goes. Do not
+hand-edit the block below. Change the table in `scripts/env-reference.mjs` and run:
+
+```bash
+node scripts/env-reference.mjs --write
+```
+
+Sample values for the Compose topology are in `.env.compose.example`. Secret values
+are never echoed by any process, and no value appears in this document.
+
+<!-- BEGIN GENERATED: env-reference (node scripts/env-reference.mjs --write) -->
+
+#### API (`qcms-api`)
+
+Validated at boot by `apps/api/src/config.ts`, which collects every problem and fails fast naming the variables, never the values (SEC-8).
+
+| Variable | Required | Default | Meaning |
+| --- | --- | --- | --- |
+| `DATABASE_URL` (secret) | **required** | - | Postgres connection string. The API is the only process in either topology that holds one (ADR-35). Compose builds it from the `QCMS_DB_*` values. |
+| `QCMS_MOUNT` | **required** | - | Which route groups this process serves: a comma-separated list of `public`, `internal`, `admin`, or the shortcut `all`. Unmounted routes do not exist (404, not 403 - ADR-09). The outbox deliverer and retention sweep run in the process that mounts `internal`. |
+| `QCMS_LINK_KEYS` (secret) | **required** | - | Secure-link signing keys, at least 32 characters each. Comma-separated: the first signs, all verify. Rotation runbook: `docs/secure-links.md`. |
+| `QCMS_SESSION_KEYS` (secret) | **required** | - | Respondent session-token signing keys, at least 32 characters each. Same first-signs-all-verify rotation model as `QCMS_LINK_KEYS`. |
+| `QCMS_INTERNAL_TOKEN` (secret) | **required** | - | Service tokens the BFFs present on every internal call (SEC-4), at least 32 characters each. Any listed token is accepted, which is what makes rotation a two-deploy operation. |
+| `QCMS_APP_KEY` (secret) | **required** | - | AES-256-GCM key (at least 32 characters) encrypting secrets at rest: webhook signing secrets and stored TOTP material (SEC-6). Changing it makes every existing at-rest secret undecryptable. |
+| `QCMS_PORTAL_BASE_URL` | **required** | - | Public origin of the respondent portal, used to build the secure-link URLs authors copy. Absolute http(s); a trailing slash is stripped. |
+| `QCMS_ADMIN_AUTH_SECRET` (secret) | conditional | - | better-auth signing secret, at least 32 characters. Required when `QCMS_MOUNT` includes `admin`. **Not rotatable**: it also protects stored two-factor material, so changing it locks every administrator out of 2FA (SEC-7). Set it once, back it up with the database. |
+| `QCMS_ADMIN_BASE_URL` | conditional | - | Public origin of the **admin app**, not of this API. Required when `QCMS_MOUNT` includes `admin`: it is the origin better-auth scopes cookies to and the only origin it trusts, so it must match what the browser sees exactly. |
+| `TURNSTILE_SITE_KEY` | conditional | - | Turnstile site key. Required when `QCMS_FLAG_CHALLENGE_PROVIDER=turnstile`, ignored otherwise. |
+| `TURNSTILE_SECRET_KEY` (secret) | conditional | - | Turnstile verification secret. Required when `QCMS_FLAG_CHALLENGE_PROVIDER=turnstile`, ignored otherwise. |
+| `PORT` | optional | `3000` | TCP port the API listens on inside its container. `QCMS_PORT` is accepted as a fallback spelling. The images expose 3000 and Compose never republishes it. |
+| `QCMS_PORT` | optional | `3000` | Prefixed alias for `PORT`, read only when `PORT` is unset. |
+| `NODE_ENV` | optional | `production (set by the image)` | Decides the default for `QCMS_ADMIN_SECURE_COOKIES` when that is unset. The production Dockerfiles set it; do not unset it in a deployment. |
+| `QCMS_FLAG_CHALLENGE_PROVIDER` | optional | `none` | Abuse-control challenge provider (ADR-24 registry): `none` or `turnstile`. An unknown `QCMS_FLAG_*` variable fails boot rather than being ignored. |
+| `QCMS_ADMIN_2FA` | optional | `required` | Administrator TOTP policy (SEC-1): `required` or `optional`. `optional` is a development escape hatch, never a production setting. |
+| `QCMS_ADMIN_SECURE_COOKIES` | optional | `true when NODE_ENV=production` | Whether cookies set on the admin origin carry `Secure`. It describes the **browser-facing** scheme, which this process cannot observe, so it is a knob rather than only an inference. Must hold the same value in the `api` and `admin` services or the browser keeps one cookie family and drops the other. |
+| `QCMS_ADMIN_SESSION_IDLE_MS` | optional | `3600000 (1h)` | Idle window before an administrator session expires (SEC-1). |
+| `QCMS_ADMIN_SESSION_MAX_AGE_MS` | optional | `43200000 (12h)` | Absolute administrator session lifetime measured from issue (SEC-1). Past it every admin call is a 401 regardless of activity, which is the cap an idle window alone cannot provide. |
+| `QCMS_SESSION_TTL_MS` | optional | `86400000 (24h)` | Lifetime of an anonymous respondent session. |
+| `QCMS_WEBHOOK_ALLOW_PRIVATE` | optional | `false` | SSRF override (SEC-6). While false, webhook targets must be HTTPS and must not resolve to private, reserved, loopback or link-local hosts. Set true only for an on-prem topology that legitimately posts to an internal system. |
+| `QCMS_WEBHOOK_TIMEOUT_MS` | optional | `10000` | Per-attempt webhook delivery timeout. A slower response is a failed attempt. |
+| `QCMS_WEBHOOK_BATCH_SIZE` | optional | `20` | Deliveries one outbox pass processes. Bounds the row locks held per tick; the interval drains the rest. |
+| `QCMS_OUTBOX_INTERVAL_MS` | optional | `5000` | How often the outbox deliverer runs, in the process that mounts `internal`. |
+| `QCMS_OUTBOX_JITTER_MS` | optional | `1000` | Random jitter added to the outbox interval, so several API instances do not tick in lockstep. |
+| `QCMS_RETENTION_SWEEP_INTERVAL_MS` | optional | `3600000 (1h)` | How often expired anonymous sessions are swept. |
+| `QCMS_READY_DB_TIMEOUT_MS` | optional | `2000` | Timeout for the `/ready` database probe. Exceeding it makes `/ready` answer 503, never 500. |
+| `QCMS_BODY_LIMIT_BYTES` | optional | `1000000 (1MB)` | Maximum request body the API accepts (SEC-9). Keep the ingress ceiling in step with it: both recipes set one. |
+| `QCMS_ANTIABUSE_MIN_SUBMIT_MS` | optional | `0 (off)` | Global floor on the gap between session start and submit. A faster submit is silently flagged; a form may set its own floor that overrides this. |
+| `QCMS_ANTIABUSE_HONEYPOT_FIELD` | optional | `the compiler's HONEYPOT_FIELD_NAME` | Name of the decoy submit field. It is a contract between the compiler and the API, so override it only if you also change the compiler constant. |
+| `QCMS_RL_SESSION_CREATE_WINDOW_MS` | optional | `3600000 (1h)` | Rate-limit window for `POST /sessions`, keyed by client IP. |
+| `QCMS_RL_SESSION_CREATE_MAX` | optional | `20` | Sessions one client IP may start per window. |
+| `QCMS_RL_ANSWERS_SESSION_WINDOW_MS` | optional | `5000` | Rate-limit window for answer submission, keyed by session. |
+| `QCMS_RL_ANSWERS_SESSION_MAX` | optional | `10` | Answers one session may submit per window (a burst ceiling, about 2/s sustained). |
+| `QCMS_RL_ANSWERS_IP_WINDOW_MS` | optional | `60000` | Rate-limit window for answer submission, keyed by client IP. |
+| `QCMS_RL_ANSWERS_IP_MAX` | optional | `300` | Answers one client IP may submit per window: the wide backstop against many-session floods from one source. |
+| `QCMS_RL_SUBMIT_SESSION_WINDOW_MS` | optional | `60000` | Rate-limit window for `POST /sessions/{id}/submit`, keyed by session. |
+| `QCMS_RL_SUBMIT_SESSION_MAX` | optional | `5` | Submit attempts one session may make per window. |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | optional | (none) | OTLP collector endpoint (ADR-34). Unset is the default and a hard no-op: no SDK starts and no span is produced. Setting it turns on tracing and adds `trace_id`/`span_id` to every log line. |
+| `OTEL_SERVICE_NAME` | optional | `qcms-api` | Service name reported on exported spans. Read only when tracing is on. |
+| `QCMS_ADMIN_EMAIL` | conditional | - | First-run bootstrap only. Read by `node dist/create-admin.js` to create the first administrator; never read by the serving process. |
+| `QCMS_ADMIN_PASSWORD` (secret) | conditional | - | First-run bootstrap only, alongside `QCMS_ADMIN_EMAIL`. Pass it per-command (`docker compose exec --env`), never in the `.env` file. |
+| `QCMS_ADMIN_NAME` | optional | `the email local part` | Display name for the bootstrapped administrator. |
+
+#### Portal BFF (`qcms-portal`)
+
+Read on the server only. The portal holds no database credential and reaches the API over the internal network.
+
+| Variable | Required | Default | Meaning |
+| --- | --- | --- | --- |
+| `QCMS_API_BASE_URL` | **required** | - | Internal origin of the API. On the Compose network this is `http://api:3000`; it is never a public URL. |
+| `QCMS_INTERNAL_TOKEN` (secret) | **required** | - | The service token this BFF presents to the API (SEC-4). Must be one of the tokens the API accepts. |
+| `QCMS_PORTAL_BASE_URL` | **required** | - | This app's own public origin, used to build the redirects a browser follows. Getting it wrong emits a container-internal address a browser cannot reach. |
+| `QCMS_SECURE_COOKIES` | optional | `true when NODE_ENV=production` | Whether respondent session cookies carry `Secure`. Set it false only for a plain-HTTP local evaluation. |
+| `NODE_ENV` | optional | `production (set by the image)` | Decides the default for `QCMS_SECURE_COOKIES` when that is unset. |
+| `QCMS_FLAG_CHALLENGE_PROVIDER` | optional | `none` | Must match the API's value. `turnstile` makes the portal render the widget; anything else renders none. |
+| `QCMS_TURNSTILE_SITE_KEY` | conditional | - | Turnstile site key for the rendered widget. Required when the portal's challenge provider is `turnstile`. Note the prefix: the API reads the same key as `TURNSTILE_SITE_KEY`, so set both. |
+| `QCMS_PORTAL_THEME` | optional | `slate` | Managed portal theme (ADR-30). An unrecognised value falls back silently. |
+| `QCMS_PORTAL_MODE` | optional | `auto` | Default light/dark mode: `light`, `dark` or `auto`. |
+| `QCMS_PORTAL_CORNERS` | optional | `subtle` | Corner-radius token group. |
+| `QCMS_PORTAL_DENSITY` | optional | `the @qcms/ui default density` | Spacing token group. |
+| `QCMS_PORTAL_FONTS` | optional | (none) | Font stack selection from the allowlist in `apps/portal/lib/server/theme.ts`. |
+| `QCMS_PORTAL_FONT` | optional | `the system font stack` | Single font family override. |
+| `QCMS_PORTAL_BRAND_NAME` | optional | (none) | Brand name shown in the portal header. Empty renders no brand. |
+| `QCMS_PORTAL_BRAND_LOGO` | optional | (none) | URL of the brand logo shown in the portal header. |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | optional | (none) | OTLP collector endpoint (ADR-34). Unset means no SDK and no spans. |
+| `OTEL_SERVICE_NAME` | optional | `qcms-portal` | Service name reported on exported spans. |
+
+#### Admin BFF (`qcms-admin`)
+
+Read on the server only. Since task 056 the admin holds no database credential either (ADR-35).
+
+| Variable | Required | Default | Meaning |
+| --- | --- | --- | --- |
+| `QCMS_API_BASE_URL` | **required** | - | Internal origin of the API. Since task 056 this is the admin's only route to data of any kind: it holds no database credential (ADR-35). |
+| `QCMS_INTERNAL_TOKEN` (secret) | **required** | - | The service token this BFF presents to the API (SEC-4). |
+| `QCMS_ADMIN_BASE_URL` | **required** | - | This app's own public origin. Used for the SEC-9 origin check on state-changing routes, and it must equal the value the API is given. |
+| `QCMS_ADMIN_SECURE_COOKIES` | optional | `true when NODE_ENV=production` | Whether the cookies this app sets carry `Secure`. Must equal the API's value: the two set different cookies on one origin, and a disagreement makes sign-in loop. |
+| `QCMS_ADMIN_2FA` | optional | `required` | Must match the API's value; it decides whether enrollment can be skipped. |
+| `QCMS_ADMIN_SESSION_MAX_AGE_MS` | optional | `43200000 (12h)` | Must match the API's value; used for the app's own session bookkeeping. |
+| `NODE_ENV` | optional | `production (set by the image)` | Decides the default for `QCMS_ADMIN_SECURE_COOKIES` when that is unset. |
+
+#### Compose-level (`docker-compose.yml`, `docker-compose.proxy.yml`)
+
+Consumed by the Compose files themselves to build the topology; the containers never see them under these names.
+
+| Variable | Required | Default | Meaning |
+| --- | --- | --- | --- |
+| `QCMS_DB_PASSWORD` (secret) | **required** | - | Postgres superuser password. Compose refuses to start without it. |
+| `QCMS_DB_NAME` | optional | `qcms` | Database name created on first boot of the Postgres volume. |
+| `QCMS_DB_USER` | optional | `qcms` | Database role created on first boot of the Postgres volume. |
+| `QCMS_POSTGRES_IMAGE` | optional | `postgres:16-alpine` | Postgres image. Override it to pull from a mirror rather than Docker Hub; CI does exactly this. |
+| `QCMS_PORTAL_PORT` | optional | `7000` | Host port the portal is published on. Comes from the stable block in `docs/PORTS.md` (R8); move it to run beside a dev server on the same seat. |
+| `QCMS_ADMIN_PORT` | optional | `7040` | Host port the admin app is published on. Same allocation rules as the portal. |
+| `QCMS_BIND_ADDRESS` | optional | `127.0.0.1` | Interface the two published apps bind to. The loopback default is a control: a bare publish would listen on every interface, ahead of the host firewall. Widen it only when a separate ingress host must reach these containers. |
+| `QCMS_IMAGE_VERSION` | optional | `dev` | Version stamped into the images at build time (`org.opencontainers.image.version`). `pnpm images:build` derives a real one; a bare `docker compose build` leaves it `dev`. |
+| `QCMS_CADDY_IMAGE` | optional | `caddy:2-alpine` | Ingress image, used only by the `docker-compose.proxy.yml` overlay. |
+| `QCMS_PORTAL_DOMAIN` | conditional | - | Public hostname Caddy serves the portal on. Required by the proxy overlay; unused without it. |
+| `QCMS_ADMIN_DOMAIN` | conditional | - | Public hostname Caddy serves the admin app on. Required by the proxy overlay; unused without it. |
+| `QCMS_ACME_EMAIL` | conditional | - | Contact address for the Let's Encrypt account. Required by the proxy overlay; unused without it. |
+
+<!-- END GENERATED: env-reference -->
+
+## Upgrading
+
+### Why migration is a separate step
+
+The images do **not** migrate on boot, and the Compose file runs migration as a
+one-shot `migrate` service with `restart: "no"`. Two reasons, both operational:
+
+1. **Multi-instance safety.** Migrate-on-boot means every instance races to migrate
+   during a rolling deploy. The winner is arbitrary, the losers either block on a
+   lock or fail their own boot, and a long migration turns a rolling restart into an
+   outage. One explicit step has one runner by construction.
+2. **Adopter control.** A schema change is the part of an upgrade an operator wants
+   to schedule, rehearse against a restored backup, and be able to stop before it
+   starts. Coupling it to process start takes that decision away and hides it inside
+   a container's first second.
+
+The cost is one more command in the upgrade, which is the right trade.
+
+### Procedure
+
+```bash
+# 1. Read the release notes for migration warnings before anything is stopped.
+# 2. Take a backup and confirm it restores (docs/backup-restore.md).
+pnpm qcms:drill-restore   # or your own verified restore path
+
+# 3. Pull the new images.
+docker compose pull
+
+# 4. Migrate. Nothing else is running the new code yet.
+docker compose run --rm migrate
+
+# 5. Restart the services, API first so the BFFs never call an older API.
+docker compose up --detach --wait
+```
+
+Order matters at step 5: the portal and admin call the API, so the API must be
+serving the new contract before they do. `--wait` holds until the healthchecks pass,
+so a failure surfaces there rather than as a user-visible error a minute later.
+
+**Rolling back** is a redeploy of the previous image tag, plus a database restore if
+the migration was not backward compatible. Migrations are not reversed automatically,
+which is the other reason step 2 is not optional. Check the release notes: a
+backward-compatible migration lets you roll back images alone.
+
+## Runbooks
+
+### Webhook dead-letters
+
+Domain events (`response.submitted`, `form.published`) are written to the `outbox`
+table in the same transaction as the state change they describe, then delivered by
+the background deliverer with exponential backoff. Delivery is at-least-once, never
+best-effort. After retries are exhausted a row is **dead-lettered**: `dead_lettered_at`
+is set, `last_error` holds the reason, and the deliverer's claim query skips it
+permanently (its partial index is `where dead_lettered_at is null`).
+
+Dead-lettering is therefore a stable state that waits for a human, not a data loss
+event. The payload is still there.
+
+**Triage.**
+
+1. List them: `GET /outbox/dead-letters` on the admin API returns dead-lettered
+   deliveries with their attempt history. A form's recent delivery detail is at
+   `GET /forms/{id}/deliveries`.
+2. Read `last_error` and `attempts`. The common causes are a receiver that was down
+   for longer than the backoff window, a receiver rejecting the HMAC signature
+   (a rotated shared secret on their side), and a URL that has moved.
+3. Fix the receiver first. Redelivery to a still-broken endpoint just dead-letters
+   again, more slowly.
+4. Redeliver: `POST /outbox/{id}/redeliver` resets the row for immediate delivery.
+
+**Which process delivers.** The deliverer runs only where the `internal` mount flag
+is set. In the solo topology that is the single API process (`QCMS_MOUNT=all`). In
+the segmented topology it is the internal instance only, and **running two copies of
+the internal mount means two deliverers**: they claim with `FOR UPDATE SKIP LOCKED`
+so they will not double-send a single row, but see `docs/deploy-enterprise.md` before
+scaling that instance. If nothing is being delivered at all, check that some process
+actually mounts `internal` before looking at the table.
+
+### Erasure
+
+Erasure is whole-session and is the **only** DELETE door in the system (ADR-17 as
+amended). Answers are append-only everywhere else, so there is no partial-erasure
+path to reach for and no UPDATE to fall back on.
+
+1. Erase: `POST /sessions/{sessionId}/erase` on the admin API, with a reason. It is
+   **idempotent** and returns the tombstone, so a retry after a timeout is safe and
+   does not need a "did it work" check first.
+2. The tombstone is the compliance evidence, and it is what remains: `GET /erasures`
+   lists them. A tombstone records that a session was erased, by whom and why, and
+   never the content that was erased.
+3. Confirm with `GET /erasures` rather than by looking for an absence.
+
+Retention-driven expiry is separate and automatic: the retention sweep runs in the
+process that mounts `internal`, on `QCMS_RETENTION_SWEEP_INTERVAL_MS`, and logs an
+`expiredCount` each pass. A sweep that reports nothing over a long window when data
+should be expiring is a sign the internal mount is not running anywhere.
+
+### Secure-link key rotation
+
+`QCMS_LINK_KEYS` is a **list**, and the list is the rotation mechanism: the first
+entry signs every new link, and every entry verifies. `QCMS_SESSION_KEYS` works the
+same way for session tokens. That is what makes rotation a zero-downtime change
+rather than a mass invalidation.
+
+To rotate without breaking links already in the wild:
+
+1. **Prepend** the new key. The list becomes `new,current`. New links are signed with
+   the new key; links signed with the old one still verify.
+2. Restart the API instances so they pick up the new list. Both keys are live.
+3. Wait out the longest link lifetime you have issued. Until that point, dropping the
+   old key invalidates links respondents still hold.
+4. **Remove** the trailing old key and restart again. The list becomes `new`.
+
+Never reorder in place or replace the list in one step: replacing `current` with
+`new` in a single edit invalidates every outstanding secure link at once, and the
+symptom is respondents getting a rejection on a link that worked minutes earlier.
+
+Key material is validated at boot for minimum length and the process refuses to start
+on a short or empty key rather than starting with weak signing. The values are never
+logged and never echoed in an error (SEC-8): a boot failure names the variable.
+
+## Backups
+
+Policy, schedule guidance, the restore procedure and the automated restore drill are
+in `docs/backup-restore.md`. The one line that belongs here: a backup nobody has
+restored is not a backup, which is why the drill is a script (`pnpm qcms:drill-restore`)
+and runs in CI rather than living in a document as an instruction.

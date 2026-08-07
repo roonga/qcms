@@ -837,15 +837,58 @@ export function scanEnvNames(processName) {
   return found;
 }
 
+/** The unconditional assembly path: every variable here is read on every boot. */
+const UNCONDITIONAL_ENTRY = "export function loadConfig(env: Env): Config {";
+
+/**
+ * The body of the function whose signature line is `signature`, by brace matching.
+ *
+ * @param {string} source
+ * @param {string} signature
+ * @returns {string}
+ */
+function functionBody(source, signature) {
+  const start = source.indexOf(signature);
+  if (start === -1) {
+    throw new Error(
+      `env-reference: ${API_CONFIG} no longer contains "${signature}". The requirement scan is bounded to that function's body; re-point it before trusting its output.`,
+    );
+  }
+  let depth = 0;
+  for (let i = start + signature.length - 1; i < source.length; i += 1) {
+    if (source[i] === "{") depth += 1;
+    else if (source[i] === "}") {
+      depth -= 1;
+      if (depth === 0) return source.slice(start, i + 1);
+    }
+  }
+  throw new Error(`env-reference: unbalanced braces after "${signature}" in ${API_CONFIG}.`);
+}
+
 /**
  * Requirement as the API's own parsers imply it: variable name to
  * `"required" | "optional"`, for every variable read through a helper in
  * {@link REQUIREMENT_BY_HELPER}. Variables read some other way are absent.
  *
+ * **Bounded to `loadConfig`'s own body, and that bound is the whole subtlety.**
+ * A helper name states how strictly a value is validated *if the parse is reached*,
+ * not whether an operator must set it. `parseAdminAuth` calls `parseRequiredString`
+ * for `QCMS_ADMIN_AUTH_SECRET`, but `loadConfig` only calls `parseAdminAuth` when
+ * `mount.admin` is on (`adminAuth: mount.admin ? parseAdminAuth(...) : ...`), so the
+ * variable is *conditional*, not required, and reading the helper name alone would
+ * classify it wrongly. Calls sitting directly in `loadConfig` have no such guard
+ * above them, so there the helper does imply the requirement.
+ *
+ * Conditional variables are therefore absent from this map by construction, and the
+ * table's `"conditional"` rows are prose the scan deliberately does not second-guess.
+ *
  * @returns {Map<string, string>}
  */
 export function apiRequirementFromParsers() {
-  const source = stripComments(readFileSync(join(REPOSITORY_ROOT, API_CONFIG), "utf8"));
+  const source = functionBody(
+    stripComments(readFileSync(join(REPOSITORY_ROOT, API_CONFIG), "utf8")),
+    UNCONDITIONAL_ENTRY,
+  );
   const suffixes = rateClassSuffixes();
   /** @type {Map<string, string>} */
   const classified = new Map();
