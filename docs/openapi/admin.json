@@ -1680,6 +1680,11 @@
             "type": "string",
             "nullable": true,
             "example": "upstream unavailable"
+          },
+          "responseSnippetRedactedAt": {
+            "type": "string",
+            "nullable": true,
+            "example": null
           }
         },
         "required": [
@@ -1701,7 +1706,8 @@
           "lastStatus",
           "latencyMs",
           "requestHeaders",
-          "responseSnippet"
+          "responseSnippet",
+          "responseSnippetRedactedAt"
         ]
       },
       "RedeliverResponse": {
