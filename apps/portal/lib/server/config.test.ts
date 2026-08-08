@@ -162,7 +162,7 @@ describe("assertSecureCookiesConfigured", () => {
       try {
         assertSecureCookiesConfigured();
       } catch (error) {
-        message = (error as Error).message;
+        message = error instanceof Error ? error.message : String(error);
       }
 
       // The variable that has to change, and the one that was read to decide.

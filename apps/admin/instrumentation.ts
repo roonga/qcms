@@ -27,7 +27,9 @@ import { assertSecureCookiesConfigured } from "./lib/server/config";
  * The guard on `process.exit` is for Next's edge runtime, which loads this hook too and
  * has no such function. Neither app runs anything on the edge runtime today; if one ever
  * does, it re-throws and gets the 500-on-everything behaviour instead of a `TypeError`
- * that hides the real message.
+ * that hides the real message. `process.stderr` can be absent in that sandbox for the
+ * same reason, so the write is optional-called: a missing stream must not become the
+ * exception that swallows a refusal an operator needs to read.
  *
  * The twin is `apps/portal/instrumentation.ts`. **Change one, change the other.**
  */
@@ -35,7 +37,7 @@ function refuseInsecureCookieConfiguration(): void {
   try {
     assertSecureCookiesConfigured();
   } catch (error) {
-    process.stderr.write(`${(error as Error).message}\n`);
+    process.stderr?.write(`${error instanceof Error ? error.message : String(error)}\n`);
     if (typeof process.exit === "function") process.exit(1);
     throw error;
   }
