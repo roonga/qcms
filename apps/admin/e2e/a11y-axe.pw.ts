@@ -317,6 +317,14 @@ test("the message and boolean-label fields have zero violations (048)", async ({
   await fillStable(field(page, "Shortest answer"), "8");
   await fillStable(field(page, "Longest answer"), "12");
   await fillStable(field(page, "Pattern"), "^[A-Z]{2}[0-9]{6}$");
+  // The pattern verdict is announced only because its paragraph is a live region, and
+  // nothing else in the suite says so (issue #368, the same defect #359 fixed on the ops
+  // surface). Deleting the attribute leaves the element attached, leaves the verdict
+  // rendered, and passes axe - which has no rule requiring a live region to exist and can
+  // only judge the ones it finds.
+  const patternVerdict = page.getByTestId("qcms-pattern-verdict");
+  await expect(patternVerdict).toBeAttached();
+  await expect(patternVerdict).toHaveAttribute("aria-live", "polite");
   await expectNoViolations(page, "question editor, message fields on their placeholders");
 
   // And with content in them, because a placeholder and a value are different renderings
@@ -378,6 +386,13 @@ test("the form builder and the condition editor have zero violations", async ({ 
   await addStep(page, "Details");
   await pinQuestion(page, textId, 1);
   await waitForSaved(page);
+  // The issue count and the save state are announced only because the paragraph holding
+  // them is a live region, and nothing else in the suite says so (issue #368). The two
+  // spans inside it are attached and carry their text either way, so no content assertion
+  // can notice the attribute going missing, and axe cannot either.
+  const validationStatus = page.getByTestId("qcms-validation-status");
+  await expect(validationStatus).toBeAttached();
+  await expect(validationStatus).toHaveAttribute("aria-live", "polite");
   await expectNoViolations(page, "form builder with steps and pins");
 
   const ruleId = await addRule(page);
@@ -400,6 +415,15 @@ test("the form builder and the condition editor have zero violations", async ({ 
   // the read-only test bench with its own live region.
   await page.getByText("Rule test bench").click();
   await toggleCheckbox(page, "Require a challenge before answering", true);
+  // Both panels announce their outcome through a live region, and neither was pinned
+  // (issue #368). Same reasoning as the validation panel above: attached, populated and
+  // axe-clean are all true of a paragraph that has stopped being a live region.
+  const settingsStatus = page.getByTestId("qcms-form-settings-status");
+  await expect(settingsStatus).toBeAttached();
+  await expect(settingsStatus).toHaveAttribute("aria-live", "polite");
+  const benchStatus = page.getByTestId("qcms-bench-status");
+  await expect(benchStatus).toBeAttached();
+  await expect(benchStatus).toHaveAttribute("aria-live", "polite");
   await expectNoViolations(page, "settings panel and rule test bench open");
 });
 
@@ -451,6 +475,13 @@ test("publish, preview, history and secure links have zero violations", async ({
   await expectNoViolations(page, "publish confirmation");
   await page.getByRole("alertdialog").getByRole("button", { name: "Publish v1" }).click();
   await expect(page.getByText("Published as v1.")).toBeVisible({ timeout: 30_000 });
+  // That success alert is announced only because the container it arrives in is a live
+  // region, and nothing else in the suite says so (issue #368). The visibility assertion
+  // directly above passes with the attribute deleted, which is the whole point: the
+  // message still appears on screen, it just stops being spoken.
+  const publishStatus = page.getByTestId("qcms-form-actions-status");
+  await expect(publishStatus).toBeAttached();
+  await expect(publishStatus).toHaveAttribute("aria-live", "polite");
   await expectNoViolations(page, "publish success");
 
   // Published, so respondents can submit to it and its submissions can fan out to a
@@ -470,6 +501,11 @@ test("publish, preview, history and secure links have zero violations", async ({
   ).toBeVisible({
     timeout: 60_000,
   });
+  // The preview's loading and error states are announced only because their container is
+  // a live region, and nothing else in the suite says so (issue #368).
+  const previewStatus = page.getByTestId("qcms-preview-status");
+  await expect(previewStatus).toBeAttached();
+  await expect(previewStatus).toHaveAttribute("aria-live", "polite");
   await expectNoViolations(page, "draft preview, first step");
 
   await page.getByTestId("qcms-draft-preview").getByText("Yes, always", { exact: true }).click();
@@ -488,6 +524,14 @@ test("publish, preview, history and secure links have zero violations", async ({
 
   await page.goto(`/forms/${formId}/links`);
   await expect(page.getByTestId("qcms-links-empty")).toBeVisible();
+  // The mint and revoke outcomes are announced only because their container is a live
+  // region, and nothing else in the suite says so (issue #368). Asserted here, empty and
+  // before any outcome exists, for the reason #307 gives: a region has to be present and
+  // observed before its content arrives, so present-and-live is the state worth pinning.
+  const linksStatus = page.getByTestId("qcms-links-status");
+  await expect(linksStatus).toBeAttached();
+  await expect(linksStatus).toBeEmpty();
+  await expect(linksStatus).toHaveAttribute("aria-live", "polite");
   await expectNoViolations(page, "secure links, none minted");
 
   await page.getByRole("button", { name: "Mint links" }).click();

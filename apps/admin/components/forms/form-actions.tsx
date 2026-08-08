@@ -153,7 +153,13 @@ export function FormActions({
         </p>
       )}
 
-      <div aria-live="polite" className="flex flex-col gap-2">
+      {/* Testid on the region rather than only on its contents, so the `aria-live` can be
+          asserted directly (#368; the ops surface got the same treatment in #359). */}
+      <div
+        aria-live="polite"
+        className="flex flex-col gap-2"
+        data-testid="qcms-form-actions-status"
+      >
         {published.status === "published" && (
           <Alert
             variant="success"
