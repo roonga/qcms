@@ -10,9 +10,11 @@
  * These tests close the class rather than the instance: the first walks every
  * runtime import the subpath actually makes and requires the manifest to declare
  * it, so a future import added to the harness cannot silently reintroduce the
- * defect; the second pins the adopter-facing error text.
+ * defect; the second keeps that walk honest by failing when the subpath grows a
+ * source file the walk does not visit; the third pins the adopter-facing error
+ * text.
  */
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it, vi } from "vitest";
@@ -28,21 +30,38 @@ const manifest = JSON.parse(
   readFileSync(fileURLToPath(new URL("../../package.json", import.meta.url)), "utf8"),
 ) as Manifest;
 
-/** Every file the `./testing` export pulls in that is not itself under `src/testing`. */
+/** The directory holding this test and the sources of the `./testing` export. */
+const TESTING_DIR = new URL("./", import.meta.url);
+
+/**
+ * Every source file **under `src/testing`** that the `./testing` export pulls in:
+ * `harness.ts`, the file the export points at, plus what it imports from this
+ * directory. Modules the harness reaches outside this directory (today
+ * `../schema`) belong to the package's main entry point and are deliberately not
+ * walked here. The completeness test below fails when a file under this directory
+ * is imported but missing from this list.
+ */
 const SUBPATH_SOURCES = ["./harness.ts", "./docker-auth-config.ts"] as const;
 
-/** Bare package specifiers imported by `source`, static and dynamic, `node:` builtins excluded. */
-function bareSpecifiers(source: string): string[] {
-  const text = readFileSync(fileURLToPath(new URL(source, import.meta.url)), "utf8")
+/** Every module specifier in `module`: `from "x"`, the side-effect `import "x"`, and `import("x")`. */
+function specifiers(module: URL): string[] {
+  const text = readFileSync(fileURLToPath(module), "utf8")
     // Comments quote import statements (this package's own docs do), so strip
     // them first or a doc example counts as a real import.
     .replaceAll(/\/\*[^*]*\*+([^/*][^*]*\*+)*\//g, "")
     .replaceAll(/\/\/[^\n]*/g, "");
+  // The specifier is the only capture group. `import.meta.url` does not match:
+  // a quote has to follow the keyword. The optional paren is one group rather
+  // than two adjacent `\s*` runs, which backtrack (sonarjs/super-linear-regex).
+  return [...text.matchAll(/(?:\bfrom|\bimport)\s*(?:\(\s*)?["']([^"']+)["']/g)]
+    .map((match) => match[1])
+    .filter((specifier): specifier is string => specifier !== undefined);
+}
+
+/** Bare package specifiers imported by `module`, `node:` builtins excluded. */
+function bareSpecifiers(module: URL): string[] {
   const found = new Set<string>();
-  // Both `from "x"` and `import("x")`; the specifier is the only capture group.
-  for (const match of text.matchAll(/(?:\bfrom|\bimport\()\s*["']([^"']+)["']/g)) {
-    const specifier = match[1];
-    if (specifier === undefined) continue;
+  for (const specifier of specifiers(module)) {
     if (specifier.startsWith(".") || specifier.startsWith("node:")) continue;
     // `drizzle-orm/node-postgres` is declared as `drizzle-orm`.
     const scoped = specifier.startsWith("@");
@@ -56,16 +75,85 @@ function bareSpecifiers(source: string): string[] {
   return [...found].sort((a, b) => a.localeCompare(b));
 }
 
+/** True when `candidate` is a file on disk (a directory is not a module). */
+function isFile(candidate: URL): boolean {
+  const path = fileURLToPath(candidate);
+  return existsSync(path) && statSync(path).isFile();
+}
+
+/**
+ * The file a relative specifier names on disk, or `undefined` if none matches.
+ *
+ * These sources are TypeScript emitting ESM, so an import writes the **emitted**
+ * extension (`./x.js`) while the tree holds `./x.ts`. Nothing here assumes an
+ * extension: it tries the candidates in resolution order and takes the first
+ * that is a real file.
+ */
+function resolveOnDisk(specifier: string, importer: URL): URL | undefined {
+  const target = new URL(specifier, importer);
+  const candidates = [
+    target,
+    new URL(target.href.replace(/\.([cm]?)js$/, ".$1ts")),
+    new URL(`${target.href}.ts`),
+    new URL("index.ts", `${target.href}/`),
+  ];
+  return candidates.find((candidate) => isFile(candidate));
+}
+
+/** Files under `src/testing` that `source` imports and `SUBPATH_SOURCES` does not list. */
+function unlistedImports(source: string, listed: ReadonlySet<string>): string[] {
+  const importer = new URL(source, TESTING_DIR);
+  const problems: string[] = [];
+
+  for (const specifier of specifiers(importer).filter((found) => found.startsWith("."))) {
+    const resolved = resolveOnDisk(specifier, importer);
+    if (resolved === undefined) {
+      problems.push(`${source} imports "${specifier}", which resolves to no file on disk`);
+      continue;
+    }
+    // Resolved outside src/testing (today `../schema`): the main entry point's
+    // territory, covered by the package's own dependency declarations.
+    if (!resolved.href.startsWith(TESTING_DIR.href)) continue;
+    if (listed.has(resolved.href)) continue;
+
+    const entry = `./${resolved.href.slice(TESTING_DIR.href.length)}`;
+    problems.push(
+      `${source} imports "${specifier}", which is the unlisted src/testing source ${entry}:` +
+        ` add "${entry}" to SUBPATH_SOURCES so its own imports are walked too`,
+    );
+  }
+
+  return problems;
+}
+
 describe("the published @qcms/db/testing subpath", () => {
   it("declares every package it imports as a dependency or a peer dependency", () => {
     const declared = new Set([
       ...Object.keys(manifest.dependencies ?? {}),
       ...Object.keys(manifest.peerDependencies ?? {}),
     ]);
-    const imported = SUBPATH_SOURCES.flatMap((source) => bareSpecifiers(source));
+    const imported = SUBPATH_SOURCES.flatMap((source) =>
+      bareSpecifiers(new URL(source, TESTING_DIR)),
+    );
 
     expect(imported.length).toBeGreaterThan(0);
     expect(imported.filter((specifier) => !declared.has(specifier))).toEqual([]);
+  });
+
+  // Without this, the walk above is only as good as a hand-maintained list: a
+  // new `./helper.js` imported by the harness, importing an undeclared package,
+  // would never be read and the check above would pass.
+  it("walks every source file the subpath reaches under src/testing", () => {
+    const listed = new Set(
+      SUBPATH_SOURCES.map((source) => resolveOnDisk(source, TESTING_DIR)?.href).filter(
+        (href): href is string => href !== undefined,
+      ),
+    );
+    expect(listed.size, "SUBPATH_SOURCES names a file that is not on disk").toBe(
+      SUBPATH_SOURCES.length,
+    );
+
+    expect(SUBPATH_SOURCES.flatMap((source) => unlistedImports(source, listed))).toEqual([]);
   });
 
   it("keeps the Testcontainers packages optional, so runtime consumers do not install a Docker client", () => {
