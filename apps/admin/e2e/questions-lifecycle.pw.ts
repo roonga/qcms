@@ -330,10 +330,76 @@ test("the grid's hidden controls are reachable without a pointer", async ({ page
   await expect(field(page, "Option 1 label")).toHaveValue("Yes, always");
   await expect(field(page, "Option 1 label")).toBeFocused();
 
-  // Remove lives in the row menu rather than in a second row-end control, per the card.
-  await useRowMenu(page, 1, /^Remove option No, never$/);
+  // Remove lives in the row menu rather than in a second row-end control, per the card,
+  // which makes that menu the ONLY route to it - so it has to be reachable with a pointer
+  // as well as without one, on a two-option list, which is what this draft is and what a
+  // new choice question seeds. Asserted here because this is the test that used to walk
+  // straight past the defect: it drove the menu on exactly this configuration while
+  // "Remove option" hung 95px below the grid's clipped bottom edge.
+  await grip(page, 1).focus();
+  await grip(page, 1).press("Enter");
+  const remove = page.getByRole("menuitem", { name: /^Remove option No, never$/u });
+  await expect(remove).toBeVisible();
+  // One assertion over both answers, so a red reports the clipping box AND what a press
+  // would have hit instead, rather than stopping at whichever question was asked first.
+  expect(
+    await mouseReachOf(remove),
+    "Remove option is inside every box that clips it, and a press at its centre lands on it",
+  ).toEqual({ clippedBy: null, hit: "the control" });
+
+  // Then press it, from the menu just proved reachable: `useRowMenu` would re-press the
+  // grip and toggle this menu shut, and a fresh one is not the one that was measured.
+  await remove.click();
   expect(await optionIds(page)).toEqual(["opt_yes_always"]);
 });
+
+/**
+ * Can a mouse actually reach `target`, with any programmatic scroll undone first?
+ *
+ * The undoing is the whole point, and it is why neither `toBeVisible()` nor a plain
+ * `.click()` can stand in for this. Chromium scrolls an `overflow: hidden` box
+ * programmatically, so `focus()` and Playwright's own scroll-into-view both haul a
+ * clipped control back into the box before they touch it: on the CSS this replaced,
+ * focusing "Remove option" moved the grid's `scrollTop` from 0 to 96 and the click
+ * landed, on a configuration where a person with a mouse could not press it at all. A
+ * hidden box has no scrollbar, so a user can neither cause that scroll nor undo it.
+ *
+ * So the offsets go back to 0 on every clipping ancestor first, and then the two
+ * questions a pointer really asks get asked: is the control inside every box that
+ * clips it, and does a press at its centre land on it. `elementFromPoint` alone would
+ * be the better single check, but it reports only "something else is there" - the
+ * ancestor walk names the box, which is what turns a red into a diagnosis.
+ */
+async function mouseReachOf(target: Locator): Promise<{ clippedBy: string | null; hit: string }> {
+  return target.evaluate((element) => {
+    const nameOf = (node: Element): string =>
+      typeof node.className === "string" && node.className !== "" ? node.className : node.tagName;
+
+    let clippedBy: string | null = null;
+    for (let box = element.parentElement; box !== null; box = box.parentElement) {
+      const style = getComputedStyle(box);
+      if (style.overflowX === "visible" && style.overflowY === "visible") continue;
+      box.scrollTop = 0;
+      box.scrollLeft = 0;
+      const inner = box.getBoundingClientRect();
+      const rect = element.getBoundingClientRect();
+      const outside =
+        rect.bottom > inner.bottom + 1 ||
+        rect.top < inner.top - 1 ||
+        rect.right > inner.right + 1 ||
+        rect.left < inner.left - 1;
+      if (outside && clippedBy === null) clippedBy = nameOf(box);
+    }
+
+    const rect = element.getBoundingClientRect();
+    const under = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    if (under === null) return { clippedBy, hit: "nothing" };
+    return {
+      clippedBy,
+      hit: under === element || element.contains(under) ? "the control" : nameOf(under),
+    };
+  });
+}
 
 test("a cleared label renders the grid's error state, joined to its message line", async ({
   page,

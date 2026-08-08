@@ -38,7 +38,11 @@ import { addOption, createDraft, field, grip, pendingRow } from "./support/quest
  * 5. `grid-ghost` - the ghost add-row opened and not yet named. This is the frame that
  *    shows the Code Owner's minting ruling on screen: the row exists, and its ID cell says
  *    the id is still pending because nothing has been minted for it.
- * 6. `grid-error` - a row whose label has been cleared, showing the cell error treatment
+ * 6. `grid-drag` - a row mid-drag, held rather than completed. The card's visual language
+ *    does more work here than anywhere else (the travelling row compresses back to one
+ *    line and an elevated surface, and a 3px indicator marks where it will land), and it
+ *    was asserted in e2e but never photographed, so the gate could not review it.
+ * 7. `grid-error` - a row whose label has been cleared, showing the cell error treatment
  *    and the message line below the grid.
  *
  * 390px and 1280px per the Code Owner's 2026-07-25 rule. The narrow frame carries its own
@@ -99,9 +103,15 @@ for (const mode of CAPTURE_MODES) {
     await expect(field(page, "Option 4 label")).toHaveValue(LONG_LABEL);
     await capture(page, `grid-rest-${mode}`);
 
-    // FRAME 2: a row's controls revealed by FOCUS, with no pointer involved.
-    await page.locator('[data-option-index="1"] .qcms-opt-insert').first().focus();
-    await expect(page.locator('[data-option-index="1"] .qcms-opt-insert').first()).toBeVisible();
+    // FRAME 2: a row's controls revealed by FOCUS, with no pointer involved. Asserted on
+    // computed OPACITY rather than on `toBeVisible()`, which passes at opacity 0 and would
+    // have let this frame ship blank: the card hides these controls with opacity, so
+    // "visible" is the one word Playwright and the card disagree about here.
+    const insert = page.locator('[data-option-index="1"] .qcms-opt-insert').first();
+    await insert.focus();
+    await expect
+      .poll(() => insert.evaluate((element) => getComputedStyle(element).opacity))
+      .toBe("1");
     await capture(page, `grid-row-focus-${mode}`);
 
     // FRAME 3: a cell being edited.
@@ -122,7 +132,31 @@ for (const mode of CAPTURE_MODES) {
     await pendingRow(page).blur();
     await expect(pendingRow(page)).toHaveCount(0);
 
-    // FRAME 6: the error treatment. Clearing a committed label is the only way to reach a
+    // FRAME 6: a row mid-drag, held open rather than completed, because what the card
+    // draws here is the state DURING the gesture and a finished drag shows none of it.
+    // The pointer goes back to the source row's own boundary before it lifts, so the
+    // drop is a no-op (`to === from` returns early) and frame 7 still finds the rows in
+    // the order it names them.
+    const source = grip(page, 0);
+    const target = page.locator('[data-option-index="2"]');
+    const from = await source.boundingBox();
+    const onto = await target.boundingBox();
+    expect(from, "the grip should be laid out").not.toBeNull();
+    expect(onto, "the third row should be laid out").not.toBeNull();
+    if (from === null || onto === null) return;
+    const grabX = from.x + from.width / 2;
+    await page.mouse.move(grabX, from.y + from.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(grabX, onto.y + onto.height - 2, { steps: 8 });
+    await expect(page.locator(".qcms-opt-row.is-dragging")).toHaveCount(1);
+    await expect(page.locator(".qcms-opt-insert--drop")).toBeVisible();
+    await capture(page, `grid-drag-${mode}`);
+    await page.mouse.move(grabX, from.y + 1, { steps: 4 });
+    await page.mouse.up();
+    await expect(page.locator(".qcms-opt-row.is-dragging")).toHaveCount(0);
+    await expect(field(page, "Option 4 label")).toHaveValue(LONG_LABEL);
+
+    // FRAME 7: the error treatment. Clearing a committed label is the only way to reach a
     // blank option under the grid - the pending path abandons a row it cannot name - so
     // this is the real route to the state, not a contrived one. No reload: the save is
     // what produces the frame, because the kernel's rejection comes back on that response

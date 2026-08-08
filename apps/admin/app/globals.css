@@ -648,8 +648,32 @@ th,
   container-type: inline-size;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
-  overflow: hidden;
   background-color: var(--color-surface);
+}
+
+/* The rounded corners WITHOUT a clip, which is deliberate and is a fix rather than
+   an oversight.
+
+   `overflow: hidden` here did exactly one job - keep a descendant's background out
+   of the corner radius - and it also clipped the row menu, which is the only route
+   to Remove and Insert below now that the card has absorbed the trailing remove
+   button into the grip. On a two-option list, which is what a new choice question
+   seeds, the menu hung 95px past the bottom edge and a press at the centre of
+   "Remove option" landed on the grid header instead. Nothing here scrolls, so a
+   mouse user had no way to bring it back: the default state of the default question
+   could not delete an option at all.
+
+   Rounding the elements that can actually paint into the bottom corners keeps the
+   corners and lets an absolutely positioned popup leave the box. It reintroduces no
+   clipping the grid needs, because the grid needed none: the ID cell's truncation
+   is its own `overflow` on its own box, the insert hotzones sit inside the grid, and
+   no row is translated out of it. The one visible consequence is that a row being
+   dragged now casts its elevation shadow past the grid's edge instead of having it
+   sliced at the border, which is what "elevated" is supposed to look like. */
+.qcms-opt-grid > :last-child,
+.qcms-opt-grid > .qcms-opt-grid__body:last-child > .qcms-opt-row:last-child {
+  border-end-start-radius: max(0px, calc(var(--radius-card) - 1px));
+  border-end-end-radius: max(0px, calc(var(--radius-card) - 1px));
 }
 .qcms-opt-grid__head {
   display: grid;
@@ -710,7 +734,12 @@ th,
 .qcms-opt-cell--label {
   padding: 0;
 }
+/* `display: block` is load-bearing, not tidying: `text-overflow` only applies to a
+   BLOCK container, and this cell inherits `display: flex` from `.qcms-opt-cell`. With
+   the flex box in place the `ellipsis` below was inert and a long id was cut through
+   mid-glyph, which reads as a layout bug rather than as truncation. */
 .qcms-opt-cell--id {
+  display: block;
   padding-block-start: 10px;
   font-family: var(--font-mono);
   font-size: 0.82rem;
