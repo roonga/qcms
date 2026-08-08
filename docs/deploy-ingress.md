@@ -35,15 +35,16 @@ refers to them by number.
 | 5 | **The ingress tells the apps the browser-facing scheme is `https`.** | Both apps run behind a plain-HTTP hop and would otherwise mint `http://` URLs and mis-scope cookies. |
 | 6 | **The ingress writes an `X-Forwarded-For` whose rightmost entry is the address it accepted the connection from, on both hostnames.** | The ingress is the only component that sees the peer address, and two controls key on what it reports: the API's respondent rate limits and better-auth's per-IP sign-in throttle. See "The forwarded client address" below: a proxy that leaves the header untouched collapses every caller into one bucket, and one that lets a client contribute the entry the apps read hands each caller a bucket of its own. |
 
-Invariant 5 has a second half that is pure configuration and is easy to forget, because nothing
-fails loudly when you get it wrong:
+Invariant 5 has a second half that is pure configuration and is easy to forget. The two cookie
+rows now fail loudly when you get them wrong (the app refuses to start); the two base-URL rows
+still do not, so check them by hand:
 
 | Variable | Behind an ingress, set it to | What breaks if you do not |
 | --- | --- | --- |
 | `QCMS_PORTAL_BASE_URL` | the portal's public `https://` origin | Secure links are minted as `${QCMS_PORTAL_BASE_URL}/l/<token>` (`apps/api/src/features/links/handler.ts`). Left at a local value, every link a respondent receives points at the operator's own loopback. |
 | `QCMS_ADMIN_BASE_URL` | the admin's public `https://` origin | It is better-auth's base URL and its only trusted origin (the API owns the better-auth instance since task 056). A mismatch fails sign-in, not merely link generation. |
-| `QCMS_SECURE_COOKIES` | `true` | The portal's cookies go out without `Secure`. Compose defaults it to `false` because a local eval stack is deliberately plain HTTP. |
-| `QCMS_ADMIN_SECURE_COOKIES` | leave unset | Unset means the image's `NODE_ENV=production` decides, which marks the admin cookies `Secure`. That is already correct behind TLS. It exists for the plain-HTTP non-loopback case, which an ingress deployment is not. |
+| `QCMS_SECURE_COOKIES` | leave unset | Unset means the image's `NODE_ENV=production` decides, which marks the portal's cookies `Secure`. That is already correct behind TLS. Set to `false` here and the portal **refuses to start**, because the base URL above is not loopback (issue #292). |
+| `QCMS_ADMIN_SECURE_COOKIES` | leave unset | Unset means the image's `NODE_ENV=production` decides, which marks the admin cookies `Secure`. That is already correct behind TLS. Set to `false` here and the admin **refuses to start**, for the same reason. |
 
 Full annotations for all four are in `.env.compose.example`.
 

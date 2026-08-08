@@ -247,7 +247,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "true when NODE_ENV=production",
     description:
-      "Whether cookies set on the admin origin carry `Secure`. It describes the **browser-facing** scheme, which this process cannot observe, so it is a knob rather than only an inference. Must hold the same value in the `api` and `admin` services or the browser keeps one cookie family and drops the other.",
+      "Whether cookies set on the admin origin carry `Secure`. It describes the **browser-facing** scheme, which this process cannot observe, so it is a knob rather than only an inference. Must hold the same value in the `api` and `admin` services or the browser keeps one cookie family and drops the other. The `admin` service refuses to start when it is false at a non-loopback `QCMS_ADMIN_BASE_URL` (issue #292), so a downgrade here is refused by the process the browser actually reaches.",
   },
   {
     name: "QCMS_ADMIN_SESSION_IDLE_MS",
@@ -489,7 +489,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "true when NODE_ENV=production",
     description:
-      "Whether respondent session cookies carry `Secure`. Set it false only for a plain-HTTP local evaluation.",
+      "Whether respondent session cookies carry `Secure`. Setting it false is a downgrade, supported only when `QCMS_PORTAL_BASE_URL` is a loopback origin such as `http://localhost:7000`: at any other origin the portal **refuses to start**, naming this variable (issue #292). Leave it unset behind TLS.",
   },
   {
     name: "NODE_ENV",
@@ -616,7 +616,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "true when NODE_ENV=production",
     description:
-      "Whether the cookies this app sets carry `Secure`. Must equal the API's value: the two set different cookies on one origin, and a disagreement makes sign-in loop.",
+      "Whether the cookies this app sets carry `Secure`. Must equal the API's value: the two set different cookies on one origin, and a disagreement makes sign-in loop. Setting it false is a downgrade, supported only when `QCMS_ADMIN_BASE_URL` is a loopback origin such as `http://localhost:7040`: at any other origin this app **refuses to start**, naming this variable (issue #292).",
   },
   {
     name: "QCMS_ADMIN_2FA",

@@ -118,9 +118,125 @@ export function internalToken(): string {
  *
  * Default preserved: with the variable unset the answer is what `isProduction()` returned.
  * Also closes issue #292 point 3.
+ *
+ * The downgrade this returns is guarded by {@link assertSecureCookiesConfigured}, which
+ * refuses to boot when it is asked for at an origin a browser will not protect.
  */
 export function secureCookies(): boolean {
   return boolEnv("QCMS_ADMIN_SECURE_COOKIES", process.env.NODE_ENV === "production");
+}
+
+/**
+ * Whether `host` is one a browser treats as **potentially trustworthy** even over plain
+ * HTTP, and therefore one where dropping `Secure` costs nothing: there is no network hop
+ * to eavesdrop on.
+ *
+ * The set is the Secure Contexts one (`localhost`, any `*.localhost` name, `127.0.0.0/8`,
+ * `::1`), deliberately, because that specification is what decides whether the browser on
+ * the other side will keep the cookie at all. Anything else is a real network path.
+ *
+ * @param host a URL hostname, so IPv6 literals arrive bracketed (`[::1]`).
+ */
+export function isLoopbackHost(host: string): boolean {
+  const bare = host.toLowerCase().replace("[", "").replace("]", "");
+  if (bare === "localhost" || bare.endsWith(".localhost")) return true;
+  if (bare === "::1" || bare === "0:0:0:0:0:0:0:1") return true;
+  const octets = bare.split(".");
+  if (octets.length !== 4 || octets[0] !== "127") return false;
+  return octets.every((octet) => /^\d{1,3}$/.test(octet) && Number(octet) <= 255);
+}
+
+/**
+ * Refuse to boot when cookie security is downgraded at an origin that is not loopback
+ * (issue #292 point 1).
+ *
+ * ## Why a refusal and not a warning
+ *
+ * `.env.compose.example` ships the portal's downgrade and `README.md` tells an operator
+ * to copy that file; the note beside this app's flag has, until now, told the same
+ * operator to set it false for a plain-HTTP non-loopback admin. Both roads end at a
+ * deployment that looks right and hands out a credential-bearing cookie any hop on the
+ * path can read - and on this origin that cookie is an authoring session with 2FA behind
+ * it. A log line does not reach that operator. So this throws, and the message names the
+ * variable, what was observed, and the remedy.
+ *
+ * The plain-HTTP non-loopback admin is therefore no longer a supported shape. It was only
+ * ever reachable by turning `Secure` off, which is the thing being refused; the remedy is
+ * TLS, or reaching the admin over a loopback address (an SSH tunnel or a port-forward),
+ * which is what the enterprise topology's VPN placement already assumes.
+ *
+ * ## What "off-loopback" is read from, and what that misses
+ *
+ * `QCMS_ADMIN_SECURE_COOKIES` describes the **browser-facing** scheme, which this process
+ * cannot observe: it sees a container port, not the ingress in front of it. The one thing
+ * the operator does declare about the browser-facing origin is `QCMS_ADMIN_BASE_URL` -
+ * required, already parsed here for the SEC-9 origin check, and already the origin
+ * better-auth in the API scopes its cookies to. So that is the signal.
+ *
+ * It misses the deployment whose base URL is itself wrong (says `http://localhost` while
+ * the site is served from a real hostname). That deployment is already broken in a
+ * visible way - the CSRF origin check rejects every state-changing POST - so it is not a
+ * configuration this guard can be the first to notice. It also permits `https://localhost`
+ * with the downgrade on, which is pointless rather than dangerous.
+ *
+ * It also does not reach the **API** process, which reads the same variable for
+ * better-auth's own cookies (`apps/api/src/config.ts`). Refusing here is enough to stop
+ * the shape, because the browser cannot reach better-auth except through this BFF (R2)
+ * and this BFF will not start; extending the refusal into the API's issue-collecting
+ * config parser is a separate change with its own fixture surface.
+ *
+ * ## Where it runs
+ *
+ * `instrumentation.ts`, which Next calls once per server process before anything serves,
+ * so the failure is a boot failure rather than a 500 on the first request. It is
+ * deliberately NOT inside {@link secureCookies}: that reader is called on request paths
+ * and in unit fixtures that set no base URL at all, and a guard that fires there would be
+ * testing the harness rather than the deployment.
+ *
+ * A missing or unparseable base URL is passed rather than refused. It is a different
+ * defect, `adminBaseUrl()` already fails loudly on it at the first request, and
+ * `register()` also runs in build-time server workers where the variable is legitimately
+ * absent.
+ *
+ * ## Twin
+ *
+ * `apps/portal/lib/server/config.ts` carries the same guard over `QCMS_SECURE_COOKIES`
+ * and `QCMS_PORTAL_BASE_URL`. The two variables stay separate on purpose (see
+ * {@link secureCookies} above), but the *rule* must not drift - the two apps disagreeing
+ * about exactly this is what issue #292 was filed about. There is no shared package for a
+ * Next BFF's server code, the same call `MIN_PASSWORD_LENGTH` above makes, so it is a
+ * copy, and the test matrices in
+ * `config.test.ts` on both sides assert the same cases so a change made to one and not
+ * the other shows up as a red test. **Change one, change the other.**
+ */
+export function assertSecureCookiesConfigured(): void {
+  if (secureCookies()) return;
+
+  const configuredBase = process.env.QCMS_ADMIN_BASE_URL?.trim();
+  if (configuredBase === undefined || configuredBase === "") return;
+
+  let host: string;
+  try {
+    host = new URL(configuredBase).hostname;
+  } catch {
+    return;
+  }
+  if (isLoopbackHost(host)) return;
+
+  const raw = process.env.QCMS_ADMIN_SECURE_COOKIES?.trim();
+  const observed =
+    raw === undefined || raw === ""
+      ? 'QCMS_ADMIN_SECURE_COOKIES is unset and NODE_ENV is not "production"'
+      : `QCMS_ADMIN_SECURE_COOKIES is set to "${raw}"`;
+
+  throw new Error(
+    [
+      "Refusing to start: admin cookie security is downgraded for a non-loopback origin.",
+      `  observed: ${observed}, while QCMS_ADMIN_BASE_URL is "${configuredBase}" (host "${host}" is not loopback).`,
+      "  effect: the admin session, enrollment and recovery-view cookies would be set without `Secure`, so a browser would send an authoring credential over plain HTTP and any hop between the browser and this deployment could read it.",
+      "  remedy: serve this origin over HTTPS and set QCMS_ADMIN_SECURE_COOKIES=true in BOTH the admin and api services (or remove it from both, so the images' NODE_ENV=production decides). To evaluate over plain HTTP, reach the admin at a loopback origin such as http://localhost:7040 and set QCMS_ADMIN_BASE_URL to match.",
+    ].join("\n"),
+  );
 }
 
 /**

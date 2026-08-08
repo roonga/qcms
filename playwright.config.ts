@@ -192,8 +192,10 @@ export default defineConfig({
     {
       // Run the portal DEV server through a wrapper that tees its stdout/stderr to
       // the server-log capture file (exit 5), so the log gate can scan it. Over http
-      // localhost the session cookie is not `secure` (isProduction() is false), so
-      // the real cookie-backed flow works. The BFF reaches the composed API booted
+      // localhost the session cookie is not `secure` (`secureCookies()` is false in a
+      // dev server), and the loopback origin below is what keeps that permitted rather
+      // than a boot refusal (issue #292), so the real cookie-backed flow works over
+      // plain HTTP here. The BFF reaches the composed API booted
       // by globalSetup; both sides share the synthetic SEC-4 internal token.
       command: `node ./apps/portal/e2e/support/portal-server.mjs`,
       url: `http://localhost:${PORT}`,

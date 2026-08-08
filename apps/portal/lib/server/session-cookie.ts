@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 
-import { SESSION_COOKIE, isProduction } from "./config";
+import { SESSION_COOKIE, secureCookies } from "./config";
 import { sessionCookieOptions } from "./cookie-options";
 
 /**
@@ -21,7 +21,7 @@ export async function readSessionToken(): Promise<string | undefined> {
 /** Persist the session bearer token (route handler / server action context only). */
 export async function writeSessionToken(token: string, maxAgeSeconds?: number): Promise<void> {
   const store = await cookies();
-  store.set(SESSION_COOKIE, token, sessionCookieOptions(isProduction(), maxAgeSeconds));
+  store.set(SESSION_COOKIE, token, sessionCookieOptions(secureCookies(), maxAgeSeconds));
 }
 
 /** Drop the session cookie (e.g. after submit or on an unrecoverable session). */
