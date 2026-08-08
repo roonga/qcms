@@ -72,11 +72,16 @@ function token(element: Element, name: string): string {
   return globalThis.getComputedStyle(element).getPropertyValue(name).trim();
 }
 
+// The carrier itself is cleared here as deliberately as the rest: the last test in
+// this file stamps it on <html>, and a test appended below would otherwise inherit a
+// document that is already scoped - which is exactly the silent-containment defect
+// the assertions above exist to catch.
 afterEach(() => {
   document.head.innerHTML = "";
   document.body.innerHTML = "";
   document.documentElement.className = "";
   document.documentElement.removeAttribute("data-theme");
+  document.documentElement.removeAttribute("data-qcms-theme-scope");
 });
 
 describe("a scoped container resolves the portal token set", () => {
