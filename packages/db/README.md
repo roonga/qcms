@@ -79,8 +79,10 @@ without trusting the writer, and no sentinel ever lives inside `value`.
 `src/testing/harness.ts` boots a real Postgres in a throwaway container
 (Testcontainers) and migrates it to head - the same path adopters run. It is a
 test-only utility, excluded from the build and published at the `@qcms/db/testing`
-subpath; this package's own tests reach it by relative import, everyone else by
-the subpath:
+subpath. Adopters import it by that subpath, which is what the example below
+shows. This package's own tests live inside the package, so they reach the same
+module by relative path instead (`../testing/harness.js`) and never exercise the
+subpath: that is why the subpath has tests of its own (`harness-deps.test.ts`).
 
 ```ts
 import { withTestDb, startTestDb } from "@qcms/db/testing";
