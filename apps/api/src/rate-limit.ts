@@ -57,10 +57,13 @@ const SWEEP_SCAN = 8;
  *
  * ## What it guarantees about memory (issue #376)
  *
- * **The map never holds more than `maxKeys` entries.** That bound does not
- * depend on the traffic: every insertion first drops any expired buckets it
- * finds in the {@link SWEEP_SCAN} coldest entries, and then, if the map is
- * still full, evicts the least recently hit entry. So retained heap is
+ * **The map never holds more than `maxKeys` entries.** That bound depends on
+ * neither the traffic nor the argument: a `maxKeys` that is not a positive
+ * integer throws at construction, so there is no way to obtain a store that
+ * reports a capacity it does not honor. Beyond that, every insertion drops any
+ * expired buckets it finds in the {@link SWEEP_SCAN} coldest entries, and then,
+ * if the map is still full, evicts the least recently hit entry. So retained
+ * heap is
  * O(`maxKeys`) however many distinct keys the process ever sees, and a single
  * request from a never-seen-again client address can no longer add a permanent
  * entry. The doc comment here used to claim a "bounded key space per window",
@@ -87,11 +90,31 @@ export class InMemoryRateLimitStore implements RateLimitStore {
   private readonly buckets = new Map<string, Bucket>();
   private readonly maxKeys: number;
 
+  /**
+   * @param maxKeys Capacity, a positive integer. Anything else throws rather
+   * than being coerced: the previous `Math.max(1, Math.trunc(maxKeys))` turned
+   * `NaN` into `NaN` and left `Infinity` alone, and since every comparison
+   * against either is false the eviction loop never ran - the store silently
+   * became the unbounded `Map` this class exists to not be, while still
+   * reporting a `capacity`. Coercing the other bad values (`0`, negatives,
+   * fractions) was harmless but equally silent, so none of them is coerced now
+   * either: the capacity a caller reads back is the one it asked for, or it
+   * never got a store. This is a constructor argument in application code
+   * rather than parsed configuration, so a bad value is a caller bug, and
+   * failing the boot deterministically with the value in the message beats a
+   * process that runs with a bound nobody chose. Nothing can trip it by
+   * accident in production - `main.ts` passes only the clock.
+   */
   constructor(
     private readonly clock: Clock,
     maxKeys: number = DEFAULT_MAX_KEYS,
   ) {
-    this.maxKeys = Math.max(1, Math.trunc(maxKeys));
+    if (!Number.isInteger(maxKeys) || maxKeys < 1) {
+      throw new RangeError(
+        `InMemoryRateLimitStore: maxKeys must be a positive integer, received ${String(maxKeys)}`,
+      );
+    }
+    this.maxKeys = maxKeys;
   }
 
   /** Entries currently retained. Never exceeds the configured capacity. */
