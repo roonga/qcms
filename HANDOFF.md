@@ -117,16 +117,40 @@ the tail to the target index produces exactly the inserted array using only the 
 mutators, and each step is the shipped swap semantics. Flagging it only because the brief
 asked to be told if a new mutator seemed necessary. It does not.
 
-## Gate state at park time
+## Gate state at park time, and a trap worth writing down
 
-- `QCMS_PORT_SEAT=6 pnpm verify:browser`, **unmodified branch**: first attempt failed with
-  `Error: Timed out waiting 180000ms from config.webServer` on a cold worktree (no `.next`
-  cache after a fresh `pnpm install`). No test failures, no code of mine involved. A rerun
-  with warm caches was in flight at park time; if it also times out, the 180s `webServer`
-  budget is too tight for a cold worktree and is worth an issue in its own right.
-- Seat-6 ports (17600/17610/17640/17630) were confirmed free before the rerun. The
-  `next dev --port 7040` process on this box belongs to the **main checkout**, not this
-  worktree, and does not collide.
+`QCMS_PORT_SEAT=6 pnpm verify:browser` failed **twice** on the unmodified branch with a bare
+`Error: Timed out waiting 180000ms from config.webServer`, which reads exactly like a slow
+cold boot and is not. The real cause is in the wrapper's own capture file,
+`apps/portal/.playwright/server-logs/portal.log`:
+
+```
+./apps/portal/lib/server/theme.ts:33:1
+Module not found: Can't resolve '@qcms/ui/fonts'
+ GET / 500 in 9ms
+```
+
+**`pnpm verify:browser` is bare `playwright test` (`package.json:15`). It does not build the
+workspace packages.** A fresh worktree has `pnpm install`ed `node_modules` but no
+`packages/*/dist`, so the portal dev server 500s on every request, Playwright's URL poll
+never succeeds, and the run burns the full 180s and reports a timeout that names nothing.
+The main checkout never shows this because its packages are already built.
+
+**Fix, and the required first step for the next session in a fresh worktree:**
+
+```sh
+pnpm install
+pnpm exec turbo run build      # restores packages/*/dist (was FULL TURBO, 84ms)
+QCMS_PORT_SEAT=6 pnpm verify:browser
+```
+
+Seat-6 ports (17600/17610/17640/17630) were confirmed free. The `next dev --port 7040`
+process on this box belongs to the **main checkout**, not this worktree, and does not
+collide.
+
+With the build step added, the baseline is **green: 179 passed in 9.9m, exit 0**. So the
+suite is healthy and the branch starts from a known-good base; the two earlier timeouts were
+entirely the missing build.
 
 ## Next step once the Code Owner rules
 
