@@ -75,7 +75,7 @@ describe("assertSecureCookiesConfigured", () => {
     it("passes a plain dev server: no override, NODE_ENV development, loopback origin", () => {
       vi.stubEnv("QCMS_ADMIN_SECURE_COOKIES", undefined);
       vi.stubEnv("NODE_ENV", "development");
-      vi.stubEnv("QCMS_ADMIN_BASE_URL", "http://localhost:7042");
+      vi.stubEnv("QCMS_ADMIN_BASE_URL", "http://localhost:7040");
       expect(() => assertSecureCookiesConfigured()).not.toThrow();
     });
 
