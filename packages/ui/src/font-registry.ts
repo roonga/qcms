@@ -69,7 +69,7 @@ export interface FontFace {
 
 /** One registry entry. This is the whole unit of add/remove. */
 export interface FontEntry {
-  /** CSS-class-safe token: the root class is `font-<key>`, and 053's select value. */
+  /** CSS-class-safe token: the class is `font-<key>`, and 053's select value. */
   readonly key: string;
   /** Respondent-facing name (`family` for a webfont, a plain label for System). */
   readonly label: string;
@@ -90,7 +90,7 @@ export interface FontEntry {
  * The three fallback tails. A tail always ends in a CSS generic family, so a
  * respondent whose browser refuses the webfont still gets the right *kind* of
  * face rather than the UA default. `SANS_TAIL` is byte-identical to the
- * `--font-portal` value the base `:root` block of `theme.css` declares, which is
+ * `--font-portal` value the base anchor block of `theme.css` declares, which is
  * what makes System a no-download entry rather than a special case.
  */
 const SANS_TAIL = 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
@@ -450,10 +450,18 @@ export function fontChoices(keys?: readonly string[]): readonly FontEntry[] {
   return FONT_REGISTRY.filter((entry) => wanted.has(entry.key));
 }
 
-/** The root class that selects a font, matching the generated CSS. */
+/** The class that selects a font, matching the generated CSS. */
 export function fontClass(key: string): string {
   return `font-${key}`;
 }
+
+/**
+ * The scope carrier every generated block is anchored on (ADR-38). `:root` and
+ * `[data-qcms-theme-scope]` are both specificity (0,1,0) and `:is()` takes its
+ * most specific argument, so this anchor is exactly as specific as the bare
+ * `:root` it replaced. Never `:where()`, which is specificity 0.
+ */
+const SCOPE_ANCHOR = ":is(:root, [data-qcms-theme-scope])";
 
 const CSS_HEADER = `/*
  * GENERATED FILE - do not edit by hand.
@@ -464,8 +472,13 @@ const CSS_HEADER = `/*
  *
  * Every face is SELF-HOSTED from \`src/fonts/\` next to this file, so selecting a
  * font makes zero external requests (no CDN, nothing for the CSP to allow).
- * Import it after \`theme.css\`, whose base \`:root\` block declares the System
+ * Import it after \`theme.css\`, whose base anchor block declares the System
  * stack that these classes override:
+ *
+ * Each block is anchored on \`:is(:root, [data-qcms-theme-scope])\`, the scope
+ * carrier (ADR-38): a font selection applies to the document root OR to any
+ * element carrying \`data-qcms-theme-scope\`, at exactly the specificity the bare
+ * \`:root\` anchor had.
  *
  *   @import "@qcms/ui/theme.css";
  *   @import "@qcms/ui/theme-components.css";
@@ -481,7 +494,8 @@ const CSS_HEADER = `/*
 
 /**
  * Render the CSS for a registry: one `@font-face` per self-hosted weight, and one
- * `:root.font-<key>` block per entry that sets `--font-portal` and nothing else.
+ * `:is(:root, [data-qcms-theme-scope]).font-<key>` block per entry that sets
+ * `--font-portal` and nothing else.
  *
  * Exported so an adopter who extends the manifest can regenerate the stylesheet
  * with their own entries appended, rather than hand-writing `@font-face` rules.
@@ -517,7 +531,7 @@ function renderEntry(entry: FontEntry): string {
 `,
     )
     .join("");
-  return `${notice}${faces}:root.${fontClass(entry.key)} {
+  return `${notice}${faces}${SCOPE_ANCHOR}.${fontClass(entry.key)} {
   --font-portal: ${entry.stack};
 }
 `;

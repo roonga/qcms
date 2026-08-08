@@ -30,7 +30,7 @@
 /**
  * The colour modes a respondent can pick. These strings are ALSO the root class
  * names, which is the token contract's selector convention (`docs/theming.md`):
- * Light is the base `:root` block, so `light` is a positive selection rather than
+ * Light is the sheet's base anchor block, so `light` is a positive selection rather than
  * an absence, and `dark` / `hc` are the two override layers.
  *
  * `auto` is deliberately absent. It is a per-deployment CONFIG value meaning
@@ -44,7 +44,7 @@ export type AppearanceMode = (typeof APPEARANCE_MODES)[number];
 
 /**
  * The three density levels, in order from tightest to loosest. Comfortable is the
- * base `:root` spacing block in `theme.css`, so it carries no class; the other two
+ * base anchor spacing block in `theme.css`, so it carries no class; the other two
  * are `density-compact` / `density-spacious`.
  */
 export const DENSITY_LEVELS = ["compact", "comfortable", "spacious"] as const;

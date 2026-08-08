@@ -102,10 +102,18 @@ function firstDeclaration(css: string, name: string): string | undefined {
   return css.slice(start + name.length + 1, end).trim();
 }
 
-/** The `:root.font-*` blocks of a stylesheet, as selector -> declarations text. */
+/**
+ * The scope carrier every generated block is anchored on (ADR-38, task 060). It is
+ * spelled out here rather than imported so that a generator change which silently
+ * drops the carrier - or softens it to `:where()` - fails this suite loudly.
+ */
+const SCOPE_ANCHOR = ":is(:root, [data-qcms-theme-scope])";
+
+/** The font blocks of a stylesheet, as selector -> declarations text. */
 function fontBlocks(css: string): ReadonlyMap<string, string> {
   const blocks = new Map<string, string>();
-  const pattern = /(?<selector>:root\.font-[\w-]+)\s*\{(?<body>[^}]*)\}/gu;
+  const pattern =
+    /(?<selector>:is\(:root, \[data-qcms-theme-scope\]\)\.font-[\w-]+)\s*\{(?<body>[^}]*)\}/gu;
   for (const match of css.matchAll(pattern)) {
     blocks.set((match.groups?.selector ?? "").trim(), (match.groups?.body ?? "").trim());
   }
@@ -298,11 +306,11 @@ describe("fonts.css is generated from the manifest", () => {
     expect(stripComments(FONTS_CSS)).not.toMatch(/https?:\/\//u);
   });
 
-  it("gives every entry a :root.font-<key> block that sets --font-portal ONLY", () => {
+  it("gives every entry a scoped .font-<key> block that sets --font-portal ONLY", () => {
     const blocks = fontBlocks(FONTS_CSS);
     expect(blocks.size).toBe(FONT_REGISTRY.length);
     for (const entry of FONT_REGISTRY) {
-      const body = blocks.get(`:root.${fontClass(entry.key)}`);
+      const body = blocks.get(`${SCOPE_ANCHOR}.${fontClass(entry.key)}`);
       expect(body, `no block for ${entry.key}`).toBeDefined();
       const declared = (body ?? "")
         .split(";")
@@ -335,11 +343,11 @@ describe("add and remove are one-entry manifest changes", () => {
     const before = rules(renderFontsCss(FONT_REGISTRY));
     const after = rules(renderFontsCss([...FONT_REGISTRY, ADDED]));
     const added = after.filter((rule) => !before.includes(rule));
-    // Exactly two rules appear: its @font-face and its :root.font-probefont block.
+    // Exactly two rules appear: its @font-face and its scoped .font-probefont block.
     expect(added).toEqual([
       '@font-face { font-family: "Probe Font"; font-style: normal; font-weight: 400;' +
         ' font-display: swap; src: url("./fonts/probefont-400.woff2") format("woff2"); }',
-      ':root.font-probefont { --font-portal: "Probe Font", ui-sans-serif, sans-serif; }',
+      `${SCOPE_ANCHOR}.font-probefont { --font-portal: "Probe Font", ui-sans-serif, sans-serif; }`,
     ]);
     // And nothing that was there before is gone.
     expect(before.filter((rule) => !after.includes(rule))).toEqual([]);
@@ -352,7 +360,7 @@ describe("add and remove are one-entry manifest changes", () => {
     expect(removed).toEqual([
       '@font-face { font-family: "Inter"; font-style: normal; font-weight: 400;' +
         ' font-display: swap; src: url("./fonts/inter-400.woff2") format("woff2"); }',
-      ':root.font-inter { --font-portal: "Inter", ui-sans-serif, system-ui, -apple-system,' +
+      `${SCOPE_ANCHOR}.font-inter { --font-portal: "Inter", ui-sans-serif, system-ui, -apple-system,` +
         ' "Segoe UI", Roboto, sans-serif; }',
     ]);
     expect(after.filter((rule) => !before.includes(rule))).toEqual([]);
@@ -361,7 +369,7 @@ describe("add and remove are one-entry manifest changes", () => {
   it("removing every webfont still renders a usable stylesheet with System in it", () => {
     const systemOnly = renderFontsCss(FONT_REGISTRY.filter((e) => e.faces.length === 0));
     expect(systemOnly).not.toContain("@font-face");
-    expect(systemOnly).toContain(":root.font-system");
+    expect(systemOnly).toContain(`${SCOPE_ANCHOR}.font-system`);
   });
 });
 
@@ -379,6 +387,7 @@ describe("tabular figures are token-driven (task 052 deliverable)", () => {
       candidate.includes("font-feature-settings: var(--type-numeric);"),
     );
     expect(rule, "no rule applies --type-numeric").toBeDefined();
+    expect(rule).toContain("[data-qcms-theme-scope]");
     expect(rule).toContain("[data-qcms-field]");
     expect(rule).toContain('[role="spinbutton"]');
   });

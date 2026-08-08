@@ -1,6 +1,7 @@
 # QCMS portal theming: the token contract
 
-**Status:** implements ADR-30's launch tier in full (tasks 051 + 052 + 053).
+**Status:** implements ADR-30's launch tier in full (tasks 051 + 052 + 053), with
+the scope carrier added by task 060 (ADR-38).
 **Owns:** the four-group token contract, the four predefined themes, the corner
 presets, the single High-contrast mode layer, the three density levels,
 per-deployment selection, the brand mark, the declarative self-hosted font registry
@@ -39,27 +40,67 @@ them is a styling decision the portal is allowed to make.
 
 ### Selector convention
 
+Every rule in `theme.css` and `fonts.css` is anchored on the **scope carrier**:
+
+```css
+:is(:root, [data-qcms-theme-scope])
+```
+
+The token set therefore applies to the document root **or** to any element carrying
+`data-qcms-theme-scope`, which is what lets a themed subtree exist inside a document
+themed differently (ADR-38). The portal stamps the attribute on its `<html>`, so
+there the two cases are the same element. Nothing about the document-root form
+changed: an adopter's plain `:root` overrides work exactly as they did.
+
+The knobs then ride the anchor, on the anchor element rather than on the document
+root specifically:
+
 | Axis | Carrier | Values |
 | --- | --- | --- |
-| Mode | root class | `.light` (the base), `.dark`, `.hc` |
-| Theme | root attribute | (absent) or `[data-theme="slate"]` = default, `harbor`, `sand`, `plum` |
-| Corners | root class | (none) = Subtle, `.radius-sharp`, `.radius-rounded`, `.radius-pill` |
-| Font | root class | `.font-system` (the shipped default) or `.font-<registry key>` |
-| Density | root class | (none) = Comfortable, `.density-compact`, `.density-spacious` |
+| Anchor | `:is(:root, [data-qcms-theme-scope])` | the document root, or any scoped container |
+| Mode | anchor class | `.light` (the base), `.dark`, `.hc` |
+| Theme | anchor attribute | (absent) or `[data-theme="slate"]` = default, `harbor`, `sand`, `plum` |
+| Corners | anchor class | (none) = Subtle, `.radius-sharp`, `.radius-rounded`, `.radius-pill` |
+| Font | anchor class | `.font-system` (the shipped default) or `.font-<registry key>` |
+| Density | anchor class | (none) = Comfortable, `.density-compact`, `.density-spacious` |
 
 Two of these are a positive class and two are an absence, and the difference is not
-arbitrary. **Font** is always emitted (`:root.font-system` restates the System
+arbitrary. **Font** is always emitted (the `.font-system` block restates the System
 stack) so the control can switch back to System by swapping one class rather than
 by removing one. **Corners** and **density** default to an absence, because their
-default values ARE the base `:root` block and a `.density-comfortable` class
+default values ARE the base anchor block and a `.density-comfortable` class
 restating them would be a second place to edit the same numbers. **Mode** emits
 `.light` even though Light is the base, so the pre-paint script can swap it like
 the other two.
 
-The default theme lives in the bare `:root` blocks, so setting `data-theme` is
+The default theme lives in the bare anchor blocks, so setting `data-theme` is
 enough to switch and removing it restores the default. The `.hc` blocks are
 emitted **after** every light/dark block: that source order is load-bearing,
-because `:root.hc` and `:root[data-theme="x"]` have the same specificity.
+because the anchor plus `.hc` and the anchor plus `[data-theme="x"]` are both
+specificity (0,1,0) + (0,1,0) = (0,2,0).
+
+**`:is()`, never `:where()`.** They differ by exactly the property that makes the
+carrier safe. `:root` is (0,1,0), `[data-qcms-theme-scope]` is (0,1,0), and `:is()`
+takes its most specific argument, so the anchor weighs exactly what the bare `:root`
+it replaced weighed and no rule in the sheet can flip. `:where()` is specificity 0
+and would silently re-rank every block against the adopter override surface and the
+source-order guarantee above. `packages/ui/src/theme-tokens.test.ts` computes real
+CSS specificity (an (id, class, type) triple, with `:is()`/`:not()`/`:has()` taking
+their most specific argument and `:where()` taking zero) and asserts both facts,
+including that each anchored selector scores exactly what its pre-rewrite `:root`
+form scored.
+
+**The treatment sheet is different on purpose.** `theme-components.css` anchors on
+the **bare** `[data-qcms-theme-scope]` and drops `:root` entirely: its rules describe
+treatment over `[data-rac]` elements, which every host built on the same component
+kit renders too, so an `:is(:root, …)` prefix would contain nothing (every such
+element already descends from the document root). Making the attribute the sole
+carrier makes containment real, which is what lets the QCMS app import that sheet
+for its form preview without restyling its own control layer. Its `@theme` block is
+the one part that cannot be scoped: Tailwind theme variables are global to a build
+by construction, so a host that imports the sheet either takes the raised
+`text-sm` / `text-xs` steps app-wide or re-pins them in its own later `@theme` block
+(`apps/admin/app/globals.css` does the latter, deliberately).
 
 ### Group 2: the WCAG 1.4.12 floors are numeric requirements
 
@@ -82,7 +123,7 @@ re-measures every floor on rendered text under every font the registry ships.
 ### Group 3: the three density levels
 
 Density is the respondent's control over the spacing group, and it is the only axis
-that moves these five values. Comfortable is the base `:root` block, so it carries
+that moves these five values. Comfortable is the base anchor block, so it carries
 no class.
 
 | Token | Compact | Comfortable (default) | Spacious | Applies to |
@@ -151,7 +192,8 @@ It uses two mechanisms:
 
 The selectors anchor only on markup qcms or react-aria owns: `[data-qcms-field]`
 (the per-question wrapper `registry.tsx` renders) and `[data-rac]` (a
-react-aria-components element).
+react-aria-components element), all of them **inside** the scope carrier
+`[data-qcms-theme-scope]` (see the selector convention above).
 
 The same mechanism carries **tabular figures**. Numeric controls (the number
 field's inner input, the date field's spinbutton segments, any input the renderer
@@ -173,7 +215,7 @@ Consuming the three files, in this order:
 `theme.css` and `fonts.css` are each valid plain CSS and can be imported by a
 non-Tailwind host; `theme-components.css` needs Tailwind v4 in the build (the
 components need it anyway). `fonts.css` must come after `theme.css`, because its
-`:root.font-<key>` blocks override the System stack that `theme.css` declares.
+`.font-<key>` blocks override the System stack that `theme.css` declares.
 
 ## The font registry (task 052)
 
@@ -233,7 +275,7 @@ other family ships 400 only, and the browser synthesises bold.
 A registry entry renders to exactly one selector block that sets exactly one token:
 
 ```css
-:root.font-atkinson {
+:is(:root, [data-qcms-theme-scope]).font-atkinson {
   --font-portal: "Atkinson Hyperlegible", ui-sans-serif, system-ui, ...;
 }
 ```
@@ -352,20 +394,20 @@ text** in High-contrast. The worst pair in each combination:
 This is the part that is easiest to get wrong. High-contrast is **not** a third
 palette authored per theme. It is a single, theme-agnostic layer:
 
-- **Token values** (`:root.hc` in `theme.css`): pure `#000` text and borders on
+- **Token values** (the `.hc` block in `theme.css`): pure `#000` text and borders on
   `#fff` surfaces, one muted text, the fixed AAA semantic colours, one universal
   focus ring `#0a3ea8`.
-- **CSS treatment** (`:root.hc` in `theme-components.css`): 2px borders at
+- **CSS treatment** (`[data-qcms-theme-scope].hc` in `theme-components.css`): 2px borders at
   `--color-border-strong` on every control edge, flat surfaces (every Tailwind
   shadow utility neutralized), a 3px focus outline, separators at full contrast,
   and `color-scheme: light` (High-contrast is a distinct choice, not Dark).
 - **A theme contributes only its accent**: `--color-primary` plus hover / active /
-  foreground, via a four-token `:root[data-theme="x"].hc` block. Links and primary
+  foreground, via a four-token `[data-theme="x"].hc` block on the anchor. Links and primary
   UI pick it up, so each theme keeps a whisper of brand.
 
 | Theme | HC accent | primary-fg / primary |
 | --- | --- | --- |
-| slate | `#0b453d` (in the base `:root.hc`) | 10.86:1 |
+| slate | `#0b453d` (in the base `.hc` block) | 10.86:1 |
 | harbor | `#0a3a8a` | 10.57:1 |
 | sand | `#7a3717` | 8.80:1 |
 | plum | `#54148f` | 11.20:1 |
@@ -556,10 +598,13 @@ gate, so a deployment that changes colours checks its own pairs.
 1. Author Light and Dark palettes (all 36 `--color-*` tokens) in the design
    deliverable, `plan/theme-palettes/`, and let `build.py` verify the pairs.
 2. Copy the two blocks into `packages/ui/src/theme.css` as
-   `:root[data-theme="<key>"]` and `:root[data-theme="<key>"].dark`, placed with
-   the other alternates and **before** the High-contrast section.
-3. Add one `:root[data-theme="<key>"].hc` block with the four accent tokens only,
-   using an accent that clears 7:1 behind white.
+   `:is(:root, [data-qcms-theme-scope])[data-theme="<key>"]` and
+   `:is(:root, [data-qcms-theme-scope])[data-theme="<key>"].dark`, placed
+   with the other alternates and **before** the High-contrast section. Every block in
+   the sheet carries that anchor; a bare `:root` block would not reach a scoped
+   container and `theme-tokens.test.ts` fails on one.
+3. Add one `:is(:root, [data-qcms-theme-scope])[data-theme="<key>"].hc` block with the
+   four accent tokens only, using an accent that clears 7:1 behind white.
 4. Add the key to `PORTAL_THEMES` in `apps/portal/lib/server/theme.ts` and to
    `THEMES` in `packages/ui/src/theme-tokens.test.ts` and
    `apps/portal/e2e/theming.pw.ts`.
@@ -580,6 +625,10 @@ gate, so a deployment that changes colours checks its own pairs.
 | The floors hold on rendered text | same spec |
 | Every theme is axe-clean in Light, Dark and HC | same spec |
 | HC really is heavy borders, flat surfaces, heavy focus | same spec |
+| The rewrite moved no selector: each anchored form scores what its `:root` form scored | `packages/ui/src/theme-tokens.test.ts` |
+| The resolution is order-sensitive, so a mis-ordered sheet resolves wrong rather than being certified | same file |
+| A scoped container resolves the portal colour AND geometry inside a differently-themed document | `packages/ui/src/theme-scope.test.ts` |
+| The treatment layer reaches controls inside a carrier and no `[data-rac]` control outside one | same file |
 | A density level sets only spacing tokens, never a type or colour value | `packages/ui/src/theme-tokens.test.ts` |
 | `--space-control-h` clears 24px at every density, and the levels are monotonic | same file |
 | The class names, cookie attributes and parsers the SSR path and the browser share | `apps/portal/lib/appearance.test.ts` |
