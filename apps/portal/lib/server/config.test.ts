@@ -153,6 +153,42 @@ describe("assertSecureCookiesConfigured", () => {
       expect(() => assertSecureCookiesConfigured()).toThrow(/NODE_ENV is not "production"/);
     });
 
+    it.each(["off", "0", "no", "TRUE", " true"])(
+      "reports %o as the value it read rather than calling the variable unset",
+      (raw) => {
+        // None of these are one of the two literals `secureCookies()` recognises, so
+        // the answer falls through to NODE_ENV and the downgrade is real. Whether the
+        // portal SHOULD recognise the admin's wider vocabulary is issue #401 and is
+        // deliberately not decided here; what this pins is that the message names what
+        // the operator wrote (issue #409). Branching on `raw === "false"` alone told
+        // someone who had written `QCMS_SECURE_COOKIES=off` that it was unset, while
+        // they were looking at the line that sets it - and for ` true` and `TRUE`,
+        // seeing the value quoted back is the whole diagnosis.
+        vi.stubEnv("QCMS_SECURE_COOKIES", raw);
+        vi.stubEnv("NODE_ENV", "development");
+        vi.stubEnv("QCMS_PORTAL_BASE_URL", "https://forms.example.test");
+
+        let message = "";
+        try {
+          assertSecureCookiesConfigured();
+        } catch (error) {
+          message = error instanceof Error ? error.message : String(error);
+        }
+
+        expect(message).toContain(`QCMS_SECURE_COOKIES is set to "${raw}"`);
+        expect(message).not.toContain("is unset");
+      },
+    );
+
+    it.each([undefined, ""])("still reports %o as unset, which it is", (raw) => {
+      vi.stubEnv("QCMS_SECURE_COOKIES", raw);
+      vi.stubEnv("NODE_ENV", "development");
+      vi.stubEnv("QCMS_PORTAL_BASE_URL", "https://forms.example.test");
+      expect(() => assertSecureCookiesConfigured()).toThrow(
+        /QCMS_SECURE_COOKIES is unset and NODE_ENV is not "production"/,
+      );
+    });
+
     it("names the variable, the observed condition and the remedy", () => {
       vi.stubEnv("QCMS_SECURE_COOKIES", "false");
       vi.stubEnv("NODE_ENV", "production");
