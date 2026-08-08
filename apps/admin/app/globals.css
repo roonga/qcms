@@ -1047,6 +1047,15 @@ th,
     padding-inline: 1.15rem;
     font-size: 0.72rem;
   }
+  /* The wide layout's mid-drag clamp to one control height cannot survive the fold:
+     with the id on a SECOND line inside the row, a 40px cap pushes it out through the
+     row's bottom edge and onto the row underneath. The travelling row keeps its own
+     height here instead. It is still compressed, because the label is separately
+     clamped to a single ellipsized line, just not to a height measured for a layout
+     that has an ID column of its own. Found by photographing the drag. */
+  .qcms-opt-row.is-dragging {
+    block-size: auto;
+  }
   .qcms-opt-row.is-dragging .qcms-opt-cell--id {
     padding-block-end: 0;
   }

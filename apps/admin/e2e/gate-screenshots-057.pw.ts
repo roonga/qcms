@@ -137,8 +137,14 @@ for (const mode of CAPTURE_MODES) {
     // The pointer goes back to the source row's own boundary before it lifts, so the
     // drop is a no-op (`to === from` returns early) and frame 7 still finds the rows in
     // the order it names them.
+    // The grid is scrolled into view FIRST, because `page.mouse` takes viewport
+    // coordinates while the editor here is long enough to push the option grid below
+    // the fold: measuring a box that is off-screen and then aiming the pointer at it
+    // sends the press nowhere and no drag ever starts.
     const source = grip(page, 0);
     const target = page.locator('[data-option-index="2"]');
+    await page.locator(".qcms-opt-grid").scrollIntoViewIfNeeded();
+    await source.hover();
     const from = await source.boundingBox();
     const onto = await target.boundingBox();
     expect(from, "the grip should be laid out").not.toBeNull();
