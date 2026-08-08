@@ -485,6 +485,25 @@ describe("POST /admin/outbox/:id/redeliver - the ADR-17 refusal", () => {
     expect((await redeliver(deliveryId)).status).toBe(200);
   });
 
+  it("still redelivers a delivery whose snippet merely aged out (#304)", async () => {
+    // The trap this pins: the refusal maps to an **erasure-specific** message, which
+    // is accurate only while erasure is the sole thing it reads. Response-snippet
+    // retention adds a second producer of a redaction marker, so if the refusal ever
+    // learned to read that one it would tell an operator a response was erased when
+    // it merely aged out - and would block a redelivery there is no reason to block.
+    const deliveryId = await seedDeliveryForSession("ses_alive_snippet_aged");
+    await recordDeliveryFailure(testDb.db, deliveryId, "http_400", new Date(), {
+      ...STORED_ATTEMPT,
+      lastAttemptAt: new Date("2020-01-01T00:00:00.000Z"),
+      lastStatus: 400,
+      lastResponseSnippet: '{"error":"invalid","received":{"q_name":"Ada Lovelace"}}',
+    });
+    await redactAgedResponseSnippets(testDb.db, new Date("2020-01-02T00:00:00.000Z"));
+
+    expect(await redeliveryRefusalFor(testDb.db, deliveryId)).toBeUndefined();
+    expect((await redeliver(deliveryId)).status).toBe(200);
+  });
+
   it("still redelivers an event that names no session at all", async () => {
     // `form.published` and friends carry no `sessionId`; the guard must read that as
     // "not erased" rather than refusing every non-response event.
