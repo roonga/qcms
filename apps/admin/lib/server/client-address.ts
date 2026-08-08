@@ -9,8 +9,9 @@
  * `X-Real-IP`) verbatim, so the value the throttle keyed on was whatever the caller
  * chose to send. `X-Forwarded-For` is not a fact, it is a list of claims: a caller
  * that rotates it picks a fresh bucket every attempt and per-IP backoff stops
- * existing. Measured, not theorized - see `api-client-address.test.ts`, which drives
- * the real library and shows five rotated values buying five fresh allowances.
+ * existing. Measured, not theorized - see
+ * `apps/api/src/features/auth/sign-in-throttle.test.ts`, which drives the real library
+ * and shows five rotated values buying five fresh allowances.
  *
  * ## Why dropping the header is not the fix either
  *
