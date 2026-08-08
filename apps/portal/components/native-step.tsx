@@ -2,11 +2,12 @@ import { A2UIStepRenderer } from "@qcms/ui";
 import type { A2UIErrors, A2UIStepDocument, A2UIValues } from "@qcms/ui";
 
 import { PortalShell } from "@/components/portal-shell";
+import { errorSummaryEntries } from "@/lib/error-summary";
 import { t } from "@/lib/i18n/en";
 import { mergeStepValues } from "@/lib/step-values";
 import { buttonClass } from "@/lib/ui";
 import { authorMessageFor } from "@/lib/validation-message";
-import { documentForVisible, messagesOf, questionLabels } from "@/lib/visible";
+import { documentForVisible, messagesOf } from "@/lib/visible";
 import type { StepContext } from "@/lib/server/route-helpers";
 import type { StepResponse } from "@/lib/server/api";
 
@@ -47,32 +48,6 @@ function authoredErrors(
   return resolved;
 }
 
-/**
- * The no-JS error-summary entries: label-anchored, exactly like the controlled
- * flow's summary (issue #21, WCAG 3.3.1). Without the label prefix two questions
- * refused for the same reason - and in particular two questions carrying the same
- * author message (ADR-32) - would produce two links with identical accessible
- * names and no way to tell which field each jumps to.
- */
-function summaryEntries(
-  stepDocument: A2UIStepDocument | null,
-  errors: A2UIErrors,
-): readonly { readonly questionId: string; readonly text: string }[] {
-  const labels = stepDocument === null ? undefined : questionLabels(stepDocument);
-  return Object.entries(errors)
-    .filter(([, message]) => message !== undefined)
-    .map(([questionId, message]) => {
-      const label = labels?.get(questionId);
-      return {
-        questionId,
-        text:
-          label === undefined
-            ? (message as string)
-            : t("errorSummary.namedCustom", { label, message: message as string }),
-      };
-    });
-}
-
 export function NativeStep({
   sessionId,
   initial,
@@ -101,7 +76,18 @@ export function NativeStep({
   // CLEARS a field: see `mergeStepValues`, which owns that three-way behaviour and
   // is tested for it (issue #327).
   const values: A2UIValues = mergeStepValues(initial.values, context?.values);
-  const errorEntries = summaryEntries(stepDocument, errors);
+  // The summary entries, composed by the module both portal paths share
+  // (`lib/error-summary.ts`): each entry names its own question by label, or by
+  // its position among this step's visible questions when the document carried no
+  // label, so no two links can have the same accessible name (WCAG 3.3.1, issues
+  // #21 and #326). This path once emitted the bare per-field message for a
+  // label-less question, which two questions sharing one author message (ADR-32)
+  // could collide on.
+  const errorEntries = errorSummaryEntries(
+    stepDocument,
+    errors,
+    initial.flowState.visibleQuestions,
+  );
 
   return (
     <PortalShell progress={progress}>
@@ -125,7 +111,7 @@ export function NativeStep({
                     href={`#${entry.questionId}`}
                     className="text-sm text-(--color-danger-fg) underline"
                   >
-                    {entry.text}
+                    {entry.message}
                   </a>
                 </li>
               ))}

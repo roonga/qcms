@@ -14,7 +14,9 @@ import { authorMessagesOf, documentForVisible } from "@qcms/ui";
  * projection uses. `questionLabels` reads each question's rendered label out of
  * the document so the portal can name a question in shell chrome (the error
  * summary, issue #21) without a second API call: the compiler already resolved
- * `label` onto every control node at publish time (ADR-18). `commitMoments` reads
+ * `label` onto every control node at publish time (ADR-18). `questionPositions`
+ * numbers the same questions down the page, so chrome can still name a question
+ * the document gave no label (issue #326). `commitMoments` reads
  * each question's CONTROL KIND out of the same document so the flow knows WHEN
  * each answer commits (ADR-31, issue #31).
  */
@@ -61,6 +63,56 @@ export function questionLabels(document: A2UIStepDocument): ReadonlyMap<string, 
     if (trimmed !== "") labels.set(name, trimmed);
   });
   return labels;
+}
+
+/**
+ * Map each VISIBLE question to its 1-based position among the step's visible
+ * questions, in document order (issue #326).
+ *
+ * This is what makes an error-summary entry for a LABEL-LESS question
+ * distinguishable: "Question 3: ..." names a field the respondent can count to,
+ * and two label-less questions on one step can never collide, because no two
+ * questions share a position. Distinctness is therefore structural - it holds
+ * whatever an author types, and cannot regress when content changes, which a
+ * label-dependent guarantee cannot promise inside a WCAG 2.2 AA conformance
+ * claim (WCAG 3.3.1, Error Identification).
+ *
+ * The position is the question's place on the PAGE, not its place in the summary.
+ * The summary lists only the errored questions, so numbering it would announce
+ * "Question 1" for what is the third field on the step: confidently wrong, and
+ * worse than the bare message it replaces for someone navigating to find it.
+ *
+ * `visibleQuestions` is the API's authoritative visible set for this step
+ * (ADR-16's forward pass, already in document order) - never a re-evaluation
+ * here (R2). Walking the document and keeping only the visible names makes the
+ * ordering the DOCUMENT's rather than the list's, so the count matches what the
+ * renderer draws (`documentForVisible` prunes on exactly the same predicate).
+ * With no document to walk - a completed flow, or a step the API returned
+ * nothing for - the list's own order stands in, which is the same order.
+ *
+ * A question outside the visible set gets no position: it is not drawn, so there
+ * is nothing on the page to count to. Callers decide that fallback, as they do
+ * for a missing label.
+ */
+export function questionPositions(
+  document: A2UIStepDocument | null,
+  visibleQuestions: readonly string[],
+): ReadonlyMap<string, number> {
+  const positions = new Map<string, number>();
+  const record = (name: string): void => {
+    if (!positions.has(name)) positions.set(name, positions.size + 1);
+  };
+  if (document === null) {
+    for (const questionId of visibleQuestions) record(questionId);
+    return positions;
+  }
+  const visible = new Set(visibleQuestions);
+  forEachNode(document.root, (node) => {
+    const name = questionName(node);
+    if (name === undefined || !visible.has(name)) return;
+    record(name);
+  });
+  return positions;
 }
 
 /**

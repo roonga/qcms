@@ -41,7 +41,20 @@ export const messages = {
   // Fallback for a missing-required question the step document carries no label
   // for (defensively: a control the label walker does not reach, or a label that
   // resolved blank). Unnamed but still readable, and never a broken sentence.
+  // It is a CONSTANT, so it is never an entry's whole name: on its own it made
+  // every label-less entry byte-identical (issue #326). It is the sentence BODY
+  // that `errorSummary.positional` names, and the last-resort wording for an
+  // entry that has neither a label nor a place on the page.
   "errorSummary.missingRequired": "This question needs an answer.",
+  // The entry for a question the document gave no label, named by its position
+  // among the step's VISIBLE questions instead (issue #326, WCAG 3.3.1). No two
+  // questions share a position, so two label-less entries are always distinct -
+  // structurally, rather than because an author happened to write distinct
+  // labels. `{message}` is whatever the entry would otherwise have said: the
+  // author's own wording (ADR-32) or the unnamed default above. "Question" is
+  // the respondent's word for a field here, matching the progress indicator's
+  // vocabulary; the position counts the page, never the summary.
+  "errorSummary.positional": "Question {position}: {message}",
   // The same entry when the question's author supplied their own `required`
   // message (task 048, ADR-32). The label stays the anchor and the author's
   // wording replaces only the sentence body, so two questions carrying identical

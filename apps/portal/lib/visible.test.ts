@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { A2UIStepDocument } from "@qcms/ui";
 
-import { commitMoments, documentForVisible, questionLabels } from "./visible";
+import { commitMoments, documentForVisible, questionLabels, questionPositions } from "./visible";
 
 /**
  * The portal renders only the questions the API's flow projection marks visible,
@@ -93,6 +93,65 @@ describe("questionLabels", () => {
     } as unknown as A2UIStepDocument;
 
     expect([...questionLabels(doc)]).toEqual([["q_full_name", "Full name"]]);
+  });
+});
+
+/**
+ * The ordinal a label-less question is named by in the error summary (issue
+ * #326). It counts the step's VISIBLE questions, in document order, because that
+ * is what the respondent sees: `documentForVisible` above prunes on exactly the
+ * same predicate, so position N here is the Nth field the renderer draws.
+ */
+describe("questionPositions", () => {
+  const doc = {
+    stepId: "stp_about",
+    root: {
+      type: "Form",
+      children: [
+        { type: "TextField", props: { name: "q_full_name", label: "Full name" } },
+        { type: "TextField", props: { name: "q_hidden", label: "Hidden follow-up" } },
+        { type: "Text", props: { as: "p" }, children: "A layout node carries no name." },
+        { type: "TextField", props: { name: "q_blank", label: "   " } },
+      ],
+    },
+  } as unknown as A2UIStepDocument;
+
+  it("numbers the visible questions 1..n in document order", () => {
+    expect([...questionPositions(doc, ["q_full_name", "q_hidden", "q_blank"])]).toEqual([
+      ["q_full_name", 1],
+      ["q_hidden", 2],
+      ["q_blank", 3],
+    ]);
+  });
+
+  it("skips a question the flow hides, so positions match what is drawn", () => {
+    // q_blank is the SECOND field on the page once q_hidden is pruned, and a
+    // whole-document numbering would have called it the third.
+    expect([...questionPositions(doc, ["q_full_name", "q_blank"])]).toEqual([
+      ["q_full_name", 1],
+      ["q_blank", 2],
+    ]);
+  });
+
+  it("gives no position to a question outside the visible set", () => {
+    expect(questionPositions(doc, ["q_full_name"]).has("q_hidden")).toBe(false);
+  });
+
+  it("numbers a question the document does not carry as absent, not as zero", () => {
+    expect(questionPositions(doc, ["q_full_name", "q_unknown"]).get("q_unknown")).toBeUndefined();
+  });
+
+  it("falls back to the visible set's own order when there is no document", () => {
+    // The API lists `visibleQuestions` in document order too (ADR-16's forward
+    // pass), so a completed flow with no step document still numbers correctly.
+    expect([...questionPositions(null, ["q_full_name", "q_blank"])]).toEqual([
+      ["q_full_name", 1],
+      ["q_blank", 2],
+    ]);
+  });
+
+  it("ignores a question a layout duplicates, keeping its first place", () => {
+    expect(questionPositions(doc, ["q_blank", "q_full_name"]).get("q_full_name")).toBe(1);
   });
 });
 

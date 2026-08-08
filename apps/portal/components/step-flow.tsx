@@ -540,10 +540,14 @@ export function StepFlow({
     : [];
   // Each entry names its own question, so the summary links have distinct
   // accessible names (WCAG 3.3.1, issue #21). The label comes from the step
-  // document the portal already holds, never from a second request.
+  // document the portal already holds, never from a second request; a question
+  // the document gave no label is named by its position among this step's visible
+  // questions instead, which is why the visible set travels with the call (issue
+  // #326 - the constant that stood there made every label-less entry identical).
   const missingEntries = missingRequiredEntries(
     snapshot.step as unknown as A2UIStepDocument | null,
     missing,
+    snapshot.flowState.visibleQuestions,
   );
 
   // Announce step/branch changes and manage focus after each projection (030).
