@@ -424,13 +424,14 @@ test("both topbar triggers are 32px squares, not stretched by the control floor"
  * from `--radius-card`, which is the failure it exists to catch.
  *
  * A note on where these rules live, because it is not where step 9 says to look. The
- * menu box that actually paints in this app is `.qcms-menu` in `app/globals.css`: this
- * app does NOT import `@qcms/ui/theme-components.css` (only the portal does), so the menu
- * rules added to that sheet reach no host yet. They are correct and they are the right
- * place for a menu rendered inside `[data-qcms-field]`, but the chrome menus here are
- * styled by the app, and asserting the sheet the app does not load would prove nothing
- * about the pixels. The DOM-shape assertion at the end is what keeps the shared sheet
- * honest for the host that does load it.
+ * menu box that actually paints in this app is `.qcms-menu` in `app/globals.css`. This
+ * app does import `@qcms/ui/theme-components.css` (task 060), but every rule in that
+ * sheet is a descendant of the scope carrier `[data-qcms-theme-scope]` (ADR-38), and no
+ * chrome element here carries it - so those rules reach the form preview and nothing
+ * else. They are correct and they are the right place for a menu rendered inside a
+ * themed `[data-qcms-field]`, but the chrome menus here are styled by the app, and
+ * asserting a sheet that deliberately does not match them would prove nothing about the
+ * pixels. The DOM-shape assertion at the end is what keeps the shared sheet honest.
  */
 test("the menu popover and its rows take their metrics from the tokens", async ({ page }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
@@ -483,9 +484,9 @@ test("the menu popover carries the high-contrast border treatment", async ({ pag
   expect(await computed(popover, "box-shadow")).toBe("none");
 
   // And the shared sheet's selector still has something to match. `theme-components.css`
-  // reaches the menu through `[data-rac]:has(> [role="menu"])` because `MenuTrigger`
-  // portals the popover out of the field it belongs to; if react-aria ever nests the
-  // menu one level deeper, that rule silently stops applying in every host that DOES
-  // import the sheet, and nothing else in the repo would notice.
+  // reaches the menu through `[data-qcms-theme-scope] [data-rac]:has(> [role="menu"])`
+  // because `MenuTrigger` portals the popover out of the field it belongs to; if
+  // react-aria ever nests the menu one level deeper, that rule silently stops applying
+  // inside every scope carrier, and nothing else in the repo would notice.
   await expect(page.locator('[data-rac]:has(> [role="menu"])')).toHaveCount(1);
 });
