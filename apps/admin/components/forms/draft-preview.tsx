@@ -14,7 +14,7 @@ import { IssueEntry } from "@/components/forms/validation-panel";
 import type { DraftPreviewState } from "@/lib/forms/builder-state";
 import { IDLE_DRAFT_PREVIEW } from "@/lib/forms/builder-state";
 import type { CompiledStep, DraftForm } from "@/lib/forms/types";
-import { t } from "@/lib/i18n/en";
+import { t, tPlural } from "@/lib/i18n/en";
 import { unexpected } from "@/lib/ops/unexpected";
 
 /**
@@ -171,6 +171,19 @@ export function DraftPreview({
       {/* Testid on the region rather than only on its contents, so the `aria-live` can be
           asserted directly (#368). */}
       <div aria-live="polite" className="flex flex-col gap-2" data-testid="qcms-preview-status">
+        {/* Loading and error announce from here; a REJECTION did not, because the panel
+            below is a sibling of this region rather than a child of it (#377). Same
+            summary-not-payload rule as the publish rejection, and for the same reason: the
+            entries are focus-moving links. */}
+        {state.status === "rejected" && draft !== null && (
+          <p className="qcms-visually-hidden">
+            {tPlural(
+              "forms.preview.unavailableAnnounce.one",
+              "forms.preview.unavailableAnnounce.other",
+              (state.issues ?? []).length,
+            )}
+          </p>
+        )}
         {state.status === "loading" && (
           <p className="text-sm text-(--color-text-muted)">{t("forms.preview.loading")}</p>
         )}

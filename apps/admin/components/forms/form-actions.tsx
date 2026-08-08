@@ -38,6 +38,13 @@ import { unexpected } from "@/lib/ops/unexpected";
  * structured domain path. They render through the builder's own `IssueEntry`, so every one
  * is a link that moves focus to the rule, step or pin that caused it - the same rendering
  * the validation panel gives the same issue, because they are the same issue.
+ *
+ * That framing explains the visual treatment, and for a while it was also why the outcome
+ * was silent: the list rendered outside the live region, so an author pressed Publish,
+ * nothing was published, and nothing was said (#377). The region now carries a summary
+ * sentence - what happened, and how many issues - while the list stays outside it. Putting
+ * the list inside would announce a screenful of links as one flat interruption, at the
+ * moment the author most needs to move through them one at a time.
  */
 export function FormActions({
   slug,
@@ -160,6 +167,20 @@ export function FormActions({
         className="flex flex-col gap-2"
         data-testid="qcms-form-actions-status"
       >
+        {/* Publish success and publish error announce from here; a REJECTION did not,
+            because `PublishRejection` is a sibling of this region rather than a child of
+            it (#377). A summary comes here and the work list stays where it is: every
+            entry in it is a link that moves focus to the rule or step at fault, and a list
+            of links read out as one flat interruption is neither navigable nor wanted. */}
+        {published.status === "rejected" && draft !== null && (
+          <p className="qcms-visually-hidden">
+            {tPlural(
+              "forms.publish.blockedAnnounce.one",
+              "forms.publish.blockedAnnounce.other",
+              (published.issues ?? []).length,
+            )}
+          </p>
+        )}
         {published.status === "published" && (
           <Alert
             variant="success"

@@ -44,6 +44,18 @@ const REVOKE_DELAY_MS = 60_000;
  * for certainty - and it says what does *not* happen: a session already started with the
  * link finishes normally, because a session pins its version and its own progress.
  *
+ * ## Why the mint announcement is polite and not assertive
+ *
+ * A minted URL is unrecoverable once the panel is dismissed, which is the argument #307
+ * accepted for the webhook secret when it made that region `assertive`. It does not carry
+ * over, because what this region announces is a **summary and not the URLs** (#377). The
+ * value itself stays on screen, in a panel with a heading, copy buttons and a CSV export,
+ * until the operator presses Done - so a missed announcement costs a moment's exploration,
+ * not the links. Against that, `assertive` interrupts whatever the screen reader is saying
+ * at the time, and the thing it would cut off here is the mint dialog closing and focus
+ * returning to the Mint button: the operator would hear that links exist and lose where
+ * they are standing. Polite queues behind that and is spoken immediately after it.
+ *
  * The wireframe names a `switch` for the one-time control. The vendored a2ra set has no
  * Switch, and hand-writing one is exactly what ADR-22 forbids, so this uses the vendored
  * `Checkbox` - the same substitution `form-settings-panel.tsx` makes for its booleans. A
@@ -165,6 +177,22 @@ export function SecureLinks({
       {/* Testid on the region rather than only on its contents, so the `aria-live` can be
           asserted directly (#368). */}
       <div aria-live="polite" className="flex flex-col gap-2" data-testid="qcms-links-status">
+        {/* A successful mint used to be the one outcome on this screen that announced
+            nothing, because `MintedPanel` is a sibling of this region rather than a child
+            of it (#377). What arrives here is a summary and never the URLs: a token read
+            aloud cannot be copied, the panel below holds them until it is dismissed, and
+            the copy buttons and the CSV export are the only ways to get them out. Hidden
+            rather than rendered, because the panel's own heading already says this to
+            anyone who can see it. */}
+        {minted.status === "minted" && minted.links !== undefined && (
+          <p className="qcms-visually-hidden">
+            {tPlural(
+              "forms.links.mintedAnnounce.one",
+              "forms.links.mintedAnnounce.other",
+              minted.links.length,
+            )}
+          </p>
+        )}
         {minted.status === "error" && (
           <Alert variant="error">
             {t("forms.links.mintFailed", { message: minted.message ?? "" })}
