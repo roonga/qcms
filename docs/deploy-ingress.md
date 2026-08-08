@@ -23,7 +23,8 @@ Caddy overlay.
 
 ## The invariants
 
-Both recipes preserve the same five properties. Everything below is an instance of these.
+Both recipes preserve the same properties. They are the table below, and the rest of this document
+refers to them by number.
 
 | # | Invariant | Why, and where it is enforced |
 | --- | --- | --- |
@@ -32,7 +33,7 @@ Both recipes preserve the same five properties. Everything below is an instance 
 | 3 | **Only portal and admin are routed.** | ADR-20. The absence of an API route is the control; see "Verifying the routing property". |
 | 4 | **The API and Postgres are never publicly reachable.** The API is reachable only by the two BFFs, on the internal network. | ADR-20. `api` and `postgres` publish no host port in `docker-compose.yml`, and no ingress recipe adds one. |
 | 5 | **The ingress tells the apps the browser-facing scheme is `https`.** | Both apps run behind a plain-HTTP hop and would otherwise mint `http://` URLs and mis-scope cookies. |
-| 6 | **The ingress writes an `X-Forwarded-For` whose rightmost entry is the address it accepted the connection from.** | The ingress is the only component that sees the peer address, and the API's respondent rate limits key on what it reports. See "The forwarded client address" below: a proxy that leaves the header untouched collapses every respondent into one bucket, and one that lets a client contribute the entry the apps read hands each respondent a bucket of its own. |
+| 6 | **The ingress writes an `X-Forwarded-For` whose rightmost entry is the address it accepted the connection from, on both hostnames.** | The ingress is the only component that sees the peer address, and two controls key on what it reports: the API's respondent rate limits and better-auth's per-IP sign-in throttle. See "The forwarded client address" below: a proxy that leaves the header untouched collapses every caller into one bucket, and one that lets a client contribute the entry the apps read hands each caller a bucket of its own. |
 
 Invariant 5 has a second half that is pure configuration and is easy to forget, because nothing
 fails loudly when you get it wrong:
@@ -110,7 +111,7 @@ the edge:
 | `request_body { max_size 1MB }` | The edge-side match for the API's own `QCMS_BODY_LIMIT_BYTES` cap, so an oversized request is rejected before it crosses into a Node process. Raise both together or neither. |
 | `encode zstd gzip` | Response compression at the edge. |
 | `header_up X-Forwarded-Proto https` (per site) | Invariant 5. The hop to the app is plain HTTP on the bridge network, so nothing else would tell Next the browser-facing scheme. |
-| `header_up X-Forwarded-For {remote_host}` (per site) | Invariant 6. **Set, never append.** `{remote_host}` is the peer address the edge can actually vouch for, and setting it discards whatever the client sent, so the chain the portal receives is exactly one entry and that entry is a fact. If you put another proxy in front of Caddy, see "Stacking another proxy" below: `{remote_host}` then reports that proxy, not the respondent. |
+| `header_up X-Forwarded-For {remote_host}` (per site) | Invariant 6. **Set, never append.** `{remote_host}` is the peer address the edge can actually vouch for, and setting it discards whatever the client sent, so the chain the app receives is exactly one entry and that entry is a fact. If you put another proxy in front of Caddy, see "Stacking another proxy" below: `{remote_host}` then reports that proxy, not the respondent. |
 
 Caddy redirects HTTP to HTTPS on its own; there is no rule to write for it.
 
@@ -239,27 +240,36 @@ rather than an outage. It applies identically to both recipes.
 
 ### What the stack does with it
 
-The API's respondent rate limiters (`QCMS_RL_SESSION_CREATE_MAX`, `QCMS_RL_ANSWERS_IP_MAX`) key on
-a client address, and R2 makes the portal BFF the only path to the API, so the address the API acts
-on is one the portal resolved from its own inbound `X-Forwarded-For` and asserted on an internal
-header. The API itself ignores `X-Forwarded-For` entirely: it never faces the internet (invariant
-4), so an inbound one there is either absent or attacker-shaped.
+Two controls key on a client address, one per hostname, and **both BFFs resolve it the same way**:
+
+- the API's respondent rate limiters (`QCMS_RL_SESSION_CREATE_MAX`, `QCMS_RL_ANSWERS_IP_MAX`), on
+  the address the **portal** resolved and asserted (`QCMS_PORTAL_TRUSTED_PROXY_HOPS`);
+- better-auth's per-IP sign-in throttle (SEC-1), on the address the **admin** resolved and asserted
+  (`QCMS_ADMIN_TRUSTED_PROXY_HOPS`, issue #374).
+
+R2 makes a BFF the only path to the API, so the address the API acts on is always one a BFF
+resolved from its own inbound `X-Forwarded-For` and asserted on an internal header. The API itself
+ignores `X-Forwarded-For` entirely, in its own limiters and in better-auth's: it never faces the
+internet (invariant 4), so an inbound one there is either absent or attacker-shaped.
 
 `X-Forwarded-For` is not a fact, it is a list of claims, and only the entries a proxy you run wrote
 are worth anything. Each proxy on the path appends the address of the peer it accepted the
 connection from, so **the rightmost entry was written by the nearest proxy** and everything to its
-left is either a farther proxy or text the client chose. The portal therefore counts
-`QCMS_PORTAL_TRUSTED_PROXY_HOPS` entries **from the right**, and a client padding the left cannot
-move the result.
+left is either a farther proxy or text the client chose. Each BFF therefore counts its hop-count
+entries **from the right**, and a client padding the left cannot move the result.
 
 ### Both recipes need `1`, for different reasons
 
-| Recipe | What the ingress does | Chain the portal sees | Why `1` is right |
+| Recipe | What the ingress does | Chain the app sees | Why `1` is right |
 | --- | --- | --- | --- |
 | A (Caddy overlay) | `header_up X-Forwarded-For {remote_host}` **replaces** the header | exactly `<client>` | Whatever the client sent was discarded; the single entry is the peer Caddy accepted. |
 | B (ECS + ALB) | an ALB **appends** the connection source to whatever arrived | `<anything the client sent>, <client>` | The forged prefix is ignored because the count runs from the right. |
 
-`1` is the default, so a deployment matching either recipe sets nothing. Recipe B needs no ALB
+`1` is the default for both variables, so a deployment matching either recipe sets nothing. The
+recipes front the two hostnames identically (`docker/Caddyfile` carries the same `header_up` pair
+in the portal site block and the admin site block), which is why the same answer is right for both.
+They are two variables rather than one because they describe two hostnames: put a CDN in front of
+the admin only, and only the admin's count moves. Recipe B needs no ALB
 attribute change: leave `routing.http.xff_header_processing.mode` at its `append` default. Setting
 it to `preserve` breaks this (the client's own header reaches the app untouched, and the rightmost
 entry becomes a client-chosen value); `remove` also breaks it, by leaving no address at all.
@@ -272,29 +282,38 @@ agree:
 - **Recipe A.** Caddy's `{remote_host}` is the address of *its* peer, which is now the CDN's egress
   node, so every respondent behind that node shares a bucket. That is safe but coarse. To see past
   it you must change `docker/Caddyfile`: configure `trusted_proxies` for the CDN's ranges and let
-  Caddy append rather than set, **and then** raise `QCMS_PORTAL_TRUSTED_PROXY_HOPS` to `2`. Doing
-  only the second half is the bypass this whole section exists to prevent.
+  Caddy append rather than set, **and then** raise the hop count to `2`. Doing only the second half
+  is the bypass this whole section exists to prevent. Raise the variable for the hostname you
+  changed: `QCMS_PORTAL_TRUSTED_PROXY_HOPS`, `QCMS_ADMIN_TRUSTED_PROXY_HOPS`, or both if the CDN
+  fronts both.
 - **Recipe B.** CloudFront in front of the ALB gives `<client>, <cloudfront>` after the ALB
   appends, so `2` is correct once you have satisfied yourself that CloudFront replaces rather than
   forwards a client-supplied header.
 
 ### What a misconfiguration gets you
 
+Read "respondent" as "admin" and "rate limit" as "sign-in backoff" for the admin hostname: the
+mechanism is identical, and the consequence is worse, because the control being weakened is the one
+protecting authentication.
+
 | Mistake | Result |
 | --- | --- |
-| Hop count **higher** than the proxies that actually exist | **The dangerous one.** The portal reads into client-supplied text, so a respondent picks its own bucket and per-address rate limiting stops existing. Nothing in the stack can detect this: the chain looks the same either way. |
-| Hop count **lower** | Safe but coarse. Respondents are bucketed by a proxy's egress address, so a shared NAT or CDN node can exhaust a bucket for everyone behind it. |
-| `0` | No forwarded header is trusted; every respondent shares one bucket. Deliberate, and equivalent to running with no ingress. |
-| Ingress leaves `X-Forwarded-For` untouched | No proxy-written entry exists, so nothing is vouched for and the limits become whole-deployment ceilings. At the default that is 20 session starts per hour for the entire deployment. |
-| Portal reachable **directly**, hop count left at `1` | The same as "hop count too high", with one hop: there is no proxy, so the only entry in the chain is one the client wrote. Set `0`. Note that no recipe here exposes the portal directly, and the base Compose file binds it to loopback (`QCMS_BIND_ADDRESS`) for exactly this class of reason. |
-| Ingress **appends** where this document says set, with no `trusted_proxies` | Same as "hop count too high": the entry the portal reads is one the client wrote. |
+| Hop count **higher** than the proxies that actually exist | **The dangerous one.** The BFF reads into client-supplied text, so a caller picks its own bucket and per-address rate limiting stops existing. Nothing in the stack can detect this: the chain looks the same either way. |
+| Hop count **lower** | Safe but coarse. Callers are bucketed by a proxy's egress address, so a shared NAT or CDN node can exhaust a bucket for everyone behind it. |
+| `0` | No forwarded header is trusted; every caller on that hostname shares one bucket. Deliberate, and equivalent to running with no ingress. |
+| Ingress leaves `X-Forwarded-For` untouched | No proxy-written entry exists, so nothing is vouched for and the limits become whole-deployment ceilings. At the default that is 20 session starts per hour for the entire deployment, and three sign-in attempts per ten seconds across every admin. |
+| App reachable **directly**, hop count left at `1` | The same as "hop count too high", with one hop: there is no proxy, so the only entry in the chain is one the client wrote. Set `0`. Note that no recipe here exposes either app directly, and the base Compose file binds both to loopback (`QCMS_BIND_ADDRESS`) for exactly this class of reason. |
+| Ingress **appends** where this document says set, with no `trusted_proxies` | Same as "hop count too high": the entry the BFF reads is one the client wrote. |
 
 ### Privacy
 
 A client address is personal data. It is used as a rate-limit bucket key and nothing else: it is
 not logged, not exported as a span attribute (SEC-13 telemetry is an allowlist and no entry names
-an address; HTTP header capture is off in both apps), not returned to a browser, and not persisted.
-It lives in the API's rate-limit store for the length of one window.
+an address; HTTP header capture is off in both apps), not returned to a browser, and never
+persisted by the respondent limiters. The one place it is stored is the `session` row better-auth
+writes when an admin signs in, which is a sign-in audit record and predates this model; what
+changed with issue #374 is that the stored value is one the deployment vouched for rather than one
+the browser asserted.
 
 ## Verifying the routing property
 

@@ -137,6 +137,16 @@ vouched on after resolving the trust chain (issue #341); it is also the default
 `keyFor`. The value is a bucket key and nothing else: never log it, never put it
 in a span, never persist it.
 
+That applies to a **vendored** limiter too, and the rule there is to point the
+library at the same header rather than to trust its default. better-auth's
+sign-in throttle (SEC-1) resolves an address from
+`advanced.ipAddress.ipAddressHeaders`, whose default is `x-forwarded-for`;
+`features/auth/instance.ts` names the vouched header instead, because the admin
+BFF used to relay the browser's own copy of that header and the throttle keyed on
+a value the caller chose (issue #374). If you configure another library that
+resolves a client address, do the same, and pin it by driving the library rather
+than by reading its options back (`features/auth/sign-in-throttle.test.ts`).
+
 ## Secrets and logging (SEC-8)
 
 Never write a real secret into any file (code, test, fixture, doc) - reference

@@ -4,6 +4,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { twoFactor } from "better-auth/plugins/two-factor";
 
+import { CLIENT_ADDRESS_HEADER } from "../../client-address.js";
 import type { Config } from "../../config.js";
 
 /**
@@ -160,6 +161,21 @@ export function createAdminAuth(input: AdminAuthInput) {
     },
     advanced: {
       cookiePrefix: COOKIE_PREFIX,
+      // The address SEC-1's per-IP sign-in throttling keys on comes from the admin BFF
+      // and nowhere else (issue #374). better-auth's default is `["x-forwarded-for"]`,
+      // which at this process means "whatever the browser sent, relayed": the BFF used
+      // to forward that header verbatim, so a caller rotating it bought a fresh backoff
+      // bucket every attempt. Naming the vouched header instead puts the auth throttle
+      // on the same trust model as every other per-address limit here
+      // (`src/client-address.ts`, issue #341): the BFF resolves one address by counting
+      // trusted hops from the right of its own inbound chain and asserts it over the
+      // SEC-4 internal-token channel, and `X-Forwarded-For` at this process - which
+      // never faces the internet, ADR-20 - is ignored.
+      //
+      // With no vouched address better-auth resolves none and every caller shares its
+      // `no-trusted-ip` bucket. Coarse, and deliberately so: that is the failure this
+      // configuration can have, and it is the closed one, never a bucket per request.
+      ipAddress: { ipAddressHeaders: [CLIENT_ADDRESS_HEADER] },
       // `Secure` outside development, so local http development still works (ADR-20:
       // TLS terminates at the operator's ingress, and local eval runs plain http).
       // A config value rather than a `NODE_ENV` read, because the flag describes the

@@ -1,3 +1,4 @@
+import { CLIENT_ADDRESS_HEADER, vouchedClientAddress } from "./client-address.ts";
 import {
   ADMIN_SESSION_HEADER,
   INTERNAL_TOKEN_HEADER,
@@ -99,16 +100,17 @@ export type AuthApiPath = `/${string}`;
  *   `sec-fetch-site`/`-mode`/`-dest` are its CSRF inputs - it blocks a cross-site
  *   navigation login on the metadata and validates the origin against
  *   `trustedOrigins`. Dropping the triplet would take a control away from it.
- * - **`x-forwarded-for` is what SEC-1's per-IP sign-in throttling keys on.** better-auth
- *   resolves the client address from it; dropping it would key every attempt in a
- *   deployment to the admin container's own address, collapsing per-IP backoff into one
- *   global bucket. It is passed through exactly as received, which is worth stating
- *   precisely because it is **not** a trustworthy value on its own: it is whatever
- *   arrived, so absent an ingress that *overwrites* the header rather than appending to
- *   it, a client can supply its own and shard the backoff into unlimited buckets.
- *   Forwarding it is therefore strictly better than dropping it and strictly weaker than
- *   a guarantee - the guarantee has to come from the deployment's proxy, and task 040
- *   owns verifying SEC-1 as a system rather than as this line.
+ * - **The client's address is asserted, not relayed (issue #374).** SEC-1's per-IP sign-in
+ *   throttling keys on an address better-auth resolves from a request header, so which
+ *   header that is decides whether the control can be forged. `x-forwarded-for` and
+ *   `x-real-ip` used to be on this list and were passed through exactly as received,
+ *   which meant the bucket key was a value the caller chose: rotating the header bought
+ *   an unlimited supply of fresh allowances. They are gone, and in their place
+ *   {@link CLIENT_ADDRESS_HEADER} carries the one address this app resolved from its own
+ *   inbound chain (`client-address.ts`, counting trusted hops from the right). better-auth
+ *   is configured to read that header and nothing else
+ *   (`apps/api/src/features/auth/instance.ts`), so the assertion rides the SEC-4
+ *   internal-token channel and forging it presupposes the deployment's internal token.
  *
  * `user-agent` and `accept-language` ride along because better-auth records the former
  * on the session row and neither is a credential. Everything else is dropped.
@@ -121,9 +123,7 @@ const FORWARDED_AUTH_HEADERS = [
   "sec-fetch-dest",
   "user-agent",
   "accept-language",
-  "x-forwarded-for",
   "x-forwarded-proto",
-  "x-real-ip",
 ] as const;
 
 /**
@@ -164,8 +164,8 @@ function forwardedOrigin(from: Headers): string {
 
 /**
  * Build the headers for one forwarded auth request. Exported for its unit test: the
- * allowlist and the origin substitution are security-relevant and cheap to assert
- * directly, and doing so needs no server.
+ * allowlist, the origin substitution and the vouched client address are all
+ * security-relevant and cheap to assert directly, and doing so needs no server.
  */
 export function authRequestHeaders(from: Headers | undefined): Headers {
   const headers = new Headers({ [INTERNAL_TOKEN_HEADER]: internalToken() });
@@ -175,6 +175,11 @@ export function authRequestHeaders(from: Headers | undefined): Headers {
     if (value !== null) headers.set(name, value);
   }
   headers.set("origin", forwardedOrigin(from));
+  // Set only when there is something to vouch for. An absent header means better-auth
+  // resolves no address and falls back to its own shared bucket, which is coarse but
+  // never a bucket per request.
+  const address = vouchedClientAddress(from);
+  if (address !== undefined) headers.set(CLIENT_ADDRESS_HEADER, address);
   return headers;
 }
 
