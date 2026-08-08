@@ -102,7 +102,13 @@ services:
     environment:
       QCMS_API_BASE_URL: http://api:3000
       QCMS_INTERNAL_TOKEN: ${QCMS_INTERNAL_TOKEN:?set QCMS_INTERNAL_TOKEN in .env}
-      QCMS_SECURE_COOKIES: ${QCMS_SECURE_COOKIES:-false}
+      # The respondent portal's cookie-security knob, defaulted the same way the admin's
+      # is below: empty means unset, so the image's NODE_ENV=production decides and the
+      # cookies carry `Secure`. That is correct behind TLS and fine over http://localhost,
+      # which browsers treat as a trustworthy origin. It used to default to `false` here,
+      # which handed a TLS deployment a silent downgrade the moment the operator copied
+      # .env.compose.example (issue #292); the portal now refuses to start on that shape.
+      QCMS_SECURE_COOKIES: ${QCMS_SECURE_COOKIES:-}
       QCMS_PORTAL_BASE_URL: ${QCMS_PORTAL_BASE_URL:?set QCMS_PORTAL_BASE_URL in .env}
       QCMS_PORTAL_TRUSTED_PROXY_HOPS: ${QCMS_PORTAL_TRUSTED_PROXY_HOPS:-1}
     depends_on:
