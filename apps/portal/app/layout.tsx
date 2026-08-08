@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { AppearanceProvider, type AppearanceState } from "@/components/appearance-context";
 import { DENSITY_COOKIE, FONT_COOKIE, MODE_COOKIE } from "@/lib/appearance";
 import { t } from "@/lib/i18n/en";
-import { isProduction } from "@/lib/server/config";
+import { secureCookies } from "@/lib/server/config";
 import { modeBootstrapScript } from "@/lib/server/mode-bootstrap";
 import {
   modeClass,
@@ -73,7 +73,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
     })),
     brandName: brand.name,
     brandLogoSrc: brand.logoSrc,
-    secureCookies: isProduction(),
+    secureCookies: secureCookies(),
   };
 
   return (

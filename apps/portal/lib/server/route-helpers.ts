@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { isProduction } from "./config";
+import { secureCookies } from "./config";
 import { ApiError, type SubmitResponse } from "./api";
 
 /**
@@ -67,7 +67,7 @@ export async function writeReceiptCookie(receipt: SubmitResponse): Promise<void>
   store.set(RECEIPT_COOKIE, JSON.stringify(receipt), {
     httpOnly: true,
     sameSite: "lax",
-    secure: isProduction(),
+    secure: secureCookies(),
     path: "/",
     maxAge: RECEIPT_MAX_AGE_SECONDS,
   });
@@ -91,7 +91,7 @@ export async function writeStepContext(ctx: StepContext): Promise<void> {
   store.set(STEP_CTX_COOKIE, JSON.stringify(ctx), {
     httpOnly: true,
     sameSite: "lax",
-    secure: isProduction(),
+    secure: secureCookies(),
     path: "/",
     maxAge: STEP_CTX_MAX_AGE_SECONDS,
   });

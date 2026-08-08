@@ -11,7 +11,7 @@
     "start": "next start",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --root ../.. --project qcms-admin",
-    "lint": "eslint app components e2e lib proxy.ts proxy.test.ts next.config.ts postcss.config.mjs"
+    "lint": "eslint app components e2e lib instrumentation.ts proxy.ts proxy.test.ts next.config.ts postcss.config.mjs"
   },
   "dependencies": {
     "@codemirror/autocomplete": "6.20.3",
