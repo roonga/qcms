@@ -130,7 +130,7 @@ export function moveOptionTo(
   if (from < 0 || from >= options.length) return options;
   const target = Math.max(0, Math.min(to, options.length - 1));
   let next = options;
-  for (let at = from; at !== target; ) {
+  for (let at = from; at !== target;) {
     const step = at < target ? 1 : -1;
     next = moveOption(next, at, step);
     at += step;

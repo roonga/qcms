@@ -199,7 +199,10 @@ describe("insertOptionAt", () => {
   it("clamps a position outside the list", () => {
     const base = addOption([], "Red");
     expect(insertOptionAt(base, "Blue", 9).map((o) => o.optionId)).toEqual(["opt_red", "opt_blue"]);
-    expect(insertOptionAt(base, "Blue", -3).map((o) => o.optionId)).toEqual(["opt_blue", "opt_red"]);
+    expect(insertOptionAt(base, "Blue", -3).map((o) => o.optionId)).toEqual([
+      "opt_blue",
+      "opt_red",
+    ]);
   });
 });
 

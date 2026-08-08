@@ -11,8 +11,13 @@ import {
   createDraft,
   field,
   fillDate,
+  grip,
+  insertOptionAbove,
+  moveOptionByKey,
   optionIds,
+  pendingRow,
   setNumericConstraint,
+  useRowMenu,
 } from "./support/questions.js";
 
 /**
@@ -125,18 +130,23 @@ test("option ids survive a relabel and a reorder (exit criterion 2)", async ({ p
   const minted = await optionIds(page);
   expect(minted).toEqual(["opt_yes_always", "opt_no_never", "opt_green"]);
 
-  await fillStable(field(page, "Label for option 1"), "Crimson");
+  await fillStable(field(page, "Option 1 label"), "Crimson");
   expect(await optionIds(page)).toEqual(minted);
 
-  await page.getByRole("button", { name: "Move option 1 down" }).click();
+  // Reorder by keyboard, which under the 057 grid is Arrow Up/Down on the focused grip
+  // rather than a pair of move buttons. The grip travels with its row, so it is still the
+  // focused element afterwards - which is what makes a second press move the same option
+  // again instead of walking a fixed slot.
+  await moveOptionByKey(page, 0, "ArrowDown");
   expect(await optionIds(page)).toEqual([minted[1], minted[0], minted[2]]);
+  await expect(page.locator('[data-option-index="1"] [data-option-grip]')).toBeFocused();
 
-  await page.getByRole("button", { name: "Move option 3 up" }).click();
+  await moveOptionByKey(page, 2, "ArrowUp");
   expect(await optionIds(page)).toEqual([minted[1], minted[2], minted[0]]);
 
   // The label that travelled with the first minted id is the assertion that catches a
   // reorder implemented over labels rather than over whole options.
-  await expect(field(page, "Label for option 3")).toHaveValue("Crimson");
+  await expect(field(page, "Option 3 label")).toHaveValue("Crimson");
 
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Draft saved.")).toBeVisible();
@@ -145,7 +155,172 @@ test("option ids survive a relabel and a reorder (exit criterion 2)", async ({ p
   // which is the property every rule and every stored answer depends on.
   await page.reload();
   expect(await optionIds(page)).toEqual([minted[1], minted[2], minted[0]]);
-  await expect(field(page, "Label for option 3")).toHaveValue("Crimson");
+  await expect(field(page, "Option 3 label")).toHaveValue("Crimson");
+});
+
+test("an abandoned ghost row consumes no option id (the minting ruling, 2026-08-06)", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await createDraft(page, slugFor("ghost"), "Single choice");
+
+  const before = await optionIds(page);
+  expect(before).toEqual(["opt_yes_always", "opt_no_never"]);
+
+  // Open the ghost add-row. A row appears, and it is NOT an option: it has no id, so it
+  // has no `data-option-index` and contributes nothing to the list of minted ids.
+  await page.getByRole("button", { name: "Add option" }).click();
+  await expect(pendingRow(page)).toBeFocused();
+  expect(await optionIds(page)).toEqual(before);
+
+  // Tab past it without typing, which is the case the ruling is about: the row is
+  // abandoned and the document is exactly what it was.
+  await pendingRow(page).blur();
+  await expect(pendingRow(page)).toHaveCount(0);
+  expect(await optionIds(page)).toEqual(before);
+
+  // The option the author does name earns the id its own label derives, unsuffixed. Under
+  // minting-at-render this would be `opt_option` (or `opt_green_2` behind a consumed one),
+  // and because ids are permanent (R6) that damage would never be repairable.
+  await addOption(page, "Green");
+  expect(await optionIds(page)).toEqual([...before, "opt_green"]);
+
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByText("Draft saved.")).toBeVisible();
+  await page.reload();
+  expect(await optionIds(page)).toEqual([...before, "opt_green"]);
+});
+
+test("insert lands an option at the top, between two rows and at the bottom", async ({ page }) => {
+  test.setTimeout(180_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await createDraft(page, slugFor("insert"), "Single choice");
+
+  // Pointer path: the insert point above a row. Above the first row is the top of the list.
+  await insertOptionAbove(page, 0, "Top");
+  expect(await optionIds(page)).toEqual(["opt_top", "opt_yes_always", "opt_no_never"]);
+
+  // Between two rows.
+  await insertOptionAbove(page, 2, "Middle");
+  expect(await optionIds(page)).toEqual([
+    "opt_top",
+    "opt_yes_always",
+    "opt_middle",
+    "opt_no_never",
+  ]);
+
+  // The end of the list is the ghost add-row, which is what the card makes it.
+  await addOption(page, "Bottom");
+  expect(await optionIds(page)).toEqual([
+    "opt_top",
+    "opt_yes_always",
+    "opt_middle",
+    "opt_no_never",
+    "opt_bottom",
+  ]);
+
+  // Keyboard path: the row menu on the grip, which is the parity route for insertion and
+  // the only route to remove. Insert below row 1 puts a row at index 2.
+  await useRowMenu(page, 0, /^Insert option below Top$/);
+  await expect(pendingRow(page)).toBeFocused();
+  await fillStable(pendingRow(page), "Second");
+  await pendingRow(page).blur();
+  expect(await optionIds(page)).toEqual([
+    "opt_top",
+    "opt_second",
+    "opt_yes_always",
+    "opt_middle",
+    "opt_no_never",
+    "opt_bottom",
+  ]);
+
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByText("Draft saved.")).toBeVisible();
+
+  // Every insert survives the round trip in the position it was put in.
+  await page.reload();
+  expect(await optionIds(page)).toEqual([
+    "opt_top",
+    "opt_second",
+    "opt_yes_always",
+    "opt_middle",
+    "opt_no_never",
+    "opt_bottom",
+  ]);
+});
+
+test("a real drag reorders to the position the drop indicator marks", async ({ page }) => {
+  test.setTimeout(120_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await createDraft(page, slugFor("drag"), "Single choice");
+  await addOption(page, "Green");
+  expect(await optionIds(page)).toEqual(["opt_yes_always", "opt_no_never", "opt_green"]);
+
+  const source = grip(page, 0);
+  const last = page.locator('[data-option-index="2"]');
+  const from = await source.boundingBox();
+  const to = await last.boundingBox();
+  expect(from, "the grip should be laid out").not.toBeNull();
+  expect(to, "the last row should be laid out").not.toBeNull();
+  if (from === null || to === null) return;
+
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  // Past the last row's midpoint, so the live indicator marks the end of the list.
+  await page.mouse.move(from.x + from.width / 2, to.y + to.height - 2, { steps: 8 });
+  await expect(page.locator(".qcms-opt-insert--drop")).toBeVisible();
+  await expect(page.locator(".qcms-opt-row.is-dragging")).toHaveCount(1);
+  await page.mouse.up();
+
+  expect(await optionIds(page)).toEqual(["opt_no_never", "opt_green", "opt_yes_always"]);
+
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByText("Draft saved.")).toBeVisible();
+  await page.reload();
+  expect(await optionIds(page)).toEqual(["opt_no_never", "opt_green", "opt_yes_always"]);
+});
+
+test("the grid's hidden controls are reachable without a pointer", async ({ page }) => {
+  test.setTimeout(120_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await createDraft(page, slugFor("keys"), "Single choice");
+
+  // The grip and the insert point are invisible at rest and revealed by hover OR focus.
+  // Focus is the half a pointer-only implementation forgets, so it is the half asserted.
+  const insert = page.locator('[data-option-index="0"] .qcms-opt-insert').first();
+  await expect(insert).not.toBeVisible();
+  await insert.focus();
+  await expect(insert).toBeVisible();
+  await expect(grip(page, 0)).toBeVisible();
+
+  // Enter on the focused grip opens the row menu; Escape closes it and hands focus back,
+  // so a keyboard operator is never stranded inside a closed popup.
+  await grip(page, 0).focus();
+  await grip(page, 0).press("Enter");
+  await expect(page.getByRole("menu")).toBeVisible();
+  await page.getByRole("menu").press("Escape");
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await expect(grip(page, 0)).toBeFocused();
+
+  // Enter in a label commits and moves to the next row's label; on the last row it moves
+  // to the ghost add-row, which is where the card puts the end of the rhythm.
+  await field(page, "Option 1 label").focus();
+  await page.keyboard.press("Enter");
+  await expect(field(page, "Option 2 label")).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("button", { name: "Add option" })).toBeFocused();
+
+  // Escape inside a cell reverts the in-flight edit and keeps focus where it was.
+  await field(page, "Option 1 label").focus();
+  await page.keyboard.type("XX");
+  await page.keyboard.press("Escape");
+  await expect(field(page, "Option 1 label")).toHaveValue("Yes, always");
+  await expect(field(page, "Option 1 label")).toBeFocused();
+
+  // Remove lives in the row menu rather than in a second row-end control, per the card.
+  await useRowMenu(page, 1, /^Remove option No, never$/);
+  expect(await optionIds(page)).toEqual(["opt_yes_always"]);
 });
 
 test("the version preview renders the real control for the type", async ({ page }) => {
