@@ -40,8 +40,8 @@
     "pg": "^8.22.0"
   },
   "peerDependencies": {
-    "@testcontainers/postgresql": "^12.0.4",
-    "testcontainers": "^12.0.4"
+    "@testcontainers/postgresql": "^12.1.0",
+    "testcontainers": "^12.1.0"
   },
   "peerDependenciesMeta": {
     "@testcontainers/postgresql": {
@@ -52,9 +52,9 @@
     }
   },
   "devDependencies": {
-    "@testcontainers/postgresql": "^12.0.4",
-    "@types/pg": "^8.20.3",
+    "@testcontainers/postgresql": "^12.1.0",
+    "@types/pg": "^8.20.4",
     "drizzle-kit": "^0.31.10",
-    "testcontainers": "^12.0.4"
+    "testcontainers": "^12.1.0"
   }
 }
