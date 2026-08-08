@@ -5,15 +5,91 @@ import "./docker-auth-config.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
+import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import pg from "pg";
-import { getContainerRuntimeClient, getReaper } from "testcontainers";
 
 import * as schema from "../schema/index.js";
 
 const { Client, Pool } = pg;
+
+/**
+ * The Testcontainers surface this harness uses, loaded on first container boot.
+ *
+ * `@testcontainers/postgresql` and `testcontainers` are **optional peer
+ * dependencies** of `@qcms/db` (issue #156). They are test-only, and a Docker
+ * client is not something every consumer of the runtime surface should install,
+ * so they are not pulled in by default. Importing them lazily is what keeps
+ * `import { withTestDb } from "@qcms/db/testing"` from throwing in a consumer
+ * that has not installed them: the failure moves to the first `startTestDb()`
+ * call, where it can name both packages and the command that installs them.
+ */
+interface TestcontainersApi {
+  readonly PostgreSqlContainer: typeof import("@testcontainers/postgresql").PostgreSqlContainer;
+  readonly getContainerRuntimeClient: typeof import("testcontainers").getContainerRuntimeClient;
+  readonly getReaper: typeof import("testcontainers").getReaper;
+}
+
+/**
+ * What an adopter is told when the optional peers are absent, instead of Node's
+ * bare `Cannot find package '@testcontainers/postgresql' imported from ...`,
+ * which names one package, no version, and no remedy.
+ */
+const MISSING_TESTCONTAINERS_MESSAGE = [
+  "@qcms/db/testing could not load Testcontainers.",
+  "  missing: @testcontainers/postgresql and/or testcontainers",
+  "  why:     both are OPTIONAL PEER dependencies of @qcms/db. The harness is test-only, so installing" +
+    " @qcms/db does not drag a Docker client into a runtime dependency tree that never boots a container.",
+  "  fix:     pnpm add -D @testcontainers/postgresql testcontainers",
+  "  also:    the harness needs a reachable Docker daemon once the packages are installed.",
+].join("\n");
+
+/**
+ * Wordings that mean "this package is not installed" rather than "this package
+ * threw". Node says `Cannot find package 'x' imported from ...`; Vitest, which is
+ * how the harness is actually consumed, resolves through Vite and says
+ * `Could not resolve "x" imported by "@qcms/db"`. Both shapes have to be matched
+ * or the adopter-facing message is only produced under one runner.
+ */
+const MODULE_NOT_FOUND_MARKERS: readonly RegExp[] = [
+  /cannot find (package|module)/i,
+  /could not resolve/i,
+  /failed to resolve/i,
+];
+
+/** True when `error` is a module-resolution failure rather than a real fault inside the package. */
+function isModuleNotFound(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const code: unknown = (error as { code?: unknown }).code;
+  if (code === "ERR_MODULE_NOT_FOUND" || code === "MODULE_NOT_FOUND") return true;
+  return MODULE_NOT_FOUND_MARKERS.some((marker) => marker.test(error.message));
+}
+
+/**
+ * Import the optional peers, converting "not installed" into an actionable error.
+ *
+ * Only a resolution failure is rewritten. A genuine fault inside either package
+ * is rethrown untouched, so this never misattributes a Testcontainers bug as a
+ * missing install (the same discipline as the reaper/Postgres split below).
+ * Repeat calls are free: the ESM module registry caches both imports.
+ */
+async function loadTestcontainers(): Promise<TestcontainersApi> {
+  try {
+    const [postgresql, testcontainers] = await Promise.all([
+      import("@testcontainers/postgresql"),
+      import("testcontainers"),
+    ]);
+    return {
+      PostgreSqlContainer: postgresql.PostgreSqlContainer,
+      getContainerRuntimeClient: testcontainers.getContainerRuntimeClient,
+      getReaper: testcontainers.getReaper,
+    };
+  } catch (cause) {
+    if (!isModuleNotFound(cause)) throw cause;
+    throw new Error(MISSING_TESTCONTAINERS_MESSAGE, { cause });
+  }
+}
 
 /**
  * The Postgres image the harness boots when nothing overrides it. Pinned to the
@@ -122,6 +198,7 @@ function describeReaperImage(): string {
  * this touches no registry at all.
  */
 async function bootTestcontainersInfrastructure(): Promise<void> {
+  const { getContainerRuntimeClient, getReaper } = await loadTestcontainers();
   const client = await getContainerRuntimeClient();
   await getReaper(client);
 }
@@ -223,6 +300,10 @@ async function startContainer(
   if (alreadyFailed !== undefined) {
     throw new Error(`${alreadyFailed}\n  note: not retried (this image already failed to pull)`);
   }
+
+  // Deliberately outside both try blocks: a missing optional peer is neither a
+  // reaper failure nor an image-pull failure, and must not be described as one.
+  const { PostgreSqlContainer } = await loadTestcontainers();
 
   try {
     await bootInfrastructure();

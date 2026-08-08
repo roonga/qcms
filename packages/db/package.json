@@ -39,6 +39,18 @@
     "drizzle-orm": "^0.45.2",
     "pg": "^8.22.0"
   },
+  "peerDependencies": {
+    "@testcontainers/postgresql": "^12.0.4",
+    "testcontainers": "^12.0.4"
+  },
+  "peerDependenciesMeta": {
+    "@testcontainers/postgresql": {
+      "optional": true
+    },
+    "testcontainers": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@testcontainers/postgresql": "^12.0.4",
     "@types/pg": "^8.20.3",

@@ -78,11 +78,12 @@ without trusting the writer, and no sentinel ever lives inside `value`.
 
 `src/testing/harness.ts` boots a real Postgres in a throwaway container
 (Testcontainers) and migrates it to head - the same path adopters run. It is a
-test-only utility (excluded from the build, depends on devDependencies), used by
-this package's own tests via a relative import:
+test-only utility, excluded from the build and published at the `@qcms/db/testing`
+subpath; this package's own tests reach it by relative import, everyone else by
+the subpath:
 
 ```ts
-import { withTestDb, startTestDb } from "./testing/harness.js";
+import { withTestDb, startTestDb } from "@qcms/db/testing";
 
 // one-shot
 await withTestDb(async ({ db, client }) => {
@@ -108,11 +109,26 @@ connection still has open.
 (bypassing Drizzle's tracker) so a test can observe the schema **between**
 migrations - the "apply N, then N+1" forward path.
 
-**Requirements.** These are integration tests: they need a running Docker
-daemon, plus this package's `@testcontainers/postgresql` and `testcontainers`
-devDependencies (the harness imports Testcontainers' reaper bootstrap directly, so
-`testcontainers` is declared rather than borrowed transitively). On Linux CI
-(`ubuntu-latest`) this works out of the box. The harness
+**Requirements.** These are integration tests: they need a running Docker daemon,
+plus `@testcontainers/postgresql` and `testcontainers` (the harness imports
+Testcontainers' reaper bootstrap directly, so `testcontainers` is declared rather
+than borrowed transitively). Both are **optional peer dependencies** of `@qcms/db`
+and are not installed for you:
+
+```sh
+pnpm add -D @testcontainers/postgresql testcontainers
+```
+
+Optional, because they are test-only: a consumer of the runtime surface should not
+acquire a Docker client it never uses (issue #156). They stay devDependencies of
+this package as well, so the workspace's own suites have them. Importing
+`@qcms/db/testing` without them resolves fine; the first `startTestDb()` then
+fails with a message naming both packages and the command above, rather than
+Node's bare `Cannot find package`. The harness is consumed under Vitest, which
+transforms its TypeScript source; a plain `node` import of the subpath is not
+supported.
+
+On Linux CI (`ubuntu-latest`) this works out of the box. The harness
 sets an empty `DOCKER_AUTH_CONFIG` before Testcontainers loads so image pulls are
 anonymous and the Docker Desktop credential helper (`docker-credential-desktop`,
 unresolvable from some Windows shells) is never invoked; set `DOCKER_AUTH_CONFIG`
