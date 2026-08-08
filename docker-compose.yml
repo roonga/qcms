@@ -104,6 +104,7 @@ services:
       QCMS_INTERNAL_TOKEN: ${QCMS_INTERNAL_TOKEN:?set QCMS_INTERNAL_TOKEN in .env}
       QCMS_SECURE_COOKIES: ${QCMS_SECURE_COOKIES:-false}
       QCMS_PORTAL_BASE_URL: ${QCMS_PORTAL_BASE_URL:?set QCMS_PORTAL_BASE_URL in .env}
+      QCMS_PORTAL_TRUSTED_PROXY_HOPS: ${QCMS_PORTAL_TRUSTED_PROXY_HOPS:-1}
     depends_on:
       api:
         condition: service_healthy

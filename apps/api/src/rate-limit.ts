@@ -12,6 +12,7 @@
  * window resets. Fetch-pure - no `node:*`; the clock is injected.
  */
 
+import { clientAddress } from "./client-address.js";
 import type { Clock } from "./clock.js";
 import { errors } from "./errors.js";
 
@@ -68,7 +69,7 @@ export interface RateLimitOptions {
   readonly store: RateLimitStore;
   readonly windowMs: number;
   readonly max: number;
-  /** Derives the bucket key from the request (default: client IP-ish header). */
+  /** Derives the bucket key from the request (default: the vouched client address). */
   readonly keyFor?: (c: Parameters<MiddlewareHandler>[0]) => string;
 }
 
@@ -78,12 +79,10 @@ export interface RateLimitOptions {
  * globally by `createApp`; slices opt in per group (026).
  */
 export function rateLimit(options: RateLimitOptions): MiddlewareHandler {
-  const keyFor =
-    options.keyFor ??
-    ((c) =>
-      c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ??
-      c.req.header("x-real-ip") ??
-      "anonymous");
+  // The default keys on the address the calling BFF vouched for, never on a raw
+  // `x-forwarded-for` (issue #341: that is a client-chosen value, so it is a
+  // client-chosen bucket). See `client-address.ts` for the trust model.
+  const keyFor = options.keyFor ?? clientAddress;
 
   return async (c, next) => {
     const key = keyFor(c);

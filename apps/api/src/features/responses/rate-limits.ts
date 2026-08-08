@@ -3,7 +3,7 @@
  * middleware. One limiter per endpoint class, each keyed by the natural abuse
  * unit and namespaced so classes never share a bucket:
  *
- * - **session-create** - per client IP (no session exists yet).
+ * - **session-create** - per client address (no session exists yet).
  * - **answers (per session)** - the sustained-rate + burst ceiling on one flow.
  * - **answers (per IP)** - a wide backstop against many-session floods.
  * - **submit (per session)** - the per-session submit ceiling.
@@ -16,22 +16,20 @@
 
 import type { Context, MiddlewareHandler } from "hono";
 
+import { clientAddress } from "../../client-address.js";
 import type { Deps } from "../../deps.js";
 import { rateLimit } from "../../rate-limit.js";
 
 /**
- * The client IP as seen through the portal BFF / ingress. Mirrors the
- * `rateLimit` default: first `x-forwarded-for` hop, then `x-real-ip`, then a
- * fixed sentinel so a header-less caller still shares one bucket (fail-safe:
- * one anonymous bucket, never per-request unlimited). IP is a soft signal
- * (proxies/NAT share addresses); it is never logged as PII here.
+ * The client address the calling BFF vouched for, or the shared fallback bucket.
+ *
+ * Delegates to `client-address.ts`, which is where the trust model lives: this
+ * used to read the first `x-forwarded-for` entry, i.e. whichever claim the client
+ * chose to write. IP remains a soft signal (proxies and NAT share addresses); it
+ * is never logged as PII here (SEC-13).
  */
 export function clientIp(c: Context): string {
-  return (
-    c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ??
-    c.req.header("x-real-ip") ??
-    "unknown-ip"
-  );
+  return clientAddress(c);
 }
 
 /** The session id from the `/sessions/{id}/…` path param (the per-session key). */

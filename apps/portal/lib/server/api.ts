@@ -1,5 +1,6 @@
 import type { A2UIAnswerValue } from "@qcms/ui";
 
+import { CLIENT_ADDRESS_HEADER, currentClientAddress } from "./client-address";
 import { INTERNAL_TOKEN_HEADER, apiBaseUrl, internalToken } from "./config";
 import { REQUEST_ID_HEADER, currentRequestId } from "./request-id";
 
@@ -99,6 +100,13 @@ interface ErrorEnvelope {
  * rides the same fetch without appearing here - `@vercel/otel` injects it into
  * outgoing fetches whose URL matches `propagateContextUrls` (see
  * `instrumentation.ts`), which is why this stays proxy + credential duty only.
+ *
+ * Since issue #341 it also asserts the client address the ingress vouched for, so
+ * the API's respondent rate limiters can tell respondents apart at all. The raw
+ * `x-forwarded-for` is deliberately NOT forwarded: `client-address.ts` resolves
+ * it here, where the number of trusted proxies is known, and vouches for the
+ * result on a header the SEC-4 channel protects. Absent a trustworthy address the
+ * header is simply omitted and the API falls back to its shared bucket.
  */
 async function baseHeaders(token?: string): Promise<Record<string, string>> {
   const headers: Record<string, string> = {
@@ -108,6 +116,8 @@ async function baseHeaders(token?: string): Promise<Record<string, string>> {
   if (token !== undefined) headers.authorization = `Bearer ${token}`;
   const requestId = await currentRequestId();
   if (requestId !== undefined) headers[REQUEST_ID_HEADER] = requestId;
+  const clientAddress = await currentClientAddress();
+  if (clientAddress !== undefined) headers[CLIENT_ADDRESS_HEADER] = clientAddress;
   return headers;
 }
 
