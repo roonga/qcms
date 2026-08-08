@@ -30,6 +30,8 @@ Seat `S`, where `S` is `0`-`9`:
 | `7S20` | dev Postgres | stable | `docker-compose.dev.yml`, **host-owned**. Deliberately *not* in the container's `appPort`. |
 | `7S30` | artifacts server | stable | `pnpm artifacts`. Published out of the dev container. |
 | `7S40` | admin dev server | stable | `pnpm dev:admin` (issue #281). Published out of the dev container, like `7S00`/`7S10`/`7S30`. The solo Compose stack publishes its admin here as well, for the same reason as `7S00`. |
+| `7S50` | observability dashboard (dev tools) | stable | Grafana UI from `grafana/otel-lgtm` in `docker-compose.dev-tools.yml`. Opt-in overlay, never the shipped topology (ADR-20). Its OTLP ingest is **not** published: `api` and `portal` reach it at `lgtm:4318` over the Compose network, so the viewer costs one slot rather than two. |
+| `7S60` | database viewer (dev tools) | stable | pgweb from the same overlay, read-only, bound to loopback. A credentialed database client exists here and nowhere else in the topology - see the note below. |
 | `17S00` | portal dev server (harness) | harness | Playwright `webServer`. Also the portal **published** by the full-stack Compose stack (`pnpm up:e2e`), which is why those two cannot share a seat. |
 | `17S10` | composed API (harness) | harness | Bound by the Playwright runner in `globalSetup`. |
 | `17S20` | *(unused, deliberately)* | harness | Mirrors `7S20`. A harness run boots a Testcontainers Postgres on a kernel-assigned port and never wants a fixed one. The slot stays empty so `17S{nn}` maps onto `7S{nn}` without a second table. |
