@@ -752,6 +752,10 @@ th,
 }
 .qcms-opt-label__input {
   inline-size: 100%;
+  /* The row's own `min-block-size` is the 40px floor here. Leaving the bare
+     `textarea` rule's floor on the input as well would fight the sizer `::after`
+     that shares its grid cell, which carries no such floor. */
+  min-block-size: 0;
   background: transparent;
   color: var(--color-text);
   resize: none;
@@ -790,6 +794,13 @@ th,
   color: var(--color-text-muted);
   cursor: grab;
   opacity: 0;
+  /* Opt out of the 40px control floor the bare `button` rule sets: a
+     `min-block-size` beats a `block-size`, so without this the grip renders 28
+     wide by 40 tall. That is not only a squashed square - a 40px-tall grip and a
+     40px-tall insert button in the same row overlap, and the insert (z-index 2)
+     then swallows every press aimed at the grip, so dragging a row does nothing
+     at all. Same trap `.qcms-modetrigger` records. */
+  min-block-size: 28px;
   transition:
     opacity 0.12s ease,
     background-color 0.12s ease;
@@ -856,6 +867,10 @@ th,
   cursor: pointer;
   z-index: 2;
   opacity: 0;
+  /* The control floor again, and here it is load-bearing rather than cosmetic:
+     this is a 14px hairline hotzone straddling a row edge, and at the floor's
+     40px it would cover most of the row it sits on. */
+  min-block-size: 14px;
 }
 .qcms-opt-insert__line {
   position: absolute;

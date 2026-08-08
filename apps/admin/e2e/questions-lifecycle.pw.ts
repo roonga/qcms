@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
@@ -286,13 +286,25 @@ test("the grid's hidden controls are reachable without a pointer", async ({ page
   await signInWithTotp(page, EMAIL, totpSecret);
   await createDraft(page, slugFor("keys"), "Single choice");
 
-  // The grip and the insert point are invisible at rest and revealed by hover OR focus.
-  // Focus is the half a pointer-only implementation forgets, so it is the half asserted.
+  // The grip and the insert point are hidden at rest and revealed by hover OR focus.
+  // Focus is the half a pointer-only implementation forgets, so it is the half asserted -
+  // and asserted on computed OPACITY, because the card hides them with opacity and
+  // Playwright counts an opacity-0 element as visible.
   const insert = page.locator('[data-option-index="0"] .qcms-opt-insert').first();
-  await expect(insert).not.toBeVisible();
-  await insert.focus();
-  await expect(insert).toBeVisible();
-  await expect(grip(page, 0)).toBeVisible();
+  const opacityOf = (target: Locator): Promise<string> =>
+    target.evaluate((element) => getComputedStyle(element).opacity);
+  expect(await opacityOf(insert), "the insert point is hidden at rest").toBe("0");
+  expect(await opacityOf(grip(page, 0)), "the grip is hidden at rest").toBe("0");
+
+  // Reached by real keyboard travel, in the order the card specifies: the label's cell
+  // walks back through the grip and then the insert point.
+  await field(page, "Option 1 label").focus();
+  await page.keyboard.press("Shift+Tab");
+  await expect(grip(page, 0)).toBeFocused();
+  await expect.poll(() => opacityOf(grip(page, 0))).toBe("1");
+  await page.keyboard.press("Shift+Tab");
+  await expect(insert).toBeFocused();
+  await expect.poll(() => opacityOf(insert)).toBe("1");
 
   // Enter on the focused grip opens the row menu; Escape closes it and hands focus back,
   // so a keyboard operator is never stranded inside a closed popup.
