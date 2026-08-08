@@ -77,34 +77,67 @@ describe("the published @qcms/db/testing subpath", () => {
     }
   });
 
-  it("names both packages and the install command when the optional peers are absent", async () => {
+  // The two wordings an absent peer actually produces: Node's own, and Vite's,
+  // which is what a Vitest-based consumer sees. Both were observed against a
+  // packed tarball installed outside this workspace (issue #156).
+  const resolutionFailures = [
+    {
+      runner: "node",
+      error: Object.assign(
+        new Error("Cannot find package '@testcontainers/postgresql' imported from harness.ts"),
+        { code: "ERR_MODULE_NOT_FOUND" },
+      ),
+    },
+    {
+      runner: "vitest/vite",
+      error: new Error('Could not resolve "@testcontainers/postgresql" imported by "@qcms/db".'),
+    },
+  ] as const;
+
+  it.each(resolutionFailures)(
+    "names both packages and the install command when the optional peers are absent ($runner)",
+    async ({ error }) => {
+      vi.resetModules();
+      // Raised where the harness touches the module, so the real catch/rewrite
+      // path runs rather than a simulated one.
+      vi.doMock("@testcontainers/postgresql", () => ({
+        get PostgreSqlContainer(): never {
+          throw error;
+        },
+      }));
+
+      try {
+        const { startTestDb } = await import("./harness.js");
+        // Rejects before any Docker call, so this test boots no container.
+        const failure = await startTestDb().then(
+          () => undefined,
+          (thrown: unknown) => thrown,
+        );
+
+        expect(failure).toBeInstanceOf(Error);
+        const message = (failure as Error).message;
+        expect(message).toContain("OPTIONAL PEER dependencies");
+        expect(message).toContain("@testcontainers/postgresql");
+        expect(message).toContain("testcontainers");
+        expect(message).toContain("pnpm add -D @testcontainers/postgresql testcontainers");
+      } finally {
+        vi.doUnmock("@testcontainers/postgresql");
+        vi.resetModules();
+      }
+    },
+  );
+
+  it("rethrows a genuine fault inside Testcontainers rather than blaming the install", async () => {
     vi.resetModules();
-    // Stands in for the resolution failure an adopter without the optional peer
-    // hits: the same `Cannot find package` error, raised where the harness
-    // touches the module, so the real catch/rewrite path runs.
     vi.doMock("@testcontainers/postgresql", () => ({
       get PostgreSqlContainer(): never {
-        throw Object.assign(
-          new Error("Cannot find package '@testcontainers/postgresql' imported from harness.ts"),
-          { code: "ERR_MODULE_NOT_FOUND" },
-        );
+        throw new Error("boom from inside testcontainers");
       },
     }));
 
     try {
       const { startTestDb } = await import("./harness.js");
-      // Rejects before any Docker call, so this test boots no container.
-      const failure = await startTestDb().then(
-        () => undefined,
-        (error: unknown) => error,
-      );
-
-      expect(failure).toBeInstanceOf(Error);
-      const message = (failure as Error).message;
-      expect(message).toContain("OPTIONAL PEER dependencies");
-      expect(message).toContain("@testcontainers/postgresql");
-      expect(message).toContain("testcontainers");
-      expect(message).toContain("pnpm add -D @testcontainers/postgresql testcontainers");
+      await expect(startTestDb()).rejects.toThrow("boom from inside testcontainers");
     } finally {
       vi.doUnmock("@testcontainers/postgresql");
       vi.resetModules();

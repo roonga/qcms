@@ -45,12 +45,25 @@ const MISSING_TESTCONTAINERS_MESSAGE = [
   "  also:    the harness needs a reachable Docker daemon once the packages are installed.",
 ].join("\n");
 
+/**
+ * Wordings that mean "this package is not installed" rather than "this package
+ * threw". Node says `Cannot find package 'x' imported from ...`; Vitest, which is
+ * how the harness is actually consumed, resolves through Vite and says
+ * `Could not resolve "x" imported by "@qcms/db"`. Both shapes have to be matched
+ * or the adopter-facing message is only produced under one runner.
+ */
+const MODULE_NOT_FOUND_MARKERS: readonly RegExp[] = [
+  /cannot find (package|module)/i,
+  /could not resolve/i,
+  /failed to resolve/i,
+];
+
 /** True when `error` is a module-resolution failure rather than a real fault inside the package. */
 function isModuleNotFound(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
   const code: unknown = (error as { code?: unknown }).code;
   if (code === "ERR_MODULE_NOT_FOUND" || code === "MODULE_NOT_FOUND") return true;
-  return /cannot find (package|module)/i.test(error.message);
+  return MODULE_NOT_FOUND_MARKERS.some((marker) => marker.test(error.message));
 }
 
 /**
