@@ -350,7 +350,8 @@ qcms/
 │   └── proxy/                    # optional Caddy overlay config    (036)
 ├── docker-compose.dev.yml        # dev Postgres                     (001)
 ├── docker-compose.yml            # solo: portal·admin·api·postgres  (036)
-└── docker-compose.proxy.yml      # optional single-VM TLS overlay   (036)
+├── docker-compose.proxy.yml      # optional single-VM TLS overlay   (036)
+└── docker-compose.dev-tools.yml  # opt-in dev toolbox, never ships  (#417)
 ```
 
 Layout rules: golden/fixture directories live with the package that owns their meaning; `apps/*` never import each other; `packages/ui` is the only renderer (preview fidelity); anything under `docs/` named in a task's exit criteria is a deliverable, not an afterthought.

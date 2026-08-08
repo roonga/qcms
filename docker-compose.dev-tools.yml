@@ -1,0 +1,183 @@
+# Optional developer-toolbox overlay for the solo topology (issue #417).
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev-tools.yml up --detach
+#
+# What it adds is two containers a developer looks at and one that runs and exits:
+# a Grafana/Tempo/Loki/Prometheus dashboard for the traces the stack exports, and a
+# read-only database viewer. Both are published on this seat's stable slots (`7S50`
+# and `7S60`, docs/PORTS.md, allocated by the ADR-37 amendment of 2026-08-07).
+#
+# **It is never part of the base invocation, and that is the point.** ADR-20 defines
+# the shipped topology as exactly four containers, and ADR-34 records that no
+# collector ships with QCMS. Both still hold: nothing here runs in a deployment.
+# `scripts/compose-config.test.ts` asserts that separation rather than trusting this
+# comment - that `api` and `postgres` stay unpublished with the overlay layered on,
+# and that the default invocation contains none of these services.
+#
+# The naming is deliberate: `docker-compose.dev.yml` already exists and means "the
+# dev Postgres alone", which is a different thing.
+#
+# ## Everything here is loopback, unconditionally
+#
+# The base file's two publishes follow `QCMS_BIND_ADDRESS`, because an operator with
+# a separate ingress host has a reason to widen them. Nothing in this file does.
+# These are a developer's own tools on a developer's own machine: a dashboard with a
+# default login and a client holding a database credential. There is no deployment
+# in which widening them is right, so the address is written here rather than read
+# from a variable that a deployment may legitimately have set to 0.0.0.0.
+#
+# ## What is deliberately absent
+#
+# - **No published OTLP ingest.** `api` and `portal` reach the collector at
+#   `lgtm:4318` over the Compose network, so the dashboard costs one port and not
+#   two. A process outside Compose (`pnpm dev:portal`) cannot export into this stack
+#   and is not meant to: it cannot share a seat with the solo stack anyway, and it
+#   keeps the hand-run viewer recipe in docs/DEVELOPER_GUIDE.md.
+# - **No volumes.** Traces and logs live for as long as the container does. That is
+#   the right trade for a toolbox - `docker compose ... down` leaves nothing behind,
+#   which is what makes this safe to bring up and tear down per investigation - but
+#   it does mean a restart of `lgtm` empties the dashboard.
+# - **No logs pipeline yet.** Only traces are exported today, so Grafana's Loki
+#   datasource is present and empty. Turning on OTLP log export is issue #370, which
+#   carries a SEC-13 amendment and is deliberately not folded in here.
+# - **This file is not in `scripts/env-reference.mjs`'s `COMPOSE_FILES`**, and that
+#   is a decision rather than an oversight: the generated table in docs/operations.md
+#   is the operator's surface, and none of the variables below is an operator's to
+#   set. They are documented in docs/DEVELOPER_GUIDE.md, where the audience is.
+services:
+  # Grafana Labs' single-container LGTM stack (Grafana + Loki + Tempo + Prometheus
+  # + an OpenTelemetry collector), published by them for development and demos and
+  # explicitly not for production - which is exactly the job here. Chosen over
+  # Jaeger because Jaeger has no logs pipeline at all, and the thing worth being
+  # able to do is follow one request across a boundary with its logs attached.
+  #
+  # No datasource configuration is needed: the image's own grafana-datasources.yaml
+  # already wires Loki-to-Tempo correlation both ways. The image is large (several
+  # hundred MB) and pulled once.
+  lgtm:
+    image: ${QCMS_LGTM_IMAGE:-grafana/otel-lgtm:latest}
+    ports:
+      # Grafana's UI. The container also listens on 4317/4318 (OTLP), 3200 (Loki),
+      # 9090 (Prometheus) and 4040 (Pyroscope); none of those is published, and the
+      # apps reach the one they need by service name.
+      - "127.0.0.1:${QCMS_OBSERVABILITY_PORT:-7050}:3000"
+    restart: unless-stopped
+
+  # One-shot: create (or rotate the password of) the read-only role the viewer
+  # connects as.
+  #
+  # Why a role at all, rather than reusing QCMS_DB_PASSWORD: after task 056 the API
+  # is the only process in this stack holding a database credential (ADR-35 as
+  # amended), and docker-compose.yml calls the admin's lack of one "a control rather
+  # than an omission". A viewer reintroduces a credential, so the credential it gets
+  # is the weakest one that can do the job. `pg_read_all_data` is PostgreSQL's own
+  # predefined role for exactly this (SELECT on every table, view and sequence, USAGE
+  # on every schema), which is what makes it right for tables that do not exist yet:
+  # no ALTER DEFAULT PRIVILEGES to maintain, and nothing to forget when a migration
+  # adds one. `pg_write_all_data` is deliberately NOT granted.
+  #
+  # It runs as a service rather than as a Postgres init script because an init script
+  # in /docker-entrypoint-initdb.d runs only when the data directory is EMPTY. On
+  # every stack that already has data - which is all of them - the role would never be
+  # created and the viewer would fail to connect with no clue why.
+  #
+  # The SQL is inline rather than a mounted file, and that is not a style choice. A
+  # relative bind mount is resolved by the DOCKER DAEMON on the daemon's filesystem,
+  # and the canonical developer seat is the dev container (ADR-29), which drives the
+  # HOST's daemon over a mounted socket. The repo's path inside that container does
+  # not exist on the host, so Docker silently creates an empty directory there and
+  # psql fails with "Is a directory". An overlay whose whole audience sits in that
+  # container has to carry its own script.
+  dev-tools-role:
+    image: ${QCMS_POSTGRES_IMAGE:-postgres:16-alpine}
+    environment:
+      PGHOST: postgres
+      PGDATABASE: ${QCMS_DB_NAME:-qcms}
+      PGUSER: ${QCMS_DB_USER:-qcms}
+      PGPASSWORD: ${QCMS_DB_PASSWORD:?set QCMS_DB_PASSWORD in .env}
+      RO_PASSWORD: ${QCMS_DB_VIEWER_PASSWORD:?set QCMS_DB_VIEWER_PASSWORD in .env - the dev-tools overlay creates a read-only role with it}
+    # Idempotent by construction: the overlay may be brought up any number of times
+    # against the same volume, so a second run has to rotate the password rather than
+    # fail on a role that exists. CREATE ROLE has no IF NOT EXISTS, hence \gexec.
+    #
+    # The password reaches psql through \getenv rather than through argv, so it is not
+    # in the process list of a container anyone can exec into. The heredoc is quoted,
+    # so the shell expands nothing and what psql reads is exactly what is written here.
+    entrypoint:
+      - sh
+      - -c
+      - |
+        exec psql <<'SQL'
+        \set ON_ERROR_STOP on
+        \getenv ro_password RO_PASSWORD
+
+        SELECT 'CREATE ROLE qcms_ro LOGIN'
+        WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'qcms_ro')\gexec
+
+        ALTER ROLE qcms_ro WITH LOGIN PASSWORD :'ro_password';
+        ALTER ROLE qcms_ro SET default_transaction_read_only = on;
+        GRANT pg_read_all_data TO qcms_ro;
+        SQL
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # pgweb rather than pgAdmin: 65 MB, no volume, no login screen (the connection
+  # comes from the environment), and a real read-only mode. pgAdmin has none of
+  # those - it needs a second mandatory credential pair, a uid-5050 volume, cannot
+  # import a password through servers.json, and has no read-only mode at all.
+  pgweb:
+    image: ${QCMS_PGWEB_IMAGE:-sosedoff/pgweb:latest}
+    # `--readonly` is a FLAG and only a flag: pgweb reads a `PGWEB_`-prefixed
+    # environment variable for the connection URL, sessions, auth and bookmarks, but
+    # its ReadOnly option is parsed from the command line alone (checked against
+    # pkg/command/options.go, not assumed). An env-var spelling of it would be a
+    # silent no-op, which is the worst possible shape for a control. The image's
+    # entrypoint is `/usr/bin/pgweb --bind=0.0.0.0 --listen=8081`, so this appends.
+    #
+    # What it buys is two client-side layers: a `SET default_transaction_read_only=on`
+    # before each query, and a keyword blocklist that rejects the statement outright.
+    # Both are defence in depth rather than the control. The first is a session
+    # setting on whichever pooled connection the query lands on; the second is a
+    # blocklist, and a blocklist is a list of what someone thought of. The control is
+    # the role - `qcms_ro`, granted `pg_read_all_data` and nothing else, with the same
+    # transaction setting applied at ROLE level so it holds for every session it opens
+    # however the client pools, and a privilege check underneath that holds even if
+    # the setting is turned off.
+    command: ["--readonly"]
+    environment:
+      PGWEB_DATABASE_URL: postgres://qcms_ro:${QCMS_DB_VIEWER_PASSWORD:?set QCMS_DB_VIEWER_PASSWORD in .env - the dev-tools overlay creates a read-only role with it}@postgres:5432/${QCMS_DB_NAME:-qcms}?sslmode=disable
+    ports:
+      - "127.0.0.1:${QCMS_DB_VIEWER_PORT:-7060}:8081"
+    depends_on:
+      dev-tools-role:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # The two app services gain an endpoint and nothing else. Both composition roots
+  # treat `OTEL_EXPORTER_OTLP_ENDPOINT` as the single switch (ADR-34): unset means no
+  # SDK starts at all, so the base file's empty default keeps the shipped stack silent
+  # and this override is the whole of what turns tracing on.
+  #
+  # `OTEL_SERVICE_NAME` is deliberately not set here. Each composition root already
+  # defaults to its own name (`qcms-api`, `qcms-portal`), and one Compose-level value
+  # would give both services the same name and collapse them into one entry in
+  # Grafana's service list.
+  api:
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://lgtm:4318}
+    depends_on:
+      lgtm:
+        # `service_started`, not healthy: the image ships no healthcheck, and the
+        # LGTM stack takes some tens of seconds to come up. Spans emitted before the
+        # collector is listening are dropped by the exporter's retry budget, so the
+        # first request or two after a cold start may not appear. Make a second one.
+        condition: service_started
+
+  portal:
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://lgtm:4318}
+    depends_on:
+      lgtm:
+        condition: service_started

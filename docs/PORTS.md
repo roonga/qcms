@@ -53,14 +53,35 @@ Everything behind that ingress still follows the table: Caddy reaches portal and
 admin over the Compose network, and the API and Postgres publish nothing at all
 (ADR-20).
 
+### The note the two dev-tools rows point at
+
+`7S50` and `7S60` are published by `docker-compose.dev-tools.yml` and by nothing
+else. Three properties come with them, and they are the reason those rows are
+worth reading rather than merely looking up:
+
+- **They are loopback-only, unconditionally.** The base file's two publishes follow
+  `QCMS_BIND_ADDRESS` because an operator with a separate ingress host has a reason
+  to widen them. These do not: `127.0.0.1` is written into the overlay. One is a
+  dashboard with the image's default login and the other holds a database
+  credential, and neither belongs on a network in any deployment.
+- **`7S60` is the one credentialed database client in the topology.** After task 056
+  the API is otherwise the only process holding a database credential at all
+  (ADR-35), which `docker-compose.yml` calls "a control rather than an omission" in
+  the admin service. The viewer therefore connects as `qcms_ro`, a role created by
+  the overlay with PostgreSQL's predefined `pg_read_all_data` and nothing else, with
+  `default_transaction_read_only` set on the role. Never the application credential.
+- **The collector gets no slot.** `api` and `portal` reach it at `lgtm:4318` inside
+  the Compose network. An unpublished container port is the image's business, not an
+  allocation, which is what keeps the toolbox at two slots rather than three.
+
 Concretely:
 
 ```
-seat 0 (default, and CI)   7000 7010 7020 7030 7040   |   17000 17010 17030 17040
-seat 1                     7100 7110 7120 7130 7140   |   17100 17110 17130 17140
-seat 2                     7200 7210 7220 7230 7240   |   17200 17210 17230 17240
+seat 0 (default, and CI)   7000 7010 7020 7030 7040 7050 7060   |   17000 17010 17030 17040
+seat 1                     7100 7110 7120 7130 7140 7150 7160   |   17100 17110 17130 17140
+seat 2                     7200 7210 7220 7230 7240 7250 7260   |   17200 17210 17230 17240
 ...
-seat 9                     7900 7910 7920 7930 7940   |   17900 17910 17930 17940
+seat 9                     7900 7910 7920 7930 7940 7950 7960   |   17900 17910 17930 17940
 ```
 
 **Seat 0 is exactly today's allocation.** An existing developer and CI set nothing and see 7000 / 7010 / 7020 / 7030 / 7040 unchanged. That is a compatibility contract, asserted in `apps/portal/e2e/support/port-seat.test.ts`, not just an intention.
