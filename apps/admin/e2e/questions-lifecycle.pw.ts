@@ -335,6 +335,53 @@ test("the grid's hidden controls are reachable without a pointer", async ({ page
   expect(await optionIds(page)).toEqual(["opt_yes_always"]);
 });
 
+test("a cleared label renders the grid's error state, joined to its message line", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await createDraft(page, slugFor("blank"), "Single choice");
+
+  // Clearing a committed row is now the ONLY route to a blank option: the pending path
+  // abandons a row it cannot name, so an empty label can no longer be created. That makes
+  // this state both harder to reach and the one most likely to lose coverage, which is why
+  // it is asserted here in the standing suite rather than only in the capture spec (which
+  // is skipped unless QCMS_ADMIN_CAPTURE_GATE=1, so it never runs under `verify:browser`).
+  await fillStable(field(page, "Option 2 label"), "");
+  await page.getByRole("button", { name: "Save draft" }).click();
+
+  // The kernel's issue lands on `options.1.label`, so the SECOND row wears the error and
+  // the first does not - an error rendered on every row would pass a looser assertion.
+  const errored = page.locator('[data-option-index="1"]');
+  await expect(errored).toHaveClass(/is-error/);
+  await expect(page.locator('[data-option-index="0"]')).not.toHaveClass(/is-error/);
+
+  const cell = errored.locator("textarea");
+  await expect(cell).toHaveAttribute("aria-invalid", "true");
+
+  // The message line sits BELOW the grid rather than in the cell (the card's layout), so
+  // the two are only one thing for an assistive technology if `aria-describedby` joins
+  // them. That join is the whole reason the split placement is acceptable, so it is the
+  // part asserted rather than the mere presence of some red text.
+  const describedBy = await cell.getAttribute("aria-describedby");
+  expect(describedBy, "the erroring cell names its message line").toBe("qcms-option-error-1");
+  const line = page.locator(`#${String(describedBy)}`);
+  await expect(line).toBeVisible();
+  await expect(line).toHaveClass(/qcms-opt-grid-error/);
+  // Named by position, so a reader of a line under a six-row grid knows which row it is.
+  await expect(line).toContainText("Option 2:");
+
+  // And exactly one line: an error rendered per row would stack duplicates under the grid.
+  await expect(page.locator(".qcms-opt-grid-error")).toHaveCount(1);
+
+  // The state clears when the author fixes it, which is the half a one-way assertion misses.
+  await fillStable(field(page, "Option 2 label"), "No, never");
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByText("Draft saved.")).toBeVisible();
+  await expect(page.locator(".qcms-opt-grid-error")).toHaveCount(0);
+  await expect(errored).not.toHaveClass(/is-error/);
+});
+
 test("the narrow layout folds the ID under the label, keyed off the editor's width", async ({
   page,
 }) => {

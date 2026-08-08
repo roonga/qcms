@@ -240,8 +240,9 @@ export function OptionGridEditor({
     // Somewhere deliberate, for the reason 032 recorded: a removed row takes the focused
     // element with it and the browser then drops focus to `<body>`, stranding a keyboard
     // operator at the top of the document with no announcement.
-    const neighbour = Math.max(0, row.index - 1);
-    setFocusWant(options.length <= 1 ? { kind: "add" } : { kind: "grip", index: neighbour });
+    // Always a neighbouring grip: the menu's Remove item is disabled at one option, so
+    // the list can never empty here and there is no "focus the add row instead" case.
+    setFocusWant({ kind: "grip", index: Math.max(0, row.index - 1) });
   }
 
   // ---------------------------------------------------------------- pointer drag
