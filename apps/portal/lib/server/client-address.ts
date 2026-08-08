@@ -57,6 +57,17 @@
  * and it travels on the SEC-4 internal-token channel: forging it requires the
  * deployment's internal token, which is already total compromise.
  *
+ * ## There is a twin in the admin app
+ *
+ * `apps/admin/lib/server/client-address.ts` carries the same rule for the authoring
+ * hostname, where it feeds better-auth's per-IP sign-in throttle (issue #374). It is a
+ * copy rather than an import because the two apps are separate deployables with no
+ * shared package between them and none of the four `@qcms/*` packages is a home for a
+ * BFF's trust model; the module there explains the call in full. The hop counts are
+ * separate variables because the two apps are two hostnames that may sit behind
+ * different ingresses. **Change the rule here and you must change it there**, which the
+ * two test suites are arranged to catch: they assert the same chain cases.
+ *
  * ## Privacy (SEC-13)
  *
  * A client address is personal data. It is used as a rate-limit bucket key and
