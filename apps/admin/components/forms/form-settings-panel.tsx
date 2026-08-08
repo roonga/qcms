@@ -129,7 +129,13 @@ export function FormSettingsPanel({
           >
             {t("forms.settings.save")}
           </Button>
-          <p aria-live="polite" className="text-sm text-(--color-text-muted)">
+          {/* Testid on the region as well as on its sentence, so the `aria-live` can be
+              asserted directly (#368). */}
+          <p
+            aria-live="polite"
+            className="text-sm text-(--color-text-muted)"
+            data-testid="qcms-form-settings-status"
+          >
             <span data-testid="qcms-settings-state">{settingsSummary(state)}</span>
           </p>
         </div>

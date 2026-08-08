@@ -162,7 +162,9 @@ export function SecureLinks({
         </p>
       )}
 
-      <div aria-live="polite" className="flex flex-col gap-2">
+      {/* Testid on the region rather than only on its contents, so the `aria-live` can be
+          asserted directly (#368). */}
+      <div aria-live="polite" className="flex flex-col gap-2" data-testid="qcms-links-status">
         {minted.status === "error" && (
           <Alert variant="error">
             {t("forms.links.mintFailed", { message: minted.message ?? "" })}

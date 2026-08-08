@@ -137,7 +137,13 @@ export function RuleTestBench({
               >
                 {t("forms.bench.run")}
               </Button>
-              <p aria-live="polite" className="text-sm text-(--color-text)">
+              {/* Testid on the region as well as on its sentence, so the `aria-live` can
+                  be asserted directly (#368). */}
+              <p
+                aria-live="polite"
+                className="text-sm text-(--color-text)"
+                data-testid="qcms-bench-status"
+              >
                 <span data-testid="qcms-bench-outcome" data-outcome={state.outcome ?? state.status}>
                   {outcomeSentence(state)}
                 </span>

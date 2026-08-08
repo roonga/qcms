@@ -168,7 +168,9 @@ export function DraftPreview({
         <p className="text-sm text-(--color-text-muted)">{t("forms.preview.noSteps")}</p>
       )}
 
-      <div aria-live="polite" className="flex flex-col gap-2">
+      {/* Testid on the region rather than only on its contents, so the `aria-live` can be
+          asserted directly (#368). */}
+      <div aria-live="polite" className="flex flex-col gap-2" data-testid="qcms-preview-status">
         {state.status === "loading" && (
           <p className="text-sm text-(--color-text-muted)">{t("forms.preview.loading")}</p>
         )}

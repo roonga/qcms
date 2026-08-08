@@ -48,7 +48,14 @@ export function ValidationPanel({
         {t("forms.validation.title")}
       </h2>
 
-      <p aria-live="polite" className="flex flex-col gap-1 text-sm text-(--color-text-muted)">
+      {/* Testid on the region as well as on its two sentences, so the `aria-live` can be
+          asserted directly (#368): the spans are attached and carry their text whether or
+          not the paragraph around them is still a live region. */}
+      <p
+        aria-live="polite"
+        className="flex flex-col gap-1 text-sm text-(--color-text-muted)"
+        data-testid="qcms-validation-status"
+      >
         <span data-testid="qcms-issue-summary">{issueSummary(issues.length, status)}</span>
         <span data-testid="qcms-save-state">{saveSummary(status, lastSavedAt)}</span>
       </p>

@@ -133,8 +133,13 @@ function PatternField({ constraints, onChange, issues, isFrozen }: PanelProps) {
             onChange={setSample}
           />
           {/* Polite, not assertive: this updates on every keystroke, and an assertive
-              region would interrupt the operator mid-word on each one. */}
-          <p aria-live="polite" className="text-sm text-(--color-text-muted)">
+              region would interrupt the operator mid-word on each one. Testid on the
+              region itself so the `aria-live` can be asserted directly (#368). */}
+          <p
+            aria-live="polite"
+            className="text-sm text-(--color-text-muted)"
+            data-testid="qcms-pattern-verdict"
+          >
             {verdict}
           </p>
         </>
