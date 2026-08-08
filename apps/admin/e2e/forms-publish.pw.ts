@@ -286,6 +286,23 @@ test("a refused publish lists every issue and each one moves focus (exit criteri
   await expect(rejected).toBeVisible({ timeout: 30_000 });
   await expect(issue(rejected, "RULE_BACKWARD_TARGET")).toBeVisible();
 
+  // The refusal is SPOKEN, which it was not before issue #377: the work list renders as a
+  // sibling of the live region, so publish success and publish error announced and a
+  // rejection did not. Three assertions, and they fail for three different reasons.
+  const actionsStatus = page.getByTestId("qcms-form-actions-status");
+  await expect(actionsStatus).toBeAttached();
+  // The pin (#359, #368). Nothing else in the suite says this container is a live region,
+  // and nothing can: axe has no rule requiring one to exist, and every content assertion
+  // around it passes on a plain `<div>`. Selected by testid rather than by `[aria-live]`,
+  // so deleting the attribute makes THIS line red instead of quietly matching nothing.
+  await expect(actionsStatus).toHaveAttribute("aria-live", "polite");
+  // The repair. Empty on `origin/main`, because the summary sentence did not exist.
+  await expect(actionsStatus).toContainText("Publish blocked");
+  // And the decision, asserted rather than merely commented: a summary announces, the work
+  // list does not. If a later change moves the list inside the region to "fix" the same
+  // defect a second time, this is what notices.
+  await expect(actionsStatus.getByTestId("qcms-publish-rejected")).toHaveCount(0);
+
   // Each entry is a link into the builder: activating it puts the author's focus on the
   // rule that caused the refusal, which is what the structured `path` is for.
   await issue(rejected, "RULE_BACKWARD_TARGET").click();
@@ -295,6 +312,18 @@ test("a refused publish lists every issue and each one moves focus (exit criteri
   // Nothing was frozen: the version list is still what it was before the attempt.
   await page.goto(`/forms/${formId}/versions`);
   await expect(page.getByRole("link", { name: "View v2" })).toHaveCount(0);
+
+  // The same shape one screen over, checked while the draft is still broken (#377). A
+  // preview refuses on the same compile as publish, and its work list sat outside its live
+  // region for the same reason - which is why this is fixed once, in one shape, for all
+  // three of the silent outcomes rather than three times by taste.
+  await page.goto(`/forms/${formId}/preview`);
+  await expect(page.getByTestId("qcms-preview-rejected")).toBeVisible({ timeout: 60_000 });
+  const previewStatus = page.getByTestId("qcms-preview-status");
+  await expect(previewStatus).toBeAttached();
+  await expect(previewStatus).toHaveAttribute("aria-live", "polite");
+  await expect(previewStatus).toContainText("Preview unavailable");
+  await expect(previewStatus.getByTestId("qcms-preview-rejected")).toHaveCount(0);
 
   // Leave the draft publishable again for whatever runs next.
   await page.goto(`/forms/${formId}`);
@@ -336,6 +365,21 @@ test("mints, copies, exports and revokes a secure link (exit criterion 1)", asyn
   await expect(minted).toBeVisible({ timeout: 30_000 });
   await expect(minted.getByRole("heading", { name: "2 links minted" })).toBeVisible();
   await expect(minted).toContainText("cannot be shown again");
+
+  // The mint was the one outcome on this screen that announced nothing, because the panel
+  // holding the URLs is a sibling of the live region (#377). Mint failure, revoke success,
+  // revoke failure and the copy note all announced; the thing the operator had just made
+  // did not.
+  const linksStatus = page.getByTestId("qcms-links-status");
+  await expect(linksStatus).toBeAttached();
+  // Polite, decided rather than inherited: see the politeness note in `secure-links.tsx`.
+  // The announcement is a summary, so the unrecoverable value is not what would be missed.
+  await expect(linksStatus).toHaveAttribute("aria-live", "polite");
+  await expect(linksStatus).toContainText("2 secure links minted");
+  // A URL is never spoken from here. A token read aloud cannot be copied, and reading two
+  // of them would bury the one sentence that says the panel is the only chance to.
+  await expect(linksStatus).not.toContainText("/l/");
+  await expect(linksStatus.getByTestId("qcms-minted-links")).toHaveCount(0);
 
   await minted.getByRole("button", { name: "Copy URL" }).first().click();
   await expect(page.getByText("Link copied to the clipboard.")).toBeVisible();
