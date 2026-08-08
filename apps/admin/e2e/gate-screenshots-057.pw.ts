@@ -124,8 +124,10 @@ for (const mode of CAPTURE_MODES) {
 
     // FRAME 6: the error treatment. Clearing a committed label is the only way to reach a
     // blank option under the grid - the pending path abandons a row it cannot name - so
-    // this is the real route to the state, not a contrived one. Reloaded first so the
-    // API's own issue text is what the message line carries.
+    // this is the real route to the state, not a contrived one. No reload: the save is
+    // what produces the frame, because the kernel's rejection comes back on that response
+    // and the message line renders the API's own issue text from it. What this is evidence
+    // of is the error state as a real save rejection produces it, not persistence.
     await fillStable(field(page, "Option 3 label"), "");
     await page.getByRole("button", { name: "Save draft" }).click();
     await expect(page.locator(".qcms-opt-grid-error").first()).toBeVisible();

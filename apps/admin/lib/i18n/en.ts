@@ -266,7 +266,6 @@ export const messages = {
     "An option ID is generated once, when the option is first named, and never changes again. Relabelling and reordering leave it alone, which is what keeps a rule matching the same answer years later (R6).",
   "questions.options.headLabel": "Label",
   "questions.options.headId": "ID",
-  "questions.options.idTitle": "Option ID: fixed when the option is named, never editable",
   "questions.options.idPending": "Pending",
   "questions.options.idPendingTitle":
     "This row has no ID yet. One is generated from the label, once the row is named.",
