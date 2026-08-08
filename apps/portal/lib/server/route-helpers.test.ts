@@ -3,44 +3,55 @@ import { describe, expect, it, vi } from "vitest";
 import { mergeStepValues } from "../step-values";
 
 /**
- * The step-context cookie is validated, not asserted (issue #327).
+ * Both BFF cookies are validated, not asserted (issues #327 and #345).
  *
  * `qcms_step_ctx` carries the no-JS re-render context: the values a respondent
- * just posted and the errors the API refused them with. It is `httpOnly`, which
- * stops the page's own scripts reading it, but it is **unsigned**: a respondent
- * can set it by hand in their own browser, so everything `readStepContext`
- * returns is attacker-influenced input on the way to a render. It used to be
- * `JSON.parse(raw) as Partial<StepContext>` - a cast, which checks nothing.
+ * just posted and the errors the API refused them with. `qcms_receipt` carries
+ * the submit receipt to the completion page. Both are `httpOnly`, which stops the
+ * page's own scripts reading them, but both are **unsigned**: a respondent can set
+ * either by hand in their own browser, so everything these readers return is
+ * attacker-influenced input on the way to a render. Each used to end in a bare
+ * `JSON.parse(raw) as ...` - a cast, which checks nothing.
  *
- * Two properties are asserted here. A cookie this app wrote still round-trips
- * unchanged (the fix must not cost a respondent their re-populated answers), and
- * a cookie of any other shape degrades to `undefined`, which is exactly what an
- * absent cookie already returned. Nothing throws: this runs inside a
- * respondent's page render, where an exception is a blank screen.
+ * Two properties are asserted for each. A cookie this app wrote still round-trips
+ * unchanged (the fix must not cost a respondent their re-populated answers or
+ * their receipt), and a cookie of any other shape degrades to `undefined`, which
+ * is exactly what an absent cookie already returned. Nothing throws: this runs
+ * inside a respondent's page render, where an exception is a blank screen.
  *
  * `next/headers` is mocked because the cookie store only exists inside a Next
  * request.
  */
 
-/** The raw cookie value the mocked store hands back, set per case. */
+/** The raw cookie values the mocked store hands back, set per case. */
 let cookieValue: string | undefined;
+let receiptCookieValue: string | undefined;
 
 vi.mock("next/headers", () => ({
   cookies: () =>
     Promise.resolve({
-      get: (name: string) =>
-        name === "qcms_step_ctx" && cookieValue !== undefined
-          ? { name, value: cookieValue }
-          : undefined,
+      get: (name: string) => {
+        const value = new Map([
+          ["qcms_step_ctx", cookieValue],
+          ["qcms_receipt", receiptCookieValue],
+        ]).get(name);
+        return value === undefined ? undefined : { name, value };
+      },
     }),
 }));
 
-const { readStepContext } = await import("./route-helpers");
+const { readReceiptCookie, readStepContext } = await import("./route-helpers");
 
 /** Point the mocked store at `raw` (or nothing) and read the context back. */
 async function readCookie(raw: string | undefined) {
   cookieValue = raw;
   return readStepContext();
+}
+
+/** Point the mocked store at `raw` (or nothing) and read the receipt back. */
+async function readReceipt(raw: string | undefined) {
+  receiptCookieValue = raw;
+  return readReceiptCookie();
 }
 
 describe("readStepContext", () => {
@@ -155,5 +166,81 @@ describe("readStepContext", () => {
     await expect(
       readCookie(JSON.stringify({ errors: {}, sessionToken: "stolen", admin: true })),
     ).resolves.toEqual({ values: {}, errors: {}, constraints: {} });
+  });
+});
+
+/**
+ * The receipt cookie (issue #345). The positive control runs first on purpose: if
+ * it goes red, validation broke the legitimate path, and every rejection below is
+ * reading a fixture that was never valid to begin with.
+ */
+describe("readReceiptCookie", () => {
+  /** Exactly what the API's `receiptFrom` builds: an ISO instant and a hex hash. */
+  const written = {
+    submittedAt: new Date(Date.UTC(2026, 6, 20)).toISOString(),
+    contentHash: "3b0c".repeat(16),
+  };
+
+  it("round-trips a receipt this app wrote, unchanged (positive control)", async () => {
+    expect(written.submittedAt).toBe("2026-07-20T00:00:00.000Z");
+    await expect(readReceipt(JSON.stringify(written))).resolves.toEqual(written);
+  });
+
+  it("returns undefined when the cookie is absent (the baseline every rejection matches)", async () => {
+    await expect(readReceipt(undefined)).resolves.toBeUndefined();
+  });
+
+  it("rejects JSON that parses but is not a receipt", async () => {
+    // The actual defect: each of these was previously handed to `/done` verbatim
+    // by the cast, because `JSON.parse` is perfectly happy with all of them.
+    for (const raw of [
+      JSON.stringify({ submittedAt: written.submittedAt }),
+      JSON.stringify({ contentHash: written.contentHash }),
+      JSON.stringify({ submittedAt: 1_753_000_000_000, contentHash: written.contentHash }),
+      JSON.stringify({ submittedAt: written.submittedAt, contentHash: ["forged"] }),
+      JSON.stringify({ submittedAt: null, contentHash: null }),
+      "{}",
+      "[]",
+      '"a string"',
+      "42",
+      "true",
+      // `null` is the one that used to be worse than a wrong render: it survived
+      // the cast, passed the page's `=== undefined` guard, and then threw on
+      // `receipt.submittedAt` - a blank screen at the end of a submission.
+      "null",
+    ]) {
+      await expect(readReceipt(raw), raw).resolves.toBeUndefined();
+    }
+  });
+
+  it("rejects a submittedAt that is a string but not an instant", async () => {
+    // `CompletionView` renders it through `new Date(...)`, so this used to reach
+    // the respondent as the literal text "Invalid Date" beside their reference.
+    const forged = { submittedAt: "yesterday", contentHash: written.contentHash };
+    expect(new Date(forged.submittedAt).toString()).toBe("Invalid Date");
+    await expect(readReceipt(JSON.stringify(forged))).resolves.toBeUndefined();
+  });
+
+  it("strips forged extra members instead of forwarding them", async () => {
+    await expect(
+      readReceipt(JSON.stringify({ ...written, sessionToken: "stolen", admin: true })),
+    ).resolves.toEqual(written);
+  });
+
+  it("returns undefined rather than throwing on unparseable JSON", async () => {
+    await expect(readReceipt("not json at all")).resolves.toBeUndefined();
+    await expect(readReceipt("")).resolves.toBeUndefined();
+  });
+
+  it("gives every unusable cookie the one answer an absent cookie gives", async () => {
+    // The behaviour decision, asserted rather than left to fall out of the code:
+    // absent, unparseable and wrong-shape are ONE case at `/done` (the neutral
+    // thank-you without the reference), not three. A distinct "we could not
+    // confirm your receipt" state would be a new third behaviour.
+    const absent = await readReceipt(undefined);
+    const unparseable = await readReceipt("}{");
+    const wrongShape = await readReceipt(JSON.stringify({ submittedAt: 0, contentHash: 0 }));
+    expect(unparseable).toBe(absent);
+    expect(wrongShape).toBe(absent);
   });
 });
