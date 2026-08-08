@@ -40,6 +40,7 @@ import {
   OUTBOX_MAX_ATTEMPTS,
   outbox,
   redeliveryRefusalFor,
+  redactAgedResponseSnippets,
   recordDeliveryFailure,
   webhookDeliveries,
   type DeliveryAttemptRecord,
@@ -101,6 +102,7 @@ interface DeliveryItem {
   latencyMs: number | null;
   requestHeaders: Record<string, string> | null;
   responseSnippet: string | null;
+  responseSnippetRedactedAt: string | null;
 }
 
 /**
@@ -294,6 +296,35 @@ describe("GET /admin/forms/:id/deliveries - scoping, ordering and derived status
     expect(dead.lastError).toBe("http_500");
     expect(dead.lastStatus).toBe(500);
     expect(dead.responseSnippet).toBe("upstream unavailable");
+    // #304: intact bodies read as not-redacted, so a client can tell the two apart.
+    expect(delivered.responseSnippetRedactedAt).toBeNull();
+    expect(dead.responseSnippetRedactedAt).toBeNull();
+  });
+
+  it("reports a redacted response body as redacted rather than as an empty one", async () => {
+    // Issue #304: a consumer echoing the request in a validation error puts the
+    // respondent's answers in `responseSnippet`, so it is removed on erasure and by
+    // the retention sweep. Both leave the field null - the same value it has when no
+    // response arrived or the body was genuinely empty - so the API has to carry the
+    // marker, or an operator screen would report an empty body for a deleted one.
+    const deliveryId = await seedDelivery(FORM_A, new Date("2026-07-21T00:00:00.000Z"));
+    await recordDeliveryFailure(testDb.db, deliveryId, "http_400", new Date(), {
+      ...STORED_ATTEMPT,
+      lastStatus: 400,
+      lastResponseSnippet: '{"error":"invalid","received":{"q_name":"Ada Lovelace"}}',
+    });
+
+    await redactAgedResponseSnippets(testDb.db, new Date("2099-01-01T00:00:00.000Z"));
+
+    const { items } = await listDeliveries(FORM_A);
+    const row = items.find((i) => i.deliveryId === deliveryId)!;
+    expect(row.responseSnippet).toBeNull();
+    expect(row.responseSnippetRedactedAt).not.toBeNull();
+    // Nothing in the payload leaks the removed bytes back out.
+    expect(JSON.stringify(row)).not.toContain("Ada Lovelace");
+    // The value-free record is still there for the audit question.
+    expect(row.lastStatus).toBe(400);
+    expect(row.lastError).toBe("http_400");
   });
 
   it("carries the masked signature through, never an HMAC", async () => {

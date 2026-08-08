@@ -24,6 +24,7 @@ import {
   markDeliveryDelivered,
   markInProgress,
   markSubmitted,
+  recordDeliveryFailure,
   redeliveryRefusalFor,
   SessionNotFoundError,
 } from "./index.js";
@@ -179,14 +180,21 @@ async function deliveryRow(deliveryId: string): Promise<{
   deadLetteredAt: Date | null;
   cancelledAt: Date | null;
   cancelledReason: string | null;
+  lastStatus: number | null;
+  lastResponseSnippet: string | null;
+  lastResponseSnippetRedactedAt: Date | null;
 }> {
   const res = await testDb.client.query<{
     delivered_at: Date | null;
     dead_lettered_at: Date | null;
     cancelled_at: Date | null;
     cancelled_reason: string | null;
+    last_status: number | null;
+    last_response_snippet: string | null;
+    last_response_snippet_redacted_at: Date | null;
   }>(
-    `select delivered_at, dead_lettered_at, cancelled_at, cancelled_reason
+    `select delivered_at, dead_lettered_at, cancelled_at, cancelled_reason,
+            last_status, last_response_snippet, last_response_snippet_redacted_at
        from webhook_deliveries where id = $1`,
     [deliveryId],
   );
@@ -196,6 +204,9 @@ async function deliveryRow(deliveryId: string): Promise<{
     deadLetteredAt: row.dead_lettered_at,
     cancelledAt: row.cancelled_at,
     cancelledReason: row.cancelled_reason,
+    lastStatus: row.last_status,
+    lastResponseSnippet: row.last_response_snippet,
+    lastResponseSnippetRedactedAt: row.last_response_snippet_redacted_at,
   };
 }
 
@@ -331,6 +342,14 @@ describe("eraseSession - transactionality (I11, exit criterion 1)", () => {
     // deletes. A partial commit here would be the worst outcome the change can have:
     // a payload with no answers and no tombstone recording why.
     const queued = await seedQueuedEvent(formId, version, sessionId);
+    // #304: and the snippet redaction, which runs in the same place.
+    await recordDeliveryFailure(testDb.db, queued.deliveryId, "http_400", new Date(), {
+      lastAttemptAt: new Date(),
+      lastStatus: 400,
+      lastLatencyMs: 9,
+      lastRequestHeaders: null,
+      lastResponseSnippet: '{"error":"invalid","received":{"q_text":"second"}}',
+    });
 
     // Induce a real failure *after* the answer delete: a fault trigger that
     // aborts the tombstone insert, which eraseSession performs last.
@@ -366,7 +385,12 @@ describe("eraseSession - transactionality (I11, exit criterion 1)", () => {
     const rolledBack = await outboxRow(queued.outboxId);
     expect(rolledBack.payload["answers"]).toBeDefined();
     expect(rolledBack.payloadRedactedAt).toBeNull();
-    expect((await deliveryRow(queued.deliveryId)).cancelledAt).toBeNull();
+    const rolledBackDelivery = await deliveryRow(queued.deliveryId);
+    expect(rolledBackDelivery.cancelledAt).toBeNull();
+    // #304: the snippet redaction is inside the same transaction, so a failed
+    // erasure leaves the stored body exactly as it was rather than half-removing it.
+    expect(rolledBackDelivery.lastResponseSnippet).toContain("second");
+    expect(rolledBackDelivery.lastResponseSnippetRedactedAt).toBeNull();
   });
 });
 
@@ -502,5 +526,79 @@ describe("the cancelled state closes the transport (059, exit criterion 3)", () 
     expect(await redeliveryRefusalFor(testDb.db, queued.deliveryId)).toBeUndefined();
     await eraseSession(testDb.db, sessionId, "subject_request");
     expect(await redeliveryRefusalFor(testDb.db, queued.deliveryId)).toBe("payloadRedacted");
+  });
+});
+
+/**
+ * Erasure reaches the delivery response snippet (issue #304).
+ *
+ * The gap 059 did not close: 059 redacts `outbox.payload` and cancels undelivered
+ * deliveries, but `webhook_deliveries.last_response_snippet` holds up to 500 bytes of
+ * the *consumer's* response body, and a consumer that echoes the request back in a
+ * validation error puts the respondent's own answers there. That copy is ours, in our
+ * database, and it survived erasure entirely.
+ */
+describe("eraseSession - the stored response snippets (issue #304)", () => {
+  /** The shape a rejecting consumer really sends: the request, quoted back. */
+  const ECHOED = '{"error":"invalid","received":{"q_text":"second","q_num":42}}';
+
+  it("clears the snippet on every delivery of the session, delivered ones included", async () => {
+    const { formId, version } = await seedForm("frm_erase_snippet");
+    const sessionId = SessionId.parse("ses_erase_snippet");
+    await seedSubmittedWithLedger(formId, version, sessionId);
+
+    // A delivered attempt and a failed one. The delivered row matters most: 059
+    // deliberately spares it from cancellation, so if the snippet rode on
+    // cancellation it would still be holding the respondent's answers afterwards.
+    const done = await seedQueuedEvent(formId, version, sessionId);
+    const failed = await seedQueuedEvent(formId, version, sessionId);
+    await markDeliveryDelivered(testDb.db, done.deliveryId, new Date(), {
+      lastAttemptAt: new Date(),
+      lastStatus: 200,
+      lastLatencyMs: 12,
+      lastRequestHeaders: { "x-qcms-signature": "v1=<masked>" },
+      lastResponseSnippet: ECHOED,
+    });
+    await recordDeliveryFailure(testDb.db, failed.deliveryId, "http_400", new Date(), {
+      lastAttemptAt: new Date(),
+      lastStatus: 400,
+      lastLatencyMs: 9,
+      lastRequestHeaders: { "x-qcms-signature": "v1=<masked>" },
+      lastResponseSnippet: ECHOED,
+    });
+
+    // A bystander session on the same form, to prove erasure is whole-session here
+    // too and not a table-wide wipe.
+    const bystanderId = SessionId.parse("ses_erase_snippet_bystander");
+    await seedSubmittedWithLedger(formId, version, bystanderId);
+    const bystander = await seedQueuedEvent(formId, version, bystanderId);
+    await recordDeliveryFailure(testDb.db, bystander.deliveryId, "http_400", new Date(), {
+      lastAttemptAt: new Date(),
+      lastStatus: 400,
+      lastLatencyMs: 9,
+      lastRequestHeaders: { "x-qcms-signature": "v1=<masked>" },
+      lastResponseSnippet: ECHOED,
+    });
+
+    // Pre-condition: the respondent's answers really are in the column.
+    for (const e of [done, failed, bystander]) {
+      expect((await deliveryRow(e.deliveryId)).lastResponseSnippet).toContain("second");
+    }
+
+    await eraseSession(testDb.db, sessionId, "subject_request");
+
+    for (const e of [done, failed]) {
+      const row = await deliveryRow(e.deliveryId);
+      expect(row.lastResponseSnippet).toBeNull();
+      expect(row.lastResponseSnippetRedactedAt).not.toBeNull();
+      // The value-free half of the attempt record stays, so the dashboard can still
+      // answer "was this person's data sent anywhere, and did it arrive".
+      expect(row.lastStatus).not.toBeNull();
+    }
+    expect((await deliveryRow(done.deliveryId)).deliveredAt).not.toBeNull();
+
+    const untouched = await deliveryRow(bystander.deliveryId);
+    expect(untouched.lastResponseSnippet).toContain("second");
+    expect(untouched.lastResponseSnippetRedactedAt).toBeNull();
   });
 });

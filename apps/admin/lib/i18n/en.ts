@@ -1108,6 +1108,11 @@ export const messages = {
   "ops.deliveries.responseBody": "Response body (stored prefix)",
   "ops.deliveries.noResponse": "No response arrived: {error}",
   "ops.deliveries.emptyBody": "The response body was empty.",
+  // Cause-free on purpose: the body is removed by erasure *and* by the retention
+  // sweep, and a sentence naming one would be false whenever the other did it. Where
+  // the cause matters the row already carries it (a cancelled delivery states its
+  // reason). "Removed" rather than "expired" for the same reason.
+  "ops.deliveries.redactedBody": "The stored response body was removed on {when}.",
   "ops.deliveries.lastError": "Last error",
   "ops.deliveries.empty": "Nothing has been delivered for this form yet.",
   "ops.deliveries.loadFailed": "The deliveries could not be loaded. {message}",

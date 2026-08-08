@@ -35,17 +35,47 @@ transaction that:
    those events that is neither delivered nor already cancelled gets
    `cancelled_at` and `cancelled_reason = 'session_erased'`. It will never be
    attempted again.
-6. **Writes a tombstone** - one `erasure_tombstones` row
+6. **Removes the stored response snippets** - every `webhook_deliveries` row for
+   those events loses `last_response_snippet` and is stamped
+   `last_response_snippet_redacted_at`. See
+   [The webhook response snippet](#the-webhook-response-snippet) for why that
+   column can hold respondent content at all.
+7. **Writes a tombstone** - one `erasure_tombstones` row
    `(session_id, form_id, form_version, erased_at, reason)`.
 
 It is **idempotent**: erasing an already-erased session is a no-op that returns
 the existing tombstone. Erasing a session that never existed throws a typed
 `SessionNotFoundError` (`code: "SESSION_NOT_FOUND"`).
 
-All six steps are one transaction: an induced failure at any point (e.g. a
+All seven steps are one transaction: an induced failure at any point (e.g. a
 constraint or trigger error on the tombstone insert, which runs last) rolls the
 deletes, the redaction and the cancellations back together - the ledger stays
 intact, the payloads still hold their answers, and no tombstone is written.
+
+### The webhook response snippet
+
+`webhook_deliveries.last_response_snippet` keeps up to 500 bytes of the
+**consumer's** response body for each delivery attempt, so an operator can see why
+a webhook is failing. QCMS never puts respondent data there deliberately - but a
+consumer that rejects a malformed request commonly quotes the request back in its
+error, and the request is the respondent's answers. So the column can end up
+holding somebody's answers without QCMS ever choosing to write them.
+
+That makes it the one column on the delivery row that erasure has to reach, and
+step 6 above is that reach. Two properties are worth stating explicitly:
+
+- **Delivered rows too**, unlike the cancellation in step 5. The two answer
+  different questions. Cancellation is a statement about what will happen next, and
+  pretending a sent event was not sent would be a fiction; the snippet is a
+  statement about what we still hold, and a successful `200` response can echo the
+  request just as a rejected `400` can.
+- **The rest of the attempt record stays.** `last_status`, `last_latency_ms`,
+  `last_error`, the (already signature-masked) request headers and every timestamp
+  are structurally value-free, so an operator can still answer "was this person's
+  data sent anywhere, and did it arrive". Only the free-text body goes.
+
+The column also ages out for **everybody**, erasure request or not - see
+[Retention of the response snippet](#retention-of-the-response-snippet).
 
 ### Why the cancelled state is its own column
 
@@ -92,6 +122,52 @@ are structural (`session_id`, `form_id`, `form_version`, `access_mode`,
 If you extend the `sessions` table with respondent-identifying columns, you must
 extend the scrub in `eraseSession` to null them; otherwise they will survive
 erasure.
+
+## Retention of the response snippet
+
+Erasure is on request. `last_response_snippet` also has a **time-based** default,
+because a column that can hold a respondent's own words should not be kept forever
+merely because nobody filed a request.
+
+`redactAgedResponseSnippets` removes any stored snippet whose attempt is older than
+`QCMS_DELIVERY_SNIPPET_TTL_MS` (default **7 days**) and stamps
+`last_response_snippet_redacted_at`. It runs on the API's existing
+**retention-sweep scheduler** (`QCMS_RETENTION_SWEEP_INTERVAL_MS`, default hourly)
+rather than a scheduler of its own.
+
+**Why seven days, and why a window at all.** The snippet exists to answer one
+operator question: "why did this attempt fail, so I can fix the consumer and
+redeliver it". That question has a lifetime. A delivery exhausts its ten retries in
+a little over a day, so by day seven the row has either been fixed and redelivered
+(which clears the whole attempt record anyway) or been abandoned. After that the
+bytes answer nothing anybody is asking, and what remains is only the risk that they
+contain an echoed answer. The window is the moment the data's justification expires,
+not a number picked for feeling about right.
+
+**`0` is a supported setting.** An operator running strict data minimisation, who
+would rather lose the diagnostic than hold a consumer's response body at all, sets
+`QCMS_DELIVERY_SNIPPET_TTL_MS=0` and the next sweep removes every snippet it finds.
+The rest of the attempt record is unaffected at any setting.
+
+**No backfill migration is needed, and none is missing.** The sweep's predicate is
+`last_attempt_at`, a column every existing row already has, so a row written long
+before this control existed is *more* eligible than a fresh one: the first sweep
+after an upgrade covers the entire back catalogue. A retention control that governed
+only rows created after it shipped would have left exactly the data this is about.
+
+**The marker is deliberately cause-free.** `last_response_snippet_redacted_at`
+records *that* a body was removed, never *why*, because it has two producers -
+erasure and this sweep - and a marker naming one would be a false statement the
+moment the other wrote it. Where the cause matters the row already carries it: an
+erased session's undelivered deliveries hold `cancelled_reason = 'session_erased'`
+and their outbox parent holds `payload_redacted_at`. The admin delivery dashboard
+reads the marker and says the body was removed, rather than reporting an empty body
+for one that was deleted.
+
+It is **not** a redelivery refusal. `redeliveryRefusalFor` still reads exactly
+`cancelled_at` and `payload_redacted_at`, so a delivery whose snippet merely aged out
+is still redeliverable and still gets the accurate `DELIVERY_SESSION_ERASED` answer
+only when erasure is genuinely the reason.
 
 ## Reporting exclusion
 

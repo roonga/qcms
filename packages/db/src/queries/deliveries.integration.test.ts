@@ -27,6 +27,7 @@ import {
   listDeadLetterDeliveries,
   listRecentDeliveries,
   markDeliveryDelivered,
+  redactAgedResponseSnippets,
   OUTBOX_MAX_ATTEMPTS,
   recordDeliveryFailure,
   resetDeliveryForRedelivery,
@@ -466,5 +467,129 @@ describe("delivery claim concurrency (live, pooled connections)", () => {
     const overlap = claimedA.filter((id) => claimedB.includes(id));
     expect(overlap).toEqual([]); // no delivery claimed by both
     expect(new Set([...claimedA, ...claimedB])).toEqual(idSet); // all six claimed once
+  });
+});
+
+/**
+ * Response-snippet retention (issue #304).
+ *
+ * `last_response_snippet` is the one column on this table that can hold a
+ * respondent's own words: it is a consumer's response body kept verbatim, and a
+ * consumer that echoes the request in a validation error puts answers there without
+ * QCMS ever choosing to write them. These tests assert the observable effect - the
+ * bytes are gone, the value-free record is not - rather than that a sweep exists.
+ */
+describe("redactAgedResponseSnippets (issue #304)", () => {
+  /** Seed one delivery carrying an attempt whose snippet echoes the request. */
+  async function seedAttempt(
+    attemptAt: Date,
+    snippet: string | null = '{"error":"invalid","received":{"q_name":"Ada Lovelace"}}',
+  ): Promise<string> {
+    const { outboxId, webhookId } = await seedEventWithWebhook();
+    await insertDelivery(testDb.db, { outboxId, webhookId });
+    const deliveryId = await deliveryIdFor(outboxId, webhookId);
+    await recordDeliveryFailure(
+      testDb.db,
+      deliveryId,
+      "http_400",
+      attemptAt,
+      attemptRecord({ lastAttemptAt: attemptAt, lastStatus: 400, lastResponseSnippet: snippet }),
+    );
+    return deliveryId;
+  }
+
+  it("removes an aged snippet, marks it, and keeps the value-free attempt record", async () => {
+    const attemptAt = new Date("2026-07-01T00:00:00.000Z");
+    const deliveryId = await seedAttempt(attemptAt);
+
+    const before = await readDelivery(deliveryId);
+    expect(before?.lastResponseSnippet).toContain("Ada Lovelace");
+    expect(before?.lastResponseSnippetRedactedAt).toBeNull();
+
+    const result = await redactAgedResponseSnippets(
+      testDb.db,
+      new Date("2026-07-08T00:00:00.000Z"),
+    );
+
+    expect(result.redactedCount).toBeGreaterThanOrEqual(1);
+    const after = await readDelivery(deliveryId);
+    // The bytes are gone...
+    expect(after?.lastResponseSnippet).toBeNull();
+    // ...and the row says so, rather than reading as "the body was empty".
+    expect(after?.lastResponseSnippetRedactedAt).not.toBeNull();
+    // Everything an operator's audit question needs is value-free and survives.
+    expect(after?.lastStatus).toBe(400);
+    expect(after?.lastError).toBe("http_400");
+    expect(after?.lastLatencyMs).toBe(42);
+    expect(after?.lastRequestHeaders).toEqual(attemptRecord().lastRequestHeaders);
+    expect(after?.lastAttemptAt?.toISOString()).toBe(attemptAt.toISOString());
+  });
+
+  it("leaves a snippet inside the retention window alone", async () => {
+    const deliveryId = await seedAttempt(new Date("2026-07-07T12:00:00.000Z"));
+
+    await redactAgedResponseSnippets(testDb.db, new Date("2026-07-07T00:00:00.000Z"));
+
+    const row = await readDelivery(deliveryId);
+    expect(row?.lastResponseSnippet).toContain("Ada Lovelace");
+    expect(row?.lastResponseSnippetRedactedAt).toBeNull();
+  });
+
+  it("covers rows that predate the control - no backfill migration needed", async () => {
+    // The row a deployment already holds when it upgrades: an attempt from long
+    // before this sweep existed. The predicate is over `last_attempt_at`, which
+    // every such row already has, so the first sweep after the upgrade reaches the
+    // whole back catalogue. That is the data the issue is about; a control that only
+    // governed rows written after it shipped would have left exactly it behind.
+    const ancient = await seedAttempt(new Date("2020-01-01T00:00:00.000Z"));
+    const recent = await seedAttempt(new Date("2026-07-07T23:00:00.000Z"));
+
+    await redactAgedResponseSnippets(testDb.db, new Date("2026-07-07T00:00:00.000Z"));
+
+    expect((await readDelivery(ancient))?.lastResponseSnippet).toBeNull();
+    expect((await readDelivery(ancient))?.lastResponseSnippetRedactedAt).not.toBeNull();
+    expect((await readDelivery(recent))?.lastResponseSnippet).toContain("Ada Lovelace");
+  });
+
+  it("does not mark a row that never held a snippet", async () => {
+    // A timeout records an attempt with no body at all. Marking it would claim a
+    // removal that never happened, and put "the body was removed" on a screen where
+    // "no response arrived" is the truth.
+    const deliveryId = await seedAttempt(new Date("2026-07-01T00:00:00.000Z"), null);
+
+    await redactAgedResponseSnippets(testDb.db, new Date("2026-07-08T00:00:00.000Z"));
+
+    const row = await readDelivery(deliveryId);
+    expect(row?.lastResponseSnippet).toBeNull();
+    expect(row?.lastResponseSnippetRedactedAt).toBeNull();
+  });
+
+  it("is idempotent: a second sweep finds nothing and does not move the marker", async () => {
+    const deliveryId = await seedAttempt(new Date("2026-07-01T00:00:00.000Z"));
+    const horizon = new Date("2026-07-08T00:00:00.000Z");
+
+    await redactAgedResponseSnippets(testDb.db, horizon);
+    const first = (await readDelivery(deliveryId))?.lastResponseSnippetRedactedAt;
+
+    const second = await redactAgedResponseSnippets(testDb.db, horizon);
+
+    expect(second.redactedCount).toBe(0);
+    expect((await readDelivery(deliveryId))?.lastResponseSnippetRedactedAt?.toISOString()).toBe(
+      first?.toISOString(),
+    );
+  });
+
+  it("a redelivery reset clears the marker along with the rest of the attempt record", async () => {
+    const deliveryId = await seedAttempt(new Date("2026-07-01T00:00:00.000Z"));
+    await redactAgedResponseSnippets(testDb.db, new Date("2026-07-08T00:00:00.000Z"));
+
+    await resetDeliveryForRedelivery(testDb.db, deliveryId);
+
+    // The row has made no attempt since the reset, so "the last attempt's body was
+    // removed" would be a statement about an attempt this row no longer records.
+    const row = await readDelivery(deliveryId);
+    expect(row?.lastResponseSnippet).toBeNull();
+    expect(row?.lastResponseSnippetRedactedAt).toBeNull();
+    expect(row?.lastStatus).toBeNull();
   });
 });

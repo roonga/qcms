@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNotNull, isNull, lte } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, lt, lte, sql } from "drizzle-orm";
 
 import type { FormId } from "@qcms/core";
 
@@ -14,6 +14,93 @@ export type DeliveryRow = typeof webhookDeliveries.$inferSelect;
  * be attempted, and the admin maps it to an operator-facing sentence.
  */
 export const DELIVERY_CANCELLED_SESSION_ERASED = "session_erased";
+
+/**
+ * How long a stored response snippet is kept by default: **7 days** from the attempt
+ * that produced it (issue #304).
+ *
+ * The window is derived from what the snippet is *for*, not picked as a round number.
+ * `last_response_snippet` exists to answer one operator question - "why did this
+ * attempt fail, so I can fix the consumer and redeliver" - and that question has a
+ * lifetime. A delivery exhausts its retries in a little over a day
+ * (`OUTBOX_BACKOFF_*`, 10 attempts, 6h cap), so by day 7 the row has long since
+ * either been fixed and redelivered (which clears the snippet anyway, see
+ * {@link resetDeliveryForRedelivery}) or been abandoned. After that the bytes answer
+ * no question anybody is asking and are pure liability, because they are a
+ * consumer's response body verbatim and consumers commonly echo the request in a
+ * validation error - which is how respondent content lands in this column without
+ * QCMS ever choosing to write it.
+ *
+ * **What ageing out costs is deliberately small.** `last_status`, `last_latency_ms`,
+ * `last_error` and the masked request headers are structurally value-free and are
+ * kept forever, so the audit answer ("this delivery failed with a 400 at this time,
+ * ten times") survives in full. Only the one free-text column that can carry
+ * somebody's answers goes.
+ */
+export const DEFAULT_RESPONSE_SNIPPET_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * The column set that removes a stored response snippet and records that it was
+ * removed. Shared by the two producers - the retention sweep here and erasure in
+ * `erasure.ts` - so the two can never disagree about what "redacted" writes.
+ *
+ * Not re-exported from the package: it is an internal spelling, and the public
+ * surface is the two operations, not the columns they set.
+ */
+export function responseSnippetRedactionColumns() {
+  return {
+    lastResponseSnippet: null,
+    lastResponseSnippetRedactedAt: sql`now()`,
+  };
+}
+
+/** Outcome of {@link redactAgedResponseSnippets}. */
+export interface SnippetRedactionResult {
+  /** How many delivery rows had a snippet removed this run. */
+  readonly redactedCount: number;
+}
+
+/**
+ * Remove every stored response snippet whose attempt is older than `olderThan`
+ * (issue #304). The time-based half of the snippet's retention story; erasure is the
+ * on-request half.
+ *
+ * Run by the API's existing retention-sweep scheduler rather than by one of its own.
+ * The scheduling is the API's job (the same split `sweepExpiredSessions` uses); what
+ * lives here is which rows and where the boundary is.
+ *
+ * ## Why this needs no backfill migration
+ *
+ * The predicate is over `last_attempt_at`, an existing column on every row, so a row
+ * written years before this control existed is *more* eligible than one written
+ * today. The first sweep after an upgrade therefore covers the entire back catalogue,
+ * which is precisely the data the issue is about. A control that only governed rows
+ * created after it shipped would have left it.
+ *
+ * Only rows that actually hold a snippet are touched, so the marker records a real
+ * removal and never appears on a row whose body was empty or absent all along.
+ * `last_attempt_at` and `last_response_snippet` are written together by
+ * `attemptColumns`, so a row with a snippet always has an attempt time to age from.
+ * Idempotent: a second run finds nothing left with a snippet in that window.
+ *
+ * Boundary: strictly-before `olderThan`, matching `purgeExpired`.
+ */
+export async function redactAgedResponseSnippets(
+  exec: Executor,
+  olderThan: Date,
+): Promise<SnippetRedactionResult> {
+  const rows = await exec
+    .update(webhookDeliveries)
+    .set(responseSnippetRedactionColumns())
+    .where(
+      and(
+        isNotNull(webhookDeliveries.lastResponseSnippet),
+        lt(webhookDeliveries.lastAttemptAt, olderThan),
+      ),
+    )
+    .returning({ id: webhookDeliveries.id });
+  return { redactedCount: rows.length };
+}
 
 /**
  * One claimed, due delivery joined to everything the deliverer needs to POST it:
@@ -85,6 +172,11 @@ export interface DeliveryView extends DeadLetterDelivery {
   readonly lastLatencyMs: number | null;
   readonly lastRequestHeaders: Record<string, string> | null;
   readonly lastResponseSnippet: string | null;
+  /**
+   * Set when the stored snippet was removed by erasure or by the retention sweep,
+   * so the dashboard can say that rather than reporting an empty body (#304).
+   */
+  readonly lastResponseSnippetRedactedAt: Date | null;
 }
 
 /**
@@ -322,6 +414,14 @@ export async function resetDeliveryForRedelivery(
       lastLatencyMs: null,
       lastRequestHeaders: null,
       lastResponseSnippet: null,
+      // Including the redaction marker (#304), for the same reason as the rest: a
+      // reset row has made no attempt since, so "the body of the last attempt was
+      // removed" is a statement about an attempt that no longer exists on this row.
+      // Leaving it set would put the contradiction back that this reset exists to
+      // avoid. Erasure does not lose its guarantee here - a cancelled row or a
+      // redacted payload is refused a reset upstream and filtered out of the claim
+      // regardless (see `redeliveryRefusalFor` and `claimDueDeliveries`).
+      lastResponseSnippetRedactedAt: null,
     })
     .where(eq(webhookDeliveries.id, id))
     .returning();
@@ -410,6 +510,7 @@ export async function listRecentDeliveries(
       lastLatencyMs: webhookDeliveries.lastLatencyMs,
       lastRequestHeaders: webhookDeliveries.lastRequestHeaders,
       lastResponseSnippet: webhookDeliveries.lastResponseSnippet,
+      lastResponseSnippetRedactedAt: webhookDeliveries.lastResponseSnippetRedactedAt,
       cancelledAt: webhookDeliveries.cancelledAt,
       cancelledReason: webhookDeliveries.cancelledReason,
     })

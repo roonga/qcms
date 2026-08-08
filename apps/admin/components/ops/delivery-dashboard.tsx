@@ -103,6 +103,29 @@ export function DeliveryDashboard({
  * `aria-expanded`/`aria-controls`, which is what makes it a disclosure rather than a
  * div that happens to toggle.
  */
+/**
+ * What to show in the response-body panel, which is three different facts wearing the
+ * same null (issue #304).
+ *
+ * `responseSnippet` is null when no response arrived, when the consumer answered with
+ * an empty body, **and** when QCMS removed what it answered with - on erasure or when
+ * the retention sweep aged it out, because that body is a consumer's bytes verbatim
+ * and consumers commonly echo the request in a validation error. The removal case is
+ * checked first and reads from its own marker, so the screen never tells an operator
+ * the body was empty when in fact it was deleted.
+ */
+function responseBodyText(row: DeliveryItem): string {
+  if (row.responseSnippetRedactedAt !== null) {
+    return t("ops.deliveries.redactedBody", {
+      when: formatDateTime(row.responseSnippetRedactedAt, t("ops.common.none")),
+    });
+  }
+  if (row.responseSnippet === null || row.responseSnippet === "") {
+    return t("ops.deliveries.emptyBody");
+  }
+  return row.responseSnippet;
+}
+
 function DeliveryRows({
   row,
   isOpen,
@@ -210,9 +233,7 @@ function DeliveryRows({
                         aria-label={t("ops.deliveries.responseBody")}
                         data-testid="qcms-delivery-response-body"
                       >
-                        {row.responseSnippet === null || row.responseSnippet === ""
-                          ? t("ops.deliveries.emptyBody")
-                          : row.responseSnippet}
+                        {responseBodyText(row)}
                       </pre>
                     </>
                   )}

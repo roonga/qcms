@@ -161,7 +161,8 @@ and what came back" and none of that is derivable from the lifecycle timestamps:
 | `last_status` | The HTTP status that came back, or `NULL` when no response ever arrived (timeout, network error). |
 | `last_latency_ms` | How long the attempt took, measured on the monotonic clock. |
 | `last_request_headers` | The header map **as sent**, with `X-QCMS-Signature` already replaced by `v1=<masked>`. |
-| `last_response_snippet` | A bounded prefix (500 characters) of the consumer's response body. |
+| `last_response_snippet` | A bounded prefix (500 characters) of the consumer's response body. Removed on erasure and aged out by retention - see below. |
+| `last_response_snippet_redacted_at` | When that prefix was removed, and `NULL` while it is intact. |
 
 Two properties are load-bearing. The **signature is masked before storage**, not
 before rendering, so the HMAC is absent from the database entirely and no later
@@ -177,6 +178,27 @@ to describe. `last_error` still names which.
 Last attempt, not every attempt: a per-attempt history table is unbounded growth for a
 screen whose question is "why is this one stuck", and `attempts` + `last_error`
 already carry the shape of the history. A full attempt log is a Phase-4 refinement.
+
+#### The response snippet is the one column that can hold respondent content
+
+Everything else in the table above is structurally value-free. `last_response_snippet`
+is not: it is a **consumer's** bytes kept verbatim, and a consumer that rejects a
+malformed request commonly quotes the request back in its error - so a respondent's
+answers can land in the column without QCMS ever choosing to write them. It therefore
+has a retention story the other four do not need:
+
+- **Erasure removes it** for the session's deliveries, delivered rows included, in the
+  same transaction as the rest of the erasure.
+- **The retention sweep ages it out** for everyone else, once the attempt is older than
+  `QCMS_DELIVERY_SNIPPET_TTL_MS` (default 7 days, `0` to remove at the next sweep). By
+  then the delivery has long exhausted its retries, so the diagnostic the snippet
+  exists for has no reader left.
+
+Both stamp `last_response_snippet_redacted_at` and neither touches the rest of the
+record, so "this delivery failed with a 400, ten times, at these instants" is still
+answerable forever. The dashboard reads the marker and says the body was removed,
+rather than reporting an empty body for one that was deleted. Full rationale and the
+operator knobs: `docs/erasure.md`.
 
 ### At-least-once - consumers must be idempotent
 

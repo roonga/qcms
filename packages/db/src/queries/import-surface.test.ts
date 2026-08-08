@@ -114,6 +114,11 @@ describe("query helper import surface", () => {
     // tombstone lookup): the same cancelled/redacted state `claimDueDeliveries`
     // filters on, so the handler's refusal and the scheduler's filter cannot drift.
     "redeliveryRefusalFor",
+    // The time-based half of the response-snippet retention story (#304): the one
+    // delivery column that can hold a respondent's own words, aged out by the
+    // existing retention-sweep scheduler. Erasure is the on-request half and runs
+    // inside `eraseSession`, so it has no separate entry here.
+    "redactAgedResponseSnippets",
     "resetDeliveryForRedelivery",
     // admin identity reads (task 031) - reads only. better-auth owns every write
     // to the auth tables, so no helper here creates, refreshes or deletes a
