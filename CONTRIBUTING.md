@@ -79,8 +79,9 @@ use `pnpm devcontainer rebuild` after editing `devcontainer.json`.
 
 ### Security overrides (`pnpm.overrides`)
 
-Transitive advisories that a parent's pinned range blocks are patched with **targeted** `pnpm.overrides` entries in the root `package.json`, not by waiting on Dependabot (its `npm_and_yarn` updater fails on multi-range advisories in a pnpm monorepo - issue #47). Rules for adding one:
+Transitive advisories that a parent's pinned range blocks are patched with **targeted** overrides in `pnpm-workspace.yaml`, not by waiting on Dependabot (its `npm_and_yarn` updater fails on multi-range advisories in a pnpm monorepo - issue #47). pnpm 11 reads `overrides` **only** from `pnpm-workspace.yaml`; a `pnpm.overrides` block in the root `package.json` is silently ignored (issue #383). Rules for adding one:
 
+- **Establish that an override is needed at all, by refreshing the lockfile first.** Dependabot reports `security_update_not_possible` whenever *it* cannot construct the update, which includes the case where the parent's declared range already admits the patched version and only the lockfile is behind. `pnpm update -r --depth Infinity <package>` followed by `pnpm why -r <package>` settles which case you are in. An override added for the stale-lockfile case fixes nothing that a refresh would not, and it has no reachable removal condition (issue #332).
 - **Scope it to the vulnerable resolution** (`"minimatch@9": "^10.2.5"`), never a bare package name, unless every consumer in the tree is already on that major. A blanket override silently forces future consumers of an older major onto an incompatible API.
 - **Verify the API contract by hand before trusting the install.** `pnpm install` succeeding proves nothing about a major-crossing override: read how the dependents actually import the package (`require(...)` default vs named) and check the new version still satisfies it.
 - **Prove it with the gates that exercise the affected path**, not just `pnpm audit`: postcss means a real portal build plus the Playwright suite; the testcontainers chain means a forced `turbo run test --force`; drizzle-kit means `drizzle-kit check`.
