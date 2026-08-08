@@ -49,9 +49,10 @@
 	# https, even though this hop is plain HTTP on a private bridge network.
 	#
 	# X-Forwarded-For is set, not appended, and that distinction is the control.
-	# Caddy appends by default, and the API's rate limiter takes the FIRST comma
-	# separated entry, so an appended header lets a caller pick its own limiter
-	# bucket by sending an X-Forwarded-For of its choosing. `{remote_host}` is the
+	# Caddy appends by default, and the app reads its trusted-hop count of entries
+	# from the RIGHT of the chain (QCMS_PORTAL_TRUSTED_PROXY_HOPS, default 1), so an
+	# appended header at one hop would leave the entry it reads as one the caller
+	# wrote, and a caller would pick its own limiter bucket. `{remote_host}` is the
 	# address of the peer Caddy is actually talking to, which is the only one the
 	# edge can vouch for. There is no `trusted_proxies` here because there is no
 	# proxy in front of this one in the documented topology; put one in front and
@@ -64,6 +65,11 @@
 
 {$QCMS_ADMIN_DOMAIN} {
 	import qcms_edge
+	# The same two lines for the same two reasons, one hostname over. The control
+	# they feed here is better-auth's per-IP sign-in throttle (SEC-1), which keys on
+	# the address the admin resolves with QCMS_ADMIN_TRUSTED_PROXY_HOPS: change one
+	# site block's forwarding and you must change that count to match, or sign-in
+	# backoff becomes forgeable (issue #374).
 	reverse_proxy admin:3000 {
 		header_up X-Forwarded-Proto https
 		header_up X-Forwarded-For {remote_host}

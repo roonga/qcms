@@ -132,6 +132,10 @@ services:
       # on one origin. If the two disagreed, the browser would keep one family and drop
       # the other, and enroll would redirect to sign-in which redirects back to enroll.
       QCMS_ADMIN_SECURE_COOKIES: ${QCMS_ADMIN_SECURE_COOKIES:-}
+      # The portal's knob has an admin twin because the two apps are two hostnames and
+      # an operator may put a CDN in front of one only. Both shipped ingress recipes
+      # front this app the way they front the portal, so 1 is right for both by default.
+      QCMS_ADMIN_TRUSTED_PROXY_HOPS: ${QCMS_ADMIN_TRUSTED_PROXY_HOPS:-1}
     depends_on:
       api:
         condition: service_healthy

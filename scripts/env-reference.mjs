@@ -626,6 +626,14 @@ export const ENV_REFERENCE = [
     description: "Must match the API's value; it decides whether enrollment can be skipped.",
   },
   {
+    name: "QCMS_ADMIN_TRUSTED_PROXY_HOPS",
+    process: "admin",
+    requirement: "optional",
+    fallback: "1",
+    description:
+      "How many proxies you run between the internet and this app. The address better-auth's per-IP sign-in throttle (SEC-1) keys on is the entry that many places from the **right** of the inbound `X-Forwarded-For`, so entries a client wrote itself are never reached. `1` is correct for both recipes in `docs/deploy-ingress.md`, which front this app exactly as they front the portal. **Setting it higher than the number of proxies that actually exist makes sign-in throttling bypassable** (the resolver reads into client-supplied text, and an attacker rotating the header gets a fresh backoff allowance every attempt); setting it lower is safe but coarse (admins get bucketed by a proxy's egress address); `0` trusts no forwarded header and puts every sign-in attempt in one shared bucket. Separate from `QCMS_PORTAL_TRUSTED_PROXY_HOPS` because the two apps are two hostnames and may sit behind different ingresses - set both, and set them to the same value unless one of them has an extra proxy in front of it. A non-numeric or out-of-range value is refused rather than defaulted.",
+  },
+  {
     name: "QCMS_ADMIN_SESSION_MAX_AGE_MS",
     process: "admin",
     requirement: "optional",
