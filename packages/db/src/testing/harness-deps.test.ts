@@ -43,7 +43,29 @@ const TESTING_DIR = new URL("./", import.meta.url);
  */
 const SUBPATH_SOURCES = ["./harness.ts", "./docker-auth-config.ts"] as const;
 
-/** Every module specifier in `module`: `from "x"`, the side-effect `import "x"`, and `import("x")`. */
+/**
+ * Every module specifier in `module`: `from "x"`, the side-effect `import "x"`,
+ * and `import("x")`.
+ *
+ * Deliberately a regex rather than an AST walk, and these are its limits, written
+ * down because an unstated limitation is how this file's own defect class starts:
+ *
+ * - `require("x")` and `import x = require("y")` are not recognized. That is safe
+ *   only because `@qcms/db` is `"type": "module"` and neither form appears in the
+ *   walked sources; a CommonJS source added under `src/testing` would slip past.
+ * - Comment stripping is textual, so a `//` inside a string literal would truncate
+ *   the rest of that line. No string in the walked files contains one, and the
+ *   formatter gives every import its own line ahead of other statements, so no
+ *   specifier can sit behind one.
+ * - A string literal containing `from "x"` would be read as a real import. That
+ *   direction fails loud (an undeclared package in the report) rather than
+ *   silently, so it costs a reader a minute, not a missed regression.
+ *
+ * The trade is deliberate: a guard test earns its keep by being obviously correct
+ * at a glance. If a walked source ever stops being plain ESM, swap this for a
+ * `ts.createSourceFile` walk - `typescript` is already a workspace devDependency,
+ * so that costs no new dependency, only the complexity this comment buys out.
+ */
 function specifiers(module: URL): string[] {
   const text = readFileSync(fileURLToPath(module), "utf8")
     // Comments quote import statements (this package's own docs do), so strip
