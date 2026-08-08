@@ -153,11 +153,22 @@ export function assertSecureCookiesConfigured(): void {
   }
   if (isLoopbackHost(host)) return;
 
+  // Report the value {@link secureCookies} actually compared, not only the one
+  // spelling it recognises as false (issue #409). Branching on `raw === "false"`
+  // alone told an operator who had written `QCMS_SECURE_COOKIES=off` that the
+  // variable was "unset" - while they were looking at the line that sets it - and the
+  // whole job of this line is to say which variable to check. Quoted verbatim and
+  // untrimmed on purpose: this reader compares the raw value, so `" true"` with a
+  // stray space is exactly the case where seeing what was read is the answer.
+  //
+  // This changes only what the message says, never what the reader accepts. Whether
+  // the portal should recognise `off`/`0`/`no` the way the admin's `boolEnv` does is
+  // issue #401, and that is not decided here.
   const raw = process.env.QCMS_SECURE_COOKIES;
   const observed =
-    raw === "false"
-      ? 'QCMS_SECURE_COOKIES is set to "false"'
-      : 'QCMS_SECURE_COOKIES is unset and NODE_ENV is not "production"';
+    raw === undefined || raw === ""
+      ? 'QCMS_SECURE_COOKIES is unset and NODE_ENV is not "production"'
+      : `QCMS_SECURE_COOKIES is set to "${raw}"`;
 
   throw new Error(
     [
