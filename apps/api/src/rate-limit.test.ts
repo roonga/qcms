@@ -76,6 +76,45 @@ describe("InMemoryRateLimitStore key-space bound", () => {
     expect(store.size).toBe(100);
   });
 
+  /**
+   * The bound has to survive its own constructor.
+   *
+   * The first cut normalized with `Math.max(1, Math.trunc(maxKeys))`, which
+   * leaves `NaN` as `NaN` and `Infinity` as `Infinity`. Every comparison against
+   * either is false, so `while (size >= maxKeys)` never ran and the store went
+   * back to being the unbounded `Map` this class exists to not be, while still
+   * answering `capacity`. Measured on that shape: `NaN` retained all 5,000
+   * distinct keys and reported `capacity` `NaN`; `Infinity` retained all 300 and
+   * reported `Infinity`. The other bad values were harmless but equally silent
+   * (`-Infinity`, `0` and `-5` all became 1; `64.7` became 64), so none of them
+   * is coerced now either. Each case below throws instead, and every one of them
+   * constructs successfully on the pre-fix shape.
+   */
+  it.each([
+    ["NaN", Number.NaN],
+    ["Infinity", Number.POSITIVE_INFINITY],
+    ["-Infinity", Number.NEGATIVE_INFINITY],
+    ["zero", 0],
+    ["a negative", -5],
+    ["a fraction", 64.7],
+  ])("refuses to build a store for %s rather than coercing the capacity", (_label, maxKeys) => {
+    const { clock } = mutableClock();
+    expect(() => new InMemoryRateLimitStore(clock, maxKeys)).toThrow(RangeError);
+    expect(() => new InMemoryRateLimitStore(clock, maxKeys)).toThrow(/positive integer/);
+  });
+
+  it("accepts the capacities that are actually usable, unchanged", async () => {
+    const { clock } = mutableClock();
+    // The smallest legal capacity, and one reported back exactly as passed.
+    expect(new InMemoryRateLimitStore(clock, 1).capacity).toBe(1);
+    expect(new InMemoryRateLimitStore(clock, 250_000).capacity).toBe(250_000);
+    // The default is what a caller that passes only a clock gets.
+    const store = new InMemoryRateLimitStore(clock);
+    expect(store.capacity).toBe(100_000);
+    await store.hit("k", 1000);
+    expect(store.size).toBe(1);
+  });
+
   it("evicts cold keys before the bucket that is actively limiting someone", async () => {
     const { clock } = mutableClock();
     const store = new InMemoryRateLimitStore(clock, 4);

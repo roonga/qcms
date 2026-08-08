@@ -118,12 +118,17 @@ multi-instance deployment swaps in a Redis-backed implementation of
 `RateLimitStore`; that is an **adopter swap, not a dependency here**.
 
 The in-memory store holds at most `maxKeys` entries (default 100,000, a
-constructor argument). It sweeps expired buckets as it goes and evicts the least
-recently hit entry when full, so its heap is bounded no matter how many distinct
-keys arrive (issue #376). Two things follow for anyone adding a limiter: a new
-`keyFor` may key on anything without leaking memory, and eviction forgives a
-count, so a limiter whose correctness depends on a count surviving indefinitely
-needs a shared store rather than this one.
+constructor argument that must be a positive integer: anything else throws at
+construction rather than being coerced into a capacity the store cannot honor,
+issue #392). What bounds the heap is **eviction**: when the map is full it drops
+the least recently hit entry. Insertions also check the 8 coldest entries for
+expired buckets and drop those, which keeps a quiet deployment near its live key
+count, but that is opportunistic housekeeping over a handful of entries, not a
+sweep of the map, and the bound does not rest on it (issue #376). Two things
+follow for anyone adding a limiter: a new `keyFor` may key on anything without
+leaking memory, and eviction forgives a count, so a limiter whose correctness
+depends on a count surviving indefinitely needs a shared store rather than this
+one.
 
 **Mount a limiter ahead of the handler, not behind validation.** The work a
 handler does to validate a credential (a database read, a signature verify) is
