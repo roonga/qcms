@@ -80,6 +80,13 @@ export default async function RootLayout({ children }: { readonly children: Reac
     <html
       lang="en"
       data-theme={theme}
+      // The token contract's scope carrier (ADR-38). `theme.css` and `fonts.css`
+      // match `:is(:root, [data-qcms-theme-scope])` and `theme-components.css`
+      // matches the bare attribute, so stamping it here keeps the whole document
+      // on the same rules it had when they were anchored on `:root` alone. It is
+      // presence-only: nothing reads the value, and the empty string is what an
+      // attribute selector needs.
+      data-qcms-theme-scope=""
       className={rootClassName(appearance, corners)}
       suppressHydrationWarning
     >

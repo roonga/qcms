@@ -253,7 +253,7 @@ export function resolveAppearance(cookies: AppearanceCookies): ResolvedAppearanc
 }
 
 /**
- * The root class for a corner preset. Subtle is the base `:root` block in
+ * The root class for a corner preset. Subtle is the base anchor block in
  * `theme.css`, so it needs no class at all.
  */
 export function cornersClass(corners: PortalCorners): string {
@@ -276,7 +276,7 @@ export function modeClass(mode: PortalMode): AppearanceMode {
 /**
  * The `<html class>` value for the first paint: mode + corners + font + density.
  *
- * The font class is always emitted, System included: `:root.font-system` restates
+ * The font class is always emitted, System included: the System block restates
  * the base System stack, so the class is a positive selection rather than an
  * absence, which is what lets the font control switch back to System by swapping
  * one class. Density is the opposite convention (Comfortable is an absence,

@@ -32,6 +32,24 @@
  * Tailwind class string: `[data-qcms-field]` is the per-question wrapper
  * `registry.tsx` renders, and `[data-rac]` marks a react-aria-components element.
  *
+ * SCOPE CARRIER (ADR-38)
+ * Every rule below is a descendant of `[data-qcms-theme-scope]`, and the
+ * High-contrast rules are anchored on that attribute rather than on `:root`. This
+ * sheet is the one place where the carrier is the SOLE anchor rather than an
+ * alternative to `:root`, and the difference is deliberate: these rules describe
+ * treatment over `[data-rac]` elements, which every host that uses the same
+ * component kit renders too, so prefixing `:is(:root, [data-qcms-theme-scope])`
+ * would contain nothing (every such element already descends from the document
+ * root). Making the attribute the sole carrier makes containment real, which is
+ * what lets the QCMS app import this sheet without restyling its own control
+ * layer. The portal stamps the attribute on its <html>, so the whole sheet keeps
+ * applying there exactly as before.
+ *
+ * The `@theme` block above is the one part that CANNOT be scoped: Tailwind theme
+ * variables are global to a build by construction. A host that imports this sheet
+ * takes the raised `text-sm` / `text-xs` steps app-wide, or re-pins them in its
+ * own later `@theme` block.
+ *
  * Requires Tailwind v4 in the consuming build (the components need it anyway).
  * Contract documentation: docs/theming.md.
  */
@@ -58,7 +76,8 @@
 /* Text-entry controls: the free-text input and the long-text textarea. The
    visually-hidden checkbox/radio inputs and the hidden native-submit inputs are
    excluded - they draw nothing. */
-[data-qcms-field]
+[data-qcms-theme-scope]
+  [data-qcms-field]
   :is(input:not([type="radio"], [type="checkbox"], [type="hidden"], [hidden]), textarea) {
   border-radius: var(--radius-control);
   min-height: var(--space-control-h);
@@ -70,77 +89,82 @@
    spinbutton segments). The `:has()` tests distinguish them from a checkbox
    group, which react-aria also renders with `role="group"` but which is a stack
    of option rows, not a control box. */
-[data-qcms-field] [role="group"][data-rac]:is(:has(> input), :has([role="spinbutton"])) {
+[data-qcms-theme-scope]
+  [data-qcms-field]
+  [role="group"][data-rac]:is(:has(> input), :has([role="spinbutton"])) {
   border-radius: var(--radius-control);
   min-height: var(--space-control-h);
 }
 
 /* The number field's inner input sits INSIDE that box, so it must not draw a
    second one; the steppers keep their own joined-corner treatment. */
-[data-qcms-field] [role="group"][data-rac] > input {
+[data-qcms-theme-scope] [data-qcms-field] [role="group"][data-rac] > input {
   border-radius: 0;
   min-height: 0;
 }
 
 /* Date segments are small chips inside the field box. */
-[data-qcms-field] [role="spinbutton"] {
+[data-qcms-theme-scope] [data-qcms-field] [role="spinbutton"] {
   border-radius: var(--radius-sm);
 }
 
 /* The select's trigger button (the only `aria-haspopup` control the renderer
    produces). Its popover is portalled to the document body, so the popover and
-   its options are matched at document scope below. */
-[data-qcms-field] button[data-rac][aria-haspopup] {
+   its options are matched below without the field wrapper in the selector - but
+   still inside the scope carrier, which is the whole document in the portal. A
+   host that mounts the carrier on a container rather than on <html> must portal
+   its popovers inside that container for these two rules to reach them. */
+[data-qcms-theme-scope] [data-qcms-field] button[data-rac][aria-haspopup] {
   border-radius: var(--radius-control);
   min-height: var(--space-control-h);
   padding-inline: var(--space-control-pad-x);
 }
 
-[data-rac]:has(> [role="listbox"]) {
+[data-qcms-theme-scope] [data-rac]:has(> [role="listbox"]) {
   border-radius: var(--radius-card);
 }
 
-[role="option"][data-rac] {
+[data-qcms-theme-scope] [role="option"][data-rac] {
   border-radius: var(--radius-sm);
   padding-inline: var(--space-control-pad-x);
 }
 
-/* The vendored `Menu`'s popover and its rows (task 032), matched at document scope
-   for the same reason the listbox above is: `MenuTrigger` portals the popover to the
-   body, so it is never a descendant of the field it belongs to. The radius and the
+/* The vendored `Menu`'s popover and its rows (task 032), matched without the field
+   wrapper for the same reason the listbox above is: `MenuTrigger` portals the popover
+   to the body, so it is never a descendant of the field it belongs to. The radius and the
    inline padding are the only things claimed here - a menu row's colour, weight and
    focus treatment are the component's own, and a host that wants the design card's
    shapes styles its own classes rather than reaching in through these selectors. */
-[data-rac]:has(> [role="menu"]) {
+[data-qcms-theme-scope] [data-rac]:has(> [role="menu"]) {
   border-radius: var(--radius-card);
 }
 
-[role="menuitem"][data-rac],
-[role="menuitemradio"][data-rac],
-[role="menuitemcheckbox"][data-rac] {
+[data-qcms-theme-scope] [role="menuitem"][data-rac],
+[data-qcms-theme-scope] [role="menuitemradio"][data-rac],
+[data-qcms-theme-scope] [role="menuitemcheckbox"][data-rac] {
   border-radius: var(--radius-sm);
   padding-inline: var(--space-control-pad-x);
 }
 
 /* Checkbox indicator: a small square. The radio indicator stays a circle, so it
    is deliberately not matched here. */
-[data-qcms-field] label[data-rac]:has(input[type="checkbox"]) > div {
+[data-qcms-theme-scope] [data-qcms-field] label[data-rac]:has(input[type="checkbox"]) > div {
   border-radius: var(--radius-sm);
 }
 
 /* Option rows (checkbox / radio) take the stack token as vertical padding, which
    is also what keeps their hit target comfortably above the WCAG 2.5.8 floor. */
-[data-qcms-field] label[data-rac] {
+[data-qcms-theme-scope] [data-qcms-field] label[data-rac] {
   padding-block: var(--space-stack);
 }
 
 /* Label-to-control gap inside one question. */
-[data-qcms-field] > [data-rac] {
+[data-qcms-theme-scope] [data-qcms-field] > [data-rac] {
   gap: var(--space-stack);
 }
 
 /* Question-to-question rhythm: the compiled step's form element. */
-form:has([data-qcms-field]) {
+[data-qcms-theme-scope] form:has([data-qcms-field]) {
   gap: var(--space-field-gap);
 }
 
@@ -157,7 +181,8 @@ form:has([data-qcms-field]) {
    Tailwind class string: the number field's inner input, the date field's
    spinbutton segments, and any input the renderer marks numeric.
    -------------------------------------------------------------------------- */
-[data-qcms-field]
+[data-qcms-theme-scope]
+  [data-qcms-field]
   :is(
     [role="group"][data-rac] > input,
     [role="spinbutton"],
@@ -178,13 +203,13 @@ form:has([data-qcms-field]) {
 
 /* HC is a light-on-dark-text mode, not Dark: tell the UA so form controls and
    scrollbars do not render dark. */
-:root.hc {
+[data-qcms-theme-scope].hc {
   color-scheme: light;
 }
 
 /* Heavy borders on every control edge. `--color-border-strong` is pure black in
    the HC layer, so this is the "heavy black border" treatment. */
-:root.hc
+[data-qcms-theme-scope].hc
   [data-qcms-field]
   :is(
     input:not([type="radio"], [type="checkbox"], [type="hidden"], [hidden]),
@@ -197,8 +222,8 @@ form:has([data-qcms-field]) {
   border-color: var(--color-border-strong);
 }
 
-:root.hc [data-rac]:has(> [role="listbox"]),
-:root.hc [data-rac]:has(> [role="menu"]) {
+[data-qcms-theme-scope].hc [data-rac]:has(> [role="listbox"]),
+[data-qcms-theme-scope].hc [data-rac]:has(> [role="menu"]) {
   border-width: 2px;
   border-color: var(--color-border-strong);
 }
@@ -207,12 +232,12 @@ form:has([data-qcms-field]) {
    sits (the vendored popover, a shell's step card). Matching the utility class
    is intentional here - flatness is a blanket mode rule, not a per-component
    one. */
-:root.hc [class*="shadow-"] {
+[data-qcms-theme-scope].hc [class*="shadow-"] {
   box-shadow: none;
 }
 
 /* Heavy focus indicator, above whatever a control draws for itself. */
-:root.hc
+[data-qcms-theme-scope].hc
   :is(
     a,
     button,
@@ -228,6 +253,6 @@ form:has([data-qcms-field]) {
 }
 
 /* Separators read at full contrast. */
-:root.hc :is(hr, [role="separator"]) {
+[data-qcms-theme-scope].hc :is(hr, [role="separator"]) {
   border-color: var(--color-border-strong);
 }

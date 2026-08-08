@@ -27,9 +27,143 @@ const THEMES = ["slate", "harbor", "sand", "plum"] as const;
 type Theme = (typeof THEMES)[number];
 type Mode = "light" | "dark" | "hc";
 
+/**
+ * The scope carrier every block in `theme.css` is anchored on (ADR-38, task 060).
+ * `:root` and `[data-qcms-theme-scope]` are both (0,1,0) and `:is()` takes its most
+ * specific argument, so the anchor weighs exactly what the bare `:root` it replaced
+ * weighed. `the specificity model` below asserts that rather than trusting it.
+ */
+const SCOPE_ANCHOR = ":is(:root, [data-qcms-theme-scope])";
+
+/**
+ * A CSS specificity, as the (id, class, type) triple the specification defines:
+ * `.a` counts in the middle column, so do attribute selectors and plain
+ * pseudo-classes, `#a` in the first, element names and pseudo-elements in the last.
+ *
+ * This replaces a hand-rolled model that counted `.` and `[` characters in the
+ * selector string and returned a single number. That model was wrong in the way
+ * that matters here: it cannot tell `:is()` (most specific argument) from
+ * `:where()` (always zero), and it fed the theme x mode resolution that the WCAG
+ * ratios below are computed FROM - so a re-ranking would have certified the wrong
+ * colour pairs while the suite stayed green, rather than failing.
+ */
+type Specificity = readonly [number, number, number];
+
+const ZERO: Specificity = [0, 0, 0];
+const ID: Specificity = [1, 0, 0];
+const CLASS: Specificity = [0, 1, 0];
+const TYPE: Specificity = [0, 0, 1];
+
+function plus(a: Specificity, b: Specificity): Specificity {
+  return [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+}
+
+/** Negative when `a` loses to `b`, zero when the cascade falls through to order. */
+function compareSpecificity(a: Specificity, b: Specificity): number {
+  return a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+}
+
+const NAME_CHARACTER = /[\w-]/u;
+
+/** The index just past the identifier starting at `from`. */
+function endOfName(selector: string, from: number): number {
+  let index = from;
+  while (index < selector.length && NAME_CHARACTER.test(selector[index])) index += 1;
+  return index;
+}
+
+/**
+ * The index just past the balanced group opening at `from`. The sheet's selectors
+ * carry no bracket or parenthesis inside a quoted string, so nesting depth alone
+ * is enough; `parseBlocks` asserts the anchor shape, which is what keeps it so.
+ */
+function endOfGroup(selector: string, from: number, open: string, close: string): number {
+  let depth = 0;
+  for (let index = from; index < selector.length; index += 1) {
+    if (selector[index] === open) depth += 1;
+    else if (selector[index] === close && --depth === 0) return index + 1;
+  }
+  return selector.length;
+}
+
+/** Split a selector list on its top-level commas (never one inside `:is(...)`). */
+function splitList(list: string): readonly string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let index = 0; index < list.length; index += 1) {
+    const character = list[index];
+    if (character === "(" || character === "[") depth += 1;
+    else if (character === ")" || character === "]") depth -= 1;
+    else if (character === "," && depth === 0) {
+      parts.push(list.slice(start, index));
+      start = index + 1;
+    }
+  }
+  parts.push(list.slice(start));
+  return parts.map((part) => part.trim()).filter((part) => part.length > 0);
+}
+
+/** The weight of the most specific selector in a list, which is what `:is()` takes. */
+function mostSpecific(list: string): Specificity {
+  let best = ZERO;
+  for (const part of splitList(list)) {
+    const weight = specificityOf(part);
+    if (compareSpecificity(weight, best) > 0) best = weight;
+  }
+  return best;
+}
+
+interface Step {
+  readonly weight: Specificity;
+  readonly next: number;
+}
+
+/** Functional pseudo-classes that take the weight of their most specific argument. */
+const MATCHING_FUNCTIONS = new Set([":is", ":not", ":has"]);
+
+/** One pseudo-class or pseudo-element starting at `at`. */
+function pseudoAt(selector: string, at: number): Step {
+  if (selector.startsWith("::", at)) {
+    return { weight: TYPE, next: endOfName(selector, at + 2) };
+  }
+  const nameEnd = endOfName(selector, at + 1);
+  const name = selector.slice(at, nameEnd);
+  if (selector[nameEnd] !== "(") return { weight: CLASS, next: nameEnd };
+  const groupEnd = endOfGroup(selector, nameEnd, "(", ")");
+  const argument = selector.slice(nameEnd + 1, groupEnd - 1);
+  if (name === ":where") return { weight: ZERO, next: groupEnd };
+  if (MATCHING_FUNCTIONS.has(name)) return { weight: mostSpecific(argument), next: groupEnd };
+  return { weight: CLASS, next: groupEnd };
+}
+
+/** One simple selector (or a combinator, which weighs nothing) starting at `at`. */
+function stepAt(selector: string, at: number): Step {
+  const character = selector[at];
+  if (character === "#") return { weight: ID, next: endOfName(selector, at + 1) };
+  if (character === ".") return { weight: CLASS, next: endOfName(selector, at + 1) };
+  if (character === "[") return { weight: CLASS, next: endOfGroup(selector, at, "[", "]") };
+  if (character === ":") return pseudoAt(selector, at);
+  if (NAME_CHARACTER.test(character)) return { weight: TYPE, next: endOfName(selector, at) };
+  return { weight: ZERO, next: at + 1 };
+}
+
+/** The specificity of one complex selector, per CSS Selectors Level 4 section 17. */
+function specificityOf(selector: string): Specificity {
+  let total = ZERO;
+  let index = 0;
+  while (index < selector.length) {
+    const step = stepAt(selector, index);
+    total = plus(total, step.weight);
+    index = step.next;
+  }
+  return total;
+}
+
 interface Block {
   readonly index: number;
-  /** `null` = applies to every theme (the bare `:root` default blocks). */
+  readonly selector: string;
+  /** `null` = applies to every theme (the bare anchor default blocks). */
   readonly theme: Theme | null;
   /** `null` = applies to every mode (a light block also matches dark, as in CSS). */
   readonly mode: Mode | null;
@@ -37,7 +171,7 @@ interface Block {
   readonly corners: string | null;
   /** A density level class (`density-compact`), or `null` for the base blocks. */
   readonly density: string | null;
-  readonly specificity: number;
+  readonly specificity: Specificity;
   readonly tokens: Readonly<Record<string, string>>;
 }
 
@@ -62,34 +196,33 @@ function modeOf(selector: string): Mode | null {
 }
 
 /**
- * Selector specificity, counted the only way these selectors need it: each is
- * `:root` plus zero or more classes and attribute selectors, and each of those
- * raises specificity by one. That is enough to order
- * `:root` < `:root.hc` < `:root[data-theme="x"].hc`.
+ * Parse a sheet into cascade-ordered blocks. Comments are stripped first, and
+ * EVERY rule is captured rather than only those whose selector starts with the
+ * anchor - so a block that quietly loses the scope carrier is picked up here and
+ * fails `the scope carrier` guard below instead of vanishing from the resolution.
  */
-function specificityOf(selector: string): number {
-  return selector.split(".").length - 1 + (selector.split("[").length - 1);
-}
-
-/** Parse `theme.css` into cascade-ordered blocks. Comments are stripped first. */
 function parseBlocks(css: string): readonly Block[] {
   const withoutComments = css.replaceAll(/\/\*[\s\S]*?\*\//gu, "");
   const blocks: Block[] = [];
-  const blockPattern = /(?<selector>:root[^{]*)\{(?<body>[^}]*)\}/gu;
-  let match = blockPattern.exec(withoutComments);
-  for (let index = 0; match !== null; index += 1, match = blockPattern.exec(withoutComments)) {
-    const selector = (match.groups?.selector ?? "").trim();
+  // Split rather than match: these sheets nest no braces, and a `selector {body}`
+  // regex over the whole file is the shape ESLint rejects for backtracking.
+  for (const chunk of withoutComments.split("}")) {
+    const brace = chunk.indexOf("{");
+    if (brace < 0) continue;
+    const selector = chunk.slice(0, brace).trim();
+    if (selector.length === 0) continue;
     const themeMatch = /\[data-theme="(?<theme>[^"]+)"\]/u.exec(selector);
     const cornersMatch = /\.(?<corners>radius-[\w-]+)/u.exec(selector);
     const densityMatch = /\.(?<density>density-[\w-]+)/u.exec(selector);
     blocks.push({
-      index,
+      index: blocks.length,
+      selector,
       theme: (themeMatch?.groups?.theme as Theme | undefined) ?? null,
       mode: modeOf(selector),
       corners: cornersMatch?.groups?.corners ?? null,
       density: densityMatch?.groups?.density ?? null,
       specificity: specificityOf(selector),
-      tokens: parseDeclarations(match.groups?.body ?? ""),
+      tokens: parseDeclarations(chunk.slice(brace + 1)),
     });
   }
   return blocks;
@@ -101,7 +234,7 @@ const BLOCKS = parseBlocks(THEME_CSS);
  * The token values in force for one theme x mode, resolved the way the browser
  * resolves them: every block whose selector matches contributes, ordered by
  * specificity and then by source order. That ordering is why the shared `.hc`
- * layer (specificity 1, emitted last) beats a theme's light block (also 1).
+ * layer (equally specific, emitted last) beats a theme's light block.
  *
  * The corners and density blocks are excluded because neither class is on the
  * root in this resolution: this is the Subtle / Comfortable baseline, and each of
@@ -109,15 +242,25 @@ const BLOCKS = parseBlocks(THEME_CSS);
  * either one in would silently apply the LAST preset in source order to every
  * contrast and floor assertion in the file.
  */
-function resolve(theme: Theme, mode: Mode): Readonly<Record<string, string>> {
-  const applicable = BLOCKS.filter(
-    (block) =>
-      block.corners === null &&
-      block.density === null &&
-      (block.theme === null || block.theme === theme) &&
-      (block.mode === null || block.mode === mode),
-  ).sort((a, b) => a.specificity - b.specificity || a.index - b.index);
+function resolveFrom(
+  blocks: readonly Block[],
+  theme: Theme,
+  mode: Mode,
+): Readonly<Record<string, string>> {
+  const applicable = blocks
+    .filter(
+      (block) =>
+        block.corners === null &&
+        block.density === null &&
+        (block.theme === null || block.theme === theme) &&
+        (block.mode === null || block.mode === mode),
+    )
+    .sort((a, b) => compareSpecificity(a.specificity, b.specificity) || a.index - b.index);
   return Object.assign({}, ...applicable.map((block) => block.tokens)) as Record<string, string>;
+}
+
+function resolve(theme: Theme, mode: Mode): Readonly<Record<string, string>> {
+  return resolveFrom(BLOCKS, theme, mode);
 }
 
 /** sRGB relative luminance (WCAG 2.x definition). */
@@ -164,6 +307,89 @@ const MODES: readonly Mode[] = ["light", "dark", "hc"];
 /** Body-text target per mode: AA everywhere, AAA in the High-contrast layer. */
 const TEXT_TARGET: Readonly<Record<Mode, number>> = { light: 4.5, dark: 4.5, hc: 7 };
 const UI_TARGET = 3;
+
+describe("the scope carrier and the specificity model it is measured with", () => {
+  it("anchors every rule in the sheet on the scope carrier", () => {
+    expect(BLOCKS.length).toBeGreaterThan(0);
+    for (const block of BLOCKS) {
+      expect(
+        block.selector.startsWith(SCOPE_ANCHOR),
+        `${block.selector} is not anchored on ${SCOPE_ANCHOR}`,
+      ).toBe(true);
+    }
+  });
+
+  it("weighs the carrier exactly as the bare :root it replaced", () => {
+    expect(specificityOf(SCOPE_ANCHOR)).toStrictEqual([0, 1, 0]);
+    expect(specificityOf(":root")).toStrictEqual([0, 1, 0]);
+  });
+
+  // The property ADR-38 turns on, and the one the old character-counting model
+  // could not express: `:is()` takes its most specific argument, `:where()` is
+  // always zero. Softening the anchor to `:where()` would drop every block in the
+  // sheet to specificity 0 and silently re-rank it against an adopter's `:root`.
+  it("takes :is() from its most specific argument and :where() as zero", () => {
+    expect(specificityOf(":is(p, .a.b)")).toStrictEqual([0, 2, 0]);
+    expect(specificityOf(":not(.a, #b)")).toStrictEqual([1, 0, 0]);
+    expect(specificityOf(":where(:root, [data-qcms-theme-scope])")).toStrictEqual([0, 0, 0]);
+    expect(specificityOf(`${SCOPE_ANCHOR}[data-theme="harbor"].hc`)).toStrictEqual([0, 3, 0]);
+  });
+
+  // Exit criterion 2, asserted rather than assumed: the rewrite moved no selector.
+  it("scores every anchored selector exactly as its pre-rewrite :root form scored", () => {
+    for (const block of BLOCKS) {
+      const asRoot = block.selector.replace(SCOPE_ANCHOR, ":root");
+      expect(specificityOf(block.selector), block.selector).toStrictEqual(specificityOf(asRoot));
+    }
+  });
+
+  // What `docs/theming.md` records as load-bearing: the shared `.hc` layer and a
+  // theme's own light block are EQUALLY specific, so only source order separates
+  // them. If this ever came out non-zero, the ordering guarantee below would be
+  // decided by specificity instead and the comment in `theme.css` would be a lie.
+  it("leaves the shared .hc layer exactly as specific as a theme's light block", () => {
+    const shared = specificityOf(`${SCOPE_ANCHOR}.hc`);
+    const themed = specificityOf(`${SCOPE_ANCHOR}[data-theme="harbor"]`);
+    expect(compareSpecificity(shared, themed)).toBe(0);
+    expect(compareSpecificity(specificityOf(SCOPE_ANCHOR), shared)).toBeLessThan(0);
+  });
+
+  /**
+   * The same blocks re-emitted with the shared `.hc` layer BEFORE the light/dark
+   * blocks: a sheet that is valid CSS, declares identical values, and is wrong.
+   */
+  function misordered(): readonly Block[] {
+    const hc = BLOCKS.filter((block) => block.mode === "hc" && block.theme === null);
+    const rest = BLOCKS.filter((block) => !(block.mode === "hc" && block.theme === null));
+    return parseBlocks(
+      [...hc, ...rest]
+        .map(
+          (block) =>
+            `${block.selector} {${Object.entries(block.tokens)
+              .map(([name, value]) => ` ${name}: ${value};`)
+              .join("")} }`,
+        )
+        .join("\n"),
+    );
+  }
+
+  // Exit criterion 3's proof obligation: a green suite is not evidence, a suite
+  // shown capable of going red is. Feed the resolver a deliberately mis-ordered
+  // sheet and it must produce the WRONG answer - which is what makes its answer on
+  // the real sheet worth something. Both HC guarantees this file certifies (black
+  // on white, and one shared layer across themes) collapse under the mis-ordering.
+  it("resolves a deliberately mis-ordered sheet to the wrong palette", () => {
+    expect(resolve("harbor", "hc")["--color-text"]).toBe("#000000");
+
+    const broken = misordered();
+    const brokenHc = resolveFrom(broken, "harbor", "hc");
+    expect(brokenHc["--color-text"]).not.toBe("#000000");
+    expect(brokenHc["--color-text"]).toBe(resolveFrom(broken, "harbor", "light")["--color-text"]);
+    expect(brokenHc["--color-background"]).not.toBe(
+      resolveFrom(broken, "slate", "hc")["--color-background"],
+    );
+  });
+});
 
 describe("colour group: every critical pair meets its WCAG 2.2 target", () => {
   for (const theme of THEMES) {
@@ -308,7 +534,7 @@ describe("spacing group: the three density levels", () => {
   function atDensity(density: string | null): Readonly<Record<string, string>> {
     if (density === null) return base;
     const block = BLOCKS.find((candidate) => candidate.density === density);
-    expect(block, `no :root.${density} block in theme.css`).toBeDefined();
+    expect(block, `no ${density} block in theme.css`).toBeDefined();
     return { ...base, ...block!.tokens };
   }
 
@@ -321,9 +547,9 @@ describe("spacing group: the three density levels", () => {
   it("Compact and Spacious each override all five tokens", () => {
     for (const density of DENSITY_CLASSES) {
       const block = BLOCKS.find((candidate) => candidate.density === density);
-      expect(block, `no :root.${density} block in theme.css`).toBeDefined();
+      expect(block, `no ${density} block in theme.css`).toBeDefined();
       for (const token of SPACING_TOKENS) {
-        expect(block?.tokens[token], `:root.${density} does not set ${token}`).toBeDefined();
+        expect(block?.tokens[token], `the ${density} block does not set ${token}`).toBeDefined();
       }
     }
   });
@@ -338,7 +564,7 @@ describe("spacing group: the three density levels", () => {
       for (const token of Object.keys(block.tokens)) {
         expect(
           SPACING_TOKENS.includes(token as (typeof SPACING_TOKENS)[number]),
-          `:root.${block.density} sets ${token}, which is not one of the five spacing tokens`,
+          `the ${block.density} block sets ${token}, which is not one of the five spacing tokens`,
         ).toBe(true);
       }
     }
@@ -376,9 +602,9 @@ describe("radius group: the four corner presets", () => {
   it("Sharp, Rounded and Pill each override all three tokens", () => {
     for (const preset of ["radius-sharp", "radius-rounded", "radius-pill"]) {
       const block = BLOCKS.find((candidate) => candidate.corners === preset);
-      expect(block, `no :root.${preset} block in theme.css`).toBeDefined();
+      expect(block, `no ${preset} block in theme.css`).toBeDefined();
       for (const token of RADIUS_TOKENS) {
-        expect(block?.tokens[token], `:root.${preset} does not set ${token}`).toBeDefined();
+        expect(block?.tokens[token], `the ${preset} block does not set ${token}`).toBeDefined();
       }
     }
   });

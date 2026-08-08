@@ -18,16 +18,26 @@
  *   @import "@qcms/ui/theme-components.css";  // components consume them
  *
  * SELECTOR CONVENTION
- *   mode    root class:      (none) = Light   .dark = Dark   .hc = High-contrast
- *   theme   root attribute:  (absent) or [data-theme="slate"] = the default
- *                            [data-theme="harbor"|"sand"|"plum"] = alternates
- *   corners root class:      (none) = Subtle  .radius-sharp / -rounded / -pill
- *   density root class:      (none) = Comfortable  .density-compact / -spacious
- *   font    root class:      .font-<registry key> (declared by fonts.css)
+ * Every block below is anchored on `:is(:root, [data-qcms-theme-scope])` (the
+ * scope carrier, ADR-38): the token set applies to the document root OR to any
+ * element carrying `data-qcms-theme-scope`, so a themed subtree is expressible
+ * without giving up the document-level form. The two arguments are both (0,1,0)
+ * and `:is()` takes its most specific argument, so the anchor is exactly as
+ * specific as the bare `:root` it replaced and no rule can flip. Never soften it
+ * to `:where()`: that is specificity 0 and would re-rank every block below
+ * against an adopter's own `:root` overrides. The knobs then ride the anchor:
+ *   mode    anchor class:     (none) = Light   .dark = Dark   .hc = High-contrast
+ *   theme   anchor attribute: (absent) or [data-theme="slate"] = the default
+ *                             [data-theme="harbor"|"sand"|"plum"] = alternates
+ *   corners anchor class:     (none) = Subtle  .radius-sharp / -rounded / -pill
+ *   density anchor class:     (none) = Comfortable  .density-compact / -spacious
+ *   font    anchor class:     .font-<registry key> (declared by fonts.css)
  *
- * The default theme (Slate Teal) lives in the bare :root blocks; an alternate
- * only overrides under :root[data-theme="x"], so setting the attribute is enough
- * to switch and removing it restores the default.
+ * The portal stamps `data-qcms-theme-scope` on its <html>, so the document-root
+ * case and the scoped case are the same code path there. The default theme
+ * (Slate Teal) lives in the bare anchor blocks; an alternate only overrides under
+ * the anchor plus [data-theme="x"], so setting the attribute is enough to switch
+ * and removing it restores the default.
  *
  * SOURCE OF TRUTH FOR THE COLOUR VALUES
  * The palettes below are the theme-palette design deliverable (plan/theme-palettes:
@@ -48,10 +58,11 @@
    no density level) may lower them; `theme-tokens.test.ts` asserts each floor.
    The declarative font registry that swaps --font-portal (task 052) lives in
    `font-registry.ts` and ships as the generated `fonts.css`: each entry is one
-   `:root.font-<key>` block that sets --font-portal and NOTHING else, so no font
-   selection can reach a floor. Import fonts.css after this file.
+   `:is(:root, [data-qcms-theme-scope]).font-<key>` block that sets --font-portal
+   and NOTHING else, so no font selection can reach a floor. Import fonts.css
+   after this file.
    ========================================================================== */
-:root {
+:is(:root, [data-qcms-theme-scope]) {
   /* Brand-neutral system stack, and the value the registry's System entry keeps
      byte-identical (`SANS_TAIL` in font-registry.ts). A theme, a registry entry or
      an adopter overrides the family only. */
@@ -97,7 +108,7 @@
    asserted by `theme-tokens.test.ts` over this file, and re-measured on rendered
    controls per density by `apps/portal/e2e/appearance.pw.ts`.
    ========================================================================== */
-:root {
+:is(:root, [data-qcms-theme-scope]) {
   --space-control-h: 44px;
   --space-control-pad-x: 0.9rem;
   --space-field-gap: 2em;
@@ -109,7 +120,7 @@
    the escape hatch on a narrow phone. 36px controls still clear 2.5.8 by 12px
    (the option rows, whose target is the whole label row, come out at 36px too:
    a 24px line box plus 6px of --space-stack above and below). */
-:root.density-compact {
+:is(:root, [data-qcms-theme-scope]).density-compact {
   --space-control-h: 36px;
   --space-control-pad-x: 0.7rem;
   --space-field-gap: 1.25em;
@@ -119,7 +130,7 @@
 
 /* Spacious: larger targets and more separation, for coarse pointers, tremor, and
    anyone who finds a dense form hard to track. */
-:root.density-spacious {
+:is(:root, [data-qcms-theme-scope]).density-spacious {
   --space-control-h: 52px;
   --space-control-pad-x: 1.1rem;
   --space-field-gap: 2.75em;
@@ -135,25 +146,25 @@
      --radius-card     step card / panels / banners / popovers
      --radius-sm       checkboxes / chips
    ========================================================================== */
-:root {
+:is(:root, [data-qcms-theme-scope]) {
   --radius-control: 6px;
   --radius-card: 10px;
   --radius-sm: 4px;
 }
 
-:root.radius-sharp {
+:is(:root, [data-qcms-theme-scope]).radius-sharp {
   --radius-control: 0;
   --radius-card: 0;
   --radius-sm: 0;
 }
 
-:root.radius-rounded {
+:is(:root, [data-qcms-theme-scope]).radius-rounded {
   --radius-control: 10px;
   --radius-card: 16px;
   --radius-sm: 6px;
 }
 
-:root.radius-pill {
+:is(:root, [data-qcms-theme-scope]).radius-pill {
   --radius-control: 999px;
   --radius-card: 20px;
   --radius-sm: 8px;
@@ -166,7 +177,7 @@
 
 /* ---------- slate - Slate Teal (the shipped default) ---------- */
 
-:root {
+:is(:root, [data-qcms-theme-scope]) {
   --color-primary: #2c6e63;
   --color-primary-hover: #245a51;
   --color-primary-active: #1e4a43;
@@ -205,7 +216,7 @@
   --color-overlay: rgb(0 0 0 / 0.5);
 }
 
-:root.dark {
+:is(:root, [data-qcms-theme-scope]).dark {
   --color-primary: #5fb8ac;
   --color-primary-hover: #72c1b6;
   --color-primary-active: #82c8be;
@@ -246,7 +257,7 @@
 
 /* ---------- harbor - corporate blue ---------- */
 
-:root[data-theme="harbor"] {
+:is(:root, [data-qcms-theme-scope])[data-theme="harbor"] {
   --color-primary: #1f5eb8;
   --color-primary-hover: #1c55a6;
   --color-primary-active: #194b93;
@@ -285,7 +296,7 @@
   --color-overlay: rgb(0 0 0 / 0.5);
 }
 
-:root[data-theme="harbor"].dark {
+:is(:root, [data-qcms-theme-scope])[data-theme="harbor"].dark {
   --color-primary: #6fa8ff;
   --color-primary-hover: #80b2ff;
   --color-primary-active: #8fbbff;
@@ -326,7 +337,7 @@
 
 /* ---------- sand - warm neutral / terracotta ---------- */
 
-:root[data-theme="sand"] {
+:is(:root, [data-qcms-theme-scope])[data-theme="sand"] {
   --color-primary: #a24e2c;
   --color-primary-hover: #924628;
   --color-primary-active: #823e23;
@@ -365,7 +376,7 @@
   --color-overlay: rgb(0 0 0 / 0.5);
 }
 
-:root[data-theme="sand"].dark {
+:is(:root, [data-qcms-theme-scope])[data-theme="sand"].dark {
   --color-primary: #e08a5f;
   --color-primary-hover: #e49872;
   --color-primary-active: #e7a482;
@@ -406,7 +417,7 @@
 
 /* ---------- plum - deep violet ---------- */
 
-:root[data-theme="plum"] {
+:is(:root, [data-qcms-theme-scope])[data-theme="plum"] {
   --color-primary: #6d28a8;
   --color-primary-hover: #622497;
   --color-primary-active: #572086;
@@ -445,7 +456,7 @@
   --color-overlay: rgb(0 0 0 / 0.5);
 }
 
-:root[data-theme="plum"].dark {
+:is(:root, [data-qcms-theme-scope])[data-theme="plum"].dark {
   --color-primary: #c08cf0;
   --color-primary-hover: #c89af2;
   --color-primary-active: #cea5f3;
@@ -492,13 +503,16 @@
    pick up, so each theme keeps a whisper of brand while everything else is
    identical. A NEW theme gets HC for free by adding one AAA-safe accent block.
    Order matters and is load-bearing: these blocks are emitted AFTER every
-   light/dark block, so :root.hc (specificity 0,1,1) beats a theme's light block
-   (also 0,1,1) on source order, and the accent overrides (0,2,1) beat :root.hc.
+   light/dark block, so the shared `.hc` block (specificity 0,2,0 - the anchor
+   contributes 0,1,0 and the class another) beats a theme's light block (also
+   0,2,0, the anchor plus [data-theme=x]) on SOURCE ORDER alone, and the accent
+   overrides (0,3,0) beat it on specificity. The scope-carrier rewrite (ADR-38)
+   moved both sides by exactly zero, so this ordering survives it untouched.
    The heavy borders / flat surfaces / heavy focus that HC also needs are CSS,
    not token values: they live in theme-components.css.
    ========================================================================== */
 
-:root.hc {
+:is(:root, [data-qcms-theme-scope]).hc {
   --color-primary: #0b453d;
   --color-primary-hover: #063730;
   --color-primary-active: #032823;
@@ -539,21 +553,21 @@
 
 /* The per-theme AAA accent, the ONLY thing HC varies. slate is the block above. */
 
-:root[data-theme="harbor"].hc {
+:is(:root, [data-qcms-theme-scope])[data-theme="harbor"].hc {
   --color-primary: #0a3a8a;
   --color-primary-hover: #052e73;
   --color-primary-active: #03235c;
   --color-primary-foreground: #ffffff;
 }
 
-:root[data-theme="sand"].hc {
+:is(:root, [data-qcms-theme-scope])[data-theme="sand"].hc {
   --color-primary: #7a3717;
   --color-primary-hover: #642c10;
   --color-primary-active: #4f2109;
   --color-primary-foreground: #ffffff;
 }
 
-:root[data-theme="plum"].hc {
+:is(:root, [data-qcms-theme-scope])[data-theme="plum"].hc {
   --color-primary: #54148f;
   --color-primary-hover: #450f77;
   --color-primary-active: #360a5f;
