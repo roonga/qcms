@@ -23,7 +23,8 @@ Caddy overlay.
 
 ## The invariants
 
-Both recipes preserve the same five properties. Everything below is an instance of these.
+Both recipes preserve the same properties. They are the table below, and the rest of this document
+refers to them by number.
 
 | # | Invariant | Why, and where it is enforced |
 | --- | --- | --- |
@@ -110,7 +111,7 @@ the edge:
 | `request_body { max_size 1MB }` | The edge-side match for the API's own `QCMS_BODY_LIMIT_BYTES` cap, so an oversized request is rejected before it crosses into a Node process. Raise both together or neither. |
 | `encode zstd gzip` | Response compression at the edge. |
 | `header_up X-Forwarded-Proto https` (per site) | Invariant 5. The hop to the app is plain HTTP on the bridge network, so nothing else would tell Next the browser-facing scheme. |
-| `header_up X-Forwarded-For {remote_host}` (per site) | Invariant 6. **Set, never append.** `{remote_host}` is the peer address the edge can actually vouch for, and setting it discards whatever the client sent, so the chain the portal receives is exactly one entry and that entry is a fact. If you put another proxy in front of Caddy, see "Stacking another proxy" below: `{remote_host}` then reports that proxy, not the respondent. |
+| `header_up X-Forwarded-For {remote_host}` (per site) | Invariant 6. **Set, never append.** `{remote_host}` is the peer address the edge can actually vouch for, and setting it discards whatever the client sent, so the chain the app receives is exactly one entry and that entry is a fact. If you put another proxy in front of Caddy, see "Stacking another proxy" below: `{remote_host}` then reports that proxy, not the respondent. |
 
 Caddy redirects HTTP to HTTPS on its own; there is no rule to write for it.
 
