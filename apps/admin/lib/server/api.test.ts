@@ -1,12 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { authRequestHeaders } from "./api.ts";
+import { CLIENT_ADDRESS_HEADER } from "./client-address.ts";
 import { INTERNAL_TOKEN_HEADER } from "./config.ts";
 
 /**
- * The auth hop's header contract (task 056).
+ * The auth hop's header contract (task 056; issue #374).
  *
- * Two properties, both security-relevant and both cheap to assert without a server:
+ * Three properties, all security-relevant and all cheap to assert without a server:
  *
  * 1. **The allowlist holds.** Only the named headers cross from the browser to the API,
  *    so a request the admin makes on the browser's behalf cannot carry `host`,
@@ -18,6 +19,13 @@ import { INTERNAL_TOKEN_HEADER } from "./config.ts";
  *    at all, and its whole safety argument is that it is conditional - see
  *    `forwardedOrigin` in `api.ts`. A test that only covered the substitution would pass
  *    for an unconditional one, so the foreign-origin case is asserted beside it.
+ * 3. **The client address is asserted, never relayed.** `x-forwarded-for` and
+ *    `x-real-ip` are the headers SEC-1's sign-in throttle used to key on, and the
+ *    browser writes both, so relaying them let a caller choose its own backoff bucket.
+ *    They no longer cross the hop at all; what crosses is the one address this app
+ *    resolved. The end of that story - that better-auth's limiter now moves with the
+ *    vouched header and not with a forged one - is asserted against the real library in
+ *    `apps/api/src/features/auth/sign-in-throttle.test.ts`.
  */
 
 const ADMIN_ORIGIN = "https://admin.example.test";
@@ -62,7 +70,7 @@ describe("the forwarded header allowlist", () => {
         "sec-fetch-site",
         "user-agent",
         INTERNAL_TOKEN_HEADER,
-        "x-forwarded-for",
+        CLIENT_ADDRESS_HEADER,
       ].sort(),
     );
     expect(built.get(INTERNAL_TOKEN_HEADER)).toBe(TOKEN);
@@ -71,6 +79,43 @@ describe("the forwarded header allowlist", () => {
 
   it("carries only the channel token when there is no browser request", () => {
     expect(namesOf(authRequestHeaders(undefined))).toEqual([INTERNAL_TOKEN_HEADER]);
+  });
+});
+
+describe("the client address the throttle keys on (issue #374)", () => {
+  const forwarded = (chain: string): Headers =>
+    authRequestHeaders(
+      new Headers(chain === "" ? {} : { "x-forwarded-for": chain, "x-real-ip": "10.9.9.9" }),
+    );
+
+  it("vouches for the address the ingress wrote, and relays neither raw header", () => {
+    const built = forwarded("203.0.113.7");
+    expect(built.get(CLIENT_ADDRESS_HEADER)).toBe("203.0.113.7");
+    // The API must not be able to re-derive an address from a client-written list.
+    expect(built.get("x-forwarded-for")).toBeNull();
+    expect(built.get("x-real-ip")).toBeNull();
+  });
+
+  it("does NOT let a forged prefix move the bucket", () => {
+    // The attacker sends its own chain; an appending proxy adds the peer it accepted.
+    const built = forwarded("10.0.0.1, 203.0.113.7");
+    expect(built.get(CLIENT_ADDRESS_HEADER)).toBe("203.0.113.7");
+    expect(built.get(CLIENT_ADDRESS_HEADER)).not.toBe("10.0.0.1");
+  });
+
+  it("keeps two genuinely different clients in two buckets", () => {
+    expect(forwarded("203.0.113.7").get(CLIENT_ADDRESS_HEADER)).toBe("203.0.113.7");
+    expect(forwarded("198.51.100.22").get(CLIENT_ADDRESS_HEADER)).toBe("198.51.100.22");
+  });
+
+  it("omits the header when nothing trustworthy arrived (shared bucket, not a free one)", () => {
+    expect(forwarded("").has(CLIENT_ADDRESS_HEADER)).toBe(false);
+  });
+
+  it("omits the header when the operator trusts no proxy", () => {
+    vi.stubEnv("QCMS_ADMIN_TRUSTED_PROXY_HOPS", "0");
+    expect(forwarded("203.0.113.7").has(CLIENT_ADDRESS_HEADER)).toBe(false);
+    vi.unstubAllEnvs();
   });
 });
 
