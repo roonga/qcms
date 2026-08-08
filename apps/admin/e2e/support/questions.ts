@@ -54,11 +54,68 @@ export async function createDraft(page: Page, slug: string, typeLabel: string): 
   ]);
 }
 
-/** Name and append one option, which is the only moment its id is minted. */
+/**
+ * The pending row: the one the author has opened and not yet named (task 057).
+ *
+ * It has no `optionId` and therefore no `data-option-index`, which is what makes it
+ * addressable separately from every committed row - and what makes "the abandoned ghost row
+ * consumed no id" checkable in the browser rather than only in the unit tests.
+ */
+export function pendingRow(page: Page): Locator {
+  return page.locator("[data-option-pending] textarea");
+}
+
+/** One row's grip: drag source, Arrow Up/Down reorder, and row-menu trigger in one. */
+export function grip(page: Page, index: number): Locator {
+  return page.locator(`[data-option-index="${String(index)}"] [data-option-grip]`);
+}
+
+/**
+ * Open the ghost add-row, name it, and let it settle.
+ *
+ * The rhythm the frozen card specifies, and the one that carries the Code Owner's minting
+ * ruling: pressing "Add option" opens a row that holds NO id, and the id is minted when the
+ * row acquires content. Blurring is what settles it, so the assertion below is against a
+ * committed row rather than the pending one.
+ */
 export async function addOption(page: Page, label: string): Promise<void> {
-  await fillStable(field(page, "New option label"), label);
   await page.getByRole("button", { name: "Add option" }).click();
-  await expect(page.getByRole("textbox", { name: /^Label for option / }).last()).toHaveValue(label);
+  await expect(pendingRow(page)).toBeFocused();
+  await fillStable(pendingRow(page), label);
+  await pendingRow(page).blur();
+  await expect(page.getByRole("textbox", { name: /^Option \d+ label$/ }).last()).toHaveValue(label);
+}
+
+/**
+ * Insert a named option at a row boundary through the pointer path.
+ *
+ * `index` is the row it lands ABOVE; `options.length` is the ghost add-row at the end. The
+ * insert point is invisible at rest and revealed on hover, so the click is forced rather
+ * than hover-then-click: what is under test here is where the option lands, and the
+ * reveal-on-hover and reveal-on-focus behaviours are asserted on their own elsewhere.
+ */
+export async function insertOptionAbove(page: Page, index: number, label: string): Promise<void> {
+  await page
+    .locator(`[data-option-index="${String(index)}"] .qcms-opt-insert`)
+    .first()
+    .click({ force: true });
+  await expect(pendingRow(page)).toBeFocused();
+  await fillStable(pendingRow(page), label);
+  await pendingRow(page).blur();
+}
+
+/** Reorder by keyboard: focus a row's grip and press an arrow, as the card specifies. */
+export async function moveOptionByKey(page: Page, index: number, key: "ArrowUp" | "ArrowDown") {
+  await grip(page, index).focus();
+  await grip(page, index).press(key);
+}
+
+/** Open a row's menu from the keyboard (Enter on the focused grip) and pick an item. */
+export async function useRowMenu(page: Page, index: number, item: RegExp): Promise<void> {
+  await grip(page, index).focus();
+  await grip(page, index).press("Enter");
+  await expect(page.getByRole("menu")).toBeVisible();
+  await page.getByRole("menuitem", { name: item }).click();
 }
 
 /**
@@ -86,9 +143,16 @@ export async function confirmLifecycle(page: Page, open: RegExp, confirm: string
   await expect(dialog).toBeHidden();
 }
 
-/** Every option id the option list editor renders, in display order. */
+/**
+ * Every option id the grid renders, in display order.
+ *
+ * Scoped to `[data-option-index]` on purpose: a pending row also has an ID cell, and what
+ * it renders there is a placeholder rather than an id. Including it would make an
+ * abandoned ghost row look like a minted option, which is the exact confusion the deferred
+ * minting rule exists to prevent.
+ */
 export function optionIds(page: Page): Promise<string[]> {
-  return page.locator(".qcms-option-row__id").allTextContents();
+  return page.locator("[data-option-index] .qcms-opt-cell--id").allTextContents();
 }
 
 /**

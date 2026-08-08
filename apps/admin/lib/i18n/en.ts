@@ -263,14 +263,25 @@ export const messages = {
 
   "questions.options.legend": "Options",
   "questions.options.note":
-    "An option ID is generated once, when the option is added, and never changes again. Relabelling and reordering leave it alone, which is what keeps a rule matching the same answer years later (R6).",
-  "questions.options.idColumn": "Option ID",
-  "questions.options.label": "Label for option {position}",
-  "questions.options.moveUp": "Move option {position} up",
-  "questions.options.moveDown": "Move option {position} down",
-  "questions.options.remove": "Remove option {position}",
+    "An option ID is generated once, when the option is first named, and never changes again. Relabelling and reordering leave it alone, which is what keeps a rule matching the same answer years later (R6).",
+  "questions.options.headLabel": "Label",
+  "questions.options.headId": "ID",
+  "questions.options.idPending": "Pending",
+  "questions.options.idPendingTitle":
+    "This row has no ID yet. One is generated from the label, once the row is named.",
+  // The row's own name, as the card writes it ("Option 2 label"). Every other control on
+  // the row names the row by its LABEL instead, so two rows' menus stay distinguishable
+  // from each other; `rowFallback` is what an unnamed or blank row is called in that slot.
+  "questions.options.label": "Option {position} label",
+  "questions.options.rowFallback": "option {position}",
+  "questions.options.reorder": "Reorder {row}",
+  "questions.options.rowActions": "{row} row actions",
+  "questions.options.insertAbove": "Insert option above {row}",
+  "questions.options.insertBelow": "Insert option below {row}",
+  "questions.options.remove": "Remove option {row}",
   "questions.options.add": "Add option",
-  "questions.options.newLabel": "New option label",
+  "questions.options.moved": "{row} moved to position {position} of {total}.",
+  "questions.options.errorFor": "Option {position}: {message}",
 
   "questions.preview.title": "Preview",
   "questions.preview.note":

@@ -32,7 +32,7 @@ import {
 
 import { ConstraintsEditor } from "./constraints-editor";
 import { BooleanLabelsEditor, MessagesEditor } from "./messages-editor";
-import { OptionListEditor } from "./option-list-editor";
+import { OptionGridEditor } from "./option-grid-editor";
 
 /**
  * The question editor (task 032; wireframe "editor `form`").
@@ -244,7 +244,7 @@ export function QuestionEditor({
       />
 
       {hasOptions(definition.type) && (
-        <OptionListEditor
+        <OptionGridEditor
           options={definition.options ?? []}
           issues={issues}
           isFrozen={isFrozen}

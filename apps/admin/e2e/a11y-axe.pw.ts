@@ -36,7 +36,9 @@ import {
   createDraft,
   field,
   fillDate,
+  grip,
   optionIds,
+  pendingRow,
 } from "./support/questions.js";
 
 /**
@@ -274,6 +276,29 @@ test("the question library, its editor and a question's detail have zero violati
   await addOption(page, "Comprehensive");
   await addOption(page, "Third party");
   await expectNoViolations(page, "question editor, option list");
+
+  // Task 057, exit criterion 3: the grid analysed with a cell in its EDITING state, which
+  // is the state a first-render-only sweep misses. Focusing a label reveals the row's grip
+  // and its insert point, so this frame also carries the two controls that are invisible at
+  // rest - a contrast failure on either would be invisible to every other run here.
+  await field(page, "Option 1 label").focus();
+  await expectNoViolations(page, "question editor, option grid with a cell editing");
+
+  // And with the row menu open, which is a popup the grid manages itself rather than one
+  // react-aria manages for it.
+  await grip(page, 0).focus();
+  await grip(page, 0).press("Enter");
+  await expect(page.getByRole("menu")).toBeVisible();
+  await expectNoViolations(page, "question editor, option row menu open");
+  await page.getByRole("menu").press("Escape");
+
+  // The pending row: a row that exists on screen and carries no option id yet. Its ID cell
+  // renders a placeholder rather than an id, and that placeholder is text nobody else
+  // checks the contrast of.
+  await page.getByRole("button", { name: "Add option" }).click();
+  await expect(pendingRow(page)).toBeFocused();
+  await expectNoViolations(page, "question editor, ghost row opened and unnamed");
+  await pendingRow(page).blur();
 
   await Promise.all([
     page.waitForURL(/\/questions\/q_/),
