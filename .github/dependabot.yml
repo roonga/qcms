@@ -1,9 +1,30 @@
 # Explicit Dependabot configuration (issue #68). Security updates for npm run
 # regardless of this file; when the npm_and_yarn updater cannot complete in this
 # pnpm monorepo (the multi-range failure class of issue #47), the documented path
-# is a manual, scoped pnpm.overrides entry per CONTRIBUTING's "Security overrides"
-# section - the overrides table there is the removal-condition ledger that the
-# scheduled audit job's findings (audit.yml) get triaged against.
+# is a manual fix per CONTRIBUTING's "Security overrides" section - the overrides
+# table there is the removal-condition ledger that the scheduled audit job's
+# findings (audit.yml) get triaged against.
+#
+# Two things worth knowing before triaging an alert here, both re-derived under
+# time pressure in issue #332:
+#
+#   1. "scope: runtime" on a transitive alert is GitHub's inference, not a fact
+#      about this graph. Every alert on this repo lands against pnpm-lock.yaml,
+#      which does not record which workspace manifest pulled a package in, so the
+#      label is unreliable in both directions. Run `pnpm why -r <package>` and
+#      read where the path terminates before treating an alert as shipped. Two
+#      facts make that trace decisive rather than advisory: a devDependency of a
+#      workspace project is never in a published @qcms/* package, and every
+#      image in docker/ ships a `pnpm deploy --prod` pruned tree, so a dev-scope
+#      transitive cannot reach a runtime image by construction.
+#
+#   2. A "security_update_not_possible" error is not automatically an override.
+#      Dependabot reports it whenever it cannot construct the update itself,
+#      which includes the case where the parent's declared range already admits
+#      the patched version and only the lockfile is behind. Refresh first
+#      (`pnpm update -r --depth Infinity <package>`, then re-read
+#      `pnpm why -r <package>`); reach for an override only once the parent range
+#      is shown to exclude the fix. #332 was the refresh case.
 version: 2
 updates:
   # Keep the Actions pins current; low-noise, weekly, grouped.
