@@ -335,6 +335,44 @@ test("the grid's hidden controls are reachable without a pointer", async ({ page
   expect(await optionIds(page)).toEqual(["opt_yes_always"]);
 });
 
+test("the narrow layout folds the ID under the label, keyed off the editor's width", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await createDraft(page, slugFor("compact"), "Single choice");
+
+  const label = page.locator('[data-option-index="0"] .qcms-opt-cell--label');
+  const id = page.locator('[data-option-index="0"] .qcms-opt-cell--id');
+
+  // Wide: three columns, so the ID sits to the RIGHT of the label on the same line.
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const wideLabel = await label.boundingBox();
+  const wideId = await id.boundingBox();
+  expect(wideLabel).not.toBeNull();
+  expect(wideId).not.toBeNull();
+  if (wideLabel === null || wideId === null) return;
+  expect(wideId.x, "the ID column is to the right of the label").toBeGreaterThan(wideLabel.x);
+  expect(Math.abs(wideId.y - wideLabel.y), "and on the same line").toBeLessThan(12);
+
+  // Narrow: two columns, the ID folded onto a second line inside the label's column. This
+  // is a CONTAINER query on the grid, not a viewport media query, so the same DOM reflows
+  // and no option id is ever rendered twice.
+  await page.setViewportSize({ width: 390, height: 844 });
+  const tightLabel = await label.boundingBox();
+  const tightId = await id.boundingBox();
+  expect(tightLabel).not.toBeNull();
+  expect(tightId).not.toBeNull();
+  if (tightLabel === null || tightId === null) return;
+  expect(tightId.y, "the ID has folded below the label").toBeGreaterThan(tightLabel.y);
+  expect(tightId.x, "and sits in the label's column, not the grip's").toBeGreaterThan(
+    tightLabel.x - 4,
+  );
+  // One DOM, one id: the fold must not be a second copy of the cell.
+  await expect(page.locator('[data-option-index="0"] .qcms-opt-cell--id')).toHaveCount(1);
+  await page.setViewportSize({ width: 1280, height: 800 });
+});
+
 test("the version preview renders the real control for the type", async ({ page }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
   await createDraft(page, slugFor("preview"), "Long text");

@@ -540,10 +540,16 @@ export function OptionGridEditor({
                     minted-once invariant is structural rather than remembered. */}
                 <div
                   className="qcms-opt-cell qcms-opt-cell--id"
+                  // The id itself goes in the tooltip as well as the cell. The card's ID
+                  // column is 140px and ellipsizes, which was right for the opaque ids its
+                  // mock showed (`opt_8f2ka91m`); the Code Owner's minting ruling keeps ids
+                  // LABEL-DERIVED, so a real one (`opt_roadside_assistance`) overflows that
+                  // width. An author writing a rule reads option ids raw, so this at least
+                  // makes the whole one recoverable. Flagged for the screenshot gate: the
+                  // column width is the card's call to revisit, not this task's to change.
                   title={
-                    row.isPending
-                      ? t("questions.options.idPendingTitle")
-                      : t("questions.options.idTitle")
+                    row.optionId ??
+                    `${t("questions.options.idPending")}: ${t("questions.options.idPendingTitle")}`
                   }
                 >
                   {row.optionId ?? (
