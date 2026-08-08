@@ -19,6 +19,11 @@
  * handler reads exactly the two columns `claimDueDeliveries` filters on. These cases
  * drive real erasures rather than hand-writing a tombstone, so what they pin is the
  * whole chain from the erase call to the 409.
+ *
+ * The last describe covers the same route's id shape (issue 310): a delivery id is a
+ * uuid column value, so a malformed one has to be answered rather than handed to
+ * Postgres to cast-error on, and the answer has to be the 404 an absent row already
+ * gets - same status, same body, same code.
  */
 
 import { FormId, SessionId, type FormDefinition } from "@qcms/core";
@@ -447,6 +452,130 @@ describe("POST /admin/outbox/:id/redeliver - the ADR-17 refusal", () => {
     // "not erased" rather than refusing every non-response event.
     const deliveryId = await seedDeliveryForSession(null);
     expect((await redeliver(deliveryId)).status).toBe(200);
+  });
+});
+
+/**
+ * Issue 310. `webhook_deliveries.id` is a `uuid` column, so before this an id that
+ * was not one reached Postgres and raised `22P02 invalid input syntax for type
+ * uuid`, which the envelope rendered as an opaque 500 - on a route that documents
+ * 401/404/409 and no 400 at all.
+ *
+ * These pin two things. First, that an unrecognized id and an absent-but-canonical
+ * id are the *same* answer, body and all: "no such delivery" is one fact with one
+ * code, and a caller cannot use the response to learn which ids the store keeps.
+ * Second, that the API's id grammar is exactly the canonical spelling - narrower
+ * than Postgres's input grammar, which also takes unhyphenated, braced and
+ * oddly-hyphenated forms of the same value. That narrowing is a decision, so it
+ * gets an assertion of its own rather than being left to be read off a regex.
+ */
+describe("POST /admin/outbox/:id/redeliver - the delivery id grammar", () => {
+  /** A well-formed uuid that is not any row's id: the reference 404. */
+  const ABSENT_BUT_WELL_FORMED = "d290f1ee-6c54-4b01-90e6-d701748f0851";
+
+  /**
+   * A form of this describe's own, for the same reason FORM_ERASED exists: the
+   * happy-path cases below seed deliveries at "now", and on FORM_A they would
+   * silently become the newest rows the ordering and `?limit` assertions read.
+   */
+  const FORM_ID_SHAPE = FormId.parse("frm_outbox_id_shape");
+
+  beforeAll(async () => {
+    await createForm(testDb.db, {
+      formId: FORM_ID_SHAPE,
+      slug: "ops-id-shape",
+      defaultLocale: "en",
+    });
+  }, BOOT_TIMEOUT);
+
+  async function redeliverRaw(id: string): Promise<{ status: number; body: unknown }> {
+    const res = await app.request(`/admin/outbox/${id}/redeliver`, {
+      method: "POST",
+      headers: headers(),
+    });
+    return { status: res.status, body: await res.json() };
+  }
+
+  it("404s with the absent-row body rather than 500ing on the uuid cast", async () => {
+    const absent = await redeliverRaw(ABSENT_BUT_WELL_FORMED);
+    expect(absent.status).toBe(404);
+    expect(absent.body).toEqual({
+      error: { code: "DELIVERY_NOT_FOUND", message: "No such webhook delivery" },
+    });
+
+    // The whole envelope, not just the status: a malformed id must be
+    // indistinguishable from an absent one, so a new third shape here is a defect.
+    const malformed = await redeliverRaw("not-a-uuid");
+    expect(malformed.status).toBe(404);
+    expect(malformed.body).toEqual(absent.body);
+  });
+
+  it("404s every shape Postgres would have cast-errored on, and still accepts a real id", async () => {
+    // Each of these is rejected by Postgres's own uuid input grammar too, so each
+    // one is a 500 on the pre-310 code: too short, too long, non-hex, an encoded
+    // segment, a bare number.
+    const wouldCastError = [
+      "d290f1ee-6c54-4b01-90e6-d701748f085",
+      "d290f1ee-6c54-4b01-90e6-d701748f08511",
+      "z290f1ee-6c54-4b01-90e6-d701748f0851",
+      "not%20a%20uuid",
+      "0",
+    ];
+    for (const id of wouldCastError) {
+      const res = await redeliverRaw(id);
+      expect({ id, status: res.status, body: res.body }).toEqual({
+        id,
+        status: 404,
+        body: { error: { code: "DELIVERY_NOT_FOUND", message: "No such webhook delivery" } },
+      });
+    }
+
+    // And the guard has not swallowed the happy path: a real id still redelivers.
+    expect((await redeliverRaw(await seedDelivery(FORM_ID_SHAPE, new Date()))).status).toBe(200);
+  });
+
+  it("404s the alternate uuid spellings Postgres accepts - deliberately, not by oversight", async () => {
+    // This is the one place the API's grammar is *narrower* than the column's, so
+    // it is pinned rather than left to be inferred from the regex. Postgres 16
+    // accepts all three of these as input for the very row seeded below, and a
+    // widened predicate really does resolve them to it (verified by widening the
+    // predicate and watching these assertions return a 200 `pending` body). This
+    // surface answers 404 instead: a delivery id is a machine
+    // value that callers round-trip verbatim out of the list responses, and one row
+    // answering to four ids is not something an identify-one-delivery endpoint
+    // should offer. A future reader who lands here from a 404 is reading a
+    // decision. Widening it is a contract change, not a bug fix.
+    const real = await seedDelivery(FORM_ID_SHAPE, new Date());
+
+    // The control, asserted *first* and deliberately so: it establishes that the row
+    // is present and reachable before anything below claims a spelling of it is not.
+    // Ordered the other way this test could go green on a missing fixture, which is
+    // the failure mode that makes a negative assertion worthless.
+    expect((await redeliverRaw(real)).status).toBe(200);
+
+    const hex = real.replaceAll("-", "");
+    const alternates = [
+      hex, // unhyphenated
+      `{${real}}`, // braced
+      // Arbitrary hyphen placement: Postgres takes hyphens between any groups, so
+      // this is the same value to the column.
+      (hex.match(/.{4}/g) ?? []).join("-"),
+    ];
+    for (const id of alternates) {
+      const res = await redeliverRaw(id);
+      expect({ id, status: res.status, body: res.body }).toEqual({
+        id,
+        status: 404,
+        body: { error: { code: "DELIVERY_NOT_FOUND", message: "No such webhook delivery" } },
+      });
+    }
+  });
+
+  it("is case-insensitive about the hex, so an uppercased real id still resolves", async () => {
+    // Postgres compares uuids by value, so the uppercased form of a stored id is
+    // the same row - the shape check must not be the thing that hides it.
+    const id = await seedDelivery(FORM_ID_SHAPE, new Date());
+    expect((await redeliverRaw(id.toUpperCase())).status).toBe(200);
   });
 });
 

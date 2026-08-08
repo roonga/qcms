@@ -12,7 +12,58 @@
 
 import { z } from "@hono/zod-openapi";
 
-/** `:id` path param - a `webhook_deliveries` row id (uuid). */
+/**
+ * The shape a `webhook_deliveries` row id can have: the canonical hyphenated uuid
+ * Postgres returns for a `uuid` column.
+ *
+ * It matches that one spelling, case-insensitively, and nothing else. Stated
+ * exactly, because it sits between two other grammars and is not equal to either:
+ *
+ * - **Wider than `z.uuid()` in the values it admits.** Zod's check is RFC 9562
+ *   conformance, which additionally pins the version and variant nibbles: it
+ *   rejects `aaaaaaaa-bbbb-1ccc-0ddd-eeeeeeeeeeee`, which the column stores
+ *   happily. Pinning conformance here would turn a storable id into a "no such
+ *   delivery", which is the defect class 310 is about, so it is not used.
+ * - **Narrower than Postgres's input grammar in the spellings it admits.** A live
+ *   `postgres:16-alpine` also accepts the unhyphenated form
+ *   (`d290f1ee6c544b0190e6d701748f0851`), the braced form (`{d290f1ee-…}`), and
+ *   arbitrary hyphen placement (`d290-f1ee-6c54-…`). Those are answered 404 here
+ *   rather than looked up.
+ *
+ * The narrowing is deliberate, and it is the API's grammar rather than the
+ * store's: delivery ids are machine values, minted by `gen_random_uuid()` and
+ * round-tripped verbatim from the list responses that emit them, so the canonical
+ * form is the only spelling any real caller holds. Accepting alternates would mean
+ * one row answering to several ids on a surface whose whole job is to identify one
+ * delivery. A caller that hand-writes an alternate spelling gets the same 404 as
+ * any other unrecognized id, and `outbox.integration.test.ts` pins that on purpose
+ * so it reads as a decision rather than an oversight.
+ */
+const DELIVERY_ID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * True when `value` is a delivery id in the one spelling this API recognizes.
+ *
+ * A `true` guarantees a query on `value` cannot raise `22P02`. A `false` does not
+ * mean Postgres would have rejected it (see the alternate spellings above); it
+ * means this surface does not accept it as an id.
+ */
+export function isDeliveryId(value: string): boolean {
+  return DELIVERY_ID_SHAPE.test(value);
+}
+
+/**
+ * `:id` path param - a `webhook_deliveries` row id (uuid).
+ *
+ * The uuid shape is **not** enforced here, on purpose (issue 310). A param-schema
+ * rejection is a 400, and this route documents 401/404/409 only: to a caller,
+ * "that is not a delivery id" and "there is no delivery with that id" are the same
+ * fact, and an admin surface has no reason to help distinguish them. So the handler
+ * applies {@link isDeliveryId} and routes a malformed id into the same
+ * `DELIVERY_NOT_FOUND` 404 an absent row already takes. Before 310 nothing checked
+ * the shape at all and a non-uuid reached Postgres, which raised `22P02 invalid
+ * input syntax for type uuid` and surfaced as a 500.
+ */
 export const DeliveryIdParam = z.object({
   id: z.string().openapi({
     param: { name: "id", in: "path" },

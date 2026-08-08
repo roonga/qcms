@@ -31,6 +31,7 @@ import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
 import type { deadLettersRoute, deliveriesRoute, redeliverRoute } from "./route.js";
+import { isDeliveryId } from "./schema.js";
 
 const fail = {
   deliveryNotFound: (): ApiError =>
@@ -156,6 +157,15 @@ export function makeDeliveriesHandler(deps: Deps): RouteHandler<typeof deliverie
 export function makeRedeliverHandler(deps: Deps): RouteHandler<typeof redeliverRoute, ApiEnv> {
   return async (c) => {
     const { id } = c.req.valid("param");
+
+    // Issue 310: a delivery id is a uuid, and `webhook_deliveries.id` is a `uuid`
+    // column, so a malformed id used to reach Postgres and raise `22P02 invalid
+    // input syntax for type uuid` - a 500 for what is a client's bad id. It takes
+    // the same 404 an absent row takes rather than a 400 of its own: both are "no
+    // such delivery" to the caller, the route documents no 400, and one code keeps
+    // the admin dashboard's existing DELIVERY_NOT_FOUND handling correct. The check
+    // sits here rather than on the param schema because a schema rejection is a 400.
+    if (!isDeliveryId(id)) throw fail.deliveryNotFound();
 
     // ADR-17 (as amended 2026-08-02): refuse before resetting. Erasure cancels the
     // session's still-sendable deliveries and redacts the outbox payload they would
