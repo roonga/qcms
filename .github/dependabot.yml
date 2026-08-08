@@ -12,10 +12,11 @@
 #      about this graph. Every alert on this repo lands against pnpm-lock.yaml,
 #      which does not record which workspace manifest pulled a package in, so the
 #      label is unreliable in both directions. Run `pnpm why -r <package>` and
-#      read where the path terminates before treating an alert as shipped: the
-#      Testcontainers harness and the API's OpenAPI schema validator are
-#      devDependencies, and nothing reached through them is in a published
-#      @qcms/* package or a production image.
+#      read where the path terminates before treating an alert as shipped. Two
+#      facts make that trace decisive rather than advisory: a devDependency of a
+#      workspace project is never in a published @qcms/* package, and every
+#      image in docker/ ships a `pnpm deploy --prod` pruned tree, so a dev-scope
+#      transitive cannot reach a runtime image by construction.
 #
 #   2. A "security_update_not_possible" error is not automatically an override.
 #      Dependabot reports it whenever it cannot construct the update itself,

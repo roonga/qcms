@@ -77,9 +77,9 @@ use `pnpm devcontainer rebuild` after editing `devcontainer.json`.
 | `drizzle-orm` | Young, VC-funded | No magic used - migrations are plain SQL files, helpers are thin; exit to Kysely/raw SQL is bounded |
 | `ai` (Vercel AI SDK) + `@ai-sdk/*` | Vercel-owned - same steering/churn profile as Next/Turborepo | Vendor-agnostic LLM layer for 041 only; confined behind the `DraftAssistant` seam, so a swap touches one adapter file |
 
-### Security overrides (`pnpm.overrides`)
+### Security overrides (`overrides` in `pnpm-workspace.yaml`)
 
-Transitive advisories that a parent's pinned range blocks are patched with **targeted** overrides in `pnpm-workspace.yaml`, not by waiting on Dependabot (its `npm_and_yarn` updater fails on multi-range advisories in a pnpm monorepo - issue #47). pnpm 11 reads `overrides` **only** from `pnpm-workspace.yaml`; a `pnpm.overrides` block in the root `package.json` is silently ignored (issue #383). Rules for adding one:
+Transitive advisories that a parent's pinned range blocks are patched with **targeted** overrides, not by waiting on Dependabot (its `npm_and_yarn` updater fails on multi-range advisories in a pnpm monorepo - issue #47). pnpm 11 reads `overrides` **only** from `pnpm-workspace.yaml`; a `pnpm.overrides` block in the root `package.json` is silently ignored (issue #383). Rules for adding one:
 
 - **Establish that an override is needed at all, by refreshing the lockfile first.** Dependabot reports `security_update_not_possible` whenever *it* cannot construct the update, which includes the case where the parent's declared range already admits the patched version and only the lockfile is behind. `pnpm update -r --depth Infinity <package>` followed by `pnpm why -r <package>` settles which case you are in. An override added for the stale-lockfile case fixes nothing that a refresh would not, and it has no reachable removal condition (issue #332).
 - **Scope it to the vulnerable resolution** (`"minimatch@9": "^10.2.5"`), never a bare package name, unless every consumer in the tree is already on that major. A blanket override silently forces future consumers of an older major onto an incompatible API.
