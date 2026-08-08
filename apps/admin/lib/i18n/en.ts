@@ -657,6 +657,11 @@ export const messages = {
   "forms.publish.noDraft": "There is nothing to publish: this form has no draft.",
   "forms.publish.blocked": "This draft cannot be published yet.",
   "forms.publish.blockedCount": "{count} issues block publishing. Each one links to its cause.",
+  // Spoken, not shown (issue #377). The work list below carries the detail and every
+  // entry in it is a link, so what the live region owes an operator is that the publish
+  // did not happen and roughly how much there is to fix - not the list read aloud.
+  "forms.publish.blockedAnnounce.one": "Publish blocked: 1 issue to fix, listed below.",
+  "forms.publish.blockedAnnounce.other": "Publish blocked: {count} issues to fix, listed below.",
   "forms.publish.goToIssue": "Go to",
   "forms.publish.published": "Published as v{version}.",
   "forms.publish.viewHistory": "View version history",
@@ -689,6 +694,10 @@ export const messages = {
   "forms.preview.unavailable": "This draft cannot be previewed yet.",
   "forms.preview.unavailableHint":
     "A preview of a draft that publish would refuse would be a promise about what a respondent sees that publish will not keep. Fix these first.",
+  // Spoken, not shown (issue #377), and worded to the same rule as the publish summary.
+  "forms.preview.unavailableAnnounce.one": "Preview unavailable: 1 issue to fix, listed below.",
+  "forms.preview.unavailableAnnounce.other":
+    "Preview unavailable: {count} issues to fix, listed below.",
   "forms.preview.failed": "The preview could not be loaded. {message}",
   "forms.preview.emptyStep": "Nothing on this step is visible for the answers so far.",
   "forms.preview.noSteps": "This draft has no steps to preview yet.",
@@ -751,6 +760,14 @@ export const messages = {
   "forms.links.mintedTitle.other": "{count} links minted",
   "forms.links.mintedOnce":
     "Copy these now. The server stores a link's state, never its token, so these URLs cannot be shown again.",
+  // Spoken, not shown (issue #377). Deliberately NOT the URLs: a token read aloud cannot
+  // be copied, and the panel that holds them stays on screen until the operator dismisses
+  // it. What the announcement owes is that the mint succeeded and that the panel is the
+  // only chance to take the URLs out of it.
+  "forms.links.mintedAnnounce.one":
+    "1 secure link minted. It is listed below and cannot be shown again.",
+  "forms.links.mintedAnnounce.other":
+    "{count} secure links minted. They are listed below and cannot be shown again.",
   "forms.links.copy": "Copy URL",
   "forms.links.copied": "Link copied to the clipboard.",
   "forms.links.copyFailed": "The link could not be copied. Select the text and copy it manually.",
