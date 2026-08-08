@@ -65,6 +65,9 @@ const DEFAULT_DELIVERY_LIMIT = 50;
 
 const FORM_A = FormId.parse("frm_outbox_a");
 const FORM_B = FormId.parse("frm_outbox_b");
+/** A form of its own for the response-snippet retention test (#304), so its extra
+ * delivery cannot perturb the ordering and limit assertions over form A. */
+const FORM_SNIPPET = FormId.parse("frm_outbox_snippet");
 const FORM_BULK = FormId.parse("frm_outbox_bulk");
 /**
  * A form of its own for the ADR-17 refusal cases.
@@ -171,6 +174,7 @@ beforeAll(async () => {
 
   await createForm(testDb.db, { formId: FORM_A, slug: "ops-a", defaultLocale: "en" });
   await createForm(testDb.db, { formId: FORM_B, slug: "ops-b", defaultLocale: "en" });
+  await createForm(testDb.db, { formId: FORM_SNIPPET, slug: "ops-snippet", defaultLocale: "en" });
   await createForm(testDb.db, { formId: FORM_BULK, slug: "ops-bulk", defaultLocale: "en" });
   await createForm(testDb.db, { formId: FORM_ERASED, slug: "ops-erased", defaultLocale: "en" });
   // A published version, so the ADR-17 cases can create real sessions and erase them
@@ -307,16 +311,19 @@ describe("GET /admin/forms/:id/deliveries - scoping, ordering and derived status
     // the retention sweep. Both leave the field null - the same value it has when no
     // response arrived or the body was genuinely empty - so the API has to carry the
     // marker, or an operator screen would report an empty body for a deleted one.
-    const deliveryId = await seedDelivery(FORM_A, new Date("2026-07-21T00:00:00.000Z"));
+    // Its own form, and an attempt stamped far in the past with a horizon just
+    // after it, so the sweep touches this row and nothing else this file seeded.
+    const deliveryId = await seedDelivery(FORM_SNIPPET, new Date("2020-01-01T00:00:00.000Z"));
     await recordDeliveryFailure(testDb.db, deliveryId, "http_400", new Date(), {
       ...STORED_ATTEMPT,
+      lastAttemptAt: new Date("2020-01-01T00:00:00.000Z"),
       lastStatus: 400,
       lastResponseSnippet: '{"error":"invalid","received":{"q_name":"Ada Lovelace"}}',
     });
 
-    await redactAgedResponseSnippets(testDb.db, new Date("2099-01-01T00:00:00.000Z"));
+    await redactAgedResponseSnippets(testDb.db, new Date("2020-01-02T00:00:00.000Z"));
 
-    const { items } = await listDeliveries(FORM_A);
+    const { items } = await listDeliveries(FORM_SNIPPET);
     const row = items.find((i) => i.deliveryId === deliveryId)!;
     expect(row.responseSnippet).toBeNull();
     expect(row.responseSnippetRedactedAt).not.toBeNull();
