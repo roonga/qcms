@@ -73,16 +73,63 @@ export async function writeReceiptCookie(receipt: SubmitResponse): Promise<void>
   });
 }
 
-/** Read (and clear) the receipt cookie on the completion page. */
+/**
+ * The wire shape of `RECEIPT_COOKIE` (issue #345). Same reasoning as
+ * `stepContextSchema` below: `httpOnly` stops the page's own scripts reading the
+ * cookie, but it is unsigned, so a respondent can hand-set it in their own
+ * browser. This seam therefore checks what it hands the completion page instead
+ * of asserting it.
+ *
+ * Strictness is pinned to what the **writer** can legitimately produce, which is
+ * exactly one thing. `writeReceiptCookie` only ever stores what `submitSession`
+ * returned, and the API builds that from the stored submission row as
+ * `{ submittedAt: row.submittedAt.toISOString(), contentHash: row.contentHash }`.
+ * So this mirrors the API's own `SubmitResponse` schema rather than a guess made
+ * here: a legitimate receipt is refused only if the API breaks its own published
+ * contract, never merely for differing from an invention on this side.
+ *
+ * `z.iso.datetime()` rather than a bare string because the completion page
+ * renders the value through `new Date(...)`: a string that is not an instant
+ * reaches the respondent as the literal text "Invalid Date". A bare string would
+ * be a wider schema than the consumer actually needs, which is a false guarantee.
+ *
+ * Unknown members are stripped rather than fatal (plain `z.object`), so a later
+ * API that adds a field to the receipt still reads on a deployment running this
+ * build, while a forged extra member never reaches the page.
+ */
+const receiptSchema = z.object({
+  submittedAt: z.iso.datetime(),
+  contentHash: z.string(),
+});
+
+/**
+ * Read (and clear) the receipt cookie on the completion page. Total over hostile
+ * input, and every failure lands on the same answer an absent cookie already
+ * returned: no cookie, unparseable JSON and JSON that is not a receipt are one
+ * case, not three. `/done` then renders the neutral thank-you without the
+ * reference, exactly as it has always done for a respondent whose short-lived
+ * cookie lapsed before they revisited the page.
+ *
+ * Deliberately NOT a third "we could not confirm your receipt" state (issue
+ * #345). The submission is already durable on the API side by the time this
+ * cookie is read, so an alarming message here would cast doubt on a submission
+ * that in fact succeeded, at the last moment a respondent sees. The only inputs
+ * that reach the rejection branch are a lapsed cookie and one the respondent
+ * forged themselves.
+ */
 export async function readReceiptCookie(): Promise<SubmitResponse | undefined> {
   const store = await cookies();
   const raw = store.get(RECEIPT_COOKIE)?.value;
   if (raw === undefined) return undefined;
+  let json: unknown;
   try {
-    return JSON.parse(raw) as SubmitResponse;
+    json = JSON.parse(raw);
   } catch {
     return undefined;
   }
+  const parsed = receiptSchema.safeParse(json);
+  if (!parsed.success) return undefined;
+  return parsed.data;
 }
 
 /** Persist the no-JS step re-render context for the next flow-page render (044). */
