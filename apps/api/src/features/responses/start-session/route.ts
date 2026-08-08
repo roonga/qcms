@@ -71,6 +71,18 @@ export const registerStartSession: SliceRegistrar = (group, deps: Deps): void =>
   // Session creation is rate-limited per client IP (task 026): no session
   // exists yet, so IP is the only available bucket. Scoped to exactly the
   // `POST /sessions` path (Hono matches the bare path, not sub-paths).
+  //
+  // The limiter stays as middleware, ahead of the handler, and issue #376 asked
+  // whether it should move behind token validation instead so an invalid token
+  // allocates nothing. It must not, for two reasons. The anonymous mode
+  // (`{ formSlug }`) has no token to validate at all, and capping *that* is the
+  // limiter's main job, so a limiter that only runs after validation would leave
+  // the primary path uncapped. And validation is exactly the work the limiter
+  // exists to shield: the secure-link path does a signature verify plus a
+  // `secure_links` read, and consuming a one-time link is a write, so running
+  // the limiter afterwards would let an unauthenticated caller drive unbounded
+  // database round trips with junk tokens. The allocation this position permits
+  // is bounded in the store instead (`rate-limit.ts`).
   group.use("/sessions", sessionCreateLimiter(deps));
   group.openapi(startSessionRoute, makeStartSessionHandler(deps));
   group.openapi(getSessionRoute, makeGetSessionHandler(deps));

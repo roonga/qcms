@@ -13,6 +13,7 @@ import { describe, expect, it } from "vitest";
 import { CLIENT_ADDRESS_HEADER } from "../../client-address.js";
 import type { Clock } from "../../clock.js";
 import { ApiError } from "../../errors.js";
+import { InMemoryRateLimitStore } from "../../rate-limit.js";
 import { makeDeps, validEnv } from "../../test-support.js";
 import {
   answersPerIpLimiter,
@@ -172,6 +173,40 @@ describe("the address the limiters key on", () => {
     expect((await call({ "x-forwarded-for": "10.0.0.1" })).status).toBe(200);
     expect((await call({ "x-real-ip": "10.0.0.2" })).status).toBe(200);
     expect((await call({ "x-forwarded-for": "10.0.0.3" })).status).toBe(429);
+  });
+});
+
+/**
+ * The store the address-keyed limiters fill cannot grow without bound (#376).
+ *
+ * `POST /sessions` is reachable without any credential the respondent chooses -
+ * the portal's `GET /l/<token>` calls it before anything validates the token,
+ * and the limiter is deliberately mounted ahead of the handler so an invalid
+ * token costs an attacker a bucket rather than a database round trip. That makes
+ * "one request from a fresh address" the cheapest thing on the surface, so the
+ * store behind it has to be bounded. Against the pre-fix store this test sees
+ * 400 retained entries instead of 32.
+ */
+describe("the store the session-create limiter fills", () => {
+  it("stays within capacity under one request each from many fresh addresses", async () => {
+    const { clock } = mutableClock();
+    const store = new InMemoryRateLimitStore(clock, 32);
+    const deps = makeDeps({ clock, env: tightEnv(), rateLimitStore: store });
+    const app = appWith((a) => {
+      a.use("/sessions", sessionCreateLimiter(deps));
+      a.post("/sessions", (c) => c.text("ok"));
+    });
+
+    for (let i = 0; i < 400; i++) {
+      const res = await app.request("/sessions", {
+        method: "POST",
+        headers: { [CLIENT_ADDRESS_HEADER]: `2001:db8::${i.toString(16)}` },
+      });
+      // Each address is under its own limit, so the limiter still lets it past:
+      // the request is served, it just no longer leaks an entry forever.
+      expect(res.status).toBe(200);
+      expect(store.size).toBeLessThanOrEqual(32);
+    }
   });
 });
 

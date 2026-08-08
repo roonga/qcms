@@ -117,6 +117,19 @@ per group in the slices that need it (026). The store is an interface - a
 multi-instance deployment swaps in a Redis-backed implementation of
 `RateLimitStore`; that is an **adopter swap, not a dependency here**.
 
+The in-memory store holds at most `maxKeys` entries (default 100,000, a
+constructor argument). It sweeps expired buckets as it goes and evicts the least
+recently hit entry when full, so its heap is bounded no matter how many distinct
+keys arrive (issue #376). Two things follow for anyone adding a limiter: a new
+`keyFor` may key on anything without leaking memory, and eviction forgives a
+count, so a limiter whose correctness depends on a count surviving indefinitely
+needs a shared store rather than this one.
+
+**Mount a limiter ahead of the handler, not behind validation.** The work a
+handler does to validate a credential (a database read, a signature verify) is
+the work the limiter is there to shield; moving it after that hands an
+unauthenticated caller a free path to it.
+
 **Never key a limiter on `X-Forwarded-For` or `X-Real-IP`.** Those are claims the
 caller can write, so keying on one hands every caller a bucket of its own. The
 client address comes from `src/client-address.ts`, which reads the header a BFF

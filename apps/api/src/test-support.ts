@@ -14,7 +14,7 @@ import { loadConfig } from "./config.js";
 import type { Deps } from "./deps.js";
 import { type ChallengeVerifier, nullChallengeVerifier } from "./features/responses/challenge.js";
 import { createJsonLogger, createNullLogger, type Logger } from "./logger.js";
-import { InMemoryRateLimitStore } from "./rate-limit.js";
+import { InMemoryRateLimitStore, type RateLimitStore } from "./rate-limit.js";
 import type { Clock } from "./clock.js";
 import type { Executor } from "@qcms/db";
 
@@ -59,6 +59,8 @@ export interface TestDepsOverrides {
   readonly clock?: Clock;
   readonly challenge?: ChallengeVerifier;
   readonly env?: Record<string, string | undefined>;
+  /** Supply a store when the test needs to inspect it (capacity, key count). */
+  readonly rateLimitStore?: RateLimitStore;
 }
 
 /**
@@ -73,7 +75,7 @@ export function makeDeps(overrides: TestDepsOverrides = {}): Deps {
     config,
     clock,
     logger: overrides.logger ?? createNullLogger(),
-    rateLimitStore: new InMemoryRateLimitStore(clock),
+    rateLimitStore: overrides.rateLimitStore ?? new InMemoryRateLimitStore(clock),
     challenge: overrides.challenge ?? nullChallengeVerifier,
     flags: config.flags,
   };
