@@ -88,6 +88,18 @@ services:
     environment:
       <<: *api-env
       PORT: 3000
+      # Tracing's single switch (ADR-34). Compose forwards only what a service names
+      # here, so without this line setting the variable in .env reached nothing and
+      # the stack could not export telemetry at all, whatever an operator configured
+      # (issue #417). Empty is the default and means OFF: the composition root starts
+      # no SDK rather than starting one that dials a collector nobody is running.
+      #
+      # It is on `api` rather than on the `*api-env` anchor because the anchor is
+      # shared with `migrate`, a one-shot that starts no SDK and would only appear in
+      # a trace backend as a service that never sends anything.
+      #
+      # docker-compose.dev-tools.yml overrides this with its own collector's address.
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -111,6 +123,10 @@ services:
       QCMS_SECURE_COOKIES: ${QCMS_SECURE_COOKIES:-}
       QCMS_PORTAL_BASE_URL: ${QCMS_PORTAL_BASE_URL:?set QCMS_PORTAL_BASE_URL in .env}
       QCMS_PORTAL_TRUSTED_PROXY_HOPS: ${QCMS_PORTAL_TRUSTED_PROXY_HOPS:-1}
+      # The api service's twin; the reasoning is written out there. Both apps read the
+      # same variable name and each defaults its own service name, so one endpoint
+      # here traces the whole BFF hop.
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     depends_on:
       api:
         condition: service_healthy

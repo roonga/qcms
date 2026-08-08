@@ -76,7 +76,13 @@ import { readFileSync } from "node:fs";
 import { argv } from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { MAX_PORT_SEAT, MIN_PORT_SEAT, harnessPorts, stablePort } from "./ports.mjs";
+import {
+  MAX_PORT_SEAT,
+  MIN_PORT_SEAT,
+  STABLE_SERVICES,
+  harnessPorts,
+  stablePort,
+} from "./ports.mjs";
 
 const GIT = "git";
 
@@ -226,14 +232,19 @@ export const ALLOWED = [
  *
  * Computed from `scripts/ports.mjs` rather than listed, so the gate can never drift
  * from the arithmetic it is enforcing.
+ *
+ * The stable services are read from `STABLE_SERVICES` itself rather than named here.
+ * They used to be a literal list, which made the allocation a TWO-place edit while
+ * ADR-37 says adding a service to that table is all it takes: a slot added there and
+ * not here produced a gate that rejected the very port the ADR had just allocated,
+ * with an error telling the author to move it back inside the allocation it was
+ * already inside. The harness half was already derived this way.
  */
 export function sanctionedPorts() {
   const allowed = new Set();
   for (let seat = MIN_PORT_SEAT; seat <= MAX_PORT_SEAT; seat += 1) {
-    for (const service of ["portal", "api", "postgres", "artifacts", "admin"]) {
-      allowed.add(
-        stablePort(/** @type {"portal"|"api"|"postgres"|"artifacts"|"admin"} */ (service), seat),
-      );
+    for (const service of Object.keys(STABLE_SERVICES)) {
+      allowed.add(stablePort(/** @type {keyof typeof STABLE_SERVICES} */ (service), seat));
     }
     for (const entry of harnessPorts(seat)) allowed.add(entry.port);
   }

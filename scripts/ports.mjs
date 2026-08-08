@@ -88,6 +88,16 @@ export const STABLE_SERVICES = {
   // #281: `pnpm dev:admin` listens on it and the dev container publishes seat 0's
   // 7040. See docs/PORTS.md.
   admin: 40,
+  // The two developer-toolbox slots (ADR-37 amendment 2026-08-07, issue #417),
+  // published only by `docker-compose.dev-tools.yml` and never by the shipped
+  // topology. They are in the STABLE block because the test is lifetime and
+  // audience: a dashboard a person opens in a browser and leaves running is
+  // stable and human-facing, whatever it happens to be a dashboard of.
+  //
+  // The overlay's collector accepts OTLP inside the Compose network and gets no
+  // slot, deliberately: an unpublished container port is not an allocation.
+  observability: 50,
+  dbViewer: 60,
 };
 
 /** Ephemeral test-harness services and their offset inside a seat's `17Sxx` block. */

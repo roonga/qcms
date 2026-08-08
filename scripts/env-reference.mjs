@@ -53,7 +53,21 @@ export const BEGIN_MARKER =
   "<!-- BEGIN GENERATED: env-reference (node scripts/env-reference.mjs --write) -->";
 export const END_MARKER = "<!-- END GENERATED: env-reference -->";
 
-/** Compose files whose `${VAR}` interpolation is part of the operator surface. */
+/**
+ * Compose files whose `${VAR}` interpolation is part of the operator surface.
+ *
+ * `docker-compose.dev-tools.yml` is deliberately absent, and the omission is a
+ * decision rather than an oversight (issue #417). This list decides what appears in
+ * an OPERATOR's reference, and none of that overlay's variables is an operator's to
+ * set: it is a developer's toolbox that never runs in a deployment, so a row for it
+ * in `docs/operations.md` would document a knob for a stack the reader does not
+ * have. Its variables are documented in `docs/DEVELOPER_GUIDE.md` instead, where the
+ * audience is. `docker-compose.dev.yml` is absent for the same reason and always was.
+ *
+ * The overlay's one shared name, `OTEL_EXPORTER_OTLP_ENDPOINT`, is already in the
+ * table twice (once for each app that reads it) via the base file, so the operator
+ * surface loses nothing by the exclusion.
+ */
 const COMPOSE_FILES = ["docker-compose.yml", "docker-compose.proxy.yml"];
 
 /**

@@ -152,21 +152,58 @@ If that **passes**, the variable is being stripped.
 
 **Rollback (the migration is reversible):** `.devcontainer/` touches no product code. Stop using it - or delete the directory - and the host workflow is unchanged: `pnpm install`, the merge gate, and `docker compose -f docker-compose.dev.yml up -d` behave exactly as they did before task 046 (re-run `pnpm install` on the host once if that checkout had been used in the container). Task 046 verified that the portal and API dev servers already bind `0.0.0.0` by default, so no source change was needed for host-browser viewing.
 
-## Seeing a trace locally (optional, task 054 / ADR-34)
+## The developer toolbox: traces and a database viewer (optional)
 
-Tracing is **off unless you set an endpoint**, and nothing in the repo depends on a viewer image. When you want to watch one respondent submit cross the portal -> API -> Postgres hops, run any standalone OTLP dashboard container and point the apps at it. Two that need no configuration:
+Tracing is **off unless you set an endpoint** (task 054, ADR-34), and no viewer ships with QCMS. What you reach for depends on how you are running the stack, and the two answers are genuinely different rather than variations of one.
+
+### A. The composed stack: `docker-compose.dev-tools.yml`
+
+An opt-in overlay (issue #417) carrying Grafana's `otel-lgtm` (Grafana + Loki + Tempo + Prometheus + a collector, in one container) and `pgweb`. It is never part of the base invocation: ADR-20's shipped topology is four containers, and this is a toolbox rather than a deployment.
 
 ```sh
-# A. Jaeger all-in-one (trace search + timeline; UI on 16686)
+# Once: add a password for the read-only database role to your .env. It is NOT in
+# .env.compose.example, because that file is the operator's and this is yours.
+echo "QCMS_DB_VIEWER_PASSWORD=$(openssl rand -hex 24)" >> .env
+
+docker compose -f docker-compose.yml -f docker-compose.dev-tools.yml up --detach
+```
+
+That gives you, at seat 0 (`docs/PORTS.md` for other seats, and both are loopback-only):
+
+| Where | What |
+|---|---|
+| <http://localhost:7050> | Grafana. Log in `admin` / `admin` - the image's own default, on a port only your machine can reach. **Explore -> Tempo -> Search** lists recent traces. |
+| <http://localhost:7060> | pgweb, connected read-only to the application database. No login screen: the connection comes from the environment. |
+
+Bring it down the way you brought it up, or the overlay's containers are left behind as orphans of the base file:
+
+```sh
+docker compose -f docker-compose.yml -f docker-compose.dev-tools.yml down
+```
+
+Three things worth knowing before you go looking for something that is missing:
+
+- **The logs pane is empty, and that is expected.** QCMS exports traces only. OTLP log export is issue #370, which carries a SEC-13 amendment and is deliberately a separate change. Loki is running; nothing sends to it.
+- **The first request after a cold start may not appear.** `lgtm` takes tens of seconds to come up and ships no healthcheck, so the apps start before the collector is listening and the earliest spans exhaust their retry budget. Make a second request.
+- **Nothing persists.** The overlay declares no volumes, so a restart of `lgtm` empties the dashboard. That is the trade that makes `down` leave nothing behind.
+
+**The database viewer is the only credentialed database client in the repo**, and it is scoped accordingly. It does not use `QCMS_DB_PASSWORD`: the overlay creates a `qcms_ro` role granted PostgreSQL's predefined `pg_read_all_data` (reads on every table, including ones a future migration adds) and nothing else, with `default_transaction_read_only` set on the role, and runs pgweb with `--readonly` on top. A write is refused by the database, not by the client. After task 056 the API is otherwise the only process in the stack holding a database credential (ADR-35), which is why this one is worth the paragraph.
+
+### B. Dev servers outside Compose: a hand-run viewer
+
+`pnpm dev:portal` and `pnpm dev:admin` run on your machine, not in the Compose network, so they cannot reach the overlay's collector (its OTLP ingest is deliberately unpublished) and cannot share a seat with the composed stack anyway. For those, run a standalone dashboard yourself. Two that need no configuration:
+
+```sh
+# Jaeger all-in-one (trace search + timeline; its UI is on 16686)
 docker run --rm -p 16686:16686 -p 4318:4318 jaegertracing/all-in-one:latest
 
-# B. .NET Aspire dashboard (traces + logs + metrics in one pane; UI on 18888)
+# .NET Aspire dashboard (traces, logs and metrics in one pane; its UI is on 18888)
 docker run --rm -p 18888:18888 -p 4318:18889 \
   -e DASHBOARD__FRONTEND__AUTHMODE=Unsecured \
   mcr.microsoft.com/dotnet/aspire-dashboard:latest
 ```
 
-Then start the stack with the standard variables set (the same two knobs both processes read):
+Then start the dev servers with the standard variables set (the same two knobs both processes read):
 
 ```sh
 OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 \
@@ -175,14 +212,18 @@ NEXT_OTEL_VERBOSE=1 \
 pnpm dev:portal
 ```
 
-Notes worth having before you go looking for a missing span:
+Those two containers are yours to start and stop; nothing in the repo wires them in, and `4318` in the recipes is the OTLP/HTTP default rather than a QCMS allocation (`docs/PORTS.md` explains why third-party tools you run yourself stay outside it).
 
-- **`OTEL_EXPORTER_OTLP_ENDPOINT` is the whole switch.** Unset, neither app starts an SDK at all (not "starts one that fails to export") - so an empty dashboard with the variable unset is correct behaviour, not a bug.
-- **Set `OTEL_SERVICE_NAME` per process** if you start the API separately, otherwise both default names collide in the dashboard's service list (`qcms-api` and `qcms-portal` are the defaults when you do nothing).
+### Notes that apply to both
+
+- **`OTEL_EXPORTER_OTLP_ENDPOINT` is the whole switch.** Unset, neither app starts an SDK at all (not "starts one that fails to export") - so an empty dashboard with the variable unset is correct behaviour, not a bug. Note that **Compose forwards only what a service names in `environment:`**: before issue #417 neither app named this variable, so setting it in `.env` did nothing to a composed stack. It now reaches both, defaulting to empty.
+- **Set `OTEL_SERVICE_NAME` per process** if you start the API separately, otherwise both default names collide in the dashboard's service list (`qcms-api` and `qcms-portal` are the defaults when you do nothing). The overlay leaves it unset for exactly this reason.
 - **`NEXT_OTEL_VERBOSE=1`** makes Next emit its fuller span set rather than the default subset. Useful when you are debugging the portal's own render/fetch phases; noisy otherwise.
 - **The expected root span is `GET /requested/pathname`** on the portal, with the BFF's `fetch POST .../sessions/...` beneath it, then the API's `POST /sessions/:id/...` server span (that is the `traceparent` hop working), then `pg.query:*` spans under that.
 - **The secure-link route shows as `GET /l/[token]`.** That is SEC-13 redaction doing its job: the token is a credential and is removed from span names and URLs before export. Same reason you will not find answer values or `db.statement` parameters anywhere in a span.
-- Nothing about the viewer is wired into `pnpm dev:portal`; the container above is yours to start and stop, and the port `4318` in these recipes is the OTLP/HTTP default. The Playwright suite's own in-test receiver lives inside the QCMS allocation (`17S30`, so 17030 at seat 0), well away from it, so a running dashboard and a test run cannot collide. See [`docs/PORTS.md`](PORTS.md).
+- **The admin app has no instrumentation at all** (issue #185), so authoring traffic produces API-rooted traces with no admin span above them - worth knowing before you open the dashboard expecting to debug the authoring flow. Issue #184 (a second SERVER span on the API's inbound path) is tracked in the same area; if you see a duplicate, it is that and not something you have misconfigured.
+- **Background work is its own trace, correctly.** The API's outbox delivery pass runs on a timer with no inbound request above it, so its `pg.query:*` spans are roots of single-span traces rather than orphans. Request-driven queries do sit under their request span.
+- The Playwright suite's own in-test receiver lives inside the QCMS allocation (`17S30`, so 17030 at seat 0), well away from all of the above, so a running dashboard and a test run cannot collide. See [`docs/PORTS.md`](PORTS.md).
 
 ## Running work
 
