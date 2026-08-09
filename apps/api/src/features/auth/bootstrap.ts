@@ -22,8 +22,17 @@ import { MIN_PASSWORD_LENGTH } from "./instance.js";
  * re-running against a fresh database or by adding the row deliberately; a
  * user-management screen is Phase 4 along with RBAC (R7).
  *
- * Password strength is checked as length only, matching the sign-in policy; SEC-1's
- * zxcvbn-style score is recorded as an issue rather than improvised here.
+ * Password policy is the sign-in policy, applied at the same two levels: a length
+ * floor checked here before anything is written, and the SEC-1 breach-corpus check
+ * that better-auth's `haveIBeenPwned` plugin runs inside `signUpEmail` (issue #178).
+ * The second one is why this function inspects the response status instead of
+ * assuming success: the plugin answers a corpus hit with `400 PASSWORD_COMPROMISED`
+ * and an unreachable corpus with a 500, and both have to reach the operator as a
+ * refusal they can act on rather than as a crash reading `user.id` off an error body.
+ *
+ * There is no length rule *and* no composition rule beyond that floor, deliberately:
+ * NIST SP 800-63B Rev 4 section 3.1.1.2 says a verifier SHALL NOT impose composition
+ * rules and SHALL check the blocklist, which is exactly this split.
  *
  * The account is created **without** a session: `signUpEmail` issues one, and a
  * command-line bootstrap has no browser to give it to, so it is revoked immediately.
@@ -44,7 +53,19 @@ import { MIN_PASSWORD_LENGTH } from "./instance.js";
 export type BootstrapRefusal =
   | { readonly kind: "already-bootstrapped"; readonly existingAdmins: number }
   | { readonly kind: "invalid-email" }
-  | { readonly kind: "weak-password"; readonly minLength: number };
+  | { readonly kind: "weak-password"; readonly minLength: number }
+  /** The password is in the public breach corpus (SEC-1, better-auth's plugin). */
+  | { readonly kind: "compromised-password" }
+  /**
+   * Any other non-2xx from `signUpEmail`, carrying the vendor's own status and
+   * message. The one that matters in practice is the fail-closed breach check with
+   * no egress: a 500 reading "Failed to check password. Please try again later.".
+   * It is not given its own `kind` because the vendor distinguishes it by message
+   * text alone, and matching on an error string is a silent break at the next
+   * upgrade. The status and message are safe to surface: neither carries the
+   * credential (SEC-8).
+   */
+  | { readonly kind: "sign-up-rejected"; readonly status: number; readonly detail: string };
 
 export type BootstrapResult =
   | { readonly ok: true; readonly userId: string; readonly email: string }
@@ -67,6 +88,32 @@ function looksLikeEmail(value: string): boolean {
   if (local === undefined || local === "" || domain === undefined) return false;
   const labels = domain.split(".");
   return labels.length >= 2 && labels.every((label) => label !== "");
+}
+
+/**
+ * The error code better-auth's `haveIBeenPwned` plugin puts in the body of the 400 it
+ * answers a corpus hit with. A code, not the message: the message is prose the vendor
+ * may reword, the code is the contract (its `$ERROR_CODES` entry).
+ */
+const COMPROMISED_CODE = "PASSWORD_COMPROMISED";
+
+/**
+ * Turn a non-2xx `signUpEmail` response into a refusal, without ever reading the
+ * request that produced it. The body is better-auth's `{ message, code }`; a response
+ * that is not JSON at all still has to become a refusal rather than a throw, because
+ * the caller is a CLI whose whole job is to print one actionable line.
+ */
+async function refusalFor(response: Response): Promise<BootstrapRefusal> {
+  const body = (await response.json().catch(() => ({}))) as {
+    code?: unknown;
+    message?: unknown;
+  };
+  if (body.code === COMPROMISED_CODE) return { kind: "compromised-password" };
+  return {
+    kind: "sign-up-rejected",
+    status: response.status,
+    detail: typeof body.message === "string" ? body.message : "no message",
+  };
 }
 
 /**
@@ -96,6 +143,7 @@ export async function createInitialAdmin(
     body: { email: input.email, password: input.password, name: input.name ?? "Administrator" },
     asResponse: true,
   });
+  if (!created.ok) return { ok: false, refusal: await refusalFor(created) };
   const body = (await created.json()) as { user: { id: string; email: string } };
 
   // Revoke the session `signUpEmail` issued: a CLI has no browser to hand it to.
@@ -116,5 +164,18 @@ export function describeRefusal(refusal: BootstrapRefusal): string {
       return "Refusing: QCMS_ADMIN_EMAIL is not a valid email address.";
     case "weak-password":
       return `Refusing: QCMS_ADMIN_PASSWORD must be at least ${refusal.minLength} characters.`;
+    case "compromised-password":
+      return (
+        "Refusing: QCMS_ADMIN_PASSWORD appears in the public breach corpus at " +
+        "api.pwnedpasswords.com (SEC-1). Choose a different password; a longer " +
+        "passphrase you have never used elsewhere is the reliable fix."
+      );
+    case "sign-up-rejected":
+      return (
+        `Refusing: creating the account failed with HTTP ${refusal.status} (${refusal.detail}). ` +
+        "If this deployment has no egress to api.pwnedpasswords.com, the SEC-1 breach " +
+        "check cannot run and fails closed; see QCMS_ADMIN_PASSWORD_BREACH_CHECK in " +
+        "docs/operations.md."
+      );
   }
 }

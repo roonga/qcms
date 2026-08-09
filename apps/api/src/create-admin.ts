@@ -41,7 +41,7 @@ import pg from "pg";
 
 import { loadAdminAuthConfig } from "./config.js";
 import { createInitialAdmin, describeRefusal } from "./features/auth/bootstrap.js";
-import { createAdminAuth } from "./features/auth/instance.js";
+import { createAdminAuth, warnIfBreachCheckDisabled } from "./features/auth/instance.js";
 
 /** Exit codes: 0 created, 1 refused (operator can act), 2 misconfigured. */
 const EXIT_OK = 0;
@@ -67,6 +67,13 @@ async function main(): Promise<number> {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     return EXIT_MISCONFIGURED;
   }
+
+  // The same line the server writes at boot, before anything is created: the account
+  // this command is about to make would otherwise be the one account created without
+  // the SEC-1 breach check and with nothing in the operator's scrollback saying so.
+  warnIfBreachCheckDisabled(config.adminAuth, (message) => {
+    process.stderr.write(`${message}\n`);
+  });
 
   const pool = new pg.Pool({ connectionString: config.databaseUrl });
   const db = drizzle(pool, { schema }) as unknown as Executor;

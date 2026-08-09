@@ -43,6 +43,15 @@ export function validEnv(
     // become unread.
     QCMS_ADMIN_AUTH_SECRET: synthSecret(),
     QCMS_ADMIN_BASE_URL: "https://admin.example.test",
+    // Off in the default test environment, and only here (issue #178). The SEC-1
+    // breach check is a live HTTPS call to api.pwnedpasswords.com, so leaving it on
+    // by default would make every test that sets a password depend on the internet
+    // and on a third party's uptime. The default is pinned as *on* by `config.test.ts`
+    // reading a bare environment, and the behaviour it produces is exercised against
+    // a stubbed corpus in `features/auth/breached-password.integration.test.ts`;
+    // those two are the coverage, not an accidental network call from every other
+    // suite.
+    QCMS_ADMIN_PASSWORD_BREACH_CHECK: "false",
     ...overrides,
   };
 }

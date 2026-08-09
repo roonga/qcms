@@ -248,3 +248,37 @@ describe("QCMS_DELIVERY_SNIPPET_TTL_MS (issue #304)", () => {
     expect(() => loadConfig(validEnv({ QCMS_DELIVERY_SNIPPET_TTL_MS: "7d" }))).toThrow(ConfigError);
   });
 });
+
+describe("QCMS_ADMIN_PASSWORD_BREACH_CHECK (SEC-1, issue #178)", () => {
+  /**
+   * The default is asserted from an environment with the variable *deleted*, not from
+   * `validEnv()`: that helper deliberately sets it false so the rest of the suite does
+   * not depend on api.pwnedpasswords.com, and asserting the default through it would
+   * read the helper's opinion back to itself.
+   */
+  it("defaults to ON when the variable is absent", () => {
+    const env = validEnv();
+    delete env.QCMS_ADMIN_PASSWORD_BREACH_CHECK;
+    expect(loadConfig(env).adminAuth.breachedPasswordCheck).toBe(true);
+  });
+
+  it("is honoured when set false, which is the offline-deployment knob", () => {
+    const config = loadConfig(validEnv({ QCMS_ADMIN_PASSWORD_BREACH_CHECK: "false" }));
+    expect(config.adminAuth.breachedPasswordCheck).toBe(false);
+  });
+
+  it("stays on when set true explicitly", () => {
+    const config = loadConfig(validEnv({ QCMS_ADMIN_PASSWORD_BREACH_CHECK: "true" }));
+    expect(config.adminAuth.breachedPasswordCheck).toBe(true);
+  });
+
+  it("refuses an uninterpretable value rather than guessing at it", () => {
+    // Boot fails naming the variable. A control the standards write as SHALL must not
+    // be turned off by a value the parser could not read. (`off`, `no` and `0` are
+    // spellings of false that `parseBool` accepts everywhere, so they are deliberate,
+    // not typos.)
+    expect(() => loadConfig(validEnv({ QCMS_ADMIN_PASSWORD_BREACH_CHECK: "maybe" }))).toThrow(
+      ConfigError,
+    );
+  });
+});

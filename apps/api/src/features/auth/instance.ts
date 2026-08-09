@@ -2,6 +2,7 @@ import { authAccount, authSession, authTwoFactor, authUser, authVerification } f
 import type { Executor } from "@qcms/db";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { haveIBeenPwned } from "better-auth/plugins";
 import { twoFactor } from "better-auth/plugins/two-factor";
 
 import { CLIENT_ADDRESS_HEADER } from "../../client-address.js";
@@ -86,8 +87,42 @@ export const TWO_FACTOR_COOKIE = `${COOKIE_PREFIX}.two_factor`;
  */
 export const AUTH_BASE_PATH = "/api/auth";
 
-/** Minimum admin password length. SEC-1's strength check is issue-tracked (#178). */
+/**
+ * Minimum admin password length (SEC-1). Length is the only *composition-shaped* rule
+ * here, and deliberately so: NIST SP 800-63B Rev 4 section 3.1.1.2 says a verifier
+ * SHALL NOT impose composition rules, and OWASP ASVS 5.0 6.2.5 says the same. The
+ * control the standards actually mandate is the breach-corpus check below.
+ */
 export const MIN_PASSWORD_LENGTH = 12;
+
+/**
+ * The one line an operator must be able to find in a log when the breach check is
+ * off. Exported so the test that pins it and the two entry points that emit it read
+ * the same string.
+ */
+export const BREACH_CHECK_DISABLED_WARNING =
+  "QCMS_ADMIN_PASSWORD_BREACH_CHECK is false: admin passwords are NOT checked against " +
+  "the public breach corpus. This is a documented downgrade against NIST SP 800-63B " +
+  "Rev 4 section 3.1.1.2 and OWASP ASVS 5.0 6.2.12 (SEC-1), supported only for a " +
+  "deployment with no egress to api.pwnedpasswords.com.";
+
+/**
+ * Emit {@link BREACH_CHECK_DISABLED_WARNING} when the check is off, and nothing when
+ * it is on.
+ *
+ * A plain `(message: string) => void` sink rather than the `Logger` interface, because
+ * the two callers are a server with a structured logger and a CLI with a stderr
+ * stream, and the only thing they have in common is "somewhere an operator reads".
+ * Silence when the check is on is the point: a line per boot saying a control is
+ * working is a line nobody reads, which is the same failure mode as the fail-open
+ * warning this design rejected.
+ */
+export function warnIfBreachCheckDisabled(
+  adminAuth: Pick<Config["adminAuth"], "breachedPasswordCheck">,
+  warn: (message: string) => void,
+): void {
+  if (!adminAuth.breachedPasswordCheck) warn(BREACH_CHECK_DISABLED_WARNING);
+}
 
 /** What {@link createAdminAuth} needs: a database handle and the auth config. */
 export interface AdminAuthInput {
@@ -137,9 +172,8 @@ export function createAdminAuth(input: AdminAuthInput) {
     telemetry: { enabled: false },
     emailAndPassword: {
       enabled: true,
-      // Length only. SEC-1 asks for a zxcvbn-style strength score, which needs a
-      // dictionary dependency and a UX for the score; it is recorded as an issue
-      // rather than improvised here, and 040 verifies SEC-1 as a system.
+      // A floor, not a strength model: the blocklist plugin below is the control the
+      // standards mandate, and 040 verifies SEC-1 as a system.
       minPasswordLength: MIN_PASSWORD_LENGTH,
       // No reset mail exists (see the header), so do not advertise one.
       requireEmailVerification: false,
@@ -200,6 +234,43 @@ export function createAdminAuth(input: AdminAuthInput) {
         // flipping it would silently weaken SEC-1.
         skipVerificationOnEnable: false,
       }),
+      // SEC-1's breach-corpus check (issue #178). NIST SP 800-63B Rev 4 section
+      // 3.1.1.2 says a verifier SHALL compare a prospective secret against a list of
+      // known compromised passwords, and OWASP ASVS 5.0 6.2.12 requires the same at
+      // L2. Neither asks for an entropy score, which is what SEC-1 used to promise.
+      //
+      // First-party: `haveIBeenPwned` ships inside the pinned better-auth and is
+      // re-exported from `better-auth/plugins`, so no package entered the tree. What
+      // *is* new is an operational dependency: a k-anonymity lookup that sends the
+      // first five hex characters of the password's SHA-1 to
+      // `api.pwnedpasswords.com/range/{prefix}` with `Add-Padding: true` and matches
+      // the suffix in this process. The password never leaves the process, and 2^15
+      // hashes share any one prefix, so the request tells the endpoint nothing usable
+      // (SEC-8).
+      //
+      // It hooks `ctx.password.hash`, so it covers every path that sets a password
+      // rather than one call site. Both of ours are in the vendor's default `paths`:
+      // `/change-password` over the mount, and `/sign-up/email` called in process by
+      // `bootstrap.ts`. Traced, not inferred (issue #178): an in-process
+      // `auth.api.signUpEmail` does populate `getCurrentAuthContext().path`, the
+      // lookup goes out, and a corpus hit comes back as a 400 `PASSWORD_COMPROMISED`.
+      // `paths` is deliberately left at its default: the seven defaults already cover
+      // both, the other five are unreachable behind `route.ts`'s allowlist, and the
+      // option is absent from the vendor's documentation site, so pinning it would
+      // couple this configuration to undocumented surface.
+      //
+      // **Fail-closed, kept from the vendor.** An unreachable endpoint refuses the
+      // password rather than waving it through. That is acceptable because neither
+      // caller is on a critical path that cannot be retried: `qcms:create-admin` is
+      // run-once and re-runnable, and change-password is retryable. Fail-open-with-a-
+      // warning was considered and rejected, because a warning nobody reads turns a
+      // SHALL into a sometimes. A deployment that is *structurally* offline sets
+      // `QCMS_ADMIN_PASSWORD_BREACH_CHECK=false` instead: a config-plane decision the
+      // deployer makes and a reviewer can see, rather than a runtime bypass. That
+      // knob is also the break-glass for the one case fail-closed genuinely costs an
+      // operator something, rotating a leaked password while the corpus is
+      // unreachable mid-incident.
+      haveIBeenPwned({ enabled: adminAuth.breachedPasswordCheck }),
     ],
   });
 }
