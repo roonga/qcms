@@ -172,8 +172,10 @@ with neither, an attempt with a body, and an attempt with none (a timeout).
 records *that* a body was removed, never *why*, because it has two producers -
 erasure and this sweep - and a marker naming one would be a false statement the
 moment the other wrote it. Where the cause matters the row already carries it: an
-erased session's undelivered deliveries hold `cancelled_reason = 'session_erased'`
-and their outbox parent holds `payload_redacted_at`. The admin delivery dashboard
+erased session's undelivered deliveries hold `cancelled_reason = 'session_erased'`,
+and the tombstone is the record that the erasure happened at all.
+(`payload_redacted_at` on the outbox parent is *not* that evidence: since issue #329
+it has two producers of its own.) The admin delivery dashboard
 reads the marker and says the body was removed, rather than reporting an empty body
 for one that was deleted.
 
