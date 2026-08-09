@@ -1,4 +1,4 @@
-import type { A2UIAnswerValue } from "@qcms/ui";
+import type { A2UIAnswerValue } from "@roonga/qcms-ui";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";

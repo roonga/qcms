@@ -18,10 +18,10 @@ const { Client, Pool } = pg;
  * The Testcontainers surface this harness uses, loaded on first container boot.
  *
  * `@testcontainers/postgresql` and `testcontainers` are **optional peer
- * dependencies** of `@qcms/db` (issue #156). They are test-only, and a Docker
+ * dependencies** of `@roonga/qcms-db` (issue #156). They are test-only, and a Docker
  * client is not something every consumer of the runtime surface should install,
  * so they are not pulled in by default. Importing them lazily is what keeps
- * `import { withTestDb } from "@qcms/db/testing"` from throwing in a consumer
+ * `import { withTestDb } from "@roonga/qcms-db/testing"` from throwing in a consumer
  * that has not installed them: the failure moves to the first `startTestDb()`
  * call, where it can name both packages and the command that installs them.
  */
@@ -37,10 +37,10 @@ interface TestcontainersApi {
  * which names one package, no version, and no remedy.
  */
 const MISSING_TESTCONTAINERS_MESSAGE = [
-  "@qcms/db/testing could not load Testcontainers.",
+  "@roonga/qcms-db/testing could not load Testcontainers.",
   "  missing: @testcontainers/postgresql and/or testcontainers",
-  "  why:     both are OPTIONAL PEER dependencies of @qcms/db. The harness is test-only, so installing" +
-    " @qcms/db does not drag a Docker client into a runtime dependency tree that never boots a container.",
+  "  why:     both are OPTIONAL PEER dependencies of @roonga/qcms-db. The harness is test-only, so installing" +
+    " @roonga/qcms-db does not drag a Docker client into a runtime dependency tree that never boots a container.",
   "  fix:     pnpm add -D @testcontainers/postgresql testcontainers",
   "  also:    the harness needs a reachable Docker daemon once the packages are installed.",
 ].join("\n");
@@ -49,7 +49,7 @@ const MISSING_TESTCONTAINERS_MESSAGE = [
  * Wordings that mean "this package is not installed" rather than "this package
  * threw". Node says `Cannot find package 'x' imported from ...`; Vitest, which is
  * how the harness is actually consumed, resolves through Vite and says
- * `Could not resolve "x" imported by "@qcms/db"`. Both shapes have to be matched
+ * `Could not resolve "x" imported by "@roonga/qcms-db"`. Both shapes have to be matched
  * or the adopter-facing message is only produced under one runner.
  */
 const MODULE_NOT_FOUND_MARKERS: readonly RegExp[] = [
@@ -106,7 +106,7 @@ export const DEFAULT_TEST_POSTGRES_IMAGE = "postgres:16-alpine";
  * the same Postgres major (issue #74). CI points it at a GHCR mirror of the same
  * image, because anonymous Docker Hub pulls from shared GitHub runner IP ranges
  * are rate-limited and intermittently return HTTP 500, which failed the whole
- * `@qcms/db` suite twice in one day. Read at module load rather than per call so
+ * `@roonga/qcms-db` suite twice in one day. Read at module load rather than per call so
  * every container in a run boots the same image; set it in the environment
  * before the test process starts.
  */

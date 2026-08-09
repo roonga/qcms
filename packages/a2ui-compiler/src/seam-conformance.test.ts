@@ -16,13 +16,13 @@ import {
   type QuestionId,
   type QuestionVersionRecord,
   type Step,
-} from "@qcms/core";
+} from "@roonga/qcms-core";
 import { describe, expect, it } from "vitest";
 
 /**
  * Step-resolver seam conformance (task 012). Proves the `StepResolver` seam
  * from task 011 (ARCHITECTURE §12) is implementable **from outside the package**
- * - everything here imports from the published `@qcms/a2ui-compiler` surface, no
+ * - everything here imports from the published `@roonga/qcms-a2ui-compiler` surface, no
  * deep `./compile.js`/`./step-resolver.js` reach into compiler internals. A
  * Phase-4 adaptive/agent resolver (ADR-25, authoring-time only) would sit
  * exactly where this test double sits: implement the interface, hand it to

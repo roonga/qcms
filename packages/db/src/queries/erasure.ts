@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 
-import type { EraseErrorCode, EraseOutcome, SessionId } from "@qcms/core";
+import type { EraseErrorCode, EraseOutcome, SessionId } from "@roonga/qcms-core";
 
 import {
   answers,
@@ -39,7 +39,7 @@ export async function openAnswerDeleteDoor(exec: Executor): Promise<void> {
 
 /**
  * Thrown by {@link eraseSession} when the target session does not exist and has
- * no tombstone. Typed via {@link EraseErrorCode} from `@qcms/core` (core owns the
+ * no tombstone. Typed via {@link EraseErrorCode} from `@roonga/qcms-core` (core owns the
  * meaning; db throws). The message carries only the opaque session id - never
  * respondent data (SEC: answer values are never logged).
  */
@@ -65,7 +65,7 @@ export class SessionNotFoundError extends Error {
  *    every `answers` row for the session and the `submissions` lock if present.
  * 4. Scrub any session column that could hold respondent-linkable data. The
  *    launch `sessions` schema holds **none** (all columns are structural and
- *    `linkId` is retained by design - see `@qcms/core` erasure semantics and
+ *    `linkId` is retained by design - see `@roonga/qcms-core` erasure semantics and
  *    `docs/erasure.md`), so the scrub set is empty today; the session row is
  *    retained as an audit shell.
  * 5. **Redact QCMS's own outbox copy**, **cancel the session's undelivered

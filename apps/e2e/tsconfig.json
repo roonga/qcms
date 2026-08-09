@@ -13,10 +13,10 @@
 // checked under the same options those helpers are checked under, or a shape
 // that passes here could fail in its own package.
 //
-// Following those imports is also why `@qcms/db` is a devDependency of a package
+// Following those imports is also why `@roonga/qcms-db` is a devDependency of a package
 // that never names it: `../admin/e2e/support/flow.js` reaches
-// `apps/admin/lib/server/db.ts`, so this typecheck consumes `@qcms/db`'s BUILT
-// declarations. Declaring it is what puts `@qcms/db#build` ahead of
+// `apps/admin/lib/server/db.ts`, so this typecheck consumes `@roonga/qcms-db`'s BUILT
+// declarations. Declaring it is what puts `@roonga/qcms-db#build` ahead of
 // `qcms-e2e#typecheck` in turbo's graph; without it a clean tree typechecks this
 // package before those declarations exist and fails with TS2307.
 {

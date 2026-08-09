@@ -1,6 +1,6 @@
 # 005 - Rules DSL schemas and dependency graph
 
-**Stage:** 2 · **Package:** `@qcms/core` · **Depends on:** 004
+**Stage:** 2 · **Package:** `@roonga/qcms-core` · **Depends on:** 004
 **References:** `DOMAIN_SCHEMA.md` §3 · ADR-03, **ADR-16** · `ARCHITECTURE.md` §4.2
 
 ## Context

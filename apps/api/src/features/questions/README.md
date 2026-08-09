@@ -1,8 +1,8 @@
 # Question authoring slices (task 021)
 
 The headless question library, on the **admin** surface. Honest transaction
-scripts (R5): the kernel (`@qcms/core` `QuestionDefinition`, 003) validates every
-definition; the `@qcms/db` helpers (014) persist. No domain aggregate - the
+scripts (R5): the kernel (`@roonga/qcms-core` `QuestionDefinition`, 003) validates every
+definition; the `@roonga/qcms-db` helpers (014) persist. No domain aggregate - the
 version lifecycle is a set of single-row state checks this slice owns.
 
 ## Routes

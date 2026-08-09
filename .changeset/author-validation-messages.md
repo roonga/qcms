@@ -1,7 +1,7 @@
 ---
-"@qcms/core": minor
-"@qcms/a2ui-compiler": minor
-"@qcms/ui": minor
+"@roonga/qcms-core": minor
+"@roonga/qcms-a2ui-compiler": minor
+"@roonga/qcms-ui": minor
 ---
 
 Author-supplied validation messages (ADR-32, folds issue #22) and boolean yes/no
@@ -9,7 +9,7 @@ label overrides (ADR-36). Both are **presentation payload**: the kernel and API
 stay the validation authority and keep emitting stable error codes, and the wire
 values of a boolean answer never move.
 
-`@qcms/core` (minor: additive-optional schema plus new exports).
+`@roonga/qcms-core` (minor: additive-optional schema plus new exports).
 
 - The question definition gains an optional `messages` map, one `LocalizedText`
   per constraint the question carries, versioned with the question (R6). A
@@ -30,7 +30,7 @@ values of a boolean answer never move.
   messages and the two boolean labels, so a message missing the form's
   `defaultLocale` is a reported publish error rather than a resolver throw.
 
-`@qcms/a2ui-compiler` (minor: additive output for new content only). A question
+`@roonga/qcms-a2ui-compiler` (minor: additive output for new content only). A question
 carrying messages compiles them onto its control node as one optional `messages`
 prop, resolved for the active locale, keys in canonical order. A boolean's two
 displayed labels resolve the author's override else the `BOOLEAN_AFFIRMATION`
@@ -39,7 +39,7 @@ prop is absent and the labels are unchanged when the author wrote nothing, so th
 existing golden corpus is byte-identical; two new corpus entries are appended
 (ADR-18 append-only) for the two features.
 
-`@qcms/ui` (minor: new export, additive registry behavior). The vendored
+`@roonga/qcms-ui` (minor: new export, additive registry behavior). The vendored
 `@a2ra/core` control props objects are `strict()` and `A2Renderer` validates every
 node against its registry schema before rendering, so an unknown prop throws.
 `withAuthorMessages(schema)` (plus `AuthorMessagesSchema`, `authorMessagesOf` and

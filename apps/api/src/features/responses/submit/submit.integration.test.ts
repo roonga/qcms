@@ -3,7 +3,7 @@
  * **real** kernel and the 013 Testcontainers harness DB - never a mock of our
  * own packages (CONTRIBUTING). Requires Docker.
  *
- * The fixture is the canonical `insurance` form (`@qcms/core` fixtures): one
+ * The fixture is the canonical `insurance` form (`@roonga/qcms-core` fixtures): one
  * step `stp_history` with `q_at_fault_accident` (boolean, required) and `q_accident_count`
  * (number, required), the follow-up shown only when `q_at_fault_accident = true`. So:
  *
@@ -23,8 +23,8 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { HONEYPOT_FIELD_NAME } from "@qcms/a2ui-compiler";
-import { FormId, type LockedSubmission, QuestionId, SessionId } from "@qcms/core";
+import { HONEYPOT_FIELD_NAME } from "@roonga/qcms-a2ui-compiler";
+import { FormId, type LockedSubmission, QuestionId, SessionId } from "@roonga/qcms-core";
 import {
   answerLedger,
   createForm,
@@ -32,8 +32,8 @@ import {
   createQuestionVersion,
   getSubmission,
   insertFormVersion,
-} from "@qcms/db";
-import { startTestDb, type TestDb } from "@qcms/db/testing";
+} from "@roonga/qcms-db";
+import { startTestDb, type TestDb } from "@roonga/qcms-db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../../app.js";
@@ -176,7 +176,7 @@ interface Receipt {
   contentHash: string;
 }
 
-// `submissions.$inferSelect` resolves to a TS error type through @qcms/db's
+// `submissions.$inferSelect` resolves to a TS error type through @roonga/qcms-db's
 // emitted .d.ts (issue #5, FK to the enum-bearing `sessions`); read the fields
 // this test asserts on through a narrow local view (same launder as the slices).
 interface SubmissionView {

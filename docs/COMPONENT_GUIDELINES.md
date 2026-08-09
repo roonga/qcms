@@ -1,6 +1,6 @@
 # Component guidelines: adding or changing an input control
 
-The checklist a session walks when the `@qcms/ui` registry gains a control or an existing question type changes how it renders. Codifies the 028 retro patterns, ADR-31, and the lint/tripwire lessons (#60, #64, #91) so they stop being rediscovered per session.
+The checklist a session walks when the `@roonga/qcms-ui` registry gains a control or an existing question type changes how it renders. Codifies the 028 retro patterns, ADR-31, and the lint/tripwire lessons (#60, #64, #91) so they stop being rediscovered per session.
 
 ## First: is this ADR-sized or checklist-sized?
 

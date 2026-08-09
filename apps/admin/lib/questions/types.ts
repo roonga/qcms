@@ -2,7 +2,7 @@
  * The question library's **wire shapes** (task 032).
  *
  * These mirror the payloads the API's `/admin/questions` routes send and accept, and
- * they are deliberately hand-written rather than imported from `@qcms/core`.
+ * they are deliberately hand-written rather than imported from `@roonga/qcms-core`.
  *
  * That is not duplication for its own sake, it is R2. The kernel's `QuestionDefinition`
  * is a Zod schema carrying branded ids, cross-field refinements and the validation
@@ -80,7 +80,7 @@ export interface ConstraintsView {
  * kernel's canonical order.
  *
  * Restated here rather than imported, for the same R2 reason as everything else in this
- * module: `@qcms/core` owns `ValidationMessageKey` and the admin may not import it as a
+ * module: `@roonga/qcms-core` owns `ValidationMessageKey` and the admin may not import it as a
  * value (`lib/server/r2-import-surface.test.ts`). The order matters beyond tidiness - the
  * editor renders the fields in it, and `forWire` serializes in it, so a message map is a
  * function of content rather than of the order an author happened to fill the boxes in.

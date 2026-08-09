@@ -19,7 +19,7 @@
  * for why that rules out `localStorage`.
  *
  * Font CURATION also lives here. `QCMS_PORTAL_FONTS` names the subset of the
- * `@qcms/ui` registry a deployment offers respondents, which for launch is how an
+ * `@roonga/qcms-ui` registry a deployment offers respondents, which for launch is how an
  * operator curates the list; the admin UI over the same setting is Phase-4.
  *
  * Reading the environment stays on the server. Nothing here is a secret, but the
@@ -30,7 +30,7 @@
  * and the fallback is the shipped brand-neutral default, which is always safe.
  */
 
-import { fontChoices, fontClass, SYSTEM_FONT_KEY, type FontEntry } from "@qcms/ui/fonts";
+import { fontChoices, fontClass, SYSTEM_FONT_KEY, type FontEntry } from "@roonga/qcms-ui/fonts";
 
 // Relative, not the `@/` alias: this module is also loaded directly by Vitest
 // (`theme.test.ts`), which does not resolve the Next.js path alias. Every other
@@ -115,7 +115,7 @@ export function portalDensity(): Density {
 
 /**
  * The respondent-facing font subset this deployment offers: the operator's
- * curation of the `@qcms/ui` registry, read from `QCMS_PORTAL_FONTS` as a list of
+ * curation of the `@roonga/qcms-ui` registry, read from `QCMS_PORTAL_FONTS` as a list of
  * registry keys separated by commas and/or whitespace.
  *
  * Unset or empty means the whole registry, never an empty list. Unknown keys are

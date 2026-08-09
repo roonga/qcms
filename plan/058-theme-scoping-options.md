@@ -78,7 +78,7 @@ and silently re-rank them against the adopter override surface
 rules.
 
 **Cost:** 61 selector lines across three sheets. No new files. One attribute in the portal
-layout. A changeset, since `@qcms/ui` is publishable, and two normative sections of
+layout. A changeset, since `@roonga/qcms-ui` is publishable, and two normative sections of
 `docs/theming.md`.
 
 **The one dangerous item, which is why this is not a rider.**
@@ -90,7 +90,7 @@ WCAG contrast ratios from that resolution**. After the rewrite every selector ga
 is a latent trap independent of 058 and is getting its own issue.)
 
 **Backwards compatible** - `:root` keeps working, so adopters and any external consumer of
-`@qcms/ui/theme.css` see nothing. **Reversible** - if the iframe is later wanted for another
+`@roonga/qcms-ui/theme.css` see nothing. **Reversible** - if the iframe is later wanted for another
 reason, none of this has to be undone.
 
 ---
@@ -99,7 +99,7 @@ reason, none of this has to be undone.
 
 Give the preview its own document, so `:root` means what it says, the portal stylesheets
 apply unmodified, and Cobalt is not in that document at all. It is the only option that
-satisfies exit criterion 7 as literally written ("no `@qcms/ui` source changes"), and read
+satisfies exit criterion 7 as literally written ("no `@roonga/qcms-ui` source changes"), and read
 that way, the fence 034 built was pointing here.
 
 **I am not recommending it, for one reason that is not about effort.** Admin sets

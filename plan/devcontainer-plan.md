@@ -68,7 +68,7 @@ Goal is not to drop Windows *support* (contributors may be on any OS) but to mak
 | `scripts/agent-loop.ps1` (PowerShell supervisor) | Add canonical **`scripts/agent-loop.sh`** (bash); keep `.ps1` for Windows-host fallback. This is the one real port. |
 | `const GIT = win32 ? "git.exe" : "git"` in `scripts/check-*.mjs` | **Keep** - it is correct cross-platform code, harmless on Linux, needed for Windows-host contributors. Not a wart. |
 | `PowerShell(...)` permission families in `.claude/settings.json` | **Keep** - harmless on Linux; helps Windows-host contributors. |
-| docker-credsStore workaround / anonymous-pull forcing in `@qcms/db` testing | **Review** inside the container - may be unneeded on Linux Docker; simplify only if verified, guarded for Windows otherwise. |
+| docker-credsStore workaround / anonymous-pull forcing in `@roonga/qcms-db` testing | **Review** inside the container - may be unneeded on Linux Docker; simplify only if verified, guarded for Windows otherwise. |
 | Orphaned worktree dirs (`git worktree remove` leaves folders on Windows) + the `/next-task` self-heal sweep (commit 16045ea) | **Keep the sweep** - it is cross-platform-safe and a **no-op on Linux**. The *cause* (remove failing to delete the folder) does not occur on Linux, so the container removes the failure at the root while the sweep stays as a harmless backstop. One more Windows papercut the container erases. |
 | CLAUDE.md / memory notes about PowerShell path-token traps | Reframe as "host-Windows only; the container is Linux" once the container is canonical. |
 
@@ -111,7 +111,7 @@ You do **not** open a browser from *inside* the container (separate Linux namesp
 
 Riskiest piece is Testcontainers-through-a-mounted-socket, so that is the gate:
 1. `devcontainer up` builds clean; `pnpm install --frozen-lockfile` succeeds.
-2. **`pnpm build && pnpm typecheck && pnpm test && pnpm lint` green *inside the container*** - especially the `@qcms/db` + api Testcontainers suites. If testcontainers cannot reach its sibling containers, set `TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal` (documented fallback) and re-verify.
+2. **`pnpm build && pnpm typecheck && pnpm test && pnpm lint` green *inside the container*** - especially the `@roonga/qcms-db` + api Testcontainers suites. If testcontainers cannot reach its sibling containers, set `TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal` (documented fallback) and re-verify.
 3. The four check-gates pass.
 4. A throwaway `/next-task` dry run in `bypassPermissions` completes with zero prompts.
 

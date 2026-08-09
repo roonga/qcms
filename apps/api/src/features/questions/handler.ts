@@ -3,7 +3,7 @@
  *
  * The question library, headless: create a question with a first draft version,
  * seed new draft versions, edit drafts, publish, deprecate, and read. The kernel
- * (`QuestionDefinition`, 003) validates every definition; the `@qcms/db` helpers
+ * (`QuestionDefinition`, 003) validates every definition; the `@roonga/qcms-db` helpers
  * (014) persist. There is no domain aggregate here - the version lifecycle
  * (draft → published → deprecated, `DOMAIN_SCHEMA.md` §4.2) is a set of
  * single-row state checks the slice owns, each wrapped in a transaction so the
@@ -31,7 +31,7 @@ import {
   COMPILER_VERSION,
   questionToNode,
   type TextResolver,
-} from "@qcms/a2ui-compiler";
+} from "@roonga/qcms-a2ui-compiler";
 import {
   LocaleCode,
   parseLocaleCode,
@@ -41,7 +41,7 @@ import {
   type QuestionDefinition,
   type QuestionDefinitionError,
   type QuestionId,
-} from "@qcms/core";
+} from "@roonga/qcms-core";
 import {
   createQuestion,
   createQuestionVersion,
@@ -53,8 +53,8 @@ import {
   listQuestions,
   publishQuestionVersion,
   updateDraftDefinition,
-} from "@qcms/db";
-import type { Executor, QuestionRow, QuestionStatus, QuestionVersionRow } from "@qcms/db";
+} from "@roonga/qcms-db";
+import type { Executor, QuestionRow, QuestionStatus, QuestionVersionRow } from "@roonga/qcms-db";
 
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";

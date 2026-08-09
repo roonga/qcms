@@ -25,7 +25,7 @@ import type { AdminSession } from "./session.ts";
  * The same proxy this app's questions client is: build a path, hand it to the one
  * credentialed client (`api.ts`), read the answer. Nothing here decides whether a draft is
  * legal, whether a target is reachable, or whether a pin may point where it points. Those
- * are the kernel's answers and they arrive as `issues`; the admin has no `@qcms/core`
+ * are the kernel's answers and they arrive as `issues`; the admin has no `@roonga/qcms-core`
  * import at all and `r2-import-surface.test.ts` is what keeps that true.
  *
  * Two normalisations happen here, and both are presentation rather than authority:

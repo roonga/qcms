@@ -1,6 +1,6 @@
 # 012 - A2UI golden corpus and append-only policy
 
-**Stage:** 4 · **Package:** `@qcms/a2ui-compiler` · **Depends on:** 011
+**Stage:** 4 · **Package:** `@roonga/qcms-a2ui-compiler` · **Depends on:** 011
 **References:** **ADR-18** · `IMPLEMENTATION_PLAN.md` Stage 4 · risk register #3
 
 ## Context

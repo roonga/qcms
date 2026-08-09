@@ -1,6 +1,6 @@
 # 008 - compileDraft publish aggregate
 
-**Stage:** 3 · **Package:** `@qcms/core` · **Depends on:** 005, 006 (and 004's error model)
+**Stage:** 3 · **Package:** `@roonga/qcms-core` · **Depends on:** 005, 006 (and 004's error model)
 **References:** `DOMAIN_SCHEMA.md` §4.1, §5 · ADR-01/02/14, **ADR-16, ADR-18** · Invariants I1–I3 · R1
 
 ## Context

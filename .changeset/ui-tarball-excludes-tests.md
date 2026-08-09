@@ -1,8 +1,8 @@
 ---
-"@qcms/ui": patch
+"@roonga/qcms-ui": patch
 ---
 
-The published `@qcms/ui` tarball no longer carries the package's own tests
+The published `@roonga/qcms-ui` tarball no longer carries the package's own tests
 (issue #66). `files` kept `src` wholesale, so every `*.test.tsx`/`*.test.ts`
 file, the Vitest `__snapshots__` directory, and the `src/test-support/`
 helpers shipped to consumers: unintended weight and a confusing public

@@ -1,5 +1,5 @@
 ---
-"@qcms/db": minor
+"@roonga/qcms-db": minor
 ---
 
 The `./testing` harness no longer hardcodes the Postgres image it boots.

@@ -18,7 +18,7 @@ questions for them) is always welcome and is how the corpus grows.
 CI enforces drift two ways with the same runner
 (`packages/core/src/golden-corpus.test.ts`):
 
-- `pnpm test` - the corpus is part of the `@qcms/core` suite;
+- `pnpm test` - the corpus is part of the `@roonga/qcms-core` suite;
 - `pnpm test:golden-drift` (root) - runs only the corpus, as the named guard:
   it fails if any golden's `expected` differs from live evaluator output.
 

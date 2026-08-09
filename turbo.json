@@ -26,7 +26,7 @@
   //
   // Verify a new knob actually arrives with an unpullable value: if
   // `QCMS_TEST_POSTGRES_IMAGE=localhost:1/nope pnpm exec turbo run test
-  // --filter @qcms/db --force` PASSES, the variable is being stripped.
+  // --filter @roonga/qcms-db --force` PASSES, the variable is being stripped.
   // The `OTEL_*` knobs (task 054 / ADR-34) are deliberately NOT listed below, and
   // that is the safe direction of the strict-env trap rather than an oversight. No
   // turbo-run task needs them: the unit and integration suites never start an SDK

@@ -6,7 +6,7 @@
  * else is derived:
  *
  *   - `src/fonts.css` is GENERATED from this array by `renderFontsCss()`
- *     (`pnpm --filter @qcms/ui fonts:generate` writes it), and
+ *     (`pnpm --filter @roonga/qcms-ui fonts:generate` writes it), and
  *     `font-registry.test.ts` fails if the committed CSS and this manifest
  *     disagree, so the two can never drift;
  *   - the portal's curation config (`QCMS_PORTAL_FONTS` / `QCMS_PORTAL_FONT` in
@@ -459,7 +459,7 @@ const CSS_HEADER = `/*
  * GENERATED FILE - do not edit by hand.
  *
  * Source of truth: \`src/font-registry.ts\`. Regenerate with
- * \`pnpm --filter @qcms/ui fonts:generate\`; \`font-registry.test.ts\` fails if this
+ * \`pnpm --filter @roonga/qcms-ui fonts:generate\`; \`font-registry.test.ts\` fails if this
  * file and the manifest disagree, so a hand edit here cannot survive a gate.
  *
  * Every face is SELF-HOSTED from \`src/fonts/\` next to this file, so selecting a
@@ -467,9 +467,9 @@ const CSS_HEADER = `/*
  * Import it after \`theme.css\`, whose base \`:root\` block declares the System
  * stack that these classes override:
  *
- *   @import "@qcms/ui/theme.css";
- *   @import "@qcms/ui/theme-components.css";
- *   @import "@qcms/ui/fonts.css";
+ *   @import "@roonga/qcms-ui/theme.css";
+ *   @import "@roonga/qcms-ui/theme-components.css";
+ *   @import "@roonga/qcms-ui/fonts.css";
  *
  * A block below sets exactly one token, \`--font-portal\`. It must never set a
  * \`--type-*\` value: those carry the WCAG 1.4.12 floors, and no font selection may

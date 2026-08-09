@@ -34,7 +34,7 @@
  *
  * The date's own clear path is `date-retraction.pw.ts` (it needed a DOM read to be
  * observable at all, so it has its own spec); what each ADAPTER emits, including
- * the Select the portal has no fixture for, is `@qcms/ui`'s `clear-paths.test.tsx`.
+ * the Select the portal has no fixture for, is `@roonga/qcms-ui`'s `clear-paths.test.tsx`.
  */
 
 import { test, expect } from "./support/gates.js";

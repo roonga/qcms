@@ -84,7 +84,7 @@ importers:
       '@codemirror/view':
         specifier: 6.43.7
         version: 6.43.7
-      '@qcms/ui':
+      '@roonga/qcms-ui':
         specifier: workspace:*
         version: link:../../packages/ui
       next:
@@ -100,7 +100,7 @@ importers:
         specifier: ^19.2.8
         version: 19.2.8(react@19.2.8)
     devDependencies:
-      '@qcms/core':
+      '@roonga/qcms-core':
         specifier: workspace:*
         version: link:../../packages/core
       '@tailwindcss/postcss':
@@ -160,13 +160,13 @@ importers:
       '@opentelemetry/sdk-trace':
         specifier: ^2.10.0
         version: 2.10.0(@opentelemetry/api@1.9.1)
-      '@qcms/a2ui-compiler':
+      '@roonga/qcms-a2ui-compiler':
         specifier: workspace:*
         version: link:../../packages/a2ui-compiler
-      '@qcms/core':
+      '@roonga/qcms-core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@qcms/db':
+      '@roonga/qcms-db':
         specifier: workspace:*
         version: link:../../packages/db
       better-auth:
@@ -209,7 +209,7 @@ importers:
       '@playwright/test':
         specifier: ^1.62.1
         version: 1.62.1
-      '@qcms/db':
+      '@roonga/qcms-db':
         specifier: workspace:*
         version: link:../../packages/db
       '@types/node':
@@ -236,7 +236,7 @@ importers:
       '@opentelemetry/sdk-trace-base':
         specifier: ^2.10.0
         version: 2.10.0(@opentelemetry/api@1.9.1)
-      '@qcms/ui':
+      '@roonga/qcms-ui':
         specifier: workspace:*
         version: link:../../packages/ui
       '@vercel/otel':
@@ -273,7 +273,7 @@ importers:
 
   packages/a2ui-compiler:
     dependencies:
-      '@qcms/core':
+      '@roonga/qcms-core':
         specifier: workspace:*
         version: link:../core
     devDependencies:
@@ -299,10 +299,10 @@ importers:
 
   packages/db:
     dependencies:
-      '@qcms/a2ui-compiler':
+      '@roonga/qcms-a2ui-compiler':
         specifier: workspace:*
         version: link:../a2ui-compiler
-      '@qcms/core':
+      '@roonga/qcms-core':
         specifier: workspace:*
         version: link:../core
       drizzle-orm:
@@ -340,7 +340,7 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
-      '@qcms/core':
+      '@roonga/qcms-core':
         specifier: workspace:*
         version: link:../core
       '@testing-library/dom':

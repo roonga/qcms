@@ -32,7 +32,7 @@ Five separable pieces. Only the last is the screen its task file describes.
 |---|---|---|---|
 | **A** | **Theme persistence**: table + migration, API slice, OpenAPI paths, admin BFF routes | - | No UI. Wholly unscoped today. |
 | **B** | **Portal runtime token emission**: a custom theme's properties reach a respondent as an SSR inline block on `<html>` | A | **Touches 053's no-flash guarantee**, which was proven by first-frame sampling. New runtime mechanism, not a config value. |
-| **C** | **Contrast module extraction**: a runtime-importable contrast function in `@qcms/ui` | - | Small. Today it exists only as test-private helpers in `theme-tokens.test.ts` (`luminance` calls `expect()` internally, so it is structurally unusable outside vitest), plus a second copy in `apps/admin/e2e/appearance.pw.ts`. Needs a changeset. |
+| **C** | **Contrast module extraction**: a runtime-importable contrast function in `@roonga/qcms-ui` | - | Small. Today it exists only as test-private helpers in `theme-tokens.test.ts` (`luminance` calls `expect()` internally, so it is structurally unusable outside vitest), plus a second copy in `apps/admin/e2e/appearance.pw.ts`. Needs a changeset. |
 | **D** | **The editor screen** | A, B, C, **060** | The live preview needs 060's scope carrier for the same reason 058 did. |
 | **E** | **Colour picker** | upstream | `[upstream gap]` under ADR-22: the a2ra registry has no colour input, swatch or palette control. A cross-repo issue, never an invention. |
 

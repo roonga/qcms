@@ -3,7 +3,7 @@
 The launch-scope **data-out** surface for authors, on the **admin** surface:
 browse submitted responses, export them (CSV/JSON), erase a response, and manage
 anti-abuse flags. Honest transaction scripts (R5) over the reporting view (015)
-and `@qcms/db` helpers (014/016/023). This is **not** the deferred `/api/v1`
+and `@roonga/qcms-db` helpers (014/016/023). This is **not** the deferred `/api/v1`
 (R7) - these are internal admin endpoints with no stability contract.
 
 ## Routes
@@ -97,7 +97,7 @@ never 403 (ADR-09).
 
 ## Notes / follow-ups
 
-- `@qcms/db`'s `sessions` row (enum `access_mode`, branded ids) reads as a TS
+- `@roonga/qcms-db`'s `sessions` row (enum `access_mode`, branded ids) reads as a TS
   *error* type through the emitted `.d.ts` (issue #5); the unflag handler launders
   its one session read through a narrow view with a single cast on an unannotated
   const. The 023 reporting helpers return explicit clean row types, so their rows

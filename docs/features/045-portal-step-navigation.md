@@ -1,6 +1,6 @@
 # 045 - Portal step navigation: explicit cursor (Continue / Back / Submit)
 
-**Stage:** 7 · **Apps/packages:** `apps/portal` (029), `@qcms/ui` (028), `apps/api` (serve-step) · **Depends on:** 029 · **Blocks:** 030 (manual a11y pass)
+**Stage:** 7 · **Apps/packages:** `apps/portal` (029), `@roonga/qcms-ui` (028), `apps/api` (serve-step) · **Depends on:** 029 · **Blocks:** 030 (manual a11y pass)
 **Runs:** now, before 030's manual screen-reader pass. **On the launch gate** - the portal flow must complete end-to-end.
 **References:** ADR-28 (proposed 2026-07-23, pending the Code Owner's decision - this task implements it) · 042 wireframe (Back control) · ADR-23 (testing architecture: Playwright e2e over the real stack + Docker Postgres) · ADR-26 (portal SSR-first, fetch-only) · R2 (strict BFF; the portal never evaluates rules) · WCAG 2.2 AA (3.2.2 On Input) · manual review 2026-07-23 findings M/N/G/H + E/L/B · `packages/core/src/evaluate-rules.ts:388-414` (derived `currentStep` - the root cause) · `apps/portal/components/step-flow.tsx:356` (collapse-on-answer render).
 
@@ -40,7 +40,7 @@ ADR-28 replaces the derived cursor with explicit, user-driven navigation. This a
 5. **Server-side log gate (API + Postgres + portal server):** the spec captures the API, Postgres, and portal-server container logs for the run window and fails on any `error`/`warn`-level line (a documented, reviewed allowlist only if a benign line is genuinely unavoidable). This is the server-side complement to the browser console-error gate: we are testing the API and DB, so their logs must be clean too.
 6. **Kitchen-sink in the a11y suites:** axe + keyboard + lighthouse run against the kitchen-sink flow states, not only the 2-question insurance fixture - finding E.
 7. **No regressions:** the existing portal e2e (anonymous-flow, resume, secure-link, no-js-submit, ssr-no-js) stays green; the no-JS path (044) still completes through the new navigation.
-8. **ADR-28 respected:** navigation is explicit; no collapse-on-answer; the R2 import-surface test still passes (portal imports only *types* from `@qcms/core`).
+8. **ADR-28 respected:** navigation is explicit; no collapse-on-answer; the R2 import-surface test still passes (portal imports only *types* from `@roonga/qcms-core`).
 
 ## Out of scope
 

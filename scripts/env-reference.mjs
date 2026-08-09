@@ -562,7 +562,7 @@ export const ENV_REFERENCE = [
     name: "QCMS_PORTAL_DENSITY",
     process: "portal",
     requirement: "optional",
-    fallback: "the @qcms/ui default density",
+    fallback: "the @roonga/qcms-ui default density",
     description: "Spacing token group.",
   },
   {

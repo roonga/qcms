@@ -62,7 +62,7 @@ The human owns decisions, taste, and review; agents own execution and verificati
 **During:** work only within deliverables/exit criteria; run tests continuously; when blocked by a genuine decision (not a lookup), stop and surface the question rather than choosing silently.
 
 **End - every session leaves the repo green or clean:**
-- Done: all exit criteria pass, `pnpm verify` green at root (add `QCMS_PORT_SEAT=<0-9> pnpm verify:browser` for portal/admin/`@qcms/ui` work - the seat is required from a worktree, R8/`docs/PORTS.md`; gate contents and the CI mapping are owned by `CONTRIBUTING.md`), docs updated, and the ledger row flipped to `done (PR #N)` **inside the completing PR**. The claim is the pushed `feat/NNN-slug` branch, not a ledger edit - so there is no mid-task ledger write, and under the `/task` flow the orchestrator lands the row change, never the executor.
+- Done: all exit criteria pass, `pnpm verify` green at root (add `QCMS_PORT_SEAT=<0-9> pnpm verify:browser` for portal/admin/`@roonga/qcms-ui` work - the seat is required from a worktree, R8/`docs/PORTS.md`; gate contents and the CI mapping are owned by `CONTRIBUTING.md`), docs updated, and the ledger row flipped to `done (PR #N)` **inside the completing PR**. The claim is the pushed `feat/NNN-slug` branch, not a ledger edit - so there is no mid-task ledger write, and under the `/task` flow the orchestrator lands the row change, never the executor.
 - Not done: either revert to green, or park on the task branch with a `HANDOFF.md` note (state, next step, what's red) - **never merge red, never leave main broken.**
 
 **Conventions:** one branch per task (`feat/NNN-slug`); task number in commit messages; PR description = exit-criteria checklist checked off.

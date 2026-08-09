@@ -27,7 +27,7 @@ export interface QuestionPin {
  * The pins of a published form version, read out of its frozen `definition`.
  *
  * `definition` arrives as `unknown` because this app never parses a form definition
- * with the kernel (R2/R3: no `@qcms/core` value import). Only the two fields the
+ * with the kernel (R2/R3: no `@roonga/qcms-core` value import). Only the two fields the
  * caption needs are read, and anything structurally unexpected yields no pins rather
  * than a throw: a detail view that renders ids beats one that will not open.
  */

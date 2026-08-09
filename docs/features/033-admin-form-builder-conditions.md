@@ -9,7 +9,7 @@ Compose pinned questions into steps; express branching in the structured conditi
 
 ## Amendments (2026-08-01, PO seat; staleness rule)
 
-Two lines below originally said the kernel ran **client-side** in the admin. That contradicted landed enforcement: rule 1 of `apps/admin/lib/server/r2-import-surface.test.ts` bans `@qcms/core` imports in the admin outright, and the test is not to be weakened. The PO seat resolved it the way 032's preview resolved the identical tension: **core runs in the API, where it already lives.**
+Two lines below originally said the kernel ran **client-side** in the admin. That contradicted landed enforcement: rule 1 of `apps/admin/lib/server/r2-import-surface.test.ts` bans `@roonga/qcms-core` imports in the admin outright, and the test is not to be weakened. The PO seat resolved it the way 032's preview resolved the identical tension: **core runs in the API, where it already lives.**
 
 - The **rule test bench** evaluates server-side, via `POST /admin/forms/{id}/draft/preview-condition` (a sibling of 032's question-preview route). It remains a clearly-labelled read-only aid.
 - **`analyzeRuleGraph` runs server-side too**, and needed no new route: the kernel's `compileDraft` already calls it, so `POST .../draft/validate` has always returned `RULE_BACKWARD_TARGET` and `RULE_CYCLE`. The "instant feedback" intent is kept by `eligibleTargets` (pure draft geometry, no kernel) plus debouncing, not by importing core.

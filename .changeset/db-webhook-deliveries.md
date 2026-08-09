@@ -1,5 +1,5 @@
 ---
-"@qcms/db": minor
+"@roonga/qcms-db": minor
 ---
 
 Add the `webhook_deliveries` table (migration 0007) and its shape-preserving

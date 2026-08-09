@@ -1,4 +1,4 @@
-import type { StepId } from "@qcms/core";
+import type { StepId } from "@roonga/qcms-core";
 
 /**
  * A structural A2UI node (task 011). The compiler's runtime stays React-free

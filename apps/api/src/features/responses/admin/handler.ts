@@ -1,7 +1,7 @@
 /**
  * Response listing / export / erasure admin handlers (task 023; ARCHITECTURE
  * §4.3). The launch-scope **data-out** surface: transaction scripts (R5) over the
- * reporting view and `@qcms/db` helpers.
+ * reporting view and `@roonga/qcms-db` helpers.
  *
  * Erasure safety (SEC / ADR-17). Every read path - list, detail, and export -
  * goes through `reporting.responses`, whose tombstone anti-join excludes erased
@@ -15,7 +15,7 @@
  * `TextEncoder` (no `node:*`), so the export never buffers the whole table - it
  * pulls bounded keyset pages. Answer **values are never logged** (SEC-8).
  *
- * Row types come straight from `@qcms/db`: the enum-bearing `sessions` row is
+ * Row types come straight from `@roonga/qcms-db`: the enum-bearing `sessions` row is
  * now hand-authored and sound across the package boundary (issue #5), and the
  * enum-free `answers` ledger row was always sound (branded ids on `text`
  * columns do not degrade). Both are consumed directly with no local view or
@@ -29,7 +29,7 @@ import {
   parseFormId,
   parseSessionId,
   type SessionId,
-} from "@qcms/core";
+} from "@roonga/qcms-core";
 import {
   answerLedger,
   clearSubmissionFlag,
@@ -44,7 +44,7 @@ import {
   listTombstones,
   type ReportingResponseRow,
   SessionNotFoundError,
-} from "@qcms/db";
+} from "@roonga/qcms-db";
 
 import type { Deps } from "../../../deps.js";
 import { ApiError } from "../../../errors.js";

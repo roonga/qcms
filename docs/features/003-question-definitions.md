@@ -1,6 +1,6 @@
 # 003 - Question-type definitions
 
-**Stage:** 1 · **Package:** `@qcms/core` · **Depends on:** 002
+**Stage:** 1 · **Package:** `@roonga/qcms-core` · **Depends on:** 002
 **References:** `DOMAIN_SCHEMA.md` §2.2, §4.2 · ADR-02 · R6
 
 ## Context

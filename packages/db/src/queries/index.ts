@@ -3,7 +3,7 @@
  * call. Every helper takes an {@link Executor} (a Drizzle handle or a
  * transaction) as its **first argument** so slices own transaction boundaries
  * (R3). These are shape-preserving reads and writes only - no business logic,
- * no validation, no rule evaluation (that is `@qcms/core`'s job, R5).
+ * no validation, no rule evaluation (that is `@roonga/qcms-core`'s job, R5).
  */
 
 export type { Executor } from "./executor.js";

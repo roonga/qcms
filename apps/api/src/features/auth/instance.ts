@@ -1,5 +1,11 @@
-import { authAccount, authSession, authTwoFactor, authUser, authVerification } from "@qcms/db";
-import type { Executor } from "@qcms/db";
+import {
+  authAccount,
+  authSession,
+  authTwoFactor,
+  authUser,
+  authVerification,
+} from "@roonga/qcms-db";
+import type { Executor } from "@roonga/qcms-db";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { twoFactor } from "better-auth/plugins/two-factor";
@@ -109,7 +115,7 @@ export function createAdminAuth(input: AdminAuthInput) {
   return betterAuth({
     database: drizzleAdapter(input.db, {
       provider: "pg",
-      // Explicit model-to-table mapping: `@qcms/db`'s exported names are prefixed
+      // Explicit model-to-table mapping: `@roonga/qcms-db`'s exported names are prefixed
       // (`authUser`) to keep them apart from the domain tables, while better-auth
       // addresses its models unprefixed. Without the map the adapter would look for
       // tables named after its own models and find nothing.

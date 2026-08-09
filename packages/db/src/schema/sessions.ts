@@ -1,6 +1,6 @@
 import { foreignKey, index, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
-import type { FormId, LinkId, SessionId } from "@qcms/core";
+import type { FormId, LinkId, SessionId } from "@roonga/qcms-core";
 
 import { accessMode, sessionStatus } from "./enums.js";
 import { formVersions } from "./forms.js";

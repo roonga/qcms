@@ -41,7 +41,7 @@ Monorepo skeleton so every later stage lands in its final home: pnpm workspaces 
 
 ## Stage 1 - Domain schema · `features/002–004`
 
-`@qcms/core` part 1. Branded ID types, `LocalizedText`, and - **decided here, not later** - the canonical `AnswerValue` encoding per question type (dates as timezone-less ISO `YYYY-MM-DD`; numbers as finite IEEE doubles; choice answers as `optionId` / `optionId[]`; booleans as JSON booleans; text as NFC-normalized strings). Then the seven question-type definitions with constraints, the `FormDefinition` structure (steps, pinned `{questionId, version}` refs), and the typed `PublishError` model. Types, schemas, and exhaustive parsing tests only - no rendering, storage, or HTTP.
+`@roonga/qcms-core` part 1. Branded ID types, `LocalizedText`, and - **decided here, not later** - the canonical `AnswerValue` encoding per question type (dates as timezone-less ISO `YYYY-MM-DD`; numbers as finite IEEE doubles; choice answers as `optionId` / `optionId[]`; booleans as JSON booleans; text as NFC-normalized strings). Then the seven question-type definitions with constraints, the `FormDefinition` structure (steps, pinned `{questionId, version}` refs), and the typed `PublishError` model. Types, schemas, and exhaustive parsing tests only - no rendering, storage, or HTTP.
 
 **Exit:** hand-written kitchen-sink and insurance fixtures parse; a suite of invalid fixtures fails for the right, asserted reasons; `AnswerValue` encodings documented in `DOMAIN_SCHEMA.md`.
 
@@ -59,13 +59,13 @@ The closed operator set (incl. the multiChoice containment operators `contains`/
 
 ## Stage 4 - A2UI compiler · `features/011–012`
 
-`@qcms/a2ui-compiler`: pure projection FormDefinition → A2UI documents, one per step; question-type → component mapping; constraints surfaced as client-side hints; locale resolution via default locale; output stamped with `compilerVersion` + `a2uiSpecVersion` (ADR-18). The golden corpus: reviewed golden documents for the fixtures, committed under an **append-only** policy, doubling as the renderer's conformance input. The step-resolver seam interface documented with a stub test double.
+`@roonga/qcms-a2ui-compiler`: pure projection FormDefinition → A2UI documents, one per step; question-type → component mapping; constraints surfaced as client-side hints; locale resolution via default locale; output stamped with `compilerVersion` + `a2uiSpecVersion` (ADR-18). The golden corpus: reviewed golden documents for the fixtures, committed under an **append-only** policy, doubling as the renderer's conformance input. The step-resolver seam interface documented with a stub test double.
 
 **Exit:** kitchen-sink fixture compiles to reviewed golden output; compiler deterministic and side-effect-free; corpus policy (never delete, only add) enforced by CI check; seam documented.
 
 ## Stage 5 - Storage · `features/013–016`
 
-`@qcms/db`: Drizzle schema and migrations for the full operational skeleton (questions/versions, forms/drafts, form_versions with version stamps, sessions, append-only answers, submissions, erasure_tombstones, outbox with delivery state, better-auth tables); real-Postgres integration harness (testcontainers) in CI; query helpers including latest-answer-per-question and outbox claim (`FOR UPDATE SKIP LOCKED`); the `reporting.responses` view in its first documented form, excluding erased sessions; retention sweep; and the ADR-17 erasure implementation with tombstone.
+`@roonga/qcms-db`: Drizzle schema and migrations for the full operational skeleton (questions/versions, forms/drafts, form_versions with version stamps, sessions, append-only answers, submissions, erasure_tombstones, outbox with delivery state, better-auth tables); real-Postgres integration harness (testcontainers) in CI; query helpers including latest-answer-per-question and outbox claim (`FOR UPDATE SKIP LOCKED`); the `reporting.responses` view in its first documented form, excluding erased sessions; retention sweep; and the ADR-17 erasure implementation with tombstone.
 
 Changesets releases begin: `core`, `a2ui-compiler`, `db` cut pre-1.0 versions as soon as the API consumes them.
 

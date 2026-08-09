@@ -1,5 +1,5 @@
 ---
-"@qcms/db": minor
+"@roonga/qcms-db": minor
 ---
 
 Record what each webhook delivery attempt actually did, and add the form-scoped

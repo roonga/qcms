@@ -1,5 +1,5 @@
-import { VALIDATION_MESSAGE_KEYS } from "@qcms/core";
-import type { LocaleCode, LocalizedText, QuestionDefinition } from "@qcms/core";
+import { VALIDATION_MESSAGE_KEYS } from "@roonga/qcms-core";
+import type { LocaleCode, LocalizedText, QuestionDefinition } from "@roonga/qcms-core";
 
 import type { A2UINode } from "./types.js";
 
@@ -81,7 +81,7 @@ function compact(props: Record<string, unknown>): Readonly<Record<string, unknow
  * compiles byte-for-byte as it did before task 048 (the golden corpus is the
  * proof).
  *
- * Keys are emitted in `@qcms/core`'s canonical order, never the authored
+ * Keys are emitted in `@roonga/qcms-core`'s canonical order, never the authored
  * object's own key order, so the compiled document is a function of content
  * alone (ADR-18 byte comparison). The value is the *message*, not a template:
  * the kernel still owns the error codes, and the portal picks the message by the

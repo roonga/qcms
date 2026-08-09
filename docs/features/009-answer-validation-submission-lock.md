@@ -1,6 +1,6 @@
 # 009 - Answer validation and submission lock
 
-**Stage:** 3 · **Package:** `@qcms/core` · **Depends on:** 006, 008
+**Stage:** 3 · **Package:** `@roonga/qcms-core` · **Depends on:** 006, 008
 **References:** `DOMAIN_SCHEMA.md` §4.3 · ADR-07 · Invariants I5, I6, I9
 
 ## Context
@@ -25,7 +25,7 @@ Two remaining kernel obligations: what a valid answer is (per question type and 
 1. Per-type constraint matrix tests: each constraint violated alone yields exactly its error; compound violations yield all.
 2. Submission tests: hidden required question does **not** block submit; hidden answered question excluded from `LockedSubmission` but assertable in input; visible required missing blocks with correct id list.
 3. `contentHash` stable across key order and Node versions (golden hash for the insurance fixture submission).
-4. Kernel coverage across 002–009 effectively total (`pnpm --filter @qcms/core coverage` ≥ 95% lines; justify any exclusion in code).
+4. Kernel coverage across 002–009 effectively total (`pnpm --filter @roonga/qcms-core coverage` ≥ 95% lines; justify any exclusion in code).
 
 ## Out of scope
 

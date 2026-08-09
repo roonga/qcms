@@ -35,7 +35,7 @@
 
 import { writeFileSync } from "node:fs";
 
-import { FONT_REGISTRY, fontClass, SYSTEM_FONT_KEY } from "@qcms/ui/fonts";
+import { FONT_REGISTRY, fontClass, SYSTEM_FONT_KEY } from "@roonga/qcms-ui/fonts";
 import type { Locator, Page } from "@playwright/test";
 
 import { readFixtures } from "./support/fixtures.js";

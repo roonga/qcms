@@ -1,4 +1,4 @@
-import type { AuthorMessages } from "@qcms/ui";
+import type { AuthorMessages } from "@roonga/qcms-ui";
 
 /**
  * Author-supplied validation messages at the portal seam (task 048, ADR-32).
@@ -14,9 +14,9 @@ import type { AuthorMessages } from "@qcms/ui";
  * `pattern` still gets the default wording for `minLength`, because the compiled
  * document carries the keys they wrote and nothing else.
  *
- * Nothing here imports a `@qcms/ui` VALUE (the `AuthorMessages` shape is
+ * Nothing here imports a `@roonga/qcms-ui` VALUE (the `AuthorMessages` shape is
  * type-only). That is deliberate: the no-JS BFF route reads a 422's constraint
- * out of an API error, and `@qcms/ui`'s entry point pulls the React client
+ * out of an API error, and `@roonga/qcms-ui`'s entry point pulls the React client
  * components in, which a route handler cannot load. Reading the messages off a
  * compiled document lives in `visible.ts`, beside the other document walkers,
  * and is only ever called from a client component.
@@ -66,7 +66,7 @@ export function errorDetailsOf(body: unknown): unknown {
 /**
  * The constraints an author may decorate, as an object so membership is a plain
  * property test. Typed as an exhaustive `Record` over `AuthorMessages`, so a key
- * added to (or removed from) `@qcms/ui`'s schema is a build error here rather
+ * added to (or removed from) `@roonga/qcms-ui`'s schema is a build error here rather
  * than a message that silently never resolves.
  */
 const AUTHORABLE_KEYS: Readonly<Record<keyof AuthorMessages, true>> = {

@@ -1,5 +1,5 @@
 ---
-"@qcms/ui": minor
+"@roonga/qcms-ui": minor
 ---
 
 Give each rendered control a stable, questionId-keyed focus target (task 030).

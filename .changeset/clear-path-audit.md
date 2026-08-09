@@ -1,6 +1,6 @@
 ---
-"@qcms/ui": patch
-"@qcms/db": patch
+"@roonga/qcms-ui": patch
+"@roonga/qcms-db": patch
 ---
 
 One meaning for one clearing gesture, across every control type (issue #98,
@@ -10,7 +10,7 @@ TextField or TextArea posted an empty-string answer, a CheckboxGroup unchecked t
 nothing posted an empty-array answer, and only the NumberField and DatePicker
 posted the ADR-33 retraction.
 
-`@qcms/ui` (patch: bug fix, no API change). The text and checkbox-group adapters
+`@roonga/qcms-ui` (patch: bug fix, no API change). The text and checkbox-group adapters
 now report an emptied control as absence, so the host posts one retraction at that
 control's ADR-31 commit moment, exactly as the number and date controls already
 did. `""` and `[]` are legal `AnswerValue`s, so they *satisfied* `required` while
@@ -28,7 +28,7 @@ the Select adapter now normalizes the empty selection react-aria types as possib
 to the same absence rather than letting a `null` travel as an answer. The vendored
 components are untouched (ADR-22).
 
-`@qcms/db` (patch: return type narrowed, no behavior change). `retractAnswer`
+`@roonga/qcms-db` (patch: return type narrowed, no behavior change). `retractAnswer`
 returns `RetractionRow` instead of `AnswerRow`. It can only ever insert a
 tombstone, so the narrower type carries that invariant to callers rather than
 making each one re-derive it through `isRetraction`.

@@ -1,6 +1,6 @@
 # 059 - Erasure reaches the outbox: payload redaction and delivery cancellation
 
-**Stage:** 8b (ordering exception: runs before 040, because erasure that does not erase cannot pass the security review) · **Apps/packages:** `@qcms/db`, `apps/api`, `apps/admin` (copy only) · **Depends on:** 035 (the redeliver control and its tombstone refusal are the seam this generalizes). Independent of 056 and 036 - no ordering relationship, may run in parallel with either.
+**Stage:** 8b (ordering exception: runs before 040, because erasure that does not erase cannot pass the security review) · **Apps/packages:** `@roonga/qcms-db`, `apps/api`, `apps/admin` (copy only) · **Depends on:** 035 (the redeliver control and its tombstone refusal are the seam this generalizes). Independent of 056 and 036 - no ordering relationship, may run in parallel with either.
 **References:** ADR-17 as amended 2026-08-02 (the decision this task implements) · the PO review of PR #284, which found the gap and carries the four-line evidence trail · `docs/SECURITY_DESIGN.md` §7 (this is a named control) · `packages/db/src/queries/erasure.ts`, `packages/db/src/queries/deliveries.ts`, `packages/db/src/queries/outbox.ts` · `apps/api/src/schedulers/outbox-delivery.ts` · `docs/erasure.md`.
 
 ## Context
@@ -26,7 +26,7 @@
 4. Erasure remains atomic: a forced failure after redaction rolls back the deletes, the tombstone and the redaction together (extends the existing I11 test).
 5. Every clause of the new erase-dialog copy and the new `docs/erasure.md` text has an assertion behind it, on the rendered surface or on the payload.
 6. `docs/PROJECT_GOAL.md` ADR-17 carries the 2026-08-02 amendment; `docs/erasure.md`, `docs/SECURITY_DESIGN.md` and `docs/webhooks.md` updated in this PR.
-7. `pnpm verify` green; `pnpm verify:browser` green (admin copy changes); a changeset for `@qcms/db`.
+7. `pnpm verify` green; `pnpm verify:browser` green (admin copy changes); a changeset for `@roonga/qcms-db`.
 8. The erase dialog copy changes, so the `erase-confirm` frames re-shoot at 390 and 1280 across the three modes, into `docs/gates/059/`, following the naming convention 035 landed with (human gate; the task is not done until signed).
 
 ## Out of scope

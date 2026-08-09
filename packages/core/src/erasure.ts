@@ -3,8 +3,8 @@ import { z } from "zod";
 import { FormId, SessionId } from "./ids.js";
 
 /**
- * Erasure semantics (task 016, ADR-17, invariant I11). `@qcms/core` owns the
- * *meaning* of erasure; `@qcms/db` owns its *execution* (`eraseSession`). This
+ * Erasure semantics (task 016, ADR-17, invariant I11). `@roonga/qcms-core` owns the
+ * *meaning* of erasure; `@roonga/qcms-db` owns its *execution* (`eraseSession`). This
  * module is pure - it defines the request/outcome shapes and states what
  * erasure asserts. No I/O (R3).
  *
@@ -81,7 +81,7 @@ export type EraseOutcome = z.infer<typeof EraseOutcome>;
 /**
  * Why an erasure could not be performed. Only one failure mode is expected:
  * the target session does not exist (and has no tombstone either). Execution
- * surfaces it as a typed throw (`@qcms/db`'s `SessionNotFoundError`), whose
+ * surfaces it as a typed throw (`@roonga/qcms-db`'s `SessionNotFoundError`), whose
  * `code` is one of these.
  */
 export const EraseErrorCode = z.enum(["SESSION_NOT_FOUND"]);

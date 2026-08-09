@@ -24,7 +24,7 @@
  */
 
 import { serve } from "@hono/node-server";
-import { schema } from "@qcms/db";
+import { schema } from "@roonga/qcms-db";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 

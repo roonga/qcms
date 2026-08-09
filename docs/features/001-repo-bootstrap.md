@@ -39,7 +39,7 @@ qcms/
 └── docker-compose.dev.yml
 ```
 
-Package names: `@qcms/core`, `@qcms/a2ui-compiler`, `@qcms/db`, `@qcms/ui` (publishable, `"private": false`, version `0.0.0`); apps `qcms-api`, `qcms-portal`, `qcms-admin` (`"private": true`). Each `src/index.ts` exports a placeholder const; each `index.test.ts` asserts it (proves the pipeline, deleted by later tasks).
+Package names: `@roonga/qcms-core`, `@roonga/qcms-a2ui-compiler`, `@roonga/qcms-db`, `@roonga/qcms-ui` (publishable, `"private": false`, version `0.0.0`); apps `qcms-api`, `qcms-portal`, `qcms-admin` (`"private": true`). Each `src/index.ts` exports a placeholder const; each `index.test.ts` asserts it (proves the pipeline, deleted by later tasks).
 
 ### 2. Toolchain configuration
 

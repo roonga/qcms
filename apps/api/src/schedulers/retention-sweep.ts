@@ -3,7 +3,7 @@
  *
  * The API's one home for time-based data policy. Each pass runs every retention
  * rule the deployment has; the scheduling is the API's job, and the semantics of
- * each rule (which rows, where the boundary is) live in @qcms/db. Gated by the
+ * each rule (which rows, where the boundary is) live in @roonga/qcms-db. Gated by the
  * mount flags in `serve.ts` (internal process only).
  *
  * Two rules today:
@@ -16,7 +16,7 @@
  *   and reason about, for no behaviour a shared pass does not already give.
  */
 
-import { redactAgedResponseSnippets, sweepExpiredSessions } from "@qcms/db";
+import { redactAgedResponseSnippets, sweepExpiredSessions } from "@roonga/qcms-db";
 
 import type { Deps } from "../deps.js";
 import { createIntervalScheduler, type Scheduler } from "./scheduler.js";

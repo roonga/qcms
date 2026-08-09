@@ -1,6 +1,6 @@
 # 014 - Query helpers
 
-**Stage:** 5 · **Package:** `@qcms/db` · **Depends on:** 013
+**Stage:** 5 · **Package:** `@roonga/qcms-db` · **Depends on:** 013
 **References:** `ARCHITECTURE.md` §4.3, §5.3 · R3, R5
 
 ## Context

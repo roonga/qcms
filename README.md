@@ -12,7 +12,7 @@
 
 ## What it is
 
-QCMS is distributed in the **shadcn ethos**: you don't install a product, you scaffold the application into your own repository and own the source. The invariant machinery - domain model, rules engine, publish compiler, migrations - ships as versioned `@qcms/*` npm packages you upgrade like any dependency.
+QCMS is distributed in the **shadcn ethos**: you don't install a product, you scaffold the application into your own repository and own the source. The invariant machinery - domain model, rules engine, publish compiler, migrations - ships as versioned `@roonga/qcms-*` npm packages you upgrade like any dependency.
 
 Three properties are non-negotiable and shape every design decision:
 
@@ -26,17 +26,17 @@ Accessibility (WCAG 2.2 AA) is a first-class commitment, built in and verified p
 
 ```
 packages/
-  core/            @qcms/core          - domain model, rules DSL + evaluator, publish compiler, tokens (pure, zero I/O)
-  a2ui-compiler/   @qcms/a2ui-compiler - FormDefinition → A2UI documents; the agent seam
-  db/              @qcms/db            - Drizzle schema, migrations, query helpers, reporting view, erasure
-  ui/              @qcms/ui            - the A2UI renderer, built on a2-react-aria
+  core/            @roonga/qcms-core          - domain model, rules DSL + evaluator, publish compiler, tokens (pure, zero I/O)
+  a2ui-compiler/   @roonga/qcms-a2ui-compiler - FormDefinition → A2UI documents; the agent seam
+  db/              @roonga/qcms-db            - Drizzle schema, migrations, query helpers, reporting view, erasure
+  ui/              @roonga/qcms-ui            - the A2UI renderer, built on a2-react-aria
 apps/
   api/             Hono - vertical slices, fetch-pure handlers
   portal/          Next.js - SSR respondent experience (public)
   admin/           Next.js - authoring, versioning, responses (VPN/internal)
 ```
 
-The domain kernel (`@qcms/core`) is a functional core: pure functions over immutable data, no I/O. Code whose modification would break audit or versioning guarantees ships as a versioned package; code an adopter would reasonably change (routes, pages, theming) is scaffolded, owned source.
+The domain kernel (`@roonga/qcms-core`) is a functional core: pure functions over immutable data, no I/O. Code whose modification would break audit or versioning guarantees ships as a versioned package; code an adopter would reasonably change (routes, pages, theming) is scaffolded, owned source.
 
 ## Development
 

@@ -3,7 +3,7 @@
  *
  * Honest transaction scripts (R5): the only kernel calls are token minting
  * (`mintSecureLink`, `importCompactTokenKey`); everything else is
- * shape-preserving `@qcms/db` reads/writes. Handlers are fetch-pure (R4): time
+ * shape-preserving `@roonga/qcms-db` reads/writes. Handlers are fetch-pure (R4): time
  * via `deps.clock`, crypto via WebCrypto, no `node:*`.
  *
  * Minting is the mirror of 018's verification: a `secure_links` state row is
@@ -16,15 +16,15 @@
  */
 
 import type { RouteHandler } from "@hono/zod-openapi";
-import { importCompactTokenKey, LinkId, mintSecureLink, parseFormId } from "@qcms/core";
-import type { FormId } from "@qcms/core";
+import { importCompactTokenKey, LinkId, mintSecureLink, parseFormId } from "@roonga/qcms-core";
+import type { FormId } from "@roonga/qcms-core";
 import {
   getForm,
   insertSecureLink,
   listSecureLinks,
   revokeSecureLink,
   type SecureLinkRow,
-} from "@qcms/db";
+} from "@roonga/qcms-db";
 
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";

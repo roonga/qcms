@@ -1,6 +1,6 @@
 # 058 - Preview theme island: respondent theme and mode switching inside the admin preview
 
-**Stage:** 8a · **Apps/packages:** `apps/admin` (preview surface), consuming `@qcms/ui`'s existing theme assets read-only · **Depends on:** 060 (the scope carrier this island mounts on - ADR-38; without it the token sheets match only `:root` and nothing here is expressible), 032 (the preview exists; its interactivity round from PR #228 included), 034 (builds the preview styling seam this island mounts on), 035 (not technical - editor enrichments run behind the response chain per the Code Owner's 2026-08-01 flow-first aim; recorded here because `Depends on` is the mechanism selection reads for "runs after").
+**Stage:** 8a · **Apps/packages:** `apps/admin` (preview surface), consuming `@roonga/qcms-ui`'s existing theme assets read-only · **Depends on:** 060 (the scope carrier this island mounts on - ADR-38; without it the token sheets match only `:root` and nothing here is expressible), 032 (the preview exists; its interactivity round from PR #228 included), 034 (builds the preview styling seam this island mounts on), 035 (not technical - editor enrichments run behind the response chain per the Code Owner's 2026-08-01 flow-first aim; recorded here because `Depends on` is the mechanism selection reads for "runs after").
 **References:** ADR-30 + tasks 051/052/053 (the portal token contract this reuses: predefined themes as CSS custom-property sets, mode as a class layer, one `.hc` layer) · ADR-27 (i18n) · `apps/admin/components/questions/question-preview.tsx` (the island) · task 049 (admin theme editor - future custom themes join this switcher; loose coupling, no dependency) · task 034 (builds the preview container styling seam this island mounts on, and runs first) · Code Owner direction 2026-08-01 ("the preview should allow island theme switch").
 
 ## Context
@@ -11,10 +11,10 @@ The preview shows a question through the real respondent renderer, but always in
 
 ## Deliverables
 
-- **Scoped theme application:** the preview container carries `data-qcms-theme-scope` (ADR-38, delivered by 060) plus the selected theme attribute and mode class, so the 051 token sheets and the portal treatment sheet resolve against the island rather than the document root. The admin imports `@qcms/ui/theme-components.css`, which 060 re-anchors on the bare attribute so it applies inside the island and nowhere else. The admin's own stylesheet and mode control are untouched; nothing leaks in either direction (the island's tokens do not inherit admin Cobalt values for renderer-consumed variables).
+- **Scoped theme application:** the preview container carries `data-qcms-theme-scope` (ADR-38, delivered by 060) plus the selected theme attribute and mode class, so the 051 token sheets and the portal treatment sheet resolve against the island rather than the document root. The admin imports `@roonga/qcms-ui/theme-components.css`, which 060 re-anchors on the bare attribute so it applies inside the island and nowhere else. The admin's own stylesheet and mode control are untouched; nothing leaks in either direction (the island's tokens do not inherit admin Cobalt values for renderer-consumed variables).
 - **Switcher UI** above the preview: two compact labeled controls (theme, mode) in the design system's control language, **defaulting to the deployment's configured portal theme** (same config value the portal reads, supplied by composition; base theme when unset) in light mode, **ephemeral** - no persistence, resets per page load. Labels through the i18n catalog (ADR-27).
 - **Reusable shape:** the island (switcher + scoping) mounts on the preview container styling seam 034 builds, and applies to both the question preview and 034's form-level preview without either surface being restructured; 049's custom themes extend the theme list later without structural change (note the seam in the component doc).
-- **Read-only consumption:** theme definitions come from `@qcms/ui`'s shipped assets; no copy of token values into the admin, no new API surface.
+- **Read-only consumption:** theme definitions come from `@roonga/qcms-ui`'s shipped assets; no copy of token values into the admin, no new API surface.
 
 ## Exit criteria
 
@@ -25,11 +25,11 @@ The preview shows a question through the real respondent renderer, but always in
 5. axe green with the island in HC while the admin chrome is in light, and vice versa (the mixed states are the novel a11y surface).
 6. Switcher labels localized; keyboard operable; visible focus (standard checks).
 7. Screenshot set under `docs/gates/058/`: the island in at least three theme/mode combinations against unchanged admin chrome, at 390 and 1280 (human gate).
-8. `pnpm verify` + `pnpm verify:browser` green; no new dependencies; **no `@qcms/ui` source changes beyond what 060 already landed** (consumption only). The original form of this criterion said no `@qcms/ui` changes at all and told the session to stop and surface it if scoping required restructuring the sheet. It did, the session stopped, and the Code Owner ruled on 2026-08-07: ADR-38, implemented by 060. **The fence worked and is retained in this weaker form** - if the island still cannot be expressed against 060's carrier, stop and surface it again rather than widening the contract here.
+8. `pnpm verify` + `pnpm verify:browser` green; no new dependencies; **no `@roonga/qcms-ui` source changes beyond what 060 already landed** (consumption only). The original form of this criterion said no `@roonga/qcms-ui` changes at all and told the session to stop and surface it if scoping required restructuring the sheet. It did, the session stopped, and the Code Owner ruled on 2026-08-07: ADR-38, implemented by 060. **The fence worked and is retained in this weaker form** - if the island still cannot be expressed against 060's carrier, stop and surface it again rather than widening the contract here.
 
 ## Out of scope (binding)
 
-Persisting the selection (per-operator or otherwise); custom themes (049 extends the list when it lands); font and density switching in the island (respondent-side controls - revisit only if author feedback asks); theming any admin surface outside the preview container; changes to `@qcms/ui` or the portal.
+Persisting the selection (per-operator or otherwise); custom themes (049 extends the list when it lands); font and density switching in the island (respondent-side controls - revisit only if author feedback asks); theming any admin surface outside the preview container; changes to `@roonga/qcms-ui` or the portal.
 
 ## Findings that bind this task whatever the scoping approach
 

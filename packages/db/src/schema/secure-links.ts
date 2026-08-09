@@ -1,6 +1,6 @@
 import { boolean, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
-import type { FormId, LinkId } from "@qcms/core";
+import type { FormId, LinkId } from "@roonga/qcms-core";
 
 import { forms } from "./forms.js";
 

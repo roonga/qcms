@@ -1,6 +1,6 @@
 # 010 - Secure-link tokens (core)
 
-**Stage:** 3 · **Package:** `@qcms/core` · **Depends on:** 002
+**Stage:** 3 · **Package:** `@roonga/qcms-core` · **Depends on:** 002
 **References:** `ARCHITECTURE.md` §7 · ADR-06 · `SECURITY_DESIGN.md` §2.2 (SEC-2), §4 (SEC-7) · review resolution "secure-link minting has no home"
 
 ## Context

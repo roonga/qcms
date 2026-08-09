@@ -1,5 +1,5 @@
 ---
-"@qcms/ui": minor
+"@roonga/qcms-ui": minor
 ---
 
 Export `documentForVisible(document, visibleQuestions)`, the projection that

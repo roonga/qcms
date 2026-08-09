@@ -26,7 +26,7 @@
  * gets - same status, same body, same code.
  */
 
-import { FormId, SessionId, type FormDefinition } from "@qcms/core";
+import { FormId, SessionId, type FormDefinition } from "@roonga/qcms-core";
 import {
   createForm,
   createSession,
@@ -44,8 +44,8 @@ import {
   recordDeliveryFailure,
   webhookDeliveries,
   type DeliveryAttemptRecord,
-} from "@qcms/db";
-import { startTestDb, type TestDb } from "@qcms/db/testing";
+} from "@roonga/qcms-db";
+import { startTestDb, type TestDb } from "@roonga/qcms-db/testing";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 

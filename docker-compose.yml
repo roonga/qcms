@@ -54,7 +54,7 @@ services:
       # `dev`, which is honest about what it is.
       args: &image-build-args
         VERSION: ${QCMS_IMAGE_VERSION:-dev}
-    command: ["node", "node_modules/@qcms/db/dist/migrate.js"]
+    command: ["node", "node_modules/@roonga/qcms-db/dist/migrate.js"]
     environment: &api-env
       DATABASE_URL: postgres://${QCMS_DB_USER:-qcms}:${QCMS_DB_PASSWORD:?set QCMS_DB_PASSWORD in .env}@postgres:5432/${QCMS_DB_NAME:-qcms}
       QCMS_LINK_KEYS: ${QCMS_LINK_KEYS:?set QCMS_LINK_KEYS in .env}

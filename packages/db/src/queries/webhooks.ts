@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 
-import type { FormId } from "@qcms/core";
+import type { FormId } from "@roonga/qcms-core";
 
 import { webhooks } from "../schema/index.js";
 import type { Executor } from "./executor.js";

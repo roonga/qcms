@@ -5,7 +5,7 @@
 
 ## Context
 
-The shadcn-ethos delivery vehicle: stamp the owned shell (apps, compose, config) into the adopter's repo, referencing the versioned packages (`@qcms/core`, `a2ui-compiler`, `db`, `ui`) as dependencies. Per ADR-19, launch does not block on this task - if it slips, 038 proceeds with the documented manual setup from 036.
+The shadcn-ethos delivery vehicle: stamp the owned shell (apps, compose, config) into the adopter's repo, referencing the versioned packages (`@roonga/qcms-core`, `a2ui-compiler`, `db`, `ui`) as dependencies. Per ADR-19, launch does not block on this task - if it slips, 038 proceeds with the documented manual setup from 036.
 
 ## Deliverables
 

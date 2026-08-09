@@ -5,7 +5,7 @@ import {
   type LocalizedText,
   type QuestionDefinition,
   type QuestionRef,
-} from "@qcms/core";
+} from "@roonga/qcms-core";
 
 import type { TextResolver } from "./mapping.js";
 import {
@@ -21,7 +21,7 @@ import { A2UI_SPEC_VERSION, COMPILER_VERSION } from "./version.js";
  * ARCHITECTURE §3): a published {@link FrozenSnapshot} → one A2UI document per
  * step, stamped with the compiler and A2UI-spec versions (ADR-18, the stored
  * copy is served forever). Deterministic and side-effect free; depends on
- * `@qcms/core` types only - never `db`, never React, never a runtime
+ * `@roonga/qcms-core` types only - never `db`, never React, never a runtime
  * `@a2ra/core` import.
  *
  * Preconditions (a valid snapshot from `compileDraft`, task 008): every pinned

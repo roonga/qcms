@@ -29,7 +29,7 @@ Node LTS everywhere · pnpm + Turborepo · Zod as the single schema language · 
 
 - **R1** Published versions are immutable; sessions pin the version they started on.
 - **R2** No business logic in a BFF - portal/admin route handlers do sessions, credentials, proxying only.
-- **R3** `@qcms/core` never imports the db; slices load state, pass it in, persist results. Answers are append-only - no UPDATE path exists; the sole DELETE door is whole-session erasure (**ADR-17 amendment**).
+- **R3** `@roonga/qcms-core` never imports the db; slices load state, pass it in, persist results. Answers are append-only - no UPDATE path exists; the sole DELETE door is whole-session erasure (**ADR-17 amendment**).
 - **R4** API handlers stay fetch-pure - no Node-only APIs (WebCrypto, not `node:crypto`).
 - **R5** Invariant spanning more than one field/row → core function; otherwise plain transaction script. No repositories-as-interfaces, no mediator, no NestJS.
 - **R6** `questionId`/`optionId` are stable forever and never reused with a different meaning.
@@ -45,7 +45,7 @@ And from ADR-26…37 (titles and rationale in `docs/PROJECT_GOAL.md` §6): clien
 1. Read this file → your task file in `docs/features/` → its listed references. Check the progress ledger and `git log`; trust the repo over memory.
 2. Work only within the task's deliverables and exit criteria; **out-of-scope sections are binding**. Blocked on a real decision → stop and ask; never choose silently.
 3. Tests ship with the code; docs named in the task update in the same change.
-4. Leave the repo **green or clean**: done = all exit criteria pass and **`pnpm verify`** is green at the repo root (add **`QCMS_PORT_SEAT=<0-9> pnpm verify:browser`** when the change touches `apps/portal`, `apps/admin`, or `@qcms/ui` - the seat is not optional from a worktree, R8/`docs/PORTS.md`); not done = revert or park on the task branch with a `HANDOFF.md`. Never merge red. Gate contents and the CI mapping: `CONTRIBUTING.md`.
+4. Leave the repo **green or clean**: done = all exit criteria pass and **`pnpm verify`** is green at the repo root (add **`QCMS_PORT_SEAT=<0-9> pnpm verify:browser`** when the change touches `apps/portal`, `apps/admin`, or `@roonga/qcms-ui` - the seat is not optional from a worktree, R8/`docs/PORTS.md`); not done = revert or park on the task branch with a `HANDOFF.md`. Never merge red. Gate contents and the CI mapping: `CONTRIBUTING.md`.
 5. One branch per task (`feat/NNN-slug`); Conventional Commits with task number; PR description = exit-criteria checklist; Changeset for package changes. Full rules: `CONTRIBUTING.md`.
 6. **The ledger row is not yours to flip mid-task.** The pushed `origin/feat/NNN-*` branch is the claim; the row goes `todo` -> `done (PR #N)` exactly once, in the completing PR. Under the `/task` flow the orchestrator lands that change, never the executor.
 

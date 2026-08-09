@@ -20,17 +20,17 @@ import {
   parseFormDefinition,
   QuestionId,
   SessionId,
-} from "@qcms/core";
-import type { AnswerValue, LockedSubmission } from "@qcms/core";
-import type { CompiledForm } from "@qcms/a2ui-compiler";
+} from "@roonga/qcms-core";
+import type { AnswerValue, LockedSubmission } from "@roonga/qcms-core";
+import type { CompiledForm } from "@roonga/qcms-a2ui-compiler";
 import {
   createForm,
   createSession,
   insertFormVersion,
   insertSubmission,
   markSubmitted,
-} from "@qcms/db";
-import { startTestDb, type TestDb } from "@qcms/db/testing";
+} from "@roonga/qcms-db";
+import { startTestDb, type TestDb } from "@roonga/qcms-db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../../app.js";

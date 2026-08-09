@@ -34,7 +34,7 @@
  * Nothing here logs the token, the email, or any part of a credential (SEC-8).
  */
 
-import { getAdminSessionByToken } from "@qcms/db";
+import { getAdminSessionByToken } from "@roonga/qcms-db";
 import type { Context, MiddlewareHandler } from "hono";
 
 import type { SliceRegistrar } from "../app.js";

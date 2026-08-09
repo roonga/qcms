@@ -26,7 +26,7 @@ notice until 1.0. Security patches are not backported during pre-release.
 
 ## Scope
 
-In scope: the qcms packages (`@qcms/*`) and apps (portal, admin, api) in this
+In scope: the qcms packages (`@roonga/qcms-*`) and apps (portal, admin, api) in this
 repository. Out of scope (documented operator responsibility): host/OS/Postgres
 hardening, TLS/ingress, VPN configuration, and DDoS absorption - see
 `docs/SECURITY_DESIGN.md` §1.

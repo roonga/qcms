@@ -1,6 +1,6 @@
 # 006 - Rules evaluator (forward pass)
 
-**Stage:** 2 · **Package:** `@qcms/core` · **Depends on:** 005
+**Stage:** 2 · **Package:** `@roonga/qcms-core` · **Depends on:** 005
 **References:** **ADR-16** · `ARCHITECTURE.md` §4.2 · Invariants I6, I7
 
 ## Context

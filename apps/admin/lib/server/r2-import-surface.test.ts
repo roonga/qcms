@@ -10,11 +10,11 @@ import { describe, expect, it } from "vitest";
  * The portal's audit covers the first two rules below. The admin needs the rest because
  * it holds credentials the portal never sees:
  *
- * 1. Nothing imports `@qcms/core` as a value - rule evaluation, validation and publish
+ * 1. Nothing imports `@roonga/qcms-core` as a value - rule evaluation, validation and publish
  *    aggregation live in the API, and the admin has no authority over any of them.
  * 2. No client component pulls a server-only module in as a value, so the internal
  *    service token and the admin's session token cannot reach the browser bundle.
- * 3. **No database client exists.** The allowlist of `@qcms/db` value bindings is now
+ * 3. **No database client exists.** The allowlist of `@roonga/qcms-db` value bindings is now
  *    **empty**, and that emptiness is the regression gate ADR-35's amendment asks for:
  *    task 031 needed seven bindings for better-auth's adapter, and the whole point of
  *    056 is that it needs none. Nothing imports `pg` or `drizzle-orm` either, and no
@@ -43,7 +43,7 @@ const EXTRA_FILES = ["proxy.ts"];
 const API_CLIENT_SUFFIX = "/lib/server/api.ts";
 
 /**
- * The complete set of value bindings the admin may take from `@qcms/db`: **none**.
+ * The complete set of value bindings the admin may take from `@roonga/qcms-db`: **none**.
  *
  * Kept as a set rather than deleted along with its last entry, because an empty
  * allowlist says something a missing test cannot: that the boundary is checked and the
@@ -54,12 +54,12 @@ const ALLOWED_DB_VALUE_IMPORTS = new Set<string>();
 /**
  * Package specifiers no admin source file may import at all, for any reason.
  *
- * `pg` and `drizzle-orm` are database clients and `@qcms/db` is the schema they would
+ * `pg` and `drizzle-orm` are database clients and `@roonga/qcms-db` is the schema they would
  * address; `better-auth` is the library that needed them. All four left this app in task
  * 056 and none of them has a reason to come back: the API is the sole database client
  * (ADR-35) and the sole better-auth host.
  */
-const FORBIDDEN_PACKAGES = ["pg", "drizzle-orm", "@qcms/db", "better-auth"];
+const FORBIDDEN_PACKAGES = ["pg", "drizzle-orm", "@roonga/qcms-db", "better-auth"];
 
 function isSource(entry: string): boolean {
   const isTs = entry.endsWith(".ts") || entry.endsWith(".tsx");
@@ -105,9 +105,9 @@ function importsOf(text: string): ParsedImport[] {
 }
 
 /**
- * The **value** bindings a module imports from `@qcms/db`, ignoring type-only ones.
+ * The **value** bindings a module imports from `@roonga/qcms-db`, ignoring type-only ones.
  *
- * Kept even though the allowlist is now empty and a blanket "no `@qcms/db` import at
+ * Kept even though the allowlist is now empty and a blanket "no `@roonga/qcms-db` import at
  * all" check sits beside it, because the two fail differently: this one names the
  * *binding* a regression reached for, which is the sentence a reviewer needs ("someone
  * imported `forms`"), while the blanket check only names the module.
@@ -124,12 +124,12 @@ function dbValueBindings(text: string): string[] {
     .flatMap(namedBindings);
 }
 
-/** True for an `import { ... } from "@qcms/db"` line that is not type-only. */
+/** True for an `import { ... } from "@roonga/qcms-db"` line that is not type-only. */
 function isDbValueImport(line: string): boolean {
   if (!line.startsWith("import ")) return false;
-  // `import type { ... } from "@qcms/db"` is erased at compile time.
+  // `import type { ... } from "@roonga/qcms-db"` is erased at compile time.
   if (line.startsWith("import type ")) return false;
-  return line.includes('from "@qcms/db"') || line.includes("from '@qcms/db'");
+  return line.includes('from "@roonga/qcms-db"') || line.includes("from '@roonga/qcms-db'");
 }
 
 /** The imported names inside one `{ ... }` clause, with aliases and `type` resolved away. */
@@ -168,11 +168,11 @@ describe("R2 import surface (strict BFF)", () => {
     expect(files.length).toBeGreaterThan(10);
   });
 
-  it("imports nothing from @qcms/core (evaluation and validation stay in the API)", () => {
+  it("imports nothing from @roonga/qcms-core (evaluation and validation stay in the API)", () => {
     const offenders: string[] = [];
     for (const { path, text } of files) {
       for (const { spec } of importsOf(text)) {
-        if (spec.startsWith("@qcms/core")) offenders.push(`${path} -> ${spec}`);
+        if (spec.startsWith("@roonga/qcms-core")) offenders.push(`${path} -> ${spec}`);
       }
     }
     expect(offenders).toEqual([]);
@@ -192,7 +192,7 @@ describe("R2 import surface (strict BFF)", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("takes NO value binding from @qcms/db: the allowlist is empty (task 056)", () => {
+  it("takes NO value binding from @roonga/qcms-db: the allowlist is empty (task 056)", () => {
     const offenders: string[] = [];
     for (const { path, text } of files) {
       for (const binding of dbValueBindings(text)) {

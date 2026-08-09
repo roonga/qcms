@@ -6,14 +6,14 @@
 > preview's rule evaluation **client-side** ("live client-side rule evaluation (core
 > evaluator)"). Landed enforcement forbids it, exactly as it forbade the same thing for the
 > rule test bench: rule 1 of `apps/admin/lib/server/r2-import-surface.test.ts` bans
-> `@qcms/core` imports in the admin, and that test stands. It is also not what the portal
+> `@roonga/qcms-core` imports in the admin, and that test stands. It is also not what the portal
 > does - the portal performs no rule evaluation either (R2), it receives an authoritative
 > `visibleQuestions` list from the API and projects the compiled document onto it.
 >
 > So `POST /admin/forms/:id/draft/preview` returns **both** halves of that pair: 011's
 > compiled documents and the forward pass's visible set for the answers sent with the
 > request. The preview pane projects with `documentForVisible` - the portal's own function,
-> moved into `@qcms/ui` by 034 so there is exactly one of it - and renders with
+> moved into `@roonga/qcms-ui` by 034 so there is exactly one of it - and renders with
 > `A2UIStepRenderer`. Fidelity is stronger for the change rather than weaker: the admin is
 > not a second implementation of visibility, it is the same one. Nothing about the layout,
 > regions or states changes.
@@ -51,7 +51,7 @@
 ## Regions (normative)
 
 - **publish `dialog`**: freeze summary (steps/pins/rules counts) + R1 teaching copy · confirm/cancel `button`s. On failure: full `PublishError[]` as an actionable list - each entry links back into the builder anchored via structured `path` (033's anchoring). On success: version `tag` + link to history.
-- **preview**: banner `alert` ("Preview - not published") · dry-run compiled draft (`POST /admin/forms/:id/draft/preview` - a planned thin extension of 022's draft slice that **034 lands**; deliberately **absent from the frozen 027 contract**, which predates it) rendered through **the same `@qcms/ui` renderer** (import-surface test - preview fidelity is the feature) · interactive answer state, with rule evaluation **in the API** and the visible set projected onto the compiled document by `documentForVisible` from `@qcms/ui` - the portal's own function, so preview and serving share one projection (see the amendment above; the admin evaluates nothing, R2) - so authors walk branches · step prev/next `button`s · reset `button`.
+- **preview**: banner `alert` ("Preview - not published") · dry-run compiled draft (`POST /admin/forms/:id/draft/preview` - a planned thin extension of 022's draft slice that **034 lands**; deliberately **absent from the frozen 027 contract**, which predates it) rendered through **the same `@roonga/qcms-ui` renderer** (import-surface test - preview fidelity is the feature) · interactive answer state, with rule evaluation **in the API** and the visible set projected onto the compiled document by `documentForVisible` from `@roonga/qcms-ui` - the portal's own function, so preview and serving share one projection (see the amendment above; the admin evaluates nothing, R2) - so authors walk branches · step prev/next `button`s · reset `button`.
 - **version history**: `table` - version, publishedAt, compilerVersion / a2uiSpecVersion / semanticsVersion (`text`, monospace) · view action → read-only render **from stored compiled JSONB** (ADR-18 - network assertion: no draft-preview call on history pages) · side-by-side definition **JSON diff** between selected versions (readable, additions/removals marked textually not color-only).
 - **secure links** (form with ≥1 published version): mint `dialog` - expiry `date-picker`, one-time `switch`, batch count `number-field` (≤ documented cap) → result list with copy-URL `button`s · links `table` - state `tag` (active/consumed/expired/revoked), consumption timestamp, revoke action (`dialog` confirm) · batch CSV export `button`.
 - **close/reopen**: form-level actions with in-flight-session explanation (R1 taught in copy).

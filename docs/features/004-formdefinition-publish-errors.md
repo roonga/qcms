@@ -1,6 +1,6 @@
 # 004 - FormDefinition and typed publish errors
 
-**Stage:** 1 · **Package:** `@qcms/core` · **Depends on:** 002, 003
+**Stage:** 1 · **Package:** `@roonga/qcms-core` · **Depends on:** 002, 003
 **References:** `DOMAIN_SCHEMA.md` §2.3 · ADR-02, ADR-11
 
 ## Context

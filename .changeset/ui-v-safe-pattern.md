@@ -1,5 +1,5 @@
 ---
-"@qcms/ui": patch
+"@roonga/qcms-ui": patch
 ---
 
 `A2UIStepRenderer` now emits a shortText question's HTML `pattern` attribute only

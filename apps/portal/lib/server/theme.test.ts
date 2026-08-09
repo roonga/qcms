@@ -8,7 +8,7 @@
  * is asserted in `e2e/theming.pw.ts`, `e2e/fonts.pw.ts` and `e2e/appearance.pw.ts`.
  */
 
-import { FONT_REGISTRY, SYSTEM_FONT_KEY } from "@qcms/ui/fonts";
+import { FONT_REGISTRY, SYSTEM_FONT_KEY } from "@roonga/qcms-ui/fonts";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { DEFAULT_DENSITY, DENSITY_LEVELS } from "../appearance.js";

@@ -165,9 +165,9 @@ Consuming the three files, in this order:
 
 ```css
 @import "tailwindcss";
-@import "@qcms/ui/theme.css"; /* the token values */
-@import "@qcms/ui/theme-components.css"; /* the components consume them */
-@import "@qcms/ui/fonts.css"; /* the font registry */
+@import "@roonga/qcms-ui/theme.css"; /* the token values */
+@import "@roonga/qcms-ui/theme-components.css"; /* the components consume them */
+@import "@roonga/qcms-ui/fonts.css"; /* the font registry */
 ```
 
 `theme.css` and `fonts.css` are each valid plain CSS and can be imported by a
@@ -289,9 +289,9 @@ Add is **one manifest entry plus its binary**; remove is **one manifest entry**.
    (or a single file named in the entry, for a variable font).
 2. Add one `webfont({ ... })` entry to `FONT_REGISTRY` in
    `packages/ui/src/font-registry.ts`, with the upstream copyright notice verbatim.
-3. Run `pnpm --filter @qcms/ui fonts:generate` to regenerate `src/fonts.css` and
+3. Run `pnpm --filter @roonga/qcms-ui fonts:generate` to regenerate `src/fonts.css` and
    `src/fonts/NOTICE.md`. Never hand-edit either.
-4. `pnpm --filter @qcms/ui test` (the manifest invariants and the drift guard) and
+4. `pnpm --filter @roonga/qcms-ui test` (the manifest invariants and the drift guard) and
    `pnpm verify:browser` (the render, request-count and floor sweep).
 
 A license that is not OFL-1.1 or Apache-2.0 needs the CONTRIBUTING license check
@@ -563,7 +563,7 @@ gate, so a deployment that changes colours checks its own pairs.
 4. Add the key to `PORTAL_THEMES` in `apps/portal/lib/server/theme.ts` and to
    `THEMES` in `packages/ui/src/theme-tokens.test.ts` and
    `apps/portal/e2e/theming.pw.ts`.
-5. Run `pnpm --filter @qcms/ui test` (the ratios and the HC shape) and
+5. Run `pnpm --filter @roonga/qcms-ui test` (the ratios and the HC shape) and
    `pnpm verify:browser` (axe in all three modes).
 
 ## Where the evidence lives

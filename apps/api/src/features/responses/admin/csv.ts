@@ -24,7 +24,7 @@
  * Answer *values* are export payload, never logged (SEC-8).
  */
 
-import type { FormDefinition } from "@qcms/core";
+import type { FormDefinition } from "@roonga/qcms-core";
 
 /** UTF-8 byte-order mark - see the module note on Excel interop. */
 export const UTF8_BOM = "﻿";

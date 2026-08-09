@@ -3,7 +3,7 @@
  *
  * Honest transaction scripts (R5): the slice validates the target URL against
  * the SSRF policy, encrypts the secret at rest, and reads/writes `webhooks` rows
- * through `@qcms/db` - no cross-row invariant lives in the kernel here. Handlers
+ * through `@roonga/qcms-db` - no cross-row invariant lives in the kernel here. Handlers
  * are fetch-pure (R4): time via `deps.clock`, crypto via WebCrypto
  * (`./crypto.js`), no `node:*`.
  *
@@ -13,13 +13,13 @@
  * stored column holds AES-256-GCM ciphertext under `QCMS_APP_KEY`; 025 decrypts
  * it to sign deliveries.
  *
- * Row types come straight from `@qcms/db`: the `webhooks` row is enum-free and
+ * Row types come straight from `@roonga/qcms-db`: the `webhooks` row is enum-free and
  * the enum-bearing `forms` row is now hand-authored and sound across the package
  * boundary (issue #5), so both are consumed directly with no local launder.
  */
 
 import type { RouteHandler } from "@hono/zod-openapi";
-import { type FormId, parseFormId } from "@qcms/core";
+import { type FormId, parseFormId } from "@roonga/qcms-core";
 import {
   deactivateWebhook,
   getForm,
@@ -28,7 +28,7 @@ import {
   listWebhooks,
   updateWebhook,
   type WebhookRow,
-} from "@qcms/db";
+} from "@roonga/qcms-db";
 
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";

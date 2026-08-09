@@ -1,6 +1,6 @@
 # 049 - Admin theme editor: customize tokens + save named custom theme (ADR-30 amended)
 
-**Stage:** 8a · **Apps/packages:** `apps/admin` · `@qcms/ui` (token contract consumer) · **Depends on:** 031 (admin shell), 047 (token contract + predefined themes)
+**Stage:** 8a · **Apps/packages:** `apps/admin` · `@roonga/qcms-ui` (token contract consumer) · **Depends on:** 031 (admin shell), 047 (token contract + predefined themes)
 **References:** ADR-30 as amended 2026-07-25 (launch tier, Code Owner decision) · ADR-22/26 · WCAG 2.2 AA · folds issue #26 · wireframe to be added to `docs/wireframes/` before dispatch (042 convention)
 
 ## Context

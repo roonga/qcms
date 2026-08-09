@@ -35,7 +35,7 @@ them and escalate genuine conflicts to the Code Owner.
 
 **2. Security**
 - Strict BFF (R2): the browser never talks to the API directly; the portal imports only *types*
-  from `@qcms/core` (import-surface test present and passing); no rule evaluation client-side.
+  from `@roonga/qcms-core` (import-surface test present and passing); no rule evaluation client-side.
 - Secrets: **no real secret value in any file** (code, docs, tests, scripts, CI) - env-only;
   any hit is flagged for rotation immediately.
 - Dependency licenses: runtime tree is permissive/MIT-compatible only (the `check:licenses`
@@ -47,7 +47,7 @@ them and escalate genuine conflicts to the Code Owner.
 **3. Code hygiene**
 - The **full** merge gate is actually green on the current head: `pnpm verify` (build,
   typecheck, lint, test, golden-drift plus every `check:*` gate), and `pnpm verify:browser`
-  when the head touched the portal, admin, or `@qcms/ui`.
+  when the head touched the portal, admin, or `@roonga/qcms-ui`.
 - Gap #19 is closed (`verify` is a superset of CI's unit job): verify it has **stayed** a
   superset - every step in `.github/workflows/ci.yml` still maps to something `verify` runs
   (the mapping table in `CONTRIBUTING.md`), and no CI-red commit has landed on `main` since.

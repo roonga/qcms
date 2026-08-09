@@ -1,6 +1,6 @@
 import { integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
-import type { FormId, SessionId } from "@qcms/core";
+import type { FormId, SessionId } from "@roonga/qcms-core";
 
 /**
  * Erasure tombstones (ADR-17, I11). Erasing a session hard-deletes its answer

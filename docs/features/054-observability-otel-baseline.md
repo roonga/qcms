@@ -26,4 +26,4 @@ The portal BFF does not forward `x-request-id`, so the browser -> portal -> API 
 
 ## Out of scope
 
-Admin app instrumentation (rides an admin-train task once `apps/admin` exists - same recipe as the portal); custom metrics; OTLP log export; browser-side telemetry; hashing ids in telemetry; bundling any viewer into `pnpm dev:portal` (recipe only); `@qcms/core` and all packages stay OTel-free (instrumentation-pg patches the driver from the app bootstrap - `@qcms/db` source untouched).
+Admin app instrumentation (rides an admin-train task once `apps/admin` exists - same recipe as the portal); custom metrics; OTLP log export; browser-side telemetry; hashing ids in telemetry; bundling any viewer into `pnpm dev:portal` (recipe only); `@roonga/qcms-core` and all packages stay OTel-free (instrumentation-pg patches the driver from the app bootstrap - `@roonga/qcms-db` source untouched).

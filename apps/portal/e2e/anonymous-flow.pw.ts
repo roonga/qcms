@@ -7,7 +7,7 @@
  * Branch model note (as-built): the insurance fixture is a SINGLE visible step, so
  * the primary action is always "Submit" (Submit appears only on the final step,
  * and the only step is the final one). The API serves the full compiled step
- * document (ADR-18) and the @qcms/ui renderer renders exactly that, so both
+ * document (ADR-18) and the @roonga/qcms-ui renderer renders exactly that, so both
  * questions are in the DOM; the branch is observable through the *flow
  * projection*: choosing "Yes" makes q_accident_count a visible required question
  * (a Submit is then blocked with the error summary until it is answered), while

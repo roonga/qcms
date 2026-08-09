@@ -26,7 +26,7 @@ The follow-up's numeric example value: keep it as-is for a strict rename, or set
 - Core fixtures renamed: `insurance.json`, the question fixtures, and the golden scenarios (`insurance-seq-*-smoker-yes/no` and siblings -> the accident equivalents), with expected FlowState outputs carrying the renamed ids.
 - `docs/wireframes/*` labels updated. The signed-off **structure is unchanged**, so the 042 sign-off stands - state that in the change; do not re-open the gate.
 - Every referencing task file (003, 006-009, 012, 019, 023, 027, 029, 030, 032-034, 041) updated in the same change (staleness rule).
-- `apps/api` / `@qcms/db` / e2e fixtures and any hardcoded ids or labels swept.
+- `apps/api` / `@roonga/qcms-db` / e2e fixtures and any hardcoded ids or labels swept.
 
 ## Exit criteria
 

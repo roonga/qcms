@@ -425,7 +425,7 @@ test("both topbar triggers are 32px squares, not stretched by the control floor"
  *
  * A note on where these rules live, because it is not where step 9 says to look. The
  * menu box that actually paints in this app is `.qcms-menu` in `app/globals.css`: this
- * app does NOT import `@qcms/ui/theme-components.css` (only the portal does), so the menu
+ * app does NOT import `@roonga/qcms-ui/theme-components.css` (only the portal does), so the menu
  * rules added to that sheet reach no host yet. They are correct and they are the right
  * place for a menu rendered inside `[data-qcms-field]`, but the chrome menus here are
  * styled by the app, and asserting the sheet the app does not load would prove nothing

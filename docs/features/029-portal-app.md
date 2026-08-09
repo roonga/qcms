@@ -22,7 +22,7 @@ The respondent experience: SSR pages for fast first paint on the devices that op
 
 1. Playwright suite green against a composed API (reuse 027 seed utilities).
 2. SSR: flow page HTML contains the step's real content with JS disabled; no-JS step submission works for the minimal fixture.
-3. R2 audit test: BFF handlers import nothing from `@qcms/core` except types (import-surface test - evaluation stays server-side in the API).
+3. R2 audit test: BFF handlers import nothing from `@roonga/qcms-core` except types (import-surface test - evaluation stays server-side in the API).
 4. Cookie security: httpOnly, SameSite, secure-in-production asserted.
 5. Insurance fixture completes on Playwright's mobile emulation with throttling, SSR first paint (Stage 7 exit criterion, formalized in 030's Lighthouse run).
 

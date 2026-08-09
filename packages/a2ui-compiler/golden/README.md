@@ -1,6 +1,6 @@
 # A2UI golden corpus
 
-The reviewed, compiled A2UI output for the `@qcms/core` reference forms (task
+The reviewed, compiled A2UI output for the `@roonga/qcms-core` reference forms (task
 012, ADR-18). Each document is a genuine `compileForm` result - never
 hand-forged - captured once, hand-reviewed, and then frozen. The corpus is
 three contracts at once:
@@ -42,7 +42,7 @@ committing (they seed the renderer conformance suite, so a wrong golden is a
 wrong contract):
 
 ```
-UPDATE_GOLDEN=1 pnpm exec vitest run --project @qcms/a2ui-compiler golden-corpus
+UPDATE_GOLDEN=1 pnpm exec vitest run --project @roonga/qcms-a2ui-compiler golden-corpus
 ```
 
 Review the diff by eye, confirm it is what the mapping (`docs/a2ui-mapping.md`)

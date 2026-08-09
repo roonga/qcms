@@ -13,7 +13,7 @@ import { and, eq, notInArray } from "drizzle-orm";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { FormId } from "@qcms/core";
+import { FormId } from "@roonga/qcms-core";
 
 import * as schema from "../schema/index.js";
 import { webhookDeliveries } from "../schema/index.js";

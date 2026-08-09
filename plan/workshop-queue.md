@@ -224,7 +224,7 @@ That is true of drizzle's raw template. It is **false** of `testDb.client.query`
 
 **What is wrong.** Neither the task file nor `CLAUDE.md` mentions that changing an API route schema requires regenerating the OpenAPI document. 059's executor found out when `openapi-document.test.ts` failed inside its first full test run - a 90-second cycle to discover a one-command step.
 
-**Why it belongs here.** This is the same family as the existing note that *"adding a `@qcms/db` query helper is a 3-place edit: `queries/<area>.ts`, the `queries/index.ts` re-export list, and the `import-surface.test.ts` allowlist"*. That note exists because the edit is non-local and the failure is a test that names none of the missing places. The OpenAPI case has exactly that shape: the change is in a route schema, the failure is in a document test, and the fix is a generator nobody told you to run.
+**Why it belongs here.** This is the same family as the existing note that *"adding a `@roonga/qcms-db` query helper is a 3-place edit: `queries/<area>.ts`, the `queries/index.ts` re-export list, and the `import-surface.test.ts` allowlist"*. That note exists because the edit is non-local and the failure is a test that names none of the missing places. The OpenAPI case has exactly that shape: the change is in a route schema, the failure is in a document test, and the fix is a generator nobody told you to run.
 
 **Candidate edit.** Add it beside the 3-place-edit note in `CLAUDE.md`'s toolchain rules: an API route-schema change is a 2-place edit, the schema and `pnpm openapi:generate`, and `openapi-document.test.ts` is what catches you.
 

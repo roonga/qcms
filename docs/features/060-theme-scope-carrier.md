@@ -1,6 +1,6 @@
 # 060 - Theme scope carrier: the 051 token contract gains a container anchor
 
-**Stage:** 8a · **Apps/packages:** `@qcms/ui` (the three stylesheets and their tests), `apps/portal` (one attribute), `apps/admin` (one import) · **Depends on:** 051, 052, 053 (the contract this amends), 055 (admin's Cobalt sheet is the thing the island must not inherit)
+**Stage:** 8a · **Apps/packages:** `@roonga/qcms-ui` (the three stylesheets and their tests), `apps/portal` (one attribute), `apps/admin` (one import) · **Depends on:** 051, 052, 053 (the contract this amends), 055 (admin's Cobalt sheet is the thing the island must not inherit)
 **References:** **ADR-38** (the decision and every rejected alternative) · `plan/058-theme-scoping-options.md` (the investigation behind it, including the numbers) · ADR-30 + tasks 051/052/053 (the contract) · `docs/theming.md` (normative selector conventions, changed here) · task 058 (the consumer; runs after this)
 
 ## Context
@@ -17,7 +17,7 @@ This task makes the contract expressible against a container, and does **only** 
 - **`theme-tokens.test.ts`'s specificity model is corrected deliberately** - see the exit criteria; this is the highest-risk item in the task and is not to be "made to pass".
 - **`font-registry.test.ts` and the generator template** updated for the new selector shape, and `fonts.css` regenerated.
 - **`docs/theming.md`** selector-convention table and "Adding a theme" recipe updated (staleness rule: both are normative and both spell `:root[data-theme=…]`).
-- **Changeset** for `@qcms/ui` recording a contract change.
+- **Changeset** for `@roonga/qcms-ui` recording a contract change.
 
 ## Exit criteria
 

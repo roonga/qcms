@@ -149,7 +149,7 @@ Legend: **req** required (boot fails without it) · opt optional · cond require
 
 Migration is a deliberate, separate step rather than migrate-on-boot, precisely because this topology runs more than one API process: a boot-time migration in an N-instance deployment is N racing migrators, and the adopter loses the ability to decide when schema change happens. So:
 
-1. Run the migration once, from the API image (`node node_modules/@qcms/db/dist/migrate.js`), against the database, with nothing else starting.
+1. Run the migration once, from the API image (`node node_modules/@roonga/qcms-db/dist/migrate.js`), against the database, with nothing else starting.
 2. Start or restart `api-internal`, then `api-public`, then the two front ends.
 3. Create the first administrator once, against `api-internal`'s image, with `QCMS_ADMIN_EMAIL` and `QCMS_ADMIN_PASSWORD` supplied per-command rather than in a stored environment file. There is no self-registration path in any composition (SEC-1), so this command is the only door.
 

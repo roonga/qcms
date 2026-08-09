@@ -1,6 +1,6 @@
 # 007 - Evaluator test corpus
 
-**Stage:** 2 · **Package:** `@qcms/core` · **Depends on:** 006
+**Stage:** 2 · **Package:** `@roonga/qcms-core` · **Depends on:** 006
 **References:** `IMPLEMENTATION_PLAN.md` Stage 2 exit criteria
 
 ## Context

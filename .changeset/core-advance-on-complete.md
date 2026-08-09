@@ -1,5 +1,5 @@
 ---
-"@qcms/core": minor
+"@roonga/qcms-core": minor
 ---
 
 Reserve an optional per-form `advanceOnComplete` boolean on `FormDefinition`

@@ -1,6 +1,6 @@
 # 050 - Answer retraction: tombstone append (ADR-33)
 
-**Stage:** 7 · **Apps/packages:** `@qcms/core` · `apps/api` · `@qcms/db` · `apps/portal` · `packages/ui` (adapter seam) · **Depends on:** PR #90 (ADR-31 cadence) merged
+**Stage:** 7 · **Apps/packages:** `@roonga/qcms-core` · `apps/api` · `@roonga/qcms-db` · `apps/portal` · `packages/ui` (adapter seam) · **Depends on:** PR #90 (ADR-31 cadence) merged
 **References:** ADR-33 (this task implements it) · ADR-31 (the null-clear contract line this fulfils) · ADR-17/R3 (append-only; retraction is an append, never a mutation) · issue #95 (folds it, including the untouched-required null post sharing root cause B) · SEC posture unchanged (same session/link authz as answer posts)
 
 ## Context
@@ -21,7 +21,7 @@ Issue #95, from PR #90's review cycle: clears are unobservable in the portal (re
 2. Retraction resolution proven at the read-model seam (latestAnswers integration tests; no kernel change - per the accepted ADR-33 amendment there is no per-type kernel path to test, the null branch runs before validateAnswer); append-only proven (no UPDATE/DELETE on the answers table in the diff or at runtime).
 3. API: retraction post round-trip integration-tested; untouched-required blur produces no 422 noise.
 4. Reporting/export: a retracted answer is absent from both, regression-tested.
-5. `pnpm verify` + `verify:browser` green; changeset for `@qcms/core` (+ `@qcms/db` if its surface changes); screenshot gate for the respondent-visible states.
+5. `pnpm verify` + `verify:browser` green; changeset for `@roonga/qcms-core` (+ `@roonga/qcms-db` if its surface changes); screenshot gate for the respondent-visible states.
 
 ## Out of scope (binding)
 

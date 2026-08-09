@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 /**
  * Exit criterion 3 (R2 audit): the strict BFF stays a proxy. The portal imports
- * NOTHING from @qcms/core except types (rule evaluation lives server-side in the
+ * NOTHING from @roonga/qcms-core except types (rule evaluation lives server-side in the
  * API), and no client component pulls a server-only BFF module (config, api,
  * cookies) into the client bundle as a value - the session token and internal
  * API base URL never reach the browser.
@@ -72,11 +72,11 @@ describe("R2 import surface (strict BFF)", () => {
     expect(files.length).toBeGreaterThan(10);
   });
 
-  it("imports nothing from @qcms/core except types (evaluation stays in the API)", () => {
+  it("imports nothing from @roonga/qcms-core except types (evaluation stays in the API)", () => {
     const offenders: string[] = [];
     for (const { path, text } of files) {
       for (const { spec, isType } of importsOf(text)) {
-        if (spec.startsWith("@qcms/core") && !isType) offenders.push(path);
+        if (spec.startsWith("@roonga/qcms-core") && !isType) offenders.push(path);
       }
     }
     expect(offenders).toEqual([]);
@@ -95,26 +95,31 @@ describe("R2 import surface (strict BFF)", () => {
 
   // The task 044 whole-step form-encoded BFF route is a proxy only: it maps form
   // fields to canonical answers and forwards them to the API, which stays the sole
-  // validation + rule authority. It must import NOTHING from @qcms/core (not even
+  // validation + rule authority. It must import NOTHING from @roonga/qcms-core (not even
   // types) and must not re-implement any evaluation.
-  it("the no-JS whole-step route imports nothing from @qcms/core (R2)", () => {
+  it("the no-JS whole-step route imports nothing from @roonga/qcms-core (R2)", () => {
     const stepRoute = files.find((f) => f.path.endsWith("/step/route.ts"));
     expect(stepRoute, "the whole-step BFF route should be scanned").toBeDefined();
-    const coreImports = importsOf(stepRoute!.text).filter((i) => i.spec.startsWith("@qcms/core"));
+    const coreImports = importsOf(stepRoute!.text).filter((i) =>
+      i.spec.startsWith("@roonga/qcms-core"),
+    );
     expect(coreImports).toEqual([]);
-    // Its only @qcms/ui *value* reach is the React-free transport-constants
-    // subpath (a bare `@qcms/ui` type import is erased and harmless).
+    // Its only @roonga/qcms-ui *value* reach is the React-free transport-constants
+    // subpath (a bare `@roonga/qcms-ui` type import is erased and harmless).
     for (const { spec, isType } of importsOf(stepRoute!.text)) {
-      if (!isType && spec.startsWith("@qcms/ui")) expect(spec).toBe("@qcms/ui/native-submit");
+      if (!isType && spec.startsWith("@roonga/qcms-ui"))
+        expect(spec).toBe("@roonga/qcms-ui/native-submit");
     }
   });
 
-  // The pure transport decoder must not reach into @qcms/core either - its kind
-  // hints come from @qcms/ui's React-free subpath, and coercion is not validation.
-  it("the step-form decoder is transport-only (no @qcms/core)", () => {
+  // The pure transport decoder must not reach into @roonga/qcms-core either - its kind
+  // hints come from @roonga/qcms-ui's React-free subpath, and coercion is not validation.
+  it("the step-form decoder is transport-only (no @roonga/qcms-core)", () => {
     const decoder = files.find((f) => f.path.endsWith("/server/step-form.ts"));
     expect(decoder, "the step-form decoder should be scanned").toBeDefined();
-    const coreImports = importsOf(decoder!.text).filter((i) => i.spec.startsWith("@qcms/core"));
+    const coreImports = importsOf(decoder!.text).filter((i) =>
+      i.spec.startsWith("@roonga/qcms-core"),
+    );
     expect(coreImports).toEqual([]);
   });
 });

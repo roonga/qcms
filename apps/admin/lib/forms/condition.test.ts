@@ -1,4 +1,4 @@
-import { parseVisibilityRule } from "@qcms/core";
+import { parseVisibilityRule } from "@roonga/qcms-core";
 import { describe, expect, it } from "vitest";
 
 import { QUESTION_TYPES, type QuestionType } from "../questions/types.ts";

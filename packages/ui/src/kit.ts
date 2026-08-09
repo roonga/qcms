@@ -1,5 +1,5 @@
 /**
- * `@qcms/ui/kit` - the shared admin UI kit (task 031).
+ * `@roonga/qcms-ui/kit` - the shared admin UI kit (task 031).
  *
  * The admin app's own screens are **ordinary React** (ARCHITECTURE §6): A2UI
  * documents and `A2Renderer` appear in the admin only inside the preview pane
@@ -29,7 +29,7 @@
  *   root export) stays the only door to the renderer.
  *
  * Styling is Tailwind utilities over the four ADR-30 token groups, single-sourced
- * upstream, so the host app must load `@qcms/ui/theme.css` (or its own file that
+ * upstream, so the host app must load `@roonga/qcms-ui/theme.css` (or its own file that
  * defines the same custom properties) for these to render as intended.
  *
  * Everything here is interactive react-aria (hooks, context), so a Next.js

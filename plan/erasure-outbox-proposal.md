@@ -57,7 +57,7 @@ This adds **no** new DELETE door: the two sanctioned whole-session DELETE paths 
 
 # 059 - Erasure reaches the outbox: payload redaction and delivery cancellation
 
-**Stage:** 8b · **Apps/packages:** `@qcms/db`, `apps/api`, `apps/admin` (copy only) · **Depends on:** 035 (the redeliver control and its tombstone refusal are the seam this generalizes). Independent of 056 and 036 - no ordering relationship, may run in parallel with either.
+**Stage:** 8b · **Apps/packages:** `@roonga/qcms-db`, `apps/api`, `apps/admin` (copy only) · **Depends on:** 035 (the redeliver control and its tombstone refusal are the seam this generalizes). Independent of 056 and 036 - no ordering relationship, may run in parallel with either.
 **References:** ADR-17 as amended 2026-08-02 (the decision this task implements) · the PO review of PR #284, which found the gap and carries the four-line evidence trail · `docs/SECURITY_DESIGN.md` line 127 (this is a named control) · `packages/db/src/queries/erasure.ts`, `queries/deliveries.ts`, `queries/outbox.ts` · `apps/api/src/schedulers/outbox-delivery.ts` · `docs/erasure.md`.
 
 ## Context
@@ -83,7 +83,7 @@ This adds **no** new DELETE door: the two sanctioned whole-session DELETE paths 
 4. Erasure remains atomic: a forced failure after redaction rolls back the deletes, the tombstone and the redaction together (extends the existing I11 test).
 5. Every clause of the new erase-dialog copy and the new `docs/erasure.md` text has an assertion behind it, on the rendered surface or on the payload.
 6. `docs/PROJECT_GOAL.md` ADR-17 carries the 2026-08-02 amendment; `docs/erasure.md`, `docs/SECURITY_DESIGN.md` and `docs/webhooks.md` updated in this PR.
-7. `pnpm verify` green; `pnpm verify:browser` green (admin copy changes); a changeset for `@qcms/db`.
+7. `pnpm verify` green; `pnpm verify:browser` green (admin copy changes); a changeset for `@roonga/qcms-db`.
 
 ## Out of scope
 

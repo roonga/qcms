@@ -1,6 +1,6 @@
 import { jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
-import type { LockedSubmission, SessionId } from "@qcms/core";
+import type { LockedSubmission, SessionId } from "@roonga/qcms-core";
 
 import { sessions } from "./sessions.js";
 

@@ -46,7 +46,7 @@ jobs:
       # Build before typecheck so every workspace package's dist/ (and its emitted
       # .d.ts) exists on disk first. `pnpm typecheck` (turbo, ^build) should build
       # deps itself, but on a cold CI cache it intermittently races and fails to
-      # resolve a just-built workspace package (e.g. `@qcms/db`); an explicit build
+      # resolve a just-built workspace package (e.g. `@roonga/qcms-db`); an explicit build
       # makes resolution deterministic. Root cause tracked in the CI-race issue.
       - run: pnpm build
 
@@ -59,7 +59,7 @@ jobs:
       # registry call at all (issues #74 and #150).
       - uses: ./.github/actions/test-postgres-image
 
-      # Includes @qcms/db's integration tests (task 013), which boot a
+      # Includes @roonga/qcms-db's integration tests (task 013), which boot a
       # Testcontainers Postgres per test file. The Docker daemon is available on
       # ubuntu-latest, so no extra service wiring is needed; the harness pulls
       # anonymously (no registry credentials required), from the image the step
@@ -143,7 +143,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # @qcms/db's `.` export resolves to dist, so build the workspace first.
+      # @roonga/qcms-db's `.` export resolves to dist, so build the workspace first.
       - run: pnpm build
 
       # Same registry-independence as the unit job: these scenarios boot a
@@ -179,7 +179,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # @qcms/db's `.` export resolves to dist, and globalSetup composes the real
+      # @roonga/qcms-db's `.` export resolves to dist, and globalSetup composes the real
       # API from the built workspace, so build first.
       - run: pnpm build
 

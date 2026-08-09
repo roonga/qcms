@@ -1,6 +1,6 @@
 # 028 - A2UI renderer (`packages/ui`)
 
-**Stage:** 7 · **Package:** `@qcms/ui` · **Depends on:** 012 (golden corpus) · uses `roonga/a2-react-aria`
+**Stage:** 7 · **Package:** `@roonga/qcms-ui` · **Depends on:** 012 (golden corpus) · uses `roonga/a2-react-aria`
 **References:** `ARCHITECTURE.md` §6, §11 · **ADR-18** · risk register #3 · `docs/a2ui-mapping.md` (011's inventory - the authoritative component/prop list)
 **External input required:** `@a2ra/core` installed **exact-pinned**; a2ra components **vendored** into this package via `npx @a2ra/cli add` (`a2ra.json` committed; sources under `src/components/a2ui/`). The upstream docs - styling guide and component pages - are required reading (ADR-22). Upgrades are deliberate events: reviewed `a2ra diff` pull + conformance suite green. Gaps between golden documents and what the vendored set renders are cross-repo issues in both repos - never a local workaround that forks the design language, never a second renderer.
 

@@ -1,12 +1,12 @@
 // Import the transport constants from the React-free subpath, so this server-only
-// BFF module never pulls the @qcms/ui client components into a Server Component.
-import { NATIVE_FIELD_KIND_PREFIX, type NativeFieldKind } from "@qcms/ui/native-submit";
+// BFF module never pulls the @roonga/qcms-ui client components into a Server Component.
+import { NATIVE_FIELD_KIND_PREFIX, type NativeFieldKind } from "@roonga/qcms-ui/native-submit";
 
 /**
  * Whole-step form decoding for the no-JS submit route (task 044).
  *
  * PURE transport mapping - NOT validation and NOT rule evaluation (R2). The
- * native-submit renderer (`@qcms/ui`) tags each answer field with its wire kind
+ * native-submit renderer (`@roonga/qcms-ui`) tags each answer field with its wire kind
  * (a `__qk__<questionId>` hidden input); this decoder turns the form-encoded
  * strings back into the canonical JSON shapes the internal API's answer endpoint
  * expects (a JSON boolean, a number, a string, an array), WITHOUT any knowledge

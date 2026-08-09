@@ -1,4 +1,4 @@
-import type { A2UIAnswerValue } from "@qcms/ui";
+import type { A2UIAnswerValue } from "@roonga/qcms-ui";
 
 import { CLIENT_ADDRESS_HEADER, currentClientAddress } from "./client-address";
 import { INTERNAL_TOKEN_HEADER, apiBaseUrl, internalToken } from "./config";
@@ -11,7 +11,7 @@ import { REQUEST_ID_HEADER, currentRequestId } from "./request-id";
  * token and (when present) the respondent's session bearer, forwards the call to
  * the server-only internal API, and returns the parsed JSON. It performs NO rule
  * evaluation and NO validation authority - the API owns all of that (R2). It
- * imports nothing from @qcms/core (enforced by the import-surface test); the
+ * imports nothing from @roonga/qcms-core (enforced by the import-surface test); the
  * types below are structural mirrors of the API's response shapes, not kernel
  * imports.
  */

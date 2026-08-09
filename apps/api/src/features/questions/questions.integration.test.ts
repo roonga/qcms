@@ -15,8 +15,12 @@
  * ADR-18 version stamps.
  */
 
-import { A2UI_SPEC_VERSION, COMPILER_VERSION, HONEYPOT_NODE_TYPE } from "@qcms/a2ui-compiler";
-import { startTestDb, type TestDb } from "@qcms/db/testing";
+import {
+  A2UI_SPEC_VERSION,
+  COMPILER_VERSION,
+  HONEYPOT_NODE_TYPE,
+} from "@roonga/qcms-a2ui-compiler";
+import { startTestDb, type TestDb } from "@roonga/qcms-db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../app.js";

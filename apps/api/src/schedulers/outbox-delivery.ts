@@ -41,7 +41,7 @@
  * secret, or the signature. The event/webhook/delivery ids are safe correlators.
  */
 
-import { type FormId, parseFormId } from "@qcms/core";
+import { type FormId, parseFormId } from "@roonga/qcms-core";
 import {
   claimDue,
   claimDueDeliveries,
@@ -54,7 +54,7 @@ import {
   type DueDelivery,
   type Executor,
   type OutboxRow,
-} from "@qcms/db";
+} from "@roonga/qcms-db";
 
 import type { Deps } from "../deps.js";
 import { decryptWebhookSecret } from "../features/webhooks/crypto.js";

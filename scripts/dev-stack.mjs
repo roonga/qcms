@@ -13,7 +13,7 @@
  *   1. Bring up the dev Postgres (docker-compose.dev.yml, on this seat's 7S20) and
  *      migrate it to head (the same package-owned migration set adopters run).
  *   2. Seed AND PUBLISH the kitchen-sink form (frm_kitchen_sink) through the
- *      exact same publish pipeline the e2e seed uses - the published @qcms/db
+ *      exact same publish pipeline the e2e seed uses - the published @roonga/qcms-db
  *      helpers (createQuestion / createQuestionVersion / createForm /
  *      insertFormVersion), storing the committed golden compiled A2UI verbatim
  *      (ADR-18). Idempotent: a re-run notices the form and skips.
@@ -210,7 +210,7 @@ async function waitFor(label, probe, { timeoutMs = 90_000, intervalMs = 1000 } =
 
 // ---------------------------------------------------------------------------
 // 0. Ensure the workspace is built (the API runs from dist; the portal's dev
-//    server and this seeder consume @qcms/* build output).
+//    server and this seeder consume @roonga/qcms-* build output).
 // ---------------------------------------------------------------------------
 function ensureBuilt() {
   const needed = [

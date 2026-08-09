@@ -3,7 +3,7 @@
 /**
  * The admin's client boundary for the shared UI kit (task 031).
  *
- * `@qcms/ui/kit` re-exports the vendored a2-react-aria components (ADR-22), and
+ * `@roonga/qcms-ui/kit` re-exports the vendored a2-react-aria components (ADR-22), and
  * every one of them is interactive react-aria: hooks and context, so React Server
  * Components cannot render them directly. This module is the single `"use client"`
  * boundary that makes them available to the admin's server components, which is the
@@ -41,5 +41,5 @@ export {
   Table,
   Text,
   TextField,
-} from "@qcms/ui/kit";
-export type { BreadcrumbItem, SelectItem, TableColumn, TableRow } from "@qcms/ui/kit";
+} from "@roonga/qcms-ui/kit";
+export type { BreadcrumbItem, SelectItem, TableColumn, TableRow } from "@roonga/qcms-ui/kit";

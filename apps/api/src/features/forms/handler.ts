@@ -18,7 +18,7 @@
  * Fetch-pure (R4): time is `deps.clock`, no `node:*`. Answer values are never
  * handled here, so nothing content-bearing is ever logged (SEC-8).
  *
- * Row types come straight from `@qcms/db`: the enum-bearing `forms` and
+ * Row types come straight from `@roonga/qcms-db`: the enum-bearing `forms` and
  * `question_versions` rows are now hand-authored and sound across the package
  * boundary (issue #5), so this slice reads them by inference with no local view
  * or cast. The enum-free `form_drafts`/`form_versions` rows are used directly as
@@ -26,7 +26,7 @@
  */
 
 import type { RouteHandler } from "@hono/zod-openapi";
-import { compileForm } from "@qcms/a2ui-compiler";
+import { compileForm } from "@roonga/qcms-a2ui-compiler";
 import {
   type AnswerMap,
   type AnswerValue,
@@ -51,7 +51,7 @@ import {
   ruleReferences,
   type StepId,
   type VisibilityRule,
-} from "@qcms/core";
+} from "@roonga/qcms-core";
 import {
   closeForm,
   createForm,
@@ -69,7 +69,7 @@ import {
   reopenForm,
   updateFormSettings,
   upsertDraft,
-} from "@qcms/db";
+} from "@roonga/qcms-db";
 
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
@@ -613,7 +613,7 @@ function collectBenchAnswers(
  *
  * ## Why the API answers this and the admin does not
  *
- * The bench needs `@qcms/core`'s evaluator, and the admin app is a strict BFF
+ * The bench needs `@roonga/qcms-core`'s evaluator, and the admin app is a strict BFF
  * that imports no kernel value at all (R2, enforced by the admin's
  * `r2-import-surface.test.ts`). So the evaluator runs where it already lives.
  * The task file's original "client-side evaluation" wording is amended
@@ -777,8 +777,8 @@ function collectPreviewAnswers(
  * ## Why the API compiles, and the admin does not
  *
  * The same reasoning 032's question preview settled and 033's rule bench
- * repeated: compiling in the admin would put `@qcms/a2ui-compiler` and
- * `@qcms/core` inside a strict BFF, which is exactly the capability the admin's
+ * repeated: compiling in the admin would put `@roonga/qcms-a2ui-compiler` and
+ * `@roonga/qcms-core` inside a strict BFF, which is exactly the capability the admin's
  * `r2-import-surface.test.ts` exists to keep out (R2). Running it here also makes
  * preview fidelity **structural** rather than a version coincidence: preview and
  * publish call the same `compileForm` in the same process, so they cannot drift.

@@ -1,5 +1,5 @@
-import { schema } from "@qcms/db";
-import type { Executor } from "@qcms/db";
+import { schema } from "@roonga/qcms-db";
+import type { Executor } from "@roonga/qcms-db";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 
@@ -15,7 +15,7 @@ import { createAdminAuth, type AdminAuth } from "../../src/features/auth/instanc
  * any more, so the helper lives here, in the workspace that owns both.
  *
  * That also removes a dependency the admin app should not have had: this module's `pg`,
- * `drizzle-orm` and `@qcms/db` imports resolve from `apps/api`, which is the process that
+ * `drizzle-orm` and `@roonga/qcms-db` imports resolve from `apps/api`, which is the process that
  * legitimately owns them, so the admin's harness reaches a database without the admin
  * package declaring a database client. It is the same pattern
  * `apps/portal/e2e/support/db.ts` uses for its independent verification reads.

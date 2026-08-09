@@ -1,6 +1,6 @@
 # 048 - Author-supplied validation messages (ADR-32) and boolean label overrides (ADR-36)
 
-**Stage:** 8a · **Apps/packages:** `@qcms/core` · `@qcms/a2ui-compiler` · `apps/api` · `apps/portal` · `apps/admin` · **Depends on:** 032 (question editor)
+**Stage:** 8a · **Apps/packages:** `@roonga/qcms-core` · `@roonga/qcms-a2ui-compiler` · `apps/api` · `apps/portal` · `apps/admin` · **Depends on:** 032 (question editor)
 **References:** ADR-32 and ADR-36 (this task implements both) · ADR-11 (LocalizedText) · ADR-18 (compiled doc seam) · ADR-27 (no hardcoded user-facing text) · ADR-31 (commitment/reveal cadence unaffected) · R2, R6 · folds issue #22 · WCAG 3.3.1 (with #21's distinctness fix as the baseline)
 
 ## Context
@@ -11,8 +11,8 @@ ADR-36 (Code Owner call, 2026-08-01) applies the identical mechanism to the bool
 
 ## Deliverables
 
-- **`@qcms/core`:** optional `messages` map on the question definition (constraint key -> `LocalizedText`), additive-optional so existing stored content parses unchanged; versioned with the question (R6). Publish validation rejects messages for constraints the question does not carry.
-- **`@qcms/a2ui-compiler`:** forward messages onto the control node as an optional prop. Existing golden corpus byte-stable; one NEW corpus entry exercising custom messages APPENDED (never edit existing entries).
+- **`@roonga/qcms-core`:** optional `messages` map on the question definition (constraint key -> `LocalizedText`), additive-optional so existing stored content parses unchanged; versioned with the question (R6). Publish validation rejects messages for constraints the question does not carry.
+- **`@roonga/qcms-a2ui-compiler`:** forward messages onto the control node as an optional prop. Existing golden corpus byte-stable; one NEW corpus entry exercising custom messages APPENDED (never edit existing entries).
 - **`apps/api`:** no behavioral change - validation error codes unchanged; assert in a regression test that responses are byte-identical for content without messages.
 - **`apps/portal`:** per-field error and error-summary rendering resolve author message (locale-picked, ADR-11) else default catalog. Error-summary composition stays label-anchored so accessible names remain distinct when two questions carry identical custom text (extend #21's Playwright spec with exactly that case).
 - **`apps/admin` (032's editor):** per-constraint message fields with the default message as placeholder; blank = inherit (the ADR's edit-level fallback). Localized input per the form's locales.

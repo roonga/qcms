@@ -1,9 +1,9 @@
-# @qcms/db
+# @roonga/qcms-db
 
 The operational storage layer for qcms: the Drizzle schema, the package-owned
 migration history, and the Testcontainers test harness. Postgres **stores and
 indexes** the domain JSONB but never interprets it - every domain invariant is
-owned by `@qcms/core`; the database enforces only the structural backstops
+owned by `@roonga/qcms-core`; the database enforces only the structural backstops
 (immutability, append-only, one-open-draft) that must hold regardless of which
 process writes.
 
@@ -66,7 +66,7 @@ without trusting the writer, and no sentinel ever lives inside `value`.
 
 ## Migrations
 
-- **Authoring:** `pnpm --filter @qcms/db db:generate` (`drizzle-kit generate`)
+- **Authoring:** `pnpm --filter @roonga/qcms-db db:generate` (`drizzle-kit generate`)
   diffs the schema in `src/schema/` against the last snapshot and writes the next
   SQL file offline. The trigger migration (`0001`) is hand-authored custom SQL -
   triggers are not expressible as Drizzle schema.
@@ -78,14 +78,14 @@ without trusting the writer, and no sentinel ever lives inside `value`.
 
 `src/testing/harness.ts` boots a real Postgres in a throwaway container
 (Testcontainers) and migrates it to head - the same path adopters run. It is a
-test-only utility, excluded from the build and published at the `@qcms/db/testing`
+test-only utility, excluded from the build and published at the `@roonga/qcms-db/testing`
 subpath. Adopters import it by that subpath, which is what the example below
 shows. This package's own tests live inside the package, so they reach the same
 module by relative path instead (`../testing/harness.js`) and never exercise the
 subpath: that is why the subpath has tests of its own (`harness-deps.test.ts`).
 
 ```ts
-import { withTestDb, startTestDb } from "@qcms/db/testing";
+import { withTestDb, startTestDb } from "@roonga/qcms-db/testing";
 
 // one-shot
 await withTestDb(async ({ db, client }) => {
@@ -114,7 +114,7 @@ migrations - the "apply N, then N+1" forward path.
 **Requirements.** These are integration tests: they need a running Docker daemon,
 plus `@testcontainers/postgresql` and `testcontainers` (the harness imports
 Testcontainers' reaper bootstrap directly, so `testcontainers` is declared rather
-than borrowed transitively). Both are **optional peer dependencies** of `@qcms/db`
+than borrowed transitively). Both are **optional peer dependencies** of `@roonga/qcms-db`
 and are not installed for you:
 
 ```sh
@@ -124,7 +124,7 @@ pnpm add -D @testcontainers/postgresql testcontainers
 Optional, because they are test-only: a consumer of the runtime surface should not
 acquire a Docker client it never uses (issue #156). They stay devDependencies of
 this package as well, so the workspace's own suites have them. Importing
-`@qcms/db/testing` without them resolves fine; the first `startTestDb()` then
+`@roonga/qcms-db/testing` without them resolves fine; the first `startTestDb()` then
 fails with a message naming both packages and the command above, rather than
 Node's bare `Cannot find package`. The harness is consumed under Vitest, which
 transforms its TypeScript source; a plain `node` import of the subpath is not
@@ -141,7 +141,7 @@ from Docker Hub, so a laptop needs no registry account or mirror. Set
 `QCMS_TEST_POSTGRES_IMAGE` (read once, at module load, so export it before the
 test process starts) to boot the same Postgres from somewhere else. CI does
 exactly that: anonymous Docker Hub pulls from shared runner IP ranges are
-rate-limited and intermittently return HTTP 500, which failed every `@qcms/db`
+rate-limited and intermittently return HTTP 500, which failed every `@roonga/qcms-db`
 test file twice in one day, so each CI job resolves a GHCR mirror of the image
 first (`.github/actions/test-postgres-image`, populated by the
 `Mirror test images` workflow) and falls back to Docker Hub when no mirror is
@@ -182,7 +182,7 @@ The instance itself lives in `apps/api/src/features/auth/instance.ts` (task 056;
 ADR-35 as amended 2026-07-31). It was in the admin app for tasks 031-035, and the
 consumer matters here for one practical reason: **`qcms-api` is now the only
 workspace that imports these tables as values.** The admin's import-surface test
-asserts an empty allowlist of `@qcms/db` value bindings, so an addition to the auth
+asserts an empty allowlist of `@roonga/qcms-db` value bindings, so an addition to the auth
 exports has exactly one caller to satisfy.
 
 **Dependency note.** `better-auth` and `drizzle-orm` are both on the

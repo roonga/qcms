@@ -1,4 +1,4 @@
-import type { A2UIAnswerValue, A2UIErrors, A2UIValues } from "@qcms/ui";
+import type { A2UIAnswerValue, A2UIErrors, A2UIValues } from "@roonga/qcms-ui";
 
 /**
  * The flow's record of what the server has said about each answer: the value it

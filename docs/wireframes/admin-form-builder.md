@@ -2,7 +2,7 @@
 
 **Status:** Signed off: Code Owner, 2026-07-21 · amended 2026-08-01 (PO seat: kernel moves server-side, see below) · **Consumed by:** 033 · **Renders:** 022 (drafts, validate), 021 (library reads), 005 (`analyzeRuleGraph`, server-side inside validate)
 
-> **Amendment, 2026-08-01 (PO seat).** This wireframe originally placed `analyzeRuleGraph` and the test bench's evaluator **client-side**. Landed enforcement forbids it: rule 1 of `apps/admin/lib/server/r2-import-surface.test.ts` bans `@qcms/core` imports in the admin, and that test stands. Both now run in the API. `analyzeRuleGraph` needed no new route (the kernel's `compileDraft`, which `draft/validate` runs, already includes it); the bench gets `POST .../draft/preview-condition`. The instant pre-round-trip target flag is pure draft geometry (`eligibleTargets`), not a kernel call. Nothing about the layout, regions or states changes.
+> **Amendment, 2026-08-01 (PO seat).** This wireframe originally placed `analyzeRuleGraph` and the test bench's evaluator **client-side**. Landed enforcement forbids it: rule 1 of `apps/admin/lib/server/r2-import-surface.test.ts` bans `@roonga/qcms-core` imports in the admin, and that test stands. Both now run in the API. `analyzeRuleGraph` needed no new route (the kernel's `compileDraft`, which `draft/validate` runs, already includes it); the bench gets `POST .../draft/preview-condition`. The instant pre-round-trip target flag is pure draft geometry (`eligibleTargets`), not a kernel call. Nothing about the layout, regions or states changes.
 
 ## ASCII sketch
 

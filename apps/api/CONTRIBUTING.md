@@ -66,7 +66,7 @@ test files. This is what lets the same handler run on Node or an edge runtime.
 ## Transaction ownership
 
 The **slice owns the transaction boundary**, never the query helpers (R3, R5).
-Query helpers from `@qcms/db` take an `Executor` (a Drizzle handle or a
+Query helpers from `@roonga/qcms-db` take an `Executor` (a Drizzle handle or a
 transaction) as their first argument. A slice that must write more than one row
 atomically - and any slice writing an outbox event alongside a domain change -
 opens one transaction and passes the `tx` to every helper:
@@ -78,7 +78,7 @@ await deps.db.transaction(async (tx) => {
 });
 ```
 
-Invariants spanning more than one field or row go through a `@qcms/core`
+Invariants spanning more than one field or row go through a `@roonga/qcms-core`
 function (load state → call kernel → persist result); a single-row write is a
 plain transaction script. No repository interfaces, no mediator (R5).
 
@@ -95,7 +95,7 @@ receivers, clocks). Two layers:
   `recordingLogger`). Synthetic secrets only - `synthSecret()` - never a real
   value.
 - **Live-DB integration** (`*.integration.test.ts`) - for anything that touches
-  storage, boot the 013 harness via `@qcms/db/testing` (`startTestDb`). Requires
+  storage, boot the 013 harness via `@roonga/qcms-db/testing` (`startTestDb`). Requires
   Docker.
 
 Every internal-surface request carries the internal service token

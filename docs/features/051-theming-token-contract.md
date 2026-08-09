@@ -13,7 +13,7 @@ First slice of 047: the four-group token contract the whole theming model rests 
 - **Token contract in `theme.css`:** extend beyond `--color-*` to typography (`--font-portal` + a type scale honoring the WCAG 1.4.12 floors: >=16px body, >=1.5 line-height, >=0.12em letter, >=0.16em word, >=2em paragraph), spacing (`--space-control-h` / `-control-pad-x` / `-field-gap` / `-section-pad` / `-stack`), radius (`--radius-control` / `-card` / `-sm`). Vendored components consume spacing + radius. Document the contract.
 - **Radius presets** (Sharp/Subtle/Rounded/Pill) applying across controls + card + banners.
 - **Predefined themes** from the design pass (Slate Teal default + brand-neutral alternates), each authored Light / Dark.
-- **HC as a single mode layer:** theme-agnostic scaffold (heavy black borders, flat surfaces, heavy focus) applied via `.hc` in `@qcms/ui`, plus per-theme AAA accent - never a per-theme palette.
+- **HC as a single mode layer:** theme-agnostic scaffold (heavy black borders, flat surfaces, heavy focus) applied via `.hc` in `@roonga/qcms-ui`, plus per-theme AAA accent - never a per-theme palette.
 - **Per-deployment theme selection via config** (no UI; the admin editor is 049).
 
 ## Exit criteria

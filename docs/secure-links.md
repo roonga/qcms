@@ -2,7 +2,7 @@
 
 **Source of truth for the wire format** of qcms compact tokens and the secure-link
 purpose built on them. Implementation: `packages/core/src/compact-token.ts` and
-`packages/core/src/secure-link.ts` (`@qcms/core`). Design authority:
+`packages/core/src/secure-link.ts` (`@roonga/qcms-core`). Design authority:
 `SECURITY_DESIGN.md` §2.2 (SEC-2) and §4 (SEC-7), `ARCHITECTURE.md` §7.
 
 ## Compact tokens
@@ -62,7 +62,7 @@ Claims (Zod schema `LinkClaims` is the source of truth):
 | `expiresAt` | ISO 8601 UTC datetime | Hard expiry; valid strictly before this instant |
 | `oneTime` | boolean, optional | Single-use marker; carried for the verifier, *enforced* by the `secure_links` row |
 
-API (`@qcms/core`):
+API (`@roonga/qcms-core`):
 
 - `mintSecureLink(payload, key)` → token string. Key = the **first** entry of
   the deployment's link-key list.

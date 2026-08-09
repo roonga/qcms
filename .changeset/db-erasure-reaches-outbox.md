@@ -1,5 +1,5 @@
 ---
-"@qcms/db": minor
+"@roonga/qcms-db": minor
 ---
 
 Erasure now reaches QCMS's own outbox copy: payload redaction and delivery cancellation (task 059, ADR-17 as amended 2026-08-02).

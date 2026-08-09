@@ -1,4 +1,4 @@
-import type { A2UIAnswerValue } from "@qcms/ui";
+import type { A2UIAnswerValue } from "@roonga/qcms-ui";
 import { NextResponse } from "next/server";
 
 import { t } from "@/lib/i18n/en";
@@ -21,7 +21,7 @@ import { firstAnswerRejection } from "@/lib/validation-message";
 
 /**
  * BFF proxy: the no-JS whole-step form POST (task 044). A JavaScript-disabled
- * respondent submits the native `<form method="post">` the @qcms/ui renderer
+ * respondent submits the native `<form method="post">` the @roonga/qcms-ui renderer
  * emits in native-submit mode; this route decodes the form-encoded fields to
  * canonical answers, forwards each to the internal API's per-question endpoint
  * (the SAME endpoint the JS path uses), and - once the API says the flow is ready
@@ -33,7 +33,7 @@ import { firstAnswerRejection } from "@/lib/validation-message";
  * every answer, decides visibility, and owns the ready-to-submit and honeypot
  * checks. The decode step (`decodeStepForm`) is pure transport (form strings ->
  * canonical JSON), driven by the renderer's kind tags, not by any question
- * knowledge. It imports nothing from `@qcms/core` (enforced by the R2
+ * knowledge. It imports nothing from `@roonga/qcms-core` (enforced by the R2
  * import-surface test); `StepResponse` and `A2UIAnswerValue` are type-only.
  *
  * The honeypot decoy (026) rides in the form with no kind tag, so it lands in the

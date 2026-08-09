@@ -50,7 +50,7 @@ import { textOf } from "@/lib/questions/definition";
  *
  * `op`, `questionId` and `optionId`, exactly as the task names them, and all three come
  * from the draft rather than from a JSON Schema: there is no schema to load here, because
- * `@qcms/core` is not importable from this app at all. `questionId` offers the questions
+ * `@roonga/qcms-core` is not importable from this app at all. `questionId` offers the questions
  * this form **pins**, and `optionId` offers the options of the **pinned version** of the
  * question the surrounding node reads - which is precisely the pair a moved pin can
  * invalidate, so offering anything wider would be teaching the wrong thing.

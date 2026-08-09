@@ -16,7 +16,7 @@
  * Requires Docker.
  */
 
-import { startTestDb, type TestDb } from "@qcms/db/testing";
+import { startTestDb, type TestDb } from "@roonga/qcms-db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../app.js";

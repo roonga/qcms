@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { A2UIStepDocument } from "@qcms/ui";
+import type { A2UIStepDocument } from "@roonga/qcms-ui";
 
 import { commitMoments, documentForVisible, questionLabels, questionPositions } from "./visible";
 

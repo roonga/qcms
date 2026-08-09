@@ -30,7 +30,7 @@
  * step over, and Continue from a resumed session into a step answered before the
  * reload is an equally real respondent path. The mount seed is type-agnostic, and
  * per-adapter display of all eight renderings in the #98 audit table - including
- * the Select the portal has no fixture for - is pinned in `@qcms/ui`'s
+ * the Select the portal has no fixture for - is pinned in `@roonga/qcms-ui`'s
  * `seeded-values.test.tsx`; the served payload is `serve-step.integration.test.ts`.
  */
 

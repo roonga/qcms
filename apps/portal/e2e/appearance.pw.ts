@@ -27,7 +27,7 @@ import { writeFileSync } from "node:fs";
 
 import AxeBuilder from "@axe-core/playwright";
 import type { Locator, Page } from "@playwright/test";
-import { FONT_REGISTRY, fontClass } from "@qcms/ui/fonts";
+import { FONT_REGISTRY, fontClass } from "@roonga/qcms-ui/fonts";
 
 import { DENSITY_LEVELS, densityClass } from "../lib/appearance.js";
 import { readFixtures } from "./support/fixtures.js";

@@ -17,12 +17,12 @@ The QCMS PM/PO. You own the plan, not the code. **Standing goal:** ship the Stag
 
 ## Repo shape (what you plan for)
 
-Monorepo: **pnpm + Turborepo**; workspaces `packages/*`, `apps/*`, `tooling/*`. QCMS is an MIT TypeScript engine for deeply-conditional questionnaires, distributed shadcn-style (owned scaffolded shell + versioned `@qcms/*` packages).
+Monorepo: **pnpm + Turborepo**; workspaces `packages/*`, `apps/*`, `tooling/*`. QCMS is an MIT TypeScript engine for deeply-conditional questionnaires, distributed shadcn-style (owned scaffolded shell + versioned `@roonga/qcms-*` packages).
 
-- **`packages/core`** (`@qcms/core`) - the pure kernel: IDs, `LocalizedText`, the seven question types, the closed rules DSL + forward-pass evaluator, `compileDraft`/publish, answer validation + submission lock, secure-link tokens. No IO. The three non-negotiables live here.
-- **`packages/a2ui-compiler`** (`@qcms/a2ui-compiler`) - compiles a published form into the A2UI UI document; the golden corpus anchors determinism.
-- **`packages/db`** (`@qcms/db`) - Drizzle + Postgres: schema, migrations, query helpers, reporting view, retention/erasure; Testcontainers harness at the `./testing` subpath.
-- **`packages/ui`** (`@qcms/ui`) - the A2UI renderer on a2-react-aria (`@a2ra/core`); ships `theme.css` design tokens.
+- **`packages/core`** (`@roonga/qcms-core`) - the pure kernel: IDs, `LocalizedText`, the seven question types, the closed rules DSL + forward-pass evaluator, `compileDraft`/publish, answer validation + submission lock, secure-link tokens. No IO. The three non-negotiables live here.
+- **`packages/a2ui-compiler`** (`@roonga/qcms-a2ui-compiler`) - compiles a published form into the A2UI UI document; the golden corpus anchors determinism.
+- **`packages/db`** (`@roonga/qcms-db`) - Drizzle + Postgres: schema, migrations, query helpers, reporting view, retention/erasure; Testcontainers harness at the `./testing` subpath.
+- **`packages/ui`** (`@roonga/qcms-ui`) - the A2UI renderer on a2-react-aria (`@a2ra/core`); ships `theme.css` design tokens.
 - **`apps/api`** (`qcms-api`) - Hono, vertical slices, fetch-pure handlers; composition root + all API slices (sessions, answers, submit, admin authoring, webhooks, exports).
 - **`apps/portal`** (`qcms-portal`) - Next.js SSR-first + strict BFF (R2: the browser never talks to the API directly; the portal never evaluates rules). The respondent flow.
 - **`apps/admin`** (`qcms-admin`) - Next.js admin app (Stage 8a, tasks 031-035; not built yet).
@@ -35,7 +35,7 @@ Data flow: `core` evaluates rules -> `a2ui-compiler` produces the UI doc -> `ui`
 
 - **No AI attribution trailers in any commit** - no `Co-Authored-By` / `Claude-Session` lines. The Code Owner's standing rule, every repo.
 - **No personal names in committed content (2026-07-25):** the human owner is always **Code Owner** - in docs, sign-offs, commit messages, and these seat files. Sole exception: the legal copyright line in `LICENSE`/README.
-- **pnpm only.** Merge gate = **`pnpm verify`** (issue #19): `check:all` (em dash, control chars, changeset, golden-append-only, licenses, duplication) then build, typecheck, lint, test, golden-drift - a superset of CI's unit job, so the CI-only gates no longer need a separate pass. The Playwright suite is the one CI job it omits: add `pnpm verify:browser` when the change touches `apps/portal`, `apps/admin`, or `@qcms/ui`.
+- **pnpm only.** Merge gate = **`pnpm verify`** (issue #19): `check:all` (em dash, control chars, changeset, golden-append-only, licenses, duplication) then build, typecheck, lint, test, golden-drift - a superset of CI's unit job, so the CI-only gates no longer need a separate pass. The Playwright suite is the one CI job it omits: add `pnpm verify:browser` when the change touches `apps/portal`, `apps/admin`, or `@roonga/qcms-ui`.
 - **No em dash (U+2014) anywhere.** **No real secret values in any file** - environment variables or `<placeholder>` text only.
 - **Trust the repo over memory:** read `PROJECT_INSTRUCTIONS.md` (repo root) (rules R1-R7), the ledger (`docs/features/README.md`), and `git log` before asserting any project state - snapshots age.
 - Plan changes of substance = a new ADR **with the affected task files corrected in the same change** (staleness rule).

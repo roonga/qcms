@@ -7,7 +7,7 @@
 
 The **Live preview** deliverable below says the preview runs "core evaluator client-side".
 That is not implementable and the identical tension has already been ruled on once: rule 1
-of `apps/admin/lib/server/r2-import-surface.test.ts` bans `@qcms/core` value imports in the
+of `apps/admin/lib/server/r2-import-surface.test.ts` bans `@roonga/qcms-core` value imports in the
 admin outright, and 033's amendment (2026-08-01, PO seat) resolved it by keeping the kernel
 in the API, where it already lives. The portal is no different: it performs **no** rule
 evaluation either (R2), it receives an authoritative `visibleQuestions` list and projects
@@ -16,7 +16,7 @@ the compiled document onto it.
 So `POST /admin/forms/:id/draft/preview` returns both halves of that pair - 011's compiled
 documents *and* the forward pass's visible set for the answers sent with the request - and
 the preview pane projects with `documentForVisible` and renders with `A2UIStepRenderer`.
-`documentForVisible` moved from `apps/portal/lib/visible.ts` into `@qcms/ui` in this change,
+`documentForVisible` moved from `apps/portal/lib/visible.ts` into `@roonga/qcms-ui` in this change,
 so preview and serving share one projection as well as one renderer. Preview fidelity is
 strengthened rather than weakened by the correction: the admin is not a second
 implementation of visibility, it is the same one, which is what exit criterion 3's
@@ -37,7 +37,7 @@ The moments of truth in the authoring loop: publish (kernel errors verbatim), pr
 ## Deliverables
 
 - **Publish flow:** publish button on a form's draft → confirmation summarizing what freezes (pins, rule count, steps) → on failure, the full `PublishError[]` rendered as an actionable list - each error links/scrolls to the offending rule/step/question in the builder (the structured `path` from 004 makes this mechanical) → on success, version badge + link to history.
-- **Live preview:** renders the draft through a dry-run compile (a `POST /admin/forms/:id/draft/preview` endpoint returning 011's compiled output for the *draft* - add it to 022's slice as a thin addition) into the **shared renderer** with an interactive answer state and live rule evaluation (core evaluator client-side), so authors walk their own branches before publishing. Banner: "Preview - not published". Preview must be the same `@qcms/ui` component the portal uses (import-surface test - preview fidelity is the feature, ADR-08/§6).
+- **Live preview:** renders the draft through a dry-run compile (a `POST /admin/forms/:id/draft/preview` endpoint returning 011's compiled output for the *draft* - add it to 022's slice as a thin addition) into the **shared renderer** with an interactive answer state and live rule evaluation (core evaluator client-side), so authors walk their own branches before publishing. Banner: "Preview - not published". Preview must be the same `@roonga/qcms-ui` component the portal uses (import-surface test - preview fidelity is the feature, ADR-08/§6).
 - **Preview container is a styling seam:** the preview renders inside a single container element that is its styling boundary, and no code assumes the preview shares the admin's theme context. Build the boundary, not the switcher - task 058 mounts its theme island on it. This is a structural constraint only: no theme selection, no mode switching, and no portal-theme defaulting in this task.
 - **Version history:** list of published versions (version, publishedAt, compilerVersion/a2uiSpecVersion/semanticsVersion stamps); view any version read-only through the renderer using its **stored** compiled documents (ADR-18 - history shows the audit copy, proving what respondents saw); side-by-side definition diff between versions (JSON diff, readable).
 - **Secure links UI** (on a form with ≥1 published version): mint (expiry, one-time, batch count), list with state (active/consumed/expired/revoked), copy URL, revoke with confirmation; batch export of minted URLs as CSV.

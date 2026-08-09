@@ -1,6 +1,6 @@
 # 011 - A2UI compiler
 
-**Stage:** 4 · **Package:** `@qcms/a2ui-compiler` · **Depends on:** 008
+**Stage:** 4 · **Package:** `@roonga/qcms-a2ui-compiler` · **Depends on:** 008
 **References:** `ARCHITECTURE.md` §3, §4 · ADR-01, ADR-14, **ADR-18** · the A2UI spec + `roonga/a2-react-aria`
 **External input required:** the `roonga/a2-react-aria` repo - its component docs and styling guide are **required reading (ADR-22)**. Before starting, inventory the registry (`npx @a2ra/cli list`, the component docs pages, and `@a2ra/core`'s Zod schemas - the A2UI spec) and record the supported component/prop list in `docs/a2ui-mapping.md` - compile only to that subset. If a needed component doesn't exist there yet (candidates known today: multiline text for `longText`, a checkbox group for `multiChoice`), that is a **blocking cross-repo issue** (file it in both repos; upstream contribution first per ADR-22), not something to invent around.
 
@@ -10,7 +10,7 @@ The pure projection from meaning to view: `FormDefinition → A2UI documents`, o
 
 ## Deliverables
 
-- `compileForm(snapshot: FrozenSnapshot, options: { locale?: LocaleCode }): CompiledForm` - `{ documents: A2UIDocument[] (one per step, keyed by stepId), compilerVersion, a2uiSpecVersion }`. Deterministic, side-effect free; depends on `@qcms/core` types only (never `db`, never React).
+- `compileForm(snapshot: FrozenSnapshot, options: { locale?: LocaleCode }): CompiledForm` - `{ documents: A2UIDocument[] (one per step, keyed by stepId), compilerVersion, a2uiSpecVersion }`. Deterministic, side-effect free; depends on `@roonga/qcms-core` types only (never `db`, never React).
 - Question-type → A2UI component mapping using the **registry's real component names** (the inventory is authoritative; where the spec offers choices, document the choice):
   - `shortText` → `text-field` · `longText` → multiline text (confirm upstream component/prop in inventory) · `number` → `number-field` · `date` → `date-picker` · `boolean` → `checkbox` or yes/no `radio` (pick one, document) · `singleChoice` → `radio` group (`select` above a documented option-count threshold) · `multiChoice` → checkbox group (confirm upstream component in inventory).
 - Constraint surfacing as client-side hints (min/max/length/pattern/required) - explicitly marked advisory; server validation is authority.

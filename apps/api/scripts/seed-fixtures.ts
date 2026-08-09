@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { parseQuestionDefinition } from "@qcms/core";
+import { parseQuestionDefinition } from "@roonga/qcms-core";
 import {
   createQuestion,
   createQuestionVersion,
@@ -9,7 +9,7 @@ import {
   getQuestion,
   publishQuestionVersion,
   schema,
-} from "@qcms/db";
+} from "@roonga/qcms-db";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 

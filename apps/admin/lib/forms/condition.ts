@@ -39,7 +39,7 @@ import type {
 
 /**
  * The kernel's `CONDITION_MAX_DEPTH` (`visibility-rule.ts`), restated rather than imported:
- * `@qcms/core` is not importable from this app. `condition.test.ts` pins the two together,
+ * `@roonga/qcms-core` is not importable from this app. `condition.test.ts` pins the two together,
  * and it may import the kernel because a `.test.ts` is outside the import-surface scan.
  */
 export const MAX_CONDITION_DEPTH = 8;

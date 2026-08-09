@@ -1,6 +1,6 @@
 # 002 - Core IDs, LocalizedText, canonical AnswerValue
 
-**Stage:** 1 · **Package:** `@qcms/core` · **Depends on:** 001
+**Stage:** 1 · **Package:** `@roonga/qcms-core` · **Depends on:** 001
 **References:** `DOMAIN_SCHEMA.md` §2 · `ARCHITECTURE.md` §4.1 · ADR-11 · R6
 
 ## Context

@@ -1,6 +1,6 @@
 # 015 - Reporting view and retention sweep
 
-**Stage:** 5 · **Package:** `@qcms/db` · **Depends on:** 014
+**Stage:** 5 · **Package:** `@roonga/qcms-db` · **Depends on:** 014
 **References:** `ARCHITECTURE.md` §4.3, §5.3 · ADR-10, **ADR-17**
 
 ## Context
@@ -12,7 +12,7 @@ The reporting view is the documented pull-integration path shipping at launch in
 - Migration creating schema `reporting` with:
   - `reporting.responses` - one row per **submitted** session: sessionId, formId, formVersion, submittedAt, accessMode, and the locked answers as JSONB keyed by questionId. Excludes erased sessions **by construction** (join against tombstones or build from `submissions` which erasure deletes - document which).
   - `reporting.answers_flat` - one row per (submitted session, questionId, canonical value) for tools that want long format.
-- `docs/reporting-view.md` - the contract: column semantics, canonical value encodings (reference 002), stability promise (additive changes only; renames/removals require a major `@qcms/db` version), connection guidance (read-only role recommended; sample `CREATE ROLE` grant).
+- `docs/reporting-view.md` - the contract: column semantics, canonical value encodings (reference 002), stability promise (additive changes only; renames/removals require a major `@roonga/qcms-db` version), connection guidance (read-only role recommended; sample `CREATE ROLE` grant).
 - **Retention sweep**: `sweepExpiredSessions(db, now)` - transitions `created`/`in_progress` sessions past `expiresAt` to `expired`. Data deletion for expired sessions is a *documented policy decision*: default keeps the ledger (audit) and only expires the session; a `purgeExpired(olderThan)` helper exists for adopters who want hard cleanup. Scheduling happens in the API (017).
 - Default session TTLs as configuration with documented defaults (e.g. anonymous 24h, secure-link = link expiry; final numbers documented).
 

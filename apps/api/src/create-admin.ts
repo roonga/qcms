@@ -34,8 +34,8 @@
  * (`bootstrap.integration.test.ts`); this file is argument handling and exit codes.
  */
 
-import { schema } from "@qcms/db";
-import type { Executor } from "@qcms/db";
+import { schema } from "@roonga/qcms-db";
+import type { Executor } from "@roonga/qcms-db";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 

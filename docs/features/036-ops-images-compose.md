@@ -37,4 +37,4 @@ The container half of that story landed early, out of numeric order, in PR #286.
 
 The scaffolding CLI (037), Kubernetes manifests (adopter recipe issue), managed-cloud guides (issues), observability stack (logs-to-stdout only, per §10).
 
-Also out of scope here, because they are already tracked: **#291** (Next standalone output in the images), **#292** (secure-cookie configuration across portal and admin), **#293** (root `scripts/` has no lint coverage), **#294** (`@qcms/db` migrate entry point).
+Also out of scope here, because they are already tracked: **#291** (Next standalone output in the images), **#292** (secure-cookie configuration across portal and admin), **#293** (root `scripts/` has no lint coverage), **#294** (`@roonga/qcms-db` migrate entry point).

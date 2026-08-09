@@ -1,6 +1,6 @@
 # 013 - DB schema, migrations, test harness
 
-**Stage:** 5 · **Package:** `@qcms/db` · **Depends on:** 008, 009 (shapes), 010 (linkId)
+**Stage:** 5 · **Package:** `@roonga/qcms-db` · **Depends on:** 008, 009 (shapes), 010 (linkId)
 **References:** `ARCHITECTURE.md` §4.3 · ADR-05, ADR-07, **ADR-17, ADR-18** · Invariants I1, I4, I5
 
 ## Context

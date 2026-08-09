@@ -1,4 +1,4 @@
-# The step-resolver seam (`@qcms/a2ui-compiler`, task 011)
+# The step-resolver seam (`@roonga/qcms-a2ui-compiler`, task 011)
 
 The A2UI compiler is the project's **reserved agent seam** (ARCHITECTURE §12,
 ADR-01/14). Today it is a pure, deterministic projection from a published

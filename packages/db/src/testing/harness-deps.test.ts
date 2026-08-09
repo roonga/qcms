@@ -1,9 +1,9 @@
 /**
- * The published `@qcms/db/testing` subpath must be installable.
+ * The published `@roonga/qcms-db/testing` subpath must be installable.
  *
  * Issue #156: the harness imported `@testcontainers/postgresql` and
  * `testcontainers`, both declared only as **devDependencies**. devDependencies
- * are not installed for consumers, so an adopter who installed `@qcms/db` and
+ * are not installed for consumers, so an adopter who installed `@roonga/qcms-db` and
  * imported the documented entry point got a bare `Cannot find package` naming
  * one of them, with no indication of what to install or why.
  *
@@ -51,7 +51,7 @@ const SUBPATH_SOURCES = ["./harness.ts", "./docker-auth-config.ts"] as const;
  * down because an unstated limitation is how this file's own defect class starts:
  *
  * - `require("x")` and `import x = require("y")` are not recognized. That is safe
- *   only because `@qcms/db` is `"type": "module"` and neither form appears in the
+ *   only because `@roonga/qcms-db` is `"type": "module"` and neither form appears in the
  *   walked sources; a CommonJS source added under `src/testing` would slip past.
  * - Comment stripping is textual, so a `//` inside a string literal would truncate
  *   the rest of that line. No string in the walked files contains one, and the
@@ -148,7 +148,7 @@ function unlistedImports(source: string, listed: ReadonlySet<string>): string[] 
   return problems;
 }
 
-describe("the published @qcms/db/testing subpath", () => {
+describe("the published @roonga/qcms-db/testing subpath", () => {
   it("declares every package it imports as a dependency or a peer dependency", () => {
     const declared = new Set([
       ...Object.keys(manifest.dependencies ?? {}),
@@ -200,7 +200,9 @@ describe("the published @qcms/db/testing subpath", () => {
     },
     {
       runner: "vitest/vite",
-      error: new Error('Could not resolve "@testcontainers/postgresql" imported by "@qcms/db".'),
+      error: new Error(
+        'Could not resolve "@testcontainers/postgresql" imported by "@roonga/qcms-db".',
+      ),
     },
   ] as const;
 

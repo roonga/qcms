@@ -5,7 +5,7 @@
  * list dead-lettered deliveries with their attempt history, list one form's recent
  * deliveries with the record of their last attempt (task 035's dashboard), and
  * manually redeliver one (reset it to due-now so the next pass re-attempts it).
- * Honest transaction scripts (R5) over the `@qcms/db` delivery helpers - no
+ * Honest transaction scripts (R5) over the `@roonga/qcms-db` delivery helpers - no
  * cross-row invariant, no signing/HTTP here (that is the delivery pass).
  * Fetch-pure (R4): time via `deps.clock`, no `node:*`.
  *
@@ -17,7 +17,7 @@
  */
 
 import type { RouteHandler } from "@hono/zod-openapi";
-import { parseFormId } from "@qcms/core";
+import { parseFormId } from "@roonga/qcms-core";
 import {
   getForm,
   listDeadLetterDeliveries,
@@ -25,7 +25,7 @@ import {
   redeliveryRefusalFor,
   resetDeliveryForRedelivery,
   type DeliveryView,
-} from "@qcms/db";
+} from "@roonga/qcms-db";
 
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";

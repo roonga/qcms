@@ -17,7 +17,7 @@ import type { AdminSession } from "./session.ts";
  * (the channel credential), attach the signed-in admin's better-auth session token
  * (the user credential), and forward. No validation, no rule evaluation, no
  * business decision, no domain database access - the API is the sole authority for
- * all of that, and the admin app has no `@qcms/core` value import at all (enforced
+ * all of that, and the admin app has no `@roonga/qcms-core` value import at all (enforced
  * by `r2-import-surface.test.ts`).
  *
  * The two credentials are separate on purpose (SEC-4): the internal token says

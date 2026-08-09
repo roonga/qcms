@@ -153,7 +153,7 @@ Read on the server only. The portal holds no database credential and reaches the
 | `QCMS_PORTAL_THEME` | optional | `slate` | Managed portal theme (ADR-30). An unrecognised value falls back silently. |
 | `QCMS_PORTAL_MODE` | optional | `auto` | Default light/dark mode: `light`, `dark` or `auto`. |
 | `QCMS_PORTAL_CORNERS` | optional | `subtle` | Corner-radius token group. |
-| `QCMS_PORTAL_DENSITY` | optional | `the @qcms/ui default density` | Spacing token group. |
+| `QCMS_PORTAL_DENSITY` | optional | `the @roonga/qcms-ui default density` | Spacing token group. |
 | `QCMS_PORTAL_FONTS` | optional | (none) | Font stack selection from the allowlist in `apps/portal/lib/server/theme.ts`. |
 | `QCMS_PORTAL_FONT` | optional | `the system font stack` | Single font family override. |
 | `QCMS_PORTAL_BRAND_NAME` | optional | (none) | Brand name shown in the portal header. Empty renders no brand. |

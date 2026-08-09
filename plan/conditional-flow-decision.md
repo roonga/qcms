@@ -4,7 +4,7 @@ Status: ADOPTED as ADR-31 (Code Owner, 2026-07-25) with the recommended defaults
 
 ## What is already decided and NOT on the table
 
-- **Where logic runs:** the server. `@qcms/core`'s forward-pass evaluator is the only rule engine; the portal never evaluates (R2). "Question-level execution" can only mean *when the client posts an answer and when the UI applies the server's re-evaluation*.
+- **Where logic runs:** the server. `@roonga/qcms-core`'s forward-pass evaluator is the only rule engine; the portal never evaluates (R2). "Question-level execution" can only mean *when the client posts an answer and when the UI applies the server's re-evaluation*.
 - **Kernel capability:** question-level visibility already exists. `VisibilityRule.show` targets StepIds AND QuestionIds ("untargeted items are visible; a targeted item is visible iff at least one rule targeting it evaluates true"), and `contains`/`containsAny` test optionId membership in a multiChoice answer. This is shipped, golden-corpus-anchored surface - removing it is not a live option.
 - **Navigation:** explicit Continue/Back/Submit, no collapse-on-answer (ADR-28, after the 045 incident).
 - **Data:** answers are append-only; a hidden question's previously-given answer persists in the log. Visibility governs *validation and rendering*, not storage.

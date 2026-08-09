@@ -10,8 +10,8 @@ import {
   timestamp,
 } from "drizzle-orm/pg-core";
 
-import type { CompiledForm } from "@qcms/a2ui-compiler";
-import type { FormDefinition, FormId } from "@qcms/core";
+import type { CompiledForm } from "@roonga/qcms-a2ui-compiler";
+import type { FormDefinition, FormId } from "@roonga/qcms-core";
 
 import { formStatus } from "./enums.js";
 

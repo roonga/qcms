@@ -10,8 +10,8 @@ the answer ledger and the submission, QCMS's own copy of the answers in the
 webhook outbox, and any undelivered webhook delivery for that session.
 
 Design decision: **ADR-17** (hard delete + tombstone; crypto-shredding rejected
-for launch). Invariant **I11**. Semantics are owned by `@qcms/core`
-(`src/erasure.ts`); execution by `@qcms/db` (`eraseSession`).
+for launch). Invariant **I11**. Semantics are owned by `@roonga/qcms-core`
+(`src/erasure.ts`); execution by `@roonga/qcms-db` (`eraseSession`).
 
 ## What erasure does
 

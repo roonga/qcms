@@ -1,6 +1,6 @@
 # 047 - Portal theming: managed themes + respondent controls (launch tier)
 
-**Stage:** 7 (portal + `@qcms/ui`) · **Apps/packages:** `packages/ui` (028), `apps/portal` (029) · **Depends on:** 028, 029, **045** (the modern header hosts the respondent controls; 045 reworks the shell/flow)
+**Stage:** 7 (portal + `@roonga/qcms-ui`) · **Apps/packages:** `packages/ui` (028), `apps/portal` (029) · **Depends on:** 028, 029, **045** (the modern header hosts the respondent controls; 045 reworks the shell/flow)
 **Runs:** after 045. **Launch tier per ADR-30** (predefined themes + per-deployment selection + respondent a11y controls + font registry); the admin customize/save-named-theme UI is **task 049** (launch tier per the 2026-07-25 ADR-30 amendment; folds #26). **Decomposed 2026-07-27 into three subtasks, executed in order: 051 (token contract + themes + HC layer) -> 052 (font registry) -> 053 (respondent controls + brand mark).** This file remains the requirements record; the subtask files carry the executable work orders, and the ledger's 047 row closes when 053 lands.
 **References:** ADR-30 (this task implements it) · ADR-22/26 (superseded single-override; two-surface mandate) · ADR-11 (LocalizedText) · §3 font mandate (open-licensed + self-hostable, Google Fonts canonical) · WCAG 2.2 AA + 1.4.12 + 2.5.8 · the theme-palette design deliverable (`tokens.css` + showcase from the design pass) · issues #25 (brand mark), #26 (managed theming / Phase-4 admin UI), #27 (multi-script fallback), #28 (forced-colors/prefers-contrast).
 
@@ -10,11 +10,11 @@ ADR-30 replaces ADR-22's single-file token override for the portal with a **mana
 
 ## Deliverables
 
-- **Token contract (`@qcms/ui`):** extend `theme.css` beyond `--color-*` to the four groups - typography (`--font-portal` + a type scale honoring the WCAG 1.4.12 floors: >=16px body, >=1.5 line-height, >=0.12em letter, >=0.16em word, >=2em paragraph), spacing (`--space-control-h` / `-control-pad-x` / `-field-gap` / `-section-pad` / `-stack`), radius (`--radius-control` / `-card` / `-sm`). Vendored components consume spacing + radius; document the contract.
+- **Token contract (`@roonga/qcms-ui`):** extend `theme.css` beyond `--color-*` to the four groups - typography (`--font-portal` + a type scale honoring the WCAG 1.4.12 floors: >=16px body, >=1.5 line-height, >=0.12em letter, >=0.16em word, >=2em paragraph), spacing (`--space-control-h` / `-control-pad-x` / `-field-gap` / `-section-pad` / `-stack`), radius (`--radius-control` / `-card` / `-sm`). Vendored components consume spacing + radius; document the contract.
 - **Predefined themes:** ship the design pass's themes (Slate Teal default + brand-neutral alternates), each authored in **Light / Dark** per theme. **HC is a single mode-layer** (theme-agnostic scaffold + per-theme AAA accent), not a per-theme palette. Per-deployment theme selection via config.
 - **Respondent runtime controls (portal header, post-045):** **mode** (L/D/HC), **font** (grouped registry select), **density** (Compact/Comfortable/Spacious icon toggle). Default from OS (`prefers-color-scheme` + `prefers-contrast: more`); persist the explicit choice (cookie/localStorage); **SSR-safe with no flash** (set the root class before first paint). Keyboard-operable, AA, selected states never color-only (must read in HC + for colour-blind).
 - **Font registry (declarative):** a manifest where each font = family + self-hosted `woff2` + weights + fallback stack + license notice. Ship the groups (System always on / Accessibility: Atkinson Hyperlegible, Lexend, OpenDyslexic / Popular / Playful-Kids incl. Andika / Traditional-Corporate / Monospace: JetBrains Mono, Geist Mono, ...). All self-hosted (no CDN, CSP-safe); admin curates the respondent-facing subset (curation config for launch; full admin UI Phase-4). Adopter-extensible. Numeric inputs use tabular figures (`font-feature-settings: "tnum"`) regardless of font.
-- **HC treatment:** the mode-layer carries CSS (heavy black borders, flat surfaces, heavy focus), applied via `.hc` in `@qcms/ui`, theme-agnostic.
+- **HC treatment:** the mode-layer carries CSS (heavy black borders, flat surfaces, heavy focus), applied via `.hc` in `@roonga/qcms-ui`, theme-agnostic.
 - **Brand mark from config** (text + optional logo), replacing the hardcoded `QCMS` literal (folds #25).
 
 ## Exit criteria

@@ -6,7 +6,7 @@
  * `POST /sessions/{id}/answers` validates one answer through the kernel, appends
  * it to the ledger, and returns the re-evaluated projection.
  *
- * These are **transaction scripts** (R5): load state (`@qcms/db`) → call the
+ * These are **transaction scripts** (R5): load state (`@roonga/qcms-db`) → call the
  * kernel (`evaluateRules` 006, `validateAnswer` 009) → persist. The GET **never
  * recompiles** - it serves the audit copy stored at publish (ADR-18); the only
  * flow authority is the kernel. Handlers are fetch-pure (R4): time via
@@ -42,7 +42,7 @@ import {
   type SessionId,
   type StepId,
   validateAnswer,
-} from "@qcms/core";
+} from "@roonga/qcms-core";
 import {
   appendAnswer,
   getFormVersion,
@@ -52,7 +52,7 @@ import {
   markInProgress,
   retractAnswer,
   type SessionRow,
-} from "@qcms/db";
+} from "@roonga/qcms-db";
 import { sql } from "drizzle-orm";
 import type { Context } from "hono";
 
@@ -80,12 +80,12 @@ const fail = {
 } as const;
 
 // The enum-bearing `sessions` and `question_versions` rows are hand-authored and
-// sound across @qcms/db's package boundary (issue #5), so this slice consumes
+// sound across @roonga/qcms-db's package boundary (issue #5), so this slice consumes
 // `SessionRow` and the inferred `question_versions` row directly - no local view
 // or cast for the row types.
 
 // The stored compiled A2UI, viewed structurally so apps/api keeps 018's boundary
-// (it does not depend on @qcms/a2ui-compiler): one document per step, `root` the
+// (it does not depend on @roonga/qcms-a2ui-compiler): one document per step, `root` the
 // opaque A2UI node tree the API serves verbatim and never interprets (ADR-18).
 interface CompiledDocumentView {
   readonly stepId: StepId;
