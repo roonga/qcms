@@ -149,7 +149,7 @@ Rotation is therefore additive rather than destructive: add a new version at the
 
 - **Live sessions end.** better-auth derives its cookie-signing secret from the current version (`dist/context/create-context.mjs:73`), so promoting a new version signs every admin out. That is the correct consequence of a key change; it is not the loss of a factor.
 - **The TOTP secret does not re-encode on use.** It is written once at enrollment and only read afterwards, so it stays readable through whichever version wrote it (or through the legacy fallback) and never migrates forward on its own. Retiring an old version means re-enrolling accounts whose secret was written under it.
-- **A retired version is retired.** Dropping a version from the list makes anything still encoded under it unreadable, which is the same break the old single-key model had, now deliberate and scoped.
+- **A retired version is retired, and at launch there is no supported way to retire one.** Dropping a version makes anything still encoded under it unreadable, and because TOTP secrets never migrate and the admin surface exposes no re-enrolment for an account with a live factor (`two-factor/disable` is unmounted), the list only grows. Pruning becomes possible once a 2FA reset exists (issue #432).
 
 The runbook is in `docs/operations.md`.
 

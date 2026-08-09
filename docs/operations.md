@@ -373,10 +373,13 @@ carries the version that wrote it, and moves forward as it is used.
 3. Recovery codes migrate on their own: each redemption re-encodes the remaining set
    under the current version. TOTP secrets do **not** - they are written once at
    enrolment and only read afterwards.
-4. Because of step 3, keep the old version in the list for as long as any account is
-   still enrolled under it. To retire version 1 entirely, have each administrator
-   re-enrol their authenticator first (sign out, then re-enrol on next sign-in with no
-   live factor), then drop the trailing entry and restart.
+4. Because of step 3, **keep the old version in the list**. A TOTP secret written
+   under version 1 stays readable only while version 1 is listed, and the launch admin
+   surface exposes no way to re-enrol an account that already has a live factor
+   (`two-factor/disable` is deliberately unmounted). So at launch a retired version is
+   retired for good and there is no supported path to drop the trailing entry: add
+   versions, do not remove them. Pruning becomes possible when a 2FA reset exists
+   (issue #432).
 
 Numbering: versions are integers, unique, and are **not** positional - they identify
 the key inside the stored ciphertext, so never renumber an existing key. Add a higher
