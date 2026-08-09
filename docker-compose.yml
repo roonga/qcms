@@ -73,6 +73,13 @@ services:
       # value for the enrollment, recovery-view and appearance cookies it sets itself.
       # Empty means unset, so the image's NODE_ENV=production decides (Secure on).
       QCMS_ADMIN_SECURE_COOKIES: ${QCMS_ADMIN_SECURE_COOKIES:-}
+      # SEC-1's breach-corpus check (issue #178). Empty means unset, so the default
+      # (on) applies; an operator sets it false only for a deployment with no egress
+      # to api.pwnedpasswords.com, because the check fails closed and would otherwise
+      # make `qcms:create-admin` unable to create the first admin there. It rides the
+      # `api-env` anchor so the api service and any `docker compose exec api` running
+      # the bootstrap CLI read the same value.
+      QCMS_ADMIN_PASSWORD_BREACH_CHECK: ${QCMS_ADMIN_PASSWORD_BREACH_CHECK:-}
       QCMS_MOUNT: all
     depends_on:
       postgres:

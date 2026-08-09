@@ -61,6 +61,10 @@ beforeAll(async () => {
       baseUrl: ADMIN_ORIGIN,
       idleMs: 3_600_000,
       secureCookies: true,
+      // Nothing here sets a password (every request carries an empty body), so the
+      // SEC-1 breach check would never fire; false keeps that explicit rather than
+      // leaving a live HTTPS dependency one test edit away.
+      breachedPasswordCheck: false,
     },
   });
 });

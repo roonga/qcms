@@ -264,6 +264,14 @@ export const ENV_REFERENCE = [
       "Whether cookies set on the admin origin carry `Secure`. It describes the **browser-facing** scheme, which this process cannot observe, so it is a knob rather than only an inference. Must hold the same value in the `api` and `admin` services or the browser keeps one cookie family and drops the other. The `admin` service refuses to start when it is false at a non-loopback `QCMS_ADMIN_BASE_URL` (issue #292), so a downgrade here is refused by the process the browser actually reaches.",
   },
   {
+    name: "QCMS_ADMIN_PASSWORD_BREACH_CHECK",
+    process: "api",
+    requirement: "optional",
+    fallback: "true",
+    description:
+      "Whether an admin password is checked against the public breach corpus before it is accepted (SEC-1; NIST SP 800-63B Rev 4 3.1.1.2, OWASP ASVS 5.0 6.2.12). When on, setting a password makes one HTTPS request to `api.pwnedpasswords.com/range/{prefix}` carrying the first five hex characters of the password's SHA-1 and nothing else; the password never leaves the process. **The check fails closed**: if that host is unreachable the password is refused, so on an air-gapped deployment `qcms:create-admin` cannot create the first admin at all until you set this to `false`. Doing so is a documented downgrade against both standards, supported for a structurally offline deployment and as the break-glass for rotating a leaked password while the corpus is unreachable; the API and the CLI each log a loud warning at startup for as long as it is off.",
+  },
+  {
     name: "QCMS_ADMIN_SESSION_IDLE_MS",
     process: "api",
     requirement: "optional",

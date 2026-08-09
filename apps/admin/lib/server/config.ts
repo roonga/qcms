@@ -28,8 +28,12 @@ export const INTERNAL_TOKEN_HEADER = "x-qcms-internal-token";
 export const ADMIN_SESSION_HEADER = "x-qcms-admin-session";
 
 /**
- * Minimum admin password length, mirrored from the API's `MIN_PASSWORD_LENGTH` (SEC-1's
- * strength check is issue-tracked, #178).
+ * Minimum admin password length, mirrored from the API's `MIN_PASSWORD_LENGTH` (SEC-1).
+ *
+ * The length floor is the only password rule with a client-side hint. SEC-1's other
+ * rule, the breach-corpus check (issue #178), has none by construction: answering
+ * "is this password in the corpus" in the browser would mean sending it there, and the
+ * check deliberately never leaves the API process.
  *
  * A duplicated constant rather than an import, because importing it would mean the admin
  * takes a value binding from `apps/api` and the two apps are separate deployables with

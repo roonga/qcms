@@ -30,6 +30,7 @@ import pg from "pg";
 
 import { createApp } from "./app.js";
 import { systemClock } from "./clock.js";
+import { warnIfBreachCheckDisabled } from "./features/auth/instance.js";
 import { selectChallengeVerifier } from "./features/responses/challenge.js";
 import { appGroups } from "./registrars.js";
 import { loadConfig } from "./config.js";
@@ -52,6 +53,17 @@ export function main(telemetry: Telemetry): void {
     write: (line) => process.stdout.write(line + "\n"),
     base: { service: "qcms-api" },
   });
+
+  // At boot rather than when the auth instance is first built: that build is lazy
+  // (`features/auth/route.ts` explains why), so an operator who turned the SEC-1
+  // breach check off would otherwise learn about it from the first sign-in attempt
+  // instead of from the container's startup log. Only when this process actually
+  // mounts the admin surface; elsewhere the admin-auth block is inert placeholders.
+  if (config.mount.admin) {
+    warnIfBreachCheckDisabled(config.adminAuth, (message) => {
+      logger.warn(message);
+    });
+  }
 
   const pool = new Pool({ connectionString: config.databaseUrl });
   const db = drizzle(pool, { schema });

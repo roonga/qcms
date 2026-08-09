@@ -55,6 +55,14 @@ function authFor(
     DATABASE_URL: databaseUrl,
     QCMS_ADMIN_AUTH_SECRET: authSecret,
     QCMS_ADMIN_BASE_URL: adminBaseUrl,
+    // Off for this harness only (issue #178). SEC-1's breach check is a live HTTPS
+    // call to api.pwnedpasswords.com on every password set, and this helper sets one
+    // per test account: leaving it on would make the browser suite depend on a third
+    // party's uptime to exercise screens that have nothing to do with it. The control
+    // itself is covered against a stubbed corpus in
+    // `apps/api/src/features/auth/breached-password.integration.test.ts`, and the
+    // full-stack Compose stack runs it at its shipped default.
+    QCMS_ADMIN_PASSWORD_BREACH_CHECK: "false",
   });
   const pool = new pg.Pool({ connectionString: databaseUrl });
   pool.on("error", () => undefined);

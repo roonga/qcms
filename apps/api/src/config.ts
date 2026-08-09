@@ -197,6 +197,24 @@ export interface Config {
      * ingress needs `false`, and nothing about `NODE_ENV` says so.
      */
     readonly secureCookies: boolean;
+    /**
+     * Whether every admin password is checked against the public breach corpus
+     * (`QCMS_ADMIN_PASSWORD_BREACH_CHECK`, default **true**, SEC-1).
+     *
+     * A deployment-posture knob, not a feature flag, which is why it lives here
+     * beside `secureCookies` rather than in the ADR-24 flag registry: it describes
+     * whether this deployment has egress to `api.pwnedpasswords.com`, and it has to
+     * be readable by `loadAdminAuthConfig` so the `qcms:create-admin` CLI and the
+     * server agree without the CLI parsing the whole configuration.
+     *
+     * Setting it false is a documented downgrade against NIST SP 800-63B Rev 4
+     * section 3.1.1.2 and OWASP ASVS 5.0 6.2.12. It exists for a structurally
+     * offline deployment (and as the break-glass for rotating a leaked password
+     * while the corpus is unreachable mid-incident), and it is deliberately a
+     * config-plane decision an operator makes in a file a reviewer reads, never a
+     * runtime bypass an attacker can reach.
+     */
+    readonly breachedPasswordCheck: boolean;
   };
   readonly readiness: {
     /** `/ready` DB-probe timeout in ms (`QCMS_READY_DB_TIMEOUT_MS`). */
@@ -537,6 +555,9 @@ export function parseAdminAuth(env: Env, issues: string[]): Config["adminAuth"] 
       env.NODE_ENV === "production",
       issues,
     ),
+    // Defaults to true in every environment, including development: a control the
+    // standards write as SHALL is not something a developer opts into.
+    breachedPasswordCheck: parseBool(env, "QCMS_ADMIN_PASSWORD_BREACH_CHECK", true, issues),
   };
 }
 
@@ -565,6 +586,9 @@ const UNMOUNTED_ADMIN_AUTH: Config["adminAuth"] = {
   baseUrl: "",
   idleMs: 0,
   secureCookies: false,
+  // True rather than false even though nothing reads it: an inert record that says
+  // "breach checking off" is the wrong thing to find in a debug dump.
+  breachedPasswordCheck: true,
 };
 
 /**
