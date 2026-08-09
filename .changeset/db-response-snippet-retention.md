@@ -44,6 +44,17 @@ two producers, a marker naming one would be false the moment the other wrote it.
 control existed is more eligible than a fresh one and the first sweep after an upgrade
 covers the whole back catalogue.
 
+Migration `0015_snippet_requires_attempt` makes that predicate's precondition
+structural: `CHECK (last_response_snippet IS NULL OR last_attempt_at IS NOT NULL)`.
+Under three-valued logic `last_attempt_at < horizon` is never true for a NULL, so a
+row carrying a snippet with no attempt time would be skipped by every sweep forever -
+the leak the retention story exists to close, reappearing through the control itself.
+`attemptColumns` pairs the two today and types both as required, but a convention held
+up by one call site cannot fail when a future writer breaks it, so the database refuses
+the row instead. The constraint permits every shape the delivery path writes: neither
+column set (a materialized row), an attempt with a body, and an attempt with none (the
+timeout shape).
+
 `resetDeliveryForRedelivery` clears the new marker with the rest of the attempt
 record. `redeliveryRefusalFor` is unchanged and still reads only `cancelled_at` and
 `payload_redacted_at`, so a delivery whose snippet merely aged out stays redeliverable

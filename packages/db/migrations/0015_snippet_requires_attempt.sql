@@ -1,0 +1,1 @@
+ALTER TABLE "webhook_deliveries" ADD CONSTRAINT "webhook_deliveries_snippet_requires_attempt" CHECK ("webhook_deliveries"."last_response_snippet" is null or "webhook_deliveries"."last_attempt_at" is not null);

@@ -155,6 +155,17 @@ before this control existed is *more* eligible than a fresh one: the first sweep
 after an upgrade covers the entire back catalogue. A retention control that governed
 only rows created after it shipped would have left exactly the data this is about.
 
+**The predicate's precondition is enforced by the database.** Migration `0015` adds
+`CHECK (last_response_snippet IS NULL OR last_attempt_at IS NOT NULL)`. Ageing from
+`last_attempt_at` requires every row holding a snippet to have one: under SQL's
+three-valued logic `last_attempt_at < horizon` is never true for a NULL, so such a row
+would be skipped by every sweep forever - the leak this control exists to close,
+reappearing through the control itself. The delivery path pairs the two columns today,
+but a convention held up by one call site cannot fail when a future writer breaks it,
+so the database refuses the row rather than the sweep quietly passing over it. The
+constraint permits every shape the delivery path actually writes: a materialized row
+with neither, an attempt with a body, and an attempt with none (a timeout).
+
 **The marker is deliberately cause-free.** `last_response_snippet_redacted_at`
 records *that* a body was removed, never *why*, because it has two producers -
 erasure and this sweep - and a marker naming one would be a false statement the

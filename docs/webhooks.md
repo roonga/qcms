@@ -194,6 +194,10 @@ has a retention story the other four do not need:
   then the delivery has long exhausted its retries, so the diagnostic the snippet
   exists for has no reader left.
 
+A `CHECK` constraint (migration `0015`) requires any stored snippet to carry the
+`last_attempt_at` it belongs to, because that is what the sweep ages from and a NULL
+there would hide the row from every sweep forever.
+
 Both stamp `last_response_snippet_redacted_at` and neither touches the rest of the
 record, so "this delivery failed with a 400, ten times, at these instants" is still
 answerable forever. The dashboard reads the marker and says the body was removed,

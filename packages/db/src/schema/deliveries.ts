@@ -1,5 +1,15 @@
 import { sql } from "drizzle-orm";
-import { index, integer, jsonb, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import {
+  check,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  uuid,
+} from "drizzle-orm/pg-core";
 
 import { outbox } from "./outbox.js";
 import { webhooks } from "./webhooks.js";
@@ -143,5 +153,20 @@ export const webhookDeliveries = pgTable(
     index("webhook_deliveries_due_idx")
       .on(t.deliveredAt, t.nextAttemptAt)
       .where(sql`${t.deadLetteredAt} is null`),
+    // A stored snippet must carry the attempt time it belongs to (issue #304).
+    //
+    // This is what the retention sweep ages from, and under SQL's three-valued
+    // logic `last_attempt_at < horizon` is never true for a NULL - so a row with a
+    // snippet and no attempt time would be excluded from every sweep **forever**,
+    // which is exactly the shape of the leak this column was given a policy to
+    // close. Today the only writer that sets a snippet is `attemptColumns`, whose
+    // input types both columns as required, so the pairing already holds; but a
+    // convention held up by a call site is one a future writer can break silently,
+    // and a comment cannot fail when it does. Stating it here makes the database
+    // refuse the row instead (same class as issue #311).
+    check(
+      "webhook_deliveries_snippet_requires_attempt",
+      sql`${t.lastResponseSnippet} is null or ${t.lastAttemptAt} is not null`,
+    ),
   ],
 );

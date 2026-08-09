@@ -79,9 +79,19 @@ export interface SnippetRedactionResult {
  *
  * Only rows that actually hold a snippet are touched, so the marker records a real
  * removal and never appears on a row whose body was empty or absent all along.
- * `last_attempt_at` and `last_response_snippet` are written together by
- * `attemptColumns`, so a row with a snippet always has an attempt time to age from.
  * Idempotent: a second run finds nothing left with a snippet in that window.
+ *
+ * ## The predicate's precondition is enforced, not assumed
+ *
+ * Ageing from `last_attempt_at` needs every row with a snippet to *have* one: under
+ * three-valued logic `last_attempt_at < olderThan` is never true for a NULL, so such
+ * a row would be excluded from every sweep forever - the exact leak this control
+ * exists to close, reappearing through the control itself. `attemptColumns` writes
+ * both together and its input types both as required, so the pairing holds today;
+ * but that is a call-site convention, and a convention cannot fail when a future
+ * writer breaks it. The `webhook_deliveries_snippet_requires_attempt` CHECK
+ * constraint (migration `0015`) is therefore what this relies on - the database
+ * refuses the row rather than the sweep quietly skipping it.
  *
  * Boundary: strictly-before `olderThan`, matching `purgeExpired`.
  */

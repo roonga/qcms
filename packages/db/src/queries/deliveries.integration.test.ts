@@ -593,3 +593,73 @@ describe("redactAgedResponseSnippets (issue #304)", () => {
     expect(row?.lastStatus).toBeNull();
   });
 });
+
+/**
+ * The precondition the retention sweep ages from, enforced by the database
+ * (issue #304, migration `0015`).
+ *
+ * `redactAgedResponseSnippets` finds rows with `last_attempt_at < horizon`, and under
+ * three-valued logic that is never true for a NULL. So a row carrying a snippet with
+ * no attempt time would be skipped by every sweep forever - the leak the retention
+ * story exists to close, reappearing through the control itself. `attemptColumns`
+ * pairs the two columns today and its input types both as required, but that is a
+ * call-site convention: a future writer can break it silently, and a comment saying
+ * "these are written together" cannot fail when one does. Hence a CHECK constraint,
+ * and hence this test, which watches it refuse.
+ */
+describe("webhook_deliveries_snippet_requires_attempt (issue #304)", () => {
+  it("refuses a snippet stored without the attempt time it belongs to", async () => {
+    const { outboxId, webhookId } = await seedEventWithWebhook();
+    await insertDelivery(testDb.db, { outboxId, webhookId });
+    const deliveryId = await deliveryIdFor(outboxId, webhookId);
+
+    await expect(
+      testDb.client.query(
+        `update webhook_deliveries
+            set last_response_snippet = $1, last_attempt_at = null
+          where id = $2`,
+        ['{"error":"invalid","received":{"q_name":"Ada Lovelace"}}', deliveryId],
+      ),
+    ).rejects.toThrow(/webhook_deliveries_snippet_requires_attempt/);
+
+    // Refused, not partially applied: the row is exactly as it was.
+    const row = await readDelivery(deliveryId);
+    expect(row?.lastResponseSnippet).toBeNull();
+    expect(row?.lastAttemptAt).toBeNull();
+  });
+
+  it("allows the three shapes the delivery path actually writes", async () => {
+    // The constraint has to refuse precisely one combination and no more, or it
+    // would break the timeout path (an attempt with no body) and the initial state.
+    const { outboxId, webhookId } = await seedEventWithWebhook();
+    await insertDelivery(testDb.db, { outboxId, webhookId });
+    const deliveryId = await deliveryIdFor(outboxId, webhookId);
+    const at = new Date("2026-07-20T00:00:05.000Z");
+
+    // 1. Neither: a materialized row that has not been attempted.
+    expect((await readDelivery(deliveryId))?.lastAttemptAt).toBeNull();
+
+    // 2. An attempt with a body.
+    await markDeliveryDelivered(testDb.db, deliveryId, at, attemptRecord({ lastAttemptAt: at }));
+    expect((await readDelivery(deliveryId))?.lastResponseSnippet).toBe("ok");
+
+    // 3. An attempt with no body - the timeout/network-error shape.
+    await recordDeliveryFailure(
+      testDb.db,
+      deliveryId,
+      "timeout",
+      at,
+      attemptRecord({ lastAttemptAt: at, lastStatus: null, lastResponseSnippet: null }),
+    );
+    const row = await readDelivery(deliveryId);
+    expect(row?.lastResponseSnippet).toBeNull();
+    expect(row?.lastAttemptAt).not.toBeNull();
+
+    // 4. And the sweep's own write - snippet cleared, attempt time kept - is legal.
+    await markDeliveryDelivered(testDb.db, deliveryId, at, attemptRecord({ lastAttemptAt: at }));
+    await redactAgedResponseSnippets(testDb.db, new Date("2026-07-21T00:00:00.000Z"));
+    const swept = await readDelivery(deliveryId);
+    expect(swept?.lastResponseSnippet).toBeNull();
+    expect(swept?.lastResponseSnippetRedactedAt).not.toBeNull();
+  });
+});
