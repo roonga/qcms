@@ -24,6 +24,19 @@ credential of their own. That is a control, not an accident: after task 056 the 
 is the sole domain-data client, so a compromised BFF cannot read the database
 directly. The admin's import-surface test refuses a database import outright.
 
+### Outbound network the API needs
+
+Two destinations, both from `qcms-api` only, and both worth knowing before you write
+an egress firewall rule:
+
+| Destination | When | If it is blocked |
+| --- | --- | --- |
+| Your webhook consumers | Whenever a submission is delivered (SEC-6, SSRF-guarded) | Deliveries retry and eventually park in the outbox; nothing else is affected. |
+| `api.pwnedpasswords.com` (HTTPS) | Only while an **admin password is being set**: `qcms:create-admin`, and change-password (SEC-1) | **The password is refused, by design.** A first admin cannot be created at all. Set `QCMS_ADMIN_PASSWORD_BREACH_CHECK=false` for a deployment that is genuinely offline; see the variable's row below. |
+
+Nothing else in the API reaches the internet. The portal and the admin reach only the
+API.
+
 ## Health and readiness
 
 The API mounts two unauthenticated ops endpoints in **every** process shape, because
@@ -108,6 +121,7 @@ Validated at boot by `apps/api/src/config.ts`, which collects every problem and 
 | `QCMS_FLAG_CHALLENGE_PROVIDER` | optional | `none` | Abuse-control challenge provider (ADR-24 registry): `none` or `turnstile`. An unknown `QCMS_FLAG_*` variable fails boot rather than being ignored. |
 | `QCMS_ADMIN_2FA` | optional | `required` | Administrator TOTP policy (SEC-1): `required` or `optional`. `optional` is a development escape hatch, never a production setting. |
 | `QCMS_ADMIN_SECURE_COOKIES` | optional | `true when NODE_ENV=production` | Whether cookies set on the admin origin carry `Secure`. It describes the **browser-facing** scheme, which this process cannot observe, so it is a knob rather than only an inference. Must hold the same value in the `api` and `admin` services or the browser keeps one cookie family and drops the other. The `admin` service refuses to start when it is false at a non-loopback `QCMS_ADMIN_BASE_URL` (issue #292), so a downgrade here is refused by the process the browser actually reaches. |
+| `QCMS_ADMIN_PASSWORD_BREACH_CHECK` | optional | `true` | Whether an admin password is checked against the public breach corpus before it is accepted (SEC-1; NIST SP 800-63B Rev 4 3.1.1.2, OWASP ASVS 5.0 6.2.12). When on, setting a password makes one HTTPS request to `api.pwnedpasswords.com/range/{prefix}` carrying the first five hex characters of the password's SHA-1 and nothing else; the password never leaves the process. **The check fails closed**: if that host is unreachable the password is refused, so on an air-gapped deployment `qcms:create-admin` cannot create the first admin at all until you set this to `false`. Doing so is a documented downgrade against both standards, supported for a structurally offline deployment and as the break-glass for rotating a leaked password while the corpus is unreachable; the API and the CLI each log a loud warning at startup for as long as it is off. |
 | `QCMS_ADMIN_SESSION_IDLE_MS` | optional | `3600000 (1h)` | Idle window before an administrator session expires (SEC-1). |
 | `QCMS_ADMIN_SESSION_MAX_AGE_MS` | optional | `43200000 (12h)` | Absolute administrator session lifetime measured from issue (SEC-1). Past it every admin call is a 401 regardless of activity, which is the cap an idle window alone cannot provide. |
 | `QCMS_SESSION_TTL_MS` | optional | `86400000 (24h)` | Lifetime of an anonymous respondent session. |

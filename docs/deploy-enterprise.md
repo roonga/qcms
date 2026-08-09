@@ -26,6 +26,7 @@ Two consequences worth planning around:
 
 - **`api-public` has no identity provider at all.** `/api/auth/*` rides the `admin` flag (`apps/api/src/app.ts:140`), so a sign-in request to the public instance is a 404. A credential-stuffing run against the public origin has nothing to reach.
 - **`api-public` is never given `QCMS_ADMIN_AUTH_SECRET`.** The better-auth configuration is parsed only when the admin surface is mounted (`apps/api/src/config.ts:636`), so the secret that protects stored two-factor material simply is not present in the process that faces the internet. Do not put it in a shared environment file that both instances read.
+- **`api-internal` is the one process that needs outbound HTTPS to `api.pwnedpasswords.com`.** SEC-1's breach-corpus check runs wherever an admin password is set, which in this topology is only the admin-mounted instance and the `qcms:create-admin` run beside it. It **fails closed**, so an `api-internal` sitting on a segment with no egress cannot create the first admin at all: either allow that one host, or set `QCMS_ADMIN_PASSWORD_BREACH_CHECK=false` there and accept the documented downgrade. `api-public` never sets a password and needs no such rule.
 
 ### Be honest about `internal`
 
@@ -109,6 +110,7 @@ Legend: **req** required (boot fails without it) · opt optional · cond require
 | `QCMS_ADMIN_2FA` | `-` | opt | opt | opt | `-` |
 | `QCMS_ADMIN_SESSION_MAX_AGE_MS` | `-` | opt | opt | opt | `-` |
 | `QCMS_ADMIN_SESSION_IDLE_MS` | `-` | `-` | `-` | opt | `-` |
+| `QCMS_ADMIN_PASSWORD_BREACH_CHECK` | `-` | `-` | `-` | opt | `-` |
 | `QCMS_FLAG_CHALLENGE_PROVIDER` | opt | `-` | opt | leave unset | `-` |
 | `QCMS_TURNSTILE_SITE_KEY` | cond | `-` | `-` | `-` | `-` |
 | `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY` | `-` | `-` | cond | `-` | `-` |
