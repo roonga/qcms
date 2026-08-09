@@ -9,8 +9,12 @@ dev range moves to `^8.20.3`. `@qcms/ui`: `@internationalized/date` moves to
 `^19.2.4`. No API or behavior change in either package; consumers resolve newer
 in-range versions of these dependencies.
 
-The `react-aria-components` bump offered in the same group is deliberately not taken.
-Under 1.20.0 a `Table` row that receives focus before the table has hydrated never
-becomes interactive again: it never gains `data-focused` and never fires
-`onRowAction`, for the rest of that page load. `@qcms/ui` therefore stays on
-`^1.19.0`, which does not have that behaviour.
+The `react-aria-components` bump offered in the same group was deferred out of this
+release, on a reading of a red admin suite that #419 has since corrected: 1.20.0 does
+not leave a `Table` row permanently inert. The node that never activated was a
+pre-hydration row the spec had focused before the adopting re-render replaced it, a
+race that predates 1.20.0 and is widened by it rather than created (and widened
+independently by `next` 16.3.0). Waiting for `data-focused` on the already-focused
+node cannot recover from it, which is why the deferral looked justified; re-focusing
+until the attribute appears on a live row does. With the spec doing that, the bump
+is taken in the following release.
