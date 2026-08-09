@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 
 import type { EraseErrorCode, EraseOutcome, SessionId } from "@qcms/core";
 
@@ -10,7 +10,10 @@ import {
   submissions,
   webhookDeliveries,
 } from "../schema/index.js";
-import { DELIVERY_CANCELLED_SESSION_ERASED } from "./deliveries.js";
+import {
+  DELIVERY_CANCELLED_SESSION_ERASED,
+  responseSnippetRedactionColumns,
+} from "./deliveries.js";
 import type { Executor } from "./executor.js";
 
 /**
@@ -65,9 +68,11 @@ export class SessionNotFoundError extends Error {
  *    `linkId` is retained by design - see `@qcms/core` erasure semantics and
  *    `docs/erasure.md`), so the scrub set is empty today; the session row is
  *    retained as an audit shell.
- * 5. **Redact QCMS's own outbox copy** and **cancel the session's undelivered
- *    deliveries** (ADR-17 as amended 2026-08-02, task 059) - see
- *    {@link redactOutboxPayloads} and {@link cancelUndeliveredDeliveries}.
+ * 5. **Redact QCMS's own outbox copy**, **cancel the session's undelivered
+ *    deliveries** (ADR-17 as amended 2026-08-02, task 059) and **remove the stored
+ *    response snippets of its delivery attempts** (issue #304) - see
+ *    {@link redactOutboxPayloads}, {@link cancelUndeliveredDeliveries} and
+ *    {@link redactDeliveryResponseSnippets}.
  * 6. Insert the `erasure_tombstones` row `(sessionId, formId, formVersion,
  *    erasedAt, reason)` and return it (`alreadyErased: false`).
  *
@@ -123,6 +128,7 @@ export async function eraseSession(
     //    redaction keeps `sessionId` in the envelope, so the order is not load
     //    bearing, but reading it in this order matches what the two do.
     await cancelUndeliveredDeliveries(tx, sessionId);
+    await redactDeliveryResponseSnippets(tx, sessionId);
     await redactOutboxPayloads(tx, sessionId);
 
     // 6. Write the tombstone: existence without content.
@@ -206,6 +212,45 @@ async function redactOutboxPayloads(exec: Executor, sessionId: SessionId): Promi
  * would be a fiction, and the consumer's copy is theirs to erase as an independent
  * controller.
  */
+/**
+ * Remove the stored response snippet from every delivery of this session's events
+ * (issue #304).
+ *
+ * `last_response_snippet` is up to 500 bytes of a **consumer's** response body kept
+ * verbatim for diagnostics, and consumers commonly echo the request back in a
+ * validation error. So an erased respondent's own answers can be sitting in that
+ * column, having arrived there without QCMS ever choosing to write them - which made
+ * it a path by which respondent content survived erasure inside our own database.
+ * Erasure has to reach it for the same reason it reaches the outbox payload: it is
+ * our copy, not the consumer's.
+ *
+ * **Every** delivery of the session's events, delivered ones included - unlike
+ * {@link cancelUndeliveredDeliveries}, which deliberately spares delivered rows.
+ * The two are answering different questions. Cancellation is a statement about what
+ * will happen next, and pretending a sent event was not sent would be a fiction;
+ * this is a statement about what we still hold, and a delivered attempt's 200 body
+ * can echo the request just as a rejected attempt's 400 body can.
+ *
+ * The lifecycle record is untouched: `last_status`, `last_latency_ms`, `last_error`,
+ * the masked headers and every timestamp are value-free and stay, so the dashboard
+ * can still answer "was this person's data sent anywhere, and did it arrive". Only
+ * the free-text body goes. Same principle as the tombstone, one column over.
+ */
+async function redactDeliveryResponseSnippets(exec: Executor, sessionId: SessionId): Promise<void> {
+  await exec
+    .update(webhookDeliveries)
+    .set(responseSnippetRedactionColumns())
+    .where(
+      and(
+        isNotNull(webhookDeliveries.lastResponseSnippet),
+        inArray(
+          webhookDeliveries.outboxId,
+          exec.select({ id: outbox.id }).from(outbox).where(outboxRowsForSession(sessionId)),
+        ),
+      ),
+    );
+}
+
 async function cancelUndeliveredDeliveries(exec: Executor, sessionId: SessionId): Promise<void> {
   await exec
     .update(webhookDeliveries)

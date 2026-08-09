@@ -328,7 +328,16 @@ export const ENV_REFERENCE = [
     process: "api",
     requirement: "optional",
     fallback: "3600000 (1h)",
-    description: "How often expired anonymous sessions are swept.",
+    description:
+      "How often the retention sweep runs: expired anonymous sessions, and aged webhook response snippets.",
+  },
+  {
+    name: "QCMS_DELIVERY_SNIPPET_TTL_MS",
+    process: "api",
+    requirement: "optional",
+    fallback: "604800000 (7d)",
+    description:
+      "How long a webhook delivery keeps the stored prefix of the consumer's response body, measured from the attempt. That body can echo a respondent's answers back, so it ages out; the rest of the attempt record is value-free and is kept. `0` removes it at the next sweep.",
   },
   {
     name: "QCMS_READY_DB_TIMEOUT_MS",

@@ -311,6 +311,7 @@ function parseDelivery(entry: Record<string, unknown>): DeliveryItem {
     latencyMs: nullableCount(entry["latencyMs"]),
     requestHeaders: headerMap(entry["requestHeaders"]),
     responseSnippet: nullableText(entry["responseSnippet"]),
+    responseSnippetRedactedAt: nullableText(entry["responseSnippetRedactedAt"]),
   };
 }
 

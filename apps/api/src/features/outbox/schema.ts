@@ -151,6 +151,13 @@ export const DeliveryItem = z
     latencyMs: z.number().int().nullable().openapi({ example: 42 }),
     requestHeaders: z.record(z.string(), z.string()).nullable(),
     responseSnippet: z.string().nullable().openapi({ example: "upstream unavailable" }),
+    /**
+     * When the stored response snippet was removed by erasure or by the retention
+     * sweep, and null while it is intact (issue #304). Without it a client cannot
+     * tell a removed body from the three ways `responseSnippet` is otherwise null:
+     * no response arrived, the body was empty, or the row was reset for redelivery.
+     */
+    responseSnippetRedactedAt: z.string().nullable().openapi({ example: null }),
   })
   .openapi("DeliveryItem");
 

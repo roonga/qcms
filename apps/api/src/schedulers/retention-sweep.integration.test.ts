@@ -12,7 +12,17 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { FormId, SessionId, type FormDefinition } from "@qcms/core";
-import { createForm, createSession, getSession, insertFormVersion } from "@qcms/db";
+import {
+  createForm,
+  createSession,
+  enqueue,
+  getSession,
+  insertDelivery,
+  insertFormVersion,
+  insertWebhook,
+  listRecentDeliveries,
+  recordDeliveryFailure,
+} from "@qcms/db";
 import { startTestDb, type TestDb } from "@qcms/db/testing";
 
 import { createApp } from "../app.js";
@@ -51,11 +61,15 @@ async function seedForm(id: string): Promise<{ formId: FormId; version: number }
 }
 
 /** Build a config whose retention sweep runs on a short test interval. */
-function shortIntervalConfig(intervalMs: number): Config {
+function shortIntervalConfig(intervalMs: number, snippetTtlMs?: number): Config {
   const base = loadConfig(validEnv());
   return {
     ...base,
     scheduler: { ...base.scheduler, retentionSweepIntervalMs: intervalMs },
+    ttl: {
+      ...base.ttl,
+      deliveryResponseSnippetMs: snippetTtlMs ?? base.ttl.deliveryResponseSnippetMs,
+    },
   };
 }
 
@@ -91,6 +105,68 @@ describe("retention-sweep scheduler (live DB)", () => {
     }
     // Graceful stop leaves the scheduler idle.
     expect(scheduler.running).toBe(false);
+  }, 15_000);
+
+  /**
+   * Issue #304: the same pass also ages out webhook delivery response snippets.
+   * `last_response_snippet` is a consumer's response body verbatim, and a consumer
+   * that echoes the request in a validation error puts a respondent's answers there.
+   * The db package owns which rows; what this proves is that the API's existing
+   * retention scheduler is actually wired to run it, against a real database.
+   */
+  it("ages out a stored delivery response snippet on the same pass", async () => {
+    const { formId } = await seedForm("frm_api_snippet");
+    const webhookId = "whk_api_snippet";
+    await insertWebhook(testDb.db, {
+      webhookId,
+      formId,
+      url: "https://consumer.example.com/api-snippet",
+      secretEncrypted: "v1.opaque",
+      active: true,
+    });
+    const event = await enqueue(testDb.db, {
+      eventType: "response.submitted",
+      payload: { formId },
+    });
+    await insertDelivery(testDb.db, { outboxId: event.id, webhookId });
+    const [delivery] = await listRecentDeliveries(testDb.db, formId, 1);
+    await recordDeliveryFailure(testDb.db, delivery!.deliveryId, "http_400", new Date(), {
+      lastAttemptAt: new Date(Date.now() - 60_000),
+      lastStatus: 400,
+      lastLatencyMs: 5,
+      lastRequestHeaders: null,
+      lastResponseSnippet: '{"error":"invalid","received":{"q_name":"Ada Lovelace"}}',
+    });
+
+    const snippetOf = async (): Promise<string | null> =>
+      (await listRecentDeliveries(testDb.db, formId, 1))[0]?.lastResponseSnippet ?? null;
+    expect(await snippetOf()).toContain("Ada Lovelace");
+
+    // A 1s window against an attempt a minute old, so the very next pass is due to
+    // remove it. Real clock, for the same reason the sweep above uses one.
+    const deps = makeDeps({
+      db: testDb.db,
+      config: shortIntervalConfig(25, 1_000),
+      clock: systemClock,
+    });
+    const scheduler = createRetentionSweepScheduler(deps);
+    scheduler.start();
+    try {
+      const deadline = Date.now() + 4_000;
+      while (Date.now() < deadline && (await snippetOf()) !== null) {
+        await new Promise((r) => setTimeout(r, 25));
+      }
+    } finally {
+      await scheduler.stop();
+    }
+
+    const [after] = await listRecentDeliveries(testDb.db, formId, 1);
+    expect(after?.lastResponseSnippet).toBeNull();
+    // Marked, so the dashboard says "removed" rather than "the body was empty".
+    expect(after?.lastResponseSnippetRedactedAt).not.toBeNull();
+    // The value-free half of the record is untouched.
+    expect(after?.lastStatus).toBe(400);
+    expect(after?.lastError).toBe("http_400");
   }, 15_000);
 });
 

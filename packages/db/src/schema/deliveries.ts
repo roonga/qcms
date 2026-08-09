@@ -1,5 +1,15 @@
 import { sql } from "drizzle-orm";
-import { index, integer, jsonb, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import {
+  check,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  uuid,
+} from "drizzle-orm/pg-core";
 
 import { outbox } from "./outbox.js";
 import { webhooks } from "./webhooks.js";
@@ -75,8 +85,37 @@ export const webhookDeliveries = pgTable(
     lastLatencyMs: integer("last_latency_ms"),
     /** The headers as sent, with the signature masked before storage. */
     lastRequestHeaders: jsonb("last_request_headers").$type<Record<string, string>>(),
-    /** A bounded prefix of the most recent response body (diagnostics). */
+    /**
+     * A bounded prefix of the most recent response body (diagnostics).
+     *
+     * **The one column on this table that can hold respondent content.** It is a
+     * consumer's bytes, verbatim, and consumers commonly echo the request back in a
+     * validation error - so an answer the respondent typed can land here without
+     * QCMS ever choosing to write it. That is why it has a retention story of its
+     * own (issue #304): erasure clears it on request and the retention sweep ages it
+     * out, both stamping {@link lastResponseSnippetRedactedAt}. Everything else in
+     * the attempt record (`last_status`, `last_latency_ms`, `last_error`, the masked
+     * headers) is structurally value-free and is kept forever.
+     */
     lastResponseSnippet: text("last_response_snippet"),
+    /**
+     * When the stored response snippet was removed, and null while it is intact
+     * (issue #304). It distinguishes "this attempt's body is gone because we removed
+     * it" from the three ways `last_response_snippet` was *already* null: no response
+     * ever arrived, the consumer answered with an empty body, or the row was reset
+     * for redelivery. Without it the dashboard would tell an operator the body was
+     * empty when in fact it was redacted.
+     *
+     * Deliberately **cause-free**. It has two producers - erasure and the retention
+     * sweep - and a marker that named one of them would be a false statement the
+     * moment the other wrote it. Where the cause matters it is already on the row:
+     * an erased session's undelivered deliveries carry `cancelled_reason`, and its
+     * outbox parent carries `payload_redacted_at`.
+     */
+    lastResponseSnippetRedactedAt: timestamp("last_response_snippet_redacted_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
     /**
      * When this delivery was terminally cancelled and will never be attempted again
@@ -114,5 +153,20 @@ export const webhookDeliveries = pgTable(
     index("webhook_deliveries_due_idx")
       .on(t.deliveredAt, t.nextAttemptAt)
       .where(sql`${t.deadLetteredAt} is null`),
+    // A stored snippet must carry the attempt time it belongs to (issue #304).
+    //
+    // This is what the retention sweep ages from, and under SQL's three-valued
+    // logic `last_attempt_at < horizon` is never true for a NULL - so a row with a
+    // snippet and no attempt time would be excluded from every sweep **forever**,
+    // which is exactly the shape of the leak this column was given a policy to
+    // close. Today the only writer that sets a snippet is `attemptColumns`, whose
+    // input types both columns as required, so the pairing already holds; but a
+    // convention held up by a call site is one a future writer can break silently,
+    // and a comment cannot fail when it does. Stating it here makes the database
+    // refuse the row instead (same class as issue #311).
+    check(
+      "webhook_deliveries_snippet_requires_attempt",
+      sql`${t.lastResponseSnippet} is null or ${t.lastAttemptAt} is not null`,
+    ),
   ],
 );

@@ -22,6 +22,7 @@
  */
 
 import { HONEYPOT_FIELD_NAME } from "@qcms/a2ui-compiler";
+import { DEFAULT_RESPONSE_SNIPPET_RETENTION_MS } from "@qcms/db";
 import { z } from "zod";
 
 /** Minimum bytes for signing/secret material (SEC-4/SEC-7: >= 32 random bytes). */
@@ -99,6 +100,17 @@ export interface Config {
   readonly ttl: {
     /** Anonymous session TTL in ms (`QCMS_SESSION_TTL_MS`). */
     readonly anonymousSessionMs: number;
+    /**
+     * How long a webhook delivery's stored response snippet is kept, measured from
+     * the attempt that produced it (`QCMS_DELIVERY_SNIPPET_TTL_MS`, default 7 days -
+     * issue #304). The retention sweep removes older ones.
+     *
+     * `0` is a legitimate setting and means "at the next sweep": an operator running
+     * strict data minimisation, who would rather lose the diagnostic than hold a
+     * consumer's response body at all, sets it there. The rest of the attempt record
+     * is value-free and is kept whatever this is set to.
+     */
+    readonly deliveryResponseSnippetMs: number;
   };
   /**
    * Per-endpoint-class rate limits (task 026), each a fixed window enforced by
@@ -444,6 +456,8 @@ function parseChallenge(env: Env, flags: Flags, issues: string[]): Config["chall
 /** Sensible defaults for the tunable, non-secret knobs. */
 const DEFAULTS = {
   anonymousSessionMs: 24 * 60 * 60 * 1000, // 24h (matches @qcms/db retention default)
+  // 7d, from @qcms/db - the one place the window's rationale is written down (#304).
+  deliveryResponseSnippetMs: DEFAULT_RESPONSE_SNIPPET_RETENTION_MS,
   // Per-class rate limits (task 026). Each pair is [windowMs, max].
   rlSessionCreate: { windowMs: 60 * 60 * 1000, max: 20 }, // 20 new sessions / hour / IP
   rlAnswersPerSession: { windowMs: 5_000, max: 10 }, // ≈2/s sustained, burst 10 / session
@@ -582,6 +596,16 @@ export function loadConfig(env: Env): Config {
         "QCMS_SESSION_TTL_MS",
         DEFAULTS.anonymousSessionMs,
         1_000,
+        issues,
+      ),
+      deliveryResponseSnippetMs: parseInt_(
+        env,
+        "QCMS_DELIVERY_SNIPPET_TTL_MS",
+        DEFAULTS.deliveryResponseSnippetMs,
+        // Floor of 0, not 1_000: "remove it at the next sweep" is a policy an
+        // operator may legitimately want, and there is no lower bound below which
+        // keeping less of a consumer's response body becomes wrong.
+        0,
         issues,
       ),
     },

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { DEFAULT_RESPONSE_SNIPPET_RETENTION_MS } from "@qcms/db";
+
 import { ConfigError, loadConfig, MIN_SECRET_LENGTH } from "./config.js";
 import { synthSecret, validEnv } from "./test-support.js";
 
@@ -206,5 +208,43 @@ describe("feature-flag registry (ADR-24)", () => {
       "optional",
     );
     expect(() => loadConfig(validEnv({ QCMS_ADMIN_2FA: "sometimes" }))).toThrow(ConfigError);
+  });
+});
+
+/**
+ * The response-snippet retention window (issue #304). Worth pinning rather than
+ * leaving to the shared `parseInt_` because this knob's floor is deliberately
+ * different from every other duration's: `0` is a **supported policy** here, not a
+ * degenerate value, so the usual "must be at least 1000ms" floor would have been
+ * wrong. A future tidy-up that made all the duration floors uniform would silently
+ * remove an operator's strictest setting; this is what fails if it does.
+ */
+describe("QCMS_DELIVERY_SNIPPET_TTL_MS (issue #304)", () => {
+  it("defaults to the 7 days @qcms/db documents", () => {
+    expect(loadConfig(validEnv()).ttl.deliveryResponseSnippetMs).toBe(
+      DEFAULT_RESPONSE_SNIPPET_RETENTION_MS,
+    );
+    expect(DEFAULT_RESPONSE_SNIPPET_RETENTION_MS).toBe(7 * 24 * 60 * 60 * 1000);
+  });
+
+  it("accepts an explicit window", () => {
+    const config = loadConfig(validEnv({ QCMS_DELIVERY_SNIPPET_TTL_MS: "3600000" }));
+    expect(config.ttl.deliveryResponseSnippetMs).toBe(3_600_000);
+  });
+
+  it("accepts 0 - remove it at the next sweep, the strict-minimisation setting", () => {
+    expect(
+      loadConfig(validEnv({ QCMS_DELIVERY_SNIPPET_TTL_MS: "0" })).ttl.deliveryResponseSnippetMs,
+    ).toBe(0);
+  });
+
+  it("refuses a negative window, which would push the horizon into the future", () => {
+    // A negative value makes `now - ttl` later than now, so the sweep would redact
+    // snippets from attempts that have not happened yet - i.e. all of them, at once.
+    expect(() => loadConfig(validEnv({ QCMS_DELIVERY_SNIPPET_TTL_MS: "-1" }))).toThrow(ConfigError);
+  });
+
+  it("refuses a non-numeric window rather than falling back to the default", () => {
+    expect(() => loadConfig(validEnv({ QCMS_DELIVERY_SNIPPET_TTL_MS: "7d" }))).toThrow(ConfigError);
   });
 });

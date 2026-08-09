@@ -145,6 +145,7 @@ export function makeDeliveriesHandler(deps: Deps): RouteHandler<typeof deliverie
           latencyMs: r.lastLatencyMs,
           requestHeaders: r.lastRequestHeaders,
           responseSnippet: r.lastResponseSnippet,
+          responseSnippetRedactedAt: iso(r.lastResponseSnippetRedactedAt),
         })),
       },
       200,

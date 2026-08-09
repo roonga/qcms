@@ -157,6 +157,13 @@ export interface DeliveryItem {
   readonly latencyMs: number | null;
   readonly requestHeaders: Readonly<Record<string, string>> | null;
   readonly responseSnippet: string | null;
+  /**
+   * When the stored response snippet was removed, by erasure or by the retention
+   * sweep (issue #304); null while it is intact. `responseSnippet` is null either
+   * way, so this is the only thing that distinguishes a removed body from an empty
+   * or absent one.
+   */
+  readonly responseSnippetRedactedAt: string | null;
 }
 
 /** One row of `GET /admin/outbox/dead-letters` - the queue, across every form. */

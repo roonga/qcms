@@ -1,0 +1,1 @@
+ALTER TABLE "webhook_deliveries" ADD COLUMN "last_response_snippet_redacted_at" timestamp with time zone;

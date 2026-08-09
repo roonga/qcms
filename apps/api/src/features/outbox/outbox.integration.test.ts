@@ -40,6 +40,7 @@ import {
   OUTBOX_MAX_ATTEMPTS,
   outbox,
   redeliveryRefusalFor,
+  redactAgedResponseSnippets,
   recordDeliveryFailure,
   webhookDeliveries,
   type DeliveryAttemptRecord,
@@ -64,6 +65,9 @@ const DEFAULT_DELIVERY_LIMIT = 50;
 
 const FORM_A = FormId.parse("frm_outbox_a");
 const FORM_B = FormId.parse("frm_outbox_b");
+/** A form of its own for the response-snippet retention test (#304), so its extra
+ * delivery cannot perturb the ordering and limit assertions over form A. */
+const FORM_SNIPPET = FormId.parse("frm_outbox_snippet");
 const FORM_BULK = FormId.parse("frm_outbox_bulk");
 /**
  * A form of its own for the ADR-17 refusal cases.
@@ -101,6 +105,7 @@ interface DeliveryItem {
   latencyMs: number | null;
   requestHeaders: Record<string, string> | null;
   responseSnippet: string | null;
+  responseSnippetRedactedAt: string | null;
 }
 
 /**
@@ -169,6 +174,7 @@ beforeAll(async () => {
 
   await createForm(testDb.db, { formId: FORM_A, slug: "ops-a", defaultLocale: "en" });
   await createForm(testDb.db, { formId: FORM_B, slug: "ops-b", defaultLocale: "en" });
+  await createForm(testDb.db, { formId: FORM_SNIPPET, slug: "ops-snippet", defaultLocale: "en" });
   await createForm(testDb.db, { formId: FORM_BULK, slug: "ops-bulk", defaultLocale: "en" });
   await createForm(testDb.db, { formId: FORM_ERASED, slug: "ops-erased", defaultLocale: "en" });
   // A published version, so the ADR-17 cases can create real sessions and erase them
@@ -294,6 +300,38 @@ describe("GET /admin/forms/:id/deliveries - scoping, ordering and derived status
     expect(dead.lastError).toBe("http_500");
     expect(dead.lastStatus).toBe(500);
     expect(dead.responseSnippet).toBe("upstream unavailable");
+    // #304: intact bodies read as not-redacted, so a client can tell the two apart.
+    expect(delivered.responseSnippetRedactedAt).toBeNull();
+    expect(dead.responseSnippetRedactedAt).toBeNull();
+  });
+
+  it("reports a redacted response body as redacted rather than as an empty one", async () => {
+    // Issue #304: a consumer echoing the request in a validation error puts the
+    // respondent's answers in `responseSnippet`, so it is removed on erasure and by
+    // the retention sweep. Both leave the field null - the same value it has when no
+    // response arrived or the body was genuinely empty - so the API has to carry the
+    // marker, or an operator screen would report an empty body for a deleted one.
+    // Its own form, and an attempt stamped far in the past with a horizon just
+    // after it, so the sweep touches this row and nothing else this file seeded.
+    const deliveryId = await seedDelivery(FORM_SNIPPET, new Date("2020-01-01T00:00:00.000Z"));
+    await recordDeliveryFailure(testDb.db, deliveryId, "http_400", new Date(), {
+      ...STORED_ATTEMPT,
+      lastAttemptAt: new Date("2020-01-01T00:00:00.000Z"),
+      lastStatus: 400,
+      lastResponseSnippet: '{"error":"invalid","received":{"q_name":"Ada Lovelace"}}',
+    });
+
+    await redactAgedResponseSnippets(testDb.db, new Date("2020-01-02T00:00:00.000Z"));
+
+    const { items } = await listDeliveries(FORM_SNIPPET);
+    const row = items.find((i) => i.deliveryId === deliveryId)!;
+    expect(row.responseSnippet).toBeNull();
+    expect(row.responseSnippetRedactedAt).not.toBeNull();
+    // Nothing in the payload leaks the removed bytes back out.
+    expect(JSON.stringify(row)).not.toContain("Ada Lovelace");
+    // The value-free record is still there for the audit question.
+    expect(row.lastStatus).toBe(400);
+    expect(row.lastError).toBe("http_400");
   });
 
   it("carries the masked signature through, never an HMAC", async () => {
@@ -444,6 +482,25 @@ describe("POST /admin/outbox/:id/redeliver - the ADR-17 refusal", () => {
 
   it("still redelivers a delivery whose session was never erased", async () => {
     const deliveryId = await seedDeliveryForSession("ses_alive_for_redeliver");
+    expect((await redeliver(deliveryId)).status).toBe(200);
+  });
+
+  it("still redelivers a delivery whose snippet merely aged out (#304)", async () => {
+    // The trap this pins: the refusal maps to an **erasure-specific** message, which
+    // is accurate only while erasure is the sole thing it reads. Response-snippet
+    // retention adds a second producer of a redaction marker, so if the refusal ever
+    // learned to read that one it would tell an operator a response was erased when
+    // it merely aged out - and would block a redelivery there is no reason to block.
+    const deliveryId = await seedDeliveryForSession("ses_alive_snippet_aged");
+    await recordDeliveryFailure(testDb.db, deliveryId, "http_400", new Date(), {
+      ...STORED_ATTEMPT,
+      lastAttemptAt: new Date("2020-01-01T00:00:00.000Z"),
+      lastStatus: 400,
+      lastResponseSnippet: '{"error":"invalid","received":{"q_name":"Ada Lovelace"}}',
+    });
+    await redactAgedResponseSnippets(testDb.db, new Date("2020-01-02T00:00:00.000Z"));
+
+    expect(await redeliveryRefusalFor(testDb.db, deliveryId)).toBeUndefined();
     expect((await redeliver(deliveryId)).status).toBe(200);
   });
 
