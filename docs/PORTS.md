@@ -25,13 +25,13 @@ Seat `S`, where `S` is `0`-`9`:
 
 | Port | Service | Block | Notes |
 |---|---|---|---|
-| `7S00` | portal dev server | stable | `pnpm dev:portal` (`pnpm dev:admin` does not start it). Published out of the dev container. The solo Compose stack (`docker-compose.yml`) publishes its portal here too: same audience, same lifetime, so it takes a seat's stable slot rather than a number of its own, and it cannot run at the same seat as `pnpm dev:portal`. |
+| `7S00` | portal dev server | stable | `pnpm dev:portal` (`pnpm dev:admin` does not start it). Published out of the dev container. The solo Compose stack (`docker-compose.yml`, brought up by `pnpm dev:up`) publishes its portal here too: same audience, same lifetime, so it takes a seat's stable slot rather than a number of its own, and it cannot run at the same seat as `pnpm dev:portal`. |
 | `7S10` | API dev server | stable | `pnpm dev:portal` and `pnpm dev:admin` each start their own, which is why the two cannot share a seat. Published out of the dev container. |
 | `7S20` | dev Postgres | stable | `docker-compose.dev.yml`, **host-owned**. Deliberately *not* in the container's `appPort`. |
 | `7S30` | artifacts server | stable | `pnpm artifacts`. Published out of the dev container. |
-| `7S40` | admin dev server | stable | `pnpm dev:admin` (issue #281). Published out of the dev container, like `7S00`/`7S10`/`7S30`. The solo Compose stack publishes its admin here as well, for the same reason as `7S00`. |
-| `7S50` | observability dashboard (dev tools) | stable | Grafana UI from `grafana/otel-lgtm` in `docker-compose.dev-tools.yml`. Opt-in overlay, never the shipped topology (ADR-20). Its OTLP ingest is **not** published: `api` and `portal` reach it at `lgtm:4318` over the Compose network, so the viewer costs one slot rather than two. |
-| `7S60` | database viewer (dev tools) | stable | pgweb from the same overlay, read-only, bound to loopback. A credentialed database client exists here and nowhere else in the topology - see the note below. |
+| `7S40` | admin dev server | stable | `pnpm dev:admin` (issue #281). Published out of the dev container, like `7S00`/`7S10`/`7S30`. The solo Compose stack publishes its admin here as well, for the same reason as `7S00`; `pnpm dev:up` bootstraps an administrator in it so this address can be signed in to. |
+| `7S50` | observability dashboard (dev tools) | stable | Grafana UI from `grafana/otel-lgtm` in `docker-compose.dev-tools.yml`, which `pnpm dev:up` layers on. Opt-in overlay, never the shipped topology (ADR-20). Its OTLP ingest is **not** published: `api` and `portal` reach it at `lgtm:4318` over the Compose network, so the viewer costs one slot rather than two. |
+| `7S60` | database viewer (dev tools) | stable | pgweb from the same overlay (so also `pnpm dev:up`), read-only, bound to loopback. A credentialed database client exists here and nowhere else in the topology - see the note below. |
 | `17S00` | portal dev server (harness) | harness | Playwright `webServer`. Also the portal **published** by the full-stack Compose stack (`pnpm up:e2e`), which is why those two cannot share a seat. |
 | `17S10` | composed API (harness) | harness | Bound by the Playwright runner in `globalSetup`. |
 | `17S20` | *(unused, deliberately)* | harness | Mirrors `7S20`. A harness run boots a Testcontainers Postgres on a kernel-assigned port and never wants a fixed one. The slot stays empty so `17S{nn}` maps onto `7S{nn}` without a second table. |
@@ -96,7 +96,7 @@ stablePort("portal");        // 7000 at seat 0, 7100 at seat 1
 harnessPort("otlp", 2);      // 17230
 ```
 
-- Root dev scripts import it directly: `dev-stack.mjs` (behind `pnpm dev:portal` and `pnpm dev:admin`, whose entry points are two thin files) and `serve-artifacts.mjs`.
+- Root dev scripts import it directly: `dev-stack.mjs` (behind `pnpm dev:portal` and `pnpm dev:admin`, whose entry points are two thin files), `dev-compose.mjs` (behind `pnpm dev:up` and `pnpm dev:down`, which takes its four published ports and its Compose project name from here) and `serve-artifacts.mjs`.
 - The Playwright harness reaches it through `apps/portal/e2e/support/port-seat.ts`, which adds the startup refusals below.
 - `apps/*/e2e/support/harness-config.ts` derive every harness port from it; there are no port literals left in either.
 
@@ -187,6 +187,8 @@ The root cause was not carelessness: there was no mechanism by which two lanes *
 - **The dev container name is exclusive too, and collides first.** `.devcontainer/devcontainer.json` pins `--name=qcms-dev-container`. Two seats would clash on that name before they ever clashed on a port. A seat-suffixed name is the obvious shape; see the devcontainer note below.
 - **The harness block is exclusive per seat but cheap to move.** It is bound by whichever host runs the tests, for the duration of the run.
 - **The Compose project name matters as much as the port, and the failure is worse than sharing.** Two Compose stacks with the same project name **are the same stack**. A second seat that moved only `QCMS_DB_PORT` would hand Compose the same project with a changed port mapping, so `docker compose up -d` **recreates** the running container on the new port against the same volume: seat 1 does not quietly join seat 0's database, it **takes it away mid-session**, leaving seat 0's processes dialling a port nothing serves. Nothing errors on either side. That is what makes the project name necessary rather than tidy. `composeProjectName()` returns `qcms-dev` at seat 0 and `qcms-dev-s<N>` otherwise; `scripts/dev-stack.mjs` exports it as `COMPOSE_PROJECT_NAME`, which outranks the `name:` in the compose file. Named volumes are namespaced by project, so a distinct name gives a seat its own data as well as its own container. *(Proven for seat 0 by the existing dev path; the seat-N branch is unit-tested, not yet run.)*
+
+  There are two more project names on the same rule, both derived beside that one and neither ever equal to it or to each other at any seat: `${composeProjectName()}-full-stack-e2e` for the throwaway harness stack (`scripts/compose-e2e.mjs`), and `localStackProjectName()` for the full local stack `pnpm dev:up` brings up - `qcms-local-stack` at seat 0, `qcms-local-stack-s<N>` otherwise, spelled out rather than suffixed so `docker compose ls` and Docker Desktop show a group a person recognises. `pnpm dev:down` addresses that same name, computed once so the two cannot disagree; `COMPOSE_PROJECT_NAME` outranks it, as it does for the dev database.
 
 ### How a seat claims its number
 

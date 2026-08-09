@@ -214,6 +214,26 @@ export function composeProjectName(seat = PORT_SEAT) {
   return checkedSeat(seat) === DEFAULT_PORT_SEAT ? "qcms-dev" : `qcms-dev-s${String(seat)}`;
 }
 
+/**
+ * The Compose project name for `seat`'s full local stack: the solo topology plus the
+ * developer-toolbox overlay, which is what `pnpm dev:up` brings up.
+ *
+ * It sits beside {@link composeProjectName} because everything that function's
+ * comment says about sharing a name applies here unchanged; what differs is only
+ * which stack is being named. The name is spelled out rather than derived from the
+ * dev database's, so `docker compose ls` and Docker Desktop show one group a person
+ * recognises instead of a name that reads like the database's or like the checkout
+ * directory's.
+ *
+ * @param {number} [seat]
+ * @returns {string}
+ */
+export function localStackProjectName(seat = PORT_SEAT) {
+  return checkedSeat(seat) === DEFAULT_PORT_SEAT
+    ? "qcms-local-stack"
+    : `qcms-local-stack-s${String(seat)}`;
+}
+
 /** Where Linux publishes the kernel's ephemeral (auto-assigned) port window. */
 export const EPHEMERAL_RANGE_PATH = "/proc/sys/net/ipv4/ip_local_port_range";
 

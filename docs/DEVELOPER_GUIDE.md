@@ -152,37 +152,60 @@ If that **passes**, the variable is being stripped.
 
 **Rollback (the migration is reversible):** `.devcontainer/` touches no product code. Stop using it - or delete the directory - and the host workflow is unchanged: `pnpm install`, the merge gate, and `docker compose -f docker-compose.dev.yml up -d` behave exactly as they did before task 046 (re-run `pnpm install` on the host once if that checkout had been used in the container). Task 046 verified that the portal and API dev servers already bind `0.0.0.0` by default, so no source change was needed for host-browser viewing.
 
-## The developer toolbox: traces and a database viewer (optional)
+## The whole stack, and the developer toolbox
 
-Tracing is **off unless you set an endpoint** (task 054, ADR-34), and no viewer ships with QCMS. What you reach for depends on how you are running the stack, and the two answers are genuinely different rather than variations of one.
+Tracing is **off unless you set an endpoint** (task 054, ADR-34), and no viewer ships with QCMS. What you reach for depends on how you are running the stack, and the two answers are genuinely different rather than variations of one. Section A is also the shortest route to a running QCMS you can sign in to, whether or not you care about traces.
 
-### A. The composed stack: `docker-compose.dev-tools.yml`
+### A. The composed stack: `pnpm dev:up`
 
-An opt-in overlay (issue #417) carrying Grafana's `otel-lgtm` (Grafana + Loki + Tempo + Prometheus + a collector, in one container) and `pgweb`. It is never part of the base invocation: ADR-20's shipped topology is four containers, and this is a toolbox rather than a deployment.
+The whole stack plus the toolbox, brought up and bootstrapped in one command. When it returns you can open the admin and **sign in**, with an account and password it printed:
 
 ```sh
-# Once: add a password for the read-only database role to your .env. It is NOT in
+# Once: copy the operator template and fill in every secret.
+cp .env.compose.example .env
+
+# Once: add a password for the read-only database role. It is NOT in
 # .env.compose.example, because that file is the operator's and this is yours.
 echo "QCMS_DB_VIEWER_PASSWORD=$(openssl rand -hex 24)" >> .env
 
-docker compose -f docker-compose.yml -f docker-compose.dev-tools.yml up --detach
+pnpm dev:up
 ```
 
-That gives you, at seat 0 (`docs/PORTS.md` for other seats, and both are loopback-only):
+Underneath it is the opt-in developer-toolbox overlay (issue #417) layered on the solo topology, which is to say exactly this:
+
+```sh
+docker compose -f docker-compose.yml -f docker-compose.dev-tools.yml up --detach --build --wait
+```
+
+The overlay carries Grafana's `otel-lgtm` (Grafana + Loki + Tempo + Prometheus + a collector, in one container) and `pgweb`. It is never part of the base invocation: ADR-20's shipped topology is four containers, and this is a toolbox rather than a deployment.
+
+That gives you, at seat 0 (`docs/PORTS.md` for other seats, and all four are loopback-only):
 
 | Where | What |
 |---|---|
+| <http://localhost:7040> | The authoring admin. Sign in with the credential `dev:up` printed. |
+| <http://localhost:7000> | The respondent portal. |
 | <http://localhost:7050> | Grafana. Log in `admin` / `admin` - the image's own default, on a port only your machine can reach. **Explore -> Tempo -> Search** lists recent traces. |
 | <http://localhost:7060> | pgweb, connected read-only to the application database. No login screen: the connection comes from the environment. |
 
-Bring it down the way you brought it up, or the overlay's containers are left behind as orphans of the base file:
+Bring it down with the matching command, which removes the containers, the network, the volumes and the overlay's containers (which are orphans of the base file and are otherwise left behind):
 
 ```sh
-docker compose -f docker-compose.yml -f docker-compose.dev-tools.yml down
+pnpm dev:down
 ```
 
-Three things worth knowing before you go looking for something that is missing:
+**What `dev:up` does beyond `docker compose up`**, because each piece is a step that used to be manual and easy to get wrong:
 
+- **It creates the first administrator, inside this stack.** The composed stack has a Postgres of its own, separate from the `7S20` database `pnpm dev:portal` uses, so `create-admin` is run in this stack's `api` container (`scripts/compose-admin.mjs`, the same step the full-stack harness uses). An admin created against the wrong database is invisible here, and the symptom is a sign-in that fails with nothing wrong anywhere you would look.
+- **It is safe to re-run.** `create-admin` refuses once any account exists (SEC-1) and that refusal is correct, so a second `dev:up` reports the skip and prints the URLs rather than working around it. To get a fresh account, `pnpm dev:down` first: the volume goes with it.
+- **It pins `QCMS_ADMIN_AUTH_SECRET`** in `.env.dev-admin` (gitignored), generating one on first use. Unpinned, the API mints a fresh secret every boot, which makes an existing TOTP enrolment permanently unverifiable and burns a recovery code per restart - see the pinning note earlier in this guide. An exported value wins; `.env` is deliberately not consulted, so re-copying the operator template cannot silently replace a pinned secret with its placeholder. The file is made **owner-only on every run**, not just when it is created: if you already have one that other users on the machine can read, `dev:up` tightens it and prints one line saying so. (`writeFileSync`'s `mode` option applies only when the call creates the file, so setting it at creation would have protected the one case that needs it least.)
+- **It derives the seat's ports and Compose project name** from `scripts/ports.mjs` (R8). Seat 0's project is `qcms-local-stack`, so `docker compose ls` shows one named group; another seat gets `qcms-local-stack-s<N>`, its own containers and its own volume. Neither collides with the dev database (`qcms-dev`) or the full-stack e2e stack. From a linked worktree, `QCMS_PORT_SEAT` is refused rather than defaulted (issue #296): `dev:down` removes volumes, so an adopted seat would delete another lane's stack rather than read it.
+- **It pins the publish to loopback**, whatever `QCMS_BIND_ADDRESS` says in `.env`. That variable is legitimately `0.0.0.0` for an operator with a separate ingress host, but this stack prints a plaintext credential and runs a Grafana logged in with `admin`/`admin`.
+- **Inside the dev container** these ports are published on the **host's** loopback (Compose drives the host daemon, ADR-29), so open them in a browser on the host. They are not reachable from the container's own `localhost`.
+
+Four things worth knowing before you go looking for something that is missing:
+
+- **First sign-in forces TOTP enrolment** (SEC-1) and shows the recovery codes exactly once. Have an authenticator app open before you start. `QCMS_ADMIN_2FA=optional` relaxes it while developing, and both the API and the admin read it, so setting it in one place only makes every admin API call 401.
 - **The logs pane is empty, and that is expected.** QCMS exports traces only. OTLP log export is issue #370, which carries a SEC-13 amendment and is deliberately a separate change. Loki is running; nothing sends to it.
 - **The first request after a cold start may not appear.** `lgtm` takes tens of seconds to come up and ships no healthcheck, so the apps start before the collector is listening and the earliest spans exhaust their retry budget. Make a second request.
 - **Nothing persists.** The overlay declares no volumes, so a restart of `lgtm` empties the dashboard. That is the trade that makes `down` leave nothing behind.
