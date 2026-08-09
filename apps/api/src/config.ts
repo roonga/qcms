@@ -626,13 +626,7 @@ export function parseAdminAuth(env: Env, issues: string[]): Config["adminAuth"] 
   const secret = parseRequiredString(env, "QCMS_ADMIN_AUTH_SECRET", MIN_SECRET_LENGTH, issues);
   return {
     secret,
-    secrets: parseSecretVersions(
-      env,
-      "QCMS_ADMIN_AUTH_SECRETS",
-      secret,
-      MIN_SECRET_LENGTH,
-      issues,
-    ),
+    secrets: parseSecretVersions(env, "QCMS_ADMIN_AUTH_SECRETS", secret, MIN_SECRET_LENGTH, issues),
     baseUrl: parseRequiredHttpUrl(env, "QCMS_ADMIN_BASE_URL", issues, "the authoring admin app"),
     idleMs: parseInt_(
       env,
