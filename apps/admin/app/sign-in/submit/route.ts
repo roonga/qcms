@@ -1,6 +1,6 @@
 import { enableTwoFactor, proxiedSession, signInEmail } from "@/lib/server/auth-api";
 import { twoFactorOptional } from "@/lib/server/config";
-import { pendingEnrollmentCookie } from "@/lib/server/enrollment";
+import { pendingEnrollmentCookie, recoveryCodesCookie } from "@/lib/server/enrollment";
 import {
   authRefused,
   authThrottled,
@@ -87,9 +87,10 @@ export async function POST(request: Request): Promise<Response> {
   const enrolled = session?.user.twoFactorEnabled === true;
 
   if (!enrolled && !twoFactorOptional()) {
-    // Outcome 2. `two-factor/enable` returns the otpauth URI and the recovery codes;
-    // only the URI is carried forward, because the codes are read back server-side
-    // at display time and never travel through a cookie.
+    // Outcome 2. `two-factor/enable` returns the otpauth URI and the recovery codes,
+    // and this is the only moment either exists outside the database (issue #319
+    // removed the route that read the codes back). Both are carried forward in the
+    // short-lived enrollment cookies; `lib/server/enrollment.ts` records why.
     const provisioned = await enableTwoFactor(request.headers, password, issuedCookie);
     // A refusal here is not a credential problem the visitor can act on (the password
     // was just accepted), so it stays an error rather than becoming a fourth outcome -
@@ -97,8 +98,15 @@ export async function POST(request: Request): Promise<Response> {
     if (authRefused(provisioned)) {
       throw new Error(`Failed to provision 2FA enrollment (${String(provisioned.status)})`);
     }
-    const { totpURI } = (await provisioned.json()) as { totpURI: string };
-    return redirectAfterPost(ENROLL_PATH, [...cookies, pendingEnrollmentCookie(totpURI)]);
+    const { totpURI, backupCodes } = (await provisioned.json()) as {
+      totpURI: string;
+      backupCodes: string[];
+    };
+    return redirectAfterPost(ENROLL_PATH, [
+      ...cookies,
+      pendingEnrollmentCookie(totpURI),
+      recoveryCodesCookie(backupCodes),
+    ]);
   }
 
   // Outcome 3.

@@ -58,6 +58,7 @@ beforeAll(async () => {
     db: unusedDb(),
     adminAuth: {
       secret: "x".repeat(40),
+      secrets: [{ version: 1, value: "x".repeat(40) }],
       baseUrl: ADMIN_ORIGIN,
       idleMs: 3_600_000,
       secureCookies: true,
