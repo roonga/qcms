@@ -1,6 +1,6 @@
 # QCMS - Security Design
 
-**Status:** v1.1 (formal) · companion to `ARCHITECTURE.md` (§5.1, §7, §8) and `PROJECT_GOAL.md` (ADR-16…25) · v1.1: ingress language per ADR-20; task-file fold-back note (§10); SEC-13 telemetry privacy per ADR-34 (task 054)
+**Status:** v1.1 (formal) · companion to `ARCHITECTURE.md` (§5.1, §7, §8) and `PROJECT_GOAL.md` (ADR-16…25) · v1.1: ingress language per ADR-20; task-file fold-back note (§10); SEC-13 telemetry privacy per ADR-34 (task 054); SEC-1 password policy amended to a breach-corpus check, 2026-08-09 (issue #178)
 **Decisions here are numbered SEC-1…SEC-13** and carry ADR weight; conflicts are flagged, not silently overridden.
 **Delivery:** every control in this document maps to a task in `features/` (traceability matrix, §10). New task: `features/040-security-review-hardening.md`, executed after 036 and before the launch gate (038).
 
@@ -181,7 +181,7 @@ Lockfile committed and frozen in CI (`--frozen-lockfile`); `pnpm audit` + osv-sc
 
 | Control | Designed | Delivered / verified |
 |---|---|---|
-| Admin authn + 2FA (SEC-1) | §2.1 | 031 · 040 |
+| Admin authn + 2FA (SEC-1) | §2.1 | 031 · #178 · 040 |
 | Respondent tokens + secure links (SEC-2) | §2.2 | 010, 018, 024 · 027 |
 | Authorization matrix (SEC-3) | §3 | 017, 021–023 · **040 matrix tests** |
 | Service channel auth (SEC-4) | §2.3 | 017, 029, 031 · 040 |
