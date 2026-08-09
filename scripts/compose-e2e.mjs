@@ -27,12 +27,12 @@
  * set of names.
  */
 
-import { randomBytes } from "node:crypto";
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { spawn, spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { createFirstAdmin, generatePassword } from "./compose-admin.mjs";
 import { isInDockerContainer } from "./docker-host.mjs";
 import { assertPortSeatChosen, composeProjectName, harnessPort } from "./ports.mjs";
 
@@ -502,35 +502,29 @@ function stopLoopbackForwarding() {
  * closes the moment one exists (SEC-1), so "bootstrap another administrator" is not
  * an operation this harness can offer to anything, including `drill-restore.mjs`.
  *
+ * The step it performs is shared with `dev-compose.mjs` through
+ * `scripts/compose-admin.mjs` - which service, which entry, how the credentials
+ * travel - because two copies of that would be wrong in the same way. What stays
+ * here is this harness's own policy: a per-run throwaway identity, the credentials
+ * file the spec reads, and the CI-aware echo.
+ *
  * @returns {{ email: string, password: string }}
  */
 function bootstrapAdmin() {
   const credentials = {
     email: `compose.e2e.${Date.now().toString(36)}@admin.test`,
-    password: `e2e-${randomBytes(24).toString("base64url")}`,
+    password: generatePassword("e2e-"),
   };
   writeFileSync(credentialsPath, `${JSON.stringify(credentials)}\n`, { mode: 0o600 });
-  // Bootstrapped through the **api** service, not admin: since task 056 the API owns
-  // better-auth and is the only container with a database credential, so it is the only
-  // one that can create an account (ADR-35 as amended 2026-07-31). The entry is a
-  // compiled one (`dist/create-admin.js`) because the image is built by
-  // `pnpm deploy --prod`, which ships only what the package's `files` field lists.
-  run(
-    docker,
-    [
-      ...compose,
-      "exec",
-      "--no-TTY",
-      "--env",
-      `QCMS_ADMIN_EMAIL=${credentials.email}`,
-      "--env",
-      `QCMS_ADMIN_PASSWORD=${credentials.password}`,
-      "api",
-      "node",
-      "dist/create-admin.js",
-    ],
-    e2eEnvironment,
-  );
+  // `up()` takes the stack down with its volume first, so the admin table is always
+  // empty here and "created" is the only correct outcome. A skip would mean this run
+  // is about to drive a browser against an account whose password it does not know.
+  const outcome = createFirstAdmin({ compose, credentials, environment: e2eEnvironment });
+  if (outcome !== "created")
+    throw new Error(
+      `compose-e2e: the stack already had an administrator after down --volumes (${outcome}); ` +
+        "the spec's credentials would not open it",
+    );
   // Printed for a human who wants to sign in to the stack by hand, and suppressed
   // on CI: the workflow log of a public repository is a public log, and the spec
   // reads the credentials file rather than this output.

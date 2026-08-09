@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -25,8 +25,15 @@ import {
  * The checkout kind is what decides the outcome, and this suite has to control it
  * rather than inherit it: the same assertion would pass vacuously in the primary
  * checkout and fail in a worktree. So each case gets a throwaway root holding a copy
- * of the three script modules, with `.git` written as a FILE (a linked worktree) or
- * as a DIRECTORY (a primary checkout, and what CI checks out).
+ * of `scripts/`, with `.git` written as a FILE (a linked worktree) or as a DIRECTORY
+ * (a primary checkout, and what CI checks out).
+ *
+ * The whole directory is copied rather than a named list of modules, and that is a
+ * correction rather than laziness. A hand-kept list has to be updated whenever the
+ * harness gains an import, and forgetting is not a readable failure: the copied
+ * script dies in Node's module resolver, so all five assertions below report a
+ * missing specifier instead of anything about seats. Copying the directory cannot
+ * drift.
  *
  * Both cases are driven with an argv the script rejects anyway, so neither can reach
  * Docker even if the refusal were missing: a missing seat must produce the seat
@@ -34,7 +41,6 @@ import {
  */
 
 const SCRIPTS = fileURLToPath(new URL(".", import.meta.url));
-const MODULES = ["compose-e2e.mjs", "ports.mjs", "docker-host.mjs"];
 const roots: string[] = [];
 
 afterAll(() => {
@@ -45,8 +51,7 @@ afterAll(() => {
 function checkout(kind: "worktree" | "primary"): string {
   const root = mkdtempSync(join(tmpdir(), "qcms-compose-e2e-"));
   roots.push(root);
-  mkdirSync(join(root, "scripts"));
-  for (const module of MODULES) copyFileSync(join(SCRIPTS, module), join(root, "scripts", module));
+  cpSync(SCRIPTS, join(root, "scripts"), { recursive: true });
   if (kind === "worktree")
     writeFileSync(join(root, ".git"), "gitdir: /elsewhere/.git/worktrees/x\n");
   else mkdirSync(join(root, ".git"));
