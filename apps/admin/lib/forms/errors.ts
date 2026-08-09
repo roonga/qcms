@@ -42,7 +42,7 @@ const FORM_CODE_MESSAGES: Readonly<Record<string, MessageKey>> = {
   WEBHOOK_NOT_FOUND: "ops.error.webhookNotFound",
   WEBHOOK_URL_REJECTED: "ops.error.webhookUrlRejected",
   DELIVERY_NOT_FOUND: "ops.error.deliveryNotFound",
-  DELIVERY_SESSION_ERASED: "ops.error.deliverySessionErased",
+  DELIVERY_NOT_REDELIVERABLE: "ops.error.deliveryNotRedeliverable",
   unauthorized: "forms.error.unauthorized",
   rate_limited: "forms.error.rateLimited",
   internal: "forms.error.internal",

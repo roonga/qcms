@@ -125,6 +125,8 @@ export { SessionNotFoundError, eraseSession } from "./erasure.js";
 
 export {
   type OutboxRow,
+  type OutboxPayloadRedactionResult,
+  DEFAULT_OUTBOX_PAYLOAD_RETENTION_MS,
   OUTBOX_BACKOFF_BASE_MS,
   OUTBOX_BACKOFF_FACTOR,
   OUTBOX_BACKOFF_CAP_MS,
@@ -136,6 +138,7 @@ export {
   markDelivered,
   recordFailure,
   listDeadLetters,
+  redactAgedOutboxPayloads,
   resetForRedelivery,
 } from "./outbox.js";
 

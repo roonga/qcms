@@ -113,6 +113,13 @@
       "when": 1786240180063,
       "tag": "0015_snippet_requires_attempt",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1786245958657,
+      "tag": "0016_outbox_payload_retention",
+      "breakpoints": true
     }
   ]
 }

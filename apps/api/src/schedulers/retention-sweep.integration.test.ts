@@ -21,6 +21,8 @@ import {
   insertFormVersion,
   insertWebhook,
   listRecentDeliveries,
+  markDelivered,
+  markDeliveryDelivered,
   recordDeliveryFailure,
 } from "@qcms/db";
 import { startTestDb, type TestDb } from "@qcms/db/testing";
@@ -61,15 +63,12 @@ async function seedForm(id: string): Promise<{ formId: FormId; version: number }
 }
 
 /** Build a config whose retention sweep runs on a short test interval. */
-function shortIntervalConfig(intervalMs: number, snippetTtlMs?: number): Config {
+function shortIntervalConfig(intervalMs: number, ttl: Partial<Config["ttl"]> = {}): Config {
   const base = loadConfig(validEnv());
   return {
     ...base,
     scheduler: { ...base.scheduler, retentionSweepIntervalMs: intervalMs },
-    ttl: {
-      ...base.ttl,
-      deliveryResponseSnippetMs: snippetTtlMs ?? base.ttl.deliveryResponseSnippetMs,
-    },
+    ttl: { ...base.ttl, ...ttl },
   };
 }
 
@@ -146,7 +145,7 @@ describe("retention-sweep scheduler (live DB)", () => {
     // remove it. Real clock, for the same reason the sweep above uses one.
     const deps = makeDeps({
       db: testDb.db,
-      config: shortIntervalConfig(25, 1_000),
+      config: shortIntervalConfig(25, { deliveryResponseSnippetMs: 1_000 }),
       clock: systemClock,
     });
     const scheduler = createRetentionSweepScheduler(deps);
@@ -167,6 +166,79 @@ describe("retention-sweep scheduler (live DB)", () => {
     // The value-free half of the record is untouched.
     expect(after?.lastStatus).toBe(400);
     expect(after?.lastError).toBe("http_400");
+  }, 15_000);
+
+  /**
+   * Issue #329: the same pass also drops the answers a settled outbox event carries.
+   * `outbox.payload` is a second full copy of the respondent's locked answer set,
+   * kept only so a delivery can be re-sent; once the event and its whole fan-out
+   * have settled past the redelivery window there is nothing left for it to answer.
+   * The db package owns which rows; what this proves is that the API's existing
+   * retention scheduler is actually wired to run it, against a real database.
+   */
+  it("drops a settled event's answers on the same pass", async () => {
+    const { formId } = await seedForm("frm_api_payload");
+    const webhookId = "whk_api_payload";
+    await insertWebhook(testDb.db, {
+      webhookId,
+      formId,
+      url: "https://consumer.example.com/api-payload",
+      secretEncrypted: "v1.opaque",
+      active: true,
+    });
+    const settledAt = new Date(Date.now() - 60_000);
+    const event = await enqueue(testDb.db, {
+      eventType: "response.submitted",
+      payload: {
+        sessionId: "ses_api_payload",
+        formId,
+        contentHash: "0".repeat(64),
+        answers: { q_name: "Ada Lovelace" },
+      },
+    });
+    await insertDelivery(testDb.db, { outboxId: event.id, webhookId });
+    const [delivery] = await listRecentDeliveries(testDb.db, formId, 1);
+    await markDeliveryDelivered(testDb.db, delivery!.deliveryId, settledAt);
+    await markDelivered(testDb.db, event.id, settledAt);
+
+    const payloadOf = async (): Promise<Record<string, unknown>> =>
+      (
+        await testDb.client.query<{ payload: Record<string, unknown> }>(
+          `select payload from outbox where id = $1`,
+          [event.id],
+        )
+      ).rows[0]!.payload;
+    expect(await payloadOf()).toHaveProperty("answers");
+
+    // A 1s window against a fan-out that settled a minute ago, so the very next pass
+    // is due to redact it. Real clock, for the same reason the sweeps above use one.
+    const deps = makeDeps({
+      db: testDb.db,
+      config: shortIntervalConfig(25, { outboxPayloadMs: 1_000 }),
+      clock: systemClock,
+    });
+    const scheduler = createRetentionSweepScheduler(deps);
+    scheduler.start();
+    try {
+      const deadline = Date.now() + 4_000;
+      while (Date.now() < deadline && "answers" in (await payloadOf())) {
+        await new Promise((r) => setTimeout(r, 25));
+      }
+    } finally {
+      await scheduler.stop();
+    }
+
+    // The answers are gone and the envelope is not: the event still records that a
+    // response was submitted for this form and where it went.
+    expect(await payloadOf()).toEqual({
+      sessionId: "ses_api_payload",
+      formId,
+      contentHash: "0".repeat(64),
+    });
+    // And the delivery record survives untouched, so "was this sent anywhere" is
+    // still answerable.
+    const [after] = await listRecentDeliveries(testDb.db, formId, 1);
+    expect(after?.deliveredAt).not.toBeNull();
   }, 15_000);
 });
 

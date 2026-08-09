@@ -92,9 +92,11 @@ The cancellation is enforced structurally, not by convention:
 - `claimDue` (the fan-out claim) filters out redacted rows, so a session erased
   *before* its event was fanned out never gets a delivery row at all.
 - `POST /admin/outbox/:id/redeliver` reads exactly those two columns and answers
-  `409 DELIVERY_SESSION_ERASED`. One rule, stated in the two places it has to
+  `409 DELIVERY_NOT_REDELIVERABLE`. One rule, stated in the two places it has to
   hold, rather than a separate tombstone lookup that could drift from what the
-  scheduler actually does.
+  scheduler actually does. The code is cause-free because the state has two
+  producers: since issue #329 a payload can also be redacted by retention, and a
+  code naming erasure would be a false statement for those (see below).
 - The dead-letter queue excludes cancelled rows, because every row on it is being
   offered for redelivery. The **delivery dashboard** still shows them, with the
   status and the reason, so an operator asking "what happened to that delivery"
@@ -170,15 +172,78 @@ with neither, an attempt with a body, and an attempt with none (a timeout).
 records *that* a body was removed, never *why*, because it has two producers -
 erasure and this sweep - and a marker naming one would be a false statement the
 moment the other wrote it. Where the cause matters the row already carries it: an
-erased session's undelivered deliveries hold `cancelled_reason = 'session_erased'`
-and their outbox parent holds `payload_redacted_at`. The admin delivery dashboard
+erased session's undelivered deliveries hold `cancelled_reason = 'session_erased'`,
+and the tombstone is the record that the erasure happened at all.
+(`payload_redacted_at` on the outbox parent is *not* that evidence: since issue #329
+it has two producers of its own.) The admin delivery dashboard
 reads the marker and says the body was removed, rather than reporting an empty body
 for one that was deleted.
 
 It is **not** a redelivery refusal. `redeliveryRefusalFor` still reads exactly
 `cancelled_at` and `payload_redacted_at`, so a delivery whose snippet merely aged out
-is still redeliverable and still gets the accurate `DELIVERY_SESSION_ERASED` answer
-only when erasure is genuinely the reason.
+is still redeliverable.
+
+## Retention of the outbox payload
+
+The same argument applies one table over, and with more at stake. `outbox.payload`
+for a `response.submitted` event carries the respondent's **whole locked answer
+set**: QCMS's own second copy of the ledger, written so a delivery can be re-sent.
+Erasure reaches it on request (above), but until issue #329 nothing reached it
+otherwise, so every response ever submitted left a full copy of its answers in
+plaintext `jsonb` indefinitely, outside whatever retention policy an operator
+believed they had configured.
+
+`redactAgedOutboxPayloads` drops the `answers` member and stamps
+`payload_redacted_at`, keeping the envelope (`sessionId`, `formId`, `formVersion`,
+`submittedAt`, `contentHash`) and the event type. It runs on the same
+**retention-sweep scheduler** as the two rules above: one sweep with three jobs is
+auditable, three sweeps drift.
+
+**The window is the redelivery window** (`QCMS_OUTBOX_PAYLOAD_TTL_MS`, default **30
+days**, `0` supported). The payload exists so an operator can re-send a delivery, so
+its justification expires with that capability rather than on a date somebody picked.
+The clock starts when the event **and its whole fan-out** have settled:
+
+- the event has been consumed by the fan-out pass (`delivered_at`) or dead-lettered,
+  and
+- every `webhook_deliveries` row for it has been delivered, dead-lettered or
+  cancelled, and settled before the same horizon.
+
+Both halves are load bearing. An unconsumed event still has to go somewhere, and
+redacting one would silently drop a submission that never left: a stuck queue is an
+operations problem, not a retention one. A delivery still pending is one the
+scheduler is about to send, and its claim joins this payload and skips redacted rows,
+so redacting under it would leave it reading "pending" on the dashboard forever while
+nothing ever sent it. Redelivering a dead letter restarts the clock, because that is
+the capability being kept alive.
+
+**What ageing out costs is deliberately small.** The envelope, the event type and the
+whole delivery record survive, so "did this response's event exist, where did it go,
+and did it arrive" is still answerable. Only the answers go - and the answer ledger
+itself is untouched by any of this; retention of *that* is the session sweep.
+
+**No backfill migration is needed, and none is missing**, for the same reason as the
+snippet: the predicate is over `delivered_at`, `dead_lettered_at` and `cancelled_at`,
+columns every existing row already carries, so the first sweep after an upgrade
+covers the whole back catalogue - which is precisely the data issue #329 is about.
+
+**The marker's meaning is enforced by the database.** Migration `0016` adds
+`CHECK (payload_redacted_at IS NULL OR NOT jsonb_exists(payload, 'answers'))`. Every
+control reads the marker as proof the answers are gone: the two claim queries, the
+redeliver endpoint and the sweep itself all skip a marked row. So a writer that
+stamped the marker without dropping `answers` would leave a full answer set in a row
+nothing ever looks at again - this control's own leak, through this control. Both
+redaction paths write the pair together, but a call-site convention cannot fail when
+a future writer breaks it, so the database refuses the row instead.
+
+**The refusal an operator meets.** Once a payload is redacted the delivery cannot be
+re-sent, and `POST /admin/outbox/:id/redeliver` answers
+`409 DELIVERY_NOT_REDELIVERABLE`. Unlike the erasure case this is no race: a dead
+letter older than the window sits on the queue looking redeliverable until it is
+pressed. The code and the sentence name the **state** ("the response this delivery
+carries is no longer held") rather than a cause, because erasure and retention are
+indistinguishable from the row by design, and an operator can act on neither
+differently.
 
 ## Reporting exclusion
 

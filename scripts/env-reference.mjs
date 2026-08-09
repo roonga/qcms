@@ -329,7 +329,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "3600000 (1h)",
     description:
-      "How often the retention sweep runs: expired anonymous sessions, and aged webhook response snippets.",
+      "How often the retention sweep runs: expired anonymous sessions, aged webhook response snippets, and aged outbox payloads.",
   },
   {
     name: "QCMS_DELIVERY_SNIPPET_TTL_MS",
@@ -338,6 +338,14 @@ export const ENV_REFERENCE = [
     fallback: "604800000 (7d)",
     description:
       "How long a webhook delivery keeps the stored prefix of the consumer's response body, measured from the attempt. That body can echo a respondent's answers back, so it ages out; the rest of the attempt record is value-free and is kept. `0` removes it at the next sweep.",
+  },
+  {
+    name: "QCMS_OUTBOX_PAYLOAD_TTL_MS",
+    process: "api",
+    requirement: "optional",
+    fallback: "2592000000 (30d)",
+    description:
+      "How long a settled outbox event keeps the answers its payload carries, measured from the moment the event and its whole fan-out stopped moving. The payload is a second copy of the respondent's answers kept only so a delivery can be re-sent, so it ages out with that capability; the envelope and the delivery record are kept. `0` drops them as soon as the fan-out settles.",
   },
   {
     name: "QCMS_READY_DB_TIMEOUT_MS",

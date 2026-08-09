@@ -198,6 +198,26 @@ A `CHECK` constraint (migration `0015`) requires any stored snippet to carry the
 `last_attempt_at` it belongs to, because that is what the sweep ages from and a NULL
 there would hide the row from every sweep forever.
 
+#### The event payload has a retention story too
+
+The delivery row is only half of it. The `outbox` row it hangs off carries the whole
+event, and for `response.submitted` that is the respondent's **entire locked answer
+set** - a second copy of the ledger, kept so the delivery can be re-sent. It is
+governed the same way (issue #329):
+
+- **Erasure removes the answers** from the payload on request, keeping the envelope.
+- **The retention sweep drops them** for everyone else once the event *and every
+  delivery of it* have settled - delivered, dead-lettered or cancelled - for longer
+  than `QCMS_OUTBOX_PAYLOAD_TTL_MS` (default 30 days, `0` to drop them as soon as the
+  fan-out settles). That is the redelivery window: the payload exists to support a
+  re-send, so it is kept exactly as long as re-sending is possible.
+
+An event whose payload has been redacted is never claimed, never fanned out and never
+redelivered, so the delivery it belongs to has stopped for good. `CHECK` constraint
+`outbox_redacted_payload_has_no_answers` (migration `0016`) makes the marker's meaning
+a database rule rather than a convention: a row cannot claim to be redacted while its
+answers are still in it. Full reasoning: `docs/erasure.md`.
+
 Both stamp `last_response_snippet_redacted_at` and neither touches the rest of the
 record, so "this delivery failed with a 400, ten times, at these instants" is still
 answerable forever. The dashboard reads the marker and says the body was removed,
@@ -277,7 +297,7 @@ public-only process has no admin group, so they 404 (ADR-09).
 | Route | Effect |
 |---|---|
 | `GET /admin/outbox/dead-letters` | List dead-lettered deliveries newest-first, each with its `eventId`, `eventType`, `webhookId`, `url`, `attempts`, and `lastError` (attempt history). **Cancelled deliveries are excluded** (059): the queue is a worklist of rows being offered back for redelivery, and a cancelled row may never be sent. |
-| `POST /admin/outbox/:id/redeliver` | `409 DELIVERY_SESSION_ERASED` when the delivery is cancelled or its event's payload has been redacted (ADR-17 as amended 2026-08-02) - erasure has reached this event, so it is never re-sent. Otherwise: reset one dead-lettered **delivery** (`:id` is a delivery id) to due-now - clears the dead-letter flag, resets attempts and the whole last-attempt record, and the next pass re-attempts it. `404` if unknown. |
+| `POST /admin/outbox/:id/redeliver` | `409 DELIVERY_NOT_REDELIVERABLE` when the delivery is cancelled or its event's payload has been redacted - erasure reached this event (ADR-17 as amended 2026-08-02), or its payload aged out of the redelivery window (#329). Either way the response it carries is no longer held, so it is never re-sent; the code names the state rather than the cause, because the two are indistinguishable from the row and an operator can act on neither differently. Otherwise: reset one dead-lettered **delivery** (`:id` is a delivery id) to due-now - clears the dead-letter flag, resets attempts and the whole last-attempt record, and the next pass re-attempts it. `404` if unknown. |
 | `GET /admin/forms/:id/deliveries?limit=` | (035) One form's recent deliveries, newest first, each with its derived `status` (`delivered` / `cancelled` / `deadLettered` / `pending`), `attempts`, `lastError`, `cancelledAt`, `cancelledReason`, and the last-attempt record above - `lastStatus`, `latencyMs`, `requestHeaders` (signature masked), `responseSnippet`. Default 50, capped at 200. |
 
 A dead-letter is a single `(event, webhook)` delivery, not the whole event:

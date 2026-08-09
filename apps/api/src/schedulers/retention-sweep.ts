@@ -6,17 +6,27 @@
  * each rule (which rows, where the boundary is) live in @qcms/db. Gated by the
  * mount flags in `serve.ts` (internal process only).
  *
- * Two rules today:
+ * Three rules today:
  *
  * - `sweepExpiredSessions` (task 015) - abandoned sessions become `expired`.
  * - `redactAgedResponseSnippets` (issue #304) - webhook delivery rows lose the
  *   stored prefix of the consumer's response body once its diagnostic window has
- *   passed. It rides this scheduler rather than getting one of its own: a second
- *   timer for a second retention rule is a second thing to configure, mount, log
- *   and reason about, for no behaviour a shared pass does not already give.
+ *   passed.
+ * - `redactAgedOutboxPayloads` (issue #329) - a settled outbox event loses the
+ *   answers its payload carries once the redelivery window that payload exists to
+ *   serve has closed.
+ *
+ * Each rides this scheduler rather than getting one of its own: a second timer for a
+ * second retention rule is a second thing to configure, mount, log and reason about,
+ * for no behaviour a shared pass does not already give. One sweep with three jobs is
+ * auditable; three sweeps drift.
  */
 
-import { redactAgedResponseSnippets, sweepExpiredSessions } from "@qcms/db";
+import {
+  redactAgedOutboxPayloads,
+  redactAgedResponseSnippets,
+  sweepExpiredSessions,
+} from "@qcms/db";
 
 import type { Deps } from "../deps.js";
 import { createIntervalScheduler, type Scheduler } from "./scheduler.js";
@@ -42,6 +52,18 @@ export function createRetentionSweepScheduler(deps: Deps): Scheduler {
         // "answer values are never logged").
         deps.logger.info("delivery response snippets redacted", {
           redactedCount: snippets.redactedCount,
+        });
+      }
+      const payloads = await redactAgedOutboxPayloads(
+        deps.db,
+        new Date(now.getTime() - deps.config.ttl.outboxPayloadMs),
+      );
+      if (payloads.redactedCount > 0) {
+        // A count, never a payload: the member being dropped is the respondent's
+        // whole locked answer set, so logging one would defeat the sweep (SEC-13,
+        // and "answer values are never logged").
+        deps.logger.info("outbox payload answers redacted", {
+          redactedCount: payloads.redactedCount,
         });
       }
     },

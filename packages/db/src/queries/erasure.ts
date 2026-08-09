@@ -15,6 +15,7 @@ import {
   responseSnippetRedactionColumns,
 } from "./deliveries.js";
 import type { Executor } from "./executor.js";
+import { outboxPayloadRedactionColumns } from "./outbox.js";
 
 /**
  * The transaction-local GUC that opens the sanctioned `answers` DELETE door.
@@ -183,16 +184,15 @@ function outboxRowsForSession(sessionId: SessionId) {
  *
  * Rows already redacted are skipped so a re-run cannot move the original
  * `payload_redacted_at`; the `-` operator would be a no-op on them anyway.
+ *
+ * The columns are the shared `outboxPayloadRedactionColumns()`, so this and the
+ * retention sweep of issue #329 cannot drift about what "redacted" writes - and the
+ * `outbox_redacted_payload_has_no_answers` CHECK holds for both by construction.
  */
 async function redactOutboxPayloads(exec: Executor, sessionId: SessionId): Promise<void> {
   await exec
     .update(outbox)
-    .set({
-      payload: sql`${outbox.payload} - 'answers'`,
-      // The transaction timestamp, so the redaction, the cancellations and the
-      // tombstone's `erasedAt` default all name the same instant.
-      payloadRedactedAt: sql`now()`,
-    })
+    .set(outboxPayloadRedactionColumns())
     .where(and(outboxRowsForSession(sessionId), isNull(outbox.payloadRedactedAt)));
 }
 

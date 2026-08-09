@@ -35,11 +35,14 @@ import {
   insertDelivery,
   insertFormVersion,
   insertWebhook,
+  listTombstones,
+  markDelivered,
   markDeliveryDelivered,
   DELIVERY_CANCELLED_SESSION_ERASED,
   OUTBOX_MAX_ATTEMPTS,
   outbox,
   redeliveryRefusalFor,
+  redactAgedOutboxPayloads,
   redactAgedResponseSnippets,
   recordDeliveryFailure,
   webhookDeliveries,
@@ -417,7 +420,10 @@ describe("POST /admin/outbox/:id/redeliver - the ADR-17 refusal", () => {
 
     await eraseSession(testDb.db, sessionId, "subject_request");
 
-    expect(await redeliver(deliveryId)).toEqual({ status: 409, code: "DELIVERY_SESSION_ERASED" });
+    expect(await redeliver(deliveryId)).toEqual({
+      status: 409,
+      code: "DELIVERY_NOT_REDELIVERABLE",
+    });
 
     // A typed 409, not a 500: the refusal is a modelled outcome the admin renders,
     // and the payload carries a code rather than a stack.
@@ -448,7 +454,10 @@ describe("POST /admin/outbox/:id/redeliver - the ADR-17 refusal", () => {
     await eraseSession(testDb.db, sessionId, "subject_request");
 
     expect(await redeliveryRefusalFor(testDb.db, deliveryId)).toBe("payloadRedacted");
-    expect(await redeliver(deliveryId)).toEqual({ status: 409, code: "DELIVERY_SESSION_ERASED" });
+    expect(await redeliver(deliveryId)).toEqual({
+      status: 409,
+      code: "DELIVERY_NOT_REDELIVERABLE",
+    });
   });
 
   it("drops a cancelled delivery from the dead-letter queue but keeps it on the dashboard", async () => {
@@ -502,6 +511,37 @@ describe("POST /admin/outbox/:id/redeliver - the ADR-17 refusal", () => {
 
     expect(await redeliveryRefusalFor(testDb.db, deliveryId)).toBeUndefined();
     expect((await redeliver(deliveryId)).status).toBe(200);
+  });
+
+  it("refuses a delivery whose payload merely aged out, without calling it erased (#329)", async () => {
+    // The second producer of `payload_redacted_at`. The refusal is right - the
+    // answers are gone, so re-sending would post a malformed event - but the session
+    // was never erased, and before this issue the 409 said `DELIVERY_SESSION_ERASED`
+    // and the admin rendered "a response that has been erased". An operator chasing
+    // a stuck webhook would have been told a subject-erasure had happened.
+    const deliveryId = await seedDeliveryForSession("ses_payload_aged_out");
+    await markDeliveryDelivered(testDb.db, deliveryId, new Date("2020-01-01T00:00:00.000Z"));
+    const [parent] = await testDb.db
+      .select({ outboxId: webhookDeliveries.outboxId })
+      .from(webhookDeliveries)
+      .where(eq(webhookDeliveries.id, deliveryId));
+    await markDelivered(testDb.db, parent!.outboxId, new Date("2020-01-01T00:00:00.000Z"));
+    await redactAgedOutboxPayloads(testDb.db, new Date("2020-01-02T00:00:00.000Z"));
+
+    // No tombstone for this session and the delivery was never cancelled: nothing
+    // here is an erasure.
+    const tombstones = await listTombstones(testDb.db, { limit: 100 });
+    expect(tombstones.map((t) => t.sessionId)).not.toContain("ses_payload_aged_out");
+    const [state] = await testDb.db
+      .select({ cancelledAt: webhookDeliveries.cancelledAt })
+      .from(webhookDeliveries)
+      .where(eq(webhookDeliveries.id, deliveryId));
+    expect(state?.cancelledAt).toBeNull();
+    expect(await redeliveryRefusalFor(testDb.db, deliveryId)).toBe("payloadRedacted");
+    expect(await redeliver(deliveryId)).toEqual({
+      status: 409,
+      code: "DELIVERY_NOT_REDELIVERABLE",
+    });
   });
 
   it("still redelivers an event that names no session at all", async () => {
