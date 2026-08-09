@@ -1,4 +1,12 @@
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -12,6 +20,7 @@ import {
   missingVariables,
   parseEnvFile,
   pinAdminAuthSecret,
+  pinNoticeLines,
   preflightMessage,
   requiredVariables,
   requiredVariablesIn,
@@ -21,6 +30,9 @@ import {
 import { composeProjectName, localStackProjectName, stablePort } from "./ports.mjs";
 
 const scratch = mkdtempSync(join(tmpdir(), "qcms-dev-compose-"));
+
+/** A file's permission bits, which is all these assertions are ever about. */
+const mode = (path: string): number => statSync(path).mode & 0o777;
 afterAll(() => {
   rmSync(scratch, { recursive: true, force: true });
 });
@@ -214,7 +226,74 @@ describe("pinAdminAuthSecret", () => {
   it("writes the file readable only by its owner", () => {
     const path = join(scratch, "mode");
     pinAdminAuthSecret({ environment: {}, path });
-    expect(statSync(path).mode & 0o777).toBe(0o600);
+    expect(mode(path)).toBe(0o600);
+  });
+
+  /**
+   * The regression this suite exists for.
+   *
+   * `writeFileSync`'s `mode` option applies ONLY when the call creates the file; on
+   * an existing one it is silently ignored (measured: a 0644 file rewritten with
+   * `{ mode: 0o600 }` stays 0644). So a test that only ever exercises the create path
+   * passes with or without the fix and proves nothing. Each case below starts from a
+   * file that already exists at a wider mode, which is the state a real machine is
+   * in: the repository root of the machine this was written on had `.env.dev-admin`
+   * at 0644 holding a live secret.
+   */
+  describe("an existing pin file at a wider mode", () => {
+    it("is tightened to owner-only when it is read", () => {
+      const path = join(scratch, "loose-read");
+      writeFileSync(path, "QCMS_ADMIN_AUTH_SECRET=already-pinned\n");
+      chmodSync(path, 0o644);
+
+      const result = pinAdminAuthSecret({ environment: {}, path });
+
+      expect(result.source).toBe("file");
+      expect(result.secret).toBe("already-pinned");
+      expect(mode(path)).toBe(0o600);
+    });
+
+    it("reports what it tightened, so the change is not silent", () => {
+      const path = join(scratch, "loose-report");
+      writeFileSync(path, "QCMS_ADMIN_AUTH_SECRET=already-pinned\n");
+      chmodSync(path, 0o644);
+      expect(pinAdminAuthSecret({ environment: {}, path }).tightenedFrom).toBe("644");
+    });
+
+    it("is tightened on the REGENERATE path too, where `mode` is ignored outright", () => {
+      // Empty value, so the secret is regenerated into a file that already exists -
+      // exactly the call where writeFileSync's mode option does nothing at all.
+      const path = join(scratch, "loose-write");
+      writeFileSync(path, "QCMS_ADMIN_AUTH_SECRET=\n");
+      chmodSync(path, 0o646);
+
+      expect(pinAdminAuthSecret({ environment: {}, path }).source).toBe("generated");
+      expect(mode(path)).toBe(0o600);
+    });
+
+    it("says nothing when the file was already owner-only", () => {
+      const path = join(scratch, "already-tight");
+      writeFileSync(path, "QCMS_ADMIN_AUTH_SECRET=already-pinned\n");
+      chmodSync(path, 0o600);
+      expect(pinAdminAuthSecret({ environment: {}, path }).tightenedFrom).toBeUndefined();
+    });
+
+    // Tightening must never be a way of handing back a write bit a developer removed.
+    it("does not loosen a deliberately read-only file", () => {
+      const path = join(scratch, "read-only");
+      writeFileSync(path, "QCMS_ADMIN_AUTH_SECRET=already-pinned\n");
+      chmodSync(path, 0o400);
+      expect(pinAdminAuthSecret({ environment: {}, path }).tightenedFrom).toBeUndefined();
+      expect(mode(path)).toBe(0o400);
+    });
+  });
+
+  // Regenerating on an unreadable file would overwrite a secret this process could
+  // not read, which is the enrolment-destroying outcome the pin exists to prevent.
+  it("rethrows a failure that is not a missing file rather than regenerating", () => {
+    const path = join(scratch, "a-directory");
+    mkdirSync(path, { recursive: true });
+    expect(() => pinAdminAuthSecret({ environment: {}, path })).toThrow();
   });
 
   it("regenerates rather than returning an empty stored value", () => {
@@ -299,5 +378,30 @@ describe("teardownPlaceholders", () => {
   it("fills every required variable when there is no .env at all", () => {
     const filled = teardownPlaceholders(requiredVariables(), {}, {});
     expect(Object.keys(filled).sort()).toEqual([...requiredVariables()].sort());
+  });
+});
+
+describe("pinNoticeLines", () => {
+  it("names the rung the secret came from", () => {
+    expect(pinNoticeLines({ source: "environment" })[0]).toContain("from your environment");
+    expect(pinNoticeLines({ source: "file" })[0]).toContain(".env.dev-admin");
+    expect(pinNoticeLines({ source: "generated" })[0]).toContain("generated and written");
+  });
+
+  it("says nothing extra when no mode was changed", () => {
+    expect(pinNoticeLines({ source: "file" })).toHaveLength(1);
+  });
+
+  it("reports a tightened mode on its own line, naming the old one", () => {
+    const lines = pinNoticeLines({ source: "file", tightenedFrom: "644" });
+    expect(lines).toHaveLength(2);
+    expect(lines[1]).toContain("644");
+    expect(lines[1]).toContain("owner-only");
+  });
+
+  // SEC-8: these lines name the variable, the file and the mode, never the value.
+  it("never prints the secret", () => {
+    const text = pinNoticeLines({ source: "file", tightenedFrom: "644" }).join("\n");
+    expect(text).not.toMatch(/=[A-Za-z0-9_-]{20,}/);
   });
 });

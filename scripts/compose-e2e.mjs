@@ -27,7 +27,7 @@
  * set of names.
  */
 
-import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { spawn, spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -516,6 +516,12 @@ function bootstrapAdmin() {
     password: generatePassword("e2e-"),
   };
   writeFileSync(credentialsPath, `${JSON.stringify(credentials)}\n`, { mode: 0o600 });
+  // The `mode` above applies only when the call CREATES the file; on one that already
+  // exists it is silently ignored, so an interrupted run that left this behind at a
+  // wider mode would keep it. This file holds a live administrator password, so the
+  // permission is set rather than requested. Measured, not assumed: a 0644 file
+  // rewritten with `{ mode: 0o600 }` is still 0644.
+  chmodSync(credentialsPath, 0o600);
   // `up()` takes the stack down with its volume first, so the admin table is always
   // empty here and "created" is the only correct outcome. A skip would mean this run
   // is about to drive a browser against an account whose password it does not know.
