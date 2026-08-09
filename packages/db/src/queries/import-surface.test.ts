@@ -99,6 +99,12 @@ describe("query helper import surface", () => {
     "markDelivered",
     "recordFailure",
     "listDeadLetters",
+    // The time-based half of the payload's retention story (#329): the answers an
+    // event carries, dropped by the existing retention-sweep scheduler once the
+    // event and its whole fan-out have settled past the redelivery window. Erasure
+    // is the on-request half and runs inside `eraseSession`, so it has no separate
+    // entry here.
+    "redactAgedOutboxPayloads",
     "resetForRedelivery",
     // webhook deliveries (task 025) - the per-(event, webhook) fan-out unit;
     // shape-preserving claim/record/reset helpers, no signing or HTTP here.

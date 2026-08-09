@@ -22,7 +22,10 @@
  */
 
 import { HONEYPOT_FIELD_NAME } from "@qcms/a2ui-compiler";
-import { DEFAULT_RESPONSE_SNIPPET_RETENTION_MS } from "@qcms/db";
+import {
+  DEFAULT_OUTBOX_PAYLOAD_RETENTION_MS,
+  DEFAULT_RESPONSE_SNIPPET_RETENTION_MS,
+} from "@qcms/db";
 import { z } from "zod";
 
 /** Minimum bytes for signing/secret material (SEC-4/SEC-7: >= 32 random bytes). */
@@ -111,6 +114,19 @@ export interface Config {
      * is value-free and is kept whatever this is set to.
      */
     readonly deliveryResponseSnippetMs: number;
+    /**
+     * How long a settled outbox event keeps the `answers` member of its payload,
+     * measured from the moment the event and its whole fan-out stopped moving
+     * (`QCMS_OUTBOX_PAYLOAD_TTL_MS`, default 30 days - issue #329). The retention
+     * sweep drops the answers and keeps the envelope.
+     *
+     * The window is the redelivery window: the payload exists to let an operator
+     * re-send a delivery, so `0` is a legitimate setting and means "as soon as the
+     * fan-out settles" - strict data minimisation at the cost of ever redelivering.
+     * The event, its envelope and the whole delivery record are kept whatever this
+     * is set to.
+     */
+    readonly outboxPayloadMs: number;
   };
   /**
    * Per-endpoint-class rate limits (task 026), each a fixed window enforced by
@@ -458,6 +474,8 @@ const DEFAULTS = {
   anonymousSessionMs: 24 * 60 * 60 * 1000, // 24h (matches @qcms/db retention default)
   // 7d, from @qcms/db - the one place the window's rationale is written down (#304).
   deliveryResponseSnippetMs: DEFAULT_RESPONSE_SNIPPET_RETENTION_MS,
+  // 30d, from @qcms/db - same split, the rationale lives with the sweep (#329).
+  outboxPayloadMs: DEFAULT_OUTBOX_PAYLOAD_RETENTION_MS,
   // Per-class rate limits (task 026). Each pair is [windowMs, max].
   rlSessionCreate: { windowMs: 60 * 60 * 1000, max: 20 }, // 20 new sessions / hour / IP
   rlAnswersPerSession: { windowMs: 5_000, max: 10 }, // ≈2/s sustained, burst 10 / session
@@ -605,6 +623,17 @@ export function loadConfig(env: Env): Config {
         // Floor of 0, not 1_000: "remove it at the next sweep" is a policy an
         // operator may legitimately want, and there is no lower bound below which
         // keeping less of a consumer's response body becomes wrong.
+        0,
+        issues,
+      ),
+      outboxPayloadMs: parseInt_(
+        env,
+        "QCMS_OUTBOX_PAYLOAD_TTL_MS",
+        DEFAULTS.outboxPayloadMs,
+        // Floor of 0 for the same reason as the snippet above: "drop the answers as
+        // soon as the fan-out settles" is a policy an operator may legitimately
+        // want, and there is no lower bound below which holding a second copy of a
+        // respondent's answers for less time becomes wrong.
         0,
         issues,
       ),

@@ -117,7 +117,7 @@ Legend: **req** required (boot fails without it) · opt optional · cond require
 | `QCMS_ANTIABUSE_MIN_SUBMIT_MS` / `_HONEYPOT_FIELD` | `-` | `-` | opt | opt | `-` |
 | `QCMS_WEBHOOK_ALLOW_PRIVATE` / `_TIMEOUT_MS` / `_BATCH_SIZE` | `-` | `-` | opt | opt | `-` |
 | `QCMS_OUTBOX_INTERVAL_MS` / `_JITTER_MS` | `-` | `-` | opt | opt | `-` |
-| `QCMS_RETENTION_SWEEP_INTERVAL_MS` / `QCMS_DELIVERY_SNIPPET_TTL_MS` | `-` | `-` | opt | opt | `-` |
+| `QCMS_RETENTION_SWEEP_INTERVAL_MS` / `QCMS_DELIVERY_SNIPPET_TTL_MS` / `QCMS_OUTBOX_PAYLOAD_TTL_MS` | `-` | `-` | opt | opt | `-` |
 | `QCMS_BODY_LIMIT_BYTES` | `-` | `-` | opt | opt | `-` |
 | `QCMS_READY_DB_TIMEOUT_MS` | `-` | `-` | opt | opt | `-` |
 | `QCMS_PORTAL_THEME` / `_MODE` / `_CORNERS` / `_DENSITY` / `_FONT` / `_FONTS` / `_BRAND_NAME` / `_BRAND_LOGO` | opt | `-` | `-` | `-` | `-` |
@@ -132,7 +132,7 @@ Legend: **req** required (boot fails without it) · opt optional · cond require
 
 | Knob | Effective on | Why (verified) |
 |---|---|---|
-| `QCMS_OUTBOX_*`, `QCMS_RETENTION_SWEEP_INTERVAL_MS`, `QCMS_DELIVERY_SNIPPET_TTL_MS` | `api-internal` only | the schedulers start under `if (config.mount.internal)`, `apps/api/src/main.ts:74` |
+| `QCMS_OUTBOX_*`, `QCMS_RETENTION_SWEEP_INTERVAL_MS`, `QCMS_DELIVERY_SNIPPET_TTL_MS`, `QCMS_OUTBOX_PAYLOAD_TTL_MS` | `api-internal` only | the schedulers start under `if (config.mount.internal)`, `apps/api/src/main.ts:74` |
 | `QCMS_WEBHOOK_*` | `api-internal` only | read by the admin webhook-config handler and the delivery pass, both internal-side |
 | `QCMS_ADMIN_SESSION_MAX_AGE_MS`, `QCMS_ADMIN_2FA` | `api-internal` (and the admin app) | consumed by the admin-auth middleware, which exists only where `/admin` is mounted |
 | `QCMS_RL_*`, `QCMS_ANTIABUSE_*`, `QCMS_SESSION_TTL_MS` | `api-public` | the respondent loop (start session, answers, submit) is the public group |

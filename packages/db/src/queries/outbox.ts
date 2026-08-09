@@ -1,6 +1,7 @@
-import { and, asc, desc, eq, isNotNull, isNull, lte } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, lte, notExists, or, sql } from "drizzle-orm";
+import { alias, type PgColumn } from "drizzle-orm/pg-core";
 
-import { outbox } from "../schema/index.js";
+import { outbox, webhookDeliveries } from "../schema/index.js";
 import type { Executor } from "./executor.js";
 
 export type OutboxRow = typeof outbox.$inferSelect;
@@ -83,11 +84,14 @@ export async function enqueue(
  *
  * **Redacted rows are never claimed** (ADR-17 amendment, task 059). This is the
  * deliverer's *materialize* phase, so filtering here means an event whose answers
- * erasure removed is not fanned out to `webhook_deliveries` in the first place -
+ * have been removed is not fanned out to `webhook_deliveries` in the first place -
  * the alternative is delivery rows that read "pending" on the operator dashboard
- * forever while {@link claimDueDeliveries} silently declines to send them. A
- * redacted, unconsumed row simply stops moving; it is retained as the audit record
- * of an event that existed and never left.
+ * forever while `claimDueDeliveries` silently declines to send them. A redacted,
+ * unconsumed row simply stops moving; it is retained as the audit record of an
+ * event that existed and never left.
+ *
+ * Only erasure can produce that state: {@link redactAgedOutboxPayloads} never
+ * touches an unconsumed row, precisely so retention can never strand a queue.
  */
 export async function claimDue(exec: Executor, limit: number, now?: Date): Promise<OutboxRow[]> {
   const at = now ?? new Date();
@@ -152,6 +156,153 @@ export async function recordFailure(
       .returning();
     return row;
   });
+}
+
+/**
+ * How long a settled event's payload is kept by default: **30 days** from the moment
+ * the event and its whole fan-out stopped moving (issue #329).
+ *
+ * The window is derived from what the payload is *for*, not picked as a round
+ * number. Once an event is consumed and every delivery of it has been delivered,
+ * dead-lettered or cancelled, the stored `answers` member answers exactly one
+ * remaining question: "re-send it". So its justification expires with that
+ * capability rather than on a date somebody chose. A delivery exhausts its retries
+ * in a little over a day (`OUTBOX_BACKOFF_*`, 10 attempts, 6h cap), so 30 days
+ * leaves a month of Mondays for an operator to notice a dead letter, fix the
+ * consumer and press Redeliver; after that the row is a second full copy of a
+ * respondent's answers, held next to the answer ledger, that nothing will ever read.
+ *
+ * **What ageing out costs is deliberately small.** The envelope stays
+ * (`sessionId`, `formId`, `formVersion`, `submittedAt`, `contentHash`) along with
+ * `event_type` and the whole delivery record, so the audit answer - "this event
+ * existed, and here is where it went and whether it arrived" - survives in full.
+ * Only the answers go.
+ */
+export const DEFAULT_OUTBOX_PAYLOAD_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
+/**
+ * The column pair that drops a payload's answers and records that they were
+ * dropped. Shared by the two producers - erasure in `erasure.ts` and the retention
+ * sweep here - so the two can never disagree about what "redacted" writes, and so
+ * the `outbox_redacted_payload_has_no_answers` CHECK is satisfied by construction
+ * rather than by each caller remembering both halves.
+ *
+ * Not re-exported from the package: it is an internal spelling, and the public
+ * surface is the two operations, not the columns they set.
+ */
+export function outboxPayloadRedactionColumns() {
+  return {
+    payload: sql`${outbox.payload} - 'answers'`,
+    // `now()` is the transaction timestamp, so a redaction that runs beside other
+    // writes (erasure's tombstone, say) names the same instant they do.
+    payloadRedactedAt: sql`now()`,
+  };
+}
+
+/**
+ * When a row stopped moving, or NULL while it is still in flight. Postgres'
+ * `greatest` ignores NULL arguments and is NULL only when all of them are, which is
+ * exactly the reading wanted here: at most one of these timestamps is set on a real
+ * row (a reset clears the others), and a row with none set is still live.
+ */
+const COMMA = sql`, `;
+function settledAt(...columns: PgColumn[]) {
+  return sql`greatest(${sql.join(columns, COMMA)})`;
+}
+
+/** Outcome of {@link redactAgedOutboxPayloads}. */
+export interface OutboxPayloadRedactionResult {
+  /** How many outbox rows had their answers removed this run. */
+  readonly redactedCount: number;
+}
+
+/**
+ * Remove the `answers` member from every outbox payload whose event, and whose whole
+ * fan-out, settled before `olderThan` (issue #329). The time-based half of the
+ * payload's retention story; erasure is the on-request half.
+ *
+ * `outbox.payload` for a `response.submitted` event is the respondent's **whole
+ * locked answer set**. Task 059 made erasure reach that copy, but erasure is a
+ * request somebody has to make: for every response ever submitted without one, the
+ * answers sat in plaintext `jsonb` indefinitely, a second copy beside the ledger and
+ * outside whatever retention policy the operator believed they had configured. This
+ * is the control for the ordinary case.
+ *
+ * Run by the API's existing retention-sweep scheduler rather than by one of its own.
+ * The scheduling is the API's job (the same split `sweepExpiredSessions` uses); what
+ * lives here is which rows and where the boundary is.
+ *
+ * ## What "settled" means, and why it is not just `delivered_at`
+ *
+ * Both halves are load bearing:
+ *
+ * - **The event itself** must have stopped moving: consumed by the materialize pass
+ *   (`delivered_at`) or dead-lettered. An unconsumed event still has to be fanned
+ *   out, and redacting one would silently drop a submission that never went
+ *   anywhere - a stuck queue is an operations problem, not a retention one.
+ * - **Every delivery of it** must have stopped moving too: delivered, dead-lettered
+ *   or cancelled, and settled before the same horizon. A delivery still pending is
+ *   one `claimDueDeliveries` is about to send, and that claim joins this payload and
+ *   skips redacted rows - so redacting under a live delivery would leave it reading
+ *   "pending" on the dashboard forever while nothing ever sends it. The clock also
+ *   restarts from a manual redelivery, because that is the capability the window
+ *   exists to cover.
+ *
+ * Only rows that actually hold answers are touched, so the marker records a real
+ * removal and never lands on an event type that never carried any (`form.published`).
+ * Idempotent: a second run finds nothing left with answers in that window, and the
+ * `payload_redacted_at is null` filter keeps a re-run from moving an existing stamp.
+ *
+ * ## Why this needs no backfill migration
+ *
+ * The predicate is over `delivered_at`, `dead_lettered_at` and `cancelled_at` -
+ * columns every row already carries, written long before this control existed - so a
+ * row from years back is *more* eligible than one written today, and the first sweep
+ * after an upgrade covers the entire back catalogue. That is precisely the data the
+ * issue is about. A control that only governed rows created after it shipped would
+ * have left it. (`redactAgedResponseSnippets` reached the same conclusion for the
+ * same reason; the test that proves it here seeds a row that predates the control.)
+ *
+ * Boundary: strictly-before `olderThan`, matching `purgeExpired` and
+ * `redactAgedResponseSnippets`.
+ */
+export async function redactAgedOutboxPayloads(
+  exec: Executor,
+  olderThan: Date,
+): Promise<OutboxPayloadRedactionResult> {
+  const deliveries = alias(webhookDeliveries, "d");
+  const deliverySettled = settledAt(
+    deliveries.deliveredAt,
+    deliveries.deadLetteredAt,
+    deliveries.cancelledAt,
+  );
+  const rows = await exec
+    .update(outbox)
+    .set(outboxPayloadRedactionColumns())
+    .where(
+      and(
+        isNull(outbox.payloadRedactedAt),
+        sql`jsonb_exists(${outbox.payload}, 'answers')`,
+        sql`${settledAt(outbox.deliveredAt, outbox.deadLetteredAt)} < ${olderThan}`,
+        notExists(
+          exec
+            .select({ one: sql`1` })
+            .from(deliveries)
+            .where(
+              and(
+                eq(deliveries.outboxId, outbox.id),
+                // Parenthesised by `or()`. Spelling this as one raw `sql` fragment
+                // silently binds as `(outbox_id = id and settled is null) or settled
+                // >= horizon`, which drops the correlation: any recently-settled
+                // delivery anywhere in the table then blocks every row in the sweep.
+                or(sql`${deliverySettled} is null`, sql`${deliverySettled} >= ${olderThan}`),
+              ),
+            ),
+        ),
+      ),
+    )
+    .returning({ id: outbox.id });
+  return { redactedCount: rows.length };
 }
 
 /** List dead-lettered rows (delivery exhausted) for the admin redelivery view, newest first. */

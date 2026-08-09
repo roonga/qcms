@@ -116,8 +116,9 @@ Validated at boot by `apps/api/src/config.ts`, which collects every problem and 
 | `QCMS_WEBHOOK_BATCH_SIZE` | optional | `20` | Deliveries one outbox pass processes. Bounds the row locks held per tick; the interval drains the rest. |
 | `QCMS_OUTBOX_INTERVAL_MS` | optional | `5000` | How often the outbox deliverer runs, in the process that mounts `internal`. |
 | `QCMS_OUTBOX_JITTER_MS` | optional | `1000` | Random jitter added to the outbox interval, so several API instances do not tick in lockstep. |
-| `QCMS_RETENTION_SWEEP_INTERVAL_MS` | optional | `3600000 (1h)` | How often the retention sweep runs: expired anonymous sessions, and aged webhook response snippets. |
+| `QCMS_RETENTION_SWEEP_INTERVAL_MS` | optional | `3600000 (1h)` | How often the retention sweep runs: expired anonymous sessions, aged webhook response snippets, and aged outbox payloads. |
 | `QCMS_DELIVERY_SNIPPET_TTL_MS` | optional | `604800000 (7d)` | How long a webhook delivery keeps the stored prefix of the consumer's response body, measured from the attempt. That body can echo a respondent's answers back, so it ages out; the rest of the attempt record is value-free and is kept. `0` removes it at the next sweep. |
+| `QCMS_OUTBOX_PAYLOAD_TTL_MS` | optional | `2592000000 (30d)` | How long a settled outbox event keeps the answers its payload carries, measured from the moment the event and its whole fan-out stopped moving. The payload is a second copy of the respondent's answers kept only so a delivery can be re-sent, so it ages out with that capability; the envelope and the delivery record are kept. `0` drops them as soon as the fan-out settles. |
 | `QCMS_READY_DB_TIMEOUT_MS` | optional | `2000` | Timeout for the `/ready` database probe. Exceeding it makes `/ready` answer 503, never 500. |
 | `QCMS_BODY_LIMIT_BYTES` | optional | `1000000 (1MB)` | Maximum request body the API accepts (SEC-9). Keep the ingress ceiling in step with it: both recipes set one. |
 | `QCMS_ANTIABUSE_MIN_SUBMIT_MS` | optional | `0 (off)` | Global floor on the gap between session start and submit. A faster submit is silently flagged; a form may set its own floor that overrides this. |
@@ -300,6 +301,16 @@ point of removing it). That column is the consumer's response body verbatim and 
 carry a respondent's answers echoed back in a validation error, so it is the one part
 of the attempt record with a lifetime: `QCMS_DELIVERY_SNIPPET_TTL_MS`, default 7 days.
 `docs/erasure.md` has the rationale and the erasure-time behaviour.
+
+The same pass also drops the **answers** an outbox event carries, logging its own
+`redactedCount` (again a count only). `outbox.payload` for a `response.submitted`
+event is a second full copy of the respondent's locked answers, kept so a delivery
+can be re-sent, so it is kept exactly as long as re-sending is possible: once the
+event and every delivery of it have settled for `QCMS_OUTBOX_PAYLOAD_TTL_MS`
+(default 30 days), the answers go and the envelope stays. A delivery whose payload
+has aged out can no longer be redelivered, and the endpoint answers `409
+DELIVERY_NOT_REDELIVERABLE` if an operator tries. Set it to `0` to drop the answers
+as soon as the fan-out settles, at the cost of ever redelivering.
 
 ### Secure-link key rotation
 

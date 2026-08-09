@@ -38,16 +38,26 @@ const fail = {
     new ApiError("DELIVERY_NOT_FOUND", 404, "No such webhook delivery"),
   invalidId: (): ApiError => new ApiError("INVALID_FORM_ID", 400, "Malformed form id"),
   formNotFound: (): ApiError => new ApiError("FORM_NOT_FOUND", 404, "No such form"),
-  // One refusal for both halves of the cancelled state (059). A cancelled delivery
-  // and a redacted payload are the same fact seen from two rows - erasure reached
-  // this event - so splitting them into two codes would make the client distinguish
-  // something it cannot act on differently. The code is unchanged from 035 so an
-  // existing client's handling of it keeps working.
-  sessionErased: (): ApiError =>
+  // One refusal for every way a delivery can be unsendable (059, issue #329). A
+  // cancelled delivery and a redacted payload are the same fact seen from two rows -
+  // the response this delivery carries is no longer held - so splitting them into
+  // two codes would make the client distinguish something it cannot act on
+  // differently.
+  //
+  // **Cause-free, and renamed from 035's `DELIVERY_SESSION_ERASED` because of it.**
+  // That code and its sentence were accurate while erasure was the only producer of
+  // `payload_redacted_at`. Issue #329's retention sweep is a second producer, so
+  // both would now tell an operator a response was erased when it merely aged out of
+  // the redelivery window. The two causes are indistinguishable from the delivery
+  // row by design - `redeliveryRefusalFor` is a statement about state, not cause,
+  // which is what keeps it identical to the scheduler's filter - so the honest
+  // answer names the state. A stable code that is false is worse than a renamed one:
+  // this is a 409 the admin maps to a sentence, and the admin is its only client.
+  notRedeliverable: (): ApiError =>
     new ApiError(
-      "DELIVERY_SESSION_ERASED",
+      "DELIVERY_NOT_REDELIVERABLE",
       409,
-      "This delivery carries an erased session's response and will not be re-sent",
+      "The response this delivery carries is no longer held, so it will not be re-sent",
     ),
 } as const;
 
@@ -170,14 +180,15 @@ export function makeRedeliverHandler(deps: Deps): RouteHandler<typeof redeliverR
 
     // ADR-17 (as amended 2026-08-02): refuse before resetting. Erasure cancels the
     // session's still-sendable deliveries and redacts the outbox payload they would
-    // carry, and `redeliveryRefusalFor` reads exactly the two columns
-    // `claimDueDeliveries` filters on - one rule, stated in the two places it has to
-    // hold, rather than 035's separate tombstone lookup that could drift from the
-    // scheduler's behaviour. Resetting anyway would put a row that can never be
-    // claimed back on the queue as "pending", which is a lie on the dashboard even
-    // though the answers could not actually go out. Bulk redelivery is this endpoint
-    // called per item, so it is covered by construction.
-    if ((await redeliveryRefusalFor(deps.db, id)) !== undefined) throw fail.sessionErased();
+    // carry, the retention sweep redacts a settled payload once its redelivery
+    // window closes (issue #329), and `redeliveryRefusalFor` reads exactly the two
+    // columns `claimDueDeliveries` filters on - one rule, stated in the two places
+    // it has to hold, rather than 035's separate tombstone lookup that could drift
+    // from the scheduler's behaviour. Resetting anyway would put a row that can
+    // never be claimed back on the queue as "pending", which is a lie on the
+    // dashboard even though the answers could not actually go out. Bulk redelivery
+    // is this endpoint called per item, so it is covered by construction.
+    if ((await redeliveryRefusalFor(deps.db, id)) !== undefined) throw fail.notRedeliverable();
 
     const reset = await resetDeliveryForRedelivery(deps.db, id, deps.clock.now());
     if (reset === undefined) throw fail.deliveryNotFound();
