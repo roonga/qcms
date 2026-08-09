@@ -244,9 +244,11 @@ export function createAdminAuth(input: AdminAuthInput) {
       // *is* new is an operational dependency: a k-anonymity lookup that sends the
       // first five hex characters of the password's SHA-1 to
       // `api.pwnedpasswords.com/range/{prefix}` with `Add-Padding: true` and matches
-      // the suffix in this process. The password never leaves the process, and 2^15
-      // hashes share any one prefix, so the request tells the endpoint nothing usable
-      // (SEC-8).
+      // the suffix in this process. The password never leaves the process, and the
+      // five-character prefix is all the endpoint learns: about two thousand corpus
+      // entries share any one range (measured 2026-08-09 across six prefixes: 1921 to
+      // 2509 entries, unpadded), and vastly more possible passwords than that do, so
+      // the request tells the endpoint nothing usable (SEC-8).
       //
       // It hooks `ctx.password.hash`, so it covers every path that sets a password
       // rather than one call site. Both of ours are in the vendor's default `paths`:

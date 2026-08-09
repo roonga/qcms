@@ -154,8 +154,9 @@ describe("a compromised password is refused (NIST SP 800-63B 3.1.1.2, ASVS 5.0 6
 
     await createInitialAdmin(authWith(true), testDb.db, { email: EMAIL, password });
 
-    // k-anonymity, and SEC-8: what left this process was five hex characters shared
-    // by roughly 2^15 hashes.
+    // k-anonymity, and SEC-8: what left this process was five hex characters, a range
+    // shared by about two thousand corpus entries (measured 2026-08-09) and by vastly
+    // more possible passwords than that.
     expect(wire.urls).toEqual([`${HIBP_PREFIX}${hash.slice(0, 5)}`]);
     const sent = wire.urls.join(" ");
     expect(sent).not.toContain(password);
