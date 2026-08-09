@@ -136,8 +136,8 @@ beforeAll(async () => {
 }, BOOT_TIMEOUT);
 
 afterAll(async () => {
-  await testDb?.stop?.();
-});
+  await testDb?.teardown();
+}, BOOT_TIMEOUT);
 
 describe("at rest", () => {
   it("stores no issued code, in any encoding a database reader could recover", async () => {

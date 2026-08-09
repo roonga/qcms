@@ -91,12 +91,14 @@ better-auth instance:
   `symmetricEncrypt({ key: ctx.context.secretConfig, ... })` at
   `dist/plugins/two-factor/index.mjs:105`, decrypt at
   `dist/plugins/two-factor/totp/index.mjs:188` (and `:122` for the URI reveal). Change the
-  secret and the authenticator's codes are rejected for good. The only door left is the
-  recovery codes, which do survive (stored as plain JSON, since QCMS sets no
-  `storeBackupCodes`: `dist/plugins/two-factor/backup-codes/index.mjs:45`) - but there are
-  ten (`:15`, `amount ?? 10`), this app has no re-enrolment screen, and each rotation costs
-  one. `pnpm dev:admin` generates a fresh secret when the variable is unset (and says so on
-  startup), which is why the block above exports it first.
+  secret and the authenticator's codes are rejected for good - **and so are the recovery
+  codes**, which this file used to claim survive because better-auth stores them as plain
+  JSON. It does not: the plugin defaults `storeBackupCodes` to `"encrypted"`
+  (`dist/plugins/two-factor/index.mjs:25-27`), so all ten (`.../backup-codes/index.mjs:15`,
+  `amount ?? 10`) are encrypted under the same key (issue #319). `pnpm dev:admin` generates
+  a fresh secret when the variable is unset (and says so on startup), which is why the
+  block above exports it first. In a deployment, change the secret through the versioned
+  `QCMS_ADMIN_AUTH_SECRETS` list rather than in place (`docs/operations.md`).
 - Credentials go in the environment, never in arguments: an argument lands in shell
   history and in every `ps` listing while the command runs.
 - It builds first (`pnpm --filter qcms-api... build`) because the entry is compiled

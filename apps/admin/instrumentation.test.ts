@@ -38,7 +38,7 @@ const EXIT_SENTINEL = "process.exit() called: the admin process would have termi
 
 /**
  * The configuration the guard exists to refuse: `Secure` dropped from the admin's
- * session, enrollment and recovery-view cookies at a public, non-loopback origin.
+ * session, enrollment and recovery-code cookies at a public, non-loopback origin.
  */
 function stubRefusedConfiguration(): void {
   vi.stubEnv("QCMS_ADMIN_SECURE_COOKIES", "false");

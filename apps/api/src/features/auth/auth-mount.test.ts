@@ -65,13 +65,17 @@ describe("SEC-1: no self-registration path exists in any composition", () => {
   it("refuses every better-auth endpoint that is not on the allowlist", async () => {
     const { deps, app } = compose(ALL);
     const token = internalTokenFor(deps.config);
-    // A representative spread: account creation, factor removal, code regeneration,
-    // the OTP endpoints reserved for Phase 4, and the URI reveal the enrollment
-    // screen does not use.
+    // A representative spread: account creation, factor removal, the OTP endpoints
+    // reserved for Phase 4, and the URI reveal the enrollment screen does not use.
+    //
+    // `two-factor/generate-backup-codes` used to be on this list and is deliberately
+    // not any more (issue #319): it is the reachable replacement for the route that
+    // read the stored codes back. Its own gate is better-auth's password requirement,
+    // which `auth.integration.test.ts` drives; being *reachable* is what this file
+    // stops asserting about it.
     const denied = [
       "/api/auth/sign-up/email",
       "/api/auth/two-factor/disable",
-      "/api/auth/two-factor/generate-backup-codes",
       "/api/auth/two-factor/send-otp",
       "/api/auth/two-factor/verify-otp",
       "/api/auth/two-factor/get-totp-uri",

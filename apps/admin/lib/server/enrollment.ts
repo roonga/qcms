@@ -127,5 +127,5 @@ export async function owedRecoveryCodes(): Promise<string[] | undefined> {
     return undefined;
   }
   if (!Array.isArray(parsed) || parsed.length === 0) return undefined;
-  return parsed.every((code) => typeof code === "string") ? (parsed as string[]) : undefined;
+  return parsed.every((code) => typeof code === "string") ? parsed : undefined;
 }

@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../../app.js";
 import { ADMIN_SESSION_HEADER } from "../../middleware/admin-auth.js";
 import { appGroups } from "../../registrars.js";
-import { internalTokenFor, makeDeps, validEnv } from "../../test-support.js";
+import { internalTokenFor, makeDeps, recordingLogger, validEnv } from "../../test-support.js";
 import { createInitialAdmin } from "./bootstrap.js";
 import { createAdminAuth } from "./instance.js";
 
@@ -69,7 +69,10 @@ let adminOrigin: string;
  * app is in exactly this position, which is what makes it the right fixture shape.
  */
 let enrolledSecret = "";
+/** Every log line the app emitted during this file, for the SEC-8 assertion. */
+let logLines: Array<Record<string, unknown>> = [];
 let issuedCodes: string[] = [];
+let regeneratedCodes: string[] = [];
 
 /** The `name=value` pairs from a response's `Set-Cookie` headers, as a cookie header. */
 function cookieHeader(response: Response): string {
@@ -133,7 +136,17 @@ function secretFromUri(uri: string): string {
 beforeAll(async () => {
   testDb = await startTestDb();
   const env = validEnv({ DATABASE_URL: testDb.connectionUri });
-  const deps = makeDeps({ db: testDb.db, env, clock: { now: () => new Date() } });
+  const recorded = recordingLogger();
+  logLines = recorded.lines;
+  const deps = makeDeps({
+    db: testDb.db,
+    env,
+    clock: { now: () => new Date() },
+    // The real JSON logger, captured: SEC-8 says no credential reaches a log line, and
+    // the only way to assert that over a whole auth flow is to keep every line it
+    // emitted and look.
+    logger: recorded.logger,
+  });
   app = createApp(deps, ALL, { groups: appGroups });
   channelToken = internalTokenFor(deps.config);
   adminOrigin = deps.config.adminAuth.baseUrl;
@@ -289,6 +302,31 @@ describe("semantics 3 and 4: two-step enrollment, then a withheld session (SEC-1
     // more: regenerating invalidates a prior set rather than adding to it.
     expect(await stored()).not.toBe(before);
     expect(backupCodes).not.toEqual(issuedCodes);
+    regeneratedCodes = backupCodes;
+  });
+
+  it("logs no recovery code, no password and no key material anywhere (SEC-8)", () => {
+    // Everything the flows above put on the wire, including the values that only
+    // existed inside a request body. `logLines` holds every line the real JSON logger
+    // emitted across this whole file - sign-in, enrollment, refusals, regeneration.
+    const forbidden = [
+      PASSWORD,
+      `${PASSWORD}-wrong`,
+      enrolledSecret,
+      ...issuedCodes,
+      ...regeneratedCodes,
+    ].filter((value) => value !== "");
+    expect(forbidden.length).toBeGreaterThan(0);
+    expect(logLines.length, "the flows above should have logged something").toBeGreaterThan(0);
+
+    const rendered = logLines.map((line) => JSON.stringify(line)).join("\n");
+    for (const value of forbidden) {
+      expect(rendered).not.toContain(value);
+    }
+
+    // And the stored ciphertext is not logged either: it is the material the key
+    // protects, and a log store is not where it belongs (SEC-8, SEC-13).
+    expect(rendered).not.toContain("$ba$");
   });
 });
 

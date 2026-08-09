@@ -241,6 +241,60 @@ test("changing the password reports success and keeps this session signed in", a
   await expect(page.getByRole("alert")).toContainText("Those details did not match");
 });
 
+test("regenerating recovery codes needs the password, and retires the old set (issue #319)", async ({
+  page,
+}) => {
+  // This is the whole replacement for the route that used to read the stored codes
+  // back, so both halves of what it buys are asserted: a session alone cannot do it,
+  // and doing it kills the previous set.
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.goto("/settings");
+
+  const passwordField = page.getByLabel("Your password");
+  await expect(passwordField).toBeVisible();
+
+  // A wrong password reports the same generic sentence as every other auth failure and
+  // changes nothing (SEC-1).
+  await fillStable(passwordField, "not-the-current-password");
+  await page.getByRole("button", { name: "Generate new recovery codes" }).click();
+  await expect(page).toHaveURL(/\/settings\?codesError=1$/);
+  await expect(page.getByRole("alert")).toContainText("Those details did not match");
+
+  await fillStable(page.getByLabel("Your password"), TEST_PASSWORD);
+  await page.getByRole("button", { name: "Generate new recovery codes" }).click();
+  await expect(page).toHaveURL(/\/two-factor\/recovery-codes$/);
+
+  const list = page.getByRole("list", { name: "Recovery codes" });
+  await expect(list).toBeVisible();
+  const fresh = await list.getByRole("listitem").allInnerTexts();
+  expect(fresh.length).toBeGreaterThanOrEqual(5);
+  // A fresh set, not the one enrollment produced.
+  expect(fresh.some((code) => recoveryCodes.includes(code))).toBe(false);
+
+  await page.getByRole("button", { name: "I have saved these codes" }).click();
+  await expect(page).toHaveURL(/\/questions$/);
+  // Still one-time: the display is spent whichever step opened it.
+  await page.goto("/two-factor/recovery-codes");
+  await expect(page).toHaveURL(/\/questions$/);
+  await signOut(page);
+
+  // The retired set is dead. `recoveryCodes[2]` was never redeemed above, so if it is
+  // refused now that is regeneration doing it and nothing else - which is the property
+  // that makes regenerating the right answer to "my codes leaked".
+  const retired = recoveryCodes[2];
+  expect(retired, "enrollment should have produced several recovery codes").toBeDefined();
+  await submitSignIn(page, EMAIL);
+  await page.goto("/two-factor/recovery");
+  await submitRecoveryCode(page, retired!);
+  await expect(page).toHaveURL(/\/two-factor\/recovery\?error=1$/);
+
+  // And one of the fresh codes works, so the account is not locked out by the swap.
+  await page.goto("/two-factor/recovery");
+  await submitRecoveryCode(page, fresh[0]!);
+  await expect(page).toHaveURL(/\/questions$/);
+  await signOut(page);
+});
+
 test("the account menu names the operator and routes to the password screen", async ({ page }) => {
   // Task 032. The trigger is two decorative letters, so everything an operator needs
   // to know about which account is acting lives in the accessible name and in the

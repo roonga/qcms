@@ -150,6 +150,87 @@ describe("SEC-8 redaction - errors never echo secret values", () => {
     expect(message).toContain("QCMS_APP_KEY");
     expect(message).not.toContain(shortSecret);
   });
+
+  it("a malformed QCMS_ADMIN_AUTH_SECRETS entry is reported by position, never by value", () => {
+    // Every refusal path in one value: a missing separator, a non-numeric version, a
+    // repeated version and a too-short secret. This is the SEC-8 trap the parser exists
+    // to avoid - better-auth's own `parseSecretsEnv` quotes the offending entry back
+    // (`dist/context/secret-utils.mjs`), and that entry is a secret.
+    const good = synthSecret();
+    const noSeparator = synthSecret();
+    const badVersion = synthSecret();
+    const duplicate = synthSecret();
+    const tooShort = "s".repeat(MIN_SECRET_LENGTH - 5);
+    let message = "";
+    try {
+      loadConfig(
+        validEnv({
+          QCMS_ADMIN_AUTH_SECRETS: [
+            `3:${good}`,
+            noSeparator,
+            `x:${badVersion}`,
+            `3:${duplicate}`,
+            `2:${tooShort}`,
+          ].join(","),
+          DATABASE_URL: undefined,
+        }),
+      );
+    } catch (err) {
+      message = (err as ConfigError).message;
+    }
+    expect(message).toContain("QCMS_ADMIN_AUTH_SECRETS");
+    for (const value of [good, noSeparator, badVersion, duplicate, tooShort]) {
+      expect(message).not.toContain(value);
+    }
+  });
+});
+
+describe("QCMS_ADMIN_AUTH_SECRETS - versioned auth-secret rotation (issue #319)", () => {
+  it("defaults to one version-1 entry holding QCMS_ADMIN_AUTH_SECRET", () => {
+    const secret = synthSecret();
+    const config = loadConfig(validEnv({ QCMS_ADMIN_AUTH_SECRET: secret }));
+    // The default is what makes the versioned envelope the normal case rather than
+    // something a deployment opts into, while signing with exactly the value it always
+    // signed with.
+    expect(config.adminAuth.secret).toBe(secret);
+    expect(config.adminAuth.secrets).toEqual([{ version: 1, value: secret }]);
+  });
+
+  it("parses a rotation list, first entry current, older versions kept for reading", () => {
+    const next = synthSecret();
+    const previous = synthSecret();
+    const config = loadConfig(
+      validEnv({
+        QCMS_ADMIN_AUTH_SECRET: previous,
+        QCMS_ADMIN_AUTH_SECRETS: ` 2:${next} , 1:${previous} `,
+      }),
+    );
+    expect(config.adminAuth.secrets).toEqual([
+      { version: 2, value: next },
+      { version: 1, value: previous },
+    ]);
+    // `secret` is untouched by the list: better-auth keeps it as the legacy fallback
+    // for ciphertext written before the envelope existed.
+    expect(config.adminAuth.secret).toBe(previous);
+  });
+
+  it("refuses a repeated version rather than silently preferring one", () => {
+    expect(() =>
+      loadConfig(validEnv({ QCMS_ADMIN_AUTH_SECRETS: `1:${synthSecret()},1:${synthSecret()}` })),
+    ).toThrow(ConfigError);
+  });
+
+  it("refuses a version that is not a non-negative integer", () => {
+    expect(() => loadConfig(validEnv({ QCMS_ADMIN_AUTH_SECRETS: `-1:${synthSecret()}` }))).toThrow(
+      ConfigError,
+    );
+  });
+
+  it("holds every entry to the same length floor as the single-secret form", () => {
+    expect(() =>
+      loadConfig(validEnv({ QCMS_ADMIN_AUTH_SECRETS: `1:${"s".repeat(MIN_SECRET_LENGTH - 1)}` })),
+    ).toThrow(ConfigError);
+  });
 });
 
 // Exit criterion 7: feature-flag registry (ADR-24).
