@@ -636,44 +636,443 @@ th,
   grid-column: 1 / -1;
 }
 
-/* One row of the option list editor. Wraps on narrow screens, aligned to the
-   bottom edge so the up/down/remove buttons sit level with the label field.
-   __id is the immutable option id: a small monospace chip that reads as
-   fixed rather than editable; __label grows to fill the remaining space. */
-/* One row of the option list editor. Wraps on narrow screens, aligned to the
-   bottom edge so the up/down/remove buttons sit level with the label field.
-   __id is the immutable option id: a small monospace chip that reads as
-   fixed rather than editable; __label grows to fill the remaining space. */
-.qcms-option-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: var(--admin-stack);
-}
-.qcms-option-row__id {
-  flex-shrink: 0;
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
-  background-color: var(--color-background-muted);
-  border-radius: var(--radius-sm);
-  padding-inline: 0.4em;
-  padding-block: 0.2em;
-}
-.qcms-option-row__label {
-  flex: 1;
-  min-inline-size: 12rem;
+/* The option grid (task 057), from the frozen card
+   `plan/admin-theme/ds-option-grid.html`. It replaces 032's stacked
+   .qcms-option-row / .qcms-option-add list: rows in a table, the cell IS the
+   input, a ghost add-row, and row controls revealed by hover OR focus.
+
+   The grid is a container so the narrow layout keys off the EDITOR's width and
+   not the viewport's - the option list can sit in a narrow panel on a wide
+   screen, and a viewport media query would leave it in the wide layout there. */
+.qcms-opt-grid {
+  container-type: inline-size;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background-color: var(--color-surface);
 }
 
-/* The "new option label + Add option" row under the list, set off from it by
-   a top border. */
-.qcms-option-add {
+/* The rounded corners WITHOUT a clip, which is deliberate and is a fix rather than
+   an oversight.
+
+   `overflow: hidden` here did exactly one job - keep a descendant's background out
+   of the corner radius - and it also clipped the row menu, which is the only route
+   to Remove and Insert below now that the card has absorbed the trailing remove
+   button into the grip. On a two-option list, which is what a new choice question
+   seeds, the menu hung 95px past the bottom edge and a press at the centre of
+   "Remove option" landed on the grid header instead. Nothing here scrolls, so a
+   mouse user had no way to bring it back: the default state of the default question
+   could not delete an option at all.
+
+   Rounding the elements that can actually paint into the bottom corners keeps the
+   corners and lets an absolutely positioned popup leave the box. It reintroduces no
+   clipping the grid needs, because the grid needed none: the ID cell's truncation
+   is its own `overflow` on its own box, the insert hotzones sit inside the grid, and
+   no row is translated out of it. The one visible consequence is that a row being
+   dragged now casts its elevation shadow past the grid's edge instead of having it
+   sliced at the border, which is what "elevated" is supposed to look like. */
+.qcms-opt-grid > :last-child,
+.qcms-opt-grid > .qcms-opt-grid__body:last-child > .qcms-opt-row:last-child {
+  border-end-start-radius: max(0px, calc(var(--radius-card) - 1px));
+  border-end-end-radius: max(0px, calc(var(--radius-card) - 1px));
+}
+.qcms-opt-grid__head {
+  display: grid;
+  grid-template-columns: 36px 1fr 140px;
+  padding-block: 0.5rem;
+  border-block-end: 2px solid var(--color-border-strong);
+}
+.qcms-opt-grid__head > div {
+  padding-inline: 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+.qcms-opt-grid__body {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Rows wrap, never truncate: min-height is a floor, not a cap. Truncating a
+   label would hide exactly what is being authored, and the respondent sees the
+   option's full text, so the editor must never show less than the portal does.
+   A long label grows the row instead; the grip and ID cell stay pinned to the
+   row's top edge, lined up with the label's FIRST line rather than re-centred
+   across a now-variable row height. */
+.qcms-opt-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 36px 1fr 140px;
+  align-items: start;
+  min-block-size: var(--admin-control-h);
+  border-block-end: 1px solid var(--color-border);
+}
+.qcms-opt-grid__body > .qcms-opt-row:last-child {
+  border-block-end: none;
+}
+.qcms-opt-row:hover {
+  background-color: var(--color-surface-hover);
+}
+/* The tail row exists only to hang the end-of-list drop indicator from. */
+.qcms-opt-row--tail {
+  min-block-size: 0;
+  border-block-end: none;
+}
+
+.qcms-opt-cell {
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: var(--admin-stack);
-  border-block-start: 1px solid var(--color-border);
-  padding-block-start: var(--admin-stack);
+  align-items: start;
+  min-inline-size: 0;
+  padding-inline: 0.75rem;
+}
+.qcms-opt-cell--grip {
+  position: relative;
+  padding: 6px 0 0 6px;
+}
+.qcms-opt-cell--label {
+  padding: 0;
+}
+/* `display: block` is load-bearing, not tidying: `text-overflow` only applies to a
+   BLOCK container, and this cell inherits `display: flex` from `.qcms-opt-cell`. With
+   the flex box in place the `ellipsis` below was inert and a long id was cut through
+   mid-glyph, which reads as a layout bug rather than as truncation. */
+.qcms-opt-cell--id {
+  display: block;
+  padding-block-start: 10px;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.qcms-opt-id--pending {
+  font-style: italic;
+}
+
+/* The label cell IS the input: a textarea, not a single-line input, so it wraps
+   like the respondent's own view of the same text instead of scrolling or
+   clipping it. No border at rest, so it reads as table text until focused.
+
+   It grows with its content in CSS alone - the wrapper repeats the value in an
+   invisible ::after and both share one grid cell, so the taller of the two sizes
+   the box. A resize effect would give the correct height one frame late, and one
+   frame late is a visible jump on every keystroke that wraps. */
+.qcms-opt-label {
+  display: grid;
+  inline-size: 100%;
+}
+.qcms-opt-label::after {
+  content: attr(data-value) " ";
+  visibility: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.qcms-opt-label > textarea,
+.qcms-opt-label::after {
+  grid-area: 1 / 1;
+  font: inherit;
+  line-height: 1.5;
+  padding: 8px 0.75rem;
+  border: none;
+  border-radius: var(--radius-sm);
+}
+.qcms-opt-label__input {
+  inline-size: 100%;
+  /* The row's own `min-block-size` is the 40px floor here. Leaving the bare
+     `textarea` rule's floor on the input as well would fight the sizer `::after`
+     that shares its grid cell, which carries no such floor. */
+  min-block-size: 0;
+  background: transparent;
+  color: var(--color-text);
+  resize: none;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.qcms-opt-label__input:hover:not(:disabled) {
+  background-color: var(--color-ghost-hover);
+}
+.qcms-opt-label__input:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--color-focus-ring);
+  background-color: var(--color-surface);
+}
+.qcms-opt-label__input:disabled {
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+.qcms-opt-row.is-error .qcms-opt-label__input {
+  box-shadow: inset 0 0 0 1.5px var(--color-danger);
+  background-color: var(--color-danger-subtle);
+}
+
+/* The grip is the row's one control: drag by pointer, Arrow Up/Down while
+   focused reorders, Enter or Space opens the row menu. Revealed by hover AND by
+   focus, never hover-only, so nothing here depends on a pointer. */
+.qcms-opt-grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 28px;
+  block-size: 28px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: grab;
+  opacity: 0;
+  /* Opt out of the 40px control floor the bare `button` rule sets: a
+     `min-block-size` beats a `block-size`, so without this the grip renders 28
+     wide by 40 tall. That is not only a squashed square - a 40px-tall grip and a
+     40px-tall insert button in the same row overlap, and the insert (z-index 2)
+     then swallows every press aimed at the grip, so dragging a row does nothing
+     at all. Same trap `.qcms-modetrigger` records. */
+  min-block-size: 28px;
+  transition:
+    opacity 0.12s ease,
+    background-color 0.12s ease;
+}
+.qcms-opt-row:hover .qcms-opt-grip,
+.qcms-opt-row:focus-within .qcms-opt-grip,
+.qcms-opt-row.is-dragging .qcms-opt-grip {
+  opacity: 1;
+}
+.qcms-opt-grip:hover {
+  background-color: var(--color-ghost-hover);
+  color: var(--color-text);
+}
+.qcms-opt-grip:focus-visible {
+  opacity: 1;
+}
+.qcms-opt-grip svg circle {
+  fill: currentColor;
+}
+
+/* Mid-drag compresses: the elevated row clamps back to one line while it travels
+   with the pointer instead of carrying its full wrapped height along. The live
+   drop indicator conveys where it will land; the row itself need not. */
+.qcms-opt-row.is-dragging {
+  z-index: 1;
+  align-items: center;
+  block-size: var(--admin-control-h);
+  min-block-size: var(--admin-control-h);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface);
+  border-block: 1px solid var(--color-border-strong);
+  box-shadow:
+    0 1px 2px hsl(var(--shadow-color) / 0.08),
+    0 12px 40px -12px hsl(var(--shadow-color) / 0.32);
+}
+.qcms-opt-row.is-dragging .qcms-opt-cell--grip,
+.qcms-opt-row.is-dragging .qcms-opt-cell--id {
+  padding-block-start: 0;
+}
+.qcms-opt-row.is-dragging .qcms-opt-label::after {
+  content: none;
+}
+.qcms-opt-row.is-dragging .qcms-opt-label__input {
+  block-size: var(--admin-control-h);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding-block: 0;
+  line-height: var(--admin-control-h);
+}
+
+/* The insert affordance: a hairline-height hotzone straddling the row's top
+   edge. Invisible at rest; hover or focus reveals the accent line and the
+   circled plus. The same language without the plus doubles as the live drop
+   indicator, because nothing new is being created there - a row is relocating. */
+.qcms-opt-insert {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: -7px;
+  block-size: 14px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  z-index: 2;
+  opacity: 0;
+  /* The control floor again, and here it is load-bearing rather than cosmetic:
+     this is a 14px hairline hotzone straddling a row edge, and at the floor's
+     40px it would cover most of the row it sits on. */
+  min-block-size: 14px;
+}
+.qcms-opt-insert__line {
+  position: absolute;
+  inset-inline: 34px 8px;
+  inset-block-start: 50%;
+  block-size: 2px;
+  border-radius: 1px;
+  background-color: var(--color-primary);
+  transform: translateY(-50%);
+}
+.qcms-opt-insert__plus {
+  position: absolute;
+  inset-inline-start: 6px;
+  inset-block-start: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 16px;
+  block-size: 16px;
+  border-radius: 50%;
+  background-color: var(--color-primary);
+  color: var(--color-primary-foreground);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  transform: translateY(-50%);
+}
+.qcms-opt-insert:hover,
+.qcms-opt-insert:focus-visible,
+.qcms-opt-insert.is-visible {
+  opacity: 1;
+}
+.qcms-opt-insert:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+.qcms-opt-insert--drop {
+  pointer-events: none;
+}
+.qcms-opt-insert--drop .qcms-opt-insert__line {
+  inset-inline: 8px 8px;
+  block-size: 3px;
+}
+
+/* The ghost add-row. A button rather than a row, because until it is pressed
+   there is nothing there - and pressing it opens a row that still holds no
+   option id until it is named (`lib/questions/option-grid.ts`). */
+.qcms-opt-row--add {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  inline-size: 100%;
+  block-size: var(--admin-control-h);
+  padding-inline: 0.75rem;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.qcms-opt-row--add:hover {
+  background-color: var(--color-surface-hover);
+  color: var(--color-text);
+}
+.qcms-opt-row--add:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: -2px;
+}
+
+.qcms-opt-grid-error {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-block-start: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-danger-fg);
+}
+.qcms-opt-grid-error svg {
+  inline-size: 14px;
+  block-size: 14px;
+  flex-shrink: 0;
+}
+
+/* The row menu, in the dropdown language of ds-overlays.html at a compact width. */
+.qcms-opt-menu {
+  position: absolute;
+  inset-block-start: 40px;
+  inset-inline-start: 0;
+  z-index: 3;
+  min-inline-size: 190px;
+  padding: 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background-color: var(--color-surface);
+  box-shadow:
+    0 2px 4px hsl(var(--shadow-color) / 0.1),
+    0 30px 70px -30px hsl(var(--shadow-color) / 0.4);
+}
+.qcms-opt-menu__item {
+  display: block;
+  inline-size: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: start;
+  cursor: pointer;
+}
+.qcms-opt-menu__item:hover:not(:disabled) {
+  background-color: var(--color-surface-hover);
+}
+.qcms-opt-menu__item--danger {
+  color: var(--color-danger-fg);
+}
+.qcms-opt-menu__item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Narrow editor: the ID column folds into a second line inside the label cell.
+   Horizontal scroll was the other option and it would push the grip off-screen,
+   forcing two-axis scrolling to finish one edit; folding keeps everything
+   reachable at one scroll position. One DOM either way - only the grid placement
+   changes - so nothing is duplicated and no id is rendered twice. */
+@container (max-width: 30rem) {
+  .qcms-opt-grid__head,
+  .qcms-opt-row {
+    grid-template-columns: 32px 1fr;
+  }
+  .qcms-opt-grid__head > div:last-child {
+    display: none;
+  }
+  .qcms-opt-cell--grip {
+    grid-row: 1 / 3;
+  }
+  .qcms-opt-cell--id {
+    grid-column: 2;
+    padding-block: 0 6px;
+    padding-inline: 1.15rem;
+    font-size: 0.72rem;
+  }
+  /* The wide layout's mid-drag clamp to one control height cannot survive the fold:
+     with the id on a SECOND line inside the row, a 40px cap pushes it out through the
+     row's bottom edge and onto the row underneath. The travelling row keeps its own
+     height here instead. It is still compressed, because the label is separately
+     clamped to a single ellipsized line, just not to a height measured for a layout
+     that has an ID column of its own. Found by photographing the drag. */
+  .qcms-opt-row.is-dragging {
+    block-size: auto;
+  }
+  .qcms-opt-row.is-dragging .qcms-opt-cell--id {
+    padding-block-end: 0;
+  }
+}
+
+/* High contrast drops hover-only affordances: the grip and every insert point
+   are always visible rather than opacity 0 at rest, and the grid's own edges
+   thicken. */
+:root.hc .qcms-opt-grip,
+:root.hc .qcms-opt-insert {
+  opacity: 1;
+}
+:root.hc .qcms-opt-grid {
+  border-width: 2px;
+}
+:root.hc .qcms-opt-row {
+  border-block-end-color: var(--color-border-strong);
 }
 
 /* The permanent-id callout on the creation screen. A muted, bordered box;

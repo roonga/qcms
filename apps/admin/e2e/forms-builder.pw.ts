@@ -21,7 +21,13 @@ import {
   toggleTarget,
   waitForSaved,
 } from "./support/forms.js";
-import { addOption, confirmLifecycle, createDraft, optionIds } from "./support/questions.js";
+import {
+  addOption,
+  confirmLifecycle,
+  createDraft,
+  optionIds,
+  useRowMenu,
+} from "./support/questions.js";
 
 /**
  * The form builder, driven through the browser (task 033, exit criteria 1, 2 and 3).
@@ -198,9 +204,10 @@ test("moving a pin re-runs validation and surfaces the broken option ref (exit c
   // choice question is allowed to pass through.
   await addOption(page, "Full cover");
   await addOption(page, "Basic cover");
-  await page.getByRole("button", { name: "Remove option 1" }).click();
-  await page.getByRole("button", { name: "Remove option 1" }).click();
-  await expect(page.getByRole("textbox", { name: /^Label for option / })).toHaveCount(2);
+  // Remove lives in the row's own menu under the 057 grid, not in a trailing button.
+  await useRowMenu(page, 0, /^Remove option /);
+  await useRowMenu(page, 0, /^Remove option /);
+  await expect(page.getByRole("textbox", { name: /^Option \d+ label$/ })).toHaveCount(2);
   await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByText("Draft saved.")).toBeVisible();
   const v2Options = await optionIds(page);
