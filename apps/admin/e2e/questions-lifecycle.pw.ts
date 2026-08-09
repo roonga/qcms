@@ -350,7 +350,40 @@ test("a row opens its question from the keyboard alone", async ({ page }) => {
   await page.goto(`/questions?q=${slugFor("preview")}`);
 
   const row = page.getByRole("row").nth(1);
-  await row.focus();
+  // The focus is RETRIED, deliberately. This is not flake-papering, so do not collapse
+  // it back to a bare `row.focus()` (issue #419).
+  //
+  // The mechanism: the server renders the row already carrying `tabindex="-1"`, so a
+  // `focus()` that arrives before hydration SUCCEEDS on a dead node, and the adopting
+  // re-render then REPLACES that node. Focus falls back to the body and no later focus
+  // event ever arrives, which is why waiting longer before pressing Enter does not
+  // rescue it and only focusing again does. On `main` the window is narrow enough that
+  // the single focus won the race every time; `next` 16.3.0 and `react-aria-components`
+  // 1.20.0 each widen it on their own and turn the race deterministically red, which is
+  // how the missing wait surfaced at all.
+  //
+  // `data-focused` is the discriminator, and it has to be: measured on the failing tree,
+  // the pre-hydration row reports `document.activeElement === row` for ~145ms before it
+  // is swapped out, so `toBeFocused` alone passes on the doomed node and the retry exits
+  // on its first turn. Only the hydrated row gets the attribute, because only it has a
+  // React listener to set it. `tabindex` is no use as a readiness signal either, for the
+  // same underlying reason: it is `-1` in the server HTML and stays `-1` after hydration,
+  // flipping to `0` only as a CONSEQUENCE of a focus that landed on the live row.
+  //
+  // So the attribute is react-aria's own, and that is a known cost: if a future version
+  // stops emitting it, this line times out. It fails loudly and names itself, which is
+  // the right direction, and this comment is where to start.
+  //
+  // None of this weakens the assertion below, which matters because rows are the only
+  // route into a question (`onRowAction`, `selectionMode="none"`), making this a WCAG
+  // 2.2 AA tripwire. A regression that leaves rows unfocusable never satisfies the retry
+  // and fails as a `toPass` timeout; a regression that keeps them focusable but breaks
+  // row activation still fails on the URL.
+  await expect(async () => {
+    await row.focus();
+    await expect(row).toHaveAttribute("data-focused", "true", { timeout: 1_000 });
+    await expect(row).toBeFocused({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(new RegExp(questionIdFor("preview")));
 });
