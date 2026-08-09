@@ -13,7 +13,7 @@ This is a real gap rather than a nicety, but it is **not launch-gating** - it wa
 
 ## Deliverables
 
-- **A durable "must change password" state** on the admin account, set by `create-admin` at bootstrap and cleared only by a successful password change. Schema field plus migration in `packages/db`. It must survive restarts and sessions: a flag held in a cookie or a session claim is not this.
+- **A durable "must change password" state** on the admin account, set by `create-admin` at bootstrap and cleared only by a successful password change. It must survive restarts and sessions: a flag held in a cookie or a session claim is not this. **Declare it through better-auth's documented `user.additionalFields`** rather than adding a column the library does not know about - see the executor notes.
 - **A gate in the admin app** that redirects to the forced-change screen from anywhere else, for an authenticated principal whose flag is set. It must be a **server-side gate**, not a client redirect, and it must cover every admin route rather than being attached per page - the failure mode is one route added later that forgets it.
 - **The forced-change screen**: current password, new password, confirmation, with the same validation the ordinary change-password path applies, including the breach-corpus check from #178 if that has landed. Chrome through the i18n catalog (ADR-27), keyboard operable, visible focus.
 - **Interaction with 2FA enrolment decided and documented.** 031 forces TOTP enrolment on first sign-in. This task decides the order - almost certainly password change first, since the enrolment binds a factor to an account whose credential is still the provisional one - and records why.
@@ -38,3 +38,13 @@ Password expiry or rotation policies of any kind - NIST SP 800-63B Rev 4 explici
 **The gate is the hard part, not the screen.** A forced-change screen is ordinary form work; a gate that cannot be bypassed by a route added six months from now is a design decision. Prefer a mechanism a new route inherits by default over one it must opt into, and say plainly which you chose.
 
 **Sequence the migration against #319.** That issue changes how recovery codes are stored and touches the same auth tables. Two migrations landing in either order is fine; two migrations written without knowledge of each other is how a merge conflict becomes a data problem.
+
+## What better-auth does and does not give you
+
+Checked against the installed **better-auth 1.6.25** types and the vendor documentation on 2026-08-09, per the plan-against-official-docs rule. Both findings below change what you build, so read them before designing the schema.
+
+**The flag has a documented home; use it.** better-auth exposes `user.additionalFields`, typed `Record<string, DBFieldAttribute>` in `@better-auth/core/dist/types/init-options.d.mts:133` ("Additional fields for the model"). The library applies declared defaults when it creates a user, and its own `customSyntheticUser` option is documented in terms of "processed additional fields from `options.user.additionalFields` (with defaults applied)" - so a field declared this way is one better-auth knows about, populates and returns on the session user. A column added to the table behind the library's back is not, and the difference shows up as a flag that is absent from the session object exactly when the gate needs to read it. **Declare the field; do not bolt on a column.**
+
+**There is no library support for the enforcement, and you should not go looking for one.** 1.6.25 ships no "force password change", "must change password" or equivalent hook: nothing in the core options, no first-party plugin, and nothing in the documented `databaseHooks` that can refuse an authenticated request on a user-field predicate. `changePassword` exists and is what the screen calls, but nothing consumes a flag to require it.
+
+That is the finding, not a gap to work around: **the gate is entirely ours**, and exit criterion 3 is therefore the whole risk of this task rather than an afterthought. Do not spend a cycle searching for a plugin that would make it disappear, and do not adopt a half-fitting one (the admin plugin's `banned` field is the nearest shape and it is the wrong semantics - a banned account is refused, not redirected to a remedy). Build the gate at the framework layer, where a new route inherits it, and say plainly in the PR which mechanism you chose and what would defeat it.
