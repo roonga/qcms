@@ -271,6 +271,10 @@ export default defineConfig({
         // The BFF's credentials for the API, now carrying the auth traffic too.
         QCMS_API_BASE_URL: API_BASE_URL,
         QCMS_INTERNAL_TOKEN: FIXED_INTERNAL_TOKEN,
+        OTEL_EXPORTER_OTLP_ENDPOINT: OTLP_ENDPOINT,
+        OTEL_EXPORTER_OTLP_PROTOCOL: "http/json",
+        OTEL_SERVICE_NAME: OTEL_SERVICE_NAMES.admin,
+        OTEL_BSP_SCHEDULE_DELAY: OTLP_SCHEDULE_DELAY_MS,
         // Left at the default (`required`) deliberately: enforced-by-default 2FA is
         // the behaviour under test, so the escape hatch must not be set here.
       },

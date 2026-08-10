@@ -6,12 +6,29 @@
  * only place in a Next app where "refuse to boot" can mean boot rather than "500 on the
  * first request", which is why the cookie-security guard is called from here.
  *
- * The portal's twin (`apps/portal/instrumentation.ts`) does the same thing first and then
- * registers OpenTelemetry (task 054, ADR-34). This app has no OTel registration yet; when
- * it gets one it belongs in this file, after the guard.
+ * The portal's twin (`apps/portal/instrumentation.ts`) follows the same cookie guard,
+ * tracing, propagation and safe-log recipe. Registration belongs here, after the guard.
  */
 
+import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
+import { BatchLogRecordProcessor } from "@opentelemetry/sdk-logs";
+import { allowlistingLogRecordProcessor } from "@qcms/observability/logs";
+import { registerOTel } from "@vercel/otel";
+
 import { assertSecureCookiesConfigured } from "./lib/server/config";
+import { redactingSpanProcessor } from "./lib/server/telemetry-redaction";
+
+export const DEFAULT_SERVICE_NAME = "qcms-admin";
+
+function apiOrigin(): string | undefined {
+  const base = process.env.QCMS_API_BASE_URL?.trim();
+  if (base === undefined || base === "") return undefined;
+  try {
+    return new URL(base).origin;
+  } catch {
+    return undefined;
+  }
+}
 
 /**
  * Refuse to start on a cookie configuration a browser will not protect (issue #292).
@@ -45,4 +62,24 @@ function refuseInsecureCookieConfiguration(): void {
 
 export function register(): void {
   refuseInsecureCookieConfiguration();
+
+  const endpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT?.trim();
+  if (endpoint === undefined || endpoint === "") return;
+  const origin = apiOrigin();
+  registerOTel({
+    serviceName: process.env.OTEL_SERVICE_NAME ?? DEFAULT_SERVICE_NAME,
+    spanProcessors: [redactingSpanProcessor(), "auto"],
+    logRecordProcessors: [
+      allowlistingLogRecordProcessor(),
+      new BatchLogRecordProcessor({
+        exporter: new OTLPLogExporter({ url: `${endpoint}/v1/logs` }),
+      }),
+    ],
+    instrumentations: ["auto"],
+    instrumentationConfig: {
+      fetch: {
+        ...(origin === undefined ? {} : { propagateContextUrls: [origin] }),
+      },
+    },
+  });
 }

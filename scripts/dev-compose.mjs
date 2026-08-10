@@ -507,10 +507,10 @@ export function devStackBannerLines({ ports, project, credentials, inContainer }
   }
 
   lines.push(
-    "  Grafana logs in with admin / admin (the image's own default). Traces are",
-    "  under Explore -> Tempo -> Search. The LOGS PANE WILL BE EMPTY and that is",
-    "  expected, not a fault: QCMS exports traces only, and OTLP log export is",
-    "  issue #370, which has not landed. Loki is running; nothing sends to it.",
+    "  Grafana logs in with admin / admin (the image's own default). Application",
+    "  logs are under Explore -> Loki for qcms-admin, qcms-portal and qcms-api.",
+    "  Trace-correlated records link to Tempo; requestId follows a call across apps.",
+    "  Exported fields are a strict SEC-13 allowlist: no answers, PII or secrets.",
     "",
     "  Nothing persists in the dashboard either (the overlay declares no volumes),",
     "  and the first request after a cold start may be missing: lgtm takes tens of",

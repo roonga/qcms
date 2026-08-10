@@ -72,24 +72,24 @@ front ends have no database of their own to probe:
 
 ## Logs
 
-Every process writes **JSON lines to stdout and nothing else**. There is no log file,
-no log shipper in the images, and no bundled observability stack: collection is the
-operator's, and any collector that reads container stdout works unchanged (the Docker
-`json-file` or `journald` drivers, a Fluent Bit or Vector sidecar, a cloud agent).
+Every process writes **JSON lines to stdout**. There is no log file, log-shipping
+sidecar or bundled production observability stack: collection and retention remain
+the operator's. When the standard OTLP endpoint is configured, the same application
+events also produce privacy-reduced OTLP log records alongside traces.
 
 The line shape is `{ level, time, msg, ...fields }`, with `level` as a word
 (`debug`/`info`/`warn`/`error`) and `time` as an ISO instant. When the OpenTelemetry
-SDK is enabled the pino instrumentation adds `trace_id` and `span_id` to every line,
+SDK is enabled the shared server logger adds `trace_id` and `span_id` to every line,
 so logs correlate to traces with no call-site change (ADR-34). OTel is configured
 through the standard `OTEL_*` variables in the reference below; leave them unset and
 the SDK stays off.
 
-**Answer values are never logged.** Handlers log question ids and counts, never
-content, and a redactor replaces any field whose key looks like a secret or like
-respondent content with `"[REDACTED]"` before serialization (SEC-8). The redactor is
-a backstop, not the primary control: it runs before the serializer sees the field, so
-a careless `logger.info("...", { token })` cannot leak a value even in a crash path.
-Treat a `[REDACTED]` in a log you are reading as the system working, not as a bug.
+**Answer values, direct identifiers, secrets and free-text errors are never logged.**
+Handlers use route templates and opaque ids, while the stdout redactor masks
+sensitive-looking fields before serialization. OTLP applies a stricter independent
+allowlist: unknown event names are normalized and unknown attributes are discarded
+before batching. Treat `[REDACTED]` as the control working, not as missing data; use
+`requestId`, `errorId`, `trace_id` and `span_id` for diagnosis (SEC-13).
 
 ## Environment reference
 
@@ -155,8 +155,8 @@ Validated at boot by `apps/api/src/config.ts`, which collects every problem and 
 | `QCMS_RL_ANSWERS_IP_MAX` | optional | `300` | Answers that may be submitted per window across every session sharing one client address: the wide backstop against many-session floods from one source. Keyed and caveated exactly as `QCMS_RL_SESSION_CREATE_MAX`; the per-session limits above are unaffected either way, because a session id is always visible. |
 | `QCMS_RL_SUBMIT_SESSION_WINDOW_MS` | optional | `60000` | Rate-limit window for `POST /sessions/{id}/submit`, keyed by session. |
 | `QCMS_RL_SUBMIT_SESSION_MAX` | optional | `5` | Submit attempts one session may make per window. |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | optional | (none) | OTLP collector endpoint (ADR-34). Unset is the default and a hard no-op: no SDK starts and no span is produced. Setting it turns on tracing and adds `trace_id`/`span_id` to every log line. |
-| `OTEL_SERVICE_NAME` | optional | `qcms-api` | Service name reported on exported spans. Read only when tracing is on. |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | optional | (none) | OTLP collector endpoint (ADR-34). Unset is a hard no-op. Setting it exports traces plus SEC-13-allowlisted logs and adds `trace_id`/`span_id` to stdout records. |
+| `OTEL_SERVICE_NAME` | optional | `qcms-api` | Service name reported on exported traces and logs. Read only when telemetry is on. |
 | `QCMS_ADMIN_EMAIL` | conditional | - | First-run bootstrap only. Read by `node dist/create-admin.js` to create the first administrator; never read by the serving process. |
 | `QCMS_ADMIN_PASSWORD` (secret) | conditional | - | First-run bootstrap only, alongside `QCMS_ADMIN_EMAIL`. Pass it per-command, never in the `.env` file. Put the value in the environment of the command you run and name the variable with no value attached (`docker compose exec --env QCMS_ADMIN_PASSWORD ...`): `--env QCMS_ADMIN_PASSWORD=<value>` would place the password in the docker CLI's own argv, which is world-readable in a `ps` listing (issue #440). |
 | `QCMS_ADMIN_NAME` | optional | `the email local part` | Display name for the bootstrapped administrator. |
@@ -183,8 +183,8 @@ Read on the server only. The portal holds no database credential and reaches the
 | `QCMS_PORTAL_FONT` | optional | `the system font stack` | Single font family override. |
 | `QCMS_PORTAL_BRAND_NAME` | optional | (none) | Brand name shown in the portal header. Empty renders no brand. |
 | `QCMS_PORTAL_BRAND_LOGO` | optional | (none) | URL of the brand logo shown in the portal header. |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | optional | (none) | OTLP collector endpoint (ADR-34). Unset means no SDK and no spans. |
-| `OTEL_SERVICE_NAME` | optional | `qcms-portal` | Service name reported on exported spans. |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | optional | (none) | OTLP collector endpoint (ADR-34). Unset means no SDK; set exports traces and SEC-13-allowlisted logs. |
+| `OTEL_SERVICE_NAME` | optional | `qcms-portal` | Service name reported on exported traces and logs. |
 
 #### Admin BFF (`qcms-admin`)
 
@@ -200,6 +200,8 @@ Read on the server only. Since task 056 the admin holds no database credential e
 | `QCMS_ADMIN_TRUSTED_PROXY_HOPS` | optional | `1` | How many proxies you run between the internet and this app. The address better-auth's per-IP sign-in throttle (SEC-1) keys on is the entry that many places from the **right** of the inbound `X-Forwarded-For`, so entries a client wrote itself are never reached. `1` is correct for both recipes in `docs/deploy-ingress.md`, which front this app exactly as they front the portal. **Setting it higher than the number of proxies that actually exist makes sign-in throttling bypassable** (the resolver reads into client-supplied text, and an attacker rotating the header gets a fresh backoff allowance every attempt); setting it lower is safe but coarse (admins get bucketed by a proxy's egress address); `0` trusts no forwarded header and puts every sign-in attempt in one shared bucket. Separate from `QCMS_PORTAL_TRUSTED_PROXY_HOPS` because the two apps are two hostnames and may sit behind different ingresses - set both, and set them to the same value unless one of them has an extra proxy in front of it. A non-numeric or out-of-range value is refused rather than defaulted. |
 | `QCMS_ADMIN_SESSION_MAX_AGE_MS` | optional | `43200000 (12h)` | Must match the API's value; used for the app's own session bookkeeping. |
 | `NODE_ENV` | optional | `production (set by the image)` | Decides the default for `QCMS_ADMIN_SECURE_COOKIES` when that is unset. |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | optional | (none) | OTLP collector endpoint (ADR-34). Unset means no SDK; set exports traces and SEC-13-allowlisted logs. |
+| `OTEL_SERVICE_NAME` | optional | `qcms-admin` | Service name reported on exported traces and logs. |
 
 #### Compose-level (`docker-compose.yml`, `docker-compose.proxy.yml`)
 

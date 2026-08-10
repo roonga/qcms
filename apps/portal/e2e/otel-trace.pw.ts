@@ -18,7 +18,7 @@
  * 3. **The `x-request-id` bridge.** The id the portal echoes to the browser is the
  *    id the API recorded on its span (`qcms.request_id`) and the id in the API's
  *    log line, and that log line also carries `trace_id`/`span_id` from
- *    `instrumentation-pino`. Three artefacts, one id, no call-site plumbing.
+ *    the shared server logger. Three artefacts, one id, no call-site plumbing.
  * 4. **SEC-13 holds.** A known submitted answer value appears nowhere in the
  *    captured payloads or in either server log, and the secure-link token in
  *    `/l/<token>` is exported as `/l/[token]` - redacted, not merely absent.
@@ -40,8 +40,10 @@ import {
   startKitchenSink,
 } from "./support/kitchen-sink.js";
 import {
+  readCapturedLogs,
   readCapturedPayloads,
   readCapturedSpans,
+  type CapturedLog,
   type CapturedSpan,
 } from "./support/otlp-receiver.js";
 
@@ -68,6 +70,16 @@ async function waitForSpans(ready: (spans: CapturedSpan[]) => boolean): Promise<
     spans = readCapturedSpans();
   }
   return spans;
+}
+
+async function waitForLogs(ready: (logs: CapturedLog[]) => boolean): Promise<CapturedLog[]> {
+  const deadline = Date.now() + SPAN_WAIT_MS;
+  let logs = readCapturedLogs();
+  while (!ready(logs) && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+    logs = readCapturedLogs();
+  }
+  return logs;
 }
 
 /** OTLP span kinds, as they appear on the wire. */
@@ -120,6 +132,10 @@ test("a respondent submit produces one connected trace, correlated logs, and no 
     mentions(span, "/submit");
 
   const spans = await waitForSpans((all) => all.some(isSubmitServerSpan));
+  expect(
+    spans.filter(isSubmitServerSpan),
+    "the API should export one semantic SERVER span, not a duplicate raw HTTP span",
+  ).toHaveLength(1);
   const apiServerSpan = spans.find(isSubmitServerSpan);
   expect(
     apiServerSpan,
@@ -174,9 +190,37 @@ test("a respondent submit produces one connected trace, correlated logs, and no 
     correlated.length,
     "the API should have logged the request id the portal forwarded",
   ).toBeGreaterThan(0);
-  // `instrumentation-pino` put these there; no call site mentions trace_id.
+  // The shared logger put these there; no call site mentions trace_id.
   expect(correlated.some((line) => line.trace_id === traceId)).toBe(true);
   expect(correlated.every((line) => typeof line.span_id === "string")).toBe(true);
+
+  const exportedLogs = (
+    await waitForLogs((records) => {
+      const services = new Set(
+        records
+          .filter(
+            (record) => record.traceId === traceId && record.attributes.requestId === requestId,
+          )
+          .map((record) => record.serviceName),
+      );
+      return services.has(OTEL_SERVICE_NAMES.portal) && services.has(OTEL_SERVICE_NAMES.api);
+    })
+  ).filter((record) => record.traceId === traceId);
+  expect(
+    exportedLogs.some(
+      (record) =>
+        record.serviceName === OTEL_SERVICE_NAMES.portal &&
+        record.attributes.requestId === requestId,
+    ),
+    "the Portal should export a safe log in the connected trace",
+  ).toBe(true);
+  expect(
+    exportedLogs.some(
+      (record) =>
+        record.serviceName === OTEL_SERVICE_NAMES.api && record.attributes.requestId === requestId,
+    ),
+    "the API should export a safe log in the connected trace",
+  ).toBe(true);
 
   // --- Exit criterion 4: SEC-13 --------------------------------------------
   const payloads = readCapturedPayloads();

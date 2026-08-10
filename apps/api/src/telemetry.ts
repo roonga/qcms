@@ -16,16 +16,20 @@
  *
  * **Ordering matters and is why this module imports nothing of ours.** The
  * instrumentations patch their targets when those modules are first `require`d,
- * so the SDK must start before `pg`, `pino`, `undici` or the app graph loads.
+ * so the SDK must start before `pg`, `undici` or the app graph loads.
  * `serve.ts` therefore starts telemetry first and only then dynamically imports
  * `main.js`. A static `import` of the app from here would defeat that by hoisting.
  *
  * Instrumentations are an **explicit list** of official packages - http, undici
- * (outbound webhook delivery), pg, pino. Not `auto-instrumentations-node`: same
+ * (outbound webhook delivery), pg. Not `auto-instrumentations-node`: same
  * code, 100+ packages of dependency surface. Server spans come from `@hono/otel`
  * at the app level (`app.ts`), which is also what extracts the inbound
  * `traceparent` from the portal's BFF hop.
  */
+
+import { allowlistingLogRecordProcessor } from "@qcms/observability/logs";
+import { SpanKind, type Context } from "@opentelemetry/api";
+import type { ReadableSpan, Span, SpanProcessor } from "@opentelemetry/sdk-trace";
 
 import { redactingSpanProcessor } from "./telemetry-redaction.js";
 
@@ -57,6 +61,30 @@ const DISABLED: Telemetry = {
   enabled: false,
   shutdown: () => Promise.resolve(),
 };
+
+/**
+ * Keep node:http's inbound context bridge but discard its redundant wire span.
+ * `@hono/otel` creates the route-aware semantic SERVER span beneath that context;
+ * exporting both makes every API request appear twice (#184).
+ */
+export function suppressDuplicateIncomingHttpSpans(delegate: SpanProcessor): SpanProcessor {
+  return {
+    onStart(span: Span, parentContext: Context): void {
+      delegate.onStart(span, parentContext);
+    },
+    onEnd(span: ReadableSpan): void {
+      if (
+        span.kind === SpanKind.SERVER &&
+        span.instrumentationScope.name === "@opentelemetry/instrumentation-http"
+      ) {
+        return;
+      }
+      delegate.onEnd(span);
+    },
+    forceFlush: () => delegate.forceFlush(),
+    shutdown: () => delegate.shutdown(),
+  };
+}
 
 /**
  * The configured OTLP base endpoint, or `undefined` when tracing is off.
@@ -91,19 +119,21 @@ export async function startTelemetry(options: TelemetryOptions = {}): Promise<Te
   const [
     { NodeSDK },
     { BatchSpanProcessor },
+    { BatchLogRecordProcessor },
+    { OTLPLogExporter },
     { OTLPTraceExporter },
     { HttpInstrumentation },
     { UndiciInstrumentation },
     { PgInstrumentation },
-    { PinoInstrumentation },
   ] = await Promise.all([
     import("@opentelemetry/sdk-node"),
     import("@opentelemetry/sdk-trace"),
+    import("@opentelemetry/sdk-logs"),
+    import("@opentelemetry/exporter-logs-otlp-http"),
     import("@opentelemetry/exporter-trace-otlp-http"),
     import("@opentelemetry/instrumentation-http"),
     import("@opentelemetry/instrumentation-undici"),
     import("@opentelemetry/instrumentation-pg"),
-    import("@opentelemetry/instrumentation-pino"),
   ]);
 
   const sdk = new NodeSDK({
@@ -112,11 +142,22 @@ export async function startTelemetry(options: TelemetryOptions = {}): Promise<Te
     // processor queues anything.
     spanProcessors: [
       redactingSpanProcessor(),
-      new BatchSpanProcessor({
-        exporter: new OTLPTraceExporter({ url: `${endpoint}/v1/traces` }),
+      suppressDuplicateIncomingHttpSpans(
+        new BatchSpanProcessor({
+          exporter: new OTLPTraceExporter({ url: `${endpoint}/v1/traces` }),
+        }),
+      ),
+    ],
+    // SEC-13 runs before batching: unsafe fields never enter an exporter queue.
+    logRecordProcessors: [
+      allowlistingLogRecordProcessor(),
+      new BatchLogRecordProcessor({
+        exporter: new OTLPLogExporter({ url: `${endpoint}/v1/logs` }),
       }),
     ],
     instrumentations: [
+      // The incoming hook creates the propagation context used by the Hono span.
+      // The exporting processor above drops only its redundant raw SERVER span.
       new HttpInstrumentation(),
       // Outbound webhook delivery (025) runs on fetch/undici.
       new UndiciInstrumentation(),
@@ -127,10 +168,6 @@ export async function startTelemetry(options: TelemetryOptions = {}): Promise<Te
         enhancedDatabaseReporting: false,
         addSqlCommenterCommentToQueries: false,
       }),
-      // Log correlation only. `disableLogSending` keeps the OTel Logs pipeline out
-      // of the baseline (ADR-34 defers OTLP log export to Phase 4); stdout JSON
-      // stays the transport, now carrying `trace_id`/`span_id`.
-      new PinoInstrumentation({ disableLogSending: true }),
     ],
   });
 

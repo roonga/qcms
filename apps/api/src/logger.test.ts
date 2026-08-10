@@ -71,6 +71,22 @@ describe("createJsonLogger", () => {
     expect(line.answer).toBe("[REDACTED]");
   });
 
+  it("redacts direct identifiers and network addresses", () => {
+    const { logger, parsed } = capture();
+    logger.info("identity", {
+      email: "person@example.test",
+      phone: "+61 400 000 000",
+      clientAddress: "203.0.113.42",
+      displayName: "Example Person",
+    });
+
+    const raw = JSON.stringify(parsed()[0]);
+    expect(raw).not.toContain("person@example.test");
+    expect(raw).not.toContain("+61 400 000 000");
+    expect(raw).not.toContain("203.0.113.42");
+    expect(raw).not.toContain("Example Person");
+  });
+
   it("redacts nested secret fields", () => {
     const { logger, parsed } = capture();
     logger.info("nested", { config: { keys: { app: "topsecret" }, mount: "all" } });
@@ -81,14 +97,15 @@ describe("createJsonLogger", () => {
     expect(JSON.stringify(line)).not.toContain("topsecret");
   });
 
-  it("serializes Error objects with name/message/stack", () => {
+  it("keeps an Error's type but never its free-text message or stack", () => {
     const { logger, parsed } = capture();
     logger.error("boom", { err: new Error("kaboom") });
     const line = parsed()[0]!;
     const err = line.err as Record<string, unknown>;
     expect(err.name).toBe("Error");
-    expect(err.message).toBe("kaboom");
-    expect(typeof err.stack).toBe("string");
+    expect(err.message).toBeUndefined();
+    expect(err.stack).toBeUndefined();
+    expect(JSON.stringify(line)).not.toContain("kaboom");
   });
 
   it("child() merges bindings into every line", () => {

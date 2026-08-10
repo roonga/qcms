@@ -53,6 +53,7 @@ export const OTLP_ENDPOINT = `http://127.0.0.1:${OTLP_PORT}`;
 export const OTEL_SERVICE_NAMES = {
   api: "qcms-api-e2e",
   portal: "qcms-portal-e2e",
+  admin: "qcms-admin-e2e",
 } as const;
 
 /**

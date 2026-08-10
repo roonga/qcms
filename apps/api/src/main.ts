@@ -13,7 +13,7 @@
  * handle built here).
  *
  * `serve.ts` is the entry that runs this, and it is a separate file for exactly
- * one reason (task 054): the OTel SDK must start before `pg`, `pino` and the app
+ * one reason (task 054): the OTel SDK must start before `pg` and the app
  * graph load, because the instrumentations patch those modules as they are
  * required. Everything this module imports is therefore loaded *after* the SDK,
  * through the entry's dynamic import.
@@ -52,6 +52,7 @@ export function main(telemetry: Telemetry): void {
   const logger = createJsonLogger({
     write: (line) => process.stdout.write(line + "\n"),
     base: { service: "qcms-api" },
+    sendToOpenTelemetry: true,
   });
 
   // At boot rather than when the auth instance is first built: that build is lazy

@@ -3,7 +3,8 @@
  *
  * Test support only - it exists so the tracing baseline can be proved against
  * **real exported payloads** with no external collector, no viewer, and no new
- * production surface. It accepts `POST /v1/traces` (OTLP/HTTP + JSON, the encoding
+ * production surface. It accepts `POST /v1/traces` and `POST /v1/logs`
+ * (OTLP/HTTP + JSON, the encoding
  * `@opentelemetry/exporter-trace-otlp-http` and `@vercel/otel` with
  * `OTEL_EXPORTER_OTLP_PROTOCOL=http/json` both send), appends each request body
  * verbatim to a JSONL capture file, and answers `{}`.
@@ -41,6 +42,14 @@ export interface CapturedSpan {
   readonly attributes: Readonly<Record<string, CapturedAttributeValue>>;
 }
 
+export interface CapturedLog {
+  readonly traceId: string;
+  readonly spanId: string;
+  readonly serviceName: string;
+  readonly body: string;
+  readonly attributes: Readonly<Record<string, CapturedAttributeValue>>;
+}
+
 let server: Server | undefined;
 
 /** Start the receiver and truncate the capture file for this run window. */
@@ -53,7 +62,10 @@ export async function startOtlpReceiver(): Promise<void> {
     const chunks: Buffer[] = [];
     request.on("data", (chunk: Buffer) => chunks.push(chunk));
     request.on("end", () => {
-      if (request.url === "/v1/traces" && request.method === "POST") {
+      if (
+        (request.url === "/v1/traces" || request.url === "/v1/logs") &&
+        request.method === "POST"
+      ) {
         // One line per export request; newlines inside a JSON body are impossible
         // (the exporter emits compact JSON), so JSONL is safe here.
         appendFileSync(OTLP_CAPTURE_PATH, `${Buffer.concat(chunks).toString("utf8")}\n`);
@@ -115,6 +127,19 @@ interface OtlpResourceSpans {
 }
 interface OtlpPayload {
   resourceSpans?: OtlpResourceSpans[];
+  resourceLogs?: OtlpResourceLogs[];
+}
+
+interface OtlpLogRecord {
+  traceId?: string;
+  spanId?: string;
+  body?: OtlpValue;
+  attributes?: OtlpAttribute[];
+}
+
+interface OtlpResourceLogs {
+  resource?: { attributes?: OtlpAttribute[] };
+  scopeLogs?: { logRecords?: OtlpLogRecord[] }[];
 }
 
 /** Flatten OTLP's typed attribute values to scalars, dropping anything else. */
@@ -168,4 +193,25 @@ export function readCapturedSpans(): CapturedSpan[] {
     .filter((line) => line.trim() !== "")
     .flatMap((line) => parsePayload(line)?.resourceSpans ?? [])
     .flatMap(spansOfResource);
+}
+
+export function readCapturedLogs(): CapturedLog[] {
+  return readCapturedPayloads()
+    .split("\n")
+    .filter((line) => line.trim() !== "")
+    .flatMap((line) => parsePayload(line)?.resourceLogs ?? [])
+    .flatMap((resourceLog) => {
+      const resource = flattenAttributes(resourceLog.resource?.attributes);
+      const service = resource["service.name"];
+      const serviceName = typeof service === "string" ? service : "";
+      return (resourceLog.scopeLogs ?? []).flatMap((scopeLog) =>
+        (scopeLog.logRecords ?? []).map((record) => ({
+          traceId: record.traceId ?? "",
+          spanId: record.spanId ?? "",
+          serviceName,
+          body: record.body?.stringValue ?? "",
+          attributes: flattenAttributes(record.attributes),
+        })),
+      );
+    });
 }

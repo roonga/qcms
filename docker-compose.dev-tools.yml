@@ -37,9 +37,8 @@
 #   the right trade for a toolbox - `docker compose ... down` leaves nothing behind,
 #   which is what makes this safe to bring up and tear down per investigation - but
 #   it does mean a restart of `lgtm` empties the dashboard.
-# - **No logs pipeline yet.** Only traces are exported today, so Grafana's Loki
-#   datasource is present and empty. Turning on OTLP log export is issue #370, which
-#   carries a SEC-13 amendment and is deliberately not folded in here.
+# - **Logs are privacy-reduced before export.** Loki receives the applications'
+#   allowlisted operational events; it never receives raw stdout or request content.
 # - **This file is not in `scripts/env-reference.mjs`'s `COMPOSE_FILES`**, and that
 #   is a decision rather than an oversight: the generated table in docs/operations.md
 #   is the operator's surface, and none of the variables below is an operator's to
@@ -155,10 +154,10 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
 
-  # The two app services gain an endpoint and nothing else. Both composition roots
+  # The three app services gain an endpoint and nothing else. Their composition roots
   # treat `OTEL_EXPORTER_OTLP_ENDPOINT` as the single switch (ADR-34): unset means no
   # SDK starts at all, so the base file's empty default keeps the shipped stack silent
-  # and this override is the whole of what turns tracing on.
+  # and this override is the whole of what turns traces and safe OTLP logs on.
   #
   # `OTEL_SERVICE_NAME` is deliberately not set here. Each composition root already
   # defaults to its own name (`qcms-api`, `qcms-portal`), and one Compose-level value
@@ -176,6 +175,13 @@ services:
         condition: service_started
 
   portal:
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://lgtm:4318}
+    depends_on:
+      lgtm:
+        condition: service_started
+
+  admin:
     environment:
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://lgtm:4318}
     depends_on:

@@ -192,7 +192,7 @@ That gives you, at seat 0 (`docs/PORTS.md` for other seats, and all four are loo
 |---|---|
 | <http://localhost:7040> | The authoring admin. Sign in with the credential `dev:up` printed. |
 | <http://localhost:7000> | The respondent portal. |
-| <http://localhost:7050> | Grafana. Log in `admin` / `admin` - the image's own default, on a port only your machine can reach. **Explore -> Tempo -> Search** lists recent traces. |
+| <http://localhost:7050> | Grafana. Log in `admin` / `admin` - the image's own default, on a port only your machine can reach. **Explore -> Loki** shows application logs; trace-correlated records link to Tempo. |
 | <http://localhost:7060> | pgweb, connected read-only to the application database. No login screen: the connection comes from the environment. |
 
 Bring it down with the matching command, which removes the containers, the network, the volumes and the overlay's containers (which are orphans of the base file and are otherwise left behind):
@@ -213,7 +213,7 @@ pnpm dev:down
 Four things worth knowing before you go looking for something that is missing:
 
 - **First sign-in forces TOTP enrolment** (SEC-1) and shows the recovery codes exactly once. Have an authenticator app open before you start. `QCMS_ADMIN_2FA=optional` relaxes it while developing, and both the API and the admin read it, so setting it in one place only makes every admin API call 401.
-- **The logs pane is empty, and that is expected.** QCMS exports traces only. OTLP log export is issue #370, which carries a SEC-13 amendment and is deliberately a separate change. Loki is running; nothing sends to it.
+- **Logs are intentionally concise.** In **Explore -> Loki**, select `qcms-admin`, `qcms-portal` or `qcms-api`. Exported records contain only approved operational fields such as route template, method, status, duration, request id and opaque error id. They never contain request bodies, answers, direct identifiers, headers, cookies, query strings, exception messages or stacks (SEC-13). Use the trace link or copy `requestId` to follow one request across services.
 - **The first request after a cold start may not appear.** `lgtm` takes tens of seconds to come up and ships no healthcheck, so the apps start before the collector is listening and the earliest spans exhaust their retry budget. Make a second request.
 - **Nothing persists.** The overlay declares no volumes, so a restart of `lgtm` empties the dashboard. That is the trade that makes `down` leave nothing behind.
 
@@ -233,7 +233,7 @@ docker run --rm -p 18888:18888 -p 4318:18889 \
   mcr.microsoft.com/dotnet/aspire-dashboard:latest
 ```
 
-Then start the dev servers with the standard variables set (the same two knobs both processes read):
+Then start a dev server with the standard variables set (all three processes use the same knobs):
 
 ```sh
 OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 \
@@ -246,12 +246,12 @@ Those two containers are yours to start and stop; nothing in the repo wires them
 
 ### Notes that apply to both
 
-- **`OTEL_EXPORTER_OTLP_ENDPOINT` is the whole switch.** Unset, neither app starts an SDK at all (not "starts one that fails to export") - so an empty dashboard with the variable unset is correct behaviour, not a bug. Note that **Compose forwards only what a service names in `environment:`**: before issue #417 neither app named this variable, so setting it in `.env` did nothing to a composed stack. It now reaches both, defaulting to empty.
-- **Set `OTEL_SERVICE_NAME` per process** if you start the API separately, otherwise both default names collide in the dashboard's service list (`qcms-api` and `qcms-portal` are the defaults when you do nothing). The overlay leaves it unset for exactly this reason.
+- **`OTEL_EXPORTER_OTLP_ENDPOINT` is the whole switch.** Unset, no app starts an SDK at all (not "starts one that fails to export") - so an empty dashboard with the variable unset is correct behaviour. Compose forwards the variable to Admin, Portal and API, defaulting to empty in the shipped topology and to `http://lgtm:4318` in the developer overlay.
+- **Set `OTEL_SERVICE_NAME` per process** only when overriding it. The defaults are `qcms-admin`, `qcms-portal` and `qcms-api`; the overlay leaves it unset so those names remain distinct.
 - **`NEXT_OTEL_VERBOSE=1`** makes Next emit its fuller span set rather than the default subset. Useful when you are debugging the portal's own render/fetch phases; noisy otherwise.
 - **The expected root span is `GET /requested/pathname`** on the portal, with the BFF's `fetch POST .../sessions/...` beneath it, then the API's `POST /sessions/:id/...` server span (that is the `traceparent` hop working), then `pg.query:*` spans under that.
 - **The secure-link route shows as `GET /l/[token]`.** That is SEC-13 redaction doing its job: the token is a credential and is removed from span names and URLs before export. Same reason you will not find answer values or `db.statement` parameters anywhere in a span.
-- **The admin app has no instrumentation at all** (issue #185), so authoring traffic produces API-rooted traces with no admin span above them - worth knowing before you open the dashboard expecting to debug the authoring flow. Issue #184 (a second SERVER span on the API's inbound path) is tracked in the same area; if you see a duplicate, it is that and not something you have misconfigured.
+- **Admin and respondent traffic use the same propagation model.** Each BFF forwards `traceparent` and `x-request-id` to the API. The API exports only the semantic `@hono/otel` SERVER span; raw incoming HTTP spans are suppressed so a request does not appear twice.
 - **Background work is its own trace, correctly.** The API's outbox delivery pass runs on a timer with no inbound request above it, so its `pg.query:*` spans are roots of single-span traces rather than orphans. Request-driven queries do sit under their request span.
 - The Playwright suite's own in-test receiver lives inside the QCMS allocation (`17S30`, so 17030 at seat 0), well away from all of the above, so a running dashboard and a test run cannot collide. See [`docs/PORTS.md`](PORTS.md).
 

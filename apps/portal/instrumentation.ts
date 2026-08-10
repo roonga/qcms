@@ -27,6 +27,9 @@
  */
 
 import { registerOTel } from "@vercel/otel";
+import { allowlistingLogRecordProcessor } from "@qcms/observability/logs";
+import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
+import { BatchLogRecordProcessor } from "@opentelemetry/sdk-logs";
 
 import { assertSecureCookiesConfigured } from "./lib/server/config";
 import { redactingSpanProcessor } from "./lib/server/telemetry-redaction";
@@ -96,6 +99,13 @@ export function register(): void {
     serviceName: process.env.OTEL_SERVICE_NAME ?? DEFAULT_SERVICE_NAME,
     // SEC-13 first, the environment's exporter second.
     spanProcessors: [redactingSpanProcessor(), "auto"],
+    logRecordProcessors: [
+      allowlistingLogRecordProcessor(),
+      new BatchLogRecordProcessor({
+        exporter: new OTLPLogExporter({ url: `${endpoint}/v1/logs` }),
+      }),
+    ],
+    instrumentations: ["auto"],
     instrumentationConfig: {
       fetch: {
         // `@vercel/otel` injects `traceparent` ONLY into fetches whose URL matches

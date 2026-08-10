@@ -24,7 +24,7 @@ import { composeConfig, publishedPorts, REPOSITORY_ROOT } from "./docker.mjs";
  *    is layered on", not "neither file mentions a port for api".
  * 2. **The Caddyfile is read as text.** Its upstreams are the routing policy, and
  *    the assertion is a whitelist: exactly two `reverse_proxy` lines, exactly the
- *    two app services. A third upstream fails whatever it points at, which is the
+ *    app services. A third upstream fails whatever it points at, which is the
  *    shape that catches `api:3000` being added "just for a health probe".
  *
  * These need a working Docker CLI, which `pnpm test` already requires (the
@@ -266,12 +266,12 @@ describe("developer-toolbox overlay", () => {
 });
 
 describe("OTLP export plumbing (ADR-34)", () => {
-  it("names the endpoint variable on both apps, so Compose forwards it at all", () => {
+  it("names the endpoint variable on all apps, so Compose forwards it at all", () => {
     // Compose forwards ONLY what a service names in `environment:`. Before issue
-    // #417 neither app named this one, so setting it in .env reached nothing and the
+    // #417 neither original app named this one, so setting it in .env reached nothing and the
     // composed stack could not export telemetry however it was configured. This is
     // the assertion that would have failed then.
-    for (const name of ["api", "portal"]) {
+    for (const name of ["api", "portal", "admin"]) {
       expect(
         service(solo, name).environment,
         `${name} must forward the OTLP endpoint`,
@@ -282,13 +282,13 @@ describe("OTLP export plumbing (ADR-34)", () => {
   it("leaves it empty in the shipped stack, which means no SDK starts", () => {
     // ADR-34: unset is a hard no-op, not "export to a collector nobody runs". The
     // shipped topology carries no collector, so empty is the only correct default.
-    for (const name of ["api", "portal"]) {
+    for (const name of ["api", "portal", "admin"]) {
       expect(service(solo, name).environment?.OTEL_EXPORTER_OTLP_ENDPOINT).toBe("");
     }
   });
 
-  it("points both apps at the overlay's collector by service name", () => {
-    for (const name of ["api", "portal"]) {
+  it("points all apps at the overlay's collector by service name", () => {
+    for (const name of ["api", "portal", "admin"]) {
       expect(service(withDevTools, name).environment?.OTEL_EXPORTER_OTLP_ENDPOINT).toBe(
         "http://lgtm:4318",
       );

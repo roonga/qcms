@@ -10,7 +10,7 @@
  *     exporter's).
  *  2. **The server**, imported *dynamically* so that step 1 has already
  *     happened. This is the whole reason `main.ts` is a separate module: the OTel
- *     instrumentations patch `pg`, `pino` and `node:http` when those modules are
+ *     instrumentations patch `pg` and `node:http` when those modules are
  *     first required, so a static `import { main } from "./main.js"` here would
  *     hoist the entire graph above the SDK and silently produce a process with no
  *     database or logging instrumentation. Any future work that needs something

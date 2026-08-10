@@ -463,14 +463,15 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "",
     description:
-      "OTLP collector endpoint (ADR-34). Unset is the default and a hard no-op: no SDK starts and no span is produced. Setting it turns on tracing and adds `trace_id`/`span_id` to every log line.",
+      "OTLP collector endpoint (ADR-34). Unset is a hard no-op. Setting it exports traces plus SEC-13-allowlisted logs and adds `trace_id`/`span_id` to stdout records.",
   },
   {
     name: "OTEL_SERVICE_NAME",
     process: "api",
     requirement: "optional",
     fallback: "qcms-api",
-    description: "Service name reported on exported spans. Read only when tracing is on.",
+    description:
+      "Service name reported on exported traces and logs. Read only when telemetry is on.",
   },
   {
     name: "QCMS_ADMIN_EMAIL",
@@ -623,14 +624,15 @@ export const ENV_REFERENCE = [
     process: "portal",
     requirement: "optional",
     fallback: "",
-    description: "OTLP collector endpoint (ADR-34). Unset means no SDK and no spans.",
+    description:
+      "OTLP collector endpoint (ADR-34). Unset means no SDK; set exports traces and SEC-13-allowlisted logs.",
   },
   {
     name: "OTEL_SERVICE_NAME",
     process: "portal",
     requirement: "optional",
     fallback: "qcms-portal",
-    description: "Service name reported on exported spans.",
+    description: "Service name reported on exported traces and logs.",
   },
 
   // --- Admin (BFF) -----------------------------------------------------------
@@ -694,6 +696,21 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "production (set by the image)",
     description: "Decides the default for `QCMS_ADMIN_SECURE_COOKIES` when that is unset.",
+  },
+  {
+    name: "OTEL_EXPORTER_OTLP_ENDPOINT",
+    process: "admin",
+    requirement: "optional",
+    fallback: "",
+    description:
+      "OTLP collector endpoint (ADR-34). Unset means no SDK; set exports traces and SEC-13-allowlisted logs.",
+  },
+  {
+    name: "OTEL_SERVICE_NAME",
+    process: "admin",
+    requirement: "optional",
+    fallback: "qcms-admin",
+    description: "Service name reported on exported traces and logs.",
   },
 
   // --- Compose-level (read by the Compose files, not by an app) --------------
