@@ -7,8 +7,13 @@
  *
  * Every face is SELF-HOSTED from `src/fonts/` next to this file, so selecting a
  * font makes zero external requests (no CDN, nothing for the CSP to allow).
- * Import it after `theme.css`, whose base `:root` block declares the System
+ * Import it after `theme.css`, whose base anchor block declares the System
  * stack that these classes override:
+ *
+ * Each block is anchored on `:is(:root, [data-qcms-theme-scope])`, the scope
+ * carrier (ADR-38): a font selection applies to the document root OR to any
+ * element carrying `data-qcms-theme-scope`, at exactly the specificity the bare
+ * `:root` anchor had.
  *
  *   @import "@qcms/ui/theme.css";
  *   @import "@qcms/ui/theme-components.css";
@@ -26,7 +31,7 @@
    ========================================================================== */
 
 /* System default - no webfont: the device's own UI face; downloads nothing and is always available. */
-:root.font-system {
+:is(:root, [data-qcms-theme-scope]).font-system {
   --font-portal: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
@@ -50,7 +55,7 @@
   font-display: swap;
   src: url("./fonts/atkinson-700.woff2") format("woff2");
 }
-:root.font-atkinson {
+:is(:root, [data-qcms-theme-scope]).font-atkinson {
   --font-portal:
     "Atkinson Hyperlegible", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
@@ -71,7 +76,7 @@
   font-display: swap;
   src: url("./fonts/lexend-variable.woff2") format("woff2");
 }
-:root.font-lexend {
+:is(:root, [data-qcms-theme-scope]).font-lexend {
   --font-portal: "Lexend", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
@@ -91,7 +96,7 @@
   font-display: swap;
   src: url("./fonts/opendyslexic-700.woff2") format("woff2");
 }
-:root.font-opendyslexic {
+:is(:root, [data-qcms-theme-scope]).font-opendyslexic {
   --font-portal:
     "OpenDyslexic", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
@@ -109,7 +114,7 @@
   font-display: swap;
   src: url("./fonts/inter-400.woff2") format("woff2");
 }
-:root.font-inter {
+:is(:root, [data-qcms-theme-scope]).font-inter {
   --font-portal: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
@@ -122,7 +127,7 @@
   font-display: swap;
   src: url("./fonts/roboto-400.woff2") format("woff2");
 }
-:root.font-roboto {
+:is(:root, [data-qcms-theme-scope]).font-roboto {
   --font-portal: "Roboto", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
@@ -135,7 +140,7 @@
   font-display: swap;
   src: url("./fonts/opensans-400.woff2") format("woff2");
 }
-:root.font-opensans {
+:is(:root, [data-qcms-theme-scope]).font-opensans {
   --font-portal:
     "Open Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
@@ -149,7 +154,7 @@
   font-display: swap;
   src: url("./fonts/lato-400.woff2") format("woff2");
 }
-:root.font-lato {
+:is(:root, [data-qcms-theme-scope]).font-lato {
   --font-portal: "Lato", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
@@ -162,7 +167,7 @@
   font-display: swap;
   src: url("./fonts/poppins-400.woff2") format("woff2");
 }
-:root.font-poppins {
+:is(:root, [data-qcms-theme-scope]).font-poppins {
   --font-portal: "Poppins", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
@@ -175,7 +180,7 @@
   font-display: swap;
   src: url("./fonts/montserrat-400.woff2") format("woff2");
 }
-:root.font-montserrat {
+:is(:root, [data-qcms-theme-scope]).font-montserrat {
   --font-portal:
     "Montserrat", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
@@ -193,7 +198,7 @@
   font-display: swap;
   src: url("./fonts/andika-400.woff2") format("woff2");
 }
-:root.font-andika {
+:is(:root, [data-qcms-theme-scope]).font-andika {
   --font-portal: "Andika", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
@@ -206,7 +211,7 @@
   font-display: swap;
   src: url("./fonts/fredoka-400.woff2") format("woff2");
 }
-:root.font-fredoka {
+:is(:root, [data-qcms-theme-scope]).font-fredoka {
   --font-portal: "Fredoka", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
@@ -219,7 +224,7 @@
   font-display: swap;
   src: url("./fonts/baloo2-400.woff2") format("woff2");
 }
-:root.font-baloo2 {
+:is(:root, [data-qcms-theme-scope]).font-baloo2 {
   --font-portal: "Baloo 2", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
@@ -232,7 +237,7 @@
   font-display: swap;
   src: url("./fonts/comicneue-400.woff2") format("woff2");
 }
-:root.font-comicneue {
+:is(:root, [data-qcms-theme-scope]).font-comicneue {
   --font-portal:
     "Comic Neue", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
@@ -246,7 +251,7 @@
   font-display: swap;
   src: url("./fonts/patrickhand-400.woff2") format("woff2");
 }
-:root.font-patrickhand {
+:is(:root, [data-qcms-theme-scope]).font-patrickhand {
   --font-portal:
     "Patrick Hand", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
@@ -264,7 +269,7 @@
   font-display: swap;
   src: url("./fonts/merriweather-400.woff2") format("woff2");
 }
-:root.font-merriweather {
+:is(:root, [data-qcms-theme-scope]).font-merriweather {
   --font-portal: "Merriweather", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
 }
 
@@ -277,7 +282,7 @@
   font-display: swap;
   src: url("./fonts/lora-400.woff2") format("woff2");
 }
-:root.font-lora {
+:is(:root, [data-qcms-theme-scope]).font-lora {
   --font-portal: "Lora", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
 }
 
@@ -290,7 +295,7 @@
   font-display: swap;
   src: url("./fonts/ptserif-400.woff2") format("woff2");
 }
-:root.font-ptserif {
+:is(:root, [data-qcms-theme-scope]).font-ptserif {
   --font-portal: "PT Serif", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
 }
 
@@ -303,7 +308,7 @@
   font-display: swap;
   src: url("./fonts/librebaskerville-400.woff2") format("woff2");
 }
-:root.font-librebaskerville {
+:is(:root, [data-qcms-theme-scope]).font-librebaskerville {
   --font-portal: "Libre Baskerville", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
 }
 
@@ -316,7 +321,7 @@
   font-display: swap;
   src: url("./fonts/ibmplexserif-400.woff2") format("woff2");
 }
-:root.font-ibmplexserif {
+:is(:root, [data-qcms-theme-scope]).font-ibmplexserif {
   --font-portal: "IBM Plex Serif", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
 }
 
@@ -329,7 +334,7 @@
   font-display: swap;
   src: url("./fonts/publicsans-400.woff2") format("woff2");
 }
-:root.font-publicsans {
+:is(:root, [data-qcms-theme-scope]).font-publicsans {
   --font-portal:
     "Public Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
@@ -347,7 +352,7 @@
   font-display: swap;
   src: url("./fonts/jetbrainsmono-400.woff2") format("woff2");
 }
-:root.font-jetbrainsmono {
+:is(:root, [data-qcms-theme-scope]).font-jetbrainsmono {
   --font-portal:
     "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 }
@@ -361,7 +366,7 @@
   font-display: swap;
   src: url("./fonts/geistmono-400.woff2") format("woff2");
 }
-:root.font-geistmono {
+:is(:root, [data-qcms-theme-scope]).font-geistmono {
   --font-portal:
     "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 }
