@@ -340,6 +340,7 @@ describe("devStackBannerLines", () => {
 
   it("says where safe application logs and their traces are available", () => {
     expect(created).toContain("admin / admin");
+    expect(created).toContain("Observability home dashboard");
     expect(created).toContain("Explore -> Loki");
     expect(created).toContain("qcms-admin");
     expect(created).toContain("no answers, PII or secrets");

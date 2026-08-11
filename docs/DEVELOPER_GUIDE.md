@@ -192,7 +192,7 @@ That gives you, at seat 0 (`docs/PORTS.md` for other seats, and all four are loo
 |---|---|
 | <http://localhost:7040> | The authoring admin. Sign in with the credential `dev:up` printed. |
 | <http://localhost:7000> | The respondent portal. |
-| <http://localhost:7050> | Grafana. Log in `admin` / `admin` - the image's own default, on a port only your machine can reach. **Explore -> Loki** shows application logs; trace-correlated records link to Tempo. |
+| <http://localhost:7050> | Grafana. Log in `admin` / `admin` - the image's own default, on a port only your machine can reach. The provisioned **QCMS Observability** home dashboard shows traffic, errors and correlated application logs; **Explore -> Loki** remains available for ad-hoc queries. Trace-correlated records link to Tempo. |
 | <http://localhost:7060> | pgweb, connected read-only to the application database. No login screen: the connection comes from the environment. |
 
 Bring it down with the matching command, which removes the containers, the network, the volumes and the overlay's containers (which are orphans of the base file and are otherwise left behind):
@@ -213,7 +213,8 @@ pnpm dev:down
 Four things worth knowing before you go looking for something that is missing:
 
 - **First sign-in forces TOTP enrolment** (SEC-1) and shows the recovery codes exactly once. Have an authenticator app open before you start. `QCMS_ADMIN_2FA=optional` relaxes it while developing, and both the API and the admin read it, so setting it in one place only makes every admin API call 401.
-- **Logs are intentionally concise.** In **Explore -> Loki**, select `qcms-admin`, `qcms-portal` or `qcms-api`. Exported records contain only approved operational fields such as route template, method, status, duration, request id and opaque error id. They never contain request bodies, answers, direct identifiers, headers, cookies, query strings, exception messages or stacks (SEC-13). Use the trace link or copy `requestId` to follow one request across services.
+- **The home dashboard is repository-provisioned.** Its **Service** selector filters `qcms-admin`, `qcms-portal` and `qcms-api`; paste an `x-request-id` into **Request ID** to isolate one BFF-to-API call. Expand a row and follow `trace_id` to Tempo. The dashboard definition is copied into a thin local LGTM wrapper image rather than bind-mounted, so it works when a dev container drives the host Docker daemon (ADR-29). It is read-only in Grafana: edit `docker/grafana/qcms-observability.json` and rebuild instead of making a change that disappears with the container.
+- **Logs are intentionally concise.** Exported records contain only approved operational fields such as route template, method, status, duration, request id and opaque error id. They never contain request bodies, answers, direct identifiers, headers, cookies, query strings, exception messages or stacks (SEC-13). Use the trace link or copy `requestId` to follow one request across services.
 - **The first request after a cold start may not appear.** `lgtm` takes tens of seconds to come up and ships no healthcheck, so the apps start before the collector is listening and the earliest spans exhaust their retry budget. Make a second request.
 - **Nothing persists.** The overlay declares no volumes, so a restart of `lgtm` empties the dashboard. That is the trade that makes `down` leave nothing behind.
 

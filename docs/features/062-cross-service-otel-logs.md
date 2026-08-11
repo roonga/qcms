@@ -17,7 +17,7 @@ Exporting the existing stdout records unchanged is unsafe. SEC-13 deliberately r
 - **Portal OTLP logs.** Add the shared JSON server logger, log its centralized API boundary, and configure `registerOTel` with the same safe log processors while preserving Next's fetch instrumentation and trace propagation.
 - **Admin traces and OTLP logs.** Complete issue #185: adopt the Portal tracing recipe with Admin-specific SEC-13 span redaction, add the safe logger at both admin API boundaries, and export logs. Auth/TOTP/password/cookie material is excluded structurally.
 - **Human correlation.** Admin joins Portal in minting/echoing `x-request-id`; both BFFs forward it to the API. That id appears on safe BFF/API log records and the API span while W3C `traceparent` keeps the spans and logs in one trace.
-- **Dashboard proof.** The in-test OTLP receiver captures `/v1/logs` beside `/v1/traces`; browser tests prove Portal -> API -> pg and Admin -> API traces have same-trace logs from both services. A dev-tools smoke check proves Loki and Tempo contain the same trace id without custom datasource configuration.
+- **Dashboard proof.** The in-test OTLP receiver captures `/v1/logs` beside `/v1/traces`; browser tests prove Portal -> API -> pg and Admin -> API traces have same-trace logs from both services. A repository-provisioned QCMS home dashboard exposes service/request filters, traffic, errors and trace-linked logs; a dev-tools smoke check proves Loki and Tempo contain the same trace id without custom datasource configuration.
 - **Docs.** Amend SEC-13 and every statement that says OTLP logs or Admin instrumentation are absent. Document stdout versus exported-record contents, retention, configuration and dashboard use.
 
 ## Exit criteria

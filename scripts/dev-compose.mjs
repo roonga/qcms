@@ -507,8 +507,9 @@ export function devStackBannerLines({ ports, project, credentials, inContainer }
   }
 
   lines.push(
-    "  Grafana logs in with admin / admin (the image's own default). Application",
-    "  logs are under Explore -> Loki for qcms-admin, qcms-portal and qcms-api.",
+    "  Grafana logs in with admin / admin (the image's own default). Its QCMS",
+    "  Observability home dashboard shows qcms-admin, qcms-portal and qcms-api.",
+    "  Explore -> Loki remains available for ad-hoc LogQL queries.",
     "  Trace-correlated records link to Tempo; requestId follows a call across apps.",
     "  Exported fields are a strict SEC-13 allowlist: no answers, PII or secrets.",
     "",

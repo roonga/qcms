@@ -50,11 +50,20 @@ services:
   # Jaeger because Jaeger has no logs pipeline at all, and the thing worth being
   # able to do is follow one request across a boundary with its logs attached.
   #
-  # No datasource configuration is needed: the image's own grafana-datasources.yaml
-  # already wires Loki-to-Tempo correlation both ways. The image is large (several
-  # hundred MB) and pulled once.
+  # The thin wrapper image provisions the repository's QCMS Observability dashboard
+  # as Grafana's home page. It copies files at build time rather than bind-mounting
+  # them because the canonical dev-container client drives the host Docker daemon
+  # (ADR-29), where the container-side repository path does not exist. The upstream
+  # image's own datasources still wire Loki-to-Tempo correlation both ways.
   lgtm:
-    image: ${QCMS_LGTM_IMAGE:-grafana/otel-lgtm:latest}
+    image: qcms-lgtm:local
+    build:
+      context: .
+      dockerfile: docker/lgtm.Dockerfile
+      args:
+        QCMS_LGTM_IMAGE: ${QCMS_LGTM_IMAGE:-grafana/otel-lgtm:latest}
+    environment:
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /otel-lgtm/grafana/conf/provisioning/dashboards/qcms/qcms-observability.json
     ports:
       # Grafana's UI. The container also listens on 4317/4318 (OTLP), 3200 (Loki),
       # 9090 (Prometheus) and 4040 (Pyroscope); none of those is published, and the

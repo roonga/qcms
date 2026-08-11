@@ -14,8 +14,10 @@
  * flush into a connection error (an unhandled `ECONNREFUSED` in a plain Node
  * process). Telemetry off means off.
  *
- * **Ordering matters and is why this module imports nothing of ours.** The
- * instrumentations patch their targets when those modules are first `require`d,
+ * **Ordering matters and is why this module imports none of the app graph or
+ * instrumented libraries.** The shared observability import contains processors
+ * only and does not load an instrumentation target. The instrumentations patch
+ * their targets when those modules are first `require`d,
  * so the SDK must start before `pg`, `undici` or the app graph loads.
  * `serve.ts` therefore starts telemetry first and only then dynamically imports
  * `main.js`. A static `import` of the app from here would defeat that by hoisting.

@@ -174,8 +174,15 @@ describe("Caddy ingress overlay", () => {
  * then only need to be spelled as a dev tool to pass.
  */
 interface ServiceDefinition {
+  build?: {
+    context?: string;
+    dockerfile?: string;
+    args?: Record<string, string>;
+  };
   environment?: Record<string, string>;
   entrypoint?: string[];
+  image?: string;
+  volumes?: unknown[];
 }
 
 function service(config: unknown, name: string): ServiceDefinition {
@@ -219,6 +226,26 @@ describe("developer-toolbox overlay", () => {
     const published = publishedPorts(withDevTools, "lgtm");
     expect(published).toHaveLength(1);
     expect(published[0], "only Grafana's UI is published").toMatch(/:3000\/tcp$/);
+  });
+
+  it("builds the LGTM wrapper with the provisioned QCMS home dashboard", () => {
+    const lgtm = service(withDevTools, "lgtm");
+    expect(lgtm.image).toBe("qcms-lgtm:local");
+    expect(lgtm.build?.dockerfile?.replaceAll("\\", "/")).toMatch(
+      /(?:^|\/)docker\/lgtm\.Dockerfile$/,
+    );
+    expect(lgtm.environment?.GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH).toBe(
+      "/otel-lgtm/grafana/conf/provisioning/dashboards/qcms/qcms-observability.json",
+    );
+    // ADR-29: a relative bind mount would resolve on the host daemon and fail for
+    // the canonical dev-container client. The wrapper image copies the files.
+    expect(lgtm.volumes ?? []).toEqual([]);
+
+    const dashboard = JSON.parse(
+      readFileSync(`${REPOSITORY_ROOT}/docker/grafana/qcms-observability.json`, "utf8"),
+    ) as { uid?: string; panels?: Array<{ datasource?: { uid?: string } }> };
+    expect(dashboard.uid).toBe("qcms-observability");
+    expect(dashboard.panels?.some((panel) => panel.datasource?.uid === "loki")).toBe(true);
   });
 
   it("binds every tool to loopback, unconditionally", () => {
