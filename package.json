@@ -19,7 +19,7 @@
     "test:e2e:headed": "node scripts/compose-e2e.mjs test-headed",
     "up:e2e": "node scripts/compose-e2e.mjs run",
     "up:e2e:headed": "node scripts/compose-e2e.mjs run-headed",
-    "check:all": "pnpm check:no-em-dash && pnpm check:no-control-chars && pnpm check:harness-tags && pnpm check:paths && pnpm check:ports && pnpm check:security-hygiene && pnpm check:vendor-pin && pnpm check:a2ra-fidelity && pnpm check:adr-citations && pnpm check:changeset && pnpm check:golden-append-only && pnpm check:licenses && pnpm check:duplication && pnpm check:admin-theme && pnpm check:lint-coverage && pnpm check:tailwind-sources && pnpm check:docker-job-guards && pnpm check:ci-parity",
+    "check:all": "pnpm check:no-em-dash && pnpm check:no-control-chars && pnpm check:harness-tags && pnpm check:paths && pnpm check:ports && pnpm check:security-hygiene && pnpm check:vendor-pin && pnpm check:a2ra-fidelity && pnpm check:adr-citations && pnpm check:changeset && pnpm check:golden-append-only && pnpm check:licenses && pnpm check:duplication && pnpm check:admin-theme && pnpm check:lint-coverage && pnpm check:tailwind-sources && pnpm check:docker-job-guards && pnpm check:ci-parity && pnpm check:templates",
     "check:plan": "pnpm check:no-control-chars && pnpm check:harness-tags && pnpm check:security-hygiene && pnpm check:admin-theme && eslint plan && prettier --check plan",
     "dev:up": "node scripts/dev-compose.mjs up",
     "dev:down": "node scripts/dev-compose.mjs down",
@@ -63,6 +63,8 @@
     "check:tailwind-sources": "node scripts/check-tailwind-sources.mjs",
     "check:docker-job-guards": "node scripts/check-docker-job-guards.mjs",
     "check:ci-parity": "node scripts/check-ci-parity.mjs",
+    "check:templates": "node packages/create-qcms-app/scripts/sync-templates.mjs --check",
+    "qcms:sync-templates": "node packages/create-qcms-app/scripts/sync-templates.mjs --write",
     "check:duplication": "jscpd packages apps --config .jscpd.json --threshold 3"
   },
   "devDependencies": {
