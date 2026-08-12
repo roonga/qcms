@@ -54,7 +54,9 @@ describe("scaffold", () => {
   it("resolves both path conventions, leaving no _ or .tmpl in the output", () => {
     const { files } = stamp();
     expect(files.filter((path) => path.endsWith(".tmpl"))).toStrictEqual([]);
-    expect(files.filter((path) => path.split("/").some((s) => s.startsWith("_")))).toStrictEqual([]);
+    expect(files.filter((path) => path.split("/").some((s) => s.startsWith("_")))).toStrictEqual(
+      [],
+    );
   });
 
   it("carries none of this repository's test or harness files", () => {

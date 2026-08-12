@@ -133,18 +133,21 @@ describe("renderEnvExample", () => {
 describe("appManifest", () => {
   const versions = publishedVersions();
 
-  it.each(["api", "portal", "admin"] as const)("gives %s registry ranges, not workspace links", (app) => {
-    const manifest = appManifest(app, versions) as {
-      dependencies: Record<string, string>;
-      devDependencies: Record<string, string>;
-      scripts: Record<string, string>;
-    };
-    const all = { ...manifest.dependencies, ...manifest.devDependencies };
-    expect(Object.values(all)).not.toContain("workspace:*");
-    for (const [name, range] of Object.entries(all)) {
-      if (name.startsWith("@qcms/")) expect(range).toMatch(/^\^\d+\.\d+\.\d+$/);
-    }
-  });
+  it.each(["api", "portal", "admin"] as const)(
+    "gives %s registry ranges, not workspace links",
+    (app) => {
+      const manifest = appManifest(app, versions) as {
+        dependencies: Record<string, string>;
+        devDependencies: Record<string, string>;
+        scripts: Record<string, string>;
+      };
+      const all = { ...manifest.dependencies, ...manifest.devDependencies };
+      expect(Object.values(all)).not.toContain("workspace:*");
+      for (const [name, range] of Object.entries(all)) {
+        if (name.startsWith("@qcms/")) expect(range).toMatch(/^\^\d+\.\d+\.\d+$/);
+      }
+    },
+  );
 
   it("keeps no script that needs this repository's runners", () => {
     for (const app of ["api", "portal", "admin"] as const) {
