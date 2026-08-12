@@ -55,6 +55,7 @@ import { argv, env, exit, stderr, stdout } from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { DOCKER } from "../../../scripts/docker.mjs";
+import { isInDockerContainer } from "../../../scripts/docker-host.mjs";
 import { assertPortSeatChosen, composeProjectName, harnessPort } from "../../../scripts/ports.mjs";
 
 const REPOSITORY_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
@@ -198,6 +199,24 @@ function apiPublishOverride() {
   ].join("\n");
 }
 
+/**
+ * The environment Compose runs under: this seat's harness ports, over the scaffold's
+ * own `.env`.
+ *
+ * The scaffolded `.env` leaves the two port variables commented out, because they
+ * are optional and their defaults are seat 0's stable ports - which is right for an
+ * adopter and wrong for a test harness sharing a machine with a dev container. A
+ * shell variable outranks `--env-file` in Compose, so this is where the seat lands
+ * without editing the file the CLI wrote (R8, docs/PORTS.md).
+ */
+function composeEnvironment() {
+  return {
+    ...env,
+    QCMS_PORTAL_PORT: String(PORTS.portal),
+    QCMS_ADMIN_PORT: String(PORTS.admin),
+  };
+}
+
 function composeArgs(scaffold, project) {
   return [
     "compose",
@@ -271,8 +290,8 @@ function buildScaffold(workspace) {
 /** Bring the stack up and create the first administrator, per the README. */
 function startStack(scaffold, project) {
   const compose = composeArgs(scaffold, project);
-  run(DOCKER, [...compose, "up", "-d", "--build", "--wait"], scaffold);
-  run(DOCKER, [...compose, "run", "--rm", "migrate"], scaffold);
+  run(DOCKER, [...compose, "up", "-d", "--build", "--wait"], scaffold, composeEnvironment());
+  run(DOCKER, [...compose, "run", "--rm", "migrate"], scaffold, composeEnvironment());
   run(
     DOCKER,
     [
@@ -287,6 +306,7 @@ function startStack(scaffold, project) {
       "dist/create-admin.js",
     ],
     scaffold,
+    composeEnvironment(),
   );
 }
 
@@ -299,11 +319,77 @@ function internalToken(scaffold) {
   return line.slice("QCMS_INTERNAL_TOKEN=".length);
 }
 
-function runSmoke(scaffold) {
+/**
+ * Where the smoke suite dials the three services, which depends on where it runs.
+ *
+ * On a plain host and on CI, the published ports are on `localhost` and there is
+ * nothing to arrange. Inside the dev container they are not: the stack publishes on
+ * the DOCKER HOST's loopback, and that host is another machine from in here
+ * (ADR-29's mounted socket, issue #316). `scripts/compose-e2e.mjs` solves the same
+ * problem by forwarding, because its client is a browser and the browsed origin has
+ * to stay `http://localhost` for `Secure` cookies to work. This client is `fetch`,
+ * which enforces no cookie policy at all and is handed every `Set-Cookie` by hand,
+ * so the far cheaper answer applies: join the stack's network and use Compose's own
+ * service names. That difference is stated rather than assumed, because copying the
+ * browser harness's shape here would be 150 lines of forwarding for no gain, and
+ * copying THIS shape into the browser harness would silently stop covering the auth
+ * boundary it exists for.
+ *
+ * @param {string} project
+ * @returns {{ urls: Record<string, string>; network?: string }}
+ */
+function smokeEndpoints(project) {
+  if (!isInDockerContainer()) {
+    return {
+      urls: {
+        api: `http://localhost:${String(PORTS.api)}`,
+        portal: `http://localhost:${String(PORTS.portal)}`,
+        admin: `http://localhost:${String(PORTS.admin)}`,
+      },
+    };
+  }
+  const self = readFileSync("/etc/hostname", "utf8").trim();
+  if (self === "") throw new Error("scaffold-e2e: cannot determine this container's id");
+  const network = `${project}_default`;
+  run(DOCKER, ["network", "connect", network, self], REPOSITORY_ROOT);
+  return {
+    urls: {
+      // The container port, not the published one: inside the network there is no
+      // publish to speak of. It is the same 3000 every image EXPOSEs. Plain http is
+      // correct and unavoidable here: this is a container-to-container address on an
+      // ephemeral Compose network with no certificate and no ingress, which is
+      // exactly the topology ADR-20 describes (TLS terminates at the operator's
+      // ingress, never between these containers).
+      // eslint-disable-next-line sonarjs/no-clear-text-protocols -- see above
+      api: "http://api:3000",
+      // eslint-disable-next-line sonarjs/no-clear-text-protocols -- see above
+      portal: "http://portal:3000",
+      // eslint-disable-next-line sonarjs/no-clear-text-protocols -- see above
+      admin: "http://admin:3000",
+    },
+    network,
+  };
+}
+
+/** Leave the stack's network, tolerating an already-gone attachment. */
+function leaveNetwork(network) {
+  if (network === undefined) return;
+  const self = readFileSync("/etc/hostname", "utf8").trim();
+  // Deliberately before `docker compose down`: Compose cannot remove a network this
+  // container is still attached to, so leaving it late strands the network.
+  spawnSync(DOCKER, ["network", "disconnect", network, self], { stdio: "ignore" });
+}
+
+function runSmoke(scaffold, endpoints) {
   pnpm(["exec", "vitest", "run", "--project", "create-qcms-app-e2e"], REPOSITORY_ROOT, {
-    QCMS_SCAFFOLD_API_URL: `http://localhost:${String(PORTS.api)}`,
-    QCMS_SCAFFOLD_PORTAL_URL: `http://localhost:${String(PORTS.portal)}`,
-    QCMS_SCAFFOLD_ADMIN_URL: `http://localhost:${String(PORTS.admin)}`,
+    QCMS_SCAFFOLD_API_URL: endpoints.urls["api"] ?? "",
+    QCMS_SCAFFOLD_PORTAL_URL: endpoints.urls["portal"] ?? "",
+    QCMS_SCAFFOLD_ADMIN_URL: endpoints.urls["admin"] ?? "",
+    // The operator's ANSWER, as opposed to where this run dials: the minted secure
+    // link is built from it, so comparing the two proves the answer reached the API.
+    QCMS_SCAFFOLD_PORTAL_BASE_URL: `http://localhost:${String(PORTS.portal)}`,
+    // better-auth trusts exactly this origin, so the sign-in call has to send it.
+    QCMS_SCAFFOLD_ADMIN_BASE_URL: `http://localhost:${String(PORTS.admin)}`,
     QCMS_SCAFFOLD_INTERNAL_TOKEN: internalToken(scaffold),
     QCMS_SCAFFOLD_ADMIN_EMAIL: ADMIN.email,
     QCMS_SCAFFOLD_ADMIN_PASSWORD: ADMIN.password,
@@ -315,18 +401,23 @@ export function main(args = argv.slice(2)) {
   const workspace = mkdtempSync(join(tmpdir(), "qcms-scaffold-e2e-"));
   const project = `${composeProjectName()}-scaffold-e2e`;
   let scaffold;
+  let network;
   try {
     scaffold = buildScaffold(workspace);
     startStack(scaffold, project);
-    runSmoke(scaffold);
+    const endpoints = smokeEndpoints(project);
+    network = endpoints.network;
+    runSmoke(scaffold, endpoints);
     stdout.write("\nscaffold-e2e: the scaffolded stack completed the scenario-1 loop.\n");
     return 0;
   } finally {
+    leaveNetwork(network);
     if (scaffold !== undefined) {
       run(
         DOCKER,
         [...composeArgs(scaffold, project), "down", "--volumes", "--remove-orphans"],
         scaffold,
+        composeEnvironment(),
       );
     }
     if (args.includes("--keep")) stdout.write(`scaffold-e2e: kept ${workspace}\n`);

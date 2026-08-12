@@ -28,6 +28,15 @@ function required(name: string): string {
 const API = required("QCMS_SCAFFOLD_API_URL");
 const PORTAL = required("QCMS_SCAFFOLD_PORTAL_URL");
 const ADMIN = required("QCMS_SCAFFOLD_ADMIN_URL");
+/**
+ * The portal origin the SCAFFOLDER was told about, which is not always where this
+ * suite dials: inside the dev container the harness reaches the stack over Compose's
+ * own network. Kept separate on purpose, because the two answer different questions -
+ * "can I reach it" and "did the operator's answer reach the API".
+ */
+const PORTAL_BASE_URL = required("QCMS_SCAFFOLD_PORTAL_BASE_URL");
+/** The admin origin better-auth was configured to trust. Its `Origin` check compares by equality. */
+const ADMIN_BASE_URL = required("QCMS_SCAFFOLD_ADMIN_BASE_URL");
 const INTERNAL_TOKEN = required("QCMS_SCAFFOLD_INTERNAL_TOKEN");
 const ADMIN_EMAIL = required("QCMS_SCAFFOLD_ADMIN_EMAIL");
 const ADMIN_PASSWORD = required("QCMS_SCAFFOLD_ADMIN_PASSWORD");
@@ -66,14 +75,19 @@ async function json(
 
 describe("a scaffolded QCMS deployment", () => {
   beforeAll(async () => {
-    // Deliberately no Cookie, Origin or Referer: better-auth skips its origin check
-    // when none of the three is present, which is what lets a non-browser client
-    // sign in. The session token comes back in the body, not in a cookie.
+    // The `Origin` header is required, and it has to be the admin origin: better-auth
+    // validates state-changing calls against its `trustedOrigins`, which the API
+    // configures from QCMS_ADMIN_BASE_URL. Sending it proves that value survived the
+    // scaffold; sending anything else, or nothing, is a 403.
+    //
+    // The session token comes back in the RESPONSE BODY, not in the cookie: the cookie
+    // value is `<token>.<signature>`, and it is the bare token that
+    // `x-qcms-admin-session` wants.
     const signIn = await json(
       `${API}/api/auth/sign-in/email`,
       {
         method: "POST",
-        headers: headers(),
+        headers: headers({ origin: ADMIN_BASE_URL }),
         body: JSON.stringify({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD }),
       },
       [200],
@@ -187,16 +201,22 @@ describe("a scaffolded QCMS deployment", () => {
     const links = minted["links"] as { url: string }[];
     expect(links).toHaveLength(1);
     const linkUrl = links[0]?.url ?? "";
-    expect(linkUrl.startsWith(PORTAL)).toBe(true);
+    expect(linkUrl.startsWith(`${PORTAL_BASE_URL}/l/`)).toBe(true);
 
     // 4. Redeem it as a respondent, through the portal, exactly as a browser would.
-    const redeemed = await fetch(linkUrl, { redirect: "manual" });
+    //    Dialled at this run's portal address rather than at the minted origin: the
+    //    two are the same on CI and differ inside the dev container, and what the
+    //    assertion above already proved is that the origin itself is right.
+    const redeemed = await fetch(`${PORTAL}${new URL(linkUrl).pathname}`, { redirect: "manual" });
     expect(redeemed.status).toBe(303);
     const sessionCookie = (redeemed.headers.getSetCookie() ?? [])
       .map((cookie) => cookie.split(";")[0] ?? "")
       .join("; ");
     expect(sessionCookie).toContain("qcms_session=");
-    const sessionPath = redeemed.headers.get("location") ?? "";
+    // Next writes an absolute Location built from the request host, which inside the
+    // container is the bind address rather than the public origin. Only the path is
+    // ours to follow; the origin was already asserted on the minted link above.
+    const sessionPath = new URL(redeemed.headers.get("location") ?? "", PORTAL).pathname;
     expect(sessionPath).toMatch(/^\/s\/ses_/);
 
     // 5. Answer and submit.
