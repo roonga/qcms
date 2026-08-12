@@ -1,0 +1,21 @@
+node_modules/
+dist/
+coverage/
+.turbo/
+
+# Next.js build output
+.next/
+.next-dev/
+**/next-env.d.ts
+*.tsbuildinfo
+
+# Local configuration. `.env` holds this deployment's live secrets: database
+# password, secure-link and session signing keys, the at-rest encryption key.
+# It must never be committed. `.env.example` is the committed reference and
+# carries no values.
+.env
+.env.*
+!.env.example
+
+*.log
+.DS_Store
