@@ -7,7 +7,7 @@
  * no idea which one ran and nothing can be reachable interactively but not by flag.
  */
 
-import { isAbsolute, resolve } from "node:path";
+import { basename, isAbsolute, resolve } from "node:path";
 
 /** Deployment shapes the scaffold knows how to stamp. */
 export const DEPLOYMENT_SHAPES = ["solo", "enterprise"] as const;
@@ -209,10 +209,16 @@ export function parseArguments(argv: readonly string[], cwd: string): ParseResul
   }
 
   if (projectName !== undefined) {
-    const problem = validateProjectName(projectName);
+    // The argument is a DIRECTORY, and the project name is its last segment. That
+    // split matters for `create-qcms-app /tmp/scratch/my-forms`, which every
+    // scaffolder accepts and which would otherwise be validated as a package name
+    // and refused for containing slashes.
+    const directory = resolveTarget(projectName, cwd);
+    const name = basename(directory);
+    const problem = validateProjectName(name);
     if (problem !== undefined) return { kind: "error", message: problem };
-    into["projectName"] = projectName;
-    into["targetDirectory"] = resolveTarget(projectName, cwd);
+    into["projectName"] = name;
+    into["targetDirectory"] = directory;
   }
   return { kind: "options", options: into, assumeYes: state.assumeYes };
 }

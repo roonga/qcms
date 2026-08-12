@@ -145,3 +145,21 @@ describe("help text", () => {
     }
   });
 });
+
+describe("a directory argument", () => {
+  it("takes the project name from the last segment of an absolute path", () => {
+    const parsed = options(["/workspace/scratch/my-forms"]);
+    expect(parsed.options.projectName).toBe("my-forms");
+    expect(parsed.options.targetDirectory).toBe("/workspace/scratch/my-forms");
+  });
+
+  it("takes it from the last segment of a relative path too", () => {
+    const parsed = options(["nested/forms"]);
+    expect(parsed.options.projectName).toBe("forms");
+    expect(parsed.options.targetDirectory).toBe("/workspace/nested/forms");
+  });
+
+  it("still refuses a last segment that cannot be a package name", () => {
+    expect(parseArguments(["/workspace/My Forms"], CWD).kind).toBe("error");
+  });
+});

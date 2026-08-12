@@ -29,7 +29,7 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --root ../.. --project create-qcms-app",
-    "lint": "eslint src scripts",
+    "lint": "eslint src scripts e2e",
     "sync-templates": "node scripts/sync-templates.mjs --write",
     "check-templates": "node scripts/sync-templates.mjs --check"
   },

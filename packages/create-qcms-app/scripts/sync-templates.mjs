@@ -114,6 +114,20 @@ const APP_SCRIPTS = {
   admin: ["dev", "build", "start", "typecheck"],
 };
 
+/**
+ * devDependencies every scaffolded app needs that no app in THIS repository declares,
+ * because the workspace root provides them (transform 7).
+ *
+ * Found by the scaffold e2e, not by reading: `pnpm -r typecheck` inside a freshly
+ * scaffolded project picked up whichever TypeScript happened to be hoisted out of a
+ * transitive dependency and failed with three inference errors that do not exist
+ * here. An app that ships a `typecheck` script has to ship the compiler that runs it.
+ *
+ * The range is read from the repository root at generation time, so a root bump is
+ * drift the gate sees.
+ */
+const ROOT_PROVIDED_DEV_DEPENDENCIES = ["typescript"];
+
 /** devDependencies that exist only for this repository's test harness. */
 const HARNESS_DEV_DEPENDENCIES = new Set([
   "@testcontainers/postgresql",
@@ -227,6 +241,15 @@ export function appManifest(app, versions) {
   }
   const dependencies = rewriteDependencies(source.dependencies, versions, false);
   for (const name of APP_QCMS_DEPENDENCIES[app]) dependencies[name] = versions[name];
+  const devDependencies = rewriteDependencies(source.devDependencies, versions, true);
+  const root = readJson("package.json");
+  for (const name of ROOT_PROVIDED_DEV_DEPENDENCIES) {
+    const range = root.devDependencies[name];
+    if (range === undefined) {
+      throw new Error(`The repository root no longer declares ${name}, which every scaffolded app needs.`);
+    }
+    devDependencies[name] = range;
+  }
   return {
     name: source.name,
     version: "0.0.0",
@@ -236,7 +259,7 @@ export function appManifest(app, versions) {
     ...(source.main === undefined ? {} : { main: source.main, types: source.types }),
     scripts,
     dependencies: sortKeys(dependencies),
-    devDependencies: sortKeys(rewriteDependencies(source.devDependencies, versions, true)),
+    devDependencies: sortKeys(devDependencies),
   };
 }
 
@@ -604,6 +627,130 @@ function staticTemplates() {
   return files;
 }
 
+// --- the ownership-seam document --------------------------------------------
+
+/** The document whose generated block this script owns (task 037 exit criterion 4). */
+export const SEAM_DOC = "docs/ownership-seam.md";
+
+export const SEAM_BEGIN = "<!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->";
+export const SEAM_END = "<!-- END GENERATED: ownership-seam -->";
+
+/** What each `@qcms/*` package is, and what upgrading it means. Prose, so it is written. */
+const PACKAGE_STORY = {
+  "@qcms/core": [
+    "Domain model, the rules DSL and its forward-pass evaluator, the publish compiler, answer validation, secure-link tokens.",
+    "Upgrade freely within a major. Published versions are immutable (R1), so a form already published keeps the semantics it was compiled under; a new version changes what NEW publishes may express and how they evaluate. A major bump is where a semantics change would land, and would carry a migration note.",
+  ],
+  "@qcms/a2ui-compiler": [
+    "Compiles a published form into the stored A2UI document the portal serves.",
+    "Upgrade freely. The portal serves the STORED document and never recompiles (ADR-18), so a compiler upgrade cannot alter a form that is already live: it changes what the next publish produces. The golden corpus is append-only, which is what makes that promise checkable rather than asserted.",
+  ],
+  "@qcms/db": [
+    "The schema, the migration history, the query helpers and the reporting view.",
+    "Upgrade, then run `docker compose run --rm migrate` as its own step before the new API instances take traffic. Migration is never done at boot, deliberately: with more than one API instance that is a race, and an operator has to be able to choose when schema changes land. Migrations are plain SQL files you can read before you run them.",
+  ],
+  "@qcms/ui": [
+    "The A2UI renderer, the vendored input controls, and the token contract the theming rests on.",
+    "Upgrade freely. The vendored components are pinned inside the package rather than resolved from upstream (ADR-22), so an upstream component release cannot reach a published form until a QCMS release deliberately pulls it in and re-runs the conformance suite.",
+  ],
+};
+
+/** Every scaffold-relative output path, by the shape that stamps it. */
+function scaffoldPaths(tree) {
+  /** @type {Map<string, string[]>} */
+  const byLayer = new Map();
+  for (const path of tree.keys()) {
+    const slash = path.indexOf("/");
+    const layer = path.slice(0, slash);
+    const output = outputName(path.slice(slash + 1)).replace(/\.tmpl$/, "");
+    byLayer.set(layer, [...(byLayer.get(layer) ?? []), output]);
+  }
+  return byLayer;
+}
+
+/** Directory to file count, for every directory at every depth, sorted. */
+function directoryCounts(paths) {
+  /** @type {Map<string, number>} */
+  const counts = new Map();
+  for (const path of paths) {
+    const segments = path.split("/");
+    const directory = segments.length === 1 ? "." : segments.slice(0, -1).join("/");
+    for (let depth = 1; depth <= directory.split("/").length; depth += 1) {
+      const prefix = directory === "." ? "." : directory.split("/").slice(0, depth).join("/");
+      counts.set(prefix, (counts.get(prefix) ?? 0) + 1);
+    }
+  }
+  return [...counts.entries()].sort(([a], [b]) => (a < b ? -1 : 1));
+}
+
+/**
+ * The generated half of `docs/ownership-seam.md`.
+ *
+ * Two views of the same set, deliberately. The directory table is what a reader uses;
+ * the collapsed manifest is the literal answer to "every scaffolded path", so the
+ * document cannot claim completeness it does not have. Both come from the same tree
+ * the CLI stamps, so neither can drift from what an adopter receives.
+ */
+export function renderSeamBlock(tree = buildTemplates()) {
+  const byLayer = scaffoldPaths(tree);
+  const common = (byLayer.get("common") ?? []).sort();
+  const versions = publishedVersions();
+  const lines = [SEAM_BEGIN, ""];
+
+  lines.push(`### Scaffolded paths (${common.length} files common to both shapes)`, "");
+  lines.push("| Path | Files |", "| --- | --- |");
+  for (const [directory, count] of directoryCounts(common)) {
+    const label = directory === "." ? "(project root)" : `${directory}/`;
+    lines.push(`| \`${label}\` | ${count} |`);
+  }
+  lines.push("");
+
+  lines.push("### What each deployment shape adds", "");
+  lines.push("| Shape | Additional paths |", "| --- | --- |");
+  for (const shape of ["solo", "enterprise"]) {
+    const extra = (byLayer.get(shape) ?? []).sort().map((path) => `\`${path}\``);
+    lines.push(`| \`${shape}\` | ${extra.join(", ")} |`);
+  }
+  lines.push("");
+
+  lines.push("### Package dependencies stamped into `apps/*/package.json`", "");
+  lines.push("| Package | Range | What it carries | Upgrade story |", "| --- | --- | --- | --- |");
+  for (const [name, [carries, story]] of Object.entries(PACKAGE_STORY)) {
+    lines.push(`| \`${name}\` | \`${versions[name]}\` | ${carries} | ${story} |`);
+  }
+  lines.push("");
+
+  lines.push("<details>", `<summary>Every scaffolded file (${common.length})</summary>`, "");
+  lines.push("```");
+  for (const path of common) lines.push(path);
+  lines.push("```", "", "</details>", "");
+  lines.push(SEAM_END);
+  return lines.join("\n");
+}
+
+/** Replace the generated block, throwing when the markers are missing. */
+export function replaceSeamBlock(text, block) {
+  const begin = text.indexOf(SEAM_BEGIN);
+  const end = text.indexOf(SEAM_END);
+  if (begin === -1 || end === -1 || end < begin) {
+    throw new Error(
+      `${SEAM_DOC} is missing the generated-block markers. Expected:\n${SEAM_BEGIN}\n...\n${SEAM_END}`,
+    );
+  }
+  return text.slice(0, begin) + block + text.slice(end + SEAM_END.length);
+}
+
+/** The block currently sitting in the document. */
+export function currentSeamBlock() {
+  const text = read(SEAM_DOC);
+  const begin = text.indexOf(SEAM_BEGIN);
+  const end = text.indexOf(SEAM_END);
+  if (begin === -1 || end === -1 || end < begin) {
+    throw new Error(`${SEAM_DOC} is missing the generated-block markers.`);
+  }
+  return text.slice(begin, end + SEAM_END.length);
+}
+
 // --- write / check ----------------------------------------------------------
 
 /** Everything currently committed under the template directory. */
@@ -652,12 +799,20 @@ function writeTemplates(tree) {
 
 export function main(args = argv.slice(2)) {
   const tree = buildTemplates();
+  const block = renderSeamBlock(tree);
   if (args.includes("--write")) {
     writeTemplates(tree);
-    process.stdout.write(`sync-templates: wrote ${tree.size} files to ${TEMPLATE_DIR}\n`);
+    const path = join(REPOSITORY_ROOT, SEAM_DOC);
+    writeFileSync(path, replaceSeamBlock(readFileSync(path, "utf8"), block));
+    process.stdout.write(
+      `sync-templates: wrote ${tree.size} files to ${TEMPLATE_DIR} and the generated block in ${SEAM_DOC}\n`,
+    );
     return 0;
   }
   const problems = diffTrees(tree, currentTemplates());
+  if (currentSeamBlock() !== block) {
+    problems.push(`drifted:  ${SEAM_DOC} (the generated block)`);
+  }
   if (problems.length > 0) {
     process.stderr.write(
       `The scaffolding templates have drifted from the canonical apps:\n\n  ${problems.join("\n  ")}\n\n` +
@@ -665,7 +820,9 @@ export function main(args = argv.slice(2)) {
     );
     return 1;
   }
-  process.stdout.write(`sync-templates: ${tree.size} template files match the canonical apps\n`);
+  process.stdout.write(
+    `sync-templates: ${tree.size} template files and ${SEAM_DOC} match the canonical apps\n`,
+  );
   return 0;
 }
 
