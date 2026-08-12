@@ -263,6 +263,66 @@ export function appManifest(app, versions) {
   };
 }
 
+// --- monorepo-relative asset paths ------------------------------------------
+
+/**
+ * A reach out of an app and into `packages/ui/src`, which only a monorepo has.
+ *
+ * Three shapes use it and none of them is a JavaScript import, which is why the
+ * dependency scan never saw them: `@import` of the theme sheets, Tailwind's
+ * `@source` content glob, and a `url()` at a self-hosted font. In this workspace
+ * they resolve because the package is a sibling directory; in a scaffold there is no
+ * `packages/`, and `next build` fails inside the image with
+ * `Can't resolve '../../../packages/ui/src/theme.css'` (found by the scaffold e2e).
+ */
+const UI_SOURCE_REFERENCE = /(?:\.\.\/)+packages\/ui\/src/g;
+
+/**
+ * The same reference, resolved through the installed package instead.
+ *
+ * A relative path into `node_modules` rather than the bare `@qcms/ui/theme.css`
+ * specifier, deliberately: only three of these files are exported subpaths, and the
+ * font `url()` and the Tailwind `@source` glob are not resolved by anything that
+ * reads an exports map. One rule that is correct for all three beats two rules that
+ * each cover part of the problem.
+ *
+ * @param {string} text
+ * @param {string} appRelative the file's path within its app, so the depth is right
+ */
+export function rewriteUiAssetPaths(text, appRelative) {
+  const depth = appRelative.split("/").length - 1;
+  const prefix = depth === 0 ? "./" : "../".repeat(depth);
+  return text.replaceAll(UI_SOURCE_REFERENCE, `${prefix}node_modules/@qcms/ui/src`);
+}
+
+/**
+ * Fail if any generated file still reaches for a directory the scaffold has not got.
+ *
+ * The counterpart to {@link assertImports} for everything that is not a JavaScript
+ * import. Comments are exempt: several files legitimately explain where a generated
+ * sheet came from, and rewriting prose would be editorial rather than mechanical.
+ *
+ * @param {Map<string, string>} tree
+ */
+export function assertNoMonorepoPaths(tree) {
+  /** @type {string[]} */
+  const problems = [];
+  for (const [path, contents] of tree) {
+    if (!path.startsWith("common/apps/")) continue;
+    for (const line of contents.split("\n")) {
+      const code = line.replace(/^\s*(\*|\/\/|#).*$/, "");
+      if (UI_SOURCE_REFERENCE.test(code)) problems.push(`${path}: ${line.trim()}`);
+      UI_SOURCE_REFERENCE.lastIndex = 0;
+    }
+  }
+  if (problems.length > 0) {
+    throw new Error(
+      `sync-templates: these generated files still reach into packages/, which a scaffold has not got.\n  ${problems.join("\n  ")}\n` +
+        `Extend rewriteUiAssetPaths in ${GENERATOR_PATH}.`,
+    );
+  }
+}
+
 // --- import surface ---------------------------------------------------------
 
 /** `@qcms/<name>` specifiers, from imports and from CSS `@source`/`url()` references. */
@@ -573,7 +633,10 @@ export function buildTemplates() {
       const appRelative = path.slice(`apps/${app}/`.length);
       if (isExcludedAppPath(appRelative)) continue;
       if (appRelative === "package.json") continue;
-      tree.set(templateName(`common/apps/${app}/${appRelative}`), read(path));
+      tree.set(
+        templateName(`common/apps/${app}/${appRelative}`),
+        rewriteUiAssetPaths(read(path), appRelative),
+      );
     }
     tree.set(
       `common/apps/${app}/package.json`,
@@ -582,6 +645,7 @@ export function buildTemplates() {
   }
 
   assertImports(tree);
+  assertNoMonorepoPaths(tree);
 
   for (const app of /** @type {const} */ (["api", "portal", "admin"])) {
     tree.set(
