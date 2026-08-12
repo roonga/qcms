@@ -65,6 +65,7 @@
     "check:ci-parity": "node scripts/check-ci-parity.mjs",
     "check:templates": "node packages/create-qcms-app/scripts/sync-templates.mjs --check",
     "qcms:sync-templates": "node packages/create-qcms-app/scripts/sync-templates.mjs --write",
+    "qcms:scaffold-e2e": "node packages/create-qcms-app/scripts/scaffold-e2e.mjs",
     "check:duplication": "jscpd packages apps --config .jscpd.json --threshold 3"
   },
   "devDependencies": {
