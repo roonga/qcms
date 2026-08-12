@@ -32,11 +32,19 @@ Seat `S`, where `S` is `0`-`9`:
 | `7S40`  | admin dev server                    | stable  | `pnpm dev:admin` (issue #281). Published out of the dev container, like `7S00`/`7S10`/`7S30`. The solo Compose stack publishes its admin here as well, for the same reason as `7S00`; `pnpm dev:up` bootstraps an administrator in it so this address can be signed in to.                                                                                     |
 | `7S50`  | observability dashboard (dev tools) | stable  | Grafana UI from `grafana/otel-lgtm` in `docker-compose.dev-tools.yml`, which `pnpm dev:up` layers on. Opt-in overlay, never the shipped topology (ADR-20). Its OTLP ingest is **not** published: `admin`, `portal` and `api` reach it at `lgtm:4318` over the Compose network, so the viewer costs one slot rather than two.                                   |
 | `7S60`  | database viewer (dev tools)         | stable  | pgweb from the same overlay (so also `pnpm dev:up`), read-only, bound to loopback. A credentialed database client exists here and nowhere else in the topology - see the note below.                                                                                                                                                                           |
-| `17S00` | portal dev server (harness)         | harness | Playwright `webServer`. Also the portal **published** by the full-stack Compose stack (`pnpm up:e2e`), which is why those two cannot share a seat.                                                                                                                                                                                                             |
-| `17S10` | composed API (harness)              | harness | Bound by the Playwright runner in `globalSetup`.                                                                                                                                                                                                                                                                                                               |
+| `17S00` | portal dev server (harness)         | harness | Playwright `webServer`. Also the portal **published** by the full-stack Compose stack (`pnpm up:e2e`) and by the scaffolding stack (`pnpm qcms:scaffold-e2e`, task 037), which is why those three cannot share a seat.                                                                                                                                                                                                             |
+| `17S10` | composed API (harness)              | harness | Bound by the Playwright runner in `globalSetup`. Also the API **published** by `pnpm qcms:scaffold-e2e`, through an override file that harness writes: the shipped topology never publishes the API (ADR-20), and the override is deliberately separate from the `docker-compose.yml` the CLI stamps.                                                                                                                                                                                                                                                                                                               |
 | `17S20` | _(unused, deliberately)_            | harness | Mirrors `7S20`. A harness run boots a Testcontainers Postgres on a kernel-assigned port and never wants a fixed one. The slot stays empty so `17S{nn}` maps onto `7S{nn}` without a second table.                                                                                                                                                              |
 | `17S30` | in-test OTLP receiver               | harness | Bound by the Playwright runner.                                                                                                                                                                                                                                                                                                                                |
-| `17S40` | admin dev server (harness)          | harness | Playwright `webServer`. Also the admin **published** by the full-stack Compose stack, for the same reason as `17S00`.                                                                                                                                                                                                                                          |
+| `17S40` | admin dev server (harness)          | harness | Playwright `webServer`. Also the admin **published** by the full-stack Compose stack and by the scaffolding stack, for the same reason as `17S00`.                                                                                                                                                                                                                                          |
+
+**Three consumers share the harness block, so no two of them may run at one seat:**
+`pnpm verify:browser`, `QCMS_PORT_SEAT=<0-9> pnpm up:e2e` (task 036), and
+`QCMS_PORT_SEAT=<0-9> pnpm qcms:scaffold-e2e` (task 037). The last two each take
+their own Compose **project name** from the seat and tear down with
+`docker compose down --volumes`, which is why the seat is refused rather than
+defaulted from a linked worktree: a silent fallback to seat 0 would delete another
+lane's stack, not merely read it (issues #296 and #316).
 
 ### The one thing outside this allocation: the ingress
 
@@ -244,6 +252,8 @@ Do nothing. You are seat 0, on the ports every document already names.
 QCMS_PORT_SEAT=1 pnpm verify:browser        # harness on 17100/17110/17130/17140
 QCMS_PORT_SEAT=1 pnpm dev:portal            # stable stack on 7100/7110/7120, project qcms-dev-s1
 QCMS_PORT_SEAT=2 pnpm dev:admin             # stable stack on 7240/7210/7220, project qcms-dev-s2
+QCMS_PORT_SEAT=3 pnpm up:e2e                # harness on 17300/17340, project qcms-dev-s3-full-stack-e2e
+QCMS_PORT_SEAT=4 pnpm qcms:scaffold-e2e     # harness on 17400/17410/17440, project qcms-dev-s4-scaffold-e2e
 ```
 
 `dev:portal` and `dev:admin` each start their own API on `7S10`, so they need **different**
