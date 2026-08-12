@@ -25,13 +25,13 @@
  * a per-operator control, not a deployment setting.
  */
 @import "tailwindcss";
-@import "../../../packages/ui/src/theme.css";
-@import "../../../packages/ui/src/theme-components.css";
+@import "../node_modules/@qcms/ui/src/theme.css";
+@import "../node_modules/@qcms/ui/src/theme-components.css";
 @import "./theme.css";
 
 @source "../app";
 @source "../components";
-@source "../../../packages/ui/src";
+@source "../node_modules/@qcms/ui/src";
 
 /*
  * Why the portal's component layer is imported here at all (task 060, ADR-38).
@@ -83,7 +83,7 @@
   font-style: normal;
   font-weight: 100 900;
   font-display: swap;
-  src: url("../../../packages/ui/src/fonts/lexend-variable.woff2") format("woff2");
+  src: url("../node_modules/@qcms/ui/src/fonts/lexend-variable.woff2") format("woff2");
 }
 
 /*

@@ -146,6 +146,23 @@ function unpack(tarball, destination) {
   return join(destination, "package");
 }
 
+/**
+ * Third-party versions this harness pins, with the reason each one is pinned.
+ *
+ * A scaffolded project ships no lockfile, so `pnpm install` resolves every range to
+ * the current latest. That is the adopter's real experience and this harness runs it
+ * deliberately, but it also means an upstream release can turn this run red for a
+ * reason that has nothing to do with the scaffold. A pin belongs here only while an
+ * issue is open against the underlying break, and it carries that issue number.
+ */
+const PINNED_DEPENDENCIES = {
+  // Issue #448: apps/api does not typecheck against 1.5.2, which its own `^1.5.1`
+  // range admits. The repository's lockfile hides it; a scaffold has no lockfile, so
+  // this harness would fail inside the image build on a bug that is not the
+  // scaffold's. Remove this entry when #448 closes.
+  "@hono/zod-openapi": "1.5.1",
+};
+
 /** The `overrides:` block that redirects the four packages at the vendored tarballs. */
 function overridesBlock(tarballNames) {
   const lines = [
@@ -158,6 +175,9 @@ function overridesBlock(tarballNames) {
   ];
   for (const [name, file] of Object.entries(tarballNames)) {
     lines.push(`  "${name}": "file:./${VENDOR_DIRECTORY}/${file}"`);
+  }
+  for (const [name, version] of Object.entries(PINNED_DEPENDENCIES)) {
+    lines.push(`  "${name}": "${version}"`);
   }
   return `${lines.join("\n")}\n`;
 }

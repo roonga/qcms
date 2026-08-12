@@ -29,14 +29,14 @@
  * because they sit under node_modules-equivalent workspace paths.
  */
 @import "tailwindcss";
-@import "../../../packages/ui/src/theme.css";
-@import "../../../packages/ui/src/theme-components.css";
-@import "../../../packages/ui/src/fonts.css";
+@import "../node_modules/@qcms/ui/src/theme.css";
+@import "../node_modules/@qcms/ui/src/theme-components.css";
+@import "../node_modules/@qcms/ui/src/fonts.css";
 @import "./adopter-theme.css";
 
 @source "../app";
 @source "../components";
-@source "../../../packages/ui/src";
+@source "../node_modules/@qcms/ui/src";
 
 /*
  * Base page surface - mobile-first; respondents are on phones (ADR-26).
