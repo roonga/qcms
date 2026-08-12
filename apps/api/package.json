@@ -26,6 +26,10 @@
     "seed-fixtures": "node scripts/seed-fixtures.ts"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.49",
+    "@ai-sdk/google": "^4.0.63",
+    "@ai-sdk/openai": "^4.0.58",
+    "@ai-sdk/openai-compatible": "^3.0.43",
     "@hono/node-server": "^2.1.1",
     "@hono/otel": "^1.1.2",
     "@hono/zod-openapi": "^1.6.1",
@@ -43,6 +47,7 @@
     "@qcms/core": "workspace:*",
     "@qcms/csv": "workspace:*",
     "@qcms/db": "workspace:*",
+    "ai": "^7.0.92",
     "better-auth": "^1.7.2",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.13.5",

@@ -29,3 +29,17 @@ allowBuilds:
   esbuild: true
   protobufjs: true
   ssh2: true
+
+# pnpm 11 refuses a dependency version younger than its built-in minimum release age.
+# `pnpm add` writes an exact-version exception here for each package it had to waive,
+# and the exceptions below are the ones task 041's Vercel AI SDK packages needed. Every
+# entry is pinned to a single version, so an exception can never silently widen to a
+# later release. Whether `minimumReleaseAgeStrict` should also be on is a Code Owner
+# call, tracked on issue #455 along with documenting the policy beside CONTRIBUTING's
+# dependency thresholds.
+minimumReleaseAgeExclude:
+  - '@ai-sdk/anthropic@4.0.49'
+  - '@ai-sdk/gateway@4.0.74'
+  - '@ai-sdk/google@4.0.63'
+  - '@ai-sdk/openai@4.0.58'
+  - ai@7.0.92
