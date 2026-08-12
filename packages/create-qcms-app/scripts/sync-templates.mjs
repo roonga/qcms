@@ -179,7 +179,8 @@ export function publishedVersions() {
   const versions = {};
   for (const name of PUBLISHED_PACKAGES) {
     const directory = name.replace("@qcms/", "");
-    versions[name] = `^${readJson(`packages/${directory}/package.json`).version}`;
+    const manifest = readJson(`packages/${directory}/package.json`);
+    versions[name] = `^${manifest.version}`;
   }
   return versions;
 }
@@ -254,33 +255,65 @@ const QCMS_SPECIFIER = /@qcms\/(core|a2ui-compiler|db|ui)\b/g;
  * @param {Map<string, string>} tree template-relative path to contents
  */
 export function assertImports(tree) {
-  /** @type {string[]} */
-  const problems = [];
-  for (const [app, declared] of Object.entries(APP_QCMS_DEPENDENCIES)) {
-    const prefix = `common/apps/${app}/`;
-    /** @type {Map<string, string>} */
-    const used = new Map();
-    for (const [path, contents] of tree) {
-      if (!path.startsWith(prefix) || path.endsWith("package.json")) continue;
-      for (const [specifier] of contents.matchAll(QCMS_SPECIFIER)) {
-        if (!used.has(specifier)) used.set(specifier, path);
-      }
-    }
-    for (const [specifier, path] of used) {
-      if (declared.includes(specifier)) continue;
-      problems.push(`${path} imports ${specifier}, which apps/${app} does not declare.`);
-    }
-    for (const specifier of declared) {
-      if (used.has(specifier)) continue;
-      problems.push(`apps/${app} declares ${specifier}, which no scaffolded file imports.`);
-    }
-  }
+  const problems = Object.entries(APP_QCMS_DEPENDENCIES).flatMap(([app, declared]) =>
+    compareImports(app, declared, packagesUsedBy(tree, `common/apps/${app}/`)),
+  );
   if (problems.length > 0) {
     throw new Error(
       `sync-templates: the scaffolded @qcms/* dependency set is wrong.\n  ${problems.join("\n  ")}\n` +
-        `Fix APP_QCMS_DEPENDENCIES in ${TEMPLATE_DIR.replace("templates", "scripts/sync-templates.mjs")}.`,
+        `Fix APP_QCMS_DEPENDENCIES in ${GENERATOR_PATH}.`,
     );
   }
+}
+
+/** This file, repo-relative, for the error message above. */
+const GENERATOR_PATH = "packages/create-qcms-app/scripts/sync-templates.mjs";
+
+/**
+ * Every `@qcms/*` package the files under `prefix` reach, mapped to one file that
+ * proves it, so an error can name a line an author can go and look at.
+ *
+ * @param {Map<string, string>} tree
+ * @param {string} prefix
+ * @returns {Map<string, string>}
+ */
+function packagesUsedBy(tree, prefix) {
+  /** @type {Map<string, string>} */
+  const used = new Map();
+  for (const [path, contents] of tree) {
+    if (!path.startsWith(prefix) || path.endsWith("package.json")) continue;
+    for (const [specifier] of contents.matchAll(QCMS_SPECIFIER)) {
+      if (!used.has(specifier)) used.set(specifier, path);
+    }
+  }
+  return used;
+}
+
+/**
+ * Both directions of the declared-versus-used comparison.
+ *
+ * The unused direction matters as much as the missing one: a dependency nobody
+ * imports is one an adopter installs, audits and upgrades for nothing.
+ *
+ * @param {string} app
+ * @param {string[]} declared
+ * @param {Map<string, string>} used
+ * @returns {string[]}
+ */
+function compareImports(app, declared, used) {
+  /** @type {string[]} */
+  const problems = [];
+  for (const [specifier, path] of used) {
+    if (!declared.includes(specifier)) {
+      problems.push(`${path} imports ${specifier}, which apps/${app} does not declare.`);
+    }
+  }
+  for (const specifier of declared) {
+    if (!used.has(specifier)) {
+      problems.push(`apps/${app} declares ${specifier}, which no scaffolded file imports.`);
+    }
+  }
+  return problems;
 }
 
 // --- docker -----------------------------------------------------------------
@@ -339,6 +372,14 @@ export function transformCompose(text) {
 /** `${NAME}`, `${NAME:-default}`, `${NAME:?message}` in a Compose file. */
 const COMPOSE_INTERPOLATION = /\$\{([A-Z][A-Z0-9_]*)(:[-?])?/g;
 
+/**
+ * A whole comment line in a YAML file.
+ *
+ * `[ \t]` rather than `\s`, which matches newlines and makes the anchored, multiline
+ * form backtrack super-linearly on a long file.
+ */
+const COMMENT_LINE = /^[ \t]*#[^\n]*$/gm;
+
 /** Values Compose supplies itself, so an operator never sets them in `.env`. */
 const COMPOSE_INTERNAL = new Set(["POSTGRES_USER", "POSTGRES_DB"]);
 
@@ -361,7 +402,7 @@ export function renderEnvExample(composeFiles) {
   /** Name to "does the base topology refuse to start without it" (`${NAME:?...}`). */
   const names = new Map();
   for (const { text, alwaysRuns } of composeFiles) {
-    const withoutComments = text.replaceAll(/^\s*#.*$/gm, "");
+    const withoutComments = text.replaceAll(COMMENT_LINE, "");
     for (const match of withoutComments.matchAll(COMPOSE_INTERPOLATION)) {
       if (COMPOSE_INTERNAL.has(match[1])) continue;
       const mandatory = alwaysRuns && match[2] === ":?";
