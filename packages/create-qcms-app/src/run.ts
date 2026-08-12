@@ -55,11 +55,19 @@ function install(options: ScaffoldOptions): string | undefined {
 function initialiseRepository(options: ScaffoldOptions): string | undefined {
   const git = resolveGit();
   const cwd = options.targetDirectory;
-  for (const args of [["init", "--quiet"], ["add", "-A"]]) {
+  for (const args of [
+    ["init", "--quiet"],
+    ["add", "-A"],
+  ]) {
     const result = run(git, args, cwd, true);
     if (!result.ok) return `git ${args.join(" ")} failed: ${result.stderr.trim()}`;
   }
-  const commit = run(git, ["commit", "--quiet", "-m", "Initial commit from create-qcms-app"], cwd, true);
+  const commit = run(
+    git,
+    ["commit", "--quiet", "-m", "Initial commit from create-qcms-app"],
+    cwd,
+    true,
+  );
   if (!commit.ok) {
     return `The first commit failed (${commit.stderr.trim()}). Everything is staged; run \`git commit\` once your git identity is set.`;
   }
@@ -125,7 +133,9 @@ export async function main(argv: readonly string[], cwd: string): Promise<number
     process.stderr.write(`${error.message}\n`);
     return 1;
   }
-  process.stdout.write(`Wrote ${String(result.files.length)} files to ${options.targetDirectory}\n`);
+  process.stdout.write(
+    `Wrote ${String(result.files.length)} files to ${options.targetDirectory}\n`,
+  );
 
   const warnings = finishSetUp(options);
   process.stdout.write(nextSteps(options, result.unresolvedEnv));

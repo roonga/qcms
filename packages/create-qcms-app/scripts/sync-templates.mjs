@@ -246,7 +246,9 @@ export function appManifest(app, versions) {
   for (const name of ROOT_PROVIDED_DEV_DEPENDENCIES) {
     const range = root.devDependencies[name];
     if (range === undefined) {
-      throw new Error(`The repository root no longer declares ${name}, which every scaffolded app needs.`);
+      throw new Error(
+        `The repository root no longer declares ${name}, which every scaffolded app needs.`,
+      );
     }
     devDependencies[name] = range;
   }

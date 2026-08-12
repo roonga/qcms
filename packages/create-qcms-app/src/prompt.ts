@@ -106,12 +106,7 @@ export async function promptMissing(
     );
   }
   if (given.shape === undefined) {
-    filled["shape"] = await askChoice(
-      asker,
-      "Deployment shape",
-      DEPLOYMENT_SHAPES,
-      DEFAULTS.shape,
-    );
+    filled["shape"] = await askChoice(asker, "Deployment shape", DEPLOYMENT_SHAPES, DEFAULTS.shape);
   }
   if (given.adminTwoFactor === undefined) {
     filled["adminTwoFactor"] = await askChoice(

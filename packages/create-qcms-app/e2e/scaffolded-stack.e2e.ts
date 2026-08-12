@@ -42,7 +42,9 @@ const ADMIN_EMAIL = required("QCMS_SCAFFOLD_ADMIN_EMAIL");
 const ADMIN_PASSWORD = required("QCMS_SCAFFOLD_ADMIN_PASSWORD");
 
 /** One run's identifiers, so a repeat run against a kept stack does not collide. */
-const RUN = Date.now().toString(36).replace(/[^a-z0-9]/g, "");
+const RUN = Date.now()
+  .toString(36)
+  .replace(/[^a-z0-9]/g, "");
 const QUESTION_ID = `q_scaffold_${RUN}`;
 const FORM_ID = `frm_scaffold_${RUN}`;
 

@@ -55,10 +55,7 @@ export function nextSteps(options: ScaffoldOptions, unresolvedEnv: readonly stri
     "",
   ];
   if (unresolvedEnv.length > 0) {
-    lines.push(
-      `Before step 2, set these in .env: ${unresolvedEnv.join(", ")}`,
-      "",
-    );
+    lines.push(`Before step 2, set these in .env: ${unresolvedEnv.join(", ")}`, "");
   }
   return lines.join("\n");
 }
