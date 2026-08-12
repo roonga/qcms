@@ -1,0 +1,105 @@
+# {{projectName}}
+
+A QCMS (Question CMS) deployment, scaffolded by `create-qcms-app`.
+
+**Deployment shape: solo.** Four containers on one host: the respondent portal, the
+authoring admin, the API, and Postgres. TLS and public routing are yours to supply
+(ADR-20): nothing in this project terminates TLS by default, and only the portal and
+the admin are ever routed. The API container publishes no host port and must not be
+exposed.
+
+## What you own and what you upgrade
+
+The three applications under `apps/` are **your source**. Edit them: routes, pages,
+theming, adapters, the message catalog. They will never be overwritten, because
+nothing overwrites them: there is no upgrade command that touches this tree.
+
+The four `@qcms/*` packages they depend on are **versioned dependencies**. They carry
+the domain model, rule evaluation, the publish compiler, the migration history and the
+renderer, and they are upgraded through your package manager like any other
+dependency. `docs/ownership-seam.md` in the QCMS repository lists the seam file by
+file, and the upgrade story for each package.
+
+## First run
+
+```sh
+# 1. Review the environment. `.env` was generated for you with random secrets and
+#    the answers you gave the scaffolder. Check the base URLs before you expose
+#    this deployment to anyone.
+$EDITOR .env
+
+# 2. Build the three images, run the migrations, start the stack.
+docker compose up -d --build
+
+# 3. Migrations again after any upgrade. Step 2 already ran them once; this is the
+#    command you repeat, and it is deliberately a separate step rather than something
+#    the API does at boot (multi-instance safety, and your control over when schema
+#    changes land).
+docker compose run --rm migrate
+
+# 4. Create the first administrator. Credentials travel in the environment, never as
+#    arguments: an argument lands in your shell history and in every `ps` listing.
+docker compose exec \
+  -e QCMS_ADMIN_EMAIL=you@example.com \
+  -e QCMS_ADMIN_PASSWORD='a long passphrase' \
+  api node dist/create-admin.js
+
+# 5. Open the admin and sign in.
+#    {{adminBaseUrl}}
+```
+
+The respondent portal is at {{portalBaseUrl}}.
+
+Admin two-factor authentication is **{{adminTwoFactor}}** in this deployment
+(`QCMS_ADMIN_2FA` in `.env`). `optional` is a development escape hatch; a deployment
+that anyone else can reach should be `required`.
+
+## Day-to-day commands
+
+```sh
+{{installCommand}}                    # install workspace dependencies
+{{runPrefix}} up                       # docker compose up -d --build
+{{runPrefix}} down                     # docker compose down
+{{runPrefix}} logs                     # follow every container's logs
+{{runPrefix}} migrate                  # run pending migrations
+```
+
+## TLS for a single host
+
+`docker-compose.proxy.yml` is an optional Caddy overlay that obtains and renews
+certificates automatically. It routes the portal and the admin, and nothing else: the
+API stays unpublished.
+
+```sh
+# Set QCMS_PORTAL_DOMAIN, QCMS_ADMIN_DOMAIN and QCMS_ACME_EMAIL in .env first.
+docker compose -f docker-compose.yml -f docker-compose.proxy.yml up -d
+```
+
+Behind any ingress, including this one, the apps assume TLS is terminated in front of
+them and that HSTS is set there. Leave `QCMS_BIND_ADDRESS` at its loopback default
+unless a separate ingress host has to reach these containers directly.
+
+## Layout
+
+| Path | What it is |
+| --- | --- |
+| `apps/api` | The API composition root and its vertical slices. Fetch-pure handlers. |
+| `apps/portal` | The respondent portal (Next.js, SSR plus a strict BFF). |
+| `apps/admin` | The authoring admin (Next.js, strict BFF; holds no database handle). |
+| `docker/` | The three production Dockerfiles and the optional Caddy configuration. |
+| `docker-compose.yml` | The solo topology. |
+| `.env.example` | Every variable the stack reads, generated from the API configuration schema. |
+
+## Upgrading
+
+Bump the `@qcms/*` versions in `apps/*/package.json`, install, rebuild, and run the
+migrations:
+
+```sh
+{{installCommand}}
+docker compose up -d --build
+docker compose run --rm migrate
+```
+
+Published QCMS versions are immutable and the compiled-form corpus is append-only, so
+a form published on an older version keeps rendering exactly as it did.

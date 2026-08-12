@@ -1,0 +1,365 @@
+/*
+ * Portal global stylesheet (task 029; token contract 051).
+ *
+ * Layering (ADR-26 two-surface mandate, ADR-30 token contract):
+ *   1. Tailwind v4 - the utility engine the vendored a2-react-aria components
+ *      (rendered through @qcms/ui) style themselves with.
+ *   2. @qcms/ui theme.css - the four-group token contract (color / typography /
+ *      spacing / radius): the four predefined themes, each authored Light and
+ *      Dark, plus the single shared High-contrast mode layer.
+ *   3. @qcms/ui theme-components.css - the qcms-owned CSS that makes the vendored
+ *      controls consume the spacing, radius and type-scale tokens, the tabular
+ *      figures rule, plus the HC mode scaffold. Kept out of theme.css because it is
+ *      CSS, not token values.
+ *   4. @qcms/ui fonts.css - the declarative font registry (task 052): one
+ *      `@font-face` per self-hosted weight and one `:root.font-<key>` block that
+ *      repoints `--font-portal`. Every face is served from this origin, so a font
+ *      selection costs zero external requests and needs no CSP allowance (SEC-9).
+ *      Generated from `packages/ui/src/font-registry.ts`; never hand-edited.
+ *   5. adopter-theme.css - THE single documented override surface. Adopters re-skin
+ *      a deployment by editing that one file and nothing else.
+ *
+ * Which theme, corner preset, default colour mode and default font a deployment
+ * runs is config, not CSS - and so is which fonts it offers respondents:
+ * `lib/server/theme.ts` reads it all and `app/layout.tsx` stamps `data-theme` plus
+ * the mode / corners / font root classes onto <html>. See docs/theming.md.
+ *
+ * `@source` tells Tailwind where the utility-class strings live: the portal's own
+ * files are auto-detected; the @qcms/ui renderer sources are declared explicitly
+ * because they sit under node_modules-equivalent workspace paths.
+ */
+@import "tailwindcss";
+@import "../../../packages/ui/src/theme.css";
+@import "../../../packages/ui/src/theme-components.css";
+@import "../../../packages/ui/src/fonts.css";
+@import "./adopter-theme.css";
+
+@source "../app";
+@source "../components";
+@source "../../../packages/ui/src";
+
+/*
+ * Base page surface - mobile-first; respondents are on phones (ADR-26).
+ *
+ * `color-scheme` follows the respondent's MODE choice, not the OS (task 053). It is
+ * what UA-drawn parts obey - the font select's dropdown list, scrollbars, the date
+ * control's native affordances - and those are not styleable from the token
+ * contract, so without this a respondent who chose Dark on a light OS got a
+ * light-rendered dropdown over a dark page. `.hc` pins `light` in
+ * theme-components.css (High-contrast is a distinct choice, not Dark).
+ *
+ * The bare `light dark` stays as the fallback for the case where no mode class is
+ * on the root at all, which the server render never produces but a consumer of
+ * these stylesheets outside this app might.
+ */
+html {
+  color-scheme: light dark;
+}
+:root.light {
+  color-scheme: light;
+}
+:root.dark {
+  color-scheme: dark;
+}
+
+/*
+ * The WCAG 1.4.12 text-spacing floors, set once on the page and carried by the
+ * typography token group so nothing downstream can drop below them: body text at
+ * 16px, line-height 1.5, letter-spacing 0.12em, word-spacing 0.16em. The
+ * paragraph-spacing floor (2em) is applied to the content column below.
+ */
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background-color: var(--color-background);
+  color: var(--color-text);
+  font-family: var(--font-portal, ui-sans-serif, system-ui, sans-serif);
+  font-size: var(--type-body);
+  line-height: var(--type-line-height);
+  letter-spacing: var(--type-letter-spacing);
+  word-spacing: var(--type-word-spacing);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Paragraph rhythm inside the respondent's content column (1.4.12's fifth floor).
+   Scoped to the main column so header/footer chrome keeps its own tighter layout. */
+#portal-main p {
+  margin-block: 0 var(--type-paragraph-spacing);
+}
+#portal-main p:last-child {
+  margin-block-end: 0;
+}
+
+/* Step titles come from the type scale, not from a hardcoded size. */
+.qcms-step-title {
+  font-size: var(--type-step-title);
+  line-height: var(--type-title-line-height);
+}
+
+/* Visible-on-focus skip link (structure sound for 030's a11y deep-pass). */
+.skip-link {
+  position: absolute;
+  left: 0.5rem;
+  top: -3rem;
+  z-index: 50;
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  padding: 0.5rem 0.75rem;
+  box-shadow: 0 1px 2px var(--color-overlay);
+  transition: top 0.15s ease;
+}
+.skip-link:focus {
+  top: 0.5rem;
+}
+
+/*
+ * Guaranteed focus-visible indicator (WCAG 2.2 - 2.4.11 Focus Appearance,
+ * task 030). Zero-specificity `:where()` so the vendored @qcms/ui controls keep
+ * their own focus rings; every other focusable element - the skip link, the
+ * error-summary "jump to field" links, a step heading focused after a branch
+ * removal - gets a solid, high-contrast outline. `--color-focus-ring` clears 3:1
+ * against its backgrounds in EVERY theme and mode (asserted by
+ * `theme-tokens.test.ts`), and the heavier HC treatment is in
+ * theme-components.css.
+ */
+:where(a, button, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* ==========================================================================
+   BRAND MARK + APPEARANCE CONTROLS (task 053).
+
+   Owned shell chrome, written as CSS rather than utility strings for one reason:
+   the selected-chip treatment is a state rule (`[data-selected="true"]`) over four
+   properties at once, and the token wiring has to be readable to whoever checks
+   that the controls still resolve from the contract and nothing else. Every value
+   below is a token; there is no literal colour, family or radius in this block.
+
+   Sizing rides `--space-control-h` and `--space-control-pad-x`, so the controls
+   follow the respondent's own density choice. That is what keeps them consistent
+   with the form they sit above, and it is why the WCAG 2.5.8 check that matters is
+   the one taken at COMPACT: 36px, measured on the rendered chips by
+   `e2e/appearance.pw.ts`, against a 24px minimum.
+   ========================================================================== */
+
+.qcms-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.qcms-brand__logo {
+  /* Capped so an oversized operator-supplied file cannot break the header. */
+  max-height: 1.75rem;
+  width: auto;
+}
+.qcms-brand__name {
+  font-size: var(--type-body);
+  font-weight: 600;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+/*
+ * Deliberately NOT `position: relative`. The panel below is positioned against the
+ * HEADER ROW (`portal-shell.tsx` marks that container `relative`), not against the
+ * summary: anchoring it here makes `.qcms-appearance` the containing block, the panel
+ * inherits the summary's narrow width, and the chips spill out of it - which is
+ * exactly what the first screenshot pass showed.
+ */
+.qcms-appearance {
+  position: static;
+}
+
+.qcms-appearance__summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  /* The disclosure is a control like any other: same height token, same corners,
+     so it clears the 2.5.8 target floor at every density by construction. */
+  min-height: var(--space-control-h);
+  padding-inline: var(--space-control-pad-x);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--type-hint);
+  cursor: pointer;
+  /* Suppress the UA's default triangle: the icon and the label carry the meaning,
+     and `list-item` display is what puts a marker on a `<summary>` at all. */
+  list-style: none;
+}
+.qcms-appearance__summary::-webkit-details-marker {
+  display: none;
+}
+
+/*
+ * The panel hangs below the header row, right-aligned under the summary that opened
+ * it, and it never leaves the content column.
+ *
+ * The `1rem` matches the header row's own `px-4`, so the panel's right edge lines up
+ * with the progress text rather than with the viewport. `min-width` is what stops the
+ * chips wrapping into a ragged stack at a comfortable reading width, and the `min()`
+ * is what keeps that from overflowing a 390px phone: whichever of "wide enough" and
+ * "fits the column" is smaller wins.
+ */
+.qcms-appearance__panel {
+  position: absolute;
+  inset-inline: auto 1rem;
+  min-width: min(22rem, calc(100% - 2rem));
+  max-width: calc(100% - 2rem);
+  top: calc(100% - 0.5rem);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-stack);
+  padding: var(--space-control-pad-x);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background-color: var(--color-surface);
+  box-shadow: 0 4px 12px var(--color-overlay);
+}
+
+.qcms-appearance__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.qcms-appearance__select {
+  min-height: var(--space-control-h);
+  padding-inline: var(--space-control-pad-x);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background-color: var(--color-background);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: var(--type-body);
+}
+
+.qcms-seg {
+  /* A fieldset for the group semantics, with none of its default chrome. */
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
+.qcms-seg__legend {
+  padding: 0;
+  font-size: var(--type-hint);
+  color: var(--color-text-muted);
+}
+.qcms-seg__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-block-start: 0.25rem;
+}
+
+.qcms-seg__chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: var(--space-control-h);
+  padding-inline: var(--space-control-pad-x);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background-color: var(--color-background);
+  color: var(--color-text);
+  font-size: var(--type-hint);
+  cursor: pointer;
+}
+
+/*
+ * The radio is invisible but real, and it is the size of the whole chip.
+ *
+ * Invisible so the chip can be drawn as a chip; real so the browser keeps owning
+ * arrow-key traversal, the roving tab stop, the group's accessible name and the
+ * "N of 3" position announcement. `display: none` and `visibility: hidden` are both
+ * wrong here (they remove it from the tab order and the accessibility tree), which
+ * leaves `opacity: 0` - and stretching it over the chip rather than clipping it to a
+ * pixel is deliberate: WCAG 2.5.8 measures the size of the TARGET, which is this
+ * element, so a 1px-clipped input would be a 1px target with a 36px picture behind
+ * it. Stretched, the target and the visible chip are the same rectangle.
+ */
+.qcms-seg__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* Focus lands on the hidden input, so the visible ring has to be drawn on the
+   chip around it. `:focus-visible` (not `:focus`) so a pointer click does not
+   leave a ring behind, matching the shell's global rule. */
+.qcms-seg__chip:has(.qcms-seg__input:focus-visible) {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+/* THE SELECTED CHIP. Four simultaneous differences, only one of which is colour:
+   the check glyph (below), a 2px border, a 600 weight, and the fill. In
+   High-contrast, where the palette is two colours, the first three are what still
+   distinguish it - which is the exit criterion "selected state not colour-only"
+   and is asserted in HC by `e2e/appearance.pw.ts`. */
+.qcms-seg__chip[data-selected="true"] {
+  border-width: 2px;
+  border-color: var(--color-primary);
+  background-color: var(--color-primary);
+  color: var(--color-primary-foreground);
+  font-weight: 600;
+}
+
+/* The glyph slot is always present and always this wide, so selecting a chip
+   changes no text position. */
+.qcms-seg__mark {
+  display: inline-block;
+  width: 0.85em;
+  text-align: center;
+}
+
+.qcms-seg__icon {
+  flex: none;
+}
+
+/* High-contrast treatment for the shell's own controls. `theme-components.css`
+   gives the vendored form controls heavy black edges in HC, and these sit directly
+   above them, so they take the same treatment here (they are portal chrome, not
+   `[data-qcms-field]` markup, so that package rule does not reach them).
+
+   The selected chip then goes to 3px rather than staying at 2px, because HC is
+   exactly the mode where the colour half of the selected treatment carries the
+   least: the check glyph and the 600 weight are the signals that always hold, and
+   this keeps the border a third one instead of collapsing it. */
+:root.hc :is(.qcms-appearance__summary, .qcms-appearance__select, .qcms-seg__chip) {
+  border-width: 2px;
+  border-color: var(--color-border-strong);
+}
+:root.hc .qcms-seg__chip[data-selected="true"] {
+  border-width: 3px;
+}
+
+/*
+ * Respect reduced-motion (WCAG 2.3.3, task 030): the skip link's slide and the
+ * controls' color transitions collapse to near-instant. Kept as the standard
+ * conservative reset rather than removing motion the design does not use.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

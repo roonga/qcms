@@ -1,0 +1,143 @@
+/**
+ * The API composition root (task 017; ARCHITECTURE §5.1–5.2).
+ *
+ * `createApp(deps, flags)` assembles the Hono application every slice mounts
+ * into: cross-cutting middleware (error envelope, request logging, body limit),
+ * the always-on health/ready routes, and the flag-gated route groups. There is
+ * no DI container and no pipeline framework - middleware is ordinary Hono
+ * middleware and dependencies arrive as the explicit `deps` object.
+ *
+ * **Mount flags are a build-time isolation guarantee (ADR-09).** A group that
+ * is not mounted has *no routes registered* - a request to an admin path in a
+ * public-only process is a plain 404, not a 403. Admin simply does not exist
+ * there.
+ *
+ * Feature slices (018–026) are not defined here; they are `SliceRegistrar`s the
+ * server entry collects into the surface buckets and passes via `groups`. 017
+ * owns the contract, not the slices - so `createApp` with no `groups` composes
+ * an app with just health/ready plus (empty) guarded surfaces, which is exactly
+ * what the middleware/mount tests exercise.
+ */
+
+import { httpInstrumentationMiddleware } from "@hono/otel";
+import { OpenAPIHono } from "@hono/zod-openapi";
+import { bodyLimit } from "hono/body-limit";
+
+import type { MountFlags } from "./config.js";
+import type { Deps } from "./deps.js";
+import { errorEnvelope } from "./middleware/error-envelope.js";
+import { internalToken } from "./middleware/internal-token.js";
+import { requestLogger } from "./middleware/request-logger.js";
+import type { ApiEnv } from "./openapi.js";
+import { registerHealthRoutes } from "./routes/health.js";
+
+/**
+ * A slice's registration function: given its group router and `deps`, it
+ * declares its `createRoute` routes. This is the seam 018–026 implement.
+ */
+export type SliceRegistrar = (group: OpenAPIHono<ApiEnv>, deps: Deps) => void;
+
+/** Route groups per surface; only groups whose flag is set are mounted. */
+export interface RouteGroups {
+  readonly public?: readonly SliceRegistrar[];
+  readonly internal?: readonly SliceRegistrar[];
+  readonly admin?: readonly SliceRegistrar[];
+  /**
+   * The admin's identity provider (task 056): better-auth's own endpoint set,
+   * mounted on its documented base path. It rides the **admin** mount flag rather
+   * than a flag of its own - an authoring surface always needs somewhere to sign
+   * in, and a respondent-only process must not carry one - but it is a separate
+   * group because it is the one admin-facing surface that cannot sit behind the
+   * admin-session gate: it is what issues the session in the first place.
+   */
+  readonly auth?: readonly SliceRegistrar[];
+}
+
+/**
+ * Mount prefixes per surface (admin isolated under `/admin`, ARCHITECTURE §5.1).
+ *
+ * `auth` is better-auth's `basePath` default and is matched by the instance's own
+ * `basePath` option, so the library builds the same URLs it is served at.
+ */
+const MOUNT_PREFIX = {
+  public: "/",
+  internal: "/internal",
+  admin: "/admin",
+  auth: "/api/auth",
+} as const;
+
+export interface CreateAppOptions {
+  readonly groups?: RouteGroups;
+}
+
+/**
+ * Build the API application for the given process shape. Pure over its inputs:
+ * no environment reads, no schedulers, no port binding (those live in
+ * `serve.ts`), so tests compose apps freely with `app.request(...)`.
+ */
+export function createApp(
+  deps: Deps,
+  flags: MountFlags,
+  options: CreateAppOptions = {},
+): OpenAPIHono<ApiEnv> {
+  const app = new OpenAPIHono<ApiEnv>();
+
+  // Uniform error rendering for everything below.
+  app.onError(errorEnvelope(deps));
+
+  // The `SpanKind.SERVER` span for this request, and the point where an inbound
+  // W3C `traceparent` (the portal BFF's, over the SEC-4 hop) is extracted and
+  // becomes this span's parent - so one respondent action is one trace across
+  // both services (task 054, ADR-34).
+  //
+  // Unconditional, and safe to be: `@hono/otel` depends on `@opentelemetry/api`
+  // only, so with no SDK registered (`OTEL_EXPORTER_OTLP_ENDPOINT` unset) it
+  // resolves the no-op tracer and records nothing. Header capture is left unset
+  // on purpose: `authorization` and the SEC-4 internal token travel in headers,
+  // and SEC-13 keeps them out of every signal.
+  //
+  // FIRST, above the request logger, so the correlation id below has a span to
+  // attach itself to.
+  app.use("*", httpInstrumentationMiddleware());
+
+  // Correlation id + structured request log wraps every request.
+  app.use("*", requestLogger(deps));
+
+  // Request body size cap (SEC-9); over the limit → 413 via the envelope.
+  app.use("*", bodyLimit({ maxSize: deps.config.bodyLimitBytes }));
+
+  // Liveness/readiness: every shape, no credential.
+  registerHealthRoutes(app, deps);
+
+  const groups = options.groups ?? {};
+
+  // Each mounted surface is guarded by the internal service token (SEC-4) and
+  // populated by its slice registrars. Not mounting a surface means its routes
+  // do not exist (ADR-09).
+  const mount = (
+    enabled: boolean,
+    prefix: string,
+    registrars: readonly SliceRegistrar[] | undefined,
+  ): void => {
+    if (!enabled) return;
+    const group = new OpenAPIHono<ApiEnv>();
+    group.use("*", internalToken(deps));
+    for (const register of registrars ?? []) {
+      register(group, deps);
+    }
+    app.route(prefix, group);
+  };
+
+  mount(flags.public, MOUNT_PREFIX.public, groups.public);
+  mount(flags.internal, MOUNT_PREFIX.internal, groups.internal);
+  mount(flags.admin, MOUNT_PREFIX.admin, groups.admin);
+  // The identity provider, mounted with (and only with) the admin surface. It is
+  // still behind the SEC-4 internal token, which `mount` installs: these endpoints
+  // are unauthenticated in the *user* sense (no session exists before sign-in), and
+  // the channel gate is what keeps them off any public network. See
+  // `features/auth/route.ts` for why the group is an allowlist and not a bare
+  // catch-all.
+  mount(flags.admin, MOUNT_PREFIX.auth, groups.auth);
+
+  return app;
+}

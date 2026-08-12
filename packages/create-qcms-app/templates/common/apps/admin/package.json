@@ -1,0 +1,37 @@
+{
+  "name": "qcms-admin",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@codemirror/autocomplete": "6.20.3",
+    "@codemirror/commands": "6.10.4",
+    "@codemirror/lang-json": "6.0.2",
+    "@codemirror/lint": "6.9.7",
+    "@codemirror/state": "6.7.1",
+    "@codemirror/view": "6.43.8",
+    "@qcms/a2ui-compiler": "^0.1.0",
+    "@qcms/core": "^0.0.0",
+    "@qcms/db": "^0.0.0",
+    "@qcms/ui": "^0.0.0",
+    "next": "^16.3.0",
+    "qrcode": "^1.5.4",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^24.13.3",
+    "@types/qrcode": "^1.5.5",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "tailwindcss": "^4.3.3"
+  }
+}

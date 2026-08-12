@@ -1,0 +1,9 @@
+# The three applications are the code you own (ADR-05). The @qcms/* packages they
+# depend on come from the registry and are upgraded, not edited: see README.md.
+#
+# This file is stamped whatever package manager you chose for local development,
+# because the shipped Dockerfiles always build with pnpm inside the image: the
+# runtime tree is pruned with `pnpm deploy --prod`, which has no npm or yarn
+# equivalent. Removing this file breaks `docker compose build`.
+packages:
+  - "apps/*"
