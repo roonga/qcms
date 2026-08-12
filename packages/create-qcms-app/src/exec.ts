@@ -37,12 +37,27 @@ export interface Program {
   readonly leadingArguments: readonly string[];
 }
 
+/**
+ * The environment variable that overrides each program's location.
+ *
+ * Held in one place because {@link ProgramNotFound} tells the operator to set it and
+ * the resolvers are what read it. Those were two independently written strings, and
+ * they disagreed: the message derived a name from the package manager
+ * (`QCMS_PNPM_BIN`), while `resolvePackageManager` read `QCMS_PACKAGE_MANAGER_BIN`,
+ * so the remedy the error suggested did nothing. One constant per program, used by
+ * both sides, and `exec.test.ts` pins the correspondence.
+ */
+export const BIN_OVERRIDE_ENV_VAR = {
+  packageManager: "QCMS_PACKAGE_MANAGER_BIN",
+  git: "QCMS_GIT_BIN",
+} as const;
+
 /** Thrown when a required program cannot be found at any absolute location. */
 export class ProgramNotFound extends Error {
-  constructor(name: string, looked: readonly string[]) {
+  constructor(name: string, looked: readonly string[], overrideVariable: string) {
     super(
       `Could not find ${name}. Looked at: ${looked.join(", ")}.\n` +
-        `Set QCMS_${name.toUpperCase()}_BIN to its absolute path, or rerun with --no-install.`,
+        `Set ${overrideVariable} to its absolute path, or rerun with --no-install.`,
     );
     this.name = "ProgramNotFound";
   }
@@ -62,7 +77,7 @@ export function resolvePackageManager(
   manager: PackageManager,
   environment: NodeJS.ProcessEnv = process.env,
 ): Program {
-  const override = environment["QCMS_PACKAGE_MANAGER_BIN"];
+  const override = environment[BIN_OVERRIDE_ENV_VAR.packageManager];
   if (override !== undefined && override !== "") {
     return { command: override, leadingArguments: [] };
   }
@@ -74,18 +89,21 @@ export function resolvePackageManager(
   }
   const looked = PACKAGE_MANAGER_CANDIDATES.map((directory) => `${directory}/${manager}`);
   const found = looked.find((candidate) => existsSync(candidate));
-  if (found === undefined) throw new ProgramNotFound(manager, looked);
+  if (found === undefined) {
+    throw new ProgramNotFound(manager, looked, BIN_OVERRIDE_ENV_VAR.packageManager);
+  }
   return { command: found, leadingArguments: [] };
 }
 
 /** Locate git. */
 export function resolveGit(environment: NodeJS.ProcessEnv = process.env): Program {
-  const override = environment["QCMS_GIT_BIN"];
+  const override = environment[BIN_OVERRIDE_ENV_VAR.git];
   if (override !== undefined && override !== "") {
     return { command: override, leadingArguments: [] };
   }
   const found = GIT_CANDIDATES.find((candidate) => existsSync(candidate));
-  if (found === undefined) throw new ProgramNotFound("git", GIT_CANDIDATES);
+  if (found === undefined)
+    throw new ProgramNotFound("git", GIT_CANDIDATES, BIN_OVERRIDE_ENV_VAR.git);
   return { command: found, leadingArguments: [] };
 }
 
