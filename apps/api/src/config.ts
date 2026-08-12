@@ -178,7 +178,7 @@ export interface Config {
     /**
      * better-auth signing secret (`QCMS_ADMIN_AUTH_SECRET`, >= 32 chars, SEC-7).
      *
-     * Passed to better-auth as `secret`, which since 1.6.25 means **the legacy
+     * Passed to better-auth as `secret`, which in the pinned 1.6.26 means **the legacy
      * fallback**: the key used to read ciphertext written before the versioned
      * envelope existed. It is also the value {@link secrets} defaults to, so a
      * deployment that never rotates sees exactly the behaviour it always had.
@@ -350,6 +350,12 @@ function parseKeyList(env: Env, name: string, minLength: number, issues: string[
  * `current`, which is what makes the envelope format the default rather than
  * something a deployment has to opt into.
  *
+ * "Newest first" is enforced, not merely documented: better-auth encrypts under
+ * whichever entry comes first, so a list written oldest-first (`1:<old>,2:<new>`)
+ * boots cleanly and then keeps writing under the *old* key, silently doing the
+ * opposite of the rotation it was edited for. There is no signal anywhere else in
+ * the system, so the refusal belongs at boot.
+ *
  * Every issue this records names the env var and a **version number**, never a
  * value or a fragment of one (SEC-8). That is also why the parser is written here
  * rather than handing the raw string to better-auth's `parseSecretsEnv`, whose
@@ -405,7 +411,33 @@ function parseSecretVersions(
     issues.push(`${name} is set but carries no usable entry`);
     return [{ version: 1, value: current }];
   }
+  pushOrderIssues(name, parsed, issues);
   return parsed;
+}
+
+/**
+ * Enforces the "newest first" half of {@link parseSecretVersions}'s contract.
+ *
+ * Its own function so the parser above stays inside the cognitive-complexity
+ * budget, and because the rule is worth reading on its own: better-auth encrypts
+ * under whichever entry is first, so ordering is not presentation.
+ *
+ * Named by version, never by value (SEC-8), like every other refusal here.
+ */
+function pushOrderIssues(
+  name: string,
+  parsed: readonly { readonly version: number }[],
+  issues: string[],
+): void {
+  let previous: number | undefined;
+  for (const { version } of parsed) {
+    if (previous !== undefined && version >= previous) {
+      issues.push(
+        `${name} lists version ${version} after version ${previous}; entries must be newest first, in descending version order`,
+      );
+    }
+    previous = version;
+  }
 }
 
 function parseRequiredString(env: Env, name: string, minLength: number, issues: string[]): string {

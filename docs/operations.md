@@ -112,7 +112,7 @@ Validated at boot by `apps/api/src/config.ts`, which collects every problem and 
 | `QCMS_APP_KEY` (secret) | **required** | - | AES-256-GCM key (at least 32 characters) encrypting secrets at rest: webhook signing secrets and stored TOTP material (SEC-6). Changing it makes every existing at-rest secret undecryptable. |
 | `QCMS_PORTAL_BASE_URL` | **required** | - | Public origin of the respondent portal, used to build the secure-link URLs authors copy. Absolute http(s); a trailing slash is stripped. |
 | `QCMS_ADMIN_AUTH_SECRET` (secret) | conditional | - | better-auth signing secret, at least 32 characters. Required when `QCMS_MOUNT` includes `admin`. It also protects stored two-factor material (TOTP secrets and recovery codes are encrypted under it), so back it up with the database. Rotate it through `QCMS_ADMIN_AUTH_SECRETS` rather than by editing this value, which would leave every enrolled authenticator unreadable (SEC-7). |
-| `QCMS_ADMIN_AUTH_SECRETS` (secret) | optional | `unset - version 1 holds QCMS_ADMIN_AUTH_SECRET` | Versioned admin auth keys for non-destructive rotation, as comma-separated `<version>:<secret>` entries, newest first (for example `2:<new>,1:<old>`). The first entry encrypts new material; the rest stay readable. Each value has the same 32-character floor. Leave it unset unless you are rotating; the rotation runbook is in the key-rotation section below (SEC-7, issue #319). |
+| `QCMS_ADMIN_AUTH_SECRETS` (secret) | optional | `unset - version 1 holds QCMS_ADMIN_AUTH_SECRET` | Versioned admin auth keys for non-destructive rotation, as comma-separated `<version>:<secret>` entries, newest first (for example `2:<new>,1:<old>`). The first entry encrypts new material; the rest stay readable. Each value has the same 32-character floor, and the API refuses to start on a list that is not in descending version order, since a list written the other way round would keep encrypting under the old key. Leave it unset unless you are rotating; the rotation runbook is in the key-rotation section below (SEC-7, issue #319). |
 | `QCMS_ADMIN_BASE_URL` | conditional | - | Public origin of the **admin app**, not of this API. Required when `QCMS_MOUNT` includes `admin`: it is the origin better-auth scopes cookies to and the only origin it trusts, so it must match what the browser sees exactly. |
 | `TURNSTILE_SITE_KEY` | conditional | - | Turnstile site key. Required when `QCMS_FLAG_CHALLENGE_PROVIDER=turnstile`, ignored otherwise. |
 | `TURNSTILE_SECRET_KEY` (secret) | conditional | - | Turnstile verification secret. Required when `QCMS_FLAG_CHALLENGE_PROVIDER=turnstile`, ignored otherwise. |
@@ -380,6 +380,19 @@ carries the version that wrote it, and moves forward as it is used.
    retired for good and there is no supported path to drop the trailing entry: add
    versions, do not remove them. Pruning becomes possible when a 2FA reset exists
    (issue #432).
+
+A fourth limit is not conditional on rotating at all: **the deploy that introduced this
+list is a one-way door.** From that release onward every piece of stored two-factor
+material is written in the versioned `$ba$<version>$<hex>` envelope, whether or not
+`QCMS_ADMIN_AUTH_SECRETS` is ever set, because the default is a version-1 list rather
+than no list. A build from before the change knows nothing about that envelope: it hands
+the whole string to a raw hex decode (`rawDecrypt` -> `hexToBytes`), which throws rather
+than returning wrong plaintext. So rolling the API image back past this change leaves
+every account enrolled since the deploy unverifiable on both factors, while accounts
+enrolled before it keep working through the same code path they always used. Roll
+forward from a fault here rather than back, and if a rollback has to stay available,
+take the database snapshot before the upgrade and treat restoring it as part of the
+rollback.
 
 Numbering: versions are integers, unique, and are **not** positional - they identify
 the key inside the stored ciphertext, so never renumber an existing key. Add a higher

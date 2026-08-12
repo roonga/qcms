@@ -198,7 +198,7 @@ export const ENV_REFERENCE = [
     fallback: "unset - version 1 holds QCMS_ADMIN_AUTH_SECRET",
     secret: true,
     description:
-      "Versioned admin auth keys for non-destructive rotation, as comma-separated `<version>:<secret>` entries, newest first (for example `2:<new>,1:<old>`). The first entry encrypts new material; the rest stay readable. Each value has the same 32-character floor. Leave it unset unless you are rotating; the rotation runbook is in the key-rotation section below (SEC-7, issue #319).",
+      "Versioned admin auth keys for non-destructive rotation, as comma-separated `<version>:<secret>` entries, newest first (for example `2:<new>,1:<old>`). The first entry encrypts new material; the rest stay readable. Each value has the same 32-character floor, and the API refuses to start on a list that is not in descending version order, since a list written the other way round would keep encrypting under the old key. Leave it unset unless you are rotating; the rotation runbook is in the key-rotation section below (SEC-7, issue #319).",
   },
   {
     name: "QCMS_ADMIN_BASE_URL",

@@ -220,6 +220,38 @@ describe("QCMS_ADMIN_AUTH_SECRETS - versioned auth-secret rotation (issue #319)"
     ).toThrow(ConfigError);
   });
 
+  it("refuses a list that is not newest-first, by version and never by value", () => {
+    // The failure this closes is silent: better-auth encrypts under the FIRST entry, so
+    // `1:<old>,2:<new>` boots, looks rotated, and keeps writing under the old key. The
+    // only place that can be caught is boot, because nothing downstream reports which
+    // version wrote a blob. Reported by version number like every other refusal (SEC-8).
+    const older = synthSecret();
+    const newer = synthSecret();
+    let message = "";
+    try {
+      loadConfig(validEnv({ QCMS_ADMIN_AUTH_SECRETS: `1:${older},2:${newer}` }));
+    } catch (err) {
+      message = (err as ConfigError).message;
+    }
+    expect(message).toContain("QCMS_ADMIN_AUTH_SECRETS");
+    expect(message).toContain("descending version order");
+    expect(message).not.toContain(older);
+    expect(message).not.toContain(newer);
+  });
+
+  it("accepts a descending list with a gap, so a skipped version number is not an error", () => {
+    // Versions identify ciphertext, they are not positions: an operator who jumps from 1
+    // to 5 has done nothing wrong, and the ordering check must not turn that into a
+    // boot failure.
+    const newest = synthSecret();
+    const oldest = synthSecret();
+    const config = loadConfig(validEnv({ QCMS_ADMIN_AUTH_SECRETS: `5:${newest},1:${oldest}` }));
+    expect(config.adminAuth.secrets).toEqual([
+      { version: 5, value: newest },
+      { version: 1, value: oldest },
+    ]);
+  });
+
   it("refuses a version that is not a non-negative integer", () => {
     expect(() => loadConfig(validEnv({ QCMS_ADMIN_AUTH_SECRETS: `-1:${synthSecret()}` }))).toThrow(
       ConfigError,

@@ -68,7 +68,7 @@ import type { Config } from "../../config.js";
  * (`dist/plugins/two-factor/index.mjs:106`) and the recovery codes
  * (`.../backup-codes/index.mjs:19-22`). That used to make `QCMS_ADMIN_AUTH_SECRET` a
  * key nobody could change without destroying every enrolment, which task 056 recorded
- * as permanent. It is not permanent any more: better-auth 1.6.25 carries a versioned
+ * as permanent. It is not permanent any more: better-auth 1.6.26 carries a versioned
  * key set (`secrets`) and writes a `$ba$<version>$` envelope, so an operator adds a new
  * version, keeps the old one for reading, and stored material re-encodes under the
  * current version as it is used. Recovery-code blobs re-encode on **every redemption**
@@ -174,7 +174,7 @@ export function createAdminAuth(input: AdminAuthInput) {
       },
     }),
     // The **versioned** key set, and `secret` beside it as the legacy fallback
-    // (issue #319). better-auth 1.6.25 resolves these together in
+    // (issue #319). better-auth 1.6.26 resolves these together in
     // `dist/context/create-context.mjs:69-81`: with `secrets` present it builds a
     // `SecretConfig` whose current version encrypts, whose whole map decrypts, and
     // whose `legacySecret` is `secret` - used only for ciphertext that predates the
@@ -266,7 +266,7 @@ export function createAdminAuth(input: AdminAuthInput) {
           // Recovery codes are ciphertext at rest, under the versioned key set above
           // (issue #319, SEC-7).
           //
-          // This restates better-auth 1.6.25's own default rather than changing it:
+          // This restates better-auth 1.6.26's own default rather than changing it:
           // `dist/plugins/two-factor/index.mjs:25-27` builds `backupCodeOptions` as
           // `{ storeBackupCodes: "encrypted", ...options?.backupCodeOptions }`, so
           // an instance that passes nothing already encrypts. Verified against the
