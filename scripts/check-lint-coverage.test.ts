@@ -157,7 +157,9 @@ describe("the known-unlinted inventory", () => {
   it("matches a file entry exactly, never as a prefix or a suffix", () => {
     expect(knownUnlinted("vitest.config.ts")?.path).toBe("vitest.config.ts");
     expect(knownUnlinted("vitest.config.ts.bak")).toBeUndefined();
-    expect(knownUnlinted("packages/ui/vitest.config.ts")?.path).toBe("packages/ui/vitest.config.ts");
+    expect(knownUnlinted("packages/ui/vitest.config.ts")?.path).toBe(
+      "packages/ui/vitest.config.ts",
+    );
     expect(knownUnlinted("nested/vitest.config.ts")).toBeUndefined();
   });
 
