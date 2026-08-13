@@ -180,7 +180,7 @@ describe("listResponses", () => {
       entries: [{ questionId: "q_t", value: "secret" }],
       submittedAt: new Date("2026-03-02T00:00:00.000Z"),
     });
-    await eraseSession(testDb.db, erased, "subject_request");
+    await eraseSession(testDb.db, formId, erased, "subject_request");
 
     const res = await listResponses(testDb.db, { formId, limit: 50, offset: 0 });
     expect(res.total).toBe(1);
@@ -215,7 +215,7 @@ describe("getResponse", () => {
     expect(await getResponse(testDb.db, formId, SessionId.parse("ses_nope"))).toBeUndefined();
 
     // Erased → undefined (view exclusion; detail cannot bypass it).
-    await eraseSession(testDb.db, sessionId, "subject_request");
+    await eraseSession(testDb.db, formId, sessionId, "subject_request");
     expect(await getResponse(testDb.db, formId, sessionId)).toBeUndefined();
   });
 });
@@ -233,7 +233,7 @@ describe("fetchResponsePage (export keyset)", () => {
         submittedAt: new Date(`2026-05-0${String(i + 1)}T00:00:00.000Z`),
       });
     }
-    await eraseSession(testDb.db, SessionId.parse("ses_exp_03"), "subject_request");
+    await eraseSession(testDb.db, formId, SessionId.parse("ses_exp_03"), "subject_request");
 
     const collected: string[] = [];
     let after: SessionId | undefined;
@@ -281,9 +281,9 @@ describe("listTombstones", () => {
       entries: [{ questionId: "q_t", value: "3" }],
       submittedAt: new Date("2026-06-03T00:00:00.000Z"),
     });
-    await eraseSession(testDb.db, a, "subject_request");
-    await eraseSession(testDb.db, b, "policy");
-    await eraseSession(testDb.db, c, "subject_request");
+    await eraseSession(testDb.db, formId, a, "subject_request");
+    await eraseSession(testDb.db, formId, b, "policy");
+    await eraseSession(testDb.db, formId, c, "subject_request");
 
     const scoped = await listTombstones(testDb.db, { formId });
     expect(scoped.map((t) => t.sessionId).sort()).toEqual([a, b].sort());

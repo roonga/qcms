@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNotNull, isNull, lt, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, lte, sql } from "drizzle-orm";
 
 import type { FormId } from "@qcms/core";
 
@@ -139,6 +139,16 @@ export interface DeadLetterDelivery {
   readonly outboxId: string;
   readonly eventType: string;
   readonly webhookId: string;
+  /**
+   * The form this delivery belongs to, reached through its webhook (issue #305).
+   *
+   * The dead-letter worklist is deliberately **cross-form** - it answers "what is
+   * stuck anywhere", which is the question an operator opens it to ask - so a row
+   * has to name its own form for the client to be able to address it. Redelivery is
+   * form-scoped, so without this a caller reading the worklist would hold an id it
+   * had no way to build a legal call for.
+   */
+  readonly formId: FormId;
   readonly url: string;
   readonly attempts: number;
   readonly lastError: string | null;
@@ -377,6 +387,7 @@ export async function listDeadLetterDeliveries(
       outboxId: webhookDeliveries.outboxId,
       eventType: outbox.eventType,
       webhookId: webhookDeliveries.webhookId,
+      formId: webhooks.formId,
       url: webhooks.url,
       attempts: webhookDeliveries.attempts,
       lastError: webhookDeliveries.lastError,
@@ -404,9 +415,37 @@ export async function listDeadLetterDeliveries(
  * error. Leaving a stale `last_status: 500` next to a cleared error would put two
  * contradictory statements about the same attempt on one screen; a redelivered row
  * has made no attempt since the reset, and reads that way until it makes one.
+ *
+ * **Form-scoped (issue #305)** via {@link inFormScope}: the scope is part of the
+ * `where`, so a delivery of another form matches no row and returns `undefined` -
+ * the same answer, and the same absent side effect, as an id that does not exist.
  */
+/**
+ * The form-scope predicate for a single delivery row (issue #305): "this delivery
+ * belongs to a webhook of this form".
+ *
+ * A delivery reaches its form through its **webhook**, not through the session its
+ * event names - `outbox_events` carries no `form_id` column at all, and the form id
+ * inside the payload is redacted away by erasure - so `webhooks.form_id` is the only
+ * durable expression of the chain. It is the same join {@link listRecentDeliveries}
+ * already scopes its read with.
+ *
+ * Written as a predicate rather than a check the caller performs after a lookup, so
+ * a cross-form delivery is a row the statement never matches: the redeliver path
+ * cannot read one, cannot update one, and cannot report anything about one that
+ * differs from an id that does not exist. Both operations on that path take it, so
+ * neither can become the unscoped door the other is not.
+ */
+function inFormScope(exec: Executor, formId: FormId) {
+  return inArray(
+    webhookDeliveries.webhookId,
+    exec.select({ webhookId: webhooks.webhookId }).from(webhooks).where(eq(webhooks.formId, formId)),
+  );
+}
+
 export async function resetDeliveryForRedelivery(
   exec: Executor,
+  formId: FormId,
   id: string,
   now?: Date,
 ): Promise<DeliveryRow | undefined> {
@@ -433,7 +472,7 @@ export async function resetDeliveryForRedelivery(
       // regardless (see `redeliveryRefusalFor` and `claimDueDeliveries`).
       lastResponseSnippetRedactedAt: null,
     })
-    .where(eq(webhookDeliveries.id, id))
+    .where(and(eq(webhookDeliveries.id, id), inFormScope(exec, formId)))
     .returning();
   return row;
 }
@@ -468,9 +507,19 @@ export type RedeliveryRefusal = "cancelled" | "payloadRedacted";
  *
  * `undefined` when the delivery is unknown - {@link resetDeliveryForRedelivery} then
  * reports the not-found, so this helper never has to distinguish the two.
+ *
+ * **Form-scoped (issue #305), and this one is not optional.** It would be tempting
+ * to scope only the reset, since the reset is the mutation. That would leak: this
+ * check runs *first*, so an unscoped read of another form's cancelled or redacted
+ * delivery would answer `409 DELIVERY_NOT_REDELIVERABLE` where an unknown id answers
+ * `404`, and the difference between those two replies tells a caller that someone
+ * else's delivery exists and what state it is in. Scoped, a cross-form row yields
+ * `undefined` here, falls through to a reset that matches nothing, and comes back
+ * `404` - identical to an id that was never issued.
  */
 export async function redeliveryRefusalFor(
   exec: Executor,
+  formId: FormId,
   deliveryId: string,
 ): Promise<RedeliveryRefusal | undefined> {
   const [row] = await exec
@@ -480,7 +529,7 @@ export async function redeliveryRefusalFor(
     })
     .from(webhookDeliveries)
     .innerJoin(outbox, eq(webhookDeliveries.outboxId, outbox.id))
-    .where(eq(webhookDeliveries.id, deliveryId))
+    .where(and(eq(webhookDeliveries.id, deliveryId), inFormScope(exec, formId)))
     .limit(1);
   if (row === undefined) return undefined;
   if (row.cancelledAt !== null) return "cancelled";
@@ -508,6 +557,7 @@ export async function listRecentDeliveries(
       outboxId: webhookDeliveries.outboxId,
       eventType: outbox.eventType,
       webhookId: webhookDeliveries.webhookId,
+      formId: webhooks.formId,
       url: webhooks.url,
       attempts: webhookDeliveries.attempts,
       lastError: webhookDeliveries.lastError,

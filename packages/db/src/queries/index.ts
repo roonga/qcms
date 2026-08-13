@@ -57,6 +57,7 @@ export {
   type AccessMode,
   createSession,
   getSession,
+  getSessionInForm,
   markInProgress,
   markSubmitted,
   expireSessions,

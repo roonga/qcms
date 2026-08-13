@@ -78,6 +78,9 @@ export function makeDeadLettersHandler(deps: Deps): RouteHandler<typeof deadLett
           eventId: r.outboxId,
           eventType: r.eventType,
           webhookId: r.webhookId,
+          // The worklist is cross-form, and redelivery is form-scoped, so each row
+          // carries the form needed to act on it (#305).
+          formId: r.formId,
           url: r.url,
           attempts: r.attempts,
           lastError: r.lastError,
@@ -167,7 +170,20 @@ export function makeDeliveriesHandler(deps: Deps): RouteHandler<typeof deliverie
 
 export function makeRedeliverHandler(deps: Deps): RouteHandler<typeof redeliverRoute, ApiEnv> {
   return async (c) => {
-    const { id } = c.req.valid("param");
+    const { id, deliveryId } = c.req.valid("param");
+
+    // Form scope (#305). The form segment is not decorative: it is threaded into
+    // both delivery queries below, each of which filters through
+    // `webhooks.form_id`, so a delivery belonging to another form matches no row
+    // and comes back 404 - indistinguishable from an id that was never issued.
+    //
+    // No `getForm` existence check here, deliberately. An unknown form makes the
+    // scoped queries match nothing, which is already the right 404, and asking
+    // separately would answer "does this form exist" for a caller who cannot
+    // otherwise tell. The malformed-id 400 below is a grammar fact, not existence.
+    const parsed = parseFormId(id);
+    if (!parsed.ok) throw fail.invalidId();
+    const formId = parsed.value;
 
     // Issue 310: a delivery id is a uuid, and `webhook_deliveries.id` is a `uuid`
     // column, so a malformed id used to reach Postgres and raise `22P02 invalid
@@ -176,7 +192,7 @@ export function makeRedeliverHandler(deps: Deps): RouteHandler<typeof redeliverR
     // such delivery" to the caller, the route documents no 400, and one code keeps
     // the admin dashboard's existing DELIVERY_NOT_FOUND handling correct. The check
     // sits here rather than on the param schema because a schema rejection is a 400.
-    if (!isDeliveryId(id)) throw fail.deliveryNotFound();
+    if (!isDeliveryId(deliveryId)) throw fail.deliveryNotFound();
 
     // ADR-17 (as amended 2026-08-02): refuse before resetting. Erasure cancels the
     // session's still-sendable deliveries and redacts the outbox payload they would
@@ -188,9 +204,16 @@ export function makeRedeliverHandler(deps: Deps): RouteHandler<typeof redeliverR
     // never be claimed back on the queue as "pending", which is a lie on the
     // dashboard even though the answers could not actually go out. Bulk redelivery
     // is this endpoint called per item, so it is covered by construction.
-    if ((await redeliveryRefusalFor(deps.db, id)) !== undefined) throw fail.notRedeliverable();
+    // Both calls are form-scoped, and both have to be (#305). This one runs first,
+    // so an unscoped read here would answer 409 for another form's cancelled or
+    // redacted delivery where an unknown id answers 404 - a difference that reports
+    // someone else's row exists. Scoped, it returns undefined and the reset below
+    // produces the ordinary 404.
+    if ((await redeliveryRefusalFor(deps.db, formId, deliveryId)) !== undefined) {
+      throw fail.notRedeliverable();
+    }
 
-    const reset = await resetDeliveryForRedelivery(deps.db, id, deps.clock.now());
+    const reset = await resetDeliveryForRedelivery(deps.db, formId, deliveryId, deps.clock.now());
     if (reset === undefined) throw fail.deliveryNotFound();
     return c.json(
       {

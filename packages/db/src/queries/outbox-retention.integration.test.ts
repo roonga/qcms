@@ -240,7 +240,7 @@ describe("redactAgedOutboxPayloads (issue #329)", () => {
     const deliveryId = await addDelivery(seeded);
     await deadLetter(deliveryId, LONG_AGO);
     await markDelivered(testDb.db, seeded.outboxId, LONG_AGO);
-    await resetDeliveryForRedelivery(testDb.db, deliveryId, RECENT);
+    await resetDeliveryForRedelivery(testDb.db, seeded.formId, deliveryId, RECENT);
 
     await redactAgedOutboxPayloads(testDb.db, HORIZON);
 
@@ -284,7 +284,7 @@ describe("redactAgedOutboxPayloads (issue #329)", () => {
 
     expect((await outboxRow(seeded.outboxId)).payload).not.toHaveProperty("answers");
     // And the refusal the operator meets is the one rule the scheduler also reads.
-    expect(await redeliveryRefusalFor(testDb.db, deliveryId)).toBe("payloadRedacted");
+    expect(await redeliveryRefusalFor(testDb.db, seeded.formId, deliveryId)).toBe("payloadRedacted");
   });
 
   it("redacts an event that fanned out to nobody", async () => {

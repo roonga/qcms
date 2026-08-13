@@ -26,8 +26,18 @@ export const FormResponseParams = z.object({
     .openapi({ param: { name: "sessionId", in: "path" }, example: "ses_abc123" }),
 });
 
-/** `:sessionId` path param (erase / unflag act on a session directly). */
-export const SessionIdParam = z.object({
+/**
+ * `:id`/`:sessionId` path params for the per-response **mutations** (erase,
+ * unflag) - issue #305.
+ *
+ * Identical in shape to {@link FormResponseParams}, and deliberately so: both
+ * mutations now sit under the same form-scoped path as the detail read, because
+ * a session id alone never established which form the caller was acting within.
+ * The form segment is what the scoped queries filter on, so it is load bearing
+ * rather than decorative.
+ */
+export const FormSessionParams = z.object({
+  id: z.string().openapi({ param: { name: "id", in: "path" }, example: "frm_intake" }),
   sessionId: z
     .string()
     .openapi({ param: { name: "sessionId", in: "path" }, example: "ses_abc123" }),

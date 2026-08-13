@@ -47,6 +47,7 @@ describe("query helper import surface", () => {
     // sessions
     "createSession",
     "getSession",
+    "getSessionInForm",
     "markInProgress",
     "markSubmitted",
     "expireSessions",

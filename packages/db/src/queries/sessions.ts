@@ -71,6 +71,30 @@ export async function createSession(
   return row!;
 }
 
+/**
+ * Read a session **within one form**, or `undefined` (issue #305).
+ *
+ * The scoped counterpart to {@link getSession}, for the admin operations that act
+ * on a session a caller named by id. The form is part of the `where`, not an
+ * assertion made afterwards, so a session belonging to another form is a row the
+ * query does not return: the operation takes its ordinary not-found path and a
+ * caller cannot tell "someone else's session" from "no such session".
+ *
+ * Use this, not `getSession`, wherever the session id arrived from a client.
+ */
+export async function getSessionInForm(
+  exec: Executor,
+  formId: FormId,
+  sessionId: SessionId,
+): Promise<SessionRow | undefined> {
+  const [row] = await exec
+    .select()
+    .from(sessions)
+    .where(and(eq(sessions.sessionId, sessionId), eq(sessions.formId, formId)))
+    .limit(1);
+  return row;
+}
+
 /** Read a session, or `undefined`. */
 export async function getSession(
   exec: Executor,

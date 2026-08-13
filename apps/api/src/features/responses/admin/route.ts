@@ -48,7 +48,7 @@ import {
   ListResponsesQuery,
   ResponseDetailResponse,
   ResponseListResponse,
-  SessionIdParam,
+  FormSessionParams,
   UnflagResponse,
 } from "./schema.js";
 
@@ -107,11 +107,11 @@ export const exportRoute = createRoute({
 
 export const eraseRoute = createRoute({
   method: "post",
-  path: "/sessions/{sessionId}/erase",
+  path: "/forms/{id}/responses/{sessionId}/erase",
   summary: "Erase a session's response (ADR-17); returns the tombstone (idempotent) (admin)",
   tags,
   request: {
-    params: SessionIdParam,
+    params: FormSessionParams,
     body: { required: true, content: { "application/json": { schema: EraseBody } } },
   },
   responses: {
@@ -119,7 +119,8 @@ export const eraseRoute = createRoute({
       description: "The erasure tombstone (existence without content)",
       content: { "application/json": { schema: EraseResponse } },
     },
-    // 404: no such session (and no existing tombstone).
+    // 404: no such session in this form (and no existing tombstone in it). A
+    // session of another form takes this same 404 - see the handler (#305).
     ...errorResponses(400, 401, 404),
   },
   ...withScopes("responses:erase"),
@@ -143,16 +144,17 @@ export const listErasuresRoute = createRoute({
 
 export const unflagRoute = createRoute({
   method: "post",
-  path: "/responses/{sessionId}/unflag",
+  path: "/forms/{id}/responses/{sessionId}/unflag",
   summary: "Release a withheld (flagged) response's outbox event (admin)",
   tags,
-  request: { params: SessionIdParam },
+  request: { params: FormSessionParams },
   responses: {
     200: {
       description: "Whether this call released the withheld response.submitted event",
       content: { "application/json": { schema: UnflagResponse } },
     },
-    // 404: no submission for this session.
+    // 404: no such session in this form, or no submission for it. A session of
+    // another form takes this same 404 - see the handler (#305).
     ...errorResponses(400, 401, 404),
   },
   ...withScopes("responses:erase"),
