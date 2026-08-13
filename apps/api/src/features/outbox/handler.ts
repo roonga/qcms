@@ -166,7 +166,7 @@ export function makeDeliveriesHandler(deps: Deps): RouteHandler<typeof deliverie
   };
 }
 
-// --- POST /admin/outbox/:id/redeliver ---------------------------------------
+// --- POST /admin/forms/:id/deliveries/:deliveryId/redeliver -----------------
 
 export function makeRedeliverHandler(deps: Deps): RouteHandler<typeof redeliverRoute, ApiEnv> {
   return async (c) => {

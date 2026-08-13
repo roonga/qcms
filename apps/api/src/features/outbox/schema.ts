@@ -173,7 +173,7 @@ export const DeliveriesResponse = z
   .object({ deliveries: z.array(DeliveryItem) })
   .openapi("DeliveriesResponse");
 
-/** `POST /admin/outbox/:id/redeliver` response - the reset delivery, now due. */
+/** `POST /admin/forms/:id/deliveries/:deliveryId/redeliver` response - the reset delivery, now due. */
 export const RedeliverResponse = z
   .object({
     deliveryId: z.string().openapi({ example: "d290f1ee-6c54-4b01-90e6-d701748f0851" }),

@@ -111,7 +111,7 @@ export const ListErasuresQuery = z.object({
 
 // --- request bodies ---------------------------------------------------------
 
-/** `POST /admin/sessions/:sessionId/erase` - the erasure reason (audit). */
+/** `POST /admin/forms/:id/responses/:sessionId/erase` - the erasure reason (audit). */
 export const EraseBody = z
   .object({ reason: z.string().min(1).openapi({ example: "subject_request" }) })
   .openapi("EraseBody");
@@ -195,7 +195,7 @@ export const ErasuresResponse = z
   .object({ erasures: z.array(TombstoneItem) })
   .openapi("ErasuresResponse");
 
-/** `POST /admin/sessions/:sessionId/erase` - the resulting tombstone (idempotent). */
+/** `POST /admin/forms/:id/responses/:sessionId/erase` - the resulting tombstone (idempotent). */
 export const EraseResponse = z
   .object({
     sessionId: z.string().openapi({ example: "ses_abc123" }),
@@ -208,7 +208,7 @@ export const EraseResponse = z
   })
   .openapi("EraseResponse");
 
-/** `POST /admin/responses/:sessionId/unflag` - whether a withheld response was released. */
+/** `POST /admin/forms/:id/responses/:sessionId/unflag` - whether a withheld response was released. */
 export const UnflagResponse = z
   .object({
     sessionId: z.string().openapi({ example: "ses_abc123" }),

@@ -28,7 +28,7 @@ const DELIVERY_ID = "d290f1ee-6c54-4b01-90e6-d701748f0851";
 const routes: ReadonlyArray<{ method: string; path: string }> = [
   { method: "GET", path: "/admin/outbox/dead-letters" },
   { method: "GET", path: "/admin/forms/frm_x/deliveries" },
-  { method: "POST", path: `/admin/outbox/${DELIVERY_ID}/redeliver` },
+  { method: "POST", path: `/admin/forms/frm_x/deliveries/${DELIVERY_ID}/redeliver` },
 ];
 
 interface ErrBody {

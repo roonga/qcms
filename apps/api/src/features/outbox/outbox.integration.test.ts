@@ -12,7 +12,7 @@
  * proves is that the read path passes through what was stored rather than
  * re-deriving (and so re-leaking) anything.
  *
- * It also covers `POST /admin/outbox/:id/redeliver` refusing a delivery erasure has
+ * It also covers `POST /admin/forms/:id/deliveries/:deliveryId/redeliver` refusing a delivery erasure has
  * reached (ADR-17 as amended 2026-08-02; task 059 replaced 035's version of this).
  * The refusal is now a property of the data: `eraseSession` cancels the session's
  * still-sendable deliveries and redacts the outbox payload they would carry, and the
@@ -347,7 +347,7 @@ describe("GET /admin/forms/:id/deliveries - scoping, ordering and derived status
   });
 });
 
-describe("POST /admin/outbox/:id/redeliver - the ADR-17 refusal", () => {
+describe("POST /admin/forms/:id/deliveries/:deliveryId/redeliver - the ADR-17 refusal", () => {
   /**
    * A real, submitted session on FORM_ERASED, so `eraseSession` has something to
    * erase. Returns the id it was created under.
@@ -399,7 +399,7 @@ describe("POST /admin/outbox/:id/redeliver - the ADR-17 refusal", () => {
   }
 
   async function redeliver(deliveryId: string): Promise<{ status: number; code: string | null }> {
-    const res = await app.request(`/admin/outbox/${deliveryId}/redeliver`, {
+    const res = await app.request(`/admin/forms/${FORM_ERASED}/deliveries/${deliveryId}/redeliver`, {
       method: "POST",
       headers: headers(),
     });
@@ -416,9 +416,9 @@ describe("POST /admin/outbox/:id/redeliver - the ADR-17 refusal", () => {
     }
     // Redeliverable right up to the erasure - so the 409 below is the erasure's
     // doing and not some pre-existing state of the fixture.
-    expect(await redeliveryRefusalFor(testDb.db, deliveryId)).toBeUndefined();
+    expect(await redeliveryRefusalFor(testDb.db, FORM_ERASED, deliveryId)).toBeUndefined();
 
-    await eraseSession(testDb.db, sessionId, "subject_request");
+    await eraseSession(testDb.db, FORM_ERASED, sessionId, "subject_request");
 
     expect(await redeliver(deliveryId)).toEqual({
       status: 409,
@@ -451,9 +451,9 @@ describe("POST /admin/outbox/:id/redeliver - the ADR-17 refusal", () => {
     const sessionId = await seedErasableSession("ses_erased_after_delivery");
     const deliveryId = await seedDeliveryForSession(sessionId);
     await markDeliveryDelivered(testDb.db, deliveryId, new Date());
-    await eraseSession(testDb.db, sessionId, "subject_request");
+    await eraseSession(testDb.db, FORM_ERASED, sessionId, "subject_request");
 
-    expect(await redeliveryRefusalFor(testDb.db, deliveryId)).toBe("payloadRedacted");
+    expect(await redeliveryRefusalFor(testDb.db, FORM_ERASED, deliveryId)).toBe("payloadRedacted");
     expect(await redeliver(deliveryId)).toEqual({
       status: 409,
       code: "DELIVERY_NOT_REDELIVERABLE",
@@ -473,7 +473,7 @@ describe("POST /admin/outbox/:id/redeliver - the ADR-17 refusal", () => {
     };
     expect(await onQueue(), "dead-lettered, so on the queue").toBe(true);
 
-    await eraseSession(testDb.db, sessionId, "subject_request");
+    await eraseSession(testDb.db, FORM_ERASED, sessionId, "subject_request");
 
     // Off the worklist - every row there is being offered for redelivery, and this
     // one may never be sent.
@@ -509,7 +509,7 @@ describe("POST /admin/outbox/:id/redeliver - the ADR-17 refusal", () => {
     });
     await redactAgedResponseSnippets(testDb.db, new Date("2020-01-02T00:00:00.000Z"));
 
-    expect(await redeliveryRefusalFor(testDb.db, deliveryId)).toBeUndefined();
+    expect(await redeliveryRefusalFor(testDb.db, FORM_ERASED, deliveryId)).toBeUndefined();
     expect((await redeliver(deliveryId)).status).toBe(200);
   });
 
@@ -537,7 +537,7 @@ describe("POST /admin/outbox/:id/redeliver - the ADR-17 refusal", () => {
       .from(webhookDeliveries)
       .where(eq(webhookDeliveries.id, deliveryId));
     expect(state?.cancelledAt).toBeNull();
-    expect(await redeliveryRefusalFor(testDb.db, deliveryId)).toBe("payloadRedacted");
+    expect(await redeliveryRefusalFor(testDb.db, FORM_ERASED, deliveryId)).toBe("payloadRedacted");
     expect(await redeliver(deliveryId)).toEqual({
       status: 409,
       code: "DELIVERY_NOT_REDELIVERABLE",
@@ -566,7 +566,7 @@ describe("POST /admin/outbox/:id/redeliver - the ADR-17 refusal", () => {
  * oddly-hyphenated forms of the same value. That narrowing is a decision, so it
  * gets an assertion of its own rather than being left to be read off a regex.
  */
-describe("POST /admin/outbox/:id/redeliver - the delivery id grammar", () => {
+describe("POST /admin/forms/:id/deliveries/:deliveryId/redeliver - the delivery id grammar", () => {
   /** A well-formed uuid that is not any row's id: the reference 404. */
   const ABSENT_BUT_WELL_FORMED = "d290f1ee-6c54-4b01-90e6-d701748f0851";
 
@@ -586,7 +586,7 @@ describe("POST /admin/outbox/:id/redeliver - the delivery id grammar", () => {
   }, BOOT_TIMEOUT);
 
   async function redeliverRaw(id: string): Promise<{ status: number; body: unknown }> {
-    const res = await app.request(`/admin/outbox/${id}/redeliver`, {
+    const res = await app.request(`/admin/forms/${FORM_ID_SHAPE}/deliveries/${id}/redeliver`, {
       method: "POST",
       headers: headers(),
     });

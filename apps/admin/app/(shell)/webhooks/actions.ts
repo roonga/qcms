@@ -126,23 +126,39 @@ export async function retargetWebhookAction(
   return { status: "done" };
 }
 
-/** Reset one dead-lettered delivery to due-now. */
-export async function redeliverAction(deliveryId: string): Promise<RedeliverState> {
+/**
+ * Reset one dead-lettered delivery to due-now.
+ *
+ * Takes the form as well as the delivery (issue #305): redelivery is form-scoped
+ * server-side, so the caller names the form it believes the delivery belongs to and
+ * the API refuses the pair if it does not hold.
+ */
+export async function redeliverAction(
+  formId: string,
+  deliveryId: string,
+): Promise<RedeliverState> {
   const session = await requireAdminSession();
-  const result = await redeliver(session, deliveryId);
+  const result = await redeliver(session, formId, deliveryId);
   if (!result.ok) return { status: "error", message: result.message };
   revalidatePath("/webhooks");
   return { status: "done", queued: 1, failed: 0 };
 }
 
-/** Reset every dead-lettered delivery the operator can currently see. */
-export async function redeliverAllAction(deliveryIds: readonly string[]): Promise<RedeliverState> {
+/**
+ * Reset every dead-lettered delivery the operator can currently see.
+ *
+ * The worklist spans forms, so each entry carries its own form rather than the
+ * batch sharing one (issue #305).
+ */
+export async function redeliverAllAction(
+  targets: readonly { readonly formId: string; readonly deliveryId: string }[],
+): Promise<RedeliverState> {
   const session = await requireAdminSession();
   let queued = 0;
   let failed = 0;
   let lastMessage = "";
-  for (const deliveryId of deliveryIds) {
-    const result = await redeliver(session, deliveryId);
+  for (const { formId, deliveryId } of targets) {
+    const result = await redeliver(session, formId, deliveryId);
     if (result.ok) queued += 1;
     else {
       failed += 1;

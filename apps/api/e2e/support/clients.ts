@@ -150,8 +150,14 @@ export class AdminClient {
     };
   }
 
-  async eraseSession<T = unknown>(sessionId: string, reason: string): Promise<JsonResult<T>> {
-    return parse<T>(await this.req("POST", `/sessions/${sessionId}/erase`, { reason }));
+  async eraseSession<T = unknown>(
+    formId: string,
+    sessionId: string,
+    reason: string,
+  ): Promise<JsonResult<T>> {
+    return parse<T>(
+      await this.req("POST", `/forms/${formId}/responses/${sessionId}/erase`, { reason }),
+    );
   }
 
   async listTombstones<T = unknown>(query: Record<string, string> = {}): Promise<JsonResult<T>> {

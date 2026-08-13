@@ -388,7 +388,7 @@ function jsonRow(row: ReportingResponseRow): Record<string, unknown> {
   };
 }
 
-// --- POST /admin/sessions/:sessionId/erase ----------------------------------
+// --- POST /admin/forms/:id/responses/:sessionId/erase -----------------------
 
 export function makeEraseHandler(deps: Deps): RouteHandler<typeof eraseRoute, ApiEnv> {
   return async (c) => {
@@ -455,7 +455,7 @@ export function makeListErasuresHandler(
   };
 }
 
-// --- POST /admin/responses/:sessionId/unflag --------------------------------
+// --- POST /admin/forms/:id/responses/:sessionId/unflag ----------------------
 
 export function makeUnflagHandler(deps: Deps): RouteHandler<typeof unflagRoute, ApiEnv> {
   return async (c) => {

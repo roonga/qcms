@@ -30,8 +30,8 @@ describe("responses admin auth seam (401 before any handler)", () => {
     { method: "GET", path: "/admin/forms/frm_x/responses/ses_x" },
     { method: "GET", path: "/admin/forms/frm_x/export?format=json" },
     { method: "GET", path: "/admin/erasures" },
-    { method: "POST", path: "/admin/sessions/ses_x/erase", body: { reason: "x" } },
-    { method: "POST", path: "/admin/responses/ses_x/unflag" },
+    { method: "POST", path: "/admin/forms/frm_x/responses/ses_x/erase", body: { reason: "x" } },
+    { method: "POST", path: "/admin/forms/frm_x/responses/ses_x/unflag" },
   ];
 
   for (const { method, path, body } of paths) {
