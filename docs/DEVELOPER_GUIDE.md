@@ -83,11 +83,18 @@ pnpm dev:admin        # dev DB + API + admin on http://localhost:7040
 
 # In a second terminal, once only, if this database has no admin yet. The launcher
 # prints this command with the values already filled in.
+#
+# Prompt for the passphrase rather than typing it inline: an inline assignment keeps
+# the value out of `ps` but writes it straight to your shell history (issue #460).
+read -rs -p 'passphrase: ' QCMS_ADMIN_PASSWORD; echo
+export QCMS_ADMIN_EMAIL=you@example.test QCMS_ADMIN_PASSWORD
+
 DATABASE_URL=postgres://qcms:qcms@127.0.0.1:7020/qcms \
   QCMS_ADMIN_BASE_URL=http://localhost:7040 \
   QCMS_ADMIN_AUTH_SECRET=$QCMS_ADMIN_AUTH_SECRET \
-  QCMS_ADMIN_EMAIL=you@example.test QCMS_ADMIN_PASSWORD='a long passphrase' \
   pnpm qcms:create-admin
+
+unset QCMS_ADMIN_PASSWORD
 ```
 
 7040 leaves the dev container the same way 7000/7010/7030 do (`appPort` + `forwardPorts`),

@@ -2,22 +2,33 @@
  * `pnpm qcms:create-admin` - the first-run bootstrap command (task 031, SEC-1; moved
  * from the admin app to the API by task 056).
  *
- * Run against a migrated database:
+ * Run against a migrated database, prompting for the passphrase rather than typing it:
  *
  * ```
- * QCMS_ADMIN_EMAIL=you@example.test QCMS_ADMIN_PASSWORD='a long passphrase' pnpm qcms:create-admin
+ * read -rs -p 'passphrase: ' QCMS_ADMIN_PASSWORD; echo
+ * export QCMS_ADMIN_EMAIL=you@example.test QCMS_ADMIN_PASSWORD
+ * pnpm qcms:create-admin
+ * unset QCMS_ADMIN_PASSWORD
  * ```
  *
  * Credentials arrive in the **environment**, never as arguments: an argument lands in
- * the operator's shell history and in every `ps` listing on the box while the command
- * runs. That guarantee covers the whole path and not just this process, which it did
- * not always (issue #440): the Compose harnesses that run this entry inside the API
- * container name the two variables on the docker CLI's command line and attach no
- * values (`--env QCMS_ADMIN_PASSWORD`, docker's pass-through form), leaving the values
- * in the CLI's own environment, so the password is absent from every argv on the host
- * as well. That is `buildAdminExec` in `scripts/compose-admin.mjs`, pinned by
- * `scripts/compose-admin.test.ts` rather than left to a comment. An operator running
- * the command by hand gets the same property from an environment assignment.
+ * every `ps` listing on the box while the command runs. That guarantee covers the whole
+ * path and not just this process, which it did not always (issue #440): the Compose
+ * harnesses that run this entry inside the API container name the two variables on the
+ * docker CLI's command line and attach no values (`--env QCMS_ADMIN_PASSWORD`, docker's
+ * pass-through form), leaving the values in the CLI's own environment, so the password
+ * is absent from every argv on the host as well. That is `buildAdminExec` in
+ * `scripts/compose-admin.mjs`, pinned by `scripts/compose-admin.test.ts` rather than
+ * left to a comment.
+ *
+ * **`ps` and shell history are two exposures, and an environment assignment only closes
+ * one** (issue #460). An inline `QCMS_ADMIN_PASSWORD=... pnpm qcms:create-admin` keeps
+ * the value out of every argv and puts it straight into `~/.bash_history`, which is why
+ * the recipe above prompts with `read -rs` instead: a value that never appears on a
+ * command line reaches neither. A leading space suppresses the history entry only when
+ * `HISTCONTROL` includes `ignorespace` (bash) or `HIST_IGNORE_SPACE` is set (zsh), and
+ * neither is universally the default, so it is a fallback for a command already typed
+ * rather than the recipe to hand someone.
  *
  * The value is not echoed back either, on success or on failure (SEC-8); the output
  * names the account's email and nothing else.
@@ -63,7 +74,11 @@ async function main(): Promise<number> {
   if (email === undefined || email === "" || password === undefined || password === "") {
     process.stderr.write(
       "Set QCMS_ADMIN_EMAIL and QCMS_ADMIN_PASSWORD in the environment.\n" +
-        "Example: QCMS_ADMIN_EMAIL=you@example.test QCMS_ADMIN_PASSWORD='a long passphrase' pnpm qcms:create-admin\n",
+        "Prompt for the passphrase rather than typing it inline, so it reaches neither ps nor your shell history:\n" +
+        "  read -rs -p 'passphrase: ' QCMS_ADMIN_PASSWORD; echo\n" +
+        "  export QCMS_ADMIN_EMAIL=you@example.test QCMS_ADMIN_PASSWORD\n" +
+        "  pnpm qcms:create-admin\n" +
+        "  unset QCMS_ADMIN_PASSWORD\n",
     );
     return EXIT_MISCONFIGURED;
   }
