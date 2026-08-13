@@ -75,6 +75,6 @@ describe("the two quoting policies stay different", () => {
     // The apostrophe the guard adds is not a character that obliges quoting, so
     // a guarded field is bare exactly when the same field would have been.
     expect(csvField("=FIXTURE_PAYLOAD")).toBe("'=FIXTURE_PAYLOAD");
-    expect(csvField("=FIXTURE,PAYLOAD")).toBe("\"'=FIXTURE,PAYLOAD\"");
+    expect(csvField("=FIXTURE,PAYLOAD")).toBe('"\'=FIXTURE,PAYLOAD"');
   });
 });
