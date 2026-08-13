@@ -132,7 +132,7 @@ The service token authorizes no action by itself - it only opens the channel (SE
 | Internal service token | random ≥32B | until rotated | config only | overlap via accepted-list |
 | Webhook secret | random ≥32B | until rotated | **encrypted at rest** (SEC-8) | dual-signing window |
 | `/api/v1` PAT *(reserved)* | `qcms_pat_` random | ≤ 90d default | hashed | revoke + reissue |
-| App encryption key | `QCMS_APP_KEY` (32B) | set once | config only | **no in-place rotation**; recoverable by re-issuing webhook secrets - see the note below |
+| App encryption key | `QCMS_APP_KEY` (≥32 chars) | set once | config only | **no in-place rotation**; recoverable by re-issuing webhook secrets - see the note below |
 | LLM provider key *(flag-gated, ADR-25)* | `QCMS_AGENT_API_KEY` | until rotated | config only; required iff `QCMS_FLAG_AGENT_AUTHORING` ≠ `none` | rotate at provider + config |
 
 All key-list envs accept multiple keys: first entry signs, all verify (010's rotation model generalized). Rotation runbooks live in `docs/operations.md` (036).

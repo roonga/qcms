@@ -443,8 +443,10 @@ because it was exposed, the way back is:
 3. Hand each consumer its new secret, out of band, and wait for them to deploy it.
    This is the step that costs real time, and it is the reason to treat the key as
    set-once rather than as something to rotate on a schedule.
-4. Redeliver the dead-lettered deliveries from the Webhooks page once the consumers
-   are verifying again.
+4. Redeliver the dead-lettered deliveries once the consumers are verifying again. That
+   is **not** on the per-form page from step 2: the dead-letter queue is
+   deployment-wide, so it lives on the **Webhooks** area page in the main nav
+   ("Webhook operations").
 
 The cost of a key change is therefore re-coordinating a shared secret with every
 webhook consumer, plus the deliveries that dead-lettered in between, which are
