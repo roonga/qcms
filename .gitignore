@@ -21,3 +21,21 @@ coverage/
 test-results/
 playwright-report/
 blob-report/
+
+# Next 16 writes `AGENTS.md` and `CLAUDE.md` into each app directory at build time
+# (`next/dist/server/lib/generate-agent-files.js`). They are generated, not authored,
+# and their text carries em dashes that `check:no-em-dash` correctly refuses, so a
+# `git add -A` after a browser run reds the gate with a file nobody wrote. Ignored
+# rather than fought: deleting them only re-creates them on the next run.
+#
+# THIS IS A STOPGAP, NOT THE CHOSEN FIX. It is the subject of open issue #431, which
+# awaits a Code Owner decision between (a) ignoring the generator's output, which is
+# what this rule does, and (b) suppressing the generation itself. (b) is the more
+# durable of the two, because ignoring leaves em-dash-bearing files on disk in a repo
+# whose gate exists to keep them out: this rule hides them from `git status`, it does
+# not remove them. #431 can replace it without touching anything else here.
+#
+# Landed on its own because the trap cost four separate sessions in one day, and the
+# generated file's own text argues the reader into committing it.
+apps/*/AGENTS.md
+apps/*/CLAUDE.md
