@@ -10,8 +10,17 @@
  *
  * Credentials arrive in the **environment**, never as arguments: an argument lands in
  * the operator's shell history and in every `ps` listing on the box while the command
- * runs. The value is not echoed back either, on success or on failure (SEC-8); the
- * output names the account's email and nothing else.
+ * runs. That guarantee covers the whole path and not just this process, which it did
+ * not always (issue #440): the Compose harnesses that run this entry inside the API
+ * container name the two variables on the docker CLI's command line and attach no
+ * values (`--env QCMS_ADMIN_PASSWORD`, docker's pass-through form), leaving the values
+ * in the CLI's own environment, so the password is absent from every argv on the host
+ * as well. That is `buildAdminExec` in `scripts/compose-admin.mjs`, pinned by
+ * `scripts/compose-admin.test.ts` rather than left to a comment. An operator running
+ * the command by hand gets the same property from an environment assignment.
+ *
+ * The value is not echoed back either, on success or on failure (SEC-8); the output
+ * names the account's email and nothing else.
  *
  * ## Why it is a compiled entry under `src/` rather than a script under `scripts/`
  *

@@ -18,8 +18,13 @@
  *   2. **The entry is the compiled `dist/create-admin.js`.** The image is built by
  *      `pnpm deploy --prod`, which ships only what the package's `files` field
  *      lists, so there is no `scripts/` and no TypeScript in there.
- *   3. **The credentials travel in the environment**, because `create-admin` reads
- *      them from there and from nowhere else (`apps/api/src/create-admin.ts`).
+ *   3. **The credentials travel in the environment** all the way down, because
+ *      `create-admin` reads them from there and from nowhere else
+ *      (`apps/api/src/create-admin.ts`) and because nothing on the host should be
+ *      able to read them out of a `ps` listing on the way (issue #440). The docker
+ *      CLI's argv names the variables and carries no values; the values are in the
+ *      environment the CLI itself is given. `buildAdminExec` is where that split
+ *      lives, and `compose-admin.test.ts` pins it.
  *   4. **A refusal is not a failure.** `createInitialAdmin` closes the door the
  *      moment one account exists (SEC-1), and that refusal is the correct answer to
  *      a second run rather than something to work around. Reading it is what makes
@@ -84,6 +89,60 @@ export function classifyBootstrap({ status, stderr }) {
 }
 
 /**
+ * The docker argv and the docker environment for one bootstrap exec.
+ *
+ * Split out and exported so the property that matters here is a **test** rather
+ * than a comment (issue #440): a credential must not appear in any process's argv,
+ * on the host any more than in the container.
+ *
+ * `--env NAME=value` was the obvious form and it was the wrong one. `create-admin`
+ * never sees the value as an argument, which is the control its docstring claims,
+ * but one process up the docker CLI does: `/proc/<pid>/cmdline` is world-readable
+ * on Linux, so for the lifetime of the exec any account on the box could read the
+ * password out of a `ps` listing. `--env NAME` with **no** `=value` is docker's
+ * documented pass-through form: the CLI looks the name up in its own environment
+ * and sends the value over the daemon socket. An environment is not world-readable
+ * (`/proc/<pid>/environ` is owner-and-root), so the value stops being visible to
+ * every other user on the host.
+ *
+ * `--env-file` was the other candidate the issue named. `docker compose exec` has
+ * no such flag (only `run` does), and taking it would have meant writing a live
+ * credential to disk, chasing the create-time mode, and unlinking it in a `finally`
+ * so a throw could not strand it. The pass-through form needs none of that, so it
+ * is the one taken.
+ *
+ * Pure: no process is spawned here, which is what lets a unit test read the argv.
+ *
+ * @param {object} options
+ * @param {readonly string[]} options.compose the `compose --project-name ... --env-file ...` argv prefix.
+ * @param {{ email: string; password: string }} options.credentials
+ * @param {NodeJS.ProcessEnv} options.environment the environment the docker CLI runs in.
+ * @returns {{ argv: string[]; environment: NodeJS.ProcessEnv }}
+ */
+export function buildAdminExec({ compose, credentials, environment }) {
+  return {
+    argv: [
+      ...compose,
+      "exec",
+      "--no-TTY",
+      // Names only. The values are two lines down, in the CLI's environment.
+      "--env",
+      "QCMS_ADMIN_EMAIL",
+      "--env",
+      "QCMS_ADMIN_PASSWORD",
+      "api",
+      "node",
+      "dist/create-admin.js",
+    ],
+    environment: {
+      ...environment,
+      QCMS_ADMIN_EMAIL: credentials.email,
+      QCMS_ADMIN_PASSWORD: credentials.password,
+    },
+  };
+}
+
+/**
  * Run `create-admin` in the stack's `api` container.
  *
  * Deliberately NOT built on `runProcess`/`captureProcess` from `docker.mjs`: both
@@ -92,6 +151,11 @@ export function classifyBootstrap({ status, stderr }) {
  * written through in every case, so whatever it said is on screen whether this
  * returns or throws.
  *
+ * A docker CLI that dropped the pass-through variables rather than resolving them
+ * would not fail quietly: `create-admin` exits 2 with "Set QCMS_ADMIN_EMAIL and
+ * QCMS_ADMIN_PASSWORD in the environment", which `classifyBootstrap` reads as a
+ * failure and this function throws on.
+ *
  * @param {object} options
  * @param {readonly string[]} options.compose the `compose --project-name ... --env-file ...` argv prefix.
  * @param {{ email: string; password: string }} options.credentials
@@ -99,22 +163,12 @@ export function classifyBootstrap({ status, stderr }) {
  * @returns {"created" | "already-bootstrapped"}
  */
 export function createFirstAdmin({ compose, credentials, environment }) {
-  const result = spawnSync(
-    DOCKER,
-    [
-      ...compose,
-      "exec",
-      "--no-TTY",
-      "--env",
-      `QCMS_ADMIN_EMAIL=${credentials.email}`,
-      "--env",
-      `QCMS_ADMIN_PASSWORD=${credentials.password}`,
-      "api",
-      "node",
-      "dist/create-admin.js",
-    ],
-    { cwd: REPOSITORY_ROOT, env: environment, encoding: "utf8" },
-  );
+  const exec = buildAdminExec({ compose, credentials, environment });
+  const result = spawnSync(DOCKER, exec.argv, {
+    cwd: REPOSITORY_ROOT,
+    env: exec.environment,
+    encoding: "utf8",
+  });
   if (result.error) throw result.error;
   const stdout = result.stdout ?? "";
   const stderr = result.stderr ?? "";
