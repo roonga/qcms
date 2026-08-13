@@ -172,7 +172,7 @@ export const ENV_REFERENCE = [
     fallback: "",
     secret: true,
     description:
-      "AES-256-GCM key (at least 32 characters) encrypting secrets at rest: webhook signing secrets and stored TOTP material (SEC-6). Changing it makes every existing at-rest secret undecryptable.",
+      "AES-256-GCM key (at least 32 characters) encrypting secrets at rest (SEC-6). It covers exactly one column, the per-webhook HMAC signing secret; stored two-factor material belongs to `QCMS_ADMIN_AUTH_SECRET`, not to this key (issue #319). **Set it once**: there is no in-place rotation, so changing it makes every stored webhook secret undecryptable at once and those deliveries dead-letter. That is recoverable without the old key by re-issuing each webhook's secret from the admin, which costs re-coordination with every consumer rather than data. See the app-encryption-key runbook below (issue #323).",
   },
   {
     name: "QCMS_PORTAL_BASE_URL",

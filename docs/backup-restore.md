@@ -24,7 +24,13 @@ The last two rows are the ones that bite.
 
 **Keys are not in the dump, and a dump is useless without them.** `QCMS_APP_KEY`
 encrypts webhook signing secrets at rest (SEC-6), so a database restored alongside a
-different `QCMS_APP_KEY` comes back with those columns permanently undecryptable.
+different `QCMS_APP_KEY` comes back with those secrets undecryptable, and deliveries
+fail with `secret_decrypt_failed` until they are re-issued. **That much is
+recoverable without the old key**, and it is worth knowing before you conclude the
+restore is lost: a webhook secret is server-generated, so pressing "Rotate secret" on
+each form's Webhooks page mints a fresh one under the current key without reading the
+old ciphertext. What it costs is handing every webhook consumer a new secret, not the
+data. The step-by-step is the "App encryption key" section of `docs/operations.md`.
 `QCMS_ADMIN_AUTH_SECRET` is the one that protects **stored two-factor material** -
 both the TOTP secret and the recovery codes, which are encrypted under it (this
 paragraph used to attribute that to `QCMS_APP_KEY`, and to say the codes were stored

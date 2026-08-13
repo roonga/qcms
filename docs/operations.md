@@ -118,7 +118,7 @@ Validated at boot by `apps/api/src/config.ts`, which collects every problem and 
 | `QCMS_LINK_KEYS` (secret) | **required** | - | Secure-link signing keys, at least 32 characters each. Comma-separated: the first signs, all verify. Rotation runbook: `docs/secure-links.md`. |
 | `QCMS_SESSION_KEYS` (secret) | **required** | - | Respondent session-token signing keys, at least 32 characters each. Same first-signs-all-verify rotation model as `QCMS_LINK_KEYS`. |
 | `QCMS_INTERNAL_TOKEN` (secret) | **required** | - | Service tokens the BFFs present on every internal call (SEC-4), at least 32 characters each. Any listed token is accepted, which is what makes rotation a two-deploy operation. |
-| `QCMS_APP_KEY` (secret) | **required** | - | AES-256-GCM key (at least 32 characters) encrypting secrets at rest: webhook signing secrets and stored TOTP material (SEC-6). Changing it makes every existing at-rest secret undecryptable. |
+| `QCMS_APP_KEY` (secret) | **required** | - | AES-256-GCM key (at least 32 characters) encrypting secrets at rest (SEC-6). It covers exactly one column, the per-webhook HMAC signing secret; stored two-factor material belongs to `QCMS_ADMIN_AUTH_SECRET`, not to this key (issue #319). **Set it once**: there is no in-place rotation, so changing it makes every stored webhook secret undecryptable at once and those deliveries dead-letter. That is recoverable without the old key by re-issuing each webhook's secret from the admin, which costs re-coordination with every consumer rather than data. See the app-encryption-key runbook below (issue #323). |
 | `QCMS_PORTAL_BASE_URL` | **required** | - | Public origin of the respondent portal, used to build the secure-link URLs authors copy. Absolute http(s); a trailing slash is stripped. |
 | `QCMS_ADMIN_AUTH_SECRET` (secret) | conditional | - | better-auth signing secret, at least 32 characters. Required when `QCMS_MOUNT` includes `admin`. It also protects stored two-factor material (TOTP secrets and recovery codes are encrypted under it), so back it up with the database. Rotate it through `QCMS_ADMIN_AUTH_SECRETS` rather than by editing this value, which would leave every enrolled authenticator unreadable (SEC-7). |
 | `QCMS_ADMIN_AUTH_SECRETS` (secret) | optional | `unset - version 1 holds QCMS_ADMIN_AUTH_SECRET` | Versioned admin auth keys for non-destructive rotation, as comma-separated `<version>:<secret>` entries, newest first (for example `2:<new>,1:<old>`). The first entry encrypts new material; the rest stay readable. Each value has the same 32-character floor, and the API refuses to start on a list that is not in descending version order, since a list written the other way round would keep encrypting under the old key. Leave it unset unless you are rotating; the rotation runbook is in the key-rotation section below (SEC-7, issue #319). |
@@ -362,9 +362,9 @@ logged and never echoed in an error (SEC-8): a boot failure names the variable.
 
 ### Admin auth secret rotation
 
-`QCMS_ADMIN_AUTH_SECRET` is not a list, and it is the one key that also protects data
-at rest: both stored second factors, the TOTP secret and the recovery codes, are
-encrypted under it. So editing that variable in place is not a rotation - it makes
+`QCMS_ADMIN_AUTH_SECRET` is not a list, and it is one of the two keys that protect data
+at rest (the other is `QCMS_APP_KEY`, below): both stored second factors, the TOTP
+secret and the recovery codes, are encrypted under it. So editing that variable in place is not a rotation - it makes
 every enrolled authenticator unreadable, permanently, with no screen to re-enrol from.
 **Never change it in place.**
 
@@ -411,6 +411,49 @@ If the secret is lost outright there is currently no break-glass: nothing resets
 account's 2FA state, so both factors are gone with the key. That gap is tracked
 separately (issue #432); until it closes, treat this secret with the same care as the
 database it protects, and back the two up together.
+
+### App encryption key: there is no in-place rotation
+
+`QCMS_APP_KEY` is neither a list like `QCMS_LINK_KEYS` nor a versioned set like
+`QCMS_ADMIN_AUTH_SECRETS`. It is a single scalar, there is no re-encrypt job, and the
+stored envelope carries a scheme version (`v1.`) but no key id, so nothing in the
+database records which key encrypted a given row. **Set it once and back it up with the
+database** (`docs/backup-restore.md`). There is no procedure below for rotating it on a
+schedule, because none exists.
+
+What it protects is one column, `webhooks.secret_encrypted`, holding the per-webhook
+HMAC signing secret. So changing the value makes every stored webhook secret
+undecryptable at once. The failure is visible rather than silent: the delivery
+scheduler records `secret_decrypt_failed`, and those deliveries dead-letter where the
+Webhooks page lists them.
+
+**What separates this from the admin auth secret above is that it is recoverable
+without the old key.** The webhook secret is server-generated and can be replaced
+without ever reading the old one. So if the key has already changed, or has to change
+because it was exposed, the way back is:
+
+1. Roll the new `QCMS_APP_KEY` out to every service that carries it
+   (`docs/deploy-enterprise.md` lists them) and restart. Deliveries dead-letter from
+   here until each endpoint has been through step 2.
+2. For each form, open its **Webhooks** page in the admin and press **Rotate secret**
+   on every endpoint listed. That mints a fresh secret under the current key without
+   reading the old ciphertext. Include endpoints showing as inactive: the button is
+   offered for those too, and reactivating one later would otherwise bring back an
+   undecryptable secret.
+3. Hand each consumer its new secret, out of band, and wait for them to deploy it.
+   This is the step that costs real time, and it is the reason to treat the key as
+   set-once rather than as something to rotate on a schedule.
+4. Redeliver the dead-lettered deliveries once the consumers are verifying again. That
+   is **not** on the per-form page from step 2: the dead-letter queue is
+   deployment-wide, so it lives on the **Webhooks** area page in the main nav
+   ("Webhook operations").
+
+The cost of a key change is therefore re-coordinating a shared secret with every
+webhook consumer, plus the deliveries that dead-lettered in between, which are
+redeliverable. **It is not data loss**, and a restore that comes up on a different key
+is not an unrecoverable restore. Making this an accepted-list key, so that a re-encrypt
+pass could run online and skip the dead-letter window entirely, is Phase 4 work
+(issue #466).
 
 ## Backups
 
