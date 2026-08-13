@@ -508,9 +508,7 @@ describe("draft assistant configuration (041)", () => {
   it("fails fast when a provider is named without QCMS_AGENT_MODEL", () => {
     let message = "";
     try {
-      loadConfig(
-        validEnv({ QCMS_FLAG_AGENT_AUTHORING: "anthropic", QCMS_AGENT_API_KEY: KEY }),
-      );
+      loadConfig(validEnv({ QCMS_FLAG_AGENT_AUTHORING: "anthropic", QCMS_AGENT_API_KEY: KEY }));
     } catch (err) {
       message = (err as ConfigError).message;
     }

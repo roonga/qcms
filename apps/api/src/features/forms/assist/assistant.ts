@@ -124,10 +124,7 @@ function noteFailure(outcome: RunOutcome, raw: unknown): void {
  * the turn's terminal events will need. Returns `undefined` for parts that only
  * update the outcome.
  */
-function handlePart(
-  part: TextStreamPart<ToolSet>,
-  outcome: RunOutcome,
-): AssistEvent | undefined {
+function handlePart(part: TextStreamPart<ToolSet>, outcome: RunOutcome): AssistEvent | undefined {
   switch (part.type) {
     case "start-step":
       outcome.steps += 1;
