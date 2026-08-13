@@ -3,6 +3,7 @@ import type { A2UIAnswerValue } from "@qcms/ui";
 import { CLIENT_ADDRESS_HEADER, currentClientAddress } from "./client-address";
 import { INTERNAL_TOKEN_HEADER, apiBaseUrl, internalToken } from "./config";
 import { REQUEST_ID_HEADER, currentRequestId } from "./request-id";
+import { serverLogger } from "./logger";
 
 /**
  * The strict BFF's internal API client (task 029, R2).
@@ -140,18 +141,42 @@ async function readJson<T>(res: Response): Promise<T> {
   return (text === "" ? undefined : JSON.parse(text)) as T;
 }
 
+async function loggedFetch(
+  path: string,
+  url: string,
+  init: RequestInit,
+  requestId: string | undefined,
+): Promise<Response> {
+  const started = Date.now();
+  const response = await fetch(url, init);
+  serverLogger.info("api.call", {
+    ...(requestId === undefined ? {} : { requestId }),
+    method: init.method ?? "GET",
+    path,
+    status: response.status,
+    durationMs: Date.now() - started,
+  });
+  return response;
+}
+
 type StartBody = { readonly formSlug: string } | { readonly token: string };
 
 /** Start a session: anonymous (`{ formSlug }`) or secure-link (`{ token }`). */
 export async function startSession(
   body: StartBody & { readonly challengeToken?: string },
 ): Promise<StartSessionResponse> {
-  const res = await fetch(`${apiBaseUrl()}/sessions`, {
-    method: "POST",
-    headers: await baseHeaders(),
-    body: JSON.stringify(body),
-    cache: "no-store",
-  });
+  const headers = await baseHeaders();
+  const res = await loggedFetch(
+    "/sessions",
+    `${apiBaseUrl()}/sessions`,
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      cache: "no-store",
+    },
+    headers[REQUEST_ID_HEADER],
+  );
   return readJson<StartSessionResponse>(res);
 }
 
@@ -174,12 +199,15 @@ export async function getStep(
   token: string,
   stepIndex?: number,
 ): Promise<StepResponse> {
-  const res = await fetch(
+  const headers = await baseHeaders(token);
+  const res = await loggedFetch(
+    "/sessions/:sessionId/step",
     `${apiBaseUrl()}/sessions/${encodeURIComponent(sessionId)}/step${stepQuery(stepIndex)}`,
     {
-      headers: await baseHeaders(token),
+      headers,
       cache: "no-store",
     },
+    headers[REQUEST_ID_HEADER],
   );
   return readJson<StepResponse>(res);
 }
@@ -196,14 +224,17 @@ export async function submitAnswer(
   value: unknown,
   stepIndex?: number,
 ): Promise<StepResponse> {
-  const res = await fetch(
+  const headers = await baseHeaders(token);
+  const res = await loggedFetch(
+    "/sessions/:sessionId/answers",
     `${apiBaseUrl()}/sessions/${encodeURIComponent(sessionId)}/answers${stepQuery(stepIndex)}`,
     {
       method: "POST",
-      headers: await baseHeaders(token),
+      headers,
       body: JSON.stringify({ questionId, value }),
       cache: "no-store",
     },
+    headers[REQUEST_ID_HEADER],
   );
   return readJson<StepResponse>(res);
 }
@@ -214,11 +245,17 @@ export async function submitSession(
   token: string,
   body: Record<string, unknown> = {},
 ): Promise<SubmitResponse> {
-  const res = await fetch(`${apiBaseUrl()}/sessions/${encodeURIComponent(sessionId)}/submit`, {
-    method: "POST",
-    headers: await baseHeaders(token),
-    body: JSON.stringify(body),
-    cache: "no-store",
-  });
+  const headers = await baseHeaders(token);
+  const res = await loggedFetch(
+    "/sessions/:sessionId/submit",
+    `${apiBaseUrl()}/sessions/${encodeURIComponent(sessionId)}/submit`,
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      cache: "no-store",
+    },
+    headers[REQUEST_ID_HEADER],
+  );
   return readJson<SubmitResponse>(res);
 }

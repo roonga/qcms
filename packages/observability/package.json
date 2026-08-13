@@ -1,0 +1,43 @@
+{
+  "name": "@qcms/observability",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Shared server logging and safe OTLP log export for QCMS apps",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./logger": {
+      "types": "./dist/logger.d.ts",
+      "default": "./dist/logger.js"
+    },
+    "./logs": {
+      "types": "./dist/otlp-log-allowlist.d.ts",
+      "default": "./dist/otlp-log-allowlist.js"
+    },
+    "./next": {
+      "types": "./dist/next-span-redaction.d.ts",
+      "default": "./dist/next-span-redaction.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --root ../.. --project @qcms/observability",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/api-logs": "^0.221.0",
+    "@opentelemetry/sdk-logs": "^0.221.0",
+    "@opentelemetry/sdk-trace-base": "^2.10.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3"
+  }
+}

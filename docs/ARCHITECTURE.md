@@ -194,28 +194,29 @@ Committed at launch (Stage 8b), not aspirational:
 
 - **Health:** `/health` (liveness) and `/ready` (DB connectivity) on API; equivalent checks on both Next apps; compose healthchecks wired.
 - **Backup/restore:** documented `pg_dump`/restore procedure in the README, with a tested restore drill as part of the 8b exit criteria. The database is the *only* stateful component by design.
-- **Logs:** structured JSON logs to stdout from all processes (12-factor); no log infrastructure shipped - adopters point their collector at container output. The API's logger is an injected interface backed by pino, so the lines gain `trace_id`/`span_id` automatically when tracing is on (see §10.1).
+- **Logs:** structured JSON logs to stdout from all processes (12-factor); the shared server logger redacts fields before output and adds `trace_id`/`span_id` from the active OTel context automatically when tracing is on (see §10.1). The local LGTM stack receives the same allowlisted records over OTLP.
 - **Webhook observability:** delivery state, attempt history, and dead-letters visible in admin; manual redelivery.
 - **Upgrades:** packages release via Changesets from Stage 5; `pnpm up` + `drizzle-kit migrate` is the adopter upgrade path, exercised in CI from the start.
 
-### 10.1 Observability: tracing and correlated logs (ADR-34, task 054)
+### 10.1 Observability: tracing and correlated logs (ADR-34, tasks 054 and 062)
 
 QCMS is adopter-hosted, so it ships **instrumentation and conventions, never a backend choice**: OpenTelemetry, W3C Trace Context for propagation, OTLP for export, and no collector in the deployment (the four-container budget of ADR-20 is unchanged - adopters point `OTEL_*` at their own infrastructure). Alerting, SLOs, dashboards and telemetry retention are adopter territory.
 
 **Off unless asked for.** With `OTEL_EXPORTER_OTLP_ENDPOINT` unset, no SDK starts in any process: the gate is explicit in each composition root, because the OTLP exporter's own default is `http://localhost:4318` and "unconfigured" must mean silent, not a connection error per flush. Configuration is standard `OTEL_*` variables only (`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`, `OTEL_TRACES_SAMPLER`) - no new `QCMS_` flag.
 
-**The SDK is wired at composition roots, the documented way, twice:**
+**The SDK is wired at all three app composition roots:**
 
 | Where | How | Spans it produces |
 |---|---|---|
-| `apps/api` (`src/serve.ts` -> `src/telemetry.ts`) | canonical `NodeSDK` bootstrap; the entry starts it and only then dynamically imports `main.ts`, because the instrumentations patch `pg`, `pino` and `node:http` as those modules are first required | `@hono/otel` server span (extracts the inbound `traceparent`), `instrumentation-http`, `instrumentation-undici` (outbound webhook delivery), `instrumentation-pg` (parameterized statement text, no bound values) |
+| `apps/api` (`src/serve.ts` -> `src/telemetry.ts`) | canonical `NodeSDK` bootstrap; the entry starts it and only then dynamically imports `main.ts`, because the instrumentations patch `pg` and `node:http` as those modules are first required | `@hono/otel` server span (extracts the inbound `traceparent`), `instrumentation-http`, `instrumentation-undici` (outbound webhook delivery), `instrumentation-pg` (parameterized statement text, no bound values) |
 | `apps/portal` (`instrumentation.ts`) | Next's documented route: `register()` + `registerOTel` from `@vercel/otel`, Node runtime only | Next's own request/render spans plus its `fetch` span for the BFF hop, with `propagateContextUrls` covering the API origin so the fetch carries `traceparent` |
+| `apps/admin` (`instrumentation.ts`) | the same documented Next composition-root setup and API-origin propagation as the Portal | Next request/render spans and the Admin-to-API `fetch` span |
 
-Instrumentation is an **explicit list of official packages**; `auto-instrumentations-node` is deliberately excluded (same code, 100+ packages of dependency surface), and no fetch/undici instrumentation is added to the Next apps (Next already emits that span, so adding one double-instruments the hop). `@qcms/core` and every other package stay **OTel-free**: spans wrap the kernel, never enter it, so determinism and the golden corpus are untouched by construction. `apps/admin` adopts the portal recipe unchanged when it exists.
+Instrumentation is an **explicit list of official packages**; `auto-instrumentations-node` is deliberately excluded (same code, 100+ packages of dependency surface), and no fetch/undici instrumentation is added to the Next apps (Next already emits that span, so adding one double-instruments the hop). The API's raw incoming `node:http` span is suppressed because `@hono/otel` supplies the semantic server span; this prevents duplicate SERVER spans for one request. `@qcms/core` stays **OTel-free**: spans wrap the kernel, never enter it, so determinism and the golden corpus are untouched by construction.
 
 **One respondent action is one trace, and `x-request-id` still works.** The trace starts at the portal server (browser-side telemetry is out of the baseline: CSP surface, consent, payload cost - and R2 means the browser only ever talks to the portal). `traceparent` is the machine propagation; `x-request-id` remains the human-facing token in the error envelope and in support conversations, now minted once per browser request by the portal proxy, forwarded by the BFF, honoured by the API, and recorded on the API's server span as `qcms.request_id`. That gives three joins on one id: the response header, the log line, and the span.
 
-**Signals, scoped at launch.** Traces plus trace-correlated stdout logs. No custom metrics (duration, status and error rate derive from spans) and no OTLP log export - `instrumentation-pino` runs with log-sending disabled, which is a Phase-4 flip rather than a rewrite. Redaction is allowlist-based and is a security control, specified as **SEC-13** in `SECURITY_DESIGN.md` §8a: answer values, `LocalizedText`, `lnk_` tokens and secrets never appear in any signal, branded ids are permitted as pseudonymous correlators.
+**Signals.** All three services produce traces, trace-correlated structured stdout logs, and OTLP logs. No custom metrics are emitted (duration, status and error rate derive from spans). Exported logs are not raw stdout: a processor replaces unknown event bodies and drops every attribute outside a small operational allowlist before the batch exporter can queue it. Redaction is a security control specified as **SEC-13** in `SECURITY_DESIGN.md` §8a: answer values, direct identifiers, free-text errors, `LocalizedText`, `lnk_` tokens and secrets never appear in any exported signal; branded ids are permitted as pseudonymous correlators.
 
 **Verification** is an in-test OTLP receiver, not a viewer: `apps/portal/e2e/otel-trace.pw.ts` drives a real respondent submit through browser -> portal -> API -> Postgres and asserts one connected trace, the `x-request-id` joins, and that a known submitted answer value appears in no exported payload. The optional local trace-viewer recipe is in `DEVELOPER_GUIDE.md`.
 
@@ -303,9 +304,14 @@ qcms/
 │   │   ├── migrations/           # immutable once released          (013+)
 │   │   └── test/  harness.ts     # testcontainers withTestDb        (013)
 │   │
-│   └── ui/                       # @qcms/ui - A2Renderer + vendored a2ra components (ADR-22)
-│       └── src/  A2UIStepRenderer.tsx · components/a2ui/ (vendored via
-│                 @a2ra/cli, a2ra.json committed) · conformance/          (028)
+│   ├── ui/                       # @qcms/ui - A2Renderer + vendored a2ra components (ADR-22)
+│   │   └── src/  A2UIStepRenderer.tsx · components/a2ui/ (vendored via
+│   │             @a2ra/cli, a2ra.json committed) · conformance/          (028)
+│   │
+│   └── observability/            # @qcms/observability - shared server logging (private)
+│       └── src/  logger.ts       # redacting JSON logger + trace correlation (062)
+│                 otlp-log-allowlist.ts  # SEC-13 allowlist for exported logs (062)
+│                 next-span-redaction.ts # SEC-13 span redaction for both Next apps (062)
 │
 ├── apps/
 │   ├── api/                      # Hono · vertical slices · fetch-pure (R4)
@@ -317,7 +323,8 @@ qcms/
 │   │   │   ├── serve.ts          # entry: telemetry, then main       (017, 054)
 │   │   │   ├── main.ts           # composes deps, binds port, workers (017)
 │   │   │   ├── create-admin.ts   # first-run bootstrap CLI entry      (056)
-│   │   │   ├── telemetry.ts      # gated NodeSDK + SEC-13 redaction  (054)
+│   │   │   ├── telemetry.ts      # gated NodeSDK + SEC-13 span and
+│   │   │   │                     # log-record redaction          (054, 062)
 │   │   │   └── features/
 │   │   │       ├── responses/  start-session/ (018) · get-step/ · submit-answer/ (019)
 │   │   │       │               submit/ (020) · list/ · export/ · erase/ (023)
@@ -337,6 +344,7 @@ qcms/
 │   │
 │   └── admin/                    # Next.js · client-heavy + BFF · VPN deployable
 │       │                         # no database handle, no better-auth (056)
+│       ├── instrumentation.ts    # gated registerOTel (@vercel/otel) (062)
 │       └── src/app/  (auth)/ sign-in · 2fa                         (031)
 │                     questions/ (032) · forms/[id]/ builder · publish ·
 │                     preview · versions · links (033, 034)

@@ -24,7 +24,7 @@ import { composeConfig, publishedPorts, REPOSITORY_ROOT } from "./docker.mjs";
  *    is layered on", not "neither file mentions a port for api".
  * 2. **The Caddyfile is read as text.** Its upstreams are the routing policy, and
  *    the assertion is a whitelist: exactly two `reverse_proxy` lines, exactly the
- *    two app services. A third upstream fails whatever it points at, which is the
+ *    app services. A third upstream fails whatever it points at, which is the
  *    shape that catches `api:3000` being added "just for a health probe".
  *
  * These need a working Docker CLI, which `pnpm test` already requires (the
@@ -174,8 +174,15 @@ describe("Caddy ingress overlay", () => {
  * then only need to be spelled as a dev tool to pass.
  */
 interface ServiceDefinition {
+  build?: {
+    context?: string;
+    dockerfile?: string;
+    args?: Record<string, string>;
+  };
   environment?: Record<string, string>;
   entrypoint?: string[];
+  image?: string;
+  volumes?: unknown[];
 }
 
 function service(config: unknown, name: string): ServiceDefinition {
@@ -219,6 +226,26 @@ describe("developer-toolbox overlay", () => {
     const published = publishedPorts(withDevTools, "lgtm");
     expect(published).toHaveLength(1);
     expect(published[0], "only Grafana's UI is published").toMatch(/:3000\/tcp$/);
+  });
+
+  it("builds the LGTM wrapper with the provisioned QCMS home dashboard", () => {
+    const lgtm = service(withDevTools, "lgtm");
+    expect(lgtm.image).toBe("qcms-lgtm:local");
+    expect(lgtm.build?.dockerfile?.replaceAll("\\", "/")).toMatch(
+      /(?:^|\/)docker\/lgtm\.Dockerfile$/,
+    );
+    expect(lgtm.environment?.GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH).toBe(
+      "/otel-lgtm/grafana/conf/provisioning/dashboards/qcms/qcms-observability.json",
+    );
+    // ADR-29: a relative bind mount would resolve on the host daemon and fail for
+    // the canonical dev-container client. The wrapper image copies the files.
+    expect(lgtm.volumes ?? []).toEqual([]);
+
+    const dashboard = JSON.parse(
+      readFileSync(`${REPOSITORY_ROOT}/docker/grafana/qcms-observability.json`, "utf8"),
+    ) as { uid?: string; panels?: Array<{ datasource?: { uid?: string } }> };
+    expect(dashboard.uid).toBe("qcms-observability");
+    expect(dashboard.panels?.some((panel) => panel.datasource?.uid === "loki")).toBe(true);
   });
 
   it("binds every tool to loopback, unconditionally", () => {
@@ -266,12 +293,12 @@ describe("developer-toolbox overlay", () => {
 });
 
 describe("OTLP export plumbing (ADR-34)", () => {
-  it("names the endpoint variable on both apps, so Compose forwards it at all", () => {
+  it("names the endpoint variable on all apps, so Compose forwards it at all", () => {
     // Compose forwards ONLY what a service names in `environment:`. Before issue
-    // #417 neither app named this one, so setting it in .env reached nothing and the
+    // #417 neither original app named this one, so setting it in .env reached nothing and the
     // composed stack could not export telemetry however it was configured. This is
     // the assertion that would have failed then.
-    for (const name of ["api", "portal"]) {
+    for (const name of ["api", "portal", "admin"]) {
       expect(
         service(solo, name).environment,
         `${name} must forward the OTLP endpoint`,
@@ -282,13 +309,13 @@ describe("OTLP export plumbing (ADR-34)", () => {
   it("leaves it empty in the shipped stack, which means no SDK starts", () => {
     // ADR-34: unset is a hard no-op, not "export to a collector nobody runs". The
     // shipped topology carries no collector, so empty is the only correct default.
-    for (const name of ["api", "portal"]) {
+    for (const name of ["api", "portal", "admin"]) {
       expect(service(solo, name).environment?.OTEL_EXPORTER_OTLP_ENDPOINT).toBe("");
     }
   });
 
-  it("points both apps at the overlay's collector by service name", () => {
-    for (const name of ["api", "portal"]) {
+  it("points all apps at the overlay's collector by service name", () => {
+    for (const name of ["api", "portal", "admin"]) {
       expect(service(withDevTools, name).environment?.OTEL_EXPORTER_OTLP_ENDPOINT).toBe(
         "http://lgtm:4318",
       );

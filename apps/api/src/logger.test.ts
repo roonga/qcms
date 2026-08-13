@@ -71,6 +71,22 @@ describe("createJsonLogger", () => {
     expect(line.answer).toBe("[REDACTED]");
   });
 
+  it("redacts direct identifiers and network addresses", () => {
+    const { logger, parsed } = capture();
+    logger.info("identity", {
+      email: "person@example.test",
+      phone: "+61 400 000 000",
+      clientAddress: "203.0.113.42",
+      displayName: "Example Person",
+    });
+
+    const raw = JSON.stringify(parsed()[0]);
+    expect(raw).not.toContain("person@example.test");
+    expect(raw).not.toContain("+61 400 000 000");
+    expect(raw).not.toContain("203.0.113.42");
+    expect(raw).not.toContain("Example Person");
+  });
+
   it("redacts nested secret fields", () => {
     const { logger, parsed } = capture();
     logger.info("nested", { config: { keys: { app: "topsecret" }, mount: "all" } });

@@ -13,8 +13,8 @@
  * does not re-declare it. We resolve it from the api package where it already
  * lives, so this harness adds no new dependency to the portal.
  *
- * globalSetup and globalTeardown run in the same Playwright runner process, so
- * the booted handles live in this module's singleton and teardown reads them back.
+ * The browser harness runs this module inside its traced API child process, so its
+ * singleton is process-local and shutdown can flush telemetry after closing it.
  */
 
 import { createRequire } from "node:module";
@@ -131,6 +131,7 @@ export async function startApiServer(): Promise<void> {
   const apiLogger = createJsonLogger({
     write: (line) => appendFileSync(SERVER_LOG_FILES.api, `${line}\n`),
     base: { service: "qcms-api" },
+    sendToOpenTelemetry: true,
   });
 
   const env = buildEnv({

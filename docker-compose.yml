@@ -171,6 +171,7 @@ services:
       # an operator may put a CDN in front of one only. Both shipped ingress recipes
       # front this app the way they front the portal, so 1 is right for both by default.
       QCMS_ADMIN_TRUSTED_PROXY_HOPS: ${QCMS_ADMIN_TRUSTED_PROXY_HOPS:-1}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     depends_on:
       api:
         condition: service_healthy

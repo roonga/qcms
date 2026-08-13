@@ -1,5 +1,4 @@
 import { trace } from "@opentelemetry/api";
-import { PinoInstrumentation } from "@opentelemetry/instrumentation-pino";
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -8,23 +7,15 @@ import { createJsonLogger } from "./logger.js";
 
 /**
  * Task 054 exit criterion 3: an API log line carries `trace_id`/`span_id` when
- * tracing is active, and it gets them from `@opentelemetry/instrumentation-pino` -
- * not from a call site, and not from any context lookup of ours.
- *
- * The ordering this test encodes is the whole reason `createJsonLogger` requires
- * pino lazily (see the comment on `requireFromHere` in `logger.ts`): the
- * instrumentation patches pino when the module is first required, so the SDK must
- * start FIRST. If a future change hoists that require to module scope, the
- * injection silently stops and this test is what notices.
+ * tracing is active, without requiring correlation fields at call sites.
  *
  * A real `NodeSDK` is started here rather than a bare tracer provider because the
- * injection needs an active span, and an active span needs the SDK's
+ * logger needs an active span, and an active span needs the SDK's
  * AsyncLocalStorage context manager.
  */
 
 const sdk = new NodeSDK({
   spanProcessors: [new SimpleSpanProcessor({ exporter: new InMemorySpanExporter() })],
-  instrumentations: [new PinoInstrumentation({ disableLogSending: true })],
 });
 
 beforeAll(() => {

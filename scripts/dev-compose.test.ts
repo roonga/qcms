@@ -338,10 +338,12 @@ describe("devStackBannerLines", () => {
     expect(created).toMatch(/recovery codes are shown exactly once/i);
   });
 
-  it("says Grafana's login and that the logs pane is expected to be empty", () => {
+  it("says where safe application logs and their traces are available", () => {
     expect(created).toContain("admin / admin");
-    expect(created).toContain("LOGS PANE WILL BE EMPTY");
-    expect(created).toContain("#370");
+    expect(created).toContain("Observability home dashboard");
+    expect(created).toContain("Explore -> Loki");
+    expect(created).toContain("qcms-admin");
+    expect(created).toContain("no answers, PII or secrets");
   });
 
   it("explains the skip when an administrator already existed", () => {

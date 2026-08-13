@@ -40,7 +40,7 @@ const SCAN_DIRS = ["app", "components", "lib"];
 const EXTRA_FILES = ["proxy.ts"];
 
 /** The one module allowed to build an API request; everything else goes through it. */
-const API_CLIENT_SUFFIX = "/lib/server/api.ts";
+const API_CLIENT_SUFFIX = "lib/server/api.ts";
 
 /**
  * The complete set of value bindings the admin may take from `@qcms/db`: **none**.
@@ -80,7 +80,10 @@ function walk(dir: string): string[] {
 function sourceFiles(): { path: string; text: string }[] {
   const files: string[] = [...EXTRA_FILES.map((f) => `${ADMIN_ROOT}${f}`)];
   for (const dir of SCAN_DIRS) files.push(...walk(`${ADMIN_ROOT}${dir}`));
-  return files.map((path) => ({ path, text: readFileSync(path, "utf8") }));
+  return files.map((path) => ({
+    path: path.replaceAll("\\", "/"),
+    text: readFileSync(path, "utf8"),
+  }));
 }
 
 interface ParsedImport {

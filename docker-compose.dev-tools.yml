@@ -37,9 +37,8 @@
 #   the right trade for a toolbox - `docker compose ... down` leaves nothing behind,
 #   which is what makes this safe to bring up and tear down per investigation - but
 #   it does mean a restart of `lgtm` empties the dashboard.
-# - **No logs pipeline yet.** Only traces are exported today, so Grafana's Loki
-#   datasource is present and empty. Turning on OTLP log export is issue #370, which
-#   carries a SEC-13 amendment and is deliberately not folded in here.
+# - **Logs are privacy-reduced before export.** Loki receives the applications'
+#   allowlisted operational events; it never receives raw stdout or request content.
 # - **This file is not in `scripts/env-reference.mjs`'s `COMPOSE_FILES`**, and that
 #   is a decision rather than an oversight: the generated table in docs/operations.md
 #   is the operator's surface, and none of the variables below is an operator's to
@@ -51,11 +50,20 @@ services:
   # Jaeger because Jaeger has no logs pipeline at all, and the thing worth being
   # able to do is follow one request across a boundary with its logs attached.
   #
-  # No datasource configuration is needed: the image's own grafana-datasources.yaml
-  # already wires Loki-to-Tempo correlation both ways. The image is large (several
-  # hundred MB) and pulled once.
+  # The thin wrapper image provisions the repository's QCMS Observability dashboard
+  # as Grafana's home page. It copies files at build time rather than bind-mounting
+  # them because the canonical dev-container client drives the host Docker daemon
+  # (ADR-29), where the container-side repository path does not exist. The upstream
+  # image's own datasources still wire Loki-to-Tempo correlation both ways.
   lgtm:
-    image: ${QCMS_LGTM_IMAGE:-grafana/otel-lgtm:latest}
+    image: qcms-lgtm:local
+    build:
+      context: .
+      dockerfile: docker/lgtm.Dockerfile
+      args:
+        QCMS_LGTM_IMAGE: ${QCMS_LGTM_IMAGE:-grafana/otel-lgtm:latest}
+    environment:
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /otel-lgtm/grafana/conf/provisioning/dashboards/qcms/qcms-observability.json
     ports:
       # Grafana's UI. The container also listens on 4317/4318 (OTLP), 3200 (Loki),
       # 9090 (Prometheus) and 4040 (Pyroscope); none of those is published, and the
@@ -155,15 +163,15 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
 
-  # The two app services gain an endpoint and nothing else. Both composition roots
+  # The three app services gain an endpoint and nothing else. Their composition roots
   # treat `OTEL_EXPORTER_OTLP_ENDPOINT` as the single switch (ADR-34): unset means no
   # SDK starts at all, so the base file's empty default keeps the shipped stack silent
-  # and this override is the whole of what turns tracing on.
+  # and this override is the whole of what turns traces and safe OTLP logs on.
   #
   # `OTEL_SERVICE_NAME` is deliberately not set here. Each composition root already
-  # defaults to its own name (`qcms-api`, `qcms-portal`), and one Compose-level value
-  # would give both services the same name and collapse them into one entry in
-  # Grafana's service list.
+  # defaults to its own name (`qcms-api`, `qcms-portal`, `qcms-admin`), and one
+  # Compose-level value would give all three services the same name and collapse
+  # them into a single entry in Grafana's service list.
   api:
     environment:
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://lgtm:4318}
@@ -176,6 +184,13 @@ services:
         condition: service_started
 
   portal:
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://lgtm:4318}
+    depends_on:
+      lgtm:
+        condition: service_started
+
+  admin:
     environment:
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://lgtm:4318}
     depends_on:
