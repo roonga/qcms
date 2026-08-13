@@ -11,13 +11,7 @@
 
 import type { RouteHandler } from "@hono/zod-openapi";
 
-import {
-  getDraft,
-  getLatestPublishedVersion,
-  getQuestionVersion,
-  listQuestionVersions,
-  listQuestions,
-} from "@qcms/db";
+import { getDraft, getLatestPublishedVersion, listQuestionVersions, listQuestions } from "@qcms/db";
 import { parseFormId, type FormDefinition, type FormId, type QuestionId } from "@qcms/core";
 
 import type { Deps } from "../../../deps.js";
@@ -69,19 +63,36 @@ function questionLibrary(deps: Deps) {
   };
 }
 
+/**
+ * The newest **published** version of one question, or `undefined` if it has none.
+ *
+ * A single max scan, for two reasons worth stating because the obvious shapes are
+ * both worse:
+ *
+ * - **It does not lean on the query's `ORDER BY`.** `listQuestionVersions` happens
+ *   to return ascending today, but "newest published" is this function's own
+ *   invariant, not the query helper's, and a helper is free to change its order
+ *   without breaking its own contract. Re-sorting the returned rows would have
+ *   been redundant *and* would have mutated an array the caller owns; picking the
+ *   maximum is order-independent, so there is nothing to be redundant with.
+ * - **It does not re-fetch the row.** `QuestionVersionRow` already carries the
+ *   `definition`, so the earlier `getQuestionVersion` call was a second round trip
+ *   for data already in hand - once per candidate, on a path that scans up to the
+ *   search limit.
+ */
 async function latestPublished(
   deps: Deps,
   questionId: QuestionId,
   slug: string,
 ): Promise<LibraryEntry | undefined> {
   const versions = await listQuestionVersions(deps.db, questionId);
-  const published = versions
-    .filter((v) => v.status === "published")
-    .sort((a, b) => b.version - a.version)[0];
-  if (published === undefined) return undefined;
-  const row = await getQuestionVersion(deps.db, questionId, published.version);
-  if (row === undefined) return undefined;
-  return { questionId, slug, version: row.version, definition: row.definition };
+  let newest: (typeof versions)[number] | undefined;
+  for (const version of versions) {
+    if (version.status !== "published") continue;
+    if (newest === undefined || version.version > newest.version) newest = version;
+  }
+  if (newest === undefined) return undefined;
+  return { questionId, slug, version: newest.version, definition: newest.definition };
 }
 
 /** The client-state token: the draft's own `updatedAt`, stringified. */

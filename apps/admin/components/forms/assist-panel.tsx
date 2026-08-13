@@ -389,10 +389,10 @@ function handleAssistEvent(
   }
 }
 
-type AssistPanelErrorKind =
+export type AssistPanelErrorKind =
   AssistErrorCode | "TOOL_REJECTED" | "RATE_LIMITED" | "STALE_DRAFT" | "HTTP";
 
-interface AssistPanelError {
+export interface AssistPanelError {
   readonly kind: AssistPanelErrorKind;
   readonly message?: string;
   readonly tool?: string;
@@ -413,7 +413,7 @@ const SIMPLE_ERROR_MESSAGES: Readonly<
   STALE_DRAFT: "forms.assist.error.STALE_DRAFT",
 };
 
-function messageForError(error: AssistPanelError): string {
+export function messageForError(error: AssistPanelError): string {
   if (error.kind === "REFUSED") {
     return t("forms.assist.error.REFUSED", { message: error.message ?? "" });
   }

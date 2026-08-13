@@ -17,7 +17,13 @@
  */
 
 import { parseQuestionDefinition, QuestionId } from "@qcms/core";
-import { createQuestion, createQuestionVersion, getDraft, publishQuestionVersion } from "@qcms/db";
+import {
+  createQuestion,
+  createQuestionVersion,
+  getDraft,
+  listQuestionVersions,
+  publishQuestionVersion,
+} from "@qcms/db";
 import { startTestDb, type TestDb } from "@qcms/db/testing";
 import { MockLanguageModelV3 } from "ai/test";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -217,6 +223,46 @@ describe("the assist slice over HTTP", () => {
       // The provider was really called, and none of what it saw was the answer.
       expect(providerCalls.length).toBeGreaterThan(before);
       expect(JSON.stringify(providerCalls)).not.toContain(SENTINEL);
+    },
+    BOOT_TIMEOUT,
+  );
+
+  it(
+    "offers the newest PUBLISHED version of a question, not the newest overall",
+    async () => {
+      // Three versions: v1 and v2 published, v3 still a draft. The library must
+      // offer v2 - not v1 (the first row), and not v3 (the highest number, but
+      // unpublishable, so pinning it would only produce a validation issue).
+      const questionId = QuestionId.parse("q_versions_only");
+      const parsed = parseQuestionDefinition({
+        questionId: "q_versions_only",
+        type: "shortText",
+        label: { en: "Versioned" },
+      });
+      if (!parsed.ok) throw new Error("fixture question did not parse");
+      await createQuestion(testDb.db, { questionId, slug: "versions-only" });
+      for (const version of [1, 2, 3]) {
+        await createQuestionVersion(testDb.db, { questionId, definition: parsed.value });
+        if (version < 3) await publishQuestionVersion(testDb.db, { questionId, version });
+      }
+      // The fixture really is shaped as described, so what follows is about the
+      // selection rather than about an accidentally-empty library.
+      const rows = await listQuestionVersions(testDb.db, questionId);
+      expect(rows.map((r) => `${String(r.version)}:${r.status}`)).toEqual([
+        "1:published",
+        "2:published",
+        "3:draft",
+      ]);
+
+      await seedForm("frm_versions", ["q_versions_only"]);
+      const res = await assist("frm_versions", "reuse it #qcms-fake-search:versions-only");
+      const events = await readEvents(res);
+      const proposal = events.find((e) => e.type === "proposal");
+      if (proposal?.type !== "proposal") throw new Error(JSON.stringify(events));
+
+      const pinned = proposal.proposal.proposedDraft.steps[0]?.items[0];
+      expect(pinned?.questionId).toBe("q_versions_only");
+      expect(pinned?.version).toBe(2);
     },
     BOOT_TIMEOUT,
   );

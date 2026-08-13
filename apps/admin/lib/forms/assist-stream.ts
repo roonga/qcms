@@ -31,8 +31,24 @@ export interface AssistProposal {
   readonly issues: readonly FormIssue[];
 }
 
-export type AssistErrorCode =
-  "PROVIDER_ERROR" | "NO_PROPOSAL" | "REFUSED" | "LENGTH" | "STEP_LIMIT";
+/**
+ * The API's assist error codes, mirrored here.
+ *
+ * Mirrored rather than imported: this app is a strict BFF and takes no value
+ * import from the API (R2). The mirror is kept honest by
+ * `assist-error-codes.test.ts`, which reads the API's own declaration as text and
+ * fails when the two lists diverge - and which also asserts every code has copy,
+ * because a code the panel cannot render is the defect `STEP_LIMIT` was.
+ */
+export const ASSIST_ERROR_CODES = [
+  "PROVIDER_ERROR",
+  "NO_PROPOSAL",
+  "REFUSED",
+  "LENGTH",
+  "STEP_LIMIT",
+] as const;
+
+export type AssistErrorCode = (typeof ASSIST_ERROR_CODES)[number];
 
 export type AssistEvent =
   | { readonly type: "status"; readonly phase: "thinking" | "tool"; readonly tool?: string }
@@ -46,14 +62,6 @@ export type AssistEvent =
     }
   | { readonly type: "proposal"; readonly proposal: AssistProposal }
   | { readonly type: "error"; readonly code: AssistErrorCode; readonly message: string };
-
-const ASSIST_ERROR_CODES: readonly AssistErrorCode[] = [
-  "PROVIDER_ERROR",
-  "NO_PROPOSAL",
-  "REFUSED",
-  "LENGTH",
-  "STEP_LIMIT",
-];
 
 /** SSE frames are separated by one blank line, whatever their own line endings are. */
 const FRAME_SEPARATOR = "\n\n";
