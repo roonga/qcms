@@ -451,7 +451,7 @@ webhook consumer, plus the deliveries that dead-lettered in between, which are
 redeliverable. **It is not data loss**, and a restore that comes up on a different key
 is not an unrecoverable restore. Making this an accepted-list key, so that a re-encrypt
 pass could run online and skip the dead-letter window entirely, is Phase 4 work
-(issue #323).
+(issue #466).
 
 ## Backups
 
