@@ -28,6 +28,16 @@ import { MockLanguageModelV3 } from "ai/test";
 /** The directive that picks a script, and the scripts themselves. */
 const DIRECTIVE = "#qcms-fake:";
 
+/**
+ * An optional directive that fixes the library search the `default` script runs.
+ *
+ * The browser suite shares one database with every other spec, so "the first two
+ * published questions" is whatever else happened to be seeded. A spec that wants
+ * its proposal to pin *its own* fixtures says so: `#qcms-fake-search:<needle>`.
+ * Test-only, like the whole module.
+ */
+const SEARCH_DIRECTIVE = "#qcms-fake-search:";
+
 export const FAKE_SCRIPTS = [
   "default",
   "rogue-publish",
@@ -71,13 +81,22 @@ function userText(prompt: readonly PromptMessage[]): string {
     .join("\n");
 }
 
+/** The first whitespace-delimited word after `directive`, or undefined. */
+function wordAfter(text: string, directive: string): string | undefined {
+  const at = text.lastIndexOf(directive);
+  if (at < 0) return undefined;
+  const word = text.slice(at + directive.length).trim().split(/\s/u)[0] ?? "";
+  return word === "" ? undefined : word;
+}
+
 function pickScript(prompt: readonly PromptMessage[]): FakeScript {
-  const text = userText(prompt);
-  const at = text.lastIndexOf(DIRECTIVE);
-  if (at < 0) return "default";
-  const rest = text.slice(at + DIRECTIVE.length).trim();
-  const name = rest.split(/\s/u)[0] ?? "";
+  const name = wordAfter(userText(prompt), DIRECTIVE);
+  if (name === undefined) return "default";
   return (FAKE_SCRIPTS as readonly string[]).includes(name) ? (name as FakeScript) : "default";
+}
+
+function pickSearchQuery(prompt: readonly PromptMessage[]): string | undefined {
+  return wordAfter(userText(prompt), SEARCH_DIRECTIVE);
 }
 
 /** Every tool result in the prompt so far, keyed by tool name. */
@@ -135,10 +154,13 @@ function libraryHits(results: Map<string, unknown>): LibraryHit[] {
 }
 
 /**
- * The proposal the `default` script makes: keep the form's identity, put the
- * first published question on its own step, and gate a second step on that
- * question being answered. Two steps plus a forward-only rule is the smallest
- * shape that exercises a real branch end to end (ADR-16).
+ * The proposal the `default` script makes, and why it has the shape it has.
+ *
+ * One step carrying both questions, with a forward-only rule that reveals the
+ * second when the first is answered (ADR-16). That is the wireframe's own sketch,
+ * and it is the arrangement worth exercising end to end: within a single step the
+ * reveal is visible without any navigation, so a branch that fails to appear
+ * cannot be mistaken for a step that was never reached.
  */
 function buildProposal(
   draft: Record<string, unknown>,
@@ -148,34 +170,31 @@ function buildProposal(
   const title = (draft.title as Record<string, string> | undefined) ?? {};
   const [first, second] = hits;
 
-  const steps: Record<string, unknown>[] = [];
+  const items: Record<string, unknown>[] = [];
   const rules: Record<string, unknown>[] = [];
 
   if (first !== undefined) {
-    steps.push({
-      stepId: "stp_agent_history",
-      title: { [locale]: "Driving history" },
-      items: [{ questionId: first.questionId, version: first.version }],
-    });
+    items.push({ questionId: first.questionId, version: first.version });
   }
-  if (second !== undefined) {
-    steps.push({
-      stepId: "stp_agent_detail",
-      title: { [locale]: "Accident detail" },
-      items: [{ questionId: second.questionId, version: second.version }],
-    });
+  if (first !== undefined && second !== undefined) {
+    items.push({ questionId: second.questionId, version: second.version });
     rules.push({
       ruleId: "rul_agent_followup",
-      when: { op: "answered", questionId: first?.questionId },
-      show: ["stp_agent_detail"],
+      when: { op: "answered", questionId: first.questionId },
+      show: [second.questionId],
     });
   }
+
+  const steps =
+    items.length > 0
+      ? [{ stepId: "stp_agent_history", title: { [locale]: "Driving history" }, items }]
+      : (draft.steps ?? []);
 
   return {
     formId: draft.formId,
     defaultLocale: locale,
     title: Object.keys(title).length > 0 ? title : { [locale]: "Vehicle insurance quote" },
-    steps: steps.length > 0 ? steps : (draft.steps ?? []),
+    steps,
     rules,
   };
 }
@@ -236,7 +255,14 @@ function planStep(prompt: readonly PromptMessage[], script: FakeScript): StreamP
 
   const results = toolResults(prompt);
   if (!results.has("search_question_library")) {
-    return [toolCallPart("search_question_library", { limit: 10 }), finishPart("tool-calls")];
+    const query = pickSearchQuery(prompt);
+    return [
+      toolCallPart("search_question_library", {
+        limit: 10,
+        ...(query === undefined ? {} : { query }),
+      }),
+      finishPart("tool-calls"),
+    ];
   }
   if (!results.has("propose_draft")) {
     const draft = currentDraft(prompt) ?? {};

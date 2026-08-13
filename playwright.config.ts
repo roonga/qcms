@@ -311,6 +311,11 @@ export default defineConfig({
         // it in `process.env` before Next looks, and `@next/env` does not overwrite what
         // is already set. `auth-2fa.pw.ts` carries the canary that proves it took.
         QCMS_ADMIN_2FA: "required",
+        // Task 041: the admin reads this only to decide whether the agent panel
+        // renders. The composed API this BFF talks to runs the same fake provider
+        // (`apps/portal/e2e/support/api-server.ts`), so the assist route exists on
+        // both sides of the proxy for the whole browser suite.
+        QCMS_FLAG_AGENT_AUTHORING: "fake",
       },
     },
   ],
