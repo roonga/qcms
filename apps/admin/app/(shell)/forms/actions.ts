@@ -173,7 +173,11 @@ export async function createFormAction(
  * publish, so a `saved` status carrying a non-empty `issues` list is the normal case
  * rather than a contradiction.
  */
-export async function saveDraftAction(formId: string, draft: DraftForm): Promise<SaveDraftState> {
+export async function saveDraftAction(
+  formId: string,
+  draft: DraftForm,
+  agentAssisted?: boolean,
+): Promise<SaveDraftState> {
   const session = await requireAdminSession();
   if (!withinCap(draft)) {
     return {
@@ -184,13 +188,18 @@ export async function saveDraftAction(formId: string, draft: DraftForm): Promise
     };
   }
 
-  const result = await saveDraft(session, formId, draft);
+  const result = await saveDraft(session, formId, draft, agentAssisted);
   if (!result.ok) {
     return { status: "error", issues: result.issues, code: result.code, message: result.message };
   }
   revalidatePath("/forms");
   revalidatePath(`/forms/${formId}`);
-  return { status: "saved", issues: result.data.issues };
+  return {
+    status: "saved",
+    issues: result.data.issues,
+    agentAssisted: result.data.agentAssisted,
+    updatedAt: result.data.updatedAt,
+  };
 }
 
 /**

@@ -37,6 +37,10 @@ export interface SaveDraftState {
   readonly issues: readonly FormIssue[];
   readonly code?: string;
   readonly message?: string;
+  /** Task 041: whether the stored draft carries the marker after this save. */
+  readonly agentAssisted?: boolean;
+  /** Task 041: the stored draft's fresh `updatedAt`, for the next assist call's `clientState`. */
+  readonly updatedAt?: string;
 }
 
 /** The result of one debounced dry-run validation. */
