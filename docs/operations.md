@@ -37,6 +37,15 @@ an egress firewall rule:
 Nothing else in the API reaches the internet. The portal and the admin reach only the
 API.
 
+**What that second refusal looks like**, so it is not mistaken for a broken sign-in
+(issue #436). A blocked corpus lookup answers `503` with the code
+`BREACH_CORPUS_UNREACHABLE`, and `qcms:create-admin` prints one line naming the host,
+saying in as many words that this is a network failure rather than an authentication
+failure, and pointing at `QCMS_ADMIN_PASSWORD_BREACH_CHECK`. A password that really is
+in the corpus is a different answer entirely: `400` with `PASSWORD_COMPROMISED`, and a
+line that says the password appears in the corpus. Telling the two apart never requires
+reading the source.
+
 ## Health and readiness
 
 The API mounts two unauthenticated ops endpoints in **every** process shape, because
