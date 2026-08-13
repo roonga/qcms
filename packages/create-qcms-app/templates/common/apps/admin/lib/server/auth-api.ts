@@ -21,7 +21,7 @@ import { authApiFetch } from "./api.ts";
  * JavaScript - and it would also republish the endpoint set the admin's SEC-1
  * structural test exists to keep absent. So the admin still forwards **one named
  * operation per handler**, and "the admin proxies `/api/auth/*`" means exactly that:
- * these seven calls, over the internal channel, with cookies carried back out.
+ * these eight calls, over the internal channel, with cookies carried back out.
  *
  * ## Why every function returns a `Response`
  *
@@ -179,6 +179,23 @@ export function verifyBackupCode(requestHeaders: Headers, code: string): Promise
   return authApiFetch("/two-factor/verify-backup-code", {
     method: "POST",
     body: { code },
+    from: requestHeaders,
+  });
+}
+
+/**
+ * Issue a fresh set of recovery codes, replacing the set on record (issue #319).
+ *
+ * better-auth requires the account password here
+ * (`dist/plugins/two-factor/backup-codes/index.mjs:279-281`), which is the whole
+ * reason this replaced the route that read the stored codes back: re-authentication
+ * arrives with the operation instead of needing a freshness rule of our own, and
+ * whatever set was on record stops working the moment the new one is written.
+ */
+export function generateBackupCodes(requestHeaders: Headers, password: string): Promise<Response> {
+  return authApiFetch("/two-factor/generate-backup-codes", {
+    method: "POST",
+    body: { password },
     from: requestHeaders,
   });
 }

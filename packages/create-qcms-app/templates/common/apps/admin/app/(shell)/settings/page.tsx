@@ -10,6 +10,12 @@ import { requireAdminSession } from "@/lib/server/session";
  * Exactly those two things, and the "nothing else" is the binding half: no profile,
  * no preferences, no user list, no roles. RBAC is Phase 4 (R7).
  *
+ * Regenerating recovery codes joined the 2FA card in issue #319, and it belongs to
+ * the wireframe's "2FA re-enrollment" line rather than widening the area: it is the
+ * only remedy an enrolled admin has for lost codes, now that no route reads the stored
+ * set back. Password-gated, because better-auth requires the password and that is
+ * exactly the re-authentication the operation wants.
+ *
  * Changing the password revokes every **other** session, which is the SEC-1
  * requirement ("server-side session invalidation on sign-out and password change")
  * and also the useful behaviour: the admin who just changed it stays signed in here
@@ -112,6 +118,44 @@ export default async function SettingsPage({
             >
               {session.twoFactorEnabled ? t("settings.twoFactorOn") : t("settings.twoFactorOff")}
             </p>
+            {/* Only for an enrolled account: better-auth refuses to generate codes
+                without a factor to back them, so offering the form otherwise would be
+                a control that can only fail. */}
+            {session.twoFactorEnabled && (
+              <>
+                <h3 className="text-sm font-semibold text-(--color-text)">
+                  {t("settings.recoveryCodesTitle")}
+                </h3>
+                {/* The same generic sentence the password form uses: a wrong password
+                    here must not be distinguishable from any other refusal (SEC-1). */}
+                {params.codesError !== undefined && (
+                  <Alert variant="error">{t("signIn.error")}</Alert>
+                )}
+                <p className="text-sm text-(--color-text-muted)">
+                  {t("settings.recoveryCodesIntro")}
+                </p>
+                <form
+                  method="post"
+                  action="/settings/recovery-codes"
+                  className="flex max-w-sm flex-col gap-4"
+                >
+                  {/* The password is what re-authenticates the operation (issue #319):
+                      better-auth requires it, so a borrowed session cannot retire an
+                      admin's codes. `current-password` rather than a new-password hint,
+                      because that is exactly what it is. */}
+                  <TextField
+                    name="password"
+                    type="password"
+                    label={t("settings.recoveryCodesPassword")}
+                    autoComplete="current-password"
+                    isRequired
+                  />
+                  <Button type="submit" variant="secondary" size="md">
+                    {t("settings.recoveryCodesAction")}
+                  </Button>
+                </form>
+              </>
+            )}
           </div>
         </Card>
       </div>

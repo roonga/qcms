@@ -86,15 +86,15 @@ path", so the completeness claim is checkable rather than asserted.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (267 files common to both shapes)
+### Scaffolded paths (266 files common to both shapes)
 
 | Path | Files |
 | --- | --- |
 | `(project root)` | 8 |
-| `apps/` | 256 |
-| `apps/admin/` | 130 |
-| `apps/admin/app/` | 41 |
-| `apps/admin/app/(shell)/` | 25 |
+| `apps/` | 255 |
+| `apps/admin/` | 131 |
+| `apps/admin/app/` | 42 |
+| `apps/admin/app/(shell)/` | 26 |
 | `apps/admin/app/(shell)/forms/` | 13 |
 | `apps/admin/app/(shell)/forms/[formId]/` | 9 |
 | `apps/admin/app/(shell)/forms/[formId]/export/` | 1 |
@@ -110,8 +110,9 @@ path", so the completeness claim is checkable rather than asserted.
 | `apps/admin/app/(shell)/questions/new/` | 1 |
 | `apps/admin/app/(shell)/responses/` | 3 |
 | `apps/admin/app/(shell)/responses/erasures/` | 1 |
-| `apps/admin/app/(shell)/settings/` | 2 |
+| `apps/admin/app/(shell)/settings/` | 3 |
 | `apps/admin/app/(shell)/settings/password/` | 1 |
+| `apps/admin/app/(shell)/settings/recovery-codes/` | 1 |
 | `apps/admin/app/(shell)/webhooks/` | 2 |
 | `apps/admin/app/healthz/` | 1 |
 | `apps/admin/app/sign-in/` | 2 |
@@ -136,10 +137,10 @@ path", so the completeness claim is checkable rather than asserted.
 | `apps/admin/lib/ops/` | 8 |
 | `apps/admin/lib/questions/` | 5 |
 | `apps/admin/lib/server/` | 14 |
-| `apps/api/` | 69 |
-| `apps/api/src/` | 66 |
-| `apps/api/src/features/` | 40 |
-| `apps/api/src/features/auth/` | 5 |
+| `apps/api/` | 67 |
+| `apps/api/src/` | 64 |
+| `apps/api/src/features/` | 38 |
+| `apps/api/src/features/auth/` | 3 |
 | `apps/api/src/features/forms/` | 3 |
 | `apps/api/src/features/links/` | 3 |
 | `apps/api/src/features/outbox/` | 3 |
@@ -191,7 +192,7 @@ path", so the completeness claim is checkable rather than asserted.
 | `@qcms/ui` | `^0.0.0` | The A2UI renderer, the vendored input controls, and the token contract the theming rests on. | Upgrade freely. The vendored components are pinned inside the package rather than resolved from upstream (ADR-22), so an upstream component release cannot reach a published form until a QCMS release deliberately pulls it in and re-runs the conformance suite. |
 
 <details>
-<summary>Every scaffolded file (267)</summary>
+<summary>Every scaffolded file (266)</summary>
 
 ```
 .dockerignore
@@ -222,6 +223,7 @@ apps/admin/app/(shell)/responses/erasures/page.tsx
 apps/admin/app/(shell)/responses/page.tsx
 apps/admin/app/(shell)/settings/page.tsx
 apps/admin/app/(shell)/settings/password/route.ts
+apps/admin/app/(shell)/settings/recovery-codes/route.ts
 apps/admin/app/(shell)/webhooks/actions.ts
 apps/admin/app/(shell)/webhooks/page.tsx
 apps/admin/app/globals.css
@@ -337,10 +339,8 @@ apps/api/src/create-admin.ts
 apps/api/src/deps.ts
 apps/api/src/errors.ts
 apps/api/src/features/auth/bootstrap.ts
-apps/api/src/features/auth/handler.ts
 apps/api/src/features/auth/instance.ts
 apps/api/src/features/auth/route.ts
-apps/api/src/features/auth/schema.ts
 apps/api/src/features/forms/handler.ts
 apps/api/src/features/forms/route.ts
 apps/api/src/features/forms/schema.ts
@@ -472,6 +472,13 @@ tsconfig.base.json
 - **This repository's test harness.** Testcontainers, Playwright, the seat-aware port
   harness, fixtures and the golden corpus are QCMS's own tooling. You are free to add
   your own tests to your own shell; you are not inheriting ours.
+- **Lint configuration.** No `eslint.config.js`, no `lint` script, no ESLint
+  dependency. QCMS's rule set encodes QCMS's conventions (the kernel's no-database
+  import rule, the single-component-stack rule of ADR-22, its own sonarjs tuning), and
+  inheriting it would mean inheriting opinions about code you now own. The scaffolded
+  apps keep `build` and `typecheck`, which check facts rather than taste; linting is
+  yours to choose. Note the consequence: the shell arrives with roughly 260 source
+  files that nothing in your project lints until you set that up.
 - **Kubernetes and managed-cloud manifests.** Ingress is operator infrastructure
   (ADR-20). The solo shape ships an optional Caddy overlay for a single host; the
   enterprise shape assumes you already have a load balancer.

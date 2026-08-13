@@ -1,5 +1,5 @@
 import { verifyTotp } from "@/lib/server/auth-api";
-import { clearEnrollmentCookie, recoveryViewCookie } from "@/lib/server/enrollment";
+import { clearEnrollmentCookie } from "@/lib/server/enrollment";
 import {
   authRefused,
   cookiesFrom,
@@ -40,9 +40,8 @@ export async function POST(request: Request): Promise<Response> {
   const cookies = cookiesFrom(verified);
   if (cookies.length === 0) return redirectAfterPost(`${SIGN_IN_PATH}?expired=1`);
 
-  return redirectAfterPost("/two-factor/recovery-codes", [
-    ...cookies,
-    clearEnrollmentCookie(),
-    recoveryViewCookie(),
-  ]);
+  // The recovery-codes cookie is deliberately *not* touched here: the sign-in POST
+  // that provisioned this enrollment already put the issued codes in it, and the
+  // display screen spends it (issue #319). Only the TOTP URI is finished with.
+  return redirectAfterPost("/two-factor/recovery-codes", [...cookies, clearEnrollmentCookie()]);
 }

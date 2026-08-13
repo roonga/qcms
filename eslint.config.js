@@ -25,6 +25,23 @@ export default tseslint.config(
       // kept byte-for-byte for a clean `a2ra diff` (ADR-22) and tested upstream.
       // qcms lint rules apply to the qcms renderer code, not the vendored copy.
       "packages/ui/src/components/**",
+      // Generated scaffolding templates (task 037): byte-for-byte copies of files
+      // under apps/, which ESLint already lints AT THE SOURCE. The same structural
+      // reason as the vendored components above, and the entry is deliberately here
+      // rather than in check-lint-coverage's KNOWN_UNLINTED, because that inventory
+      // records a real gap and this is not one.
+      //
+      // Linting the copies would be strictly worse than not linting them. They sit
+      // outside every tsconfig, so `projectService` resolves nothing: a single
+      // template file reports 18 `no-unsafe-*` errors about types that resolve
+      // perfectly at the source. The only way to make them pass would be to lint the
+      // copy under a WEAKER ruleset than the original, which is a green that means
+      // less than the green it duplicates.
+      //
+      // What actually covers them is stronger than lint: `pnpm check:templates`
+      // regenerates the tree and byte-compares, so every file here is provably
+      // identical to a file that was linted. Drift is a red, not a silence.
+      "packages/create-qcms-app/templates/**",
       "**/__snapshots__/**",
     ],
   },
