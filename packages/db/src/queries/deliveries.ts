@@ -406,21 +406,6 @@ export async function listDeadLetterDeliveries(
 }
 
 /**
- * Reset a dead-lettered (or any) delivery for immediate redelivery - the admin
- * manual-redeliver action (§5.3): clear the dead-letter flag and delivery
- * timestamp, reset attempts, and make it due now. Returns the updated row, or
- * `undefined` when no such delivery exists.
- *
- * The whole last-attempt record is cleared alongside `lastError`, not just the
- * error. Leaving a stale `last_status: 500` next to a cleared error would put two
- * contradictory statements about the same attempt on one screen; a redelivered row
- * has made no attempt since the reset, and reads that way until it makes one.
- *
- * **Form-scoped (issue #305)** via {@link inFormScope}: the scope is part of the
- * `where`, so a delivery of another form matches no row and returns `undefined` -
- * the same answer, and the same absent side effect, as an id that does not exist.
- */
-/**
  * The form-scope predicate for a single delivery row (issue #305): "this delivery
  * belongs to a webhook of this form".
  *
@@ -446,6 +431,21 @@ function inFormScope(exec: Executor, formId: FormId) {
   );
 }
 
+/**
+ * Reset a dead-lettered (or any) delivery for immediate redelivery - the admin
+ * manual-redeliver action (§5.3): clear the dead-letter flag and delivery
+ * timestamp, reset attempts, and make it due now. Returns the updated row, or
+ * `undefined` when no such delivery exists.
+ *
+ * The whole last-attempt record is cleared alongside `lastError`, not just the
+ * error. Leaving a stale `last_status: 500` next to a cleared error would put two
+ * contradictory statements about the same attempt on one screen; a redelivered row
+ * has made no attempt since the reset, and reads that way until it makes one.
+ *
+ * **Form-scoped (issue #305)** via {@link inFormScope}: the scope is part of the
+ * `where`, so a delivery of another form matches no row and returns `undefined` -
+ * the same answer, and the same absent side effect, as an id that does not exist.
+ */
 export async function resetDeliveryForRedelivery(
   exec: Executor,
   formId: FormId,
