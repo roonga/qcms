@@ -1,7 +1,9 @@
 import { authAccount, authSession, authTwoFactor, authUser, authVerification } from "@qcms/db";
 import type { Executor } from "@qcms/db";
 import { betterAuth } from "better-auth";
+import type { BetterAuthPlugin } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { APIError, isAPIError } from "better-auth/api";
 import { haveIBeenPwned } from "better-auth/plugins";
 import { twoFactor } from "better-auth/plugins/two-factor";
 
@@ -63,6 +65,23 @@ import type { Config } from "../../config.js";
  * is a two-step provision-then-verify: `enableTwoFactor` stores the secret and
  * backup codes but leaves `user.twoFactorEnabled` false until a real TOTP code
  * verifies, so an abandoned enrollment cannot leave an account half-protected.
+ *
+ * Both stored factors are **ciphertext under the admin auth secret**: the TOTP secret
+ * (`dist/plugins/two-factor/index.mjs:106`) and the recovery codes
+ * (`.../backup-codes/index.mjs:19-22`). That used to make `QCMS_ADMIN_AUTH_SECRET` a
+ * key nobody could change without destroying every enrolment, which task 056 recorded
+ * as permanent. It is not permanent any more: better-auth 1.6.26 carries a versioned
+ * key set (`secrets`) and writes a `$ba$<version>$` envelope, so an operator adds a new
+ * version, keeps the old one for reading, and stored material re-encodes under the
+ * current version as it is used. Recovery-code blobs re-encode on **every redemption**
+ * (`.../backup-codes/index.mjs:215`). `docs/operations.md` carries the runbook, and
+ * §4 of `docs/SECURITY_DESIGN.md` carries what it does and does not reach.
+ *
+ * Rotation is still not free of consequence, and the runbook says so: better-auth
+ * derives its cookie-signing secret from the *current* version
+ * (`dist/context/create-context.mjs:73`), so promoting a new version signs every live
+ * admin out. That is the correct trade for a key change and is a world away from what
+ * it replaced, which was every authenticator dying with no way back in.
  */
 
 /**
@@ -124,6 +143,102 @@ export function warnIfBreachCheckDisabled(
   if (!adminAuth.breachedPasswordCheck) warn(BREACH_CHECK_DISABLED_WARNING);
 }
 
+/**
+ * The error code better-auth's `haveIBeenPwned` plugin puts in the body of the 400 it
+ * answers a corpus hit with. A code, not the message: the message is prose the vendor
+ * may reword, the code is the contract (its `$ERROR_CODES` entry).
+ */
+export const CORPUS_HIT_CODE = "PASSWORD_COMPROMISED";
+
+/**
+ * The code this shell puts on a refusal caused by the corpus **lookup** failing rather
+ * than by the password. First-party, so callers match on a value this repository owns
+ * rather than on vendor prose.
+ */
+export const BREACH_LOOKUP_FAILED_CODE = "BREACH_CORPUS_UNREACHABLE";
+
+/**
+ * What that refusal says. Written to be read in a CI log by someone whose change had
+ * nothing to do with passwords: the first sentence names the cause, the second denies
+ * the wrong hypothesis outright, and the third is the action.
+ */
+export const BREACH_LOOKUP_FAILED_MESSAGE =
+  "The SEC-1 breach-corpus lookup to api.pwnedpasswords.com did not complete, so this " +
+  "password was refused without ever being compared against the corpus. This is a " +
+  "network failure, not an authentication failure and not a judgement about the " +
+  "credential: the check fails closed by design. Restore egress to " +
+  "api.pwnedpasswords.com and retry, or set QCMS_ADMIN_PASSWORD_BREACH_CHECK=false for " +
+  "a deployment that has none (docs/operations.md).";
+
+/**
+ * Turn the vendor's opaque 500 into a refusal that names the network (issue #436).
+ *
+ * `haveIBeenPwned` collapses every non-corpus-hit outcome of its lookup into
+ * `APIError("INTERNAL_SERVER_ERROR", { message: "Failed to check password. ..." })`.
+ * That is a fine failure and the *right* one - refusing a password it could not check
+ * is fail-closed, which stays - but as a report it is a dead end: what an operator (or
+ * the `full-stack-e2e` log of a pull request about something else entirely) sees is a
+ * 500 out of sign-up, and the first hypothesis that reading produces is that
+ * authentication is broken.
+ *
+ * So the translation is by **status and code, never by message text**. The vendor's
+ * wrapper around `ctx.password.hash` does exactly three things - SHA-1 the password,
+ * fetch the range, compare the suffix - so an `APIError` out of it that is not the
+ * corpus-hit 400 can only be the lookup failing. A plain `Error` (the underlying
+ * hash itself failing) is not an `APIError` and passes through untouched, so nothing
+ * unrelated gets blamed on the network.
+ *
+ * The status becomes 503: an upstream this process depends on was unavailable, which
+ * is what "Service Unavailable" means and what "Internal Server Error" does not.
+ */
+export function explainBreachLookupFailure(error: unknown): unknown {
+  if (!isAPIError(error)) return error;
+  if (error.status !== "INTERNAL_SERVER_ERROR") return error;
+  const code: unknown = (error.body as { code?: unknown } | undefined)?.code;
+  if (code === CORPUS_HIT_CODE) return error;
+  return new APIError("SERVICE_UNAVAILABLE", {
+    message: BREACH_LOOKUP_FAILED_MESSAGE,
+    code: BREACH_LOOKUP_FAILED_CODE,
+  });
+}
+
+/** The `init` argument better-auth hands a plugin, without restating its type. */
+type PluginInitContext = Parameters<NonNullable<BetterAuthPlugin["init"]>>[0];
+
+/**
+ * A first-party plugin that wraps the password hash **after** `haveIBeenPwned` has
+ * wrapped it, so it sees that plugin's refusals and can relabel the network one.
+ *
+ * Order is the whole mechanism and is load-bearing: better-auth runs plugin `init`
+ * hooks in array order and `Object.assign`s each returned context over the running one
+ * (`context/helpers.ts`, `runPluginInit`), so the `hash` this captures is the vendor's
+ * checked hash only while this entry sits *after* `haveIBeenPwned` in `plugins`.
+ * Listed before it, this would wrap the bare hash and see nothing.
+ *
+ * It changes what is reported and nothing about what is enforced: every path that
+ * refused a password before still refuses it, with the same fail-closed behaviour.
+ */
+const breachLookupDiagnostics: BetterAuthPlugin = {
+  id: "qcms-breach-lookup-diagnostics",
+  init(ctx: PluginInitContext) {
+    const checkedHash = ctx.password.hash;
+    return {
+      context: {
+        password: {
+          ...ctx.password,
+          hash: async (password: string): Promise<string> => {
+            try {
+              return await checkedHash(password);
+            } catch (error) {
+              throw explainBreachLookupFailure(error);
+            }
+          },
+        },
+      },
+    };
+  },
+};
+
 /** What {@link createAdminAuth} needs: a database handle and the auth config. */
 export interface AdminAuthInput {
   readonly db: Executor;
@@ -156,6 +271,18 @@ export function createAdminAuth(input: AdminAuthInput) {
         twoFactor: authTwoFactor,
       },
     }),
+    // The **versioned** key set, and `secret` beside it as the legacy fallback
+    // (issue #319). better-auth 1.6.26 resolves these together in
+    // `dist/context/create-context.mjs:69-81`: with `secrets` present it builds a
+    // `SecretConfig` whose current version encrypts, whose whole map decrypts, and
+    // whose `legacySecret` is `secret` - used only for ciphertext that predates the
+    // `$ba$<version>$` envelope. That is what makes rotating this key a rotation
+    // rather than a break: see the header note above.
+    //
+    // `secrets` defaults to one version-1 entry holding exactly `secret`, so a
+    // deployment that has never rotated signs and encrypts with the same value it
+    // always did. Only the stored *format* moves, and only forwards.
+    secrets: adminAuth.secrets.map((entry) => ({ ...entry })),
     secret: adminAuth.secret,
     // The ADMIN app's public origin, not this API's. The browser only ever sees the
     // admin, so that is the origin the cookies belong to and the one better-auth
@@ -233,6 +360,26 @@ export function createAdminAuth(input: AdminAuthInput) {
         // as protected; this is better-auth's default and is restated because
         // flipping it would silently weaken SEC-1.
         skipVerificationOnEnable: false,
+        backupCodeOptions: {
+          // Recovery codes are ciphertext at rest, under the versioned key set above
+          // (issue #319, SEC-7).
+          //
+          // This restates better-auth 1.6.26's own default rather than changing it:
+          // `dist/plugins/two-factor/index.mjs:25-27` builds `backupCodeOptions` as
+          // `{ storeBackupCodes: "encrypted", ...options?.backupCodeOptions }`, so
+          // an instance that passes nothing already encrypts. Verified against the
+          // stored column rather than read off the type, in
+          // `backup-code-storage.integration.test.ts`.
+          //
+          // It is written down for the same reason `skipVerificationOnEnable` is:
+          // this is a security property of the deployment, and an upstream default
+          // flip would otherwise weaken it silently and invisibly. Issue #319 exists
+          // because a reviewer read the *decoder* (`backup-codes/index.mjs:45`,
+          // which does plain-JSON parse when the option is absent) without reading
+          // the caller that supplies it, and concluded the codes sat in plaintext.
+          // Stating the value is what makes that question answerable from this file.
+          storeBackupCodes: "encrypted",
+        },
       }),
       // SEC-1's breach-corpus check (issue #178). NIST SP 800-63B Rev 4 section
       // 3.1.1.2 says a verifier SHALL compare a prospective secret against a list of
@@ -273,6 +420,11 @@ export function createAdminAuth(input: AdminAuthInput) {
       // operator something, rotating a leaked password while the corpus is
       // unreachable mid-incident.
       haveIBeenPwned({ enabled: adminAuth.breachedPasswordCheck }),
+      // Immediately after `haveIBeenPwned`, and only useful there: it wraps whatever
+      // `password.hash` is at its turn, and the vendor's checked hash is what that is
+      // at this position. See the plugin's own note (issue #436). Fail-closed is
+      // untouched; the refusal just stops reading like an authentication failure.
+      breachLookupDiagnostics,
     ],
   });
 }
