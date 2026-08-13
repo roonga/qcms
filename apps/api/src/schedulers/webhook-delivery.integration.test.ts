@@ -351,10 +351,13 @@ describe("exit 2: failure → advancing backoff → dead-letter → redeliver �
     // Fix the receiver, redeliver via the admin endpoint, then run a pass.
     receiver.status.set("/fail", 200);
     receiver.received.length = 0;
-    const redeliverRes = await app.request(`/admin/forms/${formId}/deliveries/${mine!.deliveryId}/redeliver`, {
-      method: "POST",
-      headers: adminHeaders(),
-    });
+    const redeliverRes = await app.request(
+      `/admin/forms/${formId}/deliveries/${mine!.deliveryId}/redeliver`,
+      {
+        method: "POST",
+        headers: adminHeaders(),
+      },
+    );
     expect(redeliverRes.status).toBe(200);
     expect((await redeliverRes.json()) as { status: string }).toMatchObject({ status: "pending" });
 

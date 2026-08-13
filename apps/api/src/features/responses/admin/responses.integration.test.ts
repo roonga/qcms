@@ -508,9 +508,38 @@ describe("erase excludes from all read paths; unflag releases the event (exit cr
     expect(await outboxCount(sessionId)).toBe(1);
   });
 
-  it("404s unflag for a session with no submission", async () => {
-    expect((await post("/forms/frm_unflag_api/responses/ses_no_submission/unflag")).status).toBe(
-      404,
+  /**
+   * Both 404s, kept apart by their codes.
+   *
+   * #305 put the form-scoped session read ahead of the submission read, so an id
+   * that names no session at all now stops at `SESSION_NOT_FOUND` rather than
+   * falling through to `SUBMISSION_NOT_FOUND`. Seeding a real, in-form session that
+   * genuinely has no submission is what keeps the second path covered - asserting
+   * only the status would let either check answer for the other.
+   */
+  it("404s unflag for a real session that has no submission", async () => {
+    const formId = await seedForm("frm_unflag_nosub", [["stp_a", ["q_name"]]]);
+    const sessionId = SessionId.parse("ses_unflag_nosub");
+    await createSession(testDb.db, {
+      sessionId,
+      formId,
+      formVersion: 1,
+      accessMode: "anonymous",
+      expiresAt: new Date(Date.now() + 86_400_000),
+    });
+
+    const res = await post(`/forms/${formId}/responses/${sessionId}/unflag`);
+    expect(res.status).toBe(404);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe(
+      "SUBMISSION_NOT_FOUND",
+    );
+  });
+
+  it("404s unflag for a session id that names nothing", async () => {
+    const res = await post("/forms/frm_unflag_api/responses/ses_no_submission/unflag");
+    expect(res.status).toBe(404);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe(
+      "SESSION_NOT_FOUND",
     );
   });
 });
