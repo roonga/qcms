@@ -42,9 +42,7 @@ function draftFixture(): FormDefinition {
     formId: "frm_quote",
     defaultLocale: "en",
     title: { en: "Quote" },
-    steps: [
-      { stepId: "stp_a", title: { en: "A" }, items: [{ questionId: "q_a", version: 1 }] },
-    ],
+    steps: [{ stepId: "stp_a", title: { en: "A" }, items: [{ questionId: "q_a", version: 1 }] }],
     rules: [],
   });
   if (!parsed.ok) throw new Error("fixture draft invalid");
@@ -73,7 +71,7 @@ describe("the assist tool allowlist", () => {
 
   it("offers the provider nothing beyond the allowlist", () => {
     const offered = Object.keys(assistToolSet(contextFixture("hi"), createProposalState()));
-    expect(offered.sort()).toEqual([...ASSIST_TOOL_NAMES].sort());
+    expect([...offered].sort()).toEqual([...ASSIST_TOOL_NAMES].sort());
     for (const forbidden of FORBIDDEN) {
       expect(offered).not.toContain(forbidden);
     }
@@ -102,7 +100,9 @@ describe("the assist tool allowlist", () => {
 });
 
 describe("a scripted rogue model", () => {
-  async function runRogue(script: string): Promise<{ events: AssistEvent[]; lines: Record<string, unknown>[] }> {
+  async function runRogue(
+    script: string,
+  ): Promise<{ events: AssistEvent[]; lines: Record<string, unknown>[] }> {
     const { logger, lines } = recordingLogger();
     const assistant = aiSdkDraftAssistant({
       model: fakeAssistantModel(),

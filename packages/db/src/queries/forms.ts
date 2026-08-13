@@ -107,16 +107,26 @@ export async function createForm(
  */
 export async function upsertDraft(
   exec: Executor,
-  input: { formId: FormId; definition: FormDefinition },
+  input: { formId: FormId; definition: FormDefinition; agentAssisted?: boolean },
 ): Promise<FormDraftRow> {
+  const agentAssisted = input.agentAssisted ?? false;
   const [row] = await exec
     .insert(formDrafts)
-    .values({ formId: input.formId, definition: input.definition })
+    .values({ formId: input.formId, definition: input.definition, agentAssisted })
     .onConflictDoUpdate({
       target: formDrafts.formId,
       // Use the database clock (like the insert's `defaultNow()`) so the
       // timestamp advances monotonically regardless of client/server skew.
-      set: { definition: input.definition, updatedAt: sql`now()` },
+      //
+      // `agent_assisted` is sticky (041): once a draft has accepted an
+      // agent-assisted proposal, an ordinary later save must not quietly erase
+      // that provenance before the human publishes. Discarding the draft clears
+      // it, because that removes the row.
+      set: {
+        definition: input.definition,
+        agentAssisted: sql`${formDrafts.agentAssisted} or ${agentAssisted}`,
+        updatedAt: sql`now()`,
+      },
     })
     .returning();
   return row!;

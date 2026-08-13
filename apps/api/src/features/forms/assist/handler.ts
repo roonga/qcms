@@ -23,8 +23,7 @@ import type { AssistContext, AssistEvent, AssistTurn, LibraryEntry } from "./typ
 
 const fail = {
   formNotFound: (): ApiError => new ApiError("NOT_FOUND", 404, "No such form"),
-  noDraft: (): ApiError =>
-    new ApiError("NOT_FOUND", 404, "This form has no draft to work on yet"),
+  noDraft: (): ApiError => new ApiError("NOT_FOUND", 404, "This form has no draft to work on yet"),
   invalidId: (): ApiError => new ApiError("INVALID_ID", 400, "Malformed form id"),
   staleDraft: (): ApiError =>
     new ApiError(

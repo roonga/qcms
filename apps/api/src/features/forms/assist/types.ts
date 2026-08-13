@@ -51,9 +51,7 @@ export interface QuestionLibraryPort {
  * get back the same `PublishError[]` the builder's live validation shows. There
  * is no "publish" counterpart, by construction.
  */
-export type ValidateDraftPort = (
-  definition: FormDefinition,
-) => Promise<readonly PublishIssue[]>;
+export type ValidateDraftPort = (definition: FormDefinition) => Promise<readonly PublishIssue[]>;
 
 /**
  * Everything one assist turn is allowed to touch.
@@ -93,11 +91,7 @@ export interface AssistProposal {
 
 /** Machine-readable failure codes the UI renders as its error states (042 wireframe). */
 export type AssistErrorCode =
-  | "PROVIDER_ERROR"
-  | "NO_PROPOSAL"
-  | "REFUSED"
-  | "LENGTH"
-  | "STEP_LIMIT";
+  "PROVIDER_ERROR" | "NO_PROPOSAL" | "REFUSED" | "LENGTH" | "STEP_LIMIT";
 
 /**
  * The stream an assist turn produces. The SSE relay writes one event per item;
