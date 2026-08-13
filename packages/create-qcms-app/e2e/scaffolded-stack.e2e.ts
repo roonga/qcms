@@ -98,7 +98,11 @@ describe("a scaffolded QCMS deployment", () => {
     adminSession = String(signIn["token"]);
   }, 60_000);
 
-  it("serves both applications on the ports the scaffold published", async () => {
+  // Not "on the ports the scaffold published": that is true on CI and false in the
+  // dev container, where the harness reaches the stack over Compose's own network
+  // because a host-loopback publish is unreachable from in here. What is asserted in
+  // both environments is that the two applications are up and serving.
+  it("serves both applications", async () => {
     expect((await fetch(`${PORTAL}/`)).ok).toBe(true);
     expect((await fetch(`${ADMIN}/healthz`)).ok).toBe(true);
   });
