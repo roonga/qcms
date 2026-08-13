@@ -85,7 +85,11 @@ function userText(prompt: readonly PromptMessage[]): string {
 function wordAfter(text: string, directive: string): string | undefined {
   const at = text.lastIndexOf(directive);
   if (at < 0) return undefined;
-  const word = text.slice(at + directive.length).trim().split(/\s/u)[0] ?? "";
+  const word =
+    text
+      .slice(at + directive.length)
+      .trim()
+      .split(/\s/u)[0] ?? "";
   return word === "" ? undefined : word;
 }
 

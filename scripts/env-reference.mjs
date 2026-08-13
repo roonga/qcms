@@ -482,6 +482,61 @@ export const ENV_REFERENCE = [
     description: "Submit attempts one session may make per window.",
   },
   {
+    name: "QCMS_FLAG_AGENT_AUTHORING",
+    process: "api",
+    requirement: "optional",
+    fallback: "none",
+    description:
+      "Agent-assisted authoring provider (ADR-25, task 041): `none`, `anthropic`, `openai`, `google`, `openai-compatible`, or `fake` (the deterministic test provider). `none` leaves the assist routes unmounted entirely, so a request to them 404s and no chat panel renders. Set the same value on the `admin` service. Full guide: `docs/agent-authoring.md`.",
+  },
+  {
+    name: "QCMS_AGENT_MODEL",
+    process: "api",
+    requirement: "conditional",
+    fallback: "",
+    description:
+      "The model provider's own model id, never interpreted here. Required when `QCMS_FLAG_AGENT_AUTHORING` names a real provider, ignored otherwise.",
+  },
+  {
+    name: "QCMS_AGENT_API_KEY",
+    process: "api",
+    requirement: "conditional",
+    fallback: "",
+    secret: true,
+    description:
+      "Model provider key (SEC-7 inventory). Required when `QCMS_FLAG_AGENT_AUTHORING` names a real provider, **except** when `QCMS_AGENT_BASE_URL` points at a local endpoint (loopback, a private-range address, `host.docker.internal`, or a `.local`/`.localhost`/`.internal` hostname), because a locally hosted model has no key to give. Never logged and never echoed in a boot error.",
+  },
+  {
+    name: "QCMS_AGENT_BASE_URL",
+    process: "api",
+    requirement: "conditional",
+    fallback: "",
+    description:
+      "Model endpoint override. **Required** for `QCMS_FLAG_AGENT_AUTHORING=openai-compatible`, which is how a locally hosted model is configured (Ollama, vLLM, LM Studio, llama.cpp-server); optional for the hosted providers, where it names a gateway or proxy.",
+  },
+  {
+    name: "QCMS_AGENT_MAX_STEPS",
+    process: "api",
+    requirement: "optional",
+    fallback: "8",
+    description: "Hard ceiling on tool-loop steps in one agent turn (task 041).",
+  },
+  {
+    name: "QCMS_RL_AGENT_ASSIST_WINDOW_MS",
+    process: "api",
+    requirement: "optional",
+    fallback: "60000",
+    description:
+      "Rate-limit window for `POST /admin/forms/{id}/draft/assist`, keyed by admin principal.",
+  },
+  {
+    name: "QCMS_RL_AGENT_ASSIST_MAX",
+    process: "api",
+    requirement: "optional",
+    fallback: "10",
+    description: "Agent turns one administrator may request per window.",
+  },
+  {
     name: "OTEL_EXPORTER_OTLP_ENDPOINT",
     process: "api",
     requirement: "optional",
@@ -661,6 +716,14 @@ export const ENV_REFERENCE = [
   },
 
   // --- Admin (BFF) -----------------------------------------------------------
+  {
+    name: "QCMS_FLAG_AGENT_AUTHORING",
+    process: "admin",
+    requirement: "optional",
+    fallback: "none",
+    description:
+      "Whether the agent-authoring chat panel renders in the form builder (ADR-25, task 041). The admin reads only the *effect* of this flag, never its value in the browser, and holds no provider key: the key lives on the `api` service. Keep it in step with the API's value, or the panel appears against a surface that is not mounted.",
+  },
   {
     name: "QCMS_API_BASE_URL",
     process: "admin",
