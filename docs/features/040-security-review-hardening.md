@@ -1,7 +1,7 @@
 # 040 - Security review and hardening
 
 **Stage:** 8b · **Execution order: after 036, before 038** (numbered 040 to avoid renumbering; the launch gate depends on it) · **Scope:** whole product
-**Depends on:** 036 (and 037 if in scope for launch)
+**Depends on:** 036 (and 037 if in scope for launch; 041's assist surface is in scope only where the flag is on)
 **References:** **`SECURITY_DESIGN.md` (SEC-1…13)** - this task executes its assurance plan §10
 
 ## Context
@@ -17,6 +17,7 @@ The structured pre-launch security pass. Most controls were built inside feature
 - **Least-privilege DB verification:** app role cannot DDL; reporting role is read-only (write attempt fails); erasure door scoped (016's test re-run in the composed stack); migration-role split per 036 docs.
 - **Dependency + image pass:** `pnpm audit`/osv-scanner clean or triaged (documented exceptions with expiry dates); image scan (trivy) on the three production images; base digests pinned.
 - **ASVS-oriented checklist:** an OWASP ASVS L2 pass over the API surface (auth, session, access control, validation, error handling chapters), recorded as `docs/security-review-<date>.md` with findings → fixed or ticketed with severity. Injection notes: Drizzle parameterization asserted (no raw SQL string interpolation - lint/grep check); JSONB answer values never interpolated into queries; CSV export formula-injection guard (`=`, `+`, `-`, `@` prefixed cells escaped - add to 023's export if missing).
+- **Agent-assist surface (041), when the flag is on in any tested composition.** Skipped entirely for a `QCMS_FLAG_AGENT_AUTHORING=none` deployment, which is the default and has no assist routes at all. When it is on, the checklist adds: **provider-key handling** (`QCMS_AGENT_API_KEY` is a SEC-7 inventory row - assert it never appears in a boot error, a log line, a span attribute, or an API response, and that a key-less local endpoint is the only case config validation lets through without it); an **egress note** (the deployment now makes outbound calls to a model provider from the API process, or to a local runtime when `QCMS_AGENT_BASE_URL` is a local address - record the destination in the review doc, since it is new egress an operator's network policy has to permit and a reviewer has to see); and the **allowlist tests** (`apps/api/src/features/forms/assist/tools.test.ts` plus the HTTP-level refusal and PII-boundary assertions in `assist.integration.test.ts` are part of the matrix suite's evidence, not incidental unit tests: they are what shows a scripted hostile model cannot publish, erase, mint links, configure webhooks or read a respondent answer). Confirm the assist route is absent from the generated OpenAPI documents in a default (flag-off) build.
 - **Repo security posture:** `SECURITY.md` (private disclosure via GitHub advisories, response commitment, supported versions); branch protection + required CI verified; npm 2FA + provenance publishing configured and test-published to a scoped dry run.
 - **Fix window:** high-severity findings fixed in this task; medium/low ticketed with owners; the review doc is the evidence 038's pre-flight cites.
 
