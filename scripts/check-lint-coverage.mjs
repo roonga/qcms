@@ -115,7 +115,7 @@ export const KNOWN_UNLINTED = [
   },
   {
     path: "eslint.config.js",
-    why: "Repo-root configuration, outside every package, so no package's eslint run reaches it. The root half of issue #257.",
+    why: "Repo-root configuration, outside every package, so no package's eslint run reaches it: the root half of issue #257, and the root files of issue #64 item 2 ('no root lint target exists').",
   },
   { path: "vitest.config.ts", why: "Repo-root configuration: same as eslint.config.js above." },
   { path: "playwright.config.ts", why: "Repo-root configuration: same as eslint.config.js above." },
@@ -125,15 +125,15 @@ export const KNOWN_UNLINTED = [
   },
   {
     path: "packages/db/drizzle.config.ts",
-    why: "Package-root tooling config, outside @qcms/db's `eslint src` scope. Coverable, but widening a package's lint scope surfaces pre-existing errors that belong to issue #257 rather than to #413.",
+    why: "Package-root tooling config, outside @qcms/db's `eslint src` scope. This one is named in issue #64 item 2, which records why it is not a one-line widening: the file is outside the TS project as well as the lint scope, so covering it needs a per-package tsconfig `include` or `allowDefaultProject` decision, and @qcms/db is publishable so the change wants its own changeset.",
   },
   {
     path: "packages/ui/vitest.config.ts",
-    why: "Package-root tooling config, outside @qcms/ui's `eslint src tools` scope (same reasoning as the entry above).",
+    why: "Package-root tooling config, outside @qcms/ui's `eslint src tools` scope. Named in issue #64 item 2 alongside the entry above, and blocked on the same tsconfig decision plus a changeset (@qcms/ui is publishable).",
   },
   {
     path: "packages/ui/vitest.setup.ts",
-    why: "Package-root tooling config, outside @qcms/ui's `eslint src tools` scope (same reasoning as the entry above).",
+    why: "Package-root tooling config, outside @qcms/ui's `eslint src tools` scope. Named in issue #64 item 2 alongside the entry above, and blocked on the same tsconfig decision plus a changeset (@qcms/ui is publishable).",
   },
 ];
 

@@ -115,6 +115,13 @@ jobs:
       # deliberate vertical-slice repetition (R5); fails on real regression.
       - run: pnpm check:duplication
 
+      # Every tracked source file must be inside some package's lint scope
+      # (issue #413, item 1 of #64). ESLint only reads the paths a lint script
+      # hands it, so a file outside all of them made `pnpm lint` report green
+      # over a file it never opened - silence, not a red. Three instances
+      # survived that way (#257, #387 item 21, #413).
+      - run: pnpm check:lint-coverage
+
       - run: pnpm build
 
   # The 027 consumer-level e2e suite, as its OWN job for signal clarity: when
