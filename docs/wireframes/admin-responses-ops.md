@@ -37,7 +37,7 @@ no responses · filtered-empty · flagged present · detail submitted · detail 
 
 ## Interactions
 
-- List/detail → `GET /admin/forms/:id/responses[/:sessionId]` (023) · export → `GET .../export?format=&version=&from=&to=` (023, streamed) · erase → `POST /admin/sessions/:sessionId/erase` (023) · unflag → `POST /admin/responses/:sessionId/unflag` (023) · webhook CRUD → 024 · redeliver → `POST .../redeliver` (025).
+- List/detail → `GET /admin/forms/:id/responses[/:sessionId]` (023) · export → `GET .../export?format=&version=&from=&to=` (023, streamed) · erase → `POST /admin/forms/:id/responses/:sessionId/erase` (023, form-scoped by #305) · unflag → `POST /admin/forms/:id/responses/:sessionId/unflag` (023, form-scoped by #305) · webhook CRUD → 024 · redeliver → `POST .../redeliver` (025).
 - Post-erasure the session must vanish from list/detail/export and appear in the log (035 exit criterion 2).
 
 ## A11y notes

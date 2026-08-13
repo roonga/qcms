@@ -308,7 +308,9 @@ Erasure is whole-session and is the **only** DELETE door in the system (ADR-17 a
 amended). Answers are append-only everywhere else, so there is no partial-erasure
 path to reach for and no UPDATE to fall back on.
 
-1. Erase: `POST /sessions/{sessionId}/erase` on the admin API, with a reason. It is
+1. Erase: `POST /forms/{formId}/responses/{sessionId}/erase` on the admin API, with a
+   reason. The form is required and is enforced by the query, so naming the wrong one
+   is refused exactly as an unknown session is (issue #305). It is
    **idempotent** and returns the tombstone, so a retry after a timeout is safe and
    does not need a "did it work" check first.
 2. The tombstone is the compliance evidence, and it is what remains: `GET /erasures`

@@ -283,7 +283,9 @@ describe("listTombstones", () => {
     });
     await eraseSession(testDb.db, formId, a, "subject_request");
     await eraseSession(testDb.db, formId, b, "policy");
-    await eraseSession(testDb.db, formId, c, "subject_request");
+    // `c` belongs to the other form, so it is erased under that form (#305):
+    // erasure is form-scoped, and naming the wrong one is refused.
+    await eraseSession(testDb.db, other, c, "subject_request");
 
     const scoped = await listTombstones(testDb.db, { formId });
     expect(scoped.map((t) => t.sessionId).sort()).toEqual([a, b].sort());
