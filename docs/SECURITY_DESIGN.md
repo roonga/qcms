@@ -130,12 +130,22 @@ The service token authorizes no action by itself - it only opens the channel (SE
 | Respondent session token | HMAC compact (010) | session TTL | not stored (stateless + session row) | key: `QCMS_SESSION_KEYS` list |
 | Secure link | HMAC compact (010) | link expiry | state row (`secure_links`) | key: `QCMS_LINK_KEYS` list |
 | Internal service token | random ≥32B | until rotated | config only | overlap via accepted-list |
-| Webhook secret | random ≥32B | until rotated | **encrypted at rest** (SEC-8) | dual-signing window |
+| Webhook secret | `whsec_` + 32B random (base64url) | until re-issued | **encrypted at rest** (SEC-8) | re-issue per webhook (admin **Rotate secret**); **hard cutover, no overlap** - see the note below |
 | `/api/v1` PAT *(reserved)* | `qcms_pat_` random | ≤ 90d default | hashed | revoke + reissue |
 | App encryption key | `QCMS_APP_KEY` (≥32 chars) | set once | config only | **no in-place rotation**; recoverable by re-issuing webhook secrets - see the note below |
 | LLM provider key *(flag-gated, ADR-25)* | `QCMS_AGENT_API_KEY` | until rotated | config only; required iff `QCMS_FLAG_AGENT_AUTHORING` ≠ `none` | rotate at provider + config |
 
 All key-list envs accept multiple keys: first entry signs, all verify (010's rotation model generalized). Rotation runbooks live in `docs/operations.md` (036).
+
+**Every cell in the Rotation column above is verified against the code, not against intent (2026-08-13).** That sentence is here because it was not previously true: this table reads as a specification of what exists, and two of its cells described capabilities that were designed and never built. Both are now corrected in place, and a cell that names a capability should be treated as a claim a reader may check. What was verified this pass, so task 040 need not re-derive it: `QCMS_SESSION_KEYS`, `QCMS_LINK_KEYS` and `QCMS_INTERNAL_TOKEN` are genuinely accepted lists (`apps/api/src/config.ts:723-725`, all three through `parseKeyList`, first signs and all verify); the admin password row's "sessions invalidated" is real (`apps/api/src/features/auth/route.ts:73`, `POST /change-password` with `revokeOtherSessions`); and the `/api/v1` PAT row is marked *reserved* because that surface is unbuilt, which is a deliberate placeholder rather than a claim.
+
+**The webhook secret has no dual-signing window, and this row previously said it did (issue #453).**
+
+A delivery carries exactly one signature. `signWebhookBody` (`apps/api/src/features/webhooks/signing.ts:36-49`) takes a single `secret` and returns a single `v1=<hex>` value, and the wire format is one `X-QCMS-Signature` header. There is no overlap period in which either the old or the new secret verifies, so re-issuing a webhook's secret is a **hard cutover**: every delivery to that endpoint fails at the consumer until the consumer is updated. The `v1=` prefix is a scheme version, not a key id, and so cannot be used to distinguish two live secrets.
+
+What does exist, and is worth stating because it makes the cutover recoverable rather than lossy: the admin's per-webhook **Rotate secret** action mints a fresh secret and encrypts it under the current app key **without reading the old one** (`apps/api/src/features/webhooks/handler.ts:186-192`), and a redelivery picks up the endpoint's *current* secret rather than one snapshotted at enqueue, because the due-claim query joins `webhooks` live and selects `secretEncrypted` at claim time (`packages/db/src/queries/deliveries.ts:255-265`). So the recovery sequence is: re-issue, hand the consumer the new secret, then redeliver what dead-lettered in between. That ordering is licensed by a data-freshness property of the claim query, which is checkable rather than assumed.
+
+Building the overlap window is a product change, not a documentation one, and is tracked separately. This paragraph records what ships today.
 
 **`QCMS_ADMIN_AUTH_SECRET` is a special case, and this paragraph replaces what task 056 recorded here, in both directions (issue #319).**
 
