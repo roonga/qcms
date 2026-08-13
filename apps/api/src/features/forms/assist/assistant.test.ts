@@ -13,7 +13,12 @@ import { parseFormDefinition, parseQuestionDefinition, type FormDefinition } fro
 import { createNullLogger } from "../../../logger.js";
 import { aiSdkDraftAssistant } from "./assistant.js";
 import { fakeAssistantModel } from "./fake-model.js";
-import type { AssistContext, AssistEvent, LibraryEntry } from "./types.js";
+import {
+  ASSIST_ERROR_CODES,
+  type AssistContext,
+  type AssistEvent,
+  type LibraryEntry,
+} from "./types.js";
 
 function questionFixture(id: string, label: string) {
   const parsed = parseQuestionDefinition({
@@ -149,5 +154,79 @@ describe("draft assistant tool loop (fake provider)", () => {
     const { ctx } = contextFor("#qcms-fake:no-proposal hello");
     const events = await collect(ctx);
     expect(events.find((e) => e.type === "error")).toMatchObject({ code: "NO_PROPOSAL" });
+  });
+});
+
+/**
+ * Every declared error code, and the scripted scenario that produces it.
+ *
+ * This table is the fix for the class of defect `STEP_LIMIT` was an instance of:
+ * a code that is declared, has copy rendered for it, and can never be emitted.
+ * The two assertions below are deliberately different shapes, because a table
+ * like this is only as good as what happens when it goes stale:
+ *
+ *  - every row must actually produce its code, so a code that stops being
+ *    emitted fails here rather than silently becoming decoration again;
+ *  - the rows must cover `ASSIST_ERROR_CODES` exactly, so adding a sixth code
+ *    without a scenario that reaches it fails too.
+ */
+const ERROR_SCENARIOS: readonly (readonly [string, string])[] = [
+  ["provider-error", "PROVIDER_ERROR"],
+  ["no-proposal", "NO_PROPOSAL"],
+  ["refusal", "REFUSED"],
+  ["length", "LENGTH"],
+  ["step-limit", "STEP_LIMIT"],
+];
+
+describe("assist error codes are all reachable", () => {
+  it.each(ERROR_SCENARIOS)("script %s emits %s", async (script, expected) => {
+    // A small ceiling so the step-limit script exhausts quickly; every other
+    // script finishes in one step and is unaffected by it.
+    const { ctx } = contextFor(`#qcms-fake:${script} go`, { maxSteps: 3 });
+    const events = await collect(ctx);
+
+    const error = events.find((e) => e.type === "error");
+    expect(
+      error,
+      `script ${script} produced no error event: ${JSON.stringify(events)}`,
+    ).toBeDefined();
+    if (error?.type !== "error") throw new Error("unreachable");
+    expect(error.code).toBe(expected);
+    // The message is what an operator reads, so an empty one is a defect even
+    // when the code is right.
+    expect(error.message.length).toBeGreaterThan(0);
+    // No code may arrive with a proposal attached: an error turn is terminal.
+    expect(events.filter((e) => e.type === "proposal")).toHaveLength(0);
+  });
+
+  it("covers every declared code, so a new code cannot be unreachable", () => {
+    expect([...ERROR_SCENARIOS.map(([, code]) => code)].sort()).toEqual(
+      [...ASSIST_ERROR_CODES].sort(),
+    );
+  });
+
+  it("distinguishes step exhaustion from a model that simply did not answer", async () => {
+    // The distinction this pins is the reason STEP_LIMIT exists at all: both of
+    // these turns end with no proposal, and they are different problems with
+    // different fixes. If the two ever collapse back into one code, this fails.
+    const exhausted = await collect(contextFor("#qcms-fake:step-limit go", { maxSteps: 3 }).ctx);
+    const silent = await collect(contextFor("#qcms-fake:no-proposal go", { maxSteps: 3 }).ctx);
+
+    const codeOf = (events: AssistEvent[]): string | undefined => {
+      const error = events.find((e) => e.type === "error");
+      return error?.type === "error" ? error.code : undefined;
+    };
+    expect(codeOf(exhausted)).toBe("STEP_LIMIT");
+    expect(codeOf(silent)).toBe("NO_PROPOSAL");
+    expect(codeOf(exhausted)).not.toBe(codeOf(silent));
+  });
+
+  it("reports the step count it actually reached when the ceiling cuts it off", async () => {
+    const events = await collect(contextFor("#qcms-fake:step-limit go", { maxSteps: 3 }).ctx);
+    const usage = events.find((e) => e.type === "usage");
+    if (usage?.type !== "usage") throw new Error("expected a usage event");
+    // The ceiling was reached, which is what makes STEP_LIMIT the truthful code
+    // rather than a guess.
+    expect(usage.steps).toBe(3);
   });
 });
