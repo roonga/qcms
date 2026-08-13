@@ -102,9 +102,13 @@ better-auth instance:
 - It builds first (`pnpm --filter qcms-api... build`) because the entry is compiled
   (`apps/api/dist/create-admin.js`), which is what makes it available inside the API
   container image.
-- In a Compose deployment, run it there: `docker compose exec -e QCMS_ADMIN_EMAIL=... -e
-  QCMS_ADMIN_PASSWORD=... api node dist/create-admin.js`. The env the service already
-  carries supplies the rest.
+- In a Compose deployment, run it there, with the values in the environment of the
+  `docker` command and the variables named on its command line with no value attached:
+  `QCMS_ADMIN_EMAIL=you@example.test QCMS_ADMIN_PASSWORD='a long passphrase' docker
+  compose exec -e QCMS_ADMIN_EMAIL -e QCMS_ADMIN_PASSWORD api node dist/create-admin.js`.
+  The `-e NAME=value` form would defeat the bullet above one process up, by putting the
+  password in the docker CLI's argv (issue #440). The env the service already carries
+  supplies the rest.
 
 On first sign-in you are required to enroll a TOTP factor and are shown recovery codes
 once.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { classifyBootstrap, generatePassword } from "./compose-admin.mjs";
+import { buildAdminExec, classifyBootstrap, generatePassword } from "./compose-admin.mjs";
 
 /**
  * The one coupling in `compose-admin.mjs` that reaches into another module's prose,
@@ -73,5 +73,79 @@ describe("generatePassword", () => {
   it("is different every time", () => {
     const seen = new Set(Array.from({ length: 50 }, () => generatePassword("e2e-")));
     expect(seen.size).toBe(50);
+  });
+});
+
+/**
+ * The control `create-admin.ts` documents, checked one process further up than that
+ * file can check it (issue #440).
+ *
+ * `create-admin` never reads a credential from its own argv. That was true and it
+ * was also not the whole path: the harness reached it through `docker compose exec
+ * --env QCMS_ADMIN_PASSWORD=<value>`, which put the password in the **docker CLI's**
+ * argv on the host, where `/proc/<pid>/cmdline` is world-readable. A comment is a
+ * check that cannot fail, so the property is asserted here instead.
+ *
+ * Both halves are asserted together on purpose. "The password is not in argv" is
+ * trivially satisfiable by not passing the password at all, and a refactor that did
+ * that would break the bootstrap while leaving a green test behind; every case below
+ * that looks for the absence is paired with one that finds the value where the
+ * mechanism is supposed to deliver it.
+ *
+ * The password below is an obvious fixture literal and never a generated one, so
+ * nothing real is ever in a test name or a failure diff (SEC-8).
+ */
+describe("buildAdminExec", () => {
+  const CREDENTIALS = {
+    email: "first.admin@example.test",
+    password: "fixture-not-a-real-password",
+  };
+  const COMPOSE = ["compose", "--project-name", "qcms-fixture", "--file", "docker-compose.yml"];
+
+  function build() {
+    return buildAdminExec({
+      compose: COMPOSE,
+      credentials: CREDENTIALS,
+      environment: { PATH: "/usr/bin", QCMS_PORT_SEAT: "5" },
+    });
+  }
+
+  it("keeps the password out of the docker CLI's argv", () => {
+    const { argv } = build();
+    expect(argv.some((argument) => argument.includes(CREDENTIALS.password))).toBe(false);
+  });
+
+  it("still delivers the password, through the environment the docker CLI is given", () => {
+    // The other half of the case above: absence in argv only counts as a fix if the
+    // value is still arriving somewhere.
+    expect(build().environment.QCMS_ADMIN_PASSWORD).toBe(CREDENTIALS.password);
+  });
+
+  it("names the variables on the command line with no value attached, which is what makes docker read them from its environment", () => {
+    const { argv } = build();
+    expect(argv).toContain("QCMS_ADMIN_PASSWORD");
+    expect(argv).toContain("QCMS_ADMIN_EMAIL");
+    expect(argv.some((argument) => argument.includes("QCMS_ADMIN_PASSWORD="))).toBe(false);
+    expect(argv.some((argument) => argument.includes("QCMS_ADMIN_EMAIL="))).toBe(false);
+  });
+
+  it("keeps the email out of argv too, and passes it the same way", () => {
+    const { argv, environment } = build();
+    expect(argv.some((argument) => argument.includes(CREDENTIALS.email))).toBe(false);
+    expect(environment.QCMS_ADMIN_EMAIL).toBe(CREDENTIALS.email);
+  });
+
+  it("leaves the environment it was handed intact", () => {
+    // The credentials are added to the docker CLI's environment, not substituted for
+    // it: that environment carries the seat's ports and the compose project's own
+    // values, and an exec without them addresses a different stack.
+    expect(build().environment).toMatchObject({ PATH: "/usr/bin", QCMS_PORT_SEAT: "5" });
+  });
+
+  it("execs the compiled entry in the api service, behind the caller's compose prefix", () => {
+    const { argv } = build();
+    expect(argv.slice(0, COMPOSE.length)).toEqual(COMPOSE);
+    expect(argv[COMPOSE.length]).toBe("exec");
+    expect(argv.slice(-3)).toEqual(["api", "node", "dist/create-admin.js"]);
   });
 });

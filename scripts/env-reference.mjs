@@ -478,7 +478,7 @@ export const ENV_REFERENCE = [
     fallback: "",
     secret: true,
     description:
-      "First-run bootstrap only, alongside `QCMS_ADMIN_EMAIL`. Pass it per-command (`docker compose exec --env`), never in the `.env` file.",
+      "First-run bootstrap only, alongside `QCMS_ADMIN_EMAIL`. Pass it per-command, never in the `.env` file. Put the value in the environment of the command you run and name the variable with no value attached (`docker compose exec --env QCMS_ADMIN_PASSWORD ...`): `--env QCMS_ADMIN_PASSWORD=<value>` would place the password in the docker CLI's own argv, which is world-readable in a `ps` listing (issue #440).",
   },
   {
     name: "QCMS_ADMIN_NAME",

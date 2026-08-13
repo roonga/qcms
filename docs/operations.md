@@ -148,7 +148,7 @@ Validated at boot by `apps/api/src/config.ts`, which collects every problem and 
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | optional | (none) | OTLP collector endpoint (ADR-34). Unset is the default and a hard no-op: no SDK starts and no span is produced. Setting it turns on tracing and adds `trace_id`/`span_id` to every log line. |
 | `OTEL_SERVICE_NAME` | optional | `qcms-api` | Service name reported on exported spans. Read only when tracing is on. |
 | `QCMS_ADMIN_EMAIL` | conditional | - | First-run bootstrap only. Read by `node dist/create-admin.js` to create the first administrator; never read by the serving process. |
-| `QCMS_ADMIN_PASSWORD` (secret) | conditional | - | First-run bootstrap only, alongside `QCMS_ADMIN_EMAIL`. Pass it per-command (`docker compose exec --env`), never in the `.env` file. |
+| `QCMS_ADMIN_PASSWORD` (secret) | conditional | - | First-run bootstrap only, alongside `QCMS_ADMIN_EMAIL`. Pass it per-command, never in the `.env` file. Put the value in the environment of the command you run and name the variable with no value attached (`docker compose exec --env QCMS_ADMIN_PASSWORD ...`): `--env QCMS_ADMIN_PASSWORD=<value>` would place the password in the docker CLI's own argv, which is world-readable in a `ps` listing (issue #440). |
 | `QCMS_ADMIN_NAME` | optional | `the email local part` | Display name for the bootstrapped administrator. |
 
 #### Portal BFF (`qcms-portal`)
