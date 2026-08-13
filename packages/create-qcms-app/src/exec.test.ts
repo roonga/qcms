@@ -90,20 +90,23 @@ describe("resolvePackageManager", () => {
     expect(resolved.command.startsWith("/")).toBe(true);
   });
 
-  it("refuses npm_execpath when it names a different manager", () => {
-    // `pnpm create qcms-app` sets npm_execpath to pnpm's entry point. Choosing npm in
-    // that same invocation must not silently install with pnpm.
+  it("refuses npm_execpath when it does not name the chosen manager", () => {
+    // The guard is a basename comparison, so what it must reject is an entry point
+    // belonging to some other tool. `npm` was the natural counter-example until the
+    // Code Owner's #449 ruling narrowed PACKAGE_MANAGERS to pnpm alone, so the case
+    // is exercised with an npm entry point against the pnpm choice instead: same
+    // mismatch, same branch, and it stays compilable if the list ever grows back.
     //
-    // Which of the two legal outcomes happens depends on whether the machine running
-    // the suite has npm installed, so both are accepted and the forbidden behaviour
-    // is what is asserted in each: never pnpm's entry point under this Node binary.
+    // Which of the two legal outcomes happens depends on whether this machine has a
+    // pnpm shim in one of the probed directories, so both are accepted and the
+    // forbidden behaviour is what each asserts: never the foreign entry point.
     try {
-      const resolved = resolvePackageManager("npm", { npm_execpath: "/somewhere/pnpm.cjs" });
+      const resolved = resolvePackageManager("pnpm", { npm_execpath: "/somewhere/npm-cli.js" });
       expect(resolved.leadingArguments).toStrictEqual([]);
-      expect(resolved.command).toContain("npm");
+      expect(resolved.command).toContain("pnpm");
     } catch (error) {
       expect(error).toBeInstanceOf(ProgramNotFound);
-      if (error instanceof ProgramNotFound) expect(error.message).not.toContain("pnpm.cjs");
+      if (error instanceof ProgramNotFound) expect(error.message).not.toContain("npm-cli.js");
     }
   });
 });
