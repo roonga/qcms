@@ -2,7 +2,12 @@ import { countAdminUsers } from "@qcms/db";
 import type { Executor } from "@qcms/db";
 
 import type { AdminAuth } from "./instance.js";
-import { MIN_PASSWORD_LENGTH } from "./instance.js";
+import {
+  BREACH_LOOKUP_FAILED_CODE,
+  BREACH_LOOKUP_FAILED_MESSAGE,
+  COMPROMISED_PASSWORD_CODE,
+  MIN_PASSWORD_LENGTH,
+} from "./instance.js";
 
 /**
  * First-run bootstrap: create the deployment's first admin (task 031, SEC-1; moved
@@ -26,9 +31,10 @@ import { MIN_PASSWORD_LENGTH } from "./instance.js";
  * floor checked here before anything is written, and the SEC-1 breach-corpus check
  * that better-auth's `haveIBeenPwned` plugin runs inside `signUpEmail` (issue #178).
  * The second one is why this function inspects the response status instead of
- * assuming success: the plugin answers a corpus hit with `400 PASSWORD_COMPROMISED`
- * and an unreachable corpus with a 500, and both have to reach the operator as a
- * refusal they can act on rather than as a crash reading `user.id` off an error body.
+ * assuming success: a corpus hit comes back `400 PASSWORD_COMPROMISED` and an
+ * unreachable corpus `503 BREACH_CORPUS_UNREACHABLE` (`instance.ts` relabels the
+ * vendor's opaque 500, issue #436), and both have to reach the operator as a refusal
+ * they can act on rather than as a crash reading `user.id` off an error body.
  *
  * There is no length rule *and* no composition rule beyond that floor, deliberately:
  * NIST SP 800-63B Rev 4 section 3.1.1.2 says a verifier SHALL NOT impose composition
@@ -57,13 +63,17 @@ export type BootstrapRefusal =
   /** The password is in the public breach corpus (SEC-1, better-auth's plugin). */
   | { readonly kind: "compromised-password" }
   /**
+   * The breach-corpus lookup could not be completed, so the password was refused
+   * without being checked (issue #436). A distinct kind rather than a hedge inside
+   * the catch-all below, because these two are the opposite diagnosis: this one says
+   * "the network is down", the other says "something else went wrong and here is
+   * what it said". `instance.ts` earns the distinction without matching on vendor
+   * prose; see `explainBreachLookupFailure`.
+   */
+  | { readonly kind: "breach-corpus-unreachable" }
+  /**
    * Any other non-2xx from `signUpEmail`, carrying the vendor's own status and
-   * message. The one that matters in practice is the fail-closed breach check with
-   * no egress: a 500 reading "Failed to check password. Please try again later.".
-   * It is not given its own `kind` because the vendor distinguishes it by message
-   * text alone, and matching on an error string is a silent break at the next
-   * upgrade. The status and message are safe to surface: neither carries the
-   * credential (SEC-8).
+   * message. Both are safe to surface: neither carries the credential (SEC-8).
    */
   | { readonly kind: "sign-up-rejected"; readonly status: number; readonly detail: string };
 
@@ -91,13 +101,6 @@ function looksLikeEmail(value: string): boolean {
 }
 
 /**
- * The error code better-auth's `haveIBeenPwned` plugin puts in the body of the 400 it
- * answers a corpus hit with. A code, not the message: the message is prose the vendor
- * may reword, the code is the contract (its `$ERROR_CODES` entry).
- */
-const COMPROMISED_CODE = "PASSWORD_COMPROMISED";
-
-/**
  * Turn a non-2xx `signUpEmail` response into a refusal, without ever reading the
  * request that produced it. The body is better-auth's `{ message, code }`; a response
  * that is not JSON at all still has to become a refusal rather than a throw, because
@@ -108,7 +111,8 @@ async function refusalFor(response: Response): Promise<BootstrapRefusal> {
     code?: unknown;
     message?: unknown;
   };
-  if (body.code === COMPROMISED_CODE) return { kind: "compromised-password" };
+  if (body.code === COMPROMISED_PASSWORD_CODE) return { kind: "compromised-password" };
+  if (body.code === BREACH_LOOKUP_FAILED_CODE) return { kind: "breach-corpus-unreachable" };
   return {
     kind: "sign-up-rejected",
     status: response.status,
@@ -170,12 +174,13 @@ export function describeRefusal(refusal: BootstrapRefusal): string {
         "api.pwnedpasswords.com (SEC-1). Choose a different password; a longer " +
         "passphrase you have never used elsewhere is the reliable fix."
       );
+    case "breach-corpus-unreachable":
+      return `Refusing: ${BREACH_LOOKUP_FAILED_MESSAGE}`;
     case "sign-up-rejected":
       return (
         `Refusing: creating the account failed with HTTP ${refusal.status} (${refusal.detail}). ` +
-        "If this deployment has no egress to api.pwnedpasswords.com, the SEC-1 breach " +
-        "check cannot run and fails closed; see QCMS_ADMIN_PASSWORD_BREACH_CHECK in " +
-        "docs/operations.md."
+        "This is not the SEC-1 breach check: an unreachable corpus reports itself " +
+        "explicitly and names the network."
       );
   }
 }
