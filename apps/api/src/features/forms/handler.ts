@@ -106,7 +106,7 @@ interface DeprecatedPinIssue {
   readonly message: string;
   readonly path: { readonly step: StepId; readonly question: QuestionId; readonly version: number };
 }
-type PublishIssue = PublishError | DeprecatedPinIssue;
+export type PublishIssue = PublishError | DeprecatedPinIssue;
 
 // --- typed failures (envelope codes the admin app keys off, 032) ------------
 
@@ -311,7 +311,7 @@ function deprecatedPinGate(
  * A warning never contributes to the refusal decision either way, which is why
  * every caller below tests `issues` rather than a combined count.
  */
-async function validateDraft(
+export async function validateDraft(
   deps: Deps,
   definition: FormDefinition,
 ): Promise<{

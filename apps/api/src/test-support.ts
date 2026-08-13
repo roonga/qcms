@@ -12,6 +12,8 @@ import { authSession, authUser } from "@qcms/db";
 import type { Config, MountFlags } from "./config.js";
 import { loadConfig } from "./config.js";
 import type { Deps } from "./deps.js";
+import { unavailableDraftAssistant } from "./features/forms/assist/assistant.js";
+import type { DraftAssistant } from "./features/forms/assist/types.js";
 import { type ChallengeVerifier, nullChallengeVerifier } from "./features/responses/challenge.js";
 import { createJsonLogger, createNullLogger, type Logger } from "./logger.js";
 import { InMemoryRateLimitStore, type RateLimitStore } from "./rate-limit.js";
@@ -82,6 +84,8 @@ export interface TestDepsOverrides {
   readonly logger?: Logger;
   readonly clock?: Clock;
   readonly challenge?: ChallengeVerifier;
+  /** Supply an assistant when the test drives the 041 assist slice. */
+  readonly draftAssistant?: DraftAssistant;
   readonly env?: Record<string, string | undefined>;
   /** Supply a store when the test needs to inspect it (capacity, key count). */
   readonly rateLimitStore?: RateLimitStore;
@@ -101,6 +105,7 @@ export function makeDeps(overrides: TestDepsOverrides = {}): Deps {
     logger: overrides.logger ?? createNullLogger(),
     rateLimitStore: overrides.rateLimitStore ?? new InMemoryRateLimitStore(clock),
     challenge: overrides.challenge ?? nullChallengeVerifier,
+    draftAssistant: overrides.draftAssistant ?? unavailableDraftAssistant,
     flags: config.flags,
   };
 }

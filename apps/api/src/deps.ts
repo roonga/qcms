@@ -13,6 +13,7 @@ import type { Executor } from "@qcms/db";
 
 import type { Clock } from "./clock.js";
 import type { Config, Flags } from "./config.js";
+import type { DraftAssistant } from "./features/forms/assist/types.js";
 import type { ChallengeVerifier } from "./features/responses/challenge.js";
 import type { Logger } from "./logger.js";
 import type { RateLimitStore } from "./rate-limit.js";
@@ -30,6 +31,11 @@ export interface Deps {
   readonly rateLimitStore: RateLimitStore;
   /** Challenge verifier for `challengeRequired` forms (026); null verifier when provider `none`. */
   readonly challenge: ChallengeVerifier;
+  /**
+   * Draft assistant (041, ADR-25). Inert when `QCMS_FLAG_AGENT_AUTHORING=none`,
+   * which is also when the assist routes are not mounted at all.
+   */
+  readonly draftAssistant: DraftAssistant;
   /** Typed feature flags (ADR-24); a convenience alias of `config.flags`. */
   readonly flags: Flags;
 }
