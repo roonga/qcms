@@ -105,18 +105,17 @@ describe("draft assistant tool loop (fake provider)", () => {
 
     expect(proposal.proposal.proposedDraft.steps.map((s) => s.stepId)).toEqual([
       "stp_agent_history",
-      "stp_agent_detail",
     ]);
-    // The forward-only rule (ADR-16) the fake script builds.
+    // Both library questions on the one step, with the forward-only rule (ADR-16)
+    // the fake script builds revealing the second from an answer to the first.
+    expect(proposal.proposal.proposedDraft.steps[0]?.items).toHaveLength(2);
     expect(proposal.proposal.proposedDraft.rules).toHaveLength(1);
+    expect(proposal.proposal.proposedDraft.rules[0]?.show).toEqual(["q_accident_detail"]);
     expect(proposal.proposal.issues).toEqual([]);
     expect(proposal.proposal.rationale).not.toBe("");
 
     // The advisory validation is the server's own, run before the proposal left.
-    expect(validated.at(-1)?.steps.map((s) => s.stepId)).toEqual([
-      "stp_agent_history",
-      "stp_agent_detail",
-    ]);
+    expect(validated.at(-1)?.steps.map((s) => s.stepId)).toEqual(["stp_agent_history"]);
 
     // The library search actually ran: the proposal pins what search returned.
     expect(proposal.proposal.proposedDraft.steps[0]?.items[0]?.questionId).toBe(

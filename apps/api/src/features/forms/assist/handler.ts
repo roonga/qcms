@@ -11,7 +11,13 @@
 
 import type { RouteHandler } from "@hono/zod-openapi";
 
-import { getDraft, getQuestionVersion, listQuestionVersions, listQuestions } from "@qcms/db";
+import {
+  getDraft,
+  getLatestPublishedVersion,
+  getQuestionVersion,
+  listQuestionVersions,
+  listQuestions,
+} from "@qcms/db";
 import { parseFormId, type FormDefinition, type FormId, type QuestionId } from "@qcms/core";
 
 import type { Deps } from "../../../deps.js";
@@ -22,7 +28,6 @@ import type { assistRoute } from "./route.js";
 import type { AssistContext, AssistEvent, AssistTurn, LibraryEntry } from "./types.js";
 
 const fail = {
-  formNotFound: (): ApiError => new ApiError("NOT_FOUND", 404, "No such form"),
   noDraft: (): ApiError => new ApiError("NOT_FOUND", 404, "This form has no draft to work on yet"),
   invalidId: (): ApiError => new ApiError("INVALID_ID", 400, "Malformed form id"),
   staleDraft: (): ApiError =>
@@ -152,10 +157,23 @@ export function makeAssistHandler(deps: Deps): RouteHandler<typeof assistRoute, 
     const formId: FormId = parsedId.value;
 
     const body = c.req.valid("json");
+
+    // The draft the agent works against is the one the builder shows: the open
+    // draft if there is one, otherwise seeded from the latest published version
+    // (the same read-time rule `GET /admin/forms/:id` applies). Without the
+    // fallback, asking the assistant anything on a freshly published form would
+    // 404 while the builder in front of the author is showing a draft.
     const draftRow = await getDraft(deps.db, formId);
-    if (draftRow === undefined) throw fail.noDraft();
-    if (body.clientState !== undefined && body.clientState !== draftToken(draftRow.updatedAt)) {
-      throw fail.staleDraft();
+    let definition: FormDefinition;
+    if (draftRow === undefined) {
+      const published = await getLatestPublishedVersion(deps.db, formId);
+      if (published === undefined) throw fail.noDraft();
+      definition = published.definition;
+    } else {
+      definition = draftRow.definition;
+      if (body.clientState !== undefined && body.clientState !== draftToken(draftRow.updatedAt)) {
+        throw fail.staleDraft();
+      }
     }
 
     const controller = new AbortController();
@@ -164,7 +182,7 @@ export function makeAssistHandler(deps: Deps): RouteHandler<typeof assistRoute, 
       controller.abort();
     });
 
-    const ctx = buildContext(deps, draftRow.definition, body.conversation);
+    const ctx = buildContext(deps, definition, body.conversation);
 
     return new Response(assistStream(deps, ctx, controller), {
       status: 200,

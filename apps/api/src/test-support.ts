@@ -12,7 +12,7 @@ import { authSession, authUser } from "@qcms/db";
 import type { Config, MountFlags } from "./config.js";
 import { loadConfig } from "./config.js";
 import type { Deps } from "./deps.js";
-import { unavailableDraftAssistant } from "./features/forms/assist/assistant.js";
+import { selectDraftAssistant } from "./features/forms/assist/assistant.js";
 import type { DraftAssistant } from "./features/forms/assist/types.js";
 import { type ChallengeVerifier, nullChallengeVerifier } from "./features/responses/challenge.js";
 import { createJsonLogger, createNullLogger, type Logger } from "./logger.js";
@@ -90,7 +90,12 @@ export function makeDeps(overrides: TestDepsOverrides = {}): Deps {
     logger: overrides.logger ?? createNullLogger(),
     rateLimitStore: overrides.rateLimitStore ?? new InMemoryRateLimitStore(clock),
     challenge: overrides.challenge ?? nullChallengeVerifier,
-    draftAssistant: overrides.draftAssistant ?? unavailableDraftAssistant,
+    // Selected from config rather than defaulted to the inert one, so a
+    // composition whose env names a provider (the browser harness sets
+    // `QCMS_FLAG_AGENT_AUTHORING=fake`) gets the real 041 tool loop without every
+    // caller having to wire it. `none` still resolves to the inert assistant.
+    draftAssistant:
+      overrides.draftAssistant ?? selectDraftAssistant(config, overrides.logger ?? createNullLogger()),
     flags: config.flags,
   };
 }

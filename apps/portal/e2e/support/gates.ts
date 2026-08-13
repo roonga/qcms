@@ -264,6 +264,14 @@ const SERVER_ALLOW: readonly { readonly source: LogSource; readonly pattern: Reg
   // the independent DB verification confirms the persisted answers - so it is
   // allowlisted rather than allowed to false-positive the server-log gate.
   { source: "portal", pattern: /\bError: aborted\b/ },
+  // Task 041's allowlist refusal. A `warn` here is the security control WORKING:
+  // a model asked for a verb outside the draft assistant's four, the server
+  // refused it before dispatch and recorded the attempt. The admin agent spec
+  // provokes it on purpose with a scripted hostile model, so treating it as a
+  // server fault would make the gate red for the one outcome 041 exists to
+  // produce. The line's own content is asserted directly, and far more precisely,
+  // by `tools.test.ts` and `assist.integration.test.ts`.
+  { source: "api", pattern: /"msg":"draft assistant tool call rejected"/ },
 ];
 
 type LogSource = "api" | "postgres" | "portal";

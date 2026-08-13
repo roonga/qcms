@@ -279,6 +279,35 @@ describe("the assist slice over HTTP", () => {
   );
 
   it(
+    "works against the seeded draft after a publish removed the open one",
+    async () => {
+      await seedPublishedQuestion("q_seeded", "Seeded");
+      await seedForm("frm_seeded", ["q_seeded"]);
+      expect((await post("/forms/frm_seeded/publish")).status).toBe(200);
+      // Publish removes the open draft, and the builder then shows one seeded from
+      // v1. The assistant must work against that same thing rather than 404.
+      expect(await getDraft(testDb.db, "frm_seeded" as never)).toBeUndefined();
+
+      const res = await assist("frm_seeded", "add a follow-up");
+      expect(res.status).toBe(200);
+      const events = await readEvents(res);
+      expect(events.find((e) => e.type === "proposal")).toBeDefined();
+    },
+    BOOT_TIMEOUT,
+  );
+
+  it(
+    "404s for a form that has neither a draft nor a published version",
+    async () => {
+      await post("/forms", { formId: "frm_empty", slug: "empty", defaultLocale: "en" });
+      await testDb.client.query(`delete from form_drafts where form_id = 'frm_empty'`);
+      const res = await assist("frm_empty", "hello");
+      expect(res.status).toBe(404);
+    },
+    BOOT_TIMEOUT,
+  );
+
+  it(
     "refuses a turn whose client state token is stale",
     async () => {
       await seedPublishedQuestion("q_stale", "Stale");
