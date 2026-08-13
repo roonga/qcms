@@ -45,8 +45,13 @@ impossible).
   `decrypt(secret_encrypted) === the-shown-secret`, which is exactly what 025
   relies on.
 - **Rotation:** `PUT` with `rotateSecret` re-encrypts a fresh secret and
-  re-reveals it once. SEC-6's dual-signing overlap window (old+new both signed
-  during rotation) is a **025 delivery-time** concern, not stored here.
+  re-reveals it once. There is **no overlap window**: a delivery carries one
+  signature under one secret, so re-issuing is a hard cutover and every delivery
+  to that endpoint fails at the consumer until the consumer is updated. Deliveries
+  that dead-letter in between are redeliverable afterwards, because the due-claim
+  query reads the webhook's current secret rather than one snapshotted at enqueue.
+  This entry previously described a dual-signing overlap as a 025 delivery-time
+  concern; that capability was specified and never built (issue #453).
 
 ## SSRF guardrail (SEC-6)
 

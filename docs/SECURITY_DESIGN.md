@@ -94,7 +94,9 @@ De-scoped at launch (ADR-10), **designed now** so the seam is real:
 
 ### 2.5 Webhook egress - SEC-6
 
-Consumers authenticate *us*: `X-QCMS-Signature: v1=HMAC-SHA256(secret, timestamp + "." + body)` with `X-QCMS-Timestamp`; consumers reject skew > 5 min (replay bound) and verify constant-time. Per-webhook secrets, generated server-side, shown once, encrypted at rest (SEC-8), rotatable with overlap (old+new both signed during a documented window - implement as dual-signature headers during rotation). Delivered: 024, 025.
+Consumers authenticate *us*: `X-QCMS-Signature: v1=HMAC-SHA256(secret, timestamp + "." + body)` with `X-QCMS-Timestamp`; consumers reject skew > 5 min (replay bound) and verify constant-time. Per-webhook secrets, generated server-side, shown once, encrypted at rest (SEC-8), re-issued per webhook from the admin. Delivered: 024, 025.
+
+**Re-issuing a secret is a hard cutover, not an overlap (issue #453).** This paragraph previously specified "rotatable with overlap (old+new both signed during a documented window)" and marked it delivered. It was designed and never built: `signWebhookBody` (`apps/api/src/features/webhooks/signing.ts:36-49`) takes a single secret and returns a single `v1=<hex>` value, and a delivery carries one `X-QCMS-Signature` header. The `v1=` prefix is a scheme version, not a key id, so it cannot distinguish two live secrets either. What that costs an operator, and the re-issue then redeliver sequence that recovers it, is in the SEC-7 note in section 4. Whether to build the overlap window is open.
 
 ## 3. Authorization
 
