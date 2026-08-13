@@ -471,6 +471,14 @@
             ],
             "example": "open"
           },
+          "draftAgentAssisted": {
+            "type": "boolean",
+            "example": false
+          },
+          "draftUpdatedAt": {
+            "type": "string",
+            "nullable": true
+          },
           "versions": {
             "type": "array",
             "items": {
@@ -491,6 +499,8 @@
           "defaultLocale",
           "status",
           "draftSource",
+          "draftAgentAssisted",
+          "draftUpdatedAt",
           "versions",
           "settings",
           "challengeProvider"
@@ -559,10 +569,20 @@
             "items": {
               "nullable": true
             }
+          },
+          "agentAssisted": {
+            "type": "boolean",
+            "example": false
+          },
+          "updatedAt": {
+            "type": "string",
+            "example": "2026-08-01T09:00:00.000Z"
           }
         },
         "required": [
-          "issues"
+          "issues",
+          "agentAssisted",
+          "updatedAt"
         ]
       },
       "DraftBody": {
@@ -570,6 +590,9 @@
         "properties": {
           "definition": {
             "$ref": "#/components/schemas/FormDefinitionInput"
+          },
+          "agentAssisted": {
+            "type": "boolean"
           }
         },
         "required": [

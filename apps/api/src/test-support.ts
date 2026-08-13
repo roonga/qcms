@@ -95,7 +95,8 @@ export function makeDeps(overrides: TestDepsOverrides = {}): Deps {
     // `QCMS_FLAG_AGENT_AUTHORING=fake`) gets the real 041 tool loop without every
     // caller having to wire it. `none` still resolves to the inert assistant.
     draftAssistant:
-      overrides.draftAssistant ?? selectDraftAssistant(config, overrides.logger ?? createNullLogger()),
+      overrides.draftAssistant ??
+      selectDraftAssistant(config, overrides.logger ?? createNullLogger()),
     flags: config.flags,
   };
 }
