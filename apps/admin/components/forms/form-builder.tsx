@@ -40,6 +40,8 @@ import { t, type MessageKey } from "@/lib/i18n/en";
 import { textOf } from "@/lib/questions/definition";
 import type { ReadState } from "@/lib/read-state";
 
+import { AgentProvenanceTag } from "./agent-provenance-tag";
+import { AssistPanel } from "./assist-panel";
 import { FormSettingsPanel } from "./form-settings-panel";
 import { RuleTestBenchPanel } from "./rule-test-bench";
 import { RuleWizard } from "./rule-wizard";
@@ -120,6 +122,7 @@ export function FormBuilder({
   validateDraft,
   updateSettings,
   previewCondition,
+  assist,
 }: {
   readonly detail: FormDetail;
   readonly library: ReadState<readonly PinnableQuestion[]>;
@@ -149,7 +152,7 @@ export function FormBuilder({
    * Read from the request's cookie by the page, so the first render is already right.
    */
   readonly concurrentNoticeRead: boolean;
-  readonly saveDraft: (draft: DraftForm) => Promise<SaveDraftState>;
+  readonly saveDraft: (draft: DraftForm, agentAssisted?: boolean) => Promise<SaveDraftState>;
   readonly validateDraft: (draft: DraftForm) => Promise<ValidateDraftState>;
   readonly updateSettings: (patch: {
     challengeRequired?: boolean;
@@ -160,6 +163,13 @@ export function FormBuilder({
     ruleId: string;
     answers: Record<string, unknown>;
   }) => Promise<PreviewConditionState>;
+  /**
+   * Task 041's chat panel, present only when `agentAuthoringEnabled()` is true on the
+   * server. Absent rather than `undefined`-and-hidden: the page never passes this prop
+   * at all when the flag is off, so there is no assist affordance anywhere in this
+   * tree to find, not merely one that renders nothing.
+   */
+  readonly assist?: { readonly endpoint: string };
 }) {
   const [draft, setDraft] = useState<DraftForm>(
     detail.draft ?? blankDraft(detail.formId, detail.defaultLocale),
@@ -208,6 +218,14 @@ export function FormBuilder({
   // screen whose rail now lists the steps - the reader picks the one they came for
   // instead of being dropped into whichever one happens to be first.
   const [selection, setSelection] = useState<BuilderSelection>({ kind: "form" });
+  // Task 041's provenance marker. Seeded from the server's own read of the stored
+  // draft, then kept in step with whatever each save's response reports - the source
+  // of truth for "does this draft carry an agent-assisted change" is the API, not a
+  // local guess this component makes about its own history.
+  const [agentAssisted, setAgentAssisted] = useState(detail.draftAgentAssisted);
+  const [draftUpdatedAt, setDraftUpdatedAt] = useState<string | undefined>(
+    detail.draftUpdatedAt ?? undefined,
+  );
 
   // Whether the author has touched anything this visit. Without it the first render would
   // post the draft straight back, which would store a `seeded` draft nobody edited.
@@ -216,6 +234,13 @@ export function FormBuilder({
     isDirty.current = true;
     setDraft(next);
   };
+
+  // Task 041: whether the *next* save the debounce below fires should carry
+  // `agentAssisted: true`. Set only by the assist panel's Accept, and read once by the
+  // save that follows it - an ordinary keystroke edit after that save reverts to the
+  // default (no flag sent), because the marker is an assertion about one save, not a
+  // mode this component stays in.
+  const pendingAgentAssisted = useRef(false);
 
   // The three actions live in a ref, and that is not a style choice. They arrive already
   // bound to this route's form id, so the page hands down a NEW function identity on every
@@ -241,7 +266,9 @@ export function FormBuilder({
     setStatus("saving");
     const timer = setTimeout(() => {
       void (async () => {
-        const saved = await actions.current.saveDraft(draft);
+        const agentAssistedSave = pendingAgentAssisted.current;
+        pendingAgentAssisted.current = false;
+        const saved = await actions.current.saveDraft(draft, agentAssistedSave ? true : undefined);
         if (saved.status === "error") {
           // The verdict is left exactly as it was, which on a first save means still
           // absent. `saved.issues` is the empty list a failed read supplies, and writing
@@ -255,6 +282,10 @@ export function FormBuilder({
         setWarnings(saved.warnings);
         setSaveError(undefined);
         setLastSavedAt(new Date().toISOString());
+        if (saved.agentAssisted !== undefined) setAgentAssisted(saved.agentAssisted);
+        if (saved.updatedAt !== undefined && saved.updatedAt !== "") {
+          setDraftUpdatedAt(saved.updatedAt);
+        }
         setStatus("validating");
         // The second round trip is the one the screen contract calls live validation. It does not
         // store, and it is where `RULE_BACKWARD_TARGET` and `RULE_CYCLE` come from: the
@@ -427,196 +458,238 @@ export function FormBuilder({
     ),
   );
 
+  /**
+   * Task 041's Accept: the same `mutate` every other edit goes through, plus a flag
+   * for the save the debounce above will run next. The builder's own autosave and
+   * validation loop is what actually stores this - nothing here calls `saveDraft`.
+   */
+  function acceptAssistProposal(proposedDraft: DraftForm) {
+    pendingAgentAssisted.current = true;
+    mutate(proposedDraft);
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <SaveNotices paused={paused} saveError={saveError} />
 
-      {/* THREE SCREENS BEHIND ONE ROUTE, and the rail is the switch (Code Owner, 2026-08-26).
-          It was two: `plan/admin-shell-poc/admin-shell-poc.html` says so in its own card
-          subtitle - "left rail navigating a form screen and a step screen" - and draws them,
-          a Form screen of Form title, Form settings, Rules, Rule test bench and Validation,
-          and a Step screen of that step's questions and nothing else. The RULES then took a
-          screen of their own, drawn by `rules-screen-poc.html` as a full-width editor: a
-          condition editor is the widest thing this app builds, and it shared a row with the
-          validation panel only because everything form-level was crowded onto one screen.
-
-          A SELECTION, not a route, and `lib/forms/builder-bridge.ts` records why that
-          distinction is what made the third screen safe: `plan/admin-ux-audit.md` §5.5
-          refused a rules ROUTE because every rule-scoped validation anchor would resolve to
-          nothing, and a selection lets an issue entry switch screens and then focus.
-
-          It used to be ONE screen carrying everything, which meant the five FORM-level panels
-          sat under whichever step was selected and followed the reader from step to step.
-          Nothing was duplicated in the DOM, but the arrangement said the wrong thing: panels
-          that belong to the form read as though each step had its own copy of them, and the
-          only way to reach the form's settings was through a step that has nothing to do with
-          them.
-
-          The grid below is the builder's only responsive behaviour. `plan/admin-design-
-          contracts.md` §1 fixes two boundaries and sorts side-by-side layouts between them;
-          this is page content, so it keys to `--bp-compact`, which is what §1 assigns to
-          ordinary side-by-side panes. Two of the three grids this comment used to describe
-          are gone with the screens they laid out: rules no longer sit beside the validation
-          panel, and the settings no longer sit beside the rule bench. The step list is not
-          one of them either - it left this column for the rail on 2026-08-25, and
-          `components/forms/rail-steps.tsx` is where it went. */}
-      {selection.kind === "form" && (
-        <>
-          {/* WRAPPED, and the wrapper is load-bearing rather than layout. `formActions` is
-              rendered by the SERVER and handed across the client boundary, which strips the
-              marking React uses to tell a statically-written child from a dynamic one. As a
-              bare member of this fragment's children array it therefore reads as a keyless
-              list item, and React logs "Each child in a list should have a unique key" on
-              every visit to the builder - which `e2e/support/gates.ts` fails the test for,
-              correctly: a console error on a screen is a defect whether or not anything
-              looks wrong. Being an only child, it is not in a list at all. */}
-          {/* The heading, the two things you can do to the form, how it last saved, and
-              what it is - in two rows, where it was five.
-
-              `display: contents` on the heading's wrapper is load-bearing. The wrapper
-              exists because a server-rendered node arriving across the client boundary
-              reads to React as a keyless list item when it sits bare in a multi-child
-              array, but the heading inside it is visually hidden and therefore out of
-              flow, so the wrapper was an empty flex ITEM: zero wide, followed by the
-              row's `gap-x-4`, indenting the buttons past the breadcrumb above them by
-              16px. `contents` keeps the element and removes its box.
-
-              `items-start` rather than baseline: the right column is two stacked lines
-              now, and aligning its first baseline to a button's would hang it below the
-              row it belongs to. */}
-          <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-            {/* THE SCREEN'S NAME, and the same string the breadcrumb's last crumb uses -
-                one lookup, so a screen cannot answer to two names. Visually hidden because
-                the crumb directly above already says it; kept in the tree because a page
-                without a level-one heading is one a screen reader cannot navigate by.
-                `display: contents` on the wrapper: the heading is out of flow, and a
-                wrapper that generated a box would be an empty flex item indenting the
-                buttons past the breadcrumb. */}
-            <div className="contents">
-              <h1 className="qcms-visually-hidden">{screenName}</h1>
-            </div>
-            <div>{formActions}</div>
-            {/* What the form IS, above how it last saved: both are facts about the form
-                rather than actions on it, so they share the row's trailing edge and read
-                as one block rather than as chrome scattered across the header. */}
-            <div className="flex flex-col items-end gap-1">
-              <div>{formMeta}</div>
-              {/* ONE STRIP FOR BOTH SAVES (Code Owner, 2026-08-29). The settings stopped
-                  having a save model of their own, so they stopped having a save statement
-                  of their own: a settings save is in flight here, and a settings save that
-                  failed is a failed save here. §6's "exactly one save statement per screen"
-                  is kept by the strip covering everything the screen stores, not by the
-                  strip covering only some of it and a second sentence covering the rest. */}
-              <AmbientSaveStatus
-                isSaving={status === "saving" || settingsSaving}
-                hasFailed={saveError !== undefined || settingsError !== undefined}
-                savedAt={lastSavedAt}
-              />
-            </div>
-          </div>
-          <FormNotices detail={detail} concurrentRead={concurrentNoticeRead} />
-          <TextField
-            label={t("forms.builder.formTitle")}
-            description={t("forms.builder.formTitleHint")}
-            value={textOf(draft.title, draft.defaultLocale)}
-            onChange={(next) => {
-              mutate({ ...draft, title: { ...draft.title, [draft.defaultLocale]: next } });
-            }}
-          />
-
-          {/* VALIDATION STAYS HERE while the rules move to a screen of their own (Code
-              Owner, 2026-08-26). `plan/admin-ux-audit.md` §5.5 is emphatic that it should:
-              "Validation is not a destination. It is a companion to editing and it has to be
-              on the page whose controls it points at." Its entries are links that move focus
-              to the offending rule, step or pin, and those now live on three different
-              screens - so what makes them work is `IssueEntry` switching screens before it
-              focuses, not the panel sitting beside any one of them. */}
-          <ValidationPanel draft={draft} issues={issues} warnings={warnings} status={status} />
-
-          {/* ONE COLUMN (Code Owner, 2026-08-26). The settings shared a two-track grid with
-              the rule test bench, and the bench has gone to the rules it tests, so there is
-              nothing to sit beside. A lone panel in a two-column grid is a column of
-              whitespace. */}
-          <FormSettingsPanel
-            settings={settings}
-            challengeEnforceable={detail.challengeEnforceable}
-            saveError={settingsError}
-            onChange={setSettings}
-          />
-        </>
-      )}
-      {selection.kind === "rules" && (
-        /* THE RULES, ON A SCREEN OF THEIR OWN (Code Owner, 2026-08-26), which
-           `plan/admin-shell-poc/rules-screen-poc.html` draws as a full-width editor and
-           heads "Rules". Full width here too: it shared the row with the validation panel
-           only because both were crowded onto one screen, and a rule's condition editor is
-           the widest thing this app builds.
-
-           TWO BENCHES, AND NEITHER IS THE OTHER (Code Owner, 2026-08-30). The screen's
-           stays under this table, expanded, with its Select over the form's rules: it
-           answers "the form has these rules - what does that one do", which is a question
-           asked while READING the table, about rules as they are stored. The wizard's
-           third phase is the other one, about the single rule being edited and against the
-           draft the dialog is buffering, so it answers about an edit that has not been
-           saved yet. One tests the form; the other tests the change.
-
-           The settings stay on the form's screen. */
-        <RulesSection
-          draft={draft}
-          library={library}
-          issues={issues ?? []}
-          previewCondition={previewCondition}
-          onChange={mutate}
-        />
-      )}
-      {selection.kind === "step" && (
-        <div>
-          {/* Nothing rather than a second copy of the rail's own empty-state sentence: a
-              step editor with no step is exactly the state the rail is already explaining,
-              and saying it twice reads as two different facts. */}
-          {selectedStep === undefined ? null : (
-            <StepEditor
-              draft={draft}
-              step={selectedStep}
-              saveFlash={<AutosaveFlash savedAt={lastSavedAt} />}
-              library={library}
-              issues={issues}
-              /* One `mutate` for the whole batch, folded left over the pins.
-               `addPinAt` is pure and returns the next draft, so the fold is what makes a
-               multi-pin add correct: calling this handler once per pin would hand
-               `addPinAt` the SAME closed-over `draft` every time and keep only the last
-               result. Folding also makes the batch one entry in the draft's history, which
-               is what it is to the author: one press of one button.
-               The boundary advances with each pin so the batch lands in the order it was
-               chosen, rather than every pin insetting at `index` and arriving reversed. */
-              onAddPins={(pins, index) => {
-                mutate(
-                  pins.reduce(
-                    (next, pin, offset) =>
-                      addPinAt(
-                        next,
-                        selectedStep.stepId,
-                        pin.questionId,
-                        pin.version,
-                        index + offset,
-                      ),
-                    draft,
-                  ),
-                );
-              }}
-              onMovePin={(questionId, version) => {
-                mutate(movePin(draft, questionId, version));
-              }}
-              onRemovePin={(questionId) => {
-                mutate(removePin(draft, questionId));
-              }}
-              onReorderPin={(questionId, delta) => {
-                mutate(movePinWithinStep(draft, selectedStep.stepId, questionId, delta));
-              }}
-            />
-          )}
+      {/* Task 041 (ADR-25): the draft carries agent-assisted changes. Stated above every
+          one of the builder's three screens rather than on the form's own, because it is a
+          fact about the DRAFT being edited and the reader can be on any screen when they
+          go to publish. */}
+      {agentAssisted && (
+        <div data-testid="qcms-builder-provenance">
+          <AgentProvenanceTag />
         </div>
       )}
+
+      {/* Task 041: the assist panel docks beside the builder as a complementary landmark,
+          so the three screens below split into two columns only when the panel is actually
+          present. With the flag off both wrappers are `display: contents`, which means a
+          default deployment renders the identical box tree it did before this task: no
+          grid, no extra column, and no assist affordance anywhere in the tree to find. */}
+      <div
+        className={
+          assist === undefined ? "contents" : "grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]"
+        }
+      >
+        <div className={assist === undefined ? "contents" : "flex flex-col gap-6"}>
+        {/* THREE SCREENS BEHIND ONE ROUTE, and the rail is the switch (Code Owner, 2026-08-26).
+            It was two: `plan/admin-shell-poc/admin-shell-poc.html` says so in its own card
+            subtitle - "left rail navigating a form screen and a step screen" - and draws them,
+            a Form screen of Form title, Form settings, Rules, Rule test bench and Validation,
+            and a Step screen of that step's questions and nothing else. The RULES then took a
+            screen of their own, drawn by `rules-screen-poc.html` as a full-width editor: a
+            condition editor is the widest thing this app builds, and it shared a row with the
+            validation panel only because everything form-level was crowded onto one screen.
+
+            A SELECTION, not a route, and `lib/forms/builder-bridge.ts` records why that
+            distinction is what made the third screen safe: `plan/admin-ux-audit.md` §5.5
+            refused a rules ROUTE because every rule-scoped validation anchor would resolve to
+            nothing, and a selection lets an issue entry switch screens and then focus.
+
+            It used to be ONE screen carrying everything, which meant the five FORM-level panels
+            sat under whichever step was selected and followed the reader from step to step.
+            Nothing was duplicated in the DOM, but the arrangement said the wrong thing: panels
+            that belong to the form read as though each step had its own copy of them, and the
+            only way to reach the form's settings was through a step that has nothing to do with
+            them.
+
+            The grid below is the builder's only responsive behaviour. `plan/admin-design-
+            contracts.md` §1 fixes two boundaries and sorts side-by-side layouts between them;
+            this is page content, so it keys to `--bp-compact`, which is what §1 assigns to
+            ordinary side-by-side panes. Two of the three grids this comment used to describe
+            are gone with the screens they laid out: rules no longer sit beside the validation
+            panel, and the settings no longer sit beside the rule bench. The step list is not
+            one of them either - it left this column for the rail on 2026-08-25, and
+            `components/forms/rail-steps.tsx` is where it went. */}
+        {selection.kind === "form" && (
+          <>
+            {/* WRAPPED, and the wrapper is load-bearing rather than layout. `formActions` is
+                rendered by the SERVER and handed across the client boundary, which strips the
+                marking React uses to tell a statically-written child from a dynamic one. As a
+                bare member of this fragment's children array it therefore reads as a keyless
+                list item, and React logs "Each child in a list should have a unique key" on
+                every visit to the builder - which `e2e/support/gates.ts` fails the test for,
+                correctly: a console error on a screen is a defect whether or not anything
+                looks wrong. Being an only child, it is not in a list at all. */}
+            {/* The heading, the two things you can do to the form, how it last saved, and
+                what it is - in two rows, where it was five.
+
+                `display: contents` on the heading's wrapper is load-bearing. The wrapper
+                exists because a server-rendered node arriving across the client boundary
+                reads to React as a keyless list item when it sits bare in a multi-child
+                array, but the heading inside it is visually hidden and therefore out of
+                flow, so the wrapper was an empty flex ITEM: zero wide, followed by the
+                row's `gap-x-4`, indenting the buttons past the breadcrumb above them by
+                16px. `contents` keeps the element and removes its box.
+
+                `items-start` rather than baseline: the right column is two stacked lines
+                now, and aligning its first baseline to a button's would hang it below the
+                row it belongs to. */}
+            <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+              {/* THE SCREEN'S NAME, and the same string the breadcrumb's last crumb uses -
+                  one lookup, so a screen cannot answer to two names. Visually hidden because
+                  the crumb directly above already says it; kept in the tree because a page
+                  without a level-one heading is one a screen reader cannot navigate by.
+                  `display: contents` on the wrapper: the heading is out of flow, and a
+                  wrapper that generated a box would be an empty flex item indenting the
+                  buttons past the breadcrumb. */}
+              <div className="contents">
+                <h1 className="qcms-visually-hidden">{screenName}</h1>
+              </div>
+              <div>{formActions}</div>
+              {/* What the form IS, above how it last saved: both are facts about the form
+                  rather than actions on it, so they share the row's trailing edge and read
+                  as one block rather than as chrome scattered across the header. */}
+              <div className="flex flex-col items-end gap-1">
+                <div>{formMeta}</div>
+                {/* ONE STRIP FOR BOTH SAVES (Code Owner, 2026-08-29). The settings stopped
+                    having a save model of their own, so they stopped having a save statement
+                    of their own: a settings save is in flight here, and a settings save that
+                    failed is a failed save here. §6's "exactly one save statement per screen"
+                    is kept by the strip covering everything the screen stores, not by the
+                    strip covering only some of it and a second sentence covering the rest. */}
+                <AmbientSaveStatus
+                  isSaving={status === "saving" || settingsSaving}
+                  hasFailed={saveError !== undefined || settingsError !== undefined}
+                  savedAt={lastSavedAt}
+                />
+              </div>
+            </div>
+            <FormNotices detail={detail} concurrentRead={concurrentNoticeRead} />
+            <TextField
+              label={t("forms.builder.formTitle")}
+              description={t("forms.builder.formTitleHint")}
+              value={textOf(draft.title, draft.defaultLocale)}
+              onChange={(next) => {
+                mutate({ ...draft, title: { ...draft.title, [draft.defaultLocale]: next } });
+              }}
+            />
+
+            {/* VALIDATION STAYS HERE while the rules move to a screen of their own (Code
+                Owner, 2026-08-26). `plan/admin-ux-audit.md` §5.5 is emphatic that it should:
+                "Validation is not a destination. It is a companion to editing and it has to be
+                on the page whose controls it points at." Its entries are links that move focus
+                to the offending rule, step or pin, and those now live on three different
+                screens - so what makes them work is `IssueEntry` switching screens before it
+                focuses, not the panel sitting beside any one of them. */}
+            <ValidationPanel draft={draft} issues={issues} warnings={warnings} status={status} />
+
+            {/* ONE COLUMN (Code Owner, 2026-08-26). The settings shared a two-track grid with
+                the rule test bench, and the bench has gone to the rules it tests, so there is
+                nothing to sit beside. A lone panel in a two-column grid is a column of
+                whitespace. */}
+            <FormSettingsPanel
+              settings={settings}
+              challengeEnforceable={detail.challengeEnforceable}
+              saveError={settingsError}
+              onChange={setSettings}
+            />
+          </>
+        )}
+        {selection.kind === "rules" && (
+          /* THE RULES, ON A SCREEN OF THEIR OWN (Code Owner, 2026-08-26), which
+             `plan/admin-shell-poc/rules-screen-poc.html` draws as a full-width editor and
+             heads "Rules". Full width here too: it shared the row with the validation panel
+             only because both were crowded onto one screen, and a rule's condition editor is
+             the widest thing this app builds.
+
+             TWO BENCHES, AND NEITHER IS THE OTHER (Code Owner, 2026-08-30). The screen's
+             stays under this table, expanded, with its Select over the form's rules: it
+             answers "the form has these rules - what does that one do", which is a question
+             asked while READING the table, about rules as they are stored. The wizard's
+             third phase is the other one, about the single rule being edited and against the
+             draft the dialog is buffering, so it answers about an edit that has not been
+             saved yet. One tests the form; the other tests the change.
+
+             The settings stay on the form's screen. */
+          <RulesSection
+            draft={draft}
+            library={library}
+            issues={issues ?? []}
+            previewCondition={previewCondition}
+            onChange={mutate}
+          />
+        )}
+        {selection.kind === "step" && (
+          <div>
+            {/* Nothing rather than a second copy of the rail's own empty-state sentence: a
+                step editor with no step is exactly the state the rail is already explaining,
+                and saying it twice reads as two different facts. */}
+            {selectedStep === undefined ? null : (
+              <StepEditor
+                draft={draft}
+                step={selectedStep}
+                saveFlash={<AutosaveFlash savedAt={lastSavedAt} />}
+                library={library}
+                issues={issues}
+                /* One `mutate` for the whole batch, folded left over the pins.
+                 `addPinAt` is pure and returns the next draft, so the fold is what makes a
+                 multi-pin add correct: calling this handler once per pin would hand
+                 `addPinAt` the SAME closed-over `draft` every time and keep only the last
+                 result. Folding also makes the batch one entry in the draft's history, which
+                 is what it is to the author: one press of one button.
+                 The boundary advances with each pin so the batch lands in the order it was
+                 chosen, rather than every pin insetting at `index` and arriving reversed. */
+                onAddPins={(pins, index) => {
+                  mutate(
+                    pins.reduce(
+                      (next, pin, offset) =>
+                        addPinAt(
+                          next,
+                          selectedStep.stepId,
+                          pin.questionId,
+                          pin.version,
+                          index + offset,
+                        ),
+                      draft,
+                    ),
+                  );
+                }}
+                onMovePin={(questionId, version) => {
+                  mutate(movePin(draft, questionId, version));
+                }}
+                onRemovePin={(questionId) => {
+                  mutate(removePin(draft, questionId));
+                }}
+                onReorderPin={(questionId, delta) => {
+                  mutate(movePinWithinStep(draft, selectedStep.stepId, questionId, delta));
+                }}
+              />
+            )}
+          </div>
+        )}
+        </div>
+
+        {assist !== undefined && (
+          <AssistPanel
+            endpoint={assist.endpoint}
+            draft={draft}
+            draftUpdatedAt={draftUpdatedAt}
+            onAccept={acceptAssistProposal}
+          />
+        )}
+      </div>
     </div>
   );
 }
