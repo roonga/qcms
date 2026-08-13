@@ -21,3 +21,12 @@ coverage/
 test-results/
 playwright-report/
 blob-report/
+
+# Written (and re-written) by `next dev` itself: `generate-agent-files.js` drops an
+# `AGENTS.md` plus a `CLAUDE.md` that includes it into each Next app the moment a dev
+# server starts, which is every Playwright run. They are generator output, not
+# authored content, and their text carries em dashes that `check:no-em-dash`
+# correctly refuses - so a `git add -A` after a browser run used to red the gate with
+# a file nobody wrote. Ignored rather than fought: deleting them only re-creates them.
+apps/*/AGENTS.md
+apps/*/CLAUDE.md
