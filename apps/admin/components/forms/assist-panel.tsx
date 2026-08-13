@@ -246,13 +246,10 @@ export function AssistPanel({
                   >
                     {t("forms.assist.proposalHeading")}
                   </h3>
-                  {proposal.proposal.rationale !== "" && (
-                    <p className="text-sm text-(--color-text-muted)">
-                      <span className="qcms-visually-hidden">{t("forms.assist.rationale")}: </span>
-                      {proposal.proposal.rationale}
-                    </p>
-                  )}
-
+                  {/* The rationale is the assistant's own turn and is rendered once,
+                      in the conversation above. Repeating it inside the card put the
+                      same paragraph on screen twice and pushed the diff below the fold
+                      at 390px. */}
                   <ul className="flex flex-col gap-2 text-sm" data-testid="qcms-assist-diff">
                     {proposal.diff.length === 0 ? (
                       <li>{t("forms.assist.diffEmpty")}</li>

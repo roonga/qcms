@@ -858,7 +858,6 @@ export const messages = {
   "forms.assist.kind.step": "Step",
   "forms.assist.kind.question": "Question",
   "forms.assist.kind.rule": "Rule",
-  "forms.assist.rationale": "Assistant's rationale",
   "forms.assist.accept": "Accept into draft",
   "forms.assist.discard": "Discard",
 

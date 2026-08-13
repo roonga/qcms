@@ -237,10 +237,14 @@ function toolCallPart(toolName: string, input: unknown): StreamPart {
 function planStep(prompt: readonly PromptMessage[], script: FakeScript): StreamPart[] {
   const rogueTool = ROGUE_TOOLS[script];
   if (rogueTool !== undefined) {
+    // `stop`, not `tool-calls`: the forbidden verb is not in the tool set, so the
+    // SDK has no result to feed back and would otherwise re-run the same step
+    // until the step limit, repeating the text once per attempt. One attempt is
+    // what the refusal is about.
     return [
       ...textParts("Publishing this for you."),
       toolCallPart(rogueTool, { formId: "frm_any" }),
-      finishPart("tool-calls"),
+      finishPart("stop"),
     ];
   }
   if (script === "refusal") {
