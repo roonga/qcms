@@ -526,7 +526,9 @@ describe("the cancelled state closes the transport (059, exit criterion 3)", () 
 
     expect(await redeliveryRefusalFor(testDb.db, formId, queued.deliveryId)).toBeUndefined();
     await eraseSession(testDb.db, formId, sessionId, "subject_request");
-    expect(await redeliveryRefusalFor(testDb.db, formId, queued.deliveryId)).toBe("payloadRedacted");
+    expect(await redeliveryRefusalFor(testDb.db, formId, queued.deliveryId)).toBe(
+      "payloadRedacted",
+    );
   });
 });
 

@@ -439,7 +439,10 @@ export async function listDeadLetterDeliveries(
 function inFormScope(exec: Executor, formId: FormId) {
   return inArray(
     webhookDeliveries.webhookId,
-    exec.select({ webhookId: webhooks.webhookId }).from(webhooks).where(eq(webhooks.formId, formId)),
+    exec
+      .select({ webhookId: webhooks.webhookId })
+      .from(webhooks)
+      .where(eq(webhooks.formId, formId)),
   );
 }
 

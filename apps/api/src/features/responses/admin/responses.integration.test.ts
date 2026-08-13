@@ -442,7 +442,9 @@ describe("erase excludes from all read paths; unflag releases the event (exit cr
     });
 
     // Erase.
-    const eraseRes = await post(`/forms/frm_erase_api/responses/${erased}/erase`, { reason: "subject_request" });
+    const eraseRes = await post(`/forms/frm_erase_api/responses/${erased}/erase`, {
+      reason: "subject_request",
+    });
     expect(eraseRes.status).toBe(200);
     const tombstone = (await eraseRes.json()) as { sessionId: string; alreadyErased: boolean };
     expect(tombstone.sessionId).toBe(erased);
@@ -470,7 +472,9 @@ describe("erase excludes from all read paths; unflag releases the event (exit cr
     expect(erasures.erasures.map((e) => e.sessionId)).toContain(erased);
 
     // Idempotent: erasing again is a no-op with alreadyErased:true.
-    const again = await post(`/forms/frm_erase_api/responses/${erased}/erase`, { reason: "subject_request" });
+    const again = await post(`/forms/frm_erase_api/responses/${erased}/erase`, {
+      reason: "subject_request",
+    });
     expect(((await again.json()) as { alreadyErased: boolean }).alreadyErased).toBe(true);
   });
 
@@ -505,7 +509,9 @@ describe("erase excludes from all read paths; unflag releases the event (exit cr
   });
 
   it("404s unflag for a session with no submission", async () => {
-    expect((await post("/forms/frm_unflag_api/responses/ses_no_submission/unflag")).status).toBe(404);
+    expect((await post("/forms/frm_unflag_api/responses/ses_no_submission/unflag")).status).toBe(
+      404,
+    );
   });
 });
 

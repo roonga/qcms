@@ -105,9 +105,7 @@ export async function eraseSession(
     const [existing] = await tx
       .select()
       .from(erasureTombstones)
-      .where(
-        and(eq(erasureTombstones.sessionId, sessionId), eq(erasureTombstones.formId, formId)),
-      )
+      .where(and(eq(erasureTombstones.sessionId, sessionId), eq(erasureTombstones.formId, formId)))
       .limit(1);
     if (existing) {
       return {

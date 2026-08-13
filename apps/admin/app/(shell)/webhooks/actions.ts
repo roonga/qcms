@@ -133,10 +133,7 @@ export async function retargetWebhookAction(
  * server-side, so the caller names the form it believes the delivery belongs to and
  * the API refuses the pair if it does not hold.
  */
-export async function redeliverAction(
-  formId: string,
-  deliveryId: string,
-): Promise<RedeliverState> {
+export async function redeliverAction(formId: string, deliveryId: string): Promise<RedeliverState> {
   const session = await requireAdminSession();
   const result = await redeliver(session, formId, deliveryId);
   if (!result.ok) return { status: "error", message: result.message };

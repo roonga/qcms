@@ -400,10 +400,13 @@ describe("POST /admin/forms/:id/deliveries/:deliveryId/redeliver - the ADR-17 re
   }
 
   async function redeliver(deliveryId: string): Promise<{ status: number; code: string | null }> {
-    const res = await app.request(`/admin/forms/${FORM_ERASED}/deliveries/${deliveryId}/redeliver`, {
-      method: "POST",
-      headers: headers(),
-    });
+    const res = await app.request(
+      `/admin/forms/${FORM_ERASED}/deliveries/${deliveryId}/redeliver`,
+      {
+        method: "POST",
+        headers: headers(),
+      },
+    );
     if (res.ok) return { status: res.status, code: null };
     const body = (await res.json()) as { error?: { code?: string } };
     return { status: res.status, code: body.error?.code ?? null };
@@ -890,8 +893,6 @@ describe("form scope on redeliver (issue #305)", () => {
     // ...while another form is told only that there is no such delivery, which is
     // the same answer an id that was never issued gets.
     expect(await redeliverAs(FORM_SCOPE_OTHER, deliveryId)).toBe(404);
-    expect(
-      await redeliverAs(FORM_SCOPE_OTHER, "00000000-0000-0000-0000-000000000000"),
-    ).toBe(404);
+    expect(await redeliverAs(FORM_SCOPE_OTHER, "00000000-0000-0000-0000-000000000000")).toBe(404);
   });
 });
