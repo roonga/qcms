@@ -121,6 +121,16 @@ jobs:
       # over a file it never opened - silence, not a red. Three instances
       # survived that way (#257, #387 item 21, #413).
       - run: pnpm check:lint-coverage
+      # The scaffolding templates (task 037) are DERIVED from apps/, docker/ and the
+      # configuration schema, never hand-written, and the derived tree is committed so
+      # the published tarball carries it. This regenerates it and byte-compares.
+      #
+      # It runs here, as its own named step, for the reason every check above does:
+      # this job never calls `pnpm check:all`, it enumerates the checks one by one, so
+      # a gate that is only inside `check:all` runs nowhere in CI. That gap shipped
+      # four gitignored build artifacts into the template tree on this gate's own
+      # introducing PR, green the whole way.
+      - run: pnpm check:templates
 
       - run: pnpm build
 

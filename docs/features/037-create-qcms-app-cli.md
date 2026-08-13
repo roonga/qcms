@@ -10,6 +10,8 @@ The shadcn-ethos delivery vehicle: stamp the owned shell (apps, compose, config)
 ## Deliverables
 
 - `pnpm create qcms-app my-forms` (npm-init compatible) prompting for: project name, package manager, deployment shape (solo/enterprise), admin 2FA default, portal base URL. Non-interactive flags for CI (`--yes` with defaults).
+
+  *Amended 2026-08-13 (Code Owner ruling on the PR #451 review, issue #449):* **the package-manager prompt ships pnpm-only.** The three shipped Dockerfiles prune their runtime tree with `pnpm deploy --legacy --prod`, which has no npm or yarn equivalent, and install from a `pnpm-lock.yaml` that an npm or yarn scaffold never writes, so those two choices produced a project whose `docker compose up --build` failed at a `COPY`. Offering an answer that builds nothing is a promise the tool does not keep; #449 stays open as the follow-up that restores the choice.
 - Stamps into the target: `apps/api`, `apps/portal`, `apps/admin` **shell source** (composition roots, BFF handlers, theming, auth config, challenge adapter, message catalog - the code adopters own per the ownership seam) importing the four packages by version; `docker-compose.yml` + Dockerfiles from 036; `.env.example` generated from the config schema; README tailored to the chosen shape; git init + first commit.
 - Template maintenance strategy: templates generated from the canonical apps at CLI build time (not hand-copied - a sync script with a CI check that templates and apps haven't drifted), minus repo-internal dev scaffolding. Document what is owned-after-scaffold vs upgraded-via-packages (`docs/ownership-seam.md`).
 - Post-scaffold smoke: the CLI's final message prints the exact next commands (env → compose up → migrate → create-admin → open admin).

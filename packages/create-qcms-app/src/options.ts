@@ -13,9 +13,31 @@ import { basename, isAbsolute, resolve } from "node:path";
 export const DEPLOYMENT_SHAPES = ["solo", "enterprise"] as const;
 export type DeploymentShape = (typeof DEPLOYMENT_SHAPES)[number];
 
-/** Package managers the scaffold can install with. */
-export const PACKAGE_MANAGERS = ["pnpm", "npm", "yarn"] as const;
+/**
+ * Package managers the scaffold can install with.
+ *
+ * **pnpm only, decided by the Code Owner on the task 037 review (issue #449).** The
+ * three shipped Dockerfiles prune their runtime tree with `pnpm deploy --legacy
+ * --prod`, which has no npm or yarn equivalent, and they install from a
+ * `pnpm-lock.yaml` that an npm or yarn scaffold never produces. Offering the other
+ * two produced a project whose `docker compose up --build` failed at a `COPY` with
+ * an error that named a missing lockfile rather than the choice that caused it.
+ *
+ * A prompt that offers three answers where two build nothing is a promise the tool
+ * does not keep. It is cheap to remove now and expensive once the package publishes.
+ * #449 stays open as the follow-up that restores the choice properly.
+ */
+export const PACKAGE_MANAGERS = ["pnpm"] as const;
 export type PackageManager = (typeof PACKAGE_MANAGERS)[number];
+
+/**
+ * Why the choice is not offered, in one sentence, wherever an adopter meets it.
+ *
+ * Held here so the CLI's output and the scaffolded READMEs cannot say different
+ * things; `render.test.ts` asserts the READMEs carry it.
+ */
+export const PACKAGE_MANAGER_RATIONALE =
+  "QCMS scaffolds a pnpm workspace: the shipped Dockerfiles prune their runtime tree with `pnpm deploy --legacy --prod`, which has no npm or yarn equivalent.";
 
 /** Admin 2FA policies, matching `QCMS_ADMIN_2FA` in the API configuration schema. */
 export const TWO_FACTOR_POLICIES = ["required", "optional"] as const;
@@ -106,7 +128,10 @@ function applyFlag(flag: string, value: string, into: Record<string, unknown>): 
   switch (flag) {
     case "--package-manager":
       if (!isMember(PACKAGE_MANAGERS, value)) {
-        return `--package-manager must be one of ${PACKAGE_MANAGERS.join(", ")}`;
+        // The rationale rides on the refusal because this is where an adopter who
+        // types `--package-manager npm` actually meets the constraint. "must be one
+        // of pnpm" on its own reads as an oversight rather than a decision.
+        return `--package-manager must be one of ${PACKAGE_MANAGERS.join(", ")}. ${PACKAGE_MANAGER_RATIONALE}`;
       }
       into["packageManager"] = value;
       return undefined;
@@ -262,6 +287,7 @@ Scaffold a QCMS deployment: the application shell you own, over the versioned
 Options:
   -y, --yes                  Take every default; ask nothing. The CI path.
       --package-manager <m>  ${PACKAGE_MANAGERS.join(" | ")} (default ${DEFAULTS.packageManager})
+                             ${PACKAGE_MANAGER_RATIONALE}
       --shape <s>            ${DEPLOYMENT_SHAPES.join(" | ")} (default ${DEFAULTS.shape})
       --admin-2fa <p>        ${TWO_FACTOR_POLICIES.join(" | ")} (default ${DEFAULTS.adminTwoFactor})
       --portal-base-url <u>  Public origin of the respondent portal

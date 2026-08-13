@@ -86,13 +86,13 @@ path", so the completeness claim is checkable rather than asserted.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (271 files common to both shapes)
+### Scaffolded paths (267 files common to both shapes)
 
 | Path | Files |
 | --- | --- |
 | `(project root)` | 8 |
-| `apps/` | 260 |
-| `apps/admin/` | 132 |
+| `apps/` | 256 |
+| `apps/admin/` | 130 |
 | `apps/admin/app/` | 41 |
 | `apps/admin/app/(shell)/` | 25 |
 | `apps/admin/app/(shell)/forms/` | 13 |
@@ -153,7 +153,7 @@ path", so the completeness claim is checkable rather than asserted.
 | `apps/api/src/middleware/` | 4 |
 | `apps/api/src/routes/` | 1 |
 | `apps/api/src/schedulers/` | 4 |
-| `apps/portal/` | 59 |
+| `apps/portal/` | 57 |
 | `apps/portal/app/` | 15 |
 | `apps/portal/app/done/` | 1 |
 | `apps/portal/app/expired/` | 1 |
@@ -191,7 +191,7 @@ path", so the completeness claim is checkable rather than asserted.
 | `@qcms/ui` | `^0.0.0` | The A2UI renderer, the vendored input controls, and the token contract the theming rests on. | Upgrade freely. The vendored components are pinned inside the package rather than resolved from upstream (ADR-22), so an upstream component release cannot reach a published form until a QCMS release deliberately pulls it in and re-runs the conformance suite. |
 
 <details>
-<summary>Every scaffolded file (271)</summary>
+<summary>Every scaffolded file (267)</summary>
 
 ```
 .dockerignore
@@ -323,13 +323,11 @@ apps/admin/lib/server/responses.ts
 apps/admin/lib/server/route-helpers.ts
 apps/admin/lib/server/session.ts
 apps/admin/lib/server/webhook-ops.ts
-apps/admin/next-env.d.ts
 apps/admin/next.config.ts
 apps/admin/package.json
 apps/admin/postcss.config.mjs
 apps/admin/proxy.ts
 apps/admin/tsconfig.json
-apps/admin/tsconfig.tsbuildinfo
 apps/api/package.json
 apps/api/src/app.ts
 apps/api/src/client-address.ts
@@ -451,13 +449,11 @@ apps/portal/lib/turnstile.ts
 apps/portal/lib/ui.ts
 apps/portal/lib/validation-message.ts
 apps/portal/lib/visible.ts
-apps/portal/next-env.d.ts
 apps/portal/next.config.ts
 apps/portal/package.json
 apps/portal/postcss.config.mjs
 apps/portal/proxy.ts
 apps/portal/tsconfig.json
-apps/portal/tsconfig.tsbuildinfo
 docker-compose.yml
 docker/admin.Dockerfile
 docker/api.Dockerfile
