@@ -8,7 +8,9 @@ import { createInitialAdmin, describeRefusal } from "./bootstrap.js";
 import {
   AUTH_BASE_PATH,
   BREACH_CHECK_DISABLED_WARNING,
+  BREACH_LOOKUP_FAILED_CODE,
   createAdminAuth,
+  explainBreachLookupFailure,
   warnIfBreachCheckDisabled,
 } from "./instance.js";
 
@@ -176,34 +178,88 @@ describe("a compromised password is refused (NIST SP 800-63B 3.1.1.2, ASVS 5.0 6
   });
 });
 
-describe("an unreachable corpus fails closed", () => {
+/**
+ * Issue #436: the same fail-closed refusal, now legible.
+ *
+ * `full-stack-e2e` runs the shipped default, so an outage at api.pwnedpasswords.com
+ * turns a required context red on a pull request about something else. The dependency
+ * stays and the refusal stays; what these cases pin is that the person who meets it
+ * can tell a network failure from an authentication failure **without reading the
+ * source**, which is the issue's acceptance criterion. Both directions are asserted,
+ * because only one of them proves nothing: a message that names the network on every
+ * refusal is as useless as one that never does.
+ */
+describe("an unreachable corpus fails closed, and says so", () => {
+  /** What undici throws when the host does not resolve or refuses the connection. */
+  function unreachable(): Response {
+    throw new TypeError("fetch failed");
+  }
+
   it("refuses rather than waving the password through, and creates nothing", async () => {
     const password = newPassword();
-    // What undici throws when the host does not resolve or refuses the connection,
-    // which is what an air-gapped deployment looks like from inside this process.
-    wire = stubWire(() => {
-      throw new TypeError("fetch failed");
-    });
+    wire = stubWire(unreachable);
 
     const result = await createInitialAdmin(authWith(true), testDb.db, { email: EMAIL, password });
 
     expect(result.ok).toBe(false);
-    const refusal = result.ok === false ? result.refusal : undefined;
-    expect(refusal?.kind).toBe("sign-up-rejected");
-    expect(refusal?.kind === "sign-up-rejected" && refusal.status).toBe(500);
+    expect(result.ok === false && result.refusal.kind).toBe("breach-corpus-unreachable");
     expect(await countAdminUsers(testDb.db)).toBe(0);
     // The check was attempted; this is not a silent skip.
     expect(wire.urls).toHaveLength(1);
   });
 
-  it("points the operator at the knob rather than at a stack trace", () => {
-    const message = describeRefusal({
-      kind: "sign-up-rejected",
-      status: 500,
-      detail: "Failed to check password. Please try again later.",
-    });
-    expect(message).toContain("QCMS_ADMIN_PASSWORD_BREACH_CHECK");
+  it("names the network, denies the wrong hypothesis, and points at the knob", () => {
+    const message = describeRefusal({ kind: "breach-corpus-unreachable" });
+
+    expect(message).toContain("network failure");
+    expect(message).toContain("not an authentication failure");
     expect(message).toContain("api.pwnedpasswords.com");
+    expect(message).toContain("QCMS_ADMIN_PASSWORD_BREACH_CHECK");
+  });
+
+  it("reads differently from a genuine breached-password refusal", () => {
+    const network = describeRefusal({ kind: "breach-corpus-unreachable" });
+    const compromised = describeRefusal({ kind: "compromised-password" });
+
+    // The other direction: a real corpus hit still says the password is in the
+    // corpus, and does not claim a network problem.
+    expect(compromised).toContain("appears in the public breach corpus");
+    expect(compromised).not.toContain("network failure");
+    // And the network case does not accuse the credential.
+    expect(network).not.toContain("appears in the public breach corpus");
+    expect(network).toContain("without ever being compared");
+  });
+
+  it("answers the mounted surface with 503 and a first-party code, not an opaque 500", async () => {
+    const password = newPassword();
+    wire = stubWire(unreachable);
+
+    const response = await authWith(true).handler(
+      new Request(`${ADMIN_ORIGIN}${AUTH_BASE_PATH}/sign-up/email`, {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: ADMIN_ORIGIN },
+        body: JSON.stringify({ email: "unreachable@example.test", password, name: "Nobody" }),
+      }),
+    );
+
+    // 503 because an upstream this process depends on was unavailable, which is what
+    // the status means and what 500 does not.
+    expect(response.status).toBe(503);
+    const body = (await response.json()) as { code?: string; message?: string };
+    expect(body.code).toBe(BREACH_LOOKUP_FAILED_CODE);
+    expect(body.message).toContain("api.pwnedpasswords.com");
+    // SEC-8: what the wire carries names the host and the control, never the value.
+    expect(JSON.stringify(body)).not.toContain(password);
+    expect(await countAdminUsers(testDb.db)).toBe(0);
+  });
+
+  it("relabels only the vendor's lookup failure, so nothing unrelated is blamed on it", () => {
+    // A hash that fails for its own reasons is not an APIError, and must survive the
+    // translation unchanged - otherwise this fix would create the misdiagnosis it
+    // exists to remove, pointing at the network for a fault that is not there.
+    const unrelated = new Error("scrypt failed");
+    expect(explainBreachLookupFailure(unrelated)).toBe(unrelated);
+    expect(explainBreachLookupFailure("not an error at all")).toBe("not an error at all");
   });
 });
 

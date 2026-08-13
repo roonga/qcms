@@ -5,7 +5,7 @@ import type { AdminAuth } from "./instance.js";
 import {
   BREACH_LOOKUP_FAILED_CODE,
   BREACH_LOOKUP_FAILED_MESSAGE,
-  COMPROMISED_PASSWORD_CODE,
+  CORPUS_HIT_CODE,
   MIN_PASSWORD_LENGTH,
 } from "./instance.js";
 
@@ -111,7 +111,7 @@ async function refusalFor(response: Response): Promise<BootstrapRefusal> {
     code?: unknown;
     message?: unknown;
   };
-  if (body.code === COMPROMISED_PASSWORD_CODE) return { kind: "compromised-password" };
+  if (body.code === CORPUS_HIT_CODE) return { kind: "compromised-password" };
   if (body.code === BREACH_LOOKUP_FAILED_CODE) return { kind: "breach-corpus-unreachable" };
   return {
     kind: "sign-up-rejected",

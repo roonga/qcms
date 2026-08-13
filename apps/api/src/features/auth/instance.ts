@@ -131,7 +131,7 @@ export function warnIfBreachCheckDisabled(
  * answers a corpus hit with. A code, not the message: the message is prose the vendor
  * may reword, the code is the contract (its `$ERROR_CODES` entry).
  */
-export const COMPROMISED_PASSWORD_CODE = "PASSWORD_COMPROMISED";
+export const CORPUS_HIT_CODE = "PASSWORD_COMPROMISED";
 
 /**
  * The code this shell puts on a refusal caused by the corpus **lookup** failing rather
@@ -178,7 +178,7 @@ export function explainBreachLookupFailure(error: unknown): unknown {
   if (!isAPIError(error)) return error;
   if (error.status !== "INTERNAL_SERVER_ERROR") return error;
   const code: unknown = (error.body as { code?: unknown } | undefined)?.code;
-  if (code === COMPROMISED_PASSWORD_CODE) return error;
+  if (code === CORPUS_HIT_CODE) return error;
   return new APIError("SERVICE_UNAVAILABLE", {
     message: BREACH_LOOKUP_FAILED_MESSAGE,
     code: BREACH_LOOKUP_FAILED_CODE,
