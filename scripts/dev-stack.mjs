@@ -423,11 +423,17 @@ export function apiChildEnv({
     // ctx.context.secretConfig, ... })`) and every verify decrypts with the *current*
     // one (`dist/plugins/two-factor/totp/index.mjs:188`, and `:122` for the URI
     // reveal), so after a restart with a new secret the authenticator's codes are
-    // rejected forever. Recovery codes still work - they are stored as plain JSON
-    // unless `storeBackupCodes: "encrypted"` is set, which `features/auth/instance.ts`
-    // does not (`dist/plugins/two-factor/backup-codes/index.mjs:45`) - but there are
-    // only ten of them (`:15`, `amount ?? 10`), the admin has no re-enrolment screen,
-    // and each restart burns one. Ten restarts kill the account in that database.
+    // rejected forever. The recovery codes do NOT survive either, contrary to what
+    // this comment used to claim (issue #319): the plugin defaults `storeBackupCodes`
+    // to `"encrypted"` (`dist/plugins/two-factor/index.mjs:25-27`), so all ten
+    // (`.../backup-codes/index.mjs:15`, `amount ?? 10`) are encrypted under the same
+    // value. The admin has no re-enrolment screen and there is no 2FA reset command
+    // yet (issue #432), so one unpinned restart kills the account in that database.
+    //
+    // In a *deployment* this is rotatable rather than fatal: `QCMS_ADMIN_AUTH_SECRETS`
+    // is a versioned list where the newest entry encrypts and older entries keep
+    // reading (`docs/operations.md`). Dev does not use it, because pinning one value
+    // is simpler than rotating in a throwaway database.
     //
     // So: honoured from the environment when set, exactly like DATABASE_URL and the
     // ports above, and random only for a zero-config first run. Pin it and an enrolled

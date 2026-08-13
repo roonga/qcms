@@ -68,6 +68,12 @@ services:
       # cookies are scoped to and the only origin better-auth trusts.
       QCMS_ADMIN_AUTH_SECRET: ${QCMS_ADMIN_AUTH_SECRET:?set QCMS_ADMIN_AUTH_SECRET in .env}
       QCMS_ADMIN_BASE_URL: ${QCMS_ADMIN_BASE_URL:?set QCMS_ADMIN_BASE_URL in .env}
+      # The versioned rotation list for the auth secret above (issue #319). Empty means
+      # unset, so the API runs a single version-1 entry holding QCMS_ADMIN_AUTH_SECRET.
+      # It has to be forwarded here or the rotation runbook in docs/operations.md cannot
+      # be followed on this stack; it rides the `api-env` anchor so `docker compose exec
+      # api` running the bootstrap CLI reads the same list the API does.
+      QCMS_ADMIN_AUTH_SECRETS: ${QCMS_ADMIN_AUTH_SECRETS:-}
       # One knob for every cookie set on the admin origin. This service decides it for
       # better-auth's session and two-factor cookies; the admin service reads the same
       # value for the enrollment, recovery-view and appearance cookies it sets itself.

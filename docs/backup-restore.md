@@ -23,13 +23,21 @@ an instruction someone will follow for the first time during an incident.
 The last two rows are the ones that bite.
 
 **Keys are not in the dump, and a dump is useless without them.** `QCMS_APP_KEY`
-encrypts webhook signing secrets and stored TOTP material at rest (SEC-6), so a
-database restored alongside a different `QCMS_APP_KEY` comes back with those columns
-permanently undecryptable. `QCMS_ADMIN_AUTH_SECRET` is worse: it is explicitly **not
-rotatable**, because it also protects stored two-factor material, so losing it locks
-every administrator out of 2FA on a restored database. Back the key material up with
-the same care and the same schedule as the database, and store it somewhere the
-database dump is not, so one compromise is not both.
+encrypts webhook signing secrets at rest (SEC-6), so a database restored alongside a
+different `QCMS_APP_KEY` comes back with those columns permanently undecryptable.
+`QCMS_ADMIN_AUTH_SECRET` is the one that protects **stored two-factor material** -
+both the TOTP secret and the recovery codes, which are encrypted under it (this
+paragraph used to attribute that to `QCMS_APP_KEY`, and to say the codes were stored
+in plaintext; neither was true - issue #319). Losing it locks every administrator out
+of 2FA on a restored database, and nothing resets 2FA today (issue #432). Back the key
+material up with the same care and the same schedule as the database, and store it
+somewhere the database dump is not, so one compromise is not both.
+
+Changing that secret deliberately is a different matter and is no longer a break: the
+versioned `QCMS_ADMIN_AUTH_SECRETS` list keeps the old key readable while the new one
+encrypts, so a restore can be brought forward onto a new key rather than stranded on a
+lost one. The runbook, including what does and does not migrate on its own, is in
+`docs/operations.md`.
 
 `QCMS_LINK_KEYS` and `QCMS_SESSION_KEYS` are less severe: losing them invalidates
 outstanding secure links and respondent sessions, which is a disruption rather than

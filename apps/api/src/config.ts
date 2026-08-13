@@ -175,8 +175,26 @@ export interface Config {
    * not be made to carry its secret.
    */
   readonly adminAuth: {
-    /** better-auth signing secret (`QCMS_ADMIN_AUTH_SECRET`, >= 32 chars, SEC-7). */
+    /**
+     * better-auth signing secret (`QCMS_ADMIN_AUTH_SECRET`, >= 32 chars, SEC-7).
+     *
+     * Passed to better-auth as `secret`, which in the pinned 1.6.26 means **the legacy
+     * fallback**: the key used to read ciphertext written before the versioned
+     * envelope existed. It is also the value {@link secrets} defaults to, so a
+     * deployment that never rotates sees exactly the behaviour it always had.
+     */
     readonly secret: string;
+    /**
+     * The versioned key set better-auth encrypts stored second-factor material
+     * with (`QCMS_ADMIN_AUTH_SECRETS`; issue #319).
+     *
+     * First entry is current and is what new ciphertext is written under; the
+     * rest are decrypt-only, kept so ciphertext written under a retired key can
+     * still be read. Defaults to a single version-1 entry holding
+     * {@link secret}, so the knob only has to appear in an environment that is
+     * actually rotating.
+     */
+    readonly secrets: readonly { readonly version: number; readonly value: string }[];
     /**
      * The **admin app's public origin** (`QCMS_ADMIN_BASE_URL`), not this API's.
      * better-auth is reached through the admin's BFF, so the origin its cookies
@@ -322,6 +340,104 @@ function parseKeyList(env: Env, name: string, minLength: number, issues: string[
     issues.push(`${name} has ${tooShort} key(s) shorter than the ${minLength}-character minimum`);
   }
   return keys;
+}
+
+/**
+ * The versioned admin-auth key set (`QCMS_ADMIN_AUTH_SECRETS`, issue #319).
+ *
+ * Format is better-auth's own: comma-separated `<version>:<value>` entries, first
+ * entry current. Unset (the normal case) yields a single version-1 entry holding
+ * `current`, which is what makes the envelope format the default rather than
+ * something a deployment has to opt into.
+ *
+ * "Newest first" is enforced, not merely documented: better-auth encrypts under
+ * whichever entry comes first, so a list written oldest-first (`1:<old>,2:<new>`)
+ * boots cleanly and then keeps writing under the *old* key, silently doing the
+ * opposite of the rotation it was edited for. There is no signal anywhere else in
+ * the system, so the refusal belongs at boot.
+ *
+ * Every issue this records names the env var and a **version number**, never a
+ * value or a fragment of one (SEC-8). That is also why the parser is written here
+ * rather than handing the raw string to better-auth's `parseSecretsEnv`, whose
+ * refusals quote the offending entry verbatim.
+ */
+function parseSecretVersions(
+  env: Env,
+  name: string,
+  current: string,
+  minLength: number,
+  issues: string[],
+): { readonly version: number; readonly value: string }[] {
+  const raw = env[name];
+  if (raw === undefined || raw.trim() === "") return [{ version: 1, value: current }];
+
+  const entries = raw
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+  if (entries.length === 0) {
+    issues.push(`${name} is set but no <version>:<secret> entries were parsed from it`);
+    return [{ version: 1, value: current }];
+  }
+
+  const parsed: { version: number; value: string }[] = [];
+  const seen = new Set<number>();
+  for (const [index, entry] of entries.entries()) {
+    const separator = entry.indexOf(":");
+    if (separator === -1) {
+      issues.push(`${name} entry ${index + 1} is not in <version>:<secret> form`);
+      continue;
+    }
+    const label = entry.slice(0, separator).trim();
+    const value = entry.slice(separator + 1).trim();
+    const version = Number(label);
+    if (!Number.isInteger(version) || version < 0 || label === "") {
+      issues.push(`${name} entry ${index + 1} has a version that is not a non-negative integer`);
+      continue;
+    }
+    if (seen.has(version)) {
+      issues.push(`${name} repeats version ${version}; each version must appear once`);
+      continue;
+    }
+    if (value.length < minLength) {
+      issues.push(`${name} version ${version} must be at least ${minLength} characters`);
+      continue;
+    }
+    seen.add(version);
+    parsed.push({ version, value });
+  }
+
+  if (parsed.length === 0) {
+    issues.push(`${name} is set but carries no usable entry`);
+    return [{ version: 1, value: current }];
+  }
+  pushOrderIssues(name, parsed, issues);
+  return parsed;
+}
+
+/**
+ * Enforces the "newest first" half of {@link parseSecretVersions}'s contract.
+ *
+ * Its own function so the parser above stays inside the cognitive-complexity
+ * budget, and because the rule is worth reading on its own: better-auth encrypts
+ * under whichever entry is first, so ordering is not presentation.
+ *
+ * Named by version, never by value (SEC-8), like every other refusal here.
+ */
+function pushOrderIssues(
+  name: string,
+  parsed: readonly { readonly version: number }[],
+  issues: string[],
+): void {
+  let previous: number | undefined;
+  for (const { version } of parsed) {
+    if (previous !== undefined && version >= previous) {
+      issues.push(
+        `${name} lists version ${version} after version ${previous}; entries must be newest first, in descending version order`,
+      );
+    }
+    previous = version;
+  }
 }
 
 function parseRequiredString(env: Env, name: string, minLength: number, issues: string[]): string {
@@ -539,8 +655,10 @@ function parseRateClass(
  * insert, and none of those values is read on that path.
  */
 export function parseAdminAuth(env: Env, issues: string[]): Config["adminAuth"] {
+  const secret = parseRequiredString(env, "QCMS_ADMIN_AUTH_SECRET", MIN_SECRET_LENGTH, issues);
   return {
-    secret: parseRequiredString(env, "QCMS_ADMIN_AUTH_SECRET", MIN_SECRET_LENGTH, issues),
+    secret,
+    secrets: parseSecretVersions(env, "QCMS_ADMIN_AUTH_SECRETS", secret, MIN_SECRET_LENGTH, issues),
     baseUrl: parseRequiredHttpUrl(env, "QCMS_ADMIN_BASE_URL", issues, "the authoring admin app"),
     idleMs: parseInt_(
       env,
@@ -583,6 +701,7 @@ export function loadAdminAuthConfig(env: Env): {
  */
 const UNMOUNTED_ADMIN_AUTH: Config["adminAuth"] = {
   secret: "",
+  secrets: [],
   baseUrl: "",
   idleMs: 0,
   secureCookies: false,

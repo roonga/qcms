@@ -1,4 +1,4 @@
-import { authSession, authUser, countAdminUsers } from "@qcms/db";
+import { authSession, authTwoFactor, authUser, countAdminUsers } from "@qcms/db";
 import { startTestDb, type TestDb } from "@qcms/db/testing";
 import { generate } from "otplib";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../../app.js";
 import { ADMIN_SESSION_HEADER } from "../../middleware/admin-auth.js";
 import { appGroups } from "../../registrars.js";
-import { internalTokenFor, makeDeps, validEnv } from "../../test-support.js";
+import { internalTokenFor, makeDeps, recordingLogger, validEnv } from "../../test-support.js";
 import { createInitialAdmin } from "./bootstrap.js";
 import { createAdminAuth } from "./instance.js";
 
@@ -31,6 +31,13 @@ import { createAdminAuth } from "./instance.js";
  * 4. **Two-step enrollment** - `two-factor/enable` stores a secret without flipping
  *    `twoFactorEnabled`; only a real TOTP code does, so an abandoned enrollment cannot
  *    leave an account half-protected.
+ *
+ * Issue #319 added a fifth, which belongs with these because it is the same kind of
+ * claim about the mounted surface: **the stored recovery codes are not readable back
+ * over HTTP by anybody**, and the only recovery-code operation an admin can reach
+ * beyond redeeming one is regenerating the set, which better-auth gates on the account
+ * password. What the codes look like at rest is asserted separately, against the
+ * column, in `backup-code-storage.integration.test.ts`.
  *
  * Against a real migrated Postgres and the real library, because every one of those is
  * a claim about stored rows and hashed credentials. Requires Docker.
@@ -62,7 +69,10 @@ let adminOrigin: string;
  * app is in exactly this position, which is what makes it the right fixture shape.
  */
 let enrolledSecret = "";
+/** Every log line the app emitted during this file, for the SEC-8 assertion. */
+let logLines: Array<Record<string, unknown>> = [];
 let issuedCodes: string[] = [];
+let regeneratedCodes: string[] = [];
 
 /** The `name=value` pairs from a response's `Set-Cookie` headers, as a cookie header. */
 function cookieHeader(response: Response): string {
@@ -126,7 +136,17 @@ function secretFromUri(uri: string): string {
 beforeAll(async () => {
   testDb = await startTestDb();
   const env = validEnv({ DATABASE_URL: testDb.connectionUri });
-  const deps = makeDeps({ db: testDb.db, env, clock: { now: () => new Date() } });
+  const recorded = recordingLogger();
+  logLines = recorded.lines;
+  const deps = makeDeps({
+    db: testDb.db,
+    env,
+    clock: { now: () => new Date() },
+    // The real JSON logger, captured: SEC-8 says no credential reaches a log line, and
+    // the only way to assert that over a whole auth flow is to keep every line it
+    // emitted and look.
+    logger: recorded.logger,
+  });
   app = createApp(deps, ALL, { groups: appGroups });
   channelToken = internalTokenFor(deps.config);
   adminOrigin = deps.config.adminAuth.baseUrl;
@@ -226,31 +246,87 @@ describe("semantics 3 and 4: two-step enrollment, then a withheld session (SEC-1
     expect(issued).toEqual([]);
   });
 
-  it("serves the recovery codes generated at enrollment, and only to the session's own account", async () => {
+  it("no longer serves the stored recovery codes to anyone (issue #319)", async () => {
     const session = (await (await authGetSession(sessionCookie)).json()) as {
       session: { token: string };
     };
-    const res = await adminGet("/auth/recovery-codes", session.session.token);
-    // The admin group is POST-only for this route; GET must not expose it.
-    expect(res.status).toBe(404);
 
-    const posted = await app.request("/admin/auth/recovery-codes", {
-      method: "POST",
-      headers: {
-        "x-qcms-internal-token": channelToken,
-        [ADMIN_SESSION_HEADER]: session.session.token,
-      },
-    });
-    expect(posted.status).toBe(200);
-    expect(((await posted.json()) as { codes: string[] }).codes).toEqual(issuedCodes);
+    // `POST /admin/auth/recovery-codes` decrypted the stored codes and returned them to
+    // any live admin session. It is gone, and a live, fully authorized session is
+    // exactly the caller that must now be refused: anything less would prove only that
+    // the gate in front of it still works.
+    for (const method of ["GET", "POST"]) {
+      const res = await app.request("/admin/auth/recovery-codes", {
+        method,
+        headers: {
+          "x-qcms-internal-token": channelToken,
+          [ADMIN_SESSION_HEADER]: session.session.token,
+        },
+      });
+      expect(res.status, `${method} /admin/auth/recovery-codes`).toBe(404);
+    }
   });
 
-  it("refuses the recovery codes to an unauthenticated caller (401, not a leak)", async () => {
-    const res = await app.request("/admin/auth/recovery-codes", {
-      method: "POST",
-      headers: { "x-qcms-internal-token": channelToken },
-    });
-    expect(res.status).toBe(401);
+  it("regenerates recovery codes only for a caller who supplies the password", async () => {
+    const stored = async (): Promise<string> => {
+      const [row] = await testDb.db.select().from(authTwoFactor);
+      return String(row?.backupCodes);
+    };
+    const before = await stored();
+
+    // No password: better-auth refuses, and the stored set is untouched. A session
+    // alone must not be able to retire an admin's codes (issue #319: re-authentication
+    // is what this operation buys over the read it replaced).
+    const refused = await authPost("/two-factor/generate-backup-codes", {}, sessionCookie);
+    expect(refused.status).toBeGreaterThanOrEqual(400);
+    expect(await stored()).toBe(before);
+
+    const wrongPassword = await authPost(
+      "/two-factor/generate-backup-codes",
+      { password: `${PASSWORD}-wrong` },
+      sessionCookie,
+    );
+    expect(wrongPassword.status).toBeGreaterThanOrEqual(400);
+    expect(await stored()).toBe(before);
+
+    const ok = await authPost(
+      "/two-factor/generate-backup-codes",
+      { password: PASSWORD },
+      sessionCookie,
+    );
+    expect(ok.status).toBe(200);
+    const { backupCodes } = (await ok.json()) as { backupCodes: string[] };
+    expect(backupCodes.length).toBeGreaterThan(0);
+
+    // The set on record moved, and the codes handed out at enrollment are not it any
+    // more: regenerating invalidates a prior set rather than adding to it.
+    expect(await stored()).not.toBe(before);
+    expect(backupCodes).not.toEqual(issuedCodes);
+    regeneratedCodes = backupCodes;
+  });
+
+  it("logs no recovery code, no password and no key material anywhere (SEC-8)", () => {
+    // Everything the flows above put on the wire, including the values that only
+    // existed inside a request body. `logLines` holds every line the real JSON logger
+    // emitted across this whole file - sign-in, enrollment, refusals, regeneration.
+    const forbidden = [
+      PASSWORD,
+      `${PASSWORD}-wrong`,
+      enrolledSecret,
+      ...issuedCodes,
+      ...regeneratedCodes,
+    ].filter((value) => value !== "");
+    expect(forbidden.length).toBeGreaterThan(0);
+    expect(logLines.length, "the flows above should have logged something").toBeGreaterThan(0);
+
+    const rendered = logLines.map((line) => JSON.stringify(line)).join("\n");
+    for (const value of forbidden) {
+      expect(rendered).not.toContain(value);
+    }
+
+    // And the stored ciphertext is not logged either: it is the material the key
+    // protects, and a log store is not where it belongs (SEC-8, SEC-13).
+    expect(rendered).not.toContain("$ba$");
   });
 });
 

@@ -14,7 +14,7 @@
  */
 
 import type { RouteGroups } from "./app.js";
-import { registerAdminAuthProxy, registerAdminRecoveryCodes } from "./features/auth/route.js";
+import { registerAdminAuthProxy } from "./features/auth/route.js";
 import { registerForms } from "./features/forms/route.js";
 import { registerLinks } from "./features/links/route.js";
 import { registerOutboxOps } from "./features/outbox/route.js";
@@ -51,7 +51,6 @@ export const appGroups: RouteGroups = {
     registerLinks,
     registerWebhooks,
     registerOutboxOps,
-    registerAdminRecoveryCodes,
   ],
   auth: [registerAdminAuthProxy],
 };

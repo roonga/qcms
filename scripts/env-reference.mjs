@@ -189,7 +189,16 @@ export const ENV_REFERENCE = [
     fallback: "",
     secret: true,
     description:
-      "better-auth signing secret, at least 32 characters. Required when `QCMS_MOUNT` includes `admin`. **Not rotatable**: it also protects stored two-factor material, so changing it locks every administrator out of 2FA (SEC-7). Set it once, back it up with the database.",
+      "better-auth signing secret, at least 32 characters. Required when `QCMS_MOUNT` includes `admin`. It also protects stored two-factor material (TOTP secrets and recovery codes are encrypted under it), so back it up with the database. Rotate it through `QCMS_ADMIN_AUTH_SECRETS` rather than by editing this value, which would leave every enrolled authenticator unreadable (SEC-7).",
+  },
+  {
+    name: "QCMS_ADMIN_AUTH_SECRETS",
+    process: "api",
+    requirement: "optional",
+    fallback: "unset - version 1 holds QCMS_ADMIN_AUTH_SECRET",
+    secret: true,
+    description:
+      "Versioned admin auth keys for non-destructive rotation, as comma-separated `<version>:<secret>` entries, newest first (for example `2:<new>,1:<old>`). The first entry encrypts new material; the rest stay readable. Each value has the same 32-character floor, and the API refuses to start on a list that is not in descending version order, since a list written the other way round would keep encrypting under the old key. Leave it unset unless you are rotating; the rotation runbook is in the key-rotation section below (SEC-7, issue #319).",
   },
   {
     name: "QCMS_ADMIN_BASE_URL",

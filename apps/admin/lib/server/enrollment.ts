@@ -27,14 +27,27 @@ import { secureCookies } from "./config.ts";
  * long-lived credential where a single-use secret is now, and a server-side staging
  * table would add a schema for a value that already lives in `twoFactor.secret`.
  *
- * ## Why the recovery-code view needs a marker
+ * ## Why the recovery codes travel the same way (issue #319)
  *
  * The recovery codes are shown exactly once (the wireframe: "codes never shown
- * again"). They are fetched server-side at display time rather than carried in a
- * cookie, so what has to be one-shot is the *permission to see them*:
- * {@link RECOVERY_VIEW_COOKIE} is set by the enrollment verify step and cleared by
- * the "I have saved these" confirm, so revisiting the URL afterwards redirects
- * instead of re-displaying. It holds no code, only the fact that a display is owed.
+ * again"), and until #319 that display was fed by a QCMS route that read them back out
+ * of the database on demand. Reading them back is the thing that made "shown once"
+ * untrue, so the route is gone and there is no path anywhere that returns the codes on
+ * record. What is left are the two moments better-auth **hands them out**: enrollment
+ * (`two-factor/enable`) and regeneration (`two-factor/generate-backup-codes`).
+ *
+ * Both of those moments are a POST that ends in a redirect, so the codes have to cross
+ * one hop to reach the screen that prints them. {@link RECOVERY_CODES_COOKIE} is that
+ * hop, and it replaces the old permission marker: holding the codes *is* the permission,
+ * so a revisit after the "I have saved these" confirm has nothing to print and
+ * redirects, exactly as before.
+ *
+ * The same reasoning as {@link ENROLLMENT_COOKIE} applies, and more comfortably. The
+ * cookie carries what the very next response body prints, to the same audience, for a
+ * shorter time, with the same hardening (`httpOnly`, `SameSite=Strict`, `Secure`
+ * outside development, scoped to `/two-factor`, fifteen minutes, deleted on confirm).
+ * And what it carries is weaker than what the enrollment cookie already carries: ten
+ * single-use codes rather than the permanent TOTP secret.
  *
  * ## Writers return strings, readers use `cookies()`
  *
@@ -47,8 +60,8 @@ import { secureCookies } from "./config.ts";
 
 /** Cookie carrying the pending enrollment's `otpauth://` URI. */
 export const ENROLLMENT_COOKIE = "qcms_admin.enrollment";
-/** Cookie granting the one-time recovery-code display. */
-export const RECOVERY_VIEW_COOKIE = "qcms_admin.recovery_view";
+/** Cookie carrying the codes owed to the one-time recovery-code display. */
+export const RECOVERY_CODES_COOKIE = "qcms_admin.recovery_codes";
 
 /** Fifteen minutes: long enough to install an authenticator app, not longer. */
 const ENROLLMENT_TTL_SECONDS = 15 * 60;
@@ -79,14 +92,14 @@ export function clearEnrollmentCookie(): string {
   return serialize(ENROLLMENT_COOKIE, "", 0);
 }
 
-/** `Set-Cookie` opening the one-time recovery-code display. */
-export function recoveryViewCookie(): string {
-  return serialize(RECOVERY_VIEW_COOKIE, "1", ENROLLMENT_TTL_SECONDS);
+/** `Set-Cookie` handing a freshly issued set of codes to the one-time display. */
+export function recoveryCodesCookie(codes: readonly string[]): string {
+  return serialize(RECOVERY_CODES_COOKIE, JSON.stringify(codes), ENROLLMENT_TTL_SECONDS);
 }
 
 /** `Set-Cookie` spending the one-time recovery-code display. */
-export function clearRecoveryViewCookie(): string {
-  return serialize(RECOVERY_VIEW_COOKIE, "", 0);
+export function clearRecoveryCodesCookie(): string {
+  return serialize(RECOVERY_CODES_COOKIE, "", 0);
 }
 
 /** The pending enrollment's TOTP URI, or `undefined` when there is none. */
@@ -95,8 +108,24 @@ export async function pendingEnrollment(): Promise<string | undefined> {
   return jar.get(ENROLLMENT_COOKIE)?.value;
 }
 
-/** Whether a one-time recovery-code display is owed. */
-export async function recoveryDisplayOwed(): Promise<boolean> {
+/**
+ * The codes owed to the one-time display, or `undefined` when none are.
+ *
+ * Anything that is not a non-empty array of strings reads as "nothing owed" rather
+ * than as an error: the only writer is {@link recoveryCodesCookie}, so a malformed
+ * value is a tampered or truncated cookie, and the right answer to that is the same
+ * redirect a missing cookie gets. Nothing about the value is logged (SEC-8).
+ */
+export async function owedRecoveryCodes(): Promise<string[] | undefined> {
   const jar = await cookies();
-  return jar.get(RECOVERY_VIEW_COOKIE)?.value === "1";
+  const raw = jar.get(RECOVERY_CODES_COOKIE)?.value;
+  if (raw === undefined || raw === "") return undefined;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+  if (!Array.isArray(parsed) || parsed.length === 0) return undefined;
+  return parsed.every((code) => typeof code === "string") ? parsed : undefined;
 }

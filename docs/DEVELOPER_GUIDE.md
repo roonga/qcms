@@ -111,13 +111,20 @@ reveal). `pnpm dev:portal` and `pnpm dev:admin` generate a fresh secret when the
 is unset, so an unpinned restart leaves your authenticator's codes rejected for good.
 `pnpm dev:admin` says so on startup rather than leaving you to remember it.
 
-What is left in that state is the recovery codes, and only those. They survive because
-they are stored as plain JSON unless `storeBackupCodes: "encrypted"` is configured, which
-QCMS does not (`dist/plugins/two-factor/backup-codes/index.mjs:45`) - but there are
-**ten** of them (`:15`, `amount ?? 10`), the admin ships no re-enrolment screen, and every
-unpinned restart costs one. After ten, that account is unusable and the fastest way out is
-a fresh database. Setting `QCMS_ADMIN_2FA=optional` afterwards does not rescue it: the
-challenge is demanded whenever the account's `twoFactorEnabled` is true.
+**Nothing is left in that state, including the recovery codes.** This guide used to say
+the ten recovery codes survive an unpinned restart because better-auth stores them as
+plain JSON - that was wrong (issue #319). The plugin defaults `storeBackupCodes` to
+`"encrypted"` (`dist/plugins/two-factor/index.mjs:25-27`; the plain-JSON branch at
+`.../backup-codes/index.mjs:45` is what runs when a caller *overrides* the default), so
+the codes are ciphertext under the same key as the TOTP secret and die with it. There is
+no re-enrolment screen and no 2FA reset command (issue #432), so the fastest way out of a
+lost dev secret is a fresh database. Setting `QCMS_ADMIN_2FA=optional` afterwards does not
+rescue it: the challenge is demanded whenever the account's `twoFactorEnabled` is true.
+
+For a **deployment**, the answer is not to lose the secret and not to change it in place:
+rotate it through `QCMS_ADMIN_AUTH_SECRETS`, a versioned list where the newest entry
+encrypts and older entries keep reading, so a key change costs a round of sign-ins rather
+than every enrolment (`docs/operations.md`, "Admin auth secret rotation").
 
 The command refuses to run once any admin account exists, so it is safe in a runbook and
 safe to re-run by accident. On first sign-in you must enroll a TOTP factor before reaching

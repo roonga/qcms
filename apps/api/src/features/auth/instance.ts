@@ -63,6 +63,23 @@ import type { Config } from "../../config.js";
  * is a two-step provision-then-verify: `enableTwoFactor` stores the secret and
  * backup codes but leaves `user.twoFactorEnabled` false until a real TOTP code
  * verifies, so an abandoned enrollment cannot leave an account half-protected.
+ *
+ * Both stored factors are **ciphertext under the admin auth secret**: the TOTP secret
+ * (`dist/plugins/two-factor/index.mjs:106`) and the recovery codes
+ * (`.../backup-codes/index.mjs:19-22`). That used to make `QCMS_ADMIN_AUTH_SECRET` a
+ * key nobody could change without destroying every enrolment, which task 056 recorded
+ * as permanent. It is not permanent any more: better-auth 1.6.26 carries a versioned
+ * key set (`secrets`) and writes a `$ba$<version>$` envelope, so an operator adds a new
+ * version, keeps the old one for reading, and stored material re-encodes under the
+ * current version as it is used. Recovery-code blobs re-encode on **every redemption**
+ * (`.../backup-codes/index.mjs:215`). `docs/operations.md` carries the runbook, and
+ * §4 of `docs/SECURITY_DESIGN.md` carries what it does and does not reach.
+ *
+ * Rotation is still not free of consequence, and the runbook says so: better-auth
+ * derives its cookie-signing secret from the *current* version
+ * (`dist/context/create-context.mjs:73`), so promoting a new version signs every live
+ * admin out. That is the correct trade for a key change and is a world away from what
+ * it replaced, which was every authenticator dying with no way back in.
  */
 
 /**
@@ -156,6 +173,18 @@ export function createAdminAuth(input: AdminAuthInput) {
         twoFactor: authTwoFactor,
       },
     }),
+    // The **versioned** key set, and `secret` beside it as the legacy fallback
+    // (issue #319). better-auth 1.6.26 resolves these together in
+    // `dist/context/create-context.mjs:69-81`: with `secrets` present it builds a
+    // `SecretConfig` whose current version encrypts, whose whole map decrypts, and
+    // whose `legacySecret` is `secret` - used only for ciphertext that predates the
+    // `$ba$<version>$` envelope. That is what makes rotating this key a rotation
+    // rather than a break: see the header note above.
+    //
+    // `secrets` defaults to one version-1 entry holding exactly `secret`, so a
+    // deployment that has never rotated signs and encrypts with the same value it
+    // always did. Only the stored *format* moves, and only forwards.
+    secrets: adminAuth.secrets.map((entry) => ({ ...entry })),
     secret: adminAuth.secret,
     // The ADMIN app's public origin, not this API's. The browser only ever sees the
     // admin, so that is the origin the cookies belong to and the one better-auth
@@ -233,6 +262,26 @@ export function createAdminAuth(input: AdminAuthInput) {
         // as protected; this is better-auth's default and is restated because
         // flipping it would silently weaken SEC-1.
         skipVerificationOnEnable: false,
+        backupCodeOptions: {
+          // Recovery codes are ciphertext at rest, under the versioned key set above
+          // (issue #319, SEC-7).
+          //
+          // This restates better-auth 1.6.26's own default rather than changing it:
+          // `dist/plugins/two-factor/index.mjs:25-27` builds `backupCodeOptions` as
+          // `{ storeBackupCodes: "encrypted", ...options?.backupCodeOptions }`, so
+          // an instance that passes nothing already encrypts. Verified against the
+          // stored column rather than read off the type, in
+          // `backup-code-storage.integration.test.ts`.
+          //
+          // It is written down for the same reason `skipVerificationOnEnable` is:
+          // this is a security property of the deployment, and an upstream default
+          // flip would otherwise weaken it silently and invisibly. Issue #319 exists
+          // because a reviewer read the *decoder* (`backup-codes/index.mjs:45`,
+          // which does plain-JSON parse when the option is absent) without reading
+          // the caller that supplies it, and concluded the codes sat in plaintext.
+          // Stating the value is what makes that question answerable from this file.
+          storeBackupCodes: "encrypted",
+        },
       }),
       // SEC-1's breach-corpus check (issue #178). NIST SP 800-63B Rev 4 section
       // 3.1.1.2 says a verifier SHALL compare a prospective secret against a list of

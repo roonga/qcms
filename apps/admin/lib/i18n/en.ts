@@ -13,8 +13,10 @@
  *   and a wrong password to be indistinguishable. Making them one string each is
  *   what stops a future edit from adding a helpful, enumerating variant.
  * - **`recovery.*`** never promises the codes can be seen again, because they
- *   cannot: better-auth stores them for verification, and this is their one
- *   display.
+ *   cannot: they are ciphertext at rest and no route decrypts them for a reader
+ *   (issue #319 removed the one that did), so this is their one display.
+ *   `settings.recoveryCodes*` offers the only remedy that exists - a fresh set,
+ *   which retires the old one - and says so rather than implying a lookup.
  */
 
 export const messages = {
@@ -97,6 +99,11 @@ export const messages = {
   "settings.twoFactorTitle": "Two-factor authentication",
   "settings.twoFactorOn": "Two-factor authentication is on for this account.",
   "settings.twoFactorOff": "Two-factor authentication is not set up for this account.",
+  "settings.recoveryCodesTitle": "Recovery codes",
+  "settings.recoveryCodesIntro":
+    "Your saved codes cannot be shown again. If you have lost them, generate a new set: the codes you have now will stop working.",
+  "settings.recoveryCodesPassword": "Your password",
+  "settings.recoveryCodesAction": "Generate new recovery codes",
 
   // The area screens tasks 033-035 replace. Each says what it will hold so the
   // shell is navigable and reviewable now, and so an empty page never reads as a

@@ -1,24 +1,35 @@
-import { createRoute } from "@hono/zod-openapi";
-
 import type { SliceRegistrar } from "../../app.js";
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
-import { errorResponses } from "../../openapi.js";
-import { makeRecoveryCodesHandler } from "./handler.js";
 import { AUTH_BASE_PATH, createAdminAuth, type AdminAuth } from "./instance.js";
-import { RecoveryCodesResponse } from "./schema.js";
 
 /**
  * The admin identity provider's HTTP surface (task 056; SEC-1, SEC-4).
  *
- * Two registrars live here, in two different groups, and the split is the design:
+ * One registrar: {@link registerAdminAuthProxy} mounts better-auth on `/api/auth/*` in
+ * the **auth** group, which carries the SEC-4 channel token but no admin-session gate.
+ * It cannot carry one: these are the endpoints that *issue* a session.
  *
- * 1. {@link registerAdminAuthProxy} mounts better-auth on `/api/auth/*` in the
- *    **auth** group, which carries the SEC-4 channel token but no admin-session
- *    gate. It cannot carry one: these are the endpoints that *issue* a session.
- * 2. {@link registerAdminRecoveryCodes} adds one QCMS-owned route to the **admin**
- *    group, behind the ordinary admin-session gate, for the one operation better-auth
- *    deliberately does not expose over HTTP.
+ * ## What used to be here, and why it is gone (issue #319)
+ *
+ * A second registrar served `POST /admin/auth/recovery-codes` in the admin group: a
+ * QCMS-owned wrapper around better-auth's server-only `viewBackupCodes`, which decrypts
+ * the stored recovery codes and returns them. It existed so the one-time enrollment
+ * display could read them back.
+ *
+ * It has been removed rather than kept, because a route that returns the current
+ * recovery codes to any live admin session is retrieval-on-demand, and
+ * `SECURITY_DESIGN.md` §2.1 promised the codes were shown once. better-auth's own
+ * documentation says `viewBackupCodes` should be behind a *fresh* session, which
+ * nothing here enforced: `AdminPrincipal` does not carry `session.createdAt`, so
+ * enforcing it meant new plumbing for a weaker property than the alternative.
+ *
+ * The alternative is `POST /two-factor/generate-backup-codes`, allowlisted below.
+ * better-auth requires the account password in its body
+ * (`dist/plugins/two-factor/backup-codes/index.mjs:279-281`), so re-authentication
+ * comes for free and needs no freshness plumbing, and issuing a fresh set invalidates
+ * any prior set that leaked. An admin who has lost their codes gets new ones; nobody,
+ * including the account holder, reads the stored ones back.
  *
  * ## Why the mount is an allowlist (SEC-1)
  *
@@ -34,7 +45,7 @@ import { RecoveryCodesResponse } from "./schema.js";
  * method and path are not on the list never reaches `auth.handler` and answers `404`,
  * the same answer an unmounted route gives. The list is short because the admin's
  * flows are short, and it is the thing to read when asking "what of better-auth is
- * exposed here": seven operations, none of which creates an account.
+ * exposed here": eight operations, none of which creates an account.
  *
  * This is stricter than what it replaces. Before this task the admin mounted no
  * better-auth route at all and called `auth.api.*` in process, and the guarantee was
@@ -63,11 +74,14 @@ import { RecoveryCodesResponse } from "./schema.js";
  * - `POST /two-factor/enable` - provisions a TOTP factor without enabling it.
  * - `POST /two-factor/verify-totp` - completes enrollment, or answers a challenge.
  * - `POST /two-factor/verify-backup-code` - redeems a single-use recovery code.
+ * - `POST /two-factor/generate-backup-codes` - issues a fresh set, password required,
+ *   replacing the set on record (issue #319; Settings offers it, and the enrollment
+ *   flow does not need it because `two-factor/enable` already returns the first set).
  *
- * Absent on purpose: `sign-up/email` (SEC-1, above); `two-factor/disable` and
- * `two-factor/generate-backup-codes`, because no screen offers either and an
- * unreachable endpoint is one fewer thing to reason about; `two-factor/send-otp` and
- * `two-factor/verify-otp`, because OTP delivery is Phase 4; `two-factor/get-totp-uri`,
+ * Absent on purpose: `sign-up/email` (SEC-1, above); `two-factor/disable`, because no
+ * screen offers it and an unreachable endpoint is one fewer thing to reason about;
+ * `two-factor/send-otp` and `two-factor/verify-otp`, because OTP delivery is Phase 4;
+ * `two-factor/get-totp-uri`,
  * because the URI is handed to the enrollment screen by the sign-in POST that
  * provisioned it (the admin's `lib/server/enrollment.ts` explains why); and every
  * social, organization and passkey route, since no such plugin is configured.
@@ -80,6 +94,7 @@ export const ALLOWED_AUTH_ENDPOINTS: readonly string[] = [
   "POST /two-factor/enable",
   "POST /two-factor/verify-totp",
   "POST /two-factor/verify-backup-code",
+  "POST /two-factor/generate-backup-codes",
 ];
 
 const ALLOWED = new Set(ALLOWED_AUTH_ENDPOINTS);
@@ -127,43 +142,4 @@ export const registerAdminAuthProxy: SliceRegistrar = (group, deps) => {
     }
     return authFor(deps).handler(request);
   });
-};
-
-/**
- * `POST /admin/auth/recovery-codes` - read back the signed-in admin's recovery codes.
- *
- * POST rather than GET even though it reads: a GET response is the kind of thing a
- * proxy, a prefetch or a browser history entry retains, and these are one-time
- * secrets. There is no request body for the same reason the handler takes the user id
- * from the principal.
- *
- * No `withScopes` annotation, deliberately. The SEC-5 taxonomy is about **domain
- * resources** (`forms:*`, `responses:*`, `webhooks:manage`); this route reads the
- * caller's own credential and fits none of them. Inventing an entry would be a SEC-5
- * amendment, which this task does not own, and a `/api/v1` machine token has no
- * business reaching an interactive enrollment step in any case.
- *
- * The admin's one-shot display marker (`RECOVERY_VIEW_COOKIE`) governs *when* the
- * screen may call this; that is a BFF concern and stays in the BFF.
- */
-export const recoveryCodesRoute = createRoute({
-  method: "post",
-  path: "/auth/recovery-codes",
-  tags: ["auth"],
-  summary: "Read back the signed-in admin's TOTP recovery codes (admin)",
-  responses: {
-    200: {
-      description: "The account's recovery codes",
-      content: { "application/json": { schema: RecoveryCodesResponse } },
-    },
-    // 401: no valid admin session. 409: the account has no TOTP factor.
-    ...errorResponses(401, 409),
-  },
-});
-
-export const registerAdminRecoveryCodes: SliceRegistrar = (group, deps) => {
-  group.openapi(
-    recoveryCodesRoute,
-    makeRecoveryCodesHandler(() => authFor(deps)),
-  );
 };

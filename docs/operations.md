@@ -111,7 +111,8 @@ Validated at boot by `apps/api/src/config.ts`, which collects every problem and 
 | `QCMS_INTERNAL_TOKEN` (secret) | **required** | - | Service tokens the BFFs present on every internal call (SEC-4), at least 32 characters each. Any listed token is accepted, which is what makes rotation a two-deploy operation. |
 | `QCMS_APP_KEY` (secret) | **required** | - | AES-256-GCM key (at least 32 characters) encrypting secrets at rest: webhook signing secrets and stored TOTP material (SEC-6). Changing it makes every existing at-rest secret undecryptable. |
 | `QCMS_PORTAL_BASE_URL` | **required** | - | Public origin of the respondent portal, used to build the secure-link URLs authors copy. Absolute http(s); a trailing slash is stripped. |
-| `QCMS_ADMIN_AUTH_SECRET` (secret) | conditional | - | better-auth signing secret, at least 32 characters. Required when `QCMS_MOUNT` includes `admin`. **Not rotatable**: it also protects stored two-factor material, so changing it locks every administrator out of 2FA (SEC-7). Set it once, back it up with the database. |
+| `QCMS_ADMIN_AUTH_SECRET` (secret) | conditional | - | better-auth signing secret, at least 32 characters. Required when `QCMS_MOUNT` includes `admin`. It also protects stored two-factor material (TOTP secrets and recovery codes are encrypted under it), so back it up with the database. Rotate it through `QCMS_ADMIN_AUTH_SECRETS` rather than by editing this value, which would leave every enrolled authenticator unreadable (SEC-7). |
+| `QCMS_ADMIN_AUTH_SECRETS` (secret) | optional | `unset - version 1 holds QCMS_ADMIN_AUTH_SECRET` | Versioned admin auth keys for non-destructive rotation, as comma-separated `<version>:<secret>` entries, newest first (for example `2:<new>,1:<old>`). The first entry encrypts new material; the rest stay readable. Each value has the same 32-character floor, and the API refuses to start on a list that is not in descending version order, since a list written the other way round would keep encrypting under the old key. Leave it unset unless you are rotating; the rotation runbook is in the key-rotation section below (SEC-7, issue #319). |
 | `QCMS_ADMIN_BASE_URL` | conditional | - | Public origin of the **admin app**, not of this API. Required when `QCMS_MOUNT` includes `admin`: it is the origin better-auth scopes cookies to and the only origin it trusts, so it must match what the browser sees exactly. |
 | `TURNSTILE_SITE_KEY` | conditional | - | Turnstile site key. Required when `QCMS_FLAG_CHALLENGE_PROVIDER=turnstile`, ignored otherwise. |
 | `TURNSTILE_SECRET_KEY` (secret) | conditional | - | Turnstile verification secret. Required when `QCMS_FLAG_CHALLENGE_PROVIDER=turnstile`, ignored otherwise. |
@@ -349,6 +350,58 @@ symptom is respondents getting a rejection on a link that worked minutes earlier
 Key material is validated at boot for minimum length and the process refuses to start
 on a short or empty key rather than starting with weak signing. The values are never
 logged and never echoed in an error (SEC-8): a boot failure names the variable.
+
+### Admin auth secret rotation
+
+`QCMS_ADMIN_AUTH_SECRET` is not a list, and it is the one key that also protects data
+at rest: both stored second factors, the TOTP secret and the recovery codes, are
+encrypted under it. So editing that variable in place is not a rotation - it makes
+every enrolled authenticator unreadable, permanently, with no screen to re-enrol from.
+**Never change it in place.**
+
+Rotate through `QCMS_ADMIN_AUTH_SECRETS` instead. It is a list of
+`<version>:<secret>` entries, newest first: the first entry encrypts everything
+written from now on, and every entry can still read what it wrote. Stored material
+carries the version that wrote it, and moves forward as it is used.
+
+1. Generate a new secret (`openssl rand -base64 32`) and set
+   `QCMS_ADMIN_AUTH_SECRETS=2:<new>,1:<current>`. Leave `QCMS_ADMIN_AUTH_SECRET` set
+   to `<current>`: it stays the fallback for material written before this list existed.
+2. Restart the API. **Every administrator is signed out** - the session cookie is
+   signed with the current version - and they sign in again as normal, second factor
+   included. That is the whole visible impact.
+3. Recovery codes migrate on their own: each redemption re-encodes the remaining set
+   under the current version. TOTP secrets do **not** - they are written once at
+   enrolment and only read afterwards.
+4. Because of step 3, **keep the old version in the list**. A TOTP secret written
+   under version 1 stays readable only while version 1 is listed, and the launch admin
+   surface exposes no way to re-enrol an account that already has a live factor
+   (`two-factor/disable` is deliberately unmounted). So at launch a retired version is
+   retired for good and there is no supported path to drop the trailing entry: add
+   versions, do not remove them. Pruning becomes possible when a 2FA reset exists
+   (issue #432).
+
+A fourth limit is not conditional on rotating at all: **the deploy that introduced this
+list is a one-way door.** From that release onward every piece of stored two-factor
+material is written in the versioned `$ba$<version>$<hex>` envelope, whether or not
+`QCMS_ADMIN_AUTH_SECRETS` is ever set, because the default is a version-1 list rather
+than no list. A build from before the change knows nothing about that envelope: it hands
+the whole string to a raw hex decode (`rawDecrypt` -> `hexToBytes`), which throws rather
+than returning wrong plaintext. So rolling the API image back past this change leaves
+every account enrolled since the deploy unverifiable on both factors, while accounts
+enrolled before it keep working through the same code path they always used. Roll
+forward from a fault here rather than back, and if a rollback has to stay available,
+take the database snapshot before the upgrade and treat restoring it as part of the
+rollback.
+
+Numbering: versions are integers, unique, and are **not** positional - they identify
+the key inside the stored ciphertext, so never renumber an existing key. Add a higher
+number at the head of the list and leave the older ones alone.
+
+If the secret is lost outright there is currently no break-glass: nothing resets an
+account's 2FA state, so both factors are gone with the key. That gap is tracked
+separately (issue #432); until it closes, treat this secret with the same care as the
+database it protects, and back the two up together.
 
 ## Backups
 
