@@ -89,9 +89,27 @@ export interface AssistProposal {
   readonly issues: readonly PublishIssue[];
 }
 
-/** Machine-readable failure codes the UI renders as its error states (042 wireframe). */
-export type AssistErrorCode =
-  "PROVIDER_ERROR" | "NO_PROPOSAL" | "REFUSED" | "LENGTH" | "STEP_LIMIT";
+/**
+ * Machine-readable failure codes the UI renders as its error states (042
+ * wireframe).
+ *
+ * A runtime array rather than a bare union, because both halves of this contract
+ * need to be enumerable. `assistant.test.ts` asserts every code here is actually
+ * emitted by some scenario (no code may exist that the API cannot produce), and
+ * the admin's `assist-error-codes.test.ts` asserts this exact list is the one it
+ * holds copy for. Those two together are what stops a code and its message from
+ * drifting apart, which is how `STEP_LIMIT` came to be declared, rendered, and
+ * unreachable.
+ */
+export const ASSIST_ERROR_CODES = [
+  "PROVIDER_ERROR",
+  "NO_PROPOSAL",
+  "REFUSED",
+  "LENGTH",
+  "STEP_LIMIT",
+] as const;
+
+export type AssistErrorCode = (typeof ASSIST_ERROR_CODES)[number];
 
 /**
  * The stream an assist turn produces. The SSE relay writes one event per item;

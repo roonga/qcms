@@ -202,6 +202,48 @@ async function* runTurn(args: {
 }
 
 /**
+ * Why a turn ended with no proposal, named precisely.
+ *
+ * The three cases are genuinely different problems with genuinely different
+ * fixes, and telling them apart is the whole point of having three codes:
+ *
+ * - `LENGTH` - the model ran out of output room mid-answer. Ask for less.
+ * - `STEP_LIMIT` - the model was still working when `QCMS_AGENT_MAX_STEPS` cut
+ *   the loop off. It was making progress; it needed more room to make. This is
+ *   the one that most needs its own name, because a step-exhausted turn and a
+ *   turn where the model simply never answered look identical from the outside,
+ *   and anyone tuning a prompt against a real model has to be able to tell which
+ *   they are looking at. `tool-calls` as the last finish reason is what makes it
+ *   unambiguous: the model had asked for another tool and the ceiling, not the
+ *   model, is what stopped it.
+ * - `NO_PROPOSAL` - the model finished of its own accord without proposing.
+ *   Rephrase, or the model is not up to the task.
+ */
+function emptyTurnError(outcome: RunOutcome, maxSteps: number): AssistEvent {
+  if (outcome.finishReason === "length") {
+    return {
+      type: "error",
+      code: "LENGTH",
+      message: "The model ran out of output room before proposing a draft. Try a smaller request.",
+    };
+  }
+  if (outcome.steps >= maxSteps && outcome.finishReason === "tool-calls") {
+    return {
+      type: "error",
+      code: "STEP_LIMIT",
+      message:
+        "The assistant reached its step limit before proposing a draft. " +
+        "Try a smaller request, or raise QCMS_AGENT_MAX_STEPS.",
+    };
+  }
+  return {
+    type: "error",
+    code: "NO_PROPOSAL",
+    message: "The assistant did not propose a draft. Try describing the form differently.",
+  };
+}
+
+/**
  * Turn the accumulated outcome into terminal events.
  *
  * The refusal is emitted **and logged** here, which is the "rejected and logged"
@@ -260,15 +302,7 @@ async function* finishTurn(args: {
   }
 
   if (state.proposedDraft === undefined) {
-    const code = outcome.finishReason === "length" ? "LENGTH" : "NO_PROPOSAL";
-    yield {
-      type: "error",
-      code,
-      message:
-        code === "LENGTH"
-          ? "The model ran out of output room before proposing a draft. Try a smaller request."
-          : "The assistant did not propose a draft. Try describing the form differently.",
-    };
+    yield emptyTurnError(outcome, ctx.maxSteps);
     return;
   }
 
