@@ -6,6 +6,7 @@ import { FormBuilder } from "@/components/forms/form-builder";
 import { FormTabs } from "@/components/forms/form-tabs";
 import type { FormDetail } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
+import { agentAuthoringEnabled } from "@/lib/server/agent";
 import { getForm, loadPinnableQuestions } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
 
@@ -125,6 +126,7 @@ export default async function FormBuilderPage({
         latestVersion={form.versions[0]?.version}
         publish={publishFormAction.bind(null, form.formId)}
         setStatus={setFormStatusAction.bind(null, form.formId)}
+        agentAssisted={form.draftAgentAssisted}
       />
 
       {!library.ok && (
@@ -140,6 +142,9 @@ export default async function FormBuilderPage({
         validateDraft={validateDraftAction.bind(null, form.formId)}
         updateSettings={updateSettingsAction.bind(null, form.formId)}
         previewCondition={previewConditionAction.bind(null, form.formId)}
+        {...(agentAuthoringEnabled()
+          ? { assist: { endpoint: `/forms/${encodeURIComponent(form.formId)}/assist` } }
+          : {})}
       />
     </div>
   );

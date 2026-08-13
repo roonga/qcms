@@ -829,6 +829,56 @@ export const messages = {
     "This draft compiled, but its rules could not be evaluated for the answers entered. Reset the answers to start again.",
   "forms.error.versionNotFound": "That version does not exist.",
 
+  // --- agent-assisted form building (task 041, flag-gated) --------------------
+  //
+  // The panel's own copy. Two rules from the wireframe (`admin-agent-panel.md`) and
+  // ADR-25 shape everything below: Accept "merges the proposal into the working
+  // draft; never publishes" (there is no publish/erase/link/webhook affordance here
+  // at all, by construction), and every diff line is worded so `+`/`~` is never the
+  // only signal - the marker travels in the sentence itself.
+  "forms.assist.title": "Assistant",
+  "forms.assist.collapse": "Collapse the assistant panel",
+  "forms.assist.expand": "Expand the assistant panel",
+  "forms.assist.emptyHint": "Describe the form you want.",
+  "forms.assist.conversationLabel": "Conversation with the assistant",
+  "forms.assist.turnYou": "You",
+  "forms.assist.turnAssistant": "Assistant",
+  "forms.assist.inputLabel": "Describe the next change",
+  "forms.assist.send": "Send",
+  "forms.assist.working": "The assistant is working.",
+  "forms.assist.workingTool": "The assistant is using a tool: {tool}",
+
+  "forms.assist.proposalHeading": "Proposal",
+  "forms.assist.diffCount.one": "1 change proposed.",
+  "forms.assist.diffCount.other": "{count} changes proposed.",
+  "forms.assist.validationClean": "Validation passes.",
+  "forms.assist.diffAdded": "Added: {label}",
+  "forms.assist.diffChanged": "Changed: {label}",
+  "forms.assist.diffEmpty": "This proposal makes no changes to the current draft.",
+  "forms.assist.kind.step": "Step",
+  "forms.assist.kind.question": "Question",
+  "forms.assist.kind.rule": "Rule",
+  "forms.assist.accept": "Accept into draft",
+  "forms.assist.discard": "Discard",
+
+  "forms.assist.error.PROVIDER_ERROR": "The assistant is unavailable right now. Try again shortly.",
+  "forms.assist.error.NO_PROPOSAL":
+    "No proposal could be produced from the current draft. Try describing a smaller change.",
+  "forms.assist.error.REFUSED": "The assistant declined that request. {message}",
+  "forms.assist.error.LENGTH":
+    "The assistant's reply was cut off before it could finish. Try again.",
+  "forms.assist.error.STEP_LIMIT":
+    "The assistant reached its step limit for this turn without finishing. Try a smaller change.",
+  "forms.assist.error.TOOL_REJECTED":
+    "The assistant tried an action it is not allowed to take, and it was refused. {tool}",
+  "forms.assist.error.RATE_LIMITED": "Too many requests. Try again in a moment.",
+  "forms.assist.error.RATE_LIMITED_RETRY": "Too many requests. Try again in {seconds}s.",
+  "forms.assist.error.STALE_DRAFT":
+    "This draft changed since the conversation started. Reload the builder and try again.",
+  "forms.assist.error.HTTP": "That request did not reach the assistant. {message}",
+
+  "forms.assist.provenance": "draft includes agent-assisted changes",
+
   // --- operations: responses, erasure, webhooks (task 035) -------------------
   //
   // Two families of string here describe what the SYSTEM does rather than what the

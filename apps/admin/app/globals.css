@@ -533,6 +533,13 @@ th,
   color: var(--color-warning-fg);
   border-color: var(--color-warning-subtle);
 }
+/* Task 041's provenance marker (`AgentProvenanceTag`): informational rather than a
+   verdict, so it shares the same subtle-info treatment `--draft` uses. */
+.qcms-tag--agent-assisted {
+  background-color: var(--color-info-subtle);
+  color: var(--color-info-fg);
+  border-color: var(--color-info-subtle);
+}
 /* Subtle backgrounds collapse toward the page background in high contrast, so
    the border does the differentiating work there instead: thicker, and the
    universal strong-border token rather than the (now invisible) tint. */

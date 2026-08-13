@@ -49,12 +49,45 @@ export interface MountFlags {
 const MOUNT_SURFACES = ["public", "internal", "admin"] as const;
 type MountSurface = (typeof MOUNT_SURFACES)[number];
 
+/**
+ * Draft-assistant providers (041, ADR-25). The flag names the provider id, so
+ * switching vendor or model is an env change plus a restart - never a code
+ * change (ADR-24 semantics).
+ *
+ * - `none` is the default and means the assist routes are not mounted at all.
+ * - `fake` is the deterministic scripted provider the test suites drive. It
+ *   makes no network call and needs no key, which is what lets CI exercise the
+ *   real tool loop without a provider account.
+ * - `anthropic` is the documented reference. `openai` and `google` are the same
+ *   code path with a different provider package.
+ * - `openai-compatible` covers every OpenAI-protocol endpoint, including local
+ *   runtimes (Ollama, vLLM, LM Studio, llama.cpp-server): base URL plus model
+ *   name, and the key requirement relaxes for a local base URL.
+ */
+export const AGENT_PROVIDERS = [
+  "none",
+  "fake",
+  "anthropic",
+  "openai",
+  "google",
+  "openai-compatible",
+] as const;
+
+/** A configured draft-assistant provider id (041). */
+export type AgentProvider = (typeof AGENT_PROVIDERS)[number];
+
 /** The typed feature flags (ADR-24) that reach handlers via `deps`. */
 export interface Flags {
   /** Challenge provider for abuse controls (026); Turnstile secrets required iff `turnstile`. */
   readonly challengeProvider: "none" | "turnstile";
   /** Admin 2FA policy (SEC-1); `optional` is the documented dev escape hatch. */
   readonly adminTwoFactor: "required" | "optional";
+  /**
+   * Agent-assisted authoring provider (041, ADR-25). `none` (the default) leaves
+   * the assist routes unmounted; anything else requires `QCMS_AGENT_MODEL` and,
+   * unless the base URL is local, `QCMS_AGENT_API_KEY`.
+   */
+  readonly agentAuthoring: AgentProvider;
 }
 
 /** The validated, in-memory configuration the whole process shares. */
@@ -146,6 +179,12 @@ export interface Config {
     readonly answersPerIp: RateLimitClass;
     /** `POST /sessions/{id}/submit` - per session (e.g. 5/min). */
     readonly submitPerSession: RateLimitClass;
+    /**
+     * `POST /forms/{id}/draft/assist` - per admin principal (041). A per-deployment
+     * ceiling on agent turns: the upstream call is the expensive, billable one, and
+     * an authenticated author is still a rate-limit subject.
+     */
+    readonly agentAssist: RateLimitClass;
   };
   readonly scheduler: {
     readonly outboxIntervalMs: number;
@@ -270,6 +309,29 @@ export interface Config {
         readonly provider: "turnstile";
         readonly turnstile: { readonly siteKey: string; readonly secretKey: string };
       };
+  /**
+   * Draft-assistant configuration (041, ADR-25) - present iff
+   * `flags.agentAuthoring !== "none"`. A discriminated union so the provider key
+   * only exists in the enabled arm: a `none` deployment has no field that could
+   * hold a secret, and boot requires no provider account.
+   *
+   * `apiKey` is a SEC-7 inventory secret. It is never logged, never echoed in a
+   * config error, and never leaves this process except as an upstream
+   * `Authorization` header built inside the provider package (SEC-8).
+   */
+  readonly agent:
+    | { readonly provider: "none" }
+    | {
+        readonly provider: Exclude<AgentProvider, "none">;
+        /** Model id (`QCMS_AGENT_MODEL`); meaning is the provider's, not ours. */
+        readonly model: string;
+        /** Provider key (`QCMS_AGENT_API_KEY`); empty only for a keyless local endpoint. */
+        readonly apiKey: string;
+        /** Optional endpoint override (`QCMS_AGENT_BASE_URL`); required for `openai-compatible`. */
+        readonly baseUrl: string | undefined;
+        /** Hard ceiling on tool-loop steps per turn (`QCMS_AGENT_MAX_STEPS`). */
+        readonly maxSteps: number;
+      };
 }
 
 /** Thrown when the environment fails validation; message names vars, never values. */
@@ -314,6 +376,16 @@ export const FLAG_REGISTRY: readonly FlagDef[] = [
     fallback: "required",
     description:
       "Admin TOTP 2FA policy (SEC-1). `optional` is the documented development escape hatch only.",
+  },
+  {
+    key: "agentAuthoring",
+    env: "QCMS_FLAG_AGENT_AUTHORING",
+    schema: z.enum(AGENT_PROVIDERS),
+    fallback: "none",
+    description:
+      "Agent-assisted authoring provider (041, ADR-25). `none` leaves the assist routes unmounted. " +
+      "Any other value requires QCMS_AGENT_MODEL, plus QCMS_AGENT_API_KEY unless QCMS_AGENT_BASE_URL " +
+      "is a local endpoint. `fake` is the deterministic test provider and calls no network.",
   },
 ] as const;
 
@@ -603,6 +675,120 @@ function parseChallenge(env: Env, flags: Flags, issues: string[]): Config["chall
   return { provider: "none" };
 }
 
+/** Hostnames that are unambiguously this machine, whatever the DNS says. */
+const LOCAL_HOSTNAMES: ReadonlySet<string> = new Set([
+  "localhost",
+  "127.0.0.1",
+  "0.0.0.0",
+  "[::1]",
+  "::1",
+  "host.docker.internal",
+]);
+
+/** Suffixes that only ever name a host inside the operator's own network. */
+const LOCAL_HOST_SUFFIXES = [".local", ".localhost", ".internal"] as const;
+
+/** True for a dotted-quad in a loopback or RFC 1918 private range. */
+function isPrivateIpv4(hostname: string): boolean {
+  const parts = hostname.split(".");
+  if (parts.length !== 4) return false;
+  const octets: number[] = [];
+  for (const part of parts) {
+    if (part.length === 0 || part.length > 3) return false;
+    for (const ch of part) {
+      if (ch < "0" || ch > "9") return false;
+    }
+    const n = Number(part);
+    if (n > 255) return false;
+    octets.push(n);
+  }
+  const [a, b] = octets as [number, number, number, number];
+  if (a === 127 || a === 10) return true;
+  if (a === 192 && b === 168) return true;
+  return a === 172 && b >= 16 && b <= 31;
+}
+
+/**
+ * Whether an agent base URL points at a locally hosted model runtime.
+ *
+ * This is the one place the "key optional for local endpoints" relaxation is
+ * decided (041). It is deliberately about *where the payload goes*, not about
+ * whether a key happens to be set: an operator running Ollama, vLLM or LM Studio
+ * beside the deployment has no key to give, and demanding a fake one would teach
+ * people to put junk in a secret slot. Anything that leaves the machine or the
+ * private network still requires `QCMS_AGENT_API_KEY`.
+ */
+export function isLocalAgentEndpoint(baseUrl: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(baseUrl);
+  } catch {
+    return false;
+  }
+  const hostname = parsed.hostname.toLowerCase();
+  if (LOCAL_HOSTNAMES.has(hostname)) return true;
+  if (LOCAL_HOST_SUFFIXES.some((suffix) => hostname.endsWith(suffix))) return true;
+  return isPrivateIpv4(hostname);
+}
+
+/**
+ * Parse the draft-assistant configuration (041). Mirrors {@link parseChallenge}:
+ * the secrets exist only in the enabled arm, and every issue names an env var
+ * and never a value (SEC-8).
+ */
+function parseAgent(env: Env, flags: Flags, issues: string[]): Config["agent"] {
+  const provider = flags.agentAuthoring;
+  if (provider === "none") return { provider: "none" };
+
+  const maxSteps = parseInt_(env, "QCMS_AGENT_MAX_STEPS", DEFAULTS.agentMaxSteps, 1, issues);
+
+  // The deterministic test provider talks to nothing, so it needs neither a key
+  // nor a real model id. Requiring either would make the CI composition carry a
+  // credential-shaped value for no reason.
+  if (provider === "fake") {
+    return {
+      provider,
+      model: parseOptionalString(env, "QCMS_AGENT_MODEL", "qcms-fake-assistant"),
+      apiKey: "",
+      baseUrl: undefined,
+      maxSteps,
+    };
+  }
+
+  const model = env.QCMS_AGENT_MODEL;
+  if (model === undefined || model.trim() === "") {
+    issues.push(`QCMS_AGENT_MODEL is required when QCMS_FLAG_AGENT_AUTHORING=${provider}`);
+  }
+
+  const rawBaseUrl = env.QCMS_AGENT_BASE_URL;
+  let baseUrl: string | undefined;
+  if (rawBaseUrl !== undefined && rawBaseUrl.trim() !== "") {
+    baseUrl = parseRequiredHttpUrl(env, "QCMS_AGENT_BASE_URL", issues, "the model endpoint");
+  } else if (provider === "openai-compatible") {
+    issues.push(
+      `QCMS_AGENT_BASE_URL is required when QCMS_FLAG_AGENT_AUTHORING=openai-compatible ` +
+        `(absolute http(s) URL of the OpenAI-compatible endpoint)`,
+    );
+  }
+
+  const apiKey = env.QCMS_AGENT_API_KEY;
+  const keyless = baseUrl !== undefined && isLocalAgentEndpoint(baseUrl);
+  if ((apiKey === undefined || apiKey.trim() === "") && !keyless) {
+    issues.push(
+      `QCMS_AGENT_API_KEY is required when QCMS_FLAG_AGENT_AUTHORING=${provider} ` +
+        `(optional only when QCMS_AGENT_BASE_URL names a local endpoint)`,
+    );
+  }
+
+  return {
+    provider,
+    model: model?.trim() ?? "",
+    apiKey: apiKey?.trim() ?? "",
+    baseUrl,
+    maxSteps,
+  };
+}
+
 /** Sensible defaults for the tunable, non-secret knobs. */
 const DEFAULTS = {
   anonymousSessionMs: 24 * 60 * 60 * 1000, // 24h (matches @qcms/db retention default)
@@ -615,6 +801,8 @@ const DEFAULTS = {
   rlAnswersPerSession: { windowMs: 5_000, max: 10 }, // ≈2/s sustained, burst 10 / session
   rlAnswersPerIp: { windowMs: 60_000, max: 300 }, // wide per-IP flood backstop
   rlSubmitPerSession: { windowMs: 60_000, max: 5 }, // 5 submit attempts / min / session
+  rlAgentAssist: { windowMs: 60_000, max: 10 }, // 10 agent turns / min / admin principal (041)
+  agentMaxSteps: 8, // tool-loop steps per agent turn before the loop stops (041)
   outboxIntervalMs: 5_000,
   outboxJitterMs: 1_000,
   retentionSweepIntervalMs: 60 * 60 * 1000, // 1h
@@ -728,6 +916,7 @@ export function loadConfig(env: Env): Config {
   const allowPrivateTargets = parseBool(env, "QCMS_WEBHOOK_ALLOW_PRIVATE", false, issues);
   const flags = parseFlags(env, issues);
   const challenge = parseChallenge(env, flags, issues);
+  const agent = parseAgent(env, flags, issues);
 
   const config: Config = {
     databaseUrl,
@@ -801,6 +990,7 @@ export function loadConfig(env: Env): Config {
         DEFAULTS.rlSubmitPerSession,
         issues,
       ),
+      agentAssist: parseRateClass(env, "QCMS_RL_AGENT_ASSIST", DEFAULTS.rlAgentAssist, issues),
     },
     scheduler: {
       outboxIntervalMs: parseInt_(
@@ -850,6 +1040,7 @@ export function loadConfig(env: Env): Config {
     },
     flags,
     challenge,
+    agent,
   };
 
   if (issues.length > 0) {

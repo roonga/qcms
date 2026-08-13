@@ -104,7 +104,7 @@ interface DeprecatedPinIssue {
   readonly message: string;
   readonly path: { readonly step: StepId; readonly question: QuestionId; readonly version: number };
 }
-type PublishIssue = PublishError | DeprecatedPinIssue;
+export type PublishIssue = PublishError | DeprecatedPinIssue;
 
 // --- typed failures (envelope codes the admin app keys off, 032) ------------
 
@@ -283,7 +283,7 @@ function deprecatedPinGate(
  * when the draft is clean, the frozen snapshot ready to compile and persist.
  * Shared by the advisory paths (PUT draft, validate) and publish itself.
  */
-async function validateDraft(
+export async function validateDraft(
   deps: Deps,
   definition: FormDefinition,
 ): Promise<{ issues: PublishIssue[]; snapshot?: FrozenSnapshot }> {
@@ -421,6 +421,8 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
         status: form.status,
         draft,
         draftSource,
+        draftAgentAssisted: openDraft?.agentAssisted ?? false,
+        draftUpdatedAt: openDraft?.updatedAt.toISOString() ?? null,
         versions: versions.map((v) => ({
           version: v.version,
           publishedAt: v.publishedAt.toISOString(),
@@ -460,10 +462,24 @@ export function makePutDraftHandler(deps: Deps): RouteHandler<typeof putDraftRou
 
     // Save first (drafts may be temporarily inconsistent), then advise. Advisory
     // issues do not block the save; they block publish.
-    await upsertDraft(deps.db, { formId, definition });
+    const saved = await upsertDraft(deps.db, {
+      formId,
+      definition,
+      // 041: an accepted agent proposal marks the draft's provenance. Sticky in
+      // the query, so a plain save after one never clears the mark.
+      agentAssisted: c.req.valid("json").agentAssisted ?? false,
+    });
     const { issues } = await validateDraft(deps, definition);
 
-    return c.json({ draft: definition, issues }, 200);
+    return c.json(
+      {
+        draft: definition,
+        issues,
+        agentAssisted: saved.agentAssisted,
+        updatedAt: saved.updatedAt.toISOString(),
+      },
+      200,
+    );
   };
 }
 

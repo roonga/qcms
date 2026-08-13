@@ -21,3 +21,21 @@ coverage/
 test-results/
 playwright-report/
 blob-report/
+
+# Written (and re-written) by `next dev` itself: `generate-agent-files.js` drops an
+# `AGENTS.md` plus a `CLAUDE.md` that includes it into each Next app the moment a dev
+# server starts, which is every Playwright run. They are generator output, not
+# authored content, and their text carries em dashes that `check:no-em-dash`
+# correctly refuses - so a `git add -A` after a browser run used to red the gate with
+# a file nobody wrote. Ignored rather than fought: deleting them only re-creates them.
+#
+# THIS IS A STOPGAP, NOT THE CHOSEN FIX. It is the subject of open issue #431, which
+# is awaiting a Code Owner decision between (a) ignoring the generator's output, which
+# is what this rule does, and (b) suppressing the generation itself. (b) is judged the
+# more durable of the two, because ignoring leaves em-dash-bearing files sitting on
+# disk in a repo whose gate exists to keep them out: this rule hides them from
+# `git status`, it does not remove them. Task 041 added it so a browser run stops
+# reddening `check:no-em-dash`; it deliberately settles nothing, and #431 can replace
+# it without touching anything else here.
+apps/*/AGENTS.md
+apps/*/CLAUDE.md

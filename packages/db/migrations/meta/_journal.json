@@ -120,6 +120,13 @@
       "when": 1786245958657,
       "tag": "0016_outbox_payload_retention",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1786580022763,
+      "tag": "0017_draft_agent_provenance",
+      "breakpoints": true
     }
   ]
 }

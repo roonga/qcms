@@ -36,6 +36,8 @@ import type {
 import { t, type MessageKey } from "@/lib/i18n/en";
 import { textOf } from "@/lib/questions/definition";
 
+import { AgentProvenanceTag } from "./agent-provenance-tag";
+import { AssistPanel } from "./assist-panel";
 import { ConditionEditor } from "./condition-editor";
 import { FormSettingsPanel } from "./form-settings-panel";
 import { RuleTestBench } from "./rule-test-bench";
@@ -92,10 +94,11 @@ export function FormBuilder({
   validateDraft,
   updateSettings,
   previewCondition,
+  assist,
 }: {
   readonly detail: FormDetail;
   readonly library: readonly PinnableQuestion[];
-  readonly saveDraft: (draft: DraftForm) => Promise<SaveDraftState>;
+  readonly saveDraft: (draft: DraftForm, agentAssisted?: boolean) => Promise<SaveDraftState>;
   readonly validateDraft: (draft: DraftForm) => Promise<ValidateDraftState>;
   readonly updateSettings: (patch: {
     challengeRequired?: boolean;
@@ -106,6 +109,13 @@ export function FormBuilder({
     ruleId: string;
     answers: Record<string, unknown>;
   }) => Promise<PreviewConditionState>;
+  /**
+   * Task 041's chat panel, present only when `agentAuthoringEnabled()` is true on the
+   * server. Absent rather than `undefined`-and-hidden: the page never passes this prop
+   * at all when the flag is off, so there is no assist affordance anywhere in this
+   * tree to find, not merely one that renders nothing.
+   */
+  readonly assist?: { readonly endpoint: string };
 }) {
   const [draft, setDraft] = useState<DraftForm>(
     detail.draft ?? blankDraft(detail.formId, detail.defaultLocale),
@@ -117,6 +127,14 @@ export function FormBuilder({
   const [selectedStepId, setSelectedStepId] = useState<string | undefined>(
     detail.draft?.steps[0]?.stepId,
   );
+  // Task 041's provenance marker. Seeded from the server's own read of the stored
+  // draft, then kept in step with whatever each save's response reports - the source
+  // of truth for "does this draft carry an agent-assisted change" is the API, not a
+  // local guess this component makes about its own history.
+  const [agentAssisted, setAgentAssisted] = useState(detail.draftAgentAssisted);
+  const [draftUpdatedAt, setDraftUpdatedAt] = useState<string | undefined>(
+    detail.draftUpdatedAt ?? undefined,
+  );
 
   // Whether the author has touched anything this visit. Without it the first render would
   // post the draft straight back, which would store a `seeded` draft nobody edited.
@@ -125,6 +143,13 @@ export function FormBuilder({
     isDirty.current = true;
     setDraft(next);
   };
+
+  // Task 041: whether the *next* save the debounce below fires should carry
+  // `agentAssisted: true`. Set only by the assist panel's Accept, and read once by the
+  // save that follows it - an ordinary keystroke edit after that save reverts to the
+  // default (no flag sent), because the marker is an assertion about one save, not a
+  // mode this component stays in.
+  const pendingAgentAssisted = useRef(false);
 
   // The two actions live in a ref, and that is not a style choice. They arrive already
   // bound to this route's form id, so the page hands down a NEW function identity on every
@@ -142,7 +167,9 @@ export function FormBuilder({
     setStatus("saving");
     const timer = setTimeout(() => {
       void (async () => {
-        const saved = await actions.current.saveDraft(draft);
+        const agentAssistedSave = pendingAgentAssisted.current;
+        pendingAgentAssisted.current = false;
+        const saved = await actions.current.saveDraft(draft, agentAssistedSave ? true : undefined);
         setIssues(saved.issues);
         if (saved.status === "error") {
           setSaveError(saved.message);
@@ -151,6 +178,10 @@ export function FormBuilder({
         }
         setSaveError(undefined);
         setLastSavedAt(new Date().toLocaleTimeString());
+        if (saved.agentAssisted !== undefined) setAgentAssisted(saved.agentAssisted);
+        if (saved.updatedAt !== undefined && saved.updatedAt !== "") {
+          setDraftUpdatedAt(saved.updatedAt);
+        }
         setStatus("validating");
         // The second round trip is the one the wireframe calls live validation. It does not
         // store, and it is where `RULE_BACKWARD_TARGET` and `RULE_CYCLE` come from: the
@@ -165,12 +196,28 @@ export function FormBuilder({
     };
   }, [draft, paused]);
 
+  /**
+   * Task 041's Accept: the same `mutate` every other edit goes through, plus a flag
+   * for the save the debounce above will run next. The builder's own autosave and
+   * validation loop is what actually stores this - nothing here calls `saveDraft`.
+   */
+  function acceptAssistProposal(proposedDraft: DraftForm) {
+    pendingAgentAssisted.current = true;
+    mutate(proposedDraft);
+  }
+
   const selectedStep = draft.steps.find((step) => step.stepId === selectedStepId) ?? draft.steps[0];
   const counts = stepIssueCounts(issues, draft);
 
   return (
     <div className="flex flex-col gap-6">
       <BuilderNotices detail={detail} paused={paused} saveError={saveError} />
+
+      {agentAssisted && (
+        <div data-testid="qcms-builder-provenance">
+          <AgentProvenanceTag />
+        </div>
+      )}
 
       {/* 033 stood a disabled Publish button here with a note saying publishing was
           task 034's. It is, and it landed: the real control lives in `FormActions`
@@ -185,70 +232,96 @@ export function FormBuilder({
         }}
       />
 
-      <div className="grid gap-4 md:grid-cols-[18rem_minmax(0,1fr)]">
-        <StepsRail
-          draft={draft}
-          issueCounts={counts}
-          selectedStepId={selectedStep?.stepId}
-          onSelect={setSelectedStepId}
-          onAdd={(title) => {
-            const next = addStep(draft, title);
-            mutate(next);
-            setSelectedStepId(next.steps[next.steps.length - 1]?.stepId);
-          }}
-          onRename={(stepId, title) => {
-            mutate(renameStep(draft, stepId, title));
-          }}
-          onMove={(stepId, delta) => {
-            mutate(moveStep(draft, stepId, delta));
-          }}
-          onRemove={(stepId) => {
-            mutate(removeStep(draft, stepId));
-          }}
-        />
+      {/* Task 041: the assist panel docks beside the whole builder (wireframe
+          `admin-agent-panel.md`), so everything below splits into two columns only
+          when the panel is actually present - a build with the flag off keeps the
+          builder's original single-column flow untouched. */}
+      <div
+        className={
+          assist === undefined ? undefined : "grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]"
+        }
+      >
+        <div className="flex flex-col gap-6">
+          <div className="grid gap-4 md:grid-cols-[18rem_minmax(0,1fr)]">
+            <StepsRail
+              draft={draft}
+              issueCounts={counts}
+              selectedStepId={selectedStep?.stepId}
+              onSelect={setSelectedStepId}
+              onAdd={(title) => {
+                const next = addStep(draft, title);
+                mutate(next);
+                setSelectedStepId(next.steps[next.steps.length - 1]?.stepId);
+              }}
+              onRename={(stepId, title) => {
+                mutate(renameStep(draft, stepId, title));
+              }}
+              onMove={(stepId, delta) => {
+                mutate(moveStep(draft, stepId, delta));
+              }}
+              onRemove={(stepId) => {
+                mutate(removeStep(draft, stepId));
+              }}
+            />
 
-        {/* Nothing rather than a second copy of the rail's own empty-state sentence: a
-            step editor with no step is exactly the state the rail is already explaining,
-            and saying it twice reads as two different facts. */}
-        {selectedStep === undefined ? null : (
-          <StepEditor
+            {/* Nothing rather than a second copy of the rail's own empty-state sentence: a
+                step editor with no step is exactly the state the rail is already explaining,
+                and saying it twice reads as two different facts. */}
+            {selectedStep === undefined ? null : (
+              <StepEditor
+                draft={draft}
+                step={selectedStep}
+                library={library}
+                issues={issues}
+                onAddPin={(questionId, version) => {
+                  mutate(addPin(draft, selectedStep.stepId, questionId, version));
+                }}
+                onMovePin={(questionId, version) => {
+                  mutate(movePin(draft, questionId, version));
+                }}
+                onRemovePin={(questionId) => {
+                  mutate(removePin(draft, questionId));
+                }}
+                onReorderPin={(questionId, delta) => {
+                  mutate(movePinWithinStep(draft, selectedStep.stepId, questionId, delta));
+                }}
+              />
+            )}
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_20rem]">
+            <RulesSection draft={draft} library={library} issues={issues} onChange={mutate} />
+            <ValidationPanel
+              draft={draft}
+              issues={issues}
+              status={status}
+              lastSavedAt={lastSavedAt}
+            />
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <FormSettingsPanel
+              settings={detail.settings}
+              challengeProvider={detail.challengeProvider}
+              updateSettings={updateSettings}
+            />
+            <RuleTestBench
+              draft={draft}
+              rules={draft.rules}
+              library={library}
+              previewCondition={previewCondition}
+            />
+          </div>
+        </div>
+
+        {assist !== undefined && (
+          <AssistPanel
+            endpoint={assist.endpoint}
             draft={draft}
-            step={selectedStep}
-            library={library}
-            issues={issues}
-            onAddPin={(questionId, version) => {
-              mutate(addPin(draft, selectedStep.stepId, questionId, version));
-            }}
-            onMovePin={(questionId, version) => {
-              mutate(movePin(draft, questionId, version));
-            }}
-            onRemovePin={(questionId) => {
-              mutate(removePin(draft, questionId));
-            }}
-            onReorderPin={(questionId, delta) => {
-              mutate(movePinWithinStep(draft, selectedStep.stepId, questionId, delta));
-            }}
+            draftUpdatedAt={draftUpdatedAt}
+            onAccept={acceptAssistProposal}
           />
         )}
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_20rem]">
-        <RulesSection draft={draft} library={library} issues={issues} onChange={mutate} />
-        <ValidationPanel draft={draft} issues={issues} status={status} lastSavedAt={lastSavedAt} />
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <FormSettingsPanel
-          settings={detail.settings}
-          challengeProvider={detail.challengeProvider}
-          updateSettings={updateSettings}
-        />
-        <RuleTestBench
-          draft={draft}
-          rules={draft.rules}
-          library={library}
-          previewCondition={previewCondition}
-        />
       </div>
     </div>
   );

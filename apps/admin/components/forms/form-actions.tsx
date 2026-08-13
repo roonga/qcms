@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useState, useTransition } from "react";
 
 import { Alert, Button, Dialog } from "@/components/kit";
+import { AgentProvenanceTag } from "@/components/forms/agent-provenance-tag";
 import { IssueEntry } from "@/components/forms/validation-panel";
 import type { FormStatusState, PublishState } from "@/lib/forms/builder-state";
 import { IDLE_FORM_STATUS, IDLE_PUBLISH } from "@/lib/forms/builder-state";
@@ -54,6 +55,7 @@ export function FormActions({
   latestVersion,
   publish,
   setStatus,
+  agentAssisted = false,
 }: {
   readonly slug: string;
   readonly formId: string;
@@ -62,6 +64,14 @@ export function FormActions({
   readonly latestVersion: number | undefined;
   readonly publish: () => Promise<PublishState>;
   readonly setStatus: (action: "close" | "reopen") => Promise<FormStatusState>;
+  /**
+   * Task 041's provenance marker: whether the stored draft this dialog is about to
+   * freeze carries any agent-assisted change (ADR-25). Server-sourced, from the same
+   * `draftAgentAssisted` the builder reads - this is the human's last look before
+   * publishing, so it says what the builder is currently saying, not what it said
+   * when the page first loaded.
+   */
+  readonly agentAssisted?: boolean;
 }) {
   const [dialog, setDialog] = useState<"publish" | "close" | "reopen" | null>(null);
   const [published, setPublished] = useState<PublishState>(IDLE_PUBLISH);
@@ -218,6 +228,11 @@ export function FormActions({
           }}
         >
           <div className="flex flex-col gap-4">
+            {agentAssisted && (
+              <div data-testid="qcms-publish-provenance">
+                <AgentProvenanceTag />
+              </div>
+            )}
             <p className="text-sm text-(--color-text)" data-testid="qcms-freeze-summary">
               {t("forms.publish.freezes", {
                 steps: tPlural(

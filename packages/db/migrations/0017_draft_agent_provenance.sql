@@ -1,0 +1,1 @@
+ALTER TABLE "form_drafts" ADD COLUMN "agent_assisted" boolean DEFAULT false NOT NULL;

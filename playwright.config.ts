@@ -271,6 +271,11 @@ export default defineConfig({
         // The BFF's credentials for the API, now carrying the auth traffic too.
         QCMS_API_BASE_URL: API_BASE_URL,
         QCMS_INTERNAL_TOKEN: FIXED_INTERNAL_TOKEN,
+        // Task 041: the admin reads this only to decide whether the agent panel
+        // renders. The composed API this BFF talks to runs the same fake provider
+        // (`apps/portal/e2e/support/api-server.ts`), so the assist route exists on
+        // both sides of the proxy for the whole browser suite.
+        QCMS_FLAG_AGENT_AUTHORING: "fake",
         // Left at the default (`required`) deliberately: enforced-by-default 2FA is
         // the behaviour under test, so the escape hatch must not be set here.
       },
