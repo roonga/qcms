@@ -1,3 +1,30 @@
+/**
+ * SEC-13: allowlist redaction for the Next apps' exported spans (task 054, ADR-34; shared
+ * by Portal and Admin in task 062).
+ *
+ * Same control as the API's (`apps/api/src/telemetry-redaction.ts`), applied to a
+ * different span vocabulary: these spans come from Next.js and `@vercel/otel`, and one of
+ * them carries something the API's never do.
+ *
+ * **The secure-link token is in the URL.** The respondent entry point is `/l/<token>`
+ * (task 029), so Next's root span is named from the real pathname (`GET /l/<token>`,
+ * exactly as the Next OTel guide documents) and its `http.target` / `url.path` attributes
+ * hold the same string. A `lnk_` token is a credential: it may not leave the process in
+ * any signal. So this module redacts the **span name** as well as the attribute values,
+ * the one place any app rewrites a name rather than dropping a field. Only the Portal
+ * serves that route, but both apps register the same processor: a rule that is inert in
+ * one of them is safer than two processors that can drift apart.
+ *
+ * Everything else follows the API's rules: an allowlist over attribute keys (unknown keys
+ * are dropped, not inspected), query strings removed whole, and `exception.message` /
+ * `exception.stacktrace` never exported (the message is the one field where an answer
+ * value can plausibly end up inside an error string; the stdout log keeps it, correlated
+ * by `trace_id`).
+ *
+ * Registered FIRST in `registerOTel`'s `spanProcessors`, before the exporting processor,
+ * so nothing unsanitized is ever queued.
+ */
+
 import type { Attributes } from "@opentelemetry/api";
 import type { ReadableSpan, SpanProcessor } from "@opentelemetry/sdk-trace-base";
 

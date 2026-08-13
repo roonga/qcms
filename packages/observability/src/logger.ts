@@ -1,3 +1,35 @@
+/**
+ * Structured server logging for every QCMS service (task 017, SEC-8; moved here and given
+ * an OTLP path by task 062, ADR-34).
+ *
+ * Logging is an **injected interface**, never a concrete Node logger reached from handler
+ * scope: API handlers stay fetch-pure (R4), so they call this `Logger` interface and the
+ * composition root supplies the concrete sink. `createJsonLogger` takes a plain
+ * `write(line)` function - the servers pass one that writes JSON lines to stdout, tests
+ * pass a capturing sink. The emitted shape is `{ level, time, msg, ...fields }`, level as
+ * a word, time as an ISO instant, one line per call, and no trailing newline handed to
+ * `write`.
+ *
+ * **Redaction (SEC-8):** every field whose key looks like a secret or like respondent
+ * content is replaced with `"[REDACTED]"` before serialization, so a careless
+ * `logger.info("...", { token })` can never leak the value. Answer content is never
+ * logged by policy (log questionIds and counts, not values); the redactor is the
+ * backstop, not the primary control.
+ *
+ * **Trace correlation is explicit here**, not delegated to an instrumentation. Each line
+ * picks up `trace_id`/`span_id`/`trace_flags` from the active span when one is in
+ * context, and carries none of them when there is not. Task 054 got this from
+ * `@opentelemetry/instrumentation-pino`; 062 dropped pino, so the lookup is written out
+ * and this module carries no logging dependency at all.
+ *
+ * **Two sinks, deliberately unequal.** `write` receives the whole redacted line,
+ * including an `Error`'s message and stack, for an operator already inside the process
+ * boundary. The OTLP path (`sendToOpenTelemetry`) receives only scalar fields, because an
+ * exported record lands in an adopter's backend outside our erasure reach: see
+ * `scalarAttributes` below, the allowlist in `./otlp-log-allowlist.ts` behind it, and
+ * `./logger-otlp-attributes.test.ts`, which pins the asymmetry in both directions.
+ */
+
 import { trace } from "@opentelemetry/api";
 import { logs, type Logger as OtelLogger, SeverityNumber } from "@opentelemetry/api-logs";
 
