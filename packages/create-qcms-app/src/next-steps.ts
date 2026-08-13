@@ -3,8 +3,9 @@
  *
  * The commands here are the exact commands the scaffolded README carries, in the same
  * order, because a final message that paraphrases the README is how the two drift.
- * `next-steps.test.ts` asserts every command below appears verbatim in the rendered
- * README, so a change to either has to be a change to both.
+ * The "closing message and the README" suite in `scaffold.test.ts` asserts every
+ * command below appears verbatim in the rendered README of BOTH deployment shapes, so
+ * a change to either has to be a change to both.
  */
 
 import type { ScaffoldOptions } from "./options.js";

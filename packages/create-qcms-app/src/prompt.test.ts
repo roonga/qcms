@@ -58,7 +58,7 @@ describe("promptMissing", () => {
 
   it("never re-asks something a flag already answered", async () => {
     const asker = scriptedAsker(ALL_EMPTY);
-    await promptMissing({ shape: "enterprise", packageManager: "npm" }, asker, CWD);
+    await promptMissing({ shape: "enterprise", packageManager: "pnpm" }, asker, CWD);
     expect(asker.asked).toHaveLength(4);
     expect(asker.asked.some((prompt) => prompt.startsWith("Deployment shape"))).toBe(false);
     expect(asker.asked.some((prompt) => prompt.startsWith("Package manager"))).toBe(false);
@@ -72,9 +72,11 @@ describe("promptMissing", () => {
   });
 
   it("re-asks until a choice is one of the offered values", async () => {
-    const asker = scriptedAsker(["", "bun", "npm", "", "", "", ""]);
+    // "npm" is a refusal now, not an alternative (issue #449), so it is the perfect
+    // rejected answer: an adopter who types it is exactly who this loop exists for.
+    const asker = scriptedAsker(["", "npm", "pnpm", "", "", "", ""]);
     const answered = await promptMissing({}, asker, CWD);
-    expect(answered.packageManager).toBe("npm");
+    expect(answered.packageManager).toBe("pnpm");
     expect(asker.asked.filter((prompt) => prompt.startsWith("Package manager"))).toHaveLength(2);
   });
 

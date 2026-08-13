@@ -11,14 +11,15 @@
  * and it looks exactly like success.
  */
 
-import type { PackageManager, ScaffoldOptions } from "./options.js";
+import { PACKAGE_MANAGER_RATIONALE, type PackageManager, type ScaffoldOptions } from "./options.js";
 
 /**
  * The pnpm release the scaffolded project pins.
  *
  * Held here rather than read from the QCMS root manifest, because the published CLI
- * has no repository around it. `pnpm-spec.test.ts` asserts it equals the value in
- * the repository root's `packageManager` field, so the two cannot drift.
+ * has no repository around it. The `PNPM_SPEC` suite in `render.test.ts` asserts it
+ * equals the value in the repository root's `packageManager` field, so the two cannot
+ * drift.
  */
 export const PNPM_SPEC = "pnpm@11.18.0";
 
@@ -35,10 +36,15 @@ interface PackageManagerCommands {
 }
 
 /**
- * `pnpm-workspace.yaml` is stamped for every choice, because the images build with
- * pnpm inside themselves whatever the host uses (`pnpm deploy --prod` prunes the
- * runtime tree and has no npm or yarn equivalent). npm and yarn additionally need
- * the manifest's `workspaces` field, which pnpm ignores.
+ * One entry, and the shape is kept rather than inlined because #449 will restore the
+ * others once the images can build without a `pnpm-lock.yaml`.
+ *
+ * `packageManagerField` is never empty here, and that is load-bearing rather than
+ * incidental: the Dockerfiles run `corepack enable` and then `pnpm install`, so
+ * without a pinned `packageManager` corepack has nothing to resolve and an arbitrary
+ * pnpm major runs against a `pnpm-workspace.yaml` that uses pnpm-11-only `allowBuilds`
+ * syntax. That was the third npm/yarn breakage, and it is why an empty field must not
+ * come back with the other two managers.
  */
 const COMMANDS: Readonly<Record<PackageManager, PackageManagerCommands>> = {
   pnpm: {
@@ -48,22 +54,6 @@ const COMMANDS: Readonly<Record<PackageManager, PackageManagerCommands>> = {
     recursiveTypecheck: "pnpm -r typecheck",
     packageManagerField: `  "packageManager": "${PNPM_SPEC}",\n`,
     workspacesField: "",
-  },
-  npm: {
-    installCommand: "npm install",
-    runPrefix: "npm run",
-    recursiveBuild: "npm run build --workspaces",
-    recursiveTypecheck: "npm run typecheck --workspaces",
-    packageManagerField: "",
-    workspacesField: `  "workspaces": ["apps/*"],\n`,
-  },
-  yarn: {
-    installCommand: "yarn install",
-    runPrefix: "yarn",
-    recursiveBuild: "yarn workspaces foreach -A run build",
-    recursiveTypecheck: "yarn workspaces foreach -A run typecheck",
-    packageManagerField: "",
-    workspacesField: `  "workspaces": ["apps/*"],\n`,
   },
 };
 
@@ -77,6 +67,7 @@ export function templateValues(options: ScaffoldOptions): Readonly<Record<string
     adminTwoFactor: options.adminTwoFactor,
     portalBaseUrl: options.portalBaseUrl,
     adminBaseUrl: options.adminBaseUrl,
+    packageManagerRationale: PACKAGE_MANAGER_RATIONALE,
     ...commands,
   };
 }

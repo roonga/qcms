@@ -36,7 +36,10 @@
  *
  *   1. **Test and harness files are dropped.** They are this repository's tooling
  *      (Testcontainers, Playwright, the seat-aware harness) and none of it exists in
- *      an adopter's tree.
+ *      an adopter's tree. Note what this rule is NOT: build output is excluded a step
+ *      earlier, by taking the file list from git ({@link repositoryFiles}) rather than
+ *      from the working tree. A transform list can only drop what someone thought of;
+ *      `.gitignore` already knows.
  *   2. **`workspace:*` becomes a real version range.** The adopter consumes the four
  *      packages from the registry; the range is read from each package's own
  *      `package.json` at generation time, so a version bump is drift the gate sees.
@@ -62,7 +65,16 @@
  *   node packages/create-qcms-app/scripts/sync-templates.mjs --check
  */
 
-import { mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join, posix } from "node:path";
 import { argv } from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -74,20 +86,6 @@ export const REPOSITORY_ROOT = fileURLToPath(new URL("../../../", import.meta.ur
 
 /** Where the generated tree lives, repo-relative. */
 export const TEMPLATE_DIR = "packages/create-qcms-app/templates";
-
-/** Directories a walk never descends into: build output and installed trees. */
-const SKIP_DIRECTORIES = new Set([
-  "node_modules",
-  "dist",
-  "coverage",
-  ".turbo",
-  ".next",
-  ".next-dev",
-  ".playwright",
-  "screenshots",
-  "__snapshots__",
-  "e2e",
-]);
 
 /** The four packages an adopter consumes from the registry. */
 const PUBLISHED_PACKAGES = ["@qcms/core", "@qcms/a2ui-compiler", "@qcms/db", "@qcms/ui"];
@@ -145,17 +143,97 @@ const APP_EXCLUDED_PATHS = new Set([
   "scripts/seed-fixtures.ts",
 ]);
 
-/** True when an app-relative path is this repository's tooling rather than shell source. */
+/** Directory names that are this repository's harness wherever they appear in an app. */
+const EXCLUDED_APP_DIRECTORIES = new Set(["e2e", "__snapshots__"]);
+
+/**
+ * True when an app-relative path is this repository's tooling rather than shell source.
+ *
+ * Every rule here is about a file that IS part of the repository and still must not be
+ * scaffolded. Build output is not in scope: that is excluded upstream by taking the
+ * file list from git ({@link repositoryFiles}) rather than from the working tree.
+ */
 export function isExcludedAppPath(path) {
   if (APP_EXCLUDED_PATHS.has(path)) return true;
   if (/\.test\.[cm]?[jt]sx?$/.test(path)) return true;
+  if (path.split("/").some((segment) => EXCLUDED_APP_DIRECTORIES.has(segment))) return true;
   return path.endsWith("/README.md");
+}
+
+// --- the source file list ---------------------------------------------------
+
+/**
+ * Absolute locations git is installed to.
+ *
+ * Probed rather than resolved through `PATH`: a subprocess launched by bare name is
+ * what `sonarjs/no-os-command-from-path` exists to stop, and the rule is
+ * workspace-wide (issue #119). Order is by likelihood on Debian and Ubuntu, which is
+ * what the dev container is.
+ */
+const GIT_CANDIDATES = ["/usr/bin/git", "/bin/git", "/usr/local/bin/git", "/opt/homebrew/bin/git"];
+
+function gitBinary() {
+  const override = process.env["QCMS_GIT_BIN"];
+  if (override !== undefined && override !== "") return override;
+  const found = GIT_CANDIDATES.find((candidate) => existsSync(candidate));
+  if (found === undefined) {
+    throw new Error(
+      `sync-templates: could not find git. Looked at: ${GIT_CANDIDATES.join(", ")}. ` +
+        `Set QCMS_GIT_BIN to its absolute path.`,
+    );
+  }
+  return found;
+}
+
+/**
+ * Every repository file under `prefix`, from GIT rather than from the working tree.
+ *
+ * ## Why this is not a directory walk
+ *
+ * It used to be, and that is the defect this function exists to close. A walk sees
+ * whatever is on the developer's disk, and an app directory holds build output that
+ * is deliberately git-ignored: `next-env.d.ts` and a 690 KB `tsconfig.tsbuildinfo`
+ * per Next app. Those were swept into the generated tree, committed, published inside
+ * the package's `files` array, and stamped into every adopter's project. Worse, once
+ * committed the gate FROZE them: `--check` passed on the machine that had them and
+ * failed on a clean checkout, naming four files the next developer never touched. A
+ * skip list cannot fix that, because it enumerates the artifacts someone already
+ * thought of; git already knows the answer and is never out of date.
+ *
+ * `--cached --others --exclude-standard` is "tracked, plus untracked that is not
+ * ignored". The `--others` half matters: a source file added but not yet `git add`ed
+ * is still part of the app, and omitting it would make the generator's output depend
+ * on staging order. Anything in `.gitignore` is excluded by construction, whether or
+ * not anyone predicted it.
+ *
+ * Deleted-but-still-tracked paths are dropped rather than read, so a dirty tree
+ * degrades into a `stale:` report from the gate instead of an unhandled read error.
+ *
+ * @param {string} prefix repo-relative directory
+ * @returns {string[]} repo-relative POSIX paths, sorted, deduplicated
+ */
+export function repositoryFiles(prefix) {
+  const output = execFileSync(
+    gitBinary(),
+    ["ls-files", "--cached", "--others", "--exclude-standard", "--", prefix],
+    { cwd: REPOSITORY_ROOT, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
+  );
+  const paths = [...new Set(output.split("\n").filter((line) => line !== ""))];
+  return paths.filter((path) => existsSync(join(REPOSITORY_ROOT, path))).sort();
 }
 
 // --- filesystem -------------------------------------------------------------
 
 /**
- * Every file under `root` (repo-relative), sorted, skipping build output.
+ * Every file under `root` (repo-relative), sorted. Unfiltered, deliberately.
+ *
+ * Only generated and hand-written TEMPLATE trees are read this way, and for those the
+ * right answer is "everything that is there". A skip list here was the mirror image
+ * of the bug above: `currentTemplates()` filtered directory names while the CLI's own
+ * stamping walk (`src/templates.ts`) does not, so a file committed under, say,
+ * `templates/common/apps/api/dist/` would ship and stamp while being invisible to the
+ * gate (issue #450). Reading everything makes the gate's view and the CLI's view the
+ * same view.
  *
  * @param {string} root repo-relative directory
  * @returns {string[]} repo-relative POSIX paths
@@ -165,12 +243,8 @@ export function walk(root) {
   /** @type {string[]} */
   const found = [];
   for (const entry of readdirSync(absolute, { withFileTypes: true })) {
-    if (entry.isDirectory()) {
-      if (SKIP_DIRECTORIES.has(entry.name)) continue;
-      found.push(...walk(posix.join(root, entry.name)));
-    } else if (entry.isFile()) {
-      found.push(posix.join(root, entry.name));
-    }
+    if (entry.isDirectory()) found.push(...walk(posix.join(root, entry.name)));
+    else if (entry.isFile()) found.push(posix.join(root, entry.name));
   }
   return found.sort();
 }
@@ -631,7 +705,7 @@ export function buildTemplates() {
   const versions = publishedVersions();
 
   for (const app of /** @type {const} */ (["api", "portal", "admin"])) {
-    for (const path of walk(`apps/${app}`)) {
+    for (const path of repositoryFiles(`apps/${app}`)) {
       const appRelative = path.slice(`apps/${app}/`.length);
       if (isExcludedAppPath(appRelative)) continue;
       if (appRelative === "package.json") continue;

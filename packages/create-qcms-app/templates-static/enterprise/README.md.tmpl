@@ -104,6 +104,10 @@ The split that matters at this size:
 
 ## Day-to-day commands
 
+{{packageManagerRationale}} Adopting a
+different package manager means changing `docker/*.Dockerfile` too; the QCMS issue
+tracker carries #449 for restoring the choice properly.
+
 ```sh
 {{installCommand}}                    # install workspace dependencies
 {{runPrefix}} up                       # docker compose up -d --build
