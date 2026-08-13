@@ -304,9 +304,14 @@ qcms/
 │   │   ├── migrations/           # immutable once released          (013+)
 │   │   └── test/  harness.ts     # testcontainers withTestDb        (013)
 │   │
-│   └── ui/                       # @qcms/ui - A2Renderer + vendored a2ra components (ADR-22)
-│       └── src/  A2UIStepRenderer.tsx · components/a2ui/ (vendored via
-│                 @a2ra/cli, a2ra.json committed) · conformance/          (028)
+│   ├── ui/                       # @qcms/ui - A2Renderer + vendored a2ra components (ADR-22)
+│   │   └── src/  A2UIStepRenderer.tsx · components/a2ui/ (vendored via
+│   │             @a2ra/cli, a2ra.json committed) · conformance/          (028)
+│   │
+│   └── observability/            # @qcms/observability - shared server logging (private)
+│       └── src/  logger.ts       # redacting JSON logger + trace correlation (062)
+│                 otlp-log-allowlist.ts  # SEC-13 allowlist for exported logs (062)
+│                 next-span-redaction.ts # SEC-13 span redaction for both Next apps (062)
 │
 ├── apps/
 │   ├── api/                      # Hono · vertical slices · fetch-pure (R4)
@@ -318,7 +323,8 @@ qcms/
 │   │   │   ├── serve.ts          # entry: telemetry, then main       (017, 054)
 │   │   │   ├── main.ts           # composes deps, binds port, workers (017)
 │   │   │   ├── create-admin.ts   # first-run bootstrap CLI entry      (056)
-│   │   │   ├── telemetry.ts      # gated NodeSDK + SEC-13 redaction  (054)
+│   │   │   ├── telemetry.ts      # gated NodeSDK + SEC-13 span and
+│   │   │   │                     # log-record redaction          (054, 062)
 │   │   │   └── features/
 │   │   │       ├── responses/  start-session/ (018) · get-step/ · submit-answer/ (019)
 │   │   │       │               submit/ (020) · list/ · export/ · erase/ (023)
@@ -338,6 +344,7 @@ qcms/
 │   │
 │   └── admin/                    # Next.js · client-heavy + BFF · VPN deployable
 │       │                         # no database handle, no better-auth (056)
+│       ├── instrumentation.ts    # gated registerOTel (@vercel/otel) (062)
 │       └── src/app/  (auth)/ sign-in · 2fa                         (031)
 │                     questions/ (032) · forms/[id]/ builder · publish ·
 │                     preview · versions · links (033, 034)

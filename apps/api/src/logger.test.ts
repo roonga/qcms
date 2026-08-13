@@ -97,15 +97,14 @@ describe("createJsonLogger", () => {
     expect(JSON.stringify(line)).not.toContain("topsecret");
   });
 
-  it("keeps an Error's type but never its free-text message or stack", () => {
+  it("serializes Error objects with name/message/stack", () => {
     const { logger, parsed } = capture();
     logger.error("boom", { err: new Error("kaboom") });
     const line = parsed()[0]!;
     const err = line.err as Record<string, unknown>;
     expect(err.name).toBe("Error");
-    expect(err.message).toBeUndefined();
-    expect(err.stack).toBeUndefined();
-    expect(JSON.stringify(line)).not.toContain("kaboom");
+    expect(err.message).toBe("kaboom");
+    expect(typeof err.stack).toBe("string");
   });
 
   it("child() merges bindings into every line", () => {

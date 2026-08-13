@@ -108,7 +108,7 @@ describe("mount flags (exit criterion 2, ADR-09)", () => {
 });
 
 describe("error envelope (exit criterion 3)", () => {
-  it("an unexpected throw yields a correlated 500 without logging exception content", async () => {
+  it("an unexpected throw yields a 500 envelope, a logged stack, and no stack in the body", async () => {
     const { logger, lines } = recordingLogger();
     const deps = makeDeps({ logger });
     const app = createApp(deps, NONE);
@@ -131,14 +131,11 @@ describe("error envelope (exit criterion 3)", () => {
     expect(raw).not.toContain("SENSITIVE-INTERNAL-DETAIL");
     expect(raw).not.toContain("stack");
 
-    // The event remains diagnosable through its errorId without exporting arbitrary
-    // exception text, which may contain respondent or operator-provided content.
+    // The stack IS logged, correlated by errorId.
     const errLine = lines.find((l) => l.level === "error" && l.msg === "unhandled error");
     expect(errLine).toBeDefined();
     expect(errLine!.errorId).toBe(body.error.details?.errorId);
-    expect(errLine!.err).toEqual({ name: "Error" });
-    expect(JSON.stringify(errLine)).not.toContain("SENSITIVE-INTERNAL-DETAIL");
-    expect(JSON.stringify(errLine)).not.toContain("stack");
+    expect(JSON.stringify(errLine)).toContain("SENSITIVE-INTERNAL-DETAIL");
   });
 
   it("a deliberate ApiError renders its code/message at its status", async () => {

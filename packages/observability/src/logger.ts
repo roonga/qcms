@@ -51,9 +51,13 @@ function redact(value: unknown, depth = 0): unknown {
   if (depth > 8) return "[TRUNCATED]";
   if (Array.isArray(value)) return value.map((item) => redact(item, depth + 1));
   if (value !== null && typeof value === "object") {
-    // Error text can contain an answer or author-supplied validation message.
-    // The opaque errorId/requestId logged beside it is the diagnostic join.
-    if (value instanceof Error) return { name: value.name };
+    // Error objects serialize to {} otherwise; keep name/message/stack. This is the
+    // stdout line only: an Error redacts to an object, and only string, number and
+    // boolean fields become OTLP attributes (see scalarAttributes below), so no
+    // exception message or stack can reach an exported log record by this route.
+    if (value instanceof Error) {
+      return { name: value.name, message: value.message, stack: value.stack };
+    }
     const out: Record<string, unknown> = {};
     for (const [key, inner] of Object.entries(value as Record<string, unknown>)) {
       out[key] = isSecretKey(key) ? REDACTED : redact(inner, depth + 1);

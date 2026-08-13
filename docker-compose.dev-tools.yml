@@ -169,9 +169,9 @@ services:
   # and this override is the whole of what turns traces and safe OTLP logs on.
   #
   # `OTEL_SERVICE_NAME` is deliberately not set here. Each composition root already
-  # defaults to its own name (`qcms-api`, `qcms-portal`), and one Compose-level value
-  # would give both services the same name and collapse them into one entry in
-  # Grafana's service list.
+  # defaults to its own name (`qcms-api`, `qcms-portal`, `qcms-admin`), and one
+  # Compose-level value would give all three services the same name and collapse
+  # them into a single entry in Grafana's service list.
   api:
     environment:
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://lgtm:4318}
