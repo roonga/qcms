@@ -47,6 +47,8 @@ export const FAKE_SCRIPTS = [
   "refusal",
   "provider-error",
   "no-proposal",
+  "length",
+  "step-limit",
 ] as const;
 
 export type FakeScript = (typeof FAKE_SCRIPTS)[number];
@@ -228,10 +230,12 @@ function finishPart(finishReason: string): StreamPart {
   };
 }
 
-function toolCallPart(toolName: string, input: unknown): StreamPart {
+function toolCallPart(toolName: string, input: unknown, nonce = ""): StreamPart {
   return {
     type: "tool-call",
-    toolCallId: `call_${toolName}`,
+    // Tool call ids must be unique across a turn, so a script that calls the
+    // same tool on every step has to vary it.
+    toolCallId: `call_${toolName}${nonce}`,
     toolName,
     input: JSON.stringify(input),
   };
@@ -255,6 +259,20 @@ function planStep(prompt: readonly PromptMessage[], script: FakeScript): StreamP
   }
   if (script === "no-proposal") {
     return [...textParts("I need more detail before I can propose anything."), finishPart("stop")];
+  }
+  if (script === "length") {
+    return [...textParts("Here is the start of a form"), finishPart("length")];
+  }
+  if (script === "step-limit") {
+    // Never proposes and always asks for one more tool call, so the loop runs
+    // until `stopWhen: stepCountIs(maxSteps)` cuts it off. That is what makes
+    // STEP_LIMIT reachable in a test rather than only in theory.
+    const round = prompt.filter((m) => m.role === "tool").length;
+    return [
+      ...textParts("Let me look at the library again."),
+      toolCallPart("search_question_library", { limit: 1 }, `_${String(round)}`),
+      finishPart("tool-calls"),
+    ];
   }
 
   const results = toolResults(prompt);
