@@ -31,6 +31,7 @@ import pg from "pg";
 import { createApp } from "./app.js";
 import { systemClock } from "./clock.js";
 import { warnIfBreachCheckDisabled } from "./features/auth/instance.js";
+import { selectDraftAssistant } from "./features/forms/assist/assistant.js";
 import { selectChallengeVerifier } from "./features/responses/challenge.js";
 import { appGroups } from "./registrars.js";
 import { loadConfig } from "./config.js";
@@ -75,6 +76,7 @@ export function main(telemetry: Telemetry): void {
     logger,
     rateLimitStore: new InMemoryRateLimitStore(systemClock),
     challenge: selectChallengeVerifier(config, logger),
+    draftAssistant: selectDraftAssistant(config, logger),
     flags: config.flags,
   };
 

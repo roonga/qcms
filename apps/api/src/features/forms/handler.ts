@@ -104,7 +104,7 @@ interface DeprecatedPinIssue {
   readonly message: string;
   readonly path: { readonly step: StepId; readonly question: QuestionId; readonly version: number };
 }
-type PublishIssue = PublishError | DeprecatedPinIssue;
+export type PublishIssue = PublishError | DeprecatedPinIssue;
 
 // --- typed failures (envelope codes the admin app keys off, 032) ------------
 
@@ -283,7 +283,7 @@ function deprecatedPinGate(
  * when the draft is clean, the frozen snapshot ready to compile and persist.
  * Shared by the advisory paths (PUT draft, validate) and publish itself.
  */
-async function validateDraft(
+export async function validateDraft(
   deps: Deps,
   definition: FormDefinition,
 ): Promise<{ issues: PublishIssue[]; snapshot?: FrozenSnapshot }> {
