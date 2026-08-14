@@ -112,9 +112,9 @@ jobs:
       # string concatenation. Enumerated here as its own step because this file
       # lists every check individually: adding a gate to `check:all` alone does
       # NOT run it in CI (issue #463, and the third instance of that mistake in
-      # one day - PR #451 and PR #413 preceded this one). The gate's own
-      # self-tests run under the `tooling` vitest project via `pnpm test`; this
-      # step is what actually scans the repository.
+      # one day - PR #451 and the fix for issue #413 preceded this one). The
+      # gate's own self-tests run under the `tooling` vitest project via
+      # `pnpm test`; this step is what actually scans the repository.
       - run: pnpm check:security-hygiene
 
       # The QCMS app theme (task 055): the token sheet is the only source of colour in
