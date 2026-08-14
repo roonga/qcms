@@ -7,8 +7,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
  *
  * better-auth renames its own cookies when it issues secure ones: the name is
  * `${secureCookiePrefix}${prefix}.${cookieName}` and `secureCookiePrefix` is `__Secure-`
- * whenever `advanced.useSecureCookies` is true (better-auth 1.6.25,
- * `dist/cookies/index.mjs:20-21` and `:28-31`). The library reads both spellings for
+ * whenever `advanced.useSecureCookies` is true (better-auth 1.6.26, the pinned version:
+ * `dist/cookies/index.mjs:21` decides the prefix, `:26-30` composes the name). The
+ * library reads both spellings for
  * itself (`:216`); this app has to do the same, and before #317 it read only the bare
  * name, so the 2FA challenge screen bounced to sign-in forever in any deployment with
  * secure cookies on - which is the default compose shape, because

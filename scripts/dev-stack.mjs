@@ -418,7 +418,7 @@ export function apiChildEnv({
     // PIN THIS if you are working on the admin. Unlike the three keys above, a fresh
     // value here does more than invalidate cookies: it makes an existing TOTP
     // enrolment permanently unverifiable. `two-factor/enable` stores the TOTP secret
-    // ENCRYPTED under this value (better-auth 1.6.25,
+    // ENCRYPTED under this value (better-auth 1.6.26, the pinned version,
     // `dist/plugins/two-factor/index.mjs:105`, `symmetricEncrypt({ key:
     // ctx.context.secretConfig, ... })`) and every verify decrypts with the *current*
     // one (`dist/plugins/two-factor/totp/index.mjs:188`, and `:122` for the URI
