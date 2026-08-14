@@ -48,11 +48,17 @@ export QCMS_ADMIN_AUTH_SECRET=$(node -e "console.log(require('node:crypto').rand
 pnpm dev:admin        # dev Postgres up and migrated, API + admin running, http://localhost:7040
 
 # Second terminal, once per database. dev:admin prints this with the values filled in.
+# Prompt for the passphrase: an inline assignment keeps it out of `ps` but writes it
+# to your shell history (issue #460).
+read -rs -p 'passphrase: ' QCMS_ADMIN_PASSWORD; echo
+export QCMS_ADMIN_EMAIL=you@example.test QCMS_ADMIN_PASSWORD
+
 DATABASE_URL=postgres://qcms:qcms@127.0.0.1:7020/qcms \
   QCMS_ADMIN_BASE_URL=http://localhost:7040 \
   QCMS_ADMIN_AUTH_SECRET=$QCMS_ADMIN_AUTH_SECRET \
-  QCMS_ADMIN_EMAIL=you@example.test QCMS_ADMIN_PASSWORD='a long passphrase' \
   pnpm qcms:create-admin
+
+unset QCMS_ADMIN_PASSWORD
 ```
 
 There is no `.env.local` step and no separate `next dev`, and that is the point of the
@@ -99,15 +105,29 @@ better-auth instance:
   a fresh secret when the variable is unset (and says so on startup), which is why the
   block above exports it first. In a deployment, change the secret through the versioned
   `QCMS_ADMIN_AUTH_SECRETS` list rather than in place (`docs/operations.md`).
-- Credentials go in the environment, never in arguments: an argument lands in shell
-  history and in every `ps` listing while the command runs.
+- Credentials go in the environment, never in arguments: an argument lands in every `ps`
+  listing while the command runs. **An inline assignment keeps it out of `ps` but not out
+  of your shell history** (issue #460), so prompt for it instead of typing it:
+
+  ```bash
+  read -rs -p 'passphrase: ' QCMS_ADMIN_PASSWORD; echo
+  export QCMS_ADMIN_EMAIL=you@example.test QCMS_ADMIN_PASSWORD
+  # ... run the command ...
+  unset QCMS_ADMIN_PASSWORD
+  ```
+
+  `read -rs` never puts the value on a command line, so it reaches neither `ps` nor the
+  history file. If you have already typed the command, a **leading space** suppresses the
+  history entry only when `HISTCONTROL` includes `ignorespace` (bash) or
+  `HIST_IGNORE_SPACE` is set (zsh), and neither is the default everywhere, which is why it
+  is the fallback rather than the recipe.
 - It builds first (`pnpm --filter qcms-api... build`) because the entry is compiled
   (`apps/api/dist/create-admin.js`), which is what makes it available inside the API
   container image.
 - In a Compose deployment, run it there, with the values in the environment of the
-  `docker` command and the variables named on its command line with no value attached:
-  `QCMS_ADMIN_EMAIL=you@example.test QCMS_ADMIN_PASSWORD='a long passphrase' docker
-  compose exec -e QCMS_ADMIN_EMAIL -e QCMS_ADMIN_PASSWORD api node dist/create-admin.js`.
+  `docker` command and the variables named on its command line with no value attached.
+  Prompt first, as above, then:
+  `docker compose exec -e QCMS_ADMIN_EMAIL -e QCMS_ADMIN_PASSWORD api node dist/create-admin.js`.
   The `-e NAME=value` form would defeat the bullet above one process up, by putting the
   password in the docker CLI's argv (issue #440). The env the service already carries
   supplies the rest.
