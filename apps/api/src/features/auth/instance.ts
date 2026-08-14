@@ -181,7 +181,7 @@ export function warnIfBreachCheckDisabled(
  * ## What is deliberately not in here
  *
  * The **numbers**. better-auth's sign-in rule is three attempts per ten seconds
- * (`getDefaultSpecialRules`, `dist/api/rate-limiter/index.mjs:386-393`, matching
+ * (`getDefaultSpecialRules`, `dist/api/rate-limiter/index.mjs:370-377`, matching
  * `/sign-in`, `/sign-up`, `/change-password` and `/change-email`), and the two-factor
  * plugin adds the same shape for `/two-factor/*`
  * (`dist/plugins/two-factor/index.mjs:314-320`). Neither is reachable from the resolved
