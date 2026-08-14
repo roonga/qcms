@@ -246,7 +246,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "production (set by the image)",
     description:
-      "Decides the default for `QCMS_ADMIN_SECURE_COOKIES` when that is unset. The production Dockerfiles set it; do not unset it in a deployment.",
+      "Decides the default for `QCMS_ADMIN_SECURE_COOKIES` when that is unset, **and whether admin sign-in is brute-force throttled at all** (SEC-1): better-auth enables its limiter only at `production`, reading the value once at startup. The production Dockerfiles set it; do not unset it in a deployment. The boot line under \"Checking that sign-in throttling is running\" above says which way it went.",
   },
   {
     name: "QCMS_FLAG_CHALLENGE_PROVIDER",
