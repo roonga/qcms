@@ -19,6 +19,7 @@ import { FormId } from "@qcms/core";
 
 import { startTestDb, type TestDb } from "../testing/harness.js";
 import {
+  claimDue,
   claimDueDeliveries,
   createForm,
   enqueue,
@@ -26,11 +27,14 @@ import {
   insertWebhook,
   markDelivered,
   markDeliveryDelivered,
+  outboxRedeliveryRefusalFor,
   OUTBOX_MAX_ATTEMPTS,
   recordDeliveryFailure,
+  recordFailure,
   redactAgedOutboxPayloads,
   redeliveryRefusalFor,
   resetDeliveryForRedelivery,
+  resetForRedelivery,
 } from "./index.js";
 
 const BOOT_TIMEOUT = 120_000;
@@ -427,5 +431,162 @@ describe("outbox_redacted_payload_has_no_answers (issue #329)", () => {
     ).rejects.toThrow(/outbox_redacted_payload_has_no_answers/);
     await redactAgedOutboxPayloads(testDb.db, HORIZON);
     expect((await outboxRow(seeded.outboxId)).payload).not.toHaveProperty("answers");
+  });
+});
+
+/**
+ * The redaction guard on the outbox-level redelivery helper (issue #433).
+ *
+ * `resetForRedelivery` clears `delivered_at` and `dead_lettered_at`; `claimDue`
+ * declines to claim *on* `payload_redacted_at`. Without a predicate joining those two
+ * facts, resetting a redacted event moved it into the one state the whole file exists
+ * to prevent: reading as pending, claimed by nobody, revisited by nothing. Erasure
+ * has been able to produce a redacted event since 059; this sweep widens the
+ * population from "sessions someone asked to erase" to "every event past the window",
+ * which is what makes the latent case worth closing.
+ *
+ * The pair is the same idiom the delivery level uses: the refusal helper names the
+ * reason, the reset reports the absence, and the caller reads them in that order.
+ */
+describe("resetForRedelivery redaction guard (issue #433)", () => {
+  /** The columns a reset writes, read raw so the assertions are about the database. */
+  async function resetState(outboxId: string): Promise<{
+    deliveredAt: Date | null;
+    deadLetteredAt: Date | null;
+    attempts: number;
+    nextAttemptAt: Date;
+    lastError: string | null;
+    payloadRedactedAt: Date | null;
+  }> {
+    const res = await testDb.client.query<{
+      delivered_at: Date | null;
+      dead_lettered_at: Date | null;
+      attempts: number;
+      next_attempt_at: Date;
+      last_error: string | null;
+      payload_redacted_at: Date | null;
+    }>(
+      `select delivered_at, dead_lettered_at, attempts, next_attempt_at, last_error,
+              payload_redacted_at
+         from outbox where id = $1`,
+      [outboxId],
+    );
+    const row = res.rows[0]!;
+    return {
+      deliveredAt: row.delivered_at,
+      deadLetteredAt: row.dead_lettered_at,
+      attempts: row.attempts,
+      nextAttemptAt: row.next_attempt_at,
+      lastError: row.last_error,
+      payloadRedactedAt: row.payload_redacted_at,
+    };
+  }
+
+  /** Drive an event to its dead letter through the real backoff path. */
+  async function deadLetterEvent(outboxId: string, at: Date): Promise<void> {
+    for (let i = 0; i < OUTBOX_MAX_ATTEMPTS; i++) {
+      await recordFailure(testDb.db, outboxId, "http_500", at);
+    }
+  }
+
+  it("resets an intact dead letter and leaves it claimable", async () => {
+    // The guard has to have something it lets through, or it would pass by refusing
+    // everything and the manual-redeliver action would be dead.
+    const seeded = await seedEvent();
+    await deadLetterEvent(seeded.outboxId, LONG_AGO);
+    expect((await resetState(seeded.outboxId)).payloadRedactedAt).toBeNull();
+
+    expect(await outboxRedeliveryRefusalFor(testDb.db, seeded.outboxId)).toBeUndefined();
+    const at = new Date();
+    const reset = await resetForRedelivery(testDb.db, seeded.outboxId, at);
+
+    expect(reset?.id).toBe(seeded.outboxId);
+    expect(reset?.deadLetteredAt).toBeNull();
+    expect(reset?.attempts).toBe(0);
+    const due = await claimDue(testDb.db, 200, new Date(at.getTime() + 1000));
+    expect(due.some((r) => r.id === seeded.outboxId)).toBe(true);
+  });
+
+  it("refuses a redacted dead letter and leaves the row byte-for-byte as it was", async () => {
+    const seeded = await seedEvent();
+    await deadLetterEvent(seeded.outboxId, LONG_AGO);
+    await redactAgedOutboxPayloads(testDb.db, HORIZON);
+
+    // The fixture is real before anything is asserted about the refusal: this row
+    // exists and it is genuinely redacted. A missing row would refuse for the wrong
+    // reason and the test would pass having proved nothing.
+    const before = await resetState(seeded.outboxId);
+    expect(before.payloadRedactedAt).not.toBeNull();
+    expect(before.deadLetteredAt).toEqual(LONG_AGO);
+    expect(before.attempts).toBe(OUTBOX_MAX_ATTEMPTS);
+    expect((await outboxRow(seeded.outboxId)).payload).not.toHaveProperty("answers");
+
+    expect(await outboxRedeliveryRefusalFor(testDb.db, seeded.outboxId)).toBe("payloadRedacted");
+    const reset = await resetForRedelivery(testDb.db, seeded.outboxId, new Date());
+
+    expect(reset).toBeUndefined();
+    // Field by field, not as a whole object: a refusal that half-applied would strand
+    // the row just as thoroughly as one that applied.
+    const after = await resetState(seeded.outboxId);
+    expect(after.deadLetteredAt).toEqual(before.deadLetteredAt);
+    expect(after.deliveredAt).toEqual(before.deliveredAt);
+    expect(after.attempts).toBe(before.attempts);
+    expect(after.nextAttemptAt).toEqual(before.nextAttemptAt);
+    expect(after.lastError).toBe(before.lastError);
+    expect(after.payloadRedactedAt).toEqual(before.payloadRedactedAt);
+  });
+
+  it("refuses a redacted delivered event without clearing delivered_at", async () => {
+    // The other terminal timestamp, and the one #329 produces most of: an event the
+    // materialize pass consumed, whose answers aged out afterwards. Clearing it would
+    // put a consumed event back on the queue as unconsumed.
+    const seeded = await seedEvent();
+    await markDelivered(testDb.db, seeded.outboxId, LONG_AGO);
+    await redactAgedOutboxPayloads(testDb.db, HORIZON);
+    const before = await resetState(seeded.outboxId);
+    expect(before.payloadRedactedAt).not.toBeNull();
+    expect(before.deliveredAt).toEqual(LONG_AGO);
+
+    expect(await resetForRedelivery(testDb.db, seeded.outboxId, new Date())).toBeUndefined();
+
+    const after = await resetState(seeded.outboxId);
+    expect(after.deliveredAt).toEqual(LONG_AGO);
+    expect(after.deadLetteredAt).toBeNull();
+  });
+
+  it("never leaves a redacted event reading as pending", async () => {
+    // The acceptance criterion stated as the operator sees it. Before the guard the
+    // reset succeeded, the row went `delivered_at = null, dead_lettered_at = null`,
+    // and `claimDue` still skipped it on `payload_redacted_at` - pending on the
+    // dashboard, invisible to the deliverer, forever.
+    const seeded = await seedEvent();
+    await deadLetterEvent(seeded.outboxId, LONG_AGO);
+    await redactAgedOutboxPayloads(testDb.db, HORIZON);
+
+    const at = new Date();
+    await resetForRedelivery(testDb.db, seeded.outboxId, at);
+
+    const after = await resetState(seeded.outboxId);
+    // Either it is still terminal, or it is claimable. It is never neither.
+    expect(after.deadLetteredAt).not.toBeNull();
+    const due = await claimDue(testDb.db, 200, new Date(at.getTime() + 1000));
+    expect(due.some((r) => r.id === seeded.outboxId)).toBe(false);
+  });
+
+  it("distinguishes a refusal from an id that does not exist", async () => {
+    // The property the pair exists for. `undefined` from the refusal helper alone is
+    // ambiguous by design - it means "may be redelivered" and "no such event" - so
+    // the caller reads the two helpers in order, exactly as the redeliver handler
+    // does one level down. Refused and absent differ in the first answer.
+    const absent = "00000000-0000-0000-0000-000000000000";
+    const seeded = await seedEvent();
+    await deadLetterEvent(seeded.outboxId, LONG_AGO);
+    await redactAgedOutboxPayloads(testDb.db, HORIZON);
+
+    expect(await outboxRedeliveryRefusalFor(testDb.db, absent)).toBeUndefined();
+    expect(await resetForRedelivery(testDb.db, absent)).toBeUndefined();
+
+    expect(await outboxRedeliveryRefusalFor(testDb.db, seeded.outboxId)).toBe("payloadRedacted");
+    expect(await resetForRedelivery(testDb.db, seeded.outboxId)).toBeUndefined();
   });
 });
