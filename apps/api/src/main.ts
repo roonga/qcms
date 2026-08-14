@@ -30,7 +30,8 @@ import pg from "pg";
 
 import { createApp } from "./app.js";
 import { systemClock } from "./clock.js";
-import { warnIfBreachCheckDisabled } from "./features/auth/instance.js";
+import { logSignInThrottleState, warnIfBreachCheckDisabled } from "./features/auth/instance.js";
+import { adminAuthFor } from "./features/auth/route.js";
 import { selectChallengeVerifier } from "./features/responses/challenge.js";
 import { appGroups } from "./registrars.js";
 import { loadConfig } from "./config.js";
@@ -80,6 +81,25 @@ export function main(telemetry: Telemetry): void {
   };
 
   const app = createApp(deps, config.mount, { groups: appGroups });
+
+  // Say whether SEC-1's sign-in throttle is running (issue #390). It is better-auth's
+  // limiter, and whether it runs is resolved from `NODE_ENV` once at module load unless
+  // the configuration states otherwise, so until this line an operator had no way to
+  // find out short of exhausting the limit against their own deployment.
+  //
+  // After `createApp` and guarded by the same `mount.admin` as the breach warning: this
+  // is the first point where the auth instance for these `deps` is worth building, and
+  // in a composition that never mounts the admin surface there is nothing to say.
+  //
+  // Awaited off to the side rather than blocking the bind, and its failure is logged
+  // rather than thrown: a diagnostic that reports whether the process is safe must not
+  // become a new way for the process to fail to start. A genuinely broken auth context
+  // still surfaces at the first sign-in, exactly as it did before.
+  if (config.mount.admin) {
+    void logSignInThrottleState(adminAuthFor(deps), logger).catch((error: unknown) => {
+      logger.error("could not read the sign-in throttle state", { err: error });
+    });
+  }
 
   // Schedulers run in the internal process only (enterprise topology; solo runs
   // one all-surface process which includes internal).
