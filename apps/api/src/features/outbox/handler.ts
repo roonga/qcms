@@ -177,19 +177,28 @@ export function makeRedeliverHandler(deps: Deps): RouteHandler<typeof redeliverR
     // `webhooks.form_id`, so a delivery belonging to another form matches no row
     // and comes back 404 - indistinguishable from an id that was never issued.
     //
-    // No `getForm` existence check here, deliberately. An unknown form makes the
+    // A malformed **form** id takes that same 404, not a 400 of its own. Issue 310
+    // chose the 404 for a malformed *delivery* id so this route stays 400-free, and
+    // it named this very case while doing so ("the same question may apply to
+    // branded ids on that route"). Answering 400 here would have re-introduced the
+    // status #310 removed, on the route it removed it from. It also suits #305:
+    // every not-found-ish outcome on this endpoint is one code, so a caller cannot
+    // sort "malformed form" from "no such delivery" from "not your form".
+    //
+    // No `getForm` existence check either, deliberately. An unknown form makes the
     // scoped queries match nothing, which is already the right 404, and asking
     // separately would answer "does this form exist" for a caller who cannot
-    // otherwise tell. The malformed-id 400 below is a grammar fact, not existence.
+    // otherwise tell.
     const parsed = parseFormId(id);
-    if (!parsed.ok) throw fail.invalidId();
+    if (!parsed.ok) throw fail.deliveryNotFound();
     const formId = parsed.value;
 
     // Issue 310: a delivery id is a uuid, and `webhook_deliveries.id` is a `uuid`
     // column, so a malformed id used to reach Postgres and raise `22P02 invalid
     // input syntax for type uuid` - a 500 for what is a client's bad id. It takes
     // the same 404 an absent row takes rather than a 400 of its own: both are "no
-    // such delivery" to the caller, the route documents no 400, and one code keeps
+    // such delivery" to the caller, the route still documents no 400 (see the form
+    // id above, which takes the same 404 for the same reason), and one code keeps
     // the admin dashboard's existing DELIVERY_NOT_FOUND handling correct. The check
     // sits here rather than on the param schema because a schema rejection is a 400.
     if (!isDeliveryId(deliveryId)) throw fail.deliveryNotFound();

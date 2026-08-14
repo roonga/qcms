@@ -560,7 +560,8 @@ describe("POST /admin/forms/:id/deliveries/:deliveryId/redeliver - the ADR-17 re
  * Issue 310. `webhook_deliveries.id` is a `uuid` column, so before this an id that
  * was not one reached Postgres and raised `22P02 invalid input syntax for type
  * uuid`, which the envelope rendered as an opaque 500 - on a route that documents
- * 401/404/409 and no 400 at all.
+ * 401/404/409 and no 400 at all. That remains true after #305 added a form segment:
+ * a malformed **form** id takes the same 404, so the route is still 400-free.
  *
  * These pin two things. First, that an unrecognized id and an absent-but-canonical
  * id are the *same* answer, body and all: "no such delivery" is one fact with one
@@ -609,6 +610,23 @@ describe("POST /admin/forms/:id/deliveries/:deliveryId/redeliver - the delivery 
     const malformed = await redeliverRaw("not-a-uuid");
     expect(malformed.status).toBe(404);
     expect(malformed.body).toEqual(absent.body);
+  });
+
+  it("404s a malformed form id with the same body, keeping the route 400-free (#305/#310)", async () => {
+    // #310 chose the 404 for a malformed *delivery* id so this route declares no
+    // 400, and it named branded ids on this route as the same question. #305 added
+    // a form segment, so that question became live: answering 400 here would have
+    // put back the status #310 removed, and the OpenAPI document would have stopped
+    // describing the route. It also matters for #305 that this is not a third
+    // shape - "malformed form", "no such delivery" and "not your form" are one
+    // answer, so the response cannot be used to sort them.
+    const absent = await redeliverRaw(ABSENT_BUT_WELL_FORMED);
+    const res = await app.request(
+      `/admin/forms/not-a-form-id/deliveries/${ABSENT_BUT_WELL_FORMED}/redeliver`,
+      { method: "POST", headers: headers() },
+    );
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual(absent.body);
   });
 
   it("404s every shape Postgres would have cast-errored on, and still accepts a real id", async () => {

@@ -653,6 +653,19 @@ describe("form scope on erase and unflag (issue #305)", () => {
     expect(owned.status).toBe(200);
     expect(await tombstones(sessionId)).toBe(1);
     expect(await submissionRow(sessionId)).toBeUndefined();
+
+    // The idempotency step is scoped too, and this is the only assertion that can
+    // show it. `eraseSession` looks for an existing tombstone *before* it looks for
+    // the session, and returns it as `200 alreadyErased: true`. With that lookup
+    // unscoped, the other form now gets that 200 for a session it does not own -
+    // which discloses both that the session exists and that it has been erased,
+    // the exact leak this issue exists to close. A same-form repeat cannot catch
+    // it, and until now every alreadyErased assertion in the repo was same-form.
+    const afterErasure = await post(`/forms/${bystander}/responses/${sessionId}/erase`, {
+      reason: "subject_request",
+    });
+    expect(afterErasure.status).toBe(404);
+    expect(await tombstones(sessionId)).toBe(1);
   });
 
   it("unflags a session named under its own form", async () => {
