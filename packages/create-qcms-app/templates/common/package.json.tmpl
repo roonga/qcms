@@ -1,0 +1,18 @@
+{
+  "name": "{{projectName}}",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A QCMS deployment: owned application shell over the versioned @qcms/* packages.",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+{{packageManagerField}}{{workspacesField}}  "scripts": {
+    "up": "docker compose up -d --build",
+    "down": "docker compose down",
+    "logs": "docker compose logs -f",
+    "migrate": "docker compose run --rm migrate",
+    "build": "{{recursiveBuild}}",
+    "typecheck": "{{recursiveTypecheck}}"
+  }
+}

@@ -1,0 +1,19 @@
+# The three applications are the code you own (ADR-05). The @qcms/* packages they
+# depend on come from the registry and are upgraded, not edited: see README.md.
+#
+# This file is stamped whatever package manager you chose for local development,
+# because the shipped Dockerfiles always build with pnpm inside the image: the
+# runtime tree is pruned with `pnpm deploy --prod`, which has no npm or yarn
+# equivalent. Removing this file breaks `docker compose build`.
+packages:
+  - "apps/*"
+
+# pnpm 11 refuses an install that silently skipped a dependency's build script, so
+# every package in this tree that legitimately has one is named here. Adding a
+# dependency with a build script means adding it here, and the error message names
+# the package when you forget. These three come from the OpenTelemetry and Next
+# toolchains, not from anything QCMS wrote.
+allowBuilds:
+  esbuild: true
+  protobufjs: true
+  sharp: true

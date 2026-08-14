@@ -11,6 +11,9 @@ const API_ROOT = fileURLToPath(new URL("apps/api", import.meta.url));
 // Repo root, resolved from this file for the same reason API_ROOT is.
 const REPO_ROOT = fileURLToPath(new URL(".", import.meta.url));
 
+// The scaffolding CLI's root, resolved the same way API_ROOT is.
+const CREATE_APP_ROOT = fileURLToPath(new URL("packages/create-qcms-app", import.meta.url));
+
 // Single root Vitest configuration - every package and app is a project here;
 // no per-package runners or configs. (Vitest 4 removed vitest.workspace.ts;
 // test.projects is its replacement - task 001.)
@@ -51,6 +54,23 @@ export default defineConfig({
           include: ["e2e/**/*.e2e.ts"],
           // Each scenario file boots its own Testcontainers Postgres; give the
           // suite room for image pull + boot on a cold CI runner.
+          testTimeout: 120_000,
+          hookTimeout: 120_000,
+        },
+      },
+      // The scaffolding CLI's adopter-level e2e (task 037): the same arrangement as
+      // `qcms-api-e2e` above, and for the same reason. It drives a Docker Compose
+      // stack built from a freshly scaffolded project, so it can only run once
+      // `pnpm qcms:scaffold-e2e` has stood that stack up, and must therefore stay
+      // out of `pnpm test`. Its files are named `*.e2e.ts` so the default
+      // `packages/*` project (create-qcms-app, which globs `*.test.ts`) never
+      // double-runs them.
+      {
+        extends: true,
+        test: {
+          name: "create-qcms-app-e2e",
+          root: CREATE_APP_ROOT,
+          include: ["e2e/**/*.e2e.ts"],
           testTimeout: 120_000,
           hookTimeout: 120_000,
         },

@@ -244,6 +244,10 @@ describe("check-changeset helpers", () => {
       "@qcms/core",
       "@qcms/db",
       "@qcms/ui",
+      // The scaffolding CLI (task 037) is unscoped, and publishable for the same
+      // reason the four packages are: an adopter runs `pnpm create qcms-app`, so a
+      // change to it is a change a consumer can see and needs a changeset.
+      "create-qcms-app",
     ]);
   });
 
