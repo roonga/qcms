@@ -1536,6 +1536,10 @@
             "type": "string",
             "example": "whk_ab12cd34"
           },
+          "formId": {
+            "type": "string",
+            "example": "frm_intake"
+          },
           "url": {
             "type": "string",
             "example": "https://consumer.example.com/qcms-hook"
@@ -1564,6 +1568,7 @@
           "eventId",
           "eventType",
           "webhookId",
+          "formId",
           "url",
           "attempts",
           "lastError",
@@ -3600,7 +3605,7 @@
         }
       }
     },
-    "/admin/sessions/{sessionId}/erase": {
+    "/admin/forms/{id}/responses/{sessionId}/erase": {
       "post": {
         "summary": "Erase a session's response (ADR-17); returns the tombstone (idempotent) (admin)",
         "tags": [
@@ -3614,6 +3619,15 @@
           }
         ],
         "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_intake"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
           {
             "schema": {
               "type": "string",
@@ -3754,7 +3768,7 @@
         }
       }
     },
-    "/admin/responses/{sessionId}/unflag": {
+    "/admin/forms/{id}/responses/{sessionId}/unflag": {
       "post": {
         "summary": "Release a withheld (flagged) response's outbox event (admin)",
         "tags": [
@@ -3768,6 +3782,15 @@
           }
         ],
         "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_intake"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
           {
             "schema": {
               "type": "string",
@@ -4474,7 +4497,7 @@
         }
       }
     },
-    "/admin/outbox/{id}/redeliver": {
+    "/admin/forms/{id}/deliveries/{deliveryId}/redeliver": {
       "post": {
         "summary": "Reset a dead-lettered delivery for immediate redelivery (admin)",
         "tags": [
@@ -4491,10 +4514,19 @@
           {
             "schema": {
               "type": "string",
-              "example": "d290f1ee-6c54-4b01-90e6-d701748f0851"
+              "example": "frm_intake"
             },
             "required": true,
             "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "d290f1ee-6c54-4b01-90e6-d701748f0851"
+            },
+            "required": true,
+            "name": "deliveryId",
             "in": "path"
           }
         ],

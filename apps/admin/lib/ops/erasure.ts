@@ -2,7 +2,7 @@
  * The type-to-confirm rule for erasure (task 035, ADR-17).
  *
  * Erasure is the one operation in this product with no inverse. `POST
- * /admin/sessions/{id}/erase` deletes the answers and the submission and writes a
+ * /admin/forms/{formId}/responses/{id}/erase` deletes the answers and the submission and writes a
  * tombstone in a single transaction; there is no soft-delete column, no archive
  * table, and nothing this app or its operator can restore from. R3 names it as the
  * sole DELETE door in the system, and it is a door that only opens outward.

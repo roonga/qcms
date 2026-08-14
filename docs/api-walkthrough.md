@@ -168,7 +168,7 @@ curl -s "$API/admin/forms/frm_auto_quote/export?format=json" \
 
 # Erase a session (idempotent). Afterwards it is gone from every export and a
 # tombstone is listed under /admin/erasures.
-curl -sX POST "$API/admin/sessions/$SES/erase" \
+curl -sX POST "$API/admin/forms/frm_auto_quote/responses/$SES/erase" \
   -H "x-qcms-internal-token: $INT" -H "x-qcms-admin-session: $ADM" -H 'content-type: application/json' \
   -d '{"reason":"subject request"}'
 # → { "sessionId","formId","formVersion","erasedAt","reason","alreadyErased":false }

@@ -61,7 +61,7 @@ export async function eraseSessionAction(
   if (!isErasureReason(reason)) {
     return { status: "error", message: t("ops.error.invalidErasureReason") };
   }
-  const result = await eraseSession(session, sessionId, reason);
+  const result = await eraseSession(session, formId, sessionId, reason);
   if (!result.ok) return { status: "error", message: result.message };
   revalidatePath(`/forms/${formId}/responses`);
   revalidatePath(`/forms/${formId}/responses/${sessionId}`);
@@ -75,7 +75,7 @@ export async function unflagResponseAction(
   sessionId: string,
 ): Promise<UnflagState> {
   const session = await requireAdminSession();
-  const result = await unflagResponse(session, sessionId);
+  const result = await unflagResponse(session, formId, sessionId);
   if (!result.ok) return { status: "error", message: result.message };
   revalidatePath(`/forms/${formId}/responses`);
   revalidatePath(`/forms/${formId}/responses/${sessionId}`);

@@ -12,7 +12,7 @@
  * proves is that the read path passes through what was stored rather than
  * re-deriving (and so re-leaking) anything.
  *
- * It also covers `POST /admin/outbox/:id/redeliver` refusing a delivery erasure has
+ * It also covers `POST /admin/forms/:id/deliveries/:deliveryId/redeliver` refusing a delivery erasure has
  * reached (ADR-17 as amended 2026-08-02; task 059 replaced 035's version of this).
  * The refusal is now a property of the data: `eraseSession` cancels the session's
  * still-sendable deliveries and redacts the outbox payload they would carry, and the
@@ -38,6 +38,7 @@ import {
   listTombstones,
   markDelivered,
   markDeliveryDelivered,
+  markSubmitted,
   DELIVERY_CANCELLED_SESSION_ERASED,
   OUTBOX_MAX_ATTEMPTS,
   outbox,
@@ -347,7 +348,7 @@ describe("GET /admin/forms/:id/deliveries - scoping, ordering and derived status
   });
 });
 
-describe("POST /admin/outbox/:id/redeliver - the ADR-17 refusal", () => {
+describe("POST /admin/forms/:id/deliveries/:deliveryId/redeliver - the ADR-17 refusal", () => {
   /**
    * A real, submitted session on FORM_ERASED, so `eraseSession` has something to
    * erase. Returns the id it was created under.
@@ -399,10 +400,13 @@ describe("POST /admin/outbox/:id/redeliver - the ADR-17 refusal", () => {
   }
 
   async function redeliver(deliveryId: string): Promise<{ status: number; code: string | null }> {
-    const res = await app.request(`/admin/outbox/${deliveryId}/redeliver`, {
-      method: "POST",
-      headers: headers(),
-    });
+    const res = await app.request(
+      `/admin/forms/${FORM_ERASED}/deliveries/${deliveryId}/redeliver`,
+      {
+        method: "POST",
+        headers: headers(),
+      },
+    );
     if (res.ok) return { status: res.status, code: null };
     const body = (await res.json()) as { error?: { code?: string } };
     return { status: res.status, code: body.error?.code ?? null };
@@ -416,9 +420,9 @@ describe("POST /admin/outbox/:id/redeliver - the ADR-17 refusal", () => {
     }
     // Redeliverable right up to the erasure - so the 409 below is the erasure's
     // doing and not some pre-existing state of the fixture.
-    expect(await redeliveryRefusalFor(testDb.db, deliveryId)).toBeUndefined();
+    expect(await redeliveryRefusalFor(testDb.db, FORM_ERASED, deliveryId)).toBeUndefined();
 
-    await eraseSession(testDb.db, sessionId, "subject_request");
+    await eraseSession(testDb.db, FORM_ERASED, sessionId, "subject_request");
 
     expect(await redeliver(deliveryId)).toEqual({
       status: 409,
@@ -451,9 +455,9 @@ describe("POST /admin/outbox/:id/redeliver - the ADR-17 refusal", () => {
     const sessionId = await seedErasableSession("ses_erased_after_delivery");
     const deliveryId = await seedDeliveryForSession(sessionId);
     await markDeliveryDelivered(testDb.db, deliveryId, new Date());
-    await eraseSession(testDb.db, sessionId, "subject_request");
+    await eraseSession(testDb.db, FORM_ERASED, sessionId, "subject_request");
 
-    expect(await redeliveryRefusalFor(testDb.db, deliveryId)).toBe("payloadRedacted");
+    expect(await redeliveryRefusalFor(testDb.db, FORM_ERASED, deliveryId)).toBe("payloadRedacted");
     expect(await redeliver(deliveryId)).toEqual({
       status: 409,
       code: "DELIVERY_NOT_REDELIVERABLE",
@@ -473,7 +477,7 @@ describe("POST /admin/outbox/:id/redeliver - the ADR-17 refusal", () => {
     };
     expect(await onQueue(), "dead-lettered, so on the queue").toBe(true);
 
-    await eraseSession(testDb.db, sessionId, "subject_request");
+    await eraseSession(testDb.db, FORM_ERASED, sessionId, "subject_request");
 
     // Off the worklist - every row there is being offered for redelivery, and this
     // one may never be sent.
@@ -509,7 +513,7 @@ describe("POST /admin/outbox/:id/redeliver - the ADR-17 refusal", () => {
     });
     await redactAgedResponseSnippets(testDb.db, new Date("2020-01-02T00:00:00.000Z"));
 
-    expect(await redeliveryRefusalFor(testDb.db, deliveryId)).toBeUndefined();
+    expect(await redeliveryRefusalFor(testDb.db, FORM_ERASED, deliveryId)).toBeUndefined();
     expect((await redeliver(deliveryId)).status).toBe(200);
   });
 
@@ -537,7 +541,7 @@ describe("POST /admin/outbox/:id/redeliver - the ADR-17 refusal", () => {
       .from(webhookDeliveries)
       .where(eq(webhookDeliveries.id, deliveryId));
     expect(state?.cancelledAt).toBeNull();
-    expect(await redeliveryRefusalFor(testDb.db, deliveryId)).toBe("payloadRedacted");
+    expect(await redeliveryRefusalFor(testDb.db, FORM_ERASED, deliveryId)).toBe("payloadRedacted");
     expect(await redeliver(deliveryId)).toEqual({
       status: 409,
       code: "DELIVERY_NOT_REDELIVERABLE",
@@ -556,7 +560,8 @@ describe("POST /admin/outbox/:id/redeliver - the ADR-17 refusal", () => {
  * Issue 310. `webhook_deliveries.id` is a `uuid` column, so before this an id that
  * was not one reached Postgres and raised `22P02 invalid input syntax for type
  * uuid`, which the envelope rendered as an opaque 500 - on a route that documents
- * 401/404/409 and no 400 at all.
+ * 401/404/409 and no 400 at all. That remains true after #305 added a form segment:
+ * a malformed **form** id takes the same 404, so the route is still 400-free.
  *
  * These pin two things. First, that an unrecognized id and an absent-but-canonical
  * id are the *same* answer, body and all: "no such delivery" is one fact with one
@@ -566,7 +571,7 @@ describe("POST /admin/outbox/:id/redeliver - the ADR-17 refusal", () => {
  * oddly-hyphenated forms of the same value. That narrowing is a decision, so it
  * gets an assertion of its own rather than being left to be read off a regex.
  */
-describe("POST /admin/outbox/:id/redeliver - the delivery id grammar", () => {
+describe("POST /admin/forms/:id/deliveries/:deliveryId/redeliver - the delivery id grammar", () => {
   /** A well-formed uuid that is not any row's id: the reference 404. */
   const ABSENT_BUT_WELL_FORMED = "d290f1ee-6c54-4b01-90e6-d701748f0851";
 
@@ -586,7 +591,7 @@ describe("POST /admin/outbox/:id/redeliver - the delivery id grammar", () => {
   }, BOOT_TIMEOUT);
 
   async function redeliverRaw(id: string): Promise<{ status: number; body: unknown }> {
-    const res = await app.request(`/admin/outbox/${id}/redeliver`, {
+    const res = await app.request(`/admin/forms/${FORM_ID_SHAPE}/deliveries/${id}/redeliver`, {
       method: "POST",
       headers: headers(),
     });
@@ -605,6 +610,23 @@ describe("POST /admin/outbox/:id/redeliver - the delivery id grammar", () => {
     const malformed = await redeliverRaw("not-a-uuid");
     expect(malformed.status).toBe(404);
     expect(malformed.body).toEqual(absent.body);
+  });
+
+  it("404s a malformed form id with the same body, keeping the route 400-free (#305/#310)", async () => {
+    // #310 chose the 404 for a malformed *delivery* id so this route declares no
+    // 400, and it named branded ids on this route as the same question. #305 added
+    // a form segment, so that question became live: answering 400 here would have
+    // put back the status #310 removed, and the OpenAPI document would have stopped
+    // describing the route. It also matters for #305 that this is not a third
+    // shape - "malformed form", "no such delivery" and "not your form" are one
+    // answer, so the response cannot be used to sort them.
+    const absent = await redeliverRaw(ABSENT_BUT_WELL_FORMED);
+    const res = await app.request(
+      `/admin/forms/not-a-form-id/deliveries/${ABSENT_BUT_WELL_FORMED}/redeliver`,
+      { method: "POST", headers: headers() },
+    );
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual(absent.body);
   });
 
   it("404s every shape Postgres would have cast-errored on, and still accepts a real id", async () => {
@@ -715,5 +737,180 @@ describe("GET /admin/forms/:id/deliveries - the limit", () => {
 
     expect((await listDeliveries(FORM_BULK, "?limit=1000")).items).toHaveLength(MAX_DELIVERY_LIMIT);
     expect((await listDeliveries(FORM_BULK)).items).toHaveLength(DEFAULT_DELIVERY_LIMIT);
+  });
+});
+
+// --- form scope on redeliver (issue #305) -----------------------------------
+
+/**
+ * Redelivery used to act on whatever delivery uuid a client sent. It now sits under
+ * the form-scoped path the deliveries list always used, and both queries behind it
+ * filter through `webhooks.form_id` - the same chain `listRecentDeliveries` reads.
+ *
+ * The third case here is the one that motivated scoping the *refusal* check as well
+ * as the reset. The refusal runs first, so had it stayed unscoped, another form's
+ * cancelled delivery would have answered 409 where an unknown id answers 404, and
+ * the difference between those two replies is a report that someone else's delivery
+ * exists and what state it is in.
+ */
+describe("form scope on redeliver (issue #305)", () => {
+  const FORM_SCOPE_OWNER = FormId.parse("frm_scope_owner");
+  const FORM_SCOPE_OTHER = FormId.parse("frm_scope_other");
+
+  let ownerVersion: number;
+
+  beforeAll(async () => {
+    await createForm(testDb.db, {
+      formId: FORM_SCOPE_OWNER,
+      slug: "scope-owner",
+      defaultLocale: "en",
+    });
+    await createForm(testDb.db, {
+      formId: FORM_SCOPE_OTHER,
+      slug: "scope-other",
+      defaultLocale: "en",
+    });
+    // A published version, so the cancelled-delivery case can erase a real session
+    // rather than hand-writing the state the refusal check reads.
+    ownerVersion = (
+      await insertFormVersion(testDb.db, {
+        formId: FORM_SCOPE_OWNER,
+        definition: {} as unknown as FormDefinition,
+        compiled: {} as unknown as Parameters<typeof insertFormVersion>[1]["compiled"],
+        compilerVersion: "1.0.0",
+        a2uiSpecVersion: "1.0.0",
+        semanticsVersion: "1",
+      })
+    ).version;
+  }, BOOT_TIMEOUT);
+
+  /** A real submitted session on `FORM_SCOPE_OWNER`, so erasure has a target. */
+  async function seedOwnerSession(sessionId: string): Promise<SessionId> {
+    const parsed = SessionId.parse(sessionId);
+    await createSession(testDb.db, {
+      sessionId: parsed,
+      formId: FORM_SCOPE_OWNER,
+      formVersion: ownerVersion,
+      accessMode: "anonymous",
+      expiresAt: new Date(Date.now() + 86_400_000),
+    });
+    await markSubmitted(testDb.db, parsed);
+    return parsed;
+  }
+
+  /** A still-sendable delivery on `FORM_SCOPE_OWNER` carrying `sessionId`. */
+  async function seedOwnerDeliveryFor(sessionId: SessionId): Promise<string> {
+    seq += 1;
+    const webhookId = `whk_scope_${seq}`;
+    await insertWebhook(testDb.db, {
+      webhookId,
+      formId: FORM_SCOPE_OWNER,
+      url: `https://consumer.example.com/scope-${seq}`,
+      secretEncrypted: "v1.opaque-ciphertext",
+      active: true,
+    });
+    const event = await enqueue(testDb.db, {
+      eventType: "response.submitted",
+      payload: { sessionId, formId: FORM_SCOPE_OWNER, answers: { q_secret: "42" } },
+    });
+    await insertDelivery(testDb.db, { outboxId: event.id, webhookId });
+    const [row] = await testDb.db
+      .select({ id: webhookDeliveries.id })
+      .from(webhookDeliveries)
+      .where(
+        and(eq(webhookDeliveries.outboxId, event.id), eq(webhookDeliveries.webhookId, webhookId)),
+      );
+    return row!.id;
+  }
+
+  /** The delivery row as stored, for byte-level before/after comparison. */
+  async function deliveryState(deliveryId: string): Promise<{
+    attempts: number;
+    deadLetteredAt: Date | null;
+    nextAttemptAt: Date;
+    lastError: string | null;
+  }> {
+    const [row] = await testDb.db
+      .select({
+        attempts: webhookDeliveries.attempts,
+        deadLetteredAt: webhookDeliveries.deadLetteredAt,
+        nextAttemptAt: webhookDeliveries.nextAttemptAt,
+        lastError: webhookDeliveries.lastError,
+      })
+      .from(webhookDeliveries)
+      .where(eq(webhookDeliveries.id, deliveryId));
+    return row!;
+  }
+
+  async function redeliverAs(formId: FormId, deliveryId: string): Promise<number> {
+    const res = await app.request(`/admin/forms/${formId}/deliveries/${deliveryId}/redeliver`, {
+      method: "POST",
+      headers: headers(),
+    });
+    return res.status;
+  }
+
+  /** A dead-lettered delivery of `formId` - the shape the worklist offers back. */
+  async function seedDeadLettered(formId: FormId): Promise<string> {
+    const deliveryId = await seedDelivery(formId, new Date("2026-07-21T00:00:00.000Z"));
+    for (let i = 0; i < OUTBOX_MAX_ATTEMPTS; i++) {
+      await recordDeliveryFailure(testDb.db, deliveryId, "http_500", new Date(), {
+        ...STORED_ATTEMPT,
+        lastStatus: 500,
+      });
+    }
+    return deliveryId;
+  }
+
+  it("redelivers a delivery named under its own form", async () => {
+    const deliveryId = await seedDeadLettered(FORM_SCOPE_OWNER);
+    expect((await deliveryState(deliveryId)).deadLetteredAt).not.toBeNull();
+
+    expect(await redeliverAs(FORM_SCOPE_OWNER, deliveryId)).toBe(200);
+
+    const after = await deliveryState(deliveryId);
+    expect(after.deadLetteredAt).toBeNull();
+    expect(after.attempts).toBe(0);
+  });
+
+  it("404s a redeliver naming another form, and resets nothing", async () => {
+    const deliveryId = await seedDeadLettered(FORM_SCOPE_OWNER);
+
+    // Fixture-is-real: the delivery exists and is genuinely dead-lettered, so a
+    // successful reset would be observable. Without this the 404 below would be
+    // satisfied just as well by a uuid that was never issued.
+    const before = await deliveryState(deliveryId);
+    expect(before.deadLetteredAt).not.toBeNull();
+    expect(before.attempts).toBe(OUTBOX_MAX_ATTEMPTS);
+    expect(before.lastError).toBe("http_500");
+
+    expect(await redeliverAs(FORM_SCOPE_OTHER, deliveryId)).toBe(404);
+
+    // Refused *and* inert: every field the reset would have cleared is untouched.
+    expect(await deliveryState(deliveryId)).toEqual(before);
+
+    // The owning form can still redeliver it, so the guard refused the caller and
+    // not the operation.
+    expect(await redeliverAs(FORM_SCOPE_OWNER, deliveryId)).toBe(200);
+    expect((await deliveryState(deliveryId)).deadLetteredAt).toBeNull();
+  });
+
+  it("404s rather than 409s for another form's cancelled delivery", async () => {
+    // A cancelled delivery is the state the refusal check reads first. Erasure is
+    // what produces it, so this seeds a real session on FORM_ERASED and erases it.
+    const sessionId = await seedOwnerSession("ses_scope_cancelled");
+    const deliveryId = await seedOwnerDeliveryFor(sessionId);
+    await eraseSession(testDb.db, FORM_SCOPE_OWNER, sessionId, "subject_request");
+
+    // Fixture-is-real: it exists and is genuinely in the refusable state, which is
+    // exactly what would have leaked as a 409.
+    expect(await redeliveryRefusalFor(testDb.db, FORM_SCOPE_OWNER, deliveryId)).toBe("cancelled");
+
+    // The owning form is told why it cannot redeliver...
+    expect(await redeliverAs(FORM_SCOPE_OWNER, deliveryId)).toBe(409);
+    // ...while another form is told only that there is no such delivery, which is
+    // the same answer an id that was never issued gets.
+    expect(await redeliverAs(FORM_SCOPE_OTHER, deliveryId)).toBe(404);
+    expect(await redeliverAs(FORM_SCOPE_OTHER, "00000000-0000-0000-0000-000000000000")).toBe(404);
   });
 });

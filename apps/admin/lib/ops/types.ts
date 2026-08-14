@@ -81,7 +81,7 @@ export interface Tombstone {
   readonly reason: string;
 }
 
-/** `POST /admin/sessions/{sessionId}/erase` - the tombstone, and whether this call made it. */
+/** `POST /admin/forms/{formId}/responses/{sessionId}/erase` - the tombstone, and whether this call made it. */
 export interface EraseOutcome extends Tombstone {
   /** `true` when the session was already erased, so this call changed nothing. */
   readonly alreadyErased: boolean;
@@ -172,6 +172,12 @@ export interface DeadLetterItem {
   readonly eventId: string;
   readonly eventType: string;
   readonly webhookId: string;
+  /**
+   * The form this delivery belongs to (issue #305). The worklist is cross-form, and
+   * redelivery is form-scoped, so the row has to name its form for the redeliver
+   * call to be constructible from the list alone.
+   */
+  readonly formId: string;
   readonly url: string;
   readonly attempts: number;
   readonly lastError: string | null;

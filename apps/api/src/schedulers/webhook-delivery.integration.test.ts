@@ -351,10 +351,13 @@ describe("exit 2: failure → advancing backoff → dead-letter → redeliver �
     // Fix the receiver, redeliver via the admin endpoint, then run a pass.
     receiver.status.set("/fail", 200);
     receiver.received.length = 0;
-    const redeliverRes = await app.request(`/admin/outbox/${mine!.deliveryId}/redeliver`, {
-      method: "POST",
-      headers: adminHeaders(),
-    });
+    const redeliverRes = await app.request(
+      `/admin/forms/${formId}/deliveries/${mine!.deliveryId}/redeliver`,
+      {
+        method: "POST",
+        headers: adminHeaders(),
+      },
+    );
     expect(redeliverRes.status).toBe(200);
     expect((await redeliverRes.json()) as { status: string }).toMatchObject({ status: "pending" });
 
@@ -366,8 +369,9 @@ describe("exit 2: failure → advancing backoff → dead-letter → redeliver �
   }, 30_000);
 
   it("404s redeliver for an unknown delivery id", async () => {
+    const { formId } = await seed([{ path: "/ghost", secret: "s".repeat(32) }]);
     const res = await adminApp().request(
-      "/admin/outbox/00000000-0000-0000-0000-000000000000/redeliver",
+      `/admin/forms/${formId}/deliveries/00000000-0000-0000-0000-000000000000/redeliver`,
       { method: "POST", headers: adminHeaders() },
     );
     expect(res.status).toBe(404);
@@ -656,7 +660,7 @@ describe("059: an erased session reaches no consumer, while its neighbour is del
     const kept = await seedSessionWithEvent(formId, version, "kept");
 
     // Erase between submit and delivery - the window the whole amendment is about.
-    await eraseSession(testDb.db, erased.sessionId, "subject_request");
+    await eraseSession(testDb.db, formId, erased.sessionId, "subject_request");
 
     const metrics = await runDeliveryPass(deps, { now: soon() });
 
@@ -706,7 +710,7 @@ describe("059: an erased session reaches no consumer, while its neighbour is del
     expect(materialized?.deliveredAt).toBeNull();
     expect(materialized?.attempts).toBe(1);
 
-    await eraseSession(testDb.db, erased.sessionId, "subject_request");
+    await eraseSession(testDb.db, formId, erased.sessionId, "subject_request");
 
     receiver.status.clear();
     receiver.reset();

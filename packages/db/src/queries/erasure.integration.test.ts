@@ -245,7 +245,7 @@ describe("eraseSession - post-erasure state (I11, exit criterion 2)", () => {
     expect(await inReportingResponses(sessionId)).toBe(true);
     expect(await inAnswersFlat(sessionId)).toBe(true);
 
-    const outcome = await eraseSession(testDb.db, sessionId, "subject_request");
+    const outcome = await eraseSession(testDb.db, formId, sessionId, "subject_request");
 
     // The outcome is the tombstone the caller can surface to the operator.
     expect(outcome).toMatchObject({
@@ -290,7 +290,7 @@ describe("eraseSession - post-erasure state (I11, exit criterion 2)", () => {
     });
     await markInProgress(testDb.db, sessionId);
 
-    const outcome = await eraseSession(testDb.db, sessionId, "subject_request");
+    const outcome = await eraseSession(testDb.db, formId, sessionId, "subject_request");
     expect(outcome.alreadyErased).toBe(false);
     expect((await answerLedger(testDb.db, sessionId)).length).toBe(0);
     expect(await tombstoneCount(sessionId)).toBe(1);
@@ -303,11 +303,11 @@ describe("eraseSession - idempotency and nonexistent session (exit criterion 3)"
     const sessionId = SessionId.parse("ses_erase_idem");
     await seedSubmittedWithLedger(formId, version, sessionId);
 
-    const first = await eraseSession(testDb.db, sessionId, "subject_request");
+    const first = await eraseSession(testDb.db, formId, sessionId, "subject_request");
     expect(first.alreadyErased).toBe(false);
 
     // A second call with a different reason must not overwrite anything.
-    const second = await eraseSession(testDb.db, sessionId, "different_reason");
+    const second = await eraseSession(testDb.db, formId, sessionId, "different_reason");
     expect(second.alreadyErased).toBe(true);
     expect(second.reason).toBe("subject_request");
     expect(second.erasedAt).toEqual(first.erasedAt);
@@ -317,12 +317,13 @@ describe("eraseSession - idempotency and nonexistent session (exit criterion 3)"
   });
 
   it("throws a typed SessionNotFoundError for a session that never existed", async () => {
+    const { formId } = await seedForm("frm_erase_ghost");
     const sessionId = SessionId.parse("ses_erase_ghost");
-    await expect(eraseSession(testDb.db, sessionId, "subject_request")).rejects.toBeInstanceOf(
-      SessionNotFoundError,
-    );
+    await expect(
+      eraseSession(testDb.db, formId, sessionId, "subject_request"),
+    ).rejects.toBeInstanceOf(SessionNotFoundError);
     try {
-      await eraseSession(testDb.db, sessionId, "subject_request");
+      await eraseSession(testDb.db, formId, sessionId, "subject_request");
       expect.unreachable("should have thrown");
     } catch (e) {
       expect(e).toBeInstanceOf(SessionNotFoundError);
@@ -366,7 +367,7 @@ describe("eraseSession - transactionality (I11, exit criterion 1)", () => {
       // The induced pg error ('induced failure') is wrapped by drizzle as a
       // "Failed query" error and surfaced on `.cause`; asserting it rejects at
       // all is enough - the rollback-state checks below are the real proof.
-      await expect(eraseSession(testDb.db, sessionId, "subject_request")).rejects.toThrow();
+      await expect(eraseSession(testDb.db, formId, sessionId, "subject_request")).rejects.toThrow();
     } finally {
       await testDb.client.query(`drop trigger __fail_tombstone on erasure_tombstones`);
       await testDb.client.query(`drop function __fail_tombstone()`);
@@ -423,7 +424,7 @@ describe("eraseSession - the outbox and its deliveries (059, exit criterion 1)",
       expect(before.payloadRedactedAt).toBeNull();
     }
 
-    await eraseSession(testDb.db, sessionId, "subject_request");
+    await eraseSession(testDb.db, formId, sessionId, "subject_request");
 
     // 1. All three payloads: answers gone, envelope kept, marked redacted. The mark
     //    is a column rather than the payload's shape, so "was this redacted?" is
@@ -479,9 +480,9 @@ describe("eraseSession - the outbox and its deliveries (059, exit criterion 1)",
     await seedSubmittedWithLedger(formId, version, sessionId);
     const queued = await seedQueuedEvent(formId, version, sessionId);
 
-    await eraseSession(testDb.db, sessionId, "subject_request");
+    await eraseSession(testDb.db, formId, sessionId, "subject_request");
     const first = await outboxRow(queued.outboxId);
-    await eraseSession(testDb.db, sessionId, "retention_policy");
+    await eraseSession(testDb.db, formId, sessionId, "retention_policy");
     expect((await outboxRow(queued.outboxId)).payloadRedactedAt).toEqual(first.payloadRedactedAt);
   });
 });
@@ -501,7 +502,7 @@ describe("the cancelled state closes the transport (059, exit criterion 3)", () 
       "the delivery is claimable before erasure",
     ).toContain(queued.deliveryId);
 
-    await eraseSession(testDb.db, sessionId, "subject_request");
+    await eraseSession(testDb.db, formId, sessionId, "subject_request");
 
     const after = await claimDueDeliveries(testDb.db, 50, due);
     expect(
@@ -510,7 +511,7 @@ describe("the cancelled state closes the transport (059, exit criterion 3)", () 
     ).not.toContain(queued.deliveryId);
 
     // And the one rule the redeliver door reads agrees with the claim filter.
-    expect(await redeliveryRefusalFor(testDb.db, queued.deliveryId)).toBe("cancelled");
+    expect(await redeliveryRefusalFor(testDb.db, formId, queued.deliveryId)).toBe("cancelled");
   });
 
   it("refuses redelivery of a delivered row whose payload was redacted", async () => {
@@ -523,9 +524,11 @@ describe("the cancelled state closes the transport (059, exit criterion 3)", () 
     const queued = await seedQueuedEvent(formId, version, sessionId);
     await markDeliveryDelivered(testDb.db, queued.deliveryId);
 
-    expect(await redeliveryRefusalFor(testDb.db, queued.deliveryId)).toBeUndefined();
-    await eraseSession(testDb.db, sessionId, "subject_request");
-    expect(await redeliveryRefusalFor(testDb.db, queued.deliveryId)).toBe("payloadRedacted");
+    expect(await redeliveryRefusalFor(testDb.db, formId, queued.deliveryId)).toBeUndefined();
+    await eraseSession(testDb.db, formId, sessionId, "subject_request");
+    expect(await redeliveryRefusalFor(testDb.db, formId, queued.deliveryId)).toBe(
+      "payloadRedacted",
+    );
   });
 });
 
@@ -585,7 +588,7 @@ describe("eraseSession - the stored response snippets (issue #304)", () => {
       expect((await deliveryRow(e.deliveryId)).lastResponseSnippet).toContain("second");
     }
 
-    await eraseSession(testDb.db, sessionId, "subject_request");
+    await eraseSession(testDb.db, formId, sessionId, "subject_request");
 
     for (const e of [done, failed]) {
       const row = await deliveryRow(e.deliveryId);

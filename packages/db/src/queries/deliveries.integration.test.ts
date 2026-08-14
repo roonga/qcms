@@ -129,7 +129,7 @@ describe("webhook-delivery helpers", () => {
   });
 
   it("records failures with advancing backoff, dead-letters after max attempts, then resets for redelivery", async () => {
-    const { outboxId, webhookId } = await seedEventWithWebhook();
+    const { outboxId, webhookId, formId } = await seedEventWithWebhook();
     await insertDelivery(testDb.db, { outboxId, webhookId });
     const deliveryId = await deliveryIdFor(outboxId, webhookId);
     const from = new Date("2026-07-20T00:00:00.000Z");
@@ -166,7 +166,7 @@ describe("webhook-delivery helpers", () => {
     ).filter((d) => d.deliveryId === deliveryId);
     expect(beforeReset).toHaveLength(0);
 
-    const reset = await resetDeliveryForRedelivery(testDb.db, deliveryId);
+    const reset = await resetDeliveryForRedelivery(testDb.db, formId, deliveryId);
     expect(reset?.deadLetteredAt).toBeNull();
     expect(reset?.attempts).toBe(0);
     expect(reset?.lastError).toBeNull();
@@ -178,10 +178,27 @@ describe("webhook-delivery helpers", () => {
 
   it("recordDeliveryFailure and reset return undefined for a missing row", async () => {
     const ghost = "00000000-0000-0000-0000-000000000000";
+    const { formId } = await seedEventWithWebhook();
     expect(await recordDeliveryFailure(testDb.db, ghost, "x")).toBeUndefined();
-    expect(await resetDeliveryForRedelivery(testDb.db, ghost)).toBeUndefined();
+    expect(await resetDeliveryForRedelivery(testDb.db, formId, ghost)).toBeUndefined();
   });
 });
+
+/**
+ * The form a delivery belongs to, resolved through its webhook - the ownership
+ * chain the redelivery helpers are scoped by (issue #305). Tests that only hold a
+ * delivery id use this rather than threading the form through every seed helper.
+ */
+async function formOfDelivery(deliveryId: string): Promise<FormId> {
+  const { rows } = await testDb.client.query<{ form_id: string }>(
+    `select w.form_id
+       from webhook_deliveries d
+       join webhooks w on w.webhook_id = d.webhook_id
+      where d.id = $1`,
+    [deliveryId],
+  );
+  return FormId.parse(rows[0]!.form_id);
+}
 
 // --- the last-attempt record and the form-scoped list (task 035) -------------
 
@@ -323,7 +340,11 @@ describe("last-attempt record + listRecentDeliveries (task 035)", () => {
     );
     expect((await readDelivery(deliveryId))?.lastStatus).toBe(500);
 
-    const reset = await resetDeliveryForRedelivery(testDb.db, deliveryId);
+    const reset = await resetDeliveryForRedelivery(
+      testDb.db,
+      await formOfDelivery(deliveryId),
+      deliveryId,
+    );
 
     // No contradictory statements on one screen: a reset row has made no attempt
     // since, so every field describing "the last attempt" reads empty, not stale.
@@ -583,7 +604,7 @@ describe("redactAgedResponseSnippets (issue #304)", () => {
     const deliveryId = await seedAttempt(new Date("2026-07-01T00:00:00.000Z"));
     await redactAgedResponseSnippets(testDb.db, new Date("2026-07-08T00:00:00.000Z"));
 
-    await resetDeliveryForRedelivery(testDb.db, deliveryId);
+    await resetDeliveryForRedelivery(testDb.db, await formOfDelivery(deliveryId), deliveryId);
 
     // The row has made no attempt since the reset, so "the last attempt's body was
     // removed" would be a statement about an attempt this row no longer records.

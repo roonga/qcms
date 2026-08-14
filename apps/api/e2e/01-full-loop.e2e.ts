@@ -240,7 +240,11 @@ describe("scenario 1: full loop end to end", () => {
   });
 
   it("erases the session: exports drop it and a tombstone is listed", async () => {
-    const erased = await admin.eraseSession<{ alreadyErased: boolean }>(sessionId, "e2e erasure");
+    const erased = await admin.eraseSession<{ alreadyErased: boolean }>(
+      FORM_ID,
+      sessionId,
+      "e2e erasure",
+    );
     expect(erased.status).toBe(200);
     expect(erased.body.alreadyErased).toBe(false);
 

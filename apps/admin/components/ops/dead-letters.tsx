@@ -30,7 +30,8 @@ const IDLE: RedeliverState = { status: "idle" };
  *
  * ## Redelivering queues, it does not deliver
  *
- * `POST /admin/outbox/{id}/redeliver` resets a row to due-now; the deliverer's next
+ * `POST /admin/forms/{formId}/deliveries/{deliveryId}/redeliver` resets a row to
+ * due-now; the deliverer's next
  * pass makes the attempt. So the confirmation says "queued for the next pass" rather
  * than "delivered", because at the moment the button returns nothing has been sent
  * yet and a message claiming otherwise would be wrong for as long as the pass takes.
@@ -48,8 +49,10 @@ export function DeadLetters({
   redeliverAll,
 }: {
   readonly deadLetters: readonly DeadLetterItem[];
-  readonly redeliver: (deliveryId: string) => Promise<RedeliverState>;
-  readonly redeliverAll: (deliveryIds: readonly string[]) => Promise<RedeliverState>;
+  readonly redeliver: (formId: string, deliveryId: string) => Promise<RedeliverState>;
+  readonly redeliverAll: (
+    targets: readonly { readonly formId: string; readonly deliveryId: string }[],
+  ) => Promise<RedeliverState>;
 }) {
   const [state, setState] = useState<RedeliverState>(IDLE);
   const [confirming, setConfirming] = useState(false);
@@ -186,7 +189,7 @@ export function DeadLetters({
                       isDisabled={isPending}
                       onPress={() => {
                         setState(IDLE);
-                        run(() => redeliver(row.deliveryId));
+                        run(() => redeliver(row.formId, row.deliveryId));
                       }}
                     >
                       <span className="qcms-visually-hidden">
@@ -222,7 +225,11 @@ export function DeadLetters({
               size="md"
               isDisabled={isPending}
               onPress={() => {
-                run(() => redeliverAll(deadLetters.map((row) => row.deliveryId)));
+                run(() =>
+                  redeliverAll(
+                    deadLetters.map((row) => ({ formId: row.formId, deliveryId: row.deliveryId })),
+                  ),
+                );
               }}
             >
               {isPending ? t("ops.common.working") : t("ops.deadLetters.confirmRedeliverAll")}

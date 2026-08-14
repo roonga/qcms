@@ -292,7 +292,10 @@ event. The payload is still there.
    (a rotated shared secret on their side), and a URL that has moved.
 3. Fix the receiver first. Redelivery to a still-broken endpoint just dead-letters
    again, more slowly.
-4. Redeliver: `POST /outbox/{id}/redeliver` resets the row for immediate delivery.
+4. Redeliver: `POST /forms/{formId}/deliveries/{deliveryId}/redeliver` resets the row
+   for immediate delivery. The form is required and enforced by the query (#305), and
+   each dead-letter row carries its own `formId` for exactly this call, because the
+   worklist spans forms.
 
 **Which process delivers.** The deliverer runs only where the `internal` mount flag
 is set. In the solo topology that is the single API process (`QCMS_MOUNT=all`). In
@@ -308,7 +311,9 @@ Erasure is whole-session and is the **only** DELETE door in the system (ADR-17 a
 amended). Answers are append-only everywhere else, so there is no partial-erasure
 path to reach for and no UPDATE to fall back on.
 
-1. Erase: `POST /sessions/{sessionId}/erase` on the admin API, with a reason. It is
+1. Erase: `POST /forms/{formId}/responses/{sessionId}/erase` on the admin API, with a
+   reason. The form is required and is enforced by the query, so naming the wrong one
+   is refused exactly as an unknown session is (issue #305). It is
    **idempotent** and returns the tombstone, so a retry after a timeout is safe and
    does not need a "did it work" check first.
 2. The tombstone is the compliance evidence, and it is what remains: `GET /erasures`

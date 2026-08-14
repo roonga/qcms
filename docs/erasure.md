@@ -91,7 +91,8 @@ The cancellation is enforced structurally, not by convention:
   transport whatever a future caller does.
 - `claimDue` (the fan-out claim) filters out redacted rows, so a session erased
   *before* its event was fanned out never gets a delivery row at all.
-- `POST /admin/outbox/:id/redeliver` reads exactly those two columns and answers
+- `POST /admin/forms/:id/deliveries/:deliveryId/redeliver` reads exactly those two
+  columns and answers
   `409 DELIVERY_NOT_REDELIVERABLE`. One rule, stated in the two places it has to
   hold, rather than a separate tombstone lookup that could drift from what the
   scheduler actually does. The code is cause-free because the state has two
@@ -237,7 +238,7 @@ redaction paths write the pair together, but a call-site convention cannot fail 
 a future writer breaks it, so the database refuses the row instead.
 
 **The refusal an operator meets.** Once a payload is redacted the delivery cannot be
-re-sent, and `POST /admin/outbox/:id/redeliver` answers
+re-sent, and `POST /admin/forms/:id/deliveries/:deliveryId/redeliver` answers
 `409 DELIVERY_NOT_REDELIVERABLE`. Unlike the erasure case this is no race: a dead
 letter older than the window sits on the queue looking redeliverable until it is
 pressed. The code and the sentence name the **state** ("the response this delivery

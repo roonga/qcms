@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 
-import type { EraseErrorCode, EraseOutcome, SessionId } from "@qcms/core";
+import type { EraseErrorCode, EraseOutcome, FormId, SessionId } from "@qcms/core";
 
 import {
   answers,
@@ -81,18 +81,31 @@ export class SessionNotFoundError extends Error {
  * (e.g. the tombstone insert, which runs last) rolls the deletes, the redaction
  * and the cancellations back together - the ledger stays intact, the payloads
  * still hold their answers, and no tombstone is written (I11 transactionality).
+ *
+ * **Form-scoped (issue #305).** `formId` is not an assertion checked after the
+ * fact, it is part of both lookups: a session belonging to another form is not
+ * found in step 2, and another form's tombstone is not found in step 1, so a
+ * cross-form call throws {@link SessionNotFoundError} - the identical outcome to
+ * an id that does not exist anywhere. Scoping *both* lookups is what makes that
+ * true: scoping only the session read would let an already-erased session of
+ * another form return its tombstone from step 1 and reveal that it exists.
+ * Erasure is destructive and irreversible, so the caller naming the form it
+ * believes it is acting within is the check, and there is no unscoped door left
+ * to reach for.
  */
 export async function eraseSession(
   exec: Executor,
+  formId: FormId,
   sessionId: SessionId,
   reason: string,
 ): Promise<EraseOutcome> {
   return exec.transaction(async (tx) => {
     // 1. Idempotency: an existing tombstone means the session is already erased.
+    //    Scoped by form, so another form's tombstone is invisible here.
     const [existing] = await tx
       .select()
       .from(erasureTombstones)
-      .where(eq(erasureTombstones.sessionId, sessionId))
+      .where(and(eq(erasureTombstones.sessionId, sessionId), eq(erasureTombstones.formId, formId)))
       .limit(1);
     if (existing) {
       return {
@@ -105,11 +118,13 @@ export async function eraseSession(
       };
     }
 
-    // 2. The session must exist to be erased.
+    // 2. The session must exist **within this form** to be erased. A session of
+    //    another form is simply not selected, so it takes the same not-found path
+    //    as an unknown id and the caller cannot tell the two apart.
     const [session] = await tx
       .select({ formId: sessions.formId, formVersion: sessions.formVersion })
       .from(sessions)
-      .where(eq(sessions.sessionId, sessionId))
+      .where(and(eq(sessions.sessionId, sessionId), eq(sessions.formId, formId)))
       .limit(1);
     if (!session) {
       throw new SessionNotFoundError(sessionId);

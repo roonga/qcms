@@ -442,7 +442,9 @@ describe("erase excludes from all read paths; unflag releases the event (exit cr
     });
 
     // Erase.
-    const eraseRes = await post(`/sessions/${erased}/erase`, { reason: "subject_request" });
+    const eraseRes = await post(`/forms/frm_erase_api/responses/${erased}/erase`, {
+      reason: "subject_request",
+    });
     expect(eraseRes.status).toBe(200);
     const tombstone = (await eraseRes.json()) as { sessionId: string; alreadyErased: boolean };
     expect(tombstone.sessionId).toBe(erased);
@@ -470,7 +472,9 @@ describe("erase excludes from all read paths; unflag releases the event (exit cr
     expect(erasures.erasures.map((e) => e.sessionId)).toContain(erased);
 
     // Idempotent: erasing again is a no-op with alreadyErased:true.
-    const again = await post(`/sessions/${erased}/erase`, { reason: "subject_request" });
+    const again = await post(`/forms/frm_erase_api/responses/${erased}/erase`, {
+      reason: "subject_request",
+    });
     expect(((await again.json()) as { alreadyErased: boolean }).alreadyErased).toBe(true);
   });
 
@@ -487,7 +491,7 @@ describe("erase excludes from all read paths; unflag releases the event (exit cr
     // Withheld at submit: no event yet.
     expect(await outboxCount(sessionId)).toBe(0);
 
-    const first = await post(`/responses/${sessionId}/unflag`);
+    const first = await post(`/forms/frm_unflag_api/responses/${sessionId}/unflag`);
     expect(first.status).toBe(200);
     expect(((await first.json()) as { released: boolean }).released).toBe(true);
     expect(await outboxCount(sessionId)).toBe(1);
@@ -499,12 +503,215 @@ describe("erase excludes from all read paths; unflag releases the event (exit cr
     expect(flagged.responses.map((r) => r.sessionId)).not.toContain(sessionId);
 
     // Idempotent: a second unflag releases nothing and enqueues no duplicate.
-    const second = await post(`/responses/${sessionId}/unflag`);
+    const second = await post(`/forms/frm_unflag_api/responses/${sessionId}/unflag`);
     expect(((await second.json()) as { released: boolean }).released).toBe(false);
     expect(await outboxCount(sessionId)).toBe(1);
   });
 
-  it("404s unflag for a session with no submission", async () => {
-    expect((await post("/responses/ses_no_submission/unflag")).status).toBe(404);
+  /**
+   * Both 404s, kept apart by their codes.
+   *
+   * #305 put the form-scoped session read ahead of the submission read, so an id
+   * that names no session at all now stops at `SESSION_NOT_FOUND` rather than
+   * falling through to `SUBMISSION_NOT_FOUND`. Seeding a real, in-form session that
+   * genuinely has no submission is what keeps the second path covered - asserting
+   * only the status would let either check answer for the other.
+   */
+  it("404s unflag for a real session that has no submission", async () => {
+    const formId = await seedForm("frm_unflag_nosub", [["stp_a", ["q_name"]]]);
+    const sessionId = SessionId.parse("ses_unflag_nosub");
+    await createSession(testDb.db, {
+      sessionId,
+      formId,
+      formVersion: 1,
+      accessMode: "anonymous",
+      expiresAt: new Date(Date.now() + 86_400_000),
+    });
+
+    const res = await post(`/forms/${formId}/responses/${sessionId}/unflag`);
+    expect(res.status).toBe(404);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe(
+      "SUBMISSION_NOT_FOUND",
+    );
+  });
+
+  it("404s unflag for a session id that names nothing", async () => {
+    const res = await post("/forms/frm_unflag_api/responses/ses_no_submission/unflag");
+    expect(res.status).toBe(404);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe(
+      "SESSION_NOT_FOUND",
+    );
+  });
+});
+
+// --- form scope on the destructive operations (issue #305) ------------------
+
+/**
+ * `erase` and `unflag` used to act on whatever session id a client sent, with no
+ * check that it belonged to a form the caller was acting within. Both now sit under
+ * the form-scoped path the detail read always used, and the scope is enforced by the
+ * query rather than by a comparison made afterwards.
+ *
+ * Each operation gets three assertions, because a guard that refuses everything and
+ * a guard that checks nothing both pass a lone negative test:
+ *
+ *  1. a **positive** case, so the scope cannot be satisfied by blanket refusal;
+ *  2. a **negative** case whose session genuinely exists under another form, which
+ *     must 404 *and* leave the target untouched - a guard that refused only after
+ *     mutating would pass the status assertion alone;
+ *  3. a **fixture-is-real** assertion before the refusal, because a cross-form id
+ *     that did not exist would make the negative case pass for the wrong reason.
+ *
+ * The 404 is the same one an unknown id takes, deliberately: telling "not yours"
+ * from "not here" is itself a disclosure that someone else's response exists.
+ */
+describe("form scope on erase and unflag (issue #305)", () => {
+  /** The submission row as the database holds it, or undefined when erased. */
+  async function submissionRow(
+    sessionId: string,
+  ): Promise<{ flagged_reason: string | null; content_hash: string } | undefined> {
+    const r = await testDb.client.query(
+      `select flagged_reason, content_hash from submissions where session_id = $1`,
+      [sessionId],
+    );
+    return r.rows[0] as { flagged_reason: string | null; content_hash: string } | undefined;
+  }
+
+  async function tombstones(sessionId: string): Promise<number> {
+    const r = await testDb.client.query(
+      `select count(*)::int as n from erasure_tombstones where session_id = $1`,
+      [sessionId],
+    );
+    return (r.rows[0] as { n: number }).n;
+  }
+
+  async function releasedEvents(sessionId: string): Promise<number> {
+    const r = await testDb.client.query(
+      `select count(*)::int as n from outbox
+        where event_type = 'response.submitted' and payload->>'sessionId' = $1`,
+      [sessionId],
+    );
+    return (r.rows[0] as { n: number }).n;
+  }
+
+  it("erases a session named under its own form", async () => {
+    const formId = await seedForm("frm_scope_erase_own", [["stp_a", ["q_name"]]]);
+    const sessionId = await seedSubmitted({
+      formId,
+      sessionId: "ses_scope_erase_own",
+      entries: [{ questionId: "q_name", value: "in scope" }],
+      submittedAt: new Date("2026-06-02T00:00:00.000Z"),
+    });
+
+    const res = await post(`/forms/${formId}/responses/${sessionId}/erase`, {
+      reason: "subject_request",
+    });
+
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { alreadyErased: boolean }).alreadyErased).toBe(false);
+    expect(await tombstones(sessionId)).toBe(1);
+  });
+
+  it("404s an erase naming another form, and erases nothing", async () => {
+    const owner = await seedForm("frm_scope_erase_owner", [["stp_a", ["q_name"]]]);
+    const bystander = await seedForm("frm_scope_erase_other", [["stp_a", ["q_name"]]]);
+    const sessionId = await seedSubmitted({
+      formId: owner,
+      sessionId: "ses_scope_erase_target",
+      entries: [{ questionId: "q_name", value: "not yours to erase" }],
+      submittedAt: new Date("2026-06-03T00:00:00.000Z"),
+      contentHash: "a".repeat(64),
+    });
+
+    // Fixture-is-real: the session exists, is submitted, and is readable through
+    // its own form. Without this the 404 below would be indistinguishable from
+    // "there was never a row", and the test would pass for the wrong reason.
+    const before = await submissionRow(sessionId);
+    expect(before).toBeDefined();
+    expect(before?.content_hash).toBe("a".repeat(64));
+    expect((await get(`/forms/${owner}/responses/${sessionId}`)).status).toBe(200);
+
+    // The other form asks to erase it.
+    const res = await post(`/forms/${bystander}/responses/${sessionId}/erase`, {
+      reason: "subject_request",
+    });
+    expect(res.status).toBe(404);
+
+    // Refused *and* inert. The submission row is the exact thing erasure destroys,
+    // so comparing it field for field against the pre-call snapshot is what rules
+    // out a guard that refuses only after mutating. No tombstone was written, and
+    // the response still reads through its owning form.
+    expect(await tombstones(sessionId)).toBe(0);
+    expect(await submissionRow(sessionId)).toEqual(before);
+    expect((await get(`/forms/${owner}/responses/${sessionId}`)).status).toBe(200);
+
+    // And the owning form can still erase it, so the guard refused the caller
+    // rather than breaking the operation.
+    const owned = await post(`/forms/${owner}/responses/${sessionId}/erase`, {
+      reason: "subject_request",
+    });
+    expect(owned.status).toBe(200);
+    expect(await tombstones(sessionId)).toBe(1);
+    expect(await submissionRow(sessionId)).toBeUndefined();
+
+    // The idempotency step is scoped too, and this is the only assertion that can
+    // show it. `eraseSession` looks for an existing tombstone *before* it looks for
+    // the session, and returns it as `200 alreadyErased: true`. With that lookup
+    // unscoped, the other form now gets that 200 for a session it does not own -
+    // which discloses both that the session exists and that it has been erased,
+    // the exact leak this issue exists to close. A same-form repeat cannot catch
+    // it, and until now every alreadyErased assertion in the repo was same-form.
+    const afterErasure = await post(`/forms/${bystander}/responses/${sessionId}/erase`, {
+      reason: "subject_request",
+    });
+    expect(afterErasure.status).toBe(404);
+    expect(await tombstones(sessionId)).toBe(1);
+  });
+
+  it("unflags a session named under its own form", async () => {
+    const formId = await seedForm("frm_scope_unflag_own", [["stp_a", ["q_name"]]]);
+    const sessionId = await seedSubmitted({
+      formId,
+      sessionId: "ses_scope_unflag_own",
+      entries: [{ questionId: "q_name", value: "in scope" }],
+      submittedAt: new Date("2026-06-04T00:00:00.000Z"),
+      flaggedReason: "too_fast",
+    });
+
+    const res = await post(`/forms/${formId}/responses/${sessionId}/unflag`);
+
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { released: boolean }).released).toBe(true);
+    expect((await submissionRow(sessionId))?.flagged_reason).toBeNull();
+    expect(await releasedEvents(sessionId)).toBe(1);
+  });
+
+  it("404s an unflag naming another form, and releases nothing", async () => {
+    const owner = await seedForm("frm_scope_unflag_owner", [["stp_a", ["q_name"]]]);
+    const bystander = await seedForm("frm_scope_unflag_other", [["stp_a", ["q_name"]]]);
+    const sessionId = await seedSubmitted({
+      formId: owner,
+      sessionId: "ses_scope_unflag_target",
+      entries: [{ questionId: "q_name", value: "still withheld" }],
+      submittedAt: new Date("2026-06-05T00:00:00.000Z"),
+      flaggedReason: "too_fast",
+    });
+
+    // Fixture-is-real: a genuinely flagged, genuinely withheld submission. If it
+    // were absent, or already released, the assertions below would prove nothing.
+    expect((await submissionRow(sessionId))?.flagged_reason).toBe("too_fast");
+    expect(await releasedEvents(sessionId)).toBe(0);
+
+    const res = await post(`/forms/${bystander}/responses/${sessionId}/unflag`);
+    expect(res.status).toBe(404);
+
+    // Refused *and* inert: the flag still stands and no event escaped.
+    expect((await submissionRow(sessionId))?.flagged_reason).toBe("too_fast");
+    expect(await releasedEvents(sessionId)).toBe(0);
+
+    // And the owning form can still release it, so the guard refused the caller
+    // rather than breaking the operation.
+    expect((await post(`/forms/${owner}/responses/${sessionId}/unflag`)).status).toBe(200);
+    expect(await releasedEvents(sessionId)).toBe(1);
   });
 });

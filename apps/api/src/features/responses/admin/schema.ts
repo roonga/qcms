@@ -26,8 +26,18 @@ export const FormResponseParams = z.object({
     .openapi({ param: { name: "sessionId", in: "path" }, example: "ses_abc123" }),
 });
 
-/** `:sessionId` path param (erase / unflag act on a session directly). */
-export const SessionIdParam = z.object({
+/**
+ * `:id`/`:sessionId` path params for the per-response **mutations** (erase,
+ * unflag) - issue #305.
+ *
+ * Identical in shape to {@link FormResponseParams}, and deliberately so: both
+ * mutations now sit under the same form-scoped path as the detail read, because
+ * a session id alone never established which form the caller was acting within.
+ * The form segment is what the scoped queries filter on, so it is load bearing
+ * rather than decorative.
+ */
+export const FormSessionParams = z.object({
+  id: z.string().openapi({ param: { name: "id", in: "path" }, example: "frm_intake" }),
   sessionId: z
     .string()
     .openapi({ param: { name: "sessionId", in: "path" }, example: "ses_abc123" }),
@@ -101,7 +111,7 @@ export const ListErasuresQuery = z.object({
 
 // --- request bodies ---------------------------------------------------------
 
-/** `POST /admin/sessions/:sessionId/erase` - the erasure reason (audit). */
+/** `POST /admin/forms/:id/responses/:sessionId/erase` - the erasure reason (audit). */
 export const EraseBody = z
   .object({ reason: z.string().min(1).openapi({ example: "subject_request" }) })
   .openapi("EraseBody");
@@ -185,7 +195,7 @@ export const ErasuresResponse = z
   .object({ erasures: z.array(TombstoneItem) })
   .openapi("ErasuresResponse");
 
-/** `POST /admin/sessions/:sessionId/erase` - the resulting tombstone (idempotent). */
+/** `POST /admin/forms/:id/responses/:sessionId/erase` - the resulting tombstone (idempotent). */
 export const EraseResponse = z
   .object({
     sessionId: z.string().openapi({ example: "ses_abc123" }),
@@ -198,7 +208,7 @@ export const EraseResponse = z
   })
   .openapi("EraseResponse");
 
-/** `POST /admin/responses/:sessionId/unflag` - whether a withheld response was released. */
+/** `POST /admin/forms/:id/responses/:sessionId/unflag` - whether a withheld response was released. */
 export const UnflagResponse = z
   .object({
     sessionId: z.string().openapi({ example: "ses_abc123" }),
