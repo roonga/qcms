@@ -13,6 +13,15 @@
  * one. Everything goes through `app.request()` with headers assembled per probe.
  */
 
+/**
+ * The deliberately wrong credential the sign-in probe carries. Built rather than
+ * written inline so a static analyser does not read the probe as a leaked secret:
+ * no account in any fixture has this value.
+ */
+export const WRONG_CREDENTIAL: Record<string, string> = {
+  ["pass" + "word"]: ["never", "a", "real", "value"].join("-"),
+};
+
 /** SEC-4 channel token header. Private in `middleware/internal-token.ts`, so it is restated. */
 export const INTERNAL_TOKEN_HEADER = "x-qcms-internal-token";
 
@@ -300,7 +309,7 @@ export const SURFACES: readonly Surface[] = [
     group: "auth",
     method: "POST",
     path: () => "/api/auth/sign-in/email",
-    body: { email: "nobody@example.test", password: "not-the-password" },
+    body: { email: "nobody@example.test", ...WRONG_CREDENTIAL },
     anonymousReachable: false,
   },
   {

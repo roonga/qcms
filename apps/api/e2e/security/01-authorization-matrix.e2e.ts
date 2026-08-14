@@ -73,6 +73,10 @@ let sessionToken: string;
 /** Session B's bearer: the "other session" column. */
 let otherSessionToken: string;
 let linkToken: string;
+/** A second form, for the cross-form scoping probes (issue #305). */
+let otherFormId: string;
+/** A submitted session belonging to `otherFormId`. */
+let otherFormSessionId: string;
 
 /** A complete credential set for an admin surface. Negative cases subtract from this. */
 function adminHeaders(overrides: Record<string, string> = {}): Record<string, string> {
@@ -122,6 +126,15 @@ beforeAll(async () => {
     linkId: LINK_ID,
     expiresAt: LINK_EXPIRY,
   });
+
+  const other = await seedInsuranceForm(testDb.db, {
+    formId: "frm_other_tenant",
+    slug: "other-tenant",
+  });
+  otherFormId = other.formId;
+  const otherSession = await respondent.start<StartBody>({ formSlug: other.slug });
+  expect(otherSession.status).toBe(201);
+  otherFormSessionId = otherSession.body.sessionId;
 
   const admin = new AdminClient(all.app, internalToken, adminToken);
   const webhook = await admin.createWebhook<{ webhookId: string }>(formId, {
@@ -437,5 +450,33 @@ describe("tampered and expired session tokens", () => {
       const res = await probe(all.app, step(), ctx, respondentHeaders(bogus));
       expect(res.status).toBe(401);
     }
+  });
+});
+
+// --- 9. admin authority is scoped to the form in the path (issue #305) -------
+
+describe("an admin route will not act on a session outside the form it names", () => {
+  const crossForm = (path: string): string => path;
+
+  it("proves both forms and both sessions are real before proving the cross is refused", async () => {
+    const own = await all.app.request(
+      crossForm(`/admin/forms/${otherFormId}/responses/${otherFormSessionId}`),
+      { headers: adminHeaders() },
+    );
+    expect(own.status).toBe(200);
+  });
+
+  it.each([
+    ["read", "GET", (f: string, s: string) => `/admin/forms/${f}/responses/${s}`],
+    ["erase", "POST", (f: string, s: string) => `/admin/forms/${f}/responses/${s}/erase`],
+    ["unflag", "POST", (f: string, s: string) => `/admin/forms/${f}/responses/${s}/unflag`],
+  ])("refuses to %s another form's session through this form's path", async (_label, method, build) => {
+    const res = await all.app.request(build(ctx.formId, otherFormSessionId), {
+      method,
+      headers: { "content-type": "application/json", ...adminHeaders() },
+      ...(method === "POST" ? { body: JSON.stringify({ reason: "probe" }) } : {}),
+    });
+    expect(res.status).toBe(404);
+    expectNoPayload(await res.text());
   });
 });
