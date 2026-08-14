@@ -176,8 +176,27 @@ describes does not revoke second factors that were enrolled before it. That is a
 serious incident-response gap and a genuine blocker for SEC-7 key-list pruning,
 and it grants an attacker nothing they do not already hold.
 
-The availability half (an administrator locked out with no break-glass) requires
-losing both the TOTP device and the recovery codes, which are regenerable.
+**The availability half is worse than this review first stated, and the
+correction matters to the severity.** An earlier draft said the lockout "requires
+losing both the TOTP device and the recovery codes, which are regenerable". That
+understates it, because **regeneration presumes the sign-in that has been lost**:
+`apps/admin/app/(shell)/settings/recovery-codes/route.ts` requires
+`requireAdminSessionForRequest()` *and* the account password, so it is reachable
+only by an admin who can already complete a 2FA challenge. Checked against the
+tree rather than inferred, the position today is that **no recovery path exists
+at all**: the read-back route `POST /admin/auth/recovery-codes` was removed by
+#319, `two-factor/disable` is deliberately absent from `ALLOWED_AUTH_ENDPOINTS`,
+and `qcms:create-admin` refuses once any admin exists. #319's own text asked that
+it not land before a break-glass existed; it landed on 2026-08-13 and nothing
+replaced what it closed. So an operator who loses both factors is locked out
+permanently, with no documented or coded way back.
+
+That does not change this review's reasoning about the *confidentiality* half,
+which is what the severity scale keys on and which still grants an attacker
+nothing they do not already hold. It does strengthen the case for the Code Owner
+reading the finding high on operational grounds, which this section already
+invites them to do, and it is the sharper argument for fixing it before any
+deployment carries real respondent data.
 
 **Recommendation:** treat as MEDIUM, fix before any deployment handles real
 respondent data at scale, and keep it as the named prerequisite for retiring an
@@ -561,27 +580,30 @@ Stated as gaps in this document rather than as passed checks.
 
 ---
 
-## 10. Recommended follow-ups
+## 10. Recommended follow-ups, and where each one now lives
 
-Ordered by this review's judgement of value, not by severity alone.
+Every medium and low finding this review recorded is **ticketed**, filed 2026-08-14
+from the ordered list below. The judgement not to fix them inside 040 stands (each
+is browser-gated, a decision, or an operator-facing document), but a finding that
+lives only in a review document is a finding nobody is going to action.
 
-1. Merge PR #480 (#470). It is the only thing standing between this tree and
-   criterion 3 that anyone is already working on.
-2. Rule on #390. Then, whichever option is chosen, add the boot line naming
-   whether the sign-in throttle is active and what trusted-hop count resolved.
-3. Extend the placeholder refusal to the portal and admin config modules.
-4. Write the SEC-10 app/migration role split: the grants, in `docs/operations.md`
-   or `docs/deploy-enterprise.md`, and correct §7's pointer. The reporting half
-   is now covered by an executable recipe and this can follow the same shape.
-5. Record the per-replica multiplication of every rate limit in §8 and in
-   `docs/operations.md`.
-6. Close #444 with §6.1's evidence.
-7. Redact `Error.message` and `Error.stack` on the stdout logging path, or record
-   why the risk is accepted.
-8. Add the two retention-sweep messages to the OTLP log allowlist.
-9. #372 (base digests + Dependabot container coverage, together) and image
-   scanning in CI. Not a 1.0 blocker per the Code Owner, but it is what turns
-   §6.2 from a gap into evidence.
+| # | Follow-up | Where it lives now |
+|---|---|---|
+| 1 | Merge PR #480 (#470). The only open high anyone is already working on, and the one thing standing between this tree and criterion 3 | **#470** / PR #480 |
+| 2 | Rule on #390, then add the boot line naming whether the sign-in throttle is active and what trusted-hop count resolved | **#390** (needs a Code Owner ruling) |
+| 3 | Give the portal the Origin/Sec-Fetch-Site check the admin has | **#487** |
+| 4 | Record that every rate limit is per-process, so replicas multiply them | **#488** |
+| 5 | Redact `Error.message` / `Error.stack` on the stdout path, or record the accepted risk | **#489** |
+| 6 | Add the two retention-sweep messages to the OTLP allowlist, and consider a test for the silent-blanking failure mode | **#490** |
+| 7 | Extend the placeholder-secret boot refusal to the portal and admin config modules | **#491** |
+| 8 | Write the SEC-10 app/migration role split the design pointed at 036 for | **#492** |
+| 9 | `portal-e2e` under-reports its own scope as a required check | **#493** |
+| 10 | A poisoned turbo cache entry survives `--force` and fails `@qcms/db` in every worktree | **#494** |
+| 11 | Close #444: it no longer reproduces | **#444** (evidence posted as a comment) |
+| 12 | #372 (base digests plus Dependabot container coverage, together) and image scanning in CI. Not a 1.0 blocker per the Code Owner, but it is what turns §6.2 from a gap into evidence | **#372** |
+
+Items 3 through 10 were filed by this task. Items 1, 2, 11 and 12 already had
+issues and are referenced rather than duplicated.
 
 ---
 
