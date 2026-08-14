@@ -3,7 +3,7 @@
 **For:** the Code Owner. **From:** the PM/PO seat, 2026-08-07.
 **Decision needed:** one of three options, or "leave 058 parked".
 
-> **STATUS: DECIDED AND SHIPPED - this paper is historical, 2026-08-13.** The Code Owner took Option A' on 2026-08-07; it became **ADR-38**, and task **060** implemented it (PR #418). Two of the paper's own claims did not survive implementation and are recorded in issue #404; the two constraints 058 inherits from the result are in issue #405. What is still open, and what 058 needs before it dispatches, is in **`plan/theme-scope-open-questions.md`** - read that, not this. One number below is wrong and was caught by 060: line 33's "eleven non-HC rules" in `theme-components.css` was fourteen, and three blocks would have kept matching globally had the count been trusted.
+> **STATUS: DECIDED AND SHIPPED - this paper is historical, 2026-08-13.** The Code Owner took Option A′ on 2026-08-07; it became **ADR-38**, and task **060** implemented it (PR #418). Two of the paper's own claims did not survive implementation and are recorded in issue #404; the two constraints 058 inherits from the result are in issue #405. What is still open, and what 058 needs before it dispatches, is in **`plan/theme-scope-open-questions.md`** - read that, not this. One number below is wrong and was caught by 060: line 33's "eleven non-HC rules" in `theme-components.css` was fourteen, and three blocks would have kept matching globally had the count been trusted.
 
 Task 058 (preview theme island) hit its exit-criterion-7 fence before a line of code was
 written, which is the fence working. It wants a respondent theme/mode switch scoped to the
