@@ -43,6 +43,7 @@ import {
   buildEnv,
   composeApi,
   mintInsuranceLink,
+  publishInsuranceVersion,
   seedInsuranceForm,
   startTestDb,
   type TestDb,
@@ -127,16 +128,36 @@ beforeAll(async () => {
     expiresAt: LINK_EXPIRY,
   });
 
-  const other = await seedInsuranceForm(testDb.db, {
-    formId: "frm_other_tenant",
+  const admin = new AdminClient(all.app, internalToken, adminToken);
+
+  // A second form over the *same* library questions: `seedInsuranceForm` would
+  // re-seed them and collide on the questions primary key, so the form is
+  // created through the admin surface and given a published version directly.
+  otherFormId = "frm_other_tenant";
+  const otherForm = await admin.createForm({
+    formId: otherFormId,
     slug: "other-tenant",
+    defaultLocale: "en",
   });
-  otherFormId = other.formId;
-  const otherSession = await respondent.start<StartBody>({ formSlug: other.slug });
+  expect(otherForm.status).toBe(201);
+  await publishInsuranceVersion(testDb.db, otherFormId);
+  const otherSession = await respondent.start<StartBody>({ formSlug: "other-tenant" });
   expect(otherSession.status).toBe(201);
   otherFormSessionId = otherSession.body.sessionId;
+  // Submitted, so it is a real response row the admin surface can read: the
+  // positive control below has to be genuinely servable for the cross-form
+  // refusals to mean anything.
+  const answered = await respondent.answer(
+    otherFormSessionId,
+    otherSession.body.sessionToken,
+    "q_at_fault_accident",
+    false,
+  );
+  expect(answered.status).toBe(200);
+  expect((await respondent.submit(otherFormSessionId, otherSession.body.sessionToken)).status).toBe(
+    200,
+  );
 
-  const admin = new AdminClient(all.app, internalToken, adminToken);
   const webhook = await admin.createWebhook<{ webhookId: string }>(formId, {
     url: "https://consumer.example/hook",
   });

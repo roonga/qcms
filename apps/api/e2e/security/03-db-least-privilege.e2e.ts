@@ -109,14 +109,16 @@ describe("the documented reporting role is read-only on the reporting views", ()
     expect(refusal as string).toMatch(/permission denied|cannot delete|not updatable/i);
   });
 
-  it("cannot write to an operational table", async () => {
-    const refusal = await refusalFor(
-      reporting,
-      "INSERT INTO public.sessions (id) VALUES ('ses_intruder')",
-    );
-    expect(refusal).toBeDefined();
-    expect(refusal as string).toMatch(/permission denied/i);
-  });
+  it.each(["DELETE FROM public.sessions", "DELETE FROM public.answers"])(
+    "cannot write to an operational table: %s",
+    async (sql) => {
+      // Column-free statements on purpose: a statement naming a column fails on
+      // name resolution first, which reads like a refusal without being one.
+      const refusal = await refusalFor(reporting, sql);
+      expect(refusal).toBeDefined();
+      expect(refusal as string).toMatch(/permission denied/i);
+    },
+  );
 
   it("cannot issue DDL anywhere", async () => {
     for (const sql of [
