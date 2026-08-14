@@ -28,10 +28,67 @@ import {
 } from "@qcms/db";
 import { z } from "zod";
 
-/** Minimum bytes for signing/secret material (SEC-4/SEC-7: >= 32 random bytes). */
+/**
+ * Minimum **characters** of signing/secret material (SEC-4/SEC-7 ask for >= 32
+ * random bytes). The unit matters and used to be recorded wrongly here: the
+ * check below compares `raw.length`, which counts UTF-16 code units, not bytes.
+ * For the generated ASCII values the recipes produce the two coincide; a
+ * non-ASCII secret of 32 characters exceeds 32 bytes, which errs safe. Stated in
+ * the unit the code enforces so a reader is not misled (task 040).
+ */
 export const MIN_SECRET_LENGTH = 32;
-/** AES-256-GCM key length for `QCMS_APP_KEY` (SEC-6/SEC-8); 32 bytes = 256 bits. */
+/**
+ * AES-256-GCM key material for `QCMS_APP_KEY` (SEC-6/SEC-8): 32 **characters**,
+ * for the same reason and with the same caveat as `MIN_SECRET_LENGTH`.
+ */
 export const APP_KEY_MIN_LENGTH = 32;
+
+/**
+ * Placeholder prefixes that must never reach a running deployment (SEC-8: "a
+ * deployment with placeholder secrets must refuse to boot").
+ *
+ * This existed only as a sentence until task 040. Every shipped example file
+ * (`.env.compose.example`, `apps/portal/.env.example`, `apps/admin/.env.example`)
+ * fills its secrets with `replace-with-a-random-32-character-...`, and those
+ * strings are longer than 32 characters, so the only validation that ran, a
+ * length floor, accepted them. An operator who copied the example, set the
+ * database password and the base URLs, and missed the key lines would boot a
+ * deployment whose session-signing, link-signing, internal-channel and at-rest
+ * encryption keys are all published in a public repository. Matching on the
+ * prefix rather than on the exact strings keeps the guard working when the
+ * example wording changes.
+ */
+const PLACEHOLDER_PREFIXES: readonly string[] = [
+  "replace-with",
+  "replace-me",
+  "replacethis",
+  "change-me",
+  "changeme",
+  "your-",
+  "example-",
+  "placeholder",
+  "<",
+];
+
+/** True when `raw` is one of the shipped placeholders rather than real material. */
+function looksLikePlaceholder(raw: string): boolean {
+  const value = raw.trim().toLowerCase();
+  return PLACEHOLDER_PREFIXES.some((prefix) => value.startsWith(prefix));
+}
+
+/**
+ * Record a boot refusal for any placeholder among `values`. Reports the count
+ * and the variable name only: SEC-8 forbids echoing the value even when the
+ * value is known to be worthless, because the same code path handles real ones.
+ */
+function rejectPlaceholders(name: string, values: readonly string[], issues: string[]): void {
+  const placeholders = values.filter((value) => looksLikePlaceholder(value)).length;
+  if (placeholders > 0) {
+    issues.push(
+      `${name} still holds ${placeholders} placeholder value(s) from an example file; generate real secrets (see docs/operations.md) before booting`,
+    );
+  }
+}
 
 /** One rate-limit class: at most `max` requests per fixed `windowMs` per key. */
 export interface RateLimitClass {
@@ -365,6 +422,7 @@ function parseKeyList(env: Env, name: string, minLength: number, issues: string[
   if (tooShort > 0) {
     issues.push(`${name} has ${tooShort} key(s) shorter than the ${minLength}-character minimum`);
   }
+  rejectPlaceholders(name, keys, issues);
   return keys;
 }
 
@@ -438,6 +496,11 @@ function parseSecretVersions(
     return [{ version: 1, value: current }];
   }
   pushOrderIssues(name, parsed, issues);
+  rejectPlaceholders(
+    name,
+    parsed.map((entry) => entry.value),
+    issues,
+  );
   return parsed;
 }
 
@@ -475,6 +538,7 @@ function parseRequiredString(env: Env, name: string, minLength: number, issues: 
   if (raw.length < minLength) {
     issues.push(`${name} must be at least ${minLength} characters`);
   }
+  rejectPlaceholders(name, [raw], issues);
   return raw;
 }
 

@@ -192,7 +192,7 @@ export const SURFACES: readonly Surface[] = [
     row: "responses-read",
     group: "admin",
     method: "GET",
-    path: (ctx) => `/admin/forms/${ctx.formId}/export?format=csv`,
+    path: (ctx) => `/admin/forms/${ctx.formId}/export?format=csv&version=1`,
     anonymousReachable: false,
     readControl: true,
   },
