@@ -48,12 +48,14 @@ const ALLOWANCE = 3;
 const ADMIN_ORIGIN = "https://admin.example.test";
 
 let auth: AdminAuth;
+let logSignInThrottleState: (typeof import("./instance.js"))["logSignInThrottleState"];
 
 vi.stubEnv("NODE_ENV", "production");
 
 beforeAll(async () => {
-  const { createAdminAuth } = await import("./instance.js");
+  const { createAdminAuth, logSignInThrottleState: log } = await import("./instance.js");
   const { unusedDb } = await import("../../test-support.js");
+  logSignInThrottleState = log;
   auth = createAdminAuth({
     db: unusedDb(),
     adminAuth: {
@@ -138,5 +140,45 @@ describe("sign-in throttling keys on the address the BFF vouched for", () => {
     // the same exhausted bucket: at this process those headers mean nothing at all.
     const forging = await signIn({ "x-forwarded-for": "192.0.2.99", "x-real-ip": "192.0.2.98" });
     expect(forging).toBe(429);
+  });
+});
+
+/**
+ * The ON half of the boot line's agreement test (issue #390). Its OFF half lives in
+ * `sign-in-throttle-state.test.ts`, which runs the same shape under
+ * `NODE_ENV=development`; the two are separate files because better-auth captures
+ * `NODE_ENV` once per process and one file cannot be both. That file's header explains
+ * the mechanics.
+ */
+describe("the boot line agrees with what the limiter actually does", () => {
+  it("reports enforcement, and a fourth sign-in really is refused", async () => {
+    const lines: { level: string; fields: Record<string, unknown> }[] = [];
+    const record =
+      (level: string) =>
+      (_message: string, fields?: Record<string, unknown>): void => {
+        lines.push({ level, fields: fields ?? {} });
+      };
+    const state = await logSignInThrottleState(auth, {
+      info: record("info"),
+      warn: record("warn"),
+    });
+
+    // Measured, not assumed: an address no other case in this file uses, one attempt
+    // more than the allowance.
+    const statuses = await attempts(ALLOWANCE + 1, () => ({
+      [CLIENT_ADDRESS_HEADER]: "203.0.113.200",
+    }));
+    const refused = statuses.includes(429);
+
+    // The agreement, in both directions at once: this fails on a line that claims
+    // throttling the limiter is not doing, and on a line that denies throttling it is.
+    expect(state.enabled).toBe(refused);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]?.fields.enabled).toBe(refused);
+    expect(lines[0]?.level).toBe(refused ? "info" : "warn");
+
+    // And the env-specific half, so a stub that stopped taking effect cannot make the
+    // case above pass vacuously against a limiter that was never running.
+    expect(refused).toBe(true);
   });
 });
