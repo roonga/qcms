@@ -29,6 +29,7 @@
 
 import { chmodSync, existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { spawn, spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -88,8 +89,42 @@ export function composeEnvironmentOverrides({ portalPort, adminPort }) {
   };
 }
 
+/**
+ * Ephemeral secret material for the harness stack, generated per run.
+ *
+ * The `--env-file` above is `.env.compose.example`, and its secret lines are
+ * placeholders (`replace-with-a-random-32-character-...`). Until task 040 those
+ * placeholders booted, because config validation was a length floor and they are
+ * comfortably longer than the floor - which is exactly the finding 040 fixed
+ * (`docs/security-review-2026-08-14.md` §3.1). The API now refuses to boot on a
+ * placeholder, so this harness has to supply real values, and it should have been
+ * doing so anyway: a stack whose signing keys are published in the repository is
+ * not the stack `full-stack-e2e` exists to exercise.
+ *
+ * Shell environment beats `--env-file` in Compose interpolation, so putting them
+ * here is all that is needed. Hex rather than base64url so a generated value can
+ * never begin with a placeholder prefix by chance.
+ *
+ * Fresh per run on purpose: nothing in this harness outlives the run
+ * (`createFirstAdmin` enrols the admin each time), so there is nothing for a
+ * pinned key to keep readable.
+ *
+ * @param {() => string} [generate]
+ * @returns {Record<string, string>}
+ */
+export function harnessSecrets(generate = () => randomBytes(32).toString("hex")) {
+  return {
+    QCMS_LINK_KEYS: generate(),
+    QCMS_SESSION_KEYS: generate(),
+    QCMS_INTERNAL_TOKEN: generate(),
+    QCMS_APP_KEY: generate(),
+    QCMS_ADMIN_AUTH_SECRET: generate(),
+  };
+}
+
 const e2eEnvironment = {
   ...process.env,
+  ...harnessSecrets(),
   ...composeEnvironmentOverrides({ portalPort, adminPort }),
 };
 
