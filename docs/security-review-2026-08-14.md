@@ -366,9 +366,13 @@ brute-force throttling is configuration-dependent (#390).**
 **Session management.** Respondent tokens are stateless HMAC with a purpose claim
 inside the MAC and a separate key list per purpose; server-side state is required
 in addition for secure links. Admin sessions are server-side rows with both an
-idle expiry and a 12h absolute cap, enforced at the gate and asserted. Tokens are
-never set as cookies by the API; the BFF owns cookie flags, which its own suites
-assert. Sign-out and password change revoke server-side.
+idle expiry and a 12h absolute cap, enforced at the gate and asserted. Respondent
+tokens are never set as cookies by the API: `POST /sessions` returns the token in
+the body and emits no `Set-Cookie`, asserted here, so the portal BFF is the only
+thing that ever chooses a cookie flag for a respondent. The one place the API
+does emit `Set-Cookie` is the better-auth mount, and the admin BFF re-emits those
+headers verbatim onto its own origin, whose flags its own suites assert.
+Sign-out and password change revoke server-side.
 
 **Access control.** Enforced in the API layer, never in a BFF and never only in
 the UI. Deny-by-default at two levels: an unmounted group does not exist, and a
