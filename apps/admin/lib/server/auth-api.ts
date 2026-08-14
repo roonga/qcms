@@ -73,7 +73,8 @@ export const TWO_FACTOR_COOKIE = `${COOKIE_PREFIX}.two_factor`;
  * better-auth renames its own cookies when it is issuing secure ones:
  * `createCookieGetter` builds the name as `${secureCookiePrefix}${prefix}.${cookieName}`
  * and sets `secureCookiePrefix` to `__Secure-` whenever `advanced.useSecureCookies` is
- * true (better-auth 1.6.25, `dist/cookies/index.mjs:20-21` and `:28-31`). So the cookie
+ * true (better-auth 1.6.26, the pinned version: `dist/cookies/index.mjs:21` decides the
+ * prefix, `:26-30` composes the name). So the cookie
  * this app has to find is `qcms_admin.two_factor` in development and
  * `__Secure-qcms_admin.two_factor` in any deployment with secure cookies on - which is
  * the default compose shape, since `docker/admin.Dockerfile` bakes `NODE_ENV=production`.
