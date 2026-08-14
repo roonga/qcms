@@ -30,7 +30,8 @@ const IDLE: RedeliverState = { status: "idle" };
  *
  * ## Redelivering queues, it does not deliver
  *
- * `POST /admin/outbox/{id}/redeliver` resets a row to due-now; the deliverer's next
+ * `POST /admin/forms/{formId}/deliveries/{deliveryId}/redeliver` resets a row to
+ * due-now; the deliverer's next
  * pass makes the attempt. So the confirmation says "queued for the next pass" rather
  * than "delivered", because at the moment the button returns nothing has been sent
  * yet and a message claiming otherwise would be wrong for as long as the pass takes.

@@ -292,7 +292,10 @@ event. The payload is still there.
    (a rotated shared secret on their side), and a URL that has moved.
 3. Fix the receiver first. Redelivery to a still-broken endpoint just dead-letters
    again, more slowly.
-4. Redeliver: `POST /outbox/{id}/redeliver` resets the row for immediate delivery.
+4. Redeliver: `POST /forms/{formId}/deliveries/{deliveryId}/redeliver` resets the row
+   for immediate delivery. The form is required and enforced by the query (#305), and
+   each dead-letter row carries its own `formId` for exactly this call, because the
+   worklist spans forms.
 
 **Which process delivers.** The deliverer runs only where the `internal` mount flag
 is set. In the solo topology that is the single API process (`QCMS_MOUNT=all`). In
