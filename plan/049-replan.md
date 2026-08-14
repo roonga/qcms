@@ -3,6 +3,8 @@
 **For:** the Code Owner. **From:** the PM/PO seat, 2026-08-08.
 **Decision needed:** which of two paths 049 takes for 1.0. Everything else here follows from that.
 
+> **Still open, with two corrections (2026-08-13).** Path 2 is now drafted in full - four paste-ready sub-task files, the launch-gating call, both ADR-30 amendment wordings and the colour-picker gap - in **`plan/049-decomposition.md`**. The recommendation below (Path 1) is unchanged by that work. Two paragraphs here have gone stale since 060 landed on 2026-08-11: the ordering-exception claim at lines 39-43 (that row is retired and must not be re-added; 049d's dependency belongs in its `Depends on` header), and line 36's "the live preview needs 060's scope carrier", which is still true but is no longer a wait.
+
 ## Why this document exists
 
 049 was promoted to launch-required on 2026-08-07 on the understanding that it was one admin

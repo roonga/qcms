@@ -37,7 +37,8 @@ no responses · filtered-empty · flagged present · detail submitted · detail 
 
 ## Interactions
 
-- List/detail → `GET /admin/forms/:id/responses[/:sessionId]` (023) · export → `GET .../export?format=&version=&from=&to=` (023, streamed) · erase → `POST /admin/sessions/:sessionId/erase` (023) · unflag → `POST /admin/responses/:sessionId/unflag` (023) · webhook CRUD → 024 · redeliver → `POST .../redeliver` (025).
+- List/detail → `GET /admin/forms/:id/responses[/:sessionId]` (023) · export → `GET .../export?format=&version=&from=&to=` (023, streamed) · erase → `POST /admin/forms/:id/responses/:sessionId/erase` (023) · unflag → `POST /admin/forms/:id/responses/:sessionId/unflag` (023) · webhook CRUD → 024 · redeliver → `POST /admin/forms/:id/deliveries/:deliveryId/redeliver` (025).
+  - **The three destructive operations are form-scoped, and that is a security property rather than a URL style** (issue #305). They previously took a bare `sessionId` or delivery id with no form named anywhere in the request, so nothing in the call identified what the operand belonged to and no guard could be written that was capable of refusing. The form segment is what makes "an id belonging to another form is indistinguishable from an id that does not exist" expressible: the refusal falls out of a scoped query returning no row, not out of an ownership check that could be forgotten. A wireframe describing these as bare-id routes would be describing the shape the guard exists to replace.
 - Post-erasure the session must vanish from list/detail/export and appear in the log (035 exit criterion 2).
 
 ## A11y notes
