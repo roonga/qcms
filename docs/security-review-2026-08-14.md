@@ -450,6 +450,31 @@ blocker, and it carries an ordering constraint (pinning and Dependabot container
 coverage must land together) that makes it its own change rather than a rider on
 a review.
 
+### 6.3 Repository posture
+
+Verified against the live GitHub configuration on 2026-08-14, not against the
+documentation of it. The `protect-main` ruleset is **active** on the default
+branch and carries: `deletion`, `non_fast_forward` (no force-push to `main`),
+`required_linear_history`, `pull_request` (no direct pushes), and
+`required_status_checks` with four contexts: `verify (node-24)`, `api-e2e`,
+`portal-e2e` and `full-stack-e2e`. That matches SEC-11's "branch protection,
+required CI, no force-push to main".
+
+Two observations, neither a finding:
+
+- **`portal-e2e` is a stale job name, not a coverage gap.** It runs
+  `pnpm exec playwright test` with no project filter, and `playwright.config.ts`
+  carries an `admin-chromium` project alongside the portal ones, so the admin
+  browser suite is covered by a required check whose name does not say so.
+- **npm 2FA and provenance cannot be verified.** No `@qcms/*` package has been
+  published and the npm organisation does not exist (#360), so there is no
+  account to check 2FA on and no publish to attach provenance to. See §8,
+  criterion 4.
+
+The 037 scaffold-output secret scan named in the task deliverables is **not
+applicable yet**: 037 has not shipped (PR #451 open), so there is no scaffold
+output to scan and no 037 CI to wire it into.
+
 ---
 
 ## 7. An observation against the §3.2 matrix, not a defect
