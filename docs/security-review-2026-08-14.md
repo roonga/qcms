@@ -125,6 +125,16 @@ literal values from the committed example files. Red-proof: neutralising the
 predicate inside `rejectPlaceholders` turned exactly the ten refusal assertions
 red and left the two positive controls green (12 tests executed, 10 failed).
 
+**Corroboration the finding was real, found by fixing it.** With the guard in
+place the full-stack Compose harness stopped booting, because
+`scripts/compose-e2e.mjs` passes `--env-file .env.compose.example` verbatim: the
+suite that exists to exercise the shipped stack was standing one up on the
+repository's published key material. The harness now generates ephemeral hex
+secrets per run and overrides the example's placeholders through the shell
+environment, which Compose prefers over the env file. That is the strongest
+available evidence that the placeholders were reachable in practice and not only
+in principle.
+
 **Complementary gate.** `scripts/check-security-hygiene.mjs` refuses a live-
 looking value in a committed `.env*.example`. The two halves point in opposite
 directions on purpose: the config guard stops a placeholder reaching production,
@@ -322,7 +332,7 @@ executable assertion exists and was seen to run.
 | **SEC-4** service channel auth | **Verified** | Every gated surface refuses a missing, empty and wrong internal token; the token alone grants no identity-bearing action. |
 | **SEC-5** `/api/v1` scopes | **Reserved, unbuilt** | Scope annotations present as OpenAPI metadata and inert at launch, which is what the design says. Not exercised. |
 | **SEC-6** webhook signing | **Verified** | §3.5. One signature per delivery, documented recipe accepts it, four tamper classes and a replay rejected, hard cutover asserted, secret never appears in a listing. |
-| **SEC-7** key inventory + rotation | **Verified in part** | Session, link and internal key lists accept multiple entries and verify under all (existing coverage; exercised transitively here). **Not verified: retiring an admin auth-secret version, which the design itself records as impossible at launch (#432).** |
+| **SEC-7** key inventory + rotation | **Verified in part** | Rotation overlap is now asserted as a running process, not as a config-parser property: a third composition over the same database, with a fresh key at the head of each of the three lists and the original retained behind it, still accepts the demoted internal token, a session token signed under the demoted session key, and a secure link signed under the demoted link key. The discriminator that makes those mean something is also asserted: a token minted by the rotated process does **not** verify on the un-rotated one, so the head entry genuinely signs. A key on neither list is refused. **Not verified: retiring an admin auth-secret version, which the design itself records as impossible at launch (#432).** |
 | **SEC-8** secrets + redaction | **Verified, with a control added** | Placeholder secrets now refuse boot (§3.1). Config refusals name variables and never values, asserted. Refusals carry no stack, no file path and no token. A CI gate now refuses any logging call site that passes answer-shaped content and any live-looking value in an example env file. |
 | **SEC-9** transport/browser | **Verified, with a control added** | §3.4. Headers on served, refused and 404 responses; no CORS header on any response or preflight; body cap enforced at 413 **before** the credential gate. **Deviation: HSTS is emitted only by the ingress, by design.** |
 | **SEC-10** least-privilege DB roles | **Partly verified, gap recorded** | §3.6. Reporting recipe executed and asserted. App/migration split absent in code and in the docs §7 points at. |
@@ -462,11 +472,11 @@ because changing a cell would misstate the property it is recording.
 
 | # | Criterion | State |
 |---|---|---|
-| 1 | Matrix suite green in CI, permanently | **Met.** `apps/api/e2e/security/` (3 files, 189 tests, all green) is picked up by the existing `qcms-api-e2e` project glob, so it runs in the unit job on every push with no CI wiring change. |
+| 1 | Matrix suite green in CI, permanently | **Met.** `apps/api/e2e/security/` (3 files, 195 tests, all green) is picked up by the existing `qcms-api-e2e` project glob, so it runs in the unit job on every push with no CI wiring change. |
 | 2 | All SEC-1…13 rows check out; deviations documented | **Met, with deviations documented in §4.** SEC-5 is reserved and unbuilt by design; SEC-13 was not re-verified here and relies on 054/062's suites; SEC-11 is the row with the real gap and it is named. |
 | 3 | Zero open high-severity findings; review doc committed | **Not met.** Review doc committed. **Two open highs: #470 (fix in flight on PR #480) and #390 (needs a Code Owner ruling).** The third high found by this review (F1, placeholder secrets) is fixed. |
 | 4 | `SECURITY.md` published; provenance publish verified | **Half met.** `SECURITY.md` is published and updated by this change: private disclosure via GitHub advisories, a response commitment, a supported-versions policy and a scope statement. **The provenance half is blocked on #360: the npm organisation does not exist and no `@qcms/*` package has been published, so `npm publish --provenance` cannot be configured, exercised or dry-run against a real registry. This is a Code Owner action and a 1.0 blocker in its own right; it is recorded as blocked, not claimed and not omitted.** |
-| 5 | 038's pre-flight references this review doc by date | **Outstanding, and correctly so.** It belongs to task 038, which has not run. The reference is `docs/security-review-2026-08-14.md`. |
+| 5 | 038's pre-flight references this review doc by date | **Met as far as 040 can meet it.** `docs/features/038-launch-gate-validation.md`'s pre-flight list now cites this document by path and date, with the note that a later pass supersedes it. Actually *running* the pre-flight is 038's work and 038 has not run. |
 
 **On #361.** Its criterion is "zero open high-severity findings", which is
 criterion 3 above. That criterion is **not met today**, on two named findings with
