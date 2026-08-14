@@ -73,7 +73,7 @@ so the deployment's first account comes from a command. Since task 056 the admin
 holds no database handle - better-auth lives in the API - so that bootstrap command is an
 **API-side** one and takes the API's env, not the admin's.
 
-```sh
+```bash
 # Pin the auth secret for the whole shell session, BEFORE `pnpm dev:admin` starts the
 # API - an unpinned restart destroys an existing TOTP enrolment, see below. Any value
 # >= 32 chars with no whitespace or commas. `pnpm dev:admin` warns when it is unset.

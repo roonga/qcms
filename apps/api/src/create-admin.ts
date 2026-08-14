@@ -23,7 +23,7 @@
  *
  * **`ps` and shell history are two exposures, and an environment assignment only closes
  * one** (issue #460). An inline `QCMS_ADMIN_PASSWORD=... pnpm qcms:create-admin` keeps
- * the value out of every argv and puts it straight into `~/.bash_history`, which is why
+ * the value out of every argv and puts it straight into your shell's history file, which is why
  * the recipe above prompts with `read -rs` instead: a value that never appears on a
  * command line reaches neither. A leading space suppresses the history entry only when
  * `HISTCONTROL` includes `ignorespace` (bash) or `HIST_IGNORE_SPACE` is set (zsh), and

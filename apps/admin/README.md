@@ -109,7 +109,7 @@ better-auth instance:
   listing while the command runs. **An inline assignment keeps it out of `ps` but not out
   of your shell history** (issue #460), so prompt for it instead of typing it:
 
-  ```sh
+  ```bash
   read -rs -p 'passphrase: ' QCMS_ADMIN_PASSWORD; echo
   export QCMS_ADMIN_EMAIL=you@example.test QCMS_ADMIN_PASSWORD
   # ... run the command ...
