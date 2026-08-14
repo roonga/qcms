@@ -187,8 +187,14 @@ export function scanSql(label, text) {
   return hits;
 }
 
-/** Values in an example env file that look like real secret material. */
-const PLACEHOLDER_SHAPES = [
+/**
+ * Value shapes an example env file may carry. Must stay in agreement with
+ * `PLACEHOLDER_PREFIXES` in `apps/api/src/config.ts`: a spelling this gate
+ * accepts as a placeholder but the boot guard does not recognise would sail
+ * through both and land a published key in a running deployment. Pinned from
+ * the other side by `apps/api/src/config-placeholders.test.ts`.
+ */
+export const PLACEHOLDER_SHAPES = [
   /^replace[-_]/i,
   /^change[-_]?me/i,
   /^your[-_]/i,

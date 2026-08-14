@@ -11,6 +11,10 @@
 
 import { describe, expect, it } from "vitest";
 
+// The committed-secret half of the same control. Imported so the agreement
+// between the two lists is asserted rather than eyeballed (task 040 review).
+// @ts-expect-error - plain ESM tooling, deliberately untypechecked.
+import { PLACEHOLDER_SHAPES } from "../../../scripts/check-security-hygiene.mjs";
 import { loadConfig } from "./config.js";
 import { validEnv } from "./test-support.js";
 
@@ -84,5 +88,50 @@ describe("placeholder secrets refuse to boot (SEC-8)", () => {
     for (const value of Object.values(SHIPPED_PLACEHOLDERS)) {
       expect(result.message).not.toContain(value);
     }
+  });
+});
+
+describe("the boot guard and the repository gate agree on what a placeholder is", () => {
+  /**
+   * Spellings a human might plausibly write in an example file, plus values that
+   * are unmistakably real. The property is agreement, in both directions: a
+   * value the gate waves through as "obviously a placeholder, safe to commit"
+   * must be a value the API refuses to boot on, or a published key reaches a
+   * running deployment through the gap between them.
+   */
+  const CANDIDATES = [
+    "replace-with-a-random-32-character-app-encryption-key",
+    "replace_with_a_random_32_character_app_encryption_key",
+    "replace-me-before-you-deploy-this-thing",
+    "replace_me_before_you_deploy_this_thing",
+    "change-me-change-me-change-me-change-me",
+    "change_me_change_me_change_me_change_me",
+    "changeme-changeme-changeme-changeme-abc",
+    "your-secret-goes-right-here-please-yes",
+    "your_secret_goes_right_here_please_yes",
+    "example-value-not-for-production-use-x",
+    "example_value_not_for_production_use_x",
+    "placeholder-value-not-for-production-x",
+    "<generate a 32 character secret here>",
+    // Real-looking material: neither side may treat these as placeholders.
+    "8f2c1a9e4b7d6053a1c8e2f4b6d809173a5c7e1b9d0f2468ace13579bdf02468",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "correct-horse-battery-staple-and-then-some-more",
+  ];
+
+  const gateTreatsAsPlaceholder = (value: string): boolean =>
+    (PLACEHOLDER_SHAPES as RegExp[]).some((shape) => shape.test(value));
+
+  it.each(CANDIDATES)("agrees about %s", (value) => {
+    const bootRefuses = !loadWith({ QCMS_APP_KEY: value }).ok;
+    expect(bootRefuses, `boot guard and repository gate disagree about "${value}"`).toBe(
+      gateTreatsAsPlaceholder(value),
+    );
+  });
+
+  it("covers both verdicts, so the agreement is not vacuous", () => {
+    const verdicts = CANDIDATES.map((value) => gateTreatsAsPlaceholder(value));
+    expect(verdicts).toContain(true);
+    expect(verdicts).toContain(false);
   });
 });

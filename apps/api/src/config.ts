@@ -61,7 +61,7 @@ export const APP_KEY_MIN_LENGTH = 32;
 const PLACEHOLDER_PREFIXES: readonly string[] = [
   "replace-with",
   "replace-me",
-  "replacethis",
+  "replace-this",
   "change-me",
   "changeme",
   "your-",
@@ -70,9 +70,20 @@ const PLACEHOLDER_PREFIXES: readonly string[] = [
   "<",
 ];
 
-/** True when `raw` is one of the shipped placeholders rather than real material. */
+/**
+ * True when `raw` is one of the shipped placeholders rather than real material.
+ *
+ * Separators are normalised before matching, so `replace_with_...` is refused
+ * exactly as `replace-with-...` is. That is not cosmetic: the committed-secret
+ * half of this control lives in `scripts/check-security-hygiene.mjs`, and until
+ * task 040's review the two lists disagreed on underscores. A hyphen-only guard
+ * here plus an underscore-tolerant gate there meant an example file spelled
+ * `replace_with_a_real_key` would pass the repository scan **and** boot, which
+ * is precisely the finding this guard exists to close. The agreement is pinned
+ * from both sides by `config-placeholders.test.ts`.
+ */
 function looksLikePlaceholder(raw: string): boolean {
-  const value = raw.trim().toLowerCase();
+  const value = raw.trim().toLowerCase().replaceAll("_", "-");
   return PLACEHOLDER_PREFIXES.some((prefix) => value.startsWith(prefix));
 }
 

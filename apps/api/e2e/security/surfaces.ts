@@ -4,9 +4,11 @@
  * The authorization matrix at `docs/SECURITY_DESIGN.md` §3.2 has eight rows and
  * four credential columns. Asserting it by hand, cell by cell, produces a file
  * nobody reads and a coverage claim nobody can check. So the rows are declared
- * once here, as data, and each suite walks them under one credential shape. A
- * row added to the matrix that is not added to `SURFACES` shows up as a route
- * this suite never probes, which `matrix-coverage.e2e.ts` turns red.
+ * once here, as data, and each suite walks them under one credential shape.
+ * `matrix-coverage.e2e.ts` closes the loop in both directions: it parses the
+ * §3.2 table out of the shipped `docs/SECURITY_DESIGN.md` and fails if a
+ * documented row has no surface here, or if a surface here names a row the
+ * document does not describe.
  *
  * Deliberately *not* built on `AdminClient` / `RespondentClient`: both hard-attach
  * a complete credential set, and the whole point here is to send an incomplete
