@@ -108,7 +108,7 @@ const REQUIRED_HEADERS: readonly (readonly [string, RegExp])[] = [
 ];
 
 describe("SEC-9 response headers are set on every API response", () => {
-  const responses: { label: string; get: () => Promise<Response> }[] = [
+  const responses: { label: string; get: () => Response | Promise<Response> }[] = [
     { label: "a served health check", get: () => composed.app.request("/health") },
     {
       label: "an unauthenticated refusal",

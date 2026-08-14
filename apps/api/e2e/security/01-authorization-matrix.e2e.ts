@@ -33,7 +33,7 @@
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { seedAdminSession } from "../../src/test-support.js";
+import { seedAdminSession, synthSecret } from "../../src/test-support.js";
 import {
   adminLogin,
   AdminClient,
@@ -78,6 +78,10 @@ let linkToken: string;
 let otherFormId: string;
 /** A submitted session belonging to `otherFormId`. */
 let otherFormSessionId: string;
+/** The same database and forms, composed with every key list rotated (SEC-7). */
+let rotated: ReturnType<typeof composeApi>;
+/** The head (signing) entry of each rotated list. */
+let freshInternalToken: string;
 
 /** A complete credential set for an admin surface. Negative cases subtract from this. */
 function adminHeaders(overrides: Record<string, string> = {}): Record<string, string> {
@@ -127,6 +131,22 @@ beforeAll(async () => {
     linkId: LINK_ID,
     expiresAt: LINK_EXPIRY,
   });
+
+  // A third composition over the same database, with a fresh key at the head of
+  // every list and the original key retained behind it. This is SEC-7's rotation
+  // model ("first entry signs, all entries verify") as a running process rather
+  // than as a config-parser property.
+  freshInternalToken = synthSecret();
+  rotated = composeApi(
+    testDb.db,
+    {
+      ...env,
+      QCMS_SESSION_KEYS: `${synthSecret()},${env.QCMS_SESSION_KEYS ?? ""}`,
+      QCMS_LINK_KEYS: `${synthSecret()},${env.QCMS_LINK_KEYS ?? ""}`,
+      QCMS_INTERNAL_TOKEN: `${freshInternalToken},${env.QCMS_INTERNAL_TOKEN ?? ""}`,
+    },
+    MOUNT.all,
+  );
 
   const admin = new AdminClient(all.app, internalToken, adminToken);
 
@@ -507,4 +527,75 @@ describe("an admin route will not act on a session outside the form it names", (
       expectNoPayload(await res.text());
     },
   );
+});
+
+// --- 10. key rotation overlap (SEC-7) ---------------------------------------
+
+describe("rotating a key list keeps the previous key verifying", () => {
+  const step = (): Surface => SURFACES.find((s) => s.name === "GET /sessions/{id}/step") as Surface;
+
+  it("the rotated process is a real one: its own new internal token opens the channel", async () => {
+    const res = await probe(rotated.app, step(), ctx, {
+      [INTERNAL_TOKEN_HEADER]: freshInternalToken,
+      authorization: `Bearer ${sessionToken}`,
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("still accepts an internal token that has been demoted behind a fresh one", async () => {
+    const res = await probe(rotated.app, step(), ctx, respondentHeaders());
+    expect(res.status).toBe(200);
+  });
+
+  it("still accepts a session token signed under the demoted session key", async () => {
+    // `sessionToken` was minted by the pre-rotation composition.
+    const res = await probe(rotated.app, step(), ctx, {
+      [INTERNAL_TOKEN_HEADER]: freshInternalToken,
+      authorization: `Bearer ${sessionToken}`,
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("still redeems a secure link signed under the demoted link key", async () => {
+    const res = await rotated.app.request("/sessions", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        [INTERNAL_TOKEN_HEADER]: freshInternalToken,
+      },
+      body: JSON.stringify({ token: linkToken }),
+    });
+    expect(res.status).toBe(201);
+  });
+
+  it("signs new tokens with the head key, which the un-rotated process cannot verify", async () => {
+    // The discriminator. Without it, every assertion above would also pass if
+    // rotation were a no-op that ignored the new head entirely.
+    const started = await rotated.app.request("/sessions", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        [INTERNAL_TOKEN_HEADER]: freshInternalToken,
+      },
+      body: JSON.stringify({ formSlug: ctx.formSlug }),
+    });
+    expect(started.status).toBe(201);
+    const minted = (await started.json()) as StartBody;
+
+    const onRotated = await all.app.request(`/sessions/${minted.sessionId}/step`, {
+      headers: {
+        [INTERNAL_TOKEN_HEADER]: internalToken,
+        authorization: `Bearer ${minted.sessionToken}`,
+      },
+    });
+    expect(onRotated.status).toBe(401);
+  });
+
+  it("refuses an internal token that is on neither list", async () => {
+    const res = await probe(rotated.app, step(), ctx, {
+      [INTERNAL_TOKEN_HEADER]: synthSecret(),
+      authorization: `Bearer ${sessionToken}`,
+    });
+    expect(res.status).toBe(401);
+  });
 });

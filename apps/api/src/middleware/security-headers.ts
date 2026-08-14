@@ -43,12 +43,19 @@ import type { ApiEnv } from "../openapi.js";
  * `default-src` is: there is no document here for them to constrain, so the
  * honest value is "nothing is permitted".
  */
-const API_CSP = {
-  defaultSrc: ["'none'"],
-  frameAncestors: ["'none'"],
-  baseUri: ["'none'"],
-  formAction: ["'none'"],
-} as const;
+function apiCsp(): {
+  defaultSrc: string[];
+  frameAncestors: string[];
+  baseUri: string[];
+  formAction: string[];
+} {
+  return {
+    defaultSrc: ["'none'"],
+    frameAncestors: ["'none'"],
+    baseUri: ["'none'"],
+    formAction: ["'none'"],
+  };
+}
 
 /**
  * Install the SEC-9 response headers on every API response, health included.
@@ -57,7 +64,7 @@ const API_CSP = {
  */
 export function securityHeaders(): MiddlewareHandler<ApiEnv> {
   return secureHeaders({
-    contentSecurityPolicy: { ...API_CSP },
+    contentSecurityPolicy: apiCsp(),
     referrerPolicy: "no-referrer",
     xFrameOptions: "DENY",
     xContentTypeOptions: true,

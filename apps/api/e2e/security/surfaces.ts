@@ -347,7 +347,15 @@ export interface ProbeResult {
   readonly text: string;
 }
 
-type Fetcher = { request: (path: string, init?: RequestInit) => Promise<Response> };
+/**
+ * The one thing a probe needs from a composed app. Declared method-style (rather
+ * than as a property holding a function type) so TypeScript compares it
+ * bivariantly: Hono's `request` takes `RequestInfo | URL` and extra optional
+ * arguments, and a narrower property type would reject the real app.
+ */
+interface Fetcher {
+  request(input: string, init?: RequestInit): Response | Promise<Response>;
+}
 
 /**
  * Send one probe. Headers are exactly what the caller passes plus a content type
