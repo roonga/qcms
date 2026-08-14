@@ -1,8 +1,9 @@
 /**
- * Secret and log hygiene gate (task 040, SEC-8).
+ * Security hygiene gate (task 040; SEC-8 secrets and logs, plus the SEC-12
+ * injection note).
  *
- * Two static properties that the runtime controls cannot establish on their own,
- * checked here so a regression fails CI rather than shipping quietly.
+ * Three static properties that the runtime controls cannot establish on their
+ * own, checked here so a regression fails CI rather than shipping quietly.
  *
  * **1. No logger call site passes respondent answer content.**
  * `packages/observability`'s stdout logger redacts by *field name* and the OTLP
@@ -22,7 +23,16 @@
  * stops a placeholder reaching production, this gate stops a real secret
  * reaching the repository.
  *
- * Escape hatch: put `check-secret-hygiene: allow <reason>` in a comment on the
+ * **3. No SQL is built by string concatenation.**
+ * `docs/features/040-security-review-hardening.md` asks for Drizzle
+ * parameterization to be asserted rather than assumed. Drizzle's `sql` tagged
+ * template parameterizes every `${...}` it interpolates; `sql.raw()` is the one
+ * documented door that does not, and `db.execute()` over a plain string is the
+ * other. Neither appears in the repository today, and this rule is what keeps
+ * that true: JSONB answer values in particular are only ever bound, never
+ * spliced.
+ *
+ * Escape hatch: put `check-security-hygiene: allow <reason>` in a comment on the
  * line immediately above an offending line. It has to be a reason, in the diff,
  * where a reviewer sees it.
  */
@@ -37,7 +47,7 @@ const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
 const GIT_CANDIDATES = ["/usr/bin/git", "/usr/local/bin/git", "/bin/git"];
 
 /** The marker that waives one line. */
-export const ALLOW_MARKER = "check-secret-hygiene: allow";
+export const ALLOW_MARKER = "check-security-hygiene: allow";
 
 /**
  * Keys that may carry respondent content. `value`/`values` are here because the
@@ -125,10 +135,7 @@ function waived(text, index) {
   return text.slice(previousStart + 1, lineStart).includes(ALLOW_MARKER);
 }
 
-const CONTENT_KEY_PATTERN = new RegExp(
-  `(^|[{,(\\s])(${CONTENT_KEYS.join("|")})\\s*(:|,|\\})`,
-  "i",
-);
+const CONTENT_KEY_PATTERN = new RegExp(`(^|[{,(\\s])(${CONTENT_KEYS.join("|")})\\s*(:|,|\\})`, "i");
 
 /** Every content-bearing logging call in `text`. */
 export function scanSource(label, text) {
@@ -144,6 +151,38 @@ export function scanSource(label, text) {
       hits.push({ file: label, line, key: offending[2], call: `${match[1]}${match[2]}` });
     }
     match = LOG_CALL.exec(text);
+  }
+  return hits;
+}
+
+/**
+ * Unparameterized SQL doors. `sql.raw` splices its argument verbatim; a template
+ * literal handed to `execute`/`query` is the same hole wearing different
+ * clothes. A `sql` tagged template is not matched: that is the safe form.
+ */
+const RAW_SQL = [
+  {
+    pattern: /\bsql\s*\.\s*raw\s*\(/g,
+    why: "sql.raw() splices its argument into the statement unparameterized",
+  },
+  {
+    pattern: /\.\s*(?:execute|query)\s*\(\s*`[^`]*\$\{/g,
+    why: "a template literal with an interpolation passed straight to execute/query is unparameterized",
+  },
+];
+
+/** Every unparameterized-SQL construction in `text`. */
+export function scanSql(label, text) {
+  const hits = [];
+  for (const { pattern, why } of RAW_SQL) {
+    pattern.lastIndex = 0;
+    let match = pattern.exec(text);
+    while (match !== null) {
+      if (!waived(text, match.index)) {
+        hits.push({ file: label, line: text.slice(0, match.index).split("\n").length, why });
+      }
+      match = pattern.exec(text);
+    }
   }
   return hits;
 }
@@ -188,17 +227,20 @@ export function envExampleFiles() {
 
 function main() {
   const logHits = [];
+  const sqlHits = [];
   for (const file of sourceFiles()) {
-    logHits.push(...scanSource(file, readFileSync(`${REPO_ROOT}${file}`, "utf8")));
+    const text = readFileSync(`${REPO_ROOT}${file}`, "utf8");
+    logHits.push(...scanSource(file, text));
+    sqlHits.push(...scanSql(file, text));
   }
   const envHits = [];
   for (const file of envExampleFiles()) {
     envHits.push(...scanEnvExample(file, readFileSync(`${REPO_ROOT}${file}`, "utf8")));
   }
 
-  if (logHits.length === 0 && envHits.length === 0) {
+  if (logHits.length === 0 && sqlHits.length === 0 && envHits.length === 0) {
     console.log(
-      `check-secret-hygiene: OK (${sourceFiles().length} source files, ${envExampleFiles().length} example env files)`,
+      `check-security-hygiene: OK (${sourceFiles().length} source files, ${envExampleFiles().length} example env files)`,
     );
     return;
   }
@@ -208,13 +250,16 @@ function main() {
       `${hit.file}:${hit.line}  ${hit.call}(...) logs "${hit.key}" - SEC-8 forbids logging answer content; log questionIds and counts instead`,
     );
   }
+  for (const hit of sqlHits) {
+    console.error(`${hit.file}:${hit.line}  ${hit.why}`);
+  }
   for (const hit of envHits) {
     console.error(
       `${hit.file}:${hit.line}  ${hit.name} has a value that is not a recognisable placeholder`,
     );
   }
   console.error(
-    `\ncheck-secret-hygiene: ${logHits.length + envHits.length} problem(s). Waive one line with a "${ALLOW_MARKER} <reason>" comment above it.`,
+    `\ncheck-security-hygiene: ${logHits.length + sqlHits.length + envHits.length} problem(s). Waive one line with a "${ALLOW_MARKER} <reason>" comment above it.`,
   );
   process.exitCode = 1;
 }

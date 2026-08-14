@@ -343,16 +343,16 @@ describe("SEC-6 webhook signatures", () => {
 
     const timestamp = req.header("x-qcms-timestamp") as string;
     firstDelivery = { timestamp, signature, body: req.body };
-    expect(
-      consumerAccepts(firstSecret, timestamp, req.body, signature, sentAt(timestamp)),
-    ).toBe(true);
+    expect(consumerAccepts(firstSecret, timestamp, req.body, signature, sentAt(timestamp))).toBe(
+      true,
+    );
   });
 
   it("rejects a tampered body", () => {
     const { timestamp, signature, body } = firstDelivery;
-    expect(
-      consumerAccepts(firstSecret, timestamp, `${body} `, signature, sentAt(timestamp)),
-    ).toBe(false);
+    expect(consumerAccepts(firstSecret, timestamp, `${body} `, signature, sentAt(timestamp))).toBe(
+      false,
+    );
   });
 
   it("rejects a tampered timestamp", () => {
@@ -378,7 +378,13 @@ describe("SEC-6 webhook signatures", () => {
   it("rejects a signature from another webhook's secret", () => {
     const { timestamp, signature, body } = firstDelivery;
     expect(
-      consumerAccepts("whsec_someone_elses_secret_value", timestamp, body, signature, sentAt(timestamp)),
+      consumerAccepts(
+        "whsec_someone_elses_secret_value",
+        timestamp,
+        body,
+        signature,
+        sentAt(timestamp),
+      ),
     ).toBe(false);
   });
 

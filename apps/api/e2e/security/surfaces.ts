@@ -362,7 +362,8 @@ export async function probe(
 ): Promise<ProbeResult> {
   const init: RequestInit = {
     method: surface.method,
-    headers: surface.body === undefined ? headers : { "content-type": "application/json", ...headers },
+    headers:
+      surface.body === undefined ? headers : { "content-type": "application/json", ...headers },
     ...(surface.body === undefined ? {} : { body: JSON.stringify(surface.body) }),
   };
   const res = await app.request(surface.path(ctx), init);

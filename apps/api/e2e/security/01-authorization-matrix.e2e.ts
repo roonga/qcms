@@ -309,7 +309,12 @@ describe("admin session credentials that must not authenticate", () => {
     async (_label, make: () => Promise<string>) => {
       const token = await make();
       for (const surface of ADMIN_SURFACES) {
-        const res = await probe(all.app, surface, ctx, adminHeaders({ [ADMIN_SESSION_HEADER]: token }));
+        const res = await probe(
+          all.app,
+          surface,
+          ctx,
+          adminHeaders({ [ADMIN_SESSION_HEADER]: token }),
+        );
         expect(res.status, `${surface.name} accepted a credential it must refuse`).toBe(401);
         expectNoPayload(res.text);
       }
@@ -380,9 +385,7 @@ describe("a public-only process has no admin surface at all", () => {
 // --- 6. column: another respondent's session token ---------------------------
 
 describe("a session token authorizes exactly one session", () => {
-  const perSession = SURFACES.filter(
-    (s) => s.row === "step-answer-submit" && s.group === "public",
-  );
+  const perSession = SURFACES.filter((s) => s.row === "step-answer-submit" && s.group === "public");
 
   it.each(perSession.map((s) => [s.name, s] as const))(
     "%s refuses session B's bearer on session A's id",
@@ -458,9 +461,10 @@ describe("tampered and expired session tokens", () => {
   it("refuses a token whose claims segment was altered", async () => {
     const parts = sessionToken.split(".");
     const claims = parts[0] as string;
-    const tampered = [`${claims.slice(0, -1)}${claims.at(-1) === "a" ? "b" : "a"}`, ...parts.slice(1)].join(
-      ".",
-    );
+    const tampered = [
+      `${claims.slice(0, -1)}${claims.at(-1) === "a" ? "b" : "a"}`,
+      ...parts.slice(1),
+    ].join(".");
     expect(tampered).not.toBe(sessionToken);
     const res = await probe(all.app, step(), ctx, respondentHeaders(tampered));
     expect(res.status).toBe(401);
@@ -491,13 +495,16 @@ describe("an admin route will not act on a session outside the form it names", (
     ["read", "GET", (f: string, s: string) => `/admin/forms/${f}/responses/${s}`],
     ["erase", "POST", (f: string, s: string) => `/admin/forms/${f}/responses/${s}/erase`],
     ["unflag", "POST", (f: string, s: string) => `/admin/forms/${f}/responses/${s}/unflag`],
-  ])("refuses to %s another form's session through this form's path", async (_label, method, build) => {
-    const res = await all.app.request(build(ctx.formId, otherFormSessionId), {
-      method,
-      headers: { "content-type": "application/json", ...adminHeaders() },
-      ...(method === "POST" ? { body: JSON.stringify({ reason: "probe" }) } : {}),
-    });
-    expect(res.status).toBe(404);
-    expectNoPayload(await res.text());
-  });
+  ])(
+    "refuses to %s another form's session through this form's path",
+    async (_label, method, build) => {
+      const res = await all.app.request(build(ctx.formId, otherFormSessionId), {
+        method,
+        headers: { "content-type": "application/json", ...adminHeaders() },
+        ...(method === "POST" ? { body: JSON.stringify({ reason: "probe" }) } : {}),
+      });
+      expect(res.status).toBe(404);
+      expectNoPayload(await res.text());
+    },
+  );
 });

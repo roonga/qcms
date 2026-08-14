@@ -11,7 +11,7 @@
 import { describe, expect, it } from "vitest";
 
 // @ts-expect-error - the gate is plain ESM tooling, deliberately untypechecked.
-import { ALLOW_MARKER, scanEnvExample, scanSource } from "./check-secret-hygiene.mjs";
+import { ALLOW_MARKER, scanEnvExample, scanSource, scanSql } from "./check-security-hygiene.mjs";
 
 describe("answer-content logging is refused", () => {
   it.each([
@@ -75,6 +75,32 @@ describe("example env files must carry placeholders, not secrets", () => {
   });
 
   it("ignores non-secret variables entirely", () => {
-    expect(scanEnvExample(".env.example", "QCMS_PORTAL_BASE_URL=http://localhost:7000")).toEqual([]);
+    expect(scanEnvExample(".env.example", "QCMS_PORTAL_BASE_URL=http://localhost:7000")).toEqual(
+      [],
+    );
+  });
+});
+
+describe("unparameterized SQL is refused", () => {
+  it.each([
+    "await exec.execute(sql.raw(`select * from answers where id = '${id}'`));",
+    "await pool.query(`select * from sessions where id = '${sessionId}'`);",
+    "await client.execute(`delete from answers where value = '${answer}'`);",
+  ])("flags %s", (line) => {
+    expect(scanSql("probe.ts", line)).toHaveLength(1);
+  });
+
+  it.each([
+    "await exec.execute(sql`select set_config(${SETTING}, 'on', true)`);",
+    "const clause = sql`${outbox.payload} ->> 'sessionId' = ${sessionId}`;",
+    "await pool.query('select 1');",
+    "await db.select().from(answers).where(eq(answers.sessionId, sessionId));",
+  ])("does not flag the parameterized form: %s", (line) => {
+    expect(scanSql("probe.ts", line)).toHaveLength(0);
+  });
+
+  it("honours a waiver on the line above", () => {
+    const source = `// ${ALLOW_MARKER} migration DDL, no user input\nawait exec.execute(sql.raw(ddl));\n`;
+    expect(scanSql("probe.ts", source)).toHaveLength(0);
   });
 });

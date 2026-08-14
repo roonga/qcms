@@ -44,12 +44,15 @@ describe("placeholder secrets refuse to boot (SEC-8)", () => {
     }
   });
 
-  it.each(Object.entries(SHIPPED_PLACEHOLDERS))("refuses %s at its example value", (name, value) => {
-    const result = loadWith({ [name]: value });
-    expect(result.ok).toBe(false);
-    expect(result.message).toContain(name);
-    expect(result.message).toContain("placeholder");
-  });
+  it.each(Object.entries(SHIPPED_PLACEHOLDERS))(
+    "refuses %s at its example value",
+    (name, value) => {
+      const result = loadWith({ [name]: value });
+      expect(result.ok).toBe(false);
+      expect(result.message).toContain(name);
+      expect(result.message).toContain("placeholder");
+    },
+  );
 
   it("refuses a placeholder hiding among real keys in a rotation list", () => {
     const real = validEnv({}).QCMS_SESSION_KEYS ?? "";
