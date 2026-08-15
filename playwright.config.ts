@@ -275,6 +275,15 @@ export default defineConfig({
         OTEL_EXPORTER_OTLP_PROTOCOL: "http/json",
         OTEL_SERVICE_NAME: OTEL_SERVICE_NAMES.admin,
         OTEL_BSP_SCHEDULE_DELAY: OTLP_SCHEDULE_DELAY_MS,
+        // The deployment's respondent theme (task 058). The SAME constant the portal
+        // entry above is given, because it is the same deployment fact reaching two
+        // services - which is exactly what the admin's preview island has to render at
+        // first paint. Non-default on purpose, for the reason HARNESS_THEME records: a
+        // suite run at the shipped default cannot tell a value read from config apart
+        // from a literal that happens to match it. The UNSET case is the other half and
+        // is covered in `apps/admin/lib/preview-theme.test.ts`, which is the only place
+        // it can be: a webServer cannot be booted twice with two environments.
+        QCMS_PORTAL_THEME: HARNESS_THEME,
         // Left at the default (`required`) deliberately: enforced-by-default 2FA is
         // the behaviour under test, so the escape hatch must not be set here.
       },
