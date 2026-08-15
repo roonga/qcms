@@ -316,9 +316,85 @@ export async function listDeadLetters(exec: Executor, limit?: number): Promise<O
 }
 
 /**
+ * Why an outbox event may not be redelivered, or `undefined` when it may.
+ *
+ * `"payloadRedacted"` - the event's `answers` have been removed, so there is nothing
+ * left to send. Two producers write that state: erasure on request (`eraseSession`)
+ * and the retention sweep once the redelivery window has closed
+ * ({@link redactAgedOutboxPayloads}).
+ *
+ * A union of one today. It is a union rather than a boolean for the same reason its
+ * delivery-level sibling `RedeliveryRefusal` is: the caller renders the reason, and
+ * a second reason later is an added member rather than a changed return type. The
+ * outbox has no `cancelled_at` of its own - cancellation lives on
+ * `webhook_deliveries` - so that union's other member has no counterpart here.
+ */
+export type OutboxRedeliveryRefusal = "payloadRedacted";
+
+/**
+ * Whether this outbox event may be redelivered, and if not, why (issue #433).
+ *
+ * The outbox-level counterpart of `redeliveryRefusalFor` in `deliveries.ts`,
+ * deliberately the same shape rather than a second idiom for the same concept: a
+ * reason when the row exists and is refused, `undefined` when it may be redelivered
+ * **and** when it does not exist, because {@link resetForRedelivery} is what reports
+ * the not-found. So a caller distinguishes the three outcomes across the pair -
+ * refusal here, absence there - exactly as `apps/api`'s redeliver handler already
+ * does one level down:
+ *
+ * ```ts
+ * if ((await outboxRedeliveryRefusalFor(db, id)) !== undefined) return conflict();
+ * const reset = await resetForRedelivery(db, id);
+ * if (reset === undefined) return notFound();
+ * ```
+ *
+ * Expressed over *state* rather than over cause, like its sibling: it reads the one
+ * column {@link claimDue} filters on, so the refusal an operator is given and the
+ * filter the deliverer applies are one rule stated in the two places it has to hold.
+ * A future producer of `payload_redacted_at` is refused for free.
+ *
+ * Not form-scoped, because the outbox is not form-scoped: `outbox` carries no
+ * `form_id` column and reaches a form only through the payload, which is the member
+ * redaction removes. That is why the delivery-level path (#305) is the one an
+ * untrusted client-supplied id reaches; this pair is a package-level helper for a
+ * caller that has already established its own authority.
+ */
+export async function outboxRedeliveryRefusalFor(
+  exec: Executor,
+  id: string,
+): Promise<OutboxRedeliveryRefusal | undefined> {
+  const [row] = await exec
+    .select({ payloadRedactedAt: outbox.payloadRedactedAt })
+    .from(outbox)
+    .where(eq(outbox.id, id))
+    .limit(1);
+  if (row === undefined) return undefined;
+  if (row.payloadRedactedAt !== null) return "payloadRedacted";
+  return undefined;
+}
+
+/**
  * Reset a dead-lettered (or any) row for immediate redelivery - the admin
  * manual-redeliver action (§5.3): clear the dead-letter flag and delivery
  * timestamp, reset attempts, and make it due now.
+ *
+ * **A redacted row is never reset** (issue #433). The `payload_redacted_at is null`
+ * predicate is part of the `where`, so such a row matches no statement: it is not
+ * updated, not returned, and left byte-for-byte as it was. Without it this helper
+ * cleared `delivered_at` and `dead_lettered_at` on a row {@link claimDue} then
+ * declines to claim *on* `payload_redacted_at`, which left the event reading as
+ * pending forever while nothing would ever send it - the stranded-queue state that
+ * every other predicate in this file exists to prevent.
+ *
+ * The guard lives in the `where` rather than only in
+ * {@link outboxRedeliveryRefusalFor} because this helper is a published export with
+ * no in-repo caller: the ordering convention that protects the delivery-level path
+ * (one handler that refuses first) has nothing to enforce it here, and a mutation
+ * that stranded a row when a downstream caller forgot the check would be a guard
+ * with a failing case nobody sees. A caller that does call the refusal helper first
+ * gets the distinguishable answer; a caller that does not gets `undefined`, which
+ * reads as not-found rather than as a silent strand. Refusal and absence are
+ * distinguished by the pair, never by this return value alone.
  */
 export async function resetForRedelivery(
   exec: Executor,
@@ -335,7 +411,7 @@ export async function resetForRedelivery(
       nextAttemptAt: at,
       lastError: null,
     })
-    .where(eq(outbox.id, id))
+    .where(and(eq(outbox.id, id), isNull(outbox.payloadRedactedAt)))
     .returning();
   return row;
 }

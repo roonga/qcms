@@ -106,6 +106,11 @@ describe("query helper import surface", () => {
     // is the on-request half and runs inside `eraseSession`, so it has no separate
     // entry here.
     "redactAgedOutboxPayloads",
+    // The outbox-level counterpart of `redeliveryRefusalFor` (#433): the same
+    // redacted state `claimDue` filters on, read before a reset so a refusal is
+    // distinguishable from an id that does not exist. `resetForRedelivery` carries
+    // the predicate too, so a caller that skips this one strands nothing.
+    "outboxRedeliveryRefusalFor",
     "resetForRedelivery",
     // webhook deliveries (task 025) - the per-(event, webhook) fan-out unit;
     // shape-preserving claim/record/reset helpers, no signing or HTTP here.

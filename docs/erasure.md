@@ -91,6 +91,13 @@ The cancellation is enforced structurally, not by convention:
   transport whatever a future caller does.
 - `claimDue` (the fan-out claim) filters out redacted rows, so a session erased
   *before* its event was fanned out never gets a delivery row at all.
+- `resetForRedelivery` (the outbox-level manual redeliver) refuses a redacted event
+  rather than resetting it (issue #433). It clears the two timestamps `claimDue`
+  reads as "terminal" while `claimDue` skips the row on a third it does not clear, so
+  without the predicate a reset moved the event to *pending and unclaimable*: not
+  a leak, since the transport was still closed, but a queue entry nothing would ever
+  revisit. `outboxRedeliveryRefusalFor` is the companion read that names the reason,
+  the same pairing the delivery level uses.
 - `POST /admin/forms/:id/deliveries/:deliveryId/redeliver` reads exactly those two
   columns and answers
   `409 DELIVERY_NOT_REDELIVERABLE`. One rule, stated in the two places it has to
