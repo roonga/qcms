@@ -355,7 +355,7 @@ executable assertion exists and was seen to run.
 | **SEC-8** secrets + redaction | **Verified, with a control added** | Placeholder secrets now refuse boot (§3.1). Config refusals name variables and never values, asserted. Refusals carry no stack, no file path and no token. A CI gate now refuses any logging call site that passes answer-shaped content and any live-looking value in an example env file. |
 | **SEC-9** transport/browser | **Verified, with a control added** | §3.4. Headers on served, refused and 404 responses; no CORS header on any response or preflight; body cap enforced at 413 **before** the credential gate. **Deviation: HSTS is emitted only by the ingress, by design.** |
 | **SEC-10** least-privilege DB roles | **Partly verified, gap recorded** | §3.6. Reporting recipe executed and asserted. App/migration split absent in code and in the docs §7 points at. |
-| **SEC-11** supply chain | **Partly verified, largest evidence gap** | §6. `pnpm audit` clean. Lockfile deduped. **Image scanning was not run: no scanner is installed in this environment. Base digests remain unpinned (#372). Provenance publishing is unverifiable: nothing is published (#360).** |
+| **SEC-11** supply chain | **Partly verified, largest evidence gap** | §6. `pnpm audit` clean. Lockfile deduped. **Image scanning was not run (not attempted; the scanners are single-binary installs, so this is a choice, not a blocker - see §6.2). Base digests remain unpinned (#372). Provenance publishing is unverifiable: nothing is published (#360).** |
 | **SEC-12** review + disclosure | **This document, plus `SECURITY.md`** | §8. |
 | **SEC-13** telemetry privacy | **Not re-verified here** | Covered by task 054/062's own suites (span/log allowlist, traced e2e asserting a known answer value appears in no captured payload). This review did not re-run them and did not probe the failure mode noted below. |
 
@@ -467,11 +467,42 @@ Also confirmed unchanged from #372:
 `docs/SECURITY_DESIGN.md` §9 asserts four things about images; **"pinned base
 digests" is false and "`pnpm audit` + osv-scanner in CI" is half false**
 (`pnpm audit` runs in `.github/workflows/audit.yml`; osv-scanner does not exist).
-Both sentences are corrected in this change under the staleness rule. The pinning
-work itself is **not** done here: the Code Owner has ruled it is not a 1.0
-blocker, and it carries an ordering constraint (pinning and Dependabot container
-coverage must land together) that makes it its own change rather than a rider on
-a review.
+Both sentences are corrected in this change under the staleness rule.
+
+**The pinning work itself is not done here, and the Code Owner ruling that
+licenses that deferral says more than this review first quoted.** The full
+ruling is:
+
+> Not a 1.0 blocker. `docs/features/040-security-review-hardening.md:18` already
+> schedules "image scan (trivy) on the three production images; base digests
+> pinned", so **040 is its natural home**, and doing it there means we measure
+> before and after.
+
+An earlier draft cited only the first clause. That is a selective quotation of a
+Code Owner ruling inside a document going to the Code Owner for sign-off, which
+is the worst possible place for one, so the whole ruling is reproduced above and
+the position is stated plainly: **the ruling nominates 040 as the home for this
+work, and 040 has declined it.**
+
+The reasons, so the Code Owner can overrule knowingly rather than infer:
+
+- **It is not blocked on tooling.** `trivy`, `osv-scanner`, `grype` and `syft`
+  are absent from this environment, but all four are single-binary installs. The
+  honest statement is "not attempted", not "could not be done", and §9 is
+  corrected to match.
+- **It is a second change, not a rider.** The same ruling requires digest pinning
+  and Dependabot container coverage to land **together**; that touches
+  `docker/*.Dockerfile`, `.github/dependabot.yml` and a new CI job, and it wants
+  the Compose gate re-run. Attaching it to a review whose subject is verification
+  would mix a measurement with a modification of the thing measured.
+- **The "measure before and after" value survives the deferral**, because the
+  before-state is now recorded precisely (§6.2: six floating `FROM` lines, no
+  `docker` ecosystem, no scanner anywhere in `.github/`). A later change can
+  measure against that.
+
+**This is a deviation from a written instruction and is recorded as one**, not
+presented as compliance. If the Code Owner wants it inside 040, the work is
+scoped in #372 and this document should not be signed off until it lands.
 
 ### 6.3 Repository posture
 
@@ -502,8 +533,12 @@ output to scan and no 037 CI to wire it into.
 
 ## 7. An observation against the §3.2 matrix, not a defect
 
-The "Internal service token alone" column marks **every** row with a cross,
-including "Start anonymous session". In the code, `POST /sessions` carrying only
+The "Internal service token alone" column marks every row with a cross **except
+`Health/ready`**, which is a tick, and the rows it crosses include "Start
+anonymous session". (An earlier draft of this paragraph said "every row", which
+is contradicted by the table two lines above it. Corrected here rather than left
+standing, since a document about claims outrunning their evidence cannot afford
+a miscount of the table it is describing.) In the code, `POST /sessions` carrying only
 the SEC-4 channel token succeeds with 201. It has to: that is exactly how the
 portal BFF starts a session for an anonymous respondent, and the same row's first
 column already marks it reachable by anonymous callers.
@@ -520,7 +555,7 @@ because changing a cell would misstate the property it is recording.
 
 | # | Criterion | State |
 |---|---|---|
-| 1 | Matrix suite green in CI, permanently | **Met.** `apps/api/e2e/security/` (3 files, 195 tests, all green) is picked up by the existing `qcms-api-e2e` project glob, so it runs in the unit job on every push with no CI wiring change. |
+| 1 | Matrix suite green in CI, permanently | **Met.** `apps/api/e2e/security/` (4 files, 200 tests, all green) is picked up by the existing `qcms-api-e2e` project glob, so it runs in the unit job on every push with no CI wiring change. |
 | 2 | All SEC-1…13 rows check out; deviations documented | **Met, with deviations documented in §4.** SEC-5 is reserved and unbuilt by design; SEC-13 was not re-verified here and relies on 054/062's suites; SEC-11 is the row with the real gap and it is named. |
 | 3 | Zero open high-severity findings; review doc committed | **Not met.** Review doc committed. **Two open highs: #470 (fix in flight on PR #480) and #390 (needs a Code Owner ruling).** The third high found by this review (F1, placeholder secrets) is fixed. |
 | 4 | `SECURITY.md` published; provenance publish verified | **Half met.** `SECURITY.md` is published and updated by this change: private disclosure via GitHub advisories, a response commitment, a supported-versions policy and a scope statement. **The provenance half is blocked on #360: the npm organisation does not exist and no `@qcms/*` package has been published, so `npm publish --provenance` cannot be configured, exercised or dry-run against a real registry. This is a Code Owner action and a 1.0 blocker in its own right; it is recorded as blocked, not claimed and not omitted.** |

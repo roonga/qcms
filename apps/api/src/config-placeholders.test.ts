@@ -15,7 +15,7 @@ import { describe, expect, it } from "vitest";
 // between the two lists is asserted rather than eyeballed (task 040 review).
 // @ts-expect-error - plain ESM tooling, deliberately untypechecked.
 import { PLACEHOLDER_SHAPES } from "../../../scripts/check-security-hygiene.mjs";
-import { loadConfig } from "./config.js";
+import { loadConfig, PLACEHOLDER_PREFIXES } from "./config.js";
 import { validEnv } from "./test-support.js";
 
 /** Verbatim from `.env.compose.example` (lines 7-9, 29, 52) and the app examples. */
@@ -157,5 +157,84 @@ describe("the remedy is correct for the kind of knob, not just for secrets", () 
     const result = loadWith({ QCMS_APP_KEY: SHIPPED_PLACEHOLDERS.QCMS_APP_KEY });
     expect(result.message).toContain("generate real secrets");
     expect(result.message).toContain("docs/operations.md");
+  });
+});
+
+describe("safety property: anything the repository gate calls a placeholder must not boot", () => {
+  /**
+   * The invariant, stated directionally because that is the direction that
+   * protects a deployment: **if `check-security-hygiene.mjs` waves a value
+   * through as an obvious placeholder, `loadConfig` must refuse to boot on it.**
+   * The converse is deliberately not asserted - the boot guard is allowed to be
+   * stricter than the committed-file gate, and an empty value is refused by a
+   * different rule ("is required") rather than as a placeholder.
+   *
+   * Derived from **both** constants rather than from hand-picked strings, which
+   * is what makes it survive a change to either. The previous test was 16
+   * literal candidates and structurally could not see the gap the PO review
+   * found: the gate accepted `/^replace[-_]/i` while the boot guard listed only
+   * `replace-with`, `replace-me` and `replace-this`, so
+   * `replace-before-you-deploy-a-real-key` passed the scan and booted.
+   */
+
+  /** The leading literal word of a gate shape, e.g. `/^replace[-_]/i` -> "replace". */
+  function stemOf(shape: RegExp): string | undefined {
+    const literal = /^\^([A-Za-z]+)/.exec(shape.source);
+    return literal?.[1];
+  }
+
+  const TAILS = [
+    "",
+    "-a-real-value-goes-here-padding-padding",
+    "_a_real_value_goes_here_padding_padding",
+    "-before-you-deploy-a-real-key",
+    "this-now-please-padding-padding-padding",
+  ];
+
+  /**
+   * Every candidate either side's vocabulary can produce: each gate stem and
+   * each boot-guard prefix, crossed with separator and suffix variants.
+   */
+  const CANDIDATES: string[] = [
+    ...new Set(
+      [
+        ...(PLACEHOLDER_SHAPES as RegExp[]).flatMap((shape) => {
+          const stem = stemOf(shape);
+          return stem === undefined ? [] : [`${stem}-`, `${stem}_`, stem];
+        }),
+        ...PLACEHOLDER_PREFIXES.filter((prefix) => /^[A-Za-z]/.test(prefix)),
+      ].flatMap((head) => TAILS.map((tail) => `${head}${tail}`)),
+    ),
+  ].filter((value) => value.trim() !== "");
+
+  const gateTreatsAsPlaceholder = (value: string): boolean =>
+    (PLACEHOLDER_SHAPES as RegExp[]).some((shape) => shape.test(value));
+
+  it("built a corpus from both lists, so the property is not vacuous", () => {
+    expect(CANDIDATES.length).toBeGreaterThan(20);
+    expect(CANDIDATES.some((value) => gateTreatsAsPlaceholder(value))).toBe(true);
+    // The exact string the PO review found, reached by construction rather than
+    // by being written down: gate stem "replace" + a tail.
+    expect(CANDIDATES).toContain("replace-before-you-deploy-a-real-key");
+  });
+
+  it("refuses to boot on every value the repository gate accepts as a placeholder", () => {
+    const leaks = CANDIDATES.filter(
+      (value) => gateTreatsAsPlaceholder(value) && loadWith({ QCMS_APP_KEY: value }).ok,
+    );
+    expect(
+      leaks,
+      "these values pass the committed-file gate as placeholders AND boot, which is how a published key reaches a running deployment",
+    ).toEqual([]);
+  });
+
+  it("holds for the key lists and the versioned admin secret too, not just one knob", () => {
+    const probe = "replace-before-you-deploy-a-real-key-padding";
+    expect(gateTreatsAsPlaceholder(probe)).toBe(true);
+    for (const name of ["QCMS_LINK_KEYS", "QCMS_SESSION_KEYS", "QCMS_INTERNAL_TOKEN"]) {
+      expect(loadWith({ [name]: probe }).ok, `${name} booted on a gate-accepted placeholder`).toBe(
+        false,
+      );
+    }
   });
 });

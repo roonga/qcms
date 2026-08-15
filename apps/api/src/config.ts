@@ -58,10 +58,15 @@ export const APP_KEY_MIN_LENGTH = 32;
  * prefix rather than on the exact strings keeps the guard working when the
  * example wording changes.
  */
-const PLACEHOLDER_PREFIXES: readonly string[] = [
-  "replace-with",
-  "replace-me",
-  "replace-this",
+export const PLACEHOLDER_PREFIXES: readonly string[] = [
+  // `replace-` rather than the three `replace-with` / `replace-me` /
+  // `replace-this` spellings it replaced. The narrow list left a real gap: the
+  // committed-secret gate accepts `/^replace[-_]/i` as a valid placeholder, so
+  // `replace-before-you-deploy-a-real-key` in an example file passed the
+  // repository scan **and** booted. Exported so
+  // `config-placeholders.test.ts` can assert the safety property across both
+  // lists rather than across hand-picked strings.
+  "replace-",
   "change-me",
   "changeme",
   "your-",
