@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { submitAnswer } from "@/lib/server/api";
-import { apiErrorResponse } from "@/lib/server/route-helpers";
+import { apiErrorResponse, isSameOriginPost } from "@/lib/server/route-helpers";
 import { readSessionToken } from "@/lib/server/session-cookie";
 
 /**
@@ -15,6 +15,11 @@ export async function POST(
   request: Request,
   ctx: { params: Promise<{ sessionId: string }> },
 ): Promise<NextResponse> {
+  // SEC-9's CSRF belt (issue #487), above the credential read: a cross-site caller
+  // is refused before this handler touches the session cookie at all.
+  if (!isSameOriginPost(request)) {
+    return NextResponse.json({ error: { code: "forbidden" } }, { status: 403 });
+  }
   const token = await readSessionToken();
   if (token === undefined) {
     return NextResponse.json({ error: { code: "unauthorized" } }, { status: 401 });
