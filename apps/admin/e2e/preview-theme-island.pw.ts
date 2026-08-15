@@ -34,20 +34,28 @@ import { createDraft } from "./support/questions.js";
  * so that the *product* can never hold a copy of these numbers. A test that asserted
  * "some colour changed" instead would pass against an island painted in Cobalt.
  *
- * ## Provable red
+ * ## Provable red: three probes, each run against this file
  *
- * Every assertion here was confirmed to fail with the scoping stripped, one predicate at
- * a time (the `data-qcms-theme-scope` attribute removed, then the carrier's restatement
- * of the type-scale floors removed). The two that matter most are the ones easiest to
- * write so that they can never fail:
+ * A green assertion is worth nothing until it has been seen to fail for the reason it
+ * names, so each half of the mechanism was removed in turn and the result recorded here.
+ * (Playwright's serial mode stops the file at the first failure, so each probe's evidence
+ * is *which* test went red on *which* predicate, not a count of reds.)
  *
- * - **The topbar's byte-identical check** (exit criterion 2) is paired with an explicit
- *   assertion that the ISLAND's own values did change across the same switch. Without
- *   that pairing, a switcher that did nothing at all would satisfy it perfectly.
- * - **The type-scale floors.** `--type-*` has no consumer inside an island by itself:
- *   what applies them in the respondent app is the portal APP's `body` rule, which this
- *   app does not import. So a carrier that only re-declared the variables would render
- *   at the authoring app's spacing while every token assertion above still passed.
+ * 1. **The carrier attribute removed** from the island's container. The first-paint test
+ *    fails on `--color-primary`, receiving the authoring app's Cobalt `#2456c6` where the
+ *    configured Harbor `#1f5eb8` was expected. That is the whole scoping mechanism, and
+ *    without it the class and the attribute are both still present and still inert -
+ *    which is exactly the state task 058's predecessor parked on.
+ * 2. **The carrier's restatement of the type-scale floors removed** (attribute intact).
+ *    The first-paint test fails on the type-scale object with `letterSpacing`,
+ *    `wordSpacing` and `fontFamily` moved: the island renders in Lexend at the authoring
+ *    app's spacing while every colour and geometry token still resolves correctly. It
+ *    also showed that `fontSize` and `lineHeight` do NOT discriminate (see TYPE_FLOORS).
+ * 3. **The container frozen at the defaults** while the switcher still moves visibly.
+ *    The first-paint test still passes, and "switching the island restyles the island
+ *    only" fails on `islandAfter.primary`. That is the probe that matters most: it is the
+ *    vacuous green the topbar's byte-identical check would otherwise report, and it is
+ *    caught only because that check is paired with an assertion that the island DID move.
  *
  * ## The portalled overlays are deliberately not asserted here
  *
@@ -113,18 +121,28 @@ const COBALT_LIGHT = { primary: "#2456c6", radiusControl: "4px" } as const;
 const PORTAL_RADIUS_CONTROL = "6px";
 
 /**
- * The WCAG 1.4.12 text-spacing floors as they compute at the portal's 16px body size.
- *
+ * The WCAG 1.4.12 text-spacing floors as they compute at the portal's 16px body size:
  * `--type-letter-spacing: 0.12em` and `--type-word-spacing: 0.16em` against a 16px
- * `--type-body`, and `--type-line-height: 1.5`. The authoring app sets none of these,
- * so its own body computes `normal` for both spacings - which is what makes each of
- * these a real discriminator rather than a value that agrees by coincidence.
+ * `--type-body`, with `--type-line-height: 1.5` and the brand-neutral system stack.
+ *
+ * **Three of these five discriminate and two do not, and the difference was measured
+ * rather than assumed.** Stripping the carrier's restatement (see the header's provable-
+ * red note) moves `letterSpacing`, `wordSpacing` and `fontFamily`; it leaves `fontSize`
+ * and `lineHeight` exactly where they are, because Tailwind's preflight already sets
+ * `line-height: 1.5` on the document and the authoring app's own body size is 16px too.
+ * So those two agree by coincidence: they are consistency checks that the island did not
+ * drift, not evidence that the carrier applied anything. They are kept for that first
+ * job and labelled here so no later reader mistakes them for the second.
  */
 const TYPE_FLOORS = {
   fontSize: "16px",
   lineHeight: "24px",
   letterSpacing: "1.92px",
   wordSpacing: "2.56px",
+  // The first family only: the portal's stack resolved from `--font-portal`, against
+  // this app's Lexend. `fonts.css` is deliberately not imported here, so this value can
+  // only have come from the token sheet's anchor block resolving on the carrier.
+  fontFamily: "ui-sans-serif",
 } as const;
 
 /** The labels the catalog gives the two controls (ADR-27). */
@@ -163,6 +181,20 @@ function computed(target: Locator, property: string): Promise<string> {
     (element, name) => getComputedStyle(element).getPropertyValue(name),
     property,
   );
+}
+
+/** The five text-spacing properties {@link TYPE_FLOORS} names, in one round trip. */
+function typeScaleOf(target: Locator): Promise<Record<string, string>> {
+  return target.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      fontSize: style.fontSize,
+      lineHeight: style.lineHeight,
+      letterSpacing: style.letterSpacing,
+      wordSpacing: style.wordSpacing,
+      fontFamily: style.fontFamily.split(",")[0]!.trim(),
+    };
+  });
 }
 
 /** Land on a question detail screen with a rendered preview, and let it settle. */
@@ -207,15 +239,11 @@ test("the island paints the deployment's configured theme before anything is tou
   // Geometry, not only colour: the whole token set is re-declared on the carrier.
   expect(await token(surface, "--radius-control")).toBe(PORTAL_RADIUS_CONTROL);
 
-  // The floors that the variables alone do not carry (see the header).
-  expect(await computed(surface, "font-size")).toBe(TYPE_FLOORS.fontSize);
-  expect(await computed(surface, "line-height")).toBe(TYPE_FLOORS.lineHeight);
-  expect(await computed(surface, "letter-spacing")).toBe(TYPE_FLOORS.letterSpacing);
-  expect(await computed(surface, "word-spacing")).toBe(TYPE_FLOORS.wordSpacing);
-  // The portal's brand-neutral stack rather than this app's Lexend. `fonts.css` is not
-  // imported here, so `--font-portal` can only have come from the token sheet's anchor
-  // block resolving on the carrier.
-  expect(await computed(surface, "font-family")).toContain("ui-sans-serif");
+  // The floors that the variables alone do not carry (see the header and TYPE_FLOORS).
+  // Read as ONE object rather than five assertions so a probe that strips the carrier's
+  // restatement reports every property it moved in a single run, instead of stopping at
+  // the first - which is how the two non-discriminating members below were found.
+  expect(await typeScaleOf(surface)).toEqual(TYPE_FLOORS);
 
   // NO island control resolves an authoring-app token. Read on a control INSIDE the
   // carrier rather than on the carrier itself, because inheritance is the mechanism
@@ -373,18 +401,33 @@ test("the switcher is localized, keyboard-operable and shows focus", async ({ pa
   await expect(themePicker).toBeVisible();
   await expect(modePicker).toBeVisible();
 
-  // Keyboard alone: focus the trigger, open it, move, commit. No pointer anywhere.
+  // Keyboard alone: reach the trigger, open it, move, commit. No pointer anywhere.
+  //
+  // Focus ARRIVES BY TAB rather than by `.focus()`, and that is load-bearing rather than
+  // stylistic: `:focus-visible` is a heuristic about how focus was acquired, and Chromium
+  // does not apply it to a button focused from script with no keyboard interaction behind
+  // it. Measuring the ring after a programmatic focus therefore reports "no indicator" on
+  // a control that indicates perfectly well for the operator this criterion is about. The
+  // seek-and-return pair is what puts a real keyboard event in front of the focus.
   await themePicker.focus();
+  await page.keyboard.press("Shift+Tab");
+  await page.keyboard.press("Tab");
   await expect(themePicker).toBeFocused();
-  // A visible indicator on the focused control (WCAG 2.4.11), drawn by the shell's
-  // guaranteed `:focus-visible` rule or by the vendored control's own ring.
-  const outline = await themePicker.evaluate((element) => {
+
+  // A visible indicator on the focused control (WCAG 2.2 - 2.4.11), drawn either by the
+  // shell's guaranteed `:focus-visible` rule or by the vendored control's own ring.
+  const indicator = await themePicker.evaluate((element) => {
     const style = getComputedStyle(element);
-    return { width: style.outlineWidth, style: style.outlineStyle, shadow: style.boxShadow };
+    return {
+      outlineStyle: style.outlineStyle,
+      outlineWidth: style.outlineWidth,
+      ring: style.boxShadow,
+    };
   });
   expect(
-    outline.style !== "none" || outline.shadow !== "none",
-    "the focused switcher trigger draws an indicator",
+    (indicator.outlineStyle !== "none" && indicator.outlineWidth !== "0px") ||
+      indicator.ring !== "none",
+    `the focused switcher trigger draws an indicator (${JSON.stringify(indicator)})`,
   ).toBe(true);
 
   await page.keyboard.press("Enter");
