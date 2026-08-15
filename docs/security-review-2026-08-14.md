@@ -65,7 +65,7 @@ than a finding. Severity below is this review's own, re-derived from the code.
 
 | Issue | One line | Severity (this review) | State at close of review |
 |---|---|---|---|
-| #470 | Response CSV export has no formula-injection guard | **HIGH** | **Open.** Fix in flight on PR #480; not on `main` |
+| #470 | Response CSV export has no formula-injection guard | **HIGH** | **Closed.** PR #480 merged; present in this branch's base `fbc674f`. Severity unchanged: it was a HIGH when reviewed |
 | #390 | better-auth sign-in throttle is off unless `NODE_ENV=production`, with no boot signal | **HIGH** | **Open.** Needs a Code Owner ruling; three options on the issue |
 | #432 | No 2FA reset, so a leaked `QCMS_ADMIN_AUTH_SECRET` version can never be retired | MEDIUM (downgraded, see §3.3) | Open |
 | #453 | SEC-6/SEC-7 promised a webhook dual-signing window that does not exist | MEDIUM | **Documentation half closed**; the product question is open. Behaviour now asserted (§3.5) |
@@ -156,7 +156,7 @@ placeholder there. That is not a hole: with the API refusing, the deployment doe
 not come up at all. Extending it to the two apps was left out deliberately to
 keep this change out of the browser-gated app trees; it is worth a follow-up.
 
-### 3.2 #470 (HIGH, open): CSV formula injection in the response export
+### 3.2 #470 (HIGH, closed in the base): CSV formula injection in the response export
 
 Confirmed present on `main`: `apps/api/src/features/responses/admin/csv.ts`
 performs RFC 4180 quoting and no leading-character guard, while
@@ -167,7 +167,14 @@ public, anonymously-startable form reaches the unguarded one.
 **Not fixed here, deliberately.** PR #480 (issue #470) implements it via a shared
 `@qcms/csv` helper and was still open at the close of this review. Adding a second
 copy of the guard is exactly the defect that produced the finding, so this review
-records it and does not touch it. **Criterion 3 cannot be met until #480 merges.**
+recorded it and did not touch it.
+
+**Closed since, in this branch's base (fact refresh, 2026-08-15).** PR #480
+merged and #470 is closed; the guard is present in `fbc674f`, which is the merge
+base this document was re-verified against (§1). The finding above stands as
+written: it was a HIGH, it was real, and the severity is not reclassified. Only
+its *state* moved, and only because someone else's change landed. **This does not
+alter criterion 3, which remains unmet on #390.**
 
 ### 3.3 #432 (downgraded to MEDIUM): no 2FA reset, no auth-key retirement
 
@@ -428,7 +435,8 @@ adjacent to a quoted literal there - **but not** a statement assembled elsewhere
 and passed by variable, which needs data-flow analysis. So the finding is
 broader than the guard that preserves it, and the guard says so itself. **Gap: CSV formula injection
 in the response export (#470), which is an injection into the operator's
-spreadsheet rather than into the database.**
+spreadsheet rather than into the database. Closed in the base `fbc674f` since
+this review was written; it was open when the walk was performed.**
 
 **Error handling and logging.** One envelope for every failure; unhandled errors
 return an opaque `errorId` with the stack logged and never returned, asserted here
@@ -572,14 +580,15 @@ because changing a cell would misstate the property it is recording.
 |---|---|---|
 | 1 | Matrix suite green in CI, permanently | **Met.** `apps/api/e2e/security/` is picked up by the existing `qcms-api-e2e` project glob, so it runs in the `verify` job on every push with no CI wiring change - **that membership is the criterion, and it is what does not go stale**. The case count is a measurement, not a promise: 4 files and 201 cases at `3dd475d`, and it moves whenever a case is added. It has already been quoted stale twice in this document, which is why it is now written with the commit it was measured at rather than as a bare figure. |
 | 2 | All SEC-1…13 rows check out; deviations documented | **Met, with deviations documented in §4.** SEC-5 is reserved and unbuilt by design; SEC-13 was not re-verified here and relies on 054/062's suites; SEC-11 is the row with the real gap and it is named. |
-| 3 | Zero open high-severity findings; review doc committed | **Not met.** Review doc committed. **Two open highs: #470 (fix in flight on PR #480) and #390 (needs a Code Owner ruling).** The third high found by this review (F1, placeholder secrets) is fixed. |
+| 3 | Zero open high-severity findings; review doc committed | **Not met.** Review doc committed. **One open high: #390 (needs a Code Owner ruling).** The second high this criterion cited, #470, closed in the base `fbc674f` when PR #480 merged; the third found by this review (F1, placeholder secrets) is fixed here. The verdict is unchanged: one open high is still not zero. |
 | 4 | `SECURITY.md` published; provenance publish verified | **Half met.** `SECURITY.md` is published and updated by this change: private disclosure via GitHub advisories, a response commitment, a supported-versions policy and a scope statement. **The provenance half is blocked on #360: the npm organisation does not exist and no `@qcms/*` package has been published, so `npm publish --provenance` cannot be configured, exercised or dry-run against a real registry. This is a Code Owner action and a 1.0 blocker in its own right; it is recorded as blocked, not claimed and not omitted.** |
 | 5 | 038's pre-flight references this review doc by date | **Met as far as 040 can meet it.** `docs/features/038-launch-gate-validation.md`'s pre-flight list now cites this document by path and date, with the note that a later pass supersedes it. Actually *running* the pre-flight is 038's work and 038 has not run. |
 
 **On #361.** Its criterion is "zero open high-severity findings", which is
-criterion 3 above. That criterion is **not met today**, on two named findings with
-two named owners: #470 needs PR #480 merged, #390 needs a ruling. Neither is
-blocked on anything this task can do. Criterion 4's provenance half does **not**
+criterion 3 above. That criterion is **not met today**, on one named finding with
+a named owner: #390 needs a Code Owner ruling. (#470, the other blocker when this
+was written, closed in the base `fbc674f`.) It is not blocked on anything this
+task can do. Criterion 4's provenance half does **not**
 hold #361 open; it belongs to #360.
 
 ---
@@ -594,8 +603,8 @@ later, so each one is named here and in the pull request body.
 | **#471** | `apps/api/src/middleware/security-headers.ts` sets the SEC-9 header set on every API response, asserted on served, refused and 404 responses in `02-transport-and-limits.e2e.ts`. `docs/SECURITY_DESIGN.md` §5's "Delivered: 017" is now true rather than aspirational. |
 | **#444** | Recommended for closure rather than closed by a code change: the two advisories no longer resolve in the lockfile and `pnpm audit` reports zero findings (§6.1). Closing it is a judgement for whoever merges. |
 
-**Not closed, and deliberately not touched:** #470 (fix in flight on PR #480),
-#478 (claimed on `fix/478-revoke-form-scope`), #390 and #482 (need a ruling),
+**Not closed by this task, and deliberately not touched:** #470 (was in flight on
+PR #480; has since merged into the base `fbc674f`), #478 (claimed on `fix/478-revoke-form-scope`), #390 and #482 (need a ruling),
 #372 (needs its own change with an ordering constraint), #432, #401, #402.
 
 ---
@@ -639,7 +648,7 @@ lives only in a review document is a finding nobody is going to action.
 
 | # | Follow-up | Where it lives now |
 |---|---|---|
-| 1 | Merge PR #480 (#470). The only open high anyone is already working on, and the one thing standing between this tree and criterion 3 | **#470** / PR #480 |
+| 1 | ~~Merge PR #480 (#470)~~ - **done**, merged into the base `fbc674f`. It was the only open high anyone was already working on | **#470** closed |
 | 2 | Rule on #390, then add the boot line naming whether the sign-in throttle is active and what trusted-hop count resolved | **#390** (needs a Code Owner ruling) |
 | 3 | Give the portal the Origin/Sec-Fetch-Site check the admin has | **#487** |
 | 4 | Record that every rate limit is per-process, so replicas multiply them | **#488** |
