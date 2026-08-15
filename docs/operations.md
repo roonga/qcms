@@ -91,6 +91,40 @@ allowlist: unknown event names are normalized and unknown attributes are discard
 before batching. Treat `[REDACTED]` as the control working, not as missing data; use
 `requestId`, `errorId`, `trace_id` and `span_id` for diagnosis (SEC-13).
 
+### Checking that sign-in throttling is running
+
+The admin sign-in surface is brute-force throttled by better-auth: three attempts per
+ten seconds per client address on `/sign-in`, `/change-password` and `/two-factor/*`
+(SEC-1). Whether that limiter runs is **currently decided by `NODE_ENV`**, which the
+library reads once at startup and never again. Every image QCMS ships sets
+`NODE_ENV=production`, so a deployment built from them is throttled; a process started
+outside them, with `NODE_ENV` unset or set to anything else, is not.
+
+An API process that mounts the admin surface says which it is, once, at boot:
+
+```json
+{"level":"info","time":"2026-08-15T08:32:40.128Z","service":"qcms-api","enabled":true,"addressHeaders":"x-qcms-client-address","msg":"sign-in throttling active"}
+```
+
+or, when it is not running,
+
+```json
+{"level":"warn","time":"2026-08-15T08:32:40.128Z","service":"qcms-api","enabled":false,"addressHeaders":"x-qcms-client-address","msg":"sign-in throttling is NOT running in this process: ..."}
+```
+
+Both examples are real emitted lines and parse as JSON, so you can pipe them straight
+into `jq` while building a filter. Two things to expect from the shape: `msg` comes
+**last**, after the fields, because the logger appends it there, so match on the fields
+rather than on position. And the second example abbreviates the `msg` value, which in a
+real line continues past the colon with what is switched off and what decides it; the
+ellipsis is inside the string, so the line still parses.
+
+Grep the first boot lines for `sign-in throttling`. The state is read back from the
+limiter's own resolved configuration rather than from what this deployment asked for,
+so the line reports what is true even when the two differ. `addressHeaders` names the
+header the limiter keys buckets on, never an address (SEC-8, SEC-13); make sure your
+ingress feeds it, per `docs/deploy-ingress.md`, or every caller shares one bucket.
+
 ## Environment reference
 
 Generated from the code that reads each variable, and asserted against it by
@@ -127,7 +161,7 @@ Validated at boot by `apps/api/src/config.ts`, which collects every problem and 
 | `TURNSTILE_SECRET_KEY` (secret) | conditional | - | Turnstile verification secret. Required when `QCMS_FLAG_CHALLENGE_PROVIDER=turnstile`, ignored otherwise. |
 | `PORT` | optional | `3000` | TCP port the API listens on inside its container. `QCMS_PORT` is accepted as a fallback spelling. The images expose 3000 and Compose never republishes it. |
 | `QCMS_PORT` | optional | `3000` | Prefixed alias for `PORT`, read only when `PORT` is unset. |
-| `NODE_ENV` | optional | `production (set by the image)` | Decides the default for `QCMS_ADMIN_SECURE_COOKIES` when that is unset. The production Dockerfiles set it; do not unset it in a deployment. |
+| `NODE_ENV` | optional | `production (set by the image)` | Decides the default for `QCMS_ADMIN_SECURE_COOKIES` when that is unset, **and whether admin sign-in is brute-force throttled at all** (SEC-1): better-auth enables its limiter only at `production`, reading the value once at startup. The production Dockerfiles set it; do not unset it in a deployment. The boot line under "Checking that sign-in throttling is running" above says which way it went. |
 | `QCMS_FLAG_CHALLENGE_PROVIDER` | optional | `none` | Abuse-control challenge provider (ADR-24 registry): `none` or `turnstile`. An unknown `QCMS_FLAG_*` variable fails boot rather than being ignored. |
 | `QCMS_ADMIN_2FA` | optional | `required` | Administrator TOTP policy (SEC-1): `required` or `optional`. `optional` is a development escape hatch, never a production setting. |
 | `QCMS_ADMIN_SECURE_COOKIES` | optional | `true when NODE_ENV=production` | Whether cookies set on the admin origin carry `Secure`. It describes the **browser-facing** scheme, which this process cannot observe, so it is a knob rather than only an inference. Must hold the same value in the `api` and `admin` services or the browser keeps one cookie family and drops the other. The `admin` service refuses to start when it is false at a non-loopback `QCMS_ADMIN_BASE_URL` (issue #292), so a downgrade here is refused by the process the browser actually reaches. |

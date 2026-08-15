@@ -111,7 +111,14 @@ const ALLOWED = new Set(ALLOWED_AUTH_ENDPOINTS);
  */
 const instances = new WeakMap<Deps, AdminAuth>();
 
-function authFor(deps: Deps): AdminAuth {
+/**
+ * The instance this `Deps` serves auth from, building it if this is the first ask.
+ *
+ * Exported so the composition root can read the SEC-1 throttle state off the *same*
+ * object the mount below hands requests to (issue #390). A second instance built just
+ * to be inspected would be a different object answering a different question.
+ */
+export function adminAuthFor(deps: Deps): AdminAuth {
   const existing = instances.get(deps);
   if (existing !== undefined) return existing;
   const built = createAdminAuth({ db: deps.db, adminAuth: deps.config.adminAuth });
@@ -140,6 +147,6 @@ export const registerAdminAuthProxy: SliceRegistrar = (group, deps) => {
     if (!ALLOWED.has(`${request.method} ${authSubPath(request.url)}`)) {
       throw new ApiError("not_found", 404, "Not Found");
     }
-    return authFor(deps).handler(request);
+    return adminAuthFor(deps).handler(request);
   });
 };

@@ -9,6 +9,7 @@ import { twoFactor } from "better-auth/plugins/two-factor";
 
 import { CLIENT_ADDRESS_HEADER } from "../../client-address.js";
 import type { Config } from "../../config.js";
+import type { Logger } from "../../logger.js";
 
 /**
  * better-auth, configured in owned shell code (ADR-06, SECURITY_DESIGN §2.1 SEC-1).
@@ -141,6 +142,129 @@ export function warnIfBreachCheckDisabled(
   warn: (message: string) => void,
 ): void {
   if (!adminAuth.breachedPasswordCheck) warn(BREACH_CHECK_DISABLED_WARNING);
+}
+
+/**
+ * What SEC-1's sign-in throttle is actually doing in this process (issue #390).
+ *
+ * ## Why this exists
+ *
+ * The throttle is better-auth's, and whether it runs is **not** something this
+ * configuration currently states. Read against better-auth 1.6.26, the pinned version:
+ * `dist/context/create-context.mjs:171` resolves it as
+ * `options.rateLimit?.enabled ?? isProduction`, and `isProduction` is a module-scope
+ * `const` in `@better-auth/core/dist/env/env-impl.mjs:32` (`nodeENV === "production"`,
+ * over a `nodeENV` captured at `:30` on that module's first import). So the state of a security
+ * control is decided by `NODE_ENV`, once, before any request arrives, and nothing about
+ * the running process says which way it went. The shipped images set
+ * `NODE_ENV=production`; a process started outside them need not have.
+ *
+ * Whether to keep that coupling is a decision this shell does not make here. Being able
+ * to *see* which way it went is not a decision, and it is what this reports.
+ *
+ * ## Read back, never echoed
+ *
+ * Every field comes from `await auth.$context`, which is the object the limiter itself
+ * consults: in better-auth 1.6.26, `dist/api/rate-limiter/index.mjs:333` gates on
+ * `ctx.rateLimit.enabled`, and
+ * `getIp` (`@better-auth/core/dist/utils/ip.mjs:204`) reads the header list off
+ * `ctx.options.advanced.ipAddress`. Reporting the options this file passes in instead
+ * would report what was asked for, which is exactly the thing already known and exactly
+ * the thing that can be wrong.
+ *
+ * There is a **second** way the vendor leaves the sign-in surface unlimited that is not
+ * reported here: `advanced.ipAddress.disableIpTracking` makes `resolveRateLimitConfig`
+ * return `null` for a caller whose address does not resolve, and the check is skipped.
+ * It is absent because the type system proves it cannot be true - `ctx.options` is the
+ * literal options object built below, and `disableIpTracking` is not a property of it,
+ * so reading it back would not compile. A future edit that adds the option has to widen
+ * {@link SignInThrottleState} with it, and will be told so by `tsc`.
+ *
+ * ## What is deliberately not in here
+ *
+ * The **numbers**. In better-auth 1.6.26 the sign-in rule is three attempts per ten
+ * seconds (`getDefaultSpecialRules`, `dist/api/rate-limiter/index.mjs:370-377`, matching
+ * `/sign-in`, `/sign-up`, `/change-password` and `/change-email`), and the two-factor
+ * plugin adds the same shape for `/two-factor/*`
+ * (`dist/plugins/two-factor/index.mjs:314-320`). Neither is reachable from the resolved
+ * context: both are module-private to the vendor. Restating them here would be an
+ * inference printed as an observation, which is the failure mode this whole function
+ * exists to avoid, so they stay in this comment where a reader can see them sourced.
+ */
+export interface SignInThrottleState {
+  /**
+   * Whether a sign-in POST to this process can be refused with a 429: `rateLimit.enabled`
+   * as better-auth resolved it, `NODE_ENV` default included. The one field an operator
+   * needs.
+   */
+  readonly enabled: boolean;
+  /**
+   * The headers the limiter resolves a caller's address from, in order, as
+   * `getIp` reads them (better-auth 1.6.26, the pinned version:
+   * `@better-auth/core/dist/utils/ip.mjs:204`). Header
+   * **names**, never a value: an address identifies a person and SEC-8 and
+   * SEC-13 keep it out of a log line, which is why this reports where the
+   * limiter looks rather than what it found.
+   */
+  readonly addressHeaders: readonly string[];
+}
+
+/** The boot line when the throttle is running. */
+export const SIGN_IN_THROTTLE_ACTIVE_MESSAGE = "sign-in throttling active";
+
+/**
+ * The boot line when it is not, written for an operator who has to act on it: what is
+ * off, what that costs, why it is off, and what decides it. Long for the same reason
+ * {@link BREACH_CHECK_DISABLED_WARNING} is long: it is read once, by someone who did not
+ * write it, at the moment it matters.
+ */
+export const SIGN_IN_THROTTLE_INACTIVE_WARNING =
+  "sign-in throttling is NOT running in this process: the admin sign-in, change-password " +
+  "and two-factor endpoints have no brute-force limiter (SEC-1). better-auth decides this " +
+  "from NODE_ENV when the configuration does not state it, reading the value once at " +
+  "module load, so a process started outside the shipped images (which set " +
+  "NODE_ENV=production) runs unthrottled. See docs/operations.md.";
+
+/**
+ * Read the effective state off better-auth's resolved context.
+ *
+ * Awaiting `$context` forces the instance to finish initialising, which is why the
+ * caller is the composition root rather than a request path: by the time an admin
+ * signs in this has long since resolved.
+ */
+export async function readSignInThrottleState(auth: AdminAuth): Promise<SignInThrottleState> {
+  const ctx = await auth.$context;
+  return {
+    enabled: ctx.rateLimit.enabled,
+    addressHeaders: ctx.options.advanced.ipAddress.ipAddressHeaders,
+  };
+}
+
+/**
+ * Emit exactly one line saying whether the throttle is running, and answer the state so
+ * a caller (or a test) can compare it against what the limiter actually does.
+ *
+ * A line in **both** directions, unlike the breach-check warning above, which is silent
+ * when the control is on. The difference is what the two questions are: "has someone
+ * turned this off" is answered by a warning, and "is this on" - which is what issue #390
+ * asks and what nothing in the running system could answer - needs a line even when the
+ * answer is yes.
+ *
+ * `addressHeaders` is joined into a scalar rather than logged as an array so it survives
+ * the OTel export path, which takes string, number and boolean fields only.
+ */
+export async function logSignInThrottleState(
+  auth: AdminAuth,
+  logger: Pick<Logger, "info" | "warn">,
+): Promise<SignInThrottleState> {
+  const state = await readSignInThrottleState(auth);
+  const fields = {
+    enabled: state.enabled,
+    addressHeaders: state.addressHeaders.join(","),
+  };
+  if (state.enabled) logger.info(SIGN_IN_THROTTLE_ACTIVE_MESSAGE, fields);
+  else logger.warn(SIGN_IN_THROTTLE_INACTIVE_WARNING, fields);
+  return state;
 }
 
 /**
