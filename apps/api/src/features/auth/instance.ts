@@ -150,10 +150,11 @@ export function warnIfBreachCheckDisabled(
  * ## Why this exists
  *
  * The throttle is better-auth's, and whether it runs is **not** something this
- * configuration currently states. `dist/context/create-context.mjs:171` resolves it as
+ * configuration currently states. Read against better-auth 1.6.26, the pinned version:
+ * `dist/context/create-context.mjs:171` resolves it as
  * `options.rateLimit?.enabled ?? isProduction`, and `isProduction` is a module-scope
- * `const` in `@better-auth/core/dist/env/env-impl.mjs` (`nodeENV === "production"`,
- * over a `nodeENV` captured on that module's first import). So the state of a security
+ * `const` in `@better-auth/core/dist/env/env-impl.mjs:32` (`nodeENV === "production"`,
+ * over a `nodeENV` captured at `:30` on that module's first import). So the state of a security
  * control is decided by `NODE_ENV`, once, before any request arrives, and nothing about
  * the running process says which way it went. The shipped images set
  * `NODE_ENV=production`; a process started outside them need not have.
@@ -164,7 +165,8 @@ export function warnIfBreachCheckDisabled(
  * ## Read back, never echoed
  *
  * Every field comes from `await auth.$context`, which is the object the limiter itself
- * consults: `dist/api/rate-limiter/index.mjs:333` gates on `ctx.rateLimit.enabled`, and
+ * consults: in better-auth 1.6.26, `dist/api/rate-limiter/index.mjs:333` gates on
+ * `ctx.rateLimit.enabled`, and
  * `getIp` (`@better-auth/core/dist/utils/ip.mjs:204`) reads the header list off
  * `ctx.options.advanced.ipAddress`. Reporting the options this file passes in instead
  * would report what was asked for, which is exactly the thing already known and exactly
@@ -180,8 +182,8 @@ export function warnIfBreachCheckDisabled(
  *
  * ## What is deliberately not in here
  *
- * The **numbers**. better-auth's sign-in rule is three attempts per ten seconds
- * (`getDefaultSpecialRules`, `dist/api/rate-limiter/index.mjs:370-377`, matching
+ * The **numbers**. In better-auth 1.6.26 the sign-in rule is three attempts per ten
+ * seconds (`getDefaultSpecialRules`, `dist/api/rate-limiter/index.mjs:370-377`, matching
  * `/sign-in`, `/sign-up`, `/change-password` and `/change-email`), and the two-factor
  * plugin adds the same shape for `/two-factor/*`
  * (`dist/plugins/two-factor/index.mjs:314-320`). Neither is reachable from the resolved
@@ -198,7 +200,8 @@ export interface SignInThrottleState {
   readonly enabled: boolean;
   /**
    * The headers the limiter resolves a caller's address from, in order, as
-   * `getIp` reads them (`@better-auth/core/dist/utils/ip.mjs:204`). Header
+   * `getIp` reads them (better-auth 1.6.26, the pinned version:
+   * `@better-auth/core/dist/utils/ip.mjs:204`). Header
    * **names**, never a value: an address identifies a person and SEC-8 and
    * SEC-13 keep it out of a log line, which is why this reports where the
    * limiter looks rather than what it found.

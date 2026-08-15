@@ -22,7 +22,8 @@ import type { AdminAuth } from "./instance.js";
  *
  * That one runs under `NODE_ENV=production`, this one under `development`, and one
  * process cannot be both. better-auth's `nodeENV` is captured in a module-scope `const`
- * on the first import of `@better-auth/core/dist/env/env-impl.mjs`, and that module is a
+ * on the first import of `@better-auth/core/dist/env/env-impl.mjs:30` (better-auth
+ * 1.6.26, the pinned version), and that module is a
  * dependency, so Vitest externalises it: `vi.resetModules()` clears our own modules from
  * the registry but never re-evaluates it, and a second value of `NODE_ENV` inside one
  * file would be ignored. Per-file isolation is what actually makes the stub take, which
