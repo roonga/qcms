@@ -1485,6 +1485,104 @@ th,
   container-type: inline-size;
 }
 
+/* ==========================================================================
+   THE PREVIEW THEME ISLAND (task 058, ADR-38).
+
+   The switcher above, and the carrier below it. The carrier is the seam above
+   wearing `data-qcms-theme-scope`, which is what makes every block in
+   `@qcms/ui`'s theme.css - anchored `:is(:root, [data-qcms-theme-scope])` since
+   task 060 - re-declare the whole portal token set ON this element, geometry
+   included, over the Cobalt values it would otherwise inherit from `:root`. The
+   theme is a `data-theme` attribute and the mode a class on the same element,
+   exactly as the portal stamps them on `<html>`.
+
+   Nothing in this section writes a colour, a family or a size down: every
+   declaration reads a token, and which values those tokens hold is entirely
+   decided by the attribute and class the island puts on the element.
+   ========================================================================== */
+
+.qcms-preview-island {
+  display: flex;
+  flex-direction: column;
+  gap: var(--admin-stack);
+}
+
+/* The two controls, in the app's own filter-row language: they are AUTHORING
+   chrome sitting above the preview, not part of what a respondent sees, so they
+   wear this app's theme and its density like every other control here. They also
+   sit outside the carrier, which is why their own popovers - portalled to the
+   body by react-aria - are correctly in Cobalt rather than in the previewed
+   theme. */
+.qcms-preview-switcher {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--admin-stack);
+}
+.qcms-preview-switcher > * {
+  min-inline-size: 9rem;
+}
+
+/*
+ * THE CARRIER, and the half of the token contract that variables alone do not carry.
+ *
+ * `--type-*` has no consumer inside an island by itself. What applies the WCAG 1.4.12
+ * text-spacing floors in the respondent app is `apps/portal/app/globals.css`'s `body`
+ * rule - the portal APP's stylesheet, which this app does not import and never will
+ * (it also sets the portal's page background and its own shell chrome). So a carrier
+ * that only re-declared the variables would render the respondent's markup at the
+ * authoring app's spacing while every token assertion still passed, which is the
+ * failure mode this block exists to prevent: the five floors are restated here, read
+ * from the same tokens the portal reads them from, so the island is spaced like the
+ * portal and not like the page around it.
+ *
+ * `--font-portal` is the sixth: the portal's default is the brand-neutral system
+ * stack, this app's face is Lexend, and text inherits, so without this the preview
+ * would be the right size in the wrong typeface. The fallback matches the portal's own
+ * `body` rule byte for byte, and it is load-bearing here rather than defensive - this
+ * app deliberately does not import `fonts.css`, so `--font-portal` comes only from the
+ * token sheet's anchor block.
+ *
+ * The specificity is (0,2,0) against `.qcms-preview`'s (0,1,0), which is what lets the
+ * background and colour below win over the dashed-box rule that both classes share.
+ */
+.qcms-preview-surface[data-qcms-theme-scope] {
+  /* See the `color-scheme` note below the paragraph rule. */
+  color-scheme: light;
+  background-color: var(--color-background);
+  color: var(--color-text);
+  font-family: var(--font-portal, ui-sans-serif, system-ui, sans-serif);
+  font-size: var(--type-body);
+  line-height: var(--type-line-height);
+  letter-spacing: var(--type-letter-spacing);
+  word-spacing: var(--type-word-spacing);
+}
+
+/* The paragraph-spacing floor (1.4.12's fifth). The portal applies it inside its
+   content column; the carrier IS the content column here. */
+.qcms-preview-surface[data-qcms-theme-scope] p {
+  margin-block: 0 var(--type-paragraph-spacing);
+}
+.qcms-preview-surface[data-qcms-theme-scope] p:last-child {
+  margin-block-end: 0;
+}
+
+/*
+ * `color-scheme` on the island, not on the root - and this is the one property that
+ * makes the island's isolation two-way for the parts of a control the token contract
+ * cannot reach. UA-drawn internals (a date segment's spinner affordances, a scrollbar
+ * inside a long control, the caret) follow this keyword, so a preview in Dark sitting
+ * on a Light authoring page would otherwise draw light UA chrome over dark surfaces.
+ * `color-scheme` is inherited and applies per element, so naming it here scopes it to
+ * the subtree exactly as the tokens are scoped.
+ *
+ * High-contrast keeps the `light` set above, matching what `theme-components.css` does
+ * on the portal root: HC is a distinct choice rather than a shade of Dark.
+ */
+.qcms-preview-surface[data-qcms-theme-scope].dark {
+  color-scheme: dark;
+}
+
 /* Standard clip-rect visually hidden utility: present for assistive tech,
    removed from the visual layout without display:none, which would also
    remove it from the accessibility tree. */

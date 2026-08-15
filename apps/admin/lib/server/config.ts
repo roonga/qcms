@@ -16,6 +16,8 @@
  * for the CSRF origin check below; the API reads it too, for better-auth's `baseURL`.
  */
 
+import { DEFAULT_PREVIEW_THEME, parsePreviewTheme, type PreviewTheme } from "../preview-theme.ts";
+
 /** The SEC-4 internal-token header the API requires on every call. */
 export const INTERNAL_TOKEN_HEADER = "x-qcms-internal-token";
 
@@ -255,6 +257,33 @@ export function adminBaseUrl(): string {
   let base = required("QCMS_ADMIN_BASE_URL");
   while (base.endsWith("/")) base = base.slice(0, -1);
   return base;
+}
+
+/**
+ * The respondent theme the preview island starts in (task 058).
+ *
+ * **The same variable the portal reads**, spelled identically, because it names the same
+ * deployment fact: which of the four predefined themes this deployment serves
+ * respondents (`apps/portal/lib/server/theme.ts`). Composition supplies it to both
+ * apps, so an author previewing a question sees the appearance that deployment actually
+ * ships rather than the authoring app's own Cobalt, and neither side can be configured
+ * into disagreeing with the other by a rename.
+ *
+ * Read here rather than in the island itself because the island is a client component
+ * and `lib/server/` is unreachable from one by construction (the R2 import-surface
+ * test). The three preview pages are server components; each passes the answer down as
+ * a prop, which is also what makes the island's FIRST paint correct - a value fetched
+ * after hydration would repaint the preview in front of the author.
+ *
+ * An unrecognized value falls back to the base theme rather than throwing, matching the
+ * portal's own tolerance for a typo in presentation config: a misspelt theme name must
+ * degrade a preview, never take an authoring session down.
+ *
+ * Nothing here is a secret. It is in `lib/server/` because reading the environment is
+ * server work in a strict BFF (R2), not because the value needs protecting.
+ */
+export function previewPortalTheme(): PreviewTheme {
+  return parsePreviewTheme(process.env.QCMS_PORTAL_THEME) ?? DEFAULT_PREVIEW_THEME;
 }
 
 /**

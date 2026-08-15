@@ -11,11 +11,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Alert, Button } from "@/components/kit";
 import { IssueEntry } from "@/components/forms/validation-panel";
+import { PreviewThemeIsland } from "@/components/preview-theme-island";
 import type { DraftPreviewState } from "@/lib/forms/builder-state";
 import { IDLE_DRAFT_PREVIEW } from "@/lib/forms/builder-state";
 import type { CompiledStep, DraftForm } from "@/lib/forms/types";
 import { t, tPlural } from "@/lib/i18n/en";
 import { unexpected } from "@/lib/ops/unexpected";
+import type { PreviewTheme } from "@/lib/preview-theme";
 
 /**
  * The live draft preview (task 034; wireframe "preview").
@@ -59,9 +61,11 @@ import { unexpected } from "@/lib/ops/unexpected";
  * - Nothing in this path assumes the preview shares the admin's theme context. The
  *   surface is where a step's styling begins, so a change of styling context is a change
  *   to that one element and to nothing else.
- * - Task 058 mounts its theme island on this container. This task builds the boundary and
- *   deliberately not the switcher: there is no theme selection here, no mode switching,
- *   and no portal-theme defaulting.
+ * - Task 058 mounted the theme island on that container and moved the container's markup
+ *   into `PreviewThemeIsland`, so the boundary is now declared in one place and all three
+ *   preview surfaces mount the same one. The container carries `data-qcms-theme-scope`
+ *   (ADR-38) plus the selected theme and mode, so what renders below is the respondent
+ *   token set rather than this app's Cobalt.
  *
  * It also protects exit criterion 3. The fidelity comparison is of the rendered form
  * subtree *inside* the surface, so wrapping the surface later changes nothing the
@@ -74,8 +78,11 @@ const DEBOUNCE_MS = 250;
 export function DraftPreview({
   draft,
   preview,
+  defaultTheme,
 }: {
   readonly draft: DraftForm | null;
+  /** The deployment's configured portal theme, read on the server by the page. */
+  readonly defaultTheme: PreviewTheme;
   readonly preview: (input: {
     readonly draft: DraftForm;
     readonly answers: Readonly<Record<string, unknown>>;
@@ -227,7 +234,7 @@ export function DraftPreview({
             })}
           </p>
 
-          <div className="qcms-preview qcms-preview-surface" data-testid="qcms-preview-surface">
+          <PreviewThemeIsland defaultTheme={defaultTheme}>
             <A2UIStepRenderer
               document={documentForVisible(
                 { stepId: step.stepId, root: step.root as A2UIStepDocument["root"] },
@@ -247,7 +254,7 @@ export function DraftPreview({
                 {t("forms.preview.emptyStep")}
               </p>
             )}
-          </div>
+          </PreviewThemeIsland>
 
           {state.preview.flow.complete && (
             <p className="text-sm text-(--color-text-muted)" data-testid="qcms-preview-complete">

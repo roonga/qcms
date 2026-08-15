@@ -8,6 +8,7 @@ import { QuestionPreview } from "@/components/questions/question-preview";
 import { StatusTag } from "@/components/questions/status-tag";
 import { t } from "@/lib/i18n/en";
 import type { QuestionVersion } from "@/lib/questions/types";
+import { previewPortalTheme } from "@/lib/server/config";
 import { getPreview, getQuestion } from "@/lib/server/questions";
 import { requireAdminSession } from "@/lib/server/session";
 
@@ -144,7 +145,11 @@ export default async function QuestionDetailPage({
               {t("questions.preview.title")}
             </h2>
             {preview.ok ? (
-              <QuestionPreview preview={preview.data} resetKey={selected.version} />
+              <QuestionPreview
+                preview={preview.data}
+                resetKey={selected.version}
+                defaultTheme={previewPortalTheme()}
+              />
             ) : (
               <Alert variant="warning">
                 {t("questions.preview.unavailable", { message: preview.message })}

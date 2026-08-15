@@ -5,6 +5,7 @@ import { Alert } from "@/components/kit";
 import { FormPageHeader } from "@/components/forms/form-page-header";
 import { VersionView } from "@/components/forms/version-view";
 import { t } from "@/lib/i18n/en";
+import { previewPortalTheme } from "@/lib/server/config";
 import { getForm, getFormVersion } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
 
@@ -54,7 +55,7 @@ export default async function FormVersionPage({
       <Link className="qcms-text-link" href={`/forms/${encodeURIComponent(form.formId)}/versions`}>
         {t("forms.history.backToHistory")}
       </Link>
-      <VersionView snapshot={snapshot.data} />
+      <VersionView snapshot={snapshot.data} defaultTheme={previewPortalTheme()} />
     </div>
   );
 }
