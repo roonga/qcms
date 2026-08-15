@@ -95,10 +95,16 @@ before batching. Treat `[REDACTED]` as the control working, not as missing data;
 
 The admin sign-in surface is brute-force throttled by better-auth: three attempts per
 ten seconds per client address on `/sign-in`, `/change-password` and `/two-factor/*`
-(SEC-1). Whether that limiter runs is **currently decided by `NODE_ENV`**, which the
-library reads once at startup and never again. Every image QCMS ships sets
-`NODE_ENV=production`, so a deployment built from them is throttled; a process started
-outside them, with `NODE_ENV` unset or set to anything else, is not.
+(SEC-1). It is **on by default in every environment**, and the only thing that turns it
+off is `QCMS_ADMIN_SIGNIN_THROTTLE` set to a false value. A deployment that configures
+nothing is throttled.
+
+`NODE_ENV` does not decide this, and that is worth knowing if you have read
+better-auth's own documentation: the library defaults its limiter to on only under
+`NODE_ENV=production`, reading the value once at startup, and QCMS deliberately does not
+inherit that (issue #390). A general-purpose variable that gets set, and left unset, for
+a dozen unrelated reasons is the wrong switch for a security control, and a process
+started outside the shipped images used to run unthrottled because of it.
 
 An API process that mounts the admin surface says which it is, once, at boot:
 
@@ -124,6 +130,13 @@ limiter's own resolved configuration rather than from what this deployment asked
 so the line reports what is true even when the two differ. `addressHeaders` names the
 header the limiter keys buckets on, never an address (SEC-8, SEC-13); make sure your
 ingress feeds it, per `docs/deploy-ingress.md`, or every caller shares one bucket.
+
+The warn line is what an image carrying a development value looks like from outside, and
+it is the reason the switch is a QCMS-owned variable rather than an inference: the only
+way to reach that line is for something to have set `QCMS_ADMIN_SIGNIN_THROTTLE` false,
+and the line names it. If you see it in a deployment, unset the variable and restart. The
+repository's own `pnpm dev:portal` and `pnpm dev:admin` set it false, so this warn line
+is expected there and nowhere else.
 
 ## Environment reference
 
@@ -161,11 +174,12 @@ Validated at boot by `apps/api/src/config.ts`, which collects every problem and 
 | `TURNSTILE_SECRET_KEY` (secret) | conditional | - | Turnstile verification secret. Required when `QCMS_FLAG_CHALLENGE_PROVIDER=turnstile`, ignored otherwise. |
 | `PORT` | optional | `3000` | TCP port the API listens on inside its container. `QCMS_PORT` is accepted as a fallback spelling. The images expose 3000 and Compose never republishes it. |
 | `QCMS_PORT` | optional | `3000` | Prefixed alias for `PORT`, read only when `PORT` is unset. |
-| `NODE_ENV` | optional | `production (set by the image)` | Decides the default for `QCMS_ADMIN_SECURE_COOKIES` when that is unset, **and whether admin sign-in is brute-force throttled at all** (SEC-1): better-auth enables its limiter only at `production`, reading the value once at startup. The production Dockerfiles set it; do not unset it in a deployment. The boot line under "Checking that sign-in throttling is running" above says which way it went. |
+| `NODE_ENV` | optional | `production (set by the image)` | Decides the default for `QCMS_ADMIN_SECURE_COOKIES` when that is unset. The production Dockerfiles set it; do not unset it in a deployment. It does **not** decide whether admin sign-in is throttled, whatever better-auth's own documentation says about its limiter defaulting to production-only: `QCMS_ADMIN_SIGNIN_THROTTLE` decides that here, in every environment (SEC-1, issue #390). |
 | `QCMS_FLAG_CHALLENGE_PROVIDER` | optional | `none` | Abuse-control challenge provider (ADR-24 registry): `none` or `turnstile`. An unknown `QCMS_FLAG_*` variable fails boot rather than being ignored. |
 | `QCMS_ADMIN_2FA` | optional | `required` | Administrator TOTP policy (SEC-1): `required` or `optional`. `optional` is a development escape hatch, never a production setting. |
 | `QCMS_ADMIN_SECURE_COOKIES` | optional | `true when NODE_ENV=production` | Whether cookies set on the admin origin carry `Secure`. It describes the **browser-facing** scheme, which this process cannot observe, so it is a knob rather than only an inference. Must hold the same value in the `api` and `admin` services or the browser keeps one cookie family and drops the other. The `admin` service refuses to start when it is false at a non-loopback `QCMS_ADMIN_BASE_URL` (issue #292), so a downgrade here is refused by the process the browser actually reaches. |
 | `QCMS_ADMIN_PASSWORD_BREACH_CHECK` | optional | `true` | Whether an admin password is checked against the public breach corpus before it is accepted (SEC-1; NIST SP 800-63B Rev 4 3.1.1.2, OWASP ASVS 5.0 6.2.12). When on, setting a password makes one HTTPS request to `api.pwnedpasswords.com/range/{prefix}` carrying the first five hex characters of the password's SHA-1 and nothing else; the password never leaves the process. **The check fails closed**: if that host is unreachable the password is refused, so on an air-gapped deployment `qcms:create-admin` cannot create the first admin at all until you set this to `false`. Doing so is a documented downgrade against both standards, supported for a structurally offline deployment and as the break-glass for rotating a leaked password while the corpus is unreachable; the API and the CLI each log a loud warning at startup for as long as it is off. |
+| `QCMS_ADMIN_SIGNIN_THROTTLE` | optional | `true` | Whether the admin sign-in surface is brute-force throttled (SEC-1). On, three attempts per ten seconds per client address are allowed on `/sign-in`, `/sign-up`, `/change-password`, `/change-email` and `/two-factor/*`, and a fourth is refused with a `429`. **Defaults to on in every environment**, so a deployment that configures nothing is throttled; `NODE_ENV` has no say in it either way, which is deliberate (issue #390) and is the one place QCMS departs from better-auth's documented default. Setting it false is a development escape hatch for a local loop that signs in repeatedly, and it is the only way to turn the control off: a deployment that sets it serves an unlimited admin sign-in surface. The API logs a loud warn line naming this variable at every boot for as long as it is off, so an image that carries the development value is visible from the first line of its log rather than from an incident. See "Checking that sign-in throttling is running" above. |
 | `QCMS_ADMIN_SESSION_IDLE_MS` | optional | `3600000 (1h)` | Idle window before an administrator session expires (SEC-1). |
 | `QCMS_ADMIN_SESSION_MAX_AGE_MS` | optional | `43200000 (12h)` | Absolute administrator session lifetime measured from issue (SEC-1). Past it every admin call is a 401 regardless of activity, which is the cap an idle window alone cannot provide. |
 | `QCMS_SESSION_TTL_MS` | optional | `86400000 (24h)` | Lifetime of an anonymous respondent session. |

@@ -111,6 +111,7 @@ Legend: **req** required (boot fails without it) · opt optional · cond require
 | `QCMS_ADMIN_SESSION_MAX_AGE_MS` | `-` | opt | opt | opt | `-` |
 | `QCMS_ADMIN_SESSION_IDLE_MS` | `-` | `-` | `-` | opt | `-` |
 | `QCMS_ADMIN_PASSWORD_BREACH_CHECK` | `-` | `-` | `-` | opt | `-` |
+| `QCMS_ADMIN_SIGNIN_THROTTLE` | `-` | `-` | `-` | opt | `-` |
 | `QCMS_FLAG_CHALLENGE_PROVIDER` | opt | `-` | opt | leave unset | `-` |
 | `QCMS_TURNSTILE_SITE_KEY` | cond | `-` | `-` | `-` | `-` |
 | `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY` | `-` | `-` | cond | `-` | `-` |

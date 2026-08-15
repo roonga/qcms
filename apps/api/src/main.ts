@@ -83,9 +83,11 @@ export function main(telemetry: Telemetry): void {
   const app = createApp(deps, config.mount, { groups: appGroups });
 
   // Say whether SEC-1's sign-in throttle is running (issue #390). It is better-auth's
-  // limiter, and whether it runs is resolved from `NODE_ENV` once at module load unless
-  // the configuration states otherwise, so until this line an operator had no way to
-  // find out short of exhausting the limit against their own deployment.
+  // limiter, switched by `QCMS_ADMIN_SIGNIN_THROTTLE` (default on) through
+  // `createAdminAuth`, and until this line an operator had no way to find out which way
+  // it went short of exhausting the limit against their own deployment. Reading it back
+  // off the limiter's own resolved context is what makes the escape hatch's failure
+  // mode visible: set it false and this line warns.
   //
   // After `createApp` and guarded by the same `mount.admin` as the breach warning: this
   // is the first point where the auth instance for these `deps` is worth building, and

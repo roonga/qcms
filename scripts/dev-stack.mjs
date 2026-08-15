@@ -452,6 +452,23 @@ export function apiChildEnv({
     // the two agree by construction. `pnpm dev:portal` sets it too, so an admin started
     // separately against that API still matches.
     QCMS_ADMIN_BASE_URL: adminBaseUrl,
+    // The development escape hatch for SEC-1's sign-in throttle, and the reason the
+    // throttle could be turned on by default at all (issue #390).
+    //
+    // The control now defaults to ON in every environment, `NODE_ENV` no longer decides
+    // it, and a deployment that configures nothing is throttled. Its allowance is three
+    // attempts per ten seconds, which is right for the internet and wrong for a local
+    // loop where one developer signs in, enrols a factor, restarts the API and signs in
+    // again inside a minute. Left on here, the first thing the knob would teach anyone
+    // is how to route around it, and a control people route around is worse than one
+    // that is off, because it looks present.
+    //
+    // So it is off in `pnpm dev:portal` and `pnpm dev:admin`, stated in one line a
+    // reviewer can read, and nowhere else: not in the images, not in
+    // `docker-compose.yml`, not in `.env.compose.example`. The API says so at boot with
+    // a warn line naming this variable, which is the intended noise rather than a
+    // defect.
+    QCMS_ADMIN_SIGNIN_THROTTLE: "false",
   };
 }
 

@@ -233,6 +233,32 @@ export interface Config {
      * runtime bypass an attacker can reach.
      */
     readonly breachedPasswordCheck: boolean;
+    /**
+     * Whether the admin sign-in surface is brute-force throttled
+     * (`QCMS_ADMIN_SIGNIN_THROTTLE`, default **true**, SEC-1, issue #390).
+     *
+     * The limiter is better-auth's, and until this knob existed nothing here stated
+     * whether it ran: better-auth 1.6.26 resolves `enabled` as
+     * `options.rateLimit?.enabled ?? isProduction`
+     * (`dist/context/create-context.mjs:171`) over an `isProduction` captured once at
+     * module load from `NODE_ENV` (`@better-auth/core/dist/env/env-impl.mjs:30-32`).
+     * So a general-purpose variable, set for a dozen unrelated reasons and easy to
+     * leave unset outside the shipped images, decided a security control. This field
+     * is what removes that: `createAdminAuth` passes it through, and `NODE_ENV` no
+     * longer participates in either direction.
+     *
+     * **Default true, in every environment including development**, so an operator
+     * who configures nothing gets the control. Setting it false is the development
+     * escape hatch and the only way to turn the throttle off: it exists so a local
+     * loop that signs in repeatedly costs nothing, because a control people route
+     * around is worse than one that is off, since it looks present. A deployment that
+     * sets it false serves an unlimited admin sign-in, change-password and two-factor
+     * surface, and `logSignInThrottleState` says so in a warn line at every boot.
+     *
+     * Beside `breachedPasswordCheck` for the same reason it is: a deployment-posture
+     * knob rather than an ADR-24 feature flag.
+     */
+    readonly signInThrottle: boolean;
   };
   readonly readiness: {
     /** `/ready` DB-probe timeout in ms (`QCMS_READY_DB_TIMEOUT_MS`). */
@@ -676,6 +702,10 @@ export function parseAdminAuth(env: Env, issues: string[]): Config["adminAuth"] 
     // Defaults to true in every environment, including development: a control the
     // standards write as SHALL is not something a developer opts into.
     breachedPasswordCheck: parseBool(env, "QCMS_ADMIN_PASSWORD_BREACH_CHECK", true, issues),
+    // Defaults to true in every environment, including development, and deliberately
+    // does NOT read `NODE_ENV`: that variable deciding a security control is the whole
+    // of issue #390. An operator who configures nothing is throttled (SEC-1).
+    signInThrottle: parseBool(env, "QCMS_ADMIN_SIGNIN_THROTTLE", true, issues),
   };
 }
 
@@ -706,8 +736,10 @@ const UNMOUNTED_ADMIN_AUTH: Config["adminAuth"] = {
   idleMs: 0,
   secureCookies: false,
   // True rather than false even though nothing reads it: an inert record that says
-  // "breach checking off" is the wrong thing to find in a debug dump.
+  // "breach checking off" is the wrong thing to find in a debug dump. Same for the
+  // sign-in throttle below.
   breachedPasswordCheck: true,
+  signInThrottle: true,
 };
 
 /**
