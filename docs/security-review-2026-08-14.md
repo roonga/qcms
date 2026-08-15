@@ -6,7 +6,17 @@ review passed.
 **Executed by:** task 040 (`docs/features/040-security-review-hardening.md`),
 which runs the assurance plan in `docs/SECURITY_DESIGN.md` §10 (SEC-12).
 **Tree reviewed:** branch `feat/040-security-review-hardening`, based on
-`origin/main` at `c5748a4`.
+`origin/main` at `fbc674f`.
+
+**On the base, and why this is a restatement rather than a re-verification
+(`CONTRIBUTING.md`'s rebase rule).** The review was originally performed against
+`c5748a4` and the branch has since been rebased twice. The intervening `main`
+commits were diffed and none touches a control this document asserts on: they
+add `packages/csv` and its consumers, an `apps/admin` change and lockfile
+movement, with no change to the API's auth middleware, config parsing, token
+handling, webhook signing, headers or database roles. The executable evidence is
+independent of that argument in any case, because every suite cited here was
+re-run on the rebased tree rather than carried across.
 **Supersedes nothing.** The next review supersedes this one by date.
 
 ---
@@ -410,8 +420,13 @@ kernel against the published question definition, not by the transport.
 
 **Injection.** No `sql.raw` and no string-built SQL exists anywhere in the tree;
 every `sql` template is Drizzle's tagged form, which binds its interpolations.
-JSONB answer values are only ever bound. This is now a CI gate rather than an
-observation (`scripts/check-security-hygiene.mjs`). **Gap: CSV formula injection
+JSONB answer values are only ever bound. That finding is from reading the tree.
+The **standing** part of it is a CI gate
+(`scripts/check-security-hygiene.mjs`), which covers `sql.raw`, a bare
+interpolated template passed to `execute`/`query`, and `+` concatenation
+adjacent to a quoted literal there - **but not** a statement assembled elsewhere
+and passed by variable, which needs data-flow analysis. So the finding is
+broader than the guard that preserves it, and the guard says so itself. **Gap: CSV formula injection
 in the response export (#470), which is an injection into the operator's
 spreadsheet rather than into the database.**
 
@@ -555,7 +570,7 @@ because changing a cell would misstate the property it is recording.
 
 | # | Criterion | State |
 |---|---|---|
-| 1 | Matrix suite green in CI, permanently | **Met.** `apps/api/e2e/security/` (4 files, 200 tests, all green) is picked up by the existing `qcms-api-e2e` project glob, so it runs in the unit job on every push with no CI wiring change. |
+| 1 | Matrix suite green in CI, permanently | **Met.** `apps/api/e2e/security/` is picked up by the existing `qcms-api-e2e` project glob, so it runs in the `verify` job on every push with no CI wiring change - **that membership is the criterion, and it is what does not go stale**. The case count is a measurement, not a promise: 4 files and 201 cases at `3dd475d`, and it moves whenever a case is added. It has already been quoted stale twice in this document, which is why it is now written with the commit it was measured at rather than as a bare figure. |
 | 2 | All SEC-1…13 rows check out; deviations documented | **Met, with deviations documented in §4.** SEC-5 is reserved and unbuilt by design; SEC-13 was not re-verified here and relies on 054/062's suites; SEC-11 is the row with the real gap and it is named. |
 | 3 | Zero open high-severity findings; review doc committed | **Not met.** Review doc committed. **Two open highs: #470 (fix in flight on PR #480) and #390 (needs a Code Owner ruling).** The third high found by this review (F1, placeholder secrets) is fixed. |
 | 4 | `SECURITY.md` published; provenance publish verified | **Half met.** `SECURITY.md` is published and updated by this change: private disclosure via GitHub advisories, a response commitment, a supported-versions policy and a scope statement. **The provenance half is blocked on #360: the npm organisation does not exist and no `@qcms/*` package has been published, so `npm publish --provenance` cannot be configured, exercised or dry-run against a real registry. This is a Code Owner action and a 1.0 blocker in its own right; it is recorded as blocked, not claimed and not omitted.** |
