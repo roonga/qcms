@@ -31,6 +31,8 @@
  * against the table, not as a defect in the code.
  */
 
+import { Buffer } from "node:buffer";
+
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { seedAdminSession, synthSecret } from "../../src/test-support.js";
@@ -468,26 +470,55 @@ describe("token purposes cannot be cross-used", () => {
 describe("tampered and expired session tokens", () => {
   const step = (): Surface => SURFACES.find((s) => s.name === "GET /sessions/{id}/step") as Surface;
 
+  /**
+   * Alter one segment of a compact token so its **decoded bytes** change.
+   *
+   * The first version of these two cases mutated the *last* character of the
+   * segment, and was flaky at a measured 6 to 25 percent depending on segment
+   * length. base64url encodes 6 bits per character, so unless the byte length
+   * is a multiple of 3 the final character carries unused padding bits: several
+   * distinct final characters decode to identical bytes. Flipping the last
+   * character therefore produced, some fraction of runs, a *different string
+   * that was still a valid signature* - the request was served 200 and the
+   * assertion failed, for exactly the reason the test was supposed to disprove.
+   *
+   * The first character always carries six significant bits, so mutating it
+   * cannot be a no-op. The assertion below proves that per run rather than
+   * trusting the argument: if a future edit reintroduces a mutation that does
+   * not move the bytes, this fails here rather than intermittently downstream.
+   */
+  function tamperSegment(token: string, index: number): string {
+    const parts = token.split(".");
+    const segment = parts[index] as string;
+    const mutated = `${segment.startsWith("A") ? "B" : "A"}${segment.slice(1)}`;
+    expect(
+      Buffer.from(mutated, "base64url").toString("hex"),
+      "the tamper did not change the decoded bytes, so this proves nothing",
+    ).not.toBe(Buffer.from(segment, "base64url").toString("hex"));
+    parts[index] = mutated;
+    return parts.join(".");
+  }
+
   it("refuses a token whose signature segment was altered", async () => {
     const parts = sessionToken.split(".");
-    const sig = parts[parts.length - 1] as string;
-    const flipped = `${sig.slice(0, -1)}${sig.at(-1) === "A" ? "B" : "A"}`;
-    const tampered = [...parts.slice(0, -1), flipped].join(".");
+    const tampered = tamperSegment(sessionToken, parts.length - 1);
     expect(tampered).not.toBe(sessionToken);
     const res = await probe(all.app, step(), ctx, respondentHeaders(tampered));
     expect(res.status).toBe(401);
   });
 
   it("refuses a token whose claims segment was altered", async () => {
-    const parts = sessionToken.split(".");
-    const claims = parts[0] as string;
-    const tampered = [
-      `${claims.slice(0, -1)}${claims.at(-1) === "a" ? "b" : "a"}`,
-      ...parts.slice(1),
-    ].join(".");
+    const tampered = tamperSegment(sessionToken, 0);
     expect(tampered).not.toBe(sessionToken);
     const res = await probe(all.app, step(), ctx, respondentHeaders(tampered));
     expect(res.status).toBe(401);
+  });
+
+  it("serves the untampered token, so the two refusals above are about the tamper", async () => {
+    // Positive control for this block: without it, a suite-wide breakage of the
+    // respondent path would make both tamper cases pass for the wrong reason.
+    const res = await probe(all.app, step(), ctx, respondentHeaders());
+    expect(res.status).toBe(200);
   });
 
   it("refuses a bearer that is not a token at all", async () => {
