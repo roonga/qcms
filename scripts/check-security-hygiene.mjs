@@ -35,8 +35,13 @@
  * scope.** It flags `sql.raw(...)` anywhere; a template literal carrying an
  * interpolation passed *directly* to `execute`/`query` (a bare backtick, not a
  * `sql` tagged template, which is the safe form and is deliberately not
- * flagged); and `+` concatenation adjacent to a string literal in the first
- * argument of `execute`/`query`, in either order.
+ * flagged); and `+` concatenation adjacent to a quoted literal in the first
+ * argument of `execute`/`query`, in either order, where **quoted covers all
+ * three quote characters** - `"`, `'` and a backtick template carrying no
+ * interpolation. That last case is called out because "string literal" reads
+ * narrower than it is: ECMA-262 makes template literals their own grammar
+ * category, so a reader can fairly take the phrase to exclude them, and an
+ * earlier version of this rule genuinely did.
  *
  * **What it cannot catch**, and this is a limitation of regex rather than an
  * oversight: a statement assembled somewhere else and handed over as a plain
@@ -221,13 +226,20 @@ const RAW_SQL = [
     why: "a template literal with an interpolation passed straight to execute/query is unparameterized",
   },
   {
-    // `db.execute("select ... " + id)` - literal first, then concatenation.
-    pattern: /\.\s*(?:execute|query)\s*\(\s*(?:"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')\s*\+/g,
+    // `db.execute("select ... " + id)` - a literal first, then concatenation.
+    // The backtick branch matters: a template literal *without* an
+    // interpolation is just a string with different quotes, and multi-line SQL
+    // is exactly where an author reaches for one. Leaving it out let
+    // ``db.execute(`select ` + id)`` scan clean while the comment said "string
+    // literal", which is true of ECMA-262's grammar and misleading to a reader.
+    pattern:
+      /\.\s*(?:execute|query)\s*\(\s*(?:"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\$]|\\.)*`)\s*\+/g,
     why: "a SQL string concatenated with `+` and passed to execute/query is unparameterized",
   },
   {
     // `db.execute(prefix + "where id = '" + id + "'")` - identifier first.
-    pattern: /\.\s*(?:execute|query)\s*\(\s*[A-Za-z_$][\w$.]*\s*\+\s*(?:"|')/g,
+    // Backtick included for the same reason as above.
+    pattern: /\.\s*(?:execute|query)\s*\(\s*[A-Za-z_$][\w$.]*\s*\+\s*(?:"|'|`)/g,
     why: "a SQL string concatenated with `+` and passed to execute/query is unparameterized",
   },
 ];

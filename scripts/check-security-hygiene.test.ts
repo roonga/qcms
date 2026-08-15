@@ -145,12 +145,18 @@ describe("SQL concatenation, the form a regex can reach", () => {
   });
 });
 
-describe("the source globs cover the workspace they claim to", () => {
+describe("the scanned roots cover the workspace they claim to", () => {
   /**
-   * The gate reported "417 source files" while 34 tracked files, 29 of them
-   * `packages/ui/**` TSX, were outside every glob. A list of globs maintained by
-   * memory drifts the moment a new file type lands; this derives the expectation
-   * from what git actually tracks, so the drift is a red instead of a silence.
+   * The gate reported "417 source files" while 59 tracked files were outside its
+   * enumeration: 29 `packages/ui/**` TSX, 5 `apps/**` mjs, and every one of the
+   * 24 `scripts/*.mjs` including the gate itself, because a `scripts/**\/*.mjs`
+   * pathspec matches nothing when the files sit at the top level.
+   *
+   * This derives the expectation from what git actually tracks, so drift is a
+   * red instead of a silence. It deliberately keeps its **own** copies of the
+   * roots and extensions rather than importing `SOURCE_ROOTS` and
+   * `SOURCE_EXTENSIONS`: importing them would make the test restate the
+   * implementation and pass no matter what either says.
    */
   const EXECUTABLE = /\.(ts|tsx|mts|cts|mjs|cjs|js|jsx)$/;
   const ROOTS = ["apps/", "packages/", "scripts/", "tooling/"];
@@ -176,7 +182,7 @@ describe("the source globs cover the workspace they claim to", () => {
     );
     expect(
       missed,
-      "these tracked source files are outside every SOURCE_GLOBS entry, so the gate never opens them",
+      "these tracked source files are outside SOURCE_ROOTS/SOURCE_EXTENSIONS in scripts/check-security-hygiene.mjs, so the gate never opens them",
     ).toEqual([]);
   });
 
@@ -196,5 +202,22 @@ describe("the source globs cover the workspace they claim to", () => {
         `no file under ${root} is scanned`,
       ).toBe(true);
     }
+  });
+});
+
+describe("backtick concatenation, the evasion a quote-only alternation missed", () => {
+  it.each([
+    "await db.execute(`select * from forms where id = ` + id);",
+    "await db.execute(prefix + `where 1=1`);",
+    "await pool.query(`delete from answers where id = ` + id);",
+  ])("flags %s", (line) => {
+    expect(scanSql("probe.ts", line)).toHaveLength(1);
+  });
+
+  it("still leaves the sql tagged template alone, which is the safe form", () => {
+    // The regression this guards: adding a backtick to the quote class must not
+    // start flagging Drizzle's parameterizing template.
+    expect(scanSql("probe.ts", "await exec.execute(sql`select ${a} from t`);")).toHaveLength(0);
+    expect(scanSql("probe.ts", "await db.execute(sql`select 1`);")).toHaveLength(0);
   });
 });
