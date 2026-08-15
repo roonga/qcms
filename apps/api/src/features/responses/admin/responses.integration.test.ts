@@ -330,7 +330,9 @@ describe("CSV golden export + JSON round-trip (exit criterion 2)", () => {
     // spreadsheet. Fixture text is deliberately inert and obvious (SEC-8) - what
     // is asserted is that no cell of the emitted file begins with a character a
     // spreadsheet reads as the start of a formula.
-    const formId = await seedForm("frm_formula_guard", [["stp_a", ["q_note", "q_score"]]]);
+    const formId = await seedForm("frm_formula_guard", [
+      ["stp_a", ["q_note", "q_score", "q_balance"]],
+    ]);
     await seedSubmitted({
       formId,
       sessionId: "ses_formula_001",
@@ -338,6 +340,8 @@ describe("CSV golden export + JSON round-trip (exit criterion 2)", () => {
       entries: [
         { questionId: "q_note", value: "=FIXTURE_PAYLOAD" },
         { questionId: "q_score", value: "@FIXTURE_PAYLOAD" },
+        // Issue #476: a genuine negative number must survive as a number.
+        { questionId: "q_balance", value: -5 },
       ],
     });
 
@@ -347,10 +351,11 @@ describe("CSV golden export + JSON round-trip (exit criterion 2)", () => {
       new Uint8Array(await res.arrayBuffer()),
     );
 
-    expect(text).toContain(",'=FIXTURE_PAYLOAD,'@FIXTURE_PAYLOAD\r\n");
-    // No cell anywhere in the document opens with a formula lead. The header row
-    // is included on purpose: a questionId cannot start with one today, and this
-    // is the assertion that would notice if that ever changed. The split is the
+    expect(text).toContain(",'=FIXTURE_PAYLOAD,'@FIXTURE_PAYLOAD,-5\r\n");
+    // No cell anywhere in the document opens with a formula lead, unless it is a
+    // plain number, which cannot be evaluated as an expression. The header row is
+    // included on purpose: a questionId cannot start with one today, and this is
+    // the assertion that would notice if that ever changed. The split is the
     // naive one, which is sound here because this fixture quotes nothing.
     const cells = text
       .replace(/^\uFEFF/, "")
@@ -358,7 +363,10 @@ describe("CSV golden export + JSON round-trip (exit criterion 2)", () => {
       .filter((line) => line.length > 0)
       .flatMap((line) => line.split(","));
     expect(cells.length).toBeGreaterThan(0);
-    for (const cell of cells) expect(/^[=+\-@\t\r]/.test(cell)).toBe(false);
+    for (const cell of cells) {
+      if (/^-?\d+(?:\.\d+)?$/.test(cell)) continue;
+      expect(/^[=+\-@\t\r]/.test(cell)).toBe(false);
+    }
   });
 
   it("requires a version for CSV and 404s an unknown version", async () => {

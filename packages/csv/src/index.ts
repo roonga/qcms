@@ -17,7 +17,9 @@
  *    with any of them is prefixed with a single quote, which makes it inert.
  *    This matters most where a cell is attacker-controlled by design: a
  *    respondent types their answer into a public portal and the form author is
- *    the one who opens the file.
+ *    the one who opens the file. One exemption, {@link NUMERIC_LITERAL}: a plain
+ *    decimal number is not an expression, so a negative numeric answer exports
+ *    as the number it is rather than as text (issue #476).
  * 2. **RFC 4180 quoting** (RFC 4180 sections 2.5-2.7): a field containing a
  *    comma, a double quote, CR or LF is wrapped in double quotes, and embedded
  *    double quotes are doubled.
@@ -50,6 +52,39 @@ const FORMULA_LEAD = /^[=+\-@\t\r]/;
 const MUST_QUOTE = /[",\r\n]/;
 
 /**
+ * A plain decimal number, whole-string: optional minus, digits, at most one
+ * fractional part. Such a value is **exempt** from the guard (issue #476).
+ *
+ * The argument is narrow and it is the only one: a string of this shape cannot
+ * be evaluated as an expression, because after the optional sign it contains no
+ * operator, no function name and no reference. So prefixing it protects nothing
+ * and costs something real: `-5` would reach the author as the text `'-5`
+ * instead of the number they are trying to sum.
+ *
+ * `-` is the only lead this can exempt in practice. A value starting `=`, `+`,
+ * `@`, tab or CR never matches, which is deliberate: Excel coerces a leading `+`
+ * into a formula (`+1` is `=+1`), so a "positive number" is not a safe shape.
+ *
+ * Everything below is **guarded**, each for a stated reason:
+ *
+ * - `-1+1`, `-1-1`, `--5`: formulas that merely open numeric-looking. `-1+1`
+ *   evaluates to 0 in Excel. This is the pair the pattern exists to separate,
+ *   and the reason it is anchored at both ends rather than a prefix test.
+ * - `-5e3`, `-.5`: not shapes `String(n)` produces for a number a respondent
+ *   could realistically answer (exponential form needs `|n| >= 1e21` or
+ *   `< 1e-6`, and a bare leading `.` is never emitted at all). Admitting them
+ *   would mean putting `+` and an optional-digit part into this pattern, which
+ *   is precisely the widening that risks admitting `-1+1`. Being too narrow
+ *   costs a cosmetic apostrophe on an absurd value; being too wide ships a live
+ *   formula, so the tie breaks toward narrow.
+ * - `- 5`, `-5abc`, and a lone `-`: not numbers, and `- 5` is a formula to Excel.
+ *
+ * Two shapes never reach this test at all, because they do not start with a
+ * dangerous character and so are never guarded: `1_000` and `5-`.
+ */
+const NUMERIC_LITERAL = /^-?\d+(?:\.\d+)?$/;
+
+/**
  * Make a cell inert for a spreadsheet, leaving every other cell byte-identical.
  *
  * Note what this does not do: it does not strip, escape or validate the content.
@@ -57,7 +92,9 @@ const MUST_QUOTE = /[",\r\n]/;
  * an author reads is still the answer the respondent gave.
  */
 function guardFormulaLead(value: string): string {
-  return FORMULA_LEAD.test(value) ? `'${value}` : value;
+  if (!FORMULA_LEAD.test(value)) return value;
+  if (NUMERIC_LITERAL.test(value)) return value;
+  return `'${value}`;
 }
 
 /** Wrap a field in double quotes, doubling any it contains (RFC 4180 section 2.7). */

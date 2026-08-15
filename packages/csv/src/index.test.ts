@@ -51,6 +51,44 @@ for (const { name, field } of POLICIES) {
       expect(field('she said "hi"')).toBe('"she said ""hi"""');
     });
   });
+
+  describe(`${name}: the numeric exemption (issue #476)`, () => {
+    // A plain decimal number cannot be evaluated as an expression, so guarding it
+    // protects nothing and turns a number the author wants to sum into text.
+    const EXEMPT = ["-5", "-5.25", "-0", "-0.5", "5", "0", "42", "3.5"];
+    for (const value of EXEMPT) {
+      it(`leaves the plain number ${JSON.stringify(value)} unprefixed`, () => {
+        expect(cellText(field(value))).toBe(value);
+      });
+    }
+
+    // Everything that merely opens numeric-looking is still a formula.
+    const STILL_GUARDED = [
+      "-1+1",
+      "-1-1",
+      "--5",
+      "+1",
+      "=1",
+      "@1",
+      "-5e3",
+      "-.5",
+      "- 5",
+      "-5abc",
+      "-",
+    ];
+    for (const value of STILL_GUARDED) {
+      it(`still guards ${JSON.stringify(value)}`, () => {
+        expect(cellText(field(value))).toBe(`'${value}`);
+      });
+    }
+
+    it("discriminates -5 from -1+1 in one assertion", () => {
+      // The boundary the exemption turns on, asserted rather than assumed:
+      // `-1+1` evaluates to 0 in Excel, `-5` is a number.
+      expect(cellText(field("-5"))).toBe("-5");
+      expect(cellText(field("-1+1"))).toBe("'-1+1");
+    });
+  });
 }
 
 describe("the two quoting policies stay different", () => {

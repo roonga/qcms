@@ -75,6 +75,29 @@ describe("csvField (spreadsheet formula-injection guard, issue #470)", () => {
     expect(csvField('she said "hi"')).toBe('"she said ""hi"""');
   });
 
+  it("exempts a plain number, so a negative answer is not exported as text", () => {
+    // Issue #476: the guard would otherwise turn every negative numeric answer
+    // into `'-5`, which reaches the author as text rather than a number.
+    expect(csvField("-5")).toBe("-5");
+    expect(csvField("-5.25")).toBe("-5.25");
+    // The boundary: a value that only opens numeric-looking is still a formula.
+    expect(csvField("-1+1")).toBe("'-1+1");
+  });
+
+  it("carries a negative number through a data row unprefixed (issue #476)", () => {
+    const row = csvDataRow(
+      {
+        sessionId: "ses_number",
+        formVersion: 1,
+        submittedAt: new Date("2026-03-15T09:00:00.000Z"),
+        accessMode: "anonymous",
+        answers: { q_balance: -5, q_note: "-1+1" },
+      },
+      ["q_balance", "q_note"],
+    );
+    expect(row.endsWith(",-5,'-1+1" + CRLF)).toBe(true);
+  });
+
   it("guards an answer on the way into a data row, not only in isolation", () => {
     const row = csvDataRow(
       {
