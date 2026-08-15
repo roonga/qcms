@@ -324,6 +324,51 @@ describe("CSV golden export + JSON round-trip (exit criterion 2)", () => {
     expect([bytes[0], bytes[1], bytes[2]]).toEqual([0xef, 0xbb, 0xbf]);
   });
 
+  it("defuses a respondent answer a spreadsheet would execute on open (issue #470)", async () => {
+    // The export path, not the helper: a free-text answer arrives from a public
+    // portal, is stored, and comes back out as a cell an author opens in a
+    // spreadsheet. Fixture text is deliberately inert and obvious (SEC-8) - what
+    // is asserted is that no cell of the emitted file begins with a character a
+    // spreadsheet reads as the start of a formula.
+    const formId = await seedForm("frm_formula_guard", [
+      ["stp_a", ["q_note", "q_score", "q_balance"]],
+    ]);
+    await seedSubmitted({
+      formId,
+      sessionId: "ses_formula_001",
+      submittedAt: new Date("2026-03-15T09:00:00.000Z"),
+      entries: [
+        { questionId: "q_note", value: "=FIXTURE_PAYLOAD" },
+        { questionId: "q_score", value: "@FIXTURE_PAYLOAD" },
+        // Issue #476: a genuine negative number must survive as a number.
+        { questionId: "q_balance", value: -5 },
+      ],
+    });
+
+    const res = await get("/forms/frm_formula_guard/export?format=csv&version=1");
+    expect(res.status).toBe(200);
+    const text = new TextDecoder("utf-8", { ignoreBOM: true }).decode(
+      new Uint8Array(await res.arrayBuffer()),
+    );
+
+    expect(text).toContain(",'=FIXTURE_PAYLOAD,'@FIXTURE_PAYLOAD,-5\r\n");
+    // No cell anywhere in the document opens with a formula lead, unless it is a
+    // plain number, which cannot be evaluated as an expression. The header row is
+    // included on purpose: a questionId cannot start with one today, and this is
+    // the assertion that would notice if that ever changed. The split is the
+    // naive one, which is sound here because this fixture quotes nothing.
+    const cells = text
+      .replace(/^\uFEFF/, "")
+      .split("\r\n")
+      .filter((line) => line.length > 0)
+      .flatMap((line) => line.split(","));
+    expect(cells.length).toBeGreaterThan(0);
+    for (const cell of cells) {
+      if (/^-?\d+(?:\.\d+)?$/.test(cell)) continue;
+      expect(/^[=+\-@\t\r]/.test(cell)).toBe(false);
+    }
+  });
+
   it("requires a version for CSV and 404s an unknown version", async () => {
     await seedForm("frm_csv_guard", [["stp_a", ["q_name"]]]);
     expect((await get("/forms/frm_csv_guard/export?format=csv")).status).toBe(400);

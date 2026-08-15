@@ -39,6 +39,80 @@ describe("csvField (RFC 4180 quoting)", () => {
   });
 });
 
+describe("csvField (spreadsheet formula-injection guard, issue #470)", () => {
+  // Every cell of this export is respondent-controlled free text and the file is
+  // opened in a spreadsheet by the form author. Several spreadsheet programs
+  // evaluate a cell whose first character is one of these, so the cell is made
+  // inert with a leading apostrophe before any quoting decision. Fixture text is
+  // deliberately obvious rather than a working payload (SEC-8).
+  const DANGEROUS_LEADS = ["=", "+", "-", "@", "\t", "\r"] as const;
+
+  for (const lead of DANGEROUS_LEADS) {
+    it(`neutralises a cell starting ${JSON.stringify(lead)}`, () => {
+      const emitted = csvField(`${lead}FIXTURE_PAYLOAD`);
+      // The emitted cell no longer begins with the dangerous character: the
+      // apostrophe does, inside the quotes when the cell is quoted at all.
+      const cell = emitted.startsWith('"') ? emitted.slice(1) : emitted;
+      expect(cell.startsWith("'")).toBe(true);
+      expect(cell.startsWith(lead)).toBe(false);
+    });
+  }
+
+  it("guards without losing the RFC 4180 quoting a cell also needs", () => {
+    expect(csvField('=FIXTURE,"one"')).toBe('"\'=FIXTURE,""one"""');
+  });
+
+  // The positive control: the guard must not pass by mangling everything.
+  it("leaves an ordinary answer byte-identical", () => {
+    expect(csvField("no thank you")).toBe("no thank you");
+    expect(csvField("2 + 2 is 4")).toBe("2 + 2 is 4");
+    expect(csvField("opt_a;opt_b")).toBe("opt_a;opt_b");
+    expect(csvField("")).toBe("");
+  });
+
+  it("adds quoting and nothing else to a cell that needs only quoting", () => {
+    expect(csvField("Lovelace, Ada")).toBe('"Lovelace, Ada"');
+    expect(csvField('she said "hi"')).toBe('"she said ""hi"""');
+  });
+
+  it("exempts a plain number, so a negative answer is not exported as text", () => {
+    // Issue #476: the guard would otherwise turn every negative numeric answer
+    // into `'-5`, which reaches the author as text rather than a number.
+    expect(csvField("-5")).toBe("-5");
+    expect(csvField("-5.25")).toBe("-5.25");
+    // The boundary: a value that only opens numeric-looking is still a formula.
+    expect(csvField("-1+1")).toBe("'-1+1");
+  });
+
+  it("carries a negative number through a data row unprefixed (issue #476)", () => {
+    const row = csvDataRow(
+      {
+        sessionId: "ses_number",
+        formVersion: 1,
+        submittedAt: new Date("2026-03-15T09:00:00.000Z"),
+        accessMode: "anonymous",
+        answers: { q_balance: -5, q_note: "-1+1" },
+      },
+      ["q_balance", "q_note"],
+    );
+    expect(row.endsWith(",-5,'-1+1" + CRLF)).toBe(true);
+  });
+
+  it("guards an answer on the way into a data row, not only in isolation", () => {
+    const row = csvDataRow(
+      {
+        sessionId: "ses_guard",
+        formVersion: 1,
+        submittedAt: new Date("2026-03-15T09:00:00.000Z"),
+        accessMode: "anonymous",
+        answers: { q_note: "=FIXTURE_PAYLOAD" },
+      },
+      ["q_note"],
+    );
+    expect(row.endsWith(",'=FIXTURE_PAYLOAD" + CRLF)).toBe(true);
+  });
+});
+
 describe("serializeAnswerForCsv (canonical encodings)", () => {
   it("passes text through", () => {
     expect(serializeAnswerForCsv("hello")).toBe("hello");

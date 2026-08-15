@@ -62,9 +62,20 @@ describe("the batch CSV export", () => {
   it("defuses a field a spreadsheet would execute on open", () => {
     // Formula injection: several spreadsheet programs evaluate a cell starting with one
     // of these. A minted URL never starts with `=`, and an export that would hand a
-    // formula to an operator if one ever did is not one worth shipping.
-    const csv = mintedLinksCsv([minted({ url: "=HYPERLINK(1)" })]);
-    expect(csv).toContain('"\'=HYPERLINK(1)"');
+    // formula to an operator if one ever did is not one worth shipping. Since issue #470
+    // the guard is `@qcms/csv`, shared with the API's response export, where the cells
+    // really are respondent-controlled; this asserts it still reaches this export.
+    for (const lead of ["=", "+", "-", "@", "\t", "\r"]) {
+      const csv = mintedLinksCsv([minted({ url: `${lead}FIXTURE_PAYLOAD` })]);
+      expect(csv).toContain(`"'${lead}FIXTURE_PAYLOAD"`);
+    }
+  });
+
+  it("leaves an ordinary field's text untouched inside its quotes", () => {
+    // The positive control: a guard that prefixed everything would pass the case above.
+    const csv = mintedLinksCsv([minted({ url: "https://forms.example.test/l/abc.def" })]);
+    expect(csv).toContain('"https://forms.example.test/l/abc.def"');
+    expect(csv).not.toContain("'https");
   });
 
   it("names the file after the form it belongs to, with nothing a path could use", () => {
