@@ -66,7 +66,7 @@ than a finding. Severity below is this review's own, re-derived from the code.
 | Issue | One line | Severity (this review) | State at close of review |
 |---|---|---|---|
 | #470 | Response CSV export has no formula-injection guard | **HIGH** | **Closed.** PR #480 merged; present in this branch's base `fbc674f`. Severity unchanged: it was a HIGH when reviewed |
-| #390 | better-auth sign-in throttle is off unless `NODE_ENV=production`, with no boot signal | **HIGH** | **Open.** Needs a Code Owner ruling; three options on the issue |
+| #390 | better-auth sign-in throttle is off unless `NODE_ENV=production`, with no boot signal | **HIGH** | **Open, and now ruled.** Code Owner chose option B on 2026-08-15 ([comment](https://github.com/roonga/qcms/issues/390#issuecomment-5304199616)). The fix is open on PR #505 and unmerged, so the finding still stands |
 | #432 | No 2FA reset, so a leaked `QCMS_ADMIN_AUTH_SECRET` version can never be retired | MEDIUM (downgraded, see §3.3) | Open |
 | #453 | SEC-6/SEC-7 promised a webhook dual-signing window that does not exist | MEDIUM | **Documentation half closed**; the product question is open. Behaviour now asserted (§3.5) |
 | #401 | `QCMS_SECURE_COOKIES` parses leniently in the portal, strictly in the admin | MEDIUM | Open |
@@ -301,7 +301,7 @@ red and gets updated instead of quietly describing the old world.
 `docs/SECURITY_DESIGN.md` §7's "036 documents the split" is corrected in this
 change under the staleness rule.
 
-### 3.7 #390 / #482 (HIGH / MEDIUM, open): sign-in throttling
+### 3.7 #390 / #482 (HIGH / MEDIUM, both still open): sign-in throttling
 
 Re-confirmed from source: `apps/api/src/features/auth/instance.ts` configures
 better-auth with **no `rateLimit` key**, so the vendor default
@@ -324,9 +324,23 @@ CI environment and a production deployment; picking one is a Code Owner decision
 not an implementation detail. Turning it on unconditionally throttles every
 developer through one bucket, which is #482's finding pointed the other way.
 
-**Recommendation that needs no ruling** and would remove the "silently" from this
-finding: one boot log line naming whether the sign-in throttle is active, and the
-resolved trusted-proxy hop count for the process. It logs configuration, not an
+**Ruled since this was written (fact refresh, 2026-08-15).** The Code Owner chose
+**option B**: `enabled` is set from a QCMS-owned variable defaulting to on, so
+`NODE_ENV` stops deciding a security control
+([ruling](https://github.com/roonga/qcms/issues/390#issuecomment-5304199616)). So
+the sentence above is stale in one respect only, and it is worth being exact
+about which: **the decision is no longer outstanding, and the finding is.** The
+implementation is open on PR #505 (`fix/390-throttle-knob`) and **not merged**, so
+nothing in the shipped tree has changed and the severity is unaltered. #482 is
+untouched by this ruling and still needs one of its own.
+
+**Recommendation that needed no ruling, and has since been delivered** (#498,
+merged as `e1e9756`). It removes the "silently" from this finding: one boot log
+line naming whether the sign-in throttle is active, and the resolved
+trusted-proxy hop count for the process. Note the boundary, because it decides
+nothing about the criterion: `e1e9756` landed on `main` **after** this branch's
+base `fbc674f`, so the line is on `main` and is **not** in the tree this review
+verified. It logs configuration, not an
 address, so SEC-13 is untouched. This is the only in-process detection surface
 the design admits, and it also answers the residual in `docs/SECURITY_DESIGN.md`
 §8 (a hop count higher than the real proxy count is undetectable from inside).
@@ -580,14 +594,15 @@ because changing a cell would misstate the property it is recording.
 |---|---|---|
 | 1 | Matrix suite green in CI, permanently | **Met.** `apps/api/e2e/security/` is picked up by the existing `qcms-api-e2e` project glob, so it runs in the `verify` job on every push with no CI wiring change - **that membership is the criterion, and it is what does not go stale**. The case count is a measurement, not a promise: 4 files and 201 cases at `3dd475d`, and it moves whenever a case is added. It has already been quoted stale twice in this document, which is why it is now written with the commit it was measured at rather than as a bare figure. |
 | 2 | All SEC-1…13 rows check out; deviations documented | **Met, with deviations documented in §4.** SEC-5 is reserved and unbuilt by design; SEC-13 was not re-verified here and relies on 054/062's suites; SEC-11 is the row with the real gap and it is named. |
-| 3 | Zero open high-severity findings; review doc committed | **Not met.** Review doc committed. **One open high: #390 (needs a Code Owner ruling).** The second high this criterion cited, #470, closed in the base `fbc674f` when PR #480 merged; the third found by this review (F1, placeholder secrets) is fixed here. The verdict is unchanged: one open high is still not zero. |
+| 3 | Zero open high-severity findings; review doc committed | **Not met.** Review doc committed. **One open high: #390 - now ruled (option B, 2026-08-15) but not yet fixed, with PR #505 open and unmerged.** The second high this criterion cited, #470, closed in the base `fbc674f` when PR #480 merged; the third found by this review (F1, placeholder secrets) is fixed here. The verdict is unchanged: one open high is still not zero, and a ruling is not a fix. |
 | 4 | `SECURITY.md` published; provenance publish verified | **Half met.** `SECURITY.md` is published and updated by this change: private disclosure via GitHub advisories, a response commitment, a supported-versions policy and a scope statement. **The provenance half is blocked on #360: the npm organisation does not exist and no `@qcms/*` package has been published, so `npm publish --provenance` cannot be configured, exercised or dry-run against a real registry. This is a Code Owner action and a 1.0 blocker in its own right; it is recorded as blocked, not claimed and not omitted.** |
 | 5 | 038's pre-flight references this review doc by date | **Met as far as 040 can meet it.** `docs/features/038-launch-gate-validation.md`'s pre-flight list now cites this document by path and date, with the note that a later pass supersedes it. Actually *running* the pre-flight is 038's work and 038 has not run. |
 
 **On #361.** Its criterion is "zero open high-severity findings", which is
 criterion 3 above. That criterion is **not met today**, on one named finding with
-a named owner: #390 needs a Code Owner ruling. (#470, the other blocker when this
-was written, closed in the base `fbc674f`.) It is not blocked on anything this
+a named owner: #390, which has now been **ruled** (option B, 2026-08-15) but not
+yet fixed - PR #505 is open and unmerged. (#470, the other blocker when this was
+written, closed in the base `fbc674f`.) It is not blocked on anything this
 task can do. Criterion 4's provenance half does **not**
 hold #361 open; it belongs to #360.
 
@@ -604,7 +619,8 @@ later, so each one is named here and in the pull request body.
 | **#444** | Recommended for closure rather than closed by a code change: the two advisories no longer resolve in the lockfile and `pnpm audit` reports zero findings (§6.1). Closing it is a judgement for whoever merges. |
 
 **Not closed by this task, and deliberately not touched:** #470 (was in flight on
-PR #480; has since merged into the base `fbc674f`), #478 (claimed on `fix/478-revoke-form-scope`), #390 and #482 (need a ruling),
+PR #480; has since merged into the base `fbc674f`), #478 (claimed on `fix/478-revoke-form-scope`), #390 (**ruled** option B on
+2026-08-15; fix open on PR #505, unmerged), #482 (still needs a ruling of its own),
 #372 (needs its own change with an ordering constraint), #432, #401, #402.
 
 ---
@@ -649,7 +665,7 @@ lives only in a review document is a finding nobody is going to action.
 | # | Follow-up | Where it lives now |
 |---|---|---|
 | 1 | ~~Merge PR #480 (#470)~~ - **done**, merged into the base `fbc674f`. It was the only open high anyone was already working on | **#470** closed |
-| 2 | Rule on #390, then add the boot line naming whether the sign-in throttle is active and what trusted-hop count resolved | **#390** (needs a Code Owner ruling) |
+| 2 | ~~Rule on #390~~ - **done** (option B, 2026-08-15); the fix is open on PR #505 and unmerged. ~~Add the boot line naming whether the sign-in throttle is active and what trusted-hop count resolved~~ - **delivered** by #498, merged as `e1e9756`, which is after this branch's base | **#390** ruled, PR #505 open · **#498** merged |
 | 3 | Give the portal the Origin/Sec-Fetch-Site check the admin has | **#487** |
 | 4 | Record that every rate limit is per-process, so replicas multiply them | **#488** |
 | 5 | Redact `Error.message` / `Error.stack` on the stdout path, or record the accepted risk | **#489** |
