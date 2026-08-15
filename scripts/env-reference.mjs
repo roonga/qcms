@@ -246,7 +246,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "production (set by the image)",
     description:
-      'Decides the default for `QCMS_ADMIN_SECURE_COOKIES` when that is unset, **and whether admin sign-in is brute-force throttled at all** (SEC-1): better-auth enables its limiter only at `production`, reading the value once at startup. The production Dockerfiles set it; do not unset it in a deployment. The boot line under "Checking that sign-in throttling is running" above says which way it went.',
+      "Decides the default for `QCMS_ADMIN_SECURE_COOKIES` when that is unset. The production Dockerfiles set it; do not unset it in a deployment. It does **not** decide whether admin sign-in is throttled, whatever better-auth's own documentation says about its limiter defaulting to production-only: `QCMS_ADMIN_SIGNIN_THROTTLE` decides that here, in every environment (SEC-1, issue #390).",
   },
   {
     name: "QCMS_FLAG_CHALLENGE_PROVIDER",
@@ -279,6 +279,14 @@ export const ENV_REFERENCE = [
     fallback: "true",
     description:
       "Whether an admin password is checked against the public breach corpus before it is accepted (SEC-1; NIST SP 800-63B Rev 4 3.1.1.2, OWASP ASVS 5.0 6.2.12). When on, setting a password makes one HTTPS request to `api.pwnedpasswords.com/range/{prefix}` carrying the first five hex characters of the password's SHA-1 and nothing else; the password never leaves the process. **The check fails closed**: if that host is unreachable the password is refused, so on an air-gapped deployment `qcms:create-admin` cannot create the first admin at all until you set this to `false`. Doing so is a documented downgrade against both standards, supported for a structurally offline deployment and as the break-glass for rotating a leaked password while the corpus is unreachable; the API and the CLI each log a loud warning at startup for as long as it is off.",
+  },
+  {
+    name: "QCMS_ADMIN_SIGNIN_THROTTLE",
+    process: "api",
+    requirement: "optional",
+    fallback: "true",
+    description:
+      'Whether the admin sign-in surface is brute-force throttled (SEC-1). On, three attempts per ten seconds per client address are allowed on `/sign-in`, `/sign-up`, `/change-password`, `/change-email` and `/two-factor/*`, and a fourth is refused with a `429`. **Defaults to on in every environment**, so a deployment that configures nothing is throttled; `NODE_ENV` has no say in it either way, which is deliberate (issue #390) and is the one place QCMS departs from better-auth\'s documented default. Setting it false is a development escape hatch for a local loop that signs in repeatedly, and it is the only way to turn the control off: a deployment that sets it serves an unlimited admin sign-in surface. The API logs a loud warn line naming this variable at every boot for as long as it is off, so an image that carries the development value is visible from the first line of its log rather than from an incident. See "Checking that sign-in throttling is running" above.',
   },
   {
     name: "QCMS_ADMIN_SESSION_IDLE_MS",

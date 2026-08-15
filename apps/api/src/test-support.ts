@@ -52,6 +52,21 @@ export function validEnv(
     // those two are the coverage, not an accidental network call from every other
     // suite.
     QCMS_ADMIN_PASSWORD_BREACH_CHECK: "false",
+    // Off in the default test environment, and only here (issue #390). SEC-1's sign-in
+    // throttle now defaults to ON everywhere, `NODE_ENV` included, which is the whole
+    // point of the change - but its allowance is three attempts per ten seconds across
+    // one bucket, and a suite that drives sign-in, sign-up or two-factor more than three
+    // times inside a window would start reading 429s as its own failure. That includes
+    // the Playwright admin suite, whose API child is built from this helper through
+    // `apps/api/e2e/support/harness.ts`.
+    //
+    // The default is pinned as *on* by `config.test.ts` reading an environment with the
+    // variable deleted, the enforcement it produces is driven against a real limiter in
+    // `features/auth/sign-in-throttle.test.ts` and
+    // `features/auth/sign-in-throttle-state.test.ts`, and the full-stack Compose stack
+    // runs it at its shipped default. Those are the coverage, not an incidental 429 in
+    // an unrelated suite.
+    QCMS_ADMIN_SIGNIN_THROTTLE: "false",
     ...overrides,
   };
 }

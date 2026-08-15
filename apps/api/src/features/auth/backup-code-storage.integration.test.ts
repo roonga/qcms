@@ -69,6 +69,13 @@ function adminAuthConfig(
     // account creation - which fails closed, so the suite would go red on egress rather
     // than on the property under test.
     breachedPasswordCheck: false,
+    // On, matching the shipped default (issue #390), and it costs this file nothing:
+    // every request here goes through `auth.api.*` in process, and better-auth's
+    // limiter runs in the router's `onRequest` hook, which only `auth.handler` reaches
+    // (better-auth 1.6.26, the pinned version, `dist/api/index.mjs:162-168`). Stating
+    // the default rather than the escape hatch keeps this fixture from quietly becoming
+    // a place the control is off for no reason.
+    signInThrottle: true,
   };
 }
 

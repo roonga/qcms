@@ -149,18 +149,22 @@ export function warnIfBreachCheckDisabled(
  *
  * ## Why this exists
  *
- * The throttle is better-auth's, and whether it runs is **not** something this
- * configuration currently states. Read against better-auth 1.6.26, the pinned version:
+ * The throttle is better-auth's. Until issue #390 whether it ran was decided by
+ * `NODE_ENV`: read against better-auth 1.6.26, the pinned version,
  * `dist/context/create-context.mjs:171` resolves it as
  * `options.rateLimit?.enabled ?? isProduction`, and `isProduction` is a module-scope
  * `const` in `@better-auth/core/dist/env/env-impl.mjs:32` (`nodeENV === "production"`,
  * over a `nodeENV` captured at `:30` on that module's first import). So the state of a security
- * control is decided by `NODE_ENV`, once, before any request arrives, and nothing about
- * the running process says which way it went. The shipped images set
- * `NODE_ENV=production`; a process started outside them need not have.
+ * control was decided, once and before any request arrived, by a general-purpose
+ * variable that nothing about the running process reported.
  *
- * Whether to keep that coupling is a decision this shell does not make here. Being able
- * to *see* which way it went is not a decision, and it is what this reports.
+ * `createAdminAuth` above now passes `rateLimit.enabled` from
+ * `QCMS_ADMIN_SIGNIN_THROTTLE` (default **on**), which takes that `??` branch away, so
+ * `NODE_ENV` no longer participates in either direction. That is the decision half of
+ * #390; this function is the reporting half, and the pairing is the point. The one
+ * remaining way to serve an unthrottled sign-in surface is to set the escape hatch
+ * false, and setting it false is exactly what makes the warn line below fire, so the
+ * guard's failure mode is one its own detector can see.
  *
  * ## Read back, never echoed
  *
@@ -194,8 +198,8 @@ export function warnIfBreachCheckDisabled(
 export interface SignInThrottleState {
   /**
    * Whether a sign-in POST to this process can be refused with a 429: `rateLimit.enabled`
-   * as better-auth resolved it, `NODE_ENV` default included. The one field an operator
-   * needs.
+   * as better-auth resolved it, which since issue #390 is `QCMS_ADMIN_SIGNIN_THROTTLE`
+   * as this configuration passed it in. The one field an operator needs.
    */
   readonly enabled: boolean;
   /**
@@ -220,10 +224,11 @@ export const SIGN_IN_THROTTLE_ACTIVE_MESSAGE = "sign-in throttling active";
  */
 export const SIGN_IN_THROTTLE_INACTIVE_WARNING =
   "sign-in throttling is NOT running in this process: the admin sign-in, change-password " +
-  "and two-factor endpoints have no brute-force limiter (SEC-1). better-auth decides this " +
-  "from NODE_ENV when the configuration does not state it, reading the value once at " +
-  "module load, so a process started outside the shipped images (which set " +
-  "NODE_ENV=production) runs unthrottled. See docs/operations.md.";
+  "and two-factor endpoints have no brute-force limiter (SEC-1). This is on by default " +
+  "and something switched it off: QCMS_ADMIN_SIGNIN_THROTTLE is set to a false value in " +
+  "this environment. It is a development escape hatch, so unset it here unless this " +
+  "deployment is meant to serve an unlimited admin sign-in surface. See " +
+  "docs/operations.md.";
 
 /**
  * Read the effective state off better-auth's resolved context.
@@ -421,6 +426,31 @@ export function createAdminAuth(input: AdminAuthInput) {
     // No phone-home. better-auth's telemetry is opt-in upstream; saying so
     // explicitly means an upstream default flip cannot quietly turn it on.
     telemetry: { enabled: false },
+    // SEC-1's brute-force throttle on sign-in, change-password and two-factor, stated
+    // rather than inferred (issue #390).
+    //
+    // better-auth 1.6.26, the pinned version, resolves this as
+    // `options.rateLimit?.enabled ?? isProduction`
+    // (`dist/context/create-context.mjs:171`), and `isProduction` is
+    // `nodeENV === "production"` over a `NODE_ENV` captured once when
+    // `@better-auth/core/dist/env/env-impl.mjs` is first imported (`:30-32`). Passing a
+    // value here takes the `??` branch away, so the state of a security control is no
+    // longer decided by a general-purpose variable that people set, and forget to set,
+    // for unrelated reasons. Nothing else about the limiter changes: `window`, `max`
+    // and `storage` keep the vendor defaults (`:172-174`), and the sign-in allowance is
+    // still `getDefaultSpecialRules`' three attempts per ten seconds
+    // (`dist/api/rate-limiter/index.mjs:370-377`).
+    //
+    // `adminAuth.signInThrottle` defaults to **true**, so a deployment that configures
+    // nothing is throttled. It is a whole boolean rather than an "is this development"
+    // predicate on purpose: a predicate wrong in the direction `NODE_ENV` is wrong
+    // today would quietly stop protecting production while every diagnostic still read
+    // as healthy, which is worse than the bug being fixed here.
+    //
+    // Read back off `$context` by `readSignInThrottleState` below, which is what keeps
+    // the guard and its detector aligned: turning this off makes `ctx.rateLimit.enabled`
+    // false, and the boot line warns.
+    rateLimit: { enabled: adminAuth.signInThrottle },
     emailAndPassword: {
       enabled: true,
       // A floor, not a strength model: the blocklist plugin below is the control the

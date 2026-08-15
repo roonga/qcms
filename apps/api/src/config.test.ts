@@ -395,3 +395,55 @@ describe("QCMS_ADMIN_PASSWORD_BREACH_CHECK (SEC-1, issue #178)", () => {
     );
   });
 });
+
+describe("QCMS_ADMIN_SIGNIN_THROTTLE (SEC-1, issue #390)", () => {
+  /**
+   * The default is the whole ruling on #390: an operator who configures nothing gets
+   * the control. Everything else in this block exists to stop that default from being
+   * reachable by any route other than the variable itself.
+   *
+   * Asserted from an environment with the variable *deleted*, never from `validEnv()`:
+   * that helper sets it false so an unrelated suite driving four sign-ins does not read
+   * a 429 as its own failure, and asserting the default through it would read the
+   * helper's opinion back to itself.
+   */
+  it("defaults to ON when the variable is absent", () => {
+    const env = validEnv();
+    delete env.QCMS_ADMIN_SIGNIN_THROTTLE;
+    expect(loadConfig(env).adminAuth.signInThrottle).toBe(true);
+  });
+
+  /**
+   * The finding itself, at the configuration layer: before #390 the state of this
+   * control was `NODE_ENV === "production"`, resolved inside better-auth. Neither value
+   * may move it now, in either direction, or the defect is still here wearing a new
+   * name. The behavioural half of this - a real 429 from a real limiter under
+   * `NODE_ENV=development` - is `features/auth/sign-in-throttle-state.test.ts`.
+   */
+  it("is not moved by NODE_ENV, which is the defect this variable exists to remove", () => {
+    for (const nodeEnv of ["development", "production", "test", ""]) {
+      const env = validEnv({ NODE_ENV: nodeEnv });
+      delete env.QCMS_ADMIN_SIGNIN_THROTTLE;
+      expect(loadConfig(env).adminAuth.signInThrottle).toBe(true);
+    }
+  });
+
+  it("is honoured when set false, which is the development escape hatch", () => {
+    const config = loadConfig(validEnv({ QCMS_ADMIN_SIGNIN_THROTTLE: "false" }));
+    expect(config.adminAuth.signInThrottle).toBe(false);
+  });
+
+  it("stays on when set true explicitly", () => {
+    const config = loadConfig(validEnv({ QCMS_ADMIN_SIGNIN_THROTTLE: "true" }));
+    expect(config.adminAuth.signInThrottle).toBe(true);
+  });
+
+  it("refuses an uninterpretable value rather than guessing at it", () => {
+    // Boot fails naming the variable. A typo must not be a silent way to serve an
+    // unlimited sign-in surface. (`off`, `no` and `0` are spellings of false that
+    // `parseBool` accepts everywhere, so they are deliberate, not typos.)
+    expect(() => loadConfig(validEnv({ QCMS_ADMIN_SIGNIN_THROTTLE: "maybe" }))).toThrow(
+      ConfigError,
+    );
+  });
+});
