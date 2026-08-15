@@ -135,3 +135,27 @@ describe("the boot guard and the repository gate agree on what a placeholder is"
     expect(verdicts).toContain(false);
   });
 });
+
+describe("the remedy is correct for the kind of knob, not just for secrets", () => {
+  it("still refuses a placeholder DATABASE_URL (the rejection is not scoped away)", () => {
+    const result = loadWith({ DATABASE_URL: "replace-with-your-postgres-connection-string" });
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain("DATABASE_URL");
+    expect(result.message).toContain("placeholder");
+  });
+
+  it("does not tell an operator to generate a secret for a connection string", () => {
+    // The defect this pins: `parseRequiredString` serves two secrets and
+    // DATABASE_URL, so a single remedy sentence sent operators of a
+    // placeholder-shaped URL to the secret-generation runbook.
+    const result = loadWith({ DATABASE_URL: "replace-with-your-postgres-connection-string" });
+    expect(result.message).not.toContain("generate real secrets");
+    expect(result.message).toContain("set the value for this deployment");
+  });
+
+  it("still gives secrets the secret-generation remedy", () => {
+    const result = loadWith({ QCMS_APP_KEY: SHIPPED_PLACEHOLDERS.QCMS_APP_KEY });
+    expect(result.message).toContain("generate real secrets");
+    expect(result.message).toContain("docs/operations.md");
+  });
+});

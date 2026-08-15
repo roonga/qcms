@@ -88,17 +88,35 @@ function looksLikePlaceholder(raw: string): boolean {
 }
 
 /**
+ * What kind of knob a value is, which decides only the *remedy* sentence.
+ *
+ * The refusal itself applies to both: a placeholder `DATABASE_URL` should stop a
+ * boot exactly as a placeholder signing key should. What differs is the advice,
+ * and telling an operator to "generate real secrets" because their connection
+ * string still says `replace-with-...` sends them to the wrong runbook.
+ */
+type ConfigValueKind = "secret" | "setting";
+
+/**
  * Record a boot refusal for any placeholder among `values`. Reports the count
  * and the variable name only: SEC-8 forbids echoing the value even when the
  * value is known to be worthless, because the same code path handles real ones.
  */
-function rejectPlaceholders(name: string, values: readonly string[], issues: string[]): void {
+function rejectPlaceholders(
+  name: string,
+  values: readonly string[],
+  issues: string[],
+  kind: ConfigValueKind = "secret",
+): void {
   const placeholders = values.filter((value) => looksLikePlaceholder(value)).length;
-  if (placeholders > 0) {
-    issues.push(
-      `${name} still holds ${placeholders} placeholder value(s) from an example file; generate real secrets (see docs/operations.md) before booting`,
-    );
-  }
+  if (placeholders === 0) return;
+  const remedy =
+    kind === "secret"
+      ? "generate real secrets (see docs/operations.md) before booting"
+      : "set the value for this deployment before booting";
+  issues.push(
+    `${name} still holds ${placeholders} placeholder value(s) from an example file; ${remedy}`,
+  );
 }
 
 /** One rate-limit class: at most `max` requests per fixed `windowMs` per key. */
@@ -540,7 +558,13 @@ function pushOrderIssues(
   }
 }
 
-function parseRequiredString(env: Env, name: string, minLength: number, issues: string[]): string {
+function parseRequiredString(
+  env: Env,
+  name: string,
+  minLength: number,
+  issues: string[],
+  kind: ConfigValueKind = "secret",
+): string {
   const raw = env[name];
   if (raw === undefined || raw.trim() === "") {
     issues.push(`${name} is required`);
@@ -549,7 +573,7 @@ function parseRequiredString(env: Env, name: string, minLength: number, issues: 
   if (raw.length < minLength) {
     issues.push(`${name} must be at least ${minLength} characters`);
   }
-  rejectPlaceholders(name, [raw], issues);
+  rejectPlaceholders(name, [raw], issues, kind);
   return raw;
 }
 
@@ -793,7 +817,7 @@ export function loadAdminAuthConfig(env: Env): {
   readonly adminAuth: Config["adminAuth"];
 } {
   const issues: string[] = [];
-  const databaseUrl = parseRequiredString(env, "DATABASE_URL", 1, issues);
+  const databaseUrl = parseRequiredString(env, "DATABASE_URL", 1, issues, "setting");
   const adminAuth = parseAdminAuth(env, issues);
   if (issues.length > 0) throw new ConfigError(issues);
   return { databaseUrl, adminAuth };
@@ -825,7 +849,7 @@ const UNMOUNTED_ADMIN_AUTH: Config["adminAuth"] = {
 export function loadConfig(env: Env): Config {
   const issues: string[] = [];
 
-  const databaseUrl = parseRequiredString(env, "DATABASE_URL", 1, issues);
+  const databaseUrl = parseRequiredString(env, "DATABASE_URL", 1, issues, "setting");
   const mount = parseMount(env, issues);
   const link = parseKeyList(env, "QCMS_LINK_KEYS", MIN_SECRET_LENGTH, issues);
   const session = parseKeyList(env, "QCMS_SESSION_KEYS", MIN_SECRET_LENGTH, issues);

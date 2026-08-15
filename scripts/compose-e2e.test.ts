@@ -321,7 +321,25 @@ describe("harness secrets (task 040)", () => {
     }
   });
 
-  it("generates a fresh set per call", () => {
-    expect(harnessSecrets().QCMS_APP_KEY).not.toBe(harnessSecrets().QCMS_APP_KEY);
+  it("calls the generator once per variable, so no two secrets share a value", () => {
+    // Deterministic counter rather than the real RNG. Comparing two live calls
+    // would pass on a collision only astronomically rarely, but a test whose
+    // green depends on randomness is a test whose green cannot be fully
+    // trusted, and that distinction is the whole subject of this task.
+    let n = 0;
+    const secrets = harnessSecrets(() => `generated-${String(++n)}`);
+    const values = Object.values(secrets);
+    expect(new Set(values).size).toBe(values.length);
+    expect(n).toBe(values.length);
+  });
+
+  it("draws a fresh set on every call rather than memoising one", () => {
+    let n = 0;
+    const generate = (): string => `generated-${String(++n)}`;
+    const first = harnessSecrets(generate);
+    const second = harnessSecrets(generate);
+    // Every value in the second set is drawn after every value in the first.
+    expect(Object.values(first)).not.toEqual(Object.values(second));
+    expect(first.QCMS_APP_KEY).not.toBe(second.QCMS_APP_KEY);
   });
 });
