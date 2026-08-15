@@ -264,10 +264,19 @@ export function adminBaseUrl(): string {
  *
  * **The same variable the portal reads**, spelled identically, because it names the same
  * deployment fact: which of the four predefined themes this deployment serves
- * respondents (`apps/portal/lib/server/theme.ts`). Composition supplies it to both
- * apps, so an author previewing a question sees the appearance that deployment actually
- * ships rather than the authoring app's own Cobalt, and neither side can be configured
- * into disagreeing with the other by a rename.
+ * respondents (`apps/portal/lib/server/theme.ts`). Set it in both services and an author
+ * previewing a question sees the appearance that deployment actually ships rather than
+ * the authoring app's own Cobalt; the shared spelling is what stops the two sides being
+ * configured into disagreeing by a rename.
+ *
+ * **Setting it in both services is the operator's job today, not composition's.**
+ * `docker-compose.yml` passes this variable to neither the `admin` nor the `portal`
+ * service, so under the shipped Compose file both fall back to the base theme however
+ * the host environment is set. It is documented as an operator-set variable in
+ * `apps/admin/.env.example`, `apps/portal/.env.example` and the `docs/operations.md`
+ * table, which is the whole of the wiring that exists. Issue #499 tracks passing it
+ * through Compose; until that lands, do not read this function as evidence that a
+ * Compose deployment has been given a value.
  *
  * Read here rather than in the island itself because the island is a client component
  * and `lib/server/` is unreachable from one by construction (the R2 import-surface
