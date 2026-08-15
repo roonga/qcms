@@ -102,15 +102,22 @@ outside them, with `NODE_ENV` unset or set to anything else, is not.
 
 An API process that mounts the admin surface says which it is, once, at boot:
 
-```
-{"level":"info","msg":"sign-in throttling active","enabled":true,"addressHeaders":"x-qcms-client-address"}
+```json
+{"level":"info","time":"2026-08-15T08:32:40.128Z","service":"qcms-api","enabled":true,"addressHeaders":"x-qcms-client-address","msg":"sign-in throttling active"}
 ```
 
 or, when it is not running,
 
+```json
+{"level":"warn","time":"2026-08-15T08:32:40.128Z","service":"qcms-api","enabled":false,"addressHeaders":"x-qcms-client-address","msg":"sign-in throttling is NOT running in this process: ..."}
 ```
-{"level":"warn","msg":"sign-in throttling is NOT running in this process: ...","enabled":false,...}
-```
+
+Both examples are real emitted lines and parse as JSON, so you can pipe them straight
+into `jq` while building a filter. Two things to expect from the shape: `msg` comes
+**last**, after the fields, because the logger appends it there, so match on the fields
+rather than on position. And the second example abbreviates the `msg` value, which in a
+real line continues past the colon with what is switched off and what decides it; the
+ellipsis is inside the string, so the line still parses.
 
 Grep the first boot lines for `sign-in throttling`. The state is read back from the
 limiter's own resolved configuration rather than from what this deployment asked for,
