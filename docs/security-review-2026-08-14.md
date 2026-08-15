@@ -6,17 +6,22 @@ review passed.
 **Executed by:** task 040 (`docs/features/040-security-review-hardening.md`),
 which runs the assurance plan in `docs/SECURITY_DESIGN.md` §10 (SEC-12).
 **Tree reviewed:** branch `feat/040-security-review-hardening`, based on
-`origin/main` at `fbc674f`.
+`origin/main` at `669c769`.
 
-**On the base, and why this is a restatement rather than a re-verification
-(`CONTRIBUTING.md`'s rebase rule).** The review was originally performed against
-`c5748a4` and the branch has since been rebased twice. The intervening `main`
-commits were diffed and none touches a control this document asserts on: they
-add `packages/csv` and its consumers, an `apps/admin` change and lockfile
-movement, with no change to the API's auth middleware, config parsing, token
-handling, webhook signing, headers or database roles. The executable evidence is
-independent of that argument in any case, because every suite cited here was
-re-run on the rebased tree rather than carried across.
+**On the base, and how the argument for it has changed (`CONTRIBUTING.md`'s
+rebase rule).** The review was originally performed against `c5748a4` and the
+branch has been rebased three times since. Earlier rebases could be justified by
+the intervening commits touching no control this document asserts on. **That is
+no longer true and the weaker claim is not made:** `e1e9756` (#498) changes
+`apps/api/src/features/auth/`, and `2816ec1` (#500) changes the portal's BFF
+route helpers, which are SEC-1 and SEC-9 territory respectively.
+
+What carries the verification across is therefore not a diff argument but the
+evidence itself: **every suite cited in this document was re-run on this tree**,
+at the head this document ships with, rather than inherited from an earlier one.
+Where those two commits changed a fact this document states, the statement was
+refreshed rather than left standing - §3.7 for #498's boot signal, §5 and §9.7
+for #487's portal belt - each citing the commit that changed it.
 **Supersedes nothing.** The next review supersedes this one by date.
 
 ---
@@ -309,8 +314,11 @@ better-auth with **no `rateLimit` key**, so the vendor default
 is `NODE_ENV === "production"` captured at module load. The three shipped
 Dockerfiles set `ENV NODE_ENV=production`, so a stock Compose deployment is
 throttled. Any deployment running the API outside those images is not, and
-nothing tells the operator: `apps/api/src/main.ts` logs `port`, `mount` and
-`tracing` at boot and nothing about abuse controls.
+nothing told the operator: `apps/api/src/main.ts` logged `port`, `mount` and
+`tracing` at boot and nothing about abuse controls. (That reporting half has
+since landed in `e1e9756`, #498 - see the recommendation below. **The throttle's
+behaviour is unchanged**: #498 reports what the control is doing, it does not
+decide it, so the finding above stands.)
 
 **Why still high.** SEC-1 lists per-account and per-IP exponential backoff as
 delivered. Under a reachable configuration it is absent, silently, on the
@@ -648,9 +656,13 @@ Stated as gaps in this document rather than as passed checks.
 7. **Portal and admin header coverage.** The admin proxy has thorough header and
    no-CORS assertions; the portal sets `nosniff`, `Referrer-Policy` and
    `X-Frame-Options` in `apps/portal/proxy.ts` with **no test asserting any of
-   the three**, and the portal has no Origin / `Sec-Fetch-Site` check at all
-   (the admin does, source-gated per route). Recorded; not closed here, to keep
-   this change out of the browser-gated trees.
+   the three**. Recorded; not closed here, to keep this change out of the
+   browser-gated trees. **The CSRF half of this gap has closed since (fact
+   refresh, 2026-08-15):** the portal had no Origin / `Sec-Fetch-Site` check at
+   all when this was written, and #487 gave it one in `2816ec1`, backed by
+   `scripts/check-origin-guards.test.ts`, which derives every state-changing
+   handler in both apps from disk. The header-assertion half above is still
+   open.
 8. **Real-world load behaviour of the per-process rate limiters** (§3.8).
 
 ---
@@ -666,7 +678,7 @@ lives only in a review document is a finding nobody is going to action.
 |---|---|---|
 | 1 | ~~Merge PR #480 (#470)~~ - **done**, merged into the base `fbc674f`. It was the only open high anyone was already working on | **#470** closed |
 | 2 | ~~Rule on #390~~ - **done** (option B, 2026-08-15); the fix is open on PR #505 and unmerged. ~~Add the boot line naming whether the sign-in throttle is active and what trusted-hop count resolved~~ - **delivered** by #498, merged as `e1e9756`, which is after this branch's base | **#390** ruled, PR #505 open · **#498** merged |
-| 3 | Give the portal the Origin/Sec-Fetch-Site check the admin has | **#487** |
+| 3 | ~~Give the portal the Origin/Sec-Fetch-Site check the admin has~~ - **done**, `2816ec1`, with a derived gate rather than a convention | **#487** closed |
 | 4 | Record that every rate limit is per-process, so replicas multiply them | **#488** |
 | 5 | Redact `Error.message` / `Error.stack` on the stdout path, or record the accepted risk | **#489** |
 | 6 | Add the two retention-sweep messages to the OTLP allowlist, and consider a test for the silent-blanking failure mode | **#490** |
