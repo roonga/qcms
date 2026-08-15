@@ -63,10 +63,28 @@ async function continueOrSubmit(page: Page): Promise<void> {
   await next.click();
 }
 
+/**
+ * The Fetch Metadata a browser attaches when it submits the portal's own entry form.
+ *
+ * `page.request` is an API client, not a page, so it sends none of this on its own,
+ * and the portal's SEC-9 belt (issue #487) refuses a state-changing POST that declares
+ * no origin at all. Supplying it is not a workaround for the guard: it is what the
+ * browser this helper stands in for actually sends, and a helper that drove the route
+ * with headers no browser produces would be testing a client that does not exist.
+ *
+ * `Origin: null` is deliberate and is not a placeholder. The portal serves
+ * `Referrer-Policy: no-referrer`, and per Fetch a navigation POST under that policy
+ * serializes its origin as the literal string `null`. That is precisely why the belt
+ * reads `Sec-Fetch-Site` first, so this pair is the real shape of a legitimate no-JS
+ * Start, `null` origin and all.
+ */
+const BROWSER_FORM_POST = { "sec-fetch-site": "same-origin", origin: "null" } as const;
+
 /** Start a portal session through the form's BFF endpoint and follow its redirect. */
 async function startPortalSession(page: Page, formSlug: string): Promise<void> {
   const response = await page.request.post(`${PORTAL_URL}/f/${formSlug}/start`, {
     maxRedirects: 0,
+    headers: BROWSER_FORM_POST,
   });
   expect(response.status(), "the portal Start BFF route should redirect to a session").toBe(303);
   const location = response.headers()["location"];
@@ -191,6 +209,23 @@ test.describe.serial("conditional form journey", () => {
       await expect(publish).toBeVisible();
       await publish.getByRole("button", { name: "Publish v1" }).click();
       await expect(page.getByText("Published as v1.")).toBeVisible({ timeout: 30_000 });
+    });
+
+    test("refuses a cross-site Start and creates no session (SEC-9, issue #487)", async ({
+      page,
+    }) => {
+      // The belt asserted through the deployed stack rather than only in a unit test:
+      // real proxy, real Next server, real container, real published form. Everything
+      // about this request is legitimate except where the browser says it came from,
+      // so a pass here cannot be explained by the form being unreachable.
+      const response = await page.request.post(`${PORTAL_URL}/f/${FORM_SLUG}/start`, {
+        maxRedirects: 0,
+        headers: { "sec-fetch-site": "cross-site", origin: "https://forged.example" },
+      });
+      expect(response.headers()["location"]).toBe(`${PORTAL_URL}/f/${FORM_SLUG}?state=error`);
+      // The assertion that matters. The redirect only says what the respondent sees;
+      // this says no session was minted, which is the state change being refused.
+      expect(response.headers()["set-cookie"] ?? "").not.toContain("qcms_session=");
     });
 
     test("completes the affirmative respondent route", async ({ page }) => {

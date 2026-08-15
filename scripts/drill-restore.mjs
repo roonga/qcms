@@ -319,6 +319,8 @@ function decodeEntities(html) {
  *    all in the restored database. Success is a 303 to `/s/:sessionId`; a lost form
  *    redirects back to `/f/:slug?state=notfound` and a lost version to `state=closed`,
  *    so the failure modes are distinguishable rather than merely "not a session".
+ *    A third refusal, `state=error`, is the SEC-9 origin belt and says nothing about
+ *    the restore: see the headers below for why this call sends what a browser sends.
  *  - `GET /s/:sessionId` with the cookie the portal just issued renders the first step
  *    server-side from what the API returns, which is the STORED compilation (ADR-18,
  *    never a recompilation). Asserting a label from `form_versions.compiled` appears
@@ -336,7 +338,18 @@ function decodeEntities(html) {
  */
 export async function assertPortalServesRestoredForm(slug, labels) {
   const base = `http://localhost:${String(harnessPort("portal"))}`;
-  const start = await fetch(`${base}/f/${slug}/start`, { method: "POST", redirect: "manual" });
+  // The Fetch Metadata a browser attaches when it submits the entry form. The portal's
+  // SEC-9 belt (issue #487) refuses a state-changing POST that declares no origin at
+  // all, and node's `fetch` declares none, so without this the drill reports
+  // `state=error` and reads as "your restored data is missing" when the restore is
+  // fine. That is the worst possible false alarm to raise during a recovery.
+  // `Origin: null` is what a real form POST sends here, because the portal serves
+  // `Referrer-Policy: no-referrer`; `Sec-Fetch-Site` is the header the belt reads.
+  const start = await fetch(`${base}/f/${slug}/start`, {
+    method: "POST",
+    redirect: "manual",
+    headers: { "sec-fetch-site": "same-origin", origin: "null" },
+  });
   if (start.status !== 303) {
     throw new Error(
       `drill-restore: POST /f/${slug}/start answered ${String(start.status)}, expected a 303 into the flow`,
