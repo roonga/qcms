@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { secureCookies } from "./config";
+import { portalBaseUrl, secureCookies } from "./config";
 import { ApiError, type SubmitResponse } from "./api";
 
 /**
@@ -11,6 +11,65 @@ import { ApiError, type SubmitResponse } from "./api";
  * shaping proxy results and moving the session/receipt through httpOnly cookies.
  * No rule evaluation.
  */
+
+/**
+ * Reject a cross-site state-changing request (SEC-9's CSRF belt, issue #487).
+ *
+ * `SameSite=Lax` on the respondent session cookie is the primary control and it
+ * already blocks a cross-site POST from carrying the cookie. This is the second
+ * layer for clients that do not enforce it: a state-changing request must either
+ * declare a same-origin `Sec-Fetch-Site` or carry an `Origin` matching this app's
+ * own base URL. A request with neither is refused rather than assumed friendly.
+ *
+ * Returns `true` when the request may proceed.
+ *
+ * ## Why `Sec-Fetch-Site` is read first, and the `Origin` fallback is nearly dead
+ *
+ * Not "for older clients", which is what the admin copy's comment used to imply and
+ * which is actively misleading here. `proxy.ts` sets `Referrer-Policy: no-referrer`
+ * on every portal response, and per Fetch a navigation POST (which is what a no-JS
+ * `<form method="post">` is) serializes its `Origin` as the literal string `null`
+ * under that policy. So on the portal's own no-JS path a current browser sends
+ * `Origin: null` and the `Origin` comparison below can never match: `Sec-Fetch-Site`
+ * is the header actually doing the work. The admin learned this the expensive way
+ * (`docs/RETRO.md`, the 031 entry: better-auth answered 403 to 100% of legitimate
+ * sign-ins for exactly this reason).
+ *
+ * The `Origin` branch is still live for the **hydrated** path, because Fetch API
+ * requests are mode `cors`, which the referrer-policy rewrite above does not touch,
+ * so those carry the real origin. (Spelled without the parentheses to match the admin
+ * twin, where the same sentence with them fails `r2-import-surface.test.ts`: that rule
+ * regexes raw text for a call to the global, comments included. The portal's own R2
+ * test does not carry that rule at all, which is its own asymmetry and its own issue.)
+ *
+ * ## What this refuses that a respondent might not expect
+ *
+ * A browser that sends no `Sec-Fetch-Site` at all (Fetch Metadata predates Safari
+ * 16.4 and Firefox 90) is refused on the no-JS form path, because the only other
+ * signal it sends is that same `Origin: null`, which an attacker's page can also
+ * produce by declaring `Referrer-Policy: no-referrer` on itself. Failing closed is
+ * the right side to err on for a security belt, and it matches the admin twin, but
+ * it is a real cost on a public respondent surface rather than a free one: see the
+ * `Referrer-Policy` follow-up noted on issue #487.
+ *
+ * ## Twin
+ *
+ * `apps/admin/lib/server/route-helpers.ts` carries the same function over
+ * `adminBaseUrl()`. It is a copy for the reason `config.ts` gives: there is no
+ * shared package for a Next BFF's server code. What keeps the two from drifting is
+ * not the copy being small, it is `scripts/check-origin-guards.test.ts`, which
+ * derives both apps' state-changing route handlers from disk and asserts each one
+ * calls this function by name. The portal went four tasks without any origin check
+ * while this document asserted one of both apps, which is what that gate exists to
+ * turn into a red.
+ */
+export function isSameOriginPost(request: Request): boolean {
+  const fetchSite = request.headers.get("sec-fetch-site");
+  if (fetchSite !== null) return fetchSite === "same-origin" || fetchSite === "none";
+  const origin = request.headers.get("origin");
+  if (origin === null) return false;
+  return origin === portalBaseUrl();
+}
 
 /** A short-lived, httpOnly cookie carrying the submit receipt to the /done page. */
 export const RECEIPT_COOKIE = "qcms_receipt";

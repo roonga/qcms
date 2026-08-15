@@ -11,6 +11,7 @@ import {
 } from "@/lib/server/api";
 import {
   apiErrorResponse,
+  isSameOriginPost,
   writeReceiptCookie,
   writeStepContext,
   type StepContext,
@@ -141,8 +142,13 @@ export async function POST(
   request: Request,
   ctx: { params: Promise<{ sessionId: string }> },
 ): Promise<NextResponse> {
-  const token = await readSessionToken();
   const { sessionId } = await ctx.params;
+  // SEC-9's CSRF belt (issue #487). This is the no-JS whole-step POST, so the
+  // refusal is the same 303 back to the flow page every other unusable request on
+  // this route gets: the respondent sees their step, not an error code.
+  if (!isSameOriginPost(request)) return backToStep(request, sessionId);
+
+  const token = await readSessionToken();
   if (token === undefined) {
     // No session credential: let the flow page render its recovery state.
     return backToStep(request, sessionId);

@@ -74,6 +74,28 @@ export function cookiesFrom(response: Response): string[] {
  * URL. A request with neither header is refused rather than assumed friendly.
  *
  * Returns `true` when the request may proceed.
+ *
+ * **The header order is not a preference, and the `Origin` branch is not merely a
+ * fallback for old clients.** `proxy.ts` sets `Referrer-Policy: no-referrer`, and per
+ * Fetch a navigation POST (which is what every auth screen's `<form method="post">`
+ * is) serializes its `Origin` as the literal string `null` under that policy. So on
+ * this app's own form path a current browser sends `Origin: null` and the comparison
+ * below can never match: `Sec-Fetch-Site` is the header actually doing the work.
+ * Reading them the other way round answers 403 to 100% of legitimate sign-ins, which
+ * is what happened in 031 (`docs/RETRO.md`) and cost a browser run plus a debug run
+ * to diagnose, because this comment did not say so. The `Origin` branch stays live
+ * for Fetch API calls, which are mode `cors` and so keep their real origin.
+ * (Spelled without the parentheses on purpose: `r2-import-surface.test.ts` regexes
+ * this file's raw text for a call to the global, comments included.)
+ *
+ * ## Twin
+ *
+ * `apps/portal/lib/server/route-helpers.ts` carries the same function over
+ * `portalBaseUrl()` (issue #487). It is a copy for the reason `config.ts` gives:
+ * there is no shared package for a Next BFF's server code. What keeps the two from
+ * drifting is `scripts/check-origin-guards.test.ts`, which derives both apps'
+ * state-changing route handlers from disk and asserts each one calls this function
+ * by name.
  */
 export function isSameOriginPost(request: Request): boolean {
   const fetchSite = request.headers.get("sec-fetch-site");
