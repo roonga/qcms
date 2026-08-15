@@ -60,6 +60,14 @@ import { describe, expect, it } from "vitest";
  *   - It cannot know that a route which changes state was spelled `GET`. A handler
  *     that mutates behind a read verb is a different defect, and one no static scan
  *     of verb names can reach.
+ *   - **It reads exactly one handler shape: a named top-level `function`, `async` or
+ *     not.** `export const POST = ...`, a re-exported binding and a default export are
+ *     all legal and all unreadable here. They are not silently skipped, which is the
+ *     distinction that matters: {@link unscannableExports} fails on each of them by
+ *     name, so the answer to an unreadable shape is a red asking for this file to be
+ *     taught, never a green. That rule exists because the `async`-only version of the
+ *     handler pattern hid a real handler through PR #500's first review, and the
+ *     lesson generalised badly: the miss mode of a scanner must never be silence.
  */
 
 const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -73,8 +81,46 @@ const BELT_MODULE = "lib/server/route-helpers.ts";
 /** Verbs whose handlers change state, so the rule applies to them. */
 const MUTATING_VERBS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
-/** The one export shape this scanner can read: a named top-level async function. */
-const SCANNABLE_EXPORT = /^export async function (\w+)\s*\(/;
+/**
+ * The one export shape this scanner can read: a named top-level function, `async` or
+ * not.
+ *
+ * `async` was mandatory here until review of PR #500 caught it. Exactly one mutating
+ * handler in the tree is synchronous (`apps/admin/app/two-factor/recovery-codes/
+ * confirm/route.ts`, which only clears a cookie and so has nothing to await), and it
+ * was therefore invisible to this scan: 11 state-changing handlers found where there
+ * were 12. It happens to be belted, so nothing was ever exposed, but removing that
+ * belt would have left this gate green. A single unseen handler among many seen ones
+ * is the worst shape for a tripwire, because every population check still passes: the
+ * admin contributes seven other state-changing handlers, so "this app contributed at
+ * least one" answered yes while the twelfth went unread.
+ *
+ * That is the same defect this file exists to catch, one level up, which is why the
+ * response is not only to widen the regex but to add {@link unscannableExports}: from
+ * here on an export shape the scanner cannot read is a **red naming the file**, not a
+ * silent skip. See "What it cannot see" in the header for what that leaves.
+ */
+const SCANNABLE_EXPORT = /^export (?:async )?function (\w+)\s*\(/;
+/** `export const <name>` / `export let <name>`, for the readability rule below. */
+const EXPORTED_BINDING = /^export (?:const|let|var) (\w+)\b/;
+
+/**
+ * Next route-segment config exports, which are data rather than handlers.
+ *
+ * Listed explicitly so that `export const dynamic = "force-dynamic"` passes the
+ * readability rule while `export const POST = ...` does not: the latter is a legal Next
+ * handler form that this scanner genuinely cannot read, so it must fail loudly and ask
+ * to be handled here rather than pass as though it had been checked.
+ */
+const SEGMENT_CONFIG = new Set([
+  "dynamic",
+  "dynamicParams",
+  "revalidate",
+  "fetchCache",
+  "runtime",
+  "preferredRegion",
+  "maxDuration",
+]);
 /** A closing brace in the first column: where a top-level function body ends. */
 const BODY_END = /^\}/;
 /** A line whose content is a comment, in any of the three spellings Prettier produces. */
@@ -180,6 +226,39 @@ function handlers(source: string): Handler[] {
   }));
 }
 
+/**
+ * The `export` lines of a route module that this scanner cannot read as either a
+ * handler or plain segment-config data.
+ *
+ * The rule PR #500's review made necessary. Widening {@link SCANNABLE_EXPORT} to accept
+ * a synchronous handler fixes the one shape that was actually hiding; it does nothing
+ * about the next one. A scanner whose miss mode is silence cannot be trusted past the
+ * shapes its author happened to think of, so this inverts the default: anything it
+ * cannot classify fails, naming the file and the line, and whoever wrote that export
+ * teaches this file to read it.
+ *
+ * Shapes this deliberately refuses, all legal Next or TypeScript:
+ *
+ *   - `export const POST = async (request) => { ... }`, a legal route handler.
+ *   - `export { POST } from "./elsewhere"` and `export { handler as POST }`, where the
+ *     body is not in this file at all.
+ *   - `export default ...`, which is not a route handler but is not data either.
+ *
+ * Type-only exports pass, because they carry no body to belt and erase at compile time.
+ */
+export function unscannableExports(source: string): string[] {
+  return source
+    .split("\n")
+    .filter((line) => line.startsWith("export "))
+    .filter((line) => !SCANNABLE_EXPORT.test(line))
+    .filter((line) => !line.startsWith("export type ") && !line.startsWith("export interface "))
+    .filter((line) => {
+      const binding = EXPORTED_BINDING.exec(line);
+      return binding === null || !SEGMENT_CONFIG.has(binding[1] ?? "");
+    })
+    .map((line) => line.trim());
+}
+
 /** The state-changing handlers of a route module whose own body never calls the belt. */
 export function unbeltedHandlers(source: string): string[] {
   return handlers(source)
@@ -241,6 +320,12 @@ describe("issue #487: state-changing BFF route handlers carry SEC-9's CSRF belt"
     expect(module).toContain("export function isSameOriginPost(");
   });
 
+  it.each(ROUTES)("$path exports only shapes this scan can read", ({ source }) => {
+    // Ordered before the belt rule on purpose: an export this scan cannot read is a
+    // handler it cannot vouch for, and the belt rule below would pass it in silence.
+    expect(unscannableExports(source)).toEqual([]);
+  });
+
   it.each(ROUTES)("$path belts every state-changing handler", ({ source }) => {
     expect(unbeltedHandlers(source)).toEqual([]);
   });
@@ -277,6 +362,28 @@ const GUARDED = [
 
 const UNGUARDED = [
   "export async function POST(request: Request): Promise<Response> {",
+  "  return new Response(null, { status: 204 });",
+  "}",
+];
+
+/**
+ * The synchronous handler shape, which this scan could not see until PR #500's review.
+ *
+ * A fixture rather than a note, because the regex passed review while being wrong: the
+ * only thing that would have caught it is a case asserting the rule fires on a shape no
+ * file in the tree had yet. It is in the tree now
+ * (`two-factor/recovery-codes/confirm/route.ts`), but the fixture stays regardless, so
+ * that deleting that route cannot quietly delete the coverage too.
+ */
+const UNGUARDED_SYNC = [
+  "export function POST(request: Request): Response {",
+  "  return new Response(null, { status: 204 });",
+  "}",
+];
+
+const GUARDED_SYNC = [
+  "export function POST(request: Request): Response {",
+  "  if (!isSameOriginPost(request)) return new Response(null, { status: 403 });",
   "  return new Response(null, { status: 204 });",
   "}",
 ];
@@ -335,5 +442,51 @@ describe("the rule fails on the shapes it exists to catch", () => {
   it("reports a handler whose body it cannot bound, rather than passing it", () => {
     const source = ["export async function POST(request: Request): Promise<Response> {"];
     expect(unbeltedHandlers(source.join("\n"))).toEqual(["POST"]);
+  });
+
+  it("catches an unbelted handler that is not async (the PR #500 review miss)", () => {
+    expect(unbeltedHandlers(UNGUARDED_SYNC.join("\n"))).toEqual(["POST"]);
+  });
+
+  it("passes a belted handler that is not async", () => {
+    expect(unbeltedHandlers(GUARDED_SYNC.join("\n"))).toEqual([]);
+  });
+
+  it("sees a sync handler hiding among async ones, which is how the miss survived", () => {
+    // The shape that made the original defect invisible to every population check: the
+    // file has belted async handlers, so nothing looked empty, and the one unbelted
+    // sync handler was simply never read.
+    const source = [...GUARDED, "", ...UNGUARDED_SYNC];
+    expect(unbeltedHandlers(source.join("\n"))).toEqual(["POST"]);
+  });
+});
+
+describe("an export shape the scan cannot read fails loudly rather than silently", () => {
+  it("accepts the handler shapes it can read", () => {
+    expect(unscannableExports(GUARDED.join("\n"))).toEqual([]);
+    expect(unscannableExports(GUARDED_SYNC.join("\n"))).toEqual([]);
+  });
+
+  it("accepts Next segment config, which is data rather than a handler", () => {
+    expect(unscannableExports('export const dynamic = "force-dynamic";')).toEqual([]);
+  });
+
+  it("accepts a type-only export, which has no body to belt", () => {
+    expect(unscannableExports("export type Params = { id: string };")).toEqual([]);
+  });
+
+  it("refuses an arrow-function handler, a legal Next form this scan cannot read", () => {
+    const line = "export const POST = async (request: Request) => new Response(null);";
+    expect(unscannableExports(line)).toEqual([line]);
+  });
+
+  it("refuses a re-exported handler, whose body is not in this file at all", () => {
+    const line = 'export { POST } from "./shared-handler";';
+    expect(unscannableExports(line)).toEqual([line]);
+  });
+
+  it("refuses a default export", () => {
+    const line = "export default function POST(): Response { return new Response(null); }";
+    expect(unscannableExports(line)).toEqual([line]);
   });
 });

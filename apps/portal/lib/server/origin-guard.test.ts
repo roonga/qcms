@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * SEC-9's CSRF belt on the portal's state-changing BFF routes (issue #487).
@@ -36,9 +36,30 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const PORTAL_BASE = "https://forms.qcms.test";
 
-vi.stubEnv("QCMS_PORTAL_BASE_URL", PORTAL_BASE);
-vi.stubEnv("QCMS_API_BASE_URL", "http://api.internal");
-vi.stubEnv("QCMS_INTERNAL_TOKEN", "internal-token");
+/**
+ * The server configuration the real `./config` reads, which these tests deliberately do
+ * not mock: the belt's `Origin` comparison must run against a genuinely configured base
+ * URL, or it would be comparing a stub to itself.
+ *
+ * Applied once at module scope so the route imports below cannot observe an unset
+ * environment, and re-applied per test because {@link afterEach} clears it. Restoring
+ * matters here rather than being tidiness: Vitest shares a worker process across files,
+ * so a stub left standing is a value some unrelated portal test reads without asking
+ * for it, and a security suite that leaks configuration is exactly how a test ends up
+ * passing for a reason nobody chose. Raised in review of PR #500; the convention is
+ * already `vi.unstubAllEnvs()` in `config.test.ts`, `api.test.ts` and `client-address.test.ts`.
+ */
+function stubPortalEnv(): void {
+  vi.stubEnv("QCMS_PORTAL_BASE_URL", PORTAL_BASE);
+  vi.stubEnv("QCMS_API_BASE_URL", "http://api.internal");
+  vi.stubEnv("QCMS_INTERNAL_TOKEN", "internal-token");
+}
+
+stubPortalEnv();
+beforeEach(stubPortalEnv);
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 /** The internal API client: the seam every "did state change?" assertion reads. */
 const api = {
