@@ -16,9 +16,28 @@ The preview shows a question through the real respondent renderer, but always in
 - **Reusable shape:** the island (switcher + scoping) mounts on the preview container styling seam 034 builds, and applies to both the question preview and 034's form-level preview without either surface being restructured; 049's custom themes extend the theme list later without structural change (note the seam in the component doc).
 - **Read-only consumption:** theme definitions come from `@qcms/ui`'s shipped assets; no copy of token values into the admin, no new API surface.
 
+## Amendment, 2026-08-14: the portalled-overlay limitation is a deliverable
+
+Added on the Code Owner's ruling that 058 runs next, so that it does not park a second time at a fence it cannot clear.
+
+**What the task must produce, in addition to the criteria below:**
+
+1. The limitation is **documented in the component**, saying which controls portal out of the carrier and therefore render in admin chrome tokens rather than the previewed theme.
+2. It is **documented in `docs/gates/058/README.md`**, in the operator's terms rather than the implementer's.
+3. **One gate screenshot deliberately shows an open overlay** (a `Select` or a `DatePicker` calendar) against a switched island, so the Code Owner rules on the appearance **at** the gate rather than discovering it afterwards.
+
+**Why it is accepted rather than solved.** Two fixes exist and both are fenced by constraints this task may not cross alone:
+
+- `UNSAFE_PortalProvider` from `react-aria/PortalProvider` works (it reads `useUNSAFE_PortalContext()` and portals to `getContainer()`), but `react-aria` is a **transitive** dependency here, so adopting it is a new dependency under the CONTRIBUTING policy.
+- RAC's `PopoverContext` with `UNSTABLE_portalContainer` exists on 1.20.0, but the admin may not import `react-aria-components` (`apps/admin/lib/questions/renderer-surface.test.ts`), so it needs a **`@qcms/ui`** change, which exit criterion 8 fences.
+
+RAC does not re-export the provider from its index, so there is no third route. **If a session wants either fix, it stops and surfaces it** rather than taking it, exactly as the criterion-8 fence worked in the original run.
+
+**One correction carried in from #405 and #442.** Both stated that a Tailwind `@theme` variable is resolved at build time and so cannot be matched by a selector. That is wrong, verified by compiling the pinned `tailwindcss@4.3.3`: the `@theme` **block** is unscopable, but the **variables it emits are ordinary inherited custom properties resolved per element at render time**. So the type-scale half of #405 is a five-line subtree override on the carrier, not a blocker. Note also that `--type-*` has no consumer inside an island by itself: what applies the floors is `apps/portal/app/globals.css:71-82`, the portal **app's** stylesheet, which the admin does not import, so the carrier block must restate them or the island renders at admin spacing.
+
 ## Exit criteria
 
-1. **The island is portal-themed at first paint:** with the deployment theme knob set, the untouched preview renders that theme's known token values (asserted computed-style), and in no state does an island control resolve an admin-Cobalt token value; with the knob unset, the base theme renders. The knob is documented in `apps/admin/.env.example` and named identically to the portal's.
+1. **The island is portal-themed at first paint:** with the deployment theme knob set, the untouched preview renders that theme's known token values (asserted computed-style), and in no state does an island control **rendered inside the scope carrier** resolve an admin-Cobalt token value; with the knob unset, the base theme renders. **Portalled overlays are excluded from this clause and are covered by the 2026-08-14 amendment above, "the portalled-overlay limitation is a deliverable"** (do not read this as pointing at exit criterion 4, which is about interactivity): `Select`, `DatePicker`'s calendar and `Menu` each render a react-aria `Popover` into a portal outside the carrier, so they cannot inherit it by any selector. Every `date` question reaches one, and `singleChoice` above seven options does too. Read literally, the original clause was unsatisfiable the moment a dropdown opened. The knob is documented in `apps/admin/.env.example` and named identically to the portal's.
 2. Switching theme and mode restyles the island only: an e2e asserts computed styles change on a control inside the island while the admin topbar's computed background/color are byte-identical before and after, in both directions (admin mode switch leaves the island's selection alone too).
 3. All 051 predefined themes and all three modes selectable; HC inside the island renders the portal HC layer (assert a known HC token value on an island control).
 4. Interactivity from 032's preview round still works under a switched theme (tick a checkbox while the island is in dark harbor, for instance).
