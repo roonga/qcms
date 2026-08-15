@@ -8,10 +8,20 @@
  * first false positive.
  */
 
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+
 import { describe, expect, it } from "vitest";
 
 // @ts-expect-error - the gate is plain ESM tooling, deliberately untypechecked.
-import { ALLOW_MARKER, scanEnvExample, scanSource, scanSql } from "./check-security-hygiene.mjs";
+import {
+  ALLOW_MARKER,
+  scanEnvExample,
+  scanSource,
+  scanSql,
+  sourceFiles,
+  TEST_FILE,
+} from "./check-security-hygiene.mjs";
 
 describe("answer-content logging is refused", () => {
   it.each([
@@ -102,5 +112,89 @@ describe("unparameterized SQL is refused", () => {
   it("honours a waiver on the line above", () => {
     const source = `// ${ALLOW_MARKER} migration DDL, no user input\nawait exec.execute(sql.raw(ddl));\n`;
     expect(scanSql("probe.ts", source)).toHaveLength(0);
+  });
+});
+
+describe("SQL concatenation, the form a regex can reach", () => {
+  it.each([
+    'await db.execute("select * from forms where id = \'" + id + "\'");',
+    "await pool.query('delete from answers where id = ' + id);",
+    'await db.execute(prefix + " where 1=1");',
+    "await client.query(base + '; drop table answers');",
+  ])("flags %s", (line) => {
+    expect(scanSql("probe.ts", line)).toHaveLength(1);
+  });
+
+  it.each([
+    "await exec.execute(sql`select set_config(${SETTING}, 'on', true)`);",
+    "await pool.query('select 1');",
+    'await db.execute("select 1");',
+    "const total = pageSize + 1;",
+    "await db.select().from(answers).where(eq(answers.sessionId, sessionId));",
+  ])("does not flag the safe form: %s", (line) => {
+    expect(scanSql("probe.ts", line)).toHaveLength(0);
+  });
+
+  it("documents the form it cannot reach, so the gap is visible rather than assumed", () => {
+    // A statement assembled elsewhere and passed by variable needs data-flow
+    // analysis, not a regex. Asserted as a KNOWN LIMITATION: if a future change
+    // makes this detectable, this test fails and the module comment gets
+    // updated with it, rather than the claim quietly outrunning the check.
+    const assembledElsewhere = "const q = base + id;\nawait db.execute(q);";
+    expect(scanSql("probe.ts", assembledElsewhere)).toHaveLength(0);
+  });
+});
+
+describe("the source globs cover the workspace they claim to", () => {
+  /**
+   * The gate reported "417 source files" while 34 tracked files, 29 of them
+   * `packages/ui/**` TSX, were outside every glob. A list of globs maintained by
+   * memory drifts the moment a new file type lands; this derives the expectation
+   * from what git actually tracks, so the drift is a red instead of a silence.
+   */
+  const EXECUTABLE = /\.(ts|tsx|mts|cts|mjs|cjs|js|jsx)$/;
+  const ROOTS = ["apps/", "packages/", "scripts/", "tooling/"];
+
+  it("scans every tracked executable source file under apps, packages, scripts and tooling", () => {
+    const tracked = execFileSync("/usr/bin/git", ["ls-files"], {
+      cwd: fileURLToPath(new URL("..", import.meta.url)),
+      encoding: "utf8",
+    })
+      .split("\n")
+      .filter(
+        (path: string) =>
+          path !== "" &&
+          ROOTS.some((root) => path.startsWith(root)) &&
+          EXECUTABLE.test(path) &&
+          !TEST_FILE.test(path),
+      );
+
+    const scanned = new Set<string>(sourceFiles());
+    // The gate skips only itself, because it quotes the constructs it hunts.
+    const missed = tracked.filter(
+      (path: string) => !scanned.has(path) && path !== "scripts/check-security-hygiene.mjs",
+    );
+    expect(
+      missed,
+      "these tracked source files are outside every SOURCE_GLOBS entry, so the gate never opens them",
+    ).toEqual([]);
+  });
+
+  it("has a non-trivial file count, so an empty scan cannot pass as full coverage", () => {
+    expect(sourceFiles().length).toBeGreaterThan(400);
+  });
+
+  it("opens files in every root it claims, not just the ones with subdirectories", () => {
+    // The original globs used `scripts/**` pathspecs, which matched nothing at
+    // all because git fnmatch still wants an intervening directory - so an
+    // entire root went unscanned while the file count looked healthy. Asserting
+    // per-root presence is what makes that shape impossible to reintroduce.
+    const scanned = sourceFiles();
+    for (const root of ["apps/", "packages/", "scripts/"]) {
+      expect(
+        scanned.some((path: string) => path.startsWith(root)),
+        `no file under ${root} is scanned`,
+      ).toBe(true);
+    }
   });
 });

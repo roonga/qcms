@@ -23,14 +23,30 @@
  * stops a placeholder reaching production, this gate stops a real secret
  * reaching the repository.
  *
- * **3. No SQL is built by string concatenation.**
+ * **3. No SQL is built by string concatenation or spliced verbatim.**
  * `docs/features/040-security-review-hardening.md` asks for Drizzle
  * parameterization to be asserted rather than assumed. Drizzle's `sql` tagged
  * template parameterizes every `${...}` it interpolates; `sql.raw()` is the one
- * documented door that does not, and `db.execute()` over a plain string is the
- * other. Neither appears in the repository today, and this rule is what keeps
- * that true: JSONB answer values in particular are only ever bound, never
- * spliced.
+ * documented door that does not. Neither an unparameterized door nor a
+ * concatenated statement appears in the repository today, and this rule is what
+ * keeps that true: JSONB answer values in particular are only ever bound.
+ *
+ * **What this rule catches, stated exactly, because a check is only worth its
+ * scope.** It flags `sql.raw(...)` anywhere; a template literal carrying an
+ * interpolation passed *directly* to `execute`/`query` (a bare backtick, not a
+ * `sql` tagged template, which is the safe form and is deliberately not
+ * flagged); and `+` concatenation adjacent to a string literal in the first
+ * argument of `execute`/`query`, in either order.
+ *
+ * **What it cannot catch**, and this is a limitation of regex rather than an
+ * oversight: a statement assembled somewhere else and handed over as a plain
+ * variable (`const q = base + id; db.execute(q)`). Catching that needs AST
+ * analysis with data-flow, which is a larger tool than this gate should be. The
+ * residual is bounded by `sql.raw` being fully covered, since it is the only
+ * documented way to reach the driver with unparameterized text once the query
+ * builder is the house idiom. If a future change makes hand-assembled SQL
+ * plausible, this rule should be replaced by an AST check rather than grown
+ * another regex.
  *
  * Escape hatch: put `check-security-hygiene: allow <reason>` in a comment on the
  * line immediately above an offending line. It has to be a reason, in the diff,
@@ -85,10 +101,30 @@ function isLoggerReceiver(chain) {
   return /logg?er$/i.test(last);
 }
 
-/** Source globs the gate reads. Tests are excluded: a test may log a fixture. */
-const SOURCE_GLOBS = ["apps/**/*.ts", "apps/**/*.tsx", "packages/**/*.ts", "scripts/**/*.mjs"];
+/**
+ * The roots the gate scans, plus the extensions it treats as executable source.
+ *
+ * **Deliberately not globs.** The first version used `git ls-files` pathspecs
+ * like `scripts/**\/*.mjs`, and two of them were quietly wrong: `packages/**` was
+ * missing `.tsx` entirely (29 files), and worse, `scripts/**\/*.mjs` matched
+ * **nothing at all**, because git pathspecs are fnmatch without `FNM_PATHNAME`,
+ * so `**\/` still demands an intervening directory and every `scripts/*.mjs`
+ * sits at the top level. The gate had therefore never opened a single file in
+ * `scripts/`, including itself, while reporting a file count that read like
+ * full coverage.
+ *
+ * Roots plus an extension test have no such failure mode: `git ls-files -- apps`
+ * either lists the tree or it does not, and the filtering happens in code that
+ * can be read. `check-security-hygiene.test.ts` pins the result against the
+ * whole tracked tree, so a new file type or a new root fails rather than
+ * silently falling outside.
+ */
+export const SOURCE_ROOTS = ["apps", "packages", "scripts", "tooling"];
 
-const TEST_FILE = /\.(test|spec|e2e|pw)\.[cm]?tsx?$/;
+/** Extensions the gate treats as executable source. */
+export const SOURCE_EXTENSIONS = /\.(ts|tsx|mts|cts|mjs|cjs|js|jsx)$/;
+
+export const TEST_FILE = /\.(test|spec|e2e|pw)\.[cm]?tsx?$/;
 
 function git(args) {
   const bin = GIT_CANDIDATES.find((candidate) => {
@@ -103,11 +139,26 @@ function git(args) {
   return execFileSync(bin, args, { cwd: REPO_ROOT, encoding: "utf8" });
 }
 
-/** Tracked files matching the source globs, test files removed. */
+/**
+ * This file, which the scan skips.
+ *
+ * A checker that documents and encodes the constructs it hunts for will always
+ * match itself: the module comment above names `sql.raw(`, and {@link RAW_SQL}
+ * contains the concatenation forms as regex literals. Skipping one file by name
+ * is the narrowest available exemption and is visible here rather than buried in
+ * a waiver comment on five separate lines. Nothing in this file talks to a
+ * database or a logger, so the exemption gives up no real coverage.
+ */
+const SELF = "scripts/check-security-hygiene.mjs";
+
+/** Tracked executable source under {@link SOURCE_ROOTS}, test files removed. */
 export function sourceFiles() {
-  return git(["ls-files", "--", ...SOURCE_GLOBS])
+  return git(["ls-files", "--", ...SOURCE_ROOTS])
     .split("\n")
-    .filter((path) => path !== "" && !TEST_FILE.test(path));
+    .filter(
+      (path) =>
+        path !== "" && path !== SELF && SOURCE_EXTENSIONS.test(path) && !TEST_FILE.test(path),
+    );
 }
 
 /**
@@ -168,6 +219,16 @@ const RAW_SQL = [
   {
     pattern: /\.\s*(?:execute|query)\s*\(\s*`[^`]*\$\{/g,
     why: "a template literal with an interpolation passed straight to execute/query is unparameterized",
+  },
+  {
+    // `db.execute("select ... " + id)` - literal first, then concatenation.
+    pattern: /\.\s*(?:execute|query)\s*\(\s*(?:"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')\s*\+/g,
+    why: "a SQL string concatenated with `+` and passed to execute/query is unparameterized",
+  },
+  {
+    // `db.execute(prefix + "where id = '" + id + "'")` - identifier first.
+    pattern: /\.\s*(?:execute|query)\s*\(\s*[A-Za-z_$][\w$.]*\s*\+\s*(?:"|')/g,
+    why: "a SQL string concatenated with `+` and passed to execute/query is unparameterized",
   },
 ];
 
