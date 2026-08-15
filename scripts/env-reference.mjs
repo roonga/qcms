@@ -691,6 +691,14 @@ export const ENV_REFERENCE = [
     description: "Must match the API's value; used for the app's own session bookkeeping.",
   },
   {
+    name: "QCMS_PORTAL_THEME",
+    process: "admin",
+    requirement: "optional",
+    fallback: "slate",
+    description:
+      "The **portal's** variable, read here too (task 058): it is the theme the preview island opens in, so an author sees a question in the appearance this deployment serves respondents rather than in this app's own Cobalt. Set the same value in both services. It changes nothing about this app's own chrome, which is never adopter-themeable (ADR-26), and an unrecognised value falls back silently exactly as it does on the portal.",
+  },
+  {
     name: "NODE_ENV",
     process: "admin",
     requirement: "optional",

@@ -295,6 +295,25 @@ export const messages = {
     "Rendered by the same engine that serves a respondent, so this is exactly what they will see. Nothing typed here is saved.",
   "questions.preview.unavailable": "This version could not be rendered. {message}",
 
+  // The preview theme island (task 058, ADR-38). Two controls above every preview,
+  // shared by the question preview, the draft preview and the published version view.
+  //
+  // The theme names are the palette's own names and are NOT translated as words: they
+  // name a specific shipped theme, the way a typeface name does, so a locale that
+  // rendered "Sand" as its word for sand would be naming something else. They stay in
+  // the catalog regardless (ADR-27), because a locale may still need to transliterate
+  // them, and because a label an operator reads has no business being a literal in a
+  // component. The two mode names ARE prose and do translate.
+  "preview.island.theme": "Preview theme",
+  "preview.island.theme.slate": "Slate",
+  "preview.island.theme.harbor": "Harbor",
+  "preview.island.theme.sand": "Sand",
+  "preview.island.theme.plum": "Plum",
+  "preview.island.mode": "Preview mode",
+  "preview.island.mode.light": "Light",
+  "preview.island.mode.dark": "Dark",
+  "preview.island.mode.hc": "High contrast",
+
   "questions.detail.versions": "Versions",
   "questions.detail.version": "Version {version}",
   "questions.detail.selected": "Showing",

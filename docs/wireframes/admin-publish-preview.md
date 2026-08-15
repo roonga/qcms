@@ -30,6 +30,17 @@
 > the preview path assumes it shares the admin's theme context. 034 builds the boundary
 > only: no theme selection, no mode switching, no portal-theme defaulting. Task 058 mounts
 > its theme island on that container.
+>
+> **Amendment, task 058 (the island landed).** The container now carries the ADR-38 scope
+> attribute plus a theme attribute and a mode class, and **two controls sit directly above
+> it** (`Preview theme`, `Preview mode`) - a new Region on this screen, on the question
+> detail screen and on the published-version screen alike, because all three render through
+> the same island component. Its starting state is the deployment's configured respondent
+> theme in light mode, and the selection is ephemeral (no persistence; the "Out of scope"
+> section of the task names that deliberately). One State is worth recording because it is
+> visible and accepted rather than fixed: a dropdown or calendar opened inside the preview
+> is portalled to the page body, so it renders in the app's own chrome rather than in the
+> previewed theme. `docs/gates/058/README.md` states it in an operator's terms.
 
 ## ASCII sketch - publish + preview
 

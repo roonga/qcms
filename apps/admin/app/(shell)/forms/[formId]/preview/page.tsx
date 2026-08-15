@@ -4,6 +4,7 @@ import { Alert } from "@/components/kit";
 import { DraftPreview } from "@/components/forms/draft-preview";
 import { FormPageHeader } from "@/components/forms/form-page-header";
 import { t } from "@/lib/i18n/en";
+import { previewPortalTheme } from "@/lib/server/config";
 import { getForm } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
 
@@ -47,7 +48,11 @@ export default async function FormPreviewPage({
       {form.draft === null ? (
         <p className="text-sm text-(--color-text-muted)">{t("forms.preview.noSteps")}</p>
       ) : (
-        <DraftPreview draft={form.draft} preview={previewDraftAction.bind(null, form.formId)} />
+        <DraftPreview
+          draft={form.draft}
+          preview={previewDraftAction.bind(null, form.formId)}
+          defaultTheme={previewPortalTheme()}
+        />
       )}
     </div>
   );

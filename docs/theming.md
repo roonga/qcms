@@ -52,6 +52,24 @@ themed differently (ADR-38). The portal stamps the attribute on its `<html>`, so
 there the two cases are the same element. Nothing about the document-root form
 changed: an adopter's plain `:root` overrides work exactly as they did.
 
+**The one subtree consumer today is the QCMS app's form preview** (task 058). It puts
+the attribute, a `data-theme` and a mode class on the preview container, so an author
+sees a question in a respondent theme while the authoring app around it keeps its own
+Cobalt and the operator's own mode. Two facts a future subtree consumer needs, both
+learned there:
+
+- The token variables scope, but the **behaviour some of them describe does not**. The
+  WCAG 1.4.12 text-spacing floors are applied by the portal *app's* `body` rule
+  (`apps/portal/app/globals.css`), not by the token sheet, so a host that is not the
+  portal must restate them on its carrier - otherwise the subtree renders at the host's
+  own spacing while every token assertion still passes.
+- **A portalled overlay leaves the carrier.** A react-aria `Popover` (the `Select`
+  listbox, `DatePicker`'s calendar, `Menu`) is attached to `document.body`, so it is not
+  a descendant of any carrier and inherits the document root's tokens instead. There is
+  no selector that fixes this; the routes that would are `react-aria`'s
+  `UNSAFE_PortalProvider` or RAC's `PopoverContext` / `UNSTABLE_portalContainer`, and
+  neither is adopted here.
+
 The knobs then ride the anchor, on the anchor element rather than on the document
 root specifically:
 

@@ -45,6 +45,19 @@ const RENDERING_MODULES = [
   "components/questions/question-preview.tsx",
 ];
 
+/**
+ * The one module that owns the preview's styling boundary and the ADR-38 scope carrier
+ * (task 058). It renders no A2UI itself - it is the container the three modules above
+ * render their step inside - which is why it is not in the list above.
+ */
+const PREVIEW_ISLAND = "components/preview-theme-island.tsx";
+
+/** The module that writes the carrier's name down once, for the island to stamp. */
+const SCOPE_VOCABULARY = "lib/preview-theme.ts";
+
+/** ADR-38's carrier attribute, spelled here so the assertion cannot drift from it. */
+const THEME_SCOPE_ATTRIBUTE = "data-qcms-theme-scope";
+
 function walk(dir: string): string[] {
   const out: string[] = [];
   for (const entry of readdirSync(`${ADMIN_ROOT}${dir}`)) {
@@ -105,39 +118,62 @@ describe("A2UI rendering surface (exit criterion 3)", () => {
     expect(preview!.text).toContain('from "@qcms/ui"');
   });
 
-  it("mounts the two form-level renders inside the preview styling seam", () => {
+  it("mounts every render inside the one preview styling seam", () => {
     // Code Owner ruling, 2026-08-02: the preview renders inside a SINGLE container that
-    // owns its styling boundary, and nothing in the path assumes it shares the admin's
-    // theme context. Task 058 mounts a theme island on that container, so this asserts
-    // the boundary exists and is where the renderer hangs off - not that anything themes
-    // it, which 034 deliberately does not do.
-    for (const path of [
-      "components/forms/draft-preview.tsx",
-      "components/forms/version-view.tsx",
-    ]) {
+    // owns its styling boundary. Task 034 built that container on the two form-level
+    // surfaces; task 058 moved its markup into `PreviewThemeIsland` and gave the
+    // question preview the same seam, so the boundary is now declared once and mounted
+    // three times rather than spelled out per surface.
+    //
+    // So the assertion moved with it: each rendering module must hang its renderer off
+    // the island, and the island must declare exactly one container. It is deliberately
+    // NOT relaxed to "somebody somewhere renders a seam" - a second container would make
+    // "the styling boundary" ambiguous again, which is the property 034 bought.
+    for (const path of RENDERING_MODULES) {
       const module = files.find((file) => file.path === path);
       expect(module, `${path} should be scanned`).toBeDefined();
       const text = stripComments(module!.text);
-      expect(text, `${path} should render inside the seam`).toContain("qcms-preview-surface");
-      // One container, not two: a second would make "the styling boundary" ambiguous.
-      expect(text.split("qcms-preview-surface").length - 1).toBe(2);
+      expect(text, `${path} should render inside the island`).toContain("PreviewThemeIsland");
+      expect(text, `${path} should not hand-roll the seam`).not.toContain("qcms-preview-surface");
     }
+    const island = files.find((file) => file.path === PREVIEW_ISLAND);
+    expect(island, `${PREVIEW_ISLAND} should be scanned`).toBeDefined();
+    const text = stripComments(island!.text);
+    // The class and the test id, and nothing else: one container, not two.
+    expect(text.split("qcms-preview-surface").length - 1).toBe(2);
   });
 
-  it("selects no theme or mode for the preview (058 owns that, not 034)", () => {
-    // The amendment is explicit that 034 builds the boundary and NOT the switcher. A
-    // theme knob reaching the preview would be the overshoot it names, so it is asserted
-    // against rather than left to review.
-    const forbidden = ["qcms-app-mode", "QCMS_PORTAL_THEME", "portalTheme", "setTheme"];
-    for (const path of [
-      "components/forms/draft-preview.tsx",
-      "components/forms/version-view.tsx",
-    ]) {
-      const text = stripComments(files.find((file) => file.path === path)?.text ?? "");
-      for (const needle of forbidden) {
-        expect(text, `${path} must not read ${needle}`).not.toContain(needle);
-      }
-    }
+  it("themes the preview island and nothing else in the app (058)", () => {
+    // THE INVERSE of the guard task 034 carried here.
+    //
+    // Until 058 this asserted that the preview modules named none of `qcms-app-mode`,
+    // `QCMS_PORTAL_THEME`, `portalTheme` or `setTheme`, because 034 built the boundary
+    // and explicitly not the switcher. 058 is the task that fills it, so the ban had to
+    // be relaxed - and a deleted guard is a check that looks at nothing and passes
+    // exactly as loudly as a real one. It is replaced by the property that now matters
+    // and is just as easy to break by accident: the scope carrier is on the island and
+    // on NOTHING else.
+    //
+    // That direction is the one worth guarding. ADR-38's attribute makes any element
+    // wearing it resolve the whole respondent token set, so a stray copy on a layout, a
+    // card or a page wrapper would silently repaint a slice of the authoring app in a
+    // respondent theme - a change that looks like a styling accident rather than like
+    // the two-surface breach (ADR-26) it would be.
+    // Two modules may name it and no others: the island, which stamps it, and the
+    // vocabulary module, which is where the string is written down once so the island,
+    // the styles and these assertions cannot drift apart. Anything else in `app/`,
+    // `components/` or `lib/` naming it is the accident described above.
+    expect(modulesMentioning(THEME_SCOPE_ATTRIBUTE)).toEqual([PREVIEW_ISLAND, SCOPE_VOCABULARY]);
+
+    const island = stripComments(files.find((file) => file.path === PREVIEW_ISLAND)!.text);
+    expect(island, "the island should stamp the scope carrier").toContain(THEME_SCOPE_ATTRIBUTE);
+    // And the theme and mode it selects have to land on that same element, or the
+    // attribute is present and inert.
+    expect(island).toContain("data-theme={theme}");
+
+    // The app's own mode control stays untouched: the island's selection is ephemeral
+    // and per-render, so nothing in it may reach the operator's mode cookie.
+    expect(island, "the island must not touch the operator's mode").not.toContain("qcms-app-mode");
   });
 
   it("reaches no renderer engine directly", () => {

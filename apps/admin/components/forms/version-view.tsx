@@ -9,8 +9,10 @@ import {
 import { useCallback, useState } from "react";
 
 import { Button } from "@/components/kit";
+import { PreviewThemeIsland } from "@/components/preview-theme-island";
 import type { FormVersionSnapshot } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
+import type { PreviewTheme } from "@/lib/preview-theme";
 
 /**
  * One published version, rendered from its **stored** compiled documents (task 034;
@@ -47,10 +49,18 @@ import { t } from "@/lib/i18n/en";
  * boundary and assumes nothing about the admin's theme context (Code Owner ruling,
  * 2026-08-02). A published version is the strongest case for that boundary being real: what
  * it shows is what a respondent saw, so the admin's own chrome has no business leaking into
- * it. Task 058 mounts its theme island on this container; this task builds only the
- * boundary, with no theme selection, no mode switching and no portal-theme defaulting.
+ * it. Task 058 mounted the theme island on that container and moved the container's markup
+ * into `PreviewThemeIsland`, which all three preview surfaces now render through, so what
+ * this screen shows is a respondent's appearance under a theme the author can change.
  */
-export function VersionView({ snapshot }: { readonly snapshot: FormVersionSnapshot }) {
+export function VersionView({
+  snapshot,
+  defaultTheme,
+}: {
+  readonly snapshot: FormVersionSnapshot;
+  /** The deployment's configured portal theme, read on the server by the page. */
+  readonly defaultTheme: PreviewTheme;
+}) {
   const [answers, setAnswers] = useState<{ key: number; values: A2UIValues }>({
     key: snapshot.version,
     values: {},
@@ -118,14 +128,14 @@ export function VersionView({ snapshot }: { readonly snapshot: FormVersionSnapsh
             })}
           </p>
 
-          <div className="qcms-preview qcms-preview-surface" data-testid="qcms-preview-surface">
+          <PreviewThemeIsland defaultTheme={defaultTheme}>
             <A2UIStepRenderer
               document={{ stepId: step.stepId, root: step.root as A2UIStepDocument["root"] }}
               values={answers.values}
               onChange={handleChange}
               specVersion={snapshot.a2uiSpecVersion}
             />
-          </div>
+          </PreviewThemeIsland>
 
           <div className="flex flex-wrap items-center gap-2">
             <Button
