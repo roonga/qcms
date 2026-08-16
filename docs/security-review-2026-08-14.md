@@ -6,22 +6,40 @@ review passed.
 **Executed by:** task 040 (`docs/features/040-security-review-hardening.md`),
 which runs the assurance plan in `docs/SECURITY_DESIGN.md` §10 (SEC-12).
 **Tree reviewed:** branch `feat/040-security-review-hardening`, based on
-`origin/main` at `669c769`.
+`origin/main` at `f30dbc5`.
 
 **On the base, and how the argument for it has changed (`CONTRIBUTING.md`'s
 rebase rule).** The review was originally performed against `c5748a4` and the
-branch has been rebased three times since. Earlier rebases could be justified by
+branch has been rebased four times since. Earlier rebases could be justified by
 the intervening commits touching no control this document asserts on. **That is
 no longer true and the weaker claim is not made:** `e1e9756` (#498) changes
-`apps/api/src/features/auth/`, and `2816ec1` (#500) changes the portal's BFF
-route helpers, which are SEC-1 and SEC-9 territory respectively.
+`apps/api/src/features/auth/`, `2816ec1` (#500) changes the portal's BFF
+route helpers, and `f30dbc5` (#505) changes `apps/api/src/config.ts` and the
+better-auth instance to switch the sign-in throttle on a QCMS-owned variable.
+Those are SEC-1, SEC-9 and SEC-1 territory respectively. The final rebase onto
+`f30dbc5` was performed by the reviewing seat and carried one conflict, in this
+document's own SEC-1 traceability row: the branch still described #390 as an open
+deviation, which it ceased to be when #505 merged, so `origin/main`'s row was
+taken.
 
 What carries the verification across is therefore not a diff argument but the
-evidence itself: **every suite cited in this document was re-run on this tree**,
-at the head this document ships with, rather than inherited from an earlier one.
-Where those two commits changed a fact this document states, the statement was
+evidence itself: **every suite cited in this document was re-run**, rather than
+inherited from an earlier tree.
+
+**Stated precisely, because the distinction is the kind this document exists to
+enforce.** Those runs were performed by the executor at the head preceding the
+final rebase. The rebase onto `f30dbc5` was a document-only conflict in this
+file's own SEC-1 row and changed no code, but "the suites were re-run at a head
+that is not this one" is a weaker claim than "on this tree", and the weaker one
+is what is true of the local runs. What establishes it for **this** head is the
+required CI contexts, which execute the same suites on the merge commit and are
+green at the head this document ships with. A reader who wants the strong form
+should read the checks on this PR rather than this sentence.
+
+Where those three commits changed a fact this document states, the statement was
 refreshed rather than left standing - §3.7 for #498's boot signal, §5 and §9.7
-for #487's portal belt - each citing the commit that changed it.
+for #487's portal belt, and the SEC-1 traceability row for #505's throttle knob -
+each citing the commit that changed it.
 **Supersedes nothing.** The next review supersedes this one by date.
 
 ---
