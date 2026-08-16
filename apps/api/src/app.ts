@@ -28,6 +28,7 @@ import type { Deps } from "./deps.js";
 import { errorEnvelope } from "./middleware/error-envelope.js";
 import { internalToken } from "./middleware/internal-token.js";
 import { requestLogger } from "./middleware/request-logger.js";
+import { securityHeaders } from "./middleware/security-headers.js";
 import type { ApiEnv } from "./openapi.js";
 import { registerHealthRoutes } from "./routes/health.js";
 
@@ -102,6 +103,9 @@ export function createApp(
 
   // Correlation id + structured request log wraps every request.
   app.use("*", requestLogger(deps));
+
+  // SEC-9 response headers on every response, refusals included (040).
+  app.use("*", securityHeaders());
 
   // Request body size cap (SEC-9); over the limit → 413 via the envelope.
   app.use("*", bodyLimit({ maxSize: deps.config.bodyLimitBytes }));

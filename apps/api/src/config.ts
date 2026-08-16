@@ -28,10 +28,101 @@ import {
 } from "@qcms/db";
 import { z } from "zod";
 
-/** Minimum bytes for signing/secret material (SEC-4/SEC-7: >= 32 random bytes). */
+/**
+ * Minimum **characters** of signing/secret material (SEC-4/SEC-7 ask for >= 32
+ * random bytes). The unit matters and used to be recorded wrongly here: the
+ * check below compares `raw.length`, which counts UTF-16 code units, not bytes.
+ * For the generated ASCII values the recipes produce the two coincide; a
+ * non-ASCII secret of 32 characters exceeds 32 bytes, which errs safe. Stated in
+ * the unit the code enforces so a reader is not misled (task 040).
+ */
 export const MIN_SECRET_LENGTH = 32;
-/** AES-256-GCM key length for `QCMS_APP_KEY` (SEC-6/SEC-8); 32 bytes = 256 bits. */
+/**
+ * AES-256-GCM key material for `QCMS_APP_KEY` (SEC-6/SEC-8): 32 **characters**,
+ * for the same reason and with the same caveat as `MIN_SECRET_LENGTH`.
+ */
 export const APP_KEY_MIN_LENGTH = 32;
+
+/**
+ * Placeholder prefixes that must never reach a running deployment (SEC-8: "a
+ * deployment with placeholder secrets must refuse to boot").
+ *
+ * This existed only as a sentence until task 040. Every shipped example file
+ * (`.env.compose.example`, `apps/portal/.env.example`, `apps/admin/.env.example`)
+ * fills its secrets with `replace-with-a-random-32-character-...`, and those
+ * strings are longer than 32 characters, so the only validation that ran, a
+ * length floor, accepted them. An operator who copied the example, set the
+ * database password and the base URLs, and missed the key lines would boot a
+ * deployment whose session-signing, link-signing, internal-channel and at-rest
+ * encryption keys are all published in a public repository. Matching on the
+ * prefix rather than on the exact strings keeps the guard working when the
+ * example wording changes.
+ */
+export const PLACEHOLDER_PREFIXES: readonly string[] = [
+  // `replace-` rather than the three `replace-with` / `replace-me` /
+  // `replace-this` spellings it replaced. The narrow list left a real gap: the
+  // committed-secret gate accepts `/^replace[-_]/i` as a valid placeholder, so
+  // `replace-before-you-deploy-a-real-key` in an example file passed the
+  // repository scan **and** booted. Exported so
+  // `config-placeholders.test.ts` can assert the safety property across both
+  // lists rather than across hand-picked strings.
+  "replace-",
+  "change-me",
+  "changeme",
+  "your-",
+  "example-",
+  "placeholder",
+  "<",
+];
+
+/**
+ * True when `raw` is one of the shipped placeholders rather than real material.
+ *
+ * Separators are normalised before matching, so `replace_with_...` is refused
+ * exactly as `replace-with-...` is. That is not cosmetic: the committed-secret
+ * half of this control lives in `scripts/check-security-hygiene.mjs`, and until
+ * task 040's review the two lists disagreed on underscores. A hyphen-only guard
+ * here plus an underscore-tolerant gate there meant an example file spelled
+ * `replace_with_a_real_key` would pass the repository scan **and** boot, which
+ * is precisely the finding this guard exists to close. The agreement is pinned
+ * from both sides by `config-placeholders.test.ts`.
+ */
+function looksLikePlaceholder(raw: string): boolean {
+  const value = raw.trim().toLowerCase().replaceAll("_", "-");
+  return PLACEHOLDER_PREFIXES.some((prefix) => value.startsWith(prefix));
+}
+
+/**
+ * What kind of knob a value is, which decides only the *remedy* sentence.
+ *
+ * The refusal itself applies to both: a placeholder `DATABASE_URL` should stop a
+ * boot exactly as a placeholder signing key should. What differs is the advice,
+ * and telling an operator to "generate real secrets" because their connection
+ * string still says `replace-with-...` sends them to the wrong runbook.
+ */
+type ConfigValueKind = "secret" | "setting";
+
+/**
+ * Record a boot refusal for any placeholder among `values`. Reports the count
+ * and the variable name only: SEC-8 forbids echoing the value even when the
+ * value is known to be worthless, because the same code path handles real ones.
+ */
+function rejectPlaceholders(
+  name: string,
+  values: readonly string[],
+  issues: string[],
+  kind: ConfigValueKind = "secret",
+): void {
+  const placeholders = values.filter((value) => looksLikePlaceholder(value)).length;
+  if (placeholders === 0) return;
+  const remedy =
+    kind === "secret"
+      ? "generate real secrets (see docs/operations.md) before booting"
+      : "set the value for this deployment before booting";
+  issues.push(
+    `${name} still holds ${placeholders} placeholder value(s) from an example file; ${remedy}`,
+  );
+}
 
 /** One rate-limit class: at most `max` requests per fixed `windowMs` per key. */
 export interface RateLimitClass {
@@ -365,6 +456,7 @@ function parseKeyList(env: Env, name: string, minLength: number, issues: string[
   if (tooShort > 0) {
     issues.push(`${name} has ${tooShort} key(s) shorter than the ${minLength}-character minimum`);
   }
+  rejectPlaceholders(name, keys, issues);
   return keys;
 }
 
@@ -438,6 +530,11 @@ function parseSecretVersions(
     return [{ version: 1, value: current }];
   }
   pushOrderIssues(name, parsed, issues);
+  rejectPlaceholders(
+    name,
+    parsed.map((entry) => entry.value),
+    issues,
+  );
   return parsed;
 }
 
@@ -466,7 +563,13 @@ function pushOrderIssues(
   }
 }
 
-function parseRequiredString(env: Env, name: string, minLength: number, issues: string[]): string {
+function parseRequiredString(
+  env: Env,
+  name: string,
+  minLength: number,
+  issues: string[],
+  kind: ConfigValueKind = "secret",
+): string {
   const raw = env[name];
   if (raw === undefined || raw.trim() === "") {
     issues.push(`${name} is required`);
@@ -475,6 +578,7 @@ function parseRequiredString(env: Env, name: string, minLength: number, issues: 
   if (raw.length < minLength) {
     issues.push(`${name} must be at least ${minLength} characters`);
   }
+  rejectPlaceholders(name, [raw], issues, kind);
   return raw;
 }
 
@@ -718,7 +822,7 @@ export function loadAdminAuthConfig(env: Env): {
   readonly adminAuth: Config["adminAuth"];
 } {
   const issues: string[] = [];
-  const databaseUrl = parseRequiredString(env, "DATABASE_URL", 1, issues);
+  const databaseUrl = parseRequiredString(env, "DATABASE_URL", 1, issues, "setting");
   const adminAuth = parseAdminAuth(env, issues);
   if (issues.length > 0) throw new ConfigError(issues);
   return { databaseUrl, adminAuth };
@@ -750,7 +854,7 @@ const UNMOUNTED_ADMIN_AUTH: Config["adminAuth"] = {
 export function loadConfig(env: Env): Config {
   const issues: string[] = [];
 
-  const databaseUrl = parseRequiredString(env, "DATABASE_URL", 1, issues);
+  const databaseUrl = parseRequiredString(env, "DATABASE_URL", 1, issues, "setting");
   const mount = parseMount(env, issues);
   const link = parseKeyList(env, "QCMS_LINK_KEYS", MIN_SECRET_LENGTH, issues);
   const session = parseKeyList(env, "QCMS_SESSION_KEYS", MIN_SECRET_LENGTH, issues);

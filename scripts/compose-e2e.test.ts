@@ -8,6 +8,7 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import {
   composeEnvironmentOverrides,
+  harnessSecrets,
   joinComposeNetwork,
   soleNetworkName,
   soleTcpPort,
@@ -296,5 +297,49 @@ describe("joinComposeNetwork", () => {
     expect(() =>
       joinComposeNetwork("stack_default", "self", { connect: () => ({}), attached: () => [] }),
     ).toThrow(/after docker network connect\./);
+  });
+});
+
+describe("harness secrets (task 040)", () => {
+  it("overrides every placeholder secret the example env file carries", () => {
+    // The API refuses to boot on a placeholder since 040, and the `--env-file`
+    // this harness passes Compose is `.env.compose.example`, whose secret lines
+    // are placeholders. Each one has to be supplied here or the stack will not
+    // come up. Sorted so a new secret in the example file forces this list.
+    expect(Object.keys(harnessSecrets()).sort()).toEqual([
+      "QCMS_ADMIN_AUTH_SECRET",
+      "QCMS_APP_KEY",
+      "QCMS_INTERNAL_TOKEN",
+      "QCMS_LINK_KEYS",
+      "QCMS_SESSION_KEYS",
+    ]);
+  });
+
+  it("generates hex, which cannot begin with a placeholder prefix by chance", () => {
+    for (const value of Object.values(harnessSecrets())) {
+      expect(value).toMatch(/^[0-9a-f]{64}$/);
+    }
+  });
+
+  it("calls the generator once per variable, so no two secrets share a value", () => {
+    // Deterministic counter rather than the real RNG. Comparing two live calls
+    // would pass on a collision only astronomically rarely, but a test whose
+    // green depends on randomness is a test whose green cannot be fully
+    // trusted, and that distinction is the whole subject of this task.
+    let n = 0;
+    const secrets = harnessSecrets(() => `generated-${String(++n)}`);
+    const values = Object.values(secrets);
+    expect(new Set(values).size).toBe(values.length);
+    expect(n).toBe(values.length);
+  });
+
+  it("draws a fresh set on every call rather than memoising one", () => {
+    let n = 0;
+    const generate = (): string => `generated-${String(++n)}`;
+    const first = harnessSecrets(generate);
+    const second = harnessSecrets(generate);
+    // Every value in the second set is drawn after every value in the first.
+    expect(Object.values(first)).not.toEqual(Object.values(second));
+    expect(first.QCMS_APP_KEY).not.toBe(second.QCMS_APP_KEY);
   });
 });
