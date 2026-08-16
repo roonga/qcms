@@ -632,6 +632,45 @@ written, closed in the base `fbc674f`.) It is not blocked on anything this
 task can do. Criterion 4's provenance half does **not**
 hold #361 open; it belongs to #360.
 
+### Addendum, 2026-08-16: criterion 3 is now met
+
+Recorded as a dated addendum rather than a rewrite, because the verdict above was
+accurate when written and this document is evidence rather than a live dashboard.
+A reader needs to be able to see both what was true at review time and what is
+true now.
+
+**All three high-severity findings this review enumerates are retired.**
+
+| Finding | State |
+|---|---|
+| #470, CSV formula injection | closed by PR #480 (`fbc674f`), already in this branch's base |
+| #390, sign-in throttle decided by `NODE_ENV` | **closed by PR #505 (`f30dbc5`)**, option B as ruled 2026-08-15 |
+| F1, placeholder-secret boot refusal | fixed in this change |
+
+So the open high-severity count is **zero**, and criterion 3 reads **met**: the
+review document is committed and no high-severity finding is open.
+
+**What that does and does not settle.** It closes issue #361, whose criterion is
+exactly this one under the Code Owner's ruling of 2026-08-15 that #361 tracks
+"zero open high-severity findings" rather than "040 complete".
+
+It does **not** make task 040 complete. **Criterion 4 remains open on #360**: the
+npm org does not exist, so the provenance publish cannot be verified. Whoever
+flips 040's ledger row to `done` owes that distinction rather than reading #361's
+closure as the task finishing.
+
+**And it does not mean the security-labelled backlog is empty.** Fourteen issues
+carry that label as of this addendum, including six this review filed against
+itself and one (#504) filed against a fix it prompted. Every one is medium or low
+by the scale in §2, which is what "zero open high" means and all it means. The
+next review re-derives the set rather than reading this line, per the same ruling.
+
+**Sequence, for auditability.** #505 merged before this document's own pull
+request did, so the criterion changed state between this document being written
+and being committed. That is why the verdict above and this addendum disagree,
+and it is the honest record of a review whose subject moved while it was being
+reviewed.
+
 ---
 
 ## 8a. Issues this change closes, named rather than implied
