@@ -57,7 +57,9 @@ This is additive to the audit, not a disagreement with it: it is a missing
 **capability**, not a layout question, so it does not slot into any of the seven
 design-language elements.
 
-**Resolved (Code Owner, 2026-08-19): Form builder screen, one link per version,
+**Recorded in-session as resolved (attributed to the Code Owner, 2026-08-19;
+attribution not independently confirmed by this seat - treat as pending
+confirmation, per the preamble): Form builder screen, one link per version,
 shown after each publish.** This turned out to be a bigger decision than "where does
 a link live" - the request was for a link *per version*, and nothing in QCMS today
 lets a new session start on anything but the newest published version (confirmed:
@@ -74,13 +76,16 @@ superseded by it.
 Layout detail, not a design question. When a rail-bearing screen's main content is
 shorter than the viewport, the rail's own box (and its background/border) only grows
 as tall as that short content, leaving a plain-background gap below both rail and
-main down to the actual bottom of the screen - confirmed by measurement in four POC
-files this session, fixed there with `body { display: flex; flex-direction: column;
-min-height: 100vh }` plus `flex: 1 1 auto; min-height: 0` on the rail/main grid
-container (`admin-shell-poc.html`, `responses-poc.html`, `question-editor-poc.html`,
-`settings-newquestion-poc.html`; the same fix was **not yet** carried to
-`rules-screen-poc.html`, `preview-versions-poc.html`, `links-webhooks-poc.html`,
-which still have the gap).
+main down to the actual bottom of the screen - confirmed by measurement this
+session, fixed with `body { display: flex; flex-direction: column; min-height:
+100vh }` plus `flex: 1 1 auto; min-height: 0` on the rail/main grid container.
+**Status corrected 2026-08-19 (consistency audit):** the fix is present and
+byte-identical in **all seven** rail-bearing POCs, including the three an earlier
+draft of this document listed as still gapped. The four unrailed files handle
+full-height three different ways instead (`add-question-poc.html` via `.stage
+{ min-height: 100vh }`, `auth-poc.html` via a lone `min-height: 70vh`,
+`deployment-ops-poc.html` and `library-lists-poc.html` not at all) - see
+`plan/admin-poc-consistency-audit.md` §3.4.
 
 This has no bearing on whether any given screen *should* get a rail - it is an
 acceptance criterion for whichever screens end up with one, wherever the audit's
@@ -93,12 +98,16 @@ bug fit for `/next-issue` on its own, independent of everything else in this pla
 
 ## 2. Two open decisions this session's POC work created
 
-Both decided by the Code Owner, 2026-08-19. Recorded here with the reasoning either
-way, so a later reader finds the argument instead of reopening it.
+Both were recorded in-session as decided by the Code Owner, 2026-08-19, but that
+attribution was not independently confirmed by this seat (see the preamble). Treat
+C1 as **pending Code Owner confirmation**; C2 is at least a live work item either
+way, because issue #515 exists on the real record. Recorded here with the
+reasoning either way, so a later reader finds the argument instead of reopening it.
 
-### C1. Settings: rail-split (this session) vs. explicit reject (the audit) - RESOLVED: keep the rail
+### C1. Settings: rail-split (this session) vs. explicit reject (the audit) - recorded as "keep the rail", pending confirmation
 
-**Decision: the Settings rail ships, overriding the audit's row-16 reject.** The
+**Recorded decision: the Settings rail ships, overriding the audit's row-16
+reject.** The
 audit's cost argument (§3.10, quoted below) was not wrong on its own terms - it
 still holds that three short, independent cards have no shared state a rail
 exploits - but the decision was made anyway. If a future reader wants the reason
@@ -130,9 +139,9 @@ Settings POC reverts to one scrolling page (with the account/password/2FA cards 
 already had), or there is a reason to override it that should be written down next
 to the audit's row 16 so a later reader does not reopen the same argument.
 
-### C2. Answer-preview column: build (the original POC brief) vs. record-as-accepted (the audit) - RESOLVED: build it
+### C2. Answer-preview column: build (the original POC brief) vs. record-as-accepted (the audit) - recorded as "build it", filed as #515
 
-**Decision: build the column.** Confirmed afterward to be a smaller change than
+**Recorded decision: build the column.** Confirmed afterward to be a smaller change than
 either side assumed - the data already flows end to end (`reporting.responses` view
 through to the admin BFF's typed `answers` field), so this is front-end-only. Filed:
 [#515](https://github.com/roonga/qcms/issues/515). D5 in the audit should be marked
@@ -200,7 +209,7 @@ item), element 7 (ambient save) on the builder plus an explicit manual-save stat
 on the question editor, element 3 digests on the builder's two `<details>` panels and
 the delivery dashboard's row trigger.
 
-**Wave 3 - the rail, gated on a written contract first** (audit §8 items 8-9): the
+**Wave 3 - the rail, gated on written contracts first** (audit §8 items 8-9): the
 form subtree (eight screens) gets the rail and the per-screen width the audit
 specifies, plus the scope rule written into the wireframe format spec. Before this
 starts, the rail's contract has to say what it carries - children (a form's steps,
@@ -212,26 +221,52 @@ C1 resolves toward keeping a Settings rail, decide there whether Settings writes
 own one-off contract (it has neither children nor siblings in the form subtree's
 sense) or sits outside Wave 3 entirely as a different kind of rail.
 
+**The rail contract is not the only one Wave 3 needs.** A consistency audit of all
+eleven POCs (`plan/admin-poc-consistency-audit.md`, 2026-08-19) found the corpus
+answers the same design questions two to seven different ways - three table
+implementations, four-plus empty-state shapes, seven badge families, seven
+breakpoint numbers against the mobile stance's mandated two, four rail contracts,
+three dialog idioms - and in two flagship files contradicts the UX audit outright
+(Validation as a rail route in `rules-screen-poc.html`; the overlapping
+Rules/Validation digests still in `admin-shell-poc.html`). Its §4 lists the eight
+contracts to write (breakpoints, table, empty state, badges, dialogs, save-model
+statement, rail, spacing/type reconciliation with `packages/ui/src/theme.css`).
+**Wave 3 does not start until those contracts exist**, or every implementer copies
+a different answer from whichever POC they open first - the exact failure the
+redesign is meant to end.
+
 **Wave 4 - only once Wave 3 (or a settings-only rail from C1) is real code:**
 - Carry N2 (the viewport-fill CSS) into whatever ships, as an acceptance criterion,
   not an afterthought.
 - Regenerate every POC under `plan/admin-shell-poc/` in one pass so they stop
-  teaching a superseded model - the same step `plan/high-contrast-dark-plan.md`
-  already calls for once *its* proposal lands (that plan's own step 6). Doing both
-  regenerations together avoids three separate touch passes over the same eleven
-  files for three different reasons.
+  teaching a superseded model. Three reasons now converge on the same eleven
+  files, which is why this is one pass and not three: the two-axis appearance
+  switcher from `plan/high-contrast-dark-plan.md` (that plan's own step 6), the
+  Wave 3 contract decisions above, and the consistency defects
+  `plan/admin-poc-consistency-audit.md` §5 marks must-fix in the flagship files
+  (overlapping digests in `admin-shell-poc.html`, the Validation rail route and
+  silent save model in `rules-screen-poc.html`, the plain-dialog erasure confirm
+  in `responses-poc.html`, the digest-less collapsibles and self-contradicting
+  save chrome in `question-editor-poc.html`, the dead rail summary in
+  `links-webhooks-poc.html`).
 
 ---
 
 ## 4. What happens to this session's POC files right now
 
-Nothing, per instruction. For the record, so a later reader has an accurate map:
+Nothing, per instruction. For the record, so a later reader has an accurate map
+(corrected 2026-08-19 against the files themselves; an earlier draft of this
+section understated how far the viewport-fill fix had been carried):
 
-- `admin-shell-poc.html`, `responses-poc.html`, `question-editor-poc.html`,
-  `settings-newquestion-poc.html`: internally consistent, viewport-fill fix applied.
-- `rules-screen-poc.html`, `preview-versions-poc.html`, `links-webhooks-poc.html`:
-  still carry the pre-fix shell-body pattern (the N2 gap). Deferred, not forgotten -
-  folded into Wave 4's regeneration pass above rather than patched piecemeal now.
+- All seven rail-bearing POCs (`admin-shell-poc.html`, `responses-poc.html`,
+  `question-editor-poc.html`, `settings-newquestion-poc.html`,
+  `rules-screen-poc.html`, `preview-versions-poc.html`,
+  `links-webhooks-poc.html`) carry the N2 viewport-fill fix, byte-identical.
+- Each file is internally consistent, but the corpus is not one system: the
+  cross-file drift is catalogued in `plan/admin-poc-consistency-audit.md`
+  (tables, empty states, badges, breakpoints, rail contracts, dialogs, save
+  chrome), with its §5 naming the flagship files whose defects must not survive
+  the Wave 4 regeneration.
 - `settings-newquestion-poc.html`'s rail split and `responses-poc.html`'s answer
   preview column are both provisional pending C1 and C2. If either decision goes
   against what is currently drawn, that POC is the one that needs revisiting before

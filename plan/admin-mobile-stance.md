@@ -73,6 +73,15 @@ Measured from the prototypes as they stand:
 moved to whichever of the two it is really expressing. Name them once and refer to
 the names.
 
+> **Addendum (2026-08-19):** the measurement above is a snapshot of three
+> prototypes; the corpus has since grown to eleven and the count went the wrong
+> way: **seven** distinct numbers now appear (420, 480, 639, 900, 999, 1023,
+> 1024), none of them tokenized, and the same option-grid component collapses at
+> 639 in one file and 480 in another. Full per-file inventory:
+> `plan/admin-poc-consistency-audit.md` §3.4. The two-breakpoint recommendation
+> stands unchanged and is now a written precondition of Wave 3 in
+> `plan/admin-redesign-implementation-plan.md` §3.
+
 The behavioural rules the prototypes established, which should survive whatever the
 breakpoints are renamed to:
 
