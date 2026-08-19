@@ -375,3 +375,21 @@ Worse, `native-step.tsx` carried a comment **directly above that spread** explai
 This is the doc-side twin of an already-queued line - *"when a change alters an origin or address, grep every consumer of that value, not just the dialler"* - arriving from a different direction. Both reduce to: **a fix is only as correct as the seam furthest from it that reads what it changed.**
 
 **Why it is hard to teach.** Unlike the vacuous-check family, this one looks like thoroughness right up until it isn't. The fix was well-reasoned, tested, and wrong. The only thing that caught it was a reviewer reading one seam further than the change.
+
+---
+
+## `/next-issue`'s priority order cannot express a campaign, and its second-lane rule cites a discharged aim
+
+**Raised:** 2026-08-19, PM seat, while prioritising the admin redesign tier on the Code Owner's instruction.
+
+**What is wrong.** Two things in `.claude/skills/next-issue/SKILL.md`, both outside this seat's edit scope and so proposed rather than fixed.
+
+**(a) Step 1's priority order is a fixed label ranking** - `security`, then `bug`, then unlabeled, then `enhancement` - with no way for the plan to say "this campaign runs first". When the Code Owner directs a body of work to be driven, the seat has only three levers: relabel the issues (dishonest if the label is not true of them), edit the skill (ask-gated, and a workshop concern), or state the scope in the invocation (works, but is a property of one launch rather than of the repo, so it is lost the moment anyone runs a bare `/loop /next-issue`).
+
+The concrete instance: twelve `admin-redesign` issues were dispatched on 2026-08-19, of which seven are legitimately unlabeled - they apply patterns that already ship to screens that already exist, which is neither a bug nor an enhancement. Under the fixed order those seven sort behind the entire backlog, including the consolidation issue (#514) the UX audit calls the single change that most affects how the app reads.
+
+**Candidate edit.** Let the standing aim in `plan/CLAUDE.md` name a label that step 1 drains first, before its own ranking applies - the aim block already exists, and the skill already defers to it for scope tiering in second-lane rule 1, so this is a small extension of a channel rather than a new one. Keep the escape hatch explicit: an aim may name preemptions that still outrank the campaign (on 2026-08-19 that is #504, a security issue on an unauthenticated respondent surface). The general shape: a fixed ranking encodes what is *usually* urgent; a campaign is what is *currently* directed, and the two need different channels.
+
+**(b) Second-lane rule 1 cites an aim that is discharged.** It reads "while the e2e chain (033/034/035) is executable, pick `security` and `bug` issues only - enhancements, workshop items, and polish wait behind 035, however small." Those three tasks landed as PRs #245, #274 and #284. A second lane reading that rule today would exclude every unlabeled issue in the current campaign for a reason that stopped being true two weeks ago.
+
+**Candidate edit.** The rule should cite the aim block by reference and inherit whatever it currently says, rather than restating the aim's contents inline - a restatement in a second file is a copy that ages, which is the same failure mode the ordering-exception table already has a single-source rule against (`docs/features/README.md`). This is the fifth or sixth instance of the copied-and-aged pattern in this repo; it may be worth a general line in the workshop pass rather than another point fix.
