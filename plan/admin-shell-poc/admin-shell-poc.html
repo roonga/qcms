@@ -1,0 +1,1156 @@
+<!-- @dsCard group="Layout" name="Admin shell" subtitle="Top primary nav, left rail navigating a form screen and a step screen" -->
+<title>QCMS DS - Admin shell POC</title>
+<style>
+:root {
+  --color-primary: #2456c6;
+  --color-primary-hover: #1e4aad;
+  --color-primary-active: #193f95;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #4f5b70;
+  --color-secondary-hover: #475265;
+  --color-secondary-active: #3f495a;
+  --color-secondary-foreground: #ffffff;
+  --color-danger: #c0271f;
+  --color-danger-hover: #ad231c;
+  --color-danger-active: #9a1f19;
+  --color-danger-foreground: #ffffff;
+  --color-danger-subtle: #f9e7e5;
+  --color-danger-fg: #8f1d18;
+  --color-ghost: transparent;
+  --color-ghost-hover: #eef1f6;
+  --color-ghost-active: #e4e8ef;
+  --color-info: #2456c6;
+  --color-info-subtle: #e9effb;
+  --color-info-fg: #1b44a0;
+  --color-success: #1e7a46;
+  --color-success-subtle: #e4f1ea;
+  --color-success-fg: #16603a;
+  --color-warning: #8a5a00;
+  --color-warning-subtle: #f6eeda;
+  --color-warning-fg: #6e4700;
+  --color-text: #0f1729;
+  --color-text-muted: #55617a;
+  --color-border: #dde2ea;
+  --color-border-strong: #838ca4;
+  --color-background: #fbfcfd;
+  --color-background-muted: #eef1f6;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f4f6fa;
+  --color-focus-ring: #2456c6;
+  --color-overlay: rgb(0 0 0 / 0.5);
+  --shadow-color: 222deg 30% 20%;
+  --admin-control-h: 40px;
+  --admin-control-pad-x: 0.6rem;
+  --admin-stack: 0.35rem;
+  --admin-section-pad: 1.25rem;
+  --admin-table-row-h: 44px;
+  --radius-control: 4px;
+  --radius-card: 8px;
+  --radius-sm: 2px;
+  --font-admin: "Lexend", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace;
+}
+
+:root.dark {
+  --color-primary: #7aa2ff;
+  --color-primary-hover: #8fb1ff;
+  --color-primary-active: #a1beff;
+  --color-primary-foreground: #0b0f1a;
+  --color-secondary: #97a2b8;
+  --color-secondary-hover: #a3adc1;
+  --color-secondary-active: #aeb6c8;
+  --color-secondary-foreground: #0b0f1a;
+  --color-danger: #ff7b80;
+  --color-danger-hover: #ff8b8f;
+  --color-danger-active: #ff989c;
+  --color-danger-foreground: #0b0f1a;
+  --color-danger-subtle: #2b1615;
+  --color-danger-fg: #ffb3b5;
+  --color-ghost: transparent;
+  --color-ghost-hover: #1b2230;
+  --color-ghost-active: #232c3c;
+  --color-info: #7aa2ff;
+  --color-info-subtle: #16233a;
+  --color-info-fg: #a9c4ff;
+  --color-success: #46c08a;
+  --color-success-subtle: #132a20;
+  --color-success-fg: #8fe0bd;
+  --color-warning: #e0a93b;
+  --color-warning-subtle: #2a2110;
+  --color-warning-fg: #f0cd85;
+  --color-text: #e6eaf2;
+  --color-text-muted: #97a2b8;
+  --color-border: #262e3d;
+  --color-border-strong: #626c88;
+  --color-background: #0b0f1a;
+  --color-background-muted: #10151f;
+  --color-surface: #141a26;
+  --color-surface-hover: #1b2230;
+  --color-focus-ring: #7aa2ff;
+  --color-overlay: rgb(0 0 0 / 0.6);
+  --shadow-color: 222deg 60% 2%;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light):not(.dark):not(.hc) {
+    --color-primary: #7aa2ff;
+    --color-primary-hover: #8fb1ff;
+    --color-primary-active: #a1beff;
+    --color-primary-foreground: #0b0f1a;
+    --color-secondary: #97a2b8;
+    --color-secondary-hover: #a3adc1;
+    --color-secondary-active: #aeb6c8;
+    --color-secondary-foreground: #0b0f1a;
+    --color-danger: #ff7b80;
+    --color-danger-hover: #ff8b8f;
+    --color-danger-active: #ff989c;
+    --color-danger-foreground: #0b0f1a;
+    --color-danger-subtle: #2b1615;
+    --color-danger-fg: #ffb3b5;
+    --color-ghost: transparent;
+    --color-ghost-hover: #1b2230;
+    --color-ghost-active: #232c3c;
+    --color-info: #7aa2ff;
+    --color-info-subtle: #16233a;
+    --color-info-fg: #a9c4ff;
+    --color-success: #46c08a;
+    --color-success-subtle: #132a20;
+    --color-success-fg: #8fe0bd;
+    --color-warning: #e0a93b;
+    --color-warning-subtle: #2a2110;
+    --color-warning-fg: #f0cd85;
+    --color-text: #e6eaf2;
+    --color-text-muted: #97a2b8;
+    --color-border: #262e3d;
+    --color-border-strong: #626c88;
+    --color-background: #0b0f1a;
+    --color-background-muted: #10151f;
+    --color-surface: #141a26;
+    --color-surface-hover: #1b2230;
+    --color-focus-ring: #7aa2ff;
+    --color-overlay: rgb(0 0 0 / 0.6);
+    --shadow-color: 222deg 60% 2%;
+  }
+}
+
+:root.hc {
+  --color-secondary: #1c2433;
+  --color-secondary-hover: #19202e;
+  --color-secondary-active: #161d29;
+  --color-secondary-foreground: #ffffff;
+  --color-danger: #8a0f0a;
+  --color-danger-hover: #7c0e09;
+  --color-danger-active: #6e0c08;
+  --color-danger-foreground: #ffffff;
+  --color-danger-subtle: #ffecea;
+  --color-danger-fg: #6b0b07;
+  --color-ghost: transparent;
+  --color-ghost-hover: #eceef1;
+  --color-ghost-active: #dfe2e7;
+  --color-info: #0a3ea8;
+  --color-info-subtle: #e6efff;
+  --color-info-fg: #08337d;
+  --color-success: #0a5c30;
+  --color-success-subtle: #e2f4e9;
+  --color-success-fg: #064023;
+  --color-warning: #5a3b00;
+  --color-warning-subtle: #fbf0d6;
+  --color-warning-fg: #4a3000;
+  --color-text: #000000;
+  --color-text-muted: #22262e;
+  --color-border: #5a616e;
+  --color-border-strong: #000000;
+  --color-background: #ffffff;
+  --color-background-muted: #f2f3f5;
+  --color-surface: #ffffff;
+  --color-surface-hover: #eceef1;
+  --color-focus-ring: #0a3ea8;
+  --color-overlay: rgb(0 0 0 / 0.7);
+  --color-primary: #0a3ea8;
+  --color-primary-hover: #08348f;
+  --color-primary-active: #062a75;
+  --color-primary-foreground: #ffffff;
+}
+
+/* Base */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; }
+/* flex column so .shell-body (the rail + main grid) can be told to fill whatever
+   viewport height the fixed chrome above it (switcher, intro, topbar, save-status)
+   does not use - see the comment on .shell-body itself for why that matters. */
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  font-family: var(--font-admin);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--color-text);
+  background: var(--color-background);
+  overflow-x: hidden;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+/* A later `display` declaration (e.g. this file's own `.main-layout { display: grid }`)
+   beats the UA's `[hidden] { display: none }` rule, since both are same-specificity
+   type-vs-attribute selectors and source order decides the tie. Without this, a
+   `hidden` main-layout still renders. */
+[hidden] { display: none !important; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+/* Demo mode switcher (house convention: not part of the shipped shell, a viewer aid) */
+.switcher { display: flex; gap: 0.5rem; padding: 0.75rem 1.5rem; border-bottom: 1px dashed var(--color-border-strong);
+  background: var(--color-background-muted); }
+.switcher button { height: 32px; padding: 0 0.75rem; border-radius: var(--radius-control);
+  border: 1px solid var(--color-border-strong); background: var(--color-surface); color: var(--color-text); cursor: pointer; }
+.switcher button[aria-pressed="true"] { background: var(--color-primary); border-color: var(--color-primary);
+  color: var(--color-primary-foreground); }
+
+/* Icons */
+.icon { width: 16px; height: 16px; flex-shrink: 0; }
+.icon-sm { width: 14px; height: 14px; flex-shrink: 0; }
+
+/* Topbar: full viewport width by design (a deliberate POC variant of the shipped
+   centered-container topbar - see the reply notes for why). */
+.topbar { background: var(--color-surface); border-bottom: 1px solid var(--color-border); }
+/* min-height, not height: the nav's own ul wraps onto further lines as the bar narrows
+   (below), and a fixed height would clip that wrapped content instead of growing for it -
+   which is what let the wrapped nav spill over and collide with the rail heading below.
+   basis-40 (160px), not a larger basis, mirrors the shipped topbar's own nav sizing so the
+   wordmark and trailing controls have enough room to stay on the first row beside it. */
+.topbar__inner { display: flex; flex-wrap: wrap; align-items: center; gap: 1.25rem; padding: 0 1.25rem; min-height: 56px; }
+.wordmark { font-weight: 800; font-size: 1.15rem; letter-spacing: -0.02em; flex-shrink: 0; }
+.topbar__nav { flex: 1 1 160px; min-width: 0; }
+.topbar__nav ul { display: flex; flex-wrap: wrap; gap: 1.25rem; list-style: none; margin: 0; padding: 0; height: 100%; }
+.topbar__nav li { display: flex; align-items: center; }
+.topbar__link { display: inline-flex; align-items: center; height: 100%; padding: 0 2px; text-decoration: none;
+  font-weight: 600; font-size: 0.92rem; color: var(--color-text-muted); border-bottom: 2px solid transparent; }
+.topbar__link:hover { color: var(--color-text); }
+.topbar__link[aria-current="page"] { color: var(--color-text); border-bottom-color: var(--color-primary); }
+.topbar__trailing { display: flex; align-items: center; gap: 0.6rem; flex-shrink: 0; }
+.icon-btn { width: 36px; height: 36px; border-radius: var(--radius-control); border: 1px solid var(--color-border);
+  background: var(--color-surface); color: var(--color-text); display: inline-flex; align-items: center;
+  justify-content: center; cursor: pointer; }
+.icon-btn:hover { background: var(--color-surface-hover); }
+.avatar-btn { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--color-border-strong);
+  background: var(--color-secondary); color: var(--color-secondary-foreground); font-weight: 700; font-size: 0.78rem;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.avatar-btn:hover { background: var(--color-secondary-hover); }
+
+/* The ambient save indicator: shell chrome, not a section digest, so it stays visible on
+   both screens (Validation's own digest is Form-screen-only and keeps just the issue
+   count; this is the one place "when was this last saved" lives so the Step screen does
+   not lose it in the split). aria-live mirrors the real save indicator's own live region. */
+.save-status { padding: 0.4rem 1.25rem; font-size: 0.78rem; color: var(--color-text-muted);
+  background: var(--color-background-muted); border-bottom: 1px solid var(--color-border); }
+
+/* Shell body: rail + main. Single column below 1024px (rail becomes a top disclosure);
+   two-column grid at 1024px and up. `flex: 1 1 auto` (body is the flex column set up
+   above) is what makes this fill the rest of the viewport rather than only the height
+   its own content needs: without it, a short screen (e.g. a step with one question)
+   left the rail's own box exactly as short, so its border and background stopped
+   partway down the page instead of reaching the bottom the way a sidebar should - the
+   grid's default `align-items: stretch` already keeps the rail matched to whatever
+   height main ends up at (verified: they are always equal), the gap was main itself
+   never being tall enough. `min-height: 0` overrides flexbox's own `min-height: auto`
+   default, which would otherwise refuse to let this shrink below its content size and
+   silently defeat the grow above on some browsers. */
+.shell-body { display: block; flex: 1 1 auto; min-height: 0; }
+@media (min-width: 1024px) {
+  .shell-body { display: grid; grid-template-columns: 240px 1fr; }
+}
+
+/* Rail: a native <details> so the narrow-viewport collapse is a real disclosure with no
+   script required - it defaults open so the wide-viewport case needs no override to look
+   like a plain sidebar, and a wide-viewport user can still collapse it if they want to. */
+.rail-shell { border-bottom: 1px solid var(--color-border); background: var(--color-surface); }
+@media (min-width: 1024px) {
+  .rail-shell { border-bottom: none; border-right: 1px solid var(--color-border); }
+}
+.rail-summary { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; cursor: pointer;
+  list-style: none; padding: 0.9rem var(--admin-section-pad); font-weight: 700; font-size: 1rem; }
+.rail-summary::-webkit-details-marker { display: none; }
+.rail-summary__label { display: flex; align-items: baseline; gap: 6px; min-width: 0; flex: 1 1 auto; }
+.rail-summary__text { margin: 0; font: inherit; font-weight: inherit; font-size: inherit;
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rail-summary__chev { transition: transform 0.12s ease; color: var(--color-text-muted); }
+.rail-shell[open] .rail-summary__chev { transform: rotate(90deg); }
+/* The collapsed-only active-step indicator: hidden by default (and always on desktop, where
+   the rail is a permanent sidebar rather than a disclosure, so this must never add a new
+   heading there), and shown only below the collapse breakpoint while the disclosure is
+   actually closed. Once the disclosure is open the step is already visible in the list
+   right beneath it, so the indicator drops rather than repeating it - the choice called out
+   in the reply notes. flex-shrink:0 and nowrap keep it from ever truncating: if the row runs
+   out of room at 390, the form name (.rail-summary__text, above) gives way first. */
+.rail-summary__step { display: none; flex-shrink: 0; align-items: center; gap: 6px; font-size: 0.85rem;
+  font-weight: 600; white-space: nowrap; }
+.rail-summary__sep { color: var(--color-text-muted); font-weight: 400; }
+.rail-summary__step-issues { display: inline-flex; align-items: center; gap: 3px; font-size: 0.72rem;
+  font-weight: 700; color: var(--color-warning-fg); }
+.rail-summary__step-issues svg { width: 12px; height: 12px; flex-shrink: 0; }
+@media (max-width: 1023px) {
+  .rail-shell:not([open]) .rail-summary__step { display: inline-flex; }
+}
+@media (min-width: 1024px) {
+  .rail-summary__chev { display: none; }
+  .rail-summary { cursor: default; padding-bottom: 0.5rem; }
+}
+.rail-body { padding: 0 0.6rem 1rem; }
+
+.rail-tree { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.rail-tree > li + li { margin-top: 4px; }
+.rail-link { display: block; padding: 0.5rem 0.6rem; border-radius: var(--radius-control); text-decoration: none;
+  font-size: 0.9rem; font-weight: 600; color: var(--color-text); }
+.rail-link:hover { background: var(--color-surface-hover); }
+.rail-link[aria-current="page"] { background: var(--color-info-subtle); color: var(--color-info-fg); }
+
+.rail-group summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 6px;
+  padding: 0.5rem 0.6rem; border-radius: var(--radius-control); font-weight: 600; font-size: 0.9rem; }
+.rail-group summary::-webkit-details-marker { display: none; }
+.rail-group summary:hover { background: var(--color-surface-hover); }
+.rail-group__chev { transition: transform 0.12s ease; color: var(--color-text-muted); flex-shrink: 0; }
+.rail-group[open] > summary .rail-group__chev { transform: rotate(90deg); }
+
+.rail-steps { list-style: none; margin: 2px 0 2px 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+/* padding-left is gone: the leading .rail-step-grip button now supplies the same visual
+   indent under the Steps group, present identically on every row so removing it never shifts
+   a sibling row's content (the same fix, for the same reason, as the marker slot below). */
+.rail-step-row { position: relative; display: flex; align-items: center; gap: 4px;
+  border-left: 3px solid transparent; border-radius: var(--radius-control); }
+.rail-step-row:hover { background: var(--color-surface-hover); }
+.rail-step-row.is-active { border-left-color: var(--color-primary); background: var(--color-info-subtle); }
+/* The step's own drag handle: the same reorder model as the questions grid's grip (pointer-
+   drag, grab/grabbing cursors, Arrow Up/Down while focused) - see .qgrip's doc comment above.
+   Unlike the grid, the step's overflow menu keeps its own separate three-dot trigger rather
+   than folding into the grip (Enter/Space on this handle does nothing here), so the handle's
+   only jobs are drag and keyboard reorder. Hidden at rest and revealed on row hover/focus:
+   240px cannot hold a grip, the issue badge and the overflow trigger all visible together, so
+   this follows the grid's own opt-grip precedent (ds-option-grid.html) of an opacity-driven
+   reveal rather than showing at rest - the reserved 22px box is identical on every row
+   whether or not it is visible, which is what keeps the title from shifting. */
+.rail-step-grip { width: 22px; height: 22px; flex-shrink: 0; border-radius: var(--radius-sm);
+  border: 1px solid transparent; background: transparent; color: var(--color-text-muted);
+  display: inline-flex; align-items: center; justify-content: center; cursor: grab; opacity: 0;
+  transition: opacity 0.12s ease, background 0.12s ease; }
+.rail-step-row:hover .rail-step-grip, .rail-step-row:focus-within .rail-step-grip,
+.rail-step-row.is-dragging .rail-step-grip { opacity: 1; }
+.rail-step-grip:hover { background: var(--color-ghost-hover); color: var(--color-text); }
+.rail-step-grip:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; opacity: 1; }
+.rail-step-grip:active { cursor: grabbing; }
+/* Mid-drag / drop-indicator language for a dragged step, matching .qrow.is-dragging and
+   .qdrop-indicator above (same tokens, same shapes). Defined for completeness - this is "the
+   identical reorder model" as the grid - but deliberately not applied to any row in this
+   render: only one lifted element may appear in the whole document, and the questions grid
+   already shows it (q_cigs_daily), so every step row here stays at rest. */
+.rail-step-row.is-dragging { position: relative; z-index: 2; background: var(--color-surface);
+  box-shadow: 0 1px 2px hsl(var(--shadow-color) / 0.18), 0 10px 24px -6px hsl(var(--shadow-color) / 0.28); }
+.rail-step-drop-row { list-style: none; padding: 0 0.6rem; }
+.rail-step-drop-indicator { position: relative; display: block; height: 10px; margin-left: 1.6rem; pointer-events: none; }
+.rail-step-drop-indicator__line { position: absolute; left: 0; right: 0; top: 50%; height: 3px;
+  background: var(--color-primary); border-radius: 1px; transform: translateY(-50%); }
+.rail-step-link { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 6px; padding: 0.42rem 0.3rem;
+  text-decoration: none; font-size: 0.87rem; color: var(--color-text); border-radius: var(--radius-sm); }
+.rail-step-row.is-active .rail-step-link { font-weight: 700; color: var(--color-info-fg); }
+/* The marker glyph only means something once the row is real navigation (the current
+   screen), so it stays in the DOM (a stable slot, no layout jump) but is invisible until
+   .is-active says this row is where the Step screen currently points. This span must be
+   present on EVERY row, not only the active one: a slot that exists on one row and not its
+   siblings still shifts that one row's title relative to the others, which is exactly the
+   bug visibility:hidden (vs. display:none) exists to avoid - the fix is identical presence,
+   not identical CSS. */
+.rail-step-marker { color: var(--color-primary); flex-shrink: 0; visibility: hidden; }
+.rail-step-row.is-active .rail-step-marker { visibility: visible; }
+.rail-step-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rail-badge { flex-shrink: 0; font-size: 0.7rem; font-weight: 700; padding: 2px 6px; border-radius: var(--radius-sm);
+  background: var(--color-warning-subtle); color: var(--color-warning-fg); white-space: nowrap; }
+.rail-step-menu-trigger { flex-shrink: 0; width: 26px; height: 26px; margin-right: 4px; border-radius: var(--radius-sm);
+  border: 1px solid transparent; background: transparent; color: var(--color-text-muted); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; }
+.rail-step-menu-trigger:hover { background: var(--color-ghost-hover); color: var(--color-text); }
+
+/* Overflow menu: shown open on exactly one row, per the brief, so the design is visible
+   without needing pointer interaction to demonstrate it. */
+.menu { position: absolute; z-index: 5; min-width: 180px; background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-card); padding: 6px; box-shadow: 0 2px 4px hsl(var(--shadow-color) / 0.1), 0 30px 70px -30px hsl(var(--shadow-color) / 0.4); }
+.menu .mi { display: block; width: 100%; text-align: left; background: none; border: none; padding: 8px 10px;
+  border-radius: var(--radius-sm); color: var(--color-text); font: inherit; font-size: 0.85rem; cursor: pointer; }
+.menu .mi:hover { background: var(--color-surface-hover); }
+.menu .mi.is-danger { color: var(--color-danger-fg); }
+/* left matches the link's new start position (grip 22px + 4px gap = 1.6rem), not the old
+   padding-left the grip replaced. */
+.rail-step-menu { top: 100%; left: 1.6rem; margin-top: 2px; }
+
+.rail-add-step { width: 100%; text-align: left; background: none; border: none; cursor: pointer;
+  padding: 0.42rem 0.3rem 0.42rem 1.4rem; margin-top: 1px; font: inherit; font-size: 0.87rem;
+  color: var(--color-text-muted); border-radius: var(--radius-control); }
+.rail-add-step:hover { background: var(--color-surface-hover); color: var(--color-text); }
+
+/* Main column: left-anchored, fluid up to a cap, never re-centred. */
+.main { max-width: 1600px; padding: var(--admin-section-pad); min-width: 0; }
+
+.breadcrumb ol { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 4px; padding: 0;
+  font-size: 0.82rem; color: var(--color-text-muted); }
+.breadcrumb li:not(:last-child)::after { content: "/"; margin-left: 6px; color: var(--color-border-strong); }
+.breadcrumb a { text-decoration: none; }
+.breadcrumb a:hover { text-decoration: underline; }
+.breadcrumb li[aria-current="page"] { color: var(--color-text); font-weight: 600; }
+
+h1.step-heading { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.01em; margin: 0 0 1.1rem; }
+/* Step title, editable inline where it appears (mirrors steps-rail.tsx's own Button-that-
+   becomes-a-TextField rename pattern): a button styled to read as plain heading text at
+   rest, with no border or background until hover or focus reveals it is a control. */
+.step-title-edit { background: none; border: 1px solid transparent; font: inherit; font-weight: inherit;
+  font-size: inherit; color: inherit; cursor: pointer; padding: 0 4px; margin: 0 -4px; border-radius: var(--radius-sm); }
+.step-title-edit:hover { border-color: var(--color-border-strong); }
+.step-title-edit:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px;
+  border-color: var(--color-border-strong); }
+
+.main-layout--stacked { display: flex; flex-direction: column; gap: 1.1rem; }
+
+/* Questions grid: a real table in the option-grid idiom - editable cells look like live
+   controls, read-only cells look like plain table text, and that contrast is the point. */
+/* The region is the positioning root for the row menu below: it must NOT set overflow
+   itself, only .qgrid-scroll does, and only on the x axis. Per the CSS overflow spec, a
+   non-visible overflow-x forces the computed overflow-y to 'auto' too, so ANY element
+   positioned inside .qgrid-scroll that grows past its box gets clipped there - which is
+   exactly what clipped the row menu before. Keeping the menu a sibling of .qgrid-scroll,
+   inside this unclipped region instead, is what lets it render in full. */
+.qgrid-region { position: relative; }
+.qgrid-scroll { border: 1px solid var(--color-border); border-radius: var(--radius-card); overflow-x: auto;
+  background: var(--color-surface); }
+table.qgrid { width: 100%; min-width: 640px; border-collapse: collapse; font-size: 0.88rem; }
+.qgrid thead th { text-align: left; color: var(--color-text-muted); font-weight: 600; font-size: 0.72rem;
+  text-transform: uppercase; letter-spacing: 0.06em; padding: 0.6rem 0.6rem; border-bottom: 2px solid var(--color-border-strong);
+  background: var(--color-background-muted); white-space: nowrap; }
+.qgrid tbody tr { border-bottom: 1px solid var(--color-border); }
+.qgrid tbody tr:last-child { border-bottom: none; }
+.qgrid tbody tr:hover { background: var(--color-surface-hover); }
+.qcell { padding: 0.4rem 0.6rem; height: var(--admin-table-row-h); vertical-align: middle; }
+
+.qcell--grip { width: 40px; padding-left: 0.5rem; position: relative; }
+/* The grip is three controls in one, matching the shipped option grid's idiom
+   (apps/admin/components/questions/option-grid-editor.tsx, per its doc comment "the grip is
+   three controls in one"): pointer-drag to reorder (grab at rest, grabbing mid-drag), Arrow
+   Up/Down while focused to reorder by keyboard, and Enter/Space to open the row menu. See
+   .qrow.is-dragging below for the lifted row and the drop indicator that make the drag
+   language reviewable in a file with no real drag runtime. */
+.qgrip { width: 28px; height: 28px; border-radius: var(--radius-sm); border: 1px solid transparent; background: transparent;
+  color: var(--color-text-muted); display: inline-flex; align-items: center; justify-content: center; cursor: grab; }
+.qgrip:hover { background: var(--color-ghost-hover); color: var(--color-text); }
+.qgrip:active { cursor: grabbing; }
+/* Opens DOWNWARD from the table's own bottom edge, never upward into the rows: the menu is
+   about 196px tall, far taller than one row (--admin-table-row-h is 44px), so an
+   upward-opening menu anchored at the last row does not stop at covering its own row - it is
+   tall enough to reach back up through every row above it too, hiding every grip, position
+   input and question id in the table (found in review: the menu was covering the whole grid,
+   not just the row it belonged to). .qrow-menu is a sibling of .qgrid-scroll, not a
+   descendant (see .qgrid-region's own comment on why), so position:absolute's percentage
+   `top` resolves against .qgrid-region's own auto height - and that height is exactly
+   .qgrid-scroll's height, because an absolutely positioned sibling never contributes to it.
+   top: 100% therefore lands the menu's top edge exactly at the table's (and the ghost
+   add-row's) bottom edge, with no row-height arithmetic to keep in sync as rows are added or
+   removed. The row demonstrated open here is deliberately the LAST one, so "below the row
+   that owns the menu" and "below the whole table" are the same position - and unlike the old
+   bottom-anchor, this holds at 390/1280/1920 alike, so nothing needs to close at narrow
+   widths. */
+.qrow-menu { left: 6px; top: 100%; margin-top: 6px; }
+
+/* Mid-drag presentation: one row rendered lifted, the static equivalent of the shipped
+   grip's pointer-drag (ds-option-grid.html's .opt-row.is-dragging language, adapted for a
+   real <table>). A <tr> cannot reliably take a box-shadow under this table's
+   border-collapse: collapse - adjacent cells own the shared border, so a shadow painted per
+   side gets clipped at cell edges in most engines - so filter: drop-shadow paints the whole
+   row as one layer instead, which does not have that problem. */
+.qrow.is-dragging { position: relative; z-index: 2; background: var(--color-surface);
+  border-top: 1px solid var(--color-border-strong); border-bottom: 1px solid var(--color-border-strong);
+  filter: drop-shadow(0 1px 2px hsl(var(--shadow-color) / 0.18)) drop-shadow(0 10px 24px hsl(var(--shadow-color) / 0.28)); }
+.qrow.is-dragging .qcell { background: var(--color-surface); }
+.qrow.is-dragging .qgrip { cursor: grabbing; background: var(--color-ghost-hover); color: var(--color-text); }
+
+/* The drop indicator: a NEW row, never a repurposed hairline insert row (those are unchanged
+   per the brief). It reuses the insert affordance's own accent-line token, --color-primary,
+   because that is the line the brief points to as the obvious candidate - but a drop
+   indicator and a hairline insert point mean different things ("the row you are dragging
+   will land here" vs. "click to insert a question here") and can both be on screen during a
+   drag, so the two read as different WEIGHT and SHAPE, not different colour: this line is
+   thicker than .qinsert__line (4px vs. 2px) and carries square end-caps of its own, where
+   the hairline instead carries a single circular plus badge at one end. Neither cue depends
+   on hue, so the distinction survives high contrast and grayscale alike. Non-interactive (no
+   plus: nothing new is being created here, a row is only landing) and pointer-events: none. */
+.qgrid tbody tr.qdrop-row { border-bottom: none; }
+.qdrop-cell { padding: 0; border: none; height: 14px; }
+.qdrop-indicator { position: relative; display: block; width: 100%; height: 14px; pointer-events: none; }
+.qdrop-indicator__line { position: absolute; left: 12px; right: 12px; top: 50%; height: 4px;
+  background: var(--color-primary); border-radius: 1px; transform: translateY(-50%); }
+.qdrop-indicator__line::before, .qdrop-indicator__line::after { content: ""; position: absolute;
+  top: 50%; width: 7px; height: 7px; background: var(--color-primary); border-radius: 1px;
+  transform: translate(-50%, -50%); }
+.qdrop-indicator__line::before { left: 0; }
+.qdrop-indicator__line::after { left: 100%; }
+
+/* Editable cells: real bordered controls at rest, not the borderless-until-focus label
+   pattern the option grid uses elsewhere - here the point is the opposite: editable must
+   read as "a control" at a glance, in contrast with the read-only cells beside it. */
+.qcell--editable { width: 110px; }
+.qcell--version.qcell--editable { width: 150px; }
+.qpos-input, .qversion-select { width: 100%; height: 30px; padding: 0 8px; border-radius: var(--radius-control);
+  border: 1px solid var(--color-border-strong); background: var(--color-surface); color: var(--color-text);
+  font-variant-numeric: tabular-nums; }
+.qpos-input:hover, .qversion-select:hover { border-color: var(--color-primary); }
+.qpos-input { text-align: center; }
+
+.qcell--readonly { color: var(--color-text); }
+.qcell--question { min-width: 260px; }
+.qid { font-family: var(--font-mono); font-size: 0.82rem; color: var(--color-text); }
+.qlabel { font-size: 0.8rem; color: var(--color-text-muted); margin-top: 2px; }
+.qcell--type { color: var(--color-text-muted); white-space: nowrap; }
+.qcell--issues { white-space: nowrap; }
+.qissues { display: inline-flex; align-items: center; gap: 5px; font-size: 0.78rem; font-weight: 700;
+  padding: 3px 8px; border-radius: var(--radius-sm); }
+.qissues--ok { color: var(--color-text-muted); background: transparent; font-weight: 600; }
+.qissues--warn { color: var(--color-warning-fg); background: var(--color-warning-subtle); }
+
+.qgrid-add { display: flex; align-items: center; gap: 6px; width: 100%; height: var(--admin-table-row-h);
+  padding: 0 0.9rem; border: none; border-top: 1px solid var(--color-border); background: transparent;
+  color: var(--color-text-muted); font: inherit; font-size: 0.88rem; cursor: pointer; text-align: left; }
+.qgrid-add:hover { background: var(--color-surface-hover); color: var(--color-text); }
+.qgrid-footnote { padding: 0.6rem 0.9rem 0 0.9rem; }
+
+/* Insert affordance between question rows, mirroring ds-option-grid.html's hairline
+   hover/focus insert point (a thin accent line plus a circled "+", revealed on hover,
+   focus, or the .is-visible class used to show one gap's revealed state for a static
+   screenshot). Unlike the option grid's flex list, a table row cannot safely negative-
+   offset an overlay across a row boundary without risking painting over the neighbouring
+   row's own cell content - so this is a real (very short) <tr> of its own, sitting between
+   the two rows it would insert between. Because it is a normal row in normal table flow,
+   it can never overlap or obscure either adjacent row, by construction, and it is reached
+   by Tab like any other control - never hover-only. */
+.qgrid tbody tr.qinsert-row { border-bottom: none; }
+.qinsert-cell { padding: 0; border: none; height: 14px; }
+.qinsert { position: relative; display: block; width: 100%; height: 14px; margin: 0; padding: 0;
+  border: none; background: transparent; cursor: pointer; opacity: 0; }
+.qinsert__line { position: absolute; left: 42px; right: 12px; top: 50%; height: 2px;
+  background: var(--color-primary); border-radius: 1px; transform: translateY(-50%); }
+.qinsert__plus { position: absolute; left: 10px; top: 50%; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--color-primary); color: var(--color-primary-foreground); display: flex; align-items: center;
+  justify-content: center; transform: translateY(-50%); font-size: 12px; font-weight: 700; line-height: 1; }
+.qinsert:hover, .qinsert:focus-visible, .qinsert.is-visible { opacity: 1; }
+.qinsert:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 1px; }
+
+/* Below 640px: Type and Issues drop (acceptable losses), but Version never does - it is
+   the one column this whole design exists to keep editable in place, so it stays visible
+   and usable without a horizontal scroll. Column order in the markup is fixed (grip, #,
+   Question, Type, Version, Issues), so nth-child targets Type (4) and Issues (6) without
+   needing extra classes. The freed width goes to Question and Version so both stay
+   comfortably legible rather than merely present. */
+@media (max-width: 639px) {
+  table.qgrid { min-width: 0; width: 100%; }
+  .qgrid thead th:nth-child(4), .qgrid thead th:nth-child(6),
+  .qgrid tbody td:nth-child(4), .qgrid tbody td:nth-child(6) { display: none; }
+  .qcell--grip { width: 32px; padding-left: 0.35rem; }
+  .qcell--editable.qcell--pos { width: 44px; }
+  .qcell--question { min-width: 0; width: auto; }
+  .qid { word-break: break-word; }
+  .qcell--version.qcell--editable { width: 92px; }
+  .qversion-select { padding: 0 4px; font-size: 0.82rem; }
+}
+
+.field { margin: 0; }
+.field label { display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 5px; }
+.field select, .field input { width: 100%; height: var(--admin-control-h); padding: 0 var(--admin-control-pad-x);
+  border-radius: var(--radius-control); border: 1px solid var(--color-border-strong); background: var(--color-surface);
+  color: var(--color-text); }
+.field select:hover, .field input:hover { border-color: var(--color-primary); }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: var(--admin-control-h);
+  padding: 0 16px; border-radius: var(--radius-control); border: 1.5px solid transparent; font-weight: 600;
+  font-size: 0.88rem; cursor: pointer; }
+.btn-sm { height: 32px; padding: 0 12px; font-size: 0.82rem; }
+.btn-secondary { background: var(--color-secondary); color: var(--color-secondary-foreground); }
+.btn-secondary:hover { background: var(--color-secondary-hover); }
+
+.banner { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border-radius: var(--radius-control);
+  font-size: 0.82rem; }
+.banner-warning { background: var(--color-warning-subtle); color: var(--color-warning-fg); }
+.banner svg { width: 14px; height: 14px; flex-shrink: 0; margin-top: 2px; }
+
+/* A bordered card idiom shared by both screens. Four of the Form screen's sections are
+   collapsible <details> using this class with a <summary> disclosure (Form settings,
+   Rules, Rule test bench, Validation); the Form screen's Form title is the same bordered
+   card but a plain, always-open <section> (one field, nothing to collapse). The Step
+   screen's Questions, the work surface, is a plain <section> with a bare <h2> and does not
+   use .stacked-card at all. */
+.stacked-card { border: 1px solid var(--color-border); border-radius: var(--radius-card);
+  background: var(--color-surface); padding: var(--admin-section-pad); }
+.stacked-card > summary { cursor: pointer; list-style: none; display: flex; align-items: center;
+  justify-content: space-between; gap: 0.5rem; }
+.stacked-card > summary::-webkit-details-marker { display: none; }
+.stacked-card > summary .stacked-heading { margin: 0; flex-shrink: 0; white-space: nowrap; }
+.stacked-card__chev { transition: transform 0.12s ease; color: var(--color-text-muted); flex-shrink: 0; }
+.stacked-card[open] > summary .stacked-card__chev { transform: rotate(90deg); }
+.stacked-card[open] > summary { margin-bottom: 0.9rem; }
+.stacked-heading { margin: 0 0 0.9rem; font-size: 0.95rem; font-weight: 700; }
+
+/* Collapsed-section digest (Rules, Form settings, Validation): a muted, smaller summary of
+   the body's content on the same line as the heading, present identically whether the
+   section is open or closed - collapsing hides the detail, never the fact that it exists.
+   The <h2> stays scoped to the section's bare name only (never shrinks, never absorbs the
+   digest text) so heading order and screen-reader heading navigation stay clean; the
+   digest is what truncates first if the row runs out of room at narrow widths. */
+.stacked-card__label { display: flex; align-items: baseline; gap: 8px; min-width: 0; flex: 1 1 auto; }
+.stacked-card__digest { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; font-size: 0.8rem; font-weight: 400; color: var(--color-text-muted); }
+.stacked-card__digest-warn { display: inline-flex; align-items: center; gap: 3px; margin-left: 6px;
+  color: var(--color-warning-fg); font-weight: 600; }
+.stacked-card__digest-warn svg { width: 12px; height: 12px; flex-shrink: 0; }
+.stacked-note { margin: 0; font-size: 0.85rem; color: var(--color-text-muted); }
+.stacked-card__body { display: flex; flex-direction: column; gap: 0.9rem; }
+.stacked-card__footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: 0.6rem; margin-top: 0.9rem; padding-top: 0.9rem; border-top: 1px dashed var(--color-border); }
+.stacked-card__footer a { font-size: 0.85rem; font-weight: 600; text-decoration: none; color: var(--color-primary); }
+.stacked-card__footer a:hover { text-decoration: underline; }
+
+.field-block { display: flex; flex-direction: column; gap: 6px; }
+.field-block__label { margin: 0; font-size: 0.82rem; font-weight: 600; color: var(--color-text); }
+.checkbox-row { display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.88rem; font-weight: 600; cursor: pointer; }
+.checkbox-row input[type="checkbox"] { width: 18px; height: 18px; margin: 2px 0 0; flex-shrink: 0; accent-color: var(--color-primary); }
+
+/* Compact rule lens: one line per rule, read-only, not a condition editor. */
+.rule-compact-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; }
+.rule-compact-list li { padding: 0.55rem 0.7rem; border-radius: var(--radius-control); background: var(--color-background-muted); }
+.rule-compact-list a { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; text-decoration: none; color: inherit; }
+.rule-compact-list a:hover .rule-id { text-decoration: underline; }
+.rule-compact-list code { font-family: var(--font-mono); font-size: 0.8em; background: var(--color-surface);
+  padding: 0.05rem 0.3rem; border-radius: var(--radius-sm); }
+.rule-id { font-family: var(--font-mono); }
+/* The step target is visually distinguished from a question id (never colour alone: the
+   "Step" text label carries the distinction, the token colour reinforces it). */
+.rule-target-step { display: inline-flex; align-items: center; gap: 4px; font-size: 0.78rem; font-weight: 700;
+  padding: 2px 7px; border-radius: var(--radius-sm); background: var(--color-info-subtle); color: var(--color-info-fg); }
+.rule-target-step code { background: transparent; padding: 0; }
+
+.intro { max-width: 68ch; font-size: 0.88rem; color: var(--color-text-muted); margin: 0.75rem 1.5rem 0; }
+</style>
+
+<div class="switcher" role="group" aria-label="Preview mode">
+  <button type="button" aria-pressed="true" onclick="setMode('', this)">Light</button>
+  <button type="button" aria-pressed="false" onclick="setMode('dark', this)">Dark</button>
+  <button type="button" aria-pressed="false" onclick="setMode('hc', this)">High contrast</button>
+</div>
+
+<p class="intro">Admin shell POC: the shipped top nav and a left rail that navigates between two real
+  screens, form-level and step-level, matching the data model's own boundary (a step is only a title and its
+  pinned questions). The Form screen stacks the form title, form settings, a compact Rules lens, the rule test
+  bench and Validation. The Step screen holds only the step's own title and its questions grid (an
+  option-grid-style table replacing stacked pin cards).</p>
+
+<header class="topbar">
+  <div class="topbar__inner">
+    <span class="wordmark">QCMS</span>
+    <nav class="topbar__nav" aria-label="Primary">
+      <ul>
+        <li><a class="topbar__link" href="#">Questions</a></li>
+        <li><a class="topbar__link" href="#" aria-current="page">Forms</a></li>
+        <li><a class="topbar__link" href="#">Responses</a></li>
+        <li><a class="topbar__link" href="#">Webhooks</a></li>
+        <li><a class="topbar__link" href="#">Settings</a></li>
+      </ul>
+    </nav>
+    <div class="topbar__trailing">
+      <button type="button" class="icon-btn" aria-label="Appearance settings" title="Appearance">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"></circle>
+          <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path>
+        </svg>
+      </button>
+      <button type="button" class="avatar-btn" aria-label="Account menu, signed in as Code Owner">CO</button>
+    </div>
+  </div>
+</header>
+
+<div class="save-status" aria-live="polite">Saved 14:02.</div>
+
+<div class="shell-body">
+  <details class="rail-shell" open id="rail-shell">
+    <summary class="rail-summary">
+      <span class="rail-summary__label">
+        <h2 class="rail-summary__text">Life insurance</h2>
+        <span class="rail-summary__step" hidden>
+          <span class="rail-summary__sep" aria-hidden="true">/</span>
+          <span class="rail-summary__step-name">Health</span>
+          <span class="rail-summary__step-issues">
+            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10.3 3.86L1.82 18a1 1 0 0 0 .86 1.5h18.64a1 1 0 0 0 .86-1.5L13.7 3.86a1 1 0 0 0-1.72 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            2 issues
+          </span>
+        </span>
+      </span>
+      <svg class="rail-summary__chev icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+    </summary>
+    <div class="rail-body">
+
+      <!-- The rail: Steps + their children, then the section routes. -->
+      <nav aria-label="Life insurance sections" id="rail-shape-c">
+        <ul class="rail-tree">
+        <li><a class="rail-link" href="#" id="rail-form-link" aria-current="page" onclick="showScreen('form'); return false;">Form</a></li>
+        <li>
+          <details class="rail-group" open>
+            <summary>
+              <svg class="rail-group__chev icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+              Steps
+            </summary>
+            <ul class="rail-steps">
+              <li>
+                <div class="rail-step-row">
+                  <button type="button" class="rail-step-grip" aria-label="Reorder step About you with Up or Down arrow keys, or by dragging">
+                    <svg class="icon-sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1.6" fill="currentColor"></circle><circle cx="15" cy="6" r="1.6" fill="currentColor"></circle><circle cx="9" cy="12" r="1.6" fill="currentColor"></circle><circle cx="15" cy="12" r="1.6" fill="currentColor"></circle><circle cx="9" cy="18" r="1.6" fill="currentColor"></circle><circle cx="15" cy="18" r="1.6" fill="currentColor"></circle></svg>
+                  </button>
+                  <a class="rail-step-link" href="#">
+                    <span class="rail-step-marker" aria-hidden="true">&rsaquo;</span>
+                    <span class="rail-step-title">About you</span>
+                  </a>
+                  <button type="button" class="rail-step-menu-trigger" aria-haspopup="menu" aria-expanded="false" aria-controls="step-menu-1-c" aria-label="Step 1 About you actions">
+                    <svg class="icon-sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1.6" fill="currentColor"></circle><circle cx="12" cy="12" r="1.6" fill="currentColor"></circle><circle cx="12" cy="19" r="1.6" fill="currentColor"></circle></svg>
+                  </button>
+                  <div class="menu rail-step-menu" role="menu" id="step-menu-1-c" aria-label="Step 1 About you actions" hidden>
+                    <button type="button" role="menuitem" class="mi">Rename</button>
+                    <button type="button" role="menuitem" class="mi">Move up</button>
+                    <button type="button" role="menuitem" class="mi">Move down</button>
+                    <button type="button" role="menuitem" class="mi is-danger">Remove step</button>
+                  </div>
+                </div>
+              </li>
+              <li>
+                <div class="rail-step-row" id="rail-step-health-row">
+                  <button type="button" class="rail-step-grip" aria-label="Reorder step Health with Up or Down arrow keys, or by dragging">
+                    <svg class="icon-sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1.6" fill="currentColor"></circle><circle cx="15" cy="6" r="1.6" fill="currentColor"></circle><circle cx="9" cy="12" r="1.6" fill="currentColor"></circle><circle cx="15" cy="12" r="1.6" fill="currentColor"></circle><circle cx="9" cy="18" r="1.6" fill="currentColor"></circle><circle cx="15" cy="18" r="1.6" fill="currentColor"></circle></svg>
+                  </button>
+                  <a class="rail-step-link" href="#" id="rail-step-health-link" onclick="showScreen('step'); return false;">
+                    <span class="rail-step-marker" aria-hidden="true">&rsaquo;</span>
+                    <span class="rail-step-title">Health</span>
+                  </a>
+                  <span class="rail-badge">2 issues</span>
+                  <button type="button" class="rail-step-menu-trigger" aria-haspopup="menu" aria-expanded="false" aria-controls="step-menu-2-c" aria-label="Step 2 Health actions">
+                    <svg class="icon-sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1.6" fill="currentColor"></circle><circle cx="12" cy="12" r="1.6" fill="currentColor"></circle><circle cx="12" cy="19" r="1.6" fill="currentColor"></circle></svg>
+                  </button>
+                  <div class="menu rail-step-menu" role="menu" id="step-menu-2-c" aria-label="Step 2 Health actions" hidden>
+                    <button type="button" role="menuitem" class="mi">Rename</button>
+                    <button type="button" role="menuitem" class="mi">Move up</button>
+                    <button type="button" role="menuitem" class="mi">Move down</button>
+                    <button type="button" role="menuitem" class="mi is-danger">Remove step</button>
+                  </div>
+                </div>
+              </li>
+              <li>
+                <div class="rail-step-row">
+                  <button type="button" class="rail-step-grip" aria-label="Reorder step Cover with Up or Down arrow keys, or by dragging">
+                    <svg class="icon-sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1.6" fill="currentColor"></circle><circle cx="15" cy="6" r="1.6" fill="currentColor"></circle><circle cx="9" cy="12" r="1.6" fill="currentColor"></circle><circle cx="15" cy="12" r="1.6" fill="currentColor"></circle><circle cx="9" cy="18" r="1.6" fill="currentColor"></circle><circle cx="15" cy="18" r="1.6" fill="currentColor"></circle></svg>
+                  </button>
+                  <a class="rail-step-link" href="#">
+                    <span class="rail-step-marker" aria-hidden="true">&rsaquo;</span>
+                    <span class="rail-step-title">Cover</span>
+                  </a>
+                  <span class="rail-badge">1 issue</span>
+                  <button type="button" class="rail-step-menu-trigger" aria-haspopup="menu" aria-expanded="false" aria-controls="step-menu-3-c" aria-label="Step 3 Cover actions">
+                    <svg class="icon-sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1.6" fill="currentColor"></circle><circle cx="12" cy="12" r="1.6" fill="currentColor"></circle><circle cx="12" cy="19" r="1.6" fill="currentColor"></circle></svg>
+                  </button>
+                  <div class="menu rail-step-menu" role="menu" id="step-menu-3-c" aria-label="Step 3 Cover actions" hidden>
+                    <button type="button" role="menuitem" class="mi">Rename</button>
+                    <button type="button" role="menuitem" class="mi">Move up</button>
+                    <button type="button" role="menuitem" class="mi">Move down</button>
+                    <button type="button" role="menuitem" class="mi is-danger">Remove step</button>
+                  </div>
+                </div>
+              </li>
+              <li>
+                <button type="button" class="rail-add-step">+ Add step</button>
+              </li>
+            </ul>
+          </details>
+        </li>
+        <li><a class="rail-link" href="#">Preview</a></li>
+        <li><a class="rail-link" href="#">Versions</a></li>
+        <li><a class="rail-link" href="#">Links</a></li>
+        <li><a class="rail-link" href="#">Responses</a></li>
+        <li><a class="rail-link" href="#">Webhooks</a></li>
+        </ul>
+      </nav>
+
+    </div>
+  </details>
+
+  <main id="main-content" class="main">
+
+    <!-- The Form screen: form-level content only. A step is { stepId, title, items } - the
+         data model's own boundary between what is a step's business and what belongs to
+         the form as a whole - so the form's own name, settings, rules, test bench and
+         validation live here rather than under a step heading. This is the default screen
+         on load; the rail is the only way to move between this and the Step screen. -->
+    <div id="screen-form" class="main-layout main-layout--stacked">
+      <h1 class="step-heading">Life insurance</h1>
+
+      <section class="stacked-card" aria-labelledby="form-title-heading-c">
+        <h2 class="stacked-heading" id="form-title-heading-c">Form title</h2>
+        <div class="stacked-card__body">
+          <div class="field">
+            <label for="form-title-c">Form title</label>
+            <input type="text" id="form-title-c" value="Life insurance" />
+          </div>
+          <p class="stacked-note">Shown to a respondent. Saved with the draft.</p>
+        </div>
+      </section>
+
+      <details class="stacked-card">
+        <summary>
+          <span class="stacked-card__label">
+            <h2 class="stacked-heading">Form settings</h2>
+            <span class="stacked-card__digest">
+              challenge required, deployment minimum time
+              <span class="stacked-card__digest-warn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10.3 3.86L1.82 18a1 1 0 0 0 .86 1.5h18.64a1 1 0 0 0 .86-1.5L13.7 3.86a1 1 0 0 0-1.72 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                unenforceable
+              </span>
+            </span>
+          </span>
+          <svg class="stacked-card__chev icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </summary>
+        <div class="stacked-card__body">
+          <p class="stacked-note">Abuse controls for this form. They apply the next time it is published.</p>
+
+          <div class="field-block">
+            <label class="checkbox-row" for="challenge-required-c">
+              <input type="checkbox" id="challenge-required-c" checked />
+              <span>Require a challenge before answering</span>
+            </label>
+            <p class="stacked-note">Starting a session has to pass the deployment's challenge provider first.</p>
+            <p class="banner banner-warning">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10.3 3.86L1.82 18a1 1 0 0 0 .86 1.5h18.64a1 1 0 0 0 .86-1.5L13.7 3.86a1 1 0 0 0-1.72 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+              This deployment's challenge provider is set to none, so requiring a challenge here enforces nothing until an operator configures one.
+            </p>
+          </div>
+
+          <div class="field-block">
+            <!-- minSubmitMs: null means "use the deployment's floor", a number means "use
+                 this one" - so the honest render of the null state is this checkbox with no
+                 number field beneath it, not a number field pre-filled with a made-up value. -->
+            <label class="checkbox-row" for="min-submit-default-c">
+              <input type="checkbox" id="min-submit-default-c" checked />
+              <span>Use the deployment's minimum time</span>
+            </label>
+            <p class="stacked-note">No minimum submit time is set for this form: the deployment's own floor applies. Clear this to pin one for this form specifically.</p>
+          </div>
+
+          <div class="stacked-card__footer">
+            <button type="button" class="btn btn-secondary btn-sm">Save settings</button>
+            <p aria-live="polite" class="stacked-note">Settings saved.</p>
+          </div>
+        </div>
+      </details>
+
+      <details class="stacked-card" open>
+        <summary>
+          <span class="stacked-card__label">
+            <h2 class="stacked-heading">Rules</h2>
+            <span class="stacked-card__digest">
+              3 rules
+              <span class="stacked-card__digest-warn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10.3 3.86L1.82 18a1 1 0 0 0 .86 1.5h18.64a1 1 0 0 0 .86-1.5L13.7 3.86a1 1 0 0 0-1.72 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                1 issue
+              </span>
+            </span>
+          </span>
+          <svg class="stacked-card__chev icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </summary>
+        <div class="stacked-card__body">
+          <p class="stacked-note">Lists rules whose conditions read, or whose targets include, questions in this form.</p>
+          <ul class="rule-compact-list">
+            <li>
+              <a href="#">
+                <span class="rule-id"><code>rul_smoker_daily</code></span>: When <code>q_smoker</code> = true, show <code>q_cigs_daily</code>
+              </a>
+            </li>
+            <li>
+              <a href="#">
+                <span class="rule-id"><code>rul_heavy_smoker</code></span>: When <code>q_cigs_daily</code> &ge; 15, show <code>q_quit_attempts</code>,
+                <span class="rule-target-step">Step <code>stp_cessation</code></span>
+              </a>
+            </li>
+            <li>
+              <a href="#">
+                <span class="rule-id"><code>rul_risk_review</code></span>: When <code>q_quit_date</code> is not answered, show <code>q_quit_attempts</code>
+                <span class="qissues qissues--warn">
+                  <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10.3 3.86L1.82 18a1 1 0 0 0 .86 1.5h18.64a1 1 0 0 0 .86-1.5L13.7 3.86a1 1 0 0 0-1.72 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                  Unreachable unless q_smoker is true
+                </span>
+              </a>
+            </li>
+          </ul>
+          <div class="stacked-card__footer">
+            <a href="#">Edit rules</a>
+            <button type="button" class="btn btn-secondary btn-sm">+ Add rule</button>
+          </div>
+        </div>
+      </details>
+
+      <details class="stacked-card">
+        <summary>
+          <span class="stacked-card__label">
+            <h2 class="stacked-heading">Rule test bench</h2>
+          </span>
+          <svg class="stacked-card__chev icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </summary>
+        <div class="stacked-card__body">
+          <p class="stacked-note">A read-only preview. Answers typed here are evaluated against the draft on your screen and are never saved, never logged, and never seen by a respondent.</p>
+
+          <div class="field">
+            <label for="bench-rule-c">Rule</label>
+            <select id="bench-rule-c">
+              <option>rul_smoker_daily</option>
+              <option>rul_heavy_smoker</option>
+              <option>rul_risk_review</option>
+            </select>
+          </div>
+
+          <div class="field-block">
+            <p class="field-block__label">Hypothetical answers</p>
+            <div class="field">
+              <label for="bench-smoker-c">q_smoker@3</label>
+              <select id="bench-smoker-c">
+                <option>true</option>
+                <option>false</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="stacked-card__footer">
+            <button type="button" class="btn btn-secondary btn-sm">Run preview</button>
+            <p aria-live="polite" class="stacked-note">Matches. The rule's targets would be shown.</p>
+          </div>
+        </div>
+      </details>
+
+      <details class="stacked-card">
+        <summary>
+          <span class="stacked-card__label">
+            <h2 class="stacked-heading">Validation</h2>
+            <span class="stacked-card__digest">2 issues</span>
+          </span>
+          <svg class="stacked-card__chev icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </summary>
+        <div class="stacked-card__body">
+          <p class="stacked-note">2 issues would block a publish.</p>
+          <ul class="rule-compact-list">
+            <li>
+              <a href="#pos-2-c">
+                <span class="qissues qissues--warn">
+                  <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10.3 3.86L1.82 18a1 1 0 0 0 .86 1.5h18.64a1 1 0 0 0 .86-1.5L13.7 3.86a1 1 0 0 0-1.72 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                  q_cigs_daily
+                </span>
+                Minimum value is not set, but the rule that reveals this question implies a smoker: consider a floor of 0.
+              </a>
+            </li>
+            <li>
+              <a href="#pos-2-c">
+                <span class="qissues qissues--warn">
+                  <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10.3 3.86L1.82 18a1 1 0 0 0 .86 1.5h18.64a1 1 0 0 0 .86-1.5L13.7 3.86a1 1 0 0 0-1.72 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                  q_cigs_daily
+                </span>
+                Maximum value is not set: an unbounded number field usually wants one.
+              </a>
+            </li>
+          </ul>
+        </div>
+      </details>
+
+    </div>
+
+    <!-- The Step screen: step-level content only. The grid's own Issues column already
+         carries per-question validation, which is the only step-scoped validation there
+         is - no Form settings, Rules, test bench or Validation section belongs here. -->
+    <div id="screen-step" class="main-layout main-layout--stacked" hidden>
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <ol>
+          <li><a href="#" onclick="showScreen('form'); return false;">Life insurance</a></li>
+          <li aria-current="page">Step 2: Health</li>
+        </ol>
+      </nav>
+      <h1 class="step-heading">Step 2: <button type="button" class="step-title-edit" aria-label="Rename step Health">Health</button></h1>
+
+      <section aria-labelledby="stacked-questions-heading">
+        <h2 class="stacked-heading" id="stacked-questions-heading">Questions</h2>
+        <p class="stacked-note qgrid-hint">Reorder a question by dragging its grip, or by giving the grip focus and pressing the Up or Down arrow key. Enter or Space on a focused grip opens insert and remove actions.</p>
+        <div class="qgrid-region">
+          <div class="qgrid-scroll">
+            <table class="qgrid">
+              <thead>
+                <tr>
+                  <th scope="col"><span class="sr-only">Row actions</span></th>
+                  <th scope="col">#</th>
+                  <th scope="col">Question</th>
+                  <th scope="col">Type</th>
+                  <th scope="col">Version</th>
+                  <th scope="col">Issues</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Drop indicator: a NEW row, not a repurposed hairline insert row (see the
+                     CSS comment on .qdrop-row above). Marks where the lifted q_cigs_daily row
+                     below would land if dropped now, i.e. this drag would move it to the top. -->
+                <tr class="qdrop-row" aria-hidden="true">
+                  <td class="qdrop-cell" colspan="6">
+                    <span class="qdrop-indicator"><span class="qdrop-indicator__line"></span></span>
+                  </td>
+                </tr>
+                <tr class="qrow">
+                  <td class="qcell qcell--grip">
+                    <button type="button" class="qgrip" aria-haspopup="menu" aria-expanded="false" aria-label="Reorder q_smoker">
+                      <svg class="icon-sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1.6" fill="currentColor"></circle><circle cx="15" cy="6" r="1.6" fill="currentColor"></circle><circle cx="9" cy="12" r="1.6" fill="currentColor"></circle><circle cx="15" cy="12" r="1.6" fill="currentColor"></circle><circle cx="9" cy="18" r="1.6" fill="currentColor"></circle><circle cx="15" cy="18" r="1.6" fill="currentColor"></circle></svg>
+                    </button>
+                  </td>
+                  <td class="qcell qcell--editable qcell--pos">
+                    <label class="sr-only" for="pos-1-c">Position for q_smoker</label>
+                    <input type="number" id="pos-1-c" class="qpos-input" value="1" min="1" />
+                  </td>
+                  <td class="qcell qcell--readonly qcell--question">
+                    <div class="qid">q_smoker@3</div>
+                    <div class="qlabel">Are you a smoker?</div>
+                  </td>
+                  <td class="qcell qcell--readonly qcell--type">Boolean</td>
+                  <td class="qcell qcell--editable qcell--version">
+                    <label class="sr-only" for="ver-1-c">Pinned version for q_smoker</label>
+                    <select id="ver-1-c" class="qversion-select">
+                      <option value="3" selected>v3 (current)</option>
+                      <option value="2">v2</option>
+                      <option value="1">v1</option>
+                    </select>
+                  </td>
+                  <td class="qcell qcell--readonly qcell--issues"><span class="qissues qissues--ok">No issues</span></td>
+                </tr>
+                <tr class="qinsert-row">
+                  <td class="qinsert-cell" colspan="6">
+                    <button type="button" class="qinsert is-visible" aria-label="Insert a question between q_smoker@3 and q_cigs_daily@2">
+                      <span class="qinsert__line" aria-hidden="true"></span>
+                      <span class="qinsert__plus" aria-hidden="true">+</span>
+                    </button>
+                  </td>
+                </tr>
+                <tr class="qrow is-dragging">
+                  <td class="qcell qcell--grip">
+                    <button type="button" class="qgrip" aria-haspopup="menu" aria-expanded="false" aria-label="Reorder q_cigs_daily">
+                      <svg class="icon-sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1.6" fill="currentColor"></circle><circle cx="15" cy="6" r="1.6" fill="currentColor"></circle><circle cx="9" cy="12" r="1.6" fill="currentColor"></circle><circle cx="15" cy="12" r="1.6" fill="currentColor"></circle><circle cx="9" cy="18" r="1.6" fill="currentColor"></circle><circle cx="15" cy="18" r="1.6" fill="currentColor"></circle></svg>
+                    </button>
+                  </td>
+                  <td class="qcell qcell--editable qcell--pos">
+                    <label class="sr-only" for="pos-2-c">Position for q_cigs_daily</label>
+                    <input type="number" id="pos-2-c" class="qpos-input" value="2" min="1" />
+                  </td>
+                  <td class="qcell qcell--readonly qcell--question">
+                    <div class="qid">q_cigs_daily@2</div>
+                    <div class="qlabel">Cigarettes per day</div>
+                  </td>
+                  <td class="qcell qcell--readonly qcell--type">Number</td>
+                  <td class="qcell qcell--editable qcell--version">
+                    <label class="sr-only" for="ver-2-c">Pinned version for q_cigs_daily</label>
+                    <select id="ver-2-c" class="qversion-select">
+                      <option value="2" selected>v2 (current)</option>
+                      <option value="1">v1</option>
+                    </select>
+                  </td>
+                  <td class="qcell qcell--readonly qcell--issues">
+                    <span class="qissues qissues--warn">
+                      <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10.3 3.86L1.82 18a1 1 0 0 0 .86 1.5h18.64a1 1 0 0 0 .86-1.5L13.7 3.86a1 1 0 0 0-1.72 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                      2 issues
+                    </span>
+                  </td>
+                </tr>
+                <tr class="qinsert-row">
+                  <td class="qinsert-cell" colspan="6">
+                    <button type="button" class="qinsert" aria-label="Insert a question between q_cigs_daily@2 and q_quit_date@1">
+                      <span class="qinsert__line" aria-hidden="true"></span>
+                      <span class="qinsert__plus" aria-hidden="true">+</span>
+                    </button>
+                  </td>
+                </tr>
+                <tr class="qrow">
+                  <td class="qcell qcell--grip">
+                    <button type="button" class="qgrip" aria-haspopup="menu" aria-expanded="true" aria-controls="qrow-menu-c" aria-label="Reorder q_quit_date">
+                      <svg class="icon-sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1.6" fill="currentColor"></circle><circle cx="15" cy="6" r="1.6" fill="currentColor"></circle><circle cx="9" cy="12" r="1.6" fill="currentColor"></circle><circle cx="15" cy="12" r="1.6" fill="currentColor"></circle><circle cx="9" cy="18" r="1.6" fill="currentColor"></circle><circle cx="15" cy="18" r="1.6" fill="currentColor"></circle></svg>
+                    </button>
+                  </td>
+                  <td class="qcell qcell--editable qcell--pos">
+                    <label class="sr-only" for="pos-3-c">Position for q_quit_date</label>
+                    <input type="number" id="pos-3-c" class="qpos-input" value="3" min="1" />
+                  </td>
+                  <td class="qcell qcell--readonly qcell--question">
+                    <div class="qid">q_quit_date@1</div>
+                    <div class="qlabel">Date you quit</div>
+                  </td>
+                  <td class="qcell qcell--readonly qcell--type">Date</td>
+                  <td class="qcell qcell--editable qcell--version">
+                    <label class="sr-only" for="ver-3-c">Pinned version for q_quit_date</label>
+                    <select id="ver-3-c" class="qversion-select">
+                      <option value="1" selected>v1 (current)</option>
+                    </select>
+                  </td>
+                  <td class="qcell qcell--readonly qcell--issues"><span class="qissues qissues--ok">No issues</span></td>
+                </tr>
+              </tbody>
+            </table>
+            <button type="button" class="qgrid-add">+ Add question from library</button>
+            <p class="stacked-note qgrid-footnote">Inserting opens the question library and places the chosen question at that position.</p>
+          </div>
+          <!-- Move up / Move down stay in this menu, and in every step menu in the rail above -
+               unlike the shipped option grid's row menu (option-grid-editor.tsx), which
+               currently offers only pointer-drag and keyboard arrows. WCAG 2.2 SC 2.5.7
+               Dragging Movements (AA) requires that any functionality operable by a dragging
+               movement is also achievable with a single pointer, without dragging. Keyboard
+               Arrow Up/Down on the grip satisfies SC 2.1.1 Keyboard, a different criterion,
+               and does not discharge 2.5.7 - Move up and Move down, ordinary tap/click
+               targets, are the single-pointer path. Do not "tidy" these two items away to
+               match the option grid; this POC is deliberately the corrected version. -->
+          <div class="menu qrow-menu" role="menu" id="qrow-menu-c" aria-label="Row actions for q_quit_date">
+            <button type="button" role="menuitem" class="mi">Insert question above</button>
+            <button type="button" role="menuitem" class="mi">Insert question below</button>
+            <button type="button" role="menuitem" class="mi">Move up</button>
+            <button type="button" role="menuitem" class="mi">Move down</button>
+            <button type="button" role="menuitem" class="mi is-danger">Remove from step</button>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+  </main>
+</div>
+
+<script>
+function setMode(mode, btn) {
+  document.documentElement.className = mode;
+  document.querySelectorAll(".switcher button").forEach(function (b) {
+    b.setAttribute("aria-pressed", b === btn ? "true" : "false");
+  });
+}
+
+function showScreen(screen) {
+  var isForm = screen === "form";
+  document.getElementById("screen-form").hidden = !isForm;
+  document.getElementById("screen-step").hidden = isForm;
+
+  var formLink = document.getElementById("rail-form-link");
+  var stepRow = document.getElementById("rail-step-health-row");
+  var stepLink = document.getElementById("rail-step-health-link");
+  var summaryStep = document.querySelector(".rail-summary__step");
+
+  if (isForm) {
+    formLink.setAttribute("aria-current", "page");
+    stepRow.classList.remove("is-active");
+    stepLink.removeAttribute("aria-current");
+  } else {
+    formLink.removeAttribute("aria-current");
+    stepRow.classList.add("is-active");
+    stepLink.setAttribute("aria-current", "page");
+  }
+  summaryStep.hidden = isForm;
+}
+</script>

@@ -1,0 +1,912 @@
+<!-- @dsCard group="Layout" name="Form preview and version history" subtitle="Respondent-width preview and version canvases, plus a wide versions list with a collapsible compare section" -->
+<title>QCMS DS - Preview and version history POC</title>
+<style>
+:root {
+  --color-primary: #2456c6;
+  --color-primary-hover: #1e4aad;
+  --color-primary-active: #193f95;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #4f5b70;
+  --color-secondary-hover: #475265;
+  --color-secondary-active: #3f495a;
+  --color-secondary-foreground: #ffffff;
+  --color-danger: #c0271f;
+  --color-danger-hover: #ad231c;
+  --color-danger-active: #9a1f19;
+  --color-danger-foreground: #ffffff;
+  --color-danger-subtle: #f9e7e5;
+  --color-danger-fg: #8f1d18;
+  --color-ghost: transparent;
+  --color-ghost-hover: #eef1f6;
+  --color-ghost-active: #e4e8ef;
+  --color-info: #2456c6;
+  --color-info-subtle: #e9effb;
+  --color-info-fg: #1b44a0;
+  --color-success: #1e7a46;
+  --color-success-subtle: #e4f1ea;
+  --color-success-fg: #16603a;
+  --color-warning: #8a5a00;
+  --color-warning-subtle: #f6eeda;
+  --color-warning-fg: #6e4700;
+  --color-text: #0f1729;
+  --color-text-muted: #55617a;
+  --color-border: #dde2ea;
+  --color-border-strong: #838ca4;
+  --color-background: #fbfcfd;
+  --color-background-muted: #eef1f6;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f4f6fa;
+  --color-focus-ring: #2456c6;
+  --color-overlay: rgb(0 0 0 / 0.5);
+  --shadow-color: 222deg 30% 20%;
+  --admin-control-h: 40px;
+  --admin-control-pad-x: 0.6rem;
+  --admin-stack: 0.35rem;
+  --admin-section-pad: 1.25rem;
+  --admin-table-row-h: 44px;
+  --radius-control: 4px;
+  --radius-card: 8px;
+  --radius-sm: 2px;
+  --font-admin: "Lexend", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace;
+}
+
+:root.dark {
+  --color-primary: #7aa2ff;
+  --color-primary-hover: #8fb1ff;
+  --color-primary-active: #a1beff;
+  --color-primary-foreground: #0b0f1a;
+  --color-secondary: #97a2b8;
+  --color-secondary-hover: #a3adc1;
+  --color-secondary-active: #aeb6c8;
+  --color-secondary-foreground: #0b0f1a;
+  --color-danger: #ff7b80;
+  --color-danger-hover: #ff8b8f;
+  --color-danger-active: #ff989c;
+  --color-danger-foreground: #0b0f1a;
+  --color-danger-subtle: #2b1615;
+  --color-danger-fg: #ffb3b5;
+  --color-ghost: transparent;
+  --color-ghost-hover: #1b2230;
+  --color-ghost-active: #232c3c;
+  --color-info: #7aa2ff;
+  --color-info-subtle: #16233a;
+  --color-info-fg: #a9c4ff;
+  --color-success: #46c08a;
+  --color-success-subtle: #132a20;
+  --color-success-fg: #8fe0bd;
+  --color-warning: #e0a93b;
+  --color-warning-subtle: #2a2110;
+  --color-warning-fg: #f0cd85;
+  --color-text: #e6eaf2;
+  --color-text-muted: #97a2b8;
+  --color-border: #262e3d;
+  --color-border-strong: #626c88;
+  --color-background: #0b0f1a;
+  --color-background-muted: #10151f;
+  --color-surface: #141a26;
+  --color-surface-hover: #1b2230;
+  --color-focus-ring: #7aa2ff;
+  --color-overlay: rgb(0 0 0 / 0.6);
+  --shadow-color: 222deg 60% 2%;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light):not(.dark):not(.hc) {
+    --color-primary: #7aa2ff;
+    --color-primary-hover: #8fb1ff;
+    --color-primary-active: #a1beff;
+    --color-primary-foreground: #0b0f1a;
+    --color-secondary: #97a2b8;
+    --color-secondary-hover: #a3adc1;
+    --color-secondary-active: #aeb6c8;
+    --color-secondary-foreground: #0b0f1a;
+    --color-danger: #ff7b80;
+    --color-danger-hover: #ff8b8f;
+    --color-danger-active: #ff989c;
+    --color-danger-foreground: #0b0f1a;
+    --color-danger-subtle: #2b1615;
+    --color-danger-fg: #ffb3b5;
+    --color-ghost: transparent;
+    --color-ghost-hover: #1b2230;
+    --color-ghost-active: #232c3c;
+    --color-info: #7aa2ff;
+    --color-info-subtle: #16233a;
+    --color-info-fg: #a9c4ff;
+    --color-success: #46c08a;
+    --color-success-subtle: #132a20;
+    --color-success-fg: #8fe0bd;
+    --color-warning: #e0a93b;
+    --color-warning-subtle: #2a2110;
+    --color-warning-fg: #f0cd85;
+    --color-text: #e6eaf2;
+    --color-text-muted: #97a2b8;
+    --color-border: #262e3d;
+    --color-border-strong: #626c88;
+    --color-background: #0b0f1a;
+    --color-background-muted: #10151f;
+    --color-surface: #141a26;
+    --color-surface-hover: #1b2230;
+    --color-focus-ring: #7aa2ff;
+    --color-overlay: rgb(0 0 0 / 0.6);
+    --shadow-color: 222deg 60% 2%;
+  }
+}
+
+:root.hc {
+  --color-secondary: #1c2433;
+  --color-secondary-hover: #19202e;
+  --color-secondary-active: #161d29;
+  --color-secondary-foreground: #ffffff;
+  --color-danger: #8a0f0a;
+  --color-danger-hover: #7c0e09;
+  --color-danger-active: #6e0c08;
+  --color-danger-foreground: #ffffff;
+  --color-danger-subtle: #ffecea;
+  --color-danger-fg: #6b0b07;
+  --color-ghost: transparent;
+  --color-ghost-hover: #eceef1;
+  --color-ghost-active: #dfe2e7;
+  --color-info: #0a3ea8;
+  --color-info-subtle: #e6efff;
+  --color-info-fg: #08337d;
+  --color-success: #0a5c30;
+  --color-success-subtle: #e2f4e9;
+  --color-success-fg: #064023;
+  --color-warning: #5a3b00;
+  --color-warning-subtle: #fbf0d6;
+  --color-warning-fg: #4a3000;
+  --color-text: #000000;
+  --color-text-muted: #22262e;
+  --color-border: #5a616e;
+  --color-border-strong: #000000;
+  --color-background: #ffffff;
+  --color-background-muted: #f2f3f5;
+  --color-surface: #ffffff;
+  --color-surface-hover: #eceef1;
+  --color-focus-ring: #0a3ea8;
+  --color-overlay: rgb(0 0 0 / 0.7);
+  --color-primary: #0a3ea8;
+  --color-primary-hover: #08348f;
+  --color-primary-active: #062a75;
+  --color-primary-foreground: #ffffff;
+}
+
+/* Base */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  font-family: var(--font-admin);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--color-text);
+  background: var(--color-background);
+  overflow-x: hidden;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+/* A later `display` declaration beats the UA's `[hidden] { display: none }` rule at equal
+   specificity, source order decides the tie - see admin-shell-poc.html for the fuller note.
+   Without this, a `hidden` screen still renders underneath its sibling. */
+[hidden] { display: none !important; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+/* Demo mode switcher (house convention: not part of the shipped shell, a viewer aid) */
+.switcher { display: flex; gap: 0.5rem; padding: 0.75rem 1.5rem; border-bottom: 1px dashed var(--color-border-strong);
+  background: var(--color-background-muted); }
+.switcher button { height: 32px; padding: 0 0.75rem; border-radius: var(--radius-control);
+  border: 1px solid var(--color-border-strong); background: var(--color-surface); color: var(--color-text); cursor: pointer; }
+.switcher button[aria-pressed="true"] { background: var(--color-primary); border-color: var(--color-primary);
+  color: var(--color-primary-foreground); }
+
+/* Icons */
+.icon { width: 16px; height: 16px; flex-shrink: 0; }
+.icon-sm { width: 14px; height: 14px; flex-shrink: 0; }
+
+/* Topbar: full viewport width, matching the admin shell POC's own deliberate variant. */
+.topbar { background: var(--color-surface); border-bottom: 1px solid var(--color-border); }
+.topbar__inner { display: flex; flex-wrap: wrap; align-items: center; gap: 1.25rem; padding: 0 1.25rem; min-height: 56px; }
+.wordmark { font-weight: 800; font-size: 1.15rem; letter-spacing: -0.02em; flex-shrink: 0; }
+.topbar__nav { flex: 1 1 160px; min-width: 0; }
+.topbar__nav ul { display: flex; flex-wrap: wrap; gap: 1.25rem; list-style: none; margin: 0; padding: 0; height: 100%; }
+.topbar__nav li { display: flex; align-items: center; }
+.topbar__link { display: inline-flex; align-items: center; height: 100%; padding: 0 2px; text-decoration: none;
+  font-weight: 600; font-size: 0.92rem; color: var(--color-text-muted); border-bottom: 2px solid transparent; }
+.topbar__link:hover { color: var(--color-text); }
+.topbar__link[aria-current="page"] { color: var(--color-text); border-bottom-color: var(--color-primary); }
+.topbar__trailing { display: flex; align-items: center; gap: 0.6rem; flex-shrink: 0; }
+.icon-btn { width: 36px; height: 36px; border-radius: var(--radius-control); border: 1px solid var(--color-border);
+  background: var(--color-surface); color: var(--color-text); display: inline-flex; align-items: center;
+  justify-content: center; cursor: pointer; }
+.icon-btn:hover { background: var(--color-surface-hover); }
+.avatar-btn { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--color-border-strong);
+  background: var(--color-secondary); color: var(--color-secondary-foreground); font-weight: 700; font-size: 0.78rem;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.avatar-btn:hover { background: var(--color-secondary-hover); }
+
+/* The form-id/status strip: shell chrome shared by every section of this shell (builder,
+   preview, versions), not an autosave indicator - none of these three screens saves
+   anything, so there is no "Saved HH:MM" text here. This is FormPageHeader's own status
+   line (forms.builder.formId / forms.builder.status / forms.status.open), which the real
+   component renders on every section alike, so it stays identical across all three screens
+   below rather than being invented per screen. */
+.save-status { padding: 0.4rem 1.25rem; font-size: 0.78rem; color: var(--color-text-muted);
+  background: var(--color-background-muted); border-bottom: 1px solid var(--color-border); }
+
+/* Shell body: rail + main. Single column below 1024px (rail becomes a top disclosure);
+   two-column grid at 1024px and up. */
+.shell-body { display: block; flex: 1 1 auto; min-height: 0; }
+@media (min-width: 1024px) {
+  .shell-body { display: grid; grid-template-columns: 240px 1fr; }
+}
+
+/* Rail: a native <details> so the narrow-viewport collapse is a real disclosure with no
+   script required. */
+.rail-shell { border-bottom: 1px solid var(--color-border); background: var(--color-surface); }
+@media (min-width: 1024px) {
+  .rail-shell { border-bottom: none; border-right: 1px solid var(--color-border); }
+}
+.rail-summary { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; cursor: pointer;
+  list-style: none; padding: 0.9rem var(--admin-section-pad); font-weight: 700; font-size: 1rem; }
+.rail-summary::-webkit-details-marker { display: none; }
+.rail-summary__label { display: flex; align-items: baseline; gap: 6px; min-width: 0; flex: 1 1 auto; }
+.rail-summary__text { margin: 0; font: inherit; font-weight: inherit; font-size: inherit;
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rail-summary__chev { transition: transform 0.12s ease; color: var(--color-text-muted); }
+.rail-shell[open] .rail-summary__chev { transform: rotate(90deg); }
+/* Unlike the sibling admin-shell POC (where this slot names the active STEP and only
+   appears once drilled into one), here all three screens are siblings under the same
+   rail, so this slot always names "the current screen" - Preview, Versions, or the
+   version being viewed - whichever is active, at every width. CSS still gates it to the
+   collapsed, narrow-viewport case; the text itself is kept current by showScreen(). */
+.rail-summary__step { display: none; flex-shrink: 0; align-items: center; gap: 6px; font-size: 0.85rem;
+  font-weight: 600; white-space: nowrap; }
+.rail-summary__sep { color: var(--color-text-muted); font-weight: 400; }
+@media (max-width: 1023px) {
+  .rail-shell:not([open]) .rail-summary__step { display: inline-flex; }
+}
+@media (min-width: 1024px) {
+  .rail-summary__chev { display: none; }
+  .rail-summary { cursor: default; padding-bottom: 0.5rem; }
+}
+.rail-body { padding: 0 0.6rem 1rem; }
+
+.rail-tree { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.rail-tree > li + li { margin-top: 4px; }
+.rail-link { display: block; padding: 0.5rem 0.6rem; border-radius: var(--radius-control); text-decoration: none;
+  font-size: 0.9rem; font-weight: 600; color: var(--color-text); }
+.rail-link:hover { background: var(--color-surface-hover); }
+.rail-link[aria-current="page"] { background: var(--color-info-subtle); color: var(--color-info-fg); }
+
+.rail-group summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 6px;
+  padding: 0.5rem 0.6rem; border-radius: var(--radius-control); font-weight: 600; font-size: 0.9rem; }
+.rail-group summary::-webkit-details-marker { display: none; }
+.rail-group summary:hover { background: var(--color-surface-hover); }
+.rail-group__chev { transition: transform 0.12s ease; color: var(--color-text-muted); flex-shrink: 0; }
+.rail-group[open] > summary .rail-group__chev { transform: rotate(90deg); }
+
+.rail-steps { list-style: none; margin: 2px 0 2px 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+.rail-step-row { position: relative; display: flex; align-items: center; gap: 4px;
+  border-left: 3px solid transparent; border-radius: var(--radius-control); }
+.rail-step-row:hover { background: var(--color-surface-hover); }
+/* The step grip and overflow trigger are present for visual parity with the sibling shell
+   POC (the rail is meant to look identical everywhere it appears) but neither is wired to
+   open anything here: this POC's scope is the three screens below, not step editing, and a
+   menu that can never be demonstrated open can also never be caught clipping one. */
+.rail-step-grip { width: 22px; height: 22px; flex-shrink: 0; border-radius: var(--radius-sm);
+  border: 1px solid transparent; background: transparent; color: var(--color-text-muted);
+  display: inline-flex; align-items: center; justify-content: center; cursor: grab; opacity: 0;
+  transition: opacity 0.12s ease, background 0.12s ease; }
+.rail-step-row:hover .rail-step-grip, .rail-step-row:focus-within .rail-step-grip { opacity: 1; }
+.rail-step-grip:hover { background: var(--color-ghost-hover); color: var(--color-text); }
+.rail-step-grip:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; opacity: 1; }
+.rail-step-grip:active { cursor: grabbing; }
+.rail-step-link { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 6px; padding: 0.42rem 0.3rem;
+  text-decoration: none; font-size: 0.87rem; color: var(--color-text); border-radius: var(--radius-sm); }
+.rail-step-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rail-step-menu-trigger { flex-shrink: 0; width: 26px; height: 26px; margin-right: 4px; border-radius: var(--radius-sm);
+  border: 1px solid transparent; background: transparent; color: var(--color-text-muted); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; }
+.rail-step-menu-trigger:hover { background: var(--color-ghost-hover); color: var(--color-text); }
+.menu { position: absolute; z-index: 5; min-width: 180px; background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-card); padding: 6px; box-shadow: 0 2px 4px hsl(var(--shadow-color) / 0.1), 0 30px 70px -30px hsl(var(--shadow-color) / 0.4); }
+.menu .mi { display: block; width: 100%; text-align: left; background: none; border: none; padding: 8px 10px;
+  border-radius: var(--radius-sm); color: var(--color-text); font: inherit; font-size: 0.85rem; cursor: pointer; }
+.menu .mi:hover { background: var(--color-surface-hover); }
+.rail-step-menu { top: 100%; left: 1.6rem; margin-top: 2px; }
+.rail-add-step { width: 100%; text-align: left; background: none; border: none; cursor: pointer;
+  padding: 0.42rem 0.3rem 0.42rem 1.4rem; margin-top: 1px; font: inherit; font-size: 0.87rem;
+  color: var(--color-text-muted); border-radius: var(--radius-control); }
+.rail-add-step:hover { background: var(--color-surface-hover); color: var(--color-text); }
+
+/* Main column: left-anchored, fluid up to a cap, never re-centred - shared by all three
+   screens, so the versions list gets the same generous ceiling the builder does. The
+   respondent-width canvases below deliberately do NOT use this cap; they set their own,
+   narrower one (see .respondent-frame). */
+.main { max-width: 1600px; padding: var(--admin-section-pad); min-width: 0; }
+.main-layout--stacked { display: flex; flex-direction: column; gap: 1.1rem; }
+
+.breadcrumb ol { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 4px; padding: 0;
+  font-size: 0.82rem; color: var(--color-text-muted); }
+.breadcrumb li:not(:last-child)::after { content: "/"; margin-left: 6px; color: var(--color-border-strong); }
+.breadcrumb a { text-decoration: none; }
+.breadcrumb a:hover { text-decoration: underline; }
+.breadcrumb li[aria-current="page"] { color: var(--color-text); font-weight: 600; }
+
+h1.step-heading { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.01em; margin: 0 0 0.2rem; }
+h2.section-heading { font-size: 1.05rem; font-weight: 700; margin: 0; }
+h3.canvas-step-heading { font-size: 1rem; font-weight: 700; margin: 0 0 0.9rem; }
+
+.field { margin: 0; }
+.field label { display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 5px; }
+.field select, .field input { width: 100%; height: var(--admin-control-h); padding: 0 var(--admin-control-pad-x);
+  border-radius: var(--radius-control); border: 1px solid var(--color-border-strong); background: var(--color-surface);
+  color: var(--color-text); }
+.field select:hover, .field input:hover { border-color: var(--color-primary); }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: var(--admin-control-h);
+  padding: 0 16px; border-radius: var(--radius-control); border: 1.5px solid transparent; font-weight: 600;
+  font-size: 0.88rem; cursor: pointer; }
+.btn-sm { height: 32px; padding: 0 12px; font-size: 0.82rem; }
+.btn-secondary { background: var(--color-secondary); color: var(--color-secondary-foreground); }
+.btn-secondary:hover { background: var(--color-secondary-hover); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.banner { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border-radius: var(--radius-control);
+  font-size: 0.85rem; }
+.banner-warning { background: var(--color-warning-subtle); color: var(--color-warning-fg); }
+/* The immutability guarantee is a fact the product is proud of, not a caution - info tokens
+   (a settled, confident blue) rather than warning tokens (amber, "pay attention") say that
+   with colour as well as with words, while the words alone still carry the whole meaning. */
+.banner-info { background: var(--color-info-subtle); color: var(--color-info-fg); }
+.banner svg { width: 14px; height: 14px; flex-shrink: 0; margin-top: 2px; }
+
+.stacked-card { border: 1px solid var(--color-border); border-radius: var(--radius-card);
+  background: var(--color-surface); padding: var(--admin-section-pad); }
+.stacked-card > summary { cursor: pointer; list-style: none; display: flex; align-items: center;
+  justify-content: space-between; gap: 0.5rem; }
+.stacked-card > summary::-webkit-details-marker { display: none; }
+.stacked-card > summary .stacked-heading { margin: 0; flex-shrink: 0; white-space: nowrap; }
+.stacked-card__chev { transition: transform 0.12s ease; color: var(--color-text-muted); flex-shrink: 0; }
+.stacked-card[open] > summary .stacked-card__chev { transform: rotate(90deg); }
+.stacked-card[open] > summary { margin-bottom: 0.9rem; }
+.stacked-heading { margin: 0 0 0.9rem; font-size: 0.95rem; font-weight: 700; }
+.stacked-card__label { display: flex; align-items: baseline; gap: 8px; min-width: 0; flex: 1 1 auto; }
+.stacked-card__digest { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; font-size: 0.8rem; font-weight: 400; color: var(--color-text-muted); }
+.stacked-note { margin: 0; font-size: 0.85rem; color: var(--color-text-muted); }
+.stacked-card__body { display: flex; flex-direction: column; gap: 0.9rem; }
+
+.qcms-text-link { color: var(--color-primary); font-weight: 600; text-decoration: none; font-size: 0.88rem; }
+.qcms-text-link:hover { text-decoration: underline; }
+
+/* Versions table: the option-grid table idiom, reused as a plain read-only grid (no grip
+   column, no editable cells - viewing a version is a row action, not a cell edit). */
+.qgrid-region { position: relative; }
+.qgrid-scroll { border: 1px solid var(--color-border); border-radius: var(--radius-card); overflow-x: auto;
+  background: var(--color-surface); }
+table.qgrid { width: 100%; min-width: 640px; border-collapse: collapse; font-size: 0.88rem; }
+.qgrid thead th { text-align: left; color: var(--color-text-muted); font-weight: 600; font-size: 0.72rem;
+  text-transform: uppercase; letter-spacing: 0.06em; padding: 0.6rem 0.6rem; border-bottom: 2px solid var(--color-border-strong);
+  background: var(--color-background-muted); white-space: nowrap; }
+.qgrid tbody tr { border-bottom: 1px solid var(--color-border); }
+.qgrid tbody tr:last-child { border-bottom: none; }
+.qgrid tbody tr:hover { background: var(--color-surface-hover); }
+.qcell { padding: 0.5rem 0.6rem; height: var(--admin-table-row-h); vertical-align: middle; white-space: nowrap; }
+.qcell--wrap { white-space: normal; }
+
+/* Below 640px: the three engine-stamp columns drop (acceptable losses - they are an audit
+   detail, not what the row action needs), so Version, Published, Status and the view
+   action stay comfortably legible without the page itself ever scrolling sideways. Mirrors
+   the sibling shell POC's own qgrid narrow-width rule (admin-shell-poc.html), which does the
+   same trade for its Type/Issues columns; table.qgrid's own base rule sets min-width:640px,
+   so without an override here the table (not just its scroll box) stays 640px wide and
+   forces horizontal reflow onto the whole page rather than staying inside .qgrid-scroll. */
+@media (max-width: 639px) {
+  table.vtable { min-width: 0; width: 100%; }
+  .vtable thead th:nth-child(3), .vtable thead th:nth-child(4), .vtable thead th:nth-child(5),
+  .vtable tbody td:nth-child(3), .vtable tbody td:nth-child(4), .vtable tbody td:nth-child(5) { display: none; }
+}
+
+.vstatus { display: inline-flex; align-items: center; font-size: 0.78rem; font-weight: 700;
+  padding: 2px 8px; border-radius: var(--radius-sm); white-space: nowrap; }
+.vstatus--current { background: var(--color-info-subtle); color: var(--color-info-fg); }
+.vstatus--superseded { background: var(--color-background-muted); color: var(--color-text-muted); font-weight: 600; }
+
+.compare-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 0.75rem; }
+.compare-controls .field { width: 160px; }
+
+/* The diff: each row carries its +/- marker as text (not colour alone) and its kind as a
+   visually-hidden word, matching version-history.tsx's own DiffView. */
+.vdiff { border: 1px solid var(--color-border); border-radius: var(--radius-control);
+  background: var(--color-background-muted); padding: 0.5rem; overflow-x: auto; }
+.vdiff-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px;
+  font-family: var(--font-mono); font-size: 0.8rem; }
+.vdiff-row { display: flex; gap: 8px; padding: 2px 6px; border-radius: var(--radius-sm); white-space: pre; }
+.vdiff-row--added { background: var(--color-success-subtle); color: var(--color-success-fg); }
+.vdiff-row--removed { background: var(--color-danger-subtle); color: var(--color-danger-fg); }
+.vdiff-row--same { color: var(--color-text-muted); }
+.vdiff-marker { font-weight: 700; width: 1ch; flex-shrink: 0; }
+
+.action-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
+
+/* The respondent-width canvas: a visibly bounded frame, not an accidental narrow column.
+   Both Preview and Version detail use this SAME class with no per-screen override, which is
+   what keeps their measured widths identical - an author judging either screen is looking
+   at the same measure a respondent gets, on both. 640px is a deliberate editorial choice for
+   "a respondent's reading column" (POC judgement call; the shipped portal's own container
+   width was not read for this exercise - see the reply notes), capped well under the
+   versions list's much wider content area so the frame reads as a device-like inset rather
+   than as "the page just got narrower here". */
+.respondent-frame { max-width: 640px; width: 100%; border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-card); background: var(--color-surface);
+  box-shadow: 0 1px 2px hsl(var(--shadow-color) / 0.12), 0 12px 28px -12px hsl(var(--shadow-color) / 0.22);
+  overflow: hidden; }
+.respondent-frame__bar { padding: 0.5rem 1rem; font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--color-text-muted); background: var(--color-background-muted);
+  border-bottom: 1px solid var(--color-border); }
+.respondent-frame__body { padding: 1.25rem; }
+
+.respondent-progress { margin: 0 0 0.5rem; font-size: 0.82rem; color: var(--color-text-muted); }
+.respondent-progress-bar { display: flex; gap: 4px; margin: 0 0 1rem; }
+.respondent-progress-bar span { flex: 1; height: 4px; border-radius: 2px; background: var(--color-border); }
+.respondent-progress-bar span.is-done { background: var(--color-primary); }
+
+.respondent-field { margin: 0 0 1.1rem; }
+.respondent-field:last-child { margin-bottom: 0; }
+.respondent-field legend, .respondent-field > label { display: block; font-size: 0.9rem; font-weight: 600;
+  margin-bottom: 8px; padding: 0; border: none; }
+.respondent-field fieldset { border: none; padding: 0; margin: 0; }
+.respondent-radio-row { display: flex; gap: 1.25rem; }
+.respondent-radio-row label { display: flex; align-items: center; gap: 6px; font-size: 0.88rem; font-weight: 500; }
+.respondent-radio-row input[type="radio"] { width: 18px; height: 18px; accent-color: var(--color-primary); }
+.respondent-field input[type="number"] { width: 100%; max-width: 220px; height: var(--admin-control-h);
+  padding: 0 var(--admin-control-pad-x); border-radius: var(--radius-control);
+  border: 1px solid var(--color-border-strong); background: var(--color-surface); color: var(--color-text); }
+.respondent-field input[type="number"]:hover { border-color: var(--color-primary); }
+
+.intro { max-width: 68ch; font-size: 0.88rem; color: var(--color-text-muted); margin: 0.75rem 1.5rem; }
+</style>
+
+<div class="switcher" role="group" aria-label="Preview mode">
+  <button type="button" aria-pressed="true" onclick="setMode('', this)">Light</button>
+  <button type="button" aria-pressed="false" onclick="setMode('dark', this)">Dark</button>
+  <button type="button" aria-pressed="false" onclick="setMode('hc', this)">High contrast</button>
+</div>
+
+<p class="intro">Preview and version history POC: three rail-navigated screens for one form. Preview and
+  Version detail both frame a respondent-width canvas (identical widths, deliberately narrower than the page) so
+  neither ever shows an author more form than a respondent would see. Versions gets the page's full width and is
+  the one screen here with something worth collapsing: version-to-version comparison.</p>
+
+<header class="topbar">
+  <div class="topbar__inner">
+    <span class="wordmark">QCMS</span>
+    <nav class="topbar__nav" aria-label="Primary">
+      <ul>
+        <li><a class="topbar__link" href="#">Questions</a></li>
+        <li><a class="topbar__link" href="#" aria-current="page">Forms</a></li>
+        <li><a class="topbar__link" href="#">Responses</a></li>
+        <li><a class="topbar__link" href="#">Webhooks</a></li>
+        <li><a class="topbar__link" href="#">Settings</a></li>
+      </ul>
+    </nav>
+    <div class="topbar__trailing">
+      <button type="button" class="icon-btn" aria-label="Appearance settings" title="Appearance">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"></circle>
+          <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path>
+        </svg>
+      </button>
+      <button type="button" class="avatar-btn" aria-label="Account menu, signed in as Code Owner">CO</button>
+    </div>
+  </div>
+</header>
+
+<div class="save-status">Form ID: frm_life_insurance &middot; Status: Open</div>
+
+<div class="shell-body">
+  <details class="rail-shell" open id="rail-shell">
+    <summary class="rail-summary">
+      <span class="rail-summary__label">
+        <h2 class="rail-summary__text">Life insurance</h2>
+        <span class="rail-summary__step">
+          <span class="rail-summary__sep" aria-hidden="true">/</span>
+          <span class="rail-summary__step-name" id="rail-current-screen-name">Preview</span>
+        </span>
+      </span>
+      <svg class="rail-summary__chev icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+    </summary>
+    <div class="rail-body">
+      <nav aria-label="Life insurance sections">
+        <ul class="rail-tree">
+          <li>
+            <details class="rail-group" open>
+              <summary>
+                <svg class="rail-group__chev icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                Steps
+              </summary>
+              <ul class="rail-steps">
+                <li>
+                  <div class="rail-step-row">
+                    <button type="button" class="rail-step-grip" aria-label="Reorder step About you with Up or Down arrow keys, or by dragging">
+                      <svg class="icon-sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1.6" fill="currentColor"></circle><circle cx="15" cy="6" r="1.6" fill="currentColor"></circle><circle cx="9" cy="12" r="1.6" fill="currentColor"></circle><circle cx="15" cy="12" r="1.6" fill="currentColor"></circle><circle cx="9" cy="18" r="1.6" fill="currentColor"></circle><circle cx="15" cy="18" r="1.6" fill="currentColor"></circle></svg>
+                    </button>
+                    <a class="rail-step-link" href="#" onclick="return false;">
+                      <span class="rail-step-title">About you</span>
+                    </a>
+                    <button type="button" class="rail-step-menu-trigger" aria-haspopup="menu" aria-expanded="false" aria-controls="step-menu-1" aria-label="Step 1 About you actions">
+                      <svg class="icon-sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1.6" fill="currentColor"></circle><circle cx="12" cy="12" r="1.6" fill="currentColor"></circle><circle cx="12" cy="19" r="1.6" fill="currentColor"></circle></svg>
+                    </button>
+                    <div class="menu rail-step-menu" role="menu" id="step-menu-1" aria-label="Step 1 About you actions" hidden>
+                      <button type="button" role="menuitem" class="mi">Rename</button>
+                      <button type="button" role="menuitem" class="mi">Move down</button>
+                    </div>
+                  </div>
+                </li>
+                <li>
+                  <div class="rail-step-row">
+                    <button type="button" class="rail-step-grip" aria-label="Reorder step Health with Up or Down arrow keys, or by dragging">
+                      <svg class="icon-sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1.6" fill="currentColor"></circle><circle cx="15" cy="6" r="1.6" fill="currentColor"></circle><circle cx="9" cy="12" r="1.6" fill="currentColor"></circle><circle cx="15" cy="12" r="1.6" fill="currentColor"></circle><circle cx="9" cy="18" r="1.6" fill="currentColor"></circle><circle cx="15" cy="18" r="1.6" fill="currentColor"></circle></svg>
+                    </button>
+                    <a class="rail-step-link" href="#" onclick="return false;">
+                      <span class="rail-step-title">Health</span>
+                    </a>
+                    <button type="button" class="rail-step-menu-trigger" aria-haspopup="menu" aria-expanded="false" aria-controls="step-menu-2" aria-label="Step 2 Health actions">
+                      <svg class="icon-sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1.6" fill="currentColor"></circle><circle cx="12" cy="12" r="1.6" fill="currentColor"></circle><circle cx="12" cy="19" r="1.6" fill="currentColor"></circle></svg>
+                    </button>
+                    <div class="menu rail-step-menu" role="menu" id="step-menu-2" aria-label="Step 2 Health actions" hidden>
+                      <button type="button" role="menuitem" class="mi">Rename</button>
+                      <button type="button" role="menuitem" class="mi">Move up</button>
+                      <button type="button" role="menuitem" class="mi">Move down</button>
+                    </div>
+                  </div>
+                </li>
+                <li>
+                  <div class="rail-step-row">
+                    <button type="button" class="rail-step-grip" aria-label="Reorder step Cover with Up or Down arrow keys, or by dragging">
+                      <svg class="icon-sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1.6" fill="currentColor"></circle><circle cx="15" cy="6" r="1.6" fill="currentColor"></circle><circle cx="9" cy="12" r="1.6" fill="currentColor"></circle><circle cx="15" cy="12" r="1.6" fill="currentColor"></circle><circle cx="9" cy="18" r="1.6" fill="currentColor"></circle><circle cx="15" cy="18" r="1.6" fill="currentColor"></circle></svg>
+                    </button>
+                    <a class="rail-step-link" href="#" onclick="return false;">
+                      <span class="rail-step-title">Cover</span>
+                    </a>
+                    <button type="button" class="rail-step-menu-trigger" aria-haspopup="menu" aria-expanded="false" aria-controls="step-menu-3" aria-label="Step 3 Cover actions">
+                      <svg class="icon-sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1.6" fill="currentColor"></circle><circle cx="12" cy="12" r="1.6" fill="currentColor"></circle><circle cx="12" cy="19" r="1.6" fill="currentColor"></circle></svg>
+                    </button>
+                    <div class="menu rail-step-menu" role="menu" id="step-menu-3" aria-label="Step 3 Cover actions" hidden>
+                      <button type="button" role="menuitem" class="mi">Rename</button>
+                      <button type="button" role="menuitem" class="mi">Move up</button>
+                    </div>
+                  </div>
+                </li>
+                <li>
+                  <button type="button" class="rail-add-step">+ Add step</button>
+                </li>
+              </ul>
+            </details>
+          </li>
+          <li><a class="rail-link" href="#" id="rail-preview-link" aria-current="page" onclick="showScreen('preview'); return false;">Preview</a></li>
+          <li><a class="rail-link" href="#" id="rail-versions-link" onclick="showScreen('versions'); return false;">Versions</a></li>
+          <li><a class="rail-link" href="#" onclick="return false;">Links</a></li>
+          <li><a class="rail-link" href="#" onclick="return false;">Responses</a></li>
+          <li><a class="rail-link" href="#" onclick="return false;">Webhooks</a></li>
+        </ul>
+      </nav>
+    </div>
+  </details>
+
+  <main id="main-content" class="main">
+
+    <!-- Screen 1: Preview. The draft, compiled and rendered through the same renderer a
+         respondent gets (fidelity, not resemblance - see draft-preview.tsx's own doc
+         comment). Everything outside .respondent-frame is author-only chrome; everything
+         inside it is what a respondent would see. -->
+    <div id="screen-preview" class="main-layout main-layout--stacked">
+      <h1 class="step-heading">Draft preview: Life insurance</h1>
+      <p class="stacked-note">Compiled from the saved draft. Publishing is a separate, deliberate step (Versions).</p>
+
+      <section aria-labelledby="qcms-preview-heading" class="main-layout--stacked" style="display:flex; flex-direction:column; gap:0.9rem;">
+        <div>
+          <h2 class="section-heading" id="qcms-preview-heading">Preview</h2>
+          <p class="banner banner-info" style="margin-top:0.5rem; max-width:640px;">Preview - not published</p>
+          <p class="stacked-note" style="margin-top:0.5rem; max-width:640px;">This is your draft compiled and
+            rendered through the same renderer a respondent uses. Answer the questions to walk your own branches.
+            Nothing here is saved.</p>
+        </div>
+
+        <!-- The frame: the boundary is a real bordered, shadowed panel with its own top
+             bar, not merely "some CSS got narrower here" - see .respondent-frame's doc
+             comment above for why 640px and why it is shared, unmodified, with the Version
+             detail canvas below. -->
+        <div class="respondent-frame" id="preview-canvas">
+          <div class="respondent-frame__bar">Respondent view</div>
+          <div class="respondent-frame__body">
+            <p class="respondent-progress" data-testid="qcms-preview-step">Step 2 of 3: Health</p>
+            <div class="respondent-progress-bar" aria-hidden="true">
+              <span class="is-done"></span><span class="is-done"></span><span></span>
+            </div>
+            <h3 class="canvas-step-heading">Health</h3>
+
+            <div class="respondent-field">
+              <fieldset>
+                <legend>Are you a smoker?</legend>
+                <div class="respondent-radio-row">
+                  <label><input type="radio" name="prev-smoker" value="true"> Yes</label>
+                  <label><input type="radio" name="prev-smoker" value="false"> No</label>
+                </div>
+              </fieldset>
+            </div>
+
+            <div class="respondent-field">
+              <label for="prev-cigs">Cigarettes per day</label>
+              <input type="number" id="prev-cigs" min="0" />
+            </div>
+          </div>
+        </div>
+
+        <div class="action-row">
+          <button type="button" class="btn btn-secondary btn-sm" disabled>Previous step</button>
+          <button type="button" class="btn btn-secondary btn-sm">Next step</button>
+          <button type="button" class="btn btn-secondary btn-sm">Reset answers</button>
+        </div>
+        <p class="stacked-note" data-testid="qcms-preview-stamps">Compiler 2.3.1 &middot; A2UI spec 1.2</p>
+      </section>
+    </div>
+
+    <!-- Screen 2: Versions. The audit record: every published version, frozen exactly as it
+         was, plus the one thing worth collapsing here - a version-to-version diff. Gets the
+         page's full width; nothing on this screen is respondent-width. -->
+    <div id="screen-versions" class="main-layout main-layout--stacked" hidden>
+      <h1 class="step-heading">Version history: Life insurance</h1>
+      <p class="stacked-note" style="max-width:68ch;">Every published version, frozen exactly as it was. Viewing
+        one renders the compiled documents stored at publish time, which is what respondents on that version saw
+        (ADR-18).</p>
+
+      <section aria-labelledby="versions-table-heading">
+        <h2 class="section-heading" id="versions-table-heading" style="margin-bottom:0.6rem;">Published versions</h2>
+        <!-- No "who published" column: FormVersionSummary (apps/admin/lib/forms/types.ts)
+             carries version, publishedAt and the three engine stamps only - no author field
+             exists in the shipped read, so none is shown here rather than invented.
+             "Status" is likewise not a stored field; Current/Superseded below is derived
+             from list position (newest first, per version-history.tsx's own doc comment),
+             a judgement call rather than a literal API value. -->
+        <div class="qgrid-region">
+          <div class="qgrid-scroll">
+            <table class="qgrid vtable" aria-label="Published versions">
+              <thead>
+                <tr>
+                  <th scope="col">Version</th>
+                  <th scope="col">Published</th>
+                  <th scope="col">Compiler</th>
+                  <th scope="col">A2UI spec</th>
+                  <th scope="col">Semantics</th>
+                  <th scope="col">Status</th>
+                  <th scope="col"><span class="sr-only">Action</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="qcell">v3</td>
+                  <td class="qcell">2026-08-10</td>
+                  <td class="qcell">2.3.1</td>
+                  <td class="qcell">1.2</td>
+                  <td class="qcell">1.0</td>
+                  <td class="qcell"><span class="vstatus vstatus--current">Current</span></td>
+                  <td class="qcell"><a class="qcms-text-link" href="#" onclick="viewVersion(3); return false;">View v3</a></td>
+                </tr>
+                <tr>
+                  <td class="qcell">v2</td>
+                  <td class="qcell">2026-07-02</td>
+                  <td class="qcell">2.3.0</td>
+                  <td class="qcell">1.2</td>
+                  <td class="qcell">1.0</td>
+                  <td class="qcell"><span class="vstatus vstatus--superseded">Superseded</span></td>
+                  <td class="qcell"><a class="qcms-text-link" href="#" onclick="viewVersion(2); return false;">View v2</a></td>
+                </tr>
+                <tr>
+                  <td class="qcell">v1</td>
+                  <td class="qcell">2026-05-18</td>
+                  <td class="qcell">2.2.4</td>
+                  <td class="qcell">1.1</td>
+                  <td class="qcell">1.0</td>
+                  <td class="qcell"><span class="vstatus vstatus--superseded">Superseded</span></td>
+                  <td class="qcell"><a class="qcms-text-link" href="#" onclick="viewVersion(1); return false;">View v1</a></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <details class="stacked-card" open>
+        <summary>
+          <span class="stacked-card__label">
+            <h2 class="stacked-heading">Compare versions</h2>
+            <span class="stacked-card__digest">Compare &middot; v2 to v3</span>
+          </span>
+          <svg class="stacked-card__chev icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </summary>
+        <div class="stacked-card__body">
+          <p class="stacked-note">Pick two versions to compare their definitions.</p>
+          <div class="compare-controls">
+            <div class="field">
+              <label for="cmp-older">Older version</label>
+              <select id="cmp-older">
+                <option value="1">v1</option>
+                <option value="2" selected>v2</option>
+                <option value="3">v3</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="cmp-newer">Newer version</label>
+              <select id="cmp-newer">
+                <option value="1">v1</option>
+                <option value="2">v2</option>
+                <option value="3" selected>v3</option>
+              </select>
+            </div>
+            <button type="button" class="btn btn-secondary btn-sm">Clear comparison</button>
+          </div>
+
+          <p class="stacked-note" style="color:var(--color-text);">v2 compared with v3</p>
+          <p class="stacked-note" id="vdiff-summary">3 lines added, 1 line removed.</p>
+          <div class="vdiff" role="group" aria-label="3 lines added, 1 line removed.">
+            <ol class="vdiff-rows">
+              <li class="vdiff-row vdiff-row--same">
+                <span class="sr-only">Unchanged</span>
+                <span aria-hidden="true" class="vdiff-marker"> </span>
+                <span>"stepId": "stp_health",</span>
+              </li>
+              <li class="vdiff-row vdiff-row--removed">
+                <span class="sr-only">Removed</span>
+                <span aria-hidden="true" class="vdiff-marker">-</span>
+                <span>"maxSelected": null</span>
+              </li>
+              <li class="vdiff-row vdiff-row--added">
+                <span class="sr-only">Added</span>
+                <span aria-hidden="true" class="vdiff-marker">+</span>
+                <span>"maxSelected": 3,</span>
+              </li>
+              <li class="vdiff-row vdiff-row--added">
+                <span class="sr-only">Added</span>
+                <span aria-hidden="true" class="vdiff-marker">+</span>
+                <span>"ruleId": "rul_heavy_smoker",</span>
+              </li>
+              <li class="vdiff-row vdiff-row--added">
+                <span class="sr-only">Added</span>
+                <span aria-hidden="true" class="vdiff-marker">+</span>
+                <span>"targets": ["q_quit_attempts"]</span>
+              </li>
+            </ol>
+          </div>
+        </div>
+      </details>
+    </div>
+
+    <!-- Screen 3: Version detail. Renders the STORED compiled documents, never a
+         recompile (ADR-18) - the audit promise is "here is exactly what a respondent on
+         this version saw". No editing affordance of any kind lives here: no rename, no
+         drag, no add/remove, no settings. The h1 names the version; the form is
+         breadcrumb context only (the scope bug this fixes: shipped code's h1 currently
+         reads the form's slug on every section, including this one, via
+         forms.builder.heading = "{slug}" - see form-page-header.tsx). -->
+    <div id="screen-version-detail" class="main-layout main-layout--stacked" hidden>
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <ol>
+          <li><a href="#" onclick="return false;">Forms</a></li>
+          <li><a href="#" onclick="return false;">Life insurance</a></li>
+          <li><a href="#" onclick="viewVersions(); return false;">Version history</a></li>
+          <li aria-current="page" id="version-detail-crumb">Version 3</li>
+        </ol>
+      </nav>
+      <h1 class="step-heading" id="version-detail-heading">Version 3</h1>
+
+      <a class="qcms-text-link" href="#" onclick="viewVersions(); return false;">Back to version history</a>
+
+      <section aria-labelledby="qcms-version-view-heading" class="main-layout--stacked" style="display:flex; flex-direction:column; gap:0.9rem;">
+        <div>
+          <h2 class="section-heading" id="qcms-version-view-heading">Viewing v3</h2>
+          <p class="banner banner-info" style="margin-top:0.5rem; max-width:640px;">Read only: a published version
+            is never edited (R1).</p>
+          <p class="stacked-note" style="margin-top:0.5rem; max-width:640px;" data-testid="qcms-version-stored">
+            Rendered from the compiled documents stored with v3. Nothing was recompiled.</p>
+          <p class="stacked-note" style="margin-top:0.35rem;">Compiler 2.3.1 &middot; A2UI spec 1.2</p>
+        </div>
+
+        <!-- Same class, same width, as the Preview canvas above - no per-screen override. -->
+        <div class="respondent-frame" id="version-canvas">
+          <div class="respondent-frame__bar">Respondent view, as stored at publish</div>
+          <div class="respondent-frame__body">
+            <p class="respondent-progress" data-testid="qcms-version-step">Step 2 of 3: Health</p>
+            <div class="respondent-progress-bar" aria-hidden="true">
+              <span class="is-done"></span><span class="is-done"></span><span></span>
+            </div>
+            <h3 class="canvas-step-heading">Health</h3>
+
+            <div class="respondent-field">
+              <fieldset>
+                <legend>Are you a smoker?</legend>
+                <div class="respondent-radio-row">
+                  <label><input type="radio" name="v3-smoker" value="true"> Yes</label>
+                  <label><input type="radio" name="v3-smoker" value="false"> No</label>
+                </div>
+              </fieldset>
+            </div>
+
+            <div class="respondent-field">
+              <label for="v3-cigs">Cigarettes per day</label>
+              <input type="number" id="v3-cigs" min="0" />
+            </div>
+          </div>
+        </div>
+
+        <div class="action-row">
+          <button type="button" class="btn btn-secondary btn-sm" disabled>Previous step</button>
+          <button type="button" class="btn btn-secondary btn-sm">Next step</button>
+        </div>
+      </section>
+    </div>
+
+  </main>
+</div>
+
+<script>
+function setMode(mode, btn) {
+  document.documentElement.className = mode;
+  document.querySelectorAll(".switcher button").forEach(function (b) {
+    b.setAttribute("aria-pressed", b === btn ? "true" : "false");
+  });
+}
+
+var SCREEN_IDS = {
+  preview: "screen-preview",
+  versions: "screen-versions",
+  "version-detail": "screen-version-detail"
+};
+var RAIL_LABELS = {
+  preview: "Preview",
+  versions: "Versions",
+  "version-detail": "Version 3"
+};
+
+function showScreen(name) {
+  Object.keys(SCREEN_IDS).forEach(function (key) {
+    document.getElementById(SCREEN_IDS[key]).hidden = key !== name;
+  });
+
+  var previewLink = document.getElementById("rail-preview-link");
+  var versionsLink = document.getElementById("rail-versions-link");
+  var isPreview = name === "preview";
+  var isVersionsGroup = name === "versions" || name === "version-detail";
+
+  if (isPreview) previewLink.setAttribute("aria-current", "page");
+  else previewLink.removeAttribute("aria-current");
+
+  if (isVersionsGroup) versionsLink.setAttribute("aria-current", "page");
+  else versionsLink.removeAttribute("aria-current");
+
+  document.getElementById("rail-current-screen-name").textContent = RAIL_LABELS[name];
+}
+
+function viewVersion(version) {
+  // A fixed single-version demo (v3): the row action, wired for real, always lands on the
+  // same version-detail screen. Wiring three distinct snapshots is out of this POC's scope.
+  showScreen("version-detail");
+  document.getElementById("version-detail-heading").focus();
+}
+
+function viewVersions() {
+  showScreen("versions");
+}
+</script>
+
+<script>
+// Focus is not moved by default on load; only version-detail's heading is a
+// programmatic focus target (set tabindex so browsers allow focusing a heading).
+document.getElementById("version-detail-heading").setAttribute("tabindex", "-1");
+</script>

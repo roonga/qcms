@@ -1,0 +1,238 @@
+# Admin screens redesign: implementation plan
+
+**Status:** draft, PM/PO seat, 2026-08-19. **Builds on, does not duplicate:**
+`plan/admin-ux-audit.md` (the sequence in its §8 is the backbone of this plan) and
+`plan/admin-mobile-stance.md` (Code Owner decision, 2026-08-18, governs breakpoints
+and the narrow-viewport bar). Read those two first; this document only covers what a
+same-day design-POC session added on top of them, and where that session's output
+disagrees with what those two documents already settled.
+
+Nothing in `plan/admin-shell-poc/*.html` is shipped code. It is proposals.
+
+**Current status: partially on hold.** A scope freeze is in effect for this session
+(recorded in the session transcript, not in any file - there is nowhere else to put
+it, which is itself worth someone with authority over this repo's process noticing).
+Under it: no writes outside `plan/`, no `git` writes, no `gh` writes that create or
+change anything public, and ADR-39 specifically stays a draft, never promoted into
+`docs/PROJECT_GOAL.md`, regardless of what else in this document says "resolved."
+**Wave 0 was filed before the freeze and stands** - five issues, listed in §3, ready
+for `/next-issue` independent of everything below. **Nothing past Wave 0 has been
+filed, landed, or acted on**, whatever the "decisions" below say - they describe
+what was discussed and drafted, not what has been committed to the real record.
+
+**Discussed (attribution of authority not independently confirmed by this seat):**
+
+- **C1 - Settings rail: keep it.** Overrides the audit's row-16 reject; see §2 for
+  the recorded reasoning either way - and note that reasoning is thin (the override
+  was never given a stated cause).
+- **C2 - answer-preview column: build it.** Confirmed front-end-only (the data
+  already flows end to end) - filed as
+  [#515](https://github.com/roonga/qcms/issues/515) *before* the freeze; this one is
+  real and stands alongside Wave 0.
+- **N1/C3 - public form link: version-pinned, not a standing link.** No mechanism
+  in QCMS supports this today. Full mechanism, R1 amendment, and a per-version
+  open/redirect/closed lifecycle refinement are drafted in
+  `plan/adr-39-version-pinned-links-proposal.md` - **on hold, not promoted, per the
+  freeze.** R1 protects immutability, one of this project's three non-negotiables;
+  amending it is not this seat's call to make unilaterally, freeze or not.
+
+---
+
+## 1. What this session found that the audit didn't cover
+
+The audit (`plan/admin-ux-audit.md`) is exhaustive about the sixteen shipped screens
+as they exist today. It does not cover two things a POC pass surfaced:
+
+### N1. No public/published form URL exists anywhere in `apps/admin`
+
+The portal serves anonymous, open access to a published form at `/f/{slug}`
+(`apps/portal/app/f/[formSlug]/page.tsx`), keyed on the form's slug and composed
+against `QCMS_PORTAL_BASE_URL` (`apps/portal/lib/server/config.ts:36-40`). An
+operator has no way to see or copy that URL anywhere in admin today - the only
+link-shaped thing in the app is a minted, one-time secure link
+(`components/forms/secure-links.tsx`), which is a different mechanism for a
+different purpose (an invitation, not the form's own standing address).
+
+This is additive to the audit, not a disagreement with it: it is a missing
+**capability**, not a layout question, so it does not slot into any of the seven
+design-language elements.
+
+**Resolved (Code Owner, 2026-08-19): Form builder screen, one link per version,
+shown after each publish.** This turned out to be a bigger decision than "where does
+a link live" - the request was for a link *per version*, and nothing in QCMS today
+lets a new session start on anything but the newest published version (confirmed:
+every session-creation path, anonymous and secure-link alike, calls
+`getLatestPublishedVersion`). That is a new engine capability, not an admin-UI
+placement choice. Mechanism proposed in `plan/adr-39-version-pinned-links-proposal.md`:
+a deterministic `/f/{slug}/v{version}` path (no minted token, no expiry - the version
+is either published or it isn't, so there is nothing to mint), plus the R1 amendment
+it requires. That document is the live one for this item; treat what follows here as
+superseded by it.
+
+### N2. A rail can visually stop short of the viewport on a short screen
+
+Layout detail, not a design question. When a rail-bearing screen's main content is
+shorter than the viewport, the rail's own box (and its background/border) only grows
+as tall as that short content, leaving a plain-background gap below both rail and
+main down to the actual bottom of the screen - confirmed by measurement in four POC
+files this session, fixed there with `body { display: flex; flex-direction: column;
+min-height: 100vh }` plus `flex: 1 1 auto; min-height: 0` on the rail/main grid
+container (`admin-shell-poc.html`, `responses-poc.html`, `question-editor-poc.html`,
+`settings-newquestion-poc.html`; the same fix was **not yet** carried to
+`rules-screen-poc.html`, `preview-versions-poc.html`, `links-webhooks-poc.html`,
+which still have the gap).
+
+This has no bearing on whether any given screen *should* get a rail - it is an
+acceptance criterion for whichever screens end up with one, wherever the audit's
+own sequence (§8 item 8) or this document's Wave 3 puts a rail into real code.
+Worth a quick check against the shipped form builder's rail too, since that one is
+already real: if the same gap exists there, it is a small, isolated, low-risk CSS
+bug fit for `/next-issue` on its own, independent of everything else in this plan.
+
+---
+
+## 2. Two open decisions this session's POC work created
+
+Both decided by the Code Owner, 2026-08-19. Recorded here with the reasoning either
+way, so a later reader finds the argument instead of reopening it.
+
+### C1. Settings: rail-split (this session) vs. explicit reject (the audit) - RESOLVED: keep the rail
+
+**Decision: the Settings rail ships, overriding the audit's row-16 reject.** The
+audit's cost argument (§3.10, quoted below) was not wrong on its own terms - it
+still holds that three short, independent cards have no shared state a rail
+exploits - but the decision was made anyway. If a future reader wants the reason
+restated rather than just the outcome, that is the one gap this document does not
+close: the instruction that produced the rail did not carry one, and none has been
+added since. What follows is the original framing, kept for the record.
+
+This session built exactly what was asked: a left rail on the Settings screen
+splitting Account / Change password / Two-factor authentication into three
+rail-navigated panels (`settings-newquestion-poc.html`), on direct instruction
+mid-session.
+
+`admin-ux-audit.md` already considered this screen and rejected a rail on it, on the
+record, the day before: row 16 of its verdict table marks `/settings` **reject** on
+rail, width, and collapse-with-digest alike, and §3.10 states the reasoning plainly
+- "Prose-and-form shaped, three cards... The whole screen is three short cards;
+collapsing a change-password form behind a summary adds a click to the only reason
+anyone is here." §8's "what I would not do at all" list names `/settings`
+explicitly among the four screens that should not get a rail, in the same breath as
+the two library lists.
+
+The two documents do not disagree about facts - they disagree about which
+consideration wins. The audit's argument is cost (a rail plus a route split adds
+navigation overhead to a screen with three short, independent tasks and no shared
+state between them). The instruction this session responded to did not state a
+reason, so there is nothing to weigh it against yet. **This needs a decision, not a
+tiebreak by whoever is in the room:** either the audit's verdict holds and the
+Settings POC reverts to one scrolling page (with the account/password/2FA cards it
+already had), or there is a reason to override it that should be written down next
+to the audit's row 16 so a later reader does not reopen the same argument.
+
+### C2. Answer-preview column: build (the original POC brief) vs. record-as-accepted (the audit) - RESOLVED: build it
+
+**Decision: build the column.** Confirmed afterward to be a smaller change than
+either side assumed - the data already flows end to end (`reporting.responses` view
+through to the admin BFF's typed `answers` field), so this is front-end-only. Filed:
+[#515](https://github.com/roonga/qcms/issues/515). D5 in the audit should be marked
+resolved-by-#515 rather than acted on separately.
+
+The POC brief this session worked from stated a defect as settled fact: "the list is
+missing an answer preview column the normative inventory calls for. Include it," and
+`responses-poc.html` does include one.
+
+`admin-ux-audit.md`'s D5 (§7) found the same gap independently and reached a
+different conclusion: "The omission may well be right (an answer preview on a list
+screen is respondent data on a screen that does not need it). The defect is that it
+is **not recorded**." Its §8 sequence item 4 is "Record D5 as an accepted deviation
+in `docs/wireframes/admin-responses-ops.md`" - not "add the column" - citing the
+question-library wireframe's own "Accepted deviation" block as the house pattern for
+exactly this situation.
+
+This is a real privacy-shaped trade, not a styling one: an answer preview column
+puts respondent-entered content into a scanning list view, which is more exposure
+than the detail screen (opened deliberately, per response) creates. **This needs a
+decision too:** build the column (confirm first whether the list API already returns
+enough of each response's answers to build a preview, or whether that needs a new
+DB/API surface - not confirmed either way this session), or close the deviation by
+recording it as accepted in the wireframe and drop the column from
+`responses-poc.html`.
+
+---
+
+## 3. Sequenced plan
+
+Extends the audit's own §8, which remains authoritative for everything it already
+covers. Waves 0, 2 and 3 below are the audit's items 1-9 unchanged; this section
+only adds N1/N2 and the two gated decisions at the right points.
+
+**Wave 0 - unaffected by anything this session found, do first** (audit §8 items 1-4).
+Filed as GitHub issues 2026-08-19, ready for `/next-issue`:
+
+- [#510](https://github.com/roonga/qcms/issues/510) - D1, scope-mismatch fix (both routes)
+- [#511](https://github.com/roonga/qcms/issues/511) - D2, heading-order skip on the erased-response route
+- [#512](https://github.com/roonga/qcms/issues/512) - D3, dead `area-placeholder.tsx`
+- [#513](https://github.com/roonga/qcms/issues/513) - D4, empty `<ul>` on failed forms reads
+- [#514](https://github.com/roonga/qcms/issues/514) - table + empty-state consolidation toward the frozen `ds-table.html` card
+
+No live seat-mail bus exists on this machine (`../seat-mail/dev/` not present - per its
+own protocol, that means skip silently, another machine or not set up). These five
+issues are the actual instruction to the dev seat: `/next-issue` reads open issues,
+not a live channel, so this does not depend on both seats running at once.
+
+**Wave 1 - decisions, not code. Status: discussed, not landed.**
+- C1 (Settings rail) - discussed, kept, reasoning not written down. See §2.
+- C2 (answer-preview column) - discussed, kept, **and filed** as #515 before the
+  freeze. This is the one Wave 1 item that is actually real right now.
+- N1/C3 (public link) - discussed at length, turned out to need a new engine
+  capability rather than a placement choice. Full proposal in
+  `plan/adr-39-version-pinned-links-proposal.md`, **on hold per the freeze** - not a
+  task file yet, not an ADR yet.
+
+None of these three block each other in principle; in practice all three are
+currently blocked on the same thing: a channel with confirmed authority to actually
+land any of it beyond what Wave 0 already filed.
+
+**Wave 2 - house-pattern application** (audit §8 items 5-7, unaffected by this
+session): element 4+5 on the step editor's pin list (the audit's own highest-value
+item), element 7 (ambient save) on the builder plus an explicit manual-save statement
+on the question editor, element 3 digests on the builder's two `<details>` panels and
+the delivery dashboard's row trigger.
+
+**Wave 3 - the rail, gated on a written contract first** (audit §8 items 8-9): the
+form subtree (eight screens) gets the rail and the per-screen width the audit
+specifies, plus the scope rule written into the wireframe format spec. Before this
+starts, the rail's contract has to say what it carries - children (a form's steps,
+a question's versions) or siblings (Preview/Versions/Links/Responses/Webhooks) or
+both - because §3.2 of the audit already shows those two meanings colliding the
+moment a rail is put on the question detail screen, which is exactly what
+`question-editor-poc.html` did this session without that contract existing yet. If
+C1 resolves toward keeping a Settings rail, decide there whether Settings writes its
+own one-off contract (it has neither children nor siblings in the form subtree's
+sense) or sits outside Wave 3 entirely as a different kind of rail.
+
+**Wave 4 - only once Wave 3 (or a settings-only rail from C1) is real code:**
+- Carry N2 (the viewport-fill CSS) into whatever ships, as an acceptance criterion,
+  not an afterthought.
+- Regenerate every POC under `plan/admin-shell-poc/` in one pass so they stop
+  teaching a superseded model - the same step `plan/high-contrast-dark-plan.md`
+  already calls for once *its* proposal lands (that plan's own step 6). Doing both
+  regenerations together avoids three separate touch passes over the same eleven
+  files for three different reasons.
+
+---
+
+## 4. What happens to this session's POC files right now
+
+Nothing, per instruction. For the record, so a later reader has an accurate map:
+
+- `admin-shell-poc.html`, `responses-poc.html`, `question-editor-poc.html`,
+  `settings-newquestion-poc.html`: internally consistent, viewport-fill fix applied.
+- `rules-screen-poc.html`, `preview-versions-poc.html`, `links-webhooks-poc.html`:
+  still carry the pre-fix shell-body pattern (the N2 gap). Deferred, not forgotten -
+  folded into Wave 4's regeneration pass above rather than patched piecemeal now.
+- `settings-newquestion-poc.html`'s rail split and `responses-poc.html`'s answer
+  preview column are both provisional pending C1 and C2. If either decision goes
+  against what is currently drawn, that POC is the one that needs revisiting before
+  Wave 3/4, not shipped code (nothing has been built yet).

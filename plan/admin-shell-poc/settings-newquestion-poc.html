@@ -1,0 +1,893 @@
+<!-- @dsCard group="Screens" name="Settings and New question" subtitle="Two form-dense admin screens: account settings with 2FA/recovery, and locked-type question creation with the option grid" -->
+<title>QCMS DS - Settings and New question POC</title>
+<style>
+:root {
+  --color-primary: #2456c6;
+  --color-primary-hover: #1e4aad;
+  --color-primary-active: #193f95;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #4f5b70;
+  --color-secondary-hover: #475265;
+  --color-secondary-active: #3f495a;
+  --color-secondary-foreground: #ffffff;
+  --color-danger: #c0271f;
+  --color-danger-hover: #ad231c;
+  --color-danger-active: #9a1f19;
+  --color-danger-foreground: #ffffff;
+  --color-danger-subtle: #f9e7e5;
+  --color-danger-fg: #8f1d18;
+  --color-ghost: transparent;
+  --color-ghost-hover: #eef1f6;
+  --color-ghost-active: #e4e8ef;
+  --color-info: #2456c6;
+  --color-info-subtle: #e9effb;
+  --color-info-fg: #1b44a0;
+  --color-success: #1e7a46;
+  --color-success-subtle: #e4f1ea;
+  --color-success-fg: #16603a;
+  --color-warning: #8a5a00;
+  --color-warning-subtle: #f6eeda;
+  --color-warning-fg: #6e4700;
+  --color-text: #0f1729;
+  --color-text-muted: #55617a;
+  --color-border: #dde2ea;
+  --color-border-strong: #838ca4;
+  --color-background: #fbfcfd;
+  --color-background-muted: #eef1f6;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f4f6fa;
+  --color-focus-ring: #2456c6;
+  --color-overlay: rgb(0 0 0 / 0.5);
+  --shadow-color: 222deg 30% 20%;
+  --admin-control-h: 40px;
+  --admin-control-pad-x: 0.6rem;
+  --admin-stack: 0.35rem;
+  --admin-section-pad: 1.25rem;
+  --admin-table-row-h: 44px;
+  --radius-control: 4px;
+  --radius-card: 8px;
+  --radius-sm: 2px;
+  --font-admin: "Lexend", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace;
+}
+
+:root.dark {
+  --color-primary: #7aa2ff;
+  --color-primary-hover: #8fb1ff;
+  --color-primary-active: #a1beff;
+  --color-primary-foreground: #0b0f1a;
+  --color-secondary: #97a2b8;
+  --color-secondary-hover: #a3adc1;
+  --color-secondary-active: #aeb6c8;
+  --color-secondary-foreground: #0b0f1a;
+  --color-danger: #ff7b80;
+  --color-danger-hover: #ff8b8f;
+  --color-danger-active: #ff989c;
+  --color-danger-foreground: #0b0f1a;
+  --color-danger-subtle: #2b1615;
+  --color-danger-fg: #ffb3b5;
+  --color-ghost: transparent;
+  --color-ghost-hover: #1b2230;
+  --color-ghost-active: #232c3c;
+  --color-info: #7aa2ff;
+  --color-info-subtle: #16233a;
+  --color-info-fg: #a9c4ff;
+  --color-success: #46c08a;
+  --color-success-subtle: #132a20;
+  --color-success-fg: #8fe0bd;
+  --color-warning: #e0a93b;
+  --color-warning-subtle: #2a2110;
+  --color-warning-fg: #f0cd85;
+  --color-text: #e6eaf2;
+  --color-text-muted: #97a2b8;
+  --color-border: #262e3d;
+  --color-border-strong: #626c88;
+  --color-background: #0b0f1a;
+  --color-background-muted: #10151f;
+  --color-surface: #141a26;
+  --color-surface-hover: #1b2230;
+  --color-focus-ring: #7aa2ff;
+  --color-overlay: rgb(0 0 0 / 0.6);
+  --shadow-color: 222deg 60% 2%;
+}
+
+/* Auto: with no mode class on the root, the sheet follows the operating system, the same
+   convention as plan/admin-theme/tokens.css. Dark is the only inferred mode; .hc is only
+   ever an explicit choice. */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light):not(.dark):not(.hc) {
+    --color-primary: #7aa2ff;
+    --color-primary-hover: #8fb1ff;
+    --color-primary-active: #a1beff;
+    --color-primary-foreground: #0b0f1a;
+    --color-secondary: #97a2b8;
+    --color-secondary-hover: #a3adc1;
+    --color-secondary-active: #aeb6c8;
+    --color-secondary-foreground: #0b0f1a;
+    --color-danger: #ff7b80;
+    --color-danger-hover: #ff8b8f;
+    --color-danger-active: #ff989c;
+    --color-danger-foreground: #0b0f1a;
+    --color-danger-subtle: #2b1615;
+    --color-danger-fg: #ffb3b5;
+    --color-ghost: transparent;
+    --color-ghost-hover: #1b2230;
+    --color-ghost-active: #232c3c;
+    --color-info: #7aa2ff;
+    --color-info-subtle: #16233a;
+    --color-info-fg: #a9c4ff;
+    --color-success: #46c08a;
+    --color-success-subtle: #132a20;
+    --color-success-fg: #8fe0bd;
+    --color-warning: #e0a93b;
+    --color-warning-subtle: #2a2110;
+    --color-warning-fg: #f0cd85;
+    --color-text: #e6eaf2;
+    --color-text-muted: #97a2b8;
+    --color-border: #262e3d;
+    --color-border-strong: #626c88;
+    --color-background: #0b0f1a;
+    --color-background-muted: #10151f;
+    --color-surface: #141a26;
+    --color-surface-hover: #1b2230;
+    --color-focus-ring: #7aa2ff;
+    --color-overlay: rgb(0 0 0 / 0.6);
+    --shadow-color: 222deg 60% 2%;
+  }
+}
+
+/* High-contrast: the universal HC mode-layer plus the QCMS app's cobalt accent, carried
+   verbatim from tokens.css. */
+:root.hc {
+  --color-secondary: #1c2433;
+  --color-secondary-hover: #19202e;
+  --color-secondary-active: #161d29;
+  --color-secondary-foreground: #ffffff;
+  --color-danger: #8a0f0a;
+  --color-danger-hover: #7c0e09;
+  --color-danger-active: #6e0c08;
+  --color-danger-foreground: #ffffff;
+  --color-danger-subtle: #ffecea;
+  --color-danger-fg: #6b0b07;
+  --color-ghost: transparent;
+  --color-ghost-hover: #eceef1;
+  --color-ghost-active: #dfe2e7;
+  --color-info: #0a3ea8;
+  --color-info-subtle: #e6efff;
+  --color-info-fg: #08337d;
+  --color-success: #0a5c30;
+  --color-success-subtle: #e2f4e9;
+  --color-success-fg: #064023;
+  --color-warning: #5a3b00;
+  --color-warning-subtle: #fbf0d6;
+  --color-warning-fg: #4a3000;
+  --color-text: #000000;
+  --color-text-muted: #22262e;
+  --color-border: #5a616e;
+  --color-border-strong: #000000;
+  --color-background: #ffffff;
+  --color-background-muted: #f2f3f5;
+  --color-surface: #ffffff;
+  --color-surface-hover: #eceef1;
+  --color-focus-ring: #0a3ea8;
+  --color-overlay: rgb(0 0 0 / 0.7);
+  --color-primary: #0a3ea8;
+  --color-primary-hover: #08348f;
+  --color-primary-active: #062a75;
+  --color-primary-foreground: #ffffff;
+}
+
+/* Base (house reset, matching admin-shell-poc.html) */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; }
+/* flex column so .settings-shell-body (the rail + main grid) can be told to fill
+   whatever viewport height the fixed chrome above it does not use - see the comment
+   on .settings-shell-body itself for why that matters. */
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  font-family: var(--font-admin);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--color-text);
+  background: var(--color-background);
+  overflow-x: hidden;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+[hidden] { display: none !important; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+/* Icons */
+.icon { width: 16px; height: 16px; flex-shrink: 0; }
+.icon-sm { width: 14px; height: 14px; flex-shrink: 0; }
+
+/* Demo mode switcher (house convention: not part of the shipped shell, a viewer aid) */
+.switcher { display: flex; gap: 0.5rem; padding: 0.75rem 1.5rem; border-bottom: 1px dashed var(--color-border-strong);
+  background: var(--color-background-muted); }
+.switcher button { height: 32px; padding: 0 0.75rem; border-radius: var(--radius-control);
+  border: 1px solid var(--color-border-strong); background: var(--color-surface); color: var(--color-text); cursor: pointer; }
+.switcher button[aria-pressed="true"] { background: var(--color-primary); border-color: var(--color-primary);
+  color: var(--color-primary-foreground); }
+
+/* Screen switch: a second, differently-shaped control so it never reads as the same widget
+   as the mode switcher above it. Neither screen has a rail to navigate from (see the audit
+   findings in the task brief), so this is the only way to move between them in this file. */
+.screen-switch { display: flex; align-items: center; gap: 0.6rem; padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid var(--color-border); background: var(--color-surface); flex-wrap: wrap; }
+.screen-switch__label { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--color-text-muted); }
+.screen-switch__group { display: inline-flex; border: 1px solid var(--color-border-strong); border-radius: var(--radius-control);
+  overflow: hidden; }
+.screen-switch__group button { height: 34px; padding: 0 0.9rem; border: none; border-right: 1px solid var(--color-border-strong);
+  background: var(--color-surface); color: var(--color-text); cursor: pointer; font-weight: 600; font-size: 0.85rem; }
+.screen-switch__group button:last-child { border-right: none; }
+.screen-switch__group button[aria-pressed="true"] { background: var(--color-primary); color: var(--color-primary-foreground); }
+.screen-switch__group button:hover:not([aria-pressed="true"]) { background: var(--color-surface-hover); }
+
+.intro { max-width: 68ch; font-size: 0.88rem; color: var(--color-text-muted); margin: 0.9rem 1.5rem 0; }
+
+/* Topbar: the shipped top nav, unchanged from admin-shell-poc.html. New question stays
+   main-only: it is one form, not several sections. Settings now carries a rail (below):
+   account, change password and two-factor authentication are three genuinely separate
+   surfaces, and stacking all three in one scroll was hiding that (see .settings-rail). */
+.topbar { background: var(--color-surface); border-bottom: 1px solid var(--color-border); }
+.topbar__inner { display: flex; flex-wrap: wrap; align-items: center; gap: 1.25rem; padding: 0 1.25rem; min-height: 56px; }
+.wordmark { font-weight: 800; font-size: 1.15rem; letter-spacing: -0.02em; flex-shrink: 0; }
+.topbar__nav { flex: 1 1 160px; min-width: 0; }
+.topbar__nav ul { display: flex; flex-wrap: wrap; gap: 1.25rem; list-style: none; margin: 0; padding: 0; height: 100%; }
+.topbar__nav li { display: flex; align-items: center; }
+.topbar__link { display: inline-flex; align-items: center; height: 100%; padding: 0 2px; text-decoration: none;
+  font-weight: 600; font-size: 0.92rem; color: var(--color-text-muted); border-bottom: 2px solid transparent; }
+.topbar__link:hover { color: var(--color-text); }
+.topbar__link[aria-current="page"] { color: var(--color-text); border-bottom-color: var(--color-primary); }
+.topbar__trailing { display: flex; align-items: center; gap: 0.6rem; flex-shrink: 0; }
+.icon-btn { width: 36px; height: 36px; border-radius: var(--radius-control); border: 1px solid var(--color-border);
+  background: var(--color-surface); color: var(--color-text); display: inline-flex; align-items: center;
+  justify-content: center; cursor: pointer; }
+.icon-btn:hover { background: var(--color-surface-hover); }
+.avatar-btn { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--color-border-strong);
+  background: var(--color-secondary); color: var(--color-secondary-foreground); font-weight: 700; font-size: 0.78rem;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.avatar-btn:hover { background: var(--color-secondary-hover); }
+
+/* Main column: capped at a readable prose measure (both screens are prose-and-form
+   shaped, and a readable line length matters more than room to spread out), but
+   left-anchored like every other screen's main column - not centred. Every rail-adjacent
+   screen in this app follows "left-anchored, fluid up to a cap, never re-centred"
+   (admin-shell-poc.html's own comment on .main), and having no rail here is a reason
+   this column is narrower, not a reason it should sit differently on the page: a screen
+   with no rail floating to the middle while every other screen hugs the left edge reads
+   as a different app, not a lighter one. */
+.page-main { max-width: 40rem; margin: 0; padding: var(--admin-section-pad) 1.25rem 4rem; }
+.back-link { margin: 0 0 0.6rem; font-size: 0.85rem; }
+.back-link a { text-decoration: none; font-weight: 600; color: var(--color-primary); }
+
+/* Settings rail: the same shell-body/rail idiom as every entity screen in this design
+   system (admin-shell-poc.html, question-editor-poc.html), reused wholesale rather than
+   invented fresh for this screen. Settings has no entity name to put in the rail summary
+   (there is only ever one account), so the summary carries the screen's own name instead
+   - the same choice the rail makes when a question has no sibling screens to list. */
+/* flex: 1 1 auto (body is a flex column, set up above) makes this fill the rest of
+   the viewport rather than only the height its own content needs - see
+   admin-shell-poc.html's own comment on .shell-body for the full reasoning; the
+   grid's default align-items: stretch already keeps the rail matched to main's
+   height, this is what keeps that shared height from stopping short of the viewport
+   on a short panel (Account, for one). #screen-newq deliberately does NOT get this:
+   it has no rail, so there is no sidebar for a short page to leave looking cut off. */
+.settings-shell-body { display: block; flex: 1 1 auto; min-height: 0; }
+@media (min-width: 1024px) {
+  .settings-shell-body { display: grid; grid-template-columns: 240px 1fr; }
+}
+.rail-shell { border-bottom: 1px solid var(--color-border); background: var(--color-surface); }
+@media (min-width: 1024px) {
+  .rail-shell { border-bottom: none; border-right: 1px solid var(--color-border); }
+}
+.rail-summary { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; cursor: pointer;
+  list-style: none; padding: 0.9rem var(--admin-section-pad); font-weight: 700; font-size: 1rem; }
+.rail-summary::-webkit-details-marker { display: none; }
+.rail-summary__text { margin: 0; font: inherit; font-weight: inherit; font-size: inherit; }
+.rail-summary__chev { transition: transform 0.12s ease; color: var(--color-text-muted); }
+.rail-shell[open] .rail-summary__chev { transform: rotate(90deg); }
+@media (min-width: 1024px) {
+  .rail-summary__chev { display: none; }
+  .rail-summary { cursor: default; padding-bottom: 0.5rem; }
+}
+.rail-body { padding: 0 0.6rem 1rem; }
+.rail-tree { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.rail-link { display: block; padding: 0.5rem 0.6rem; border-radius: var(--radius-control); text-decoration: none;
+  font-size: 0.9rem; font-weight: 600; color: var(--color-text); background: none; border: none; width: 100%;
+  text-align: left; cursor: pointer; font-family: inherit; }
+.rail-link:hover { background: var(--color-surface-hover); }
+.rail-link[aria-current="page"] { background: var(--color-info-subtle); color: var(--color-info-fg); }
+/* The railed main sits in the grid's second column and stays left-anchored within it,
+   same rule as every other main column in this design system: capped, never centred. */
+.page-main--railed { padding-top: var(--admin-section-pad); }
+.back-link a:hover { text-decoration: underline; }
+
+h1.page-heading { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; margin: 0 0 1.25rem; }
+.screen-body { display: flex; flex-direction: column; gap: 1.1rem; }
+
+/* Card idiom, plain and always-open: Settings' sections are short and each one carries
+   security-relevant state, so none of them collapse (the task brief is explicit: collapsing
+   buys nothing here and would hide state a summary line cannot both preserve and withhold). */
+.stacked-card { border: 1px solid var(--color-border); border-radius: var(--radius-card);
+  background: var(--color-surface); padding: var(--admin-section-pad); }
+.stacked-heading { margin: 0 0 0.75rem; font-size: 0.98rem; font-weight: 700; }
+.stacked-card__body { display: flex; flex-direction: column; gap: 0.9rem; }
+.stacked-note { margin: 0; font-size: 0.85rem; color: var(--color-text-muted); }
+h3.card-subheading { margin: 0.2rem 0 0; font-size: 0.88rem; font-weight: 700; }
+
+/* Two-factor status: text carries the meaning on its own (never colour alone). The colour
+   reinforces an already-explicit sentence rather than standing in for one. */
+.status-line { display: flex; align-items: center; gap: 7px; margin: 0; font-size: 0.9rem; font-weight: 600; }
+.status-line svg { width: 16px; height: 16px; flex-shrink: 0; }
+.status-line--on { color: var(--color-success-fg); }
+.status-line--off { color: var(--color-warning-fg); }
+
+/* Field system (frozen at plan/admin-theme/ds-inputs.html): label, optional hint, control,
+   error message with icon. Reused verbatim so both screens match the input design card
+   closely, since these are the two most form-dense screens in the app. */
+.field { max-width: 380px; margin: 0; }
+.field--wide { max-width: none; }
+.field label { display: block; font-size: 0.9rem; font-weight: 600; margin-bottom: 6px; }
+.field .req { color: var(--color-danger-fg); }
+.field .hint { font-size: 0.83rem; color: var(--color-text-muted); margin: 0 0 6px; }
+.field input, .field select, .field textarea { width: 100%; height: 40px; padding: 0 12px; border-radius: var(--radius-control);
+  border: 1px solid var(--color-border-strong); background: var(--color-surface); color: var(--color-text);
+  transition: border-color 0.12s ease; }
+.field textarea { height: auto; min-height: 90px; padding: 8px 12px; }
+.field input:hover, .field select:hover, .field textarea:hover { border-color: var(--color-text-muted); }
+.field.is-error input, .field.is-error textarea { border-color: var(--color-danger); border-width: 1.5px; }
+.field .error { display: flex; gap: 6px; align-items: center; font-size: 0.83rem; color: var(--color-danger-fg); margin-top: 6px; font-weight: 600; }
+.field .error svg { width: 14px; height: 14px; flex-shrink: 0; }
+.field input:disabled { background: var(--color-background-muted); color: var(--color-text-muted); cursor: not-allowed; }
+.field input[readonly] { background: var(--color-background-muted); }
+.fields-row { display: flex; flex-wrap: wrap; gap: 1rem; }
+
+.checkbox-row { display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.88rem; font-weight: 600; cursor: pointer; }
+.checkbox-row input[type="checkbox"] { width: 18px; height: 18px; margin: 2px 0 0; flex-shrink: 0; accent-color: var(--color-primary); }
+
+/* Banner system (ds-inputs.html), used for the page-level alerts: password-change success,
+   and the type-lock notice (info tone, deliberately not warning/danger - the brief calls for
+   this to read as weighty, not alarming). */
+.banner { display: flex; gap: 10px; align-items: flex-start; padding: 11px 13px; border-radius: var(--radius-card);
+  border: 1px solid color-mix(in srgb, currentColor 30%, transparent); }
+.banner svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 2px; }
+.banner .body { flex: 1; font-size: 0.86rem; }
+.banner-info { background: var(--color-info-subtle); color: var(--color-info-fg); }
+.banner-success { background: var(--color-success-subtle); color: var(--color-success-fg); }
+.banner-danger { background: var(--color-danger-subtle); color: var(--color-danger-fg); }
+
+/* Buttons (ds-inputs.html) */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px;
+  padding: 0 18px; border-radius: var(--radius-control); border: 1.5px solid transparent; font-weight: 600;
+  font-size: 0.92rem; cursor: pointer; }
+.btn-primary { background: var(--color-primary); color: var(--color-primary-foreground); }
+.btn-primary:hover { background: var(--color-primary-hover); }
+.btn-primary:active { background: var(--color-primary-active); }
+.btn-secondary { background: var(--color-secondary); color: var(--color-secondary-foreground); }
+.btn-secondary:hover { background: var(--color-secondary-hover); }
+.btn-secondary:active { background: var(--color-secondary-active); }
+.btn-sm { height: 32px; padding: 0 12px; font-size: 0.83rem; }
+
+/* Fieldset (Options, Constraints): a plain grouping, not a card - these sit inside the New
+   question form rather than as separate sections. */
+.fieldset { border: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.6rem; }
+.fieldset__legend { padding: 0; font-size: 0.95rem; font-weight: 700; }
+.constraints-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 1rem; max-width: 420px; }
+
+/* Question id callout: the id, computed from the slug, permanent from creation. */
+.id-callout { border: 1px solid var(--color-border); border-radius: var(--radius-control);
+  background: var(--color-background-muted); padding: 0.75rem 0.9rem; display: flex; flex-direction: column; gap: 4px; }
+.id-callout__eyebrow { margin: 0; font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--color-text-muted); }
+.id-callout__value { margin: 0; font-family: var(--font-mono); font-size: 0.95rem; color: var(--color-text); }
+.id-callout__note { margin: 0; font-size: 0.82rem; color: var(--color-text-muted); }
+
+/* Option grid (frozen at plan/admin-theme/ds-option-grid.html): the shipped idiom for choice
+   options, reused exactly rather than re-designed. Row menu items and class names below are
+   the design card's own (.opt-*), copied verbatim; see the row-menu comment further down for
+   the one deliberate addition (Move up / Move down) this POC makes to that menu. */
+.opt-grid-region { position: relative; }
+.opt-grid-wrap { border: 1px solid var(--color-border); border-radius: var(--radius-card); overflow: hidden; background: var(--color-surface); }
+.opt-grid__head { display: grid; grid-template-columns: 36px 1fr 140px; padding: 0.5rem 0; border-bottom: 2px solid var(--color-border-strong); }
+.opt-grid__head > div { color: var(--color-text-muted); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; padding: 0 0.75rem; }
+.opt-grid__body { list-style: none; margin: 0; padding: 0; }
+.opt-row { position: relative; display: grid; grid-template-columns: 36px 1fr 140px; align-items: flex-start;
+  min-height: var(--admin-control-h); border-bottom: 1px solid var(--color-border); }
+.opt-grid__body > .opt-row:last-child { border-bottom: none; }
+.opt-row:hover, .opt-row.is-hover { background: var(--color-surface-hover); }
+.opt-cell { padding: 0 0.75rem; display: flex; align-items: flex-start; min-width: 0; }
+.opt-cell--grip { padding: 6px 0 0 6px; justify-content: flex-start; }
+.opt-cell--label { padding: 0; }
+.opt-cell--id { padding-top: 10px; font-family: var(--font-mono); font-size: 0.82rem; color: var(--color-text-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.opt-label-input { display: block; width: 100%; border: none; background: transparent; color: var(--color-text);
+  font: inherit; line-height: 1.5; padding: 8px 0.75rem; border-radius: var(--radius-sm); resize: none; overflow: hidden; }
+.opt-label-input:hover { background: var(--color-ghost-hover); }
+.opt-label-input:focus, .opt-row.is-focus .opt-label-input { outline: none;
+  box-shadow: inset 0 0 0 2px var(--color-focus-ring); background: var(--color-surface); }
+.opt-row.is-error .opt-label-input { box-shadow: inset 0 0 0 1.5px var(--color-danger); background: var(--color-danger-subtle); }
+/* Grip: pointer-drag (grab at rest / grabbing mid-drag) to reorder, Arrow Up/Down while
+   focused to reorder by keyboard, Enter/Space opens the row menu. Hover- and
+   focus-revealed, never hover-only, and always visible in high contrast (below). */
+.opt-grip { width: 28px; height: 28px; border-radius: var(--radius-sm); border: 1px solid transparent;
+  background: transparent; color: var(--color-text-muted); display: inline-flex; align-items: center;
+  justify-content: center; cursor: grab; opacity: 0; transition: opacity 0.12s ease, background 0.12s ease; }
+.opt-row:hover .opt-grip, .opt-row:focus-within .opt-grip, .opt-row.is-hover .opt-grip,
+.opt-row.is-focus .opt-grip { opacity: 1; }
+.opt-grip:hover { background: var(--color-ghost-hover); color: var(--color-text); }
+.opt-grip:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; opacity: 1; }
+.opt-grip svg circle { fill: currentColor; }
+.opt-grip:active { cursor: grabbing; }
+/* Insert affordance: a hairline hotzone straddling the row's top edge. Invisible at rest;
+   hover or focus reveals the accent line and circled plus. Reached by Tab like any other
+   control, never hover-only. */
+.opt-insert { position: absolute; left: 0; right: 0; top: -7px; height: 14px; margin: 0; padding: 0;
+  border: none; background: transparent; cursor: pointer; z-index: 2; opacity: 0; }
+.opt-insert__line { position: absolute; left: 34px; right: 8px; top: 50%; height: 2px;
+  background: var(--color-primary); border-radius: 1px; transform: translateY(-50%); }
+.opt-insert__plus { position: absolute; left: 6px; top: 50%; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--color-primary); color: var(--color-primary-foreground); display: flex; align-items: center;
+  justify-content: center; transform: translateY(-50%); font-size: 12px; font-weight: 700; line-height: 1; }
+.opt-insert:hover, .opt-insert:focus-visible, .opt-insert.is-visible { opacity: 1; }
+.opt-insert:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 1px; }
+
+.opt-row--add { position: relative; width: 100%; height: var(--admin-control-h); padding: 0 0.75rem;
+  display: flex; align-items: center; gap: 6px; border: none; background: transparent;
+  color: var(--color-text-muted); font: inherit; cursor: pointer; text-align: left; }
+.opt-row--add:hover { background: var(--color-surface-hover); color: var(--color-text); }
+.opt-row--add:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: -2px; }
+
+.opt-grid-error { display: flex; gap: 6px; align-items: center; font-size: 0.85rem; color: var(--color-danger-fg);
+  margin: 8px 0 0; font-weight: 600; }
+.opt-grid-error svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+/* Row menu: reuses the dropdown-menu language shared with the shell POC's own overlays. It
+   is a sibling of .opt-grid-wrap, positioned inside the unclipped .opt-grid-region rather
+   than inside the wrap - the wrap's own overflow:hidden (kept only to clip the rounded
+   corners around the first/last row) would otherwise clip a menu tall enough to extend past
+   its bottom edge, exactly the trap documented on .qgrid-region in admin-shell-poc.html. The
+   menu is demonstrated open on the LAST row for the same reason that file gives: opening at
+   the bottom of the whole grid means "below the row that owns it" and "below the grid" are
+   the same position, so the menu can never overlap any row's content, at any width. */
+.opt-menu { position: absolute; z-index: 5; min-width: 190px; background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-card); padding: 6px;
+  box-shadow: 0 2px 4px hsl(var(--shadow-color) / 0.1), 0 30px 70px -30px hsl(var(--shadow-color) / 0.4); }
+.opt-menu--below-grid { left: 4px; top: 100%; margin-top: 6px; }
+.opt-menu .mi { display: block; width: 100%; text-align: left; background: none; border: none; padding: 8px 10px;
+  border-radius: var(--radius-sm); color: var(--color-text); font: inherit; font-size: 0.88rem; cursor: pointer; }
+.opt-menu .mi:hover { background: var(--color-surface-hover); }
+.opt-menu .mi.is-danger { color: var(--color-danger-fg); }
+
+/* Narrow viewport: the ID column drops (an acceptable loss, the same trade the shipped
+   step/question grids make in admin-shell-poc.html) rather than forcing horizontal scroll
+   or squeezing three grid tracks into too little room. */
+@media (max-width: 480px) {
+  .opt-grid__head, .opt-row { grid-template-columns: 36px 1fr; }
+  .opt-cell--id { display: none; }
+}
+
+/* High-contrast: grip and insert affordances stay visible at rest rather than opacity-0,
+   matching the design card's own HC treatment. */
+:root.hc .opt-grip, :root.hc .opt-insert { opacity: 1; }
+:root.hc .opt-grid-wrap { border-width: 2px; }
+
+/* Recovery-code reveal: a prominent panel, never a <details> - a section whose content
+   cannot be regenerated (the codes are shown exactly once) must never be collapsible, since
+   a summary line can preserve the fact that codes exist but cannot also withhold the value,
+   and collapsing would invite "I'll open this later," which is exactly the moment the codes
+   stop being retrievable. */
+.recovery-panel { border: 2px solid var(--color-warning); border-radius: var(--radius-card);
+  background: var(--color-surface); padding: var(--admin-section-pad); display: flex; flex-direction: column; gap: 0.9rem; }
+.recovery-panel__alert { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: var(--radius-control);
+  background: var(--color-warning-subtle); color: var(--color-warning-fg); }
+.recovery-panel__alert svg { width: 18px; height: 18px; flex-shrink: 0; margin-top: 2px; }
+.recovery-panel__title { margin: 0 0 4px; font-size: 1rem; font-weight: 700; }
+.recovery-panel__intro { margin: 0; font-size: 0.88rem; }
+.recovery-codes-list { list-style: none; margin: 0; padding: 0.9rem; display: grid; grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-control);
+  background: var(--color-background-muted); font-family: var(--font-mono); font-size: 0.92rem; color: var(--color-text);
+  font-variant-numeric: tabular-nums; }
+.recovery-panel__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
+.recovery-panel__status { margin: 0; font-size: 0.83rem; color: var(--color-text-muted); }
+.recovery-panel__confirm { padding-top: 0.4rem; border-top: 1px dashed var(--color-border); }
+
+@media (max-width: 420px) {
+  .recovery-codes-list { grid-template-columns: 1fr; }
+}
+</style>
+
+<div class="switcher" role="group" aria-label="Preview mode">
+  <button type="button" aria-pressed="true" onclick="setMode('', this)">Light</button>
+  <button type="button" aria-pressed="false" onclick="setMode('dark', this)">Dark</button>
+  <button type="button" aria-pressed="false" onclick="setMode('hc', this)">High contrast</button>
+</div>
+
+<div class="screen-switch">
+  <span class="screen-switch__label" id="screen-switch-label">Screen</span>
+  <div class="screen-switch__group" role="group" aria-labelledby="screen-switch-label">
+    <button type="button" id="tab-settings" aria-pressed="true" onclick="showScreen('settings', this)">Settings</button>
+    <button type="button" id="tab-newq" aria-pressed="false" onclick="showScreen('newq', this)">New question</button>
+  </div>
+</div>
+
+<p class="intro">Two form-dense QCMS admin screens: Settings (account, password, two-factor
+  status and the one-time recovery-code reveal, split into three rail-navigated sections
+  rather than one long stack) and New question (the only screen where a question's id and
+  type are ever chosen, shown here with the choice type selected so the shipped option grid
+  is visible, and still main-only - it is one form, not several sections). Switch between
+  them with the control above.</p>
+
+<header class="topbar">
+  <div class="topbar__inner">
+    <span class="wordmark">QCMS</span>
+    <nav class="topbar__nav" aria-label="Primary">
+      <ul>
+        <li><a class="topbar__link" href="#">Questions</a></li>
+        <li><a class="topbar__link" href="#">Forms</a></li>
+        <li><a class="topbar__link" href="#">Responses</a></li>
+        <li><a class="topbar__link" href="#">Webhooks</a></li>
+        <li><a class="topbar__link" href="#" aria-current="page">Settings</a></li>
+      </ul>
+    </nav>
+    <div class="topbar__trailing">
+      <button type="button" class="icon-btn" aria-label="Appearance settings" title="Appearance">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"></circle>
+          <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path>
+        </svg>
+      </button>
+      <button type="button" class="avatar-btn" aria-label="Account menu, signed in as Code Owner">CO</button>
+    </div>
+  </div>
+</header>
+
+<!-- ==================== Screen 1: Settings ==================== -->
+<div id="screen-settings" class="settings-shell-body">
+  <details class="rail-shell" open id="settings-rail-shell">
+    <summary class="rail-summary">
+      <span class="rail-summary__label">
+        <h2 class="rail-summary__text">Settings</h2>
+      </span>
+      <svg class="rail-summary__chev icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+    </summary>
+    <div class="rail-body">
+      <nav aria-label="Settings sections">
+        <ul class="rail-tree">
+          <li><button type="button" class="rail-link" id="rail-settings-account" aria-current="page" onclick="showSettingsPanel('account', this)">Account</button></li>
+          <li><button type="button" class="rail-link" id="rail-settings-password" onclick="showSettingsPanel('password', this)">Change password</button></li>
+          <li><button type="button" class="rail-link" id="rail-settings-twofactor" onclick="showSettingsPanel('twofactor', this)">Two-factor authentication</button></li>
+        </ul>
+      </nav>
+    </div>
+  </details>
+
+  <main class="page-main page-main--railed">
+    <!-- The heading names the SELECTED section, not the screen ("Settings" already lives
+         in the rail summary and the topbar) - the same pattern the form/step rail uses,
+         where the step screen's h1 names the step rather than repeating the form name a
+         third time. -->
+    <h1 class="page-heading" id="settings-page-heading">Account</h1>
+
+    <div id="settings-panel-account" class="screen-body">
+      <section class="stacked-card" aria-labelledby="settings-page-heading">
+        <div class="stacked-card__body">
+          <p class="stacked-note">Signed in as operator@example.com.</p>
+        </div>
+      </section>
+    </div>
+
+    <div id="settings-panel-password" class="screen-body" hidden>
+      <section class="stacked-card" id="change-password" aria-labelledby="settings-page-heading">
+        <div class="stacked-card__body">
+          <p class="stacked-note">Changing your password signs out every other session on every device.</p>
+
+          <div class="banner banner-success" role="status" aria-live="polite">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="8 12 11 15 16 9"/></svg>
+            <div class="body">Your password was changed and other sessions were signed out.</div>
+          </div>
+
+          <form method="post" action="#" class="stacked-card__body">
+            <div class="field">
+              <label for="current-password">Current password</label>
+              <input type="password" id="current-password" name="currentPassword" autocomplete="current-password" required />
+            </div>
+            <div class="field">
+              <label for="new-password">New password</label>
+              <input type="password" id="new-password" name="newPassword" autocomplete="new-password" required />
+            </div>
+            <div>
+              <button type="submit" class="btn btn-primary">Change password</button>
+            </div>
+          </form>
+        </div>
+      </section>
+    </div>
+
+    <div id="settings-panel-twofactor" class="screen-body" hidden>
+      <section class="stacked-card" aria-labelledby="settings-page-heading">
+        <div class="stacked-card__body">
+          <!-- Standing state, not a live event, so it reads as prose rather than an Alert: an
+               Alert here would re-announce itself on every visit and compete with a genuine
+               password-change confirmation for the screen reader's attention (mirrors the
+               comment in apps/admin/app/(shell)/settings/page.tsx). The sentence itself states
+               on/off plainly - colour is reinforcement, never the only signal. Shown ON here
+               because the recovery-code reveal below only exists for an enrolled account. -->
+          <p class="status-line status-line--on">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="8 12 11 15 16 9"/></svg>
+            Two-factor authentication is on for this account.
+          </p>
+
+          <!-- One level under the page h1 now that this panel no longer repeats its own
+               "Two-factor authentication" h2 (the h1 already says it) - promoted from h3,
+               and the reveal's own title below promoted from h4 to match. -->
+          <h2 class="card-subheading" id="recovery-heading">Recovery codes</h2>
+
+          <!-- The one-time reveal. Never a <details>: see the CSS comment on .recovery-panel.
+               The shipped app renders this as its own route (two-factor/recovery-codes),
+               reached right after enrollment or a regenerate; this POC folds it into Settings
+               to show the revealed state directly, per the task brief. Codes below are
+               obviously synthetic placeholders (sequential "sample-" values), not a real
+               generated set. -->
+          <div class="recovery-panel" role="region" aria-labelledby="recovery-panel-heading">
+            <div class="recovery-panel__alert" role="alert" aria-live="assertive">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10.3 3.86L1.82 18a1 1 0 0 0 .86 1.5h18.64a1 1 0 0 0 .86-1.5L13.7 3.86a1 1 0 0 0-1.72 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+              <div>
+                <h3 class="recovery-panel__title" id="recovery-panel-heading">Save your recovery codes</h3>
+                <p class="recovery-panel__intro"><strong>Each code signs you in once if you lose your authenticator. This is the only time they are shown.</strong></p>
+              </div>
+            </div>
+
+            <ul aria-label="Recovery codes" class="recovery-codes-list">
+              <li>sample-0001</li>
+              <li>sample-0002</li>
+              <li>sample-0003</li>
+              <li>sample-0004</li>
+              <li>sample-0005</li>
+              <li>sample-0006</li>
+              <li>sample-0007</li>
+              <li>sample-0008</li>
+              <li>sample-0009</li>
+              <li>sample-0010</li>
+            </ul>
+
+            <!-- The shipped screen deliberately ships with no copy-all button (a clipboard
+                 write needs client JavaScript and a status region this app has no other use
+                 for yet, recorded as a discovery rather than improvised - see the doc comment
+                 on RecoveryCodesPage). The task brief for this POC asks for a copy affordance
+                 regardless, so it is shown here as a forward-looking addition, not a claim
+                 that it already ships. -->
+            <div class="recovery-panel__actions">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="copyCodes(this)">Copy codes</button>
+              <p id="copy-status" class="recovery-panel__status" aria-live="polite"></p>
+            </div>
+
+            <form method="post" action="#" class="recovery-panel__confirm">
+              <button type="submit" class="btn btn-primary">I have saved these codes</button>
+            </form>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<!-- ==================== Screen 2: New question ==================== -->
+<main id="screen-newq" class="page-main" hidden>
+    <p class="back-link"><a href="#">Back to questions</a></p>
+    <h1 class="page-heading">New question</h1>
+
+    <form method="post" action="#" class="screen-body">
+      <div class="field field--wide">
+        <label for="q-slug">Slug</label>
+        <p class="hint">Lower-case words separated by hyphens, for example at-fault-accident.</p>
+        <input type="text" id="q-slug" name="slug" value="cover-type" required />
+      </div>
+
+      <div class="id-callout">
+        <p class="id-callout__eyebrow">Question ID</p>
+        <p class="id-callout__value">q_cover_type</p>
+        <p class="id-callout__note">Generated from the slug and permanent from the moment you create it. An ID is never reused for a different meaning, so a question with the wrong ID is replaced by a new one, never renamed (R6).</p>
+      </div>
+
+      <div class="field field--wide">
+        <label for="q-type">Type</label>
+        <select id="q-type">
+          <option>Short text</option>
+          <option>Long text</option>
+          <option>Number</option>
+          <option>Date</option>
+          <option>Yes or no</option>
+          <option>Single choice</option>
+          <option selected>Multiple choice</option>
+        </select>
+      </div>
+
+      <!-- The one-way door: this is the only screen where type can be chosen, and it says
+           so plainly, right where the choice is made - not buried in a tooltip and not
+           raised to a warning/danger tone, since nothing has gone wrong yet. Weight without
+           alarm is the point (see the task brief): an info tone, not the danger tone the
+           locked notice in the editor's own read-only state might tempt. -->
+      <div class="banner banner-info" style="max-width: 420px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <div class="body">Locked once the question exists. A different type is a different answer shape, so changing it means creating a new question rather than editing this one (R6).</div>
+      </div>
+
+      <div class="field field--wide">
+        <label for="q-label">Label</label>
+        <input type="text" id="q-label" name="label" value="Type of cover" required />
+      </div>
+
+      <div class="field field--wide">
+        <label for="q-help">Help text</label>
+        <p class="hint">Optional. Shown under the control.</p>
+        <input type="text" id="q-help" name="help" value="Choose the option that best matches your current policy." />
+      </div>
+
+      <label class="checkbox-row" for="q-required">
+        <input type="checkbox" id="q-required" name="required" />
+        <span>An answer is required</span>
+      </label>
+
+      <!-- Options: the shipped option-grid idiom, reused exactly (see the .opt-* CSS
+           comment above). Row 1 is shown mid-hover to reveal its insert point and grip
+           without needing a live pointer; row 2 demonstrates the field-level error state
+           (an empty label, the kernel's own OPTION_LABEL_EMPTY case); row 3's grip menu is
+           open to show insert, reorder and remove together. -->
+      <fieldset class="fieldset">
+        <legend class="fieldset__legend">Options</legend>
+        <p class="stacked-note">An option ID is generated once, when the option is first named, and never changes again. Relabelling and reordering leave it alone, which is what keeps a rule matching the same answer years later (R6).</p>
+
+        <div class="opt-grid-region">
+          <div class="opt-grid-wrap">
+            <div class="opt-grid__head"><div></div><div>Label</div><div>ID</div></div>
+            <ul class="opt-grid__body">
+              <li class="opt-row is-hover">
+                <button type="button" class="opt-insert is-visible" aria-label="Insert option above Roadside assistance">
+                  <span class="opt-insert__line" aria-hidden="true"></span>
+                  <span class="opt-insert__plus" aria-hidden="true">+</span>
+                </button>
+                <div class="opt-cell opt-cell--grip">
+                  <button type="button" class="opt-grip" aria-haspopup="menu" aria-expanded="false" aria-label="Reorder Roadside assistance">
+                    <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
+                  </button>
+                </div>
+                <div class="opt-cell opt-cell--label">
+                  <label class="sr-only" for="opt-label-1">Option 1 label</label>
+                  <textarea id="opt-label-1" class="opt-label-input" rows="1">Roadside assistance</textarea>
+                </div>
+                <div class="opt-cell opt-cell--id" title="Option id: fixed at creation, never editable">opt_8f2ka91m</div>
+              </li>
+              <li class="opt-row is-error">
+                <button type="button" class="opt-insert" aria-label="Insert option above option 2">
+                  <span class="opt-insert__line" aria-hidden="true"></span>
+                  <span class="opt-insert__plus" aria-hidden="true">+</span>
+                </button>
+                <div class="opt-cell opt-cell--grip">
+                  <button type="button" class="opt-grip" aria-haspopup="menu" aria-expanded="false" aria-label="Reorder option 2">
+                    <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
+                  </button>
+                </div>
+                <div class="opt-cell opt-cell--label">
+                  <label class="sr-only" for="opt-label-2">Option 2 label</label>
+                  <textarea id="opt-label-2" class="opt-label-input" rows="1" aria-invalid="true" aria-describedby="opt-error-2"></textarea>
+                </div>
+                <div class="opt-cell opt-cell--id" title="Option id: fixed at creation, never editable">opt_3n7qz44p</div>
+              </li>
+              <li class="opt-row">
+                <button type="button" class="opt-insert" aria-label="Insert option above Comprehensive cover">
+                  <span class="opt-insert__line" aria-hidden="true"></span>
+                  <span class="opt-insert__plus" aria-hidden="true">+</span>
+                </button>
+                <div class="opt-cell opt-cell--grip">
+                  <button type="button" class="opt-grip" aria-haspopup="menu" aria-expanded="true" aria-controls="opt-menu-3" aria-label="Reorder Comprehensive cover">
+                    <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
+                  </button>
+                </div>
+                <div class="opt-cell opt-cell--label">
+                  <label class="sr-only" for="opt-label-3">Option 3 label</label>
+                  <textarea id="opt-label-3" class="opt-label-input" rows="1">Comprehensive cover</textarea>
+                </div>
+                <div class="opt-cell opt-cell--id" title="Option id: fixed at creation, never editable">opt_k5t8w2rq</div>
+              </li>
+            </ul>
+            <button type="button" class="opt-row--add"><span aria-hidden="true">+</span> Add option</button>
+          </div>
+          <!-- Move up / Move down stay in this menu alongside the shipped Insert above /
+               Insert below / Remove: WCAG 2.2 SC 2.5.7 Dragging Movements (AA) requires that
+               any functionality operable by a dragging movement is also achievable with a
+               single pointer, without dragging. The grip's Arrow Up/Down while focused
+               satisfies SC 2.1.1 Keyboard, a different criterion, and does not discharge
+               2.5.7 - Move up and Move down, ordinary tap/click targets, are the
+               single-pointer path. This is the corrected menu (matching the one in
+               admin-shell-poc.html's step rail and question grid), not the narrower
+               three-item menu currently shipped in option-grid-editor.tsx. -->
+          <div class="opt-menu opt-menu--below-grid" role="menu" id="opt-menu-3" aria-label="Comprehensive cover row actions">
+            <button type="button" role="menuitem" class="mi">Insert option above Comprehensive cover</button>
+            <button type="button" role="menuitem" class="mi">Insert option below Comprehensive cover</button>
+            <button type="button" role="menuitem" class="mi">Move up</button>
+            <button type="button" role="menuitem" class="mi">Move down</button>
+            <button type="button" role="menuitem" class="mi is-danger">Remove option Comprehensive cover</button>
+          </div>
+        </div>
+        <p class="opt-grid-error" id="opt-error-2">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="8" y1="8" x2="16" y2="16"/><line x1="16" y1="8" x2="8" y2="16"/></svg>
+          Option 2: Option label needs at least one locale entry
+        </p>
+      </fieldset>
+
+      <fieldset class="fieldset">
+        <legend class="fieldset__legend">Constraints</legend>
+        <div class="constraints-grid">
+          <div class="field">
+            <label for="q-min-selected">Fewest selections</label>
+            <input type="number" id="q-min-selected" name="minSelected" value="1" min="0" step="1" />
+          </div>
+          <div class="field">
+            <label for="q-max-selected">Most selections</label>
+            <input type="number" id="q-max-selected" name="maxSelected" step="1" />
+          </div>
+        </div>
+      </fieldset>
+
+      <div>
+        <button type="submit" class="btn btn-primary">Create draft</button>
+      </div>
+    </form>
+
+</main>
+
+<script>
+function setMode(mode, btn) {
+  document.documentElement.className = mode;
+  document.querySelectorAll(".switcher button").forEach(function (b) {
+    b.setAttribute("aria-pressed", b === btn ? "true" : "false");
+  });
+}
+
+function showScreen(screen, btn) {
+  var isSettings = screen === "settings";
+  document.getElementById("screen-settings").hidden = !isSettings;
+  document.getElementById("screen-newq").hidden = isSettings;
+  document.getElementById("tab-settings").setAttribute("aria-pressed", isSettings ? "true" : "false");
+  document.getElementById("tab-newq").setAttribute("aria-pressed", isSettings ? "false" : "true");
+}
+
+var SETTINGS_PANELS = {
+  account: "Account",
+  password: "Change password",
+  twofactor: "Two-factor authentication",
+};
+
+function showSettingsPanel(panel) {
+  Object.keys(SETTINGS_PANELS).forEach(function (key) {
+    document.getElementById("settings-panel-" + key).hidden = key !== panel;
+    var link = document.getElementById("rail-settings-" + key);
+    if (key === panel) {
+      link.setAttribute("aria-current", "page");
+    } else {
+      link.removeAttribute("aria-current");
+    }
+  });
+  document.getElementById("settings-page-heading").textContent = SETTINGS_PANELS[panel];
+}
+
+function copyCodes(btn) {
+  var codes = Array.prototype.map.call(document.querySelectorAll(".recovery-codes-list li"), function (li) {
+    return li.textContent;
+  }).join("\n");
+  var status = document.getElementById("copy-status");
+  function ok() { status.textContent = "Codes copied."; }
+  function fail() { status.textContent = "Could not copy automatically. Select the codes above and copy manually."; }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(codes).then(ok, fail);
+  } else {
+    fail();
+  }
+}
+</script>

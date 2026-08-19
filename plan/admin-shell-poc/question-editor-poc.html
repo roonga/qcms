@@ -1,0 +1,1003 @@
+<!-- @dsCard group="Screens" name="Question editor" subtitle="Draft and frozen states for one question version - versions rail, the shipped option grid reused, no second idiom" -->
+<title>QCMS DS - Question editor POC</title>
+<style>
+:root {
+  --color-primary: #2456c6;
+  --color-primary-hover: #1e4aad;
+  --color-primary-active: #193f95;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #4f5b70;
+  --color-secondary-hover: #475265;
+  --color-secondary-active: #3f495a;
+  --color-secondary-foreground: #ffffff;
+  --color-danger: #c0271f;
+  --color-danger-hover: #ad231c;
+  --color-danger-active: #9a1f19;
+  --color-danger-foreground: #ffffff;
+  --color-danger-subtle: #f9e7e5;
+  --color-danger-fg: #8f1d18;
+  --color-ghost: transparent;
+  --color-ghost-hover: #eef1f6;
+  --color-ghost-active: #e4e8ef;
+  --color-info: #2456c6;
+  --color-info-subtle: #e9effb;
+  --color-info-fg: #1b44a0;
+  --color-success: #1e7a46;
+  --color-success-subtle: #e4f1ea;
+  --color-success-fg: #16603a;
+  --color-warning: #8a5a00;
+  --color-warning-subtle: #f6eeda;
+  --color-warning-fg: #6e4700;
+  --color-text: #0f1729;
+  --color-text-muted: #55617a;
+  --color-border: #dde2ea;
+  --color-border-strong: #838ca4;
+  --color-background: #fbfcfd;
+  --color-background-muted: #eef1f6;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f4f6fa;
+  --color-focus-ring: #2456c6;
+  --color-overlay: rgb(0 0 0 / 0.5);
+  --shadow-color: 222deg 30% 20%;
+  --admin-control-h: 40px;
+  --admin-control-pad-x: 0.6rem;
+  --admin-stack: 0.35rem;
+  --admin-section-pad: 1.25rem;
+  --admin-table-row-h: 44px;
+  --radius-control: 4px;
+  --radius-card: 8px;
+  --radius-sm: 2px;
+  --font-admin: "Lexend", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace;
+}
+
+:root.dark {
+  --color-primary: #7aa2ff;
+  --color-primary-hover: #8fb1ff;
+  --color-primary-active: #a1beff;
+  --color-primary-foreground: #0b0f1a;
+  --color-secondary: #97a2b8;
+  --color-secondary-hover: #a3adc1;
+  --color-secondary-active: #aeb6c8;
+  --color-secondary-foreground: #0b0f1a;
+  --color-danger: #ff7b80;
+  --color-danger-hover: #ff8b8f;
+  --color-danger-active: #ff989c;
+  --color-danger-foreground: #0b0f1a;
+  --color-danger-subtle: #2b1615;
+  --color-danger-fg: #ffb3b5;
+  --color-ghost: transparent;
+  --color-ghost-hover: #1b2230;
+  --color-ghost-active: #232c3c;
+  --color-info: #7aa2ff;
+  --color-info-subtle: #16233a;
+  --color-info-fg: #a9c4ff;
+  --color-success: #46c08a;
+  --color-success-subtle: #132a20;
+  --color-success-fg: #8fe0bd;
+  --color-warning: #e0a93b;
+  --color-warning-subtle: #2a2110;
+  --color-warning-fg: #f0cd85;
+  --color-text: #e6eaf2;
+  --color-text-muted: #97a2b8;
+  --color-border: #262e3d;
+  --color-border-strong: #626c88;
+  --color-background: #0b0f1a;
+  --color-background-muted: #10151f;
+  --color-surface: #141a26;
+  --color-surface-hover: #1b2230;
+  --color-focus-ring: #7aa2ff;
+  --color-overlay: rgb(0 0 0 / 0.6);
+  --shadow-color: 222deg 60% 2%;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light):not(.dark):not(.hc) {
+    --color-primary: #7aa2ff;
+    --color-primary-hover: #8fb1ff;
+    --color-primary-active: #a1beff;
+    --color-primary-foreground: #0b0f1a;
+    --color-secondary: #97a2b8;
+    --color-secondary-hover: #a3adc1;
+    --color-secondary-active: #aeb6c8;
+    --color-secondary-foreground: #0b0f1a;
+    --color-danger: #ff7b80;
+    --color-danger-hover: #ff8b8f;
+    --color-danger-active: #ff989c;
+    --color-danger-foreground: #0b0f1a;
+    --color-danger-subtle: #2b1615;
+    --color-danger-fg: #ffb3b5;
+    --color-ghost: transparent;
+    --color-ghost-hover: #1b2230;
+    --color-ghost-active: #232c3c;
+    --color-info: #7aa2ff;
+    --color-info-subtle: #16233a;
+    --color-info-fg: #a9c4ff;
+    --color-success: #46c08a;
+    --color-success-subtle: #132a20;
+    --color-success-fg: #8fe0bd;
+    --color-warning: #e0a93b;
+    --color-warning-subtle: #2a2110;
+    --color-warning-fg: #f0cd85;
+    --color-text: #e6eaf2;
+    --color-text-muted: #97a2b8;
+    --color-border: #262e3d;
+    --color-border-strong: #626c88;
+    --color-background: #0b0f1a;
+    --color-background-muted: #10151f;
+    --color-surface: #141a26;
+    --color-surface-hover: #1b2230;
+    --color-focus-ring: #7aa2ff;
+    --color-overlay: rgb(0 0 0 / 0.6);
+    --shadow-color: 222deg 60% 2%;
+  }
+}
+
+:root.hc {
+  --color-secondary: #1c2433;
+  --color-secondary-hover: #19202e;
+  --color-secondary-active: #161d29;
+  --color-secondary-foreground: #ffffff;
+  --color-danger: #8a0f0a;
+  --color-danger-hover: #7c0e09;
+  --color-danger-active: #6e0c08;
+  --color-danger-foreground: #ffffff;
+  --color-danger-subtle: #ffecea;
+  --color-danger-fg: #6b0b07;
+  --color-ghost: transparent;
+  --color-ghost-hover: #eceef1;
+  --color-ghost-active: #dfe2e7;
+  --color-info: #0a3ea8;
+  --color-info-subtle: #e6efff;
+  --color-info-fg: #08337d;
+  --color-success: #0a5c30;
+  --color-success-subtle: #e2f4e9;
+  --color-success-fg: #064023;
+  --color-warning: #5a3b00;
+  --color-warning-subtle: #fbf0d6;
+  --color-warning-fg: #4a3000;
+  --color-text: #000000;
+  --color-text-muted: #22262e;
+  --color-border: #5a616e;
+  --color-border-strong: #000000;
+  --color-background: #ffffff;
+  --color-background-muted: #f2f3f5;
+  --color-surface: #ffffff;
+  --color-surface-hover: #eceef1;
+  --color-focus-ring: #0a3ea8;
+  --color-overlay: rgb(0 0 0 / 0.7);
+  --color-primary: #0a3ea8;
+  --color-primary-hover: #08348f;
+  --color-primary-active: #062a75;
+  --color-primary-foreground: #ffffff;
+}
+
+/* Base */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; }
+/* flex column so .shell-body (the rail + main grid) can be told to fill whatever
+   viewport height the fixed chrome above it (switcher, intro, topbar, save-status)
+   does not use - see the comment on .shell-body itself for why that matters. */
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  font-family: var(--font-admin);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--color-text);
+  background: var(--color-background);
+  overflow-x: hidden;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+[hidden] { display: none !important; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+/* Demo mode switcher (house convention: not part of the shipped shell, a viewer aid) */
+.switcher { display: flex; gap: 0.5rem; padding: 0.75rem 1.5rem; border-bottom: 1px dashed var(--color-border-strong);
+  background: var(--color-background-muted); }
+.switcher button { height: 32px; padding: 0 0.75rem; border-radius: var(--radius-control);
+  border: 1px solid var(--color-border-strong); background: var(--color-surface); color: var(--color-text); cursor: pointer; }
+.switcher button[aria-pressed="true"] { background: var(--color-primary); border-color: var(--color-primary);
+  color: var(--color-primary-foreground); }
+
+.intro { max-width: 68ch; font-size: 0.88rem; color: var(--color-text-muted); margin: 0.75rem 1.5rem; }
+
+/* Icons */
+.icon { width: 16px; height: 16px; flex-shrink: 0; }
+.icon-sm { width: 14px; height: 14px; flex-shrink: 0; }
+
+/* Topbar, identical to the sibling shell POC. */
+.topbar { background: var(--color-surface); border-bottom: 1px solid var(--color-border); }
+.topbar__inner { display: flex; flex-wrap: wrap; align-items: center; gap: 1.25rem; padding: 0 1.25rem; min-height: 56px; }
+.wordmark { font-weight: 800; font-size: 1.15rem; letter-spacing: -0.02em; flex-shrink: 0; }
+.topbar__nav { flex: 1 1 160px; min-width: 0; }
+.topbar__nav ul { display: flex; flex-wrap: wrap; gap: 1.25rem; list-style: none; margin: 0; padding: 0; height: 100%; }
+.topbar__nav li { display: flex; align-items: center; }
+.topbar__link { display: inline-flex; align-items: center; height: 100%; padding: 0 2px; text-decoration: none;
+  font-weight: 600; font-size: 0.92rem; color: var(--color-text-muted); border-bottom: 2px solid transparent; }
+.topbar__link:hover { color: var(--color-text); }
+.topbar__link[aria-current="page"] { color: var(--color-text); border-bottom-color: var(--color-primary); }
+.topbar__trailing { display: flex; align-items: center; gap: 0.6rem; flex-shrink: 0; }
+.icon-btn { width: 36px; height: 36px; border-radius: var(--radius-control); border: 1px solid var(--color-border);
+  background: var(--color-surface); color: var(--color-text); display: inline-flex; align-items: center;
+  justify-content: center; cursor: pointer; }
+.icon-btn:hover { background: var(--color-surface-hover); }
+.avatar-btn { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--color-border-strong);
+  background: var(--color-secondary); color: var(--color-secondary-foreground); font-weight: 700; font-size: 0.78rem;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.avatar-btn:hover { background: var(--color-secondary-hover); }
+
+.save-status { padding: 0.4rem 1.25rem; font-size: 0.78rem; color: var(--color-text-muted);
+  background: var(--color-background-muted); border-bottom: 1px solid var(--color-border); }
+
+/* Shell body: rail + main, identical breakpoint to the sibling. `flex: 1 1 auto`
+   (body is a flex column) makes this fill the rest of the viewport rather than only
+   the height its own content needs - see admin-shell-poc.html's own comment on
+   .shell-body for the full reasoning; the grid's default `align-items: stretch`
+   already keeps the rail matched to main's height, this is what keeps that shared
+   height from stopping short of the viewport on a short version list. */
+.shell-body { display: block; flex: 1 1 auto; min-height: 0; }
+@media (min-width: 1024px) {
+  .shell-body { display: grid; grid-template-columns: 240px 1fr; }
+}
+
+.rail-shell { border-bottom: 1px solid var(--color-border); background: var(--color-surface); }
+@media (min-width: 1024px) {
+  .rail-shell { border-bottom: none; border-right: 1px solid var(--color-border); }
+}
+.rail-summary { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; cursor: pointer;
+  list-style: none; padding: 0.9rem var(--admin-section-pad); font-weight: 700; font-size: 1rem; }
+.rail-summary::-webkit-details-marker { display: none; }
+.rail-summary__label { display: flex; align-items: baseline; gap: 6px; min-width: 0; flex: 1 1 auto; }
+.rail-summary__text { margin: 0; font: inherit; font-weight: inherit; font-size: inherit; font-family: var(--font-mono);
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rail-summary__chev { transition: transform 0.12s ease; color: var(--color-text-muted); }
+.rail-shell[open] .rail-summary__chev { transform: rotate(90deg); }
+/* The collapsed-only "which version" indicator: hidden by default and always on desktop
+   (where the rail is a permanent sidebar, never a disclosure), shown only below the
+   collapse breakpoint while the disclosure is closed - same convention as the sibling's
+   own .rail-summary__step. */
+.rail-summary__version { display: none; flex-shrink: 0; align-items: center; gap: 6px; font-size: 0.85rem;
+  font-weight: 600; white-space: nowrap; color: var(--color-text-muted); }
+.rail-summary__sep { color: var(--color-text-muted); font-weight: 400; }
+@media (max-width: 1023px) {
+  .rail-shell:not([open]) .rail-summary__version { display: inline-flex; }
+}
+@media (min-width: 1024px) {
+  .rail-summary__chev { display: none; }
+  .rail-summary { cursor: default; padding-bottom: 0.5rem; }
+}
+.rail-body { padding: 0 0.6rem 1rem; }
+
+/* The versions group: the rail's one piece of content on this screen (see the contract
+   comment beside the markup below). "Versions" plus its digest sit in a labelled row
+   rather than a heading, so the question id above remains the only rail heading and the
+   main column's own h1/h2 sequence is never interrupted by a rail-only heading level. */
+.rail-versions__label { display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  padding: 0.4rem 0.6rem 0.3rem; }
+.rail-versions__title { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--color-text-muted); }
+.rail-versions__digest { font-size: 0.78rem; color: var(--color-text-muted); text-align: right; }
+
+.rail-version-list { list-style: none; margin: 0 0 0.75rem; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.rail-version-link { display: flex; flex-direction: column; gap: 2px; padding: 0.5rem 0.6rem; border-radius: var(--radius-control);
+  text-decoration: none; color: var(--color-text); border-left: 3px solid transparent; }
+.rail-version-link:hover { background: var(--color-surface-hover); }
+.rail-version-link[aria-current="page"] { background: var(--color-info-subtle); border-left-color: var(--color-primary); }
+.rail-version-row { display: flex; align-items: center; gap: 8px; }
+.rail-version-num { font-size: 0.9rem; font-weight: 600; }
+.rail-version-link[aria-current="page"] .rail-version-num { color: var(--color-info-fg); }
+.rail-version-date { font-size: 0.78rem; color: var(--color-text-muted); }
+
+/* Pinned above the version list, not below it: the list is the one thing on this screen
+   that grows without bound (a question can accumulate many versions over years), and a
+   lifecycle action anchored below it would drift further down the rail with every one -
+   exactly the shipped page's own layout avoids by keeping LifecycleActions in the fixed
+   header above its own version history (apps/admin/app/(shell)/questions/[questionId]/
+   page.tsx). The divider moves with the block: it now marks the end of the fixed action
+   area rather than the start of it. */
+.rail-lifecycle { display: flex; flex-direction: column; gap: 6px; padding: 0 0.6rem 0.6rem; margin-bottom: 0.6rem;
+  border-bottom: 1px dashed var(--color-border); }
+
+/* Main column: left-anchored, fluid up to a cap, never re-centred, matching the sibling's
+   own convention. The editor column inside it is capped much narrower: this screen is
+   prose-and-form shaped (the audit's own finding), so the improvement here is a
+   comfortable reading measure, not more width. */
+.main { max-width: 1600px; padding: var(--admin-section-pad); min-width: 0; }
+.editor-column { max-width: 720px; display: flex; flex-direction: column; gap: 1.1rem; }
+
+/* State toggle: a real control, not rail navigation (a version is chosen in the rail; this
+   switches which of the two rendered states - draft or frozen - is on screen for whichever
+   version is selected). Same visual family as the demo mode switcher above it, since both
+   are "pick one of two/three" button groups, but this one is shipped UI, not a viewer aid. */
+.state-switcher { display: inline-flex; gap: 4px; padding: 4px; border-radius: var(--radius-control);
+  background: var(--color-background-muted); border: 1px solid var(--color-border); align-self: flex-start; }
+.state-switcher__btn { height: 32px; padding: 0 0.85rem; border-radius: var(--radius-sm); border: none;
+  background: transparent; color: var(--color-text-muted); font-weight: 600; font-size: 0.85rem; cursor: pointer; }
+.state-switcher__btn[aria-pressed="true"] { background: var(--color-surface); color: var(--color-text);
+  box-shadow: 0 1px 2px hsl(var(--shadow-color) / 0.14); }
+
+.page-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
+.qcms-question-id { font-family: var(--font-mono); font-size: 1.25rem; font-weight: 600; letter-spacing: -0.01em;
+  margin: 0; color: var(--color-text); }
+
+/* Status tag: colour reinforces, text always carries the meaning (WCAG 1.4.1) - values
+   match the shipped .qcms-tag family exactly. */
+.qcms-tag { display: inline-flex; align-items: center; border: 1px solid transparent; border-radius: var(--radius-sm);
+  padding-inline: 0.5em; padding-block: 0.15em; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.02em; line-height: 1.4; }
+.qcms-tag--draft { background-color: var(--color-info-subtle); color: var(--color-info-fg); border-color: var(--color-info-subtle); }
+.qcms-tag--published { background-color: var(--color-success-subtle); color: var(--color-success-fg); border-color: var(--color-success-subtle); }
+.qcms-tag--deprecated { background-color: var(--color-warning-subtle); color: var(--color-warning-fg); border-color: var(--color-warning-subtle); }
+:root.hc .qcms-tag { border-width: 2px; border-color: var(--color-border-strong); }
+
+/* Card idiom shared by every section on this screen, identical to the sibling's
+   .stacked-card. Preview is the one section that is never a <details> (it must never be
+   collapsed, so it uses the plain-<section> variant the sibling's own Form title card
+   already establishes for an always-open card). */
+.stacked-card { border: 1px solid var(--color-border); border-radius: var(--radius-card);
+  background: var(--color-surface); padding: var(--admin-section-pad); }
+.stacked-card > summary { cursor: pointer; list-style: none; display: flex; align-items: center;
+  justify-content: space-between; gap: 0.5rem; }
+.stacked-card > summary::-webkit-details-marker { display: none; }
+.stacked-card__chev { transition: transform 0.12s ease; color: var(--color-text-muted); flex-shrink: 0; }
+.stacked-card[open] > summary .stacked-card__chev { transform: rotate(90deg); }
+.stacked-card[open] > summary { margin-bottom: 0.9rem; }
+.stacked-heading { margin: 0; font-size: 0.95rem; font-weight: 700; }
+.stacked-card__label { display: flex; align-items: baseline; gap: 8px; min-width: 0; flex: 1 1 auto; }
+.stacked-card__body { display: flex; flex-direction: column; gap: 0.9rem; }
+.stacked-note { margin: 0; font-size: 0.85rem; color: var(--color-text-muted); }
+
+.field { margin: 0; }
+.field label { display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 5px; }
+.field select, .field input { width: 100%; height: var(--admin-control-h); padding: 0 var(--admin-control-pad-x);
+  border-radius: var(--radius-control); border: 1px solid var(--color-border-strong); background: var(--color-surface);
+  color: var(--color-text); }
+.field select:hover, .field input:hover { border-color: var(--color-primary); }
+.field-help { margin: 4px 0 0; font-size: 0.78rem; color: var(--color-text-muted); }
+
+.checkbox-row { display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.88rem; font-weight: 600; cursor: pointer; }
+.checkbox-row input[type="checkbox"] { width: 18px; height: 18px; margin: 2px 0 0; flex-shrink: 0; accent-color: var(--color-primary); }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: var(--admin-control-h);
+  padding: 0 16px; border-radius: var(--radius-control); border: 1.5px solid transparent; font-weight: 600;
+  font-size: 0.88rem; cursor: pointer; background: var(--color-primary); color: var(--color-primary-foreground); }
+.btn:hover { background: var(--color-primary-hover); }
+.btn-sm { height: 32px; padding: 0 12px; font-size: 0.82rem; }
+.btn-secondary { background: var(--color-secondary); color: var(--color-secondary-foreground); }
+.btn-secondary:hover { background: var(--color-secondary-hover); }
+.btn-danger { background: var(--color-danger); color: var(--color-danger-foreground); }
+.btn-danger:hover { background: var(--color-danger-hover); }
+.btn-block { width: 100%; }
+
+.qcms-constraints { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: var(--admin-stack); }
+.qcms-constraints__wide { grid-column: 1 / -1; }
+
+.save-row { display: flex; align-items: center; gap: 0.75rem; }
+
+/* Preview surface: a card-in-card, deliberately a step down in visual weight from the
+   admin chrome around it - the box a respondent's own token set would occupy, distinct
+   from the bordered editor fields above and below it. */
+.preview-surface { border-radius: var(--radius-control); background: var(--color-background-muted);
+  padding: var(--admin-section-pad); }
+.preview-fieldset { border: 0; margin: 0; padding: 0; }
+.preview-fieldset legend { padding: 0; font-size: 0.82rem; font-weight: 600; margin-bottom: 5px; }
+.preview-radio-group { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.preview-radio { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; cursor: pointer; }
+.preview-radio input[type="radio"] { width: 18px; height: 18px; accent-color: var(--color-primary); flex-shrink: 0; }
+
+/* The type-locked line: no border, no background, plain muted text with a lock glyph -
+   the same contrast the shipped grid uses (bordered chrome = editable, plain text =
+   library-owned and read-only), placed directly under the bordered Label/Help fields so
+   the difference is visible without needing a caption to explain it. */
+.type-locked-row { display: flex; align-items: center; gap: 6px; padding-top: 2px; color: var(--color-text-muted); font-size: 0.85rem; }
+.type-locked-row svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+/* The one-time frozen statement (questions.editor.frozen), stated once for the whole
+   version rather than once per field - a banner, not a per-field caption. */
+.frozen-banner { display: flex; gap: 8px; align-items: flex-start; margin: 0; padding: 0.85rem 1rem;
+  border-radius: var(--radius-control); background: var(--color-background-muted); color: var(--color-text);
+  font-size: 0.88rem; border: 1px solid var(--color-border); }
+.frozen-banner svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 2px; color: var(--color-text-muted); }
+
+/* Frozen field pairs: text, never input chrome (no border, no background) - a published
+   version reads as a fact sheet, not a disabled form. */
+.frozen-fields { display: flex; flex-direction: column; gap: 0.7rem; margin: 0; }
+.frozen-field { display: flex; flex-direction: column; gap: 2px; }
+.frozen-field dt { font-size: 0.78rem; font-weight: 600; color: var(--color-text-muted); }
+.frozen-field dd { margin: 0; font-size: 0.9rem; color: var(--color-text); }
+
+/* Message rows: the placeholder-inherit mechanism made visible. An empty field showing
+   the default as its placeholder already carries the distinction in the live editor (the
+   value is empty and the placeholder is dim); the badge is what makes that same
+   distinction legible at a glance in a static render, and in the frozen state where there
+   is no field left to carry a placeholder at all. */
+.message-row { display: flex; flex-direction: column; gap: 5px; }
+.message-row__control { display: flex; align-items: center; gap: 8px; }
+.message-row__control input { flex: 1 1 auto; }
+.message-badge { flex-shrink: 0; white-space: nowrap; font-size: 0.72rem; font-weight: 700; padding: 2px 7px;
+  border-radius: var(--radius-sm); }
+.message-badge--default { background: var(--color-background-muted); color: var(--color-text-muted); }
+.message-badge--custom { background: var(--color-info-subtle); color: var(--color-info-fg); }
+
+/* -------------------------------------------------------------------------------------
+   Option grid: the shipped idiom (apps/admin/components/questions/option-grid-editor.tsx,
+   design card plan/admin-theme/ds-option-grid.html), reused exactly rather than
+   reinvented - grip drag/keyboard reorder, insert hairlines between rows, a hover- and
+   focus-revealed row menu, a ghost add-row.
+
+   WCAG 2.2 SC 2.5.7 (Dragging Movements, AA): any functionality reachable by a dragging
+   movement must also be reachable with a single pointer and no dragging. The grip's
+   pointer-drag and its keyboard Arrow Up/Down satisfy SC 2.1.1 (Keyboard) but do not by
+   themselves satisfy 2.5.7 - a keyboard path is a different criterion, not a substitute
+   for a non-dragging pointer path. So this menu carries Move up / Move down alongside
+   Insert above/below and Remove, the same correction admin-shell-poc.html already made
+   to the step-questions grid's own row menu; the shipped option-grid-editor.tsx menu
+   does not have them yet, and this is the corrected shape, not a second idiom.
+   ------------------------------------------------------------------------------------- */
+.opt-grid-region { position: relative; }
+.opt-grid-wrap { border: 1px solid var(--color-border); border-radius: var(--radius-card); overflow: hidden; background: var(--color-surface); }
+.opt-grid__head { display: grid; grid-template-columns: 36px 1fr 150px; padding: 0.5rem 0; border-bottom: 2px solid var(--color-border-strong); }
+.opt-grid__head > div { color: var(--color-text-muted); font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; padding: 0 0.75rem; }
+.opt-grid__body { list-style: none; margin: 0; padding: 0; }
+.opt-row { position: relative; display: grid; grid-template-columns: 36px 1fr 150px; align-items: flex-start;
+  min-height: var(--admin-control-h); border-bottom: 1px solid var(--color-border); }
+.opt-grid__body > .opt-row:last-child { border-bottom: none; }
+.opt-row:hover, .opt-row.is-hover { background: var(--color-surface-hover); }
+
+.opt-cell { padding: 0 0.75rem; display: flex; align-items: flex-start; min-width: 0; }
+.opt-cell--grip { padding: 6px 0 0 6px; justify-content: flex-start; }
+.opt-cell--label { padding: 0; }
+.opt-cell--id { padding-top: 10px; font-family: var(--font-mono); font-size: 0.8rem; color: var(--color-text-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.opt-label-input { display: block; width: 100%; border: none; background: transparent; color: var(--color-text);
+  font: inherit; line-height: 1.5; padding: 8px 0.75rem; border-radius: var(--radius-sm); resize: none; overflow: hidden; }
+.opt-label-input:hover { background: var(--color-ghost-hover); }
+.opt-label-input:focus, .opt-row.is-focus .opt-label-input { outline: none;
+  box-shadow: inset 0 0 0 2px var(--color-focus-ring); background: var(--color-surface); }
+
+.opt-grip { width: 28px; height: 28px; border-radius: var(--radius-sm); border: 1px solid transparent;
+  background: transparent; color: var(--color-text-muted); display: inline-flex; align-items: center;
+  justify-content: center; cursor: grab; opacity: 0; transition: opacity 0.12s ease, background 0.12s ease; }
+.opt-row:hover .opt-grip, .opt-row:focus-within .opt-grip, .opt-row.is-hover .opt-grip { opacity: 1; }
+.opt-grip:hover { background: var(--color-ghost-hover); color: var(--color-text); }
+.opt-grip:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; opacity: 1; }
+.opt-grip svg circle { fill: currentColor; }
+
+.opt-insert { position: absolute; left: 0; right: 0; top: -7px; height: 14px; margin: 0; padding: 0;
+  border: none; background: transparent; cursor: pointer; z-index: 2; opacity: 0; }
+.opt-insert__line { position: absolute; left: 34px; right: 8px; top: 50%; height: 2px;
+  background: var(--color-primary); border-radius: 1px; transform: translateY(-50%); }
+.opt-insert__plus { position: absolute; left: 6px; top: 50%; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--color-primary); color: var(--color-primary-foreground); display: flex; align-items: center;
+  justify-content: center; transform: translateY(-50%); font-size: 12px; font-weight: 700; line-height: 1; }
+.opt-insert:hover, .opt-insert:focus-visible, .opt-insert.is-visible { opacity: 1; }
+.opt-insert:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 1px; }
+
+.opt-row--add { position: relative; width: 100%; height: var(--admin-control-h); padding: 0 0.75rem;
+  display: flex; align-items: center; gap: 6px; border: none; background: transparent;
+  color: var(--color-text-muted); font: inherit; cursor: pointer; text-align: left; }
+.opt-row--add:hover { background: var(--color-surface-hover); color: var(--color-text); }
+.opt-row--add:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: -2px; }
+
+/* Row menu. It must never be clipped by .opt-grid-wrap's own overflow:hidden (that is
+   there only to keep the head row and the ghost add-row's corners round) and it must
+   never overlap another row or the add-row below it. Both are solved the same way
+   admin-shell-poc.html solves it for the step-questions grid's own row menu: the menu is
+   a SIBLING of .opt-grid-wrap inside the unclipped .opt-grid-region, not a descendant of
+   it, and it is demonstrated open on the LAST row - so "opens below the row that owns
+   it" and "opens below the whole grid" are the same position, which holds at every
+   width with no row-height arithmetic to keep in sync. */
+.opt-menu { position: absolute; min-width: 190px; background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-card); padding: 6px;
+  box-shadow: 0 2px 4px hsl(var(--shadow-color) / 0.1), 0 30px 70px -30px hsl(var(--shadow-color) / 0.4); z-index: 3; }
+.opt-menu--below-grid { top: 100%; left: 6px; margin-top: 6px; }
+.opt-menu .mi { display: block; width: 100%; text-align: left; background: none; border: none; padding: 8px 10px;
+  border-radius: var(--radius-sm); color: var(--color-text); font: inherit; font-size: 0.88rem; cursor: pointer; }
+.opt-menu .mi:hover { background: var(--color-surface-hover); }
+.opt-menu .mi.is-danger { color: var(--color-danger-fg); }
+
+/* Read-only option list (frozen state): the same grid shell, minus every affordance -
+   empty grip column, plain text cells, no insert hairlines, no menu, no ghost add-row. */
+.opt-row--readonly { cursor: default; }
+.opt-row--readonly:hover { background: transparent; }
+.opt-readonly-label { padding-top: 8px; font-size: 0.9rem; }
+
+@media (max-width: 639px) {
+  .opt-grid__head, .opt-row { grid-template-columns: 32px 1fr; }
+  .opt-grid__head > div:last-child, .opt-cell--id { display: none; }
+}
+
+.opt-grid-error { display: flex; gap: 6px; align-items: center; font-size: 0.85rem; color: var(--color-danger-fg);
+  margin-top: 8px; font-weight: 600; }
+.opt-grid-error svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+/* High-contrast: hover/focus-revealed affordances stay always-visible rather than
+   requiring a pointer or focus to discover them exists at all. */
+:root.hc .opt-grip, :root.hc .opt-insert { opacity: 1; }
+:root.hc .opt-grid-wrap { border-width: 2px; }
+:root.hc .opt-row { border-bottom-color: var(--color-border-strong); }
+</style>
+
+<div class="switcher" role="group" aria-label="Preview mode">
+  <button type="button" aria-pressed="true" onclick="setMode('', this)">Light</button>
+  <button type="button" aria-pressed="false" onclick="setMode('dark', this)">Dark</button>
+  <button type="button" aria-pressed="false" onclick="setMode('hc', this)">High contrast</button>
+</div>
+
+<p class="intro">Question editor POC: one question, two states of the same layout. "Draft (v4)" is the
+  editable case; "Published (v3)" is what the immutability model actually produces once a version is frozen,
+  and is deliberately the more fully designed of the two. The rail carries only this question's versions (its
+  one kind of child, per the contract noted beside it); the option grid below reuses the shipped grip-drag,
+  insert-hairline and row-menu idiom rather than inventing a second one for this screen.</p>
+
+<header class="topbar">
+  <div class="topbar__inner">
+    <span class="wordmark">QCMS</span>
+    <nav class="topbar__nav" aria-label="Primary">
+      <ul>
+        <li><a class="topbar__link" href="#" aria-current="page">Questions</a></li>
+        <li><a class="topbar__link" href="#">Forms</a></li>
+        <li><a class="topbar__link" href="#">Responses</a></li>
+        <li><a class="topbar__link" href="#">Webhooks</a></li>
+        <li><a class="topbar__link" href="#">Settings</a></li>
+      </ul>
+    </nav>
+    <div class="topbar__trailing">
+      <button type="button" class="icon-btn" aria-label="Appearance settings" title="Appearance">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"></circle>
+          <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path>
+        </svg>
+      </button>
+      <button type="button" class="avatar-btn" aria-label="Account menu, signed in as Code Owner">CO</button>
+    </div>
+  </div>
+</header>
+
+<div class="save-status" aria-live="polite">Saved 09:41.</div>
+
+<div class="shell-body">
+  <details class="rail-shell" open id="rail-shell">
+    <summary class="rail-summary">
+      <span class="rail-summary__label">
+        <h2 class="rail-summary__text">q_smoking_status</h2>
+        <span class="rail-summary__version" id="rail-summary-version">
+          <span class="rail-summary__sep" aria-hidden="true">/</span>
+          <span id="rail-summary-version-name">Version 4</span>
+        </span>
+      </span>
+      <svg class="rail-summary__chev icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+    </summary>
+    <div class="rail-body">
+
+      <!-- Rail contract: on the form/step screens (admin-shell-poc.html) the rail carries
+           the current entity's children (a form's steps) AND its sibling screens (Preview,
+           Versions, Links, Responses, Webhooks). A question's only children are its
+           versions and it has no sibling screens, so here the rail carries the version
+           list and nothing else - the same contract applied to a narrower entity, not a
+           new meaning for the same furniture. -->
+      <nav aria-label="Versions of q_smoking_status">
+        <div class="rail-versions__label">
+          <span class="rail-versions__title">Versions</span>
+          <span class="rail-versions__digest">4 versions, v3 published</span>
+        </div>
+
+        <!-- Lifecycle actions (lifecycle-actions.tsx): which buttons show depends on the
+             selected version's own status, so the two sets below swap with the state
+             toggle exactly as they would swap with a real version change. Pinned here,
+             above the version list, so they stay reachable at a fixed position regardless
+             of how many versions this question has accumulated - see the CSS comment on
+             .rail-lifecycle for why that matters. -->
+        <div class="rail-lifecycle" id="lifecycle-draft">
+          <button type="button" class="btn btn-secondary btn-sm btn-block">New version</button>
+          <button type="button" class="btn btn-sm btn-block">Publish version 4</button>
+        </div>
+        <div class="rail-lifecycle" id="lifecycle-published" hidden>
+          <button type="button" class="btn btn-secondary btn-sm btn-block">New version</button>
+          <button type="button" class="btn btn-danger btn-sm btn-block">Deprecate version 3</button>
+        </div>
+
+        <ul class="rail-version-list">
+          <li>
+            <a href="#" class="rail-version-link" id="rail-v4" aria-current="page" onclick="showState('draft'); return false;">
+              <span class="rail-version-row">
+                <span class="rail-version-num">Version 4</span>
+                <span class="qcms-tag qcms-tag--draft">Draft</span>
+              </span>
+              <span class="rail-version-date">Unpublished</span>
+            </a>
+          </li>
+          <li>
+            <a href="#" class="rail-version-link" id="rail-v3" onclick="showState('published'); return false;">
+              <span class="rail-version-row">
+                <span class="rail-version-num">Version 3</span>
+                <span class="qcms-tag qcms-tag--published">Published</span>
+              </span>
+              <span class="rail-version-date">Published 2026-05-14</span>
+            </a>
+          </li>
+          <li>
+            <a href="#" class="rail-version-link" id="rail-v2">
+              <span class="rail-version-row">
+                <span class="rail-version-num">Version 2</span>
+                <span class="qcms-tag qcms-tag--published">Published</span>
+              </span>
+              <span class="rail-version-date">Published 2025-11-02</span>
+            </a>
+          </li>
+          <li>
+            <a href="#" class="rail-version-link" id="rail-v1">
+              <span class="rail-version-row">
+                <span class="rail-version-num">Version 1</span>
+                <span class="qcms-tag qcms-tag--deprecated">Deprecated</span>
+              </span>
+              <span class="rail-version-date">Published 2025-06-20</span>
+            </a>
+          </li>
+        </ul>
+      </nav>
+
+    </div>
+  </details>
+
+  <main id="main-content" class="main">
+    <div class="editor-column">
+
+      <div class="state-switcher" role="group" aria-label="Version state">
+        <button type="button" class="state-switcher__btn" id="btn-state-draft" aria-pressed="true" onclick="showState('draft')">Draft (v4)</button>
+        <button type="button" class="state-switcher__btn" id="btn-state-published" aria-pressed="false" onclick="showState('published')">Published (v3)</button>
+      </div>
+
+      <!-- ============================== STATE A: Draft (v4) ============================== -->
+      <div id="state-draft" class="state-panel">
+        <div class="page-heading">
+          <h1 class="qcms-question-id">q_smoking_status</h1>
+          <span class="qcms-tag qcms-tag--draft">Draft</span>
+        </div>
+
+        <!-- Preview: never a <details>. A collapsed preview is a preview that is not
+             doing its job. -->
+        <section class="stacked-card" aria-labelledby="preview-heading-a">
+          <h2 class="stacked-heading" id="preview-heading-a">Preview</h2>
+          <p class="stacked-note">Rendered by the same engine that serves a respondent, so this is exactly what they
+            will see. Nothing typed here is saved.</p>
+          <div class="preview-surface">
+            <fieldset class="preview-fieldset">
+              <legend>How would you describe your current smoking status?</legend>
+              <p class="field-help">Choose the option that best describes you today.</p>
+              <div class="preview-radio-group" role="radiogroup" aria-label="How would you describe your current smoking status?">
+                <label class="preview-radio"><input type="radio" name="preview-status-a" value="never"> Never smoked</label>
+                <label class="preview-radio"><input type="radio" name="preview-status-a" value="former"> Former smoker</label>
+                <label class="preview-radio"><input type="radio" name="preview-status-a" value="occasional"> Occasional smoker</label>
+                <label class="preview-radio"><input type="radio" name="preview-status-a" value="daily"> Daily smoker</label>
+              </div>
+            </fieldset>
+          </div>
+        </section>
+
+        <details class="stacked-card" open>
+          <summary>
+            <span class="stacked-card__label"><h2 class="stacked-heading">Definition</h2></span>
+            <svg class="stacked-card__chev icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </summary>
+          <div class="stacked-card__body">
+            <div class="field">
+              <label for="def-label-a">Label</label>
+              <input type="text" id="def-label-a" value="How would you describe your current smoking status?">
+            </div>
+            <div class="field">
+              <label for="def-help-a">Help text</label>
+              <input type="text" id="def-help-a" value="Choose the option that best describes you today.">
+              <p class="field-help">Optional. Shown under the control.</p>
+            </div>
+            <label class="checkbox-row" for="def-required-a">
+              <input type="checkbox" id="def-required-a" checked>
+              <span>An answer is required</span>
+            </label>
+            <p class="type-locked-row">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="1.5"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
+              Type is locked to Single choice.
+            </p>
+          </div>
+        </details>
+
+        <details class="stacked-card" open>
+          <summary>
+            <span class="stacked-card__label"><h2 class="stacked-heading">Options</h2></span>
+            <svg class="stacked-card__chev icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </summary>
+          <div class="stacked-card__body">
+            <p class="stacked-note">An option ID is generated once, when the option is first named, and never
+              changes again. Relabelling and reordering leave it alone, which is what keeps a rule matching the
+              same answer years later.</p>
+
+            <div class="opt-grid-region">
+              <div class="opt-grid-wrap">
+                <div class="opt-grid__head"><div></div><div>Label</div><div>ID</div></div>
+                <ul class="opt-grid__body">
+
+                  <li class="opt-row">
+                    <button type="button" class="opt-insert" aria-label="Insert option above Never smoked">
+                      <span class="opt-insert__line" aria-hidden="true"></span>
+                      <span class="opt-insert__plus" aria-hidden="true">+</span>
+                    </button>
+                    <div class="opt-cell opt-cell--grip">
+                      <button type="button" class="opt-grip" aria-haspopup="menu" aria-expanded="false" aria-label="Reorder Never smoked">
+                        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1.6"></circle><circle cx="15" cy="6" r="1.6"></circle><circle cx="9" cy="12" r="1.6"></circle><circle cx="15" cy="12" r="1.6"></circle><circle cx="9" cy="18" r="1.6"></circle><circle cx="15" cy="18" r="1.6"></circle></svg>
+                      </button>
+                    </div>
+                    <div class="opt-cell opt-cell--label">
+                      <label class="sr-only" for="opt-label-1">Option 1 label</label>
+                      <textarea id="opt-label-1" class="opt-label-input" rows="1">Never smoked</textarea>
+                    </div>
+                    <div class="opt-cell opt-cell--id" title="Option id: fixed at creation, never editable">opt_never_smoked</div>
+                  </li>
+
+                  <li class="opt-row">
+                    <button type="button" class="opt-insert is-visible" aria-label="Insert option above Former smoker">
+                      <span class="opt-insert__line" aria-hidden="true"></span>
+                      <span class="opt-insert__plus" aria-hidden="true">+</span>
+                    </button>
+                    <div class="opt-cell opt-cell--grip">
+                      <button type="button" class="opt-grip" aria-haspopup="menu" aria-expanded="false" aria-label="Reorder Former smoker">
+                        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1.6"></circle><circle cx="15" cy="6" r="1.6"></circle><circle cx="9" cy="12" r="1.6"></circle><circle cx="15" cy="12" r="1.6"></circle><circle cx="9" cy="18" r="1.6"></circle><circle cx="15" cy="18" r="1.6"></circle></svg>
+                      </button>
+                    </div>
+                    <div class="opt-cell opt-cell--label">
+                      <label class="sr-only" for="opt-label-2">Option 2 label</label>
+                      <textarea id="opt-label-2" class="opt-label-input" rows="1">Former smoker</textarea>
+                    </div>
+                    <div class="opt-cell opt-cell--id" title="Option id: fixed at creation, never editable">opt_former_smoker</div>
+                  </li>
+
+                  <li class="opt-row">
+                    <button type="button" class="opt-insert" aria-label="Insert option above Occasional smoker">
+                      <span class="opt-insert__line" aria-hidden="true"></span>
+                      <span class="opt-insert__plus" aria-hidden="true">+</span>
+                    </button>
+                    <div class="opt-cell opt-cell--grip">
+                      <button type="button" class="opt-grip" aria-haspopup="menu" aria-expanded="false" aria-label="Reorder Occasional smoker">
+                        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1.6"></circle><circle cx="15" cy="6" r="1.6"></circle><circle cx="9" cy="12" r="1.6"></circle><circle cx="15" cy="12" r="1.6"></circle><circle cx="9" cy="18" r="1.6"></circle><circle cx="15" cy="18" r="1.6"></circle></svg>
+                      </button>
+                    </div>
+                    <div class="opt-cell opt-cell--label">
+                      <label class="sr-only" for="opt-label-3">Option 3 label</label>
+                      <textarea id="opt-label-3" class="opt-label-input" rows="1">Occasional smoker</textarea>
+                    </div>
+                    <div class="opt-cell opt-cell--id" title="Option id: fixed at creation, never editable">opt_occasional_smoker</div>
+                  </li>
+
+                  <li class="opt-row">
+                    <button type="button" class="opt-insert" aria-label="Insert option above Daily smoker">
+                      <span class="opt-insert__line" aria-hidden="true"></span>
+                      <span class="opt-insert__plus" aria-hidden="true">+</span>
+                    </button>
+                    <div class="opt-cell opt-cell--grip">
+                      <button type="button" class="opt-grip" aria-haspopup="menu" aria-expanded="true" aria-controls="opt-menu-4" aria-label="Reorder Daily smoker">
+                        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1.6"></circle><circle cx="15" cy="6" r="1.6"></circle><circle cx="9" cy="12" r="1.6"></circle><circle cx="15" cy="12" r="1.6"></circle><circle cx="9" cy="18" r="1.6"></circle><circle cx="15" cy="18" r="1.6"></circle></svg>
+                      </button>
+                    </div>
+                    <div class="opt-cell opt-cell--label">
+                      <label class="sr-only" for="opt-label-4">Option 4 label</label>
+                      <textarea id="opt-label-4" class="opt-label-input" rows="1">Daily smoker</textarea>
+                    </div>
+                    <div class="opt-cell opt-cell--id" title="Option id: fixed at creation, never editable">opt_daily_smoker</div>
+                  </li>
+
+                </ul>
+                <button type="button" class="opt-row--add"><span aria-hidden="true">+</span> Add option</button>
+              </div>
+
+              <!-- Open on the last row: see the CSS comment on .opt-menu above for why
+                   that makes "below the row" and "below the whole grid" the same
+                   position, which is what keeps this from ever covering another row,
+                   the add-row, or the note beneath it. -->
+              <div class="opt-menu opt-menu--below-grid" role="menu" id="opt-menu-4" aria-label="Daily smoker row actions">
+                <button type="button" role="menuitem" class="mi">Insert option above Daily smoker</button>
+                <button type="button" role="menuitem" class="mi">Insert option below Daily smoker</button>
+                <button type="button" role="menuitem" class="mi">Move up</button>
+                <button type="button" role="menuitem" class="mi">Move down</button>
+                <button type="button" role="menuitem" class="mi is-danger">Remove option Daily smoker</button>
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <details class="stacked-card">
+          <summary>
+            <span class="stacked-card__label"><h2 class="stacked-heading">Constraints</h2></span>
+            <svg class="stacked-card__chev icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </summary>
+          <div class="stacked-card__body">
+            <!-- Single choice has no constraint fields at all (CONSTRAINT_FIELDS in
+                 constraints-editor.tsx maps it to an empty list, same as boolean), so the
+                 real empty-state string is what this section shows, not invented fields. -->
+            <p class="stacked-note">This type has no constraints to set.</p>
+          </div>
+        </details>
+
+        <details class="stacked-card">
+          <summary>
+            <span class="stacked-card__label"><h2 class="stacked-heading">Validation messages</h2></span>
+            <svg class="stacked-card__chev icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </summary>
+          <div class="stacked-card__body">
+            <p class="stacked-note">Optional. Leave a field blank and the respondent sees the default shown inside
+              it. A field appears only for a constraint this question carries, so clearing the constraint clears
+              its message too.</p>
+
+            <!-- With no constraints, "an answer is required" is the only message key this
+                 question can carry (authoredMessageKeys always includes it while Required
+                 is checked, whatever the type) - so this is the one field, not a trimmed
+                 selection from a larger set. -->
+            <div class="message-row">
+              <label for="msg-required-a">Message when no answer is given</label>
+              <div class="message-row__control">
+                <input type="text" id="msg-required-a" value="Choose one option to continue.">
+                <span class="message-badge message-badge--custom">Custom</span>
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <div class="save-row">
+          <button type="button" class="btn">Save draft</button>
+          <p aria-live="polite" class="stacked-note">Draft saved.</p>
+        </div>
+      </div>
+
+      <!-- ============================== STATE B: Published (v3) ============================== -->
+      <div id="state-published" class="state-panel" hidden>
+        <div class="page-heading">
+          <h1 class="qcms-question-id">q_smoking_status</h1>
+          <span class="qcms-tag qcms-tag--published">Published</span>
+        </div>
+
+        <!-- One statement, stated once, not per field: publishing is the guarantee this
+             product exists to keep, so it reads as a property of the version, not an
+             apology for a missing feature. -->
+        <p class="frozen-banner">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="1.5"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
+          This version is frozen: its content can never change again. Create a new version to make an edit.
+        </p>
+
+        <!-- Preview still renders normally: previewing a published version is exactly
+             what an author would want, and this box owes nothing to the freeze above. -->
+        <section class="stacked-card" aria-labelledby="preview-heading-b">
+          <h2 class="stacked-heading" id="preview-heading-b">Preview</h2>
+          <p class="stacked-note">Rendered by the same engine that serves a respondent, so this is exactly what they
+            will see. Nothing typed here is saved.</p>
+          <div class="preview-surface">
+            <fieldset class="preview-fieldset">
+              <legend>How would you describe your current smoking status?</legend>
+              <p class="field-help">Choose the option that best describes you today.</p>
+              <div class="preview-radio-group" role="radiogroup" aria-label="How would you describe your current smoking status?">
+                <label class="preview-radio"><input type="radio" name="preview-status-b" value="never"> Never smoked</label>
+                <label class="preview-radio"><input type="radio" name="preview-status-b" value="former"> Former smoker</label>
+                <label class="preview-radio"><input type="radio" name="preview-status-b" value="occasional"> Occasional smoker</label>
+                <label class="preview-radio"><input type="radio" name="preview-status-b" value="daily"> Daily smoker</label>
+              </div>
+            </fieldset>
+          </div>
+        </section>
+
+        <details class="stacked-card" open>
+          <summary>
+            <span class="stacked-card__label"><h2 class="stacked-heading">Definition</h2></span>
+            <svg class="stacked-card__chev icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </summary>
+          <div class="stacked-card__body">
+            <dl class="frozen-fields">
+              <div class="frozen-field"><dt>Label</dt><dd>How would you describe your current smoking status?</dd></div>
+              <div class="frozen-field"><dt>Help text</dt><dd>Choose the option that best describes you today.</dd></div>
+              <div class="frozen-field"><dt>Required</dt><dd>An answer is required</dd></div>
+              <div class="frozen-field"><dt>Type</dt><dd>Single choice</dd></div>
+            </dl>
+          </div>
+        </details>
+
+        <details class="stacked-card" open>
+          <summary>
+            <span class="stacked-card__label"><h2 class="stacked-heading">Options</h2></span>
+            <svg class="stacked-card__chev icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </summary>
+          <div class="stacked-card__body">
+            <div class="opt-grid-wrap">
+              <div class="opt-grid__head"><div></div><div>Label</div><div>ID</div></div>
+              <ul class="opt-grid__body">
+                <li class="opt-row opt-row--readonly">
+                  <div class="opt-cell opt-cell--grip" aria-hidden="true"></div>
+                  <div class="opt-cell opt-cell--label"><span class="opt-readonly-label">Never smoked</span></div>
+                  <div class="opt-cell opt-cell--id">opt_never_smoked</div>
+                </li>
+                <li class="opt-row opt-row--readonly">
+                  <div class="opt-cell opt-cell--grip" aria-hidden="true"></div>
+                  <div class="opt-cell opt-cell--label"><span class="opt-readonly-label">Former smoker</span></div>
+                  <div class="opt-cell opt-cell--id">opt_former_smoker</div>
+                </li>
+                <li class="opt-row opt-row--readonly">
+                  <div class="opt-cell opt-cell--grip" aria-hidden="true"></div>
+                  <div class="opt-cell opt-cell--label"><span class="opt-readonly-label">Occasional smoker</span></div>
+                  <div class="opt-cell opt-cell--id">opt_occasional_smoker</div>
+                </li>
+                <li class="opt-row opt-row--readonly">
+                  <div class="opt-cell opt-cell--grip" aria-hidden="true"></div>
+                  <div class="opt-cell opt-cell--label"><span class="opt-readonly-label">Daily smoker</span></div>
+                  <div class="opt-cell opt-cell--id">opt_daily_smoker</div>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </details>
+
+        <details class="stacked-card">
+          <summary>
+            <span class="stacked-card__label"><h2 class="stacked-heading">Constraints</h2></span>
+            <svg class="stacked-card__chev icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </summary>
+          <div class="stacked-card__body">
+            <p class="stacked-note">This type has no constraints to set.</p>
+          </div>
+        </details>
+
+        <details class="stacked-card">
+          <summary>
+            <span class="stacked-card__label"><h2 class="stacked-heading">Validation messages</h2></span>
+            <svg class="stacked-card__chev icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </summary>
+          <div class="stacked-card__body">
+            <dl class="frozen-fields">
+              <div class="frozen-field">
+                <dt>Message when no answer is given</dt>
+                <dd>Choose one option to continue. <span class="message-badge message-badge--custom">Custom</span></dd>
+              </div>
+            </dl>
+          </div>
+        </details>
+
+        <!-- No Save button here: absent, not disabled - there is nothing this version's
+             form could ever submit. -->
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script>
+function setMode(mode, btn) {
+  document.documentElement.className = mode;
+  document.querySelectorAll(".switcher button").forEach(function (b) {
+    b.setAttribute("aria-pressed", b === btn ? "true" : "false");
+  });
+}
+
+function showState(state) {
+  var isDraft = state === "draft";
+
+  document.getElementById("state-draft").hidden = !isDraft;
+  document.getElementById("state-published").hidden = isDraft;
+
+  document.getElementById("btn-state-draft").setAttribute("aria-pressed", String(isDraft));
+  document.getElementById("btn-state-published").setAttribute("aria-pressed", String(!isDraft));
+
+  document.getElementById("lifecycle-draft").hidden = !isDraft;
+  document.getElementById("lifecycle-published").hidden = isDraft;
+
+  var v4 = document.getElementById("rail-v4");
+  var v3 = document.getElementById("rail-v3");
+  if (isDraft) {
+    v4.setAttribute("aria-current", "page");
+    v3.removeAttribute("aria-current");
+  } else {
+    v3.setAttribute("aria-current", "page");
+    v4.removeAttribute("aria-current");
+  }
+
+  document.getElementById("rail-summary-version-name").textContent = isDraft ? "Version 4" : "Version 3";
+}
+</script>

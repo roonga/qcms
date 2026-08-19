@@ -1,0 +1,1073 @@
+<!-- @dsCard group="Layout" name="Admin responses" subtitle="Responses list and response detail, including flag, export and erasure" -->
+<title>QCMS DS - Admin responses POC</title>
+<style>
+:root {
+  --color-primary: #2456c6;
+  --color-primary-hover: #1e4aad;
+  --color-primary-active: #193f95;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #4f5b70;
+  --color-secondary-hover: #475265;
+  --color-secondary-active: #3f495a;
+  --color-secondary-foreground: #ffffff;
+  --color-danger: #c0271f;
+  --color-danger-hover: #ad231c;
+  --color-danger-active: #9a1f19;
+  --color-danger-foreground: #ffffff;
+  --color-danger-subtle: #f9e7e5;
+  --color-danger-fg: #8f1d18;
+  --color-ghost: transparent;
+  --color-ghost-hover: #eef1f6;
+  --color-ghost-active: #e4e8ef;
+  --color-info: #2456c6;
+  --color-info-subtle: #e9effb;
+  --color-info-fg: #1b44a0;
+  --color-success: #1e7a46;
+  --color-success-subtle: #e4f1ea;
+  --color-success-fg: #16603a;
+  --color-warning: #8a5a00;
+  --color-warning-subtle: #f6eeda;
+  --color-warning-fg: #6e4700;
+  --color-text: #0f1729;
+  --color-text-muted: #55617a;
+  --color-border: #dde2ea;
+  --color-border-strong: #838ca4;
+  --color-background: #fbfcfd;
+  --color-background-muted: #eef1f6;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f4f6fa;
+  --color-focus-ring: #2456c6;
+  --color-overlay: rgb(0 0 0 / 0.5);
+  --shadow-color: 222deg 30% 20%;
+  --admin-control-h: 40px;
+  --admin-control-pad-x: 0.6rem;
+  --admin-stack: 0.35rem;
+  --admin-section-pad: 1.25rem;
+  --admin-table-row-h: 44px;
+  --radius-control: 4px;
+  --radius-card: 8px;
+  --radius-sm: 2px;
+  --font-admin: "Lexend", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace;
+}
+
+:root.dark {
+  --color-primary: #7aa2ff;
+  --color-primary-hover: #8fb1ff;
+  --color-primary-active: #a1beff;
+  --color-primary-foreground: #0b0f1a;
+  --color-secondary: #97a2b8;
+  --color-secondary-hover: #a3adc1;
+  --color-secondary-active: #aeb6c8;
+  --color-secondary-foreground: #0b0f1a;
+  --color-danger: #ff7b80;
+  --color-danger-hover: #ff8b8f;
+  --color-danger-active: #ff989c;
+  --color-danger-foreground: #0b0f1a;
+  --color-danger-subtle: #2b1615;
+  --color-danger-fg: #ffb3b5;
+  --color-ghost: transparent;
+  --color-ghost-hover: #1b2230;
+  --color-ghost-active: #232c3c;
+  --color-info: #7aa2ff;
+  --color-info-subtle: #16233a;
+  --color-info-fg: #a9c4ff;
+  --color-success: #46c08a;
+  --color-success-subtle: #132a20;
+  --color-success-fg: #8fe0bd;
+  --color-warning: #e0a93b;
+  --color-warning-subtle: #2a2110;
+  --color-warning-fg: #f0cd85;
+  --color-text: #e6eaf2;
+  --color-text-muted: #97a2b8;
+  --color-border: #262e3d;
+  --color-border-strong: #626c88;
+  --color-background: #0b0f1a;
+  --color-background-muted: #10151f;
+  --color-surface: #141a26;
+  --color-surface-hover: #1b2230;
+  --color-focus-ring: #7aa2ff;
+  --color-overlay: rgb(0 0 0 / 0.6);
+  --shadow-color: 222deg 60% 2%;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light):not(.dark):not(.hc) {
+    --color-primary: #7aa2ff;
+    --color-primary-hover: #8fb1ff;
+    --color-primary-active: #a1beff;
+    --color-primary-foreground: #0b0f1a;
+    --color-secondary: #97a2b8;
+    --color-secondary-hover: #a3adc1;
+    --color-secondary-active: #aeb6c8;
+    --color-secondary-foreground: #0b0f1a;
+    --color-danger: #ff7b80;
+    --color-danger-hover: #ff8b8f;
+    --color-danger-active: #ff989c;
+    --color-danger-foreground: #0b0f1a;
+    --color-danger-subtle: #2b1615;
+    --color-danger-fg: #ffb3b5;
+    --color-ghost: transparent;
+    --color-ghost-hover: #1b2230;
+    --color-ghost-active: #232c3c;
+    --color-info: #7aa2ff;
+    --color-info-subtle: #16233a;
+    --color-info-fg: #a9c4ff;
+    --color-success: #46c08a;
+    --color-success-subtle: #132a20;
+    --color-success-fg: #8fe0bd;
+    --color-warning: #e0a93b;
+    --color-warning-subtle: #2a2110;
+    --color-warning-fg: #f0cd85;
+    --color-text: #e6eaf2;
+    --color-text-muted: #97a2b8;
+    --color-border: #262e3d;
+    --color-border-strong: #626c88;
+    --color-background: #0b0f1a;
+    --color-background-muted: #10151f;
+    --color-surface: #141a26;
+    --color-surface-hover: #1b2230;
+    --color-focus-ring: #7aa2ff;
+    --color-overlay: rgb(0 0 0 / 0.6);
+    --shadow-color: 222deg 60% 2%;
+  }
+}
+
+:root.hc {
+  --color-secondary: #1c2433;
+  --color-secondary-hover: #19202e;
+  --color-secondary-active: #161d29;
+  --color-secondary-foreground: #ffffff;
+  --color-danger: #8a0f0a;
+  --color-danger-hover: #7c0e09;
+  --color-danger-active: #6e0c08;
+  --color-danger-foreground: #ffffff;
+  --color-danger-subtle: #ffecea;
+  --color-danger-fg: #6b0b07;
+  --color-ghost: transparent;
+  --color-ghost-hover: #eceef1;
+  --color-ghost-active: #dfe2e7;
+  --color-info: #0a3ea8;
+  --color-info-subtle: #e6efff;
+  --color-info-fg: #08337d;
+  --color-success: #0a5c30;
+  --color-success-subtle: #e2f4e9;
+  --color-success-fg: #064023;
+  --color-warning: #5a3b00;
+  --color-warning-subtle: #fbf0d6;
+  --color-warning-fg: #4a3000;
+  --color-text: #000000;
+  --color-text-muted: #22262e;
+  --color-border: #5a616e;
+  --color-border-strong: #000000;
+  --color-background: #ffffff;
+  --color-background-muted: #f2f3f5;
+  --color-surface: #ffffff;
+  --color-surface-hover: #eceef1;
+  --color-focus-ring: #0a3ea8;
+  --color-overlay: rgb(0 0 0 / 0.7);
+  --color-primary: #0a3ea8;
+  --color-primary-hover: #08348f;
+  --color-primary-active: #062a75;
+  --color-primary-foreground: #ffffff;
+}
+
+/* Base */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; }
+/* flex column so .shell-body (the rail + main grid) can be told to fill whatever
+   viewport height the fixed chrome above it (switcher, intro, topbar, save-status)
+   does not use - see the comment on .shell-body itself for why that matters. */
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  font-family: var(--font-admin);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--color-text);
+  background: var(--color-background);
+  overflow-x: hidden;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+/* A later `display` declaration beats the UA's `[hidden] { display: none }` rule at equal
+   specificity by source order, so this has to come after anything that sets `display` on a
+   hideable element (screens, dialogs, alternates) or a `hidden` one still renders. */
+[hidden] { display: none !important; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+/* Demo mode switcher (house convention: not part of the shipped shell, a viewer aid) */
+.switcher { display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0.75rem 1.5rem; border-bottom: 1px dashed var(--color-border-strong);
+  background: var(--color-background-muted); }
+.switcher button { height: 32px; padding: 0 0.75rem; border-radius: var(--radius-control);
+  border: 1px solid var(--color-border-strong); background: var(--color-surface); color: var(--color-text); cursor: pointer; }
+.switcher button[aria-pressed="true"] { background: var(--color-primary); border-color: var(--color-primary);
+  color: var(--color-primary-foreground); }
+.switcher--local { border-bottom: none; padding: 0; margin: 0 0 0.9rem; background: transparent; }
+.switcher--local .switcher-label { align-self: center; font-size: 0.78rem; font-weight: 700; color: var(--color-text-muted);
+  text-transform: uppercase; letter-spacing: 0.06em; margin-right: 4px; }
+
+/* Icons */
+.icon { width: 16px; height: 16px; flex-shrink: 0; }
+.icon-sm { width: 14px; height: 14px; flex-shrink: 0; }
+
+/* Topbar */
+.topbar { background: var(--color-surface); border-bottom: 1px solid var(--color-border); }
+.topbar__inner { display: flex; flex-wrap: wrap; align-items: center; gap: 1.25rem; padding: 0 1.25rem; min-height: 56px; }
+.wordmark { font-weight: 800; font-size: 1.15rem; letter-spacing: -0.02em; flex-shrink: 0; }
+.topbar__nav { flex: 1 1 160px; min-width: 0; }
+.topbar__nav ul { display: flex; flex-wrap: wrap; gap: 1.25rem; list-style: none; margin: 0; padding: 0; height: 100%; }
+.topbar__nav li { display: flex; align-items: center; }
+.topbar__link { display: inline-flex; align-items: center; height: 100%; padding: 0 2px; text-decoration: none;
+  font-weight: 600; font-size: 0.92rem; color: var(--color-text-muted); border-bottom: 2px solid transparent; }
+.topbar__link:hover { color: var(--color-text); }
+.topbar__link[aria-current="page"] { color: var(--color-text); border-bottom-color: var(--color-primary); }
+.topbar__trailing { display: flex; align-items: center; gap: 0.6rem; flex-shrink: 0; }
+.icon-btn { width: 36px; height: 36px; border-radius: var(--radius-control); border: 1px solid var(--color-border);
+  background: var(--color-surface); color: var(--color-text); display: inline-flex; align-items: center;
+  justify-content: center; cursor: pointer; }
+.icon-btn:hover { background: var(--color-surface-hover); }
+.avatar-btn { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--color-border-strong);
+  background: var(--color-secondary); color: var(--color-secondary-foreground); font-weight: 700; font-size: 0.78rem;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.avatar-btn:hover { background: var(--color-secondary-hover); }
+
+/* Ambient status strip: shell chrome, present on every screen (matches the sibling POC's
+   save-status idiom). These two screens have no draft to autosave, so it states that
+   plainly rather than borrowing the autosave wording it would be dishonest to reuse. */
+.save-status { padding: 0.4rem 1.25rem; font-size: 0.78rem; color: var(--color-text-muted);
+  background: var(--color-background-muted); border-bottom: 1px solid var(--color-border); }
+
+/* Shell body: rail + main. `flex: 1 1 auto` (body is a flex column) makes this fill
+   the rest of the viewport rather than only the height its own content needs - see
+   admin-shell-poc.html's own comment on .shell-body for the full reasoning; the
+   grid's default `align-items: stretch` already keeps the rail matched to main's
+   height, this is what keeps that shared height from stopping short of the viewport
+   on a short screen (the filtered-empty list state, for one). */
+.shell-body { display: block; flex: 1 1 auto; min-height: 0; }
+@media (min-width: 1024px) {
+  .shell-body { display: grid; grid-template-columns: 240px 1fr; }
+}
+
+.rail-shell { border-bottom: 1px solid var(--color-border); background: var(--color-surface); }
+@media (min-width: 1024px) {
+  .rail-shell { border-bottom: none; border-right: 1px solid var(--color-border); }
+}
+.rail-summary { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; cursor: pointer;
+  list-style: none; padding: 0.9rem var(--admin-section-pad); font-weight: 700; font-size: 1rem; }
+.rail-summary::-webkit-details-marker { display: none; }
+.rail-summary__label { display: flex; align-items: baseline; gap: 6px; min-width: 0; flex: 1 1 auto; }
+.rail-summary__text { margin: 0; font: inherit; font-weight: inherit; font-size: inherit;
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rail-summary__chev { transition: transform 0.12s ease; color: var(--color-text-muted); }
+.rail-shell[open] .rail-summary__chev { transform: rotate(90deg); }
+@media (min-width: 1024px) {
+  .rail-summary__chev { display: none; }
+  .rail-summary { cursor: default; padding-bottom: 0.5rem; }
+}
+.rail-body { padding: 0 0.6rem 1rem; }
+
+.rail-tree { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.rail-tree > li + li { margin-top: 4px; }
+.rail-link { display: block; padding: 0.5rem 0.6rem; border-radius: var(--radius-control); text-decoration: none;
+  font-size: 0.9rem; font-weight: 600; color: var(--color-text); }
+.rail-link:hover { background: var(--color-surface-hover); }
+.rail-link[aria-current="page"] { background: var(--color-info-subtle); color: var(--color-info-fg); }
+
+.rail-group summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 6px;
+  padding: 0.5rem 0.6rem; border-radius: var(--radius-control); font-weight: 600; font-size: 0.9rem; }
+.rail-group summary::-webkit-details-marker { display: none; }
+.rail-group summary:hover { background: var(--color-surface-hover); }
+.rail-group__chev { transition: transform 0.12s ease; color: var(--color-text-muted); flex-shrink: 0; }
+.rail-group[open] > summary .rail-group__chev { transform: rotate(90deg); }
+
+.rail-steps { list-style: none; margin: 2px 0 2px 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+.rail-step-row { position: relative; display: flex; align-items: center; gap: 4px;
+  border-left: 3px solid transparent; border-radius: var(--radius-control); }
+.rail-step-row:hover { background: var(--color-surface-hover); }
+.rail-step-grip { width: 22px; height: 22px; flex-shrink: 0; border-radius: var(--radius-sm);
+  border: 1px solid transparent; background: transparent; color: var(--color-text-muted);
+  display: inline-flex; align-items: center; justify-content: center; cursor: grab; opacity: 0;
+  transition: opacity 0.12s ease, background 0.12s ease; }
+.rail-step-row:hover .rail-step-grip, .rail-step-row:focus-within .rail-step-grip { opacity: 1; }
+.rail-step-grip:hover { background: var(--color-ghost-hover); color: var(--color-text); }
+.rail-step-grip:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; opacity: 1; }
+.rail-step-grip:active { cursor: grabbing; }
+.rail-step-link { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 6px; padding: 0.42rem 0.3rem;
+  text-decoration: none; font-size: 0.87rem; color: var(--color-text); border-radius: var(--radius-sm); }
+.rail-step-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rail-step-menu-trigger { flex-shrink: 0; width: 26px; height: 26px; margin-right: 4px; border-radius: var(--radius-sm);
+  border: 1px solid transparent; background: transparent; color: var(--color-text-muted); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; }
+.rail-step-menu-trigger:hover { background: var(--color-ghost-hover); color: var(--color-text); }
+.menu { position: absolute; z-index: 5; min-width: 180px; background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-card); padding: 6px; box-shadow: 0 2px 4px hsl(var(--shadow-color) / 0.1), 0 30px 70px -30px hsl(var(--shadow-color) / 0.4); }
+.menu .mi { display: block; width: 100%; text-align: left; background: none; border: none; padding: 8px 10px;
+  border-radius: var(--radius-sm); color: var(--color-text); font: inherit; font-size: 0.85rem; cursor: pointer; }
+.menu .mi:hover { background: var(--color-surface-hover); }
+.menu .mi.is-danger { color: var(--color-danger-fg); }
+.rail-step-menu { top: 100%; left: 1.6rem; margin-top: 2px; }
+.rail-add-step { width: 100%; text-align: left; background: none; border: none; cursor: pointer;
+  padding: 0.42rem 0.3rem 0.42rem 1.4rem; margin-top: 1px; font: inherit; font-size: 0.87rem;
+  color: var(--color-text-muted); border-radius: var(--radius-control); }
+.rail-add-step:hover { background: var(--color-surface-hover); color: var(--color-text); }
+
+/* Main column: left-anchored, fluid up to a cap, never re-centred. `position: relative` is
+   what scopes every dialog backdrop below to this box instead of the viewport, which is the
+   mechanism that keeps an open dialog off the topbar and the rail by construction (they live
+   in earlier, separate boxes in the shell, not inside .main at all) rather than by trusting a
+   z-index and a pixel offset to line up at every breakpoint. */
+.main { max-width: 1600px; padding: var(--admin-section-pad); min-width: 0; position: relative; }
+
+.breadcrumb ol { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 4px; padding: 0;
+  font-size: 0.82rem; color: var(--color-text-muted); }
+.breadcrumb li:not(:last-child)::after { content: "/"; margin-left: 6px; color: var(--color-border-strong); }
+.breadcrumb a { text-decoration: none; background: none; border: none; padding: 0; font: inherit; cursor: pointer; color: inherit; }
+.breadcrumb a:hover { text-decoration: underline; }
+.breadcrumb li[aria-current="page"] { color: var(--color-text); font-weight: 600; }
+
+h1.page-heading { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.01em; margin: 0 0 1.1rem; }
+h1.page-heading code { font-family: var(--font-mono); font-size: 0.82em; font-weight: 600; }
+
+.main-layout--stacked { display: flex; flex-direction: column; gap: 1.1rem; }
+
+.field { margin: 0; }
+.field label { display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 5px; }
+.field select, .field input { width: 100%; height: var(--admin-control-h); padding: 0 var(--admin-control-pad-x);
+  border-radius: var(--radius-control); border: 1px solid var(--color-border-strong); background: var(--color-surface);
+  color: var(--color-text); }
+.field select:hover, .field input:hover { border-color: var(--color-primary); }
+.field select:disabled, .field input:disabled { color: var(--color-text-muted); background: var(--color-background-muted);
+  border-color: var(--color-border); cursor: not-allowed; }
+.field-hint { margin: 5px 0 0; font-size: 0.78rem; color: var(--color-text-muted); }
+.field-hint[data-invalid="true"] { color: var(--color-danger-fg); font-weight: 600; }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: var(--admin-control-h);
+  padding: 0 16px; border-radius: var(--radius-control); border: 1.5px solid transparent; font-weight: 600;
+  font-size: 0.88rem; cursor: pointer; }
+.btn-sm { height: 32px; padding: 0 12px; font-size: 0.82rem; }
+.btn-primary { background: var(--color-primary); color: var(--color-primary-foreground); }
+.btn-primary:hover { background: var(--color-primary-hover); }
+.btn-secondary { background: var(--color-secondary); color: var(--color-secondary-foreground); }
+.btn-secondary:hover { background: var(--color-secondary-hover); }
+.btn-ghost { background: var(--color-ghost); color: var(--color-text); border-color: var(--color-border-strong); }
+.btn-ghost:hover { background: var(--color-ghost-hover); }
+.btn-danger { background: var(--color-danger); color: var(--color-danger-foreground); }
+.btn-danger:hover { background: var(--color-danger-hover); }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.btn:disabled:hover { background: var(--color-secondary); }
+.btn-danger:disabled:hover { background: var(--color-danger); }
+
+/* A bordered card idiom shared by both screens (house convention). */
+.stacked-card { border: 1px solid var(--color-border); border-radius: var(--radius-card);
+  background: var(--color-surface); padding: var(--admin-section-pad); }
+.stacked-card > summary { cursor: pointer; list-style: none; display: flex; align-items: center;
+  justify-content: space-between; gap: 0.5rem; }
+.stacked-card > summary::-webkit-details-marker { display: none; }
+.stacked-card > summary .stacked-heading { margin: 0; flex-shrink: 0; white-space: nowrap; }
+.stacked-card__chev { transition: transform 0.12s ease; color: var(--color-text-muted); flex-shrink: 0; }
+.stacked-card[open] > summary .stacked-card__chev { transform: rotate(90deg); }
+.stacked-card[open] > summary { margin-bottom: 0.9rem; }
+.stacked-heading { margin: 0 0 0.9rem; font-size: 0.95rem; font-weight: 700; }
+.stacked-card__label { display: flex; align-items: baseline; gap: 8px; min-width: 0; flex: 1 1 auto; }
+.stacked-card__digest { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; font-size: 0.8rem; font-weight: 400; color: var(--color-text-muted); }
+.stacked-note { margin: 0; font-size: 0.85rem; color: var(--color-text-muted); }
+.stacked-card__body { display: flex; flex-direction: column; gap: 0.9rem; }
+
+/* Table idiom, reused from the sibling POC's questions grid (qgrid) so the responses table
+   reads as the same system rather than a second table language. */
+.qgrid-region { position: relative; }
+.qgrid-scroll { border: 1px solid var(--color-border); border-radius: var(--radius-card); overflow-x: auto;
+  background: var(--color-surface); }
+table.qgrid { width: 100%; min-width: 860px; border-collapse: collapse; font-size: 0.88rem; }
+.qgrid thead th { text-align: left; color: var(--color-text-muted); font-weight: 600; font-size: 0.72rem;
+  text-transform: uppercase; letter-spacing: 0.06em; padding: 0.6rem 0.6rem; border-bottom: 2px solid var(--color-border-strong);
+  background: var(--color-background-muted); white-space: nowrap; }
+.qgrid tbody tr { border-bottom: 1px solid var(--color-border); }
+.qgrid tbody tr:last-child { border-bottom: none; }
+.qgrid tbody tr:hover { background: var(--color-surface-hover); }
+.qcell { padding: 0.4rem 0.6rem; height: var(--admin-table-row-h); vertical-align: middle; }
+.qcell--readonly { color: var(--color-text); }
+.qcell--muted { color: var(--color-text-muted); }
+.qid { font-family: var(--font-mono); font-size: 0.85rem; }
+.qid-link { display: inline-flex; align-items: baseline; text-decoration: none; }
+.qid-link .qid { color: var(--color-primary); }
+.qid-link:hover .qid { text-decoration: underline; }
+.qcell--preview { color: var(--color-text-muted); max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Tags carry text, never colour alone (WCAG 1.4.1). */
+.tag { display: inline-flex; align-items: center; gap: 4px; font-size: 0.76rem; font-weight: 700;
+  padding: 3px 8px; border-radius: var(--radius-sm); white-space: nowrap; }
+.tag--clean { background: var(--color-background-muted); color: var(--color-text-muted); }
+.tag--flagged { background: var(--color-warning-subtle); color: var(--color-warning-fg); }
+
+/* Toolbar: filter controls plus the export trigger. */
+.toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.75rem; }
+.toolbar .field { width: 168px; }
+.toolbar-actions { display: flex; align-items: flex-end; gap: 0.5rem; margin-left: auto; flex-wrap: wrap; }
+
+.pagination { display: flex; flex-wrap: wrap; align-items: center; gap: 0.9rem; font-size: 0.85rem; }
+.text-link { color: var(--color-primary); text-decoration: none; font-weight: 600; background: none; border: none;
+  padding: 0; font: inherit; cursor: pointer; }
+.text-link:hover { text-decoration: underline; }
+
+/* Detail: two regions side by side at wide widths, one column at narrow. */
+.detail-columns { display: grid; grid-template-columns: 1fr; gap: 1.1rem; align-items: start; }
+@media (min-width: 900px) {
+  .detail-columns { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+
+.kv-list { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 0.5rem 1rem; font-size: 0.88rem; }
+.kv-list dt { font-weight: 600; color: var(--color-text-muted); }
+.kv-list dd { margin: 0; }
+.hash-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.hash-value { font-family: var(--font-mono); font-size: 0.82rem; background: var(--color-background-muted);
+  padding: 3px 8px; border-radius: var(--radius-sm); word-break: break-all; }
+
+.ledger-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; }
+.ledger-list li { padding: 0.55rem 0.7rem; border-radius: var(--radius-control); background: var(--color-background-muted); }
+.ledger-when { font-family: var(--font-mono); font-size: 0.8em; color: var(--color-text-muted); margin-right: 8px; }
+.ledger-list li[data-retracted="true"] .ledger-what { font-style: italic; }
+
+.flag-panel { display: flex; flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+.danger-zone { display: flex; flex-direction: column; align-items: flex-start; gap: 0.5rem; padding-top: 0.4rem;
+  border-top: 1px dashed var(--color-border); }
+
+/* Dialogs: the backdrop is absolutely positioned inside `.main` (see the comment on that
+   rule), never `position: fixed` on the viewport - that is the whole mechanism that keeps an
+   open dialog off the topbar and the rail, which live in earlier boxes outside `.main`
+   entirely, rather than a z-index race with the shell chrome. */
+.dialog-backdrop { position: absolute; inset: 0; background: var(--color-overlay); z-index: 30;
+  display: flex; align-items: flex-start; justify-content: center; padding: 2.5rem 1rem; overflow: auto; }
+.dialog { width: 100%; max-width: 560px; background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-card); padding: var(--admin-section-pad); box-shadow: 0 2px 4px hsl(var(--shadow-color) / 0.14),
+  0 30px 70px -30px hsl(var(--shadow-color) / 0.5); display: flex; flex-direction: column; gap: 1rem; }
+.dialog:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+.dialog h2 { margin: 0; font-size: 1.05rem; font-weight: 700; }
+.dialog p { margin: 0; font-size: 0.88rem; color: var(--color-text); }
+.dialog-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.2rem; }
+
+.tombstone-card { border: 1px dashed var(--color-border-strong); border-radius: var(--radius-card);
+  background: var(--color-background-muted); padding: var(--admin-section-pad); display: flex; flex-direction: column; gap: 0.9rem; }
+
+.intro { max-width: 68ch; font-size: 0.88rem; color: var(--color-text-muted); margin: 0.75rem 1.5rem; }
+</style>
+
+<div class="switcher" role="group" aria-label="Preview mode">
+  <button type="button" aria-pressed="true" onclick="setMode('', this)">Light</button>
+  <button type="button" aria-pressed="false" onclick="setMode('dark', this)">Dark</button>
+  <button type="button" aria-pressed="false" onclick="setMode('hc', this)">High contrast</button>
+</div>
+
+<p class="intro">Admin operations POC: the responses list and one response's detail for a form, matching the
+  same shell as the builder POC. Every session id, timestamp and answer below is invented for this design and
+  names no real respondent. Use the rail's Responses link, or a row in the table, to move between the two
+  screens; the small dashed-border switchers under each heading are viewer aids for reviewing alternate states
+  and are not part of the shipped screen.</p>
+
+<header class="topbar">
+  <div class="topbar__inner">
+    <span class="wordmark">QCMS</span>
+    <nav class="topbar__nav" aria-label="Primary">
+      <ul>
+        <li><a class="topbar__link" href="#">Questions</a></li>
+        <li><a class="topbar__link" href="#" aria-current="page">Forms</a></li>
+        <li><a class="topbar__link" href="#">Responses</a></li>
+        <li><a class="topbar__link" href="#">Webhooks</a></li>
+        <li><a class="topbar__link" href="#">Settings</a></li>
+      </ul>
+    </nav>
+    <div class="topbar__trailing">
+      <button type="button" class="icon-btn" aria-label="Appearance settings" title="Appearance">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"></circle>
+          <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path>
+        </svg>
+      </button>
+      <button type="button" class="avatar-btn" aria-label="Account menu, signed in as Code Owner">CO</button>
+    </div>
+  </div>
+</header>
+
+<div class="save-status" aria-live="polite">Live data. Filters, export and erasure take effect immediately: there is no draft here to save.</div>
+
+<div class="shell-body">
+  <details class="rail-shell" open id="rail-shell">
+    <summary class="rail-summary">
+      <span class="rail-summary__label">
+        <h2 class="rail-summary__text">Life insurance</h2>
+      </span>
+      <svg class="rail-summary__chev icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+    </summary>
+    <div class="rail-body">
+      <nav aria-label="Life insurance sections">
+        <ul class="rail-tree">
+          <li><a class="rail-link" href="#">Form</a></li>
+          <li>
+            <details class="rail-group">
+              <summary>
+                <svg class="rail-group__chev icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                Steps
+              </summary>
+              <ul class="rail-steps">
+                <li>
+                  <div class="rail-step-row">
+                    <button type="button" class="rail-step-grip" aria-label="Reorder step About you with Up or Down arrow keys, or by dragging">
+                      <svg class="icon-sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1.6" fill="currentColor"></circle><circle cx="15" cy="6" r="1.6" fill="currentColor"></circle><circle cx="9" cy="12" r="1.6" fill="currentColor"></circle><circle cx="15" cy="12" r="1.6" fill="currentColor"></circle><circle cx="9" cy="18" r="1.6" fill="currentColor"></circle><circle cx="15" cy="18" r="1.6" fill="currentColor"></circle></svg>
+                    </button>
+                    <a class="rail-step-link" href="#"><span class="rail-step-title">About you</span></a>
+                    <button type="button" class="rail-step-menu-trigger" aria-haspopup="menu" aria-expanded="false" aria-label="Step 1 About you actions">
+                      <svg class="icon-sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1.6" fill="currentColor"></circle><circle cx="12" cy="12" r="1.6" fill="currentColor"></circle><circle cx="12" cy="19" r="1.6" fill="currentColor"></circle></svg>
+                    </button>
+                  </div>
+                </li>
+                <li>
+                  <div class="rail-step-row">
+                    <button type="button" class="rail-step-grip" aria-label="Reorder step Health with Up or Down arrow keys, or by dragging">
+                      <svg class="icon-sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1.6" fill="currentColor"></circle><circle cx="15" cy="6" r="1.6" fill="currentColor"></circle><circle cx="9" cy="12" r="1.6" fill="currentColor"></circle><circle cx="15" cy="12" r="1.6" fill="currentColor"></circle><circle cx="9" cy="18" r="1.6" fill="currentColor"></circle><circle cx="15" cy="18" r="1.6" fill="currentColor"></circle></svg>
+                    </button>
+                    <a class="rail-step-link" href="#"><span class="rail-step-title">Health</span></a>
+                    <button type="button" class="rail-step-menu-trigger" aria-haspopup="menu" aria-expanded="false" aria-label="Step 2 Health actions">
+                      <svg class="icon-sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1.6" fill="currentColor"></circle><circle cx="12" cy="12" r="1.6" fill="currentColor"></circle><circle cx="12" cy="19" r="1.6" fill="currentColor"></circle></svg>
+                    </button>
+                  </div>
+                </li>
+                <li>
+                  <div class="rail-step-row">
+                    <button type="button" class="rail-step-grip" aria-label="Reorder step Cover with Up or Down arrow keys, or by dragging">
+                      <svg class="icon-sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1.6" fill="currentColor"></circle><circle cx="15" cy="6" r="1.6" fill="currentColor"></circle><circle cx="9" cy="12" r="1.6" fill="currentColor"></circle><circle cx="15" cy="12" r="1.6" fill="currentColor"></circle><circle cx="9" cy="18" r="1.6" fill="currentColor"></circle><circle cx="15" cy="18" r="1.6" fill="currentColor"></circle></svg>
+                    </button>
+                    <a class="rail-step-link" href="#"><span class="rail-step-title">Cover</span></a>
+                    <button type="button" class="rail-step-menu-trigger" aria-haspopup="menu" aria-expanded="false" aria-label="Step 3 Cover actions">
+                      <svg class="icon-sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1.6" fill="currentColor"></circle><circle cx="12" cy="12" r="1.6" fill="currentColor"></circle><circle cx="12" cy="19" r="1.6" fill="currentColor"></circle></svg>
+                    </button>
+                  </div>
+                </li>
+                <li>
+                  <button type="button" class="rail-add-step">+ Add step</button>
+                </li>
+              </ul>
+            </details>
+          </li>
+          <li><a class="rail-link" href="#">Preview</a></li>
+          <li><a class="rail-link" href="#">Versions</a></li>
+          <li><a class="rail-link" href="#">Links</a></li>
+          <li><a class="rail-link" href="#" id="rail-responses-link" aria-current="page" onclick="showScreen('list'); return false;">Responses</a></li>
+          <li><a class="rail-link" href="#">Webhooks</a></li>
+        </ul>
+      </nav>
+    </div>
+  </details>
+
+  <main id="main-content" class="main">
+
+    <!-- Screen 1: Responses list. A data table, so it earns the width; no collapsible
+         sections here (per the audit findings this POC is built against). -->
+    <div id="screen-list" class="main-layout main-layout--stacked">
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <ol>
+          <li><a href="#">Forms</a></li>
+          <li><a href="#">Life insurance</a></li>
+          <li aria-current="page">Responses</li>
+        </ol>
+      </nav>
+      <h1 class="page-heading">Responses to Life insurance</h1>
+
+      <!-- The public form link: the open, anonymous-access URL a respondent uses to start
+           THIS published form directly (the portal's slug-keyed route). Deliberately
+           separate from a minted secure link (the Links tab): a secure link is a one-time
+           or expiring invitation the API mints and cannot show again, where this is the
+           form's own standing address for as long as it stays published and open, and it
+           never expires or gets consumed. Placed here rather than only on the Form/Links
+           tabs because an operator looking at responses is the one most likely to need to
+           hand this out or confirm what respondents were sent. -->
+      <div class="field" style="max-width: 620px;">
+        <label for="public-form-link">Public form link</label>
+        <div class="hash-row">
+          <code class="hash-value" id="public-form-link" data-testid="qcms-public-form-link">https://forms.example.com/f/life-insurance</code>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="copyPublicLink(this)">Copy</button>
+        </div>
+        <p class="field-hint">Open while this form is published and not closed. Anyone with this link can start a response; it never expires and is not the same as a minted secure link on the Links tab.</p>
+      </div>
+
+      <div class="toolbar" role="group" aria-label="Filters">
+        <div class="field">
+          <label for="filter-version">Version</label>
+          <select id="filter-version">
+            <option value="">Any version</option>
+            <option value="3">v3</option>
+            <option value="2">v2</option>
+            <option value="1">v1</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="filter-from">Submitted from</label>
+          <input type="date" id="filter-from" />
+        </div>
+        <div class="field">
+          <label for="filter-to">Submitted to</label>
+          <input type="date" id="filter-to" />
+        </div>
+        <div class="field">
+          <label for="filter-flagged">Flagged</label>
+          <select id="filter-flagged">
+            <option value="">Any</option>
+            <option value="true">Flagged only</option>
+            <option value="false">Not flagged</option>
+          </select>
+        </div>
+        <p class="field-hint" style="flex-basis: 100%; margin: -0.4rem 0 0;">Whole days, in UTC.</p>
+        <div class="toolbar-actions">
+          <button type="button" class="btn btn-secondary btn-sm">Apply filters</button>
+          <button type="button" class="btn btn-ghost btn-sm">Clear filters</button>
+          <button type="button" class="btn btn-primary btn-sm" onclick="openDialog('dlg-export')">Export</button>
+        </div>
+      </div>
+
+      <div class="switcher switcher--local" role="group" aria-label="List state, viewer aid">
+        <span class="switcher-label">View</span>
+        <button type="button" aria-pressed="true" onclick="setListState('responses', this)">Responses</button>
+        <button type="button" aria-pressed="false" onclick="setListState('empty', this)">No responses</button>
+        <button type="button" aria-pressed="false" onclick="setListState('filtered-empty', this)">Filtered, no matches</button>
+      </div>
+
+      <div class="flex-col" style="display:flex; flex-direction:column; gap:0.9rem;">
+        <div id="list-responses">
+          <p style="margin:0 0 0.6rem; font-size:0.85rem; color: var(--color-text-muted);" data-testid="qcms-responses-total">128 responses</p>
+          <div class="qgrid-region">
+            <div class="qgrid-scroll">
+              <table class="qgrid">
+                <caption class="sr-only">Submitted responses</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Session</th>
+                    <th scope="col">Version</th>
+                    <th scope="col">Submitted</th>
+                    <th scope="col">Access</th>
+                    <th scope="col">Flag</th>
+                    <th scope="col">Answer preview</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <th scope="row" class="qcell">
+                      <a class="qid-link" href="#" aria-label="Open response ses_8f2a1c9d4e07b31a" onclick="showScreen('detail'); setDetailState('answers'); return false;">
+                        <code class="qid">ses_8f2a1c9d4e07b31a</code>
+                      </a>
+                    </th>
+                    <td class="qcell qcell--readonly">v3</td>
+                    <td class="qcell qcell--readonly">2026-08-14, 14:02</td>
+                    <td class="qcell qcell--muted">Anonymous</td>
+                    <td class="qcell"><span class="tag tag--clean">Not flagged</span></td>
+                    <td class="qcell qcell--preview" title="Smoker: Yes &middot; Cigarettes per day: 12">Smoker: Yes &middot; Cigarettes per day: 12</td>
+                  </tr>
+                  <tr>
+                    <th scope="row" class="qcell">
+                      <a class="qid-link" href="#" aria-label="Open response ses_3b7d9f01ffa4c2e5" onclick="showScreen('detail'); setDetailState('answers'); return false;">
+                        <code class="qid">ses_3b7d9f01ffa4c2e5</code>
+                      </a>
+                    </th>
+                    <td class="qcell qcell--readonly">v3</td>
+                    <td class="qcell qcell--readonly">2026-08-14, 11:47</td>
+                    <td class="qcell qcell--muted">Secure link</td>
+                    <td class="qcell"><span class="tag tag--flagged">Flagged</span></td>
+                    <td class="qcell qcell--preview" title="Smoker: No &middot; Cover amount requested: $180,000">Smoker: No &middot; Cover amount requested: $180,000</td>
+                  </tr>
+                  <tr>
+                    <th scope="row" class="qcell">
+                      <a class="qid-link" href="#" aria-label="Open response ses_c14e88a2b0d93f76" onclick="showScreen('detail'); setDetailState('answers'); return false;">
+                        <code class="qid">ses_c14e88a2b0d93f76</code>
+                      </a>
+                    </th>
+                    <td class="qcell qcell--readonly">v2</td>
+                    <td class="qcell qcell--readonly">2026-08-13, 09:15</td>
+                    <td class="qcell qcell--muted">Anonymous</td>
+                    <td class="qcell"><span class="tag tag--clean">Not flagged</span></td>
+                    <td class="qcell qcell--preview" title="Employment status: Part-time &middot; Cover amount requested: $95,000">Employment status: Part-time &middot; Cover amount requested: $95,000</td>
+                  </tr>
+                  <tr>
+                    <th scope="row" class="qcell">
+                      <a class="qid-link" href="#" aria-label="Open response ses_047fa9e2d1b8c603" onclick="showScreen('detail'); setDetailState('answers'); return false;">
+                        <code class="qid">ses_047fa9e2d1b8c603</code>
+                      </a>
+                    </th>
+                    <td class="qcell qcell--readonly">v3</td>
+                    <td class="qcell qcell--readonly">2026-08-12, 16:30</td>
+                    <td class="qcell qcell--muted">Anonymous</td>
+                    <td class="qcell"><span class="tag tag--clean">Not flagged</span></td>
+                    <td class="qcell qcell--preview" title="Smoker: Yes &middot; Cigarettes per day: 20">Smoker: Yes &middot; Cigarettes per day: 20</td>
+                  </tr>
+                  <tr>
+                    <th scope="row" class="qcell">
+                      <a class="qid-link" href="#" aria-label="Open response ses_9e2c7710aac54b82" onclick="showScreen('detail'); setDetailState('answers'); return false;">
+                        <code class="qid">ses_9e2c7710aac54b82</code>
+                      </a>
+                    </th>
+                    <td class="qcell qcell--readonly">v2</td>
+                    <td class="qcell qcell--readonly">2026-08-11, 08:05</td>
+                    <td class="qcell qcell--muted">Secure link</td>
+                    <td class="qcell"><span class="tag tag--clean">Not flagged</span></td>
+                    <td class="qcell qcell--preview" title="Employment status: Full-time &middot; Cover amount requested: $250,000">Employment status: Full-time &middot; Cover amount requested: $250,000</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <nav class="pagination" aria-label="Responses" style="margin-top:0.75rem;">
+            <a class="text-link" href="#">Previous page</a>
+            <span style="color: var(--color-text-muted);">Page 2 of 3</span>
+            <a class="text-link" href="#">Next page</a>
+          </nav>
+        </div>
+
+        <div id="list-empty" hidden>
+          <p style="margin:0 0 0.6rem; font-size:0.85rem; color: var(--color-text-muted);">0 responses</p>
+          <p style="font-size:0.9rem; color: var(--color-text-muted);" data-testid="qcms-responses-empty">Nothing has been submitted to this form yet.</p>
+        </div>
+
+        <div id="list-filtered-empty" hidden>
+          <p style="margin:0 0 0.6rem; font-size:0.85rem; color: var(--color-text-muted);">0 responses</p>
+          <p style="font-size:0.9rem; color: var(--color-text-muted);" data-testid="qcms-responses-filtered-empty">No response matches these filters.</p>
+        </div>
+      </div>
+
+      <!-- Export dialog: closed at rest, opened by the Export button above. -->
+      <div class="dialog-backdrop" id="dlg-export" hidden>
+        <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="export-title" tabindex="-1">
+          <h2 id="export-title">Export responses</h2>
+          <div class="field">
+            <label for="export-format">Format</label>
+            <select id="export-format" onchange="setExportFormat(this.value)">
+              <option value="csv" selected>CSV</option>
+              <option value="json">JSON</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="export-version">Version</label>
+            <select id="export-version">
+              <option value="">Choose a version</option>
+              <option value="3">v3</option>
+              <option value="2">v2</option>
+              <option value="1">v1</option>
+            </select>
+            <p class="field-hint" id="export-version-hint">CSV has one column per question of a single version, so a version is required.</p>
+          </div>
+          <div class="field">
+            <label for="export-from">Submitted from</label>
+            <input type="date" id="export-from" />
+            <p class="field-hint">Whole days, in UTC.</p>
+          </div>
+          <div class="field">
+            <label for="export-to">Submitted to</label>
+            <input type="date" id="export-to" />
+            <p class="field-hint">Whole days, in UTC.</p>
+          </div>
+          <p class="stacked-note" id="export-empty-note">A CSV export that matches nothing downloads as a file with only its header row.</p>
+          <div class="dialog-actions">
+            <button type="button" class="btn btn-primary btn-sm">Download</button>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="closeDialog('dlg-export')">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Screen 2: Response detail. A reading surface, so it does not take the list's width;
+         the ledger is the one collapsible section here. -->
+    <div id="screen-detail" class="main-layout main-layout--stacked" hidden>
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <ol>
+          <li><a href="#">Forms</a></li>
+          <li><a href="#">Life insurance</a></li>
+          <li><a href="#" onclick="showScreen('list'); return false;">Responses</a></li>
+          <li aria-current="page">ses_8f2a1c9d4e07b31a</li>
+        </ol>
+      </nav>
+      <!-- The heading names the RESPONSE, with the form carried only as breadcrumb context
+           above - the shipped page's h1 currently renders the form slug here instead
+           (forms.builder.heading = "{slug}", reused by every tab including this one), which
+           reads as "what form is this" rather than "what response is this". This POC is the
+           corrected version: do not regress it back to the slug. -->
+      <h1 class="page-heading">Response <code>ses_8f2a1c9d4e07b31a</code></h1>
+
+      <div class="switcher switcher--local" role="group" aria-label="Detail state, viewer aid">
+        <span class="switcher-label">View</span>
+        <button type="button" aria-pressed="false" onclick="setDetailState('answers', this)">Answers</button>
+        <button type="button" aria-pressed="false" onclick="setDetailState('unflag', this)">Unflag dialog</button>
+        <button type="button" aria-pressed="true" onclick="setDetailState('erase', this)">Erase dialog</button>
+        <button type="button" aria-pressed="false" onclick="setDetailState('tombstone', this)">Erased (tombstone)</button>
+      </div>
+
+      <div id="detail-normal" class="main-layout main-layout--stacked">
+        <dl class="kv-list">
+          <dt>Submitted</dt>
+          <dd>2026-08-14, 14:02</dd>
+          <dt>Form version</dt>
+          <dd>v3</dd>
+          <dt>Access</dt>
+          <dd>Anonymous</dd>
+          <dt>Content hash</dt>
+          <dd>
+            <div class="hash-row">
+              <code class="hash-value" data-testid="qcms-content-hash">sha256:4f8a1c2e9b7d3a06f1c8e2b9a04d7f31e8c9b2a1d4f70e3c8b1a29d4f6e0c8b3</code>
+              <button type="button" class="btn btn-ghost btn-sm" onclick="copyHash(this)">Copy</button>
+            </div>
+            <span style="display:block; font-size:0.8rem; color: var(--color-text-muted); margin-top:4px;">The audit anchor: re-deriving it from the locked answers proves they have not changed.</span>
+          </dd>
+        </dl>
+
+        <div class="detail-columns">
+          <section aria-labelledby="answers-heading" class="stacked-card">
+            <h2 class="stacked-heading" id="answers-heading">Locked answers</h2>
+            <p class="stacked-note">The answers as submitted, captioned with the wording of the question version this form version pinned.</p>
+            <dl class="kv-list" data-testid="qcms-locked-answers">
+              <dt>Are you a smoker?</dt>
+              <dd>Yes</dd>
+              <dt>Cigarettes per day</dt>
+              <dd>12</dd>
+              <dt>Date you quit</dt>
+              <dd><span style="color: var(--color-text-muted);">Not answered</span></dd>
+              <dt>Employment status</dt>
+              <dd>Full-time</dd>
+              <dt>Cover amount requested</dt>
+              <dd>$250,000</dd>
+            </dl>
+          </section>
+
+          <details class="stacked-card" open>
+            <summary>
+              <span class="stacked-card__label">
+                <h2 class="stacked-heading">Answer ledger</h2>
+                <span class="stacked-card__digest">6 entries, submitted 14:02</span>
+              </span>
+              <svg class="stacked-card__chev icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </summary>
+            <div class="stacked-card__body">
+              <p class="stacked-note">Every revision, oldest first. Answers are append-only, so a change adds an entry and never rewrites one.</p>
+              <ol class="ledger-list" data-testid="qcms-ledger">
+                <li data-retracted="false">
+                  <span class="ledger-when">14:01</span>
+                  <span class="ledger-what">Are you a smoker? answered</span> Yes
+                </li>
+                <li data-retracted="false">
+                  <span class="ledger-when">14:01</span>
+                  <span class="ledger-what">Cigarettes per day answered</span> 15
+                </li>
+                <li data-retracted="true">
+                  <span class="ledger-when">14:01</span>
+                  <span class="ledger-what">Date you quit cleared</span>
+                </li>
+                <li data-retracted="false">
+                  <span class="ledger-when">14:02</span>
+                  <span class="ledger-what">Cigarettes per day answered</span> 12
+                </li>
+                <li data-retracted="false">
+                  <span class="ledger-when">14:02</span>
+                  <span class="ledger-what">Employment status answered</span> Full-time
+                </li>
+                <li data-retracted="false">
+                  <span class="ledger-when">14:02</span>
+                  <span class="ledger-what">Cover amount requested answered</span> 250000
+                </li>
+              </ol>
+            </div>
+          </details>
+        </div>
+
+        <div class="flag-panel">
+          <p style="margin:0; font-size:0.9rem;">Flagged: Submitted faster than the minimum time</p>
+          <p class="stacked-note">The response is stored, and its webhook event is withheld until it is released.</p>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="setDetailState('unflag')">Release the withheld event</button>
+        </div>
+
+        <div class="danger-zone">
+          <button type="button" class="btn btn-danger btn-sm" onclick="setDetailState('erase')">Erase respondent data&hellip;</button>
+        </div>
+      </div>
+
+      <div id="detail-tombstone" hidden>
+        <div class="tombstone-card" data-testid="qcms-tombstone">
+          <h2 class="stacked-heading" style="margin:0;">Erased</h2>
+          <p class="stacked-note">This session's answers were erased. What remains is the tombstone below (ADR-17).</p>
+          <dl class="kv-list">
+            <dt>Session</dt>
+            <dd><code class="hash-value">ses_8f2a1c9d4e07b31a</code></dd>
+            <dt>Form version</dt>
+            <dd>v3</dd>
+            <dt>Erased</dt>
+            <dd>2026-08-15, 09:20</dd>
+            <dt>Reason</dt>
+            <dd data-testid="qcms-tombstone-reason">Data subject request</dd>
+          </dl>
+        </div>
+      </div>
+
+      <!-- Unflag confirm dialog: closed at rest. -->
+      <div class="dialog-backdrop" id="dlg-unflag" hidden>
+        <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="unflag-title" tabindex="-1">
+          <h2 id="unflag-title">Release this response to webhook consumers?</h2>
+          <p>The withheld response.submitted event is queued for delivery. Once a consumer has it, it cannot be recalled.</p>
+          <div class="dialog-actions">
+            <button type="button" class="btn btn-primary btn-sm" onclick="setDetailState('answers')">Release it</button>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="setDetailState('answers')">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Erase (type-to-confirm) dialog: shown OPEN by default (this is the "erase" state)
+           so the design is reviewable without any interaction. The typed value below is
+           deliberately a MISMATCH, so the disabled confirm button and the announced error
+           are both visible at once - there is no single-click path to erasure, and this
+           dialog is where that has to be seen, not just be true. -->
+      <div class="dialog-backdrop" id="dlg-erase">
+        <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="erase-title" tabindex="-1">
+          <h2 id="erase-title">Erase this respondent's data?</h2>
+          <p>This deletes every answer and the submission for this session. There is no undo: no soft delete, and nothing this screen can restore from.</p>
+          <p>A tombstone remains - the session id, the form, the version, when it was erased and why. That is the compliance record, and it holds no answers.</p>
+          <p>An event already delivered stays delivered: that copy is the consumer's to erase, as an independent data controller. An event for this session that has not been delivered is cancelled and will never be sent. QCMS's own stored copy of the answers, in the queued event, is redacted.</p>
+          <div class="field">
+            <label for="erase-reason">Reason</label>
+            <select id="erase-reason">
+              <option value="subject_request" selected>Data subject request</option>
+              <option value="retention_policy">Retention policy</option>
+              <option value="operator_error">Entered in error</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="erase-confirm-input">Type the session id to confirm</label>
+            <input type="text" id="erase-confirm-input" value="ses_8f2a1c" aria-invalid="true" aria-describedby="erase-confirm-hint erase-confirm-error" oninput="checkErasureMatch(this)" />
+            <p class="field-hint" id="erase-confirm-hint">Type ses_8f2a1c9d4e07b31a exactly.</p>
+            <p class="field-hint" id="erase-confirm-error" role="alert" data-invalid="true">That does not match the session id, so erasure is still blocked.</p>
+          </div>
+          <div class="dialog-actions">
+            <button type="button" class="btn btn-danger btn-sm" id="erase-confirm-btn" disabled>Erase permanently</button>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="setDetailState('answers')">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+function setMode(mode, btn) {
+  document.documentElement.className = mode;
+  document.querySelectorAll(".switcher button[onclick*='setMode']").forEach(function (b) {
+    b.setAttribute("aria-pressed", b === btn ? "true" : "false");
+  });
+}
+
+function showScreen(screen) {
+  var isList = screen === "list";
+  document.getElementById("screen-list").hidden = !isList;
+  document.getElementById("screen-detail").hidden = isList;
+  if (isList) {
+    closeDialog("dlg-export");
+  }
+}
+
+function setListState(state, btn) {
+  document.getElementById("list-responses").hidden = state !== "responses";
+  document.getElementById("list-empty").hidden = state !== "empty";
+  document.getElementById("list-filtered-empty").hidden = state !== "filtered-empty";
+  setPressed(".switcher[aria-label='List state, viewer aid'] button", btn);
+}
+
+function setDetailState(state, btn) {
+  document.getElementById("detail-normal").hidden = state === "tombstone";
+  document.getElementById("detail-tombstone").hidden = state !== "tombstone";
+  document.getElementById("dlg-unflag").hidden = state !== "unflag";
+  document.getElementById("dlg-erase").hidden = state !== "erase";
+  setPressed(".switcher[aria-label='Detail state, viewer aid'] button", btn, state);
+  if (state === "unflag" || state === "erase") {
+    var panel = document.querySelector("#dlg-" + state + " .dialog");
+    if (panel) panel.focus();
+  }
+}
+
+/**
+ * Keep the viewer-aid switcher's pressed state in sync even when a state change is
+ * triggered from inside a screen (Release the withheld event, Erase respondent data...,
+ * Cancel) rather than from the switcher itself, where there is no `btn` to mark.
+ */
+function setPressed(selector, btn, state) {
+  var buttons = document.querySelectorAll(selector);
+  buttons.forEach(function (b) {
+    if (btn) {
+      b.setAttribute("aria-pressed", b === btn ? "true" : "false");
+    } else if (state) {
+      var label = b.textContent.trim().toLowerCase();
+      var matches =
+        (state === "answers" && label === "answers") ||
+        (state === "unflag" && label === "unflag dialog") ||
+        (state === "erase" && label === "erase dialog") ||
+        (state === "tombstone" && label === "erased (tombstone)");
+      b.setAttribute("aria-pressed", matches ? "true" : "false");
+    }
+  });
+}
+
+function openDialog(id) {
+  var d = document.getElementById(id);
+  d.hidden = false;
+  var panel = d.querySelector(".dialog");
+  if (panel) panel.focus();
+}
+
+function closeDialog(id) {
+  var d = document.getElementById(id);
+  d.hidden = true;
+}
+
+document.addEventListener("keydown", function (e) {
+  if (e.key !== "Escape") return;
+  document.querySelectorAll(".dialog-backdrop").forEach(function (d) {
+    if (d.hidden) return;
+    if (d.id === "dlg-export") closeDialog("dlg-export");
+    else setDetailState("answers");
+  });
+});
+
+function setExportFormat(format) {
+  var versionSelect = document.getElementById("export-version");
+  var hint = document.getElementById("export-version-hint");
+  var note = document.getElementById("export-empty-note");
+  var needsVersion = format === "csv";
+  versionSelect.disabled = !needsVersion;
+  hint.textContent = needsVersion
+    ? "CSV has one column per question of a single version, so a version is required."
+    : "JSON records carry their own version, so no version is needed.";
+  note.textContent = needsVersion
+    ? "A CSV export that matches nothing downloads as a file with only its header row."
+    : "A JSON export that matches nothing downloads as an empty list.";
+}
+
+function checkErasureMatch(input) {
+  var target = "ses_8f2a1c9d4e07b31a";
+  var matches = input.value === target;
+  input.setAttribute("aria-invalid", matches ? "false" : "true");
+  var error = document.getElementById("erase-confirm-error");
+  error.hidden = matches;
+  document.getElementById("erase-confirm-btn").disabled = !matches;
+}
+
+function copyHash(btn) {
+  var text = "sha256:4f8a1c2e9b7d3a06f1c8e2b9a04d7f31e8c9b2a1d4f70e3c8b1a29d4f6e0c8b3";
+  var original = btn.textContent;
+  var done = function () {
+    btn.textContent = "Copied";
+    setTimeout(function () {
+      btn.textContent = original;
+    }, 1500);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done, done);
+  } else {
+    done();
+  }
+}
+</script>

@@ -1,0 +1,562 @@
+<!-- @dsCard group="Screens" name="Authentication" subtitle="The five unauthenticated screens: sign in (with its error state), 2FA challenge, 2FA enrollment, recovery-code entry, and the one-time recovery-code reveal" -->
+<title>QCMS DS - Authentication POC</title>
+
+<!--
+  DESIGN QUESTION AND ANSWER (per the task brief):
+
+  Chosen: a single centred card on a plain field, with no chrome. Not the house
+  card idiom used elsewhere in the admin app (topbar, rail, multi-section
+  stacked-card groups with their own subheadings and status lines).
+
+  Why: these five screens already sit outside apps/admin/app/(shell)/layout.tsx,
+  the one place the app enforces "you are signed in." A topbar with live nav
+  links, an account menu, or a settings-style stack of named sections would all
+  imply there is somewhere else in the app to go right now, and for every
+  screen here except the recovery-code reveal, there is not - there is no
+  session yet, or the session is deliberately incomplete (a pending 2FA
+  challenge is not a signed-in session; SEC-1 is explicit that nothing
+  identifying the account renders at that point). A bare card on a plain field
+  is also the near-universal convention for this exact moment across the web,
+  so it costs nothing to learn and signals the state correctly before a single
+  word is read. This matches what apps/admin/components/auth-screen.tsx
+  already does (one Card, centred, no shell furniture); this POC keeps that
+  shape and only asks whether the token sheet and input idiom used elsewhere
+  read correctly inside it, which was the actual brief.
+-->
+
+<style>
+:root {
+  --color-primary: #2456c6;
+  --color-primary-hover: #1e4aad;
+  --color-primary-active: #193f95;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #4f5b70;
+  --color-secondary-hover: #475265;
+  --color-secondary-active: #3f495a;
+  --color-secondary-foreground: #ffffff;
+  --color-danger: #c0271f;
+  --color-danger-hover: #ad231c;
+  --color-danger-active: #9a1f19;
+  --color-danger-foreground: #ffffff;
+  --color-danger-subtle: #f9e7e5;
+  --color-danger-fg: #8f1d18;
+  --color-ghost: transparent;
+  --color-ghost-hover: #eef1f6;
+  --color-ghost-active: #e4e8ef;
+  --color-info: #2456c6;
+  --color-info-subtle: #e9effb;
+  --color-info-fg: #1b44a0;
+  --color-success: #1e7a46;
+  --color-success-subtle: #e4f1ea;
+  --color-success-fg: #16603a;
+  --color-warning: #8a5a00;
+  --color-warning-subtle: #f6eeda;
+  --color-warning-fg: #6e4700;
+  --color-text: #0f1729;
+  --color-text-muted: #55617a;
+  --color-border: #dde2ea;
+  --color-border-strong: #838ca4;
+  --color-background: #fbfcfd;
+  --color-background-muted: #eef1f6;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f4f6fa;
+  --color-focus-ring: #2456c6;
+  --color-overlay: rgb(0 0 0 / 0.5);
+  --shadow-color: 222deg 30% 20%;
+  --admin-control-h: 40px;
+  --admin-control-pad-x: 0.6rem;
+  --admin-stack: 0.35rem;
+  --admin-section-pad: 1.25rem;
+  --admin-table-row-h: 44px;
+  --radius-control: 4px;
+  --radius-card: 8px;
+  --radius-sm: 2px;
+  --font-admin: "Lexend", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace;
+}
+
+:root.dark {
+  --color-primary: #7aa2ff;
+  --color-primary-hover: #8fb1ff;
+  --color-primary-active: #a1beff;
+  --color-primary-foreground: #0b0f1a;
+  --color-secondary: #97a2b8;
+  --color-secondary-hover: #a3adc1;
+  --color-secondary-active: #aeb6c8;
+  --color-secondary-foreground: #0b0f1a;
+  --color-danger: #ff7b80;
+  --color-danger-hover: #ff8b8f;
+  --color-danger-active: #ff989c;
+  --color-danger-foreground: #0b0f1a;
+  --color-danger-subtle: #2b1615;
+  --color-danger-fg: #ffb3b5;
+  --color-ghost: transparent;
+  --color-ghost-hover: #1b2230;
+  --color-ghost-active: #232c3c;
+  --color-info: #7aa2ff;
+  --color-info-subtle: #16233a;
+  --color-info-fg: #a9c4ff;
+  --color-success: #46c08a;
+  --color-success-subtle: #132a20;
+  --color-success-fg: #8fe0bd;
+  --color-warning: #e0a93b;
+  --color-warning-subtle: #2a2110;
+  --color-warning-fg: #f0cd85;
+  --color-text: #e6eaf2;
+  --color-text-muted: #97a2b8;
+  --color-border: #262e3d;
+  --color-border-strong: #626c88;
+  --color-background: #0b0f1a;
+  --color-background-muted: #10151f;
+  --color-surface: #141a26;
+  --color-surface-hover: #1b2230;
+  --color-focus-ring: #7aa2ff;
+  --color-overlay: rgb(0 0 0 / 0.6);
+  --shadow-color: 222deg 60% 2%;
+}
+
+/* Auto: with no mode class on the root, the sheet follows the operating system, the same
+   convention as plan/admin-theme/tokens.css. Dark is the only inferred mode; .hc is only
+   ever an explicit choice. */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light):not(.dark):not(.hc) {
+    --color-primary: #7aa2ff;
+    --color-primary-hover: #8fb1ff;
+    --color-primary-active: #a1beff;
+    --color-primary-foreground: #0b0f1a;
+    --color-secondary: #97a2b8;
+    --color-secondary-hover: #a3adc1;
+    --color-secondary-active: #aeb6c8;
+    --color-secondary-foreground: #0b0f1a;
+    --color-danger: #ff7b80;
+    --color-danger-hover: #ff8b8f;
+    --color-danger-active: #ff989c;
+    --color-danger-foreground: #0b0f1a;
+    --color-danger-subtle: #2b1615;
+    --color-danger-fg: #ffb3b5;
+    --color-ghost: transparent;
+    --color-ghost-hover: #1b2230;
+    --color-ghost-active: #232c3c;
+    --color-info: #7aa2ff;
+    --color-info-subtle: #16233a;
+    --color-info-fg: #a9c4ff;
+    --color-success: #46c08a;
+    --color-success-subtle: #132a20;
+    --color-success-fg: #8fe0bd;
+    --color-warning: #e0a93b;
+    --color-warning-subtle: #2a2110;
+    --color-warning-fg: #f0cd85;
+    --color-text: #e6eaf2;
+    --color-text-muted: #97a2b8;
+    --color-border: #262e3d;
+    --color-border-strong: #626c88;
+    --color-background: #0b0f1a;
+    --color-background-muted: #10151f;
+    --color-surface: #141a26;
+    --color-surface-hover: #1b2230;
+    --color-focus-ring: #7aa2ff;
+    --color-overlay: rgb(0 0 0 / 0.6);
+    --shadow-color: 222deg 60% 2%;
+  }
+}
+
+/* High-contrast: the universal HC mode-layer plus the QCMS app's cobalt accent, carried
+   verbatim from tokens.css. */
+:root.hc {
+  --color-secondary: #1c2433;
+  --color-secondary-hover: #19202e;
+  --color-secondary-active: #161d29;
+  --color-secondary-foreground: #ffffff;
+  --color-danger: #8a0f0a;
+  --color-danger-hover: #7c0e09;
+  --color-danger-active: #6e0c08;
+  --color-danger-foreground: #ffffff;
+  --color-danger-subtle: #ffecea;
+  --color-danger-fg: #6b0b07;
+  --color-ghost: transparent;
+  --color-ghost-hover: #eceef1;
+  --color-ghost-active: #dfe2e7;
+  --color-info: #0a3ea8;
+  --color-info-subtle: #e6efff;
+  --color-info-fg: #08337d;
+  --color-success: #0a5c30;
+  --color-success-subtle: #e2f4e9;
+  --color-success-fg: #064023;
+  --color-warning: #5a3b00;
+  --color-warning-subtle: #fbf0d6;
+  --color-warning-fg: #4a3000;
+  --color-text: #000000;
+  --color-text-muted: #22262e;
+  --color-border: #5a616e;
+  --color-border-strong: #000000;
+  --color-background: #ffffff;
+  --color-background-muted: #f2f3f5;
+  --color-surface: #ffffff;
+  --color-surface-hover: #eceef1;
+  --color-focus-ring: #0a3ea8;
+  --color-overlay: rgb(0 0 0 / 0.7);
+  --color-primary: #0a3ea8;
+  --color-primary-hover: #08348f;
+  --color-primary-active: #062a75;
+  --color-primary-foreground: #ffffff;
+}
+
+/* Base (house reset, matching admin-shell-poc.html / settings-newquestion-poc.html) */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--font-admin);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--color-text);
+  background: var(--color-background);
+  overflow-x: hidden;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+[hidden] { display: none !important; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+/* Demo mode switcher (house convention: not part of the shipped screens, a viewer aid) */
+.switcher { display: flex; gap: 0.5rem; padding: 0.75rem 1.5rem; border-bottom: 1px dashed var(--color-border-strong);
+  background: var(--color-background-muted); }
+.switcher button { height: 32px; padding: 0 0.75rem; border-radius: var(--radius-control);
+  border: 1px solid var(--color-border-strong); background: var(--color-surface); color: var(--color-text); cursor: pointer; }
+.switcher button[aria-pressed="true"] { background: var(--color-primary); border-color: var(--color-primary);
+  color: var(--color-primary-foreground); }
+
+/* Screen switch: a second, differently-shaped control so it never reads as the same widget
+   as the mode switcher above it. None of these five screens has anywhere to navigate from
+   (there is no shell yet), so this is the only way to move between them in this file. */
+.screen-switch { display: flex; align-items: center; gap: 0.6rem; padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid var(--color-border); background: var(--color-surface); flex-wrap: wrap; }
+.screen-switch__label { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--color-text-muted); }
+.screen-switch__group { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control); overflow: hidden; }
+.screen-switch__group button { height: 34px; padding: 0 0.85rem; border: none; border-right: 1px solid var(--color-border-strong);
+  background: var(--color-surface); color: var(--color-text); cursor: pointer; font-weight: 600; font-size: 0.83rem; }
+.screen-switch__group button:last-child { border-right: none; }
+.screen-switch__group button[aria-pressed="true"] { background: var(--color-primary); color: var(--color-primary-foreground); }
+.screen-switch__group button:hover:not([aria-pressed="true"]) { background: var(--color-surface-hover); }
+
+.intro { max-width: 68ch; font-size: 0.88rem; color: var(--color-text-muted); margin: 0.9rem 1.5rem; }
+
+/* The plain field these cards sit on. No topbar, no rail, no account menu: see the design
+   decision comment at the top of the file. */
+.auth-shell { min-height: 70vh; display: flex; align-items: center; justify-content: center;
+  padding: 2.5rem 1rem 4rem; background: var(--color-background); }
+.auth-main { width: 100%; max-width: 26rem; display: flex; flex-direction: column; align-items: stretch; }
+
+.auth-card { border: 1px solid var(--color-border); border-radius: var(--radius-card);
+  background: var(--color-surface); padding: var(--admin-section-pad); display: flex; flex-direction: column;
+  gap: 1.1rem; box-shadow: 0 2px 4px hsl(var(--shadow-color) / 0.08), 0 24px 56px -28px hsl(var(--shadow-color) / 0.4); }
+.auth-heading { margin: 0; font-size: 1.25rem; font-weight: 700; letter-spacing: -0.01em; }
+.auth-intro { margin: 0; font-size: 0.88rem; color: var(--color-text-muted); }
+.auth-form { display: flex; flex-direction: column; gap: 1rem; }
+.auth-wordmark { margin: 1.25rem 0 0; text-align: center; font-size: 0.75rem; font-weight: 700;
+  letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-text-muted); }
+
+/* Page-level failure alert (Alert variant="error" in apps/admin/components/kit, wrapped by
+   apps/admin/components/auth-screen.tsx). The wrapper carries the focus target; role="alert"
+   on the message itself is what gets it announced without a second, competing alert role -
+   the same trap that component's own doc comment records. */
+.auth-alert-wrap:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 3px;
+  border-radius: var(--radius-card); }
+.auth-alert { display: flex; gap: 10px; align-items: flex-start; padding: 11px 13px; border-radius: var(--radius-card);
+  border: 1px solid color-mix(in srgb, currentColor 30%, transparent); background: var(--color-danger-subtle);
+  color: var(--color-danger-fg); font-size: 0.86rem; font-weight: 600; }
+.auth-alert svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 2px; }
+
+/* Field system (frozen at plan/admin-theme/ds-inputs.html): label, optional hint, control. */
+.field { max-width: none; margin: 0; }
+.field label { display: block; font-size: 0.9rem; font-weight: 600; margin-bottom: 6px; }
+.field .hint { font-size: 0.83rem; color: var(--color-text-muted); margin: 0 0 6px; }
+.field input { width: 100%; height: 40px; padding: 0 12px; border-radius: var(--radius-control);
+  border: 1px solid var(--color-border-strong); background: var(--color-surface); color: var(--color-text);
+  transition: border-color 0.12s ease; }
+.field input:hover { border-color: var(--color-text-muted); }
+.field input:disabled, .field input[readonly] { background: var(--color-background-muted); color: var(--color-text); }
+
+/* Buttons (ds-inputs.html) */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px;
+  padding: 0 18px; border-radius: var(--radius-control); border: 1.5px solid transparent; font-weight: 600;
+  font-size: 0.92rem; cursor: pointer; width: 100%; }
+.btn-primary { background: var(--color-primary); color: var(--color-primary-foreground); }
+.btn-primary:hover { background: var(--color-primary-hover); }
+.btn-primary:active { background: var(--color-primary-active); }
+.btn-secondary { background: var(--color-secondary); color: var(--color-secondary-foreground); width: auto; }
+.btn-secondary:hover { background: var(--color-secondary-hover); }
+.btn-secondary:active { background: var(--color-secondary-active); }
+.btn-sm { height: 32px; padding: 0 12px; font-size: 0.83rem; }
+
+.auth-link { display: inline-block; font-size: 0.85rem; font-weight: 600; color: var(--color-primary);
+  text-decoration: underline; text-underline-offset: 2px; }
+.auth-link:hover { color: var(--color-primary-hover); }
+
+/* Enrollment: the QR image is a labelled placeholder box, not a generated code (see the
+   HTML comment on the element below). It is aria-hidden, matching the shipped screen, because
+   the manual setup key field beside it is the accessible content for the same information -
+   apps/admin/app/two-factor/enroll/page.tsx makes that call explicitly and this POC keeps it. */
+.qr-placeholder { width: 200px; height: 200px; margin: 0 auto; border: 2px dashed var(--color-border-strong);
+  border-radius: var(--radius-control); background: var(--color-background-muted); color: var(--color-text-muted);
+  display: flex; align-items: center; justify-content: center; text-align: center; font-size: 0.82rem;
+  font-weight: 600; padding: 1rem; }
+
+/* Recovery-code reveal: a prominent panel, never a <details>. A section whose content
+   cannot be regenerated (the codes are shown exactly once - recovery.intro says so) must
+   never be collapsible: a summary line can preserve the fact that codes exist but cannot
+   also withhold the value, and collapsing invites "I'll open this later," which is exactly
+   the moment the codes stop being retrievable. Reused verbatim from the idiom frozen in
+   settings-newquestion-poc.html's .recovery-panel. */
+.recovery-panel { border: 2px solid var(--color-warning); border-radius: var(--radius-card);
+  background: var(--color-surface); padding: var(--admin-section-pad); display: flex; flex-direction: column; gap: 0.9rem; }
+.recovery-panel__alert { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: var(--radius-control);
+  background: var(--color-warning-subtle); color: var(--color-warning-fg); }
+.recovery-panel__alert svg { width: 18px; height: 18px; flex-shrink: 0; margin-top: 2px; }
+.recovery-panel__title { margin: 0 0 4px; font-size: 1.1rem; font-weight: 700; }
+.recovery-panel__intro { margin: 0; font-size: 0.88rem; }
+.recovery-codes-list { list-style: none; margin: 0; padding: 0.9rem; display: grid; grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-control);
+  background: var(--color-background-muted); font-family: var(--font-mono); font-size: 0.92rem; color: var(--color-text);
+  font-variant-numeric: tabular-nums; }
+.recovery-panel__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
+.recovery-panel__status { margin: 0; font-size: 0.83rem; color: var(--color-text-muted); }
+.recovery-panel__confirm { padding-top: 0.4rem; border-top: 1px dashed var(--color-border); }
+
+@media (max-width: 420px) {
+  .recovery-codes-list { grid-template-columns: 1fr; }
+}
+</style>
+
+<div class="switcher" role="group" aria-label="Preview mode">
+  <button type="button" aria-pressed="true" onclick="setMode('', this)">Light</button>
+  <button type="button" aria-pressed="false" onclick="setMode('dark', this)">Dark</button>
+  <button type="button" aria-pressed="false" onclick="setMode('hc', this)">High contrast</button>
+</div>
+
+<div class="screen-switch">
+  <span class="screen-switch__label" id="screen-switch-label">Screen</span>
+  <div class="screen-switch__group" role="group" aria-labelledby="screen-switch-label">
+    <button type="button" id="tab-signin" aria-pressed="true" onclick="showScreen('screen-signin', this)">Sign in</button>
+    <button type="button" id="tab-signin-error" aria-pressed="false" onclick="showScreen('screen-signin-error', this)">Sign in (error)</button>
+    <button type="button" id="tab-challenge" aria-pressed="false" onclick="showScreen('screen-challenge', this)">2FA challenge</button>
+    <button type="button" id="tab-enroll" aria-pressed="false" onclick="showScreen('screen-enroll', this)">2FA enrollment</button>
+    <button type="button" id="tab-recovery" aria-pressed="false" onclick="showScreen('screen-recovery', this)">Recovery code</button>
+    <button type="button" id="tab-recovery-codes" aria-pressed="false" onclick="showScreen('screen-recovery-codes', this)">Recovery codes</button>
+  </div>
+</div>
+
+<p class="intro">The five unauthenticated QCMS admin screens
+  (apps/admin/components/auth-screen.tsx), each its own route in the shipped app and shown
+  here as one card at a time. Every form below is a real native POST: nothing here depends
+  on client JavaScript to submit, validate, or move between fields. Switch screens with the
+  control above.</p>
+
+<div class="auth-shell">
+  <main id="main-content" class="auth-main">
+
+    <!-- ==================== Screen 1: Sign in ==================== -->
+    <div class="auth-card" id="screen-signin">
+      <h1 class="auth-heading">Sign in to QCMS</h1>
+      <form method="post" action="#" class="auth-form">
+        <div class="field">
+          <label for="signin-email">Email</label>
+          <input type="email" id="signin-email" name="email" autocomplete="username" required />
+        </div>
+        <div class="field">
+          <label for="signin-password">Password</label>
+          <input type="password" id="signin-password" name="password" autocomplete="current-password" required />
+        </div>
+        <button type="submit" class="btn btn-primary">Sign in</button>
+      </form>
+    </div>
+
+    <!-- ==================== Screen 1b: Sign in, error state ====================
+         The one message every failure on this screen can show (SEC-1: an unknown email and
+         a wrong password are indistinguishable, so there is exactly one sentence, never a
+         more specific one). The wrapper takes focus, matching AuthScreen's autoFocus - here
+         it is done from showScreen() when this variant is selected, since a real page load
+         is what autofocus would key off in the shipped app. -->
+    <div class="auth-card" id="screen-signin-error" hidden>
+      <h1 class="auth-heading">Sign in to QCMS</h1>
+      <div class="auth-alert-wrap" tabindex="-1" id="signin-error-focus">
+        <div class="auth-alert" role="alert" id="signin-error">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <div>Those details did not match. Please try again.</div>
+        </div>
+      </div>
+      <form method="post" action="#" class="auth-form" aria-describedby="signin-error">
+        <div class="field">
+          <label for="signin-error-email">Email</label>
+          <input type="email" id="signin-error-email" name="email" autocomplete="username" aria-describedby="signin-error" required />
+        </div>
+        <div class="field">
+          <label for="signin-error-password">Password</label>
+          <input type="password" id="signin-error-password" name="password" autocomplete="current-password" aria-describedby="signin-error" required />
+        </div>
+        <button type="submit" class="btn btn-primary">Sign in</button>
+      </form>
+    </div>
+
+    <!-- ==================== Screen 2: 2FA challenge ====================
+         Reached only with a pending challenge (a correct password, not yet a session). No
+         email, no account hint, nothing identifying: see the doc comment in
+         apps/admin/app/two-factor/challenge/page.tsx (SEC-1). -->
+    <div class="auth-card" id="screen-challenge" hidden>
+      <h1 class="auth-heading">Two-factor authentication</h1>
+      <p class="auth-intro">Enter the six-digit code from your authenticator app.</p>
+      <form method="post" action="#" class="auth-form">
+        <div class="field">
+          <label for="challenge-code">Six-digit code</label>
+          <input type="text" id="challenge-code" name="code" inputmode="numeric" autocomplete="one-time-code" required />
+        </div>
+        <button type="submit" class="btn btn-primary">Verify</button>
+      </form>
+      <a class="auth-link" href="#">Use a recovery code instead</a>
+    </div>
+
+    <!-- ==================== Screen 3: 2FA enrollment ====================
+         The QR box below is a PLACEHOLDER, not a generated code: the shipped screen renders
+         a real inline SVG QR server-side from the account's TOTP secret (see the doc comment
+         in apps/admin/app/two-factor/enroll/page.tsx for why server-side, inline SVG). The
+         setup key shown here is an obviously synthetic placeholder ("DEMO" repeated), never
+         a value resembling a real secret. -->
+    <div class="auth-card" id="screen-enroll" hidden>
+      <h1 class="auth-heading">Set up two-factor authentication</h1>
+      <p class="auth-intro">Scan this code with your authenticator app, then enter the six-digit code it shows.</p>
+      <div class="qr-placeholder" aria-hidden="true">QR code placeholder<br />(not a generated code)</div>
+      <div class="field">
+        <label for="enroll-secret">Setup key (use this if you cannot scan the code)</label>
+        <input type="text" id="enroll-secret" value="DEMO DEMO DEMO DEMO DEMO DEMO DEMO DEMO" readonly autocomplete="off" />
+      </div>
+      <form method="post" action="#" class="auth-form">
+        <div class="field">
+          <label for="enroll-code">Six-digit code from your app</label>
+          <input type="text" id="enroll-code" name="code" inputmode="numeric" autocomplete="one-time-code" required />
+        </div>
+        <button type="submit" class="btn btn-primary">Verify</button>
+      </form>
+    </div>
+
+    <!-- ==================== Screen 4: Recovery-code entry ====================
+         A separate route in the shipped app rather than a toggle on the challenge screen,
+         so it works with no JavaScript, is linkable, and is a page a test can land on
+         directly (see apps/admin/app/two-factor/recovery/page.tsx). No inputmode="numeric"
+         here: a recovery code is not purely numeric, unlike a TOTP code. -->
+    <div class="auth-card" id="screen-recovery" hidden>
+      <h1 class="auth-heading">Use a recovery code</h1>
+      <p class="auth-intro">Enter one of the recovery codes you saved during setup.</p>
+      <form method="post" action="#" class="auth-form">
+        <div class="field">
+          <label for="recovery-code">Recovery code</label>
+          <input type="text" id="recovery-code" name="code" autocomplete="one-time-code" required />
+        </div>
+        <button type="submit" class="btn btn-primary">Verify</button>
+      </form>
+      <a class="auth-link" href="#">Use your authenticator app instead</a>
+    </div>
+
+    <!-- ==================== Screen 5: Recovery codes (one-time reveal) ====================
+         The most important screen in the file: see the CSS comment on .recovery-panel.
+         Announced assertively (role="alert" on the lead sentence), never a <details>, with
+         a copy affordance and the real confirm control
+         (apps/admin/app/two-factor/recovery-codes/page.tsx). Ten codes below are obviously
+         synthetic placeholders, not a real generated set - the same "sample-NNNN" pattern
+         already frozen in settings-newquestion-poc.html's Recovery codes section. -->
+    <div class="auth-card" id="screen-recovery-codes" hidden>
+      <h1 class="auth-heading">Save your recovery codes</h1>
+      <p class="auth-intro">Each code signs you in once if you lose your authenticator. This is the only time they are shown.</p>
+
+      <!-- The alert below repeats recovery.intro verbatim, bolded, inside the panel itself:
+           the plain sentence already shown as the screen's intro (above) is what the
+           shipped AuthScreen renders once; this is the panel's own "unmissable statement"
+           the task brief asks for, kept to the real string rather than new copy. -->
+      <div class="recovery-panel">
+        <div class="recovery-panel__alert" role="alert" aria-live="assertive">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10.3 3.86L1.82 18a1 1 0 0 0 .86 1.5h18.64a1 1 0 0 0 .86-1.5L13.7 3.86a1 1 0 0 0-1.72 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+          <p class="recovery-panel__intro"><strong>Each code signs you in once if you lose your authenticator. This is the only time they are shown.</strong></p>
+        </div>
+
+        <ul aria-label="Recovery codes" class="recovery-codes-list">
+          <li>sample-0001</li>
+          <li>sample-0002</li>
+          <li>sample-0003</li>
+          <li>sample-0004</li>
+          <li>sample-0005</li>
+          <li>sample-0006</li>
+          <li>sample-0007</li>
+          <li>sample-0008</li>
+          <li>sample-0009</li>
+          <li>sample-0010</li>
+        </ul>
+
+        <!-- The shipped screen deliberately ships with no copy-all button (a clipboard
+             write needs client JavaScript and a status region the admin has no other use
+             for yet - recorded as a discovery, not improvised; see the doc comment on
+             RecoveryCodesPage). Shown here anyway as a forward-looking addition per the
+             task brief, not a claim that it already ships. -->
+        <div class="recovery-panel__actions">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="copyCodes(this)">Copy codes</button>
+          <p id="copy-status" class="recovery-panel__status" aria-live="polite"></p>
+        </div>
+
+        <form method="post" action="#" class="recovery-panel__confirm">
+          <button type="submit" class="btn btn-primary">I have saved these codes</button>
+        </form>
+      </div>
+    </div>
+
+    <p class="auth-wordmark">QCMS</p>
+  </main>
+</div>
+
+<script>
+function setMode(mode, btn) {
+  document.documentElement.className = mode;
+  document.querySelectorAll(".switcher button").forEach(function (b) {
+    b.setAttribute("aria-pressed", b === btn ? "true" : "false");
+  });
+}
+
+var SCREENS = [
+  "screen-signin",
+  "screen-signin-error",
+  "screen-challenge",
+  "screen-enroll",
+  "screen-recovery",
+  "screen-recovery-codes"
+];
+
+function showScreen(id, btn) {
+  SCREENS.forEach(function (s) {
+    document.getElementById(s).hidden = s !== id;
+  });
+  document.querySelectorAll(".screen-switch__group button").forEach(function (b) {
+    b.setAttribute("aria-pressed", b === btn ? "true" : "false");
+  });
+  // Mirrors AuthScreen's autoFocus on the error alert: a real page load applies
+  // autofocus itself, this demo file has to move focus by hand when the variant
+  // is selected instead of loaded fresh.
+  if (id === "screen-signin-error") {
+    var target = document.getElementById("signin-error-focus");
+    if (target) target.focus();
+  }
+}
+
+function copyCodes(btn) {
+  var codes = Array.prototype.map.call(document.querySelectorAll(".recovery-codes-list li"), function (li) {
+    return li.textContent;
+  }).join("\n");
+  var status = document.getElementById("copy-status");
+  function ok() { status.textContent = "Codes copied."; }
+  function fail() { status.textContent = "Could not copy automatically. Select the codes above and copy manually."; }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(codes).then(ok, fail);
+  } else {
+    fail();
+  }
+}
+</script>

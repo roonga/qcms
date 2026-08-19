@@ -1,0 +1,803 @@
+<!-- @dsCard group="Overlays" name="Add question dialog" subtitle="Master-detail library picker: strict single-add vs multi-select" -->
+<title>QCMS DS - Add question dialog</title>
+<style>
+:root {
+  --color-primary: #2456c6;
+  --color-primary-hover: #1e4aad;
+  --color-primary-active: #193f95;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #4f5b70;
+  --color-secondary-hover: #475265;
+  --color-secondary-active: #3f495a;
+  --color-secondary-foreground: #ffffff;
+  --color-danger: #c0271f;
+  --color-danger-hover: #ad231c;
+  --color-danger-active: #9a1f19;
+  --color-danger-foreground: #ffffff;
+  --color-danger-subtle: #f9e7e5;
+  --color-danger-fg: #8f1d18;
+  --color-ghost: transparent;
+  --color-ghost-hover: #eef1f6;
+  --color-ghost-active: #e4e8ef;
+  --color-info: #2456c6;
+  --color-info-subtle: #e9effb;
+  --color-info-fg: #1b44a0;
+  --color-success: #1e7a46;
+  --color-success-subtle: #e4f1ea;
+  --color-success-fg: #16603a;
+  --color-warning: #8a5a00;
+  --color-warning-subtle: #f6eeda;
+  --color-warning-fg: #6e4700;
+  --color-text: #0f1729;
+  --color-text-muted: #55617a;
+  --color-border: #dde2ea;
+  --color-border-strong: #838ca4;
+  --color-background: #fbfcfd;
+  --color-background-muted: #eef1f6;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f4f6fa;
+  --color-focus-ring: #2456c6;
+  --color-overlay: rgb(0 0 0 / 0.5);
+  --shadow-color: 222deg 30% 20%;
+  --admin-control-h: 40px;
+  --admin-control-pad-x: 0.6rem;
+  --admin-stack: 0.35rem;
+  --admin-section-pad: 1.25rem;
+  --admin-table-row-h: 44px;
+  --radius-control: 4px;
+  --radius-card: 8px;
+  --radius-sm: 2px;
+  --font-admin: "Lexend", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace;
+}
+
+:root.dark {
+  --color-primary: #7aa2ff;
+  --color-primary-hover: #8fb1ff;
+  --color-primary-active: #a1beff;
+  --color-primary-foreground: #0b0f1a;
+  --color-secondary: #97a2b8;
+  --color-secondary-hover: #a3adc1;
+  --color-secondary-active: #aeb6c8;
+  --color-secondary-foreground: #0b0f1a;
+  --color-danger: #ff7b80;
+  --color-danger-hover: #ff8b8f;
+  --color-danger-active: #ff989c;
+  --color-danger-foreground: #0b0f1a;
+  --color-danger-subtle: #2b1615;
+  --color-danger-fg: #ffb3b5;
+  --color-ghost: transparent;
+  --color-ghost-hover: #1b2230;
+  --color-ghost-active: #232c3c;
+  --color-info: #7aa2ff;
+  --color-info-subtle: #16233a;
+  --color-info-fg: #a9c4ff;
+  --color-success: #46c08a;
+  --color-success-subtle: #132a20;
+  --color-success-fg: #8fe0bd;
+  --color-warning: #e0a93b;
+  --color-warning-subtle: #2a2110;
+  --color-warning-fg: #f0cd85;
+  --color-text: #e6eaf2;
+  --color-text-muted: #97a2b8;
+  --color-border: #262e3d;
+  --color-border-strong: #626c88;
+  --color-background: #0b0f1a;
+  --color-background-muted: #10151f;
+  --color-surface: #141a26;
+  --color-surface-hover: #1b2230;
+  --color-focus-ring: #7aa2ff;
+  --color-overlay: rgb(0 0 0 / 0.6);
+  --shadow-color: 222deg 60% 2%;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light):not(.dark):not(.hc) {
+    --color-primary: #7aa2ff;
+    --color-primary-hover: #8fb1ff;
+    --color-primary-active: #a1beff;
+    --color-primary-foreground: #0b0f1a;
+    --color-secondary: #97a2b8;
+    --color-secondary-hover: #a3adc1;
+    --color-secondary-active: #aeb6c8;
+    --color-secondary-foreground: #0b0f1a;
+    --color-danger: #ff7b80;
+    --color-danger-hover: #ff8b8f;
+    --color-danger-active: #ff989c;
+    --color-danger-foreground: #0b0f1a;
+    --color-danger-subtle: #2b1615;
+    --color-danger-fg: #ffb3b5;
+    --color-ghost: transparent;
+    --color-ghost-hover: #1b2230;
+    --color-ghost-active: #232c3c;
+    --color-info: #7aa2ff;
+    --color-info-subtle: #16233a;
+    --color-info-fg: #a9c4ff;
+    --color-success: #46c08a;
+    --color-success-subtle: #132a20;
+    --color-success-fg: #8fe0bd;
+    --color-warning: #e0a93b;
+    --color-warning-subtle: #2a2110;
+    --color-warning-fg: #f0cd85;
+    --color-text: #e6eaf2;
+    --color-text-muted: #97a2b8;
+    --color-border: #262e3d;
+    --color-border-strong: #626c88;
+    --color-background: #0b0f1a;
+    --color-background-muted: #10151f;
+    --color-surface: #141a26;
+    --color-surface-hover: #1b2230;
+    --color-focus-ring: #7aa2ff;
+    --color-overlay: rgb(0 0 0 / 0.6);
+    --shadow-color: 222deg 60% 2%;
+  }
+}
+
+:root.hc {
+  --color-secondary: #1c2433;
+  --color-secondary-hover: #19202e;
+  --color-secondary-active: #161d29;
+  --color-secondary-foreground: #ffffff;
+  --color-danger: #8a0f0a;
+  --color-danger-hover: #7c0e09;
+  --color-danger-active: #6e0c08;
+  --color-danger-foreground: #ffffff;
+  --color-danger-subtle: #ffecea;
+  --color-danger-fg: #6b0b07;
+  --color-ghost: transparent;
+  --color-ghost-hover: #eceef1;
+  --color-ghost-active: #dfe2e7;
+  --color-info: #0a3ea8;
+  --color-info-subtle: #e6efff;
+  --color-info-fg: #08337d;
+  --color-success: #0a5c30;
+  --color-success-subtle: #e2f4e9;
+  --color-success-fg: #064023;
+  --color-warning: #5a3b00;
+  --color-warning-subtle: #fbf0d6;
+  --color-warning-fg: #4a3000;
+  --color-text: #000000;
+  --color-text-muted: #22262e;
+  --color-border: #5a616e;
+  --color-border-strong: #000000;
+  --color-background: #ffffff;
+  --color-background-muted: #f2f3f5;
+  --color-surface: #ffffff;
+  --color-surface-hover: #eceef1;
+  --color-focus-ring: #0a3ea8;
+  --color-overlay: rgb(0 0 0 / 0.7);
+  --color-primary: #0a3ea8;
+  --color-primary-hover: #08348f;
+  --color-primary-active: #062a75;
+  --color-primary-foreground: #ffffff;
+}
+
+/* Base */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--font-admin);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--color-text);
+  background: var(--color-background);
+  overflow-x: hidden;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+/* A later `display` declaration beats the UA's `[hidden] { display: none }` rule, since
+   both are same-specificity type-vs-attribute selectors and source order decides the tie.
+   `.dialog` sets `display: flex`, so without this override a `hidden` dialog still renders. */
+[hidden] { display: none !important; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+/* Demo mode switcher (house convention: not part of the shipped shell, a viewer aid). This
+   and the intro/toggle row below it are ordinary in-flow blocks, never covered by the dimmed
+   backdrop: the backdrop's containing block is .stage, which starts only after this chrome,
+   so there is nothing here to lift above it and no risk of the dialog overlapping it either. */
+.switcher { display: flex; gap: 0.5rem; padding: 0.75rem 1.5rem;
+  border-bottom: 1px dashed var(--color-border-strong); background: var(--color-background-muted); }
+.switcher button { height: 32px; padding: 0 0.75rem; border-radius: var(--radius-control);
+  border: 1px solid var(--color-border-strong); background: var(--color-surface); color: var(--color-text); cursor: pointer; }
+.switcher button[aria-pressed="true"] { background: var(--color-primary); border-color: var(--color-primary);
+  color: var(--color-primary-foreground); }
+
+.intro { max-width: 74ch; font-size: 0.88rem; color: var(--color-text-muted); margin: 0.9rem 1.5rem 0; }
+
+/* Variant toggle row, matching the sibling POC's Layout toggle exactly. */
+.main__toggle-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin: 1.1rem 1.5rem 0;
+  padding-bottom: 1.1rem; border-bottom: 1px dashed var(--color-border); }
+.main__toggle-label { font-size: 0.85rem; font-weight: 600; color: var(--color-text-muted); }
+.main__toggle-note { font-size: 0.8rem; color: var(--color-text-muted); flex-basis: 100%; margin-top: 2px; }
+.shape-btn { height: var(--admin-control-h); padding: 0 16px; border-radius: var(--radius-control);
+  border: 1.5px solid var(--color-border-strong); background: var(--color-surface); color: var(--color-text);
+  font-weight: 600; font-size: 0.88rem; cursor: pointer; }
+.shape-btn:hover { background: var(--color-surface-hover); }
+.shape-btn[aria-pressed="true"] { background: var(--color-primary); border-color: var(--color-primary);
+  color: var(--color-primary-foreground); }
+
+/* Topbar: same shell chrome as the sibling POC */
+.topbar { background: var(--color-surface); border-bottom: 1px solid var(--color-border); margin-top: 1.1rem; }
+.topbar__inner { display: flex; flex-wrap: wrap; align-items: center; gap: 1.25rem; padding: 0 1.25rem; height: 56px; }
+.wordmark { font-weight: 800; font-size: 1.15rem; letter-spacing: -0.02em; flex-shrink: 0; }
+.topbar__nav { flex: 1 1 240px; min-width: 0; }
+.topbar__nav ul { display: flex; flex-wrap: wrap; gap: 1.25rem; list-style: none; margin: 0; padding: 0; height: 100%; }
+.topbar__nav li { display: flex; align-items: center; }
+.topbar__link { display: inline-flex; align-items: center; height: 100%; padding: 0 2px; text-decoration: none;
+  font-weight: 600; font-size: 0.92rem; color: var(--color-text-muted); border-bottom: 2px solid transparent; }
+.topbar__link:hover { color: var(--color-text); }
+.topbar__link[aria-current="page"] { color: var(--color-text); border-bottom-color: var(--color-primary); }
+.topbar__trailing { display: flex; align-items: center; gap: 0.6rem; flex-shrink: 0; }
+.icon-btn { width: 36px; height: 36px; border-radius: var(--radius-control); border: 1px solid var(--color-border);
+  background: var(--color-surface); color: var(--color-text); display: inline-flex; align-items: center;
+  justify-content: center; cursor: pointer; }
+.icon-btn:hover { background: var(--color-surface-hover); }
+.avatar-btn { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--color-border-strong);
+  background: var(--color-secondary); color: var(--color-secondary-foreground); font-weight: 700; font-size: 0.78rem;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.avatar-btn:hover { background: var(--color-secondary-hover); }
+
+/* Page behind the dialog: kept deliberately thin, since the dialog is the point of this POC */
+.page-behind { max-width: 1600px; padding: var(--admin-section-pad); }
+.breadcrumb ol { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 4px; padding: 0;
+  font-size: 0.82rem; color: var(--color-text-muted); }
+.breadcrumb li:not(:last-child)::after { content: "/"; margin-left: 6px; color: var(--color-border-strong); }
+.breadcrumb a { text-decoration: none; }
+.breadcrumb a:hover { text-decoration: underline; }
+.breadcrumb li[aria-current="page"] { color: var(--color-text); font-weight: 600; }
+h1.step-heading { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.01em; margin: 0 0 0.6rem; }
+.page-behind__note { font-size: 0.85rem; color: var(--color-text-muted); margin: 0; max-width: 60ch; }
+
+/* Generic buttons, reused across the dialogs */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: var(--admin-control-h);
+  padding: 0 16px; border-radius: var(--radius-control); border: 1.5px solid transparent; font-weight: 600;
+  font-size: 0.88rem; cursor: pointer; }
+.btn-sm { height: 32px; padding: 0 12px; font-size: 0.82rem; }
+.btn-primary { background: var(--color-primary); color: var(--color-primary-foreground); }
+.btn-primary:hover { background: var(--color-primary-hover); }
+.btn-primary:active { background: var(--color-primary-active); }
+.btn-primary:disabled { background: var(--color-background-muted); color: var(--color-text-muted); cursor: not-allowed; }
+.btn-ghost { background: var(--color-surface); color: var(--color-text); border-color: var(--color-border-strong); }
+.btn-ghost:hover { background: var(--color-ghost-hover); }
+.btn-ghost:disabled { color: var(--color-text-muted); cursor: not-allowed; }
+
+/* Generic labelled field, reused for the search box and filter selects */
+.field { margin: 0; }
+.field label { display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 5px; }
+.field select, .field input { width: 100%; height: var(--admin-control-h); padding: 0 var(--admin-control-pad-x);
+  border-radius: var(--radius-control); border: 1px solid var(--color-border-strong); background: var(--color-surface);
+  color: var(--color-text); }
+.field select:hover, .field input:hover { border-color: var(--color-primary); }
+
+/* Stage: everything below the chrome (topbar, the page behind the dialog, and the dimmed
+   backdrop itself). position: relative makes it the containing block for the backdrop, and
+   min-height: 100vh guarantees the backdrop always has a full viewport of room to centre a
+   tall dialog in, however short the stage's own in-flow content (topbar + page-behind) is.
+   Because the backdrop is scoped to this box rather than the full viewport, it starts only
+   after the chrome above ends: the chrome is never dimmed, never covered, and never needs a
+   z-index of its own. */
+.stage { position: relative; min-height: 100vh; }
+
+/* Dialog overlay and card. position: absolute (not fixed) so its containing block is .stage,
+   not the viewport - see the comment there. */
+.dialog-overlay { position: absolute; inset: 0; background: var(--color-overlay); display: flex;
+  align-items: flex-start; justify-content: center; padding: 2.5rem 1rem; overflow-y: auto; z-index: 20; }
+.dialog { width: 100%; max-width: 900px; background: var(--color-surface); border-radius: var(--radius-card);
+  box-shadow: 0 2px 4px hsl(var(--shadow-color) / 0.15), 0 30px 70px -30px hsl(var(--shadow-color) / 0.5);
+  display: flex; flex-direction: column; max-height: calc(100vh - 5rem); overflow: hidden; }
+.dialog__header { padding: 1.1rem var(--admin-section-pad) 0.9rem; border-bottom: 1px solid var(--color-border); }
+.dialog__title { margin: 0; font-size: 1.15rem; font-weight: 700; }
+.dialog__desc { margin: 0.35rem 0 0; font-size: 0.85rem; color: var(--color-text-muted); }
+.dialog__body { display: grid; grid-template-columns: 11fr 9fr; min-height: 0; flex: 1 1 auto; overflow: hidden; }
+.dialog__left { border-right: 1px solid var(--color-border); overflow: hidden; }
+.dialog__left, .dialog__right { padding: var(--admin-section-pad); display: flex; flex-direction: column;
+  gap: 0.9rem; min-height: 0; }
+.dialog__right { overflow-y: auto; }
+.dialog__footer { display: flex; justify-content: flex-end; gap: 0.6rem; padding: 0.9rem var(--admin-section-pad);
+  border-top: 1px solid var(--color-border); flex-shrink: 0; }
+@media (max-width: 900px) {
+  /* Stacked layout: without grid-auto-rows: min-content, the grid's default implicit auto
+     rows get squeezed to an even split of whatever height the flex-shrunk .dialog__body ends
+     up with, rather than each row's own content height - which, once .q-list has a real
+     min-height instead of collapsing to fit, made the left pane's overflow visibly run into
+     the right pane below it. Sizing each row to its own content and scrolling the whole
+     .dialog__body region (already overflow-y: auto above) is what "let the dialog panel
+     itself scroll" means here. */
+  .dialog__body { grid-template-columns: 1fr; grid-auto-rows: min-content; align-content: start;
+    overflow-y: auto; }
+  .dialog__left { border-right: none; border-bottom: 1px solid var(--color-border); overflow: visible; }
+}
+
+.filter-row { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+.filter-row .field { flex: 1 1 140px; }
+.result-count { margin: 0; font-size: 0.82rem; color: var(--color-text-muted); }
+
+/* Strict variant: single-select listbox of questions. flex: 1 1 auto plus an explicit
+   min-height give it a floor: without one, a flex item whose own overflow is not "visible"
+   gets an automatic minimum size of 0, so this list (shared with the Multi-select variant
+   below) would be the one child in .dialog__left's flex column with no floor, and would
+   absorb the entire shrink when the stacked layout at narrow widths runs out of room -
+   collapsing to a sliver while its siblings (search, filters, pagination) kept their size.
+   12rem is roughly three rows, enough that the control still reads as a list. */
+.q-list { list-style: none; margin: 0; padding: 4px; display: flex; flex-direction: column; gap: 2px;
+  overflow-y: auto; flex: 1 1 auto; min-height: 12rem; max-height: 360px; border: 1px solid var(--color-border);
+  border-radius: var(--radius-control); background: var(--color-surface); }
+.q-row { display: flex; align-items: center; gap: 0.7rem; padding: 0.55rem 0.6rem 0.55rem calc(0.6rem - 3px);
+  border-left: 3px solid transparent; border-radius: var(--radius-sm); }
+.q-row:hover { background: var(--color-surface-hover); }
+/* Selected must outrank disabled at a glance: an accent bar plus a bolder id, not just a
+   background tint (the disabled row also carries a flat tint, and the two read as equal
+   weight without this). */
+.q-row[aria-selected="true"] { background: var(--color-info-subtle); border-left-color: var(--color-primary); }
+.q-row[aria-selected="true"] .q-row__id { font-weight: 700; color: var(--color-info-fg); }
+.q-row--disabled { background: var(--color-background-muted); }
+.q-row--disabled:hover { background: var(--color-background-muted); }
+.q-row__main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.q-row__id { font-family: var(--font-mono); font-size: 0.82rem; color: var(--color-text); }
+.q-row--disabled .q-row__id, .q-row--disabled .q-row__label { color: var(--color-text-muted); }
+.q-row__label { font-size: 0.8rem; color: var(--color-text-muted); }
+.q-row__reason { font-size: 0.76rem; color: var(--color-text-muted); font-weight: 700; }
+.type-tag { flex-shrink: 0; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: var(--radius-sm);
+  background: var(--color-background-muted); color: var(--color-text-muted); white-space: nowrap; }
+.q-row__note { flex-shrink: 0; font-size: 0.76rem; color: var(--color-text-muted); white-space: nowrap;
+  min-width: 68px; text-align: right; }
+
+.pagination { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; font-size: 0.82rem;
+  color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
+
+/* Right pane: selected question header, radio version group, notes */
+.selq-header { display: flex; flex-direction: column; gap: 2px; padding-bottom: 0.7rem;
+  border-bottom: 1px solid var(--color-border); }
+.selq-header__id { font-family: var(--font-mono); font-size: 0.95rem; font-weight: 700; }
+.selq-header__label { font-size: 0.85rem; color: var(--color-text-muted); }
+.selq-header__type { font-size: 0.78rem; color: var(--color-text-muted); }
+
+.version-fieldset { border: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.6rem; }
+.version-fieldset legend { padding: 0; margin: 0 0 0.5rem; font: inherit; font-size: 0.95rem; font-weight: 700;
+  color: var(--color-text); }
+.version-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.version-option { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.6rem 0.7rem;
+  border: 1px solid var(--color-border); border-radius: var(--radius-control); cursor: pointer; }
+.version-option:hover { background: var(--color-surface-hover); }
+.version-option input[type="radio"] { margin-top: 3px; width: 16px; height: 16px; accent-color: var(--color-primary);
+  flex-shrink: 0; }
+.version-option__body { display: flex; flex-direction: column; gap: 2px; }
+.version-option__title { font-weight: 700; font-size: 0.88rem; display: flex; align-items: center; gap: 6px; }
+.version-option__tag { font-size: 0.7rem; font-weight: 700; padding: 1px 6px; border-radius: var(--radius-sm);
+  background: var(--color-info-subtle); color: var(--color-info-fg); }
+.version-option__meta { font-size: 0.78rem; color: var(--color-text-muted); }
+.version-option--disabled { cursor: not-allowed; background: var(--color-background-muted); }
+.version-option--disabled:hover { background: var(--color-background-muted); }
+.version-option--disabled .version-option__meta { font-weight: 700; }
+
+.pane-note { margin: 0; font-size: 0.8rem; color: var(--color-text-muted); }
+
+/* Multi-select variant: checkbox rows with an inline version select, and a review list */
+.q-row2 { display: flex; align-items: center; gap: 0.6rem; padding: 0.55rem 0.6rem; border-radius: var(--radius-sm);
+  flex-wrap: wrap; }
+.q-row2:hover { background: var(--color-surface-hover); }
+.q-row2--disabled { background: var(--color-background-muted); }
+.q-row2--disabled:hover { background: var(--color-background-muted); }
+.q-row2 input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--color-primary); flex-shrink: 0; }
+.q-row2--disabled .q-row__id, .q-row2--disabled .q-row__label { color: var(--color-text-muted); }
+.inline-version { flex-shrink: 0; width: 148px; height: 32px; padding: 0 8px; border-radius: var(--radius-control);
+  border: 1px solid var(--color-border-strong); background: var(--color-surface); color: var(--color-text);
+  font-size: 0.8rem; }
+.inline-version:hover { border-color: var(--color-primary); }
+
+.selected-heading { margin: 0; font-size: 0.95rem; font-weight: 700; }
+.selected-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.selected-list li { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0.6rem;
+  border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-background-muted); }
+.selected-list__main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.selected-list__pin { font-family: var(--font-mono); font-size: 0.82rem; }
+.selected-list__label { font-size: 0.8rem; color: var(--color-text-muted); }
+.icon-btn-sm { flex-shrink: 0; width: 28px; height: 28px; border-radius: var(--radius-sm); border: 1px solid transparent;
+  background: transparent; color: var(--color-text-muted); cursor: pointer; display: inline-flex; align-items: center;
+  justify-content: center; font-size: 0.75rem; font-weight: 700; }
+.icon-btn-sm:hover { background: var(--color-ghost-hover); color: var(--color-danger-fg); }
+</style>
+
+<div class="switcher" role="group" aria-label="Preview mode">
+  <button type="button" aria-pressed="true" onclick="setMode('', this)">Light</button>
+  <button type="button" aria-pressed="false" onclick="setMode('dark', this)">Dark</button>
+  <button type="button" aria-pressed="false" onclick="setMode('hc', this)">High contrast</button>
+</div>
+
+<p class="intro">Add-question dialog POC: the shipped picker renders one row per version, ships the whole
+  library to the browser and filters it client-side, which does not hold up against a library of several
+  hundred questions. Both variants below assume a server-side search endpoint instead, with result counts,
+  pagination and type/status filters shown as though they are server-driven. The open question this POC is
+  meant to settle is whether adding a question at its latest published version, shown on the row and
+  changeable right up until the moment of adding, sits comfortably next to a pin's promise that nothing
+  upgrades a chosen version automatically afterwards, or whether that visible default reads as tension with
+  it. Use the toggle below to compare a strict one-question-at-a-time flow against a multi-select flow and
+  judge which reads more clearly.</p>
+
+<div class="main__toggle-row" role="group" aria-label="Dialog variant">
+  <span class="main__toggle-label">Variant:</span>
+  <button type="button" id="variant-strict-btn" class="shape-btn" aria-pressed="true" onclick="setVariant('strict', this)">Strict (one at a time)</button>
+  <button type="button" id="variant-multi-btn" class="shape-btn" aria-pressed="false" onclick="setVariant('multi', this)">Multi-select</button>
+  <span class="main__toggle-note">Strict picks one question, then one version in a radio group, then adds.
+    Multi-select checks several questions at once, each with its own inline version choice, then adds them together.</span>
+</div>
+
+<div class="stage">
+<header class="topbar">
+  <div class="topbar__inner">
+    <span class="wordmark">QCMS</span>
+    <nav class="topbar__nav" aria-label="Primary">
+      <ul>
+        <li><a class="topbar__link" href="#">Questions</a></li>
+        <li><a class="topbar__link" href="#" aria-current="page">Forms</a></li>
+        <li><a class="topbar__link" href="#">Responses</a></li>
+        <li><a class="topbar__link" href="#">Webhooks</a></li>
+        <li><a class="topbar__link" href="#">Settings</a></li>
+      </ul>
+    </nav>
+    <div class="topbar__trailing">
+      <button type="button" class="icon-btn" aria-label="Appearance settings" title="Appearance">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"></circle>
+          <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path>
+        </svg>
+      </button>
+      <button type="button" class="avatar-btn" aria-label="Account menu, signed in as Code Owner">CO</button>
+    </div>
+  </div>
+</header>
+
+<main class="page-behind">
+  <nav class="breadcrumb" aria-label="Breadcrumb">
+    <ol>
+      <li><a href="#">Life insurance</a></li>
+      <li aria-current="page">Step 2: Health</li>
+    </ol>
+  </nav>
+  <h1 class="step-heading">Step 2: Health</h1>
+  <p class="page-behind__note">The step's questions grid is omitted from this POC: the dialog below is what its
+    "+ Add question from library" button opens, rendered permanently open so its own design is what is visible.
+    The page behind it is dimmed with the overlay token.</p>
+</main>
+
+<div class="dialog-overlay">
+
+  <!-- Strict variant -->
+  <div id="dialog-strict" class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-strict-title" aria-describedby="dlg-strict-desc">
+    <div class="dialog__header">
+      <h2 class="dialog__title" id="dlg-strict-title">Add a question to Step 2: Health</h2>
+      <p class="dialog__desc" id="dlg-strict-desc">Search the library, choose one question, then choose the exact
+        version to pin.</p>
+    </div>
+    <div class="dialog__body">
+      <div class="dialog__left">
+        <div class="field">
+          <label for="search-a">Search</label>
+          <input type="search" id="search-a" placeholder="Search by id, slug or label" />
+        </div>
+        <div class="filter-row">
+          <div class="field">
+            <label for="filter-type-a">Type</label>
+            <select id="filter-type-a">
+              <option>Any type</option>
+              <option>Boolean</option>
+              <option>Number</option>
+              <option>Date</option>
+              <option>Text</option>
+              <option>Single choice</option>
+              <option>Multi choice</option>
+              <option>Scale</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="filter-status-a">Status</label>
+            <select id="filter-status-a">
+              <option>Any status</option>
+              <option>Published</option>
+              <option>Deprecated</option>
+            </select>
+          </div>
+        </div>
+        <p class="result-count">312 questions</p>
+        <ul class="q-list" role="listbox" aria-label="Questions" tabindex="0" aria-activedescendant="qopt-2-a">
+          <li id="qopt-1-a" role="option" aria-selected="false" aria-disabled="true" class="q-row q-row--disabled">
+            <div class="q-row__main">
+              <span class="q-row__id">q_smoker</span>
+              <span class="q-row__label">Are you a smoker?</span>
+              <span class="q-row__reason">Already in this form</span>
+            </div>
+            <span class="type-tag">Boolean</span>
+            <span class="q-row__note">v3 latest</span>
+          </li>
+          <li id="qopt-2-a" role="option" aria-selected="true" class="q-row q-row--selected">
+            <div class="q-row__main">
+              <span class="q-row__id">q_bp_systolic</span>
+              <span class="q-row__label">Systolic blood pressure</span>
+            </div>
+            <span class="type-tag">Number</span>
+            <span class="q-row__note">v3 latest</span>
+          </li>
+          <li id="qopt-3-a" role="option" aria-selected="false" class="q-row">
+            <div class="q-row__main">
+              <span class="q-row__id">q_bp_diastolic</span>
+              <span class="q-row__label">Diastolic blood pressure</span>
+            </div>
+            <span class="type-tag">Number</span>
+            <span class="q-row__note">v2 latest</span>
+          </li>
+          <li id="qopt-4-a" role="option" aria-selected="false" class="q-row">
+            <div class="q-row__main">
+              <span class="q-row__id">q_height_cm</span>
+              <span class="q-row__label">Height in centimetres</span>
+            </div>
+            <span class="type-tag">Number</span>
+            <span class="q-row__note">v4 latest</span>
+          </li>
+          <li id="qopt-5-a" role="option" aria-selected="false" class="q-row">
+            <div class="q-row__main">
+              <span class="q-row__id">q_weight_kg</span>
+              <span class="q-row__label">Weight in kilograms</span>
+            </div>
+            <span class="type-tag">Number</span>
+            <span class="q-row__note">v3 latest</span>
+          </li>
+          <li id="qopt-6-a" role="option" aria-selected="false" class="q-row">
+            <div class="q-row__main">
+              <span class="q-row__id">q_diagnosis_date</span>
+              <span class="q-row__label">Date of diagnosis</span>
+            </div>
+            <span class="type-tag">Date</span>
+            <span class="q-row__note">v2 latest</span>
+          </li>
+          <li id="qopt-7-a" role="option" aria-selected="false" class="q-row">
+            <div class="q-row__main">
+              <span class="q-row__id">q_medication_name</span>
+              <span class="q-row__label">Current medication</span>
+            </div>
+            <span class="type-tag">Text</span>
+            <span class="q-row__note">v5 latest</span>
+          </li>
+          <li id="qopt-8-a" role="option" aria-selected="false" class="q-row">
+            <div class="q-row__main">
+              <span class="q-row__id">q_family_history</span>
+              <span class="q-row__label">Family history of illness</span>
+            </div>
+            <span class="type-tag">Multi choice</span>
+            <span class="q-row__note">v2 latest</span>
+          </li>
+        </ul>
+        <div class="pagination">
+          <button type="button" class="btn btn-sm btn-ghost" disabled>Previous</button>
+          <span>Page 1 of 39</span>
+          <button type="button" class="btn btn-sm btn-ghost">Next</button>
+        </div>
+      </div>
+
+      <div class="dialog__right">
+        <div class="selq-header">
+          <span class="selq-header__id">q_bp_systolic</span>
+          <span class="selq-header__label">Systolic blood pressure</span>
+          <span class="selq-header__type">Number</span>
+        </div>
+
+        <fieldset class="version-fieldset">
+          <legend>Choose a version</legend>
+          <div class="version-list">
+            <label class="version-option">
+              <input type="radio" name="version-choice-a" value="3" checked />
+              <span class="version-option__body">
+                <span class="version-option__title">v3 <span class="version-option__tag">Current</span></span>
+                <span class="version-option__meta">Published 2026-06-02</span>
+              </span>
+            </label>
+            <label class="version-option">
+              <input type="radio" name="version-choice-a" value="2" />
+              <span class="version-option__body">
+                <span class="version-option__title">v2</span>
+                <span class="version-option__meta">Published 2025-11-14</span>
+              </span>
+            </label>
+            <label class="version-option version-option--disabled">
+              <input type="radio" name="version-choice-a" value="1" disabled />
+              <span class="version-option__body">
+                <span class="version-option__title">v1</span>
+                <span class="version-option__meta">Deprecated: cannot be used for a new pin</span>
+              </span>
+            </label>
+          </div>
+        </fieldset>
+
+        <p class="pane-note">A pin freezes q_bp_systolic to the version chosen here. Nothing upgrades it
+          automatically afterwards: a later version needs a separate, deliberate re-pin.</p>
+      </div>
+    </div>
+
+    <div class="dialog__footer">
+      <button type="button" class="btn btn-ghost">Cancel</button>
+      <button type="button" class="btn btn-primary">Add to step</button>
+    </div>
+  </div>
+
+  <!-- Multi-select variant -->
+  <div id="dialog-multi" class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-multi-title" aria-describedby="dlg-multi-desc" hidden>
+    <div class="dialog__header">
+      <h2 class="dialog__title" id="dlg-multi-title">Add questions to Step 2: Health</h2>
+      <p class="dialog__desc" id="dlg-multi-desc">Check several questions, choose each one's version inline, then
+        add them all at once.</p>
+    </div>
+    <div class="dialog__body">
+      <div class="dialog__left">
+        <div class="field">
+          <label for="search-b">Search</label>
+          <input type="search" id="search-b" placeholder="Search by id, slug or label" />
+        </div>
+        <div class="filter-row">
+          <div class="field">
+            <label for="filter-type-b">Type</label>
+            <select id="filter-type-b">
+              <option>Any type</option>
+              <option>Boolean</option>
+              <option>Number</option>
+              <option>Date</option>
+              <option>Text</option>
+              <option>Single choice</option>
+              <option>Multi choice</option>
+              <option>Scale</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="filter-status-b">Status</label>
+            <select id="filter-status-b">
+              <option>Any status</option>
+              <option>Published</option>
+              <option>Deprecated</option>
+            </select>
+          </div>
+        </div>
+        <p class="result-count">312 questions</p>
+        <ul class="q-list" aria-label="Questions">
+          <li class="q-row2 q-row2--disabled">
+            <input type="checkbox" id="chk-1-b" disabled aria-label="Add q_smoker, Are you a smoker?, to the step" />
+            <div class="q-row__main">
+              <span class="q-row__id">q_smoker</span>
+              <span class="q-row__label">Are you a smoker?</span>
+              <span class="q-row__reason">Already in this form</span>
+            </div>
+            <span class="type-tag">Boolean</span>
+          </li>
+          <li class="q-row2">
+            <input type="checkbox" id="chk-2-b" checked aria-label="Add q_bp_systolic, Systolic blood pressure, to the step" />
+            <div class="q-row__main">
+              <span class="q-row__id">q_bp_systolic</span>
+              <span class="q-row__label">Systolic blood pressure</span>
+            </div>
+            <span class="type-tag">Number</span>
+            <label class="sr-only" for="ver-2-b">Version to pin for q_bp_systolic</label>
+            <select id="ver-2-b" class="inline-version">
+              <option value="3" selected>v3 (latest)</option>
+              <option value="2">v2</option>
+            </select>
+          </li>
+          <li class="q-row2">
+            <input type="checkbox" id="chk-3-b" aria-label="Add q_bp_diastolic, Diastolic blood pressure, to the step" />
+            <div class="q-row__main">
+              <span class="q-row__id">q_bp_diastolic</span>
+              <span class="q-row__label">Diastolic blood pressure</span>
+            </div>
+            <span class="type-tag">Number</span>
+          </li>
+          <li class="q-row2">
+            <input type="checkbox" id="chk-4-b" checked aria-label="Add q_height_cm, Height in centimetres, to the step" />
+            <div class="q-row__main">
+              <span class="q-row__id">q_height_cm</span>
+              <span class="q-row__label">Height in centimetres</span>
+            </div>
+            <span class="type-tag">Number</span>
+            <label class="sr-only" for="ver-4-b">Version to pin for q_height_cm</label>
+            <select id="ver-4-b" class="inline-version">
+              <option value="4" selected>v4 (latest)</option>
+              <option value="3">v3</option>
+            </select>
+          </li>
+          <li class="q-row2">
+            <input type="checkbox" id="chk-5-b" checked aria-label="Add q_weight_kg, Weight in kilograms, to the step" />
+            <div class="q-row__main">
+              <span class="q-row__id">q_weight_kg</span>
+              <span class="q-row__label">Weight in kilograms</span>
+            </div>
+            <span class="type-tag">Number</span>
+            <label class="sr-only" for="ver-5-b">Version to pin for q_weight_kg</label>
+            <select id="ver-5-b" class="inline-version">
+              <option value="3" selected>v3 (latest)</option>
+              <option value="2">v2</option>
+            </select>
+          </li>
+          <li class="q-row2">
+            <input type="checkbox" id="chk-6-b" aria-label="Add q_diagnosis_date, Date of diagnosis, to the step" />
+            <div class="q-row__main">
+              <span class="q-row__id">q_diagnosis_date</span>
+              <span class="q-row__label">Date of diagnosis</span>
+            </div>
+            <span class="type-tag">Date</span>
+          </li>
+          <li class="q-row2">
+            <input type="checkbox" id="chk-7-b" aria-label="Add q_medication_name, Current medication, to the step" />
+            <div class="q-row__main">
+              <span class="q-row__id">q_medication_name</span>
+              <span class="q-row__label">Current medication</span>
+            </div>
+            <span class="type-tag">Text</span>
+          </li>
+          <li class="q-row2">
+            <input type="checkbox" id="chk-8-b" aria-label="Add q_family_history, Family history of illness, to the step" />
+            <div class="q-row__main">
+              <span class="q-row__id">q_family_history</span>
+              <span class="q-row__label">Family history of illness</span>
+            </div>
+            <span class="type-tag">Multi choice</span>
+          </li>
+        </ul>
+        <div class="pagination">
+          <button type="button" class="btn btn-sm btn-ghost" disabled>Previous</button>
+          <span>Page 1 of 39</span>
+          <button type="button" class="btn btn-sm btn-ghost">Next</button>
+        </div>
+      </div>
+
+      <div class="dialog__right">
+        <h3 class="selected-heading">Selected (3)</h3>
+        <ul class="selected-list">
+          <li>
+            <div class="selected-list__main">
+              <span class="selected-list__pin">q_bp_systolic@3</span>
+              <span class="selected-list__label">Systolic blood pressure</span>
+            </div>
+            <button type="button" class="icon-btn-sm" aria-label="Remove q_bp_systolic from selection">&#10005;</button>
+          </li>
+          <li>
+            <div class="selected-list__main">
+              <span class="selected-list__pin">q_height_cm@4</span>
+              <span class="selected-list__label">Height in centimetres</span>
+            </div>
+            <button type="button" class="icon-btn-sm" aria-label="Remove q_height_cm from selection">&#10005;</button>
+          </li>
+          <li>
+            <div class="selected-list__main">
+              <span class="selected-list__pin">q_weight_kg@3</span>
+              <span class="selected-list__label">Weight in kilograms</span>
+            </div>
+            <button type="button" class="icon-btn-sm" aria-label="Remove q_weight_kg from selection">&#10005;</button>
+          </li>
+        </ul>
+        <p class="pane-note">Each pin freezes the version shown. Nothing upgrades automatically, and every
+          version stays editable in the grid after adding.</p>
+      </div>
+    </div>
+
+    <div class="dialog__footer">
+      <button type="button" class="btn btn-ghost">Cancel</button>
+      <button type="button" class="btn btn-primary">Add 3 questions to step</button>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<script>
+function setMode(mode, btn) {
+  document.documentElement.className = mode;
+  document.querySelectorAll(".switcher button").forEach(function (b) {
+    b.setAttribute("aria-pressed", b === btn ? "true" : "false");
+  });
+}
+
+function setVariant(variant, btn) {
+  var isStrict = variant === "strict";
+  document.getElementById("dialog-strict").hidden = !isStrict;
+  document.getElementById("dialog-multi").hidden = isStrict;
+  document.getElementById("variant-strict-btn").setAttribute("aria-pressed", isStrict ? "true" : "false");
+  document.getElementById("variant-multi-btn").setAttribute("aria-pressed", isStrict ? "false" : "true");
+}
+</script>
