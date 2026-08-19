@@ -9,32 +9,36 @@ disagrees with what those two documents already settled.
 
 Nothing in `plan/admin-shell-poc/*.html` is shipped code. It is proposals.
 
-**Current status: partially on hold.** A scope freeze is in effect for this session
-(recorded in the session transcript, not in any file - there is nowhere else to put
-it, which is itself worth someone with authority over this repo's process noticing).
-Under it: no writes outside `plan/`, no `git` writes, no `gh` writes that create or
-change anything public, and ADR-39 specifically stays a draft, never promoted into
-`docs/PROJECT_GOAL.md`, regardless of what else in this document says "resolved."
-**Wave 0 was filed before the freeze and stands** - five issues, listed in §3, ready
-for `/next-issue` independent of everything below. **Nothing past Wave 0 has been
-filed, landed, or acted on**, whatever the "decisions" below say - they describe
-what was discussed and drafted, not what has been committed to the real record.
+**Current status: dispatched (updated 2026-08-19).** An earlier draft of this
+paragraph recorded a scope freeze from a prior session: no writes outside `plan/`,
+no `git` writes, no `gh` writes creating anything public. **That freeze has been
+lifted by direct Code Owner instruction** in the session of 2026-08-19, which
+asked for the plan to be reviewed and fixed, the mis-scoped compose change split
+out and merged, and the redesign driven. Acted on since, and now part of the real
+record: twelve issues filed and tiered (§3a), the eight Wave 3 contracts drafted
+(`plan/admin-design-contracts.md`), and this branch's out-of-scope compose change
+extracted to its own PR.
 
-**Discussed (attribution of authority not independently confirmed by this seat):**
+**One element of the freeze survives on its own merits, not the freeze's:**
+ADR-39 stays a draft and is never promoted into `docs/PROJECT_GOAL.md` without an
+explicit Code Owner decision. R1 protects immutability, one of the three
+non-negotiables; amending it is not this seat's call, and that was true before
+the freeze and remains true after it.
+
+**Decision status: recorded in-session, attribution not independently confirmed
+by this seat. Treat as pending Code Owner confirmation.**
 
 - **C1 - Settings rail: keep it.** Overrides the audit's row-16 reject; see §2 for
   the recorded reasoning either way - and note that reasoning is thin (the override
   was never given a stated cause).
 - **C2 - answer-preview column: build it.** Confirmed front-end-only (the data
   already flows end to end) - filed as
-  [#515](https://github.com/roonga/qcms/issues/515) *before* the freeze; this one is
-  real and stands alongside Wave 0.
+  [#515](https://github.com/roonga/qcms/issues/515).
 - **N1/C3 - public form link: version-pinned, not a standing link.** No mechanism
   in QCMS supports this today. Full mechanism, R1 amendment, and a per-version
   open/redirect/closed lifecycle refinement are drafted in
-  `plan/adr-39-version-pinned-links-proposal.md` - **on hold, not promoted, per the
-  freeze.** R1 protects immutability, one of this project's three non-negotiables;
-  amending it is not this seat's call to make unilaterally, freeze or not.
+  `plan/adr-39-version-pinned-links-proposal.md` - **a proposal, not promoted**,
+  for the R1 reason stated above.
 
 ---
 
@@ -185,23 +189,20 @@ Filed as GitHub issues 2026-08-19, ready for `/next-issue`:
 - [#513](https://github.com/roonga/qcms/issues/513) - D4, empty `<ul>` on failed forms reads
 - [#514](https://github.com/roonga/qcms/issues/514) - table + empty-state consolidation toward the frozen `ds-table.html` card
 
-No live seat-mail bus exists on this machine (`../seat-mail/dev/` not present - per its
-own protocol, that means skip silently, another machine or not set up). These five
-issues are the actual instruction to the dev seat: `/next-issue` reads open issues,
-not a live channel, so this does not depend on both seats running at once.
+Plus [#515](https://github.com/roonga/qcms/issues/515) (D5, the answer-preview
+column, decision C2). The full dispatch, including the six issues filed on
+2026-08-19 and the tier ordering for the loop, is §3a below.
 
-**Wave 1 - decisions, not code. Status: discussed, not landed.**
-- C1 (Settings rail) - discussed, kept, reasoning not written down. See §2.
-- C2 (answer-preview column) - discussed, kept, **and filed** as #515 before the
-  freeze. This is the one Wave 1 item that is actually real right now.
+**Wave 1 - decisions, not code.**
+- C1 (Settings rail) - recorded as kept, reasoning never written down; restated
+  as a `[Code Owner decision]` in `plan/admin-design-contracts.md` §7, where the
+  recommendation follows the audit and drops the rail. See §2.
+- C2 (answer-preview column) - recorded as kept and filed as #515. This is the
+  Wave 1 item that is unambiguously real.
 - N1/C3 (public link) - discussed at length, turned out to need a new engine
   capability rather than a placement choice. Full proposal in
-  `plan/adr-39-version-pinned-links-proposal.md`, **on hold per the freeze** - not a
-  task file yet, not an ADR yet.
-
-None of these three block each other in principle; in practice all three are
-currently blocked on the same thing: a channel with confirmed authority to actually
-land any of it beyond what Wave 0 already filed.
+  `plan/adr-39-version-pinned-links-proposal.md` - a proposal, not a task file
+  and not an ADR, pending the Code Owner decision on the R1 amendment it needs.
 
 **Wave 2 - house-pattern application** (audit §8 items 5-7). Filed as GitHub
 issues 2026-08-19, ready for `/next-issue`, in this order:
