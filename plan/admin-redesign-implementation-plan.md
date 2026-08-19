@@ -277,6 +277,57 @@ wholesale. Confirming that document is what unblocks Wave 3.
 
 ---
 
+## 3a. Dispatch to the dev seat (2026-08-19)
+
+**The issue backlog is the instruction channel.** No seat-mail bus exists on this
+machine (`../seat-mail/dev/` absent; per its own protocol that means skip
+silently), and `/next-issue` selects from open GitHub issues rather than a live
+channel, so nothing here depends on both seats running at once.
+
+**State that unblocks this work:** the ledger now shows 032, 033, 034, 035 and
+048 all `done` (PRs #228, #245, #274, #284, #313). The standing aim's priority
+chain (033 -> 034 -> 035, editor enrichments and enhancement-tier issues waiting
+behind 035) is therefore **discharged**: a respondent can complete a form end to
+end and an author can see what came back. The admin redesign tier is executable
+now, which it was not when the aim was written on 2026-08-01.
+
+**Twelve issues are filed and ordered for the loop.** `/next-issue` priority is
+`security`, then `bug`, then unlabeled, then `enhancement`; none of these carries
+`admin-stage` (that label routes work to tasks 031-035, all now done, so it would
+wrongly exclude them from the issue loop).
+
+| Tier | Issues | Label | What it is |
+|---|---|---|---|
+| Correctness first | #510, #511, #513, #520, #521 | `bug` | The audit's D1, D2, D4, D6, D7. Cheap, no design decision in any of them. |
+| Cleanup / recording | #512, #515, #522 | none | Dead code, the answer-preview column (front-end only, data already flows), the shipped-rail viewport check. |
+| Consolidation | #514 | none | One table treatment and one empty state, against the frozen card. The audit calls this the single change that most affects how the app reads. |
+| Wave 2, house patterns | #517, #518, #519 | none | Ownership grid + grip menu on the pin list; ambient save + manual-save statement; digests and summary headings. |
+
+Deliberately left unlabeled rather than tagged `enhancement`: #514 and #517-#519
+apply patterns that already ship (`option-grid-editor.tsx`, the frozen
+`ds-table.html` card) to screens that already exist. Tagging them `enhancement`
+would sort them behind the entire unlabeled backlog, which would not match the
+Code Owner's instruction to drive this work.
+
+**Suggested dev-seat invocation:** `/loop /next-issue` from the repo root (not
+from `plan/`). Two ordering notes for whoever conducts it: #519 and #520 touch
+the same delivery-dashboard row trigger, so whichever lands second rebases over
+the first; and #514 is worth landing before #517-#519, since the house patterns
+inherit whatever table and empty state it settles.
+
+**Every one of #514, #515, #517, #518, #519 and #522 changes visible admin UI**,
+so each stops at the static-render screenshot gate: PNGs at 390px and 1280px
+minimum committed under `docs/gates/pr-<NN>/` with a one-line README, embedded in
+the PR body by raw branch URL. The Code Owner reviews from GitHub. A gate parks
+that issue, not the run.
+
+**What is NOT dispatched:** Wave 3 (the rail and the per-screen width caps). It
+stays gated on `plan/admin-design-contracts.md` being confirmed, because the
+eleven POCs currently answer its questions up to seven different ways and an
+implementer would copy whichever they opened first.
+
+---
+
 ## 4. What happens to this session's POC files right now
 
 Nothing, per instruction. For the record, so a later reader has an accurate map
