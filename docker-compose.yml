@@ -113,6 +113,22 @@ services:
       #
       # docker-compose.dev-tools.yml overrides this with its own collector's address.
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      # The admin TOTP policy (SEC-1). Present for the same reason the line above is:
+      # Compose forwards only what a service names, so `QCMS_ADMIN_2FA=optional` in
+      # .env reached nothing here and the documented development escape hatch could
+      # not be exercised against this stack at all.
+      #
+      # The default is `required` and this line does not change it. Relaxing it is a
+      # development-only act, deliberately opt-in per stack rather than implied by
+      # NODE_ENV or by the stack being local: SECURITY_DESIGN.md records why a
+      # general-purpose variable must not decide a security control.
+      #
+      # The admin service takes the SAME value, and must - the two sides fail closed,
+      # so relaxing it on one makes every admin API call 401.
+      #
+      # It is on `api` rather than on the `*api-env` anchor because the anchor is
+      # shared with `migrate`, which serves no admin traffic and reads no auth policy.
+      QCMS_ADMIN_2FA: ${QCMS_ADMIN_2FA:-required}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -172,6 +188,11 @@ services:
       # front this app the way they front the portal, so 1 is right for both by default.
       QCMS_ADMIN_TRUSTED_PROXY_HOPS: ${QCMS_ADMIN_TRUSTED_PROXY_HOPS:-1}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      # The api service's twin, and it must hold the same value: that service decides
+      # whether an unenrolled session is accepted, this one decides whether the
+      # enrollment screen can be skipped. Disagreement fails closed, not silently.
+      # The reasoning, and why the default stays `required`, is written out there.
+      QCMS_ADMIN_2FA: ${QCMS_ADMIN_2FA:-required}
     depends_on:
       api:
         condition: service_healthy
