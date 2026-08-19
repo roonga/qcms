@@ -203,11 +203,27 @@ None of these three block each other in principle; in practice all three are
 currently blocked on the same thing: a channel with confirmed authority to actually
 land any of it beyond what Wave 0 already filed.
 
-**Wave 2 - house-pattern application** (audit §8 items 5-7, unaffected by this
-session): element 4+5 on the step editor's pin list (the audit's own highest-value
-item), element 7 (ambient save) on the builder plus an explicit manual-save statement
-on the question editor, element 3 digests on the builder's two `<details>` panels and
-the delivery dashboard's row trigger.
+**Wave 2 - house-pattern application** (audit §8 items 5-7). Filed as GitHub
+issues 2026-08-19, ready for `/next-issue`, in this order:
+
+- [#517](https://github.com/roonga/qcms/issues/517) - elements 4+5 (ownership grid
+  + row grip menu) on the step editor's pin list. The audit's own highest-value
+  item; the pattern already ships in `option-grid-editor.tsx`, so this is applying
+  an existing card, not inventing one.
+- [#518](https://github.com/roonga/qcms/issues/518) - element 7 (ambient save) on
+  the builder plus an explicit manual-save statement on the question editor.
+  Closes the audit's §4.6.
+- [#519](https://github.com/roonga/qcms/issues/519) - element 3 digests plus
+  summary headings on the builder's two `<details>` panels and the delivery
+  dashboard's row trigger. Nowhere else yet.
+
+Two audit defects that were never filed, and one check the plan called for, went
+out in the same pass (independent of the waves, executable any time):
+[#520](https://github.com/roonga/qcms/issues/520) (D6, dangling `aria-controls`),
+[#521](https://github.com/roonga/qcms/issues/521) (D7, filtered-empty state for
+filters never applied), [#522](https://github.com/roonga/qcms/issues/522) (the N2
+viewport-fill check against the shipped builder rail). #520 and #519 touch the
+same delivery-dashboard trigger: whichever lands second rebases over the first.
 
 **Wave 3 - the rail, gated on written contracts first** (audit §8 items 8-9): the
 form subtree (eight screens) gets the rail and the per-screen width the audit
@@ -234,6 +250,15 @@ statement, rail, spacing/type reconciliation with `packages/ui/src/theme.css`).
 **Wave 3 does not start until those contracts exist**, or every implementer copies
 a different answer from whichever POC they open first - the exact failure the
 redesign is meant to end.
+
+**Those eight contracts are now drafted: `plan/admin-design-contracts.md`
+(2026-08-19).** Each is answered once, with its source named. Two carry
+**[Code Owner decision]** markers and block only their own items: whether the
+Settings screen keeps a rail (decision C1, restated in contract terms - the
+recommendation follows the audit and drops it) and whether the admin keeps its
+own spacing/type vocabulary as a deliberate, documented divergence from
+`packages/ui/src/theme.css` (recommended) or adopts the portal's values
+wholesale. Confirming that document is what unblocks Wave 3.
 
 **Wave 4 - only once Wave 3 (or a settings-only rail from C1) is real code:**
 - Carry N2 (the viewport-fill CSS) into whatever ships, as an acceptance criterion,
