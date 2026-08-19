@@ -1,0 +1,1249 @@
+<!-- @dsCard group="Layout" name="Secure links and webhooks" subtitle="One-time reveal outside any details; webhook table as stated actions, not inline edits" -->
+<title>QCMS DS - Links and webhooks POC</title>
+<style>
+:root {
+  --color-primary: #2456c6;
+  --color-primary-hover: #1e4aad;
+  --color-primary-active: #193f95;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #4f5b70;
+  --color-secondary-hover: #475265;
+  --color-secondary-active: #3f495a;
+  --color-secondary-foreground: #ffffff;
+  --color-danger: #c0271f;
+  --color-danger-hover: #ad231c;
+  --color-danger-active: #9a1f19;
+  --color-danger-foreground: #ffffff;
+  --color-danger-subtle: #f9e7e5;
+  --color-danger-fg: #8f1d18;
+  --color-ghost: transparent;
+  --color-ghost-hover: #eef1f6;
+  --color-ghost-active: #e4e8ef;
+  --color-info: #2456c6;
+  --color-info-subtle: #e9effb;
+  --color-info-fg: #1b44a0;
+  --color-success: #1e7a46;
+  --color-success-subtle: #e4f1ea;
+  --color-success-fg: #16603a;
+  --color-warning: #8a5a00;
+  --color-warning-subtle: #f6eeda;
+  --color-warning-fg: #6e4700;
+  --color-text: #0f1729;
+  --color-text-muted: #55617a;
+  --color-border: #dde2ea;
+  --color-border-strong: #838ca4;
+  --color-background: #fbfcfd;
+  --color-background-muted: #eef1f6;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f4f6fa;
+  --color-focus-ring: #2456c6;
+  --color-overlay: rgb(0 0 0 / 0.5);
+  --shadow-color: 222deg 30% 20%;
+  --admin-control-h: 40px;
+  --admin-control-pad-x: 0.6rem;
+  --admin-stack: 0.35rem;
+  --admin-section-pad: 1.25rem;
+  --admin-table-row-h: 44px;
+  --radius-control: 4px;
+  --radius-card: 8px;
+  --radius-sm: 2px;
+  --font-admin: "Lexend", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace;
+}
+
+:root.dark {
+  --color-primary: #7aa2ff;
+  --color-primary-hover: #8fb1ff;
+  --color-primary-active: #a1beff;
+  --color-primary-foreground: #0b0f1a;
+  --color-secondary: #97a2b8;
+  --color-secondary-hover: #a3adc1;
+  --color-secondary-active: #aeb6c8;
+  --color-secondary-foreground: #0b0f1a;
+  --color-danger: #ff7b80;
+  --color-danger-hover: #ff8b8f;
+  --color-danger-active: #ff989c;
+  --color-danger-foreground: #0b0f1a;
+  --color-danger-subtle: #2b1615;
+  --color-danger-fg: #ffb3b5;
+  --color-ghost: transparent;
+  --color-ghost-hover: #1b2230;
+  --color-ghost-active: #232c3c;
+  --color-info: #7aa2ff;
+  --color-info-subtle: #16233a;
+  --color-info-fg: #a9c4ff;
+  --color-success: #46c08a;
+  --color-success-subtle: #132a20;
+  --color-success-fg: #8fe0bd;
+  --color-warning: #e0a93b;
+  --color-warning-subtle: #2a2110;
+  --color-warning-fg: #f0cd85;
+  --color-text: #e6eaf2;
+  --color-text-muted: #97a2b8;
+  --color-border: #262e3d;
+  --color-border-strong: #626c88;
+  --color-background: #0b0f1a;
+  --color-background-muted: #10151f;
+  --color-surface: #141a26;
+  --color-surface-hover: #1b2230;
+  --color-focus-ring: #7aa2ff;
+  --color-overlay: rgb(0 0 0 / 0.6);
+  --shadow-color: 222deg 60% 2%;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light):not(.dark):not(.hc) {
+    --color-primary: #7aa2ff;
+    --color-primary-hover: #8fb1ff;
+    --color-primary-active: #a1beff;
+    --color-primary-foreground: #0b0f1a;
+    --color-secondary: #97a2b8;
+    --color-secondary-hover: #a3adc1;
+    --color-secondary-active: #aeb6c8;
+    --color-secondary-foreground: #0b0f1a;
+    --color-danger: #ff7b80;
+    --color-danger-hover: #ff8b8f;
+    --color-danger-active: #ff989c;
+    --color-danger-foreground: #0b0f1a;
+    --color-danger-subtle: #2b1615;
+    --color-danger-fg: #ffb3b5;
+    --color-ghost: transparent;
+    --color-ghost-hover: #1b2230;
+    --color-ghost-active: #232c3c;
+    --color-info: #7aa2ff;
+    --color-info-subtle: #16233a;
+    --color-info-fg: #a9c4ff;
+    --color-success: #46c08a;
+    --color-success-subtle: #132a20;
+    --color-success-fg: #8fe0bd;
+    --color-warning: #e0a93b;
+    --color-warning-subtle: #2a2110;
+    --color-warning-fg: #f0cd85;
+    --color-text: #e6eaf2;
+    --color-text-muted: #97a2b8;
+    --color-border: #262e3d;
+    --color-border-strong: #626c88;
+    --color-background: #0b0f1a;
+    --color-background-muted: #10151f;
+    --color-surface: #141a26;
+    --color-surface-hover: #1b2230;
+    --color-focus-ring: #7aa2ff;
+    --color-overlay: rgb(0 0 0 / 0.6);
+    --shadow-color: 222deg 60% 2%;
+  }
+}
+
+:root.hc {
+  --color-secondary: #1c2433;
+  --color-secondary-hover: #19202e;
+  --color-secondary-active: #161d29;
+  --color-secondary-foreground: #ffffff;
+  --color-danger: #8a0f0a;
+  --color-danger-hover: #7c0e09;
+  --color-danger-active: #6e0c08;
+  --color-danger-foreground: #ffffff;
+  --color-danger-subtle: #ffecea;
+  --color-danger-fg: #6b0b07;
+  --color-ghost: transparent;
+  --color-ghost-hover: #eceef1;
+  --color-ghost-active: #dfe2e7;
+  --color-info: #0a3ea8;
+  --color-info-subtle: #e6efff;
+  --color-info-fg: #08337d;
+  --color-success: #0a5c30;
+  --color-success-subtle: #e2f4e9;
+  --color-success-fg: #064023;
+  --color-warning: #5a3b00;
+  --color-warning-subtle: #fbf0d6;
+  --color-warning-fg: #4a3000;
+  --color-text: #000000;
+  --color-text-muted: #22262e;
+  --color-border: #5a616e;
+  --color-border-strong: #000000;
+  --color-background: #ffffff;
+  --color-background-muted: #f2f3f5;
+  --color-surface: #ffffff;
+  --color-surface-hover: #eceef1;
+  --color-focus-ring: #0a3ea8;
+  --color-overlay: rgb(0 0 0 / 0.7);
+  --color-primary: #0a3ea8;
+  --color-primary-hover: #08348f;
+  --color-primary-active: #062a75;
+  --color-primary-foreground: #ffffff;
+}
+
+/* Base */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  font-family: var(--font-admin);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--color-text);
+  background: var(--color-background);
+  overflow-x: hidden;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+[hidden] { display: none !important; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+/* Demo mode switcher (house convention: not part of the shipped shell, a viewer aid) */
+.switcher { display: flex; gap: 0.5rem; padding: 0.75rem 1.5rem; border-bottom: 1px dashed var(--color-border-strong);
+  background: var(--color-background-muted); }
+.switcher button { height: 32px; padding: 0 0.75rem; border-radius: var(--radius-control);
+  border: 1px solid var(--color-border-strong); background: var(--color-surface); color: var(--color-text); cursor: pointer; }
+.switcher button[aria-pressed="true"] { background: var(--color-primary); border-color: var(--color-primary);
+  color: var(--color-primary-foreground); }
+
+/* Icons */
+.icon { width: 16px; height: 16px; flex-shrink: 0; }
+.icon-sm { width: 14px; height: 14px; flex-shrink: 0; }
+
+/* Topbar */
+.topbar { background: var(--color-surface); border-bottom: 1px solid var(--color-border); }
+.topbar__inner { display: flex; flex-wrap: wrap; align-items: center; gap: 1.25rem; padding: 0 1.25rem; min-height: 56px; }
+.wordmark { font-weight: 800; font-size: 1.15rem; letter-spacing: -0.02em; flex-shrink: 0; }
+.topbar__nav { flex: 1 1 160px; min-width: 0; }
+.topbar__nav ul { display: flex; flex-wrap: wrap; gap: 1.25rem; list-style: none; margin: 0; padding: 0; height: 100%; }
+.topbar__nav li { display: flex; align-items: center; }
+.topbar__link { display: inline-flex; align-items: center; height: 100%; padding: 0 2px; text-decoration: none;
+  font-weight: 600; font-size: 0.92rem; color: var(--color-text-muted); border-bottom: 2px solid transparent; }
+.topbar__link:hover { color: var(--color-text); }
+.topbar__link[aria-current="page"] { color: var(--color-text); border-bottom-color: var(--color-primary); }
+.topbar__trailing { display: flex; align-items: center; gap: 0.6rem; flex-shrink: 0; }
+.icon-btn { width: 36px; height: 36px; border-radius: var(--radius-control); border: 1px solid var(--color-border);
+  background: var(--color-surface); color: var(--color-text); display: inline-flex; align-items: center;
+  justify-content: center; cursor: pointer; }
+.icon-btn:hover { background: var(--color-surface-hover); }
+.avatar-btn { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--color-border-strong);
+  background: var(--color-secondary); color: var(--color-secondary-foreground); font-weight: 700; font-size: 0.78rem;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.avatar-btn:hover { background: var(--color-secondary-hover); }
+
+.save-status { padding: 0.4rem 1.25rem; font-size: 0.78rem; color: var(--color-text-muted);
+  background: var(--color-background-muted); border-bottom: 1px solid var(--color-border); }
+
+.shell-body { display: block; flex: 1 1 auto; min-height: 0; }
+@media (min-width: 1024px) {
+  .shell-body { display: grid; grid-template-columns: 240px 1fr; }
+}
+
+.rail-shell { border-bottom: 1px solid var(--color-border); background: var(--color-surface); }
+@media (min-width: 1024px) {
+  .rail-shell { border-bottom: none; border-right: 1px solid var(--color-border); }
+}
+.rail-summary { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; cursor: pointer;
+  list-style: none; padding: 0.9rem var(--admin-section-pad); font-weight: 700; font-size: 1rem; }
+.rail-summary::-webkit-details-marker { display: none; }
+.rail-summary__label { display: flex; align-items: baseline; gap: 6px; min-width: 0; flex: 1 1 auto; }
+.rail-summary__text { margin: 0; font: inherit; font-weight: inherit; font-size: inherit;
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rail-summary__chev { transition: transform 0.12s ease; color: var(--color-text-muted); }
+.rail-shell[open] .rail-summary__chev { transform: rotate(90deg); }
+.rail-summary__step { display: none; flex-shrink: 0; align-items: center; gap: 6px; font-size: 0.85rem;
+  font-weight: 600; white-space: nowrap; }
+.rail-summary__sep { color: var(--color-text-muted); font-weight: 400; }
+.rail-summary__step-issues { display: inline-flex; align-items: center; gap: 3px; font-size: 0.72rem;
+  font-weight: 700; color: var(--color-warning-fg); }
+.rail-summary__step-issues svg { width: 12px; height: 12px; flex-shrink: 0; }
+@media (max-width: 1023px) {
+  .rail-shell:not([open]) .rail-summary__step { display: inline-flex; }
+}
+@media (min-width: 1024px) {
+  .rail-summary__chev { display: none; }
+  .rail-summary { cursor: default; padding-bottom: 0.5rem; }
+}
+.rail-body { padding: 0 0.6rem 1rem; }
+
+.rail-tree { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.rail-tree > li + li { margin-top: 4px; }
+.rail-link { display: block; padding: 0.5rem 0.6rem; border-radius: var(--radius-control); text-decoration: none;
+  font-size: 0.9rem; font-weight: 600; color: var(--color-text); }
+.rail-link:hover { background: var(--color-surface-hover); }
+.rail-link[aria-current="page"] { background: var(--color-info-subtle); color: var(--color-info-fg); }
+
+.rail-group summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 6px;
+  padding: 0.5rem 0.6rem; border-radius: var(--radius-control); font-weight: 600; font-size: 0.9rem; }
+.rail-group summary::-webkit-details-marker { display: none; }
+.rail-group summary:hover { background: var(--color-surface-hover); }
+.rail-group__chev { transition: transform 0.12s ease; color: var(--color-text-muted); flex-shrink: 0; }
+.rail-group[open] > summary .rail-group__chev { transform: rotate(90deg); }
+
+.rail-steps { list-style: none; margin: 2px 0 2px 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+.rail-step-row { position: relative; display: flex; align-items: center; gap: 4px;
+  border-left: 3px solid transparent; border-radius: var(--radius-control); }
+.rail-step-row:hover { background: var(--color-surface-hover); }
+.rail-step-row.is-active { border-left-color: var(--color-primary); background: var(--color-info-subtle); }
+.rail-step-grip { width: 22px; height: 22px; flex-shrink: 0; border-radius: var(--radius-sm);
+  border: 1px solid transparent; background: transparent; color: var(--color-text-muted);
+  display: inline-flex; align-items: center; justify-content: center; cursor: grab; opacity: 0;
+  transition: opacity 0.12s ease, background 0.12s ease; }
+.rail-step-row:hover .rail-step-grip, .rail-step-row:focus-within .rail-step-grip,
+.rail-step-row.is-dragging .rail-step-grip { opacity: 1; }
+.rail-step-grip:hover { background: var(--color-ghost-hover); color: var(--color-text); }
+.rail-step-grip:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; opacity: 1; }
+.rail-step-grip:active { cursor: grabbing; }
+.rail-step-link { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 6px; padding: 0.42rem 0.3rem;
+  text-decoration: none; font-size: 0.87rem; color: var(--color-text); border-radius: var(--radius-sm); }
+.rail-step-row.is-active .rail-step-link { font-weight: 700; color: var(--color-info-fg); }
+.rail-step-marker { color: var(--color-primary); flex-shrink: 0; visibility: hidden; }
+.rail-step-row.is-active .rail-step-marker { visibility: visible; }
+.rail-step-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rail-badge { flex-shrink: 0; font-size: 0.7rem; font-weight: 700; padding: 2px 6px; border-radius: var(--radius-sm);
+  background: var(--color-warning-subtle); color: var(--color-warning-fg); white-space: nowrap; }
+.rail-step-menu-trigger { flex-shrink: 0; width: 26px; height: 26px; margin-right: 4px; border-radius: var(--radius-sm);
+  border: 1px solid transparent; background: transparent; color: var(--color-text-muted); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; }
+.rail-step-menu-trigger:hover { background: var(--color-ghost-hover); color: var(--color-text); }
+
+.menu { position: absolute; z-index: 5; min-width: 180px; background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-card); padding: 6px; box-shadow: 0 2px 4px hsl(var(--shadow-color) / 0.1), 0 30px 70px -30px hsl(var(--shadow-color) / 0.4); }
+.menu .mi { display: block; width: 100%; text-align: left; background: none; border: none; padding: 8px 10px;
+  border-radius: var(--radius-sm); color: var(--color-text); font: inherit; font-size: 0.85rem; cursor: pointer; }
+.menu .mi:hover { background: var(--color-surface-hover); }
+.menu .mi.is-danger { color: var(--color-danger-fg); }
+.rail-step-menu { top: 100%; left: 1.6rem; margin-top: 2px; }
+
+.rail-add-step { width: 100%; text-align: left; background: none; border: none; cursor: pointer;
+  padding: 0.42rem 0.3rem 0.42rem 1.4rem; margin-top: 1px; font: inherit; font-size: 0.87rem;
+  color: var(--color-text-muted); border-radius: var(--radius-control); }
+.rail-add-step:hover { background: var(--color-surface-hover); color: var(--color-text); }
+
+.main { max-width: 1600px; padding: var(--admin-section-pad); min-width: 0; }
+
+.breadcrumb ol { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 4px; padding: 0;
+  font-size: 0.82rem; color: var(--color-text-muted); }
+.breadcrumb li:not(:last-child)::after { content: "/"; margin-left: 6px; color: var(--color-border-strong); }
+.breadcrumb a { text-decoration: none; }
+.breadcrumb a:hover { text-decoration: underline; }
+.breadcrumb li[aria-current="page"] { color: var(--color-text); font-weight: 600; }
+
+h1.step-heading { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.01em; margin: 0 0 1.1rem; }
+
+.main-layout--stacked { display: flex; flex-direction: column; gap: 1.1rem; }
+
+.field { margin: 0; }
+.field label { display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 5px; }
+.field select, .field input { width: 100%; height: var(--admin-control-h); padding: 0 var(--admin-control-pad-x);
+  border-radius: var(--radius-control); border: 1px solid var(--color-border-strong); background: var(--color-surface);
+  color: var(--color-text); }
+.field select:hover, .field input:hover { border-color: var(--color-primary); }
+.field-hint { margin: 4px 0 0; font-size: 0.78rem; color: var(--color-text-muted); }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: var(--admin-control-h);
+  padding: 0 16px; border-radius: var(--radius-control); border: 1.5px solid transparent; font-weight: 600;
+  font-size: 0.88rem; cursor: pointer; }
+.btn-sm { height: 32px; padding: 0 12px; font-size: 0.82rem; }
+.btn-secondary { background: var(--color-secondary); color: var(--color-secondary-foreground); }
+.btn-secondary:hover { background: var(--color-secondary-hover); }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.banner { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border-radius: var(--radius-control);
+  font-size: 0.82rem; }
+.banner-warning { background: var(--color-warning-subtle); color: var(--color-warning-fg); }
+.banner svg { width: 14px; height: 14px; flex-shrink: 0; margin-top: 2px; }
+
+.stacked-card { border: 1px solid var(--color-border); border-radius: var(--radius-card);
+  background: var(--color-surface); padding: var(--admin-section-pad); }
+.stacked-card > summary { cursor: pointer; list-style: none; display: flex; align-items: center;
+  justify-content: space-between; gap: 0.5rem; }
+.stacked-card > summary::-webkit-details-marker { display: none; }
+.stacked-card > summary .stacked-heading { margin: 0; flex-shrink: 0; white-space: nowrap; }
+.stacked-card__chev { transition: transform 0.12s ease; color: var(--color-text-muted); flex-shrink: 0; }
+.stacked-card[open] > summary .stacked-card__chev { transform: rotate(90deg); }
+.stacked-card[open] > summary { margin-bottom: 0.9rem; }
+.stacked-heading { margin: 0 0 0.9rem; font-size: 0.95rem; font-weight: 700; }
+
+.stacked-card__label { display: flex; align-items: baseline; gap: 8px; min-width: 0; flex: 1 1 auto; }
+.stacked-card__digest { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; font-size: 0.8rem; font-weight: 400; color: var(--color-text-muted); }
+.stacked-note { margin: 0; font-size: 0.85rem; color: var(--color-text-muted); }
+.stacked-card__body { display: flex; flex-direction: column; gap: 0.9rem; }
+
+.field-block { display: flex; flex-direction: column; gap: 6px; }
+.field-block__label { margin: 0; font-size: 0.82rem; font-weight: 600; color: var(--color-text); }
+.checkbox-row { display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.88rem; font-weight: 600; cursor: pointer; }
+.checkbox-row input[type="checkbox"] { width: 18px; height: 18px; margin: 2px 0 0; flex-shrink: 0; accent-color: var(--color-primary); }
+
+.intro { max-width: 68ch; font-size: 0.88rem; color: var(--color-text-muted); margin: 0.75rem 1.5rem 0; }
+
+/* ============================================================
+   Links & Webhooks POC additions
+   ============================================================ */
+
+.screen-intro { max-width: 68ch; font-size: 0.88rem; color: var(--color-text-muted); margin: -0.4rem 0 0; }
+
+.action-row { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+
+.btn-primary { background: var(--color-primary); color: var(--color-primary-foreground); }
+.btn-primary:hover { background: var(--color-primary-hover); }
+.btn-primary:active { background: var(--color-primary-active); }
+.btn-danger { background: var(--color-danger); color: var(--color-danger-foreground); }
+.btn-danger:hover { background: var(--color-danger-hover); }
+.btn-danger:active { background: var(--color-danger-active); }
+.btn-ghost { background: var(--color-ghost); color: var(--color-text); border-color: var(--color-border-strong); }
+.btn-ghost:hover { background: var(--color-ghost-hover); }
+
+.status-region { min-height: 1.4rem; font-size: 0.85rem; color: var(--color-text-muted); display: flex; flex-direction: column; gap: 4px; }
+
+/* Rule 1: the one-time reveal is never inside a <details>. This is a plain, always-
+   expanded section - never collapsible - with a heavy accent border so its presence
+   reads as unusual and important at a glance, and a statement that says outright the
+   value will not be shown again. There is no summary/disclosure control anywhere on
+   this element: a digest could tell you the value exists, never what it is, and that
+   is exactly the property this panel must not have. */
+.reveal-panel { border: 1px solid var(--color-warning); border-left: 5px solid var(--color-warning);
+  border-radius: var(--radius-card); background: var(--color-surface); padding: var(--admin-section-pad);
+  display: flex; flex-direction: column; gap: 0.85rem; }
+.reveal-panel__heading { margin: 0; font-size: 1rem; font-weight: 700; }
+.reveal-panel__statement { display: flex; gap: 8px; align-items: flex-start; margin: 0; font-size: 0.85rem;
+  font-weight: 600; color: var(--color-warning-fg); background: var(--color-warning-subtle);
+  padding: 0.65rem 0.8rem; border-radius: var(--radius-control); }
+.reveal-panel__statement svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 2px; }
+.reveal-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.reveal-list li, .reveal-value-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin: 0; }
+.reveal-value { font-family: var(--font-mono); font-size: 0.85rem; padding: 0.35rem 0.55rem;
+  border-radius: var(--radius-sm); background: var(--color-background-muted); word-break: break-all; }
+.reveal-panel__footer { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+
+.ops-table-scroll { border: 1px solid var(--color-border); border-radius: var(--radius-card); overflow-x: auto; background: var(--color-surface); }
+table.ops-table { width: 100%; min-width: 700px; border-collapse: collapse; font-size: 0.88rem; }
+.ops-table thead th { text-align: left; color: var(--color-text-muted); font-weight: 600; font-size: 0.72rem;
+  text-transform: uppercase; letter-spacing: 0.06em; padding: 0.6rem 0.6rem; border-bottom: 2px solid var(--color-border-strong);
+  background: var(--color-background-muted); white-space: nowrap; }
+.ops-table tbody tr { border-bottom: 1px solid var(--color-border); }
+.ops-table tbody tr:last-child { border-bottom: none; }
+.ops-table tbody tr:hover { background: var(--color-surface-hover); }
+.ops-table th[scope="row"] { text-align: left; font-weight: 400; }
+.ops-cell, .ops-table td, .ops-table th { padding: 0.55rem 0.6rem; vertical-align: middle; }
+.ops-id, .ops-url { font-family: var(--font-mono); font-size: 0.82rem; word-break: break-all; }
+.ops-muted { color: var(--color-text-muted); }
+
+.tag { display: inline-flex; align-items: center; gap: 5px; font-size: 0.75rem; font-weight: 700;
+  padding: 3px 8px; border-radius: var(--radius-sm); white-space: nowrap; }
+.tag--active { background: var(--color-info-subtle); color: var(--color-info-fg); }
+.tag--muted { background: var(--color-background-muted); color: var(--color-text-muted); }
+.tag--danger { background: var(--color-danger-subtle); color: var(--color-danger-fg); }
+.tag--success { background: var(--color-success-subtle); color: var(--color-success-fg); }
+.tag--warning { background: var(--color-warning-subtle); color: var(--color-warning-fg); }
+
+.ops-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.subsection { margin-top: 0.4rem; padding-top: 1.2rem; border-top: 1px dashed var(--color-border);
+  display: flex; flex-direction: column; gap: 0.75rem; }
+.subsection__heading { margin: 0; font-size: 0.9rem; font-weight: 700; }
+.subsection__total { margin: 0; font-size: 0.85rem; color: var(--color-text-muted); }
+
+.detail-row-cell { padding: 0 0.6rem 0.9rem; background: var(--color-background-muted); }
+.detail-panel { display: flex; flex-direction: column; gap: 0.55rem; padding: 0.85rem 0.9rem 0.2rem; }
+.detail-label { margin: 0.4rem 0 0; font-size: 0.82rem; font-weight: 600; color: var(--color-text); }
+.header-list { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 0; font-size: 0.82rem; }
+.header-list dt, .header-list dd { margin: 0; }
+.header-list code, .snippet { font-family: var(--font-mono); }
+.header-list code { font-size: 0.8em; }
+.snippet { display: block; max-height: 9rem; overflow: auto; margin: 0; padding: 0.6rem 0.75rem;
+  border-radius: var(--radius-control); background: var(--color-surface); border: 1px solid var(--color-border);
+  font-size: 0.78rem; white-space: pre-wrap; word-break: break-word; }
+
+.text-link { background: none; border: none; padding: 0; font: inherit; font-size: 0.85rem; font-weight: 600;
+  color: var(--color-primary); text-decoration: underline; cursor: pointer; }
+
+/* Modal dialogs: a full-viewport fixed backdrop (so nothing an ancestor's overflow can
+   clip it) and a dialog box anchored a fixed distance from the top of the viewport -
+   never vertically centred on page content, so its position never depends on how far
+   down the row that opened it happens to sit. Verified by measurement (see the POC's
+   companion report): at 390/1280/1920 wide the dialog box's own rectangle never
+   overlaps the topbar/save-status chrome above it or the table row beside it. */
+.modal-overlay { position: fixed; inset: 0; z-index: 50; background: var(--color-overlay);
+  display: flex; justify-content: center; padding: 0 1.25rem 1.25rem; overflow-y: auto; }
+.modal-dialog { margin-top: var(--modal-clearance, 6.5rem); margin-bottom: 1.25rem; width: 100%; max-width: 460px;
+  background: var(--color-surface); border-radius: var(--radius-card); padding: 1.5rem;
+  box-shadow: 0 2px 4px hsl(var(--shadow-color) / 0.14), 0 30px 70px -30px hsl(var(--shadow-color) / 0.45);
+  display: flex; flex-direction: column; gap: 1rem; height: fit-content; }
+.modal-dialog h2 { margin: 0; font-size: 1.05rem; font-weight: 700; }
+.modal-dialog__body { display: flex; flex-direction: column; gap: 0.85rem; font-size: 0.88rem; color: var(--color-text); }
+.modal-dialog__consequence { margin: 0; padding: 0.65rem 0.8rem; border-radius: var(--radius-control);
+  background: var(--color-warning-subtle); color: var(--color-warning-fg); font-weight: 600; font-size: 0.85rem; }
+.modal-dialog__actions { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+</style>
+
+<div class="switcher" role="group" aria-label="Preview mode">
+  <button type="button" aria-pressed="true" onclick="setMode('', this)">Light</button>
+  <button type="button" aria-pressed="false" onclick="setMode('dark', this)">Dark</button>
+  <button type="button" aria-pressed="false" onclick="setMode('hc', this)">High contrast</button>
+</div>
+
+<p class="intro">Links and webhooks POC: two operator screens reached from the same admin shell rail as the
+  sibling POC. Two rules drive both: a secret that can only ever be shown once is never inside a collapsible
+  section (it is a plain, always-expanded panel that says so in words), and a table cell that would trigger a
+  consequence (retargeting moves queued deliveries; deactivating stops fan-out) is a stated action beside
+  read-only text, never an inline-editable cell.</p>
+
+<header class="topbar">
+  <div class="topbar__inner">
+    <span class="wordmark">QCMS</span>
+    <nav class="topbar__nav" aria-label="Primary">
+      <ul>
+        <li><a class="topbar__link" href="#">Questions</a></li>
+        <li><a class="topbar__link" href="#" aria-current="page">Forms</a></li>
+        <li><a class="topbar__link" href="#">Responses</a></li>
+        <li><a class="topbar__link" href="#">Webhooks</a></li>
+        <li><a class="topbar__link" href="#">Settings</a></li>
+      </ul>
+    </nav>
+    <div class="topbar__trailing">
+      <button type="button" class="icon-btn" aria-label="Appearance settings" title="Appearance">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"></circle>
+          <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path>
+        </svg>
+      </button>
+      <button type="button" class="avatar-btn" aria-label="Account menu, signed in as Code Owner">CO</button>
+    </div>
+  </div>
+</header>
+
+<div class="save-status" aria-live="polite">Up to date.</div>
+
+<div class="shell-body">
+  <details class="rail-shell" open id="rail-shell">
+    <summary class="rail-summary">
+      <span class="rail-summary__label">
+        <h2 class="rail-summary__text">Life insurance</h2>
+        <span class="rail-summary__step" hidden>
+          <span class="rail-summary__sep" aria-hidden="true">/</span>
+          <span class="rail-summary__step-name">Health</span>
+        </span>
+      </span>
+      <svg class="rail-summary__chev icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+    </summary>
+    <div class="rail-body">
+
+      <nav aria-label="Life insurance sections" id="rail-shape">
+        <ul class="rail-tree">
+        <li>
+          <details class="rail-group" open>
+            <summary>
+              <svg class="rail-group__chev icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+              Steps
+            </summary>
+            <ul class="rail-steps">
+              <li>
+                <div class="rail-step-row">
+                  <button type="button" class="rail-step-grip" aria-label="Reorder step About you with Up or Down arrow keys, or by dragging">
+                    <svg class="icon-sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1.6" fill="currentColor"></circle><circle cx="15" cy="6" r="1.6" fill="currentColor"></circle><circle cx="9" cy="12" r="1.6" fill="currentColor"></circle><circle cx="15" cy="12" r="1.6" fill="currentColor"></circle><circle cx="9" cy="18" r="1.6" fill="currentColor"></circle><circle cx="15" cy="18" r="1.6" fill="currentColor"></circle></svg>
+                  </button>
+                  <a class="rail-step-link" href="#">
+                    <span class="rail-step-marker" aria-hidden="true">&rsaquo;</span>
+                    <span class="rail-step-title">About you</span>
+                  </a>
+                  <button type="button" class="rail-step-menu-trigger" aria-haspopup="menu" aria-expanded="false" aria-controls="step-menu-1" aria-label="Step 1 About you actions">
+                    <svg class="icon-sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1.6" fill="currentColor"></circle><circle cx="12" cy="12" r="1.6" fill="currentColor"></circle><circle cx="12" cy="19" r="1.6" fill="currentColor"></circle></svg>
+                  </button>
+                  <div class="menu rail-step-menu" role="menu" id="step-menu-1" aria-label="Step 1 About you actions" hidden>
+                    <button type="button" role="menuitem" class="mi">Rename</button>
+                    <button type="button" role="menuitem" class="mi">Move up</button>
+                    <button type="button" role="menuitem" class="mi">Move down</button>
+                    <button type="button" role="menuitem" class="mi is-danger">Remove step</button>
+                  </div>
+                </div>
+              </li>
+              <li>
+                <div class="rail-step-row">
+                  <button type="button" class="rail-step-grip" aria-label="Reorder step Health with Up or Down arrow keys, or by dragging">
+                    <svg class="icon-sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1.6" fill="currentColor"></circle><circle cx="15" cy="6" r="1.6" fill="currentColor"></circle><circle cx="9" cy="12" r="1.6" fill="currentColor"></circle><circle cx="15" cy="12" r="1.6" fill="currentColor"></circle><circle cx="9" cy="18" r="1.6" fill="currentColor"></circle><circle cx="15" cy="18" r="1.6" fill="currentColor"></circle></svg>
+                  </button>
+                  <a class="rail-step-link" href="#">
+                    <span class="rail-step-marker" aria-hidden="true">&rsaquo;</span>
+                    <span class="rail-step-title">Health</span>
+                  </a>
+                  <span class="rail-badge">2 issues</span>
+                  <button type="button" class="rail-step-menu-trigger" aria-haspopup="menu" aria-expanded="false" aria-controls="step-menu-2" aria-label="Step 2 Health actions">
+                    <svg class="icon-sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1.6" fill="currentColor"></circle><circle cx="12" cy="12" r="1.6" fill="currentColor"></circle><circle cx="12" cy="19" r="1.6" fill="currentColor"></circle></svg>
+                  </button>
+                  <div class="menu rail-step-menu" role="menu" id="step-menu-2" aria-label="Step 2 Health actions" hidden>
+                    <button type="button" role="menuitem" class="mi">Rename</button>
+                    <button type="button" role="menuitem" class="mi">Move up</button>
+                    <button type="button" role="menuitem" class="mi">Move down</button>
+                    <button type="button" role="menuitem" class="mi is-danger">Remove step</button>
+                  </div>
+                </div>
+              </li>
+              <li>
+                <div class="rail-step-row">
+                  <button type="button" class="rail-step-grip" aria-label="Reorder step Cover with Up or Down arrow keys, or by dragging">
+                    <svg class="icon-sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1.6" fill="currentColor"></circle><circle cx="15" cy="6" r="1.6" fill="currentColor"></circle><circle cx="9" cy="12" r="1.6" fill="currentColor"></circle><circle cx="15" cy="12" r="1.6" fill="currentColor"></circle><circle cx="9" cy="18" r="1.6" fill="currentColor"></circle><circle cx="15" cy="18" r="1.6" fill="currentColor"></circle></svg>
+                  </button>
+                  <a class="rail-step-link" href="#">
+                    <span class="rail-step-marker" aria-hidden="true">&rsaquo;</span>
+                    <span class="rail-step-title">Cover</span>
+                  </a>
+                  <span class="rail-badge">1 issue</span>
+                  <button type="button" class="rail-step-menu-trigger" aria-haspopup="menu" aria-expanded="false" aria-controls="step-menu-3" aria-label="Step 3 Cover actions">
+                    <svg class="icon-sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1.6" fill="currentColor"></circle><circle cx="12" cy="12" r="1.6" fill="currentColor"></circle><circle cx="12" cy="19" r="1.6" fill="currentColor"></circle></svg>
+                  </button>
+                  <div class="menu rail-step-menu" role="menu" id="step-menu-3" aria-label="Step 3 Cover actions" hidden>
+                    <button type="button" role="menuitem" class="mi">Rename</button>
+                    <button type="button" role="menuitem" class="mi">Move up</button>
+                    <button type="button" role="menuitem" class="mi">Move down</button>
+                    <button type="button" role="menuitem" class="mi is-danger">Remove step</button>
+                  </div>
+                </div>
+              </li>
+              <li>
+                <button type="button" class="rail-add-step">+ Add step</button>
+              </li>
+            </ul>
+          </details>
+        </li>
+        <li><a class="rail-link" href="#">Preview</a></li>
+        <li><a class="rail-link" href="#">Versions</a></li>
+        <li><a class="rail-link" href="#" id="rail-link-links" onclick="showScreen('links'); return false;">Links</a></li>
+        <li><a class="rail-link" href="#">Responses</a></li>
+        <li><a class="rail-link" href="#" id="rail-link-webhooks" aria-current="page" onclick="showScreen('webhooks'); return false;">Webhooks</a></li>
+        </ul>
+      </nav>
+
+    </div>
+  </details>
+
+  <main id="main-content" class="main">
+
+    <!-- ================= Screen 1: Secure links ================= -->
+    <div id="screen-links" class="main-layout main-layout--stacked" hidden>
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <ol>
+          <li>Life insurance</li>
+          <li aria-current="page">Secure links</li>
+        </ol>
+      </nav>
+      <h1 class="step-heading">Secure links</h1>
+      <p class="screen-intro">A secure link is a signed, expiring invitation to one form. Mint them here, hand them out, and revoke any that should stop working.</p>
+
+      <div class="action-row">
+        <button type="button" class="btn btn-primary" aria-haspopup="dialog" aria-controls="dialog-mint" aria-expanded="false" onclick="openDialog('dialog-mint', this)">Mint links</button>
+      </div>
+
+      <!-- Rule 1's assertive announcement: this is a summary only, never the URLs. The
+           URLs themselves live in the panel below, on screen, until Done is pressed. -->
+      <div aria-live="assertive" class="status-region" data-testid="qcms-links-status">
+        <p class="sr-only">2 secure links minted. They are listed below and cannot be shown again.</p>
+        <p id="links-copy-note" class="stacked-note" aria-live="polite"></p>
+      </div>
+
+      <!-- The one-time reveal. Never a <details>: see the .reveal-panel comment in the
+           style block. This is a plain <section>, always expanded, with no summary and
+           no collapse control anywhere in it. -->
+      <section aria-labelledby="reveal-links-heading" class="reveal-panel" id="reveal-links-panel">
+        <h2 id="reveal-links-heading" class="reveal-panel__heading">2 links minted</h2>
+        <p class="reveal-panel__statement">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10.3 3.86L1.82 18a1 1 0 0 0 .86 1.5h18.64a1 1 0 0 0 .86-1.5L13.7 3.86a1 1 0 0 0-1.72 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+          Copy these now. The server stores a link's state, never its token, so these URLs cannot be shown again.
+        </p>
+        <ul class="reveal-list">
+          <li>
+            <code class="reveal-value">https://forms.example.test/l/&lt;example-token-one&gt;</code>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="copyValue('links-copy-note', 'Link copied to the clipboard.')">Copy URL</button>
+          </li>
+          <li>
+            <code class="reveal-value">https://forms.example.test/l/&lt;example-token-two&gt;</code>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="copyValue('links-copy-note', 'Link copied to the clipboard.')">Copy URL</button>
+          </li>
+        </ul>
+        <div class="reveal-panel__footer">
+          <button type="button" class="btn btn-secondary">Download as CSV</button>
+          <button type="button" class="btn btn-ghost" onclick="dismissPanel('reveal-links-panel')">Done</button>
+        </div>
+      </section>
+
+      <h2 class="stacked-heading">Issued links</h2>
+      <div class="ops-table-scroll">
+        <table class="ops-table" data-testid="qcms-links-table">
+          <caption class="sr-only">Secure links</caption>
+          <thead>
+            <tr>
+              <th scope="col">Link</th>
+              <th scope="col">State</th>
+              <th scope="col">One-time</th>
+              <th scope="col">Expires</th>
+              <th scope="col">Used</th>
+              <th scope="col">Minted</th>
+              <th scope="col"><span class="sr-only">Revoke</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr data-state="active">
+              <th scope="row"><code class="ops-id">lnk_8f2a&hellip;e01c</code></th>
+              <td><span class="tag tag--active">Active</span></td>
+              <td>No</td>
+              <td>2026-09-15</td>
+              <td>-</td>
+              <td>2026-08-10</td>
+              <td>
+                <button type="button" class="btn btn-danger btn-sm" aria-haspopup="dialog" aria-controls="dialog-revoke" aria-expanded="false" onclick="openDialog('dialog-revoke', this)">Revoke</button>
+              </td>
+            </tr>
+            <tr data-state="active">
+              <th scope="row"><code class="ops-id">lnk_3d9b&hellip;771f</code></th>
+              <td><span class="tag tag--active">Active</span></td>
+              <td>Yes</td>
+              <td>2026-08-20</td>
+              <td>-</td>
+              <td>2026-08-14</td>
+              <td>
+                <button type="button" class="btn btn-danger btn-sm" aria-haspopup="dialog" aria-controls="dialog-revoke" aria-expanded="false" onclick="openDialog('dialog-revoke', this)">Revoke</button>
+              </td>
+            </tr>
+            <tr data-state="consumed">
+              <th scope="row"><code class="ops-id">lnk_c14e&hellip;5a02</code></th>
+              <td><span class="tag tag--muted">Used</span></td>
+              <td>Yes</td>
+              <td>2026-08-18</td>
+              <td>2026-08-16 09:12</td>
+              <td>2026-08-12</td>
+              <td class="ops-muted">-</td>
+            </tr>
+            <tr data-state="revoked">
+              <th scope="row"><code class="ops-id">lnk_71bb&hellip;9f3d</code></th>
+              <td><span class="tag tag--danger">Revoked</span></td>
+              <td>No</td>
+              <td>2026-09-01</td>
+              <td>-</td>
+              <td>2026-08-05</td>
+              <td class="ops-muted">-</td>
+            </tr>
+            <tr data-state="expired">
+              <th scope="row"><code class="ops-id">lnk_a02f&hellip;c88e</code></th>
+              <td><span class="tag tag--muted">Expired</span></td>
+              <td>No</td>
+              <td>2026-08-01</td>
+              <td>-</td>
+              <td>2026-07-20</td>
+              <td class="ops-muted">-</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ================= Screen 2: Webhooks (default screen: this is where the
+         required open confirmation dialog lives, so it starts visible together with
+         the row it describes rather than behind a click) ================= -->
+    <div id="screen-webhooks" class="main-layout main-layout--stacked">
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <ol>
+          <li>Life insurance</li>
+          <li aria-current="page">Webhooks</li>
+        </ol>
+      </nav>
+      <h1 class="step-heading">Webhook endpoints</h1>
+      <p class="screen-intro">Each active endpoint receives a signed response.submitted request for every submission except a flagged one, whose event is withheld until an operator releases it on the response.</p>
+
+      <div class="action-row">
+        <button type="button" class="btn btn-primary" aria-haspopup="dialog" aria-controls="dialog-add-endpoint" aria-expanded="false" onclick="openDialog('dialog-add-endpoint', this)">Add endpoint</button>
+      </div>
+
+      <div aria-live="polite" class="status-region" data-testid="qcms-webhook-status">
+        <p id="webhook-copy-note" class="stacked-note" aria-live="polite"></p>
+      </div>
+
+      <!-- Rule 1's assertive region: mounted from first render, filled with the panel
+           content. Never mounted together with the panel already inside it - matches
+           the shipped webhook-config.tsx pattern (issue #307) so a screen reader that
+           only observes mutations of a region it already watches still catches this. -->
+      <div aria-live="assertive" data-testid="qcms-webhook-secret-region">
+        <section aria-labelledby="reveal-secret-heading" class="reveal-panel" id="reveal-secret-panel">
+          <h2 id="reveal-secret-heading" class="reveal-panel__heading">Copy this secret now</h2>
+          <p class="reveal-panel__statement">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10.3 3.86L1.82 18a1 1 0 0 0 .86 1.5h18.64a1 1 0 0 0 .86-1.5L13.7 3.86a1 1 0 0 0-1.72 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            This is the only time this secret is shown. The server keeps it encrypted and has no way to show it again; if it is lost, rotate to a new one.
+          </p>
+          <p class="reveal-value-row">
+            <span class="sr-only">Signing secret for whk_2a91&hellip;44bd</span>
+            <code class="reveal-value">&lt;example-signing-secret&gt;</code>
+          </p>
+          <div class="reveal-panel__footer">
+            <button type="button" class="btn btn-secondary" onclick="copyValue('webhook-copy-note', 'Copied to the clipboard.')">Copy</button>
+            <button type="button" class="btn btn-ghost" onclick="dismissPanel('reveal-secret-panel')">I have copied it</button>
+          </div>
+        </section>
+      </div>
+
+      <h2 class="stacked-heading">Configured endpoints</h2>
+      <p class="stacked-note">All values here are read-only. Retargeting and rotating a secret change what happens next, so each is its own stated action beside the row, not a cell you edit in place.</p>
+      <div class="ops-table-scroll">
+        <table class="ops-table" data-testid="qcms-webhooks-table">
+          <caption class="sr-only">Configured endpoints</caption>
+          <thead>
+            <tr>
+              <th scope="col">Endpoint</th>
+              <th scope="col">URL</th>
+              <th scope="col">State</th>
+              <th scope="col">Secret</th>
+              <th scope="col">Created</th>
+              <th scope="col">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr data-webhook-id="whk_2a91e44bd" data-active="true">
+              <th scope="row"><code class="ops-id">whk_2a91&hellip;44bd</code></th>
+              <td><span class="ops-url">https://ops.example.test/hooks/qcms-primary</span></td>
+              <td><span class="tag tag--active">Active</span></td>
+              <td class="ops-muted">Stored, not retrievable</td>
+              <td>2026-06-02</td>
+              <td>
+                <div class="ops-actions">
+                  <button type="button" class="btn btn-secondary btn-sm" aria-haspopup="dialog" aria-controls="dialog-retarget" aria-expanded="true" onclick="openDialog('dialog-retarget', this)">Change URL</button>
+                  <button type="button" class="btn btn-secondary btn-sm" aria-haspopup="dialog" aria-controls="dialog-rotate" aria-expanded="false" onclick="openDialog('dialog-rotate', this)">Rotate secret</button>
+                  <button type="button" class="btn btn-danger btn-sm" aria-haspopup="dialog" aria-controls="dialog-deactivate" aria-expanded="false" onclick="openDialog('dialog-deactivate', this)">Deactivate</button>
+                </div>
+              </td>
+            </tr>
+            <tr data-webhook-id="whk_7c05ee12" data-active="false">
+              <th scope="row"><code class="ops-id">whk_7c05&hellip;ee12</code></th>
+              <td><span class="ops-url">https://ops.example.test/hooks/staging-mirror</span></td>
+              <td><span class="tag tag--muted">Inactive</span></td>
+              <td class="ops-muted">Stored, not retrievable</td>
+              <td>2026-07-11</td>
+              <td>
+                <div class="ops-actions">
+                  <button type="button" class="btn btn-secondary btn-sm" aria-haspopup="dialog" aria-controls="dialog-retarget" aria-expanded="false" onclick="openDialog('dialog-retarget', this)">Change URL</button>
+                  <button type="button" class="btn btn-secondary btn-sm" aria-haspopup="dialog" aria-controls="dialog-rotate" aria-expanded="false" onclick="openDialog('dialog-rotate', this)">Rotate secret</button>
+                  <!-- Reactivate is not confirmed, unlike Deactivate above - the asymmetry
+                       the audit calls out. It runs immediately and reports through the
+                       polite status region rather than opening a dialog. -->
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="runImmediate('webhook-copy-note', 'Endpoint reactivated.')">Reactivate</button>
+                </div>
+              </td>
+            </tr>
+            <tr data-webhook-id="whk_9f3a10cd" data-active="true">
+              <th scope="row"><code class="ops-id">whk_9f3a&hellip;10cd</code></th>
+              <td><span class="ops-url">https://ops.example.test/hooks/audit-log</span></td>
+              <td><span class="tag tag--active">Active</span></td>
+              <td class="ops-muted">Stored, not retrievable</td>
+              <td>2026-08-01</td>
+              <td>
+                <div class="ops-actions">
+                  <button type="button" class="btn btn-secondary btn-sm" aria-haspopup="dialog" aria-controls="dialog-retarget" aria-expanded="false" onclick="openDialog('dialog-retarget', this)">Change URL</button>
+                  <button type="button" class="btn btn-secondary btn-sm" aria-haspopup="dialog" aria-controls="dialog-rotate" aria-expanded="false" onclick="openDialog('dialog-rotate', this)">Rotate secret</button>
+                  <button type="button" class="btn btn-danger btn-sm" aria-haspopup="dialog" aria-controls="dialog-deactivate" aria-expanded="false" onclick="openDialog('dialog-deactivate', this)">Deactivate</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Recent deliveries: regenerable history, so unlike the reveal panels above this
+           may collapse behind a digest without losing anything unrecoverable. -->
+      <details class="stacked-card" open>
+        <summary>
+          <span class="stacked-card__label">
+            <h2 class="stacked-heading">Recent deliveries</h2>
+            <span class="stacked-card__digest">5 recent, 2 dead-lettered</span>
+          </span>
+          <svg class="stacked-card__chev icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </summary>
+        <div class="stacked-card__body">
+          <p class="stacked-note">One row per event and endpoint. Each row records the most recent attempt made for it.</p>
+
+          <div class="ops-table-scroll">
+            <table class="ops-table" data-testid="qcms-deliveries-table">
+              <caption class="sr-only">Recent webhook deliveries</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Event</th>
+                  <th scope="col">Endpoint</th>
+                  <th scope="col">Status</th>
+                  <th scope="col" title="Attempts that failed. A delivery that succeeded first time shows zero.">Failed attempts</th>
+                  <th scope="col">Latency</th>
+                  <th scope="col">Last attempt</th>
+                  <th scope="col"><span class="sr-only">Detail</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr data-delivery-id="dlv_1" data-status="delivered">
+                  <th scope="row"><code class="ops-id">response.submitted</code></th>
+                  <td><span class="ops-url">qcms-primary</span></td>
+                  <td><span class="tag tag--success">Delivered</span></td>
+                  <td>0</td>
+                  <td>184 ms</td>
+                  <td>2026-08-16 09:14</td>
+                  <td><button type="button" class="text-link" aria-expanded="false" aria-controls="detail-dlv_1" onclick="toggleDetail('dlv_1')">Show request and response for response.submitted</button></td>
+                </tr>
+
+                <tr data-delivery-id="dlv_2" data-status="dead_lettered">
+                  <th scope="row"><code class="ops-id">response.submitted</code></th>
+                  <td><span class="ops-url">staging-mirror</span></td>
+                  <td><span class="tag tag--danger">Dead-lettered</span></td>
+                  <td>6</td>
+                  <td>-</td>
+                  <td>2026-08-14 22:03</td>
+                  <td><button type="button" class="text-link" id="detail-toggle-dlv_2" aria-expanded="true" aria-controls="detail-dlv_2" onclick="toggleDetail('dlv_2')">Hide request and response for response.submitted</button></td>
+                </tr>
+                <tr id="detail-row-dlv_2">
+                  <td colspan="7" class="detail-row-cell">
+                    <div id="detail-dlv_2" class="detail-panel">
+                      <p class="detail-label">Request headers</p>
+                      <p class="stacked-note">The signature is masked before it is stored, so this record never held the HMAC.</p>
+                      <dl class="header-list">
+                        <dt><code>content-type</code></dt>
+                        <dd><code>application/json</code></dd>
+                        <dt><code>x-qcms-signature</code></dt>
+                        <dd><code>&lt;masked&gt;</code></dd>
+                      </dl>
+                      <p class="detail-label">Response code: <span>503</span></p>
+                      <p class="detail-label">Response body (stored prefix)</p>
+                      <pre class="snippet" tabindex="0" role="region" aria-label="Response body (stored prefix)">&lt;example placeholder body - service unavailable&gt;</pre>
+                      <p class="stacked-note">Last error: <code>connect ETIMEDOUT (example placeholder)</code></p>
+                    </div>
+                  </td>
+                </tr>
+
+                <tr data-delivery-id="dlv_3" data-status="pending">
+                  <th scope="row"><code class="ops-id">response.submitted</code></th>
+                  <td><span class="ops-url">audit-log</span></td>
+                  <td><span class="tag tag--warning">Pending</span></td>
+                  <td>1</td>
+                  <td>-</td>
+                  <td>2026-08-16 09:10</td>
+                  <td><button type="button" class="text-link" aria-expanded="false" aria-controls="detail-dlv_3" onclick="toggleDetail('dlv_3')">Show request and response for response.submitted</button></td>
+                </tr>
+                <tr data-delivery-id="dlv_4" data-status="dead_lettered">
+                  <th scope="row"><code class="ops-id">response.submitted</code></th>
+                  <td><span class="ops-url">qcms-primary</span></td>
+                  <td><span class="tag tag--danger">Dead-lettered</span></td>
+                  <td>6</td>
+                  <td>-</td>
+                  <td>2026-08-11 03:44</td>
+                  <td><button type="button" class="text-link" aria-expanded="false" aria-controls="detail-dlv_4" onclick="toggleDetail('dlv_4')">Show request and response for response.submitted</button></td>
+                </tr>
+                <tr data-delivery-id="dlv_5" data-status="cancelled">
+                  <th scope="row"><code class="ops-id">response.submitted</code></th>
+                  <td><span class="ops-url">staging-mirror</span></td>
+                  <td><span class="tag tag--muted">Cancelled</span></td>
+                  <td>0</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td><button type="button" class="text-link" aria-expanded="false" aria-controls="detail-dlv_5" onclick="toggleDetail('dlv_5')">Show request and response for response.submitted</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- The dead-letter grouping, per the brief: nested in the same regenerable
+               digest section. Redelivering does not recreate a lost secret, so this may
+               stay inside the collapsible <details> above without conflicting with
+               Rule 1. -->
+          <div class="subsection" aria-labelledby="dead-letter-heading">
+            <div class="action-row" style="justify-content: space-between;">
+              <h3 id="dead-letter-heading" class="subsection__heading">Dead-letter queue</h3>
+              <button type="button" class="btn btn-danger btn-sm" aria-haspopup="dialog" aria-controls="dialog-redeliver-all" aria-expanded="false" onclick="openDialog('dialog-redeliver-all', this)">Redeliver all</button>
+            </div>
+            <p class="stacked-note">Deliveries that exhausted their retries. Fix the target, then redeliver: a redelivered item is queued for the next delivery pass.</p>
+            <p class="subsection__total">2 dead-lettered deliveries</p>
+            <div class="ops-table-scroll">
+              <table class="ops-table" data-testid="qcms-dead-letters-table">
+                <caption class="sr-only">Dead-lettered deliveries</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Event</th>
+                    <th scope="col">Endpoint</th>
+                    <th scope="col">Attempts</th>
+                    <th scope="col">Last error</th>
+                    <th scope="col">Dead-lettered</th>
+                    <th scope="col"><span class="sr-only">Redeliver</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <th scope="row"><code class="ops-id">response.submitted</code></th>
+                    <td><span class="ops-url">staging-mirror</span></td>
+                    <td>6</td>
+                    <td><code>connect ETIMEDOUT (example placeholder)</code></td>
+                    <td>2026-08-14 22:03</td>
+                    <td>
+                      <button type="button" class="btn btn-secondary btn-sm" aria-label="Redeliver response.submitted to staging-mirror" onclick="runImmediate('webhook-copy-note', '1 delivery is queued for the next pass.')">
+                        Redeliver
+                      </button>
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row"><code class="ops-id">response.submitted</code></th>
+                    <td><span class="ops-url">qcms-primary</span></td>
+                    <td>6</td>
+                    <td><code>HTTP 503 (example placeholder)</code></td>
+                    <td>2026-08-11 03:44</td>
+                    <td>
+                      <button type="button" class="btn btn-secondary btn-sm" aria-label="Redeliver response.submitted to qcms-primary" onclick="runImmediate('webhook-copy-note', '1 delivery is queued for the next pass.')">
+                        Redeliver
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </details>
+    </div>
+
+  </main>
+</div>
+
+<!-- ================= Dialogs =================
+     Every one is a real dialog: role="dialog" (or "alertdialog" for an irreversible-
+     feeling confirmation, matching the shipped Dialog/ConfirmDialog split), aria-modal
+     and aria-labelledby pointing at its own heading. Exactly one - the retarget dialog
+     for the first endpoint row - is open on load, so its consequence sentence is
+     visible in a static render. Every other dialog exists in the document but is
+     [hidden] until its trigger is activated. -->
+
+<div class="modal-overlay" id="dialog-mint" hidden onclick="if (event.target === this) closeDialog('dialog-mint')">
+  <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-mint-title">
+    <h2 id="dialog-mint-title">Mint secure links</h2>
+    <div class="modal-dialog__body">
+      <div class="field">
+        <label for="mint-expires">Expires</label>
+        <input type="date" id="mint-expires" />
+        <p class="field-hint">The link stops working at the end of this day, UTC, used or not.</p>
+      </div>
+      <label class="checkbox-row" for="mint-onetime">
+        <input type="checkbox" id="mint-onetime" />
+        <span>One-time (stops working after the first use)</span>
+      </label>
+      <div class="field">
+        <label for="mint-count">How many</label>
+        <input type="number" id="mint-count" value="1" min="1" max="25" />
+        <p class="field-hint">Up to 25 at a time.</p>
+      </div>
+    </div>
+    <div class="modal-dialog__actions">
+      <button type="button" class="btn btn-primary" onclick="closeDialog('dialog-mint')">Mint</button>
+      <button type="button" class="btn btn-ghost" onclick="closeDialog('dialog-mint')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="dialog-revoke" hidden onclick="if (event.target === this) closeDialog('dialog-revoke')">
+  <div class="modal-dialog" role="alertdialog" aria-modal="true" aria-labelledby="dialog-revoke-title" aria-describedby="dialog-revoke-body">
+    <h2 id="dialog-revoke-title">Revoke this link?</h2>
+    <div class="modal-dialog__body">
+      <p class="modal-dialog__consequence" id="dialog-revoke-body">
+        The link stops working immediately and cannot be restored. A session already started with it finishes normally (R1).
+      </p>
+    </div>
+    <div class="modal-dialog__actions">
+      <button type="button" class="btn btn-danger" onclick="closeDialog('dialog-revoke')">Revoke it</button>
+      <button type="button" class="btn btn-ghost" onclick="closeDialog('dialog-revoke')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="dialog-add-endpoint" hidden onclick="if (event.target === this) closeDialog('dialog-add-endpoint')">
+  <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-add-endpoint-title">
+    <h2 id="dialog-add-endpoint-title">Add a webhook endpoint</h2>
+    <div class="modal-dialog__body">
+      <div class="field">
+        <label for="add-endpoint-url">Endpoint URL</label>
+        <input type="url" id="add-endpoint-url" placeholder="https://example.test/hooks/&lt;example&gt;" />
+        <p class="field-hint">https, unless this deployment allows private targets.</p>
+      </div>
+      <label class="checkbox-row" for="add-endpoint-active">
+        <input type="checkbox" id="add-endpoint-active" checked />
+        <span>Deliver to it straight away</span>
+      </label>
+    </div>
+    <div class="modal-dialog__actions">
+      <button type="button" class="btn btn-primary" onclick="closeDialog('dialog-add-endpoint')">Create endpoint</button>
+      <button type="button" class="btn btn-ghost" onclick="closeDialog('dialog-add-endpoint')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Shown OPEN by default: the retarget dialog for the first endpoint row, so the
+     consequence sentence (Rule 2) is visible without any interaction. -->
+<div class="modal-overlay" id="dialog-retarget" onclick="if (event.target === this) closeDialog('dialog-retarget')">
+  <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-retarget-title">
+    <h2 id="dialog-retarget-title">Point this endpoint somewhere else</h2>
+    <div class="modal-dialog__body">
+      <p class="modal-dialog__consequence">
+        Deliveries already queued for this endpoint go to the new URL on their next attempt, including redelivered ones.
+      </p>
+      <div class="field">
+        <label for="retarget-url">Endpoint URL</label>
+        <input type="url" id="retarget-url" value="https://ops.example.test/hooks/qcms-primary" />
+        <p class="field-hint">https, unless this deployment allows private targets.</p>
+      </div>
+    </div>
+    <div class="modal-dialog__actions">
+      <button type="button" class="btn btn-primary" onclick="closeDialog('dialog-retarget')">Save the URL</button>
+      <button type="button" class="btn btn-ghost" onclick="closeDialog('dialog-retarget')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="dialog-rotate" hidden onclick="if (event.target === this) closeDialog('dialog-rotate')">
+  <div class="modal-dialog" role="alertdialog" aria-modal="true" aria-labelledby="dialog-rotate-title" aria-describedby="dialog-rotate-body">
+    <h2 id="dialog-rotate-title">Rotate this endpoint's secret?</h2>
+    <div class="modal-dialog__body">
+      <p class="modal-dialog__consequence" id="dialog-rotate-body">
+        The next delivery is signed with the new secret, so a consumer still verifying with the old one starts rejecting. The new secret is shown once.
+      </p>
+    </div>
+    <div class="modal-dialog__actions">
+      <button type="button" class="btn btn-danger" onclick="closeDialog('dialog-rotate')">Rotate it</button>
+      <button type="button" class="btn btn-ghost" onclick="closeDialog('dialog-rotate')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="dialog-deactivate" hidden onclick="if (event.target === this) closeDialog('dialog-deactivate')">
+  <div class="modal-dialog" role="alertdialog" aria-modal="true" aria-labelledby="dialog-deactivate-title" aria-describedby="dialog-deactivate-body">
+    <h2 id="dialog-deactivate-title">Stop delivering to this endpoint?</h2>
+    <div class="modal-dialog__body">
+      <p class="modal-dialog__consequence" id="dialog-deactivate-body">
+        New submissions stop fanning out to it. Its history stays readable, and deliveries already queued keep their own retry state.
+      </p>
+    </div>
+    <div class="modal-dialog__actions">
+      <button type="button" class="btn btn-danger" onclick="closeDialog('dialog-deactivate')">Deactivate it</button>
+      <button type="button" class="btn btn-ghost" onclick="closeDialog('dialog-deactivate')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="dialog-redeliver-all" hidden onclick="if (event.target === this) closeDialog('dialog-redeliver-all')">
+  <div class="modal-dialog" role="alertdialog" aria-modal="true" aria-labelledby="dialog-redeliver-all-title" aria-describedby="dialog-redeliver-all-body">
+    <h2 id="dialog-redeliver-all-title">Redeliver every dead-lettered delivery?</h2>
+    <div class="modal-dialog__body">
+      <p class="modal-dialog__consequence" id="dialog-redeliver-all-body">
+        Each one is reset to due now and re-attempted on the next delivery pass. A target that is still broken dead-letters again.
+      </p>
+    </div>
+    <div class="modal-dialog__actions">
+      <button type="button" class="btn btn-danger" onclick="closeDialog('dialog-redeliver-all')">Redeliver all of them</button>
+      <button type="button" class="btn btn-ghost" onclick="closeDialog('dialog-redeliver-all')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function setMode(mode, btn) {
+  document.documentElement.className = mode;
+  document.querySelectorAll(".switcher button").forEach(function (b) {
+    b.setAttribute("aria-pressed", b === btn ? "true" : "false");
+  });
+}
+
+function showScreen(screen) {
+  var isLinks = screen === "links";
+  document.getElementById("screen-links").hidden = !isLinks;
+  document.getElementById("screen-webhooks").hidden = isLinks;
+
+  var linksLink = document.getElementById("rail-link-links");
+  var webhooksLink = document.getElementById("rail-link-webhooks");
+
+  if (isLinks) {
+    linksLink.setAttribute("aria-current", "page");
+    webhooksLink.removeAttribute("aria-current");
+  } else {
+    webhooksLink.setAttribute("aria-current", "page");
+    linksLink.removeAttribute("aria-current");
+  }
+}
+
+var qcmsLastTrigger = null;
+
+// Keeps the dialog box clear of the shell chrome above it (the demo switcher, the
+// topbar and the save-status strip) regardless of viewport size or which mode is
+// active, rather than a guessed fixed offset: measured from the chrome's own actual
+// bottom edge plus a fixed buffer, so it holds even if the chrome reflows (e.g. the
+// topbar nav wrapping onto a second line at narrow widths).
+function updateModalClearance() {
+  var chromeEnd = document.querySelector(".save-status");
+  if (!chromeEnd) return;
+  var rect = chromeEnd.getBoundingClientRect();
+  var clearance = Math.max(96, Math.ceil(rect.bottom) + 24);
+  document.documentElement.style.setProperty("--modal-clearance", clearance + "px");
+}
+window.addEventListener("resize", updateModalClearance);
+updateModalClearance();
+
+function openDialog(id, trigger) {
+  var overlay = document.getElementById(id);
+  if (!overlay) return;
+  updateModalClearance();
+  overlay.hidden = false;
+  if (trigger) {
+    trigger.setAttribute("aria-expanded", "true");
+    qcmsLastTrigger = trigger;
+  }
+  var focusTarget = overlay.querySelector(".modal-dialog h2");
+  if (focusTarget) {
+    focusTarget.setAttribute("tabindex", "-1");
+    focusTarget.focus();
+  }
+}
+
+function closeDialog(id) {
+  var overlay = document.getElementById(id);
+  if (!overlay) return;
+  overlay.hidden = true;
+  var trigger = document.querySelector('[aria-controls="' + id + '"][aria-expanded="true"]');
+  if (trigger) {
+    trigger.setAttribute("aria-expanded", "false");
+    trigger.focus();
+  } else if (qcmsLastTrigger) {
+    qcmsLastTrigger.focus();
+  }
+}
+
+document.addEventListener("keydown", function (event) {
+  if (event.key !== "Escape") return;
+  var open = document.querySelector(".modal-overlay:not([hidden])");
+  if (open) closeDialog(open.id);
+});
+
+function dismissPanel(id) {
+  var panel = document.getElementById(id);
+  if (panel) panel.hidden = true;
+}
+
+function copyValue(noteId, message) {
+  var note = document.getElementById(noteId);
+  if (note) note.textContent = message;
+}
+
+function runImmediate(noteId, message) {
+  var note = document.getElementById(noteId);
+  if (note) note.textContent = message;
+}
+
+function toggleDetail(deliveryId) {
+  var row = document.getElementById("detail-row-dlv_" + deliveryId.replace("dlv_", ""));
+  var panel = document.getElementById("detail-" + deliveryId);
+  var toggle = document.getElementById("detail-toggle-" + deliveryId) ||
+    document.querySelector('[aria-controls="detail-' + deliveryId + '"]');
+  var willOpen = !panel || panel.closest("tr").style.display === "none" || row === null;
+
+  if (row) {
+    // dlv_2 ships expanded in the markup; toggling it removes the row entirely for
+    // this static demo rather than re-creating it, since there is nothing further to
+    // show once collapsed.
+    row.parentNode.removeChild(row);
+    if (toggle) {
+      toggle.textContent = "Show request and response for response.submitted";
+      toggle.setAttribute("aria-expanded", "false");
+    }
+    return;
+  }
+  if (toggle) toggle.setAttribute("aria-expanded", toggle.getAttribute("aria-expanded") !== "true");
+}
+</script>

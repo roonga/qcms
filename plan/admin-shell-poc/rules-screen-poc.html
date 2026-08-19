@@ -1,0 +1,988 @@
+<!-- @dsCard group="Layout" name="Rules screen" subtitle="Full-width form-level rule editor: structured tree beside JSON, mixed question and step targets" -->
+<title>QCMS DS - Rules screen POC</title>
+<style>
+:root {
+  --color-primary: #2456c6;
+  --color-primary-hover: #1e4aad;
+  --color-primary-active: #193f95;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #4f5b70;
+  --color-secondary-hover: #475265;
+  --color-secondary-active: #3f495a;
+  --color-secondary-foreground: #ffffff;
+  --color-danger: #c0271f;
+  --color-danger-hover: #ad231c;
+  --color-danger-active: #9a1f19;
+  --color-danger-foreground: #ffffff;
+  --color-danger-subtle: #f9e7e5;
+  --color-danger-fg: #8f1d18;
+  --color-ghost: transparent;
+  --color-ghost-hover: #eef1f6;
+  --color-ghost-active: #e4e8ef;
+  --color-info: #2456c6;
+  --color-info-subtle: #e9effb;
+  --color-info-fg: #1b44a0;
+  --color-success: #1e7a46;
+  --color-success-subtle: #e4f1ea;
+  --color-success-fg: #16603a;
+  --color-warning: #8a5a00;
+  --color-warning-subtle: #f6eeda;
+  --color-warning-fg: #6e4700;
+  --color-text: #0f1729;
+  --color-text-muted: #55617a;
+  --color-border: #dde2ea;
+  --color-border-strong: #838ca4;
+  --color-background: #fbfcfd;
+  --color-background-muted: #eef1f6;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f4f6fa;
+  --color-focus-ring: #2456c6;
+  --color-overlay: rgb(0 0 0 / 0.5);
+  --shadow-color: 222deg 30% 20%;
+  --admin-control-h: 40px;
+  --admin-control-pad-x: 0.6rem;
+  --admin-stack: 0.35rem;
+  --admin-section-pad: 1.25rem;
+  --admin-table-row-h: 44px;
+  --radius-control: 4px;
+  --radius-card: 8px;
+  --radius-sm: 2px;
+  --font-admin: "Lexend", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace;
+}
+
+:root.dark {
+  --color-primary: #7aa2ff;
+  --color-primary-hover: #8fb1ff;
+  --color-primary-active: #a1beff;
+  --color-primary-foreground: #0b0f1a;
+  --color-secondary: #97a2b8;
+  --color-secondary-hover: #a3adc1;
+  --color-secondary-active: #aeb6c8;
+  --color-secondary-foreground: #0b0f1a;
+  --color-danger: #ff7b80;
+  --color-danger-hover: #ff8b8f;
+  --color-danger-active: #ff989c;
+  --color-danger-foreground: #0b0f1a;
+  --color-danger-subtle: #2b1615;
+  --color-danger-fg: #ffb3b5;
+  --color-ghost: transparent;
+  --color-ghost-hover: #1b2230;
+  --color-ghost-active: #232c3c;
+  --color-info: #7aa2ff;
+  --color-info-subtle: #16233a;
+  --color-info-fg: #a9c4ff;
+  --color-success: #46c08a;
+  --color-success-subtle: #132a20;
+  --color-success-fg: #8fe0bd;
+  --color-warning: #e0a93b;
+  --color-warning-subtle: #2a2110;
+  --color-warning-fg: #f0cd85;
+  --color-text: #e6eaf2;
+  --color-text-muted: #97a2b8;
+  --color-border: #262e3d;
+  --color-border-strong: #626c88;
+  --color-background: #0b0f1a;
+  --color-background-muted: #10151f;
+  --color-surface: #141a26;
+  --color-surface-hover: #1b2230;
+  --color-focus-ring: #7aa2ff;
+  --color-overlay: rgb(0 0 0 / 0.6);
+  --shadow-color: 222deg 60% 2%;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light):not(.dark):not(.hc) {
+    --color-primary: #7aa2ff;
+    --color-primary-hover: #8fb1ff;
+    --color-primary-active: #a1beff;
+    --color-primary-foreground: #0b0f1a;
+    --color-secondary: #97a2b8;
+    --color-secondary-hover: #a3adc1;
+    --color-secondary-active: #aeb6c8;
+    --color-secondary-foreground: #0b0f1a;
+    --color-danger: #ff7b80;
+    --color-danger-hover: #ff8b8f;
+    --color-danger-active: #ff989c;
+    --color-danger-foreground: #0b0f1a;
+    --color-danger-subtle: #2b1615;
+    --color-danger-fg: #ffb3b5;
+    --color-ghost: transparent;
+    --color-ghost-hover: #1b2230;
+    --color-ghost-active: #232c3c;
+    --color-info: #7aa2ff;
+    --color-info-subtle: #16233a;
+    --color-info-fg: #a9c4ff;
+    --color-success: #46c08a;
+    --color-success-subtle: #132a20;
+    --color-success-fg: #8fe0bd;
+    --color-warning: #e0a93b;
+    --color-warning-subtle: #2a2110;
+    --color-warning-fg: #f0cd85;
+    --color-text: #e6eaf2;
+    --color-text-muted: #97a2b8;
+    --color-border: #262e3d;
+    --color-border-strong: #626c88;
+    --color-background: #0b0f1a;
+    --color-background-muted: #10151f;
+    --color-surface: #141a26;
+    --color-surface-hover: #1b2230;
+    --color-focus-ring: #7aa2ff;
+    --color-overlay: rgb(0 0 0 / 0.6);
+    --shadow-color: 222deg 60% 2%;
+  }
+}
+
+:root.hc {
+  --color-secondary: #1c2433;
+  --color-secondary-hover: #19202e;
+  --color-secondary-active: #161d29;
+  --color-secondary-foreground: #ffffff;
+  --color-danger: #8a0f0a;
+  --color-danger-hover: #7c0e09;
+  --color-danger-active: #6e0c08;
+  --color-danger-foreground: #ffffff;
+  --color-danger-subtle: #ffecea;
+  --color-danger-fg: #6b0b07;
+  --color-ghost: transparent;
+  --color-ghost-hover: #eceef1;
+  --color-ghost-active: #dfe2e7;
+  --color-info: #0a3ea8;
+  --color-info-subtle: #e6efff;
+  --color-info-fg: #08337d;
+  --color-success: #0a5c30;
+  --color-success-subtle: #e2f4e9;
+  --color-success-fg: #064023;
+  --color-warning: #5a3b00;
+  --color-warning-subtle: #fbf0d6;
+  --color-warning-fg: #4a3000;
+  --color-text: #000000;
+  --color-text-muted: #22262e;
+  --color-border: #5a616e;
+  --color-border-strong: #000000;
+  --color-background: #ffffff;
+  --color-background-muted: #f2f3f5;
+  --color-surface: #ffffff;
+  --color-surface-hover: #eceef1;
+  --color-focus-ring: #0a3ea8;
+  --color-overlay: rgb(0 0 0 / 0.7);
+  --color-primary: #0a3ea8;
+  --color-primary-hover: #08348f;
+  --color-primary-active: #062a75;
+  --color-primary-foreground: #ffffff;
+}
+
+/* Base */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  font-family: var(--font-admin);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--color-text);
+  background: var(--color-background);
+  overflow-x: hidden;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+/* A later `display` declaration beats the UA's `[hidden] { display: none }` rule, since both
+   are same-specificity type-vs-attribute selectors and source order decides the tie. */
+[hidden] { display: none !important; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+/* Demo mode switcher (house convention: not part of the shipped shell, a viewer aid) */
+.switcher { display: flex; gap: 0.5rem; padding: 0.75rem 1.5rem; border-bottom: 1px dashed var(--color-border-strong);
+  background: var(--color-background-muted); }
+.switcher button { height: 32px; padding: 0 0.75rem; border-radius: var(--radius-control);
+  border: 1px solid var(--color-border-strong); background: var(--color-surface); color: var(--color-text); cursor: pointer; }
+.switcher button[aria-pressed="true"] { background: var(--color-primary); border-color: var(--color-primary);
+  color: var(--color-primary-foreground); }
+
+/* Icons */
+.icon { width: 16px; height: 16px; flex-shrink: 0; }
+.icon-sm { width: 14px; height: 14px; flex-shrink: 0; }
+
+/* Topbar */
+.topbar { background: var(--color-surface); border-bottom: 1px solid var(--color-border); }
+.topbar__inner { display: flex; flex-wrap: wrap; align-items: center; gap: 1.25rem; padding: 0 1.25rem; min-height: 56px; }
+.wordmark { font-weight: 800; font-size: 1.15rem; letter-spacing: -0.02em; flex-shrink: 0; }
+.topbar__nav { flex: 1 1 160px; min-width: 0; }
+.topbar__nav ul { display: flex; flex-wrap: wrap; gap: 1.25rem; list-style: none; margin: 0; padding: 0; height: 100%; }
+.topbar__nav li { display: flex; align-items: center; }
+.topbar__link { display: inline-flex; align-items: center; height: 100%; padding: 0 2px; text-decoration: none;
+  font-weight: 600; font-size: 0.92rem; color: var(--color-text-muted); border-bottom: 2px solid transparent; }
+.topbar__link:hover { color: var(--color-text); }
+.topbar__link[aria-current="page"] { color: var(--color-text); border-bottom-color: var(--color-primary); }
+.topbar__trailing { display: flex; align-items: center; gap: 0.6rem; flex-shrink: 0; }
+.icon-btn { width: 36px; height: 36px; border-radius: var(--radius-control); border: 1px solid var(--color-border);
+  background: var(--color-surface); color: var(--color-text); display: inline-flex; align-items: center;
+  justify-content: center; cursor: pointer; }
+.icon-btn:hover { background: var(--color-surface-hover); }
+.avatar-btn { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--color-border-strong);
+  background: var(--color-secondary); color: var(--color-secondary-foreground); font-weight: 700; font-size: 0.78rem;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.avatar-btn:hover { background: var(--color-secondary-hover); }
+
+/* Shell body: rail + main. Single column below 1024px (rail becomes a top disclosure);
+   two-column grid at 1024px and up. */
+.shell-body { display: block; flex: 1 1 auto; min-height: 0; }
+@media (min-width: 1024px) {
+  .shell-body { display: grid; grid-template-columns: 240px 1fr; }
+}
+
+/* Rail: a native <details> so the narrow-viewport collapse is a real disclosure with no
+   script required. */
+.rail-shell { border-bottom: 1px solid var(--color-border); background: var(--color-surface); }
+@media (min-width: 1024px) {
+  .rail-shell { border-bottom: none; border-right: 1px solid var(--color-border); }
+}
+.rail-summary { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; cursor: pointer;
+  list-style: none; padding: 0.9rem var(--admin-section-pad); font-weight: 700; font-size: 1rem; }
+.rail-summary::-webkit-details-marker { display: none; }
+.rail-summary__text { margin: 0; font: inherit; font-weight: inherit; font-size: inherit; }
+.rail-summary__chev { transition: transform 0.12s ease; color: var(--color-text-muted); }
+.rail-shell[open] .rail-summary__chev { transform: rotate(90deg); }
+@media (min-width: 1024px) {
+  .rail-summary__chev { display: none; }
+  .rail-summary { cursor: default; padding-bottom: 0.5rem; }
+}
+.rail-body { padding: 0 0.6rem 1rem; }
+
+.rail-tree { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.rail-tree > li + li { margin-top: 4px; }
+.rail-link { display: block; padding: 0.5rem 0.6rem; border-radius: var(--radius-control); text-decoration: none;
+  font-size: 0.9rem; font-weight: 600; color: var(--color-text); }
+.rail-link:hover { background: var(--color-surface-hover); }
+.rail-link[aria-current="page"] { background: var(--color-info-subtle); color: var(--color-info-fg); }
+
+.rail-group summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 6px;
+  padding: 0.5rem 0.6rem; border-radius: var(--radius-control); font-weight: 600; font-size: 0.9rem; }
+.rail-group summary::-webkit-details-marker { display: none; }
+.rail-group summary:hover { background: var(--color-surface-hover); }
+.rail-group__chev { transition: transform 0.12s ease; color: var(--color-text-muted); flex-shrink: 0; }
+.rail-group[open] > summary .rail-group__chev { transform: rotate(90deg); }
+
+.rail-steps { list-style: none; margin: 2px 0 2px 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+.rail-step-row { position: relative; display: flex; align-items: center; gap: 4px; padding-left: 1.4rem;
+  border-left: 3px solid transparent; border-radius: var(--radius-control); }
+.rail-step-row:hover { background: var(--color-surface-hover); }
+.rail-step-link { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 6px; padding: 0.42rem 0.3rem;
+  text-decoration: none; font-size: 0.87rem; color: var(--color-text); border-radius: var(--radius-sm); }
+.rail-step-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.rail-add-step { width: 100%; text-align: left; background: none; border: none; cursor: pointer;
+  padding: 0.42rem 0.3rem 0.42rem 1.4rem; margin-top: 1px; font: inherit; font-size: 0.87rem;
+  color: var(--color-text-muted); border-radius: var(--radius-control); }
+.rail-add-step:hover { background: var(--color-surface-hover); color: var(--color-text); }
+
+.rail-divider { height: 1px; background: var(--color-border); margin: 0.6rem 0.3rem; border: none; }
+
+/* Main column: left-anchored, fluid up to a cap, never re-centred. */
+.main { max-width: 1600px; padding: var(--admin-section-pad); min-width: 0; }
+
+.main__toggle-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin-bottom: 1.1rem;
+  padding-bottom: 1.1rem; border-bottom: 1px dashed var(--color-border); }
+.main__toggle-label { font-size: 0.85rem; font-weight: 600; color: var(--color-text-muted); }
+.main__toggle-note { font-size: 0.8rem; color: var(--color-text-muted); flex-basis: 100%; margin-top: 2px; }
+.shape-btn { height: var(--admin-control-h); padding: 0 16px; border-radius: var(--radius-control);
+  border: 1.5px solid var(--color-border-strong); background: var(--color-surface); color: var(--color-text);
+  font-weight: 600; font-size: 0.88rem; cursor: pointer; }
+.shape-btn:hover { background: var(--color-surface-hover); }
+.shape-btn[aria-pressed="true"] { background: var(--color-primary); border-color: var(--color-primary);
+  color: var(--color-primary-foreground); }
+
+.field { margin: 0; }
+.field label { display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 5px; }
+.field select, .field input { width: 100%; height: var(--admin-control-h); padding: 0 var(--admin-control-pad-x);
+  border-radius: var(--radius-control); border: 1px solid var(--color-border-strong); background: var(--color-surface);
+  color: var(--color-text); }
+.field select:hover, .field input:hover { border-color: var(--color-primary); }
+.select-mono { font-family: var(--font-mono); font-size: 0.85rem; }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: var(--admin-control-h);
+  padding: 0 16px; border-radius: var(--radius-control); border: 1.5px solid transparent; font-weight: 600;
+  font-size: 0.88rem; cursor: pointer; }
+.btn-sm { height: 32px; padding: 0 12px; font-size: 0.82rem; }
+.btn-secondary { background: var(--color-secondary); color: var(--color-secondary-foreground); }
+.btn-secondary:hover { background: var(--color-secondary-hover); }
+.btn-primary { background: var(--color-primary); color: var(--color-primary-foreground); }
+.btn-primary:hover { background: var(--color-primary-hover); }
+.btn-primary:disabled { background: var(--color-border-strong); color: var(--color-surface); cursor: not-allowed; }
+.btn-ghost { background: var(--color-ghost); color: var(--color-text); border-color: var(--color-border-strong); }
+.btn-ghost:hover { background: var(--color-ghost-hover); }
+
+.banner { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border-radius: var(--radius-control);
+  font-size: 0.82rem; }
+.banner-info { background: var(--color-info-subtle); color: var(--color-info-fg); }
+.banner svg { width: 14px; height: 14px; flex-shrink: 0; margin-top: 2px; }
+
+.intro { max-width: 68ch; font-size: 0.88rem; color: var(--color-text-muted); margin: 0.75rem 1.5rem 0; }
+
+/* --- Rules screen ------------------------------------------------------- */
+
+.rules-h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.01em; margin: 0 0 1rem; }
+
+.deep-link-banner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem;
+  margin-bottom: 1rem; }
+.deep-link-banner p { margin: 0; flex: 1 1 auto; }
+.deep-link-banner .btn-ghost { flex-shrink: 0; }
+
+.rules-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.9rem; margin-bottom: 0.6rem; }
+.rules-count { margin: 0; font-size: 0.88rem; color: var(--color-text-muted); font-weight: 600; }
+
+.add-rule-disabled { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
+.add-rule-reason { margin: 0; font-size: 0.82rem; color: var(--color-text-muted); max-width: 44ch; }
+
+.rules-explain { max-width: 78ch; font-size: 0.86rem; color: var(--color-text-muted); margin: 0 0 1.3rem; }
+
+.rules-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1.1rem; }
+
+.rules-empty-message { font-size: 0.9rem; color: var(--color-text-muted); border: 1px dashed var(--color-border);
+  border-radius: var(--radius-card); padding: 2rem; text-align: center; max-width: 60ch; }
+
+/* Rule card */
+.rule-card { border: 1px solid var(--color-border); border-radius: var(--radius-card); background: var(--color-surface); }
+.rule-card--deep-linked { border-left: 4px solid var(--color-primary); }
+.rule-card__header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem;
+  padding: 0.75rem var(--admin-section-pad); border-bottom: 1px solid var(--color-border); background: var(--color-background-muted); }
+.rule-card--deep-linked .rule-card__header { background: var(--color-info-subtle); }
+.rule-card__title { margin: 0; font-size: 0.95rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.rule-card__deep-badge { font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: var(--radius-sm);
+  background: var(--color-primary); color: var(--color-primary-foreground); text-transform: uppercase; letter-spacing: 0.04em; }
+.qid-mono { font-family: var(--font-mono); font-size: 0.88rem; color: var(--color-text); }
+
+.rule-card__body { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  grid-template-areas: "editor json" "targets targets" "issues issues"; gap: 1rem; align-items: start;
+  padding: var(--admin-section-pad); }
+@media (max-width: 999px) {
+  .rule-card__body { grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "editor" "json" "targets" "issues"; }
+}
+.rule-card__editor { grid-area: editor; min-width: 0; }
+.rule-card__json { grid-area: json; min-width: 0; }
+.rule-card__targets { grid-area: targets; }
+.rule-card__issues { grid-area: issues; }
+
+.cond-fieldset { border: none; margin: 0; padding: 0; min-width: 0; }
+.cond-fieldset legend { padding: 0; }
+
+.cond-tree { min-width: 0; }
+.cond-node { border: none; margin: 0; padding: 0 0 0 0.9rem; border-left: 3px solid var(--color-border); min-width: 0; }
+.cond-node--root { padding-left: 0; border-left: none; }
+.cond-row { display: flex; flex-wrap: wrap; align-items: end; gap: 0.7rem; }
+.cond-row .field { flex: 1 1 140px; min-width: 120px; }
+.cond-combinator-field { max-width: 260px; margin-bottom: 0.6rem; }
+.cond-no-value { font-size: 0.82rem; color: var(--color-text-muted); align-self: center; padding-bottom: 10px; }
+
+.cond-children { list-style: none; margin: 0.6rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.7rem; }
+.cond-branch-legend { font-size: 0.75rem; font-weight: 700; color: var(--color-text-muted); text-transform: uppercase;
+  letter-spacing: 0.04em; margin: 0 0 0.4rem; }
+
+.json-pane__label { margin: 0 0 0.5rem; font-size: 0.78rem; font-weight: 700; color: var(--color-text-muted);
+  text-transform: uppercase; letter-spacing: 0.04em; }
+.json-pane__label .qid-mono { font-size: 0.78rem; text-transform: none; letter-spacing: normal; }
+.json-pane pre { margin: 0; background: var(--color-background-muted); border: 1px solid var(--color-border);
+  border-radius: var(--radius-control); padding: 0.85rem; font-family: var(--font-mono); font-size: 0.8rem;
+  line-height: 1.5; overflow-x: auto; white-space: pre-wrap; word-break: break-word; color: var(--color-text); }
+
+.targets-label { margin: 0 0 0.5rem; font-size: 0.82rem; font-weight: 600; }
+.target-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.chip { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 6px 0 10px;
+  border-radius: 999px; border: 1px solid var(--color-border-strong); background: var(--color-background-muted);
+  font-size: 0.82rem; }
+.chip--question .chip__id { font-family: var(--font-mono); }
+.chip--step { background: var(--color-info-subtle); border-color: var(--color-info-fg); color: var(--color-info-fg); }
+.chip--step .chip__id { font-family: var(--font-mono); }
+.chip__icon { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; }
+.chip__remove { width: 20px; height: 20px; border-radius: 50%; border: none; background: transparent; color: inherit;
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 0.9rem; line-height: 1; }
+.chip__remove:hover { background: var(--color-ghost-hover); }
+.targets-row-controls { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.6rem; flex-wrap: wrap; }
+.chip-note { margin: 0.5rem 0 0; font-size: 0.78rem; color: var(--color-text-muted); }
+
+.rule-issues { padding-top: 0.9rem; margin-top: 0.2rem; border-top: 1px dashed var(--color-border); }
+.rule-issues__label { margin: 0 0 0.5rem; font-size: 0.82rem; font-weight: 700; color: var(--color-warning-fg); }
+.issue-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.issue-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: var(--radius-control);
+  background: var(--color-warning-subtle); color: var(--color-warning-fg); font-size: 0.84rem; }
+.issue-item svg { margin-top: 2px; flex-shrink: 0; }
+</style>
+
+<div class="switcher" role="group" aria-label="Preview mode">
+  <button type="button" aria-pressed="true" onclick="setMode('', this)">Light</button>
+  <button type="button" aria-pressed="false" onclick="setMode('dark', this)">Dark</button>
+  <button type="button" aria-pressed="false" onclick="setMode('hc', this)">High contrast</button>
+</div>
+
+<p class="intro">Rules screen POC: the form-level rule editor the admin shell's rail "Rules" entry leads to.
+  Each rule is a bordered card split into a structured condition tree on the left and its JSON mirror on the right,
+  with the mixed question/step target list spanning the full card width beneath. Use the "State" toggle below to
+  compare the populated form against the empty state a brand-new form starts in.</p>
+
+<header class="topbar">
+  <div class="topbar__inner">
+    <span class="wordmark">QCMS</span>
+    <nav class="topbar__nav" aria-label="Primary">
+      <ul>
+        <li><a class="topbar__link" href="#">Questions</a></li>
+        <li><a class="topbar__link" href="#" aria-current="page">Forms</a></li>
+        <li><a class="topbar__link" href="#">Responses</a></li>
+        <li><a class="topbar__link" href="#">Webhooks</a></li>
+        <li><a class="topbar__link" href="#">Settings</a></li>
+      </ul>
+    </nav>
+    <div class="topbar__trailing">
+      <button type="button" class="icon-btn" aria-label="Appearance settings" title="Appearance">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"></circle>
+          <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path>
+        </svg>
+      </button>
+      <button type="button" class="avatar-btn" aria-label="Account menu, signed in as Code Owner">CO</button>
+    </div>
+  </div>
+</header>
+
+<div class="shell-body">
+  <details class="rail-shell" open id="rail-shell">
+    <summary class="rail-summary">
+      <h2 class="rail-summary__text">Life insurance</h2>
+      <svg class="rail-summary__chev icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+    </summary>
+    <div class="rail-body">
+      <nav aria-label="Life insurance sections">
+        <ul class="rail-tree">
+          <li>
+            <details class="rail-group" open>
+              <summary>
+                <svg class="rail-group__chev icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                Builder
+              </summary>
+              <ul class="rail-steps">
+                <li>
+                  <div class="rail-step-row">
+                    <a class="rail-step-link" href="#"><span class="rail-step-title">About you</span></a>
+                  </div>
+                </li>
+                <li>
+                  <div class="rail-step-row">
+                    <a class="rail-step-link" href="#"><span class="rail-step-title">Health</span></a>
+                  </div>
+                </li>
+                <li>
+                  <div class="rail-step-row">
+                    <a class="rail-step-link" href="#"><span class="rail-step-title">Cover</span></a>
+                  </div>
+                </li>
+                <li>
+                  <button type="button" class="rail-add-step">+ Add step</button>
+                </li>
+              </ul>
+            </details>
+          </li>
+          <li role="none"><hr class="rail-divider" /></li>
+          <li><a class="rail-link" href="#" aria-current="page">Rules</a></li>
+          <li><a class="rail-link" href="#">Validation</a></li>
+          <li><a class="rail-link" href="#">Settings</a></li>
+          <li><a class="rail-link" href="#">Test bench</a></li>
+          <li role="none"><hr class="rail-divider" /></li>
+          <li><a class="rail-link" href="#">Preview</a></li>
+          <li><a class="rail-link" href="#">Versions</a></li>
+          <li><a class="rail-link" href="#">Links</a></li>
+          <li><a class="rail-link" href="#">Responses</a></li>
+          <li><a class="rail-link" href="#">Webhooks</a></li>
+        </ul>
+      </nav>
+    </div>
+  </details>
+
+  <main id="main-content" class="main">
+
+    <div class="main__toggle-row" role="group" aria-label="Rules screen state">
+      <span class="main__toggle-label">State:</span>
+      <button type="button" id="state-three-btn" class="shape-btn" aria-pressed="true" onclick="setRulesState('three', this)">3 rules</button>
+      <button type="button" id="state-empty-btn" class="shape-btn" aria-pressed="false" onclick="setRulesState('empty', this)">Empty</button>
+      <span class="main__toggle-note">"3 rules" is a populated form, including the state you land in when an
+        inspector line elsewhere deep-links you to a specific rule. "Empty" is a brand-new form with no rules yet
+        and nothing pinned for a condition to read.</span>
+    </div>
+
+    <h1 class="rules-h1">Rules</h1>
+
+    <div id="rules-state-three">
+
+      <div class="banner banner-info deep-link-banner" id="deep-link-banner">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line>
+        </svg>
+        <p>You were brought here from Step 2: Health. <strong class="qid-mono">rul_heavy_smoker</strong> is the rule you followed.</p>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="dismissDeepLinkBanner()">Dismiss</button>
+      </div>
+
+      <div class="rules-toolbar">
+        <p class="rules-count">3 rules in this form</p>
+        <button type="button" class="btn btn-primary">+ Add rule</button>
+      </div>
+      <p class="rules-explain">Targets named in any rule are conditional: hidden by default, and shown only when at
+        least one targeting rule matches. Items never named in a rule stay unconditionally visible.</p>
+
+      <ul class="rules-list">
+
+        <!-- Rule 1: single leaf -->
+        <li class="rule-card">
+          <div class="rule-card__header">
+            <h2 class="rule-card__title"><span class="qid-mono">rul_smoker_daily</span></h2>
+            <button type="button" class="btn btn-ghost btn-sm">Remove rule rul_smoker_daily</button>
+          </div>
+          <div class="rule-card__body">
+            <div class="rule-card__editor">
+              <fieldset class="cond-fieldset">
+                <legend class="sr-only">When (condition for rul_smoker_daily)</legend>
+                <div class="cond-tree">
+                  <div class="cond-node cond-node--root">
+                    <div class="cond-row">
+                      <div class="field">
+                        <label for="r1-question">Question</label>
+                        <select id="r1-question" class="select-mono">
+                          <option selected>q_smoker@3</option>
+                          <option>q_cigs_daily@2</option>
+                          <option>q_bmi@1</option>
+                          <option>q_age@1</option>
+                          <option>q_diagnosis@1</option>
+                          <option>q_quit_attempts@1</option>
+                          <option>q_review_notes@1</option>
+                        </select>
+                      </div>
+                      <div class="field">
+                        <label for="r1-op">Operator</label>
+                        <select id="r1-op">
+                          <option selected>Equals</option>
+                          <option>Not equals</option>
+                          <option>In</option>
+                          <option>Greater than</option>
+                          <option>Greater than or equal</option>
+                          <option>Less than</option>
+                          <option>Less than or equal</option>
+                          <option>Answered</option>
+                          <option>Contains</option>
+                          <option>Contains any</option>
+                        </select>
+                      </div>
+                      <div class="field">
+                        <label for="r1-value">Value</label>
+                        <select id="r1-value">
+                          <option selected>True</option>
+                          <option>False</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </fieldset>
+            </div>
+
+            <div class="rule-card__json json-pane">
+              <p class="json-pane__label">Condition JSON: <span class="qid-mono">rul_smoker_daily</span></p>
+              <pre aria-label="Condition JSON for rul_smoker_daily"><code>{
+  "op": "equals",
+  "questionId": "q_smoker",
+  "value": true
+}</code></pre>
+            </div>
+
+            <div class="rule-card__targets">
+              <p class="targets-label" id="r1-targets-label">Then show</p>
+              <ul class="target-chips" aria-labelledby="r1-targets-label">
+                <li class="chip chip--question">
+                  <span class="chip__id">q_cigs_daily</span>
+                  <button type="button" class="chip__remove" aria-label="Remove target q_cigs_daily">&times;</button>
+                </li>
+              </ul>
+              <div class="targets-row-controls">
+                <button type="button" class="btn btn-secondary btn-sm">+ Add target</button>
+              </div>
+            </div>
+          </div>
+        </li>
+
+        <!-- Rule 2: deep-linked, compound "and" of two leaves, mixed question + step targets -->
+        <li class="rule-card rule-card--deep-linked" id="rul_heavy_smoker">
+          <div class="rule-card__header">
+            <h2 class="rule-card__title">
+              <span class="qid-mono">rul_heavy_smoker</span>
+              <span class="rule-card__deep-badge">Deep-linked</span>
+            </h2>
+            <button type="button" class="btn btn-ghost btn-sm">Remove rule rul_heavy_smoker</button>
+          </div>
+          <div class="rule-card__body">
+            <div class="rule-card__editor">
+              <fieldset class="cond-fieldset">
+                <legend class="sr-only">When (condition for rul_heavy_smoker)</legend>
+                <div class="cond-tree">
+                  <div class="cond-node cond-node--root">
+                    <div class="field cond-combinator-field">
+                      <label for="r2-combinator">Match</label>
+                      <select id="r2-combinator">
+                        <option selected>All of (and)</option>
+                        <option>Any of (or)</option>
+                        <option>Not</option>
+                      </select>
+                    </div>
+                    <ol class="cond-children">
+                      <li>
+                        <div class="cond-node">
+                          <p class="cond-branch-legend">Branch 1</p>
+                          <div class="cond-row">
+                            <div class="field">
+                              <label for="r2-b1-question">Question</label>
+                              <select id="r2-b1-question" class="select-mono">
+                                <option>q_smoker@3</option>
+                                <option selected>q_cigs_daily@2</option>
+                                <option>q_bmi@1</option>
+                                <option>q_age@1</option>
+                                <option>q_diagnosis@1</option>
+                                <option>q_quit_attempts@1</option>
+                                <option>q_review_notes@1</option>
+                              </select>
+                            </div>
+                            <div class="field">
+                              <label for="r2-b1-op">Operator</label>
+                              <select id="r2-b1-op">
+                                <option>Equals</option>
+                                <option>Not equals</option>
+                                <option>In</option>
+                                <option>Greater than</option>
+                                <option selected>Greater than or equal</option>
+                                <option>Less than</option>
+                                <option>Less than or equal</option>
+                                <option>Answered</option>
+                                <option>Contains</option>
+                                <option>Contains any</option>
+                              </select>
+                            </div>
+                            <div class="field">
+                              <label for="r2-b1-value">Value</label>
+                              <input type="number" id="r2-b1-value" value="20" />
+                            </div>
+                          </div>
+                        </div>
+                      </li>
+                      <li>
+                        <div class="cond-node">
+                          <p class="cond-branch-legend">Branch 2</p>
+                          <div class="cond-row">
+                            <div class="field">
+                              <label for="r2-b2-question">Question</label>
+                              <select id="r2-b2-question" class="select-mono">
+                                <option selected>q_smoker@3</option>
+                                <option>q_cigs_daily@2</option>
+                                <option>q_bmi@1</option>
+                                <option>q_age@1</option>
+                                <option>q_diagnosis@1</option>
+                                <option>q_quit_attempts@1</option>
+                                <option>q_review_notes@1</option>
+                              </select>
+                            </div>
+                            <div class="field">
+                              <label for="r2-b2-op">Operator</label>
+                              <select id="r2-b2-op">
+                                <option>Equals</option>
+                                <option>Not equals</option>
+                                <option>In</option>
+                                <option>Greater than</option>
+                                <option>Greater than or equal</option>
+                                <option>Less than</option>
+                                <option>Less than or equal</option>
+                                <option selected>Answered</option>
+                                <option>Contains</option>
+                                <option>Contains any</option>
+                              </select>
+                            </div>
+                            <p class="cond-no-value">No value needed for Answered.</p>
+                          </div>
+                        </div>
+                      </li>
+                    </ol>
+                  </div>
+                </div>
+              </fieldset>
+            </div>
+
+            <div class="rule-card__json json-pane">
+              <p class="json-pane__label">Condition JSON: <span class="qid-mono">rul_heavy_smoker</span></p>
+              <pre aria-label="Condition JSON for rul_heavy_smoker"><code>{
+  "op": "and",
+  "conditions": [
+    { "op": "gte", "questionId": "q_cigs_daily", "value": 20 },
+    { "op": "answered", "questionId": "q_smoker" }
+  ]
+}</code></pre>
+            </div>
+
+            <div class="rule-card__targets">
+              <p class="targets-label" id="r2-targets-label">Then show</p>
+              <ul class="target-chips" aria-labelledby="r2-targets-label">
+                <li class="chip chip--question">
+                  <span class="chip__id">q_quit_attempts</span>
+                  <button type="button" class="chip__remove" aria-label="Remove target q_quit_attempts">&times;</button>
+                </li>
+                <li class="chip chip--step">
+                  <span class="chip__icon">Step</span>
+                  <span class="chip__id">stp_cessation</span>
+                  <button type="button" class="chip__remove" aria-label="Remove target stp_cessation">&times;</button>
+                </li>
+              </ul>
+              <p class="chip-note">A step target expands to all of that step's questions: every question pinned to
+                <span class="qid-mono">stp_cessation</span> is shown, not the step itself.</p>
+              <div class="targets-row-controls">
+                <button type="button" class="btn btn-secondary btn-sm">+ Add target</button>
+              </div>
+            </div>
+          </div>
+        </li>
+
+        <!-- Rule 3: nested "or" of a leaf and an "and", depth 3, with a validation issue -->
+        <li class="rule-card">
+          <div class="rule-card__header">
+            <h2 class="rule-card__title"><span class="qid-mono">rul_risk_review</span></h2>
+            <button type="button" class="btn btn-ghost btn-sm">Remove rule rul_risk_review</button>
+          </div>
+          <div class="rule-card__body">
+            <div class="rule-card__editor">
+              <fieldset class="cond-fieldset">
+                <legend class="sr-only">When (condition for rul_risk_review)</legend>
+                <div class="cond-tree">
+                  <div class="cond-node cond-node--root">
+                    <div class="field cond-combinator-field">
+                      <label for="r3-combinator">Match</label>
+                      <select id="r3-combinator">
+                        <option>All of (and)</option>
+                        <option selected>Any of (or)</option>
+                        <option>Not</option>
+                      </select>
+                    </div>
+                    <ol class="cond-children">
+                      <li>
+                        <div class="cond-node">
+                          <p class="cond-branch-legend">Branch 1</p>
+                          <div class="cond-row">
+                            <div class="field">
+                              <label for="r3-b1-question">Question</label>
+                              <select id="r3-b1-question" class="select-mono">
+                                <option>q_smoker@3</option>
+                                <option>q_cigs_daily@2</option>
+                                <option selected>q_bmi@1</option>
+                                <option>q_age@1</option>
+                                <option>q_diagnosis@1</option>
+                                <option>q_quit_attempts@1</option>
+                                <option>q_review_notes@1</option>
+                              </select>
+                            </div>
+                            <div class="field">
+                              <label for="r3-b1-op">Operator</label>
+                              <select id="r3-b1-op">
+                                <option>Equals</option>
+                                <option>Not equals</option>
+                                <option>In</option>
+                                <option selected>Greater than</option>
+                                <option>Greater than or equal</option>
+                                <option>Less than</option>
+                                <option>Less than or equal</option>
+                                <option>Answered</option>
+                                <option>Contains</option>
+                                <option>Contains any</option>
+                              </select>
+                            </div>
+                            <div class="field">
+                              <label for="r3-b1-value">Value</label>
+                              <input type="number" id="r3-b1-value" value="30" />
+                            </div>
+                          </div>
+                        </div>
+                      </li>
+                      <li>
+                        <div class="cond-node">
+                          <p class="cond-branch-legend">Branch 2</p>
+                          <div class="field cond-combinator-field">
+                            <label for="r3-b2-combinator">Match</label>
+                            <select id="r3-b2-combinator">
+                              <option selected>All of (and)</option>
+                              <option>Any of (or)</option>
+                              <option>Not</option>
+                            </select>
+                          </div>
+                          <ol class="cond-children">
+                            <li>
+                              <div class="cond-node">
+                                <p class="cond-branch-legend">Branch 1</p>
+                                <div class="cond-row">
+                                  <div class="field">
+                                    <label for="r3-b2b1-question">Question</label>
+                                    <select id="r3-b2b1-question" class="select-mono">
+                                      <option>q_smoker@3</option>
+                                      <option>q_cigs_daily@2</option>
+                                      <option>q_bmi@1</option>
+                                      <option selected>q_age@1</option>
+                                      <option>q_diagnosis@1</option>
+                                      <option>q_quit_attempts@1</option>
+                                      <option>q_review_notes@1</option>
+                                    </select>
+                                  </div>
+                                  <div class="field">
+                                    <label for="r3-b2b1-op">Operator</label>
+                                    <select id="r3-b2b1-op">
+                                      <option>Equals</option>
+                                      <option>Not equals</option>
+                                      <option>In</option>
+                                      <option>Greater than</option>
+                                      <option selected>Greater than or equal</option>
+                                      <option>Less than</option>
+                                      <option>Less than or equal</option>
+                                      <option>Answered</option>
+                                      <option>Contains</option>
+                                      <option>Contains any</option>
+                                    </select>
+                                  </div>
+                                  <div class="field">
+                                    <label for="r3-b2b1-value">Value</label>
+                                    <input type="number" id="r3-b2b1-value" value="60" />
+                                  </div>
+                                </div>
+                              </div>
+                            </li>
+                            <li>
+                              <div class="cond-node">
+                                <p class="cond-branch-legend">Branch 2</p>
+                                <div class="cond-row">
+                                  <div class="field">
+                                    <label for="r3-b2b2-question">Question</label>
+                                    <select id="r3-b2b2-question" class="select-mono">
+                                      <option>q_smoker@3</option>
+                                      <option>q_cigs_daily@2</option>
+                                      <option>q_bmi@1</option>
+                                      <option>q_age@1</option>
+                                      <option selected>q_diagnosis@1</option>
+                                      <option>q_quit_attempts@1</option>
+                                      <option>q_review_notes@1</option>
+                                    </select>
+                                  </div>
+                                  <div class="field">
+                                    <label for="r3-b2b2-op">Operator</label>
+                                    <select id="r3-b2b2-op">
+                                      <option>Equals</option>
+                                      <option>Not equals</option>
+                                      <option>In</option>
+                                      <option>Greater than</option>
+                                      <option>Greater than or equal</option>
+                                      <option>Less than</option>
+                                      <option>Less than or equal</option>
+                                      <option selected>Answered</option>
+                                      <option>Contains</option>
+                                      <option>Contains any</option>
+                                    </select>
+                                  </div>
+                                  <p class="cond-no-value">No value needed for Answered.</p>
+                                </div>
+                              </div>
+                            </li>
+                          </ol>
+                        </div>
+                      </li>
+                    </ol>
+                  </div>
+                </div>
+              </fieldset>
+            </div>
+
+            <div class="rule-card__json json-pane">
+              <h3 class="json-pane__label">Condition JSON: <span class="qid-mono">rul_risk_review</span></h3>
+              <pre aria-label="Condition JSON for rul_risk_review"><code>{
+  "op": "or",
+  "conditions": [
+    { "op": "gt", "questionId": "q_bmi", "value": 30 },
+    {
+      "op": "and",
+      "conditions": [
+        { "op": "gte", "questionId": "q_age", "value": 60 },
+        { "op": "answered", "questionId": "q_diagnosis" }
+      ]
+    }
+  ]
+}</code></pre>
+            </div>
+
+            <div class="rule-card__targets">
+              <p class="targets-label" id="r3-targets-label">Then show</p>
+              <ul class="target-chips" aria-labelledby="r3-targets-label">
+                <li class="chip chip--question">
+                  <span class="chip__id">q_review_notes</span>
+                  <button type="button" class="chip__remove" aria-label="Remove target q_review_notes">&times;</button>
+                </li>
+              </ul>
+              <div class="targets-row-controls">
+                <button type="button" class="btn btn-secondary btn-sm">+ Add target</button>
+              </div>
+            </div>
+
+            <div class="rule-card__issues rule-issues">
+              <p class="rule-issues__label" id="r3-issues-label">Issues</p>
+              <ul class="issue-list" aria-labelledby="r3-issues-label">
+                <li class="issue-item">
+                  <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M10.3 3.86L1.82 18a1 1 0 0 0 .86 1.5h18.64a1 1 0 0 0 .86-1.5L13.7 3.86a1 1 0 0 0-1.72 0z"></path>
+                    <line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line>
+                  </svg>
+                  <span><span class="qid-mono">q_diagnosis</span> is not pinned to this form: a referenced question
+                    must be pinned to a step before this rule can rely on it.</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </li>
+
+      </ul>
+    </div>
+
+    <div id="rules-state-empty" hidden>
+      <div class="rules-toolbar">
+        <p class="rules-count">0 rules in this form</p>
+        <div class="add-rule-disabled">
+          <button type="button" class="btn btn-primary" disabled aria-describedby="add-rule-reason">+ Add rule</button>
+          <p id="add-rule-reason" class="add-rule-reason">A condition has to read a question, so there is nothing to
+            add a rule against until this form pins one.</p>
+        </div>
+      </div>
+      <p class="rules-explain">Targets named in any rule are conditional: hidden by default, and shown only when at
+        least one targeting rule matches. Items never named in a rule stay unconditionally visible.</p>
+      <p class="rules-empty-message">No rules yet. Pin a question to a step in Builder, then come back here to make
+        other questions or steps conditional on the answers given so far.</p>
+    </div>
+
+  </main>
+</div>
+
+<script>
+function setMode(mode, btn) {
+  document.documentElement.className = mode;
+  document.querySelectorAll(".switcher button").forEach(function (b) {
+    b.setAttribute("aria-pressed", b === btn ? "true" : "false");
+  });
+}
+
+function setRulesState(state, btn) {
+  var isThree = state === "three";
+  document.getElementById("rules-state-three").hidden = !isThree;
+  document.getElementById("rules-state-empty").hidden = isThree;
+  document.getElementById("state-three-btn").setAttribute("aria-pressed", isThree ? "true" : "false");
+  document.getElementById("state-empty-btn").setAttribute("aria-pressed", isThree ? "false" : "true");
+}
+
+function dismissDeepLinkBanner() {
+  document.getElementById("deep-link-banner").hidden = true;
+}
+</script>
