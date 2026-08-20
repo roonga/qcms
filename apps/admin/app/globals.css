@@ -1200,6 +1200,13 @@ button {
   inset-inline-start: 0;
   z-index: 3;
   min-inline-size: 190px;
+  /* And a cap, because an item names its row and a row's name can be long. Without
+     one, "Insert a question above q_cover_level_ab12c" sizes the popup to the whole
+     phrase on one line: at a 390px viewport the open menu took the DOCUMENT to 432px,
+     which is WCAG 2.2 AA SC 1.4.10 Reflow and is not something axe tests. Caught by
+     the capture guard rather than by a person, which is what that guard is for. The
+     item wraps below instead. */
+  max-inline-size: 260px;
   padding: 6px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
@@ -1211,6 +1218,9 @@ button {
 .qcms-rowmenu__item {
   display: block;
   inline-size: 100%;
+  /* A `q_` id is one unbreakable token, so ordinary word wrapping cannot get it
+     inside the cap above. */
+  overflow-wrap: anywhere;
   padding: 8px 10px;
   border: none;
   border-radius: var(--radius-sm);
