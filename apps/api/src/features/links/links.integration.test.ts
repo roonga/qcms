@@ -41,6 +41,9 @@ const emptyDef = {} as unknown as VersionInput["definition"];
 const emptyCompiled = {} as unknown as VersionInput["compiled"];
 
 const FORM_ID = FormId.parse("frm_links_it");
+// A second form that mints nothing, so a link addressed through it is provably a
+// cross-form request rather than an unknown id (#478).
+const OTHER_FORM_ID = FormId.parse("frm_links_it_other");
 let testDb: TestDb;
 let deps: Deps;
 let app: ReturnType<typeof createApp>;
@@ -85,6 +88,12 @@ beforeAll(async () => {
     a2uiSpecVersion: "1.0.0",
     semanticsVersion: "1",
   });
+
+  await createForm(testDb.db, {
+    formId: OTHER_FORM_ID,
+    slug: "links-it-other",
+    defaultLocale: "en",
+  });
 }, BOOT_TIMEOUT);
 
 afterAll(async () => {
@@ -106,6 +115,14 @@ async function mint(targetApp: ReturnType<typeof createApp>, body: unknown): Pro
     method: "POST",
     headers: adminHeaders(),
     body: JSON.stringify(body),
+  });
+}
+
+/** Revoke a link through a named form's route (#478). */
+async function revoke(formId: string, linkId: string): Promise<Response> {
+  return app.request(`/admin/forms/${formId}/links/${linkId}/revoke`, {
+    method: "POST",
+    headers: adminHeaders(),
   });
 }
 
@@ -162,10 +179,7 @@ describe("secure-link minting → 018 verification loop (exit criterion 1)", () 
     const { linkId, url } = links[0]!;
     const token = tokenFromUrl(url);
 
-    const revoked = await app.request(`/admin/links/${linkId}/revoke`, {
-      method: "POST",
-      headers: adminHeaders(),
-    });
+    const revoked = await revoke(FORM_ID, linkId);
     expect(revoked.status).toBe(200);
     expect((await revoked.json()) as { state: string }).toMatchObject({ state: "revoked" });
 
@@ -177,11 +191,42 @@ describe("secure-link minting → 018 verification loop (exit criterion 1)", () 
     });
 
     // A second revoke is not in a revocable state → 404.
-    const again = await app.request(`/admin/links/${linkId}/revoke`, {
-      method: "POST",
-      headers: adminHeaders(),
-    });
+    const again = await revoke(FORM_ID, linkId);
     expect(again.status).toBe(404);
+  });
+
+  it("refuses to revoke a link through another form's route (#478)", async () => {
+    // A real link, minted under FORM_ID.
+    const res = await mint(app, { expiresAt: FUTURE, oneTime: false });
+    const { links } = (await res.json()) as { links: Array<{ linkId: string }> };
+    const linkId = links[0]!.linkId;
+
+    // The fixture is real: it is listed under its own form and is not yet
+    // revoked. Without this the 404 below could be a 404 about nothing.
+    const listed = await app.request(`/admin/forms/${FORM_ID}/links`, { headers: adminHeaders() });
+    const listing = (await listed.json()) as {
+      links: Array<{ linkId: string; state: string; revokedAt: string | null }>;
+    };
+    const before = listing.links.find((l) => l.linkId === linkId);
+    expect(before).toMatchObject({ state: "active", revokedAt: null });
+
+    // Naming the other form takes the same 404 an unknown link takes: the scoped
+    // update matches no row, so "not in this form" and "no such link" are one code.
+    const cross = await revoke(OTHER_FORM_ID, linkId);
+    expect(cross.status).toBe(404);
+    expect((await cross.json()) as { error: { code: string } }).toMatchObject({
+      error: { code: "LINK_NOT_FOUND" },
+    });
+
+    // ...and it refused *before* mutating: the link is still revocable.
+    const after = await app.request(`/admin/forms/${FORM_ID}/links`, { headers: adminHeaders() });
+    const afterListing = (await after.json()) as {
+      links: Array<{ linkId: string; revokedAt: string | null }>;
+    };
+    expect(afterListing.links.find((l) => l.linkId === linkId)?.revokedAt).toBeNull();
+
+    // Positive control at the same layer: its own form still revokes it.
+    expect((await revoke(FORM_ID, linkId)).status).toBe(200);
   });
 
   it("mints a batch and rejects a count over the documented cap", async () => {

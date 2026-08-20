@@ -111,8 +111,13 @@ these paths 404, ADR-09):
 |---|---|
 | `POST /admin/forms/:id/links` | `{ expiresAt, oneTime?, count? }` → inserts `secure_links` rows and mints a token per row with the **current** signing key (`QCMS_LINK_KEYS[0]`); returns `[{ linkId, url, expiresAt }]`. |
 | `GET /admin/forms/:id/links` | Lists the form's links with derived `state` (`active` / `consumed` / `expired` / `revoked`) and the `consumedAt` / `revokedAt` / `createdAt` stamps. |
-| `POST /admin/links/:linkId/revoke` | Sets `revokedAt`; 018 rejects the link thereafter. A link that does not exist or is already revoked → 404. |
+| `POST /admin/forms/:id/links/:linkId/revoke` | Sets `revokedAt`; 018 rejects the link thereafter. A link that does not exist **in this form**, or is already revoked, → 404. |
 
+- **Every route is form-scoped** (#478). Revoke carries the form segment because
+  the form is threaded into its `where` clause, so a link minted for another form
+  matches no row and takes the same `404` an unknown link takes. Refusal falls
+  out of the scoped query rather than an ownership comparison, so "not your form"
+  and "no such link" are one code and cannot disagree.
 - **Link URL format:** `${QCMS_PORTAL_BASE_URL}/l/<token>` - the portal's `/l/`
   entry redeems the token by calling `POST /sessions { token }` (018). The base
   URL is validated at boot (`config.portalBaseUrl`, an absolute http(s) URL).

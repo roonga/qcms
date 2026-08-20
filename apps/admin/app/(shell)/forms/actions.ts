@@ -453,7 +453,7 @@ function endOfDay(value: string): string {
 /** Revoke one link. 018 refuses it from that moment; an in-flight session is unaffected. */
 export async function revokeLinkAction(formId: string, linkId: string): Promise<RevokeLinkState> {
   const session = await requireAdminSession();
-  const result = await revokeLink(session, linkId);
+  const result = await revokeLink(session, formId, linkId);
   if (!result.ok) return { status: "error", message: result.message };
   revalidatePath(`/forms/${formId}/links`);
   return { status: "revoked", linkId: result.data.linkId };

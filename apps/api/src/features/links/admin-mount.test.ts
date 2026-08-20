@@ -42,7 +42,7 @@ describe("links admin auth seam", () => {
   it("revoke is equally gated with no admin session → 401", async () => {
     const deps = makeDeps();
     const app = createApp(deps, ADMIN_ONLY, adminGroups);
-    const res = await app.request("/admin/links/lnk_x/revoke", {
+    const res = await app.request("/admin/forms/frm_x/links/lnk_x/revoke", {
       method: "POST",
       headers: { "x-qcms-internal-token": internalTokenFor(deps.config) },
     });

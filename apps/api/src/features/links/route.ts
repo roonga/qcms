@@ -18,7 +18,7 @@ import { errorResponses, withScopes } from "../../openapi.js";
 import { makeListLinksHandler, makeMintLinksHandler, makeRevokeLinkHandler } from "./handler.js";
 import {
   FormIdParam,
-  LinkIdParam,
+  FormLinkParams,
   LinkListResponse,
   MintLinksBody,
   MintLinksResponse,
@@ -65,16 +65,19 @@ export const listLinksRoute = createRoute({
 
 export const revokeLinkRoute = createRoute({
   method: "post",
-  path: "/links/{linkId}/revoke",
+  path: "/forms/{id}/links/{linkId}/revoke",
   summary: "Revoke a secure link; start-session rejects it thereafter (admin)",
   tags,
-  request: { params: LinkIdParam },
+  request: { params: FormLinkParams },
   responses: {
     200: {
       description: "The revoked link",
       content: { "application/json": { schema: RevokedLinkResponse } },
     },
-    // 404: no such link (or already revoked).
+    // 400: malformed form id / malformed link id. 404: no such link **in this
+    // form** (or already revoked); a link belonging to another form takes that
+    // same 404 (#478), so the code never distinguishes "not yours" from "no such
+    // link".
     ...errorResponses(400, 401, 404),
   },
   ...withScopes("links:mint"),
