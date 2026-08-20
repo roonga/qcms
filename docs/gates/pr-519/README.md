@@ -10,6 +10,21 @@ Every frame is shot at **390px and 1280px** (`-390.png` / `-1280.png`), in all t
 layers. Captured by `apps/admin/e2e/gate-519.pw.ts`, which runs only with
 `QCMS_ADMIN_CAPTURE_GATE=1`.
 
+**Two things about the set that are worth knowing before you read it**, so neither looks
+like an error:
+
+- **36 files, 30 unique images.** `builder-settings-expanded-<mode>-<width>.png` and
+  `builder-bench-collapsed-<mode>-<width>.png` are byte-identical, in all six mode and
+  width combinations. Both names are honest: these are full-page shots, and one page state
+  (settings open, bench shut) genuinely carries both claims at once. They are kept under
+  both names so each row of the table below resolves to a frame.
+- **The collapsed delivery row is not legible at 390px.** At that width the trigger column
+  sits inside the table's horizontal overflow, so `delivery-row-collapsed-*-390.png` shows
+  the queue without the trigger in view. The §3.7 claim at 390 is carried entirely by the
+  **expanded** frame, which is where it matters: the latency column is dropped and the
+  panel's `This delivery` list still states it. Read the 1280 collapsed frame for the
+  digest itself.
+
 | Frame pair | The clause it carries |
 |---|---|
 | `builder-settings-collapsed-light` / `builder-settings-expanded-light` | §4.3: an `h2` inside the `<summary>`, so the panel finally has an entry in the builder's heading outline at the level every other section uses. §3.7: the digest states the challenge switch and the minimum-time value, and the expanded frame shows the checkbox and the number field that hold those same two facts. |
