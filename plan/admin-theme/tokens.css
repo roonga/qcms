@@ -9,7 +9,7 @@
    mode-following (styled from standard tokens; no dedicated chrome group). */
 
 :root {
-  --color-primary: #2456c6;
+  --color-primary: #2456c7;
   --color-primary-hover: #1e4aad;
   --color-primary-active: #193f95;
   --color-primary-foreground: #ffffff;
