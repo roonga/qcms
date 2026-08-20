@@ -1,5 +1,5 @@
 ---
-"@qcms/db": patch
+"@qcms/db": major
 ---
 
 Scope `revokeSecureLink` to its form (#478).
