@@ -449,3 +449,23 @@ It was caught by reading the generated YAML back, not by any gate. Nothing in th
 3. **Reconsider what a reviewer re-running gates is even for.** CI runs the same suites on the pushed head, under branch protection, on a machine with no competing lane. A local re-run by the reviewer duplicates that at the cost of contention. The valuable half of review is reading the diff and re-deriving claims from the code, which is exactly what caught the real defects this session (#451's appended commit, #533's two missed call sites, #539's overstated CSS comment). A rule of "verify claims at the source, let CI own the gates" might be strictly better than what we do now.
 
 **Caution for whoever implements it.** Do not turn this into "reviewers trust green". The lesson is about *where* verification happens, not whether it does.
+
+---
+
+## Merging a stacked PR silently closes its children, and nothing in the flow warns
+
+**Raised:** 2026-08-20, dev seat caught it; the PM seat caused it. Two PRs closed with their work unlanded.
+
+**The instance.** The merger ran `gh pr merge --squash --delete-branch` on #539 and #568. Both were the **base** of another PR. GitHub auto-closes any PR whose base branch is deleted, so #542 and #571 closed on the spot, unlanded, and #576 was left pointing at an orphaned branch. Nothing failed, nothing was red, and the merger's own summary reported success - the loss was only visible to the dev seat, which went looking because its next action depended on those branches.
+
+The trap is that the safe-sounding half of the flag is the dangerous one. Retarget-to-main fires when a base **merges**; deletion closes the child **outright**; and `--delete-branch` does both in one command, deletion last.
+
+**Why it is worth a workshop entry rather than just a rule in `plan/pr-review-loop.md`** (where it is now recorded): this is the **PR #205 failure mode by a different route** - a PR sitting closed while its content never landed. CLAUDE.md already carries #205's version, which was a hand-made local squash, and the `protect-main` ruleset was added to prevent exactly that. The ruleset does not touch this route. So the repo has now been bitten twice by one shape through two mechanisms, and the second was not covered by the mitigation written for the first. That suggests the lesson to encode is the **invariant** - *a PR must never end up closed with its content unlanded* - rather than another point fix against the specific mechanism that produced it this time.
+
+**Candidate edits.**
+
+1. **A pre-merge check in the merger's own procedure** (done, recorded in `plan/pr-review-loop.md` step 4): `gh pr list --base <branch>` before any `--delete-branch`; retarget children to `main` first, or merge without the flag and delete once they are retargeted.
+2. **A cheap audit that would have caught it after the fact:** a closed PR whose head branch still exists on origin and whose commits are not ancestors of `main` is, with very few exceptions, work that was lost. That is one API call and one `git merge-base --is-ancestor` per closed PR, and it would have caught both #205 and this.
+3. **Do not encode "avoid stacking".** Both stacks were correct and necessary: #514 had to stack on #515 (both rewrite `response-browser.tsx`) and #557 on #514 (its acceptance grep is only honest against #514's second literal). The cost belongs to the tooling, not to the practice.
+
+**Also worth noting about how it was caught.** The dev seat opened its next message by correcting the premise of two of mine before acting on either - it had been told to rebase two PRs and checked their state first rather than following the instruction into a wall. That is the behaviour that turned a silent loss into a ten-minute recovery.
