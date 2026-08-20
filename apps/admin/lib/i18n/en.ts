@@ -923,6 +923,17 @@ export const messages = {
   "ops.responses.filter.apply": "Apply filters",
   "ops.responses.filter.clear": "Clear filters",
   "ops.responses.filter.dayHint": "Whole days, in UTC.",
+  // A filter value the address carried that no filter accepts (issue 521): a mistyped
+  // date, a `flagged` that is not true or false, a version that is not a number. The
+  // toolbar cannot produce one, so the operator either hand-edited the address or
+  // followed a link someone else did. It is named rather than dropped in silence
+  // because the count beside the table is a number an operator acts on, and a total
+  // for the whole form read as a total for one week is the same false statement this
+  // screen was fixed for, only quieter.
+  "ops.responses.filter.ignored.one":
+    "One filter was not applied: the address carried a value {fields} does not accept.",
+  "ops.responses.filter.ignored.other":
+    "{count} filters were not applied: the address carried values {fields} do not accept.",
   "ops.responses.table": "Submitted responses",
   "ops.responses.column.sessionId": "Session",
   "ops.responses.column.version": "Version",

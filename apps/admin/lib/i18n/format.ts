@@ -80,3 +80,18 @@ export function formatDateTime(iso: string | null | undefined, fallback = ""): s
   const parsed = instant(iso);
   return parsed === undefined ? fallback : DAY_AND_TIME.format(parsed);
 }
+
+/**
+ * Join names into a sentence's list ("a", "a and b", "a, b and c").
+ *
+ * Same argument as the date formatters above, for the same reason: a list separator and
+ * the word before the last item are locale shape, not punctuation, and hand-joining with
+ * `", "` bakes English into a template a second locale would have to unpick. `Intl` knows
+ * the rule, and `ADMIN_LOCALE` is the one input it gets, so the output is deterministic
+ * between the server render and the browser.
+ */
+const LIST = new Intl.ListFormat(ADMIN_LOCALE, { style: "long", type: "conjunction" });
+
+export function formatList(items: readonly string[]): string {
+  return LIST.format(items);
+}
