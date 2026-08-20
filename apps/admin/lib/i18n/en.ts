@@ -931,9 +931,9 @@ export const messages = {
   // for the whole form read as a total for one week is the same false statement this
   // screen was fixed for, only quieter.
   "ops.responses.filter.ignored.one":
-    "One filter was not applied: the address carried a value {fields} does not accept.",
+    "One filter was not applied: the address set {fields} to a value it does not accept.",
   "ops.responses.filter.ignored.other":
-    "{count} filters were not applied: the address carried values {fields} do not accept.",
+    "{count} filters were not applied: the address set {fields} to values they do not accept.",
   "ops.responses.table": "Submitted responses",
   "ops.responses.column.sessionId": "Session",
   "ops.responses.column.version": "Version",

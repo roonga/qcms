@@ -12,8 +12,11 @@ import type { AppliedFilters } from "./browse.ts";
  * filter, so a form with no submissions rendered "No response matches these filters"
  * about a filter that was never applied - the screen making a false statement about
  * its own behaviour. In the other direction `?from=nonsense` was concatenated into
- * `nonsenseT00:00:00.000Z` and sent, so a typo in the address bar cost the operator
- * the whole list behind a 400 rather than one filter.
+ * `nonsenseT00:00:00.000Z` and sent, and the same unvalidated string was handed to the
+ * toolbar's day picker, whose vendored body is `value ? parseDate(value) : undefined`.
+ * `parseDate` throws on it, so a typo in the address bar did not cost one filter or even
+ * the list: the whole screen was a 500. Validating here fixes both, because the picker
+ * can now only receive a day or nothing.
  *
  * This module is the single answer both consumers read: a value that does not parse is
  * not a filter, so it reaches neither the request nor `hasFilters`, and it is named in

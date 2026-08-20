@@ -33,7 +33,7 @@
 
 ## States (normative)
 
-no responses · filtered-empty · flagged present · detail submitted · detail erased (tombstone) · erase confirm (typed) · export empty-result · webhook none configured · secret-reveal (one-time) · deliveries healthy · dead-letters present · redeliver in-flight/succeeded.
+no responses · filtered-empty · filter value ignored (the address carried a value no filter accepts; it is named and not applied, and the empty state stays the unfiltered one) · flagged present · detail submitted · detail erased (tombstone) · erase confirm (typed) · export empty-result · webhook none configured · secret-reveal (one-time) · deliveries healthy · dead-letters present · redeliver in-flight/succeeded.
 
 ## Interactions
 

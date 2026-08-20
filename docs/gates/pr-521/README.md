@@ -1,0 +1,1 @@
+Reference evidence for a NON-gated issue (521), not one of the admin redesign tier's gated six: the form-scoped response browser at `?flagged=maybe&from=nope`, where both values are filters no filter accepts, showing the notice that names them and the unfiltered empty state that is now the true one, at 390px and 1280px.

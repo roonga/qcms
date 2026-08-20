@@ -81,9 +81,13 @@ test.describe("response filters: what was applied is what is claimed", () => {
 
   test("a malformed date never reaches the API as an instant", async ({ page }) => {
     await signInWithTotp(page, EMAIL, totpSecret);
-    // `xyz` used to be concatenated into `xyzT00:00:00.000Z` and sent, so the API
-    // answered 400 and the operator lost the whole list to a typo. The absence of the
-    // load-failure alert is what proves the request was never made with it.
+    // `xyz` used to be concatenated into `xyzT00:00:00.000Z` and sent. The red-first run
+    // of this spec showed the damage is worse than a rejected request: the same
+    // unvalidated string is handed to the toolbar's day picker, whose vendored body is
+    // `value ? parseDate(value) : undefined`, and `parseDate` throws on it. So the whole
+    // screen was a 500 (`Invalid ISO 8601 date string: xyz`), not a list behind an error
+    // alert. Both are unreachable once a value that does not parse is not a filter: the
+    // empty state is the unfiltered one, and neither failure surface is on screen.
     await page.goto(`/forms/${formId}/responses?from=xyz`);
     await expect(page.getByTestId("qcms-responses-empty")).toHaveText(UNFILTERED);
     await expect(page.getByText("The responses could not be loaded.")).toHaveCount(0);
