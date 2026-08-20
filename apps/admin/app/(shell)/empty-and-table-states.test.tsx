@@ -112,7 +112,9 @@ vi.mock("@/components/kit", () => ({
     </div>
   ),
   Button: ({ children }: { children?: ReactNode }) => <button type="button">{children}</button>,
-  Card: ({ children }: { children?: ReactNode }) => <div data-testid="qcms-card-stub">{children}</div>,
+  Card: ({ children }: { children?: ReactNode }) => (
+    <div data-testid="qcms-card-stub">{children}</div>
+  ),
   Select: () => <select aria-label="stub" />,
   TextField: () => <input aria-label="stub" />,
 }));
