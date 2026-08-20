@@ -82,15 +82,46 @@ export async function pinQuestion(page: Page, questionId: string, version: numbe
 }
 
 /**
- * The pin row's `questionId@version` badge.
+ * The pin row for one question at one version.
  *
- * `.first()` is not laziness: the same string is also the label of the condition editor's
- * question picker, so once a rule exists the bare text matches twice and a strict-mode
- * locator throws. The pin row is the first of them in document order, and it is the one
- * every caller here means.
+ * Addressed by the row's own data attributes rather than by a `questionId@version` string
+ * (issue 517). The ownership grid splits that string into its two columns because the two
+ * halves have different owners - the id belongs to the question library and the version to
+ * the form - so there is no longer one text node carrying both. Reading the attributes is
+ * also what the text match was working around: the same string is the label of the
+ * condition editor's question picker too, so `getByText` matched twice once a rule existed
+ * and needed `.first()` to stay out of strict mode.
  */
 export function pinLabel(page: Page, questionId: string, version: number): Locator {
-  return page.getByText(`${questionId}@${String(version)}`, { exact: true }).first();
+  return page.locator(`[data-pin-question="${questionId}"][data-pin-version="${String(version)}"]`);
+}
+
+/** One pin row's grip: its reorder keys, and the only route to its row menu. */
+export function pinGrip(page: Page, questionId: string): Locator {
+  return page.locator(`[data-pin-question="${questionId}"] [data-pin-grip]`);
+}
+
+/**
+ * Open a pin row's grip menu and choose one of its five entries.
+ *
+ * The grip is `aria-haspopup="menu"` and opens on Enter, Space or a click; the menu it
+ * opens is the APG pattern by hand (`components/row-menu.tsx`), so its items are real
+ * `menuitem` roles and are addressed as such.
+ */
+export async function usePinRowMenu(
+  page: Page,
+  questionId: string,
+  action: "insertAbove" | "insertBelow" | "moveUp" | "moveDown" | "remove",
+): Promise<void> {
+  await pinGrip(page, questionId).click();
+  await page.locator(`[role="menuitem"][data-row-menu-item="${action}"]`).click();
+}
+
+/** The pinned question ids of the open step, in the order the form serves them. */
+export async function pinnedOrder(page: Page): Promise<string[]> {
+  return page
+    .locator("[data-pin-question]")
+    .evaluateAll((rows) => rows.map((row) => row.getAttribute("data-pin-question") ?? ""));
 }
 
 /** Add a rule and return the id the builder minted for it. */

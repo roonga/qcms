@@ -148,21 +148,46 @@ export function isPinned(draft: DraftForm, questionId: string): boolean {
   return pinnedQuestionIds(draft).includes(questionId);
 }
 
-/** Pin a question into a step at a chosen version. A duplicate is refused here too. */
+/**
+ * Pin a question into a step at a chosen version and at a chosen position.
+ *
+ * `index` is a boundary, counted the way an insert point is: 0 puts the pin before the
+ * first item, `items.length` appends. It exists because the pin list's row grip menu
+ * offers insert-above and insert-below (issue 517), and those two are what let a
+ * row-boundary insert affordance meet WCAG 2.2 SC 2.5.8 at all - so "add" has to be
+ * able to land somewhere other than the end. Out-of-range values clamp rather than
+ * throw: the caller is a menu whose row may have moved under it.
+ *
+ * A duplicate is refused here as the kernel refuses it (`DUPLICATE_QUESTION_IN_FORM`).
+ */
+export function addPinAt(
+  draft: DraftForm,
+  stepId: string,
+  questionId: string,
+  version: number,
+  index: number,
+): DraftForm {
+  if (isPinned(draft, questionId)) return draft;
+  const pin: DraftPin = { questionId, version };
+  return {
+    ...draft,
+    steps: draft.steps.map((step) => {
+      if (step.stepId !== stepId) return step;
+      const at = Math.min(Math.max(index, 0), step.items.length);
+      return { ...step, items: [...step.items.slice(0, at), pin, ...step.items.slice(at)] };
+    }),
+  };
+}
+
+/** Pin a question at the end of a step, which is what the library picker's own button does. */
 export function addPin(
   draft: DraftForm,
   stepId: string,
   questionId: string,
   version: number,
 ): DraftForm {
-  if (isPinned(draft, questionId)) return draft;
-  const pin: DraftPin = { questionId, version };
-  return {
-    ...draft,
-    steps: draft.steps.map((step) =>
-      step.stepId === stepId ? { ...step, items: [...step.items, pin] } : step,
-    ),
-  };
+  const step = draft.steps.find((entry) => entry.stepId === stepId);
+  return addPinAt(draft, stepId, questionId, version, step?.items.length ?? 0);
 }
 
 /**
