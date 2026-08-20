@@ -3,8 +3,8 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { CAPTURE_ENABLED, CAPTURE_MODES, captureInto } from "./support/capture.js";
 import { ADMIN_BASE_URL } from "./support/harness-config.js";
-import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
-import { addStep, createForm, pinQuestion, waitForSaved } from "./support/forms.js";
+import { enrollNewAdmin, fillStable, signInWithTotp } from "./support/flow.js";
+import { addStep, createForm, field, pinQuestion, waitForSaved } from "./support/forms.js";
 import { confirmLifecycle, createDraft } from "./support/questions.js";
 
 /**
@@ -80,7 +80,11 @@ for (const mode of CAPTURE_MODES) {
     await signInWithTotp(page, EMAIL, totpSecret);
 
     // --- the builder: ambient chrome, and a validation panel that only counts issues ---
+    // `lastSavedAt` is per-visit state, so a fresh navigation legitimately reads "No
+    // changes yet." One real edit is what makes the frame show the state the gate is
+    // reviewing: the settled sentence with its §2-governed timestamp.
     await page.goto(`/forms/${formId}`);
+    await fillStable(field(page, "Form title"), `Save model gate (${mode})`);
     await waitForSaved(page);
 
     // Refuse to shoot a frame that does not carry the change. A capture of the old screen

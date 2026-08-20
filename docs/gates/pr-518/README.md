@@ -1,0 +1,3 @@
+# Gate: both save models named (issue 518)
+
+Approve the two statements that close `plan/admin-ux-audit.md` §4.6, one frame each: `builder-ambient-save-*` satisfies design-language element 7 plus `plan/admin-design-contracts.md` §6's autosave clause (persistent chrome at the top of the builder, "This draft saves automatically as you edit." with a §2-governed timestamp, and a validation panel below it that now carries only the issue count it is the sole authority for, §5.6); `question-editor-manual-save-*` satisfies §6's manual clause (a visible statement of the manual model immediately above the Save button, and no ambient "Saved" strip on a screen that has one). Captured by `apps/admin/e2e/gate-518.pw.ts`, which runs only with `QCMS_ADMIN_CAPTURE_GATE=1`.
