@@ -393,3 +393,41 @@ The concrete instance: twelve `admin-redesign` issues were dispatched on 2026-08
 **(b) Second-lane rule 1 cites an aim that is discharged.** It reads "while the e2e chain (033/034/035) is executable, pick `security` and `bug` issues only - enhancements, workshop items, and polish wait behind 035, however small." Those three tasks landed as PRs #245, #274 and #284. A second lane reading that rule today would exclude every unlabeled issue in the current campaign for a reason that stopped being true two weeks ago.
 
 **Candidate edit.** The rule should cite the aim block by reference and inherit whatever it currently says, rather than restating the aim's contents inline - a restatement in a second file is a copy that ages, which is the same failure mode the ordering-exception table already has a single-source rule against (`docs/features/README.md`). This is the fifth or sixth instance of the copied-and-aged pattern in this repo; it may be worth a general line in the workshop pass rather than another point fix.
+
+---
+
+## Nothing lints GitHub Actions expressions, and the failure mode is a green no-op
+
+**Raised:** 2026-08-20, dev seat, twice in one session while building the plan-only CI fast lane (PR #525).
+
+**The instance.** ~20 step guards were generated with `node -e '...'` wrapped in shell single quotes, which ate the inner quotes and produced `if: env.PLAN_ONLY != true` instead of `!= 'true'`. In GitHub expressions a string compared to a boolean literal never matches, so **every guard would have evaluated true, the fast lane would have been a no-op, and every check would still have reported green.** That is the exact false-green class the PR was built to close, reintroduced by the tooling used to write it.
+
+It was caught by reading the generated YAML back, not by any gate. Nothing in this repo parses `.github/workflows/*.yml`, so a wrong expression is invisible until someone notices CI behaving oddly - and in this case "behaving oddly" means "passing".
+
+**Candidate edit.** A `check:workflows` gate in `check:all` that parses every workflow file and rejects the known-wrong expression shapes: `env.X != true` / `== true` / `!= false` (string against boolean literal), and a `needs.*.outputs.*` compared to an unquoted literal. Cheap to write, and it belongs to the same family as the other `check-*.mjs` gates.
+
+**The wider point worth arguing at the workshop pass.** This repo now has a substantial amount of *logic in YAML* - a classifier, guards on twenty steps, two concurrency expressions, a conditional `cancel-in-progress`. None of it is typechecked, linted, or unit-tested, and all of it gates whether the real gates run. The generalisation: **a config file that decides whether tests run is code, and the repo's standard for code should apply to it.**
+
+---
+
+## `check:security-hygiene` has a split scope that no document states
+
+**Raised:** 2026-08-20, dev seat, while deriving which gates genuinely read `plan/**`.
+
+**What is wrong.** The gate has two halves with different roots: a source scan rooted at `apps packages scripts tooling`, and an `*.example` scan that is repo-wide (`git ls-files -- *.example **/*.example`). Nothing says so. The script header describes what it checks; `CONTRIBUTING.md`'s paragraph describes what it checks; neither says **where it looks**.
+
+**Why it cost something.** The fast-lane work had to establish exactly which gates read `plan/**`, because a gate that reads it must survive the fast lane. That answer was only reachable by reading `envExampleFiles()` - the documentation would have led a reader to the wrong conclusion in both directions (thinking `plan/**` was covered by the source half, or that the `*.example` half was rooted like its sibling).
+
+**Candidate edit.** Every `check-*.mjs` header states its **scope** - the roots it walks and the pathspecs it excludes - as a required line, not prose. The gate-scope table PR #525 added to `CONTRIBUTING.md` is the natural home for the summary, and it is only trustworthy if it is re-derivable; #525's own first draft of that table restated `check-no-control-chars`'s globs wrongly, which is the same failure one layer up.
+
+---
+
+## `/task` and `/next-issue` say "never open a PR red" and a red row is not always red
+
+**Raised:** 2026-08-20, PM seat, on merging PR #525.
+
+**What is wrong.** Both skills instruct the conductor to confirm CI green before handing a PR over, and a session that reads the rendered checks table rather than the exit code can now stall on a row that is red but not blocking.
+
+**The mechanism, which is new as of PR #525.** When a matrix job is cancelled *before the matrix expands*, GitHub publishes the job under its **uninterpolated** name - `verify (node-${{ matrix.node-version }})` - creating a check context that no later run supersedes, because no later run ever publishes that string. It sat red on #525 permanently. It is not a required context, `mergeStateStatus` was `CLEAN`, and `gh pr checks` exited 0. Cancellation before expansion became possible only when `ci.yml` gained a `concurrency` block, so this will recur on any PR pushed and then edited moments later.
+
+**Candidate edit.** One line in both skills: read CI by `gh pr checks <NN>`'s **exit code** and by the four required context names from the ruleset, never by row colour or row count. Fixing it at the source is not available - the only way to stop the phantom context is to change where `verify` gets its name from, and that string is a required context, so touching it strands every future PR at "Expected - waiting for status". Accepting a cosmetic red row is the correct trade; the skills just need to say so.
