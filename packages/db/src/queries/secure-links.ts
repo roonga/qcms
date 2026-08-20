@@ -111,16 +111,30 @@ export async function consumeSecureLink(
 /**
  * Revoke a secure link so it stops working immediately (SEC-2). Idempotent: a
  * second revoke matches no row (already revoked) and returns `undefined`.
+ *
+ * Form-scoped (#478, following #305). `formId` is required and joins the `where`
+ * clause, so a link belonging to another form is a row this statement never
+ * matches rather than one the caller checks after the fact. Refusal therefore
+ * falls out of the query: a cross-form link, a never-issued link and an
+ * already-revoked link all come back `undefined`, and the caller has one code to
+ * answer with instead of two error paths that have to agree.
  */
 export async function revokeSecureLink(
   exec: Executor,
   linkId: LinkId,
+  formId: FormId,
   now?: Date,
 ): Promise<SecureLinkRow | undefined> {
   const [row] = await exec
     .update(secureLinks)
     .set({ revokedAt: now ?? new Date() })
-    .where(and(eq(secureLinks.linkId, linkId), isNull(secureLinks.revokedAt)))
+    .where(
+      and(
+        eq(secureLinks.linkId, linkId),
+        eq(secureLinks.formId, formId),
+        isNull(secureLinks.revokedAt),
+      ),
+    )
     .returning();
   return row;
 }

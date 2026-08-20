@@ -68,15 +68,19 @@ export async function listLinks(
   return { ok: true, data: parseLinks(result.data.links) };
 }
 
-/** `POST /admin/links/{linkId}/revoke` - 018 rejects the link from then on. */
+/**
+ * `POST /admin/forms/{id}/links/{linkId}/revoke` - 018 rejects the link from then
+ * on. The form segment is what scopes the API's query (#478): a link minted for
+ * another form is not revocable through this form's route.
+ */
 export async function revokeLink(
   session: AdminSession,
+  formId: string,
   linkId: string,
 ): Promise<ApiResult<{ readonly linkId: string; readonly revokedAt: string }>> {
+  const path: `/${string}` = `/forms/${encodeURIComponent(formId)}/links/${encodeURIComponent(linkId)}/revoke`;
   const result = await readResult<Record<string, unknown>>(
-    await adminApiFetch(session, `/links/${encodeURIComponent(linkId)}/revoke`, {
-      method: "POST",
-    }),
+    await adminApiFetch(session, path, { method: "POST" }),
   );
   if (!result.ok) return result;
   return {

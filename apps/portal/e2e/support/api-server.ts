@@ -205,13 +205,14 @@ export async function startApiServer(): Promise<void> {
     throw new Error(`expected 201 consuming one-time link, got ${consumeRes.status}`);
   }
 
-  // A valid link, then revoked over the admin surface (POST /admin/links/:id/revoke).
+  // A valid link, then revoked over the admin surface
+  // (POST /admin/forms/:id/links/:linkId/revoke).
   const revokedToken = await mintInsuranceLink(testDb.db, config, formId, {
     linkId: "lnk_revoked",
     expiresAt: new Date(nowMs + oneHour),
   });
   const adminSessionToken = await adminLogin(testDb.db);
-  const revokeRes = await app.request("/admin/links/lnk_revoked/revoke", {
+  const revokeRes = await app.request(`/admin/forms/${formId}/links/lnk_revoked/revoke`, {
     method: "POST",
     headers: {
       "content-type": "application/json",

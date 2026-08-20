@@ -21,8 +21,15 @@ export const FormIdParam = z.object({
   id: z.string().openapi({ param: { name: "id", in: "path" }, example: "frm_intake" }),
 });
 
-/** `:linkId` path param - an `lnk_…` link id (validated in-handler). */
-export const LinkIdParam = z.object({
+/**
+ * `:id` + `:linkId` path params for a link addressed within its form (#478).
+ *
+ * The form segment is not decorative: it is threaded into the revoke query's
+ * `where` clause, so a link minted for another form matches no row and takes the
+ * same 404 an unknown link takes.
+ */
+export const FormLinkParams = z.object({
+  id: z.string().openapi({ param: { name: "id", in: "path" }, example: "frm_intake" }),
   linkId: z.string().openapi({ param: { name: "linkId", in: "path" }, example: "lnk_ab12cd34" }),
 });
 

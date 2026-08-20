@@ -423,11 +423,43 @@ describe("secure links helpers", () => {
     });
     expect((await getSecureLink(testDb.db, linkId))?.oneTime).toBe(true);
 
-    expect((await revokeSecureLink(testDb.db, linkId))?.revokedAt).toBeInstanceOf(Date);
+    expect((await revokeSecureLink(testDb.db, linkId, formId))?.revokedAt).toBeInstanceOf(Date);
     // Revoked links cannot be consumed.
     expect(await consumeSecureLink(testDb.db, linkId, new Date())).toBeUndefined();
     // Idempotent revoke.
-    expect(await revokeSecureLink(testDb.db, linkId)).toBeUndefined();
+    expect(await revokeSecureLink(testDb.db, linkId, formId)).toBeUndefined();
+  });
+
+  it("refuses to revoke a link belonging to another form (#478)", async () => {
+    const ownerForm = FormId.parse("frm_revoke_owner");
+    const otherForm = FormId.parse("frm_revoke_other");
+    await createForm(testDb.db, {
+      formId: ownerForm,
+      slug: "frm-revoke-owner-slug",
+      defaultLocale: "en",
+    });
+    await createForm(testDb.db, {
+      formId: otherForm,
+      slug: "frm-revoke-other-slug",
+      defaultLocale: "en",
+    });
+    const linkId = LinkId.parse("lnk_revoke_scope");
+    await insertSecureLink(testDb.db, {
+      linkId,
+      formId: ownerForm,
+      expiresAt: new Date(Date.now() + 86_400_000),
+    });
+
+    // The fixture is real: without this the negative below could pass against a
+    // link that simply does not exist, which proves nothing about the scope.
+    expect((await getSecureLink(testDb.db, linkId))?.formId).toBe(ownerForm);
+
+    // Negative: naming the wrong form matches no row, and leaves the link intact.
+    expect(await revokeSecureLink(testDb.db, linkId, otherForm)).toBeUndefined();
+    expect((await getSecureLink(testDb.db, linkId))?.revokedAt).toBeNull();
+
+    // Positive: the owning form revokes it.
+    expect((await revokeSecureLink(testDb.db, linkId, ownerForm))?.revokedAt).toBeInstanceOf(Date);
   });
 
   it("consumes a one-time link exactly once (sequential)", async () => {

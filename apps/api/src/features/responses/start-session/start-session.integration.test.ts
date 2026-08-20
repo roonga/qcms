@@ -204,7 +204,7 @@ describe("typed failures (exit criterion 1)", () => {
   it("LINK_REVOKED for a revoked link (403)", async () => {
     const formId = await seedForm("frm_linkrev", "link-rev", { versions: 1 });
     const token = await seedLink(formId, "lnk_revoked");
-    await revokeSecureLink(testDb.db, LinkId.parse("lnk_revoked"), NOW);
+    await revokeSecureLink(testDb.db, LinkId.parse("lnk_revoked"), formId, NOW);
     const res = await post({ token });
     expect(res.status).toBe(403);
     expect(((await res.json()) as ErrBody).error.code).toBe("LINK_REVOKED");

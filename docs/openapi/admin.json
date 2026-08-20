@@ -3989,7 +3989,7 @@
         }
       }
     },
-    "/admin/links/{linkId}/revoke": {
+    "/admin/forms/{id}/links/{linkId}/revoke": {
       "post": {
         "summary": "Revoke a secure link; start-session rejects it thereafter (admin)",
         "tags": [
@@ -4003,6 +4003,15 @@
           }
         ],
         "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_intake"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
           {
             "schema": {
               "type": "string",

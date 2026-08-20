@@ -244,11 +244,11 @@ export const SURFACES: readonly Surface[] = [
     readControl: true,
   },
   {
-    name: "POST /admin/links/{linkId}/revoke",
+    name: "POST /admin/forms/{id}/links/{linkId}/revoke",
     row: "links-webhooks",
     group: "admin",
     method: "POST",
-    path: (ctx) => `/admin/links/${ctx.linkId}/revoke`,
+    path: (ctx) => `/admin/forms/${ctx.formId}/links/${ctx.linkId}/revoke`,
     body: {},
     anonymousReachable: false,
   },

@@ -124,7 +124,9 @@ describe("the §3.2 matrix and the probe inventory stay in step", () => {
       "/admin/questions",
       "/admin/forms",
       "/admin/erasures",
-      "/admin/links",
+      // #478 moved revoke under the form, so the links slice is form-scoped
+      // throughout and its prefix carries the form segment.
+      "/admin/forms/{id}/links",
       "/admin/forms/{id}/webhooks",
       "/admin/outbox/dead-letters",
     ]) {
