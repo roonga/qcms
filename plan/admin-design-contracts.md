@@ -66,6 +66,40 @@ One family, reconciled with the frozen card (`plan/admin-theme/ds-table.html`):
   resets its `min-width` there so the scroll container is the fallback, not the
   default experience.
 
+**Amendment, 2026-08-20 (Code Owner ruling): identifying columns, timestamps and
+the wrapper's border.** All three were silent clauses that PR #571 hit in
+practice - the first two escalated as ungoverned, the third decided under silence
+and flagged. They are governed now.
+
+- **An identifying column renders a prefix plus a copy affordance, never the full
+  id and never an ellipsis.** Render the type prefix plus 8 characters
+  (`ses_45cf6345`), monospace, tabular. The column has exactly two jobs -
+  recognise a row against a ticket, and get the exact value into a search box -
+  and a prefix serves the first while a copy control serves the second better
+  than any width can. Nobody reads 32 hex characters.
+  - **Ellipsis truncation of an id is forbidden.** A truncation that looks like
+    data invites someone to copy a value that is not one. A stated prefix cannot
+    be mistaken for a whole id; `ses_45cf6345…` can.
+  - The copy control's accessible name carries the entity and the value ("Copy
+    session id ses_45cf6345"), not a bare "Copy" repeated down the column.
+  - The control is JS-only, and that is acceptable **because** the detail route
+    carries the full id without JS - which it does since #510 headed those routes
+    with their own entity. If a future table's detail route does not, the prefix
+    rule still holds and the full id goes somewhere reachable without JS.
+  - Evidence this replaces: `docs/gates/pr-514/links-table-light-390.png`, where
+    `lnk_revoked` shatters to roughly one character per line, dates wrap to five
+    or six lines, rows run ~180px and the Revoke button is clipped - worse than
+    the nowrap-plus-scroll it replaced.
+- **A timestamp column renders date, `HH:MM`, and the zone. No seconds.** Seconds
+  cost width in every row to answer a question the detail route already answers.
+  Admin renders UTC with the zone named (task 034; operator-local display is a
+  queued enhancement, not a licence to vary per table).
+- **The table wrapper carries no border and no radius.** Six of the nine shipped
+  tables had none, the frozen card's table takes its border from the surrounding
+  card, and restoring it on the four kit tables would rebuild the two-treatment
+  split this contract exists to remove. Three kit tables lose a border at #514;
+  that is convergence, and it is now written down rather than inferred.
+
 ## 3. Empty state
 
 The frozen card's shape, everywhere: centred panel, `1.5px dashed
@@ -77,6 +111,30 @@ primary CTA when a creating action exists on that screen. Variations:
 - Error states are not empty states: a failed read renders the error alert and
   nothing else (no empty `<ul>`, no "no items" claim - issue #513's rule).
 - The bare muted paragraph and the "reassuring" green variant retire.
+
+**Amendment, 2026-08-20 (Code Owner ruling): what the panel does when the creating
+action is already on the screen.** The CTA clause as written assumed the creating
+action lives somewhere else and needs pointing at. On `/forms` it does not: the
+creating action is a two-field fieldset on the same screen, and there is no
+`/forms/new` route. PR #571 escalated this rather than inventing an answer, which
+was right.
+
+**The rule: when the creating action is already present on the screen, the panel
+names it rather than duplicating it.** "Use the form above to create your first
+form." No CTA button.
+
+The two alternatives were both worse, and it is worth recording why so neither
+gets reinvented:
+
+- **Putting the fieldset inside the panel** yields two controls with identical
+  accessible names on one screen. That is not hypothetical here: the capture spec
+  refused to photograph two screens during #514 for exactly that defect ("Add
+  endpoint", then "Clear filters"), which is the third time this run a screenshot
+  gate caught something no other gate could.
+- **A scroll-to control** is a new interactive pattern with focus-management
+  obligations, invented to satisfy a clause rather than to serve a user. Under
+  §7a's lesson, a new pattern arriving to fill a contract gap is exactly the thing
+  to refuse.
 
 ## 4. Status badges
 
