@@ -156,10 +156,17 @@ button {
   font-weight: 600;
 }
 
-/* Numeric cells line up. Tables arrive with the question library (032); the rule
-   ships with the theme so the first table is already right. */
-td,
-th,
+/* Figure-width digits, for the places that want a column of numbers to line up.
+   This shipped with the theme (032) as `td, th, .qcms-tabular`, which put tabular
+   figures on EVERY cell of every table in the app. `plan/admin-design-contracts.md`
+   §2 scopes them to numeric and stamp columns instead, so the blanket selector
+   retires here (issue 514) and the opt-in moves to `.qcms-cell--num`, applied per
+   column by the table family below. Issue 515 had opted its answer-preview column
+   out locally because narrowing a rule all nine tables leaned on was not a single
+   column's call; that opt-out is gone with the rule it was working around.
+
+   What is left is the utility for non-table figure runs, which is what the name
+   always described. */
 .qcms-tabular {
   font-variant-numeric: tabular-nums;
 }
@@ -586,27 +593,179 @@ th,
   background-color: var(--color-primary-active);
 }
 
-/* Wraps the vendored Table so a wide question grid scrolls inside its own
-   box rather than the page body scrolling sideways. React-aria rows here are
-   interactive (they navigate to the question), so give [role="row"] a hover
-   background and pointer cursor - scoped to this wrapper only, never the
-   portal's own tables. */
+/* ===========================================================================
+   THE TABLE FAMILY - one treatment for every table in the app.
+
+   `plan/admin-design-contracts.md` §2, reconciled with the frozen card
+   `plan/admin-theme/ds-table.html`. This replaces the three treatments that
+   shipped (`plan/admin-ux-audit.md` §4.1): this wrapper around the vendored kit
+   `Table`, the hand-authored `qcms-ops-table`, and the hand-authored
+   `qcms-links-table`. The last two were already selector-listed together with a
+   comment saying they were the same thing; they are now the same thing.
+
+   THE FAMILY IS A WRAPPER, NOT A CLASS ON `<table>`. One element does all three
+   jobs §2 names, and it is the same element for hand-authored and kit markup:
+
+   1. The scroll box, so a wide table scrolls inside itself and the page body
+      never scrolls sideways (WCAG 2.2 AA SC 1.4.10 Reflow).
+   2. The positioning region for row-level chrome. The action columns' headers
+      are visually-hidden spans, and `.qcms-visually-hidden` is
+      `position: absolute`: without a containing block here they resolve against
+      the page, escape the scroll clip and stretch the DOCUMENT to the table's
+      full width (863px at a 390px viewport - Reflow again, and caught by the
+      capture guard rather than by axe).
+   3. The styling hook. A descendant selector from this class (0,1,1) outranks
+      the Tailwind utilities the vendored `Table` renders on its own cells
+      (0,1,0), so the kit tables join the family without anyone touching
+      vendored source (ADR-22).
+
+   WHY THE SCROLL BOX MOVED OFF THE `<table>`. The hand-authored pair carried
+   `display: block` on the table element itself to get `overflow-x`. A
+   `display: block` table performs no column sizing at all, which is why every
+   one of their cells also needed `white-space: nowrap` to stay legible. With
+   the scroll box on the wrapper the table is a `display: table` again and
+   negotiates its own column widths.
+
+   NO ZEBRA (§2). The 44px row and the hairline divider carry the rhythm; the
+   family defines no `nth-child` background and nothing else may add one.
+   =========================================================================== */
 .qcms-table {
+  position: relative;
   overflow-x: auto;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-card);
+  inline-size: 100%;
 }
-.qcms-table [role="row"]:hover {
+.qcms-table table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+/* 44px rows and 0.4rem/0.6rem cell padding (§2). The height goes on the cells:
+   a `<tr>` ignores `block-size`, while a cell's acts as the row's minimum. */
+.qcms-table th,
+.qcms-table td {
+  block-size: var(--admin-table-row-h);
+  padding: 0.4rem 0.6rem;
+  text-align: start;
+  vertical-align: middle;
+  border-block-end: 1px solid var(--color-border);
+}
+
+/* Header: 0.72rem over a strong-border underline (§2). `block-size: auto`
+   because the 44px minimum is the DATA row's rhythm, not the header's. */
+.qcms-table thead th {
+  block-size: auto;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  border-block-end: 2px solid var(--color-border-strong);
+}
+
+/* A row header identifies its row; it is not a heading, so it does not shout. */
+.qcms-table tbody th {
+  font-weight: 400;
+}
+
+/* Rows that ARE the control. Today that is the two kit tables whose whole row
+   navigates and the library picker's choose-a-question dialog. §2 retires
+   whole-row activation in favour of a real anchor in the identifying cell, and
+   this modifier retires with it; until then, a row that responds to a click
+   says so. Rows without the modifier get no hover affordance, because promising
+   a click that does nothing is worse than promising none. */
+.qcms-table--rowaction tbody tr:hover,
+.qcms-table--rowaction [role="row"]:hover {
   background-color: var(--color-surface-hover);
   cursor: pointer;
 }
 
-/* A `qcms-table` whose rows are NOT interactive (the version history: viewing a
-   version is a link beside the table, not a row action). Same scroll box, no
-   hover affordance promising a click that does nothing. */
-.qcms-table--static [role="row"]:hover {
-  background-color: transparent;
-  cursor: default;
+/* Figure-width digits on numeric and stamp columns ONLY (§2). Applied per cell,
+   header included, so a column opts in as a column. */
+.qcms-table .qcms-cell--num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The vendored kit `Table` renders its cells from a column list and takes no
+   per-cell className, so its numeric and stamp columns opt in positionally.
+   Each rule below names the columns it is selecting and lives next to the
+   markup's own column list in review. These are the four kit tables; when §2's
+   row-action clause retires `onRowAction` their markup becomes hand-authored
+   and every one of these rules is deleted in favour of `.qcms-cell--num`. */
+.qcms-table--questions td:nth-child(4), /* Version */
+.qcms-table--questions td:nth-child(6), /* Created */
+.qcms-table--forms td:nth-child(5), /* Draft version */
+.qcms-table--forms td:nth-child(6), /* Published version */
+.qcms-table--versions td:nth-child(1), /* Version */
+.qcms-table--versions td:nth-child(2), /* Published at */
+.qcms-table--picker td:nth-child(4) /* Version */ {
+  font-variant-numeric: tabular-nums;
+}
+
+/* COMPACT WIDTH (§2: every table states which columns drop at `--bp-compact`).
+   `40rem` is 640px, the value §1 fixes. It is a literal because media queries
+   cannot read custom properties and the token does not exist yet: issue #557
+   creates it and migrates this query, along with `.qcms-ops-summary`'s below,
+   which already uses the same literal for the same boundary. No new breakpoint
+   is introduced here and the number appears nowhere else in this sheet.
+
+   The test each table applies, which issue 515 established for the
+   answer-preview column: a column that IDENTIFIES a row stays, a column that
+   merely DESCRIBES one drops. The Version column never drops anywhere
+   (`plan/admin-mobile-stance.md`, item 5). Which columns each table drops is
+   recorded in that table's own markup, on the cells carrying this class.
+
+   No table in the app declares a `min-inline-size`, so there is none to reset
+   here: with the dropped columns gone the remainder fits, and the scroll
+   container stays the fallback rather than the default experience. */
+.qcms-cell--drop {
+  display: none;
+}
+@media (min-width: 40rem) {
+  .qcms-cell--drop {
+    display: table-cell;
+  }
+}
+
+/* ===========================================================================
+   THE EMPTY STATE - one shape for every "nothing here yet" in the app.
+
+   `plan/admin-design-contracts.md` §3, and the frozen card's shape: a centred
+   panel with a dashed strong border on the surface colour, a heading, one
+   sentence, and a primary action where the screen has a creating one. This
+   replaces the two treatments that shipped (`plan/admin-ux-audit.md` §4.2) -
+   a bordered `Card` with prose on two screens, and a bare muted paragraph on
+   seven others. The bare paragraph retires.
+
+   AN EMPTY STATE IS NOT AN ERROR STATE. A failed read renders its alert and
+   nothing else: no empty list, no "there are none" claim about data the app
+   never managed to read (§3, issue #513's rule).
+
+   0.95rem/700 is §8's h2 step, written as a literal until the `--admin-type-*`
+   scale that section calls for exists. =================================== */
+.qcms-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--admin-stack);
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  background-color: var(--color-surface);
+  border: 1.5px dashed var(--color-border-strong);
+  border-radius: var(--radius-card);
+}
+.qcms-empty__heading {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+.qcms-empty__body {
+  margin: 0;
+  max-inline-size: 46ch;
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+.qcms-empty__action {
+  margin-block-start: 0.5rem;
 }
 
 /* The GET filter form. The outer element stacks its row(s) with the app's
@@ -1259,98 +1418,25 @@ th,
   min-inline-size: 0;
 }
 
-/* The secure-link lifecycle table. A hand-authored table rather than the kit's,
-   because its cells hold a badge and a revoke button and a kit table cell is
-   text (ADR-22 forbids wrapping the vendored component to change that). It
-   scrolls inside its own box so a wide table never scrolls the page. */
-/* `qcms-ops-table` is 035's operations tables (responses, erasures, webhook
-   endpoints, deliveries, dead letters). Same rule as the links table below and
-   deliberately the same selector list rather than a copy: every one of them holds
-   badges and buttons in its cells, and every one of them has to scroll inside its
-   own box for the same Reflow reason. */
-.qcms-links-table,
-.qcms-ops-table {
-  display: block;
-  /* A containing block for its own absolutely-positioned descendants. The revoke
-     column's header is a visually-hidden span, and `.qcms-visually-hidden` is
-     `position: absolute`: without this it resolves against the page instead of
-     this box, escapes the scroll clip, and stretches the DOCUMENT to the table's
-     full width - 863px at a 390px viewport, which is WCAG 2.2 AA SC 1.4.10
-     Reflow and was caught by the capture guard rather than by axe. */
-  position: relative;
-  overflow-x: auto;
-  inline-size: 100%;
-  border-collapse: collapse;
-  font-size: 0.875rem;
-}
-.qcms-links-table th,
-.qcms-links-table td,
-.qcms-ops-table th,
-.qcms-ops-table td {
-  padding-inline: 0.5rem;
-  padding-block: 0.5rem;
-  text-align: start;
-  vertical-align: middle;
-  border-block-end: 1px solid var(--color-border);
-  white-space: nowrap;
-}
-.qcms-links-table thead th,
-.qcms-ops-table thead th {
-  color: var(--color-text-muted);
-  font-weight: 600;
-}
-.qcms-links-table tbody th,
-.qcms-ops-table tbody th {
-  font-weight: 400;
-}
+/* The two hand-authored table families that shipped here (`qcms-links-table` for
+   the secure-link lifecycle table, `qcms-ops-table` for 035's five operations
+   tables) are gone. Both were already the same rule under two names; issue 514
+   made them one family with the kit tables as well, and it lives with the rest
+   of the table treatment further up this sheet under `.qcms-table`.
 
-/* The response browser's answer-preview column (issue 515; the sixth column
-   `docs/wireframes/admin-responses-ops.md` specifies for the browser table).
-
-   THE COLUMN THAT DROPS AT COMPACT WIDTH. `plan/admin-design-contracts.md` §2
-   requires every table to state which of its columns drop at `--bp-compact` and to
-   reset its `min-width` there, so the scroll container is a fallback rather than the
-   default experience. This is that statement for this table, and the preview is the
-   column that drops. It is the widest and the only one that merely DESCRIBES the row
-   rather than identifying it: Session, Version, Submitted, Access and Flag are how an
-   operator finds a response, and the preview only helps them recognise it once found.
-   Version explicitly never drops (`plan/admin-mobile-stance.md`, item 5), and neither
-   does anything else here. With the preview gone below the boundary the table is
-   exactly the five-column table that shipped before this change, so the sixth column
-   adds no horizontal scrolling at a phone width at all.
-
-   `40rem` is 640px, the `--bp-compact` value contract §1 fixes, written as a literal
-   because the token does not exist yet: issue #557 creates it and migrates this query
-   onto it, along with `.qcms-ops-summary`'s query above, which already uses the same
-   literal for the same boundary. No new breakpoint is introduced here.
-
-   Neither this column nor the table declares a minimum inline size. `max-inline-size`
-   below is a cap, not a floor, and it goes away with the column, so there is nothing
-   left holding the table wider than its container at compact width. The preview takes
-   no `tabular-nums`: contract §2 puts those on numeric and stamp columns, and a
-   preview of respondent answers is neither. */
-.qcms-ops-cell--preview {
-  display: none;
-  /* Contract §2 puts `tabular-nums` on numeric and stamp columns. A preview of
-     respondent answers is neither, and figure-width digits inside a sentence read as a
-     receipt rather than as prose. The app-wide `td, th` rule near the top of this sheet
-     is older than the contract and applies to all nine tables; narrowing it is the
-     table-harmonisation change's call, not this column's, so this opts out here rather
-     than editing a rule every other table depends on. */
-  font-variant-numeric: normal;
-}
-@media (min-width: 40rem) {
-  .qcms-ops-cell--preview {
-    display: table-cell;
-  }
-}
+   The answer-preview column's own compact-width rule went the same way: the
+   column still drops at `--bp-compact` and it now says so with the family's
+   `.qcms-cell--drop`, which every table's droppable columns share. Its local
+   `font-variant-numeric: normal` opt-out is gone too, because the app-wide
+   `td, th` rule it was working around is gone. */
 
 /* Layout truncation, on top of the privacy truncation `lib/ops/answers.ts` already
    applied to the string. The two are separate on purpose: the character budget there
    decides how much respondent data may exist in the markup, and this decides how much
-   of what is left fits the column. The cell family is `white-space: nowrap`, so the
-   ellipsis needs a block-ish box with a cap to resolve against, which is what the
-   inline-block span is for.
+   of what is left fits the column. The ellipsis needs a block-ish box with a cap to
+   resolve against, which is what the inline-block span is for; it kept the preview on
+   one line back when the cell family forced `white-space: nowrap`, and it keeps doing
+   so now that issue 514 has dropped that.
 
    11rem is the room the five identifying columns leave at 1280px, which is the width
    the screenshot gate reviews. It is a measurement, not a taste: a 36-character

@@ -129,7 +129,11 @@ test.describe("the responses table previews its answers", () => {
     // "no such column header exists" rather than "this element is hidden", and would
     // pass just as happily if the column were deleted. Test one above already pinned
     // that the visible column IS a `columnheader`.
-    const preview = table.locator("thead th.qcms-ops-cell--preview");
+    // `qcms-cell--drop` is the one table family's droppable-column class (issue 514);
+    // it replaced this table's private `qcms-ops-cell--preview` when the three table
+    // treatments became one. Scoped to this table's `thead`, it still selects exactly
+    // the preview header, because the preview is the only column this table drops.
+    const preview = table.locator("thead th.qcms-cell--drop");
     const previewCell = table
       .locator(`[data-session-id="${both}"]`)
       .getByTestId("qcms-answer-preview");

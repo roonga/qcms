@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { EmptyState } from "@/components/empty-state";
 import { Button, Select, Table } from "@/components/kit";
 import { diffDefinitions, type DiffRow } from "@/lib/forms/version-diff";
 import type { FormVersionSummary } from "@/lib/forms/types";
@@ -56,9 +57,11 @@ export function VersionHistory({
 
   if (versions.length === 0) {
     return (
-      <p className="text-sm text-(--color-text-muted)" data-testid="qcms-history-empty">
-        {t("forms.history.empty")}
-      </p>
+      <EmptyState
+        heading={t("forms.history.emptyTitle")}
+        body={t("forms.history.empty")}
+        testId="qcms-history-empty"
+      />
     );
   }
 
@@ -66,10 +69,12 @@ export function VersionHistory({
     <div className="flex flex-col gap-6">
       {/* The scroll box, not the page: five stamp columns of monospace do not fit a
           390px viewport, and a table that made the page body scroll sideways would fail
-          WCAG 2.2 AA SC 1.4.10 Reflow. `qcms-table` is the same wrapper the question
-          library uses; its interactive-row styling is inert here because these rows have
-          no row action (viewing a version is the link list below). */}
-      <div className="qcms-table qcms-table--static">
+          WCAG 2.2 AA SC 1.4.10 Reflow. `qcms-table` is the app's one table family
+          (issue 514), and it no longer needs the `--static` opt-out this wrapper used to
+          carry: the hover affordance is opt-IN now, via `--rowaction`, so a table whose
+          rows do nothing simply does not ask for it. Viewing a version is the link list
+          below, so this table asks for nothing. */}
+      <div className="qcms-table qcms-table--versions">
         <Table
           ariaLabel={t("forms.history.table")}
           columns={[

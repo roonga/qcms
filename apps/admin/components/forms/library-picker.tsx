@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { EmptyState } from "@/components/empty-state";
 import { Button, Dialog, Table, TextField, type TableRow } from "@/components/kit";
 import { isPinned } from "@/lib/forms/draft";
 import type { DraftForm, PinnableQuestion } from "@/lib/forms/types";
@@ -61,10 +62,14 @@ export function LibraryPicker({
       <div className="flex flex-col gap-4">
         <TextField label={t("forms.picker.search")} value={search} onChange={setSearch} />
 
+        {/* A search that matched nothing, so this is `plan/admin-design-contracts.md`
+            §3's FILTERED variant: the panel and its heading, no explanatory sentence,
+            and no CTA - the action that clears this filter is the search field two
+            elements up, already focused and already holding the text to delete. */}
         {candidates.rows.length === 0 ? (
-          <p className="text-sm text-(--color-text-muted)">{t("forms.picker.empty")}</p>
+          <EmptyState heading={t("forms.picker.empty")} testId="qcms-picker-empty" />
         ) : (
-          <div className="qcms-table">
+          <div className="qcms-table qcms-table--rowaction qcms-table--picker">
             <Table
               ariaLabel={t("forms.picker.tableLabel")}
               columns={[

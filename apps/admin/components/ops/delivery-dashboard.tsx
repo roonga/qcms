@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { EmptyState } from "@/components/empty-state";
 import { cancelledReasonText, DeliveryStatusTag } from "@/components/ops/ops-tags";
 import type { DeliveryItem } from "@/lib/ops/types";
 import { formatDateTime } from "@/lib/i18n/format";
@@ -49,46 +50,61 @@ export function DeliveryDashboard({
         <p className="text-sm text-(--color-text-muted)">{t("ops.deliveries.intro")}</p>
       </div>
 
+      {/* §3's panel. No CTA: deliveries are made by the system when a response is
+          submitted, so this screen has no creating action for §3's CTA clause. */}
       {deliveries.length === 0 ? (
-        <p className="text-sm text-(--color-text-muted)" data-testid="qcms-deliveries-empty">
-          {t("ops.deliveries.empty")}
-        </p>
+        <EmptyState
+          heading={t("ops.deliveries.emptyTitle")}
+          body={t("ops.deliveries.empty")}
+          testId="qcms-deliveries-empty"
+        />
       ) : (
-        <table className="qcms-ops-table" data-testid="qcms-deliveries-table">
-          <caption className="qcms-visually-hidden">{t("ops.deliveries.table")}</caption>
-          <thead>
-            <tr>
-              <th scope="col">{t("ops.deliveries.column.event")}</th>
-              <th scope="col">{t("ops.deliveries.column.target")}</th>
-              <th scope="col">{t("ops.deliveries.column.status")}</th>
-              <th scope="col" title={t("ops.deliveries.attemptsHint")}>
-                {t("ops.deliveries.column.attempts")}
-              </th>
-              <th scope="col">{t("ops.deliveries.column.latency")}</th>
-              <th scope="col">{t("ops.deliveries.column.lastAttempt")}</th>
-              <th scope="col">
-                <span className="qcms-visually-hidden">{t("ops.deliveries.column.status")}</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {deliveries.map((row) => {
-              const isOpen = open === row.deliveryId;
-              const panelId = `qcms-delivery-detail-${row.deliveryId}`;
-              return (
-                <DeliveryRows
-                  key={row.deliveryId}
-                  row={row}
-                  isOpen={isOpen}
-                  panelId={panelId}
-                  onToggle={() => {
-                    setOpen(isOpen ? null : row.deliveryId);
-                  }}
-                />
-              );
-            })}
-          </tbody>
-        </table>
+        /* One table family (§2). WHICH COLUMN DROPS AT COMPACT WIDTH: Latency. It is
+           the only column here that measures how a delivery went rather than saying
+           which delivery it was or where it stands, and the expandable detail row each
+           trigger opens carries the per-attempt picture anyway. Event, Target, Status,
+           Attempts and Last attempt stay, and so does the trigger column. */
+        <div className="qcms-table">
+          <table data-testid="qcms-deliveries-table">
+            <caption className="qcms-visually-hidden">{t("ops.deliveries.table")}</caption>
+            <thead>
+              <tr>
+                <th scope="col">{t("ops.deliveries.column.event")}</th>
+                <th scope="col">{t("ops.deliveries.column.target")}</th>
+                <th scope="col">{t("ops.deliveries.column.status")}</th>
+                <th scope="col" className="qcms-cell--num" title={t("ops.deliveries.attemptsHint")}>
+                  {t("ops.deliveries.column.attempts")}
+                </th>
+                <th scope="col" className="qcms-cell--num qcms-cell--drop">
+                  {t("ops.deliveries.column.latency")}
+                </th>
+                <th scope="col" className="qcms-cell--num">
+                  {t("ops.deliveries.column.lastAttempt")}
+                </th>
+                <th scope="col">
+                  <span className="qcms-visually-hidden">{t("ops.deliveries.column.status")}</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {deliveries.map((row) => {
+                const isOpen = open === row.deliveryId;
+                const panelId = `qcms-delivery-detail-${row.deliveryId}`;
+                return (
+                  <DeliveryRows
+                    key={row.deliveryId}
+                    row={row}
+                    isOpen={isOpen}
+                    panelId={panelId}
+                    onToggle={() => {
+                      setOpen(isOpen ? null : row.deliveryId);
+                    }}
+                  />
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );
@@ -150,13 +166,17 @@ function DeliveryRows({
         <td>
           <DeliveryStatusTag status={row.status} />
         </td>
-        <td data-testid="qcms-delivery-attempts">{row.attempts}</td>
-        <td>
+        <td className="qcms-cell--num" data-testid="qcms-delivery-attempts">
+          {row.attempts}
+        </td>
+        <td className="qcms-cell--num qcms-cell--drop">
           {row.latencyMs === null
             ? t("ops.common.none")
             : t("ops.deliveries.latency", { ms: row.latencyMs })}
         </td>
-        <td>{formatDateTime(row.lastAttemptAt, t("ops.common.none"))}</td>
+        <td className="qcms-cell--num">
+          {formatDateTime(row.lastAttemptAt, t("ops.common.none"))}
+        </td>
         <td>
           <button
             type="button"

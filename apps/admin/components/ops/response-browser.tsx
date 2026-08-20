@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState, useTransition } from "react";
 
+import { EmptyState } from "@/components/empty-state";
 import { Button, DatePicker, Dialog, Select } from "@/components/kit";
 import { FlagTag } from "@/components/ops/ops-tags";
 import { answerPreviewText } from "@/lib/ops/answers";
@@ -196,66 +197,93 @@ export function ResponseBrowser({
         </Button>
       </div>
 
+      {/* `plan/admin-design-contracts.md` §3's panel, both variants. Filtered keeps
+          the panel and swaps the heading to this screen's own "no matches" line with
+          no sentence under it; unfiltered keeps the sentence. Neither carries a CTA:
+          responses are created by respondents, so there is no creating action on this
+          screen for §3's CTA clause to offer, and the filters are the form directly
+          above with its own reset control. */}
       {page.responses.length === 0 ? (
-        <p className="text-sm text-(--color-text-muted)" data-testid="qcms-responses-empty">
-          {hasFilters ? t("ops.responses.filteredEmpty") : t("ops.responses.empty")}
-        </p>
+        <EmptyState
+          heading={hasFilters ? t("ops.responses.filteredEmpty") : t("ops.responses.emptyTitle")}
+          body={hasFilters ? undefined : t("ops.responses.empty")}
+          testId="qcms-responses-empty"
+        />
       ) : (
-        <table className="qcms-ops-table" data-testid="qcms-responses-table">
-          <caption className="qcms-visually-hidden">{t("ops.responses.table")}</caption>
-          <thead>
-            <tr>
-              <th scope="col">{t("ops.responses.column.sessionId")}</th>
-              <th scope="col">{t("ops.responses.column.version")}</th>
-              <th scope="col">{t("ops.responses.column.submittedAt")}</th>
-              <th scope="col">{t("ops.responses.column.access")}</th>
-              <th scope="col">{t("ops.responses.column.flag")}</th>
-              <th scope="col" className="qcms-ops-cell--preview">
-                {t("ops.responses.column.preview")}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {page.responses.map((row) => (
-              <tr key={row.sessionId} data-session-id={row.sessionId}>
-                <th scope="row">
-                  <Link
-                    className="qcms-text-link"
-                    href={`${base}/${encodeURIComponent(row.sessionId)}`}
-                    aria-label={t("ops.responses.open", { sessionId: row.sessionId })}
-                  >
-                    <code className="qcms-link-id">{row.sessionId}</code>
-                  </Link>
-                </th>
-                <td>v{row.formVersion}</td>
-                <td>{formatDateTime(row.submittedAt, t("ops.common.none"))}</td>
-                <td>{t(`ops.responses.access.${row.accessMode}`)}</td>
-                <td>
-                  <FlagTag flagged={row.flaggedReason !== null} />
-                </td>
-                {/*
-                  The answer preview (issue 515; the wireframe's sixth column). Real
-                  respondent data by definition, so the cell shows exactly what
-                  `answerPreviewText` allows and nothing more: two answered questions,
-                  each value clipped to a character budget before it becomes text.
+        /* One table family (`plan/admin-design-contracts.md` §2). The wrapper is the
+           scroll box, the positioning region for the row chrome, and the styling hook;
+           the `<table>` is a plain table again.
 
-                  There is deliberately NO `title` tooltip carrying the full answer.
-                  That would put the untruncated value straight back into the markup
-                  and make the budget decorative, and reading a response in full is the
-                  detail screen's job - reached through this row's own identifying
-                  cell, which is the authorised, audited act. Nothing on this path logs
-                  an answer value either (SEC-13): the only place one goes is the text
-                  node below.
-                */}
-                <td className="qcms-ops-cell--preview">
-                  <span className="qcms-answer-preview" data-testid="qcms-answer-preview">
-                    {answerPreviewText(row.answers)}
-                  </span>
-                </td>
+           WHICH COLUMN DROPS AT COMPACT WIDTH (§2): the answer preview, and only it.
+           Session, Version, Submitted, Access and Flag are how an operator FINDS a
+           response; the preview only helps them recognise it once found, and it is the
+           widest column by a distance. Version never drops anywhere
+           (`plan/admin-mobile-stance.md`, item 5). Below the boundary this is exactly
+           the five-column table that shipped before issue 515, so the sixth column
+           costs no sideways scrolling at a phone width at all. */
+        <div className="qcms-table">
+          <table data-testid="qcms-responses-table">
+            <caption className="qcms-visually-hidden">{t("ops.responses.table")}</caption>
+            <thead>
+              <tr>
+                <th scope="col">{t("ops.responses.column.sessionId")}</th>
+                <th scope="col" className="qcms-cell--num">
+                  {t("ops.responses.column.version")}
+                </th>
+                <th scope="col" className="qcms-cell--num">
+                  {t("ops.responses.column.submittedAt")}
+                </th>
+                <th scope="col">{t("ops.responses.column.access")}</th>
+                <th scope="col">{t("ops.responses.column.flag")}</th>
+                <th scope="col" className="qcms-cell--drop">
+                  {t("ops.responses.column.preview")}
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {page.responses.map((row) => (
+                <tr key={row.sessionId} data-session-id={row.sessionId}>
+                  <th scope="row">
+                    <Link
+                      className="qcms-text-link"
+                      href={`${base}/${encodeURIComponent(row.sessionId)}`}
+                      aria-label={t("ops.responses.open", { sessionId: row.sessionId })}
+                    >
+                      <code className="qcms-link-id">{row.sessionId}</code>
+                    </Link>
+                  </th>
+                  <td className="qcms-cell--num">v{row.formVersion}</td>
+                  <td className="qcms-cell--num">
+                    {formatDateTime(row.submittedAt, t("ops.common.none"))}
+                  </td>
+                  <td>{t(`ops.responses.access.${row.accessMode}`)}</td>
+                  <td>
+                    <FlagTag flagged={row.flaggedReason !== null} />
+                  </td>
+                  {/*
+                    The answer preview (issue 515; the wireframe's sixth column). Real
+                    respondent data by definition, so the cell shows exactly what
+                    `answerPreviewText` allows and nothing more: two answered questions,
+                    each value clipped to a character budget before it becomes text.
+
+                    There is deliberately NO `title` tooltip carrying the full answer.
+                    That would put the untruncated value straight back into the markup
+                    and make the budget decorative, and reading a response in full is the
+                    detail screen's job - reached through this row's own identifying
+                    cell, which is the authorised, audited act. Nothing on this path logs
+                    an answer value either (SEC-13): the only place one goes is the text
+                    node below.
+                  */}
+                  <td className="qcms-cell--drop">
+                    <span className="qcms-answer-preview" data-testid="qcms-answer-preview">
+                      {answerPreviewText(row.answers)}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {pages > 1 && (

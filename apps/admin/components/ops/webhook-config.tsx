@@ -2,6 +2,7 @@
 
 import { useCallback, useState, useTransition } from "react";
 
+import { EmptyState } from "@/components/empty-state";
 import { Alert, Button, Checkbox, Dialog, TextField } from "@/components/kit";
 import type { RevealedWebhook, WebhookSummary } from "@/lib/ops/types";
 import { unexpected } from "@/lib/ops/unexpected";
@@ -113,19 +114,29 @@ export function WebhookConfig({
         <p className="text-sm text-(--color-text-muted)">{t("ops.webhooks.intro")}</p>
       </div>
 
-      <div>
-        <Button
-          variant="primary"
-          size="md"
-          isDisabled={isPending}
-          onPress={() => {
-            setState(IDLE);
-            setDialog({ kind: "create" });
-          }}
-        >
-          {t("ops.webhooks.add")}
-        </Button>
-      </div>
+      {/* The standalone creating control, rendered only while there IS a table. With no
+          endpoints the empty panel below carries this same action as its primary CTA
+          (`plan/admin-design-contracts.md` §3), and rendering both would put two
+          identical primary buttons on an otherwise blank screen. It would also give two
+          controls the same accessible name, which is not just untidy: it is ambiguous to
+          anyone navigating by name, and the first capture of this screen failed on
+          exactly that ("Add endpoint" resolved to 2 elements). §3 asks the empty state to
+          offer the creating action, not to sit beside a duplicate of it. */}
+      {webhooks.length > 0 && (
+        <div>
+          <Button
+            variant="primary"
+            size="md"
+            isDisabled={isPending}
+            onPress={() => {
+              setState(IDLE);
+              setDialog({ kind: "create" });
+            }}
+          >
+            {t("ops.webhooks.add")}
+          </Button>
+        </div>
+      )}
 
       {/* The testid exists so the live region itself can be asserted, not just what it
           holds: an `aria-live` that is silently deleted leaves every content assertion
@@ -156,97 +167,130 @@ export function WebhookConfig({
         )}
       </div>
 
+      {/* §3's panel, carrying this screen's creating action as its CTA: "Add endpoint"
+          opens exactly the dialog the button above the table opens, and an empty screen
+          is where an operator configuring webhooks for the first time is looking. */}
       {webhooks.length === 0 ? (
-        <p className="text-sm text-(--color-text-muted)" data-testid="qcms-webhooks-empty">
-          {t("ops.webhooks.empty")}
-        </p>
+        <EmptyState
+          heading={t("ops.webhooks.emptyTitle")}
+          body={t("ops.webhooks.empty")}
+          testId="qcms-webhooks-empty"
+          action={
+            <Button
+              variant="primary"
+              size="md"
+              isDisabled={isPending}
+              onPress={() => {
+                setState(IDLE);
+                setDialog({ kind: "create" });
+              }}
+            >
+              {t("ops.webhooks.add")}
+            </Button>
+          }
+        />
       ) : (
-        <table className="qcms-ops-table" data-testid="qcms-webhooks-table">
-          <caption className="qcms-visually-hidden">{t("ops.webhooks.table")}</caption>
-          <thead>
-            <tr>
-              <th scope="col">{t("ops.webhooks.column.webhookId")}</th>
-              <th scope="col">{t("ops.webhooks.column.url")}</th>
-              <th scope="col">{t("ops.webhooks.column.state")}</th>
-              <th scope="col">{t("ops.webhooks.column.secret")}</th>
-              <th scope="col">{t("ops.webhooks.column.createdAt")}</th>
-              <th scope="col">{t("ops.webhooks.column.actions")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {webhooks.map((hook) => (
-              <tr key={hook.webhookId} data-webhook-id={hook.webhookId}>
-                <th scope="row">
-                  <code className="qcms-link-id">{hook.webhookId}</code>
+        /* One table family (§2). WHICH COLUMNS DROP AT COMPACT WIDTH: Secret and
+           Created. The secret cell is a constant phrase on every row and carries no
+           per-endpoint information at all; the created stamp dates the endpoint but
+           does not identify it. Endpoint, URL, State and the actions stay: they are
+           what the endpoint IS and what can be done to it. */
+        <div className="qcms-table">
+          <table data-testid="qcms-webhooks-table">
+            <caption className="qcms-visually-hidden">{t("ops.webhooks.table")}</caption>
+            <thead>
+              <tr>
+                <th scope="col">{t("ops.webhooks.column.webhookId")}</th>
+                <th scope="col">{t("ops.webhooks.column.url")}</th>
+                <th scope="col">{t("ops.webhooks.column.state")}</th>
+                <th scope="col" className="qcms-cell--drop">
+                  {t("ops.webhooks.column.secret")}
                 </th>
-                <td>
-                  <span className="qcms-link-url">{hook.url}</span>
-                </td>
-                <td>
-                  <span
-                    className={`qcms-tag qcms-tag--hook-${hook.active ? "active" : "inactive"}`}
-                    data-active={hook.active ? "true" : "false"}
-                  >
-                    {t(hook.active ? "ops.webhooks.state.active" : "ops.webhooks.state.inactive")}
-                  </span>
-                </td>
-                <td className="text-(--color-text-muted)">{t("ops.webhooks.secretStored")}</td>
-                <td>{formatDateTime(hook.createdAt, t("ops.common.none"))}</td>
-                <td>
-                  <div className="flex flex-wrap gap-1">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      isDisabled={isPending}
-                      onPress={() => {
-                        setState(IDLE);
-                        setDialog({ kind: "retarget", webhookId: hook.webhookId });
-                      }}
+                <th scope="col" className="qcms-cell--num qcms-cell--drop">
+                  {t("ops.webhooks.column.createdAt")}
+                </th>
+                <th scope="col">{t("ops.webhooks.column.actions")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {webhooks.map((hook) => (
+                <tr key={hook.webhookId} data-webhook-id={hook.webhookId}>
+                  <th scope="row">
+                    <code className="qcms-link-id">{hook.webhookId}</code>
+                  </th>
+                  <td>
+                    <span className="qcms-link-url">{hook.url}</span>
+                  </td>
+                  <td>
+                    <span
+                      className={`qcms-tag qcms-tag--hook-${hook.active ? "active" : "inactive"}`}
+                      data-active={hook.active ? "true" : "false"}
                     >
-                      {t("ops.webhooks.retarget")}
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      isDisabled={isPending}
-                      onPress={() => {
-                        setState(IDLE);
-                        setDialog({ kind: "rotate", webhookId: hook.webhookId });
-                      }}
-                    >
-                      {t("ops.webhooks.rotate")}
-                    </Button>
-                    {hook.active ? (
-                      <Button
-                        variant="danger"
-                        size="sm"
-                        isDisabled={isPending}
-                        onPress={() => {
-                          setState(IDLE);
-                          setDialog({ kind: "deactivate", webhookId: hook.webhookId });
-                        }}
-                      >
-                        {t("ops.webhooks.deactivate")}
-                      </Button>
-                    ) : (
+                      {t(hook.active ? "ops.webhooks.state.active" : "ops.webhooks.state.inactive")}
+                    </span>
+                  </td>
+                  <td className="qcms-cell--drop text-(--color-text-muted)">
+                    {t("ops.webhooks.secretStored")}
+                  </td>
+                  <td className="qcms-cell--num qcms-cell--drop">
+                    {formatDateTime(hook.createdAt, t("ops.common.none"))}
+                  </td>
+                  <td>
+                    <div className="flex flex-wrap gap-1">
                       <Button
                         variant="secondary"
                         size="sm"
                         isDisabled={isPending}
                         onPress={() => {
                           setState(IDLE);
-                          run(() => reactivate(hook.webhookId));
+                          setDialog({ kind: "retarget", webhookId: hook.webhookId });
                         }}
                       >
-                        {t("ops.webhooks.reactivate")}
+                        {t("ops.webhooks.retarget")}
                       </Button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        isDisabled={isPending}
+                        onPress={() => {
+                          setState(IDLE);
+                          setDialog({ kind: "rotate", webhookId: hook.webhookId });
+                        }}
+                      >
+                        {t("ops.webhooks.rotate")}
+                      </Button>
+                      {hook.active ? (
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          isDisabled={isPending}
+                          onPress={() => {
+                            setState(IDLE);
+                            setDialog({ kind: "deactivate", webhookId: hook.webhookId });
+                          }}
+                        >
+                          {t("ops.webhooks.deactivate")}
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          isDisabled={isPending}
+                          onPress={() => {
+                            setState(IDLE);
+                            run(() => reactivate(hook.webhookId));
+                          }}
+                        >
+                          {t("ops.webhooks.reactivate")}
+                        </Button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {dialog?.kind === "create" && (
