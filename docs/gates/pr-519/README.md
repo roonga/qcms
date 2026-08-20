@@ -17,6 +17,16 @@ layers. Captured by `apps/admin/e2e/gate-519.pw.ts`, which runs only with
 | `delivery-row-collapsed-light` / `delivery-row-expanded-light` | §3.8: the row trigger states status, failed attempts and latency. Expanded, the `This delivery` list states all three in full, which is what stops the digest being the only copy of latency at 390px, where the latency column is `display: none`. That list's `h3` also closes issue #541's `<h4>`-under-`<h2>` skip. |
 | the `-dark` and `-hc` sets | The same six states in the other two mode layers. The digest is new painted text on `--color-text-muted` against a summary and a link-styled button, and high contrast is where a muted secondary line is most at risk. |
 
+## One treatment detail worth a deliberate yes or no
+
+On the delivery row the digest sits **inside** the trigger button, so it forms part of the
+control's accessible name rather than floating beside it as an unassociated caption. The
+consequence is visual: that button is styled as a text link, so the digest line inherits the
+link underline and reads as a second underlined line under the action. It is legible and
+clearly subordinate (smaller, muted), and no card in `plan/admin-theme/` governs it. Accept
+it or send it back for an underline opt-out; the placement inside the button should stay
+either way, because that is what makes the digest part of what the trigger is called.
+
 ## What is deliberately absent
 
 Any fourth digest. §5.2 keeps one-time reveals non-collapsible, and the audit's "would not

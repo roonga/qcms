@@ -1,0 +1,50 @@
+RED-FIRST PROOF, issue 519, Playwright layer.
+Command: QCMS_PORT_SEAT=6 pnpm exec playwright test --project=admin-chromium apps/admin/e2e/forms-builder.pw.ts
+Tree: this branch with the three component files reverted to origin/main (f36ce69).
+      The new spec, the new i18n keys and the a11y register deletion stay in place,
+      so the only thing missing is the change itself.
+Captured: 2026-08-20T23:27:02Z
+------------------------------------------------------------
+[playwright] port seat 6: portal 17600, api 17610, admin 17640, otlp 17630
+
+Running 7 tests using 1 worker
+
+  ✓  1 [admin-chromium] › apps/admin/e2e/forms-builder.pw.ts:103:1 › builds the insurance form through the UI and saves it (exit criterion 1) (17.8s)
+  ✓  2 [admin-chromium] › apps/admin/e2e/forms-builder.pw.ts:149:1 › a backward target is flagged instantly and refused by the engine (exit criterion 2) (5.5s)
+  ✓  3 [admin-chromium] › apps/admin/e2e/forms-builder.pw.ts:185:1 › moving a pin re-runs validation and surfaces the broken option ref (exit criterion 3) (7.7s)
+  ✓  4 [admin-chromium] › apps/admin/e2e/forms-builder.pw.ts:244:1 › the settings panel says a required challenge is unenforceable here (2.7s)
+  ✓  5 [admin-chromium] › apps/admin/e2e/forms-builder.pw.ts:267:1 › the rule test bench answers with the engine's own verdict (2.4s)
+  ✘  6 [admin-chromium] › apps/admin/e2e/forms-builder.pw.ts:284:1 › both collapsible panels are in the heading outline, with a digest the panel repeats (6.7s)
+  -  7 [admin-chromium] › apps/admin/e2e/forms-builder.pw.ts:321:1 › the form library lists the forms that were built
+
+
+  1) [admin-chromium] › apps/admin/e2e/forms-builder.pw.ts:284:1 › both collapsible panels are in the heading outline, with a digest the panel repeats 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('heading', { name: 'Form settings', level: 2 })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByRole('heading', { name: 'Form settings', level: 2 })
+
+
+      296 |   const settingsHeading = page.getByRole("heading", { level: 2, name: "Form settings" });
+      297 |   const benchHeading = page.getByRole("heading", { level: 2, name: "Rule test bench" });
+    > 298 |   await expect(settingsHeading).toBeVisible();
+          |                                 ^
+      299 |   await expect(benchHeading).toBeVisible();
+      300 |
+      301 |   // §3.7 on the settings panel: whichever of the two challenge phrases the digest chose,
+        at /workspaces/qcms/.claude/worktrees/519-digests/apps/admin/e2e/forms-builder.pw.ts:298:33
+
+    Error Context: apps/portal/.playwright/output/forms-builder.pw.ts-both-c-63d0f--a-digest-the-panel-repeats-admin-chromium/error-context.md
+
+  1 failed
+    [admin-chromium] › apps/admin/e2e/forms-builder.pw.ts:284:1 › both collapsible panels are in the heading outline, with a digest the panel repeats 
+  1 did not run
+  5 passed (1.1m)
+exit=1
