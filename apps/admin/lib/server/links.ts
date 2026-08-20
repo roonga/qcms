@@ -78,8 +78,7 @@ export async function revokeLink(
   formId: string,
   linkId: string,
 ): Promise<ApiResult<{ readonly linkId: string; readonly revokedAt: string }>> {
-  const path: `/${string}` =
-    `/forms/${encodeURIComponent(formId)}/links/${encodeURIComponent(linkId)}/revoke`;
+  const path: `/${string}` = `/forms/${encodeURIComponent(formId)}/links/${encodeURIComponent(linkId)}/revoke`;
   const result = await readResult<Record<string, unknown>>(
     await adminApiFetch(session, path, { method: "POST" }),
   );
