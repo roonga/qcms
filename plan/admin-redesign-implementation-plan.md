@@ -316,6 +316,49 @@ the same delivery-dashboard row trigger, so whichever lands second rebases over
 the first; and #514 is worth landing before #517-#519, since the house patterns
 inherit whatever table and empty state it settles.
 
+### Prioritisation (2026-08-19): this tier runs first
+
+The section above dispatched the work but left it to compete on `/next-issue`'s
+label order (`security` -> `bug` -> unlabeled -> `enhancement`). Measured against
+the live backlog that ordering does not deliver the tier: five `security` issues
+and eight unrelated `bug` issues sort ahead of the first redesign issue, and the
+unlabeled group - #512, #514, #515, #517-#519, #522, which includes the
+consolidation the audit calls the single change that most affects how the app
+reads - sorts last of all. The Code Owner's instruction of 2026-08-19 is to
+prioritise the redesign, so three things changed:
+
+1. **A `admin-redesign` label now carries the tier** (#510-#515, #517-#522), so
+   it is selectable and reportable as one group rather than by memorised number.
+   It is deliberately *not* `admin-stage`, which routes work to tasks 031-035 and
+   would exclude these from the issue loop entirely.
+2. **The standing aim in `plan/CLAUDE.md` now names this tier**, in the tier order
+   of the table above. That block is the authority `/next-issue`'s own second-lane
+   discipline defers to for scope tiering, so it is the in-band channel for this
+   rather than a note in a plan file the loop never opens.
+3. **One security exception is named rather than left to judgement:** #504, whose
+   exposure is unauthenticated respondent-facing, still preempts. #482, #488,
+   #489, #491 and #492 are staff-surface or documentation and wait.
+
+**What the skill cannot be told from here.** `/next-issue` step 1's priority order
+is written into `.claude/skills/next-issue/SKILL.md`, which is outside `plan/` and
+therefore not this seat's to edit. Two consequences, both queued in
+`plan/workshop-queue.md` rather than fixed: an unattended `/loop /next-issue` with
+no scope argument will still select by label and reach #504 and the staff-surface
+security cluster before the unlabeled redesign issues, so the aim has to be passed
+in the invocation until the skill reads the label; and that skill's second-lane
+rule 1 still cites the discharged 033-035 chain, which would exclude every
+unlabeled redesign issue from a second lane.
+
+**Invocation that matches the aim today**, from the repo root:
+
+```
+/loop /next-issue
+```
+
+with the scope stated in the prompt: drain the `admin-redesign` label first, in
+the tier order of the table above, taking #504 ahead of it as the only security
+preemption.
+
 **Every one of #514, #515, #517, #518, #519 and #522 changes visible admin UI**,
 so each stops at the static-render screenshot gate: PNGs at 390px and 1280px
 minimum committed under `docs/gates/pr-<NN>/` with a one-line README, embedded in
