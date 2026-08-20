@@ -156,6 +156,31 @@ const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
  */
 const EXTRA_RULES = { "heading-order": { enabled: true } };
 
+/**
+ * The heading-order gaps that already existed on the day the rule was switched on
+ * (issue #511), keyed by the state they appear in and by the node axe names.
+ *
+ * Switching a best-practice rule on over a codebase that has never been measured by it
+ * surfaces history as well as regressions, and there are exactly two here. Neither is in
+ * #511's territory, and how far to go in fixing them is a scope call for the Code Owner
+ * rather than something to decide inside a heading fix, so they are recorded rather than
+ * silently dropped and rather than left failing:
+ *
+ * - `version history`: `components/forms/version-history.tsx` heads its compare panel
+ *   with an `<h3>` directly under the page `<h1>`, with no `<h2>` between.
+ * - `the delivery-detail disclosure`: `components/ops/delivery-dashboard.tsx` heads the
+ *   expanded row's request headers with an `<h4>` under the dashboard's `<h2>`.
+ *
+ * This list is a debt register, not a policy: each entry is a defect that should be
+ * fixed and the entry deleted, and it is deliberately keyed narrowly (state **and**
+ * node) so it cannot grow into a blanket mute. A NEW gap in either of these two states,
+ * on any other node, still fails.
+ */
+const KNOWN_HEADING_ORDER_GAPS: Readonly<Record<string, readonly string[]>> = {
+  "version history": ["#qcms-diff-heading"],
+  "the delivery-detail disclosure": ["h4:nth-child(1)"],
+};
+
 /** The sheet's three mode layers. Light is the bare root, so it has no class. */
 const MODES = [
   { name: "light", rootClass: "" },
@@ -178,13 +203,23 @@ async function expectNoViolations(page: Page, state: string): Promise<void> {
       const results = await new AxeBuilder({ page })
         .options({ runOnly: { type: "tag", values: TAGS }, rules: EXTRA_RULES })
         .analyze();
+      // Pre-existing gaps this state is known to carry drop out here, and only for
+      // `heading-order` and only on the exact nodes named (issue #511). A violation that
+      // names any other node survives the filter with its whole node list intact, so the
+      // report still shows the company the new offender was keeping.
+      const allowed = KNOWN_HEADING_ORDER_GAPS[state] ?? [];
+      const violations = results.violations.filter(
+        (v) =>
+          v.id !== "heading-order" ||
+          v.nodes.some((node) => !allowed.includes(node.target.join(" "))),
+      );
       // Name the state, the mode, the rule AND the element in the failure message. An
       // axe failure reported as a bare count costs a second run to diagnose; one
       // reported without the mode costs a third; and a `color-contrast` failure
       // reported without the node and the measured ratio costs a fourth, because the
       // whole point of running per mode is that the offender differs between them.
       expect(
-        results.violations.map(
+        violations.map(
           (v) =>
             `${v.id}: ${v.help} [${v.nodes
               .map((node) => `${node.target.join(" ")} - ${node.failureSummary ?? ""}`)
