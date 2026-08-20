@@ -1,5 +1,14 @@
 # Admin design contracts (Wave 3 gate)
 
+**Status (updated 2026-08-20): the two open decisions are ruled; the remaining six
+contracts still need a confirming read.** The Code Owner closed C1 (§7a, Settings
+keeps a rail as a written exception) and §8 (portal and admin are different apps)
+on 2026-08-20. Contracts 1-6 were drafted as recommendations with their sources
+named and have not been separately confirmed - Wave 3 is gated on the document,
+not on the two decisions alone, so it stays gated until that read happens.
+
+Original header follows.
+
 **Status:** draft for Code Owner confirmation, PM/PO seat, 2026-08-19. This is the
 document `plan/admin-redesign-implementation-plan.md` §3 gates Wave 3 on: the
 eight questions `plan/admin-poc-consistency-audit.md` §4 found the eleven POCs
@@ -126,11 +135,49 @@ POCs' third and fourth variants returning.
   The summary text truncates with an ellipsis; the markup is one shared
   component, not per-screen copies.
 - Rail items are anchors, not buttons.
-- **[Code Owner decision - this is decision C1 restated in contract terms]** the
-  Settings screen: either it has no rail (the audit's row-16 verdict; the screen
-  reverts to one scrolling page) or it gets a deliberate one-off exception
-  written here as such. What it cannot be is a silent third rail contract. The
-  recommendation stands with the audit: no rail on Settings.
+### 7a. Settings keeps a rail, as a written exception
+
+**[Code Owner ruling, 2026-08-20 - decision C1 closed]** Settings keeps its rail.
+This overrides the audit's row-16 verdict and this document's own recommendation,
+both of which said no rail.
+
+The condition attached to that option was that the exception be **written as
+such** rather than left to become a silent third rail contract, so it is written
+here, with its boundary defined. Two honest notes before the contract:
+
+1. **The ruling is the Code Owner's; the boundary below is this seat's drafting.**
+   No cause was stated for the override, and none is invented here. If the
+   boundary as drawn is not what was intended, it is corrected on request - but
+   something had to be drawn, because "Settings has a rail" without a scope is
+   precisely the silent third contract the condition forbids.
+2. **This is a genuinely different pattern, not the same rail on another screen.**
+   The form-subtree rail (§7) carries navigation between *routes* and explicitly
+   never carries same-page section switches. A Settings rail can only carry
+   same-page section switches, because Settings is one route. So the exception is
+   not "the rail also appears on Settings" - it is a second, narrower component
+   that happens to occupy the same grid column.
+
+**The Settings rail contract:**
+
+- It carries **same-page section links for one route** (anchors to the sections
+  of the Settings page), and nothing else. No routes, no actions, no counts.
+- It is a **distinct component** from the form-subtree rail, named distinctly in
+  the code, so no future reader can mistake one for the other or "unify" them.
+  They share the grid column, the 240px width, the `--bp-sidebar` collapse
+  behaviour and the anchors-not-buttons rule - and nothing else.
+- Collapsed below `--bp-sidebar`, it follows the same disclosure treatment as §7,
+  with the summary naming the active section.
+- **The exception does not generalise.** No third screen gets a rail without its
+  own ruling recorded here. Sixteen authenticated screens exist; eight are
+  form-scoped, and the other eight would get an empty rail or one duplicating
+  their own body. Settings is now the single named exception, not the first of a
+  series.
+
+**Consequence to accept knowingly:** with this ruling the app ships two rail
+patterns that look identical and behave differently, so the burden moves onto
+naming and onto the Wave 4 POC regeneration to draw them as two things. That is
+the cost of the option; it is affordable, and it is the reason the boundary above
+is drawn tightly rather than loosely.
 
 ## 8. Spacing and typography reconciliation
 
@@ -148,9 +195,34 @@ h2 0.95rem/700, replacing every raw literal), and a comment block in each sheet
 names the counterpart token and why the value differs. What retires is the
 *unstated* difference, not the difference.
 
-**[Code Owner decision]** confirm divergence-with-aliases over the alternative
-(adopting the portal's `--space-*`/`--type-*` values wholesale in admin, which
-would visibly re-space every shipped admin screen for no operator benefit).
+**[Code Owner ruling, 2026-08-20 - closed]** Divergence confirmed, in the Code
+Owner's own framing: **"we are to treat portal and admin as different apps."**
+
+That is a stronger statement than the recommendation asked for, and it settles
+more than the token question, so the contract is written to match it rather than
+to the narrower draft:
+
+- **The two token vocabularies are separate systems by decision, not by
+  accident.** Admin keeps `--admin-*` and `--font-admin`; the portal keeps
+  `--space-*`, `--type-*` and `--font-portal`. Neither is the other's fallback,
+  and a value differing between them needs no justification - difference is the
+  default, not the exception.
+- **The cross-referencing comment blocks in the original recommendation are
+  dropped.** Their purpose was to explain a divergence that read as accidental.
+  Under this ruling the divergence is the stated position, so naming a
+  counterpart token in each sheet would only re-couple two systems the ruling
+  just separated, and would invite a future contributor to "reconcile" them.
+- **What survives from the recommendation, because it is a real defect
+  independent of the ruling:** admin gains an `--admin-type-*` heading scale
+  (h1 1.4rem/700, h2 0.95rem/700) replacing every raw rem literal. Raw literals
+  are a problem whether or not the two apps share a vocabulary.
+- **Where they must still agree, and this is not a token question:** ADR-27
+  (i18n) and the WCAG 2.2 AA floor bind both apps. "Different apps" governs
+  spacing, type scale and visual density; it does not license a different
+  accessibility standard or a second way of handling user-facing strings.
+
+Nothing in `packages/ui/src/theme.css` changes as a result of this ruling. The
+portal's managed themes (ADR-30) are untouched.
 
 ---
 
