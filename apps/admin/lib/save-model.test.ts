@@ -246,7 +246,10 @@ describe("the admin's save models are inventoried", () => {
           "string",
         );
       } else {
-        expect(screen.statedBy, `${screen.route} is not manual and must not name one`).toBeUndefined();
+        expect(
+          screen.statedBy,
+          `${screen.route} is not manual and must not name one`,
+        ).toBeUndefined();
       }
     }
   });
