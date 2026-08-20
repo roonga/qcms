@@ -223,7 +223,9 @@ describe("the library screens' empty state (issue 514)", () => {
     // §3: the filtered variant keeps the panel and the clear-filters CTA, and drops the
     // explanatory sentence.
     expect(html).not.toContain("questions.empty.body");
-    expect(html).toContain("questions.filter.clear");
+    // §3's CTA, and the only control on the screen carrying it: the filter card's own
+    // reset stands down while the panel is showing, so the name is unambiguous.
+    expect(html.match(/questions\.filter\.clear/g)).toHaveLength(1);
     // A filtered library is not an empty one, so the header's creating action stays.
     expect(html).toContain('href="/questions/new"');
   });

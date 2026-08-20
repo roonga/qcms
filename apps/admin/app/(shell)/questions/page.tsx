@@ -167,7 +167,16 @@ export default async function QuestionsPage({
                   <Button type="submit" variant="secondary" size="md">
                     {t("questions.filter.apply")}
                   </Button>
-                  {isFiltered && (
+                  {/* The filter's own reset, rendered except when the filtered-empty
+                      panel below is carrying it as its CTA
+                      (`plan/admin-design-contracts.md` §3). Same rule as the header's
+                      creating action above and the webhook screen's Add button: the
+                      empty panel OFFERS the way out rather than sitting beside a second
+                      control with the same accessible name. Two "Clear filters" links on
+                      one screen are ambiguous to anyone navigating by name, and the
+                      browser suite said so - `questions-lifecycle.pw.ts` resolved the
+                      name to two elements. */}
+                  {isFiltered && !(result.ok && result.data.length === 0) && (
                     <Link href="/questions" className="qcms-text-link">
                       {t("questions.filter.clear")}
                     </Link>

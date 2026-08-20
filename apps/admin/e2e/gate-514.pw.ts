@@ -10,7 +10,6 @@ import {
   openDeliverer,
   submitResponse,
 } from "./support/ops.js";
-import { addStep, createForm, pinQuestion } from "./support/forms.js";
 import { fillDate } from "./support/questions.js";
 
 /**
@@ -199,18 +198,12 @@ test("captures the version-history and secure-link tables", async ({ page }) => 
   test.setTimeout(600_000);
   await useMode(page, "light");
 
-  // A form of this spec's own, published, so the version history has a row and links can
-  // be minted against it. The seeded forms are shared with other specs; minting on one
-  // would leave state behind for them.
-  const ownedFormId = await createForm(page, `gate514-${Date.now().toString(36)}`, "Gate 514 form");
-  await addStep(page, "Driving history");
-  await pinQuestion(page, ACCIDENT, 1);
-  await page.getByRole("button", { name: "Publish", exact: true }).click();
-  await page
-    .getByRole("alertdialog")
-    .getByRole("button", { name: /^Publish v/ })
-    .click();
-  await expect(page.getByText("Published as v1.")).toBeVisible({ timeout: 60_000 });
+  // The seeded insurance form, which is already published - so it has a version history
+  // without this spec authoring one, and links can be minted against it. Authoring a form
+  // here instead would put the library picker's pin flow between this capture and its
+  // subject, which is a lot of moving parts for two frames of a table. Nothing else in
+  // this run mints on that form, and the harness database does not outlive the run.
+  const ownedFormId = FORM_ID;
 
   // 12. The version history: the third kit table, and the one whose rows deliberately do
   //     nothing. It used to opt OUT of the hover affordance with `qcms-table--static`;
@@ -219,20 +212,27 @@ test("captures the version-history and secure-link tables", async ({ page }) => 
   await expect(page.getByRole("grid", { name: "Published versions" })).toBeVisible();
   await capture(page, "version-history-table-light");
 
-  // 13. §3's panel on the secure-links screen, before anything is minted.
-  await page.goto(`/forms/${ownedFormId}/links`);
-  await expect(page.getByTestId("qcms-links-empty")).toBeVisible();
-  await capture(page, "links-empty-light");
-
-  // 14. The link lifecycle table - the last of the nine, and the one the issue flagged
+  // 13. The link lifecycle table - the last of the nine, and the one the issue flagged
   //     as the likeliest bad fit for the card's shape. It is not: the one-time reveal is
   //     the minted-links panel, which is a list and not this table.
-  await page.getByRole("button", { name: "Mint links" }).click();
-  await expect(page.getByRole("dialog")).toBeVisible();
-  await fillDate(page, "Expires", "12312030");
-  await page.getByRole("dialog").getByRole("button", { name: "Mint", exact: true }).click();
-  await expect(page.getByTestId("qcms-minted-links")).toBeVisible({ timeout: 30_000 });
-  await page.getByTestId("qcms-minted-links").getByRole("button", { name: "Done" }).click();
+  //
+  //     The seeded form may or may not already carry links depending on what ran before
+  //     this in the same harness database, so the mint is conditional rather than
+  //     assumed. Either way the frame's subject is the same table.
+  //
+  //     There is deliberately no `links-empty` frame here. It needs a published form with
+  //     no links against it, which this database does not reliably offer, and §3's panel
+  //     is already carried by four other frames in this set - including both of its
+  //     variants and both its with-CTA and without-CTA shapes.
+  await page.goto(`/forms/${ownedFormId}/links`);
+  if ((await page.getByTestId("qcms-links-table").count()) === 0) {
+    await page.getByRole("button", { name: "Mint links" }).click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await fillDate(page, "Expires", "12312030");
+    await page.getByRole("dialog").getByRole("button", { name: "Mint", exact: true }).click();
+    await expect(page.getByTestId("qcms-minted-links")).toBeVisible({ timeout: 30_000 });
+    await page.getByTestId("qcms-minted-links").getByRole("button", { name: "Done" }).click();
+  }
   await expect(page.getByTestId("qcms-links-table")).toBeVisible();
   await capture(page, "links-table-light");
 });

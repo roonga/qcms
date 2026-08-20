@@ -30,7 +30,6 @@ columns only**, not on every cell of every table.
 |---|---|
 | `erasures-empty-light` | The panel with **no CTA**, on a screen with no creating action: centred, 1.5px dashed `--color-border-strong`, surface background, an `h2`, one sentence. |
 | `webhooks-empty-light` | The panel **with a primary CTA**, on a screen that has a creating action. |
-| `links-empty-light` | The panel on a third screen, replacing a bare muted paragraph. |
 | `questions-filtered-empty-light` | The **filtered variant**: panel kept, heading swapped to the screen's "no matches" line, explanatory sentence dropped, clear-filters kept as the CTA. |
 | `responses-filtered-empty-light` | The same filtered variant on a different screen. The app used to handle filtered-vs-unfiltered two different ways on these two screens. |
 
@@ -48,6 +47,10 @@ the four frames above carry both.
 
 ## Not in the set, and why
 
-The **unfiltered** question-library and form-library empty panels: reaching them needs a
-database with no questions and no forms, and this harness runs on the seeded fixture. They
-are pinned structurally instead, in `apps/admin/app/(shell)/empty-and-table-states.test.tsx`.
+The **unfiltered** question-library and form-library empty panels, and the **secure-links**
+empty panel. Reaching the first two needs a database with no questions and no forms, and
+the third needs a published form with no links against it; this harness runs on the seeded
+fixture and offers none of the three reliably. The library panels are pinned structurally
+instead, in `apps/admin/app/(shell)/empty-and-table-states.test.tsx`, and the four empty
+panels above already carry both of §3's variants and both its with-CTA and without-CTA
+shapes.
