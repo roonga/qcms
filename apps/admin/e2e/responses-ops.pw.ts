@@ -172,8 +172,7 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     // form" rather than "which page". The detail route's subject is the response.
     await page.goto(`/forms/${FORM_ID}/responses/${revised}`);
     await expect(page.getByTestId("qcms-response-detail")).toBeVisible();
-    const pageHeading = page.getByRole("heading", { level: 1 });
-    await expect(pageHeading).toHaveText(`Response ${revised}`);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(`Response ${revised}`);
 
     // The form is still there, as context rather than as the subject.
     await expect(page.locator('[aria-label="Breadcrumb"]')).toContainText(SLUG);
@@ -185,7 +184,7 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
 
     // The builder tab is untouched: there the page's subject IS the form.
     await page.goto(`/forms/${FORM_ID}`);
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText(SLUG);
+    await expect(page.locator("h1").first()).toHaveText(SLUG);
   });
 
   test("a CSV export downloads with the version in its name", async ({ page }) => {
