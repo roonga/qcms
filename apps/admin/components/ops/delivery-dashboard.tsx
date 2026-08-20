@@ -99,9 +99,10 @@ export function DeliveryDashboard({
  *
  * Two `<tr>`s rather than a nested table, so the detail stays inside the same row
  * group and a screen reader reading the table linearly meets the detail immediately
- * after the row it belongs to. The trigger is a real `<button>` with
- * `aria-expanded`/`aria-controls`, which is what makes it a disclosure rather than a
- * div that happens to toggle.
+ * after the row it belongs to. The trigger is a real `<button>` carrying
+ * `aria-expanded`, which is what makes it a disclosure rather than a div that happens
+ * to toggle; it names the panel with `aria-controls` for as long as the panel is in
+ * the document, and not a moment longer (issue 520).
  */
 /**
  * What to show in the response-body panel, which is three different facts wearing the
@@ -161,7 +162,21 @@ function DeliveryRows({
             type="button"
             className="qcms-text-link"
             aria-expanded={isOpen}
-            aria-controls={panelId}
+            // Named only while the panel exists (issue 520). `aria-controls` is an IDREF,
+            // and an IDREF that resolves to nothing is not a weaker reference: it is an
+            // invalid one, which is the state this button spent most of its life in,
+            // because the panel below is rendered only while the row is open. Axe files
+            // that as `incomplete` rather than a violation once `aria-expanded="false"`
+            // is present, which is why the gate never said so.
+            //
+            // The alternative (render the panel always and hide it) was assessed and
+            // rejected: it would put a `data-testid="qcms-delivery-detail"` node in every
+            // row, and the specs that address that test id unscoped would become
+            // strict-mode multi-match failures. Hiding it with `hidden`/`display:none`
+            // also removes it from find-in-page, so the "expanded content becomes
+            // findable" argument for always rendering does not survive the hiding the
+            // accessibility tree requires.
+            aria-controls={isOpen ? panelId : undefined}
             onClick={onToggle}
           >
             {t(isOpen ? "ops.deliveries.hideDetail" : "ops.deliveries.showDetail", {
