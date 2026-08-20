@@ -65,3 +65,5 @@ export {
 } from "./schedulers/scheduler.js";
 export { createOutboxScheduler, type OutboxDeliver } from "./schedulers/outbox.js";
 export { createRetentionSweepScheduler } from "./schedulers/retention-sweep.js";
+
+// Throwaway probe line for PR #525 evidence: proves a mixed diff is classified as code.
