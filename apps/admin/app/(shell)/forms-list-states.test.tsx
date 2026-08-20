@@ -135,7 +135,9 @@ describe.each([
     failedKey: "ops.area.responses.formsFailed",
   },
 ])("$area form list", ({ render, emptyKey, pickKey, failedKey }) => {
-  it("renders no list element at all when the forms read fails (#513)", async () => {
+  // "issue 513" rather than "#513": `check-admin-theme` reads a `#nnn` in a string
+  // literal as a hex colour and fails the gate on it.
+  it("renders no list element at all when the forms read fails (issue 513)", async () => {
     formsResult = { ok: false, message: "upstream said 503" };
 
     const html = await render();
