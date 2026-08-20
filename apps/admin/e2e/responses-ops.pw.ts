@@ -376,6 +376,14 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
       expect(deadCount, "the broken target dead-lettered every delivery").toBeGreaterThan(0);
       await expect(deliveries.locator("tbody tr[data-delivery-id]")).toHaveCount(deadCount);
 
+      // Every row is collapsed on arrival, which is the state the disclosure spends most
+      // of its life in and the state that used to carry a dangling `aria-controls`
+      // (issue 520).
+      expect(
+        await danglingAriaControls(page),
+        "no collapsed row names a detail panel that is not in the document",
+      ).toEqual([]);
+
       // The attempt record is real: the deliverer never got a response from a refused
       // connection, so there is no status and the error names the transport failure.
       await deliveries
@@ -388,6 +396,43 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
       await expect(detail.getByTestId("qcms-delivery-headers")).toContainText("x-qcms-signature");
       await expect(detail.getByTestId("qcms-delivery-headers")).toContainText("v1=<masked>");
       expect(await detail.textContent()).not.toMatch(/v1=[0-9a-f]{64}/);
+
+      // Issue 520, the other half: with a panel open the reference must exist AND resolve.
+      // Asserting only that nothing dangles would also pass if the attribute had simply
+      // been deleted in every state, which would be a different defect wearing this
+      // fix's clothes.
+      const opened = deliveries.getByRole("button", { name: /^Hide request and response/ });
+      await expect(opened).toHaveAttribute("aria-expanded", "true");
+      const panelId = (await opened.getAttribute("aria-controls")) ?? "";
+      expect(panelId, "the open row names its panel").toMatch(/^qcms-delivery-detail-/);
+      await expect(page.locator(`#${panelId}`)).toBeVisible();
+      expect(
+        await danglingAriaControls(page),
+        "and no other row names a panel that is not in the document",
+      ).toEqual([]);
+
+      // The panel is still the second `tr` of the same row group, not a nested table:
+      // the row that holds it is the immediate next sibling of the row that opened it.
+      expect(
+        await page.locator(`#${panelId}`).evaluate((element) => {
+          const panelRow = element.closest("tr");
+          const summaryRow = panelRow?.previousElementSibling ?? null;
+          return {
+            sameGroup: panelRow?.parentElement === summaryRow?.parentElement,
+            summaryIsDeliveryRow: summaryRow?.hasAttribute("data-delivery-id") ?? false,
+          };
+        }),
+        "the detail sits in a second row of the same row group",
+      ).toEqual({ sameGroup: true, summaryIsDeliveryRow: true });
+
+      // Collapsing it again takes the reference away with the panel it named.
+      await opened.click();
+      await expect(
+        deliveries.getByRole("button", { name: /^Show request and response/ }).first(),
+      ).toHaveAttribute("aria-expanded", "false");
+      expect(await danglingAriaControls(page), "collapsing leaves nothing dangling either").toEqual(
+        [],
+      );
 
       // 3. The queue shows them, across every form.
       await page.goto("/webhooks");
@@ -568,6 +613,30 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     await expect(webhookRow(page)).toContainText("Inactive");
   });
 });
+
+/**
+ * Every `aria-controls` inside the delivery dashboard that names an id no element in the
+ * document carries (issue 520).
+ *
+ * An IDREF that resolves to nothing is not a weaker reference than one that resolves: it
+ * is an invalid one, and this dashboard's disclosure spent most of its life holding one,
+ * because the panel it named was rendered only while its row was open. Axe downgrades
+ * exactly that to `incomplete` once `aria-expanded="false"` is present, so the a11y gate
+ * could not be the thing that caught it. Hence a direct assertion, run in both states.
+ *
+ * Resolution is done with `getElementById` against the whole document rather than by
+ * searching the dashboard: an IDREF is document-scoped, so a panel rendered anywhere on
+ * the page would satisfy the reference and this must not report it as dangling.
+ */
+async function danglingAriaControls(page: Page): Promise<readonly string[]> {
+  return page
+    .getByTestId("qcms-delivery-dashboard")
+    .evaluate((root) =>
+      [...root.querySelectorAll("[aria-controls]")]
+        .map((element) => element.getAttribute("aria-controls") ?? "")
+        .filter((id) => id !== "" && root.ownerDocument.getElementById(id) === null),
+    );
+}
 
 /** This spec's endpoint row, by the id read off it when it was created. */
 function webhookRow(page: Page) {
