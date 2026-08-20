@@ -321,14 +321,19 @@ backward-compatible migration lets you roll back images alone.
 
 ### A respondent reports that the form will not submit
 
-**Symptom.** A respondent cannot get past the entry page: pressing Begin returns them to
-it under the heading "This form is not available". Or, if they already have a session,
-pressing Continue on a step lands them back on the same step with no message and their
-typed answers gone. Meanwhile the form is published and other respondents are completing
-it normally, and **nothing in the portal's logs looks like an error**, because nothing was
-logged at all: the request was refused before it reached the API, and the refusal path
-writes no log line. The respondent is most likely to be on an old browser, and may or may
-not have JavaScript available.
+**Symptom.** One of two reports, depending on how the respondent was invited:
+
+- They **cannot get past the entry page**: pressing Begin returns them to it under the
+  heading "This form is not available". This is the anonymous `/f/{formSlug}` entry path.
+- They **already have a session** (which means they arrived by secure link, the only entry
+  path that still works for them) and **have JavaScript unavailable or disabled**, and
+  pressing Continue on a step lands them back on the same step with no message and their
+  typed answers gone.
+
+In both cases the form is published and other respondents are completing it normally, and
+**nothing in the portal's logs looks like an error**, because nothing was logged at all:
+the request was refused before it reached the API, and the refusal path writes no log line.
+The respondent is on an old browser in both cases.
 
 **Cause.** The portal's four state-changing BFF routes carry a CSRF belt (SEC-9,
 `isSameOriginPost` in `apps/portal/lib/server/route-helpers.ts`). It admits a request that
@@ -351,9 +356,25 @@ The other two state-changing routes, `POST /s/{sessionId}/answers` and
 is a CORS-mode request, which carries a real `Origin` whatever the referrer policy says,
 so those two are unaffected.
 
-Note the first row in particular: the Begin button is a real form POST on **every** path,
-hydrated or not, so an affected browser cannot start a questionnaire at all. This is not
-only a no-JS problem, even though the no-JS path is where it bites hardest.
+**How badly a respondent is stuck depends on which entry path they arrived by**, and the
+difference is large enough to establish first:
+
+- **Anonymous entry (`/f/{formSlug}`) is a hard block.** The Begin button is a real form
+  POST on **every** path, hydrated or not, so an affected browser cannot start at all. JavaScript
+  makes no difference here.
+- **Secure-link entry (`/l/{token}`) starts fine.** That route is a **GET** (a silent
+  verify-and-redirect that exchanges the token for a session), and the belt covers
+  state-changing POSTs only, so it never applies. An affected browser arriving by secure
+  link gets a session and, **with JavaScript, completes the whole questionnaire normally**:
+  the rest of the hydrated flow is `fetch()`, which is unaffected.
+
+So the only respondent who reaches a step and then cannot get past it is one who arrived by
+**secure link with JavaScript unavailable**. That is the second symptom at the top of this
+runbook, and it is the only way an affected browser ever reaches a step at all. Since
+secure links are the primary distribution path for most deployments, the population fully
+locked out is smaller than the raw browser share below suggests: anonymous-entry
+respondents are blocked outright, secure-link respondents only if they also have no
+JavaScript.
 
 **Which browsers.** `Sec-Fetch-Site` shipped in Chrome 76 (July 2019), Edge 79, Opera 63,
 Samsung Internet 12.0, Firefox 90 (13 July 2021) and Safari 16.4 (27 March 2023). The
@@ -385,9 +406,12 @@ estimate**, for three reasons:
   and neither is a sample of **your** respondents. A questionnaire's population is set by
   who was invited. Global share is a starting point, not a measurement of your deployment.
 
-A realistic band is 1.6% to 5%. Roughly half the identified residual is iOS devices below
-16.4, which age out on Apple's own upgrade curve, and half is old desktop (Chrome below 76,
-plus IE 11).
+A realistic band is 1.6% to 5%. The identified 1.63 points split about **40/60 between
+mobile and desktop**, which matters because the two age out at different speeds: 0.61
+points are iOS below 16.4 (38%), which Apple's own upgrade curve retires steadily, against
+0.98 points of old desktop (60%: Chrome below 76 at 0.60, IE 11 at 0.27, macOS Safari below
+16.4 at 0.12), which does not retire on anyone's curve. The remaining 0.04 points are old
+Firefox and assorted mobile.
 
 **It is concentrated, and not where you might guess.** Per region, from the same source's
 `region-usage-json` tables (month 2026-07, accessed 2026-08-07): China 7.07% (5.40 of it IE
@@ -418,10 +442,17 @@ under a respondent's session cannot be unmade.
    while a belt refusal writes nothing, because it never calls the API. So an ingress
    access log showing `POST /f/{slug}/start` answered 303, followed by
    `GET /f/{slug}?state=error`, with **no** `api.call` line for that request, is the belt.
-3. **Advise an upgrade.** There is no configuration switch: the belt is unconditional and
+3. **Send them a secure link.** This is the one workaround that needs nothing from the
+   respondent, and it works because `/l/{token}` is a GET the belt does not cover. A
+   respondent blocked at anonymous entry will start fine from a secure link, and unless
+   they also have JavaScript unavailable they will complete the questionnaire normally.
+   Issue the link from the admin as you would for any invited respondent
+   (`docs/secure-links.md`). It does **not** help a respondent who has no JavaScript: they
+   will start, then stop at the first Continue.
+4. **Advise an upgrade.** There is no configuration switch: the belt is unconditional and
    QCMS ships no variable that relaxes it. On desktop, any current browser works. On iOS,
-   it takes an iOS update.
-4. **Tell us if it matters for your population.** The trade-off is tracked in issue #504,
+   it takes an iOS update, because the browser app makes no difference.
+5. **Tell us if it matters for your population.** The trade-off is tracked in issue #504,
    and the alternatives (a same-origin form token on the no-JS path, which does not depend
    on Fetch Metadata) are deliberately held until there is measured need rather than
    adopted in advance. A deployment that recruits respondents in one of the concentrated
