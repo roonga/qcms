@@ -6,11 +6,9 @@ import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import { submitResponse } from "./support/ops.js";
 
 /**
- * Reference frames for issue #510: the two detail routes now headed by their own entity.
- *
- * **Not a gate.** #510 is not one of the admin-redesign tier's gated issues, so nothing
- * waits on a sign-off here. The change is user-visible, so the evidence is committed for
- * the Code Owner to look at if they want to: `docs/gates/pr-510/`.
+ * Screenshot evidence for issue #510: the two detail routes now headed by their own
+ * entity rather than by the form's slug. The frames are committed under
+ * `docs/gates/pr-510/` and reviewed by the Code Owner on the PR.
  *
  * **Skipped unless `QCMS_ADMIN_CAPTURE_GATE=1`**, like every other capture spec: it
  * writes PNGs into a committed directory, and leaving it in the standing suite would

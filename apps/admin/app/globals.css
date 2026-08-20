@@ -1340,7 +1340,9 @@ th,
 }
 
 /* A heading that carries a machine identifier: a session id on the response detail
-   route, a slug on every form page. `ses_…` has no break opportunity, so at 390px it
+   route, a slug on the form sections that render `FormPageHeader` (the builder route
+   at `/forms/[formId]` hand-rolls its own `<h1>` and is not covered by this rule).
+   `ses_…` has no break opportunity, so at 390px it
    pushed the DOCUMENT to 393px - WCAG 2.2 AA SC 1.4.10 Reflow, caught by the capture
    guard and not by axe. Headings are the one place a long token is easy to miss,
    because the id reads as prose. It rides on the shared form page heading now that the
