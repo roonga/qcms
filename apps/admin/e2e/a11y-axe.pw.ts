@@ -161,19 +161,22 @@ const EXTRA_RULES = { "heading-order": { enabled: true } };
  * (issue #511), keyed by the state they appear in and by the node axe names.
  *
  * Switching a best-practice rule on over a codebase that has never been measured by it
- * surfaces history as well as regressions, and there are exactly two here. Neither is in
- * #511's territory, and how far to go in fixing them is a scope call for the Code Owner
- * rather than something to decide inside a heading fix, so they are recorded rather than
+ * surfaces history as well as regressions, and there were exactly two. Neither was in
+ * #511's territory, and how far to go in fixing them was a scope call for the Code Owner
+ * rather than something to decide inside a heading fix, so they were recorded rather than
  * silently dropped and rather than left failing:
  *
  * - `version history` (**issue #540**): `components/forms/version-history.tsx` heads its
  *   compare panel with an `<h3>` directly under the page `<h1>`, with no `<h2>` between.
- * - `the delivery-detail disclosure` (**issue #541**): `components/ops/delivery-dashboard.tsx`
- *   heads the expanded row's request headers with an `<h4>` under the dashboard's `<h2>`.
+ * - ~~`the delivery-detail disclosure` (**issue #541**)~~: **fixed and deleted by issue
+ *   519.** The expanded row's request headers were an `<h4>` under the dashboard's `<h2>`;
+ *   the digest work put an `h3` (`This delivery`, holding the trigger's three facts) above
+ *   them, so the level is no longer skipped and the entry went stale. Deleting it is what
+ *   the staleness assertion below exists to force.
  *
  * This list is a debt register, not a policy: each entry is a defect that should be
  * fixed and the entry deleted, and it is deliberately keyed narrowly (state **and**
- * node) so it cannot grow into a blanket mute. A NEW gap in either of these two states,
+ * node) so it cannot grow into a blanket mute. A NEW gap in either of these states,
  * on any other node, still fails. Fixing one is a two-step change: correct the heading
  * in the component named above, then delete that entry here. The issue numbers live in
  * this comment on purpose, because this file is what a future fixer reads.
@@ -187,7 +190,6 @@ const EXTRA_RULES = { "heading-order": { enabled: true } };
  */
 const KNOWN_HEADING_ORDER_GAPS: Readonly<Record<string, readonly string[]>> = {
   "version history": ["#qcms-diff-heading"],
-  "the delivery-detail disclosure": ["h4:nth-child(1)"],
 };
 
 /** The sheet's three mode layers. Light is the bare root, so it has no class. */

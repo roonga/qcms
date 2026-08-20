@@ -6,7 +6,7 @@ import { EmptyState } from "@/components/empty-state";
 import { cancelledReasonText, DeliveryStatusTag } from "@/components/ops/ops-tags";
 import type { DeliveryItem } from "@/lib/ops/types";
 import { formatDateTime } from "@/lib/i18n/format";
-import { t } from "@/lib/i18n/en";
+import { t, tPlural } from "@/lib/i18n/en";
 
 /**
  * The delivery dashboard (task 035; wireframe "delivery dashboard").
@@ -29,6 +29,25 @@ import { t } from "@/lib/i18n/en";
  * which is true of the pipeline and not just of this render: the deliverer replaces
  * the HMAC with `SIGNATURE_MASK` on the way into the database, so the row never held
  * it (SEC-6, SEC-13).
+ *
+ * ## The row trigger carries a digest, and the panel carries the same three facts
+ *
+ * Issue 519, `plan/admin-ux-audit.md` §3.8: the disclosure mechanism here was already
+ * the right one, and what it lacked was a statement of what is behind it. The trigger
+ * now reads "Show request and response for X. Dead-lettered, 4 failed attempts, 1240 ms".
+ *
+ * §3.7's rule applies to that trigger even though this disclosure is a button and not a
+ * `<details>`: a digest may never be the only place a fact lives. Two of the three are in
+ * always-present row cells, but **latency is not** - it carries `qcms-cell--drop`, which
+ * is `display: none` below 40rem, so below that width the digest would have been the
+ * single copy of it. The `This delivery` list inside the panel is where all three now
+ * live in full, at every width, and it is what the §3.7 test asserts against.
+ *
+ * That list's `h3` also closes the heading-order gap this panel carried (**issue #541**):
+ * the request-headers heading was an `h4` sitting directly under the dashboard's `h2`,
+ * so the panel skipped a level. It is now h2 dashboard, h3 this delivery, h4 request
+ * headers, and the `KNOWN_HEADING_ORDER_GAPS` entry that registered the skip is deleted
+ * from `apps/admin/e2e/a11y-axe.pw.ts`.
  */
 export function DeliveryDashboard({
   deliveries,
@@ -131,6 +150,37 @@ export function DeliveryDashboard({
  * checked first and reads from its own marker, so the screen never tells an operator
  * the body was empty when in fact it was deleted.
  */
+/** One latency, in the row cell, the panel's list and the digest alike. */
+function latencyText(latencyMs: number | null): string {
+  return latencyMs === null ? t("ops.common.none") : t("ops.deliveries.latency", { ms: latencyMs });
+}
+
+/**
+ * What the row trigger promises, in three facts (issue 519).
+ *
+ * Facts, never a judgement: "Dead-lettered, 4 failed attempts, 1240 ms", not
+ * "Dead-lettered (needs attention)". Latency drops out of the sentence rather than
+ * appearing as "none", because a delivery that has never been attempted has no latency
+ * to report and a placeholder there reads as a measurement.
+ *
+ * Every one of these is also rendered inside the panel, by the same helpers, so the two
+ * cannot say different things (`plan/admin-ux-audit.md` §3.7).
+ */
+function deliveryDigest(row: DeliveryItem): string {
+  const status = t(`ops.deliveries.status.${row.status}`);
+  const attempts = tPlural(
+    "ops.deliveries.digest.attemptOne",
+    "ops.deliveries.digest.attemptOther",
+    row.attempts,
+  );
+  if (row.latencyMs === null) return t("ops.deliveries.digest", { status, attempts });
+  return t("ops.deliveries.digest.withLatency", {
+    status,
+    attempts,
+    latency: latencyText(row.latencyMs),
+  });
+}
+
 function responseBodyText(row: DeliveryItem): string {
   if (row.responseSnippetRedactedAt !== null) {
     return t("ops.deliveries.redactedBody", {
@@ -143,7 +193,16 @@ function responseBodyText(row: DeliveryItem): string {
   return row.responseSnippet;
 }
 
-function DeliveryRows({
+/**
+ * Exported for the §3.7 test and for nothing else (issue 519).
+ *
+ * The dashboard's open row is client state, so a static render can only ever produce the
+ * collapsed half of the disclosure - and the property under test is a relationship
+ * BETWEEN the two halves ("every fact the trigger states, the panel states too"). This
+ * component already takes `isOpen` as a prop, so rendering it twice is the whole test,
+ * with no jsdom and no browser. Nothing else imports it.
+ */
+export function DeliveryRows({
   row,
   isOpen,
   panelId,
@@ -169,11 +228,7 @@ function DeliveryRows({
         <td className="qcms-cell--num" data-testid="qcms-delivery-attempts">
           {row.attempts}
         </td>
-        <td className="qcms-cell--num qcms-cell--drop">
-          {row.latencyMs === null
-            ? t("ops.common.none")
-            : t("ops.deliveries.latency", { ms: row.latencyMs })}
-        </td>
+        <td className="qcms-cell--num qcms-cell--drop">{latencyText(row.latencyMs)}</td>
         <td className="qcms-cell--num">
           {formatDateTime(row.lastAttemptAt, t("ops.common.none"))}
         </td>
@@ -202,6 +257,15 @@ function DeliveryRows({
             {t(isOpen ? "ops.deliveries.hideDetail" : "ops.deliveries.showDetail", {
               event: row.eventType,
             })}
+            {/* Inside the button, so the digest joins the accessible name rather than
+                floating beside it as an unassociated caption: what the trigger promises
+                is part of what the trigger is called. */}
+            <span
+              className="block text-xs font-normal text-(--color-text-muted)"
+              data-testid="qcms-delivery-digest"
+            >
+              {deliveryDigest(row)}
+            </span>
           </button>
         </td>
       </tr>
@@ -219,6 +283,27 @@ function DeliveryRows({
                   {formatDateTime(row.cancelledAt, t("ops.common.none"))}
                 </p>
               )}
+              {/* The trigger's three facts, in full, at every width (issue 519). This is
+                  what makes the digest a shorthand rather than the only copy: status and
+                  attempts are also in row cells, but latency's cell is `display: none`
+                  below 40rem, so without this list a narrow viewport would have had the
+                  summary as its single source (§3.7).
+
+                  Its `h3` is also what puts the two `h4`s below on a level their parent
+                  reaches (issue #541). */}
+              <h3 className="text-sm font-semibold text-(--color-text)">
+                {t("ops.deliveries.attemptSummary")}
+              </h3>
+              <dl className="qcms-ops-summary" data-testid="qcms-delivery-facts">
+                <dt>{t("ops.deliveries.column.status")}</dt>
+                <dd data-testid="qcms-delivery-fact-status">
+                  {t(`ops.deliveries.status.${row.status}`)}
+                </dd>
+                <dt>{t("ops.deliveries.column.attempts")}</dt>
+                <dd data-testid="qcms-delivery-fact-attempts">{row.attempts}</dd>
+                <dt>{t("ops.deliveries.column.latency")}</dt>
+                <dd data-testid="qcms-delivery-fact-latency">{latencyText(row.latencyMs)}</dd>
+              </dl>
               {row.lastAttemptAt === null ? (
                 <p className="text-sm text-(--color-text-muted)">{t("ops.deliveries.noAttempt")}</p>
               ) : (
