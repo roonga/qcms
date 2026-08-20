@@ -385,8 +385,3 @@ export function pinnedVersionStatus(
 ): string | undefined {
   return question?.versions.find((v) => v.version === version)?.status;
 }
-
-/** `questionId@version`, the monospace identity every pin row shows (R7: manual pins). */
-export function pinLabel(pin: DraftPin): string {
-  return `${pin.questionId}@${String(pin.version)}`;
-}
