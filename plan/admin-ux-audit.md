@@ -249,11 +249,11 @@ This is invisible to the gate: `apps/admin/e2e/a11y-axe.pw.ts:137` restricts axe
 
 > **Stale as of 2026-08-20, in the premise rather than the finding** (this document is **maintained**, not a frozen snapshot - see the note at §8 item 2). The paragraph above says "the in-place transition is fine" because `ResponseDetail` supplies an `h2`. PR #539 (#510) **deleted that `h2`** as a restatement of the route's own subject, so the premise no longer holds and the in-place path would have started skipping too. PR #542 (#511) repairs both by promoting the tombstone heading and by adding `heading-order` to the gate. The finding was right; the reason it gave for the in-place path being safe has expired.
 
-### D3. `components/area-placeholder.tsx` is dead code
+### D3. `components/area-placeholder.tsx` was dead code (fixed, [#512](https://github.com/roonga/qcms/issues/512))
 
-Its own doc comment says "These are the only files 032-035 are expected to delete outright" (`:17`). Tasks 032 through 035 are all `done` (`docs/features/README.md:70-73`) and nothing imports it: the only occurrence of the identifier in the app is its own declaration at `components/area-placeholder.tsx:19`.
+Its own doc comment said "These are the only files 032-035 are expected to delete outright" (`:17`). Tasks 032 through 035 are all `done` (`docs/features/README.md:70-73`) and nothing imported it: the only occurrence of the identifier in the app was its own declaration. The file is deleted as of 2026-08-20; build and typecheck are the evidence that nothing resolved to it.
 
-It also carries the app's only `text-2xl font-bold` h1 (`:28`), against `text-xl font-semibold` on all nine live headings, so it is a stale style precedent as well as dead weight.
+It also carried the app's only `text-2xl font-bold` h1, against `text-xl font-semibold` on all nine live headings, so it was a stale style precedent as well as dead weight. The live headings are untouched by the deletion and are #514's subject.
 
 ### D4. Two screens render an empty `<ul>` when their forms read fails
 
