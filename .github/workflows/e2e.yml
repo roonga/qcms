@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   pull_request:
+    # `edited` fires on a base-branch retarget and is not in the default set. Same
+    # reasoning as `ci.yml`: without it, a PR that went green on the fast lane while
+    # stacked on an unmerged parent keeps those greens after being retargeted to
+    # `main`, where they now stand over all of the parent's code.
+    types: [opened, synchronize, reopened, edited]
   workflow_dispatch:
 
 # This job builds three images and boots the whole stack, so a second push to the
@@ -22,6 +27,8 @@ jobs:
   changes:
     name: changes (full-stack-e2e)
     runs-on: ubuntu-latest
+    # Upstream of a required context, so it must never be the thing that hangs.
+    timeout-minutes: 5
     outputs:
       plan_only: ${{ steps.classify.outputs.plan_only }}
     steps:
@@ -35,8 +42,27 @@ jobs:
         with:
           node-version: 24
 
+      # Read from the BASE ref, never from the pull request. Full reasoning in the
+      # identical step in `ci.yml` and in the script's own header: a checked-out copy
+      # would let a PR that breaks the classifier certify itself as prose and skip the
+      # test suite that would have caught it.
       - id: classify
-        run: node scripts/ci-plan-only.mjs
+        env:
+          CLASSIFIER: scripts/ci-plan-only.mjs
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_EVENT_NAME}" != "pull_request" ]; then
+            echo "Event is ${GITHUB_EVENT_NAME}, not pull_request: running the full suite."
+            echo "plan_only=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git show "origin/${GITHUB_BASE_REF}:${CLASSIFIER}" > "${RUNNER_TEMP}/classify.mjs"; then
+            echo "Classifying with origin/${GITHUB_BASE_REF}:${CLASSIFIER} (not the copy in this PR)."
+            node "${RUNNER_TEMP}/classify.mjs"
+          else
+            echo "::warning::ci-plan-only: ${CLASSIFIER} is absent on origin/${GITHUB_BASE_REF}; running the full suite."
+            echo "plan_only=false" >> "$GITHUB_OUTPUT"
+          fi
 
   # The job id IS the check context, deliberately left to name itself. ci.yml
   # publishes the other two end-to-end checks (`api-e2e`, `portal-e2e`), so all

@@ -1,6 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 
-import { PLAN_PREFIX, isPlanOnly } from "./ci-plan-only.mjs";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { PLAN_PREFIX, changedFiles, isPlanOnly, parsePaths } from "./ci-plan-only.mjs";
 
 /**
  * Tests for the CI fast-lane classifier.
@@ -75,5 +80,104 @@ describe("plan-only classification", () => {
 
   it("keeps the prefix anchored with a trailing separator", () => {
     expect(PLAN_PREFIX).toBe("plan/");
+  });
+});
+
+describe("path parsing", () => {
+  it("splits on NUL and drops the trailing empty field", () => {
+    expect(parsePaths("plan/a.md\0plan/b.md\0")).toEqual(["plan/a.md", "plan/b.md"]);
+  });
+
+  it("returns nothing for an empty diff", () => {
+    expect(parsePaths("")).toEqual([]);
+    expect(parsePaths("\0")).toEqual([]);
+  });
+
+  it("PRESERVES a leading space rather than trimming it away", () => {
+    // The defect this replaced: `.split("\n").map(trim)` turned " plan/evil.ts" into
+    // "plan/evil.ts", which classifies as prose. Trimming is not a tidy-up here, it is
+    // a rewrite of the path git recorded.
+    expect(parsePaths(" plan/evil.ts\0")).toEqual([" plan/evil.ts"]);
+    expect(isPlanOnly(parsePaths(" plan/evil.ts\0"))).toBe(false);
+  });
+
+  it("preserves a newline inside a path", () => {
+    // NUL separation is the only reason this is representable at all.
+    expect(parsePaths("plan/a\nb.md\0")).toEqual(["plan/a\nb.md"]);
+  });
+});
+
+/**
+ * The layer the leading-space defect actually lived in.
+ *
+ * `isPlanOnly([" plan/evil.ts"])` was always correct; the bug was that
+ * `changedFiles` never handed it that string. So this exercises a real repository
+ * with a real commit at a path git does not quote, and asserts the byte sequence
+ * survives the whole way to the classification.
+ */
+describe("changedFiles against a real repository", () => {
+  let repo: string;
+
+  const git = (args: string[]): string =>
+    execFileSync("git", args, { cwd: repo, encoding: "utf8" });
+
+  const commit = (message: string): void => {
+    git(["add", "-A"]);
+    git([
+      "-c",
+      "user.name=Code Owner",
+      "-c",
+      "user.email=code-owner@example.invalid",
+      "-c",
+      "commit.gpgsign=false",
+      "commit",
+      "-q",
+      "-m",
+      message,
+    ]);
+  };
+
+  const write = (relative: string, body: string): void => {
+    const absolute = path.join(repo, relative);
+    mkdirSync(path.dirname(absolute), { recursive: true });
+    writeFileSync(absolute, body);
+  };
+
+  beforeAll(() => {
+    repo = mkdtempSync(path.join(tmpdir(), "qcms-ci-plan-only-"));
+    git(["init", "-q", "-b", "main"]);
+    write("README.md", "base\n");
+    commit("base");
+    // Stand in for the remote-tracking ref the workflow's checkout provides.
+    git(["update-ref", "refs/remotes/origin/main", "HEAD"]);
+  });
+
+  afterAll(() => {
+    rmSync(repo, { recursive: true, force: true });
+  });
+
+  it("reads an ordinary plan-only change as plan-only", () => {
+    write("plan/note.md", "prose\n");
+    commit("plan note");
+    const files = changedFiles("main", { cwd: repo });
+    expect(files).toEqual(["plan/note.md"]);
+    expect(isPlanOnly(files!)).toBe(true);
+  });
+
+  it("does NOT treat a committed path with a leading space as plan-only", () => {
+    // ` plan/evil.ts` is a legal, committable path. `git diff --name-only` leaves it
+    // unquoted because a space is not a character git escapes, so a newline-split
+    // reader that trims sees `plan/evil.ts` and waves a TypeScript file through with
+    // build, typecheck, lint, every test suite and check:lint-coverage skipped.
+    write(" plan/evil.ts", "export const evil = 1;\n");
+    commit("leading space");
+    const files = changedFiles("main", { cwd: repo });
+    expect(files).toContain(" plan/evil.ts");
+    expect(files).not.toContain("plan/evil.ts");
+    expect(isPlanOnly(files!)).toBe(false);
+  });
+
+  it("returns null for a base ref that does not resolve", () => {
+    expect(changedFiles("no-such-branch", { cwd: repo })).toBeNull();
   });
 });

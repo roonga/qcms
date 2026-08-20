@@ -149,7 +149,7 @@ Three gates **do** read `plan/**`, and `pnpm check:plan` is exactly those three:
 
 | Gate | Why `plan/**` is in its scope |
 | --- | --- |
-| `check:no-control-chars` | `git ls-files` over `*.md`/`*.mjs`/`*.json` with no `plan/` exclusion. |
+| `check:no-control-chars` | `git ls-files` over its `SOURCE_GLOBS` (`*.ts`, `*.tsx`, `*.mjs`, `*.mts`, `*.js`, `*.jsx`, `*.json`, `*.md`) with no `plan/` exclusion. |
 | `check:security-hygiene` | Its example-env scan is `git ls-files -- *.example **/*.example`, repo-wide. |
 | `check:admin-theme` | `plan/admin-theme/tokens.css` is the **source** it compares `apps/admin/app/theme.css` against, so a plan-only edit to the token sheet has to go red. |
 
@@ -158,7 +158,10 @@ Three gates **do** read `plan/**`, and `pnpm check:plan` is exactly those three:
 Two properties of the lane are load-bearing and should not be "simplified" away:
 
 - **The four required contexts always run and always report.** `protect-main` requires `verify (node-24)`, `api-e2e`, `portal-e2e` and `full-stack-e2e`, and has no bypass actors. The fast lane guards individual **steps**, never the jobs, because a required context that reports nothing leaves the PR at "Expected - waiting for status" with no way forward, and a context reported as `skipped` counts as satisfied - which would be worse still.
-- **Every uncertain case runs the full suite.** `scripts/ci-plan-only.mjs` answers `false` for a non-`pull_request` event, an empty diff, an unresolvable base ref, and any error; the required jobs carry `if: ${{ !cancelled() }}` so a broken classifier cannot skip them into a false green. Renames are read with `--no-renames`, so a file moved out of `plan/` counts as code.
+- **Every uncertain case runs the full suite.** `scripts/ci-plan-only.mjs` answers `false` for a non-`pull_request` event, an empty diff, an unresolvable base ref, and any error; the required jobs carry `if: ${{ !cancelled() }}` so a broken classifier cannot skip them into a false green. Renames are read with `--no-renames`, so a file moved out of `plan/` counts as code, and paths are read NUL-separated and never trimmed, so a committed path with a leading space (` plan/evil.ts`) stays outside `plan/`.
+- **The classifier is read from the PR's base ref, not from the PR.** The `changes` job runs `git show "origin/$GITHUB_BASE_REF:scripts/ci-plan-only.mjs"`. A checked-out copy would let a pull request that breaks the classifier certify its own diff as prose and skip the very test suite that would have caught it. Practical consequence: **any PR that touches `scripts/ci-plan-only.mjs` gets a full run**, and so did the PR that introduced it.
+
+One change to how a pushed branch behaves comes with this: **`ci.yml` and `e2e.yml` now trigger on `push` only for `main`**, so a branch pushed with no pull request open gets no CI at all. The claim-lock branch (`feat/NNN-*`, `fix/NN-*`) still claims the task the moment it is pushed, but it produces no checks until its PR exists. Open the PR to get a verdict; `gh pr checks <N>` is the way to read one, and `gh run list --commit <sha>` on a bare branch will now legitimately come back empty.
 
 **`check:admin-theme` in one paragraph** (task 055). Three properties of the QCMS app's own styling, none of which a diff shows once the app grows: every colour in `apps/admin` outside `apps/admin/app/theme.css` is a `var(--...)` reference (a raw hex or a Tailwind palette utility looks right in whichever mode the author had open and is wrong in the other two); the landed sheet is byte-identical to `plan/admin-theme/tokens.css`, which is generated behind a WCAG contrast gate, so a hand-edit cannot keep the published contrast table while losing the property it certifies; and no value in the app's message catalog names the app "admin" (the product is QCMS and the respondent app is the Portal - code identifiers such as `apps/admin` and `qcms-admin` are deliberately untouched). Comments are excluded from both scans, so a comment citing `issue #177` or describing the app by its directory is fine.
 

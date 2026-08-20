@@ -31,6 +31,31 @@
  * Renames are read with `--no-renames`, so a path moved out of `plan/` shows up as
  * a delete under `plan/` PLUS an add outside it, and the PR is correctly code.
  *
+ * ## Two properties that are not obvious, and are the reason this file has tests
+ *
+ * **This script never classifies its own diff.** The workflow does not run the
+ * checked-out copy; it runs the copy from the pull request's BASE ref against the
+ * head checkout (`git show "origin/$GITHUB_BASE_REF:scripts/ci-plan-only.mjs"`).
+ * Otherwise a pull request that refactors `isPlanOnly` and introduces a defect
+ * answering `true` too readily would be classified by its own broken code: its diff
+ * touches only this file, which is not under `plan/`, so a full run is intended -
+ * but the broken copy would answer `plan_only=true`, `pnpm test` is one of the steps
+ * the fast lane skips, and the very tests written to catch that defect would not
+ * run. It would merge in 45 green seconds and every later PR would take the fast
+ * lane. The base copy only ever shells out to `git`, so running it against a head
+ * checkout is safe. Consequence to expect: any PR that touches this file gets a full
+ * run, which is the point.
+ *
+ * **Paths are read NUL-separated and never trimmed.** `git diff --name-only` does
+ * not quote a path whose only unusual character is a space, so a file committed at
+ * `" plan/evil.ts"` (leading space) arrives as ` plan/evil.ts`. Trimming it would
+ * make it `plan/evil.ts`, and a `.ts` file would land with build, typecheck, lint,
+ * the unit suites, all three e2e suites and `check:lint-coverage` skipped - the last
+ * of those being exactly the gate that exists to catch a tracked source file outside
+ * every lint scope. `-z` plus a NUL split preserves the byte sequence git recorded,
+ * which is what `check-no-em-dash.mjs`, `check-ports.mjs` and
+ * `check-no-control-chars.mjs` all already do.
+ *
  * Usage:
  *   node scripts/ci-plan-only.mjs                  # reads GITHUB_* from the env
  *   BASE_REF=main node scripts/ci-plan-only.mjs    # local dry run
@@ -68,10 +93,30 @@ export function isPlanOnly(files) {
 
 /**
  * @param {readonly string[]} args
+ * @param {string | undefined} [cwd] repository to run in; the process cwd by default.
  * @returns {string}
  */
-function git(args) {
-  return execFileSync(GIT, [...args], { encoding: "utf8" });
+function git(args, cwd) {
+  return execFileSync(GIT, [...args], { encoding: "utf8", cwd });
+}
+
+/**
+ * Split `git`'s NUL-separated output into paths.
+ *
+ * Deliberately no `.trim()` and no `.split("\n")`. A newline-separated read has to
+ * trim to survive CRLF, and trimming silently rewrites ` plan/evil.ts` (a real,
+ * committable path that git does not quote) into `plan/evil.ts`, which classifies as
+ * prose. NUL separation has no such ambiguity: git emits the recorded bytes.
+ *
+ * Exported so the parse can be tested without a repository. The layer above it is
+ * tested against a real one, because this defect lived here and not in
+ * {@link isPlanOnly}.
+ *
+ * @param {string} raw NUL-separated `git ... -z` output.
+ * @returns {string[]}
+ */
+export function parsePaths(raw) {
+  return raw.split("\0").filter((path) => path !== "");
 }
 
 /**
@@ -82,19 +127,18 @@ function git(args) {
  * commits as changes (in reverse), which is wrong in both directions.
  *
  * @param {string} baseRef base branch name, e.g. "main".
+ * @param {{ cwd?: string }} [options] repository to read; the process cwd by default.
  * @returns {string[] | null} paths, or null when the base could not be resolved.
  */
-export function changedFiles(baseRef) {
+export function changedFiles(baseRef, options = {}) {
+  const cwd = options.cwd;
   const base = `origin/${baseRef}`;
   try {
-    git(["rev-parse", "--verify", "--quiet", `${base}^{commit}`]);
+    git(["rev-parse", "--verify", "--quiet", `${base}^{commit}`], cwd);
   } catch {
     return null;
   }
-  return git(["diff", "--name-only", "--no-renames", `${base}...HEAD`])
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line !== "");
+  return parsePaths(git(["diff", "--name-only", "--no-renames", "-z", `${base}...HEAD`], cwd));
 }
 
 /**
@@ -138,8 +182,12 @@ function main() {
     return;
   }
 
+  // Quoted, not bare. An indented bare path renders ` plan/evil.ts` and `plan/evil.ts`
+  // identically in a run log, and a leading space is the difference between prose and
+  // a TypeScript file the fast lane must not skip. JSON.stringify makes the boundary
+  // of every path visible, including tabs and non-ASCII.
   stdout.write(`Changed vs origin/${baseRef} (${files.length} path(s)):\n`);
-  for (const path of files.slice(0, LOG_LIMIT)) stdout.write(`  ${path}\n`);
+  for (const path of files.slice(0, LOG_LIMIT)) stdout.write(`  ${JSON.stringify(path)}\n`);
   if (files.length > LOG_LIMIT) stdout.write(`  ... and ${files.length - LOG_LIMIT} more\n`);
 
   if (files.length === 0) {
@@ -151,7 +199,7 @@ function main() {
     isPlanOnly(files),
     outside.length === 0
       ? `${files.length} path(s), all under ${PLAN_PREFIX}`
-      : `${outside.length} path(s) outside ${PLAN_PREFIX}, first: ${outside[0]}`,
+      : `${outside.length} path(s) outside ${PLAN_PREFIX}, first: ${JSON.stringify(outside[0])}`,
   );
 }
 

@@ -10,6 +10,16 @@ on:
   push:
     branches: [main]
   pull_request:
+    # `edited` is NOT in the default set (`opened`, `synchronize`, `reopened`), and
+    # retargeting a pull request's base branch fires only `edited`. Without it, a PR
+    # stacked on an unmerged branch whose diff versus that parent is plan-only goes
+    # green on the fast lane, is then retargeted to `main`, and no new run starts:
+    # the 45-second greens stay bound to an unchanged head while now standing over
+    # all of the parent's code. That is a regression the fast lane would introduce,
+    # not a pre-existing property - before it, such a PR ran the full suite. The
+    # cost is that a title or body edit also starts a run; on the fast lane that is
+    # ~45 seconds, and `cancel-in-progress` bounds the rest.
+    types: [opened, synchronize, reopened, edited]
   # Lets a check be requested on demand for a specific ref. Needed when webhook
   # delivery is throttled and push/pull_request stop creating runs at all, which
   # is not hypothetical: during the 2026-08-06 Actions outage main took two merges
@@ -25,9 +35,19 @@ on:
 # `workflow_dispatch` is deliberately keyed on the run id instead, giving each manual
 # run a group of its own. That run is the outage escape hatch documented above, and a
 # routine push must never be able to cancel it.
+#
+# Cancellation is limited to pull-request refs. On `main` the post-merge run must be
+# allowed to finish: under `/loop /next-task 3` two back-to-back merges share the
+# group `CI-refs/heads/main`, so a blanket `true` cancels the first merge's run - and
+# `.claude/skills/task/SKILL.md` step 7 requires the conductor to confirm green on the
+# merge commit and has no branch for `cancelled`, so it gets neither the green it
+# needs nor the red it is told to fix forward from. It matters because the ruleset's
+# `strict_required_status_checks_policy` is `false`: `main`'s own run is the only
+# place a semantic conflict between two independently-green PRs shows up. #496's
+# waste is entirely on PR refs, so this carve-out costs nothing.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # The fast-lane classifier. A pull request whose every changed path is under
@@ -46,6 +66,10 @@ jobs:
     # in `e2e.yml`. Neither is a required context.
     name: changes (ci)
     runs-on: ubuntu-latest
+    # This job sits upstream of all four required contexts, so a hang here is the
+    # "required check never reports" failure the whole design is built to avoid, held
+    # open for the 360-minute default. It does a checkout and one `node` invocation.
+    timeout-minutes: 5
     outputs:
       plan_only: ${{ steps.classify.outputs.plan_only }}
     steps:
@@ -64,8 +88,35 @@ jobs:
         with:
           node-version: 24
 
+      # THE CLASSIFIER MUST NOT BE THE ONE IN THE PULL REQUEST. It is read from the
+      # BASE ref and run against the head checkout, because a checked-out copy would
+      # certify its own diff: a PR that refactors this script and introduces a defect
+      # answering `true` too readily touches only a non-`plan/` file, so a full run is
+      # intended - but its own broken copy would answer `plan_only=true`, `pnpm test`
+      # is a step the fast lane skips, and scripts/ci-plan-only.test.ts (written for
+      # exactly that defect) would never execute. Four green contexts in 45 seconds,
+      # merged, and every later PR silently on the fast lane.
+      #
+      # The base copy shells out only to `git`, so running it against a head checkout
+      # is safe. Absent on the base ref (as on the PR that introduces it) means no
+      # fast lane, which is why THIS pull request gets a full run.
       - id: classify
-        run: node scripts/ci-plan-only.mjs
+        env:
+          CLASSIFIER: scripts/ci-plan-only.mjs
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_EVENT_NAME}" != "pull_request" ]; then
+            echo "Event is ${GITHUB_EVENT_NAME}, not pull_request: running the full suite."
+            echo "plan_only=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git show "origin/${GITHUB_BASE_REF}:${CLASSIFIER}" > "${RUNNER_TEMP}/classify.mjs"; then
+            echo "Classifying with origin/${GITHUB_BASE_REF}:${CLASSIFIER} (not the copy in this PR)."
+            node "${RUNNER_TEMP}/classify.mjs"
+          else
+            echo "::warning::ci-plan-only: ${CLASSIFIER} is absent on origin/${GITHUB_BASE_REF}; running the full suite."
+            echo "plan_only=false" >> "$GITHUB_OUTPUT"
+          fi
 
   verify:
     # The CI enactment of `pnpm verify` (issue #19 / PR #83): same superset,
@@ -126,7 +177,8 @@ jobs:
       # jscpd only scans `packages apps`. Three gates DO read it, and `check:plan` is
       # exactly those three:
       #
-      #   check:no-control-chars   - `git ls-files` over *.md/*.mjs/*.json with NO
+      #   check:no-control-chars   - `git ls-files` over SOURCE_GLOBS (*.ts, *.tsx,
+      #                              *.mjs, *.mts, *.js, *.jsx, *.json, *.md) with NO
       #                              plan/ exclusion, so a control char in prose is
       #                              in scope.
       #   check:security-hygiene   - its env-example scan is `git ls-files -- *.example
