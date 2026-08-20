@@ -908,6 +908,18 @@ export const messages = {
   "ops.responses.column.submittedAt": "Submitted",
   "ops.responses.column.access": "Access",
   "ops.responses.column.flag": "Flag",
+  // The answer preview (issue 515). Every part of the cell is a key, separator and
+  // ellipsis included (ADR-27): a locale that writes lists differently, or that does
+  // not use "…" as a continuation mark, has nothing to change in the component.
+  // `preview.clipped` marks a value cut to its character budget; `preview.more` marks
+  // answers the row did not have room for. They read alike on purpose and are separate
+  // keys because they say different things.
+  "ops.responses.column.preview": "Answer preview",
+  "ops.responses.preview.pair": "{question}: {value}",
+  "ops.responses.preview.separator": " · ",
+  "ops.responses.preview.clipped": "{value}…",
+  "ops.responses.preview.more": "…",
+  "ops.responses.preview.none": "No answers",
   "ops.responses.access.anonymous": "Anonymous",
   "ops.responses.access.secure_link": "Secure link",
   "ops.responses.flag.clean": "Not flagged",

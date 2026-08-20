@@ -6,6 +6,7 @@ import { useCallback, useState, useTransition } from "react";
 
 import { Button, DatePicker, Dialog, Select } from "@/components/kit";
 import { FlagTag } from "@/components/ops/ops-tags";
+import { answerPreviewText } from "@/lib/ops/answers";
 import type { AppliedFilters } from "@/lib/ops/browse";
 import { responsePageLink } from "@/lib/ops/browse";
 import type { ExportChoice, ExportFormat } from "@/lib/ops/export";
@@ -209,6 +210,9 @@ export function ResponseBrowser({
               <th scope="col">{t("ops.responses.column.submittedAt")}</th>
               <th scope="col">{t("ops.responses.column.access")}</th>
               <th scope="col">{t("ops.responses.column.flag")}</th>
+              <th scope="col" className="qcms-ops-cell--preview">
+                {t("ops.responses.column.preview")}
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -228,6 +232,25 @@ export function ResponseBrowser({
                 <td>{t(`ops.responses.access.${row.accessMode}`)}</td>
                 <td>
                   <FlagTag flagged={row.flaggedReason !== null} />
+                </td>
+                {/*
+                  The answer preview (issue 515; the wireframe's sixth column). Real
+                  respondent data by definition, so the cell shows exactly what
+                  `answerPreviewText` allows and nothing more: two answered questions,
+                  each value clipped to a character budget before it becomes text.
+
+                  There is deliberately NO `title` tooltip carrying the full answer.
+                  That would put the untruncated value straight back into the markup
+                  and make the budget decorative, and reading a response in full is the
+                  detail screen's job - reached through this row's own identifying
+                  cell, which is the authorised, audited act. Nothing on this path logs
+                  an answer value either (SEC-13): the only place one goes is the text
+                  node below.
+                */}
+                <td className="qcms-ops-cell--preview">
+                  <span className="qcms-answer-preview" data-testid="qcms-answer-preview">
+                    {answerPreviewText(row.answers)}
+                  </span>
                 </td>
               </tr>
             ))}

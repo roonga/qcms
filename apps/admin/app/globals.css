@@ -1304,6 +1304,54 @@ th,
   font-weight: 400;
 }
 
+/* The response browser's answer-preview column (issue 515; the sixth column
+   `docs/wireframes/admin-responses-ops.md` specifies for the browser table).
+
+   THE COLUMN THAT DROPS AT COMPACT WIDTH. `plan/admin-design-contracts.md` §2
+   requires every table to state which of its columns drop at `--bp-compact` and to
+   reset its `min-width` there, so the scroll container is a fallback rather than the
+   default experience. This is that statement for this table, and the preview is the
+   column that drops. It is the widest and the only one that merely DESCRIBES the row
+   rather than identifying it: Session, Version, Submitted, Access and Flag are how an
+   operator finds a response, and the preview only helps them recognise it once found.
+   Version explicitly never drops (`plan/admin-mobile-stance.md`, item 5), and neither
+   does anything else here. With the preview gone below the boundary the table is
+   exactly the five-column table that shipped before this change, so the sixth column
+   adds no horizontal scrolling at a phone width at all.
+
+   `40rem` is 640px, the `--bp-compact` value contract §1 fixes, written as a literal
+   because the token does not exist yet: issue #557 creates it and migrates this query
+   onto it, along with `.qcms-ops-summary`'s query above, which already uses the same
+   literal for the same boundary. No new breakpoint is introduced here.
+
+   Neither this column nor the table declares a minimum inline size. `max-inline-size`
+   below is a cap, not a floor, and it goes away with the column, so there is nothing
+   left holding the table wider than its container at compact width. The preview takes
+   no `tabular-nums`: contract §2 puts those on numeric and stamp columns, and a
+   preview of respondent answers is neither. */
+.qcms-ops-cell--preview {
+  display: none;
+}
+@media (min-width: 40rem) {
+  .qcms-ops-cell--preview {
+    display: table-cell;
+  }
+}
+
+/* Layout truncation, on top of the privacy truncation `lib/ops/answers.ts` already
+   applied to the string. The two are separate on purpose: the character budget there
+   decides how much respondent data may exist in the markup, and this decides how much
+   of what is left fits the column. The cell family is `white-space: nowrap`, so the
+   ellipsis needs a block-ish box with a cap to resolve against, which is what the
+   inline-block span is for. */
+.qcms-answer-preview {
+  display: inline-block;
+  max-inline-size: 22rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+}
+
 /* The operations badges (task 035), same family as the link and question tags: the
    word is always rendered and these tints are the secondary signal only, so the
    table still reads in high contrast and to a colour-blind operator. */
