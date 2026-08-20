@@ -5,8 +5,23 @@ import type { DraftForm, FormIssue } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
 
 /**
- * The live validation panel and the save indicator (task 033; wireframe "validation
- * panel" plus the header's save indicator).
+ * The live validation panel (task 033; wireframe "validation panel").
+ *
+ * ## This panel counts issues and says nothing about saving (issue 518)
+ *
+ * It used to do both: 033 put the save indicator's sentence in the same live region as the
+ * issue count, and design-language element 7 objects to exactly that placement. The save
+ * state now lives in the builder's ambient chrome (`components/save-model.tsx`), and this
+ * panel keeps the job `plan/admin-ux-audit.md` §5.6 gives it - being the **single
+ * authoritative issue count** on the screen. That authority is why the split has to be
+ * clean in both directions: nothing here mentions saving, and nothing in the strip counts
+ * anything. Two things that both read as "status" on one screen is how a reader ends up
+ * doing arithmetic they cannot check.
+ *
+ * The one place the save cycle is still visible here is `status === "validating"`, and it
+ * is about issues rather than storage: the validate round trip is a second call that
+ * decides what the count *is*, so "Checking the draft..." is this panel reporting that its
+ * own number is stale, not that a save is in flight.
  *
  * Every entry is a **link that moves focus**, which is the whole reason the API's issues
  * carry a structured domain path rather than a positional index: `{ rule: "rul_x" }` is an
@@ -16,10 +31,10 @@ import { t } from "@/lib/i18n/en";
  * a question that is by definition not pinned anywhere) renders as text rather than as a
  * link to nothing. Nothing is ever dropped.
  *
- * The count and the save state share one `aria-live="polite"` region, per the wireframe's
- * a11y note. The **summary only**, never the list: re-announcing twelve sentences every
- * time a debounce lands would make the panel unusable with a screen reader, while "3
- * issues would block a publish" is the change an author actually needs to hear.
+ * The count sits in an `aria-live="polite"` region, per the wireframe's a11y note. The
+ * **summary only**, never the list: re-announcing twelve sentences every time a debounce
+ * lands would make the panel unusable with a screen reader, while "3 issues would block a
+ * publish" is the change an author actually needs to hear.
  *
  * `href="#id"` **and** a click handler, not one or the other. The href makes it a real
  * link - announced as a link, middle-clickable, meaningful before hydration - and the
@@ -31,13 +46,10 @@ export function ValidationPanel({
   draft,
   issues,
   status,
-  lastSavedAt,
 }: {
   readonly draft: DraftForm;
   readonly issues: readonly FormIssue[];
   readonly status: BuilderStatus;
-  /** A locale-formatted clock time, or `undefined` before the first save of this visit. */
-  readonly lastSavedAt: string | undefined;
 }) {
   return (
     <section
@@ -48,16 +60,15 @@ export function ValidationPanel({
         {t("forms.validation.title")}
       </h2>
 
-      {/* Testid on the region as well as on its two sentences, so the `aria-live` can be
-          asserted directly (#368): the spans are attached and carry their text whether or
-          not the paragraph around them is still a live region. */}
+      {/* Testid on the region as well as on its sentence, so the `aria-live` can be
+          asserted directly (#368): the span is attached and carries its text whether or
+          not the paragraph around it is still a live region. */}
       <p
         aria-live="polite"
         className="flex flex-col gap-1 text-sm text-(--color-text-muted)"
         data-testid="qcms-validation-status"
       >
         <span data-testid="qcms-issue-summary">{issueSummary(issues.length, status)}</span>
-        <span data-testid="qcms-save-state">{saveSummary(status, lastSavedAt)}</span>
       </p>
 
       {issues.length > 0 && (
@@ -79,14 +90,6 @@ function issueSummary(count: number, status: BuilderStatus): string {
   if (count === 0) return t("forms.validation.none");
   if (count === 1) return t("forms.validation.countOne");
   return t("forms.validation.count", { count });
-}
-
-/** Where the autosave has got to, in one sentence. */
-function saveSummary(status: BuilderStatus, lastSavedAt: string | undefined): string {
-  if (status === "saving") return t("forms.save.saving");
-  if (status === "error") return t("forms.save.failed");
-  if (lastSavedAt !== undefined) return t("forms.save.saved", { time: lastSavedAt });
-  return t("forms.save.idle");
 }
 
 /**

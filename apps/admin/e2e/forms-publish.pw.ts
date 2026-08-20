@@ -15,7 +15,7 @@ import {
   pinQuestion,
   rule,
   ruleIds,
-  saveState,
+  savedStamp,
   toggleCheckbox,
   toggleTarget,
   waitForSaveAfter,
@@ -285,7 +285,7 @@ test("a refused publish lists every issue and each one moves focus (exit criteri
   // condition reads, which the forward pass cannot honour (ADR-16).
   const ruleId = (await ruleIds(page))[0] ?? "";
   expect(ruleId).toMatch(/^rul_/u);
-  const beforeBreak = (await saveState(page).textContent()) ?? "";
+  const beforeBreak = await savedStamp(page);
   await toggleTarget(page, ruleId, questionIdFor(AT_FAULT), true);
   // Publish reads the STORED draft, so the wait is about the save landing rather than
   // about the validation panel agreeing (`waitForSaveAfter` records why).
@@ -343,7 +343,7 @@ test("a refused publish lists every issue and each one moves focus (exit criteri
   // Leave the draft publishable again for whatever runs next.
   await page.goto(`/forms/${formId}`);
   const restored = (await ruleIds(page))[0] ?? "";
-  const beforeFix = (await saveState(page).textContent()) ?? "";
+  const beforeFix = await savedStamp(page);
   await toggleTarget(page, restored, questionIdFor(AT_FAULT), false);
   await waitForSaveAfter(page, beforeFix);
 });

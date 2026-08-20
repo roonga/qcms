@@ -11,7 +11,7 @@ import {
   createForm,
   pinQuestion,
   rule,
-  saveState,
+  savedStamp,
   toggleTarget,
   waitForSaveAfter,
   waitForSaved,
@@ -108,7 +108,7 @@ for (const mode of CAPTURE_MODES) {
     // --- a refused publish, first: it needs the draft to be broken ----------
     // Publish reads the STORED draft, so the wait has to be about the save rather than
     // about the panel: see `waitForSaveAfter`.
-    const beforeBreak = (await saveState(page).textContent()) ?? "";
+    const beforeBreak = await savedStamp(page);
     await toggleTarget(page, ruleId, questionIdFor(ACCIDENT), true);
     await waitForSaveAfter(page, beforeBreak);
     await page.reload();
@@ -121,7 +121,7 @@ for (const mode of CAPTURE_MODES) {
     await capture(page, `publish-rejected-${mode}`);
 
     // --- and then the confirmation over a draft that will publish ----------
-    const beforeFix = (await saveState(page).textContent()) ?? "";
+    const beforeFix = await savedStamp(page);
     await toggleTarget(page, ruleId, questionIdFor(ACCIDENT), false);
     await waitForSaveAfter(page, beforeFix);
     await page.reload();

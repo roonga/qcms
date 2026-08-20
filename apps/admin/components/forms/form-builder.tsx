@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { Alert, Button, TextField } from "@/components/kit";
+import { AmbientSaveStatus } from "@/components/save-model";
 import type {
   PreviewConditionState,
   SaveDraftState,
@@ -112,6 +113,10 @@ export function FormBuilder({
   );
   const [issues, setIssues] = useState<readonly FormIssue[]>([]);
   const [status, setStatus] = useState<BuilderStatus>("idle");
+  // An ISO instant, not a formatted clock time. The strip renders it through the app's one
+  // timestamp formatter (`plan/admin-design-contracts.md` §2: date, HH:MM, zone, no
+  // seconds) and exposes the raw instant as `data-saved-at`, so the sentence a person hears
+  // can be low-churn while a test can still tell two saves apart. Issue 518.
   const [lastSavedAt, setLastSavedAt] = useState<string | undefined>(undefined);
   const [saveError, setSaveError] = useState<string | undefined>(undefined);
   const [selectedStepId, setSelectedStepId] = useState<string | undefined>(
@@ -150,7 +155,7 @@ export function FormBuilder({
           return;
         }
         setSaveError(undefined);
-        setLastSavedAt(new Date().toLocaleTimeString());
+        setLastSavedAt(new Date().toISOString());
         setStatus("validating");
         // The second round trip is the one the wireframe calls live validation. It does not
         // store, and it is where `RULE_BACKWARD_TARGET` and `RULE_CYCLE` come from: the
@@ -170,6 +175,19 @@ export function FormBuilder({
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Ambient save chrome: persistent, first thing on the screen, and the only place
+          this screen states how it saves (design-language element 7; issue 518). It is
+          rendered here rather than in the app shell because exactly one screen in this app
+          autosaves, and a strip in the shell would have to be suppressed on the other
+          fifteen - `plan/admin-design-contracts.md` §6's "exactly one save statement per
+          screen" is easier to hold when the statement belongs to the screen that means it.
+          `hasFailed` reads `saveError` rather than `status`, because a failed VALIDATE
+          round trip also sets `status` to "error" and that is not a save failure. */}
+      <AmbientSaveStatus
+        isSaving={status === "saving"}
+        hasFailed={saveError !== undefined}
+        savedAt={lastSavedAt}
+      />
       <BuilderNotices detail={detail} paused={paused} saveError={saveError} />
 
       {/* 033 stood a disabled Publish button here with a note saying publishing was
@@ -234,7 +252,7 @@ export function FormBuilder({
 
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_20rem]">
         <RulesSection draft={draft} library={library} issues={issues} onChange={mutate} />
-        <ValidationPanel draft={draft} issues={issues} status={status} lastSavedAt={lastSavedAt} />
+        <ValidationPanel draft={draft} issues={issues} status={status} />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
