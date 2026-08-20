@@ -173,8 +173,8 @@ test.describe("the sheet declares two width boundaries and no others", () => {
     expect(tokens.compact, "--bp-compact resolves through its alias").toBe("40rem");
     expect(tokens.sidebar, "--bp-sidebar resolves through its alias").toBe("64rem");
 
-    // And nothing in the sheet turns anywhere else. 768 here would be a surviving `md:`
-    // utility; 480 would be someone's ad hoc phone boundary.
+    // And nothing in the sheet turns anywhere else. A 768 in this list would be a
+    // surviving `md:` utility; any other number would be someone's ad hoc boundary.
     const declared = (await mediaConditions(page)).flatMap((entry) =>
       widthsOf(entry.condition, rootPx),
     );
