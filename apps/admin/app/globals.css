@@ -62,6 +62,64 @@
 }
 
 /*
+ * THE TWO BREAKPOINTS - `plan/admin-design-contracts.md` §1 (CONFIRMED
+ * 2026-08-20), issue 557. The app has exactly two, and no others:
+ *
+ *   --bp-compact  40rem / 640px. Below it, tables drop their droppable columns
+ *                 (the Version column never drops, `plan/admin-mobile-stance.md`
+ *                 item 5), side-by-side panes stack rather than shrink, and
+ *                 dense chrome tightens.
+ *   --bp-sidebar  64rem / 1024px. At and above it the navigation rail is a 240px
+ *                 grid column; below it the rail collapses to a disclosure.
+ *                 Nothing reads it yet - issue 559 builds the rail. The token is
+ *                 defined here because §1 fixes the boundary, not because a rule
+ *                 already uses it.
+ *
+ * THE CONVENTION, and why it is shaped like this. A media query cannot read a
+ * custom property: `@media (min-width: var(--bp-compact))` is invalid and the
+ * browser drops the whole block. So a boundary written as a literal inside each
+ * query is a number that has to be retyped, and a retyped number drifts the first
+ * time someone writes 39rem. The answer is to make it unwritable anywhere but
+ * here:
+ *
+ *   - The single named constants are the two `@theme` entries below. `40rem` and
+ *     `64rem` appear on those two lines and nowhere else in `apps/admin`.
+ *   - CSS in this sheet reaches a boundary with `@variant compact { ... }` or
+ *     `@variant sidebar { ... }`. Tailwind replaces that at-rule in place with
+ *     the media query built from the constant, so the rules stay exactly where
+ *     they are written, stay unlayered, and no literal is retyped.
+ *   - Markup reaches a boundary with the `compact:` / `sidebar:` variant prefixes
+ *     on utilities, built from the same two constants.
+ *
+ * `--breakpoint-*: initial` clears Tailwind's own five-step scale
+ * (sm/md/lg/xl/2xl) so `md:` and its siblings no longer compile at all. That is
+ * what makes "two, and no others" enforced rather than merely intended: a third
+ * boundary cannot be smuggled in as a utility prefix, it has to be argued for
+ * here. It is the same move the `--radius-*` block below makes for corners.
+ *
+ * `--bp-compact` / `--bp-sidebar` are the contract's own names for the two
+ * values, aliased onto the constants so the boundary is legible at runtime via
+ * `getComputedStyle(document.documentElement)`. That is how `e2e/breakpoints.pw.ts`
+ * checks that every width media query in the built sheet is one of these two,
+ * instead of hard-coding 640 in a test and re-creating the drift problem there.
+ * They are aliases; they are never a second definition.
+ *
+ * Both values are `rem` rather than `px`, which is what the queries here have
+ * always been (`40rem` predates the token): the boundaries then move with a
+ * reader's browser font size instead of stranding a zoomed-in operator in a
+ * layout built for a width their text no longer fits.
+ */
+@theme static {
+  --breakpoint-*: initial;
+  --breakpoint-compact: 40rem;
+  --breakpoint-sidebar: 64rem;
+}
+:root {
+  --bp-compact: var(--breakpoint-compact);
+  --bp-sidebar: var(--breakpoint-sidebar);
+}
+
+/*
  * Lexend, the QCMS app face (ADMIN_THEME.md rev 5, Code Owner pick).
  *
  * The file is the registry's ALREADY-VENDORED asset, referenced across the
@@ -701,11 +759,12 @@ button {
 }
 
 /* COMPACT WIDTH (§2: every table states which columns drop at `--bp-compact`).
-   `40rem` is 640px, the value §1 fixes. It is a literal because media queries
-   cannot read custom properties and the token does not exist yet: issue #557
-   creates it and migrates this query, along with `.qcms-ops-summary`'s below,
-   which already uses the same literal for the same boundary. No new breakpoint
-   is introduced here and the number appears nowhere else in this sheet.
+
+   `@variant compact` is the sheet's only way to write this boundary: it expands
+   in place to the media query built from `--breakpoint-compact` in the header
+   block, so the 40rem is stated once for the whole app rather than retyped here.
+   Issue 514 shipped this rule with the literal because the token did not exist
+   yet; issue 557 created it and this is the migrated query.
 
    The test each table applies, which issue 515 established for the
    answer-preview column: a column that IDENTIFIES a row stays, a column that
@@ -719,7 +778,7 @@ button {
 .qcms-cell--drop {
   display: none;
 }
-@media (min-width: 40rem) {
+@variant compact {
   .qcms-cell--drop {
     display: table-cell;
   }
@@ -1507,7 +1566,12 @@ button {
 /* A label/value grid for the response summary, the tombstone and the delivery's
    request headers. Two columns on a wide screen, stacked on a phone: the values
    here include content hashes and URLs, which have no break opportunities of their
-   own, so a fixed two-column grid at 390px is a Reflow failure waiting to happen. */
+   own, so a fixed two-column grid at 390px is a Reflow failure waiting to happen.
+
+   "Panes stack rather than shrink" is `--bp-compact` (§1), and `@variant compact`
+   below is how this sheet writes that boundary. This query predates the token and
+   used a bare `40rem` for the same boundary; issue 557 moved it onto the constant
+   without changing the width it fires at. */
 .qcms-ops-summary {
   display: grid;
   grid-template-columns: 1fr;
@@ -1524,7 +1588,7 @@ button {
   overflow-wrap: anywhere;
   min-inline-size: 0;
 }
-@media (min-width: 40rem) {
+@variant compact {
   .qcms-ops-summary {
     grid-template-columns: minmax(8rem, 14rem) minmax(0, 1fr);
   }

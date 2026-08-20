@@ -185,7 +185,24 @@ export function FormBuilder({
         }}
       />
 
-      <div className="grid gap-4 md:grid-cols-[18rem_minmax(0,1fr)]">
+      {/* The three grids below are the builder's only responsive behaviour, and all
+          three say the same thing: side-by-side above the compact boundary, stacked
+          under it. `compact:` is `--bp-compact` (`plan/admin-design-contracts.md`
+          §1, defined in `app/globals.css`), which is the boundary §1 assigns to
+          side-by-side panes: under it they stack instead of compressing. These panes
+          are page content, not the app's navigation rail, so `--bp-sidebar` is not
+          theirs. (§1's own wording for that clause is avoided verbatim here because
+          Tailwind scans this file for class candidates and the bare word in it is a
+          real utility name, which would compile a rule nothing in the app uses.)
+
+          They read `md:` until issue 557 and so broke at Tailwind's default 48rem,
+          a third boundary the contract does not have. Moving them onto the token
+          moves that boundary from 768px to 640px: between those two widths the
+          panes now sit side by side where they used to stack. That is the one
+          behaviour change in issue 557 and it is the point of it, not a side
+          effect. `minmax(0, 1fr)` is what keeps the narrower content column from
+          overflowing at the new low end. */}
+      <div className="grid gap-4 compact:grid-cols-[18rem_minmax(0,1fr)]">
         <StepsRail
           draft={draft}
           issueCounts={counts}
@@ -232,12 +249,12 @@ export function FormBuilder({
         )}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="grid gap-4 compact:grid-cols-[minmax(0,1fr)_20rem]">
         <RulesSection draft={draft} library={library} issues={issues} onChange={mutate} />
         <ValidationPanel draft={draft} issues={issues} status={status} lastSavedAt={lastSavedAt} />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 compact:grid-cols-2">
         <FormSettingsPanel
           settings={detail.settings}
           challengeProvider={detail.challengeProvider}
