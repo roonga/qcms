@@ -265,11 +265,13 @@ It also carries the app's only `text-2xl font-bold` h1 (`:28`), against `text-xl
 
 When `forms.ok` is false the ternary takes the **else** branch, so an empty `<ul>` is rendered beneath the error alert. A list element with no items is announced as an empty list by a screen reader and is meaningless to everyone else. The failure branch should render nothing, or the "no forms" sentence.
 
-### D5. An unrecorded wireframe deviation on the response browser
+### D5. An unrecorded wireframe deviation on the response browser - closed by building the column
 
-`docs/wireframes/admin-responses-ops.md` (normative Regions) specifies the browser table as "sessionId, formVersion, submittedAt, accessMode, flagged `tag`, **answer preview**". The shipped table has five columns and no answer preview (`components/ops/response-browser.tsx:205-213`).
+`docs/wireframes/admin-responses-ops.md` (normative Regions) specifies the browser table as "sessionId, formVersion, submittedAt, accessMode, flagged `tag`, **answer preview**". The shipped table had five columns and no answer preview.
 
-The omission may well be right (an answer preview on a list screen is respondent data on a screen that does not need it). The defect is that it is **not recorded**. The house convention for exactly this is on the same shelf: the questions library's dropped "Updated" column carries an explicit "Accepted deviation" block in `docs/wireframes/admin-question-library.md` with the reasoning and an issue number. This one carries nothing, so the wireframe currently states a requirement the app does not meet, which the staleness rule treats as a live defect.
+This entry originally offered two ways out and leaned toward the wrong one: it suggested the omission "may well be right" on privacy grounds and asked only that the deviation be **recorded**, in the form the question-library wireframe uses for its dropped "Updated" column. That question has since been asked and answered the other way, in issue 515: the column is built, not deviated from. The wireframe was right, and a preview is only a privacy problem if it is unbounded, which is a property of the implementation rather than of the column.
+
+**Resolved by issue 515.** The column ships bounded by construction: two answered questions per row, each value clipped to a character budget on the string that becomes the text node, no tooltip holding the untruncated value, and nothing on the path logging one (SEC-13). It carries a question id rather than a resolved label, because the list payload has no labels and one page mixes form versions. It is also the column that drops at compact width, which is this table's answer to `plan/admin-design-contracts.md` §2's compact-width clause.
 
 ### D6. Minor: `aria-controls` points at an element that does not exist while collapsed
 
@@ -294,7 +296,7 @@ Ordered by value against effort. What I would do first, and what I would not do 
    >
    > **This document is maintained, not frozen** (ruled 2026-08-20). It is a working audit that the tier is executing against, so a claim it makes that stops being true gets corrected here rather than preserved with a dated note appended. That is the opposite of the convention for `docs/security-review-2026-08-14.md`, whose table column is literally headed "State at close of review" and which stays frozen. The difference is what the document is for: a review snapshot records what was true on a date; an audit drives work and has to stay accurate to be usable.
 3. **Pick one empty state and one table treatment.** The frozen `plan/admin-theme/ds-table.html` card already exists and is followed by nothing; either the card changes or the nine tables do, but three answers to one question is not a position. This is the single change that most affects how the app reads, and it touches no behaviour.
-4. **Record D5** as an accepted deviation in `docs/wireframes/admin-responses-ops.md`, in the form the question-library wireframe already uses.
+4. ~~**Record D5** as an accepted deviation in `docs/wireframes/admin-responses-ops.md`.~~ **Superseded, 2026-08-20:** issue 515 built the column instead, so there is no deviation left to record and the wireframe and the app now agree. See D5 above.
 
 **Then, the elements that are already house patterns.**
 

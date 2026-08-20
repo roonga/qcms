@@ -1,12 +1,19 @@
 import { describe, expect, it } from "vitest";
 
-import { answerText } from "./answers.ts";
+import {
+  answerPreview,
+  answerPreviewText,
+  answerText,
+  PREVIEW_ENTRIES,
+  PREVIEW_VALUE_CHARS,
+} from "./answers.ts";
 import type { AppliedFilters } from "./browse.ts";
 import { responsePageLink } from "./browse.ts";
 import { isErasureConfirmed, isErasureReason } from "./erasure.ts";
 import type { ExportChoice } from "./export.ts";
 import { exportFilename, exportQuery, isExportable, versionRequired } from "./export.ts";
 import { labelFor, labelsForPins, orderedAnswerKeys, pinsOf } from "./labels.ts";
+import { t } from "../i18n/en.ts";
 import type { QuestionDetail } from "../questions/types.ts";
 
 /**
@@ -101,6 +108,113 @@ describe("answer rendering", () => {
     expect(answerText(undefined)).toBeNull();
     expect(answerText(null)).toBeNull();
     expect(answerText([])).toBeNull();
+  });
+});
+
+describe("answer preview for the browser table (issue 515)", () => {
+  it("previews the first two answered questions, in a deterministic order", () => {
+    // Keys deliberately out of order in the literal: the map arrives as parsed JSON and
+    // nothing guarantees the order it was written in, so the column has to sort. Two
+    // rows with the same answers must preview identically, and one row must preview the
+    // same way on every render.
+    const preview = answerPreview({ q_c: "third", q_a: "first", q_b: "second" });
+    expect(preview.entries.map((entry) => entry.questionId)).toEqual(["q_a", "q_b"]);
+    expect(preview.entries.map((entry) => entry.value)).toEqual(["first", "second"]);
+    expect(preview.hidden).toBe(1);
+  });
+
+  it("bounds how much respondent-entered text a list row can show", () => {
+    // The privacy budget, asserted as a number rather than trusted as a comment. A free
+    // text answer must be cut mid-clause: the list is a scan aid, and reading a response
+    // is the detail screen's audited job.
+    const essay = "x".repeat(500);
+    const preview = answerPreview({ q_story: essay, q_other: essay });
+    expect(preview.entries).toHaveLength(PREVIEW_ENTRIES);
+    for (const entry of preview.entries) {
+      expect(entry.value).toHaveLength(PREVIEW_VALUE_CHARS);
+      expect(entry.clipped).toBe(true);
+    }
+    // Whatever the answers hold, one row exposes at most this much of them.
+    const shown = preview.entries.reduce((total, entry) => total + entry.value.length, 0);
+    expect(shown).toBeLessThanOrEqual(PREVIEW_ENTRIES * PREVIEW_VALUE_CHARS);
+  });
+
+  it("does not mark a value that fitted as clipped", () => {
+    const preview = answerPreview({ q_a: "x".repeat(PREVIEW_VALUE_CHARS) });
+    expect(preview.entries[0]?.clipped).toBe(false);
+    expect(preview.hidden).toBe(0);
+  });
+
+  it("renders every non-string encoding rather than leaking an object", () => {
+    // `[object Object]` in an operator's table is a defect, and so is a blank cell where
+    // a number or a boolean was answered. The preview reuses `answerText`, so the four
+    // canonical encodings and the unexpected shape all come out readable.
+    const preview = answerPreview({ q_1: 12, q_2: false });
+    expect(preview.entries.map((entry) => entry.value)).toEqual(["12", "false"]);
+    expect(answerPreview({ q_1: ["opt_a", "opt_b"] }).entries[0]?.value).toBe("opt_a; opt_b");
+    const odd = answerPreview({ q_1: { nested: true } }).entries[0]?.value;
+    expect(odd).toBe('{"nested":true}');
+    expect(odd).not.toContain("[object");
+  });
+
+  it("skips a question that carries no value, and does not count it as more", () => {
+    // A retracted or absent answer is not something to preview: spending a slot on a
+    // blank costs the next real answer its place, and counting it would tell the
+    // operator there is more to see when there is not.
+    const preview = answerPreview({ q_a: null, q_b: [], q_c: "kept" });
+    expect(preview.entries.map((entry) => entry.questionId)).toEqual(["q_c"]);
+    expect(preview.hidden).toBe(0);
+  });
+
+  it("says nothing rather than something wrong when a response has no answers", () => {
+    // Every question optional, or every one hidden by a condition: a submitted response
+    // can legitimately hold nothing. The caller words this case; what matters here is
+    // that it is distinguishable from "two answers" and cannot throw.
+    expect(answerPreview({})).toEqual({ entries: [], hidden: 0 });
+  });
+});
+
+/**
+ * The preview's punctuation, read from the catalog rather than retyped.
+ *
+ * The assertions below are then about the SHAPE the cell composes - pairs, separators,
+ * a clip marker, a more marker - and not about which characters `en.ts` currently
+ * spells them with, so a wording change is not a test change.
+ */
+const SEPARATOR = t("ops.responses.preview.separator");
+const MORE = t("ops.responses.preview.more");
+const CLIP = t("ops.responses.preview.clipped", { value: "" });
+
+describe("the answer-preview cell's text (issue 515)", () => {
+  it("reads as captioned pairs, and marks that there are more", () => {
+    const text = answerPreviewText({ q_a: "Yes", q_b: 12, q_c: "third" });
+    expect(text).toBe(`q_a: Yes${SEPARATOR}q_b: 12${SEPARATOR}${MORE}`);
+  });
+
+  it("carries no separator and no more-marker when one answer is all there is", () => {
+    // The `auto` fixture's own shape: answering "no" to the at-fault question hides the
+    // count, so a real submitted row holds exactly one answer.
+    expect(answerPreviewText({ q_at_fault_accident: false })).toBe("q_at_fault_accident: false");
+  });
+
+  it("never puts a whole free-text answer into the markup", () => {
+    // The privacy claim the column rests on, asserted rather than asserted-in-prose.
+    // The clip happens on the string that BECOMES the text node, so there is no second
+    // copy anywhere for a tooltip or a data attribute to hold - which is exactly why
+    // this cell has no `title`.
+    const secret = "I was driving my mother's car without telling the insurer about it";
+    const text = answerPreviewText({ q_story: secret });
+    expect(text).not.toContain(secret);
+    expect(text).toContain(secret.slice(0, PREVIEW_VALUE_CHARS));
+    expect(text.endsWith(CLIP)).toBe(true);
+  });
+
+  it("names the empty state instead of rendering an empty cell", () => {
+    // The state this layer exists to reach. A blank cell reads as a rendering failure
+    // to a sighted operator and announces as nothing at all to a screen reader.
+    const text = answerPreviewText({});
+    expect(text).toBe(t("ops.responses.preview.none"));
+    expect(text.trim()).not.toBe("");
   });
 });
 
