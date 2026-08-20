@@ -378,10 +378,48 @@ preemption.
 > cost less than a round trip through two seats.
 
 **Every one of #514, #515, #517, #518, #519 and #522 changes visible admin UI**,
-so each stops at the static-render screenshot gate: PNGs at 390px and 1280px
-minimum committed under `docs/gates/pr-<NN>/` with a one-line README, embedded in
-the PR body by raw branch URL. The Code Owner reviews from GitHub. A gate parks
-that issue, not the run.
+so each captures the static-render evidence: PNGs at 390px and 1280px minimum
+committed under `docs/gates/pr-<NN>/` with a one-line README, embedded in the PR
+body by raw branch URL.
+
+### The gate is delegated for contract-governed work (Code Owner ruling, 2026-08-20)
+
+**What changed:** these PRs no longer park awaiting the Code Owner. The reviewing
+seat clears them.
+
+**What did not change: the evidence is still captured and still committed.** It is
+cheap, it is the audit trail of what was approved, and the Code Owner can review
+any of it after the fact from the repo. Delegating who clears a gate is not the
+same as deciding the gate does not need evidence, and a PR that changes visible
+admin UI without committed frames is still incomplete.
+
+**The reference is the contracts, not the POCs.** This matters more than it looks.
+The ruling's stated reason was "we have POC", but the eleven POCs answer the same
+eight questions two to seven different ways - that inconsistency is the entire
+reason `plan/admin-design-contracts.md` exists. Clearing a gate against "whichever
+POC seems relevant" would reintroduce exactly what the contracts fence out. So the
+operative test is: **does the render match the confirmed contract, or the frozen
+card the contract cites?** A POC is evidence of intent where a contract is silent,
+never an authority against one.
+
+**Escalate to the Code Owner anyway, in four cases:**
+
+1. The render **contradicts** a confirmed contract or a frozen card. That is a
+   finding, not a gate call, and it goes back to the branch.
+2. **No contract or frozen card governs** the thing being changed. An ungoverned
+   visual decision is a new design decision, and those are not delegated.
+3. The change introduces a **new pattern** rather than applying an existing one -
+   the second rail (§7a) is the live example of how easily one of those arrives
+   wearing a familiar name.
+4. It touches the **portal**. This delegation covers the admin redesign tier only.
+   The portal is a respondent surface with its own managed themes and its own
+   signed wireframes; nothing here reaches it.
+
+**Consequence accepted knowingly.** The Code Owner is trading per-PR sight of
+admin visuals for throughput, on the strength of the contracts being confirmed. If
+the contracts turn out to be wrong about something, that error now ships further
+before anyone sees it. The mitigation is that the frames are still in the repo and
+the contracts are a small, readable document rather than eleven large ones.
 
 **What is NOT dispatched:** Wave 3 (the rail and the per-screen width caps). It
 stays gated on `plan/admin-design-contracts.md` being confirmed, because the

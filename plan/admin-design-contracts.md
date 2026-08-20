@@ -1,11 +1,14 @@
 # Admin design contracts (Wave 3 gate)
 
-**Status (updated 2026-08-20): the two open decisions are ruled; the remaining six
-contracts still need a confirming read.** The Code Owner closed C1 (§7a, Settings
-keeps a rail as a written exception) and §8 (portal and admin are different apps)
-on 2026-08-20. Contracts 1-6 were drafted as recommendations with their sources
-named and have not been separately confirmed - Wave 3 is gated on the document,
-not on the two decisions alone, so it stays gated until that read happens.
+**Status: CONFIRMED by the Code Owner, 2026-08-20.** All eight contracts are now
+normative. C1 is closed at §7a (Settings keeps a rail as a written exception) and
+§8 is closed in the Code Owner's framing (portal and admin are different apps);
+contracts 1-6 were confirmed in the same ruling ("all agree").
+
+**Wave 3 is unblocked.** Anything a POC draws that contradicts a contract here is
+wrong by definition, and that is now a statement about shipped work rather than
+about proposals: `plan/admin-shell-poc/*.html` remains eleven inconsistent
+proposals, and this document is the tiebreak whenever they disagree.
 
 Original header follows.
 
