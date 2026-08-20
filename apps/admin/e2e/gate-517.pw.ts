@@ -15,6 +15,7 @@ import {
   pinQuestion,
   waitForSaved,
 } from "./support/forms.js";
+import { addOption, confirmLifecycle, createDraft, useRowMenu } from "./support/questions.js";
 
 /**
  * Screenshot evidence for issue 517's design gate: the pin list as the ownership grid.
@@ -71,11 +72,28 @@ test.skip(!CAPTURE_ENABLED, "gate capture runs only with QCMS_ADMIN_CAPTURE_GATE
 
 const EMAIL = uniqueAdminEmail("gate517");
 const capture = captureInto("docs/gates/pr-517");
-const TAIL = Date.now().toString(36).slice(-5);
+const RUN = Date.now().toString(36).slice(-5);
 
-const ACCIDENT = "q_at_fault_accident";
-const COUNT = "q_accident_count";
-const DOB = "q_dob";
+/**
+ * The captured library, authored rather than seeded.
+ *
+ * The harness seed leaves its question versions as DRAFTS, and a form can only pin
+ * published ones (022, R7), so the frames are built out of questions this file publishes.
+ * The slugs are kept to the length an author actually types, for the reason
+ * `gate-screenshots-033.pw.ts` records: a 27-character id pushed six frames past the 390px
+ * viewport while their filenames still said 390.
+ */
+const COVER = `cover-level-${RUN}`;
+const COUNT_SLUG = `accident-count-${RUN}`;
+const NOTES = `claim-notes-${RUN}`;
+
+function questionIdFor(slug: string): string {
+  return `q_${slug.replaceAll("-", "_")}`;
+}
+
+const COVER_ID = questionIdFor(COVER);
+const COUNT_ID = questionIdFor(COUNT_SLUG);
+const NOTES_ID = questionIdFor(NOTES);
 
 /** Set by the first test, which enrolls the account the rest sign in with. */
 let totpSecret = "";
@@ -97,11 +115,29 @@ test("enrolls the account and builds the step the capture photographs", async ({
   test.setTimeout(300_000);
   totpSecret = await enrollNewAdmin(page, EMAIL);
 
-  await createForm(page, `pin-grid-${TAIL}`, "Vehicle insurance");
+  // v1 and v2 both published, so the version menu has a real second version to show.
+  await createDraft(page, COVER, "Single choice");
+  await confirmLifecycle(page, /^Publish version 1$/, "Publish");
+  await confirmLifecycle(page, /^New version$/, "Create draft");
+  await page.waitForURL(/\?v=2$/);
+  await addOption(page, "Full cover");
+  await addOption(page, "Basic cover");
+  await useRowMenu(page, 0, /^Remove option /);
+  await useRowMenu(page, 0, /^Remove option /);
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.getByText("Draft saved.")).toBeVisible();
+  await confirmLifecycle(page, /^Publish version 2$/, "Publish");
+
+  await createDraft(page, COUNT_SLUG, "Number");
+  await confirmLifecycle(page, /^Publish version 1$/, "Publish");
+  await createDraft(page, NOTES, "Long text");
+  await confirmLifecycle(page, /^Publish version 1$/, "Publish");
+
+  await createForm(page, `pin-grid-${RUN}`, "Vehicle insurance");
   await addStep(page, "Driving history");
-  await pinQuestion(page, ACCIDENT, 1);
-  await pinQuestion(page, COUNT, 1);
-  await pinQuestion(page, DOB, 1);
+  await pinQuestion(page, COVER_ID, 1);
+  await pinQuestion(page, COUNT_ID, 1);
+  await pinQuestion(page, NOTES_ID, 1);
   await waitForSaved(page);
   builderUrl = new URL(page.url()).pathname;
   expect(builderUrl, "the builder owns the URL").toMatch(/^\/forms\/frm_/u);
@@ -115,7 +151,7 @@ for (const mode of ["light", "dark", "hc"] as const) {
     await useMode(page, mode);
     await page.goto(builderUrl);
     await openStep(page, "Driving history");
-    await expect(pinLabel(page, ACCIDENT, 1)).toBeVisible();
+    await expect(pinLabel(page, COVER_ID, 1)).toBeVisible();
 
     // 1. The grid at rest. Contract §2's family (44px rows, 0.72rem header over the
     //    strong-border underline, no zebra) carrying design-language element 4: the two
@@ -130,8 +166,8 @@ for (const mode of ["light", "dark", "hc"] as const) {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(builderUrl);
     await openStep(page, "Driving history");
-    await pinGrip(page, COUNT).click();
-    await expect(page.getByRole("menu", { name: `Row actions for ${COUNT}` })).toBeVisible();
+    await pinGrip(page, COUNT_ID).click();
+    await expect(page.getByRole("menu", { name: `Row actions for ${COUNT_ID}` })).toBeVisible();
     await capture(page, "pin-grid-row-menu");
 
     // 3. The one version change the builder has (R7), open at the width the mobile
@@ -139,7 +175,7 @@ for (const mode of ["light", "dark", "hc"] as const) {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(builderUrl);
     await openStep(page, "Driving history");
-    await page.getByRole("button", { name: `Move pin for ${ACCIDENT}` }).click();
+    await page.getByRole("button", { name: `Move pin for ${COVER_ID}` }).click();
     await expect(page.getByRole("menuitem", { name: "Move to v2", exact: true })).toBeVisible();
     await capture(page, "pin-grid-version-menu");
 

@@ -415,9 +415,16 @@ function PinRow({
             className="qcms-pinversion"
           >
             {t("forms.step.pinVersion", { version: row.version })}
-            <span className="qcms-pinversion__caret" aria-hidden="true">
-              &#9662;
-            </span>
+            <svg
+              className="qcms-pinversion__caret"
+              viewBox="0 0 10 6"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              aria-hidden="true"
+            >
+              <path d="M1 1l4 4 4-4" />
+            </svg>
           </MenuTriggerButton>
           <MenuPopover className="qcms-menu">
             <MenuList

@@ -1364,7 +1364,9 @@ button {
   background-color: var(--color-surface-hover);
 }
 .qcms-pinversion__caret {
-  font-size: 0.65rem;
+  inline-size: 8px;
+  block-size: 5px;
+  flex-shrink: 0;
   color: var(--color-text-muted);
 }
 .qcms-pincell--version .qcms-tag {
