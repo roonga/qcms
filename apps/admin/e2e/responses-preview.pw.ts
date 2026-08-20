@@ -94,6 +94,15 @@ test.describe("the responses table previews its answers", () => {
     // and nothing withheld.
     const singleRow = table.locator(`[data-session-id="${single}"]`);
     await expect(singleRow.getByTestId("qcms-answer-preview")).toHaveText(`${ACCIDENT}: false`);
+
+    // The sixth column must not push the table past its own scroll box at a desk width.
+    // It is `overflow-x: auto`, so a preview allowed to grow past the room the five
+    // identifying columns leave is CHOPPED at the container edge mid-word, with nothing
+    // saying anything was cut - which is what the first capture of this column showed.
+    // The cap in the stylesheet is what stops that, and this is what holds it there:
+    // contract 2 wants the scroll container to be a fallback, not the default.
+    const overflow = await table.evaluate((box) => box.scrollWidth - box.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(0);
   });
 
   test("never leaves a preview cell blank on a row that has one", async ({ page }) => {

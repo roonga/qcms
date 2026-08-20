@@ -1331,6 +1331,13 @@ th,
    preview of respondent answers is neither. */
 .qcms-ops-cell--preview {
   display: none;
+  /* Contract §2 puts `tabular-nums` on numeric and stamp columns. A preview of
+     respondent answers is neither, and figure-width digits inside a sentence read as a
+     receipt rather than as prose. The app-wide `td, th` rule near the top of this sheet
+     is older than the contract and applies to all nine tables; narrowing it is the
+     table-harmonisation change's call, not this column's, so this opts out here rather
+     than editing a rule every other table depends on. */
+  font-variant-numeric: normal;
 }
 @media (min-width: 40rem) {
   .qcms-ops-cell--preview {
@@ -1343,10 +1350,22 @@ th,
    decides how much respondent data may exist in the markup, and this decides how much
    of what is left fits the column. The cell family is `white-space: nowrap`, so the
    ellipsis needs a block-ish box with a cap to resolve against, which is what the
-   inline-block span is for. */
+   inline-block span is for.
+
+   11rem is the room the five identifying columns leave at 1280px, which is the width
+   the screenshot gate reviews. It is a measurement, not a taste: a 36-character
+   `ses_…` id, a full timestamp, an access word and a flag tag come to about 790px of
+   the 976px content column, and a preview allowed to grow past the remainder does not
+   wrap or ellipsis - the table is `overflow-x: auto`, so it gets CHOPPED at the
+   container edge mid-word with no indication that anything was cut. The first capture
+   of this column shipped exactly that. Cutting at the cap instead means the ellipsis
+   is the thing that says "there is more", which is what the ellipsis is for, and it
+   keeps the scroll container a fallback rather than the default experience
+   (`plan/admin-design-contracts.md` §2). Widening it means narrowing one of the other
+   five first, which is the table-harmonisation change's call and not this column's. */
 .qcms-answer-preview {
   display: inline-block;
-  max-inline-size: 22rem;
+  max-inline-size: 11rem;
   overflow: hidden;
   text-overflow: ellipsis;
   vertical-align: bottom;
