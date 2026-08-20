@@ -137,6 +137,25 @@ const TALL_RESPONSE_BODY = `{\n${Array.from(
 /** WCAG 2.2 AA, the same rule set the portal gate uses. */
 const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
+/**
+ * Rules run **in addition** to the tag set above (issue #511).
+ *
+ * `heading-order` carries no wcag tag at all: axe classifies it as best-practice,
+ * because a skipped level is a defect no success criterion states in those words. That
+ * classification is why an erased response could render `<h1>` then `<h3>` through every
+ * mode of this gate without a word of complaint. The heading outline is the structure a
+ * screen-reader user navigates an admin screen by, so a hole in it is a real defect here
+ * whatever tag axe files it under.
+ *
+ * `runOnly` and `rules` are set in one `options()` call rather than by chaining
+ * `withTags`: `AxeBuilder#options` **replaces** its accumulated option object, so
+ * `.withTags(...).options(...)` would silently drop the tags, and `withRules` is
+ * documented as mutually exclusive with `withTags`. Inside axe-core an explicit
+ * `rules[id].enabled` is consulted before the `runOnly` tag filter, which is what lets a
+ * tagless rule join a tag-selected run.
+ */
+const EXTRA_RULES = { "heading-order": { enabled: true } };
+
 /** The sheet's three mode layers. Light is the bare root, so it has no class. */
 const MODES = [
   { name: "light", rootClass: "" },
@@ -156,7 +175,9 @@ async function expectNoViolations(page: Page, state: string): Promise<void> {
       }, mode.rootClass);
       await settleTransitions(page);
 
-      const results = await new AxeBuilder({ page }).withTags(TAGS).analyze();
+      const results = await new AxeBuilder({ page })
+        .options({ runOnly: { type: "tag", values: TAGS }, rules: EXTRA_RULES })
+        .analyze();
       // Name the state, the mode, the rule AND the element in the failure message. An
       // axe failure reported as a bare count costs a second run to diagnose; one
       // reported without the mode costs a third; and a `color-contrast` failure
@@ -619,8 +640,9 @@ test("the operations screens have zero violations", async ({ page }) => {
   // (#309) had been sitting unseen, since `scrollable-region-focusable` can only fire
   // on a scroll box that is actually on screen.
   //
-  // Fifty-seven axe runs plus two forms' worth of submissions and a full retry budget,
-  // so the budget is generous.
+  // Sixty axe runs (issue #511 added the cold tombstone route, one state in three modes)
+  // plus two forms' worth of submissions and a full retry budget, so the budget is
+  // generous.
   test.setTimeout(900_000);
   await signInWithTotp(page, EMAIL, totpSecret);
 
@@ -710,6 +732,16 @@ async function sweepOperations(
   await page.getByRole("button", { name: "Erase permanently" }).click();
   await expect(page.getByTestId("qcms-tombstone")).toBeVisible({ timeout: 30_000 });
   await expectNoViolations(page, "the tombstone");
+
+  // And the same URL opened cold, which is a **different render** of the same card and
+  // was not swept until issue #511. In place, the tombstone arrives inside
+  // `ResponseDetail`; from a link in a ticket, the route renders the card directly under
+  // `FormPageHeader` with no component around it. The defect #511 was filed for lived
+  // only in that second render, so a sweep that reached the first one and stopped was
+  // blind to it by construction.
+  await page.goto(`/forms/${OPS_FORM_ID}/responses/${sessionId}`);
+  await expect(page.getByTestId("qcms-tombstone")).toBeVisible({ timeout: 30_000 });
+  await expectNoViolations(page, "the tombstone route, opened cold");
 
   await page.goto(`/forms/${pub.formId}/webhooks`);
   await expect(page.getByTestId("qcms-webhook-config")).toBeVisible();
