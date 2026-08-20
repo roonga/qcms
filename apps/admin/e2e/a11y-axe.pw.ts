@@ -137,6 +137,59 @@ const TALL_RESPONSE_BODY = `{\n${Array.from(
 /** WCAG 2.2 AA, the same rule set the portal gate uses. */
 const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
+/**
+ * Rules run **in addition** to the tag set above (issue #511).
+ *
+ * `heading-order` carries no wcag tag at all: axe classifies it as best-practice,
+ * because a skipped level is a defect no success criterion states in those words. That
+ * classification is why an erased response could render `<h1>` then `<h3>` through every
+ * mode of this gate without a word of complaint. The heading outline is the structure a
+ * screen-reader user navigates an admin screen by, so a hole in it is a real defect here
+ * whatever tag axe files it under.
+ *
+ * `runOnly` and `rules` are set in one `options()` call rather than by chaining
+ * `withTags`: `AxeBuilder#options` **replaces** its accumulated option object, so
+ * `.withTags(...).options(...)` would silently drop the tags, and `withRules` is
+ * documented as mutually exclusive with `withTags`. Inside axe-core an explicit
+ * `rules[id].enabled` is consulted before the `runOnly` tag filter, which is what lets a
+ * tagless rule join a tag-selected run.
+ */
+const EXTRA_RULES = { "heading-order": { enabled: true } };
+
+/**
+ * The heading-order gaps that already existed on the day the rule was switched on
+ * (issue #511), keyed by the state they appear in and by the node axe names.
+ *
+ * Switching a best-practice rule on over a codebase that has never been measured by it
+ * surfaces history as well as regressions, and there are exactly two here. Neither is in
+ * #511's territory, and how far to go in fixing them is a scope call for the Code Owner
+ * rather than something to decide inside a heading fix, so they are recorded rather than
+ * silently dropped and rather than left failing:
+ *
+ * - `version history` (**issue #540**): `components/forms/version-history.tsx` heads its
+ *   compare panel with an `<h3>` directly under the page `<h1>`, with no `<h2>` between.
+ * - `the delivery-detail disclosure` (**issue #541**): `components/ops/delivery-dashboard.tsx`
+ *   heads the expanded row's request headers with an `<h4>` under the dashboard's `<h2>`.
+ *
+ * This list is a debt register, not a policy: each entry is a defect that should be
+ * fixed and the entry deleted, and it is deliberately keyed narrowly (state **and**
+ * node) so it cannot grow into a blanket mute. A NEW gap in either of these two states,
+ * on any other node, still fails. Fixing one is a two-step change: correct the heading
+ * in the component named above, then delete that entry here. The issue numbers live in
+ * this comment on purpose, because this file is what a future fixer reads.
+ *
+ * `expectNoViolations` also asserts the converse, that every entry here is still
+ * violating. An entry left behind after its heading is fixed does not fail on its own,
+ * it silently re-arms a mute at that exact selector, so a *later* heading-order
+ * regression on the same node in the same state would be swallowed by an exclusion
+ * nobody remembers granting. That is strictly worse than the gap it was registered for,
+ * which was at least visible in the source, so a dead entry fails the gate.
+ */
+const KNOWN_HEADING_ORDER_GAPS: Readonly<Record<string, readonly string[]>> = {
+  "version history": ["#qcms-diff-heading"],
+  "the delivery-detail disclosure": ["h4:nth-child(1)"],
+};
+
 /** The sheet's three mode layers. Light is the bare root, so it has no class. */
 const MODES = [
   { name: "light", rootClass: "" },
@@ -156,20 +209,46 @@ async function expectNoViolations(page: Page, state: string): Promise<void> {
       }, mode.rootClass);
       await settleTransitions(page);
 
-      const results = await new AxeBuilder({ page }).withTags(TAGS).analyze();
+      const results = await new AxeBuilder({ page })
+        .options({ runOnly: { type: "tag", values: TAGS }, rules: EXTRA_RULES })
+        .analyze();
+      // Pre-existing gaps this state is known to carry drop out here, and only for
+      // `heading-order` and only on the exact nodes named (issue #511). A violation that
+      // names any other node survives the filter with its whole node list intact, so the
+      // report still shows the company the new offender was keeping.
+      const allowed = KNOWN_HEADING_ORDER_GAPS[state] ?? [];
+      const violations = results.violations.filter(
+        (v) =>
+          v.id !== "heading-order" ||
+          v.nodes.some((node) => !allowed.includes(node.target.join(" "))),
+      );
       // Name the state, the mode, the rule AND the element in the failure message. An
       // axe failure reported as a bare count costs a second run to diagnose; one
       // reported without the mode costs a third; and a `color-contrast` failure
       // reported without the node and the measured ratio costs a fourth, because the
       // whole point of running per mode is that the offender differs between them.
       expect(
-        results.violations.map(
+        violations.map(
           (v) =>
             `${v.id}: ${v.help} [${v.nodes
               .map((node) => `${node.target.join(" ")} - ${node.failureSummary ?? ""}`)
               .join(" | ")}]`,
         ),
         `axe violations on the ${state} state in ${mode.name}`,
+      ).toEqual([]);
+
+      // The register's other direction: an entry that no longer violates is dead, and a
+      // dead entry is a mute nobody granted (see KNOWN_HEADING_ORDER_GAPS). Checked from
+      // the results already in hand, after the gate above, so a genuine new violation is
+      // still what gets reported first.
+      const violatingNodes = new Set(
+        results.violations
+          .filter((v) => v.id === "heading-order")
+          .flatMap((v) => v.nodes.map((node) => node.target.join(" "))),
+      );
+      expect(
+        allowed.filter((target) => !violatingNodes.has(target)),
+        `stale KNOWN_HEADING_ORDER_GAPS entries for the ${state} state in ${mode.name}: these nodes no longer raise heading-order, so delete them from the register rather than leaving a mute armed`,
       ).toEqual([]);
     }
   } finally {
@@ -619,8 +698,9 @@ test("the operations screens have zero violations", async ({ page }) => {
   // (#309) had been sitting unseen, since `scrollable-region-focusable` can only fire
   // on a scroll box that is actually on screen.
   //
-  // Fifty-seven axe runs plus two forms' worth of submissions and a full retry budget,
-  // so the budget is generous.
+  // Sixty axe runs (issue #511 added the cold tombstone route, one state in three modes)
+  // plus two forms' worth of submissions and a full retry budget, so the budget is
+  // generous.
   test.setTimeout(900_000);
   await signInWithTotp(page, EMAIL, totpSecret);
 
@@ -710,6 +790,16 @@ async function sweepOperations(
   await page.getByRole("button", { name: "Erase permanently" }).click();
   await expect(page.getByTestId("qcms-tombstone")).toBeVisible({ timeout: 30_000 });
   await expectNoViolations(page, "the tombstone");
+
+  // And the same URL opened cold, which is a **different render** of the same card and
+  // was not swept until issue #511. In place, the tombstone arrives inside
+  // `ResponseDetail`; from a link in a ticket, the route renders the card directly under
+  // `FormPageHeader` with no component around it. The defect #511 was filed for lived
+  // only in that second render, so a sweep that reached the first one and stopped was
+  // blind to it by construction.
+  await page.goto(`/forms/${OPS_FORM_ID}/responses/${sessionId}`);
+  await expect(page.getByTestId("qcms-tombstone")).toBeVisible({ timeout: 30_000 });
+  await expectNoViolations(page, "the tombstone route, opened cold");
 
   await page.goto(`/forms/${pub.formId}/webhooks`);
   await expect(page.getByTestId("qcms-webhook-config")).toBeVisible();

@@ -290,6 +290,18 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     // The answers are gone from the screen that was showing them a moment ago.
     await expect(page.getByTestId("qcms-locked-answers")).toBeHidden();
 
+    // Issue #511: and the outline the answers left behind has no hole in it. The
+    // tombstone's heading was an `<h3>`, sitting under an `<h2>` that named the response
+    // inside `ResponseDetail`; #510 removed that `<h2>` as a restatement of the page
+    // `<h1>`, which left this screen stepping h1 to h3. Asserted as the whole outline
+    // rather than as one element's level, because "no skipped level" is a claim about
+    // the sequence and a per-element check cannot make it.
+    await expect
+      .poll(async () => headingOutline(page), {
+        message: "the in-place tombstone's heading outline",
+      })
+      .toEqual([`h1: Response ${erasable}`, "h2: Erased"]);
+
     // Gone from the list.
     await openResponses(page, FORM_ID);
     await expect(
@@ -322,6 +334,16 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     await page.goto(`/forms/${FORM_ID}/responses/${erasable}`);
     await expect(page.getByTestId("qcms-tombstone")).toContainText(erasable);
     await expect(page.getByTestId("qcms-locked-answers")).toHaveCount(0);
+
+    // The SAME outline from a cold load, which is a different render: here the route
+    // puts the card straight under `FormPageHeader` with no `ResponseDetail` around it
+    // (issue #511). This is the render an operator gets from a link in a ticket, and it
+    // is the one the defect was reported against.
+    await expect
+      .poll(async () => headingOutline(page), {
+        message: "the tombstone route's heading outline, opened cold",
+      })
+      .toEqual([`h1: Response ${erasable}`, "h2: Erased"]);
 
     // A session that never existed is still a 404.
     const unknown = await page.goto(`/forms/${FORM_ID}/responses/ses_neverexisted`);
@@ -661,6 +683,22 @@ async function danglingAriaControls(page: Page): Promise<readonly string[]> {
       [...root.querySelectorAll("[aria-controls]")]
         .map((element) => element.getAttribute("aria-controls") ?? "")
         .filter((id) => id !== "" && root.ownerDocument.getElementById(id) === null),
+    );
+}
+
+/**
+ * Every heading on the page, in document order, as `"h2: Erased"` (issue #511).
+ *
+ * Levels **and** text together, because the two failure modes this guards against are
+ * different defects that a check on either half alone would let through: a skipped level
+ * is a hole in the outline a screen-reader user navigates by, and a repeated subject is
+ * the same thing said twice at two levels, which is what #510 removed from this screen.
+ */
+async function headingOutline(page: Page): Promise<readonly string[]> {
+  return page
+    .locator("h1, h2, h3, h4, h5, h6")
+    .evaluateAll((nodes) =>
+      nodes.map((node) => `${node.tagName.toLowerCase()}: ${(node.textContent ?? "").trim()}`),
     );
 }
 
