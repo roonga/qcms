@@ -1,8 +1,8 @@
 # QCMS operations guide
 
 Running a QCMS deployment: what the processes expect from their environment, what
-their health signals mean, how to upgrade one, and the runbooks for the four things
-that actually page someone.
+their health signals mean, how to upgrade one, and the runbooks for the things that
+actually page someone.
 
 This guide is topology-agnostic. The two deployment shapes it applies to are the
 single-host Compose stack (`docker-compose.yml`, quickstart in `README.md`) and the
@@ -318,6 +318,153 @@ which is the other reason step 2 is not optional. Check the release notes: a
 backward-compatible migration lets you roll back images alone.
 
 ## Runbooks
+
+### A respondent reports that the form will not submit
+
+**Symptom.** One of two reports, depending on how the respondent was invited:
+
+- They **cannot get past the entry page**: pressing Begin returns them to it under the
+  heading "This form is not available". This is the anonymous `/f/{formSlug}` entry path.
+- They **already have a session** (which means they arrived by secure link, the only entry
+  path that still works for them) and **have JavaScript unavailable or disabled**, and
+  pressing Continue on a step lands them back on the same step with no message and their
+  typed answers gone.
+
+In both cases the form is published and other respondents are completing it normally, and
+**nothing in the portal's logs looks like an error**, because nothing was logged at all:
+the request was refused before it reached the API, and the refusal path writes no log line.
+The respondent is on an old browser in both cases.
+
+**Cause.** The portal's four state-changing BFF routes carry a CSRF belt (SEC-9,
+`isSameOriginPost` in `apps/portal/lib/server/route-helpers.ts`). It admits a request that
+either declares `Sec-Fetch-Site: same-origin` or `none`, or carries an `Origin` header
+matching the portal's own base URL. A browser that sends no Fetch Metadata request headers
+can do neither on an ordinary HTML form POST: the portal sends `Referrer-Policy:
+no-referrer`, and under that policy a form navigation serializes its `Origin` as the
+literal string `null`. Such a request cannot prove it is same-site, so it is refused.
+
+**Which requests this actually affects.** Only the two endpoints a browser reaches by
+submitting an HTML form:
+
+| Endpoint | Reached by | The refusal looks like |
+| --- | --- | --- |
+| `POST /f/{formSlug}/start` | the Begin button on the entry page, **with or without JavaScript** | 303 back to `/f/{formSlug}?state=error`, which renders "This form is not available" |
+| `POST /s/{sessionId}/step` | the no-JS whole-step form (Continue / Back / Submit) | 303 back to the same step, no message, answers not re-populated |
+
+The other two state-changing routes, `POST /s/{sessionId}/answers` and
+`POST /s/{sessionId}/submit`, are called only by the hydrated page through `fetch()`. That
+is a CORS-mode request, which carries a real `Origin` whatever the referrer policy says,
+so those two are unaffected.
+
+**How badly a respondent is stuck depends on which entry path they arrived by**, and the
+difference is large enough to establish first:
+
+- **Anonymous entry (`/f/{formSlug}`) is a hard block.** The Begin button is a real form
+  POST on **every** path, hydrated or not, so an affected browser cannot start at all. JavaScript
+  makes no difference here.
+- **Secure-link entry (`/l/{token}`) starts fine.** That route is a **GET** (a silent
+  verify-and-redirect that exchanges the token for a session), and the belt covers
+  state-changing POSTs only, so it never applies. An affected browser arriving by secure
+  link gets a session and, **with JavaScript, completes the whole questionnaire normally**:
+  the rest of the hydrated flow is `fetch()`, which is unaffected.
+
+So the only respondent who reaches a step and then cannot get past it is one who arrived by
+**secure link with JavaScript unavailable**. That is the second symptom at the top of this
+runbook, and it is the only way an affected browser ever reaches a step at all. Since
+secure links are the primary distribution path for most deployments, the population fully
+locked out is smaller than the raw browser share below suggests: anonymous-entry
+respondents are blocked outright, secure-link respondents only if they also have no
+JavaScript.
+
+**Which browsers.** `Sec-Fetch-Site` shipped in Chrome 76 (July 2019), Edge 79, Opera 63,
+Samsung Internet 12.0, Firefox 90 (13 July 2021) and Safari 16.4 (27 March 2023). The
+version numbers are MDN's browser-compat data (only Chrome, Firefox and Safari are stated
+there; Edge, Opera, Samsung and the Android engines are mirrored from Chrome). The release
+dates are caniuse-db's `version_list`. Anything older sends nothing. Two consequences worth
+having in front of you when you take the call:
+
+- **On iOS the browser is irrelevant, the iOS version decides.** Every browser on iOS and
+  iPadOS uses the system WebKit, so Chrome, Edge, Firefox and any in-app browser on
+  iOS 16.3 all send nothing. The fix there is an iOS update, not a different browser app.
+- **Internet Explorer 11 never sends it** and never will.
+
+**The measured share.** About **1.6% of global web traffic** comes from browser versions
+that send no Fetch Metadata. That is computed from caniuse's per-version usage data
+(caniuse-db snapshot dated 2026-08-07, measuring **July 2026**) by summing the usage of
+every tracked version below the thresholds above. Treat it as a **floor, not a point
+estimate**, for three reasons:
+
+- Do not quote the 4.94% that caniuse's own method yields for this feature. That figure is
+  `100 - supported`, and it folds in the 3.31 percentage points of traffic caniuse
+  attributes to no tracked browser at all (unknown user agents, bots): its version tables
+  account for only 96.69% of traffic in the first place. Of the 4.94, only 1.63 points are
+  identifiably old browsers.
+- caniuse collapses every Android-side browser to a single current version. Chrome for
+  Android is 46% of global usage and is assumed entirely up to date, so any real tail of
+  old Android WebViews is invisible in the number rather than absent from the world.
+- Both caniuse and StatCounter beneath it are pageview-weighted rather than user-weighted,
+  and neither is a sample of **your** respondents. A questionnaire's population is set by
+  who was invited. Global share is a starting point, not a measurement of your deployment.
+
+A realistic band is 1.6% to 5%. The identified 1.63 points split about **40/60 between
+mobile and desktop**, which matters because the two age out at different speeds: 0.61
+points are iOS below 16.4 (38%), which Apple's own upgrade curve retires steadily, against
+0.98 points of old desktop (60%: Chrome below 76 at 0.60, IE 11 at 0.27, macOS Safari below
+16.4 at 0.12), which does not retire on anyone's curve. The remaining 0.04 points are old
+Firefox and assorted mobile.
+
+**It is concentrated, and not where you might guess.** Per region, from the same source's
+`region-usage-json` tables (month 2026-07, accessed 2026-08-07): China 7.07% (5.40 of it IE
+11 alone, an enterprise-desktop effect), Japan 5.28% and Germany 4.35% (old desktop Chrome
+in both), Oceania 4.11%, Europe 2.33%, against 2.05% for the United States and 1.87% for
+the United Kingdom. The low figures the source reports for India (0.17%) and Africa (0.61%)
+should **not** be read as measurements: those regions are overwhelmingly Chrome for
+Android, which is exactly the population the source cannot version-split. Russia and Korea
+carry an unusually large unattributed share (33% and 15% of their traffic respectively,
+against 3.6% worldwide), mostly Yandex and Whale, so their apparent 1.78% and 0.89% rest on
+a much smaller measured base than the other rows.
+
+**This is deliberate.** The only signal such a request carries is `Origin: null`, and any
+attacker's page can produce that too by declaring `Referrer-Policy: no-referrer` on itself.
+Admitting `null` would therefore admit the forged request alongside the honest one, so the
+belt would stop protecting exactly the clients that cannot prove themselves. Refusing is
+the safe direction: a respondent who cannot submit can be helped, while a submission forged
+under a respondent's session cannot be unmade.
+
+**What you can do about it.**
+
+1. **Confirm it is this before anything else.** Ask the respondent for their browser and
+   version, and on an iPhone or iPad for their iOS version, then compare against the list
+   above. A modern browser hitting the same symptom is a different fault.
+2. **Tell the two entry-page failures apart in your logs.** `/f/{slug}?state=error` is also
+   where a genuine API failure lands, and the two are distinguishable: an API failure
+   always writes an `api.call` line to the portal's stdout carrying a non-2xx `status`,
+   while a belt refusal writes nothing, because it never calls the API. So an ingress
+   access log showing `POST /f/{slug}/start` answered 303, followed by
+   `GET /f/{slug}?state=error`, with **no** `api.call` line for that request, is the belt.
+3. **Send them a secure link.** This is the one workaround that needs nothing from the
+   respondent, and it works because `/l/{token}` is a GET the belt does not cover. A
+   respondent blocked at anonymous entry will start fine from a secure link, and unless
+   they also have JavaScript unavailable they will complete the questionnaire normally.
+   Issue the link from the admin as you would for any invited respondent
+   (`docs/secure-links.md`). It does **not** help a respondent who has no JavaScript: they
+   will start, then stop at the first Continue.
+4. **Advise an upgrade.** There is no configuration switch: the belt is unconditional and
+   QCMS ships no variable that relaxes it. On desktop, any current browser works. On iOS,
+   it takes an iOS update, because the browser app makes no difference.
+5. **Tell us if it matters for your population.** The trade-off is tracked in issue #504,
+   and the alternatives (a same-origin form token on the no-JS path, which does not depend
+   on Fetch Metadata) are deliberately held until there is measured need rather than
+   adopted in advance. A deployment that recruits respondents in one of the concentrated
+   regions above is exactly the evidence that would move it.
+
+**Known gap: the refusal is not observable from the application.** None of the four route
+handlers logs when the belt refuses, and the portal's only application log line is
+`api.call` for outbound API calls, which a refused request never reaches. The absence
+described in step 2 is currently the whole of the server-side signal. A structured log line
+or a counter on the refusal path is a candidate improvement, bounded by SEC-13: whatever it
+records must be a route template and a reason, never an address, an answer value or a
+header value copied verbatim.
 
 ### Webhook dead-letters
 
