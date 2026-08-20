@@ -14,9 +14,22 @@ on:
 # This job builds three images and boots the whole stack, so a second push to the
 # same branch should replace the run in flight rather than queue behind it. The
 # key is workflow plus ref, so main and each pull request keep their own lane.
+#
+# Cancellation is limited to pull-request refs, matching `ci.yml`, and it buys two
+# things here. On `main`, the post-merge run must be allowed to finish: under
+# `/loop /next-task 3` two back-to-back merges share the group
+# `Full-stack E2E-refs/heads/main`, and `.claude/skills/task/SKILL.md` step 7 requires
+# the conductor to confirm green on the merge commit with no branch for `cancelled`.
+# That run is load-bearing because the ruleset's `strict_required_status_checks_policy`
+# is `false`, so `main`'s own run is the only place a semantic conflict between two
+# independently-green pull requests surfaces. And it restores the outage escape hatch:
+# `workflow_dispatch` above exists so a check can be requested by hand when webhook
+# delivery stops, and under a blanket `true` a routine push to `main` cancelled that
+# manually requested rescue run. The waste #496 is about is entirely on PR refs, so
+# the carve-out costs nothing.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # The fast-lane classifier, the same one `ci.yml` runs. It is duplicated rather
