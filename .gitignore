@@ -7,6 +7,14 @@ dist/
 .turbo/
 coverage/
 .claude/worktrees/
+# Claude Code's per-machine settings overlay. `.claude/settings.json` is the shared,
+# tracked harness configuration and stays tracked; the `.local.json` beside it is one
+# operator's own permission grants on one machine, so it is never shareable. It was
+# neither tracked nor ignored, which left it showing in `git status` - and
+# `/next-issue`'s housekeeping step stops the dev loop when the shared checkout is
+# dirty, so a local permissions file could halt a run before step 1. `**/` because the
+# PM/PO seat launches from `plan/` and would write its own copy there.
+**/.claude/settings.local.json
 .env
 .env.*
 !.env.example

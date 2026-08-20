@@ -20,6 +20,7 @@
     "up:e2e": "node scripts/compose-e2e.mjs run",
     "up:e2e:headed": "node scripts/compose-e2e.mjs run-headed",
     "check:all": "pnpm check:no-em-dash && pnpm check:no-control-chars && pnpm check:ports && pnpm check:security-hygiene && pnpm check:changeset && pnpm check:golden-append-only && pnpm check:licenses && pnpm check:duplication && pnpm check:admin-theme && pnpm check:lint-coverage",
+    "check:plan": "pnpm check:no-control-chars && pnpm check:security-hygiene && pnpm check:admin-theme",
     "dev:up": "node scripts/dev-compose.mjs up",
     "dev:down": "node scripts/dev-compose.mjs down",
     "dev:portal": "node scripts/dev-portal.mjs",

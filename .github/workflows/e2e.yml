@@ -4,67 +4,156 @@ on:
   push:
     branches: [main]
   pull_request:
+    # `edited` fires on a base-branch retarget and is not in the default set. Same
+    # reasoning as `ci.yml`: without it, a PR that went green on the fast lane while
+    # stacked on an unmerged parent keeps those greens after being retargeted to
+    # `main`, where they now stand over all of the parent's code.
+    types: [opened, synchronize, reopened, edited]
   workflow_dispatch:
 
 # This job builds three images and boots the whole stack, so a second push to the
 # same branch should replace the run in flight rather than queue behind it. The
 # key is workflow plus ref, so main and each pull request keep their own lane.
+#
+# Cancellation is limited to pull-request refs, matching `ci.yml`, and it buys two
+# things here. On `main`, the post-merge run must be allowed to finish: under
+# `/loop /next-task 3` two back-to-back merges share the group
+# `Full-stack E2E-refs/heads/main`, and `.claude/skills/task/SKILL.md` step 7 requires
+# the conductor to confirm green on the merge commit with no branch for `cancelled`.
+# That run is load-bearing because the ruleset's `strict_required_status_checks_policy`
+# is `false`, so `main`'s own run is the only place a semantic conflict between two
+# independently-green pull requests surfaces. And it restores the outage escape hatch:
+# `workflow_dispatch` above exists so a check can be requested by hand when webhook
+# delivery stops, and under a blanket `true` a routine push to `main` cancelled that
+# manually requested rescue run. The waste #496 is about is entirely on PR refs, so
+# the carve-out costs nothing.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # The fast-lane classifier, the same one `ci.yml` runs. It is duplicated rather
+  # than shared because a job output cannot cross workflows, and the alternative
+  # (one workflow publishing all four contexts) would mean renaming
+  # `full-stack-e2e`, which `protect-main` matches on. The logic itself is not
+  # duplicated: both copies run scripts/ci-plan-only.mjs.
+  changes:
+    name: changes (full-stack-e2e)
+    runs-on: ubuntu-latest
+    # Upstream of a required context, so it must never be the thing that hangs.
+    timeout-minutes: 5
+    outputs:
+      plan_only: ${{ steps.classify.outputs.plan_only }}
+    steps:
+      # fetch-depth: 0 - the classifier needs the merge base with the base branch,
+      # which the default shallow clone does not have.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      # Read from the BASE ref, never from the pull request. Full reasoning in the
+      # identical step in `ci.yml` and in the script's own header: a checked-out copy
+      # would let a PR that breaks the classifier certify itself as prose and skip the
+      # test suite that would have caught it.
+      - id: classify
+        env:
+          CLASSIFIER: scripts/ci-plan-only.mjs
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_EVENT_NAME}" != "pull_request" ]; then
+            echo "Event is ${GITHUB_EVENT_NAME}, not pull_request: running the full suite."
+            echo "plan_only=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git show "origin/${GITHUB_BASE_REF}:${CLASSIFIER}" > "${RUNNER_TEMP}/classify.mjs"; then
+            echo "Classifying with origin/${GITHUB_BASE_REF}:${CLASSIFIER} (not the copy in this PR)."
+            node "${RUNNER_TEMP}/classify.mjs"
+          else
+            echo "::warning::ci-plan-only: ${CLASSIFIER} is absent on origin/${GITHUB_BASE_REF}; running the full suite."
+            echo "plan_only=false" >> "$GITHUB_OUTPUT"
+          fi
+
   # The job id IS the check context, deliberately left to name itself. ci.yml
   # publishes the other two end-to-end checks (`api-e2e`, `portal-e2e`), so all
   # three read as one set named by scope, and a red check says which layer broke
   # before anyone opens the run.
+  #
+  # On the plan-only fast lane every step below is guarded off, but the JOB still
+  # runs and concludes `success`, so this required context reports. Never turn that
+  # into a job-level skip: `protect-main` has no bypass actors, so a required context
+  # that reports nothing blocks the PR permanently.
   full-stack-e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    needs: changes
+    # Runs even if `changes` failed. A job skipped by an unmet `needs` still publishes
+    # its context, and a `skipped` conclusion counts as satisfying a required check -
+    # so without this line a broken classifier would report this context as met over a
+    # tree nothing had gated. A failed `changes` job leaves PLAN_ONLY empty, which is
+    # not `true`, so the whole suite runs.
+    if: ${{ !cancelled() }}
+    env:
+      PLAN_ONLY: ${{ needs.changes.outputs.plan_only }}
 
     steps:
       - uses: actions/checkout@v7
 
+      - name: Plan-only change, no stack to boot
+        if: env.PLAN_ONLY == 'true'
+        run: echo "Diff is entirely under plan/ - reporting full-stack-e2e green without building images."
+
       - uses: pnpm/action-setup@v6
+        if: env.PLAN_ONLY != 'true'
 
       - uses: actions/setup-node@v7
+        if: env.PLAN_ONLY != 'true'
         with:
           node-version: 24
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+        if: env.PLAN_ONLY != 'true'
 
       - name: Build workspace packages
+        if: env.PLAN_ONLY != 'true'
         run: pnpm -r build
 
       - name: Install Playwright Chromium
+        if: env.PLAN_ONLY != 'true'
         run: pnpm exec playwright install --with-deps chromium
 
       # Resolves the mirrored Postgres reference into QCMS_TEST_POSTGRES_IMAGE and
       # pre-pulls it, exactly as every other Docker-backed job does (issues #74 and
       # #150). Compose reads it below as QCMS_POSTGRES_IMAGE.
       - uses: ./.github/actions/test-postgres-image
+        if: env.PLAN_ONLY != 'true'
 
       # The three application images build FROM node:24-bookworm-slim, which is not
       # mirrored yet: accepted for now because a base-image pull is a build-time
       # dependency this job already has (it builds the images), while the Postgres
       # pull was a run-time one the mirror already covers everywhere else.
       - name: Start full-stack E2E stack
+        if: env.PLAN_ONLY != 'true'
         env:
           QCMS_POSTGRES_IMAGE: ${{ env.QCMS_TEST_POSTGRES_IMAGE }}
         run: pnpm docker:up
 
       - name: Run full-stack E2E browser flow
+        if: env.PLAN_ONLY != 'true'
         run: pnpm test:e2e
 
       - name: Stop full-stack E2E stack
-        if: ${{ always() }}
+        if: ${{ always() && env.PLAN_ONLY != 'true' }}
         env:
           QCMS_POSTGRES_IMAGE: ${{ env.QCMS_TEST_POSTGRES_IMAGE }}
         run: pnpm docker:down
 
       - name: Upload E2E report
-        if: ${{ always() }}
+        if: ${{ always() && env.PLAN_ONLY != 'true' }}
         uses: actions/upload-artifact@v7
         with:
           name: full-stack-e2e-report

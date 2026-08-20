@@ -1,8 +1,25 @@
 name: CI
 
 on:
+  # Restricted to main (issue #496). Unfiltered, `push` and `pull_request` both fire
+  # for a branch in this repo that has a PR open, so ONE head started two runs of
+  # this workflow and every required context it publishes was reported twice:
+  # measured on PR #480 at 744ca8c (three of four contexts with two runs, one of
+  # them still unresolved) and again on PR #524. `pull_request` below covers every
+  # branch, and `e2e.yml` has had this shape since it was written.
   push:
+    branches: [main]
   pull_request:
+    # `edited` is NOT in the default set (`opened`, `synchronize`, `reopened`), and
+    # retargeting a pull request's base branch fires only `edited`. Without it, a PR
+    # stacked on an unmerged branch whose diff versus that parent is plan-only goes
+    # green on the fast lane, is then retargeted to `main`, and no new run starts:
+    # the 45-second greens stay bound to an unchanged head while now standing over
+    # all of the parent's code. That is a regression the fast lane would introduce,
+    # not a pre-existing property - before it, such a PR ran the full suite. The
+    # cost is that a title or body edit also starts a run; on the fast lane that is
+    # ~45 seconds, and `cancel-in-progress` bounds the rest.
+    types: [opened, synchronize, reopened, edited]
   # Lets a check be requested on demand for a specific ref. Needed when webhook
   # delivery is throttled and push/pull_request stop creating runs at all, which
   # is not hypothetical: during the 2026-08-06 Actions outage main took two merges
@@ -11,14 +28,121 @@ on:
   # the four contexts `protect-main` requires, so it is the one that most needs it.
   workflow_dispatch:
 
+# Workflow plus ref, so main and each pull request keep their own lane and a second
+# push replaces the run in flight rather than leaving it to grind out a verdict on a
+# tree nobody will merge (issue #496; same shape as `e2e.yml`).
+#
+# `workflow_dispatch` is deliberately keyed on the run id instead, giving each manual
+# run a group of its own. That run is the outage escape hatch documented above, and a
+# routine push must never be able to cancel it.
+#
+# Cancellation is limited to pull-request refs. On `main` the post-merge run must be
+# allowed to finish: under `/loop /next-task 3` two back-to-back merges share the
+# group `CI-refs/heads/main`, so a blanket `true` cancels the first merge's run - and
+# `.claude/skills/task/SKILL.md` step 7 requires the conductor to confirm green on the
+# merge commit and has no branch for `cancelled`, so it gets neither the green it
+# needs nor the red it is told to fix forward from. It matters because the ruleset's
+# `strict_required_status_checks_policy` is `false`: `main`'s own run is the only
+# place a semantic conflict between two independently-green PRs shows up. #496's
+# waste is entirely on PR refs, so this carve-out costs nothing.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  # The fast-lane classifier. A pull request whose every changed path is under
+  # `plan/` (the committed planning/scratch area, not a workspace) cannot break
+  # build, typecheck, lint, the unit suites or any of the three end-to-end suites,
+  # yet it used to cost the full ~20-minute matrix: PR #524 was prose-only and paid
+  # it twice on one head.
+  #
+  # What this job does NOT do is decide whether a job runs. `protect-main` requires
+  # four contexts and has no bypass actors, so a context that never reports strands
+  # the PR at "Expected - waiting for status" forever. Every required job below runs
+  # on every event and reports its context; this output only decides how much work
+  # each one does. Reasoning and the fail-safe cases: scripts/ci-plan-only.mjs.
+  changes:
+    # Named so it does not collide in the checks list with the identically-shaped job
+    # in `e2e.yml`. Neither is a required context.
+    name: changes (ci)
+    runs-on: ubuntu-latest
+    # This job sits upstream of all four required contexts, so a hang here is the
+    # "required check never reports" failure the whole design is built to avoid, held
+    # open for the 360-minute default. It does a checkout and one `node` invocation.
+    timeout-minutes: 5
+    outputs:
+      plan_only: ${{ steps.classify.outputs.plan_only }}
+    steps:
+      # fetch-depth: 0 because the classifier diffs against the merge base with the
+      # base branch, and the default shallow clone does not contain it. Getting this
+      # wrong fails safe (unresolvable base -> plan_only=false -> full run), but it
+      # would fail safe on every PR, which is a fast lane that never opens.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # Pinned rather than inherited from the runner image so the classifier runs on
+      # the same Node the rest of the workflow does. No pnpm and no install: the
+      # script imports nothing outside `node:`.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      # THE CLASSIFIER MUST NOT BE THE ONE IN THE PULL REQUEST. It is read from the
+      # BASE ref and run against the head checkout, because a checked-out copy would
+      # certify its own diff: a PR that refactors this script and introduces a defect
+      # answering `true` too readily touches only a non-`plan/` file, so a full run is
+      # intended - but its own broken copy would answer `plan_only=true`, `pnpm test`
+      # is a step the fast lane skips, and scripts/ci-plan-only.test.ts (written for
+      # exactly that defect) would never execute. Four green contexts in 45 seconds,
+      # merged, and every later PR silently on the fast lane.
+      #
+      # The base copy shells out only to `git`, so running it against a head checkout
+      # is safe. Absent on the base ref (as on the PR that introduces it) means no
+      # fast lane, which is why THIS pull request gets a full run.
+      - id: classify
+        env:
+          CLASSIFIER: scripts/ci-plan-only.mjs
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_EVENT_NAME}" != "pull_request" ]; then
+            echo "Event is ${GITHUB_EVENT_NAME}, not pull_request: running the full suite."
+            echo "plan_only=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git show "origin/${GITHUB_BASE_REF}:${CLASSIFIER}" > "${RUNNER_TEMP}/classify.mjs"; then
+            echo "Classifying with origin/${GITHUB_BASE_REF}:${CLASSIFIER} (not the copy in this PR)."
+            node "${RUNNER_TEMP}/classify.mjs"
+          else
+            echo "::warning::ci-plan-only: ${CLASSIFIER} is absent on origin/${GITHUB_BASE_REF}; running the full suite."
+            echo "plan_only=false" >> "$GITHUB_OUTPUT"
+          fi
+
   verify:
     # The CI enactment of `pnpm verify` (issue #19 / PR #83): same superset,
     # split into named steps for failure granularity. Renamed from `ci` so the
     # check list reads as what each job is: verify (node-NN), api-e2e,
     # portal-e2e, full-stack-e2e.
+    #
+    # The `name:` is what `protect-main` matches on ("verify (node-24)"). Do not move
+    # it, reword it, or change the matrix key it interpolates: the ruleset has no
+    # bypass actors, so a renamed context is not a red check, it is every future PR
+    # stuck on a required check that will never report.
     name: verify (node-${{ matrix.node-version }})
     runs-on: ubuntu-latest
+    needs: changes
+    # Runs even if `changes` failed. A job skipped by an unmet `needs` still publishes
+    # its context, and a `skipped` conclusion counts as satisfying a required check -
+    # so without this line a broken classifier would report all four required contexts
+    # as met over a tree nothing had gated. With it, a failed `changes` job leaves
+    # PLAN_ONLY empty, which is not `true`, so every step below runs. The only case
+    # that skips is a cancelled run, whose head is superseded anyway.
+    if: ${{ !cancelled() }}
+    env:
+      # Read by every step below. `true` means the diff is entirely under `plan/`, so
+      # this job runs `check:plan` and stops; the job itself still runs and still
+      # reports its required context.
+      PLAN_ONLY: ${{ needs.changes.outputs.plan_only }}
     strategy:
       fail-fast: false
       # Cross-version drift check (e.g. contentHash / encoding stability,
@@ -43,21 +167,52 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # THE FAST LANE (see the `changes` job). Everything below this step is guarded
+      # off for a diff that is entirely under `plan/`; this step is what still runs.
+      #
+      # `plan/**` is out of scope for check:no-em-dash, check:ports and
+      # check:lint-coverage by construction (each excludes it with a `:!plan/**`
+      # pathspec), it is not a pnpm workspace so build/typecheck/lint/test never read
+      # it, `.prettierignore` lists it so `prettier --check .` never opens it, and
+      # jscpd only scans `packages apps`. Three gates DO read it, and `check:plan` is
+      # exactly those three:
+      #
+      #   check:no-control-chars   - `git ls-files` over SOURCE_GLOBS (*.ts, *.tsx,
+      #                              *.mjs, *.mts, *.js, *.jsx, *.json, *.md) with NO
+      #                              plan/ exclusion, so a control char in prose is
+      #                              in scope.
+      #   check:security-hygiene   - its env-example scan is `git ls-files -- *.example
+      #                              **/*.example`, repo-wide, so a plan/ example file
+      #                              carrying a live-looking secret is in scope.
+      #   check:admin-theme        - plan/admin-theme/tokens.css is the SOURCE the gate
+      #                              compares apps/admin/app/theme.css against, so a
+      #                              plan-only edit to the token sheet must go red.
+      #
+      # Adding a gate that reads `plan/**` means adding it to `check:plan` too. The
+      # list is derived, not assumed: re-derive it against the scripts, not this
+      # comment, if the gates change.
+      - run: pnpm check:plan
+        if: env.PLAN_ONLY == 'true'
+
       # Build before typecheck so every workspace package's dist/ (and its emitted
       # .d.ts) exists on disk first. `pnpm typecheck` (turbo, ^build) should build
       # deps itself, but on a cold CI cache it intermittently races and fails to
       # resolve a just-built workspace package (e.g. `@qcms/db`); an explicit build
       # makes resolution deterministic. Root cause tracked in the CI-race issue.
       - run: pnpm build
+        if: env.PLAN_ONLY != 'true'
 
       - run: pnpm typecheck
+        if: env.PLAN_ONLY != 'true'
 
       - run: pnpm lint
+        if: env.PLAN_ONLY != 'true'
 
       # Resolves QCMS_TEST_POSTGRES_IMAGE, puts the image on the runner, and
       # disables the Ryuk reaper, so the Testcontainers boots below make no
       # registry call at all (issues #74 and #150).
       - uses: ./.github/actions/test-postgres-image
+        if: env.PLAN_ONLY != 'true'
 
       # Includes @qcms/db's integration tests (task 013), which boot a
       # Testcontainers Postgres per test file. The Docker daemon is available on
@@ -65,23 +220,26 @@ jobs:
       # anonymously (no registry credentials required), from the image the step
       # above resolved.
       - run: pnpm test
+        if: env.PLAN_ONLY != 'true'
 
       # The job-log evidence for issue #150: list every image the test run pulled
       # and fail if any came from Docker Hub. Runs even when the tests failed,
       # because a Hub pull is one of the things that fails them.
       - uses: ./.github/actions/assert-no-docker-hub-pulls
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.PLAN_ONLY != 'true' }}
 
       # The golden-corpus drift guard (task 007): fails if any golden
       # scenario's expected FlowState differs from live evaluator output.
       # Also part of `pnpm test` - kept as a named step so semantic drift is
       # visible as its own gate.
       - run: pnpm test:golden-drift
+        if: env.PLAN_ONLY != 'true'
 
       # The A2UI golden corpus is append-only (task 012, ADR-18): fail the build
       # if any committed golden document is modified or deleted vs the default
       # branch. Additions are allowed. Runs on the default branch too (empty diff).
       - run: pnpm check:golden-append-only
+        if: env.PLAN_ONLY != 'true'
         env:
           DEFAULT_BRANCH: ${{ github.event.pull_request.base.ref || 'main' }}
 
@@ -89,22 +247,27 @@ jobs:
       # (issue #55, folded into #19) - the "Changeset added" merge requirement,
       # enforced instead of remembered. Same diff basis as the guard above.
       - run: pnpm check:changeset
+        if: env.PLAN_ONLY != 'true'
         env:
           DEFAULT_BRANCH: ${{ github.event.pull_request.base.ref || 'main' }}
 
       # A NUL byte once shipped in a .ts and passed every gate (workshop retro,
       # Stage 4); this rejects control chars (except tab/LF/CR) in tracked source.
       - run: pnpm check:no-control-chars
+        if: env.PLAN_ONLY != 'true'
 
       # Runtime dependency licenses must be permissive/MIT-compatible (deny-by-default).
       - run: pnpm check:licenses
+        if: env.PLAN_ONLY != 'true'
 
       # Em dash (U+2014) is banned in prose/comments/UI strings (AI tell; public repo).
       - run: pnpm check:no-em-dash
+        if: env.PLAN_ONLY != 'true'
 
       # Ports come from the allocation, never from a literal (R8, ADR-37, issue #255):
       # 7Sxx human-facing, 17Sxx ephemeral harness, seat S from QCMS_PORT_SEAT.
       - run: pnpm check:ports
+        if: env.PLAN_ONLY != 'true'
 
       # SEC-8 secret and log hygiene plus the SEC-12 injection note (task 040):
       # no logger call site passes respondent answer content, no committed
@@ -116,15 +279,18 @@ jobs:
       # gate's own self-tests run under the `tooling` vitest project via
       # `pnpm test`; this step is what actually scans the repository.
       - run: pnpm check:security-hygiene
+        if: env.PLAN_ONLY != 'true'
 
       # The QCMS app theme (task 055): the token sheet is the only source of colour in
       # apps/admin, it has not drifted from the design copy it is generated into, and no
       # user-facing string names the app "admin".
       - run: pnpm check:admin-theme
+        if: env.PLAN_ONLY != 'true'
 
       # Copy-paste detection (jscpd, issue #14). Threshold 3% accepts the
       # deliberate vertical-slice repetition (R5); fails on real regression.
       - run: pnpm check:duplication
+        if: env.PLAN_ONLY != 'true'
 
       # Every tracked source file must be inside some package's lint scope
       # (issue #413, item 1 of #64). ESLint only reads the paths a lint script
@@ -132,8 +298,10 @@ jobs:
       # over a file it never opened - silence, not a red. Three instances
       # survived that way (#257, #387 item 21, #413).
       - run: pnpm check:lint-coverage
+        if: env.PLAN_ONLY != 'true'
 
       - run: pnpm build
+        if: env.PLAN_ONLY != 'true'
 
   # The 027 consumer-level e2e suite, as its OWN job for signal clarity: when
   # this is red, a product scenario broke (not a unit test). It drives the whole
@@ -147,33 +315,54 @@ jobs:
   # e2e.yml), so it carries its scope: this repo publishes three end-to-end
   # checks - `api-e2e` here, `portal-e2e` below, `full-stack-e2e` in e2e.yml -
   # and a bare `e2e` said nothing about which layer had broken.
+  #
+  # On the plan-only fast lane every step below is guarded off, but the JOB still
+  # runs and still concludes `success`, so the required context reports. Never turn
+  # that into a job-level skip: `protect-main` has no bypass actors, and a required
+  # context that reports nothing leaves the PR unmergeable with no way forward.
   api-e2e:
     runs-on: ubuntu-latest
+    needs: changes
+    # See the identical note on `verify`: this keeps the job (and so its required
+    # context) honest when the classifier itself fails.
+    if: ${{ !cancelled() }}
+    env:
+      PLAN_ONLY: ${{ needs.changes.outputs.plan_only }}
     steps:
       - uses: actions/checkout@v7
 
+      - name: Plan-only change, no product code to exercise
+        if: env.PLAN_ONLY == 'true'
+        run: echo "Diff is entirely under plan/ - reporting api-e2e green without running the suite."
+
       - uses: pnpm/action-setup@v6.0.9
+        if: env.PLAN_ONLY != 'true'
 
       - uses: actions/setup-node@v7
+        if: env.PLAN_ONLY != 'true'
         with:
           node-version: 24
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+        if: env.PLAN_ONLY != 'true'
 
       # @qcms/db's `.` export resolves to dist, so build the workspace first.
       - run: pnpm build
+        if: env.PLAN_ONLY != 'true'
 
       # Same registry-independence as the unit job: these scenarios boot a
       # Testcontainers Postgres per file (issues #74 and #150).
       - uses: ./.github/actions/test-postgres-image
+        if: env.PLAN_ONLY != 'true'
 
       # The dedicated e2e project (the five scenario files). The OpenAPI drift +
       # validation guard rides in the unit job (part of `pnpm test`), no Docker.
       - run: pnpm --filter qcms-api exec vitest run --root ../.. --project qcms-api-e2e
+        if: env.PLAN_ONLY != 'true'
 
       - uses: ./.github/actions/assert-no-docker-hub-pulls
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.PLAN_ONLY != 'true' }}
 
   # The portal browser suite (the ONE Playwright config, 029/ADR-23), as its own
   # job for signal clarity: when this is red, a respondent-facing surface broke.
@@ -183,23 +372,37 @@ jobs:
   # changes, the keyboard-only walkthrough, reduced-motion/200%-zoom, and Lighthouse
   # accessibility = 100 on the entry/flow/error/completion pages. Docker is
   # available on ubuntu-latest (anonymous pulls, no registry creds).
+  # Same fast-lane shape as `api-e2e` above: guarded steps, unguarded job, context
+  # still reported.
   portal-e2e:
     runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ !cancelled() }}
+    env:
+      PLAN_ONLY: ${{ needs.changes.outputs.plan_only }}
     steps:
       - uses: actions/checkout@v7
 
+      - name: Plan-only change, no rendered surface to exercise
+        if: env.PLAN_ONLY == 'true'
+        run: echo "Diff is entirely under plan/ - reporting portal-e2e green without running the suite."
+
       - uses: pnpm/action-setup@v6.0.9
+        if: env.PLAN_ONLY != 'true'
 
       - uses: actions/setup-node@v7
+        if: env.PLAN_ONLY != 'true'
         with:
           node-version: 24
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+        if: env.PLAN_ONLY != 'true'
 
       # @qcms/db's `.` export resolves to dist, and globalSetup composes the real
       # API from the built workspace, so build first.
       - run: pnpm build
+        if: env.PLAN_ONLY != 'true'
 
       # Playwright's Chromium plus the OS libraries headless Chrome needs on the
       # runner. `--with-deps` is what makes both Playwright AND the Lighthouse gate
@@ -207,24 +410,27 @@ jobs:
       # chrome-launcher (see apps/portal/e2e/a11y-lighthouse.pw.ts), and without the
       # system libraries headless Chrome cannot start on a bare ubuntu runner.
       - run: pnpm exec playwright install --with-deps chromium
+        if: env.PLAN_ONLY != 'true'
 
       # globalSetup boots a Testcontainers Postgres, so this job needs the same
       # registry independence as the other two (issues #74 and #150). This is the
       # leg PR #149 lost to a Docker Hub timeout on the Ryuk reaper's image.
       - uses: ./.github/actions/test-postgres-image
+        if: env.PLAN_ONLY != 'true'
 
       # Runs the whole root Playwright config (CI=true, so it never reuses a server
       # and forbids `test.only`). ~1-2 min including the DB boot and Lighthouse runs.
       - run: pnpm exec playwright test
+        if: env.PLAN_ONLY != 'true'
 
       - uses: ./.github/actions/assert-no-docker-hub-pulls
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.PLAN_ONLY != 'true' }}
 
       # Failure forensics (issue #102): screenshots, traces, and the captured
       # portal/API server logs, only when the job fails. docs/gates/pr-NN stays
       # the sign-off mechanism; this is debugging evidence.
       - uses: actions/upload-artifact@v7
-        if: failure()
+        if: ${{ failure() && env.PLAN_ONLY != 'true' }}
         with:
           name: portal-e2e-failure-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
