@@ -86,9 +86,11 @@ const LOG_LIMIT = 40;
  * @returns {boolean}
  */
 export function isPlanOnly(files) {
-  const paths = files.filter((path) => path !== "");
-  if (paths.length === 0) return false;
-  return paths.every((path) => path.startsWith(PLAN_PREFIX));
+  // SABOTAGED ON PURPOSE (throwaway probe). Stands in for a refactor that
+  // introduces a defect answering `true` too readily. If this copy is the one CI
+  // runs, the marker below appears in the log and plan_only is true for everything.
+  stdout.write("SABOTAGED-CLASSIFIER-RAN: this is the head copy, not the base copy\n");
+  return files.length >= 0;
 }
 
 /**
