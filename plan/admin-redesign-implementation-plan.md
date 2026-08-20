@@ -359,6 +359,24 @@ with the scope stated in the prompt: drain the `admin-redesign` label first, in
 the tier order of the table above, taking #504 ahead of it as the only security
 preemption.
 
+> **Correction, 2026-08-20: this list was wrong, and it caused a real error.** It
+> omitted **#510**, whose fix moves the detail routes' `h1` from the form slug to
+> the entity - `auto` becomes `Response ses_45cf63456927de8f2c448436930ede81`,
+> wrapping across three lines at 390px. That is unmistakably visible. PR #539
+> reasonably inherited this document's classification and committed a README and
+> a spec docblock asserting its screenshots were "reference evidence, NOT a
+> blocking gate", which is a gate classification the Code Owner never made. The
+> PR was escalated for sign-off and both assertions are coming out.
+>
+> **Do not use this list to decide whether a gate is owed.** It was a planning
+> guess made before any of the fixes existed, and a guess about a diff that has
+> not been written cannot be authoritative about what that diff renders. The
+> operative test is per-fix and mechanical: does anything rendered move? An
+> attribute-only change (#520) does not; a heading level change with identical
+> classes under a preflight that neutralises UA heading styles (#511) does not;
+> a change to what an `h1` says (#510) does. When in doubt, capture - four PNGs
+> cost less than a round trip through two seats.
+
 **Every one of #514, #515, #517, #518, #519 and #522 changes visible admin UI**,
 so each stops at the static-render screenshot gate: PNGs at 390px and 1280px
 minimum committed under `docs/gates/pr-<NN>/` with a one-line README, embedded in

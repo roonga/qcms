@@ -247,6 +247,8 @@ The in-place transition is fine (h1, then `ResponseDetail`'s h2 at `components/o
 
 This is invisible to the gate: `apps/admin/e2e/a11y-axe.pw.ts:137` restricts axe to `["wcag2a","wcag2aa","wcag21a","wcag21aa","wcag22aa"]`, and `heading-order` is a best-practice rule carrying none of those tags. The tombstone state is also not among the routes the sweep visits (`:667-714`).
 
+> **Stale as of 2026-08-20, in the premise rather than the finding** (this document is **maintained**, not a frozen snapshot - see the note at §8 item 2). The paragraph above says "the in-place transition is fine" because `ResponseDetail` supplies an `h2`. PR #539 (#510) **deleted that `h2`** as a restatement of the route's own subject, so the premise no longer holds and the in-place path would have started skipping too. PR #542 (#511) repairs both by promoting the tombstone heading and by adding `heading-order` to the gate. The finding was right; the reason it gave for the in-place path being safe has expired.
+
 ### D3. `components/area-placeholder.tsx` is dead code
 
 Its own doc comment says "These are the only files 032-035 are expected to delete outright" (`:17`). Tasks 032 through 035 are all `done` (`docs/features/README.md:70-73`) and nothing imports it: the only occurrence of the identifier in the app is its own declaration at `components/area-placeholder.tsx:19`.
@@ -286,7 +288,11 @@ Ordered by value against effort. What I would do first, and what I would not do 
 **Do first, before any of the seven elements.** These are cheap, they are correctness rather than taste, and every one of them gets more expensive once a new language is being applied on top.
 
 1. **Fix D1 (scope mismatch on the two detail routes).** One catalog string and one prop. It is the same defect the form editor spent real time on, it is live in two places, and fixing it now means the scope rule is demonstrated in the codebase before it is written into a language.
-2. **Fix D2, D3, D4.** A heading level, a file deletion, and one ternary in two files. While in D2, add `heading-order` to the axe gate's rule set and add the version-detail and tombstone routes to the sweep, or the next one will be invisible too.
+2. **Fix D2, D3, D4.** A heading level, a file deletion, and one ternary in two files. While in D2, add `heading-order` to the axe gate's rule set and add the tombstone route to the sweep, or the next one will be invisible too.
+
+   > **Two corrections, 2026-08-20.** This item originally also asked for the **version-detail** route to be added to the sweep. It is already there (`apps/admin/e2e/a11y-axe.pw.ts:604`) and was when this was written; the claim was wrong, not merely overtaken. And enabling `heading-order` turned out to surface two **pre-existing** violations outside the fix's own diff, now filed as #540 and #541 and parked in a `KNOWN_HEADING_ORDER_GAPS` register - a ratchet that still fails on a new node, an unregistered state, or any other rule. Enabling a dormant rule on a shipped app is rarely the one-line change an audit item makes it sound like; budget for the debt it exposes.
+   >
+   > **This document is maintained, not frozen** (ruled 2026-08-20). It is a working audit that the tier is executing against, so a claim it makes that stops being true gets corrected here rather than preserved with a dated note appended. That is the opposite of the convention for `docs/security-review-2026-08-14.md`, whose table column is literally headed "State at close of review" and which stays frozen. The difference is what the document is for: a review snapshot records what was true on a date; an audit drives work and has to stay accurate to be usable.
 3. **Pick one empty state and one table treatment.** The frozen `plan/admin-theme/ds-table.html` card already exists and is followed by nothing; either the card changes or the nine tables do, but three answers to one question is not a position. This is the single change that most affects how the app reads, and it touches no behaviour.
 4. **Record D5** as an accepted deviation in `docs/wireframes/admin-responses-ops.md`, in the form the question-library wireframe already uses.
 

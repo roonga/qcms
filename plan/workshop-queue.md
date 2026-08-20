@@ -431,3 +431,21 @@ It was caught by reading the generated YAML back, not by any gate. Nothing in th
 **The mechanism, which is new as of PR #525.** When a matrix job is cancelled *before the matrix expands*, GitHub publishes the job under its **uninterpolated** name - `verify (node-${{ matrix.node-version }})` - creating a check context that no later run supersedes, because no later run ever publishes that string. It sat red on #525 permanently. It is not a required context, `mergeStateStatus` was `CLEAN`, and `gh pr checks` exited 0. Cancellation before expansion became possible only when `ci.yml` gained a `concurrency` block, so this will recur on any PR pushed and then edited moments later.
 
 **Candidate edit.** One line in both skills: read CI by `gh pr checks <NN>`'s **exit code** and by the four required context names from the ruleset, never by row colour or row count. Fixing it at the source is not available - the only way to stop the phantom context is to change where `verify` gets its name from, and that string is a required context, so touching it strands every future PR at "Expected - waiting for status". Accepting a cosmetic red row is the correct trade; the skills just need to say so.
+
+---
+
+## Verification supplied the load that made the thing under verification fail
+
+**Raised:** 2026-08-20, dev seat, as a controlled observation on #391. The best finding of that run, and structural rather than statistical.
+
+**The instance.** A reviewer was verifying an executor's gate claims by re-running the gates. That re-run competed for the same machine. The suite under review then failed under the contention the review itself created, and the reviewer returned a **false REJECT** costing an 11-minute re-run. Four runs, same machine, contention as the only deliberate variable: it failed under concurrent load and passed twice when serialized, with zero code change between two of them.
+
+**Why this is not a flake report.** The flake is incidental; the shape is not. **The act of verifying degraded the thing being verified**, so the verdict measured the harness rather than the work. Any flow where a reviewer independently re-runs a load-sensitive gate on the same machine as the thing it is reviewing has this property, and it produces the worst possible failure mode: a confident, evidence-bearing REJECT that is wrong. A reviewer trusting the executor's green would have been *more* accurate than one checking it, which inverts the entire point of the review step.
+
+**Candidate edits, in rough order of cost.**
+
+1. **Serialize heavy gates across roles, not just across lanes.** `plan/pr-review-loop.md` and the `next-issue` skill already require lanes to take `flock -w 2400 ../seat-mail/.gates.lock` around `verify:browser` and Docker-backed runs. That lock is scoped to lanes; a reviewer inside one lane re-running the executor's gate is not obviously a second lane, and evidently did not take it. Make the lock explicitly cover **any** heavy run by any role, reviewer included.
+2. **Name the failure mode in the reviewer's instructions.** A reviewer who sees a load-sensitive suite go red on a re-run should treat contention as a live hypothesis before reporting REJECT: check whether the run actually executed its tests, and re-run serialized before rendering a verdict. CLAUDE.md already carries the "check every run actually executed tests" lesson from #61; this is its reviewer-facing half.
+3. **Reconsider what a reviewer re-running gates is even for.** CI runs the same suites on the pushed head, under branch protection, on a machine with no competing lane. A local re-run by the reviewer duplicates that at the cost of contention. The valuable half of review is reading the diff and re-deriving claims from the code, which is exactly what caught the real defects this session (#451's appended commit, #533's two missed call sites, #539's overstated CSS comment). A rule of "verify claims at the source, let CI own the gates" might be strictly better than what we do now.
+
+**Caution for whoever implements it.** Do not turn this into "reviewers trust green". The lesson is about *where* verification happens, not whether it does.
