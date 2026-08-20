@@ -21,6 +21,18 @@ import { t } from "@/lib/i18n/en";
  * String cells are also why the status is rendered as its plain word here rather than as
  * the `StatusTag` used on the detail screen. It reads the same to a screen reader, which
  * is the property that matters.
+ *
+ * ## The trade above is now on notice
+ *
+ * `plan/admin-design-contracts.md` §2 (CONFIRMED 2026-08-20) settles it the other way:
+ * the row's identifying cell carries a real anchor, and whole-row `onRowAction` retires
+ * with the kit-table migration. Issue 514 brought this table into the one `qcms-table`
+ * family visually - the row height, header, padding and dividers below are the same
+ * treatment every other table in the app now uses - and left the row action alone,
+ * because retiring it is a behaviour change with its own no-JS and keyboard evidence to
+ * produce and does not belong buried in a restyle. `qcms-table--rowaction` is the marker
+ * for what is left to do: it exists only on the tables whose whole row is still the
+ * control, and it is deleted when the last one gains its anchor.
  */
 export function QuestionsTable({
   rows,
@@ -31,7 +43,7 @@ export function QuestionsTable({
 }) {
   const router = useRouter();
   return (
-    <div className="qcms-table">
+    <div className="qcms-table qcms-table--rowaction qcms-table--questions">
       <Table
         ariaLabel={t("questions.table.label")}
         columns={[...columns]}

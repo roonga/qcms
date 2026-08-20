@@ -2,6 +2,7 @@
 
 import { useCallback, useState, useTransition } from "react";
 
+import { EmptyState } from "@/components/empty-state";
 import { Alert, Button, Checkbox, DatePicker, Dialog, NumberField } from "@/components/kit";
 import { LinkStateTag } from "@/components/forms/link-state-tag";
 import type { MintLinksState, RevokeLinkState } from "@/lib/forms/builder-state";
@@ -424,59 +425,89 @@ function LinksTable({
   readonly isPending: boolean;
 }) {
   if (links.length === 0) {
+    // §3's panel. No CTA: this screen's creating action is the mint fieldset rendered
+    // directly above, which takes a count and an expiry rather than being a button that
+    // goes somewhere, so there is nothing for a CTA to point at.
     return (
-      <p className="text-sm text-(--color-text-muted)" data-testid="qcms-links-empty">
-        {t("forms.links.empty")}
-      </p>
+      <EmptyState
+        heading={t("forms.links.emptyTitle")}
+        body={t("forms.links.empty")}
+        testId="qcms-links-empty"
+      />
     );
   }
 
+  // One table family (§2). WHICH COLUMN DROPS AT COMPACT WIDTH: Minted. Expiry and Used
+  // are the live lifecycle facts an operator revokes on; the minting stamp is provenance
+  // and describes rather than identifies. Nothing else drops, the revoke control least of
+  // all.
+  //
+  // NOTE ON THE ONE-TIME REVEAL, which the issue flagged as the likeliest place the
+  // card's shape would not fit: it is not in this table and never was. A minted link's
+  // URL is shown exactly once, in `MintedPanel` above, which is a list and not a table
+  // and is neither an empty state nor collapsible (§3). This table holds link IDS and
+  // lifecycle stamps - it never rendered a token - so the family applies to it with no
+  // tension at all.
   return (
-    <table className="qcms-links-table" data-testid="qcms-links-table">
-      <caption className="qcms-visually-hidden">{t("forms.links.table")}</caption>
-      <thead>
-        <tr>
-          <th scope="col">{t("forms.links.column.linkId")}</th>
-          <th scope="col">{t("forms.links.column.state")}</th>
-          <th scope="col">{t("forms.links.column.oneTime")}</th>
-          <th scope="col">{t("forms.links.column.expiresAt")}</th>
-          <th scope="col">{t("forms.links.column.usedAt")}</th>
-          <th scope="col">{t("forms.links.column.createdAt")}</th>
-          <th scope="col">
-            <span className="qcms-visually-hidden">{t("forms.links.revoke")}</span>
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {links.map((link) => (
-          <tr key={link.linkId} data-link-id={link.linkId} data-state={link.state}>
-            <th scope="row">
-              <code className="qcms-link-id">{link.linkId}</code>
+    <div className="qcms-table">
+      <table data-testid="qcms-links-table">
+        <caption className="qcms-visually-hidden">{t("forms.links.table")}</caption>
+        <thead>
+          <tr>
+            <th scope="col">{t("forms.links.column.linkId")}</th>
+            <th scope="col">{t("forms.links.column.state")}</th>
+            <th scope="col">{t("forms.links.column.oneTime")}</th>
+            <th scope="col" className="qcms-cell--num">
+              {t("forms.links.column.expiresAt")}
             </th>
-            <td>
-              <LinkStateTag state={link.state} />
-            </td>
-            <td>{link.oneTime ? t("forms.links.yes") : t("forms.links.no")}</td>
-            <td>{formatDateTime(link.expiresAt, t("forms.links.none"))}</td>
-            <td>{formatDateTime(link.consumedAt, t("forms.links.none"))}</td>
-            <td>{formatDateTime(link.createdAt, t("forms.links.none"))}</td>
-            <td>
-              {isRevocable(link.state) && (
-                <Button
-                  variant="danger"
-                  size="sm"
-                  isDisabled={isPending}
-                  onPress={() => {
-                    onRevoke(link.linkId);
-                  }}
-                >
-                  {t("forms.links.revoke")}
-                </Button>
-              )}
-            </td>
+            <th scope="col" className="qcms-cell--num">
+              {t("forms.links.column.usedAt")}
+            </th>
+            <th scope="col" className="qcms-cell--num qcms-cell--drop">
+              {t("forms.links.column.createdAt")}
+            </th>
+            <th scope="col">
+              <span className="qcms-visually-hidden">{t("forms.links.revoke")}</span>
+            </th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {links.map((link) => (
+            <tr key={link.linkId} data-link-id={link.linkId} data-state={link.state}>
+              <th scope="row">
+                <code className="qcms-link-id">{link.linkId}</code>
+              </th>
+              <td>
+                <LinkStateTag state={link.state} />
+              </td>
+              <td>{link.oneTime ? t("forms.links.yes") : t("forms.links.no")}</td>
+              <td className="qcms-cell--num">
+                {formatDateTime(link.expiresAt, t("forms.links.none"))}
+              </td>
+              <td className="qcms-cell--num">
+                {formatDateTime(link.consumedAt, t("forms.links.none"))}
+              </td>
+              <td className="qcms-cell--num qcms-cell--drop">
+                {formatDateTime(link.createdAt, t("forms.links.none"))}
+              </td>
+              <td>
+                {isRevocable(link.state) && (
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    isDisabled={isPending}
+                    onPress={() => {
+                      onRevoke(link.linkId);
+                    }}
+                  >
+                    {t("forms.links.revoke")}
+                  </Button>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

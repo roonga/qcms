@@ -15,6 +15,11 @@ import { t } from "@/lib/i18n/en";
  * exists to prevent. react-aria makes the row itself the control, so it is focusable and
  * activates on Enter; what is lost is open-in-new-tab and operation with JavaScript off,
  * which this authoring screen can afford (the builder needs JavaScript regardless).
+ *
+ * `plan/admin-design-contracts.md` §2 now settles that trade the other way, and the note
+ * on `components/questions/questions-table.tsx` explains what issue 514 did and did not
+ * do about it: the visual family arrived, the row action did not retire, and
+ * `qcms-table--rowaction` is what marks the tables still waiting on an anchor.
  */
 export function FormsTable({
   rows,
@@ -25,7 +30,7 @@ export function FormsTable({
 }) {
   const router = useRouter();
   return (
-    <div className="qcms-table">
+    <div className="qcms-table qcms-table--rowaction qcms-table--forms">
       <Table
         ariaLabel={t("forms.table.label")}
         columns={[...columns]}

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 
+import { EmptyState } from "@/components/empty-state";
 import { Alert, Button, Dialog } from "@/components/kit";
 import { focusPostAction } from "@/lib/ops/post-action-focus";
 import type { DeadLetterItem } from "@/lib/ops/types";
@@ -125,10 +126,15 @@ export function DeadLetters({
         )}
       </div>
 
+      {/* §3's panel. No CTA: nothing on this screen creates a dead letter (a failed
+          delivery does), and an empty queue is the good outcome rather than a gap to
+          fill. §3 asks for a CTA only where a creating action exists. */}
       {deadLetters.length === 0 ? (
-        <p className="text-sm text-(--color-text-muted)" data-testid="qcms-dead-letters-empty">
-          {t("ops.deadLetters.empty")}
-        </p>
+        <EmptyState
+          heading={t("ops.deadLetters.emptyTitle")}
+          body={t("ops.deadLetters.empty")}
+          testId="qcms-dead-letters-empty"
+        />
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-3">
@@ -152,59 +158,74 @@ export function DeadLetters({
             </Button>
           </div>
 
-          <table className="qcms-ops-table" data-testid="qcms-dead-letters-table">
-            <caption className="qcms-visually-hidden">{t("ops.deadLetters.table")}</caption>
-            <thead>
-              <tr>
-                <th scope="col">{t("ops.deadLetters.column.event")}</th>
-                <th scope="col">{t("ops.deadLetters.column.target")}</th>
-                <th scope="col">{t("ops.deadLetters.column.attempts")}</th>
-                <th scope="col">{t("ops.deadLetters.column.lastError")}</th>
-                <th scope="col">{t("ops.deadLetters.column.deadLetteredAt")}</th>
-                <th scope="col">
-                  <span className="qcms-visually-hidden">{t("ops.deadLetters.redeliver")}</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {deadLetters.map((row) => (
-                <tr key={row.deliveryId} data-delivery-id={row.deliveryId}>
-                  <th scope="row">
-                    <code className="qcms-link-id">{row.eventType}</code>
+          {/* One table family (§2). WHICH COLUMN DROPS AT COMPACT WIDTH: Last error.
+              It is the widest cell here by a long way (a raw upstream error string) and
+              it describes a failure rather than identifying the delivery. Event, Target,
+              Attempts and Dead-lettered-at are what an operator scans to decide whether
+              to redeliver, and the redeliver control travels with them. */}
+          <div className="qcms-table">
+            <table data-testid="qcms-dead-letters-table">
+              <caption className="qcms-visually-hidden">{t("ops.deadLetters.table")}</caption>
+              <thead>
+                <tr>
+                  <th scope="col">{t("ops.deadLetters.column.event")}</th>
+                  <th scope="col">{t("ops.deadLetters.column.target")}</th>
+                  <th scope="col" className="qcms-cell--num">
+                    {t("ops.deadLetters.column.attempts")}
                   </th>
-                  <td>
-                    <span className="qcms-link-url">{row.url}</span>
-                  </td>
-                  <td>{row.attempts}</td>
-                  <td>
-                    <code data-testid="qcms-dead-letter-error">
-                      {row.lastError ?? t("ops.common.none")}
-                    </code>
-                  </td>
-                  <td>{formatDateTime(row.deadLetteredAt, t("ops.common.none"))}</td>
-                  <td>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      isDisabled={isPending}
-                      onPress={() => {
-                        setState(IDLE);
-                        run(() => redeliver(row.formId, row.deliveryId));
-                      }}
-                    >
-                      <span className="qcms-visually-hidden">
-                        {t("ops.deadLetters.redeliverOne", {
-                          event: row.eventType,
-                          target: row.url,
-                        })}
-                      </span>
-                      <span aria-hidden="true">{t("ops.deadLetters.redeliver")}</span>
-                    </Button>
-                  </td>
+                  <th scope="col" className="qcms-cell--drop">
+                    {t("ops.deadLetters.column.lastError")}
+                  </th>
+                  <th scope="col" className="qcms-cell--num">
+                    {t("ops.deadLetters.column.deadLetteredAt")}
+                  </th>
+                  <th scope="col">
+                    <span className="qcms-visually-hidden">{t("ops.deadLetters.redeliver")}</span>
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {deadLetters.map((row) => (
+                  <tr key={row.deliveryId} data-delivery-id={row.deliveryId}>
+                    <th scope="row">
+                      <code className="qcms-link-id">{row.eventType}</code>
+                    </th>
+                    <td>
+                      <span className="qcms-link-url">{row.url}</span>
+                    </td>
+                    <td className="qcms-cell--num">{row.attempts}</td>
+                    <td className="qcms-cell--drop">
+                      <code data-testid="qcms-dead-letter-error">
+                        {row.lastError ?? t("ops.common.none")}
+                      </code>
+                    </td>
+                    <td className="qcms-cell--num">
+                      {formatDateTime(row.deadLetteredAt, t("ops.common.none"))}
+                    </td>
+                    <td>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        isDisabled={isPending}
+                        onPress={() => {
+                          setState(IDLE);
+                          run(() => redeliver(row.formId, row.deliveryId));
+                        }}
+                      >
+                        <span className="qcms-visually-hidden">
+                          {t("ops.deadLetters.redeliverOne", {
+                            event: row.eventType,
+                            target: row.url,
+                          })}
+                        </span>
+                        <span aria-hidden="true">{t("ops.deadLetters.redeliver")}</span>
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </>
       )}
 

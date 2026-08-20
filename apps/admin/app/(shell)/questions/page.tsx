@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { EmptyState } from "@/components/empty-state";
 import { Alert, Button, Card, Select, TextField, type TableRow } from "@/components/kit";
 import { QuestionsTable } from "@/components/questions/questions-table";
 import { t } from "@/lib/i18n/en";
@@ -175,20 +176,37 @@ export default async function QuestionsPage({
         </Alert>
       )}
 
-      {result.ok && result.data.length === 0 && (
-        <div className="qcms-card">
-          <Card padding="md" radius="md" border>
-            <div className="flex flex-col gap-2">
-              <h2 className="text-base font-semibold text-(--color-text)">
-                {isFiltered ? t("questions.empty.filtered") : t("questions.empty.title")}
-              </h2>
-              {!isFiltered && (
-                <p className="text-sm text-(--color-text-muted)">{t("questions.empty.body")}</p>
-              )}
-            </div>
-          </Card>
-        </div>
-      )}
+      {/* `plan/admin-design-contracts.md` §3's panel, in both of its variants. The
+          filtered one keeps the panel and the clear-filters action, swaps the heading
+          to the screen's own "no matches" line, and drops the explanatory sentence:
+          an operator who has just typed a filter is not asking what the library is
+          for. The unfiltered one keeps the sentence and offers the creating action,
+          which is the same destination as the header link - an empty screen is where
+          a first-time operator looks, not the corner of the header. */}
+      {result.ok &&
+        result.data.length === 0 &&
+        (isFiltered ? (
+          <EmptyState
+            heading={t("questions.empty.filtered")}
+            testId="qcms-questions-empty"
+            action={
+              <Link href="/questions" className="qcms-button-link">
+                {t("questions.filter.clear")}
+              </Link>
+            }
+          />
+        ) : (
+          <EmptyState
+            heading={t("questions.empty.title")}
+            body={t("questions.empty.body")}
+            testId="qcms-questions-empty"
+            action={
+              <Link href="/questions/new" className="qcms-button-link">
+                {t("questions.new")}
+              </Link>
+            }
+          />
+        ))}
 
       {result.ok && result.data.length > 0 && (
         <div className="flex flex-col gap-2">

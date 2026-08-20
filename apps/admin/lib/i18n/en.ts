@@ -744,6 +744,7 @@ export const messages = {
   "forms.history.heading": "Version history",
   "forms.history.intro":
     "Every published version, frozen exactly as it was. Viewing one renders the compiled documents stored at publish time, which is what respondents on that version saw (ADR-18).",
+  "forms.history.emptyTitle": "Not published yet",
   "forms.history.empty": "This form has never been published.",
   "forms.history.table": "Published versions",
   "forms.history.column.version": "Version",
@@ -817,6 +818,7 @@ export const messages = {
   "forms.links.column.expiresAt": "Expires",
   "forms.links.column.createdAt": "Minted",
   "forms.links.column.usedAt": "Used",
+  "forms.links.emptyTitle": "No links yet",
   "forms.links.empty": "No links have been minted for this form.",
   "forms.links.yes": "Yes",
   "forms.links.no": "No",
@@ -928,6 +930,13 @@ export const messages = {
   "ops.responses.reason.MIN_TIME": "Submitted faster than the minimum time",
   "ops.responses.reason.RATE_ANOMALY": "Unusual submission rate",
   "ops.responses.reason.unknown": "Flagged as {reason}",
+  // The empty-state headings (issue 514). `plan/admin-design-contracts.md` §3 gives
+  // every empty state a heading and one sentence; the seven screens that shipped a
+  // bare muted paragraph already had the sentence, so what each gains here is the
+  // heading above it. The FILTERED variants add no key at all: §3 swaps the heading
+  // to a "no matches" line and drops the sentence, and the "no matches" line each
+  // screen already had is exactly that heading.
+  "ops.responses.emptyTitle": "No responses yet",
   "ops.responses.empty": "Nothing has been submitted to this form yet.",
   "ops.responses.filteredEmpty": "No response matches these filters.",
   "ops.responses.total.one": "1 response",
@@ -1052,6 +1061,7 @@ export const messages = {
   "ops.erasures.column.formVersion": "Version",
   "ops.erasures.column.erasedAt": "Erased",
   "ops.erasures.column.reason": "Reason",
+  "ops.erasures.emptyTitle": "No erasures recorded",
   "ops.erasures.empty": "Nothing has been erased.",
   "ops.erasures.total.one": "1 erasure",
   "ops.erasures.total.other": "{count} erasures",
@@ -1085,6 +1095,7 @@ export const messages = {
   "ops.webhooks.state.active": "Active",
   "ops.webhooks.state.inactive": "Inactive",
   "ops.webhooks.secretStored": "Stored, not retrievable",
+  "ops.webhooks.emptyTitle": "No endpoint yet",
   "ops.webhooks.empty": "This form has no webhook endpoint configured.",
   "ops.webhooks.createFailed": "The endpoint was not created. {message}",
   "ops.webhooks.listFailed": "The endpoints could not be loaded. {message}",
@@ -1163,6 +1174,7 @@ export const messages = {
   // reason). "Removed" rather than "expired" for the same reason.
   "ops.deliveries.redactedBody": "The stored response body was removed on {when}.",
   "ops.deliveries.lastError": "Last error",
+  "ops.deliveries.emptyTitle": "No deliveries yet",
   "ops.deliveries.empty": "Nothing has been delivered for this form yet.",
   "ops.deliveries.loadFailed": "The deliveries could not be loaded. {message}",
 
@@ -1176,6 +1188,7 @@ export const messages = {
   "ops.deadLetters.column.attempts": "Attempts",
   "ops.deadLetters.column.lastError": "Last error",
   "ops.deadLetters.column.deadLetteredAt": "Dead-lettered",
+  "ops.deadLetters.emptyTitle": "Nothing dead-lettered",
   "ops.deadLetters.empty": "The dead-letter queue is empty.",
   "ops.deadLetters.total.one": "1 dead-lettered delivery",
   "ops.deadLetters.total.other": "{count} dead-lettered deliveries",
