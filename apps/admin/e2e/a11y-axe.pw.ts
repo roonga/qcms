@@ -166,15 +166,24 @@ const EXTRA_RULES = { "heading-order": { enabled: true } };
  * rather than something to decide inside a heading fix, so they are recorded rather than
  * silently dropped and rather than left failing:
  *
- * - `version history`: `components/forms/version-history.tsx` heads its compare panel
- *   with an `<h3>` directly under the page `<h1>`, with no `<h2>` between.
- * - `the delivery-detail disclosure`: `components/ops/delivery-dashboard.tsx` heads the
- *   expanded row's request headers with an `<h4>` under the dashboard's `<h2>`.
+ * - `version history` (**issue #540**): `components/forms/version-history.tsx` heads its
+ *   compare panel with an `<h3>` directly under the page `<h1>`, with no `<h2>` between.
+ * - `the delivery-detail disclosure` (**issue #541**): `components/ops/delivery-dashboard.tsx`
+ *   heads the expanded row's request headers with an `<h4>` under the dashboard's `<h2>`.
  *
  * This list is a debt register, not a policy: each entry is a defect that should be
  * fixed and the entry deleted, and it is deliberately keyed narrowly (state **and**
  * node) so it cannot grow into a blanket mute. A NEW gap in either of these two states,
- * on any other node, still fails.
+ * on any other node, still fails. Fixing one is a two-step change: correct the heading
+ * in the component named above, then delete that entry here. The issue numbers live in
+ * this comment on purpose, because this file is what a future fixer reads.
+ *
+ * `expectNoViolations` also asserts the converse, that every entry here is still
+ * violating. An entry left behind after its heading is fixed does not fail on its own,
+ * it silently re-arms a mute at that exact selector, so a *later* heading-order
+ * regression on the same node in the same state would be swallowed by an exclusion
+ * nobody remembers granting. That is strictly worse than the gap it was registered for,
+ * which was at least visible in the source, so a dead entry fails the gate.
  */
 const KNOWN_HEADING_ORDER_GAPS: Readonly<Record<string, readonly string[]>> = {
   "version history": ["#qcms-diff-heading"],
@@ -226,6 +235,20 @@ async function expectNoViolations(page: Page, state: string): Promise<void> {
               .join(" | ")}]`,
         ),
         `axe violations on the ${state} state in ${mode.name}`,
+      ).toEqual([]);
+
+      // The register's other direction: an entry that no longer violates is dead, and a
+      // dead entry is a mute nobody granted (see KNOWN_HEADING_ORDER_GAPS). Checked from
+      // the results already in hand, after the gate above, so a genuine new violation is
+      // still what gets reported first.
+      const violatingNodes = new Set(
+        results.violations
+          .filter((v) => v.id === "heading-order")
+          .flatMap((v) => v.nodes.map((node) => node.target.join(" "))),
+      );
+      expect(
+        allowed.filter((target) => !violatingNodes.has(target)),
+        `stale KNOWN_HEADING_ORDER_GAPS entries for the ${state} state in ${mode.name}: these nodes no longer raise heading-order, so delete them from the register rather than leaving a mute armed`,
       ).toEqual([]);
     }
   } finally {
