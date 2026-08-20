@@ -356,9 +356,11 @@ hydrated or not, so an affected browser cannot start a questionnaire at all. Thi
 only a no-JS problem, even though the no-JS path is where it bites hardest.
 
 **Which browsers.** `Sec-Fetch-Site` shipped in Chrome 76 (July 2019), Edge 79, Opera 63,
-Samsung Internet 12.0, Firefox 90 (13 July 2021) and Safari 16.4 (27 March 2023), per
-MDN's browser-compat data. Anything older sends nothing. Two consequences worth having in
-front of you when you take the call:
+Samsung Internet 12.0, Firefox 90 (13 July 2021) and Safari 16.4 (27 March 2023). The
+version numbers are MDN's browser-compat data (only Chrome, Firefox and Safari are stated
+there; Edge, Opera, Samsung and the Android engines are mirrored from Chrome). The release
+dates are caniuse-db's `version_list`. Anything older sends nothing. Two consequences worth
+having in front of you when you take the call:
 
 - **On iOS the browser is irrelevant, the iOS version decides.** Every browser on iOS and
   iPadOS uses the system WebKit, so Chrome, Edge, Firefox and any in-app browser on
@@ -371,10 +373,11 @@ that send no Fetch Metadata. That is computed from caniuse's per-version usage d
 every tracked version below the thresholds above. Treat it as a **floor, not a point
 estimate**, for three reasons:
 
-- caniuse's own headline for this feature reads 4.94% unsupported, but that is
-  `100 - supported` and folds in 3.3 percentage points of traffic caniuse attributes to no
-  tracked browser at all (unknown user agents, bots). Only 1.6 points are identifiably old
-  browsers.
+- Do not quote the 4.94% that caniuse's own method yields for this feature. That figure is
+  `100 - supported`, and it folds in the 3.31 percentage points of traffic caniuse
+  attributes to no tracked browser at all (unknown user agents, bots): its version tables
+  account for only 96.69% of traffic in the first place. Of the 4.94, only 1.63 points are
+  identifiably old browsers.
 - caniuse collapses every Android-side browser to a single current version. Chrome for
   Android is 46% of global usage and is assumed entirely up to date, so any real tail of
   old Android WebViews is invisible in the number rather than absent from the world.
@@ -386,14 +389,16 @@ A realistic band is 1.6% to 5%. Roughly half the identified residual is iOS devi
 16.4, which age out on Apple's own upgrade curve, and half is old desktop (Chrome below 76,
 plus IE 11).
 
-**It is concentrated, and not where you might guess.** Same data, per region: China about
-7.1% (almost all of it IE 11 in enterprise contexts), Japan 5.3% and Germany 4.4% (old
-desktop Chrome), against 2.1% for the United States and 1.9% for the United Kingdom. The
-low figures the source reports for India (0.17%) and Africa (0.6%) should **not** be read
-as measurements: those regions are overwhelmingly Chrome for Android, which is exactly the
-population the source cannot version-split. Russia and Korea are unusable from this source
-entirely, because most of their traffic is unattributed (Yandex, Whale, both Chromium-based
-and both fine).
+**It is concentrated, and not where you might guess.** Per region, from the same source's
+`region-usage-json` tables (month 2026-07, accessed 2026-08-07): China 7.07% (5.40 of it IE
+11 alone, an enterprise-desktop effect), Japan 5.28% and Germany 4.35% (old desktop Chrome
+in both), Oceania 4.11%, Europe 2.33%, against 2.05% for the United States and 1.87% for
+the United Kingdom. The low figures the source reports for India (0.17%) and Africa (0.61%)
+should **not** be read as measurements: those regions are overwhelmingly Chrome for
+Android, which is exactly the population the source cannot version-split. Russia and Korea
+carry an unusually large unattributed share (33% and 15% of their traffic respectively,
+against 3.6% worldwide), mostly Yandex and Whale, so their apparent 1.78% and 0.89% rest on
+a much smaller measured base than the other rows.
 
 **This is deliberate.** The only signal such a request carries is `Origin: null`, and any
 attacker's page can produce that too by declaring `Referrer-Policy: no-referrer` on itself.
