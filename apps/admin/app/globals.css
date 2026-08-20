@@ -1218,8 +1218,16 @@ button {
 .qcms-rowmenu__item {
   display: block;
   inline-size: 100%;
-  /* A `q_` id is one unbreakable token, so ordinary word wrapping cannot get it
-     inside the cap above. */
+  /* The popup renders inside its trigger's cell, and a table cell may well be
+     `white-space: nowrap` to keep its own control on one line - the pin list's grip
+     cell is. Inherited into here that makes every item one unbreakable line whose TEXT
+     runs past the menu box: the box measured 260px and sat well inside a 390px
+     viewport while the document went to 411px, which is why an element-rectangle sweep
+     found nothing and the capture guard still refused the frame (SC 1.4.10 Reflow).
+     Stated here rather than fixed at each call site, because a popup that wraps its own
+     text is the popup's business. */
+  white-space: normal;
+  /* And a `q_` id is one unbreakable token, so ordinary word wrapping is not enough. */
   overflow-wrap: anywhere;
   padding: 8px 10px;
   border: none;
