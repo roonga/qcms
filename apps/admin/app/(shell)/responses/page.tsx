@@ -38,24 +38,34 @@ export default async function ResponsesPage() {
           {t("ops.area.responses.formsFailed", { message: forms.message })}
         </Alert>
       )}
-      {forms.ok && forms.data.length === 0 ? (
-        <p className="text-sm text-(--color-text-muted)" data-testid="qcms-responses-no-forms">
-          {t("ops.area.responses.noForms")}
-        </p>
-      ) : (
-        <ul className="flex flex-col gap-1" data-testid="qcms-responses-form-list">
-          {(forms.ok ? forms.data : []).map((form) => (
-            <li key={form.formId}>
-              <Link
-                className="qcms-text-link"
-                href={`/forms/${encodeURIComponent(form.formId)}/responses`}
-              >
-                {t("ops.area.responses.pickForm", { title: form.slug })}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
+      {/*
+       * Three states, not two (issue #513). The read can fail, succeed with nothing, or
+       * succeed with forms, and only the last two have a list to show. A failed read
+       * renders nothing here on purpose: the alert above already says "the form list
+       * could not be loaded", so a second element would either repeat it or - worse, if
+       * it borrowed the sentence below - assert that no forms exist, which is precisely
+       * what a failed read does not know. An empty `<ul>` is the same mistake told to a
+       * screen reader as "list, 0 items".
+       */}
+      {forms.ok &&
+        (forms.data.length === 0 ? (
+          <p className="text-sm text-(--color-text-muted)" data-testid="qcms-responses-no-forms">
+            {t("ops.area.responses.noForms")}
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-1" data-testid="qcms-responses-form-list">
+            {forms.data.map((form) => (
+              <li key={form.formId}>
+                <Link
+                  className="qcms-text-link"
+                  href={`/forms/${encodeURIComponent(form.formId)}/responses`}
+                >
+                  {t("ops.area.responses.pickForm", { title: form.slug })}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ))}
     </div>
   );
 }

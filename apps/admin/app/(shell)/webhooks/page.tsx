@@ -52,22 +52,29 @@ export default async function WebhooksPage() {
             {t("ops.area.responses.formsFailed", { message: forms.message })}
           </Alert>
         )}
-        {forms.ok && forms.data.length === 0 ? (
-          <p className="text-sm text-(--color-text-muted)">{t("ops.area.webhooks.noForms")}</p>
-        ) : (
-          <ul className="flex flex-col gap-1">
-            {(forms.ok ? forms.data : []).map((form) => (
-              <li key={form.formId}>
-                <Link
-                  className="qcms-text-link"
-                  href={`/forms/${encodeURIComponent(form.formId)}/webhooks`}
-                >
-                  {t("ops.area.webhooks.pickForm", { title: form.slug })}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
+        {/*
+         * Three states, not two (issue #513), exactly as on `/responses`: a failed read
+         * renders nothing here, because the alert directly above already carries the
+         * message and the "no forms exist yet" sentence would claim knowledge the failed
+         * read does not have. The list appears only when there is a list.
+         */}
+        {forms.ok &&
+          (forms.data.length === 0 ? (
+            <p className="text-sm text-(--color-text-muted)">{t("ops.area.webhooks.noForms")}</p>
+          ) : (
+            <ul className="flex flex-col gap-1">
+              {forms.data.map((form) => (
+                <li key={form.formId}>
+                  <Link
+                    className="qcms-text-link"
+                    href={`/forms/${encodeURIComponent(form.formId)}/webhooks`}
+                  >
+                    {t("ops.area.webhooks.pickForm", { title: form.slug })}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ))}
       </section>
     </div>
   );
