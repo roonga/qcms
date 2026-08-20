@@ -100,8 +100,11 @@ test("releasing a withheld event leaves focus on the response, not on the body",
 
   // The panel that held the button is gone, which is the condition that used to strand
   // focus. The response's own heading is the successor: it names the screen the
-  // operator is still on, and the polite region directly under it has just been filled
-  // with the outcome, so reading on from here is reading the result of the action.
+  // operator is still on. Since issue #510 that heading is the route's `<h1>` rather
+  // than an `<h2>` inside the detail body, so the id below is the same id and lands in
+  // the same place for the same reason - what is no longer true is that the outcome
+  // sits directly beneath it. The outcome is spoken through the shell's live region
+  // (issue #355); reading on from here walks the screen from its top.
   await expect(page.getByTestId("qcms-flag-panel")).toHaveCount(0);
   await expect
     .poll(() => activeElementId(page), {

@@ -249,8 +249,23 @@ test("history renders the stored compiled document and never previews (exit crit
   // ADR-27: what an operator reads is a formatted date, never the wire representation.
   await expect(table).not.toContainText(ISO_TIMESTAMP);
 
+  // The list itself is about the form, so its heading is the form. The page's own
+  // heading is the first `<h1>`, in the chrome: the version body below renders the
+  // stored A2UI document, which carries the form's title as an `<h1>` of its own (a
+  // page inside a page), so a role query by level is ambiguous on the detail route.
+  await expect(page.locator("h1").first()).toHaveText(FORM_SLUG);
+
   await page.getByRole("link", { name: "View v1" }).click();
   await expect(page.getByTestId("qcms-version-view")).toBeVisible({ timeout: 30_000 });
+
+  // Issue #510: one version is not the form. This route's `<h1>` used to be the form's
+  // slug, identical to the list's and to every other section's, and nothing in the page
+  // chrome named the version at all. The form stays in the breadcrumb as context.
+  await expect(page.locator("h1").first()).toHaveText("Version 1");
+  await expect(page.locator('[aria-label="Breadcrumb"]')).toContainText(FORM_SLUG);
+  // Said once: the body's own "Viewing v1" heading went when the page took the subject.
+  await expect(page.getByRole("heading", { name: /^Version 1$|^Viewing v1$/u })).toHaveCount(1);
+
   await expect(page.getByTestId("qcms-version-stored")).toContainText("stored with v1");
   await expect(page.getByTestId("qcms-version-view").getByText(AT_FAULT_LABEL)).toBeVisible();
 

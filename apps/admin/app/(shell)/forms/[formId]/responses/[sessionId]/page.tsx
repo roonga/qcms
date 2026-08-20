@@ -8,6 +8,7 @@ import { TombstoneCard } from "@/components/ops/tombstone-card";
 import { labelsForPins, pinsOf, type QuestionPin } from "@/lib/ops/labels";
 import type { QuestionDetail } from "@/lib/questions/types";
 import { t } from "@/lib/i18n/en";
+import { RESPONSE_HEADING_ID } from "@/lib/page-headings";
 import { getForm, getFormVersion } from "@/lib/server/forms";
 import { getQuestion } from "@/lib/server/questions";
 import { getResponse, listErasures } from "@/lib/server/responses";
@@ -67,6 +68,7 @@ export default async function ResponseDetailPage({
           slug={form.data.slug}
           section="responses"
           status={form.data.status}
+          heading={responseHeading(sessionId)}
         />
         <Link className="qcms-text-link" href={`/forms/${encodeURIComponent(formId)}/responses`}>
           {t("ops.detail.back")}
@@ -89,6 +91,7 @@ export default async function ResponseDetailPage({
         slug={form.data.slug}
         section="responses"
         status={form.data.status}
+        heading={responseHeading(sessionId)}
       />
       <Link className="qcms-text-link" href={`/forms/${encodeURIComponent(formId)}/responses`}>
         {t("ops.detail.back")}
@@ -104,6 +107,17 @@ export default async function ResponseDetailPage({
       />
     </div>
   );
+}
+
+/**
+ * The page's own `<h1>`: this response, not the form it belongs to (issue #510).
+ *
+ * Both branches take it. An erased session is still the session the URL in an operator's
+ * ticket names, and heading its tombstone with the form's slug would answer a question
+ * nobody asked.
+ */
+function responseHeading(sessionId: string): { readonly id: string; readonly text: string } {
+  return { id: RESPONSE_HEADING_ID, text: t("ops.detail.heading", { sessionId }) };
 }
 
 /**
