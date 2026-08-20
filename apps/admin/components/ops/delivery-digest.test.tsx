@@ -177,7 +177,7 @@ describe("the delivery row trigger's digest (issue 519)", () => {
     expect(textOfTestId(panel, "qcms-delivery-fact-latency")).toContain("1240");
   });
 
-  it("heads the panel at h3, so the request headers below stop skipping a level (#541)", () => {
+  it("heads the panel at h3, so the request headers below stop skipping a level (issue 541)", () => {
     const panel = panelOf(render(FAILED, true));
 
     // The dashboard's own heading is an `h2`. Before this change the panel's first heading
