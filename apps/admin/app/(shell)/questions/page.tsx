@@ -110,9 +110,18 @@ export default async function QuestionsPage({
           <h1 className="text-xl font-semibold text-(--color-text)">{t("questions.title")}</h1>
           <p className="text-sm text-(--color-text-muted)">{t("questions.intro")}</p>
         </div>
-        <Link href="/questions/new" className="qcms-button-link">
-          {t("questions.new")}
-        </Link>
+        {/* The header's creating action, rendered except in the one state where the
+            empty panel below carries it instead: an unfiltered library with nothing in
+            it. Two controls with the same accessible name on one screen are ambiguous to
+            anyone navigating by name, and `plan/admin-design-contracts.md` §3 asks the
+            empty state to OFFER the creating action rather than to sit beside a copy of
+            it. A filtered-empty library is not that state: the library is not empty, the
+            panel's CTA is "Clear filters", and this link stays. */}
+        {!(result.ok && result.data.length === 0 && !isFiltered) && (
+          <Link href="/questions/new" className="qcms-button-link">
+            {t("questions.new")}
+          </Link>
+        )}
       </div>
 
       <div className="qcms-card">

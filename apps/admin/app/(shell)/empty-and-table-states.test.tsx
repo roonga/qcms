@@ -210,8 +210,9 @@ describe("the library screens' empty state (issue 514)", () => {
     expect(html).toMatch(EMPTY_HEADING);
     expect(html).toContain("questions.empty.title");
     expect(html).toContain("questions.empty.body");
-    // §3's CTA: the same destination the header link offers.
-    expect(html).toContain('href="/questions/new"');
+    // §3's CTA, and the ONLY control on the screen offering it: the header link stands
+    // down in this one state rather than repeating the panel's accessible name.
+    expect(html.match(/href="\/questions\/new"/g)).toHaveLength(1);
   });
 
   it("swaps the heading and drops the sentence when the library is filtered", async () => {
@@ -223,6 +224,8 @@ describe("the library screens' empty state (issue 514)", () => {
     // explanatory sentence.
     expect(html).not.toContain("questions.empty.body");
     expect(html).toContain("questions.filter.clear");
+    // A filtered library is not an empty one, so the header's creating action stays.
+    expect(html).toContain('href="/questions/new"');
   });
 
   it("gives the form library the panel", async () => {

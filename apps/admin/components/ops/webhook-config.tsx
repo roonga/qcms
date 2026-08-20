@@ -114,19 +114,29 @@ export function WebhookConfig({
         <p className="text-sm text-(--color-text-muted)">{t("ops.webhooks.intro")}</p>
       </div>
 
-      <div>
-        <Button
-          variant="primary"
-          size="md"
-          isDisabled={isPending}
-          onPress={() => {
-            setState(IDLE);
-            setDialog({ kind: "create" });
-          }}
-        >
-          {t("ops.webhooks.add")}
-        </Button>
-      </div>
+      {/* The standalone creating control, rendered only while there IS a table. With no
+          endpoints the empty panel below carries this same action as its primary CTA
+          (`plan/admin-design-contracts.md` §3), and rendering both would put two
+          identical primary buttons on an otherwise blank screen. It would also give two
+          controls the same accessible name, which is not just untidy: it is ambiguous to
+          anyone navigating by name, and the first capture of this screen failed on
+          exactly that ("Add endpoint" resolved to 2 elements). §3 asks the empty state to
+          offer the creating action, not to sit beside a duplicate of it. */}
+      {webhooks.length > 0 && (
+        <div>
+          <Button
+            variant="primary"
+            size="md"
+            isDisabled={isPending}
+            onPress={() => {
+              setState(IDLE);
+              setDialog({ kind: "create" });
+            }}
+          >
+            {t("ops.webhooks.add")}
+          </Button>
+        </div>
+      )}
 
       {/* The testid exists so the live region itself can be asserted, not just what it
           holds: an `aria-live` that is silently deleted leaves every content assertion
