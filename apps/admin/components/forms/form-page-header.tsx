@@ -10,18 +10,37 @@ import { t } from "@/lib/i18n/en";
  * nav's current-section highlight needs the client. Keeping it in one place is what stops
  * the builder, preview, history, links, responses and webhooks screens drifting into six
  * slightly different headings for the same form.
+ *
+ * ## The heading is the form only when the page is about the form
+ *
+ * Most sections list or edit the form itself, so the form's slug is the right `<h1>`. Two
+ * routes sit one level deeper - a single stored version, a single response - and there the
+ * slug named the wrong entity: two responses of one form were two pages with identical
+ * headings, and the one landmark heading a screen reader user relies on answered "which
+ * form" rather than "which page" (issue #510). Those routes pass `heading`, and the form
+ * stays in the breadcrumb, which is where context belongs.
  */
 export function FormPageHeader({
   formId,
   slug,
   section,
   status,
+  heading,
 }: {
   readonly formId: string;
   readonly slug: string;
   /** The catalog key of the current section, used for the last breadcrumb crumb. */
   readonly section: "builder" | "preview" | "versions" | "links" | "responses" | "webhooks";
   readonly status?: "open" | "closed";
+  /**
+   * Overrides the `<h1>` for a route whose subject is one child of the form.
+   *
+   * The `id` travels with the text because both of this heading's other jobs need it: the
+   * component that renders the rest of the page labels its region with the page heading
+   * rather than repeating it a level down, and the response route hands focus here after
+   * an in-place action. Ids come from `lib/page-headings.ts`.
+   */
+  readonly heading?: { readonly id: string; readonly text: string };
 }) {
   const crumbs: BreadcrumbItem[] = [
     { id: "forms", label: t("forms.builder.crumbs"), href: "/forms" },
@@ -32,8 +51,14 @@ export function FormPageHeader({
   return (
     <div className="flex flex-col gap-3">
       <Breadcrumb items={crumbs} ariaLabel={t("forms.builder.crumbLabel")} />
-      <h1 className="text-xl font-semibold text-(--color-text)">
-        {t("forms.builder.heading", { slug })}
+      {/* `tabIndex` only with an override: it is a programmatic focus destination, and an
+          untargeted heading has no reason to be one. */}
+      <h1
+        id={heading?.id}
+        tabIndex={heading === undefined ? undefined : -1}
+        className="qcms-ops-title text-xl font-semibold text-(--color-text)"
+      >
+        {heading?.text ?? t("forms.builder.heading", { slug })}
       </h1>
       {status !== undefined && (
         <p className="text-sm text-(--color-text-muted)">

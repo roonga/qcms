@@ -12,6 +12,7 @@ import { Button } from "@/components/kit";
 import { PreviewThemeIsland } from "@/components/preview-theme-island";
 import type { FormVersionSnapshot } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
+import { VERSION_HEADING_ID } from "@/lib/page-headings";
 import type { PreviewTheme } from "@/lib/preview-theme";
 
 /**
@@ -95,15 +96,16 @@ export function VersionView({
   const step = steps[index];
 
   return (
+    // Labelled by the route's own <h1>, which names this version (issue #510). This
+    // component used to head itself "Viewing v{n}" under a page heading that named the
+    // form; the version is the page's subject, so it is the page's heading, and saying it
+    // again one level down would only pad the outline.
     <section
-      aria-labelledby="qcms-version-view-heading"
+      aria-labelledby={VERSION_HEADING_ID}
       className="flex flex-col gap-4"
       data-testid="qcms-version-view"
     >
       <div className="flex flex-col gap-1">
-        <h2 id="qcms-version-view-heading" className="text-lg font-semibold text-(--color-text)">
-          {t("forms.history.viewing", { version: snapshot.version })}
-        </h2>
         <p className="text-sm text-(--color-text-muted)" data-testid="qcms-version-stored">
           {t("forms.history.stored", { version: snapshot.version })}
         </p>

@@ -161,6 +161,33 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     await expect(answers.locator(`dt[data-question-id="${ACCIDENT}"]`)).not.toHaveText(ACCIDENT);
   });
 
+  test("the detail route is headed by the response, with the form left in the breadcrumb", async ({
+    page,
+  }) => {
+    await signInWithTotp(page, EMAIL, totpSecret);
+
+    // Issue #510. Every form section used to render the same `<h1>` - the form's slug -
+    // so two tabs open on two responses of one form were two identical page headings,
+    // and the one landmark heading a screen reader user navigates by answered "which
+    // form" rather than "which page". The detail route's subject is the response.
+    await page.goto(`/forms/${FORM_ID}/responses/${revised}`);
+    await expect(page.getByTestId("qcms-response-detail")).toBeVisible();
+    const pageHeading = page.getByRole("heading", { level: 1 });
+    await expect(pageHeading).toHaveText(`Response ${revised}`);
+
+    // The form is still there, as context rather than as the subject.
+    await expect(page.locator('[aria-label="Breadcrumb"]')).toContainText(SLUG);
+
+    // Said once. The response id was an `<h2>` inside the detail body, and moving the
+    // page heading onto it without removing that would have stated the same thing
+    // twice at two levels.
+    await expect(page.getByRole("heading", { name: `Response ${revised}` })).toHaveCount(1);
+
+    // The builder tab is untouched: there the page's subject IS the form.
+    await page.goto(`/forms/${FORM_ID}`);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(SLUG);
+  });
+
   test("a CSV export downloads with the version in its name", async ({ page }) => {
     await signInWithTotp(page, EMAIL, totpSecret);
     await openResponses(page, FORM_ID);

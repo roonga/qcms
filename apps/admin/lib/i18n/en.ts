@@ -752,7 +752,7 @@ export const messages = {
   "forms.history.column.a2uiSpecVersion": "A2UI spec",
   "forms.history.column.semanticsVersion": "Semantics",
   "forms.history.view": "View v{version}",
-  "forms.history.viewing": "Viewing v{version}",
+  "forms.history.versionHeading": "Version {version}",
   "forms.history.stored":
     "Rendered from the compiled documents stored with v{version}. Nothing was recompiled.",
   "forms.history.readOnly": "Read only: a published version is never edited (R1).",

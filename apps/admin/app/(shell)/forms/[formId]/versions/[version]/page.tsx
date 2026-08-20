@@ -5,6 +5,7 @@ import { Alert } from "@/components/kit";
 import { FormPageHeader } from "@/components/forms/form-page-header";
 import { VersionView } from "@/components/forms/version-view";
 import { t } from "@/lib/i18n/en";
+import { VERSION_HEADING_ID } from "@/lib/page-headings";
 import { previewPortalTheme } from "@/lib/server/config";
 import { getForm, getFormVersion } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
@@ -51,6 +52,10 @@ export default async function FormVersionPage({
         slug={form.slug}
         section="versions"
         status={form.status}
+        heading={{
+          id: VERSION_HEADING_ID,
+          text: t("forms.history.versionHeading", { version: snapshot.data.version }),
+        }}
       />
       <Link className="qcms-text-link" href={`/forms/${encodeURIComponent(form.formId)}/versions`}>
         {t("forms.history.backToHistory")}
