@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 
-import { exportFilename } from "@/lib/ops/export";
+import type { ExportFilterField } from "@/lib/ops/export";
+import { exportFilename, parseExportFilters } from "@/lib/ops/export";
 import { exportResponses } from "@/lib/server/responses";
 import { requireAdminSessionForRequest } from "@/lib/server/session";
 
@@ -33,6 +34,16 @@ import { requireAdminSessionForRequest } from "@/lib/server/session";
  *
  * It exports GET only and changes no state, so SEC-9's same-origin POST belt does not
  * apply (rule 3 of that test).
+ *
+ * ## The filters are validated here, not merely relayed (issue 551)
+ *
+ * `version`, `from` and `to` used to be forwarded exactly as they arrived, which was
+ * the response browser's behaviour before issue 521 replaced it with a validated parse.
+ * They now go through `parseExportFilters`, which reads the browser's own validators,
+ * so the two surfaces agree about what a filter on responses is. A parameter that names
+ * no filter refuses the export rather than being dropped from it: an export renders no
+ * notice, and a file wider than the range its requester asked for is a false claim that
+ * outlives the request. The reasoning is written out at `parseExportFilters`.
  */
 export async function GET(
   request: NextRequest,
@@ -44,16 +55,11 @@ export async function GET(
   const { formId } = await context.params;
   const query = request.nextUrl.searchParams;
   const format = query.get("format") === "json" ? "json" : "csv";
-  const version = query.get("version");
-  const from = query.get("from");
-  const to = query.get("to");
 
-  const upstream = await exportResponses(session, formId, {
-    format,
-    ...(version === null || version === "" ? {} : { version }),
-    ...(from === null || from === "" ? {} : { from }),
-    ...(to === null || to === "" ? {} : { to }),
-  });
+  const parsed = parseExportFilters(query);
+  if (!parsed.ok) return invalidFilters(parsed.invalid);
+
+  const upstream = await exportResponses(session, formId, { format, ...parsed.filters });
 
   // A refusal is JSON and small; let it through as-is so the browser shows the API's
   // own error rather than downloading a file containing one.
@@ -71,9 +77,35 @@ export async function GET(
   // the name the browser saves are one rule with one unit test.
   headers.set(
     "content-disposition",
-    `attachment; filename="${exportFilename(formId, { format, version: version ?? "", from: "", to: "" })}"`,
+    `attachment; filename="${exportFilename(formId, { format, version: parsed.filters.version ?? "", from: "", to: "" })}"`,
   );
   return new Response(upstream.body, { status: 200, headers });
+}
+
+/**
+ * The refusal for a filter this route will not apply.
+ *
+ * Shaped as the API's own error envelope (`{ error: { code, message, details } }`) and
+ * given the code the API raises for the same complaint, because this handler's other
+ * failure path is the upstream's refusal passed through untouched: an operator reading
+ * a rejected export should not have to tell two error formats apart to learn which
+ * parameter to fix. `details.invalid` names them so a caller can act on it, and no
+ * `content-disposition` is set, so the browser shows the message instead of saving a
+ * file whose contents are an error.
+ */
+function invalidFilters(invalid: readonly ExportFilterField[]): Response {
+  const named = invalid.join(", ");
+  const body = {
+    error: {
+      code: "INVALID_QUERY",
+      message: `Nothing was exported: ${named} did not name a filter this export can apply. A version is a positive whole number, and from/to are whole UTC days (YYYY-MM-DD).`,
+      details: { invalid },
+    },
+  };
+  return new Response(JSON.stringify(body), {
+    status: 400,
+    headers: { "content-type": "application/json; charset=utf-8" },
+  });
 }
 
 /** Carry the upstream's content typing through untouched; add nothing else. */

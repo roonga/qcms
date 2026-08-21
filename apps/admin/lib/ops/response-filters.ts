@@ -39,6 +39,19 @@ import type { AppliedFilters } from "./browse.ts";
  * widening (`T00:00:00.000Z` / `T23:59:59.999Z`) lives next to the validation that
  * earns it. Building the instant anywhere else is what let an unvalidated value become
  * a malformed one.
+ *
+ * ## The validators are exported; the policy around them is not shared (issue 551)
+ *
+ * The export download asks the same three questions of the same querystring
+ * (`version`, `from`, `to`) and used to answer them by forwarding whatever arrived,
+ * which is exactly the shape this module replaced. {@link versionFilter} and
+ * {@link dayFilter} are therefore public: `lib/ops/export.ts` reads them, so "what
+ * counts as a valid filter on responses" has one answer for both surfaces.
+ *
+ * What the two surfaces do with a value that is *not* one differs, and deliberately.
+ * This module drops it and reports it in `ignored`, because the page has somewhere to
+ * say so. An export has no such surface and its product is a file that outlives the
+ * URL, so it refuses instead - the reasoning is recorded at `parseExportFilters`.
  */
 
 /** The four filter parameters, in the order the toolbar shows them. */
@@ -142,7 +155,7 @@ export function parseResponseQuery(query: SearchParams): ResponseQuery {
  * Returning the number's own decimal form keeps the applied value, the request, the
  * page links and the select on one spelling.
  */
-function versionFilter(value: string): string | undefined {
+export function versionFilter(value: string): string | undefined {
   if (!/^\d{1,9}$/.test(value)) return undefined;
   const version = Number(value);
   return version >= 1 ? String(version) : undefined;
@@ -155,7 +168,7 @@ function versionFilter(value: string): string | undefined {
  * and `Date` rolls it forward to March 3rd rather than rejecting it, so a day that
  * does not exist would otherwise become a filter for a different day.
  */
-function dayFilter(value: string): string | undefined {
+export function dayFilter(value: string): string | undefined {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
   const parsed = new Date(`${value}T00:00:00.000Z`);
   if (Number.isNaN(parsed.getTime())) return undefined;
