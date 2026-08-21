@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import type { DeliveryItem } from "../../lib/ops/types.ts";
+import { stripTags } from "../test-support/markup.ts";
 
 /**
  * Issue 519: the delivery dashboard's row trigger states what is behind it.
@@ -106,7 +107,7 @@ function render(row: DeliveryItem, isOpen: boolean): string {
 function textOfTestId(html: string, testId: string): string {
   const match = new RegExp(`data-testid="${testId}"[^>]*>(.*?)</`, "s").exec(html);
   expect(match, `the render carries a ${testId} element`).not.toBeNull();
-  return (match?.[1] ?? "").replaceAll(/<[^<>]+>/g, "");
+  return stripTags(match?.[1] ?? "");
 }
 
 /** Just the disclosure panel: everything from the second `<tr>` onwards. */

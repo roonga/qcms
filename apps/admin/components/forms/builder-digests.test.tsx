@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import type { DraftForm, FormSettings, PinnableQuestion } from "../../lib/forms/types.ts";
+import { stripTags } from "../test-support/markup.ts";
 
 /**
  * Issue 519: the builder's two `<details>` panels get a heading and a digest.
@@ -80,7 +81,7 @@ function renderSettings(settings: FormSettings, challengeProvider = "none"): str
 function textOfTestId(html: string, testId: string): string {
   const match = new RegExp(`data-testid="${testId}"[^>]*>(.*?)</`, "s").exec(html);
   expect(match, `the render carries a ${testId} element`).not.toBeNull();
-  return (match?.[1] ?? "").replaceAll(/<[^<>]+>/g, "");
+  return stripTags(match?.[1] ?? "");
 }
 
 /** How many elements carry a given test id. */
