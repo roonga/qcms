@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Alert } from "@/components/kit";
 import { DeadLetters } from "@/components/ops/dead-letters";
 import { t } from "@/lib/i18n/en";
+import { readState } from "@/lib/read-state";
 import { listForms } from "@/lib/server/forms";
 import { listDeadLetters } from "@/lib/server/webhook-ops";
 import { requireAdminSession } from "@/lib/server/session";
@@ -37,8 +38,14 @@ export default async function WebhooksPage() {
           {t("ops.deadLetters.loadFailed", { message: deadLetters.message })}
         </Alert>
       )}
+      {/*
+       * `readState`, not `ok ? data : []` (issue 543). The collapsed form told the queue
+       * nothing about the failure, so a read that failed rendered the empty state and the
+       * screen answered "nothing is stuck" underneath the alert saying it could not tell.
+       * The queue decides what a failure looks like; the page only stops lying to it.
+       */}
       <DeadLetters
-        deadLetters={deadLetters.ok ? deadLetters.data : []}
+        deadLetters={readState(deadLetters)}
         redeliver={redeliverAction}
         redeliverAll={redeliverAllAction}
       />

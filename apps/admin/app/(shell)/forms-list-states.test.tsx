@@ -80,6 +80,14 @@ vi.mock("@/lib/server/webhook-ops", () => ({
 }));
 
 /**
+ * The `@/` alias resolves to nothing under Vitest, so every one of a page's `@/` imports
+ * has to be answered here. `readState` (issue 543) is a pure narrowing helper and is
+ * redirected to the real module rather than stubbed: a stub would decide the very branch
+ * the webhooks page uses it for.
+ */
+vi.mock("@/lib/read-state", () => import("../../lib/read-state"));
+
+/**
  * `t` answers with its own key. The assertions below are then about *which* string a
  * branch chose, not about the sentence it happens to hold today - which is what leaves
  * #514 free to rewrite the copy without touching this file.
