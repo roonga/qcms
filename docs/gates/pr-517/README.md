@@ -16,17 +16,28 @@ builder is navigated to at 390 before each frame rather than resized into it (is
 | `pin-grid-dark` | The same grid in dark. What is being checked is that the ownership contrast survives the mode: the version control's border and the grip both have to stay readable against the dark surface. |
 | `pin-grid-hc` | The same grid in high contrast, where subtle backgrounds collapse and borders do the work. |
 | `pin-grid-row-menu` | **Element 5, open.** The row's one control, carrying all five entries: insert above, insert below, move up, move down, remove. Insert above and insert below are what let a row-boundary insert affordance exist at all under WCAG 2.2 SC 2.5.8, and move up / move down are the single-pointer, non-dragging reorder path SC 2.5.7 asks for and the mobile stance puts on the supported-at-390 path. Every item names its own row. |
+| `pin-grid-row-menu-first-row` | **Element 5 on the first row of the step, which is where the item order shows.** The same five entries, with **Move up dimmed in the middle position** because this row is already at the top, and Move down and Remove live beneath it. Approve the arrangement: a menu whose dead item is not at either end, which is the shape the option grid never has and which the roving-focus fix in this PR exists to make safe. Reachability of the two items below the dimmed one is not a claim this frame makes; `roving-red-first.txt` and the browser tests carry it. |
 | `pin-grid-version-menu` | **R7, at 390.** The one version change the builder has, open at the width the mobile stance keeps it operable at. It offers other published versions of this one pin: no bulk move, no auto-upgrade. |
 | `pin-grid-empty-step` | **Contract §3**, and its 2026-08-20 amendment: one panel for "nothing here yet", CTA-less because the creating action ("Add question from library") is already on the same screen. This retires the bare muted paragraph the step editor still carried after issue 514. |
 
 ## The one piece of evidence here that is not a frame
 
 `roving-red-first.txt` is the pre-fix run of the three roving-focus tests this change
-added, kept because a screenshot cannot photograph a keyboard dead end. The row-menu frame
-below is shot on the middle row of three, which is the only row where neither move item is
-disabled, so it is the one row on which the defect could not appear. The text file covers
-what the frame cannot: on the first row of a step, and on a step with one pin, the menu's
-arrow keys used to stop on a disabled item and leave the items behind it unreachable.
+added. The split between it and the frames is worth stating, because each half is
+worthless on its own.
+
+**The frames own the arrangement.** `pin-grid-row-menu-first-row` shows the menu's item
+order in the state that matters: Move up dimmed, third of five, with Move down and Remove
+live below it. That a disabled item sits in the MIDDLE of this list, rather than at its
+end the way the option grid's does, is the design decision a reviewer has to be able to
+look at and agree with. `pin-grid-row-menu` (row 2 of 3) is the only-row-with-neither-move-
+disabled case and cannot show it, which is why the first-row frame was added.
+
+**The text file owns the behaviour.** Whether a keyboard can still reach Move down and
+Remove once Move up is dead is not a property a still image has. It is asserted in
+`apps/admin/e2e/pin-grid.pw.ts` and `apps/admin/e2e/questions-lifecycle.pw.ts`, and the
+text file is those tests failing against the pre-fix component, so the assertions are known
+to catch the defect rather than merely to pass.
 
 ## What is deliberately not in the set
 

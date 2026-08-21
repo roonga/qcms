@@ -170,7 +170,33 @@ for (const mode of ["light", "dark", "hc"] as const) {
     await expect(page.getByRole("menu", { name: `Row actions for ${COUNT_ID}` })).toBeVisible();
     await capture(page, "pin-grid-row-menu");
 
-    // 3. The one version change the builder has (R7), open at the width the mobile
+    // 3. The same menu on the FIRST row, where Move up is dimmed.
+    //
+    //    Frame 2 above is shot on row 2 of 3, which is the only row of this step where
+    //    neither move item is disabled - so no frame in the set shows the thing the
+    //    menu's item ORDER is actually about: a disabled item sitting in the MIDDLE of
+    //    the list rather than at its end. That order is what made the roving-focus
+    //    defect possible (`docs/gates/pr-517/roving-red-first.txt`), and it is the shape
+    //    a reviewer has to be able to see before agreeing the arrangement is sound.
+    //
+    //    What this frame carries is the arrangement, not the behaviour: Move up dimmed,
+    //    third of five, with Move down and Remove live BELOW it. Whether a keyboard can
+    //    still reach those two is a question no still image can answer, and the browser
+    //    tests own it (`apps/admin/e2e/pin-grid.pw.ts`).
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(builderUrl);
+    await openStep(page, "Driving history");
+    await pinGrip(page, COVER_ID).click();
+    const firstRowMenu = page.getByRole("menu", { name: `Row actions for ${COVER_ID}` });
+    await expect(firstRowMenu).toBeVisible();
+    // Asserted, not assumed: a frame captioned "Move up dimmed" that photographed a live
+    // Move up would be worse than no frame, because it would be believed.
+    await expect(
+      firstRowMenu.getByRole("menuitem", { name: `Move ${COVER_ID} up` }),
+    ).toBeDisabled();
+    await capture(page, "pin-grid-row-menu-first-row");
+
+    // 4. The one version change the builder has (R7), open at the width the mobile
     //    stance keeps it operable at.
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(builderUrl);
@@ -179,7 +205,7 @@ for (const mode of ["light", "dark", "hc"] as const) {
     await expect(page.getByRole("menuitem", { name: "Move to v2", exact: true })).toBeVisible();
     await capture(page, "pin-grid-version-menu");
 
-    // 4. The empty step: contract §3's one panel, CTA-less because the creating action
+    // 5. The empty step: contract §3's one panel, CTA-less because the creating action
     //    is the library button on the same screen (the §3 amendment of 2026-08-20).
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(builderUrl);
