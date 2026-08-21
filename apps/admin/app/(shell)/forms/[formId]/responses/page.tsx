@@ -30,6 +30,16 @@ import { requireAdminSession } from "@/lib/server/session";
  * applied filter, so this page told an operator "no response matches these filters"
  * about a filter it had silently discarded (issue 521). What did not parse is named on
  * screen instead.
+ *
+ * ## A failed read is not an empty result
+ *
+ * When the list call fails, this page renders the error alert and stops. It used to
+ * render the alert and then the browser over an invented empty page, so an operator got
+ * "Nothing has been submitted to this form yet." underneath a sentence saying the
+ * responses could not be loaded: an all-clear about data the screen never received.
+ * That is the same untruth as the empty-state defect one layer up, and the empty-state
+ * contract in `plan/admin-design-contracts.md` (section 3) settles it - a failed read
+ * renders the error and nothing else, with no "no items" claim beside it.
  */
 export default async function FormResponsesPage({
   params,
@@ -55,34 +65,48 @@ export default async function FormResponsesPage({
   }
   const form = detail.data;
 
-  return (
-    <div className="flex flex-col gap-6">
-      <FormPageHeader
-        formId={form.formId}
-        slug={form.slug}
-        section="responses"
-        status={form.status}
-      />
-      {!responses.ok && (
+  const header = (
+    <FormPageHeader
+      formId={form.formId}
+      slug={form.slug}
+      section="responses"
+      status={form.status}
+    />
+  );
+
+  // A statement about the address bar, so it is true whether or not the list loaded.
+  const ignoredNotice = ignored.length > 0 && (
+    <Alert variant="warning">
+      <span data-testid="qcms-responses-ignored-filters">
+        {tPlural(
+          "ops.responses.filter.ignored.one",
+          "ops.responses.filter.ignored.other",
+          ignored.length,
+          { fields: formatList(ignored.map((field) => t(`ops.responses.filter.${field}`))) },
+        )}
+      </span>
+    </Alert>
+  );
+
+  if (!responses.ok) {
+    return (
+      <div className="flex flex-col gap-6">
+        {header}
         <Alert variant="error">
           {t("ops.responses.listFailed", { message: responses.message })}
         </Alert>
-      )}
-      {ignored.length > 0 && (
-        <Alert variant="warning">
-          <span data-testid="qcms-responses-ignored-filters">
-            {tPlural(
-              "ops.responses.filter.ignored.one",
-              "ops.responses.filter.ignored.other",
-              ignored.length,
-              { fields: formatList(ignored.map((field) => t(`ops.responses.filter.${field}`))) },
-            )}
-          </span>
-        </Alert>
-      )}
+        {ignoredNotice}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      {header}
+      {ignoredNotice}
       <ResponseBrowser
         formId={form.formId}
-        page={responses.ok ? responses.data : { responses: [], page: 1, pageSize: 50, total: 0 }}
+        page={responses.data}
         versions={form.versions.map((version) => version.version).sort((a, b) => b - a)}
         filters={applied}
         hasFilters={hasFilters}

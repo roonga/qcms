@@ -49,6 +49,15 @@ let totpSecret = "";
 const UNFILTERED = "Nothing has been submitted to this form yet.";
 const FILTERED = "No response matches these filters.";
 
+/**
+ * The seeded form, used by the last test only.
+ *
+ * It has a published version, which the form created above deliberately does not, and
+ * the Version select can only offer `v1` on a form that has one. Every other test here
+ * wants the empty form instead, because the unfiltered empty sentence needs one.
+ */
+const SEEDED_FORM_ID = "frm_auto_quote";
+
 test.describe.configure({ mode: "serial" });
 
 test.beforeAll(async () => {
@@ -122,6 +131,19 @@ test.describe("response filters: what was applied is what is claimed", () => {
 
     await page.goto(`/forms/${formId}/responses?flagged=true`);
     await expect(page.getByTestId("qcms-responses-empty")).toHaveText(FILTERED);
+    await expect(page.getByTestId("qcms-responses-ignored-filters")).toHaveCount(0);
+  });
+
+  test("a padded version number leaves the toolbar agreeing with the table", async ({ page }) => {
+    await signInWithTotp(page, EMAIL, totpSecret);
+    // Not the empty-state defect but the same shape one control over. `0001` IS a
+    // version number, so the table is filtered to v1 - and the Version select builds
+    // its options as `v${version}` over the real version numbers, so an un-normalized
+    // `"0001"` matched none of them and the control read "Any version" beside a filtered
+    // table. This needs the seeded form rather than the empty one created above,
+    // because the option only exists on a form that has a published version.
+    await page.goto(`/forms/${SEEDED_FORM_ID}/responses?version=0001`);
+    await expect(page.getByRole("button", { name: /Version$/ })).toContainText("v1");
     await expect(page.getByTestId("qcms-responses-ignored-filters")).toHaveCount(0);
   });
 });

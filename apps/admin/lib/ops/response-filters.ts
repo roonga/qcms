@@ -125,17 +125,27 @@ export function parseResponseQuery(query: SearchParams): ResponseQuery {
 }
 
 /**
- * A version filter: a positive integer, as the API's `parseVersion` defines it.
+ * A version filter: a positive integer, normalized to its canonical decimal string.
  *
  * Membership in the form's published versions is deliberately NOT checked. A version
  * that exists but collected nothing, and a version number that was never published,
  * are both filters that legitimately match nothing, and answering them with the
  * filtered empty state is the true answer. Only a value that is not a version number
  * at all is dropped.
+ *
+ * The canonicalization is not cosmetic. `?version=0001` is a version number, so it is
+ * a filter and the table is filtered to v1 - but the toolbar's Version select builds
+ * its options as `String(entry)`, so `"0001"` matches no option and the control reads
+ * "Any version" beside a filtered table. That is the same class of untruth this module
+ * exists to remove, moved from the empty sentence to the toolbar, and `response-browser`
+ * re-seeds its controls from the applied set precisely so the two cannot disagree.
+ * Returning the number's own decimal form keeps the applied value, the request, the
+ * page links and the select on one spelling.
  */
 function versionFilter(value: string): string | undefined {
   if (!/^\d{1,9}$/.test(value)) return undefined;
-  return Number(value) >= 1 ? value : undefined;
+  const version = Number(value);
+  return version >= 1 ? String(version) : undefined;
 }
 
 /**

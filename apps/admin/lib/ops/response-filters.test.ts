@@ -87,6 +87,20 @@ describe("response filter parsing: version", () => {
     expect(parsed.hasFilters).toBe(true);
   });
 
+  it("normalizes to the decimal form the toolbar and the page links use", () => {
+    // `0001` is a version number, so it filters the table to v1. The Version select
+    // builds its options as `String(entry)`, so an un-normalized `"0001"` matches none
+    // of them and the control reads "Any version" beside a table that is filtered - the
+    // toolbar contradicting the rows next to it.
+    for (const value of ["0001", "01", "000000001"]) {
+      const parsed = parseResponseQuery({ version: value });
+      expect(parsed.request.version, `version=${value}`).toBe("1");
+      expect(parsed.applied.version).toBe("1");
+      expect(parsed.hasFilters).toBe(true);
+      expect(parsed.ignored).toEqual([]);
+    }
+  });
+
   it("keeps a version that exists nowhere: matching nothing is a real answer", () => {
     // The filtered empty state is TRUE for `?version=9999` on a form with one version.
     // Only a value that is not a version number at all is dropped.
@@ -94,7 +108,13 @@ describe("response filter parsing: version", () => {
     expect(parseResponseQuery({ version: "9999" }).ignored).toEqual([]);
   });
 
-  it("drops what the API would only reject", () => {
+  it("drops what is not a version number in the form this app writes", () => {
+    // `abc`, `0`, `-1` and `1.5` are values the API itself rejects. `2e3` is the one
+    // exception and the comment must not overstate it: the API's `parseVersion` does
+    // `Number(v)`, so it would accept `2e3` as 2000. This page is stricter on purpose,
+    // because canonical decimal is the only spelling the Version select's options, the
+    // page links and the applied set use, and a value none of them can carry is not a
+    // filter this screen is able to show honestly.
     for (const value of ["abc", "0", "-1", "1.5", "2e3"]) {
       const parsed = parseResponseQuery({ version: value });
       expect(parsed.request.version, `version=${value}`).toBeUndefined();
