@@ -4,6 +4,10 @@
 
 Nothing was run. Every claim about current behaviour is read from the source and cited by file and line.
 
+**This document is maintained, not a frozen snapshot** (§8 item 2). Findings are kept with a status note recording what closed them and what they left behind, rather than deleted: the entry plus its outcome is the useful record, and several entries turned out to understate what they had found. **Last swept 2026-08-21** against `origin/main` at `90f8fba`, re-reading each cited file rather than trusting the entry.
+
+Where a note says a finding is closed, the closing PR's own code was read at the time of writing. The reason for that pedantry is filed as #598: this campaign has twice shipped a correct conclusion resting on evidence recalled instead of read.
+
 ---
 
 ## 1. Summary and position
@@ -145,6 +149,12 @@ Six of the nine tables are hand-authored. The two kit tables that navigate are t
 
 There is also a **frozen design card for this** (`plan/admin-theme/ds-table.html`, `@dsCard group="Components" name="Data table"`) that no shipped table follows: it specifies 44px rows, sortable headers, selection, pagination and a specific empty state. None of the nine tables sorts, selects or paginates.
 
+> **Half closed by issue 514 (PR #571), 2026-08-20.** The three treatments are one class family now: `.qcms-table` (`app/globals.css:632`), with `qcms-ops-table` and `qcms-links-table` surviving only in the comment at `:602-603` that records what they were.
+>
+> **The row-activation half is still open as #570.** `onRowAction` remains the navigation on the kit tables (`app/(shell)/forms/forms-table.tsx:38`, `components/questions/questions-table.tsx:51`, `components/forms/library-picker.tsx:84`), so the two tables that navigate are still the two that cannot be opened in a new tab - which was this entry's sharpest point and is the one a shared stylesheet could never fix. `plan/admin-design-contracts.md` §2 requires a real anchor in the identifying cell; `questions-table.tsx:28` already carries a comment saying so, which makes it the rare case of shipped code documenting the rule it does not yet meet.
+
+
+
 ### 4.2 Two empty-state treatments
 
 - Bordered `Card` with an `h2` and explanatory prose: `app/(shell)/questions/page.tsx:178-191`, `app/(shell)/forms/page.tsx:78-89`.
@@ -153,6 +163,11 @@ There is also a **frozen design card for this** (`plan/admin-theme/ds-table.html
 Seven bare paragraphs against two cards. And the frozen card prescribes a **third** shape: a dashed-border centred panel with a heading, a sentence and a primary call to action (`plan/admin-theme/ds-table.html:270-276`). Three answers to one question.
 
 The filtered-versus-unfiltered distinction is also handled twice, differently: `app/(shell)/questions/page.tsx:183-187` swaps the heading and drops the body, `components/ops/response-browser.tsx:200` swaps the whole sentence.
+
+> **Closed by issue 514 (PR #571), 2026-08-20:** one family, `.qcms-empty` (`app/globals.css:744`), in the frozen card's shape. Two riders on it that this entry could not have predicted:
+>
+> - The CTA clause needed an **amendment** on contact with `/forms`, where the creating action is already on the screen: the panel now names it rather than duplicating it, because a fieldset inside the panel would put two controls with identical accessible names on one screen (`plan/admin-design-contracts.md` §3, amended 2026-08-20).
+> - Making the empty state **loud** made the error-versus-empty confusion worse rather than better, which is what promoted D4's pattern from a stray ternary to #572 and #544. A confident dashed panel with an "Add endpoint" button under an alert saying the read failed is a worse lie than a bare muted paragraph was.
 
 ### 4.3 Two disclosure idioms
 
@@ -171,6 +186,11 @@ Rotate and deactivate are `role="alertdialog"` (`components/ops/webhook-config.t
 ### 4.6 Two save models, unnamed
 
 The builder autosaves on a 600ms debounce with an advisory issue list (`components/forms/form-builder.tsx:140-166`). The question editor is a plain `<form>` with an explicit Save button and no autosave (`components/questions/question-editor.tsx:296-302`). Both are correct for their content, and nothing on either screen tells the author which one they are in. If element 7 is adopted, the ambient chrome is the natural place to say so, and saying nothing on the manual screens is not an option: an author who has learned that the builder saves itself will assume the question editor does too.
+
+> **In flight as issue 518 (PR #585), not yet landed as of 2026-08-21.** Two things this entry did not see, both surfaced by implementing it:
+>
+> - **"Every screen states its model exactly once" does not survive contact with the builder**, because the builder is not one save model: it embeds `FormSettingsPanel`, which has its own persistence, its own control and its own live region. §6 is amended to **one model per scope, not per screen** (PR #594), with a nested scope that persists stating its own model and a non-persisting sandbox allowed only to disclaim that it does not persist. Written as one rule about embedded statements it would have licensed an arbitrary second Save button anywhere.
+> - **Naming the save model correctly exposed an unnamed failure model.** The builder's validate round trip is a second call the save strip knows nothing about, so removing the (false) "The last save failed." left a failed validation surfaced nowhere - and the issue count resets rather than going stale, rendering "No issues. Everything here would pass a publish." beside the Publish button. Filed as **#586** and carried as a rider on #585. Two save models was the visible half of the question; how many *outcomes* the screen has to state was the half underneath it.
 
 ---
 
@@ -243,6 +263,13 @@ These are bugs or real defects, not design questions. Reported separately as ask
 
 In both cases the document title region describes the parent while the content is a single child. Two browser tabs open on two different responses of the same form are indistinguishable. This is the same class of defect the form editor hit, in two places the POC did not look at.
 
+> **Closed by issue 510 (PR #539), 2026-08-20.** Both routes are headed with their own entity. Two things it left behind, and both are worth reading as part of this finding rather than as unrelated bugs:
+>
+> - **#537**: version-detail now renders **two** `<h1>`s, because the stored A2UI document emits the form title as a page-level heading of its own. Fixing the header did not make the route's heading outline correct; it revealed the second source.
+> - **#574**: version-detail and response-detail have **no Regions inventory** in the wireframes, which is how D1 happened in the first place. The defect was downstream of a gap in the normative spec, so fixing the render without filling that gap leaves the next screen exposed the same way.
+>
+> Note also that the "two browser tabs are indistinguishable" argument here is about the `<h1>`; the **document title** is a separate and still-open defect (**#536**: every page shares one static `<title>`).
+
 ### D2. Heading level skips h1 to h3 on the erased-response route
 
 `app/(shell)/forms/[formId]/responses/[sessionId]/page.tsx:63-80` is the branch taken when a response has been erased and only a tombstone remains. It renders `FormPageHeader` (an `h1`), a back link, then `TombstoneCard`, whose first heading is an `h3` (`components/ops/tombstone-card.tsx:47-51`). There is no `h2` between them.
@@ -269,6 +296,10 @@ It also carried the app's only `text-2xl font-bold` h1, against `text-xl font-se
 
 When `forms.ok` is false the ternary takes the **else** branch, so an empty `<ul>` is rendered beneath the error alert. A list element with no items is announced as an empty list by a screen reader and is meaningless to everyone else. The failure branch should render nothing, or the "no forms" sentence.
 
+> **Closed at these two sites by issue 513 (PR #546), 2026-08-20. The pattern is not closed.** This entry named the two sites it found; the same `ok ? data : []` shape turned out to be how the app handles a failed read generally. It survives at six more pages (**#572**) and is filed as a pattern in its own right (**#544**), and by 2026-08-21 four independent instances had surfaced in one campaign - an empty list under an error alert, "nothing has been erased", "nothing is stuck" (#543), and a failed validation rendering "Everything here would pass a publish" (found reviewing #518).
+>
+> The generalisation is worth stating because this entry's own framing understated it: the defect is not a stray ternary in two files, it is that **a failed read and an empty result are the same value by the time the component sees it**. `plan/admin-design-contracts.md` §3, as amended 2026-08-21, draws the line as **claim versus capability**: a failed read costs the screen its right to describe the collection, not its controls. #572's conclusion - pass an explicit failed-versus-empty distinction into the components rather than collapsing both at the page boundary - is the structural fix.
+
 ### D5. An unrecorded wireframe deviation on the response browser - closed by building the column
 
 `docs/wireframes/admin-responses-ops.md` (normative Regions) specifies the browser table as "sessionId, formVersion, submittedAt, accessMode, flagged `tag`, **answer preview**". The shipped table had five columns and no answer preview.
@@ -281,9 +312,13 @@ This entry originally offered two ways out and leaned toward the wrong one: it s
 
 `components/ops/delivery-dashboard.tsx:163-165` sets `aria-controls={panelId}` unconditionally, but the panel is only in the DOM when `isOpen` (`:173-176`). Axe reports this as incomplete rather than a violation when `aria-expanded="false"`, which is why the gate is green, but the attribute is still a dangling reference for two thirds of the row's life. Either render the panel always and hide it, or set `aria-controls` only when open.
 
+> **Closed by issue 520 (PR #548), 2026-08-20**, by the second of the two routes offered: `aria-controls={isOpen ? panelId : undefined}` (`components/ops/delivery-dashboard.tsx:254`), with the reasoning kept at the call site rather than in a commit message. `aria-expanded` stays unconditional, which is what keeps it a disclosure.
+
 ### D7. Minor: an unvalidated filter value reports a filtered-empty state that was never filtered
 
 `app/(shell)/forms/[formId]/responses/page.tsx:79` computes `hasFilters` from any non-empty value, while `:48-50` only forwards `flagged` to the API when it is exactly `"true"` or `"false"`. So `?flagged=maybe` renders "no responses match your filters" (`components/ops/response-browser.tsx:200`) when no filter was applied. The same page also concatenates `from`/`to` into an ISO string without validating them (`:46-47`), so a malformed date reaches the API as `xyzT00:00:00.000Z`.
+
+> **In flight as issue 521 (PR #553), not yet landed as of 2026-08-21.** The fix derives the filters and the empty state from one validated parse, which closes both halves of this entry together. Two adjacent finds came out of it and are separate: **#551** (the responses **export** route forwards `from`/`to`/`version` unvalidated, so the same defect lives on a second route this entry did not look at) and **#550** (an out-of-range page renders "nothing has been submitted" on a form that has submissions - the false-all-clear family again, reached through pagination rather than through a filter).
 
 ---
 
