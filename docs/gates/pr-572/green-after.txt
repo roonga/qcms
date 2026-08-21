@@ -1,0 +1,25 @@
+
+ RUN  v4.1.10 <repo-root>
+
+ ✓ |qcms-admin| app/(shell)/form-read-states.test.tsx > the per-form webhook config's read states (issues 572, 544) > makes no claim about endpoints when the list read fails 63ms
+ ✓ |qcms-admin| app/(shell)/form-read-states.test.tsx > the per-form webhook config's read states (issues 572, 544) > keeps the heading and the creating action when the list read fails 1ms
+ ✓ |qcms-admin| app/(shell)/form-read-states.test.tsx > the per-form webhook config's read states (issues 572, 544) > still renders the empty panel when the form genuinely has no endpoint 1ms
+ ✓ |qcms-admin| app/(shell)/form-read-states.test.tsx > the per-form webhook config's read states (issues 572, 544) > renders one family table, wrapped, when the form has an endpoint 2ms
+ ✓ |qcms-admin| app/(shell)/form-read-states.test.tsx > the delivery dashboard's read states (issues 572, 544) > makes no claim about deliveries when the read fails 4ms
+ ✓ |qcms-admin| app/(shell)/form-read-states.test.tsx > the delivery dashboard's read states (issues 572, 544) > still renders the empty panel when the form genuinely has no delivery 1ms
+ ✓ |qcms-admin| app/(shell)/form-read-states.test.tsx > the delivery dashboard's read states (issues 572, 544) > renders one family table, wrapped, when the form has a delivery 1ms
+ ✓ |qcms-admin| app/(shell)/form-read-states.test.tsx > the secure-link list's read states (issues 572, 544) > makes no claim about links when the list read fails 34ms
+ ✓ |qcms-admin| app/(shell)/form-read-states.test.tsx > the secure-link list's read states (issues 572, 544) > keeps the heading and the mint control when the list read fails 1ms
+ ✓ |qcms-admin| app/(shell)/form-read-states.test.tsx > the secure-link list's read states (issues 572, 544) > still renders the empty panel when the form genuinely has no link 1ms
+ ✓ |qcms-admin| app/(shell)/form-read-states.test.tsx > the secure-link list's read states (issues 572, 544) > renders one family table, wrapped, when the form has a link 1ms
+ ✓ |qcms-admin| app/(shell)/form-read-states.test.tsx > the form builder's library read states (issues 572, 544) > makes no claim about the pinned versions when the library read fails 121ms
+ ✓ |qcms-admin| app/(shell)/form-read-states.test.tsx > the form builder's library read states (issues 572, 544) > keeps the builder and its draft edits when the library read fails 3ms
+ ✓ |qcms-admin| app/(shell)/form-read-states.test.tsx > the form builder's library read states (issues 572, 544) > still tags a pin the library really has lost when the read succeeds 3ms
+ ✓ |qcms-admin| app/(shell)/form-read-states.test.tsx > the move-pin menu's account of the library (issues 572, 544) > says the versions are unknown when the library read failed 1ms
+ ✓ |qcms-admin| app/(shell)/form-read-states.test.tsx > the move-pin menu's account of the library (issues 572, 544) > still says there is no other version when the library was read and has none 1ms
+
+ Test Files  1 passed (1)
+      Tests  16 passed (16)
+   Start at  22:37:30
+   Duration  394ms (transform 207ms, setup 0ms, import 73ms, tests 239ms, environment 0ms)
+
