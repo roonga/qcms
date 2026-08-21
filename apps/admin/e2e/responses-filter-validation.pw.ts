@@ -46,6 +46,15 @@ let formId = "";
  */
 let totpSecret = "";
 
+/**
+ * The two empty sentences, matched with `toContainText` rather than `toHaveText`.
+ *
+ * Issue 514 made the empty state the contract's panel, so the element carries a heading
+ * as well as a sentence ("No responses yet" above the unfiltered one) and an exact-text
+ * assertion no longer holds. The distinction these tests exist for survives the change,
+ * because the two sentences are disjoint: the filtered panel is its heading alone, so a
+ * screen showing the wrong one fails on the string it does not contain.
+ */
 const UNFILTERED = "Nothing has been submitted to this form yet.";
 const FILTERED = "No response matches these filters.";
 
@@ -70,7 +79,7 @@ test.describe("response filters: what was applied is what is claimed", () => {
     formId = await createForm(page, `filter-validation-${RUN}`, "Filter validation");
 
     await page.goto(`/forms/${formId}/responses`);
-    await expect(page.getByTestId("qcms-responses-empty")).toHaveText(UNFILTERED);
+    await expect(page.getByTestId("qcms-responses-empty")).toContainText(UNFILTERED);
     await expect(page.getByTestId("qcms-responses-ignored-filters")).toHaveCount(0);
   });
 
@@ -82,7 +91,7 @@ test.describe("response filters: what was applied is what is claimed", () => {
     // `maybe` was never sent, and the page still announced a filtered empty result for
     // it: a statement about a filter that did not exist.
     await page.goto(`/forms/${formId}/responses?flagged=maybe`);
-    await expect(page.getByTestId("qcms-responses-empty")).toHaveText(UNFILTERED);
+    await expect(page.getByTestId("qcms-responses-empty")).toContainText(UNFILTERED);
     await expect(page.getByTestId("qcms-responses-ignored-filters")).toContainText("Flagged");
     // The toolbar agrees: no flag filter is selected, because none was applied.
     await expect(page.getByRole("button", { name: /Flagged$/ })).toContainText("Any");
@@ -98,7 +107,7 @@ test.describe("response filters: what was applied is what is claimed", () => {
     // alert. Both are unreachable once a value that does not parse is not a filter: the
     // empty state is the unfiltered one, and neither failure surface is on screen.
     await page.goto(`/forms/${formId}/responses?from=xyz`);
-    await expect(page.getByTestId("qcms-responses-empty")).toHaveText(UNFILTERED);
+    await expect(page.getByTestId("qcms-responses-empty")).toContainText(UNFILTERED);
     await expect(page.getByText("The responses could not be loaded.")).toHaveCount(0);
     await expect(page.getByTestId("qcms-responses-ignored-filters")).toContainText(
       "Submitted from",
@@ -110,7 +119,7 @@ test.describe("response filters: what was applied is what is claimed", () => {
     // A valid filter alongside two invalid ones: the valid one applies (so the filtered
     // sentence is true), and the invalid ones are named rather than counted.
     await page.goto(`/forms/${formId}/responses?flagged=true&from=nope&version=abc`);
-    await expect(page.getByTestId("qcms-responses-empty")).toHaveText(FILTERED);
+    await expect(page.getByTestId("qcms-responses-empty")).toContainText(FILTERED);
     const ignored = page.getByTestId("qcms-responses-ignored-filters");
     await expect(ignored).toContainText("Version");
     await expect(ignored).toContainText("Submitted from");
@@ -126,11 +135,11 @@ test.describe("response filters: what was applied is what is claimed", () => {
     // is for. A fix that made every empty result read as "nothing submitted" would be
     // caught here rather than in production.
     await page.goto(`/forms/${formId}/responses?from=2020-01-01&to=2020-01-02`);
-    await expect(page.getByTestId("qcms-responses-empty")).toHaveText(FILTERED);
+    await expect(page.getByTestId("qcms-responses-empty")).toContainText(FILTERED);
     await expect(page.getByTestId("qcms-responses-ignored-filters")).toHaveCount(0);
 
     await page.goto(`/forms/${formId}/responses?flagged=true`);
-    await expect(page.getByTestId("qcms-responses-empty")).toHaveText(FILTERED);
+    await expect(page.getByTestId("qcms-responses-empty")).toContainText(FILTERED);
     await expect(page.getByTestId("qcms-responses-ignored-filters")).toHaveCount(0);
   });
 

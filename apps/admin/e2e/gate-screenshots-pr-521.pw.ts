@@ -71,14 +71,14 @@ test("captures the ignored-filter notice against both empty states", async ({ pa
     await expect(page.getByTestId("qcms-responses-ignored-filters")).toContainText(
       "2 filters were not applied",
     );
-    await expect(page.getByTestId("qcms-responses-empty")).toHaveText(UNFILTERED);
+    await expect(page.getByTestId("qcms-responses-empty")).toContainText(UNFILTERED);
     await capture(page, `ignored-filters-${mode}`);
 
     await page.goto(`/forms/${formId}/responses?flagged=true&from=nope`);
     await expect(page.getByTestId("qcms-responses-ignored-filters")).toContainText(
       "One filter was not applied",
     );
-    await expect(page.getByTestId("qcms-responses-empty")).toHaveText(FILTERED);
+    await expect(page.getByTestId("qcms-responses-empty")).toContainText(FILTERED);
     await capture(page, `ignored-filters-with-valid-${mode}`);
   }
 });
