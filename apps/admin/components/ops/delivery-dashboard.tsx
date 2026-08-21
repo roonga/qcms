@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { EmptyState } from "@/components/empty-state";
 import { cancelledReasonText, DeliveryStatusTag } from "@/components/ops/ops-tags";
+import type { ReadState } from "@/lib/read-state";
 import type { DeliveryItem } from "@/lib/ops/types";
 import { formatDateTime } from "@/lib/i18n/format";
 import { t, tPlural } from "@/lib/i18n/en";
@@ -48,12 +49,30 @@ import { t, tPlural } from "@/lib/i18n/en";
  * so the panel skipped a level. It is now h2 dashboard, h3 this delivery, h4 request
  * headers, and the `KNOWN_HEADING_ORDER_GAPS` entry that registered the skip is deleted
  * from `apps/admin/e2e/a11y-axe.pw.ts`.
+ *
+ * ## A failed read is not a form nothing has been delivered for (issues 572, 544)
+ *
+ * `deliveries` is a `ReadState` (`lib/read-state.ts`), not an array. It used to be handed
+ * `ok ? data : []`, so a history that could not be read printed §3's panel and "Nothing
+ * has been delivered for this form yet." underneath the page's own warning that the
+ * delivery history could not be loaded. On this screen the false version is the
+ * reassuring one: an operator who came here because a consumer reported a missing event
+ * would read "nothing has been delivered" as the answer to their question.
+ *
+ * A failure keeps the heading and the intro, because the alert above needs a subject and
+ * a heading claims nothing, and drops the panel and the table, because both are
+ * statements about deliveries that were never read. There is no creating action here to
+ * preserve: deliveries are made by the system when a response is submitted, which is why
+ * the panel has no CTA either.
  */
 export function DeliveryDashboard({
   deliveries,
 }: {
-  readonly deliveries: readonly DeliveryItem[];
+  readonly deliveries: ReadState<readonly DeliveryItem[]>;
 }) {
+  /** The rows, or `undefined` when the read failed, which is never drawn as an empty one. */
+  const rows = deliveries.ok ? deliveries.data : undefined;
+
   const [open, setOpen] = useState<string | null>(null);
 
   return (
@@ -69,62 +88,74 @@ export function DeliveryDashboard({
         <p className="text-sm text-(--color-text-muted)">{t("ops.deliveries.intro")}</p>
       </div>
 
-      {/* §3's panel. No CTA: deliveries are made by the system when a response is
+      {/* Three states, not two (issue 572): a failed read draws neither branch, because
+          the panel would say nothing has been delivered and the table would say these are
+          the deliveries, and the read that would have settled which is the one that
+          failed.
+
+          §3's panel. No CTA: deliveries are made by the system when a response is
           submitted, so this screen has no creating action for §3's CTA clause. */}
-      {deliveries.length === 0 ? (
-        <EmptyState
-          heading={t("ops.deliveries.emptyTitle")}
-          body={t("ops.deliveries.empty")}
-          testId="qcms-deliveries-empty"
-        />
-      ) : (
-        /* One table family (§2). WHICH COLUMN DROPS AT COMPACT WIDTH: Latency. It is
+      {rows !== undefined &&
+        (rows.length === 0 ? (
+          <EmptyState
+            heading={t("ops.deliveries.emptyTitle")}
+            body={t("ops.deliveries.empty")}
+            testId="qcms-deliveries-empty"
+          />
+        ) : (
+          /* One table family (§2). WHICH COLUMN DROPS AT COMPACT WIDTH: Latency. It is
            the only column here that measures how a delivery went rather than saying
            which delivery it was or where it stands, and the expandable detail row each
            trigger opens carries the per-attempt picture anyway. Event, Target, Status,
            Attempts and Last attempt stay, and so does the trigger column. */
-        <div className="qcms-table">
-          <table data-testid="qcms-deliveries-table">
-            <caption className="qcms-visually-hidden">{t("ops.deliveries.table")}</caption>
-            <thead>
-              <tr>
-                <th scope="col">{t("ops.deliveries.column.event")}</th>
-                <th scope="col">{t("ops.deliveries.column.target")}</th>
-                <th scope="col">{t("ops.deliveries.column.status")}</th>
-                <th scope="col" className="qcms-cell--num" title={t("ops.deliveries.attemptsHint")}>
-                  {t("ops.deliveries.column.attempts")}
-                </th>
-                <th scope="col" className="qcms-cell--num qcms-cell--drop">
-                  {t("ops.deliveries.column.latency")}
-                </th>
-                <th scope="col" className="qcms-cell--num">
-                  {t("ops.deliveries.column.lastAttempt")}
-                </th>
-                <th scope="col">
-                  <span className="qcms-visually-hidden">{t("ops.deliveries.column.status")}</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {deliveries.map((row) => {
-                const isOpen = open === row.deliveryId;
-                const panelId = `qcms-delivery-detail-${row.deliveryId}`;
-                return (
-                  <DeliveryRows
-                    key={row.deliveryId}
-                    row={row}
-                    isOpen={isOpen}
-                    panelId={panelId}
-                    onToggle={() => {
-                      setOpen(isOpen ? null : row.deliveryId);
-                    }}
-                  />
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+          <div className="qcms-table">
+            <table data-testid="qcms-deliveries-table">
+              <caption className="qcms-visually-hidden">{t("ops.deliveries.table")}</caption>
+              <thead>
+                <tr>
+                  <th scope="col">{t("ops.deliveries.column.event")}</th>
+                  <th scope="col">{t("ops.deliveries.column.target")}</th>
+                  <th scope="col">{t("ops.deliveries.column.status")}</th>
+                  <th
+                    scope="col"
+                    className="qcms-cell--num"
+                    title={t("ops.deliveries.attemptsHint")}
+                  >
+                    {t("ops.deliveries.column.attempts")}
+                  </th>
+                  <th scope="col" className="qcms-cell--num qcms-cell--drop">
+                    {t("ops.deliveries.column.latency")}
+                  </th>
+                  <th scope="col" className="qcms-cell--num">
+                    {t("ops.deliveries.column.lastAttempt")}
+                  </th>
+                  <th scope="col">
+                    <span className="qcms-visually-hidden">
+                      {t("ops.deliveries.column.status")}
+                    </span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => {
+                  const isOpen = open === row.deliveryId;
+                  const panelId = `qcms-delivery-detail-${row.deliveryId}`;
+                  return (
+                    <DeliveryRows
+                      key={row.deliveryId}
+                      row={row}
+                      isOpen={isOpen}
+                      panelId={panelId}
+                      onToggle={() => {
+                        setOpen(isOpen ? null : row.deliveryId);
+                      }}
+                    />
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ))}
     </section>
   );
 }
