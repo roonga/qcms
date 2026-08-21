@@ -1,6 +1,8 @@
 import { t } from "../i18n/en.ts";
 import { textOf } from "../questions/definition.ts";
 
+import type { ReadState } from "../read-state.ts";
+
 import { pinnableVersions, pinnedVersionStatus } from "./draft.ts";
 import type { DraftStep, FormIssue, PinnableQuestion } from "./types.ts";
 
@@ -44,44 +46,96 @@ export interface PinRowView {
   readonly version: number;
   readonly position: number;
   readonly total: number;
-  /** Library-owned display text, or `""` when the library row carried no label. */
+  /** Library-owned display text, or `""` when there is none to show. */
   readonly label: string;
-  /** Library-owned type, already localized, or the "not in library" line. */
+  /**
+   * What the empty label cell says instead, already localized.
+   *
+   * Resolved here rather than in the component because it is one of the four
+   * library-owned facts whose wording depends on whether the library was READ, and
+   * keeping all four in one place is what stops the next one being decided in JSX
+   * (issue 572). A library that answered and carried no label says "no label in the
+   * library"; a library that did not answer says only that the label is not known.
+   */
+  readonly labelFallback: string;
+  /** Library-owned type, already localized, or the "unknown" line. */
   readonly type: string;
-  /** The pinned version's own status, or `undefined` when the library lost it. */
+  /**
+   * The pinned version's own status.
+   *
+   * `undefined` means the library was read and does not hold this version, which is a
+   * finding worth a tag. `"unknown"` means the library was not read at all, which is not
+   * a finding about anything and gets no tag (`pinStateLabel`).
+   */
   readonly versionStatus: string | undefined;
-  /** The published versions this pin could be moved to, excluding the current one. */
-  readonly otherVersions: readonly number[];
+  /**
+   * The published versions this pin could be moved to, excluding the current one, or
+   * `undefined` when the library was not read.
+   *
+   * A union rather than an empty array for the same reason `ReadState` is a union rather
+   * than a `failed` flag (issues 543, 572, `lib/read-state.ts`): "there is nowhere else
+   * to move this pin" and "nobody managed to ask" are different answers, and an empty
+   * array can only say the first one. The move menu said the first one for years of
+   * every failed library read.
+   */
+  readonly otherVersions: readonly number[] | undefined;
   readonly issues: readonly FormIssue[];
 }
 
-/** The rows of one step, in the order the form serves them. */
+/**
+ * The rows of one step, in the order the form serves them.
+ *
+ * ## Why the library arrives as a `ReadState` (issues 572, 544)
+ *
+ * Every library-owned cell of this grid is a lookup, and an empty library is not a
+ * neutral input to a lookup: every one of them misses. Handed `ok ? data : []` - the
+ * collapse issue 544 filed - a library that could not be read produced a grid claiming,
+ * on EVERY pin in the form, that there was no label in the library, that the type was
+ * unknown, that the version was not found, and that there was no other version to move
+ * to. Four positive claims about a library nobody managed to read, printed under the
+ * page's own alert saying so, and together they read as "this form has been gutted".
+ *
+ * A failed read now says only that these things are not known. Nothing else about the
+ * row changes: position, version and the engine's issues are form-owned facts that came
+ * from a read that succeeded, and every control the grid draws still works.
+ */
 export function pinRows(
   step: DraftStep,
-  library: readonly PinnableQuestion[],
+  library: ReadState<readonly PinnableQuestion[]>,
   issues: readonly FormIssue[],
 ): readonly PinRowView[] {
   return step.items.map((pin, index) => {
-    const question = library.find((entry) => entry.questionId === pin.questionId);
+    const question = library.ok
+      ? library.data.find((entry) => entry.questionId === pin.questionId)
+      : undefined;
     return {
       questionId: pin.questionId,
       version: pin.version,
       position: index + 1,
       total: step.items.length,
       label: textOf(question?.label ?? undefined),
+      labelFallback: t(library.ok ? "forms.step.labelMissing" : "forms.step.labelUnknown"),
       type:
         question === undefined || question.type === null
           ? t("questions.column.typeUnknown")
           : t(`questions.type.${question.type}`),
-      versionStatus: pinnedVersionStatus(question, pin.version),
-      otherVersions:
-        question === undefined
-          ? []
-          : pinnableVersions(question).filter((version) => version !== pin.version),
+      versionStatus: library.ok ? pinnedVersionStatus(question, pin.version) : "unknown",
+      otherVersions: library.ok
+        ? pinnableVersions(question ?? EMPTY_QUESTION).filter((version) => version !== pin.version)
+        : undefined,
       issues: issuesForPin(issues, pin.questionId),
     };
   });
 }
+
+/** A stand-in so the version helpers can be asked about a question the library lost. */
+const EMPTY_QUESTION: PinnableQuestion = {
+  questionId: "",
+  slug: "",
+  label: null,
+  type: null,
+  versions: [],
+};
 
 /** The issues that belong to one pin: about this question, and not about a rule. */
 export function issuesForPin(
@@ -142,9 +196,16 @@ export function pinRowMenuItems(row: PinRowView): readonly PinRowMenuItem[] {
   ];
 }
 
-/** What a pinned version's status is worth saying, or nothing for the ordinary case. */
+/**
+ * What a pinned version's status is worth saying, or nothing for the ordinary case.
+ *
+ * `"unknown"` joins `"published"` in saying nothing, and for the same reason rather than
+ * a different one: neither is a finding. A published pin is what the author asked for,
+ * and an unread library has found nothing at all (issue 572). Only `undefined` - the
+ * library answered and does not hold this version - is worth a tag.
+ */
 export function pinStateLabel(status: string | undefined): string | undefined {
-  if (status === "published") return undefined;
+  if (status === "published" || status === "unknown") return undefined;
   if (status === "deprecated") return t("forms.step.pinDeprecated");
   if (status === "draft") return t("forms.step.pinDraft");
   return t("forms.step.pinMissing");

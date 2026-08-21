@@ -13,6 +13,7 @@ import {
 import { draftDocumentOrder } from "@/lib/forms/draft";
 import type { DraftForm, DraftRule, PinnableQuestion } from "@/lib/forms/types";
 import { t, tPlural } from "@/lib/i18n/en";
+import type { ReadState } from "@/lib/read-state";
 
 import { answerKindForType, OperandControl, type OperandValue } from "./operand-control";
 
@@ -64,7 +65,7 @@ export function RuleTestBench({
 }: {
   readonly draft: DraftForm;
   readonly rules: readonly DraftRule[];
-  readonly library: readonly PinnableQuestion[];
+  readonly library: ReadState<readonly PinnableQuestion[]>;
   readonly previewCondition: (input: {
     draft: DraftForm;
     ruleId: string;
@@ -215,7 +216,7 @@ function AnswerControl({
   onChange,
 }: {
   readonly draft: DraftForm;
-  readonly library: readonly PinnableQuestion[];
+  readonly library: ReadState<readonly PinnableQuestion[]>;
   readonly questionId: string;
   readonly value: OperandValue | undefined;
   readonly onChange: (value: OperandValue) => void;
@@ -249,15 +250,25 @@ interface AnswerControlShape {
   readonly version: number;
 }
 
-/** What control one referenced question needs, or `undefined` when it is not pinned. */
+/**
+ * What control one referenced question needs, or `undefined` when it is not pinned.
+ *
+ * A library read that FAILED lands where a question the library does not hold lands: the
+ * pinned version's type is unknown, so the bench renders the generic control it renders
+ * for any unknown type (issues 572, 544). The library arrives as a `ReadState` rather than
+ * as an array so that "unknown" is a fact this function was told rather than one it
+ * inferred from an empty list somebody else invented.
+ */
 function controlFor(
   draft: DraftForm,
-  library: readonly PinnableQuestion[],
+  library: ReadState<readonly PinnableQuestion[]>,
   questionId: string,
 ): AnswerControlShape | undefined {
   const pin = draftDocumentOrder(draft).find((entry) => entry.questionId === questionId);
   if (pin === undefined) return undefined;
-  const question = library.find((entry) => entry.questionId === questionId);
+  const question = library.ok
+    ? library.data.find((entry) => entry.questionId === questionId)
+    : undefined;
   return {
     kind: answerKindForType(typeOfPinnedVersion(question, pin.version)),
     options: optionIdsOfVersion(question, pin.version),
@@ -282,7 +293,7 @@ function controlFor(
  */
 function answersToSend(
   draft: DraftForm,
-  library: readonly PinnableQuestion[],
+  library: ReadState<readonly PinnableQuestion[]>,
   references: readonly string[],
   entered: Readonly<Record<string, OperandValue>>,
 ): Record<string, unknown> {

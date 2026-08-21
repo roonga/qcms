@@ -3,11 +3,12 @@
 import { useState } from "react";
 
 import { EmptyState } from "@/components/empty-state";
-import { Button, Dialog, Table, TextField, type TableRow } from "@/components/kit";
+import { Alert, Button, Dialog, Table, TextField, type TableRow } from "@/components/kit";
 import { isPinned } from "@/lib/forms/draft";
 import type { DraftForm, PinnableQuestion } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
 import { textOf } from "@/lib/questions/definition";
+import type { ReadState } from "@/lib/read-state";
 
 /**
  * The add-a-question dialog (task 033; wireframe "library picker `dialog`").
@@ -31,6 +32,25 @@ import { textOf } from "@/lib/questions/definition";
  *
  * Draft versions never appear: they can still change, and a pin to something that can
  * change is not a pin.
+ *
+ * ## A library that did not load has no rows and no empty state (issues 572, 544)
+ *
+ * `library` is a `ReadState` (`lib/read-state.ts`). Handed `ok ? data : []` it used to
+ * show §3's FILTERED panel - "No published question version matches this search." - for a
+ * read that never happened, under a search box the author had not typed in. The sentence
+ * blames the search for the library's absence, and the author's next move is to try a
+ * different search, which cannot work.
+ *
+ * A failed read renders the failure and the way out of the dialog, and drops everything
+ * that would describe a library nobody read: the search field (a filter over nothing), the
+ * table, the empty panel, and the hint that tells the author to choose a row. The alert is
+ * repeated INSIDE the dialog rather than left to the page, for the reason
+ * `secure-links.tsx` gives its revoke dialog: a modal covers the page's alert region, so a
+ * failure written only there is a failure the operator cannot see.
+ *
+ * The step editor still offers "Add question" while the library is unread, and that is
+ * deliberate. It is a working control that opens a dialog which now says why it cannot
+ * help yet, which is better than a control that has silently gone missing.
  */
 export function LibraryPicker({
   isOpen,
@@ -43,12 +63,14 @@ export function LibraryPicker({
   readonly isOpen: boolean;
   readonly stepTitle: string;
   readonly draft: DraftForm;
-  readonly library: readonly PinnableQuestion[];
+  readonly library: ReadState<readonly PinnableQuestion[]>;
   readonly onPin: (questionId: string, version: number) => void;
   readonly onClose: () => void;
 }) {
   const [search, setSearch] = useState("");
-  const candidates = pinnableRows(library, draft, search);
+  const candidates = library.ok
+    ? pinnableRows(library.data, draft, search)
+    : { rows: [], disabled: [] };
 
   return (
     <Dialog
@@ -60,38 +82,49 @@ export function LibraryPicker({
       }}
     >
       <div className="flex flex-col gap-4">
-        <TextField label={t("forms.picker.search")} value={search} onChange={setSearch} />
+        {!library.ok && <Alert variant="error">{t("forms.picker.loadFailed")}</Alert>}
+
+        {library.ok && (
+          <TextField label={t("forms.picker.search")} value={search} onChange={setSearch} />
+        )}
 
         {/* A search that matched nothing, so this is `plan/admin-design-contracts.md`
             §3's FILTERED variant: the panel and its heading, no explanatory sentence,
             and no CTA - the action that clears this filter is the search field two
             elements up, already focused and already holding the text to delete. */}
-        {candidates.rows.length === 0 ? (
-          <EmptyState heading={t("forms.picker.empty")} testId="qcms-picker-empty" />
-        ) : (
-          <div className="qcms-table qcms-table--rowaction qcms-table--picker">
-            <Table
-              ariaLabel={t("forms.picker.tableLabel")}
-              columns={[
-                { id: "questionId", label: t("forms.picker.column.questionId"), isRowHeader: true },
-                { id: "label", label: t("forms.picker.column.label") },
-                { id: "type", label: t("forms.picker.column.type") },
-                { id: "version", label: t("forms.picker.column.version") },
-                { id: "state", label: t("forms.picker.column.state") },
-              ]}
-              rows={candidates.rows}
-              disabledKeys={candidates.disabled}
-              onRowAction={(id) => {
-                const chosen = parseRowId(id);
-                if (chosen === undefined) return;
-                onPin(chosen.questionId, chosen.version);
-                onClose();
-              }}
-            />
-          </div>
-        )}
+        {library.ok &&
+          (candidates.rows.length === 0 ? (
+            <EmptyState heading={t("forms.picker.empty")} testId="qcms-picker-empty" />
+          ) : (
+            <div className="qcms-table qcms-table--rowaction qcms-table--picker">
+              <Table
+                ariaLabel={t("forms.picker.tableLabel")}
+                columns={[
+                  {
+                    id: "questionId",
+                    label: t("forms.picker.column.questionId"),
+                    isRowHeader: true,
+                  },
+                  { id: "label", label: t("forms.picker.column.label") },
+                  { id: "type", label: t("forms.picker.column.type") },
+                  { id: "version", label: t("forms.picker.column.version") },
+                  { id: "state", label: t("forms.picker.column.state") },
+                ]}
+                rows={candidates.rows}
+                disabledKeys={candidates.disabled}
+                onRowAction={(id) => {
+                  const chosen = parseRowId(id);
+                  if (chosen === undefined) return;
+                  onPin(chosen.questionId, chosen.version);
+                  onClose();
+                }}
+              />
+            </div>
+          ))}
 
-        <p className="text-sm text-(--color-text-muted)">{t("forms.picker.hint")}</p>
+        {library.ok && (
+          <p className="text-sm text-(--color-text-muted)">{t("forms.picker.hint")}</p>
+        )}
         <div>
           <Button variant="ghost" size="md" onPress={onClose}>
             {t("forms.picker.close")}

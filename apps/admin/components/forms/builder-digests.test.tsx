@@ -211,7 +211,7 @@ function renderBench(draft: DraftForm): string {
       <RuleTestBench
         draft={draft}
         rules={draft.rules}
-        library={[CHOICE, COUNT]}
+        library={{ ok: true, data: [CHOICE, COUNT] }}
         previewCondition={() => Promise.resolve({ status: "idle" as const })}
       />,
     ),
