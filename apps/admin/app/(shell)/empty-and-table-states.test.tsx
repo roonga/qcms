@@ -21,6 +21,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  *    513's rule). The erasure log broke this one, and it is the screen where breaking it
  *    matters most - it answers "was this subject request honoured?".
  *
+ * ## Issue 543: the same rule, on the screen where breaking it is worse still
+ *
+ * `/webhooks` handed `DeadLetters` an empty array on a failed read, so the queue printed
+ * "nothing is stuck" - the reassuring answer, and a positive claim - directly beneath the
+ * alert saying it could not be read. The queue now takes a `ReadState` (`lib/read-state.ts`)
+ * and can tell "the read failed" from "the queue is clear". The three tests at the bottom
+ * of this file pin all three of its states, and the middle one is the control: a genuinely
+ * empty read must STILL get §3's panel, so the fix cannot degenerate into deleting the
+ * empty state.
+ *
  * ## Why this layer
  *
  * The same reason `forms-list-states.test.tsx` gives, and this file is the sibling that
@@ -55,6 +65,19 @@ const SESSION = {
 let erasuresResult: unknown = { ok: true, data: [] };
 let questionsResult: unknown = { ok: true, data: [] };
 let formsResult: unknown = { ok: true, data: [] };
+let deadLettersResult: unknown = { ok: true, data: [] };
+
+const DEAD_LETTER = {
+  deliveryId: "dlv_one",
+  eventId: "evt_one",
+  eventType: "response.submitted",
+  webhookId: "whk_one",
+  formId: "frm_one",
+  url: "https://example.test/hook",
+  attempts: 5,
+  lastError: "upstream said 500",
+  deadLetteredAt: "2026-08-01T10:00:00.000Z",
+};
 
 const ERASURE = {
   sessionId: "ses_one",
@@ -80,6 +103,19 @@ vi.mock("@/lib/questions/errors", () => import("../../lib/questions/errors"));
 vi.mock("@/lib/questions/types", () => import("../../lib/questions/types"));
 vi.mock("@/lib/i18n/format", () => import("../../lib/i18n/format"));
 
+/**
+ * `DeadLetters` is the subject of the issue 543 block, so it too is redirected to the
+ * real module rather than stubbed (`forms-list-states.test.tsx` stubs it for the opposite
+ * reason: there the queue is noise around a form list). Its two non-render helpers are
+ * stubbed, because neither runs during a static render and neither changes the markup:
+ * `focusPostAction` is called from an effect, and `unexpected` only from a rejected
+ * action's `catch`.
+ */
+vi.mock("@/components/ops/dead-letters", () => import("../../components/ops/dead-letters"));
+vi.mock("@/lib/read-state", () => import("../../lib/read-state"));
+vi.mock("@/lib/ops/post-action-focus", () => ({ focusPostAction: () => undefined }));
+vi.mock("@/lib/ops/unexpected", () => ({ unexpected: () => "ops.error.unexpected" }));
+
 vi.mock("@/lib/server/session", () => ({
   requireAdminSession: () => Promise.resolve(SESSION),
 }));
@@ -91,6 +127,9 @@ vi.mock("@/lib/server/questions", () => ({
 }));
 vi.mock("@/lib/server/forms", () => ({
   listForms: () => Promise.resolve(formsResult),
+}));
+vi.mock("@/lib/server/webhook-ops", () => ({
+  listDeadLetters: () => Promise.resolve(deadLettersResult),
 }));
 
 /**
@@ -115,8 +154,15 @@ vi.mock("@/components/kit", () => ({
   Card: ({ children }: { children?: ReactNode }) => (
     <div data-testid="qcms-card-stub">{children}</div>
   ),
+  Dialog: ({ children }: { children?: ReactNode }) => (
+    <div data-testid="qcms-dialog-stub">{children}</div>
+  ),
   Select: () => <select aria-label="stub" />,
   TextField: () => <input aria-label="stub" />,
+}));
+vi.mock("./webhooks/actions", () => ({
+  redeliverAction: () => Promise.resolve({ status: "idle" }),
+  redeliverAllAction: () => Promise.resolve({ status: "idle" }),
 }));
 vi.mock("@/components/questions/questions-table", () => ({
   QuestionsTable: () => <div data-testid="qcms-questions-table-stub" />,
@@ -156,10 +202,20 @@ async function renderForms(): Promise<string> {
   return renderToStaticMarkup(await Page());
 }
 
+/**
+ * The forms read on this page is pinned successful and empty by `beforeEach`, so the only
+ * alert the assertions below can be seeing is the dead-letter queue's own.
+ */
+async function renderWebhooks(): Promise<string> {
+  const { default: Page } = await import("./webhooks/page.tsx");
+  return renderToStaticMarkup(await Page());
+}
+
 beforeEach(() => {
   erasuresResult = { ok: true, data: [] };
   questionsResult = { ok: true, data: [] };
   formsResult = { ok: true, data: [] };
+  deadLettersResult = { ok: true, data: [] };
 });
 
 describe("the erasure log's three states (issue 514)", () => {
@@ -237,5 +293,60 @@ describe("the library screens' empty state (issue 514)", () => {
     expect(html).toMatch(EMPTY_HEADING);
     expect(html).toContain("forms.empty.title");
     expect(html).toContain("forms.empty.body");
+  });
+});
+
+/**
+ * `ops.deadLetters.emptyTitle` starts with `ops.deadLetters.empty`, so one
+ * `not.toContain("ops.deadLetters.empty")` rules out both halves of the panel's copy at
+ * once. That is deliberate: the claim being pinned is "no part of the empty state",
+ * not "not this one string".
+ */
+describe("the dead-letter queue's three states (issue 543)", () => {
+  it("makes no claim about the queue when the read fails", async () => {
+    deadLettersResult = { ok: false, message: "upstream said 503" };
+
+    const html = await renderWebhooks();
+
+    // The whole point of the issue: "nothing is stuck" is the reassuring answer, and a
+    // failed read does not have it. Neither the panel nor its copy nor the count.
+    expect(html).not.toMatch(EMPTY_PANEL);
+    expect(html).not.toContain("ops.deadLetters.empty");
+    expect(html).not.toContain("ops.deadLetters.total");
+    expect(html).not.toMatch(/<table[\s>]/);
+  });
+
+  it("still renders the error alert when the read fails", async () => {
+    deadLettersResult = { ok: false, message: "upstream said 503" };
+
+    const html = await renderWebhooks();
+
+    expect(html).toContain('data-testid="qcms-alert"');
+    expect(html).toContain("ops.deadLetters.loadFailed");
+    // The region keeps its heading, exactly as the form list below it does on the same
+    // page (issue 513): the alert needs a subject, and a heading claims nothing.
+    expect(html).toContain('id="qcms-dead-letters-heading"');
+  });
+
+  it("still renders the empty panel when the queue genuinely reads clear", async () => {
+    const html = await renderWebhooks();
+
+    expect(html).toMatch(EMPTY_PANEL);
+    expect(html).toMatch(EMPTY_HEADING);
+    expect(html).toContain("ops.deadLetters.emptyTitle");
+    expect(html).toMatch(/qcms-empty__body">ops\.deadLetters\.empty</);
+    expect(html).not.toMatch(/<table[\s>]/);
+    expect(html).not.toContain('data-testid="qcms-alert"');
+  });
+
+  it("renders one family table, wrapped, when the queue has rows", async () => {
+    deadLettersResult = { ok: true, data: [DEAD_LETTER] };
+
+    const html = await renderWebhooks();
+
+    expect(html).toContain('<div class="qcms-table"><table');
+    expect(html).not.toMatch(RETIRED_TABLE_CLASSES);
+    expect(html).not.toMatch(EMPTY_PANEL);
+    expect(html).toContain("ops.deadLetters.total.one");
   });
 });

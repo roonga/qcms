@@ -1,0 +1,33 @@
+
+ RUN  v4.1.10 <repo-root>
+
+ ❯ |qcms-admin| app/(shell)/empty-and-table-states.test.tsx (10 tests | 1 failed) 117ms
+     × makes no claim about the queue when the read fails 16ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |qcms-admin| app/(shell)/empty-and-table-states.test.tsx > the dead-letter queue's three states (issue 543) > makes no claim about the queue when the read fails
+AssertionError: expected '<div class="flex flex-col gap-8"><div…' not to match /<div class="qcms-empty"[^>]*>/
+
+- Expected:
+/<div class="qcms-empty"[^>]*>/
+
++ Received:
+"<div class=\"flex flex-col gap-8\"><div class=\"flex flex-col gap-1\"><h1 class=\"text-xl font-semibold text-(--color-text)\">ops.area.webhooks.title</h1><p class=\"text-sm text-(--color-text-muted)\">ops.area.webhooks.intro</p></div><div data-testid=\"qcms-alert\" data-variant=\"error\">ops.deadLetters.loadFailed</div><section aria-labelledby=\"qcms-dead-letters-heading\" class=\"flex flex-col gap-3\" data-testid=\"qcms-dead-letters\"><div class=\"flex flex-col gap-1\"><h2 id=\"qcms-dead-letters-heading\" tabindex=\"-1\" class=\"text-lg font-semibold text-(--color-text)\">ops.deadLetters.heading</h2><p class=\"text-sm text-(--color-text-muted)\">ops.deadLetters.intro</p></div><div aria-live=\"polite\" class=\"flex flex-col gap-2\" data-testid=\"qcms-dead-letters-status\"></div><div class=\"qcms-empty\" data-testid=\"qcms-dead-letters-empty\"><h2 class=\"qcms-empty__heading\">ops.deadLetters.emptyTitle</h2><p class=\"qcms-empty__body\">ops.deadLetters.empty</p></div></section><section aria-labelledby=\"qcms-webhook-forms-heading\" class=\"flex flex-col gap-2\"><h2 id=\"qcms-webhook-forms-heading\" class=\"text-lg font-semibold text-(--color-text)\">nav.forms</h2><p class=\"text-sm text-(--color-text-muted)\">ops.area.webhooks.noForms</p></section></div>"
+
+ ❯ app/(shell)/empty-and-table-states.test.tsx:312:22
+    310|     // The whole point of the issue: "nothing is stuck" is the reassur…
+    311|     // failed read does not have it. Neither the panel nor its copy no…
+    312|     expect(html).not.toMatch(EMPTY_PANEL);
+       |                      ^
+    313|     expect(html).not.toContain("ops.deadLetters.empty");
+    314|     expect(html).not.toContain("ops.deadLetters.total");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 9 passed (10)
+   Start at  01:31:19
+   Duration  269ms (transform 98ms, setup 0ms, import 60ms, tests 117ms, environment 0ms)
+
