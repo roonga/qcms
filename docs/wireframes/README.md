@@ -18,6 +18,14 @@ Each wireframe file contains, in order:
 6. **A11y notes** - focus targets, `aria-live` announcements, keyboard paths. These feed 030's policies; flow-level only (component-level a11y is upstream's, ADR-22).
 7. **Sign-off line** - `Signed off: <name>, <date>` - added by 042, absent until then.
 
+**A file may describe more than one screen** (added by issue #574). Routes that share API
+slices, a renderer, or a navigation path are cheaper to read together than apart. When a file
+does, each screen after the first opens with an `h1` naming it and its route, and carries its
+**own** Regions / States / Interactions / A11y inventories: the sections above a screen's own
+heading are not normative for it. What is not allowed is the shape that caused D1 - a route
+of its own appearing as a bullet or an action inside another screen's inventory, which leaves
+nothing saying what it is headed by.
+
 ## Screen scope (normative)
 
 **A screen's `h1` names the entity its content is scoped to.** One `h1` per screen, and the entity it names is the one the content belongs to: a builder screen is headed by the form, because its content is the whole form, while a version-detail screen is headed by that version and a response-detail screen by that response, not by the form either one hangs off. Parent context is the `breadcrumb`'s job, so an inventory that leans on the parent for its heading leaves a reader with no name for the thing in front of them and gives sibling routes the same heading. A heading naming a wider entity than the content is a defect in the inventory, not a styling preference.
