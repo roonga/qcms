@@ -218,9 +218,17 @@ function routeFiles(): readonly string[] {
   return filesUnder("app", (name) => name === "page.tsx");
 }
 
-/** Every module that can put something on a screen. */
+/**
+ * Every module that can put something on a screen.
+ *
+ * Test files are excluded, and that is not a convenience. A test that asserts a sentence
+ * is ABSENT quotes the same key as the component that renders it, so counting test files
+ * as carriers would make an assertion against the rule read as a violation of it. That is
+ * not hypothetical: `components/forms/builder-digests.test.tsx` checks that the settings
+ * digest does not repeat "Settings saved.", which is the rule being kept, not broken.
+ */
 function uiSources(): readonly string[] {
-  const tsx = (name: string): boolean => /\.tsx?$/u.test(name);
+  const tsx = (name: string): boolean => /\.tsx?$/u.test(name) && !/\.test\.tsx?$/u.test(name);
   return [...filesUnder("app", tsx), ...filesUnder("components", tsx)];
 }
 
