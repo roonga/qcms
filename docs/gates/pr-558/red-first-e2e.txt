@@ -28,7 +28,7 @@ Running 2 tests using 1 worker
       162 |     expect
       163 |       .soft(measured.width, `${screen.path} fills the smaller of cap and viewport`)
       164 |       .toBe(Math.min(CAP_PX[screen.cap], measured.available));
-        at /workspaces/qcms/.claude/worktrees/558-width-caps/apps/admin/e2e/measure.pw.ts:161:8
+        at apps/admin/e2e/measure.pw.ts:161:8
 
     Error: /forms/frm_auto_quote fills the smaller of cap and viewport
 
@@ -44,7 +44,7 @@ Running 2 tests using 1 worker
       165 |     if (screen.cap === "default") {
       166 |       expect
       167 |         .soft(
-        at /workspaces/qcms/.claude/worktrees/558-width-caps/apps/admin/e2e/measure.pw.ts:164:8
+        at apps/admin/e2e/measure.pw.ts:164:8
 
     Error: /forms/frm_auto_quote/links caps at the wide measure
 
@@ -60,7 +60,7 @@ Running 2 tests using 1 worker
       162 |     expect
       163 |       .soft(measured.width, `${screen.path} fills the smaller of cap and viewport`)
       164 |       .toBe(Math.min(CAP_PX[screen.cap], measured.available));
-        at /workspaces/qcms/.claude/worktrees/558-width-caps/apps/admin/e2e/measure.pw.ts:161:8
+        at apps/admin/e2e/measure.pw.ts:161:8
 
     Error: /forms/frm_auto_quote/links fills the smaller of cap and viewport
 
@@ -76,7 +76,7 @@ Running 2 tests using 1 worker
       165 |     if (screen.cap === "default") {
       166 |       expect
       167 |         .soft(
-        at /workspaces/qcms/.claude/worktrees/558-width-caps/apps/admin/e2e/measure.pw.ts:164:8
+        at apps/admin/e2e/measure.pw.ts:164:8
 
     Error: /forms/frm_auto_quote/preview caps at the narrow measure
 
@@ -92,7 +92,7 @@ Running 2 tests using 1 worker
       162 |     expect
       163 |       .soft(measured.width, `${screen.path} fills the smaller of cap and viewport`)
       164 |       .toBe(Math.min(CAP_PX[screen.cap], measured.available));
-        at /workspaces/qcms/.claude/worktrees/558-width-caps/apps/admin/e2e/measure.pw.ts:161:8
+        at apps/admin/e2e/measure.pw.ts:161:8
 
     Error: /forms/frm_auto_quote/preview fills the smaller of cap and viewport
 
@@ -108,7 +108,7 @@ Running 2 tests using 1 worker
       165 |     if (screen.cap === "default") {
       166 |       expect
       167 |         .soft(
-        at /workspaces/qcms/.claude/worktrees/558-width-caps/apps/admin/e2e/measure.pw.ts:164:8
+        at apps/admin/e2e/measure.pw.ts:164:8
 
     Error: /forms/frm_auto_quote/versions caps at the wide measure
 
@@ -124,7 +124,7 @@ Running 2 tests using 1 worker
       162 |     expect
       163 |       .soft(measured.width, `${screen.path} fills the smaller of cap and viewport`)
       164 |       .toBe(Math.min(CAP_PX[screen.cap], measured.available));
-        at /workspaces/qcms/.claude/worktrees/558-width-caps/apps/admin/e2e/measure.pw.ts:161:8
+        at apps/admin/e2e/measure.pw.ts:161:8
 
     Error: /forms/frm_auto_quote/versions fills the smaller of cap and viewport
 
@@ -140,7 +140,7 @@ Running 2 tests using 1 worker
       165 |     if (screen.cap === "default") {
       166 |       expect
       167 |         .soft(
-        at /workspaces/qcms/.claude/worktrees/558-width-caps/apps/admin/e2e/measure.pw.ts:164:8
+        at apps/admin/e2e/measure.pw.ts:164:8
 
     Error: /forms/frm_auto_quote/versions/1 caps at the narrow measure
 
@@ -156,7 +156,7 @@ Running 2 tests using 1 worker
       162 |     expect
       163 |       .soft(measured.width, `${screen.path} fills the smaller of cap and viewport`)
       164 |       .toBe(Math.min(CAP_PX[screen.cap], measured.available));
-        at /workspaces/qcms/.claude/worktrees/558-width-caps/apps/admin/e2e/measure.pw.ts:161:8
+        at apps/admin/e2e/measure.pw.ts:161:8
 
     Error: /forms/frm_auto_quote/versions/1 fills the smaller of cap and viewport
 
@@ -172,7 +172,7 @@ Running 2 tests using 1 worker
       165 |     if (screen.cap === "default") {
       166 |       expect
       167 |         .soft(
-        at /workspaces/qcms/.claude/worktrees/558-width-caps/apps/admin/e2e/measure.pw.ts:164:8
+        at apps/admin/e2e/measure.pw.ts:164:8
 
     Error: /forms/frm_auto_quote/webhooks caps at the wide measure
 
@@ -188,7 +188,7 @@ Running 2 tests using 1 worker
       162 |     expect
       163 |       .soft(measured.width, `${screen.path} fills the smaller of cap and viewport`)
       164 |       .toBe(Math.min(CAP_PX[screen.cap], measured.available));
-        at /workspaces/qcms/.claude/worktrees/558-width-caps/apps/admin/e2e/measure.pw.ts:161:8
+        at apps/admin/e2e/measure.pw.ts:161:8
 
     Error: /forms/frm_auto_quote/webhooks fills the smaller of cap and viewport
 
@@ -204,7 +204,7 @@ Running 2 tests using 1 worker
       165 |     if (screen.cap === "default") {
       166 |       expect
       167 |         .soft(
-        at /workspaces/qcms/.claude/worktrees/558-width-caps/apps/admin/e2e/measure.pw.ts:164:8
+        at apps/admin/e2e/measure.pw.ts:164:8
 
     Error: /webhooks caps at the wide measure
 
@@ -220,7 +220,7 @@ Running 2 tests using 1 worker
       162 |     expect
       163 |       .soft(measured.width, `${screen.path} fills the smaller of cap and viewport`)
       164 |       .toBe(Math.min(CAP_PX[screen.cap], measured.available));
-        at /workspaces/qcms/.claude/worktrees/558-width-caps/apps/admin/e2e/measure.pw.ts:161:8
+        at apps/admin/e2e/measure.pw.ts:161:8
 
     Error: /webhooks fills the smaller of cap and viewport
 
@@ -236,7 +236,7 @@ Running 2 tests using 1 worker
       165 |     if (screen.cap === "default") {
       166 |       expect
       167 |         .soft(
-        at /workspaces/qcms/.claude/worktrees/558-width-caps/apps/admin/e2e/measure.pw.ts:164:8
+        at apps/admin/e2e/measure.pw.ts:164:8
 
     Error Context: apps/portal/.playwright/output/measure.pw.ts-558-caps-eac-1480d--its-route-asks-for-at-1280-admin-chromium/error-context.md
 

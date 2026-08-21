@@ -3,7 +3,7 @@
 # Command: pnpm exec vitest run --root . --project qcms-admin lib/measure.test.ts
 
 
- RUN  v4.1.10 /workspaces/qcms/.claude/worktrees/558-width-caps
+ RUN  v4.1.10 <repo root>
 
  ❯ |qcms-admin| lib/measure.test.ts (9 tests | 5 failed) 14ms
      × covers exactly the routes that exist, so a new screen has to declare its cap 10ms
