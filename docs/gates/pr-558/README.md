@@ -6,10 +6,17 @@ cap, and that nothing else moved. The shell's content column no longer takes one
 `apps/admin/lib/measure.ts`. `plan/admin-ux-audit.md` section 6 assigns the three values.
 
 Every frame is committed as a **pair**: `before/<name>-<width>.png` is the same spec run
-against the parent state (`app/(shell)/layout.tsx` and `app/globals.css` restored to
-`fix/557-breakpoint-tokens`, and `lib/measure.ts` / `components/measured-main.tsx` absent),
+against the parent state (`app/(shell)/layout.tsx` and `app/globals.css` restored to the
+base commit, and `lib/measure.ts` / `components/measured-main.tsx` absent),
 `<name>-<width>.png` is the branch. A cap is only visible as a difference, so a lone after
 frame would show nothing.
+
+**Both sides stand on base commit `c9a5219`**, named as a commit rather than a branch
+because the branch this set was first shot against has since merged and been deleted
+(issue 600). The shared base is what makes a pair mean anything, so when `main` moves under
+this branch both sides are re-shot together, never the after set alone. This set was re-shot
+at `c9a5219`; seven pairs moved and the other twenty-three came back byte-identical and were
+left as they were. `byte-identity.txt` has the sha256 table and the reasoning.
 
 ## The three measures
 
