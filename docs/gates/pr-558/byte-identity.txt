@@ -47,8 +47,9 @@ pixel of horizontal overflow, which the spec's own Reflow check reports without 
 other frames their evidence. It is NOT this branch's: the `before/` run, with `lib/measure.ts`
 and `components/measured-main.tsx` absent and the layout and stylesheet back at the base,
 reports the identical 391. Same spec, same base, cap present and cap absent, same overflow.
-It arrived with the base and is filed separately; a cap is a `max-inline-size` and cannot
-push a document wider than its viewport.
+It arrived with the base, and it is reported alongside this change rather than fixed in it,
+because it belongs to files this branch does not touch. A cap is a `max-inline-size` and
+cannot push a document wider than its own viewport.
 
 FRAME                  WIDTH  VERDICT    SHA256 BEFORE / AFTER
 erasures               1280   IDENTICAL  c570414cb50019fe585386c8c7c888c3
