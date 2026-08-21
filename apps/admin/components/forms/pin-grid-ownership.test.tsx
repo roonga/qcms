@@ -20,9 +20,14 @@ import type { DraftForm, DraftStep, FormIssue, PinnableQuestion } from "../../li
  * The one button a library-owned cell may hold is the copy affordance
  * `plan/admin-design-contracts.md` §2 requires of an identifying column, and it has to
  * say so in the markup (`data-readonly-action`) rather than being spotted by name. This
- * file also asserts §2's other two clauses about that column: the id is rendered WHOLE
- * with no ellipsis anywhere, and the copy control's accessible name carries the entity
- * and the value rather than a bare "Copy".
+ * file also asserts §2's no-ellipsis rule for that column, and its requirement that the
+ * copy control's accessible name carry the entity and the value rather than a bare "Copy".
+ *
+ * The third assertion, that the id is rendered WHOLE, is this table's stated DEVIATION
+ * from §2 rather than a clause of it: §2 asks an identifying column for a type prefix plus
+ * 8 characters, and `components/forms/step-editor.tsx` records why a slug-derived `q_` id
+ * cannot take that treatment safely and raises it for a ruling. It is pinned here so the
+ * deviation cannot drift silently while the question is open.
  *
  * ## Why this layer
  *

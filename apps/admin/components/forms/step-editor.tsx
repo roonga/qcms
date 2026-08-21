@@ -57,14 +57,23 @@ import { LibraryPicker } from "./library-picker";
  * its two columns because the two halves have different owners, which is the same fact
  * stated more precisely, not a weaker one.
  *
- * **The id is rendered whole.** `plan/admin-design-contracts.md` §2's amendment asks an
- * identifying column for a type prefix plus 8 characters, and that clause is written for
- * opaque ids (`ses_45cf6345`, "nobody reads 32 hex characters"). A `q_` id is not one:
- * `packages/core/src/ids.ts` types it as `q_[a-z0-9_]+` and it is minted from the
- * author's own slug, so `q_at_fault_accident` truncated to `q_at_faul` would be a string
- * that reads exactly like a whole short id - the very mistake the clause's own
- * anti-ellipsis rule exists to prevent. The option grid reached the same conclusion for
- * `opt_` ids in task 057. The clauses that DO apply are applied: monospace and tabular,
+ * **The id is rendered whole, which is a deliberate deviation from §2 as it stands.**
+ * `plan/admin-design-contracts.md` §2's 2026-08-20 amendment asks an identifying column
+ * for a type prefix plus 8 characters and never the full id. That clause is written for
+ * opaque ids (`ses_45cf6345`, "nobody reads 32 hex characters"), and what makes it safe
+ * there is a minting convention rather than the type: `ses_` and `lnk_` are 16 random
+ * bytes, so they are uniformly 32 characters and a shorter one is self-evidently a
+ * prefix. A `q_` id has no length convention at all. `packages/core/src/ids.ts` mints
+ * every brand from one factory, so a truncation is itself a syntactically valid id of the
+ * same kind: `q_at_fault_accident` cut to `q_at_faul` reads exactly like a whole short id,
+ * and nothing stops a question actually called `q_at_faul` existing beside it tomorrow. A
+ * reader cannot tell a truncation from a whole id by looking, which is the mistake the
+ * clause's own anti-ellipsis rule exists to prevent.
+ *
+ * Stated as a deviation rather than as compliance, and with no precedent claimed: the
+ * option grid still ellipsizes its `opt_` ids today (task 057 kept a 140px column with a
+ * `title` tooltip and no copy control), so this is the first table to take this position
+ * rather than the second. The clauses that DO apply are applied: monospace and tabular,
  * no ellipsis anywhere, and a copy control whose accessible name carries the entity and
  * the value. Raised for the Code Owner as a §2 clarification rather than decided here.
  *
