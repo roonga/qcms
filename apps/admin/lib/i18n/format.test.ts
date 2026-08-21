@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { t, tPlural } from "./en.ts";
-import { ADMIN_LOCALE, formatDateTime, formatDay } from "./format.ts";
+import { ADMIN_LOCALE, formatDateTime, formatDay, formatList } from "./format.ts";
 
 /**
  * The locale-aware formatters and the plural helper (ADR-27).
@@ -83,5 +83,19 @@ describe("grammatical number", () => {
       rules: tPlural("forms.publish.freezes.rules.one", "forms.publish.freezes.rules.other", 1),
     });
     expect(summary).toBe("Freezes 1 step, 1 pinned question, 1 rule.");
+  });
+});
+
+describe("list formatting", () => {
+  it("joins names the way the locale does, including the last conjunction", () => {
+    expect(formatList(["Version"])).toBe("Version");
+    expect(formatList(["Version", "Flagged"])).toBe("Version and Flagged");
+    expect(formatList(["Version", "Submitted from", "Flagged"])).toBe(
+      "Version, Submitted from, and Flagged",
+    );
+  });
+
+  it("renders nothing for nothing rather than a stray separator", () => {
+    expect(formatList([])).toBe("");
   });
 });
