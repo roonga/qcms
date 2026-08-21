@@ -118,8 +118,28 @@ const FRAMES: readonly Frame[] = [
  *
  * Only leaf elements are touched, so this blanks the line that holds the address and never
  * a card that contains it.
+ *
+ * The wait below is load-bearing and the mutation must never be done without it, which is
+ * why it lives in here rather than at the call site. `waitForHydration` proves that the
+ * FIRST button carries a React fiber, which is React reaching the top of the tree, not the
+ * bottom of it. The address this blanks sits in the shell FOOTER, the last node the shell
+ * renders, so a mutation timed off that first button can land while React is still walking
+ * down towards it. React then finds a `visibility: hidden` the server never sent, reports a
+ * hydration mismatch, and the shared console gate correctly fails the run: the same desync
+ * `hideDevChrome` documents for issue 220, arriving through a different door.
+ *
+ * It was latent while it went unnoticed. Issues 553, 584 and 585 landed between this gate's
+ * first green and this re-shoot, and 584 alone put 251 lines into `globals.css`; the pages
+ * got heavy enough that the gap between the first button and the footer stopped being
+ * winnable, and the sweep failed on its very first screen. Waiting for the element that is
+ * about to be mutated removes the race rather than timing around it.
  */
 async function blankTheOperatorAddress(page: Page): Promise<void> {
+  await page.waitForFunction(() => {
+    const footer = document.querySelector("footer");
+    if (footer === null) return false;
+    return Object.keys(footer).some((key) => key.startsWith("__reactFiber$"));
+  });
   await page.evaluate((address) => {
     for (const element of document.querySelectorAll<HTMLElement>("body *")) {
       if (element.children.length === 0 && element.textContent?.includes(address) === true) {
