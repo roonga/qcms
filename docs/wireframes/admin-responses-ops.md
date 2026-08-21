@@ -33,7 +33,7 @@
 
 ## States (normative)
 
-no responses · filtered-empty · list read failed (the error alert alone, with no table and no empty-state sentence beside it) · filter value ignored (the address carried a value no filter accepts: it is named on screen and not applied, so it does not choose the empty state - whichever filters did parse decide that, and none of them parsing is what makes the unfiltered one true) · flagged present · detail submitted · detail erased (tombstone) · erase confirm (typed) · export empty-result · webhook none configured · secret-reveal (one-time) · deliveries healthy · dead-letters present · redeliver in-flight/succeeded.
+no responses · filtered-empty · list read failed (the error alert, the heading and the toolbar; no count, no table, no empty-state panel and no pager, because each of those is a claim about rows that were not read) · filter value ignored (the address carried a value no filter accepts: it is named on screen and not applied, so it does not choose the empty state - whichever filters did parse decide that, and none of them parsing is what makes the unfiltered one true) · flagged present · detail submitted · detail erased (tombstone) · erase confirm (typed) · export empty-result · webhook none configured · secret-reveal (one-time) · deliveries healthy · dead-letters present · redeliver in-flight/succeeded.
 
 ## Interactions
 

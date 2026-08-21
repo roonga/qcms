@@ -6,6 +6,7 @@ import { ResponseBrowser } from "@/components/ops/response-browser";
 import { formatList } from "@/lib/i18n/format";
 import { t, tPlural } from "@/lib/i18n/en";
 import { parseResponseQuery } from "@/lib/ops/response-filters";
+import { readState } from "@/lib/read-state";
 import { getForm } from "@/lib/server/forms";
 import { listResponses } from "@/lib/server/responses";
 import { requireAdminSession } from "@/lib/server/session";
@@ -33,13 +34,15 @@ import { requireAdminSession } from "@/lib/server/session";
  *
  * ## A failed read is not an empty result
  *
- * When the list call fails, this page renders the error alert and stops. It used to
- * render the alert and then the browser over an invented empty page, so an operator got
- * "Nothing has been submitted to this form yet." underneath a sentence saying the
- * responses could not be loaded: an all-clear about data the screen never received.
- * That is the same untruth as the empty-state defect one layer up, and the empty-state
- * contract in `plan/admin-design-contracts.md` (section 3) settles it - a failed read
- * renders the error and nothing else, with no "no items" claim beside it.
+ * The list read reaches the browser as a `ReadState` (`lib/read-state.ts`, issue 543)
+ * rather than as `ok ? data : an invented empty page`. That fallback made a failed read
+ * indistinguishable from a form nobody has answered, so the screen printed "Nothing has
+ * been submitted to this form yet." and "0 responses" directly under its own alert
+ * saying the responses could not be loaded: an all-clear about data it never received,
+ * which is the same untruth as the filter defect above, one read further out. Contract
+ * section 3 in `plan/admin-design-contracts.md` settles it, and this is one of the sites
+ * issue 572 lists. The component decides what a failure leaves standing; its own
+ * docblock records that decision and the reason.
  */
 export default async function FormResponsesPage({
   params,
@@ -88,25 +91,18 @@ export default async function FormResponsesPage({
     </Alert>
   );
 
-  if (!responses.ok) {
-    return (
-      <div className="flex flex-col gap-6">
-        {header}
-        <Alert variant="error">
-          {t("ops.responses.listFailed", { message: responses.message })}
-        </Alert>
-        {ignoredNotice}
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col gap-6">
       {header}
+      {!responses.ok && (
+        <Alert variant="error">
+          {t("ops.responses.listFailed", { message: responses.message })}
+        </Alert>
+      )}
       {ignoredNotice}
       <ResponseBrowser
         formId={form.formId}
-        page={responses.data}
+        page={readState(responses)}
         versions={form.versions.map((version) => version.version).sort((a, b) => b - a)}
         filters={applied}
         hasFilters={hasFilters}
