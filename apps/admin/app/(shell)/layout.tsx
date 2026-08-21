@@ -5,6 +5,7 @@ import { AccountMenu } from "@/components/account-menu";
 import { AdminNav } from "@/components/admin-nav";
 import { Announcer } from "@/components/announcer";
 import { AppearanceMenu } from "@/components/appearance-menu";
+import { MeasuredMain } from "@/components/measured-main";
 import { MODE_COOKIE, parseMode } from "@/lib/appearance";
 import { secureCookies } from "@/lib/server/config";
 import { t } from "@/lib/i18n/en";
@@ -75,9 +76,12 @@ export default async function ShellLayout({ children }: { readonly children: Rea
           </div>
         </div>
       </header>
-      <main id="main-content" className="mx-auto w-full max-w-5xl flex-1 p-6">
-        {children}
-      </main>
+      {/* The content column's cap is set by the ROUTE, not by one number here (issue
+          558, `plan/admin-ux-audit.md` §6): five screens earn width, two render
+          respondent-facing content and take less than the default, nine keep the
+          measure they have. The sixteen answers are one table in `lib/measure.ts`;
+          `MeasuredMain` only applies the row that matches the pathname. */}
+      <MeasuredMain>{children}</MeasuredMain>
       {/* The email is shell chrome, not a credential; it tells an operator which
           account is acting when several people share a screen. */}
       <footer className="mx-auto w-full max-w-5xl px-6 pb-6 text-xs text-(--color-text-muted)">

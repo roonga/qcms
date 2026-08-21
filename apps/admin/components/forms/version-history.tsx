@@ -73,7 +73,19 @@ export function VersionHistory({
           (issue 514), and it no longer needs the `--static` opt-out this wrapper used to
           carry: the hover affordance is opt-IN now, via `--rowaction`, so a table whose
           rows do nothing simply does not ask for it. Viewing a version is the link list
-          below, so this table asks for nothing. */}
+          below, so this table asks for nothing.
+
+          Issue 558 gave this screen the wide cap and re-examined the box, because the
+          audit had it down as a device this component added to survive `max-w-5xl`
+          (`plan/admin-ux-audit.md` §3.5) and therefore as something width would retire.
+          It stays, for two reasons that are both older than the cap. The `overflow-x`
+          has not belonged to this component since issue 514 moved it onto `.qcms-table`,
+          the family class every admin table in the app wears, so there is nothing here
+          to remove that would not be a change to all of them. And the reason it was
+          written was the 390px viewport rather than the cap, which is the sentence
+          above: more room at 1280 does nothing for a phone. At the wide cap the box is
+          simply inert on a desktop, since `overflow-x: auto` scrolls only what
+          overflows. */}
       <div className="qcms-table qcms-table--versions">
         <Table
           ariaLabel={t("forms.history.table")}
