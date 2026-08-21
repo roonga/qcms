@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { DraftForm, DraftStep, FormIssue, PinnableQuestion } from "../../lib/forms/types.ts";
 
@@ -139,6 +139,21 @@ function cellsOwnedBy(html: string, owner: string): { attrs: string; inner: stri
 
 /** Anything that offers to CHANGE the value in the cell it sits in. */
 const VALUE_CONTROL = /<(?:input|select|textarea)\b|aria-haspopup=/;
+
+/**
+ * Pay for the module graph once, before anything is timed against the 5s default.
+ *
+ * `render` reaches the component through `await import("./step-editor.tsx")`, and every
+ * `@/` factory above is itself a dynamic import, so the FIRST call transforms and loads
+ * the step editor, the vendored kit, the announcer and the whole i18n table. Measured on
+ * this machine at about 5s cold against roughly 15ms warm: on the default timeout that is
+ * a coin flip, and it landed red twice in four `turbo run test --force` runs, always on
+ * whichever test happened to run first. Warming it here with room means no individual
+ * test carries a cost that is not its own.
+ */
+beforeAll(async () => {
+  await render(STEP);
+}, 60_000);
 
 describe("the pin list is an ownership grid", () => {
   it("draws every form-owned cell as a control", async () => {
