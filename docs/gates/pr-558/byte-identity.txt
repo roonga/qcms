@@ -1,0 +1,63 @@
+Issue 558: nine screens render byte-identically, proved by sha256 rather than by reading
+the code.
+
+Method. `apps/admin/e2e/gate-558.pw.ts` shoots fifteen of the sixteen authenticated screens
+at 390px and 1280px. It was run twice against the same seeded fixture: once with
+`app/(shell)/layout.tsx` and `app/globals.css` restored to `fix/557-breakpoint-tokens` and
+`lib/measure.ts` / `components/measured-main.tsx` absent (the `before/` set), and once on
+the branch.
+
+One string is hidden in both runs: the signed-in operator's address, which the shell footer
+prints on every authenticated screen and the Settings account card prints a second time.
+The suite mints its admin account per run, so that address is the only pixel here that
+cannot repeat, and left visible it makes every pair differ for a reason that is not a width
+cap. It was found by comparing an unhidden sweep and pixel-diffing the frames that
+disagreed. Nothing else on any of these screens varies between runs.
+
+Reading it. IDENTICAL means the two PNGs are the same bytes. Every 390 frame is identical,
+because a max-width cap is fluid below itself and no media query is involved at any width.
+At 1280 exactly the seven screens issue 558 moves differ, and the eight unchanged ones do
+not. The ninth unchanged screen, `/forms/[formId]/responses/[sessionId]`, is absent from
+this sweep because its subject is a session created at run time; it is measured instead in
+`apps/admin/e2e/measure.pw.ts`.
+
+FRAME                  WIDTH  VERDICT    SHA256 BEFORE / AFTER
+erasures               1280   IDENTICAL  c570414cb50019fe585386c8c7c888c3
+erasures               390    IDENTICAL  5cf607909a0471e7db0e29b2e4515738
+form-builder           1280   DIFFERS    3901c8264058e44422231d583584afc4
+                                         5ee00d0bc4d316ea14b5f5661f79e7a3
+form-builder           390    IDENTICAL  90baf0d4e89ce77c5f37e38df94133ea
+form-links             1280   DIFFERS    c0d5c66fdc051b2e52374b4b918684c3
+                                         60191153b109193a76c070b1986980c5
+form-links             390    IDENTICAL  b6c9363d25c9c82e6acdd70e0773e1ec
+form-preview           1280   DIFFERS    de0a61dd2e01dcbb6d575338c7ba9a00
+                                         0209b52739705396132f1691d6223755
+form-preview           390    IDENTICAL  36080d337239c12787df56e69a1d1b0f
+form-responses         1280   IDENTICAL  f214866a351afa67479f052c64af3f7d
+form-responses         390    IDENTICAL  a3bd6fb38e0a6431194b2fb159d97e55
+form-versions          1280   DIFFERS    c93ef3169a6a3bac305af397d9541d8e
+                                         a9420413b1ee94dd706ef25f7217aefa
+form-versions          390    IDENTICAL  d35ec580e79d60fe69cce07fb08d056a
+form-webhooks          1280   DIFFERS    913cdf92e2baddcd55b5d405402236af
+                                         9dfe1fa485265ba5ecd29049e687def3
+form-webhooks          390    IDENTICAL  abc6284832a2007c192e0a872070494c
+forms                  1280   IDENTICAL  5d053871bcab883011533300bc5dae8f
+forms                  390    IDENTICAL  956de1f97b2a6d746358df09edc188a5
+question-detail        1280   IDENTICAL  f783628960d100b014d0f2e99722a910
+question-detail        390    IDENTICAL  d1e721c2a6ebaaf2212da787832dae27
+question-new           1280   IDENTICAL  a6a5abc408afbf282103f379c52f8440
+question-new           390    IDENTICAL  4acb2d71d8eae9e42fc3374e76212f04
+questions              1280   IDENTICAL  4e9ae476900ccf339dba365140f61a18
+questions              390    IDENTICAL  651278f31e23afada32e0be292c8e571
+responses              1280   IDENTICAL  78c691b759ad5d9f49eb688e00237135
+responses              390    IDENTICAL  22d84e352b5e0969ee6b5e1e10430a75
+settings               1280   IDENTICAL  77b7acf45c5052551677cefb78c89378
+settings               390    IDENTICAL  0a0d0a0836c34720cf3ecc913d729a2c
+version-detail         1280   DIFFERS    e81c94f1cd031aad5be252be3f1a8904
+                                         2eb56920202f2834503483a3b06fa48c
+version-detail         390    IDENTICAL  a0356584b14ef9336e0a840dc5c30b90
+webhooks               1280   DIFFERS    bceea7b9c301cf32560ca454af1848db
+                                         f49ac0b2e7b534f9b5de13110a28226e
+webhooks               390    IDENTICAL  d015476250063cb3c80477a186fb914a
+
+identical: 23 of 30 frames

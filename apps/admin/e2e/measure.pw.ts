@@ -51,6 +51,8 @@ const EMAIL = uniqueAdminEmail("measure558");
 const FORM_ID = "frm_auto_quote";
 const SLUG = "auto";
 const QUESTION_ID = "q_at_fault_accident";
+/** Answering the accident question `true` reveals this one, which is then required. */
+const COUNT_ID = "q_accident_count";
 
 /** The three caps, in the CSS pixels `getComputedStyle` reports them as. */
 const CAP_PX = { default: 1024, wide: 1600, narrow: 720 } as const;
@@ -143,22 +145,30 @@ test("558 caps each screen at the width its route asks for, at 1280", async ({ p
   totpSecret = await enrollNewAdmin(page, EMAIL);
   // One submitted response, purely so the response-detail route has a subject. It is one
   // of the nine that must not move, and a route that 404s cannot demonstrate that.
-  sessionId = await submitResponse(SLUG, [[QUESTION_ID, true]]);
+  sessionId = await submitResponse(SLUG, [
+    [QUESTION_ID, true],
+    [COUNT_ID, 3],
+  ]);
 
   await page.setViewportSize({ width: 1280, height: 900 });
   for (const screen of screens(sessionId)) {
     const measured = await measure(page, screen.path);
-    expect(measured.cap, `${screen.path} caps at the ${screen.cap} measure`).toBe(
-      CAP_PX[screen.cap],
-    );
-    expect(measured.width, `${screen.path} fills the smaller of cap and viewport`).toBe(
-      Math.min(CAP_PX[screen.cap], measured.available),
-    );
+    // Soft, so one sweep reports all sixteen verdicts instead of stopping at the first
+    // screen that disagrees. The test still fails on any of them; what changes is that a
+    // reviewer reading the failure sees the whole table rather than its first row.
+    expect
+      .soft(measured.cap, `${screen.path} caps at the ${screen.cap} measure`)
+      .toBe(CAP_PX[screen.cap]);
+    expect
+      .soft(measured.width, `${screen.path} fills the smaller of cap and viewport`)
+      .toBe(Math.min(CAP_PX[screen.cap], measured.available));
     if (screen.cap === "default") {
-      expect(
-        measured.className,
-        `${screen.path} is one of the nine and keeps its exact class attribute`,
-      ).toBe(UNCHANGED_MAIN_CLASS);
+      expect
+        .soft(
+          measured.className,
+          `${screen.path} is one of the nine and keeps its exact class attribute`,
+        )
+        .toBe(UNCHANGED_MAIN_CLASS);
     }
   }
 });
@@ -173,7 +183,7 @@ test("558 leaves every screen the same width at 390, because a cap is fluid belo
   const widths = new Map<string, number>();
   for (const screen of screens(sessionId)) {
     const measured = await measure(page, screen.path);
-    expect(measured.width, `${screen.path} is fluid at 390`).toBe(measured.available);
+    expect.soft(measured.width, `${screen.path} is fluid at 390`).toBe(measured.available);
     widths.set(screen.path, measured.width);
   }
   expect(new Set(widths.values()).size, "all sixteen screens measure one width at 390").toBe(1);

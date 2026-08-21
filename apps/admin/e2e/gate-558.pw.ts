@@ -100,6 +100,35 @@ const FRAMES: readonly Frame[] = [
  * reviewer who cannot measure a PNG in a GitHub diff. It is soft here so one screen's
  * Reflow problem reports itself without costing the other fourteen pairs their evidence.
  */
+/**
+ * Blank the one string on these screens that cannot repeat between two runs.
+ *
+ * The suite mints its admin account per run (`uniqueAdminEmail`), and the shell footer
+ * prints that address on every authenticated screen, with the Settings account card
+ * printing it a second time. Those were the only pixels an unmasked sweep found varying:
+ * every other frame paired byte for byte, and the two that did not were pixel-diffed down
+ * to exactly this line of text.
+ *
+ * `visibility: hidden` rather than Playwright's `mask` option, and the difference matters
+ * here. A mask is an overlay box positioned from the element's measured rectangle, and on
+ * a `fullPage` capture of a tall document it landed about 80px below the footer it was
+ * meant to cover: the frame then carried both an uncovered address and a grey bar over
+ * nothing. Hiding the element instead is done by the same layout engine that placed it, so
+ * it cannot be off by a pixel, and `visibility` keeps the box in flow so no geometry moves.
+ *
+ * Only leaf elements are touched, so this blanks the line that holds the address and never
+ * a card that contains it.
+ */
+async function blankTheOperatorAddress(page: Page): Promise<void> {
+  await page.evaluate((address) => {
+    for (const element of document.querySelectorAll<HTMLElement>("body *")) {
+      if (element.children.length === 0 && element.textContent?.includes(address) === true) {
+        element.style.visibility = "hidden";
+      }
+    }
+  }, EMAIL);
+}
+
 async function captureFrame(page: Page, frame: Frame): Promise<void> {
   for (const width of WIDTHS) {
     await page.setViewportSize({ width, height: 900 });
@@ -111,6 +140,7 @@ async function captureFrame(page: Page, frame: Frame): Promise<void> {
     expect
       .soft(scrollWidth, `the ${frame.name} frame fits its ${String(width)}px viewport`)
       .toBeLessThanOrEqual(width);
+    await blankTheOperatorAddress(page);
     await page.screenshot({
       path: `${OUT_DIR}/${frame.name}-${String(width)}.png`,
       fullPage: true,
