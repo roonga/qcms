@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import type { ReadState } from "../read-state.ts";
+
 import { pinRowMenuItems, pinRows, pinStateLabel } from "./pin-grid.ts";
 import type { DraftStep, FormIssue, PinnableQuestion } from "./types.ts";
 
@@ -58,9 +60,19 @@ const COUNT = question({
   versions: [{ version: 2, status: "published", definition: { ...DEFINITION, type: "number" } }],
 });
 
+/**
+ * A successful library read, which is what every case here but the last block uses.
+ *
+ * `pinRows` takes a `ReadState` (`lib/read-state.ts`) rather than an array, so a read
+ * that FAILED is a distinct input rather than an empty library (issues 572, 544).
+ */
+function ok(data: readonly PinnableQuestion[]): ReadState<readonly PinnableQuestion[]> {
+  return { ok: true, data };
+}
+
 describe("pinRows", () => {
   it("reads the library-owned half from the library and the form-owned half from the pin", () => {
-    const rows = pinRows(STEP, [question(), COUNT], []);
+    const rows = pinRows(STEP, ok([question(), COUNT]), []);
 
     expect(rows.map((row) => row.questionId)).toEqual(["q_at_fault_accident", "q_accident_count"]);
     expect(rows[0]?.label).toBe("Were you at fault?");
@@ -73,7 +85,7 @@ describe("pinRows", () => {
   });
 
   it("offers only other PUBLISHED versions to move to, never the current one and never a draft", () => {
-    const rows = pinRows(STEP, [question(), COUNT], []);
+    const rows = pinRows(STEP, ok([question(), COUNT]), []);
 
     // v1 is pinned, v2 is published, v3 is a draft: a pin to something that can still
     // change is not a pin (R7), so only v2 is on offer.
@@ -82,7 +94,7 @@ describe("pinRows", () => {
   });
 
   it("renders a pin whose question the library lost, rather than dropping the row", () => {
-    const rows = pinRows(STEP, [COUNT], []);
+    const rows = pinRows(STEP, ok([COUNT]), []);
 
     expect(rows[0]?.label).toBe("");
     expect(rows[0]?.type).toBe("Unknown");
@@ -100,7 +112,7 @@ describe("pinRows", () => {
       },
       { code: "OTHER", message: "z", path: { question: "q_accident_count" } },
     ];
-    const rows = pinRows(STEP, [question(), COUNT], issues);
+    const rows = pinRows(STEP, ok([question(), COUNT]), issues);
 
     expect(rows[0]?.issues.map((issue) => issue.code)).toEqual(["PIN_DEPRECATED"]);
     expect(rows[1]?.issues.map((issue) => issue.code)).toEqual(["OTHER"]);
@@ -108,7 +120,7 @@ describe("pinRows", () => {
 });
 
 describe("pinRowMenuItems", () => {
-  const rows = pinRows(STEP, [question(), COUNT], []);
+  const rows = pinRows(STEP, ok([question(), COUNT]), []);
   const first = rows[0];
   const last = rows[1];
 
@@ -171,5 +183,60 @@ describe("pinStateLabel", () => {
     expect(pinStateLabel("deprecated")).toBe("Deprecated version");
     expect(pinStateLabel("draft")).toBe("Unpublished version");
     expect(pinStateLabel(undefined)).toBe("Version not found");
+  });
+});
+
+/**
+ * Issues 572 and 544: the library read that FAILED, which is not an empty library.
+ *
+ * Every library-owned cell of the grid is a lookup, so an empty library misses on all of
+ * them. Handed `ok ? data : []` - the collapse issue 544 filed - a failed read claimed on
+ * every pin in the form that there was no label in the library, that the version was not
+ * found, and that there was nowhere else to move it. Four answers change; nothing
+ * form-owned does.
+ *
+ * Red-first against the pre-change helper: `pinRows` did not accept this input at all
+ * (`library.find is not a function`), which is the signature refusing the distinction.
+ */
+describe("pinRows when the library read failed (issues 572, 544)", () => {
+  const FAILED: ReadState<readonly PinnableQuestion[]> = { ok: false };
+
+  it("says the label is not known rather than absent from the library", () => {
+    const rows = pinRows(STEP, FAILED, []);
+
+    expect(rows[0]?.label).toBe("");
+    expect(rows[0]?.labelFallback).toBe("Label not known");
+    // The control: a library that ANSWERED and carried no label still says so.
+    expect(pinRows(STEP, ok([COUNT]), [])[0]?.labelFallback).toBe("No label in the library");
+  });
+
+  it("offers no version tag, because an unread library has found nothing", () => {
+    const rows = pinRows(STEP, FAILED, []);
+
+    expect(rows[0]?.versionStatus).toBe("unknown");
+    expect(pinStateLabel(rows[0]?.versionStatus)).toBeUndefined();
+    // The control, and the case the tag exists for: read, and does not hold this version.
+    expect(pinStateLabel(pinRows(STEP, ok([COUNT]), [])[0]?.versionStatus)).toBe(
+      "Version not found",
+    );
+  });
+
+  it("distinguishes nowhere to move from nobody asked", () => {
+    // `undefined`, never `[]`. The empty array is the answer "there is no other published
+    // version", which is a statement about a library this read never reached.
+    expect(pinRows(STEP, FAILED, [])[0]?.otherVersions).toBeUndefined();
+    expect(pinRows(STEP, ok([COUNT]), [])[0]?.otherVersions).toEqual([]);
+  });
+
+  it("leaves every form-owned fact alone, because the draft read succeeded", () => {
+    const rows = pinRows(STEP, FAILED, []);
+
+    expect(rows).toHaveLength(2);
+    expect(rows.map((row) => row.questionId)).toEqual(["q_at_fault_accident", "q_accident_count"]);
+    expect(rows[0]?.version).toBe(1);
+    expect(rows[0]?.position).toBe(1);
+    expect(rows[0]?.total).toBe(2);
+    // Every row action still works: they edit the draft, not the library.
+    expect(pinRowMenuItems(rows[0]!).filter((item) => item.isDisabled)).toHaveLength(1);
   });
 });

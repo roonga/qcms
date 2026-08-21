@@ -157,6 +157,9 @@ vi.mock("@/lib/forms/links", () => import("../../lib/forms/links"));
 vi.mock("@/lib/forms/draft", () => import("../../lib/forms/draft"));
 vi.mock("@/lib/forms/issues", () => import("../../lib/forms/issues"));
 vi.mock("@/lib/forms/condition", () => import("../../lib/forms/condition"));
+vi.mock("@/lib/forms/pin-grid", () => import("../../lib/forms/pin-grid"));
+vi.mock("@/components/row-menu", () => import("../../components/row-menu"));
+vi.mock("@/lib/announce", () => ({ announce: () => undefined }));
 vi.mock("@/lib/forms/types", () => import("../../lib/forms/types"));
 vi.mock("@/lib/forms/builder-state", () => import("../../lib/forms/builder-state"));
 vi.mock("@/components/forms/link-state-tag", () => import("../../components/forms/link-state-tag"));
@@ -475,12 +478,14 @@ describe("the secure-link list's read states (issues 572, 544)", () => {
  *
  * An empty question library is not a neutral stand-in on this screen: every pin lookup
  * misses against one. So `ok ? data : []` tagged EVERY pinned question in the form
- * "Version not found" - a claim about the library, printed beneath the page's own warning
- * that the library could not be loaded, and one an author would read as "this form has
- * been gutted".
+ * "Version not found" and "No label in the library" - claims about the library, printed
+ * on every row beneath the page's own warning that the library could not be loaded, and
+ * together read as "this form has been gutted".
  *
- * The builder itself stays, all of it. Reordering, moving and removing pins are edits to
- * the DRAFT, which was read successfully, and none of them needs the library.
+ * The four answers themselves are asserted where they are decided, in
+ * `lib/forms/pin-grid.test.ts` (issue 517 moved the grid's view model into a pure
+ * helper). What is asserted HERE is the wiring the page owns: that the page hands the
+ * builder a failed `ReadState` at all, and that the whole builder survives it.
  */
 describe("the form builder's library read states (issues 572, 544)", () => {
   it("makes no claim about the pinned versions when the library read fails", async () => {
@@ -490,9 +495,17 @@ describe("the form builder's library read states (issues 572, 544)", () => {
 
     expect(html).toContain('data-testid="qcms-alert"');
     expect(html).toContain("forms.error.libraryFailed");
-    // The tag says the library does not hold this version. The library was not read.
-    expect(html).not.toContain("forms.step.pinMissing");
+    // TWO VOCABULARIES IN ONE ASSERTION SET, and it is not an oversight. The grid's
+    // library-owned cells are resolved inside `lib/forms/pin-grid.ts`, which is redirected
+    // to the REAL module here (it is the subject) and therefore imports the REAL catalog
+    // by relative path - so those cells carry English, while everything a component
+    // renders through the mocked `@/lib/i18n/en` carries its key.
+    //
+    // Both tags below say the library was asked and answered. It was not asked.
+    expect(html).not.toContain("Version not found");
     expect(html).not.toContain('data-pin-state="missing"');
+    expect(html).not.toContain("No label in the library");
+    expect(html).toContain('data-fallback="Label not known"');
   });
 
   it("keeps the builder and its draft edits when the library read fails", async () => {
@@ -500,12 +513,14 @@ describe("the form builder's library read states (issues 572, 544)", () => {
 
     const html = await renderBuilder();
 
-    // The pin is still listed, and every control that acts on the draft is still there.
-    expect(html).toContain("q_one@1");
-    expect(html).toContain("forms.step.removePin");
-    expect(html).toContain("forms.step.pinUp");
-    // Adding a question stays offered: the dialog it opens says why it cannot help yet,
-    // which beats a control that has silently gone missing.
+    // The pin is still listed, as a row of the ownership grid, and its form-owned cells
+    // still carry the facts the draft read supplied.
+    expect(html).toContain('data-pin-question="q_one"');
+    expect(html).toContain('data-pin-version="1"');
+    // Every control that acts on the draft is still there: the row grip that opens the
+    // reorder menu, the version menu, and the library button.
+    expect(html).toContain("forms.step.rowActions");
+    expect(html).toContain("forms.step.movePin");
     expect(html).toContain("forms.step.addQuestion");
   });
 
@@ -514,8 +529,9 @@ describe("the form builder's library read states (issues 572, 544)", () => {
     // exists for, so gating it on the read must not delete it.
     const html = await renderBuilder();
 
-    expect(html).toContain("forms.step.pinMissing");
+    expect(html).toContain("Version not found");
     expect(html).toContain('data-pin-state="missing"');
+    expect(html).toContain('data-fallback="No label in the library"');
     expect(html).not.toContain("forms.error.libraryFailed");
   });
 });

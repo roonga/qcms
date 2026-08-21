@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 
 import { EmptyState } from "@/components/empty-state";
 import {
@@ -459,25 +459,7 @@ function PinRow({
                 if (Number.isInteger(version)) onMovePin(row.questionId, version);
               }}
             >
-              {/* "No other published version" is a statement about the LIBRARY, so it is
-                  only sayable when the library was read. `undefined` is the read that
-                  never happened, and it says that instead of reporting an absence its own
-                  missing data produced (issue 572). */}
-              {row.otherVersions === undefined ? (
-                <MenuItem id="unknown" className="qcms-menu__item" isDisabled>
-                  {t("forms.step.movePinUnknown")}
-                </MenuItem>
-              ) : row.otherVersions.length === 0 ? (
-                <MenuItem id="none" className="qcms-menu__item" isDisabled>
-                  {t("forms.step.movePinNone")}
-                </MenuItem>
-              ) : (
-                row.otherVersions.map((version) => (
-                  <MenuItem key={version} id={String(version)} className="qcms-menu__item">
-                    {t("forms.step.movePinTo", { version })}
-                  </MenuItem>
-                ))
-              )}
+              {versionMenuItems(row.otherVersions)}
             </MenuList>
           </MenuPopover>
         </MenuTrigger>
@@ -509,6 +491,39 @@ function PinRow({
       </td>
     </tr>
   );
+}
+
+/**
+ * What the version menu offers, which is three answers rather than two (issue 572).
+ *
+ * "No other published version" is a statement about the LIBRARY, so it is only sayable
+ * when the library was read. `undefined` is the read that never happened, and it says so
+ * instead of reporting an absence that its own missing data produced - which is what
+ * every failed library read used to do, on every pin in the form.
+ *
+ * A function rather than a nested ternary in the cell because the third branch made it
+ * one, and because the three answers are easier to read named than nested.
+ */
+function versionMenuItems(otherVersions: readonly number[] | undefined): readonly ReactNode[] {
+  if (otherVersions === undefined) {
+    return [
+      <MenuItem key="unknown" id="unknown" className="qcms-menu__item" isDisabled>
+        {t("forms.step.movePinUnknown")}
+      </MenuItem>,
+    ];
+  }
+  if (otherVersions.length === 0) {
+    return [
+      <MenuItem key="none" id="none" className="qcms-menu__item" isDisabled>
+        {t("forms.step.movePinNone")}
+      </MenuItem>,
+    ];
+  }
+  return otherVersions.map((version) => (
+    <MenuItem key={version} id={String(version)} className="qcms-menu__item">
+      {t("forms.step.movePinTo", { version })}
+    </MenuItem>
+  ));
 }
 
 /**
