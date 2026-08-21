@@ -161,8 +161,17 @@ export function FormBuilder({
         // store, and it is where `RULE_BACKWARD_TARGET` and `RULE_CYCLE` come from: the
         // kernel's `analyzeRuleGraph` runs inside the same compile.
         const validated = await actions.current.validateDraft(draft);
+        if (validated.status === "error") {
+          // Keep whatever the store leg just returned rather than overwriting it with the
+          // empty list a failed read supplies. `PUT .../draft` returns issues too, so the
+          // number on screen is a real one computed moments ago; replacing it with zero
+          // would turn a refresh failure into a fabricated all-clear. The panel says the
+          // count could not be refreshed, which is only honest if there is still a count.
+          setStatus("error");
+          return;
+        }
         setIssues(validated.issues);
-        setStatus(validated.status === "error" ? "error" : "saved");
+        setStatus("saved");
       })();
     }, AUTOSAVE_DEBOUNCE_MS);
     return () => {
@@ -182,7 +191,10 @@ export function FormBuilder({
           fifteen - `plan/admin-design-contracts.md` §6's "exactly one save statement per
           screen" is easier to hold when the statement belongs to the screen that means it.
           `hasFailed` reads `saveError` rather than `status`, because a failed VALIDATE
-          round trip also sets `status` to "error" and that is not a save failure. */}
+          round trip also sets `status` to "error" and that is not a save failure: the
+          draft is stored before the validate call is made, so this strip goes on saying
+          "Saved" through one, truthfully. The failed check is stated by the validation
+          panel instead, which is where the count it could not refresh already lives. */}
       <AmbientSaveStatus
         isSaving={status === "saving"}
         hasFailed={saveError !== undefined}

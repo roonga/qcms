@@ -468,6 +468,11 @@ export const messages = {
   "forms.validation.countOne": "1 issue would block a publish.",
   "forms.validation.count": "{count} issues would block a publish.",
   "forms.validation.checking": "Checking the draft...",
+  // The panel's refusal to vouch. It says what it does NOT know rather than reporting a
+  // count it could not compute, because the alternative on a failed check is the panel
+  // falling through to "No issues" and asserting publish-readiness it has no basis for.
+  "forms.validation.unchecked":
+    "The draft could not be checked, so this is not a current count of what would block a publish.",
 
   "forms.steps.title": "Steps",
   "forms.steps.add": "Add step",

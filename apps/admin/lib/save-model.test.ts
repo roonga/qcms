@@ -26,14 +26,21 @@ import { describe, expect, it } from "vitest";
  *
  * ## The one known exception, recorded rather than asserted away
  *
- * The form builder screen renders `FormSettingsPanel` inside a collapsed `<details>`, and
- * that panel has its own explicit Save button and its own "Settings saved." live region
- * (`components/form-settings-panel.tsx`). So the builder route is `autosave` for the draft
- * and manual for two deployment switches nested inside it. Contract §6 addresses screens,
- * not nested scopes, and it does not say which wins - so issue 518 left the panel alone
- * and escalated it rather than deciding. The inventory below records the builder's model
- * as `autosave` because that is what the *screen* does and what the ambient strip claims;
- * if the escalation resolves the other way, this row and the strip move together.
+ * The form builder screen renders `FormSettingsPanel` inside a `<details open>` - expanded
+ * and visible on load, unchanged by issue 518 - and that panel has its own explicit Save
+ * button and its own "Settings saved." live region (`components/forms/form-settings-panel.tsx`).
+ * So the builder route is `autosave` for the draft and manual for two deployment switches
+ * nested inside it, and after the panel's button is pressed the screen carries two
+ * save-state sentences at once. Contract §6 addresses screens, not nested scopes, and it
+ * does not say which wins - so issue 518 left the panel alone and escalated it rather than
+ * deciding. The inventory below records the builder's model as `autosave` because that is
+ * what the *screen* does and what the ambient strip claims; if the escalation resolves the
+ * other way, this row and the strip move together.
+ *
+ * The exception is listed in `SAVE_STATE_KEYS` and in the carrier assertion rather than
+ * left out of them. A test that cannot see the one violation it knows about is not
+ * recording an exception, it is blind, and the difference matters the moment a third
+ * vocabulary appears.
  */
 
 /**
@@ -220,6 +227,14 @@ function uiSources(): readonly string[] {
 /**
  * The message keys that state a save STATE (as opposed to the outcome of one action the
  * author just took). These are what a screen may carry at most one set of.
+ *
+ * Enumerated by hand rather than by prefix, and the last two are why. `forms.save.*` is a
+ * naming convention; "states a save state" is a rule about meaning, and a prefix filter
+ * polices the first while claiming to police the second. `forms.settings.saved` and
+ * `forms.settings.failed` are a second save-state vocabulary that this app already has,
+ * minted under a different prefix, and a filter that could not see them would report the
+ * property green on a screen that visibly breaks it. Anything added here that names when
+ * work is or is not stored belongs on this list whatever it is called.
  */
 const SAVE_STATE_KEYS = [
   "forms.save.model",
@@ -227,6 +242,8 @@ const SAVE_STATE_KEYS = [
   "forms.save.saving",
   "forms.save.saved",
   "forms.save.failed",
+  "forms.settings.saved",
+  "forms.settings.failed",
 ] as const;
 
 describe("the admin's save models are inventoried", () => {
@@ -263,14 +280,19 @@ describe("the admin's save models are inventoried", () => {
 });
 
 describe("no screen shows two different save-state statements", () => {
-  it("keeps every save-state sentence in one module", () => {
+  it("keeps every save-state sentence in the one module, plus the one recorded exception", () => {
     const carriers = uiSources().filter((file) =>
       SAVE_STATE_KEYS.some((key) => source(file).includes(`"${key}"`)),
     );
+    // Two entries, and the second is the escalation from the note at the top of this file
+    // rather than an endorsement: `FormSettingsPanel` states its own save outcome inside
+    // the builder screen. It is pinned here so a THIRD carrier fails this test, which is
+    // the property the file exists to hold. Whichever way contract §6 resolves the nested
+    // scope, this list is the place the resolution shows up.
     expect(
       carriers,
-      "a second module quoting these keys is a second save-status source",
-    ).toStrictEqual(["components/save-model.tsx"]);
+      "a further module quoting these keys is a third save-status source",
+    ).toStrictEqual(["components/forms/form-settings-panel.tsx", "components/save-model.tsx"]);
   });
 
   it("renders the ambient strip from exactly one component, the form builder", () => {
