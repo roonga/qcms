@@ -185,7 +185,40 @@ export function FormBuilder({
         }}
       />
 
-      <div className="grid gap-4 md:grid-cols-[18rem_minmax(0,1fr)]">
+      {/* The three grids below are the builder's only responsive behaviour, and they
+          do NOT all turn at the same width. `plan/admin-design-contracts.md` §1
+          fixes two boundaries and sorts side-by-side layouts between them, and these
+          three fall on both sides of that sort. Both tokens are defined in
+          `app/globals.css`; `compact:` and `sidebar:` are their utility prefixes.
+
+          THIS grid is the form's steps beside the step editor, and it keys to
+          `--bp-sidebar`. §7 defines the rail as carrying the form's children, its
+          steps with their per-step issue badges, so `StepsRail` is that rail, and
+          §1's "panes stack rather than shrink" clause carves out the case where the
+          panes are the rail itself. The render says the same thing the contract
+          does: the first track is a fixed 18rem, so splitting at the compact
+          boundary leaves the editor 288px, narrower than the 342px the same editor
+          gets stacked on a 390px phone, and its button labels wrap. Satisfying the
+          clause's letter while contradicting the reason it gives is the signal that
+          the wrong boundary was picked. (Ruled on PR 576 by applying §1 and §7, not
+          by deciding anything new. Issue 559 builds the real rail component and may
+          replace this grid outright; until it does, this is the boundary the
+          contract names for it.)
+
+          The two grids below it are page content and key to `--bp-compact`: rules
+          beside the validation panel, form settings beside the rule bench. §7 says
+          the rail never carries same-page section switches and that validation stays
+          on the builder page, so none of those four panes is rail content and the
+          carve-out does not reach them. They are ordinary side-by-side panes, which
+          §1 assigns to the compact boundary.
+
+          All three read `md:` until issue 557, so all three broke at Tailwind's
+          default 48rem, a third boundary the contract does not have. The two compact
+          grids therefore split at 640 now instead of 768, which is the one
+          deliberate behaviour change here: between those widths they sit side by
+          side where they used to stack. `minmax(0, 1fr)` is what keeps the narrower
+          track from overflowing at the new low end. */}
+      <div className="grid gap-4 sidebar:grid-cols-[18rem_minmax(0,1fr)]">
         <StepsRail
           draft={draft}
           issueCounts={counts}
@@ -232,12 +265,12 @@ export function FormBuilder({
         )}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="grid gap-4 compact:grid-cols-[minmax(0,1fr)_20rem]">
         <RulesSection draft={draft} library={library} issues={issues} onChange={mutate} />
         <ValidationPanel draft={draft} issues={issues} status={status} lastSavedAt={lastSavedAt} />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 compact:grid-cols-2">
         <FormSettingsPanel
           settings={detail.settings}
           challengeProvider={detail.challengeProvider}
