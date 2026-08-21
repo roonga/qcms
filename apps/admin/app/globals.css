@@ -1067,10 +1067,22 @@ button {
   background-color: var(--color-danger-subtle);
 }
 
-/* The grip is the row's one control: drag by pointer, Arrow Up/Down while
-   focused reorders, Enter or Space opens the row menu. Revealed by hover AND by
-   focus, never hover-only, so nothing here depends on a pointer. */
-.qcms-opt-grip {
+/* The grip is the row's one control: Arrow Up/Down while focused reorders, Enter or
+   Space opens the row menu, and on the option grid a pointer can also drag it.
+   Shared with the pin list since issue 517, so the appearance lives on the pattern's
+   own class and the two callers differ only where they must.
+
+   VISIBLE AT REST HERE, hidden at rest on the option grid (the scoped rules below).
+   The option grid's card reveals it on hover or focus, which works there because
+   every row of that grid also carries a visible text input to lead the eye to. A pin
+   row carries no such thing: the grip is the only route to remove, insert and move,
+   and a touch screen has no hover at all, so at 390 an invisible grip would mean a
+   row whose only control cannot be found. `plan/admin-mobile-stance.md` puts
+   "reorder questions within a step" and "remove a question from a step" on the
+   supported-at-390 path, so that is a defect rather than a preference. Contract §2
+   is content with this: it makes ROW hover opt-in (`--rowaction`) and says nothing
+   that requires a row's own control to hide. */
+.qcms-rowgrip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1080,8 +1092,7 @@ button {
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-text-muted);
-  cursor: grab;
-  opacity: 0;
+  cursor: pointer;
   /* Opt out of the 40px control floor the bare `button` rule sets: a
      `min-block-size` beats a `block-size`, so without this the grip renders 28
      wide by 40 tall. That is not only a squashed square - a 40px-tall grip and a
@@ -1093,19 +1104,23 @@ button {
     opacity 0.12s ease,
     background-color 0.12s ease;
 }
-.qcms-opt-row:hover .qcms-opt-grip,
-.qcms-opt-row:focus-within .qcms-opt-grip,
-.qcms-opt-row.is-dragging .qcms-opt-grip {
+/* The option grid's own reveal, unchanged from task 057: hidden at rest, revealed by
+   hover AND by focus, never hover-only, and draggable, so its cursor says so. */
+.qcms-opt-row .qcms-rowgrip {
+  cursor: grab;
+  opacity: 0;
+}
+.qcms-opt-row:hover .qcms-rowgrip,
+.qcms-opt-row:focus-within .qcms-rowgrip,
+.qcms-opt-row.is-dragging .qcms-rowgrip,
+.qcms-opt-row .qcms-rowgrip:focus-visible {
   opacity: 1;
 }
-.qcms-opt-grip:hover {
+.qcms-rowgrip:hover {
   background-color: var(--color-ghost-hover);
   color: var(--color-text);
 }
-.qcms-opt-grip:focus-visible {
-  opacity: 1;
-}
-.qcms-opt-grip svg circle {
+.qcms-rowgrip svg circle {
   fill: currentColor;
 }
 
@@ -1245,13 +1260,24 @@ button {
   flex-shrink: 0;
 }
 
-/* The row menu, in the dropdown language of ds-overlays.html at a compact width. */
-.qcms-opt-menu {
+/* The row menu (design-language element 5), in the dropdown language of
+   ds-overlays.html at a compact width. Named for the pattern rather than for the
+   option grid since issue 517: `components/row-menu.tsx` is one implementation and
+   the pin list is its second caller, so a class called `qcms-opt-menu` would have
+   been a name that lied about where it renders. */
+.qcms-rowmenu {
   position: absolute;
   inset-block-start: 40px;
   inset-inline-start: 0;
   z-index: 3;
   min-inline-size: 190px;
+  /* And a cap, because an item names its row and a row's name can be long. Without
+     one, "Insert a question above q_cover_level_ab12c" sizes the popup to the whole
+     phrase on one line: at a 390px viewport the open menu took the DOCUMENT to 432px,
+     which is WCAG 2.2 AA SC 1.4.10 Reflow and is not something axe tests. Caught by
+     the capture guard rather than by a person, which is what that guard is for. The
+     item wraps below instead. */
+  max-inline-size: 260px;
   padding: 6px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
@@ -1260,9 +1286,20 @@ button {
     0 2px 4px hsl(var(--shadow-color) / 0.1),
     0 30px 70px -30px hsl(var(--shadow-color) / 0.4);
 }
-.qcms-opt-menu__item {
+.qcms-rowmenu__item {
   display: block;
   inline-size: 100%;
+  /* The popup renders inside its trigger's cell, and a table cell may well be
+     `white-space: nowrap` to keep its own control on one line - the pin list's grip
+     cell is. Inherited into here that makes every item one unbreakable line whose TEXT
+     runs past the menu box: the box measured 260px and sat well inside a 390px
+     viewport while the document went to 411px, which is why an element-rectangle sweep
+     found nothing and the capture guard still refused the frame (SC 1.4.10 Reflow).
+     Stated here rather than fixed at each call site, because a popup that wraps its own
+     text is the popup's business. */
+  white-space: normal;
+  /* And a `q_` id is one unbreakable token, so ordinary word wrapping is not enough. */
+  overflow-wrap: anywhere;
   padding: 8px 10px;
   border: none;
   border-radius: var(--radius-sm);
@@ -1273,15 +1310,187 @@ button {
   text-align: start;
   cursor: pointer;
 }
-.qcms-opt-menu__item:hover:not(:disabled) {
+.qcms-rowmenu__item:hover:not(:disabled) {
   background-color: var(--color-surface-hover);
 }
-.qcms-opt-menu__item--danger {
+.qcms-rowmenu__item--danger {
   color: var(--color-danger-fg);
 }
-.qcms-opt-menu__item:disabled {
+.qcms-rowmenu__item:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* ===========================================================================
+   THE PIN LIST - the ownership grid (design-language element 4) over the table
+   family, with the row grip menu (element 5) as its row control. Issue 517.
+
+   `plan/admin-ux-audit.md` §8 item 5 calls this the highest-value design change
+   it found, and the reason is that this is the app's one genuinely MIXED-OWNERSHIP
+   table. `position` and the pinned `version` belong to the form and are editable
+   here; `questionId`, `type` and `label` belong to the question library and are
+   read-only here. The old rendering was a flex row of five buttons, which said
+   none of that.
+
+   HOW OWNERSHIP IS DRAWN. Form-owned cells carry a control with a visible edge -
+   the grip and the version trigger. Library-owned cells carry plain text on the
+   page background with no border, no hover and no cursor change, so they read as
+   what the table is REPORTING rather than what it is offering. Every cell also
+   states its owner in the markup (`data-owner`), which is what
+   `components/forms/pin-grid-ownership.test.tsx` pins so the contrast cannot be
+   quietly undone by a later edit.
+
+   COMPACT WIDTH (§2 requires every table to state its drops): Type and Issues
+   drop, Question and Version stay. `plan/admin-mobile-stance.md` item 5 puts
+   changing a version pin on the supported-at-390 path, so Version never drops;
+   Type and Issues describe a row rather than identify it, which is §2's own test,
+   and the validation panel carries the issue text at every width.
+
+   WHY THIS ONE TABLE TURNS THE SCROLL BOX OFF. The family's wrapper is
+   `overflow-x: auto`, and a box that is not `visible` on one axis computes to
+   `auto` on the other, so it clips vertically too. The row menu is
+   `position: absolute` and is the only route to remove, insert and move - exactly
+   the shape that made the option grid's menu unreachable on a two-row list until
+   task 057 removed its `overflow: hidden`. This table does not need the scroll
+   box: it drops its two describing columns at compact width and every remaining
+   cell wraps, so it fits. The Reflow guarantee it gives up is carried by the drops
+   instead, and proven rather than asserted - `pin-grid.pw.ts` and `gate-517.pw.ts`
+   both fail the frame if the document is wider than a 390px viewport.
+   =========================================================================== */
+.qcms-table--pins {
+  overflow: visible;
+}
+
+/* The grip cell: the containing block the row menu positions against, and narrow,
+   because a 28px control does not need a 44px column. */
+.qcms-pincell--grip {
+  position: relative;
+  inline-size: 1%;
+  padding-inline: 0.35rem 0.15rem;
+  white-space: nowrap;
+}
+
+/* Library-owned identity. Two lines, deliberately: the label is what a human
+   recognises the row by and the id is what a rule refers to, and an author writing
+   a rule needs the second one raw. */
+.qcms-pincell--question {
+  font-weight: 400;
+}
+.qcms-pinrow__label {
+  display: block;
+  color: var(--color-text);
+}
+.qcms-pinrow__label:empty::before {
+  content: attr(data-fallback);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+.qcms-pinrow__id {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-block-start: 1px;
+}
+.qcms-pinrow__idvalue {
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* The copy control §2 requires of an identifying column. A bare ghost glyph, sized
+   to the 24px SC 2.5.8 floor rather than to the app's 40px control height: it must
+   not read as an edit affordance in a cell whose whole point is that nothing in it
+   is editable here. */
+.qcms-copyid {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  inline-size: 24px;
+  block-size: 24px;
+  min-block-size: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.qcms-copyid:hover {
+  background-color: var(--color-ghost-hover);
+  color: var(--color-text);
+}
+.qcms-copyid svg {
+  inline-size: 13px;
+  block-size: 13px;
+}
+
+/* Form-owned: the one version change the builder has (R7). It reads as a control
+   at rest - a real edge, a disclosure caret - because that is the contrast element
+   4 is made of, and it is the control `plan/admin-mobile-stance.md` item 5 keeps
+   operable at 390. */
+.qcms-pincell--version {
+  white-space: nowrap;
+}
+.qcms-pinversion {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-block-size: 32px;
+  padding-inline: 0.5rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.qcms-pinversion:hover {
+  background-color: var(--color-surface-hover);
+}
+.qcms-pinversion__caret {
+  inline-size: 8px;
+  block-size: 5px;
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+.qcms-pincell--version .qcms-tag {
+  margin-inline-start: 6px;
+}
+
+/* Library-owned again: what the engine says about this pin, as text. */
+.qcms-pinissues {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--color-danger-fg);
+  font-size: 0.8rem;
+}
+.qcms-pinissues__none {
+  color: var(--color-text-muted);
+}
+
+/* The row's error state, which survives compact width even though the Issues cell
+   does not: at 390 the issue text lives in the validation panel, and this is what
+   still says WHICH row the panel is talking about. */
+.qcms-pinrow.is-error .qcms-pincell--question {
+  box-shadow: inset 3px 0 0 0 var(--color-danger);
+}
+
+/* High contrast: the version control's edge thickens with every other strong
+   border, and the row flag is widened so it survives a forced-colours palette. */
+:root.hc .qcms-pinversion {
+  border-width: 2px;
+}
+:root.hc .qcms-pinrow.is-error .qcms-pincell--question {
+  box-shadow: inset 4px 0 0 0 var(--color-danger);
 }
 
 /* Narrow editor: the ID column folds into a second line inside the label cell.
@@ -1323,7 +1532,7 @@ button {
 /* High contrast drops hover-only affordances: the grip and every insert point
    are always visible rather than opacity 0 at rest, and the grid's own edges
    thicken. */
-:root.hc .qcms-opt-grip,
+:root.hc .qcms-opt-row .qcms-rowgrip,
 :root.hc .qcms-opt-insert {
   opacity: 1;
 }

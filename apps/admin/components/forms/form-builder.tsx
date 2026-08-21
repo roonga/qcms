@@ -11,7 +11,7 @@ import type {
   ValidateDraftState,
 } from "@/lib/forms/builder-state";
 import {
-  addPin,
+  addPinAt,
   addRule,
   addStep,
   blankDraft,
@@ -279,8 +279,8 @@ export function FormBuilder({
             step={selectedStep}
             library={library}
             issues={issues}
-            onAddPin={(questionId, version) => {
-              mutate(addPin(draft, selectedStep.stepId, questionId, version));
+            onAddPin={(questionId, version, index) => {
+              mutate(addPinAt(draft, selectedStep.stepId, questionId, version, index));
             }}
             onMovePin={(questionId, version) => {
               mutate(movePin(draft, questionId, version));
