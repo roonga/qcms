@@ -16,7 +16,7 @@ still collapsing on `main`:
 | `listWebhooks` | `WebhookConfig` | empty panel, table | heading, intro, live regions, **Add endpoint** |
 | `listDeliveries` | `DeliveryDashboard` | empty panel, table | heading, intro |
 | `listLinks` | `SecureLinks` | empty panel, table | heading, intro, **Mint links**, mint result panel |
-| `loadPinnableQuestions` | `FormBuilder` subtree | per-pin "Version not found" tag, the picker's "no version matches this search" panel, the move menu's "No other published version" | the entire builder, every draft edit, **Add question** |
+| `loadPinnableQuestions` | `FormBuilder` subtree | per-pin "Version not found" tag, per-pin "No label in the library", the picker's "no version matches this search" panel, the move menu's "No other published version" | the entire builder, every draft edit, the row grip menu, **Add question** |
 
 The line being applied at each site is the one issue 521 derived at the response browser:
 "and nothing else" means nothing that CLAIMS anything about the failed read. Chrome that
@@ -51,20 +51,47 @@ Two things were checked rather than assumed before settling for this:
 The static-markup layer stands in for the frames, which is the layer issue 544 named and
 issues 513, 514, 543 and 521 established.
 
+## Rebased onto issue 517's ownership grid
+
+This branch was written against `f9174c6` and rebased onto `c9a5219`, which landed issue
+517's rewrite of the pin list as a mixed-ownership grid. That rewrite moved every
+library-owned cell of the grid out of the component and into the pure view model
+`lib/forms/pin-grid.ts`, which turned out to be a better seam for this fix than the one it
+replaced: all four of the builder's false claims are now decided in one function, are
+asserted directly in `lib/forms/pin-grid.test.ts`, and no component decides any of them.
+The conflict was resolved by taking 517's file whole and re-applying the fix to the new
+shape, not by reverting any of it.
+
 ## The files
 
-- `red-first.txt` - the 16 new tests run against the **unfixed** tree (`git checkout` of
-  the pre-change files, test file unchanged). **6 fail, 10 pass.** The four
-  "makes no claim" tests fail with the defect verbatim in their `Received` line:
-  `ops.webhooks.empty` and `ops.deliveries.emptyTitle` inside
-  `<div class="qcms-empty">` beneath `data-testid="qcms-alert"`, `forms.links.empty` in
-  the same shape, and `data-pin-state="missing"` carrying `forms.step.pinMissing` on the
-  form's only pin. The two move-pin tests fail with `TypeError: library.find is not a
-  function`, which is the pre-change signature refusing the `ReadState` the fixed one
-  takes. The 10 that pass are the controls: the error alert must still render, a genuinely
-  empty read must still get §3's panel, a read with rows must still get the §2 table, and
-  the builder must still be usable.
-- `green-after.txt` - the same file after the fix, verbose, 16 passed.
+- `red-first.txt` - the new and amended tests run against the **unfixed** tree
+  (`git checkout c9a5219 --` of every source file, test files kept). Three test files,
+  **7 failed, 9 passed, 9 skipped**, and the failures fall into three kinds that are
+  worth telling apart rather than counting together:
+
+  **Four are the defect verbatim**, in their own `Received` lines:
+  `ops.webhooks.empty` and `ops.deliveries.emptyTitle` inside `<div class="qcms-empty">`
+  beneath `data-testid="qcms-alert"`; `forms.links.empty` in the same shape; and
+  `data-pin-state="missing"` carrying `Version not found` on the form's only pin, beneath
+  the page's own `forms.error.libraryFailed` alert.
+
+  **Two are the pre-change signature refusing the distinction**: the move-pin cases die
+  with `TypeError: library.find is not a function`, as do `pin-grid.test.ts` and
+  `pin-grid-ownership.test.tsx` at import (the 9 skipped are that file's remaining cases,
+  which never ran). That error IS the finding: on the unfixed tree there is no way to hand
+  the grid "the library was not read", because the parameter is an array.
+
+  **One is neither, and is called out so it is not mistaken for defect evidence.** The
+  success-branch control ("still tags a pin the library really has lost") fails on the old
+  tree for a test-vocabulary reason: the string it asserts moved from a component, which
+  resolves copy through this file's mocked catalog and therefore emits a KEY, into
+  `lib/forms/pin-grid.ts`, which is redirected to the real module and therefore emits
+  English. The old tree had the behaviour; it spelled it differently.
+
+  The 9 that pass are the controls that matter: the error alerts must still render, a
+  genuinely empty read must still get §3's panel, a read with rows must still get the §2
+  table, and the builder must still be usable.
+- `green-after.txt` - the same three files after the fix, verbose, 38 passed.
 
 Runner output in both is filtered to repo-root-relative paths.
 
