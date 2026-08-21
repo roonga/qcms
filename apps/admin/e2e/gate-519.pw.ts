@@ -40,22 +40,33 @@ import {
  * directory. The spec is named by PATH in that command on purpose: a bare name matches
  * every admin spec, and the flag un-skips every other capture spec with it.
  *
- * ## Every collapsible is shot twice, and that is the argument rather than a completeness
- * habit
+ * ## Every collapsible is shot shut and open, and that is the argument rather than a
+ * completeness habit
  *
  * A digest is only visible while its disclosure is SHUT, and §3.7's rule - that a fact in
  * the digest must also exist inside the panel, because a collapsed `<details>` is gone
  * from the accessibility tree - is only visible while it is OPEN. One frame of either
- * state proves half a claim. So each of the three gets a collapsed frame and an expanded
- * one, and the pair is what a reviewer compares:
+ * state proves half a claim, so every collapsible here gets both:
  *
- * - `builder-settings-*`: the digest states the challenge switch and the minimum-time
- *   value; expanded, the same checkbox and the same number field are underneath it.
- * - `builder-bench-*`: the digest states the loaded rule and how many questions it reads;
- *   expanded, that many answer controls are in the fieldset.
- * - `delivery-row-*`: the digest states status, failed attempts and latency; expanded, the
- *   `This delivery` list states all three in full. That list is also what puts an `h3`
- *   above the panel's `h4`s, closing issue #541's heading skip.
+ * - `builder-panels-collapsed-*`: both builder digests, side by side, each stating its
+ *   own facts. The settings one states the challenge switch and the minimum-time value;
+ *   the bench one states the loaded rule and how many questions it reads.
+ * - `builder-settings-expanded-*`: the same checkbox and number field the settings digest
+ *   read from, underneath it.
+ * - `builder-bench-expanded-*`: that many answer controls in the fieldset, with settings
+ *   shut so the frame isolates the bench.
+ * - `delivery-row-collapsed-*` / `delivery-row-expanded-*`: the digest states status,
+ *   failed attempts and latency; expanded, the `This delivery` list states all three in
+ *   full. That list is also what puts an `h3` above the panel's `h4`s, closing issue
+ *   #541's heading skip.
+ *
+ * One honest limitation, which is a property of the screen rather than of this spec.
+ * `delivery-row-collapsed-*-390.png` does NOT show the trigger: at that width the last
+ * columns of the deliveries table sit inside the table's own horizontal overflow, and
+ * `captureInto` deliberately resets every container's `scrollLeft` before shooting (a
+ * frame painted at a scroll offset is the worse failure). So the digest itself is read
+ * from the 1280 frame, and the 390 pair carries the claim that matters most at that
+ * width: latency's COLUMN is dropped there, and the expanded panel still states it.
  *
  * ## What is deliberately NOT in the set
  *
@@ -155,27 +166,40 @@ for (const mode of CAPTURE_MODES) {
     await expect(settingsDigest).toContainText("Challenge required");
     await expect(settingsDigest).toContainText("800");
 
-    // Collapsed first: the digest is only visible in this state, and the panel ships open.
-    await settingsHeading.click();
-    await expect(
-      page.getByRole("checkbox", { name: "Require a challenge before answering" }),
-    ).toBeHidden();
-    await capture(page, `builder-settings-collapsed-${mode}`);
-
-    await settingsHeading.click();
-    await expect(
-      page.getByRole("checkbox", { name: "Require a challenge before answering" }),
-    ).toBeChecked();
-    await capture(page, `builder-settings-expanded-${mode}`);
-
-    // The bench ships shut, so the collapsed frame is its first render.
     const benchHeading = page.getByRole("heading", { level: 2, name: "Rule test bench" });
     const benchDigest = page.getByTestId("qcms-bench-digest");
+    const challengeBox = page.getByRole("checkbox", {
+      name: "Require a challenge before answering",
+    });
     await expect(benchHeading).toBeVisible();
     await expect(benchDigest).toContainText(ruleId);
     await expect(benchDigest).toContainText(/reads \d+ question/);
-    await capture(page, `builder-bench-collapsed-${mode}`);
 
+    // THREE page states, not four, and the count is the whole point.
+    //
+    // These are full-page shots of one screen carrying two independent disclosures, so a
+    // frame is a state of the PAGE and not of one panel. The first cut of this spec shot
+    // four frames named per panel per state, and two of those names - settings-expanded
+    // and bench-collapsed - resolved to the identical page state (settings open, bench
+    // shut) with nothing changed between the two shutter presses. Six of the thirty-six
+    // files were byte-identical duplicates wearing a second name, which is a gate telling
+    // a reviewer it has more evidence than it has.
+    //
+    // Three states cover every claim without repeating one: both shut (each digest, side
+    // by side), settings open (its §3.7 half), bench open (its §3.7 half). Every
+    // collapsible still gets a collapsed frame and an expanded one.
+    await settingsHeading.click();
+    await expect(challengeBox).toBeHidden();
+    await capture(page, `builder-panels-collapsed-${mode}`);
+
+    await settingsHeading.click();
+    await expect(challengeBox).toBeChecked();
+    await capture(page, `builder-settings-expanded-${mode}`);
+
+    // Settings shut again, so this frame isolates the bench rather than repeating the one
+    // above with an extra panel open.
+    await settingsHeading.click();
+    await expect(challengeBox).toBeHidden();
     await benchHeading.click();
     // §3.7 in the frame: the count the digest states is a count of controls in the panel.
     const reads = Number(/reads (\d+) question/.exec(await benchDigest.innerText())?.[1] ?? "-1");

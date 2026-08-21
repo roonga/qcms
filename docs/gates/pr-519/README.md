@@ -1,36 +1,35 @@
 # Gate: collapsible digests and summary headings (issue 519)
 
 Approve design-language element 3 in the three places `plan/admin-ux-audit.md` approves it
-and nowhere else. Every collapsible is shot **twice**: the digest is only visible while the
-disclosure is shut, and §3.7's rule (a fact in the digest must also exist inside the panel,
-because a collapsed `<details>` is gone from the accessibility tree) is only visible while
-it is open. Each pair is one claim.
+and nowhere else. Every collapsible is shot **shut and open**: the digest is only visible
+while the disclosure is shut, and §3.7's rule (a fact in the digest must also exist inside
+the panel, because a collapsed `<details>` is gone from the accessibility tree) is only
+visible while it is open. One frame of either state proves half a claim.
 
-Every frame is shot at **390px and 1280px** (`-390.png` / `-1280.png`), in all three mode
-layers. Captured by `apps/admin/e2e/gate-519.pw.ts`, which runs only with
-`QCMS_ADMIN_CAPTURE_GATE=1`.
+**30 files, 30 distinct page states** (5 states x 3 mode layers x 2 widths), at **390px and
+1280px** (`-390.png` / `-1280.png`). Captured by `apps/admin/e2e/gate-519.pw.ts`, which runs
+only with `QCMS_ADMIN_CAPTURE_GATE=1`.
 
-**Two things about the set that are worth knowing before you read it**, so neither looks
-like an error:
+Five states rather than six, because these are full-page shots of a screen carrying two
+independent disclosures, so a frame is a state of the **page** and not of one panel. Both
+builder panels shut is one frame carrying both digests, not two frames of the same picture.
 
-- **36 files, 30 unique images.** `builder-settings-expanded-<mode>-<width>.png` and
-  `builder-bench-collapsed-<mode>-<width>.png` are byte-identical, in all six mode and
-  width combinations. Both names are honest: these are full-page shots, and one page state
-  (settings open, bench shut) genuinely carries both claims at once. They are kept under
-  both names so each row of the table below resolves to a frame.
-- **The collapsed delivery row is not legible at 390px.** At that width the trigger column
-  sits inside the table's horizontal overflow, so `delivery-row-collapsed-*-390.png` shows
-  the queue without the trigger in view. The §3.7 claim at 390 is carried entirely by the
-  **expanded** frame, which is where it matters: the latency column is dropped and the
-  panel's `This delivery` list still states it. Read the 1280 collapsed frame for the
-  digest itself.
-
-| Frame pair | The clause it carries |
+| Frame | The clause it carries |
 |---|---|
-| `builder-settings-collapsed-light` / `builder-settings-expanded-light` | §4.3: an `h2` inside the `<summary>`, so the panel finally has an entry in the builder's heading outline at the level every other section uses. §3.7: the digest states the challenge switch and the minimum-time value, and the expanded frame shows the checkbox and the number field that hold those same two facts. |
-| `builder-bench-collapsed-light` / `builder-bench-expanded-light` | The same `h2`, and a digest naming the loaded rule and how many questions it reads. Expanded, the fieldset holds exactly that many answer controls: the audit's blessed shape, "the count in the summary plus the entries inside". |
-| `delivery-row-collapsed-light` / `delivery-row-expanded-light` | §3.8: the row trigger states status, failed attempts and latency. Expanded, the `This delivery` list states all three in full, which is what stops the digest being the only copy of latency at 390px, where the latency column is `display: none`. That list's `h3` also closes issue #541's `<h4>`-under-`<h2>` skip. |
-| the `-dark` and `-hc` sets | The same six states in the other two mode layers. The digest is new painted text on `--color-text-muted` against a summary and a link-styled button, and high contrast is where a muted secondary line is most at risk. |
+| `builder-panels-collapsed-light` | §4.3: an `h2` inside each `<summary>`, so both panels finally have an entry in the builder's heading outline at the level every other section uses. Both digests are here side by side: `Form settings - Challenge required, minimum time 800 ms` and `Rule test bench - rul_..., reads 1 question`. |
+| `builder-settings-expanded-light` | §3.7 for the settings digest: the checkbox and the number field the digest read those same two facts from, underneath it. |
+| `builder-bench-expanded-light` | §3.7 for the bench digest: the fieldset holds exactly as many answer controls as the digest said questions read. The audit's blessed shape, "the count in the summary plus the entries inside". Settings is shut here, so the frame isolates the bench. |
+| `delivery-row-collapsed-light` | §3.8: the row trigger states status, failed attempts and latency. **Read this one at 1280** (see the limitation below). |
+| `delivery-row-expanded-light` | The `This delivery` list states all three in full, which is what stops the digest being the only copy of latency at 390px, where the latency column is `display: none`. That list's `h3` also closes issue #541's `<h4>`-under-`<h2>` skip. |
+| the `-dark` and `-hc` sets | The same five states in the other two mode layers. The digest is new painted text on `--color-text-muted` against a summary and a link-styled button, and high contrast is where a muted secondary line is most at risk. |
+
+**One honest limitation, in the screen rather than in the capture.**
+`delivery-row-collapsed-*-390.png` does not show the trigger: at that width the last columns
+of the deliveries table sit inside the table's own horizontal overflow, and the shared
+capture helper deliberately resets every container's `scrollLeft` before shooting (a frame
+painted at a scroll offset is the worse failure, and has shipped before). So read the digest
+itself from the 1280 collapsed frame. The 390 pair still carries the claim that matters most
+at that width: latency's column is dropped there, and the expanded panel states it anyway.
 
 ## One treatment detail worth a deliberate yes or no
 
@@ -44,7 +43,7 @@ either way, because that is what makes the digest part of what the trigger is ca
 
 ## What is deliberately absent
 
-Any fourth digest. §5.2 keeps one-time reveals non-collapsible, and the audit's "would not
+Any fourth digest anywhere in the app. §5.2 keeps one-time reveals non-collapsible, and the audit's "would not
 do at all" list rejects element 3 everywhere else for now, so the absence is part of what is
 being approved.
 
