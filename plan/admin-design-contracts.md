@@ -1,5 +1,11 @@
 # Admin design contracts (Wave 3 gate)
 
+**A ninth contract was added 2026-08-21** (§9, author-authored text of unbounded
+length). It is **not** covered by the confirmation below, which was given over
+eight: it was found by shipping Wave 3 rather than by the POC audit, and it is
+flagged for the Code Owner as a new answer rather than a restatement of a
+confirmed one.
+
 **Status: CONFIRMED by the Code Owner, 2026-08-20.** All eight contracts are now
 normative. C1 is closed at §7a (Settings keeps a rail as a written exception) and
 §8 is closed in the Code Owner's framing (portal and admin are different apps);
@@ -287,10 +293,87 @@ portal's managed themes (ADR-30) are untouched.
 
 ---
 
+## 9. Author-authored text of unbounded length
+
+**A ninth contract, and it was not one of the eight.** The POC audit asked eight
+questions about how components should look, and this document answered each once.
+This one was never asked, because it is not visible in a drawing: every POC draws
+an id that fits. It was found by shipping - **five sightings across four PRs in
+three days**, each in a component that was fully compliant with the clause
+pointed at it.
+
+**The gap is structural rather than any component's fault.** Contracts 1 to 8
+govern each container separately. So a component can satisfy the rule aimed at it
+while the app as a whole has no answer to "what if an author names a question
+`q_at_fault_accident_followup`". Nothing owns that question, so each container
+answers it locally and differently: one ellipsizes, one wraps mid-token, one
+chops at a container edge, one sits flush against it. Five components, five
+answers, no rule. That is the defect, and it is why this is one contract rather
+than five issues.
+
+The sightings, verified against `origin/main` at `c9a5219` rather than recalled:
+
+**Tier 1, characters are lost.** Forbidden for an id, anywhere, by any mechanism.
+
+- **Ellipsis truncation.** §2 already forbids this, and it is restated here
+  because §2 reads as being about *tables* and the live instance is not one. The
+  app has exactly four `text-overflow: ellipsis` sites
+  (`apps/admin/app/globals.css:540, 1007, 1152, 1736`) and **only one truncates an
+  id**: `.qcms-opt-cell--id` at `:1007`, the option grid (**#595**). The other
+  three are a nav-menu email, a drag state, and the answer preview.
+- **Chopping at a container edge**, with no ellipsis and no indication anything
+  was cut (**#596**, the rule card between 640 and 767).
+- **Table identifying columns** (**#582**) are the same rule reaching the case §2
+  was actually written for.
+
+**Tier 2, nothing is lost but the rendering still reads as a whole value.**
+Permitted, with a condition, because it is materially better than tier 1 and
+banning it would force tier 1 in narrow containers.
+
+- A wrap that breaks mid-token loses no characters. `.qcms-pinrow__idvalue`
+  (`:1394`) sets `overflow-wrap: anywhere` and no ellipsis, so
+  `q_accident_count_2nqps` renders as `q_accident_count_2nq` / `ps` with every
+  character present (**#584**'s frame). A heading sitting flush against a card
+  edge is the same category (**#585**, reported by the dev seat; not
+  independently verified here).
+- **The harm is real anyway, and it is the harm §2's anti-ellipsis clause
+  names:** the first line alone reads as a plausible complete id. Nothing on
+  screen says otherwise.
+
+**The rule, covering both tiers with one requirement:**
+
+> Wherever an id is rendered, **the exact value must be obtainable without
+> reading it off the screen**. A container that cannot guarantee the whole id
+> renders unbroken provides a copy control, and never truncates.
+
+That is not a new mechanism. It is §2's copy control, which exists for exactly
+this reason, applied wherever ids appear rather than only in tables. It also
+means a narrow container is no longer a design emergency: wrapping is acceptable
+*because* the value is recoverable, and truncation stays forbidden *because* it
+is not.
+
+**The positive precedent, so the rule is not read as "never truncate anything".**
+`.qcms-answer-preview` (`:1736`) is how a bounded field should behave: a cap
+chosen by measurement against the 1280px gate frame, the measurement written into
+the sheet beside it, and an ellipsis that means "there is more". It is legitimate
+there **because the content is respondent prose rather than an identifier** - no
+reader will mistake a truncated sentence for a complete one, and the exact value
+is not something anyone needs to copy into a search box. Identifiers are the
+special case, not the general one.
+
+**What this contract does not decide.** It does not set the option grid's column
+width (#595), the rule card's narrow-container behaviour (#596), or the table
+columns' treatment (#582). Those remain their issues' work. What changes is that
+all three are now answers to one question under one rule, instead of three
+components each deciding locally and correctly-by-their-own-clause.
+
+---
+
 ## What confirmation unblocks
 
 Wave 3 (`plan/admin-redesign-implementation-plan.md` §3): the form-subtree rail,
 the per-screen width caps, and the scope rule in the wireframe format spec - all
 implemented against these contracts rather than against whichever POC an
 implementer opens first. The Wave 4 regeneration then brings all eleven POCs into
-line with the same eight answers in one pass.
+line with the same answers in one pass - now nine of them, since §9 binds any POC
+that draws an id, which is most of them.
