@@ -1,0 +1,574 @@
+import type { ReactNode } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+/**
+ * Issues 572 and 544: the four remaining `ok ? data : []` sites, one per read.
+ *
+ * Issue 544 filed the pattern - a `Result`-shaped read unwrapped with `ok ? data : []`, so
+ * a failed read arrives at the component as a successful empty one and the screen renders
+ * its zero-items state about data it never saw. Issue 572 holds the concrete list and the
+ * reason it got worse: after issue 514 the zero-items state is no longer a muted sentence
+ * but §3's panel, a centred dashed surface with an `h2` and, where the screen has a
+ * creating action, a primary call to action.
+ *
+ * Four sites were still open on `main` when this file was written (the other four named
+ * across the two issues were closed by issues 513, 514, 543 and 521):
+ *
+ * 1. `forms/[formId]/webhooks/page.tsx` -> `WebhookConfig`
+ * 2. `forms/[formId]/webhooks/page.tsx` -> `DeliveryDashboard`
+ * 3. `forms/[formId]/links/page.tsx` -> `SecureLinks`
+ * 4. `forms/[formId]/page.tsx` -> `FormBuilder`
+ *
+ * All four now hand the component a `ReadState` (`lib/read-state.ts`, issue 543), and each
+ * decides for itself what a failure suppresses. The rule being applied is the one issue
+ * 521 derived at the response browser and this file asserts at each site: "and nothing
+ * else" means nothing that CLAIMS anything about the failed read. Chrome that stays true
+ * is fine, including a creating action that still works. So each block below has a
+ * failure test that pins BOTH halves - what went, and what stayed - plus an empty-read
+ * control, because a fix that deleted the empty state instead of gating it would pass a
+ * one-sided test and break §3 from the other direction.
+ *
+ * ## Why this layer, and not Playwright
+ *
+ * The same argument `forms-list-states.test.tsx` and `empty-and-table-states.test.tsx`
+ * give, and it is structural rather than a preference. These reads run in the Next
+ * **server** process, so `page.route()` never sees the request and no browser gesture can
+ * make `listWebhooks` fail; `playwright.config.ts` records the underlying constraint (a
+ * `webServer` cannot be booted twice with two environments). Rendering the server
+ * component with its read stubbed and asserting over the HTML it emits is the highest
+ * layer that can reach the failure branch at all (ADR-23).
+ *
+ * A sibling file rather than more blocks in `empty-and-table-states.test.tsx`, because
+ * these four screens need a much wider `@/components/kit` stand-in and a set of bound
+ * server actions that file has no use for.
+ *
+ * ## What this layer cannot reach
+ *
+ * Two of the claims corrected for the builder live behind a control the operator has to
+ * press: the library picker's "no published version matches this search" panel is inside a
+ * dialog opened from step state, and the move-pin menu's "No other published version" is
+ * inside a popover. A static render of the page reaches neither. The menu is asserted
+ * below by rendering `StepEditor` directly with a `MenuPopover` stand-in that renders its
+ * children, which is what the real popover renders once opened. The picker's failure copy
+ * is not asserted anywhere at this layer, and that is stated rather than hidden.
+ */
+
+const SESSION = {
+  userId: "u_1",
+  email: "admin@example.test",
+  name: "Admin",
+  role: "admin",
+  twoFactorEnabled: true,
+  token: "tok_test",
+};
+
+const FORM_DETAIL = {
+  formId: "frm_one",
+  slug: "one",
+  defaultLocale: "en",
+  status: "open",
+  draftSource: "open",
+  versions: [{ version: 1, status: "published", publishedAt: "2026-08-01T10:00:00.000Z" }],
+  settings: { challengeRequired: false, minSubmitMs: null },
+  challengeProvider: "none",
+  draft: {
+    formId: "frm_one",
+    defaultLocale: "en",
+    title: { en: "One" },
+    steps: [
+      {
+        stepId: "stp_one",
+        title: { en: "Step one" },
+        items: [{ questionId: "q_one", version: 1 }],
+      },
+    ],
+    rules: [],
+  },
+};
+
+const WEBHOOK = {
+  webhookId: "whk_one",
+  url: "https://example.test/hook",
+  active: true,
+  deactivatedAt: null,
+  createdAt: "2026-08-01T10:00:00.000Z",
+  updatedAt: "2026-08-01T10:00:00.000Z",
+};
+
+const DELIVERY = {
+  deliveryId: "dlv_one",
+  eventId: "evt_one",
+  eventType: "response.submitted",
+  webhookId: "whk_one",
+  url: "https://example.test/hook",
+  status: "delivered",
+  attempts: 0,
+  lastError: null,
+  createdAt: "2026-08-01T10:00:00.000Z",
+  deliveredAt: "2026-08-01T10:00:00.000Z",
+  deadLetteredAt: null,
+  cancelledAt: null,
+  cancelledReason: null,
+  nextAttemptAt: "2026-08-01T10:00:00.000Z",
+  lastAttemptAt: "2026-08-01T10:00:00.000Z",
+  lastStatus: 200,
+  latencyMs: 120,
+  requestHeaders: null,
+  responseSnippet: null,
+};
+
+const LINK = {
+  linkId: "lnk_one",
+  state: "active",
+  oneTime: false,
+  expiresAt: "2026-09-01T10:00:00.000Z",
+  consumedAt: null,
+  revokedAt: null,
+  createdAt: "2026-08-01T10:00:00.000Z",
+};
+
+/** Set per test before the page module is imported; each page reads once, at render. */
+let formDetailResult: unknown = { ok: true, data: FORM_DETAIL };
+let webhooksResult: unknown = { ok: true, data: [] };
+let deliveriesResult: unknown = { ok: true, data: [] };
+let linksResult: unknown = { ok: true, data: [] };
+let libraryResult: unknown = { ok: true, data: [] };
+
+/**
+ * The subjects are redirected to the real modules rather than stubbed, for the reason
+ * `empty-and-table-states.test.tsx` gives: a stand-in shaped like the thing under test
+ * only asserts that the stand-in is shaped like the thing under test. `EmptyState` is
+ * §3's panel and is what "no empty claim" is measured against, and `read-state` is the
+ * contract itself.
+ */
+vi.mock("@/components/ops/webhook-config", () => import("../../components/ops/webhook-config"));
+vi.mock(
+  "@/components/ops/delivery-dashboard",
+  () => import("../../components/ops/delivery-dashboard"),
+);
+vi.mock("@/components/forms/secure-links", () => import("../../components/forms/secure-links"));
+vi.mock("@/components/forms/form-builder", () => import("../../components/forms/form-builder"));
+vi.mock("@/components/empty-state", () => import("../../components/empty-state"));
+vi.mock("@/lib/read-state", () => import("../../lib/read-state"));
+vi.mock("@/lib/i18n/format", () => import("../../lib/i18n/format"));
+vi.mock("@/lib/questions/definition", () => import("../../lib/questions/definition"));
+vi.mock("@/lib/forms/links", () => import("../../lib/forms/links"));
+vi.mock("@/lib/forms/draft", () => import("../../lib/forms/draft"));
+vi.mock("@/lib/forms/issues", () => import("../../lib/forms/issues"));
+vi.mock("@/lib/forms/condition", () => import("../../lib/forms/condition"));
+vi.mock("@/lib/forms/types", () => import("../../lib/forms/types"));
+vi.mock("@/lib/forms/builder-state", () => import("../../lib/forms/builder-state"));
+vi.mock("@/components/forms/link-state-tag", () => import("../../components/forms/link-state-tag"));
+vi.mock("@/components/ops/ops-tags", () => ({
+  cancelledReasonText: (reason: string) => reason,
+  DeliveryStatusTag: () => <span data-testid="qcms-delivery-status-stub" />,
+  erasureReasonText: (reason: string) => reason,
+  FlagTag: () => <span data-testid="qcms-flag-tag-stub" />,
+}));
+vi.mock("@/components/forms/form-page-header", () => ({
+  FormPageHeader: () => <div data-testid="qcms-form-page-header-stub" />,
+}));
+vi.mock("@/components/save-model", () => ({
+  AmbientSaveStatus: () => <div data-testid="qcms-save-status-stub" />,
+  ManualSaveNote: () => <p data-testid="qcms-save-note-stub" />,
+}));
+vi.mock("@/components/forms/form-actions", () => ({
+  FormActions: () => <div data-testid="qcms-form-actions-stub" />,
+}));
+vi.mock("@/components/forms/form-tabs", () => ({
+  FormTabs: () => <nav data-testid="qcms-form-tabs-stub" />,
+}));
+vi.mock("@/lib/ops/unexpected", () => ({ unexpected: () => "ops.error.unexpected" }));
+
+vi.mock("next/navigation", () => ({
+  notFound: () => {
+    throw new Error("NEXT_NOT_FOUND");
+  },
+}));
+
+vi.mock("@/lib/server/session", () => ({
+  requireAdminSession: () => Promise.resolve(SESSION),
+}));
+vi.mock("@/lib/server/forms", () => ({
+  getForm: () => Promise.resolve(formDetailResult),
+  loadPinnableQuestions: () => Promise.resolve(libraryResult),
+}));
+vi.mock("@/lib/server/webhook-ops", () => ({
+  listWebhooks: () => Promise.resolve(webhooksResult),
+  listDeliveries: () => Promise.resolve(deliveriesResult),
+}));
+vi.mock("@/lib/server/links", () => ({
+  listLinks: () => Promise.resolve(linksResult),
+  MAX_LINK_BATCH: 100,
+}));
+
+const NOOP_ACTION = () => Promise.resolve({ status: "idle" });
+
+vi.mock("./webhooks/actions", () => ({
+  createWebhookAction: NOOP_ACTION,
+  deactivateWebhookAction: NOOP_ACTION,
+  reactivateWebhookAction: NOOP_ACTION,
+  retargetWebhookAction: NOOP_ACTION,
+  rotateSecretAction: NOOP_ACTION,
+}));
+vi.mock("./forms/actions", () => ({
+  mintLinksAction: NOOP_ACTION,
+  revokeLinkAction: NOOP_ACTION,
+  previewConditionAction: NOOP_ACTION,
+  publishFormAction: NOOP_ACTION,
+  saveDraftAction: NOOP_ACTION,
+  setFormStatusAction: NOOP_ACTION,
+  updateSettingsAction: NOOP_ACTION,
+  validateDraftAction: NOOP_ACTION,
+}));
+
+/**
+ * `t` answers with its own key, so every assertion is about WHICH string a branch chose
+ * rather than about the sentence it holds today. That is what makes "the failed read does
+ * not print the empty sentence" a precise claim rather than a substring guess.
+ */
+vi.mock("@/lib/i18n/en", () => ({
+  t: (key: string) => key,
+  tPlural: (one: string) => one,
+}));
+
+/**
+ * Marked stand-ins, so the real controls' markup never confuses the assertions.
+ *
+ * `MenuPopover` renders its children, which the real one does only once opened. That is
+ * the point for the move-pin block below: the popover's contents are what an operator
+ * reads after pressing the trigger, and this is the only layer that can read them at all.
+ */
+vi.mock("@/components/kit", () => ({
+  Alert: ({ variant, children }: { variant?: string; children?: ReactNode }) => (
+    <div data-testid="qcms-alert" data-variant={variant}>
+      {children}
+    </div>
+  ),
+  Breadcrumb: () => <nav data-testid="qcms-breadcrumb-stub" />,
+  Button: ({ children }: { children?: ReactNode }) => <button type="button">{children}</button>,
+  Card: ({ children }: { children?: ReactNode }) => (
+    <div data-testid="qcms-card-stub">{children}</div>
+  ),
+  Checkbox: () => <input aria-label="stub" type="checkbox" />,
+  DatePicker: () => <input aria-label="stub" type="date" />,
+  Dialog: ({ children }: { children?: ReactNode }) => (
+    <div data-testid="qcms-dialog-stub">{children}</div>
+  ),
+  Form: ({ children }: { children?: ReactNode }) => <form>{children}</form>,
+  MenuItem: ({ children }: { children?: ReactNode }) => <li>{children}</li>,
+  MenuList: ({ children }: { children?: ReactNode }) => <ul>{children}</ul>,
+  MenuPopover: ({ children }: { children?: ReactNode }) => (
+    <div data-testid="qcms-menu-popover-stub">{children}</div>
+  ),
+  MenuSeparator: () => <hr />,
+  MenuTrigger: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  MenuTriggerButton: ({ children }: { children?: ReactNode }) => (
+    <button type="button">{children}</button>
+  ),
+  NumberField: () => <input aria-label="stub" type="number" />,
+  Select: () => <select aria-label="stub" />,
+  Table: () => <div data-testid="qcms-kit-table-stub" />,
+  Text: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
+  TextField: () => <input aria-label="stub" />,
+}));
+
+/** The panel §3 prescribes, and the `h2` it must contain. */
+const EMPTY_PANEL = /<div class="qcms-empty"[^>]*>/;
+const EMPTY_HEADING = /<h2 class="qcms-empty__heading">/;
+
+async function renderFormWebhooks(): Promise<string> {
+  const { default: Page } = await import("./forms/[formId]/webhooks/page.tsx");
+  return renderToStaticMarkup(await Page({ params: Promise.resolve({ formId: "frm_one" }) }));
+}
+
+async function renderLinks(): Promise<string> {
+  const { default: Page } = await import("./forms/[formId]/links/page.tsx");
+  return renderToStaticMarkup(await Page({ params: Promise.resolve({ formId: "frm_one" }) }));
+}
+
+async function renderBuilder(): Promise<string> {
+  const { default: Page } = await import("./forms/[formId]/page.tsx");
+  return renderToStaticMarkup(
+    await Page({
+      params: Promise.resolve({ formId: "frm_one" }),
+      searchParams: Promise.resolve({}),
+    }),
+  );
+}
+
+beforeEach(() => {
+  formDetailResult = { ok: true, data: FORM_DETAIL };
+  webhooksResult = { ok: true, data: [] };
+  deliveriesResult = { ok: true, data: [] };
+  linksResult = { ok: true, data: [] };
+  libraryResult = { ok: true, data: [] };
+});
+
+/**
+ * The site issue 572 leads with, and the one where the false claim is loudest: a prominent
+ * "No endpoint yet" panel with a primary **Add endpoint** button, directly beneath an
+ * alert saying the endpoint list could not be loaded.
+ *
+ * The creating action survives the failure and that is not an oversight: this page's own
+ * comment already required that `WebhookConfig` keep offering creation when the list read
+ * fails, because an operator who cannot load the existing endpoints may still legitimately
+ * need to add one. Suppressing the whole component would remove a working capability
+ * because a different read failed, which is the mistake issue 521's first attempt made and
+ * reverted before landing.
+ */
+describe("the per-form webhook config's read states (issues 572, 544)", () => {
+  it("makes no claim about endpoints when the list read fails", async () => {
+    webhooksResult = { ok: false, message: "upstream said 503" };
+
+    const html = await renderFormWebhooks();
+
+    expect(html).toContain('data-testid="qcms-alert"');
+    expect(html).toContain("ops.webhooks.listFailed");
+    // `ops.webhooks.emptyTitle` starts with `ops.webhooks.empty`, so one assertion rules
+    // out both halves of the panel's copy.
+    expect(html).not.toContain("ops.webhooks.empty");
+    expect(html).not.toContain('data-testid="qcms-webhooks-empty"');
+    expect(html).not.toContain('data-testid="qcms-webhooks-table"');
+  });
+
+  it("keeps the heading and the creating action when the list read fails", async () => {
+    webhooksResult = { ok: false, message: "upstream said 503" };
+
+    const html = await renderFormWebhooks();
+
+    // The alert needs a subject, and a heading claims nothing.
+    expect(html).toContain('id="qcms-webhooks-heading"');
+    // Creation does not depend on the list that failed, so it stays - and stays exactly
+    // once, because the panel that would otherwise carry the same accessible name is
+    // suppressed.
+    expect(html.match(/ops\.webhooks\.add/g)).toHaveLength(1);
+  });
+
+  it("still renders the empty panel when the form genuinely has no endpoint", async () => {
+    const html = await renderFormWebhooks();
+
+    expect(html).toMatch(EMPTY_PANEL);
+    expect(html).toMatch(EMPTY_HEADING);
+    expect(html).toContain('data-testid="qcms-webhooks-empty"');
+    expect(html).toContain("ops.webhooks.emptyTitle");
+    // §3's CTA, and the only control on the screen offering it: the standalone button
+    // stands down in this one state rather than repeating the panel's accessible name.
+    expect(html.match(/ops\.webhooks\.add/g)).toHaveLength(1);
+  });
+
+  it("renders one family table, wrapped, when the form has an endpoint", async () => {
+    webhooksResult = { ok: true, data: [WEBHOOK] };
+
+    const html = await renderFormWebhooks();
+
+    expect(html).toContain('<div class="qcms-table"><table');
+    expect(html).toContain('data-testid="qcms-webhooks-table"');
+    // Scoped to this section's own panel: the delivery dashboard below is separately
+    // empty in this case, so a bare `EMPTY_PANEL` assertion would be reading its markup.
+    expect(html).not.toContain('data-testid="qcms-webhooks-empty"');
+  });
+});
+
+/**
+ * The second site on the same page, and the one where the false claim is the reassuring
+ * one: an operator chasing a webhook a consumer says never arrived would read "Nothing has
+ * been delivered for this form yet." as the answer.
+ *
+ * Nothing is kept here beyond the heading and intro, and that is the right answer rather
+ * than an inconsistency with the block above: this screen has no creating action at all,
+ * because deliveries are made by the system when a response is submitted.
+ */
+describe("the delivery dashboard's read states (issues 572, 544)", () => {
+  it("makes no claim about deliveries when the read fails", async () => {
+    deliveriesResult = { ok: false, message: "upstream said 503" };
+
+    const html = await renderFormWebhooks();
+
+    expect(html).toContain("ops.deliveries.loadFailed");
+    expect(html).not.toContain("ops.deliveries.emptyTitle");
+    expect(html).not.toContain('data-testid="qcms-deliveries-empty"');
+    expect(html).not.toContain('data-testid="qcms-deliveries-table"');
+    // The alert needs a subject, and a heading claims nothing.
+    expect(html).toContain('id="qcms-deliveries-heading"');
+  });
+
+  it("still renders the empty panel when the form genuinely has no delivery", async () => {
+    const html = await renderFormWebhooks();
+
+    expect(html).toContain('data-testid="qcms-deliveries-empty"');
+    expect(html).toContain("ops.deliveries.emptyTitle");
+    expect(html).not.toContain("ops.deliveries.loadFailed");
+  });
+
+  it("renders one family table, wrapped, when the form has a delivery", async () => {
+    deliveriesResult = { ok: true, data: [DELIVERY] };
+
+    const html = await renderFormWebhooks();
+
+    expect(html).toContain('data-testid="qcms-deliveries-table"');
+    expect(html).not.toContain('data-testid="qcms-deliveries-empty"');
+  });
+});
+
+/**
+ * The secure-link screen. "No links have been minted for this form." underneath a warning
+ * that the link list could not be loaded tells an author the links they minted an hour ago
+ * are gone, and the natural response to that is to mint more.
+ *
+ * Minting survives, for the same reason creation survives on the webhook screen and for
+ * one this page states itself: whether this form can mint is decided by its published
+ * versions, which came from the form read, not from the list read that failed.
+ */
+describe("the secure-link list's read states (issues 572, 544)", () => {
+  it("makes no claim about links when the list read fails", async () => {
+    linksResult = { ok: false, message: "upstream said 503" };
+
+    const html = await renderLinks();
+
+    expect(html).toContain('data-testid="qcms-alert"');
+    expect(html).toContain("forms.links.listFailed");
+    // `forms.links.emptyTitle` starts with `forms.links.empty`, so one assertion rules out
+    // both halves of the panel's copy.
+    expect(html).not.toContain("forms.links.empty");
+    expect(html).not.toContain('data-testid="qcms-links-empty"');
+    expect(html).not.toContain('data-testid="qcms-links-table"');
+  });
+
+  it("keeps the heading and the mint control when the list read fails", async () => {
+    linksResult = { ok: false, message: "upstream said 503" };
+
+    const html = await renderLinks();
+
+    expect(html).toContain('id="qcms-links-heading"');
+    // Minting is a separate write and this form has a published version, so the control
+    // stays and the "publish first" note stays away.
+    expect(html).toContain("forms.links.mint");
+    expect(html).not.toContain('data-testid="qcms-links-needs-publish"');
+  });
+
+  it("still renders the empty panel when the form genuinely has no link", async () => {
+    const html = await renderLinks();
+
+    expect(html).toMatch(EMPTY_PANEL);
+    expect(html).toMatch(EMPTY_HEADING);
+    expect(html).toContain('data-testid="qcms-links-empty"');
+    expect(html).toContain("forms.links.emptyTitle");
+    expect(html).not.toContain('data-testid="qcms-alert"');
+  });
+
+  it("renders one family table, wrapped, when the form has a link", async () => {
+    linksResult = { ok: true, data: [LINK] };
+
+    const html = await renderLinks();
+
+    expect(html).toContain('<div class="qcms-table"><table');
+    expect(html).toContain('data-testid="qcms-links-table"');
+    expect(html).not.toMatch(EMPTY_PANEL);
+  });
+});
+
+/**
+ * The builder, where the symptom is not §3's panel and had to be assessed rather than
+ * assumed (issue 544 asks for exactly that, having found this site by grep).
+ *
+ * An empty question library is not a neutral stand-in on this screen: every pin lookup
+ * misses against one. So `ok ? data : []` tagged EVERY pinned question in the form
+ * "Version not found" - a claim about the library, printed beneath the page's own warning
+ * that the library could not be loaded, and one an author would read as "this form has
+ * been gutted".
+ *
+ * The builder itself stays, all of it. Reordering, moving and removing pins are edits to
+ * the DRAFT, which was read successfully, and none of them needs the library.
+ */
+describe("the form builder's library read states (issues 572, 544)", () => {
+  it("makes no claim about the pinned versions when the library read fails", async () => {
+    libraryResult = { ok: false, message: "upstream said 503" };
+
+    const html = await renderBuilder();
+
+    expect(html).toContain('data-testid="qcms-alert"');
+    expect(html).toContain("forms.error.libraryFailed");
+    // The tag says the library does not hold this version. The library was not read.
+    expect(html).not.toContain("forms.step.pinMissing");
+    expect(html).not.toContain('data-pin-state="missing"');
+  });
+
+  it("keeps the builder and its draft edits when the library read fails", async () => {
+    libraryResult = { ok: false, message: "upstream said 503" };
+
+    const html = await renderBuilder();
+
+    // The pin is still listed, and every control that acts on the draft is still there.
+    expect(html).toContain("q_one@1");
+    expect(html).toContain("forms.step.removePin");
+    expect(html).toContain("forms.step.pinUp");
+    // Adding a question stays offered: the dialog it opens says why it cannot help yet,
+    // which beats a control that has silently gone missing.
+    expect(html).toContain("forms.step.addQuestion");
+  });
+
+  it("still tags a pin the library really has lost when the read succeeds", async () => {
+    // The control. A library that WAS read and does not hold `q_one` is the case the tag
+    // exists for, so gating it on the read must not delete it.
+    const html = await renderBuilder();
+
+    expect(html).toContain("forms.step.pinMissing");
+    expect(html).toContain('data-pin-state="missing"');
+    expect(html).not.toContain("forms.error.libraryFailed");
+  });
+});
+
+/**
+ * The move-pin menu, rendered from `StepEditor` directly because its contents live inside
+ * a popover a static render of the page never opens (see the file header).
+ *
+ * "No other published version" is a statement about the library, and a read that failed is
+ * not entitled to it: with `ok ? data : []` every pin in every form reported that there
+ * was nowhere else to move it.
+ */
+describe("the move-pin menu's account of the library (issues 572, 544)", () => {
+  const STEP = FORM_DETAIL.draft.steps[0];
+
+  async function renderStepEditor(library: unknown): Promise<string> {
+    const { StepEditor } = await import("../../components/forms/step-editor");
+    return renderToStaticMarkup(
+      <StepEditor
+        draft={FORM_DETAIL.draft}
+        step={STEP as never}
+        library={library as never}
+        issues={[]}
+        onAddPin={() => undefined}
+        onMovePin={() => undefined}
+        onRemovePin={() => undefined}
+        onReorderPin={() => undefined}
+      />,
+    );
+  }
+
+  it("says the versions are unknown when the library read failed", async () => {
+    const html = await renderStepEditor({ ok: false });
+
+    expect(html).toContain("forms.step.movePinUnknown");
+    expect(html).not.toContain("forms.step.movePinNone");
+  });
+
+  it("still says there is no other version when the library was read and has none", async () => {
+    const html = await renderStepEditor({
+      ok: true,
+      data: [
+        {
+          questionId: "q_one",
+          slug: "one",
+          label: null,
+          type: "shortText",
+          versions: [{ version: 1, status: "published" }],
+        },
+      ],
+    });
+
+    expect(html).toContain("forms.step.movePinNone");
+    expect(html).not.toContain("forms.step.movePinUnknown");
+  });
+});
