@@ -100,6 +100,60 @@ and flagged. They are governed now.
   split this contract exists to remove. Three kit tables lose a border at #514;
   that is convergence, and it is now written down rather than inferred.
 
+**Amendment, 2026-08-21 (PM/PO seat, escalated by PR #584): the prefix rule holds
+for opaque ids and inverts for derived ones.**
+
+The 2026-08-20 amendment was written against `ses_` and `lnk_` columns and reads
+as though every id were like them. They are not. #584 escalated the case rather
+than applying the clause to it, which was right.
+
+- **Opaque ids** (`ses_`, `lnk_` - minted as random bytes, uniformly long) keep
+  the 2026-08-20 rule exactly: prefix plus 8, monospace, tabular, a copy control,
+  no ellipsis.
+- **Derived ids** (`q_`, `opt_` - minted from author-written text) **render
+  whole.** Never truncated to a prefix, never ellipsized. A copy control is still
+  welcome; it is no longer the thing that makes the column usable.
+
+**The distinguishing property is minting convention, not type, and it matters
+that the type cannot carry it.** `packages/core/src/ids.ts:15` mints every brand
+from one `idPattern` factory, so `^q_[a-z0-9_]+$` and `^ses_[a-z0-9_]+$` are the
+same grammar - `ses_45cf6345` is an equally valid whole `SessionId`. What differs
+is length convention. An opaque id is uniformly long, so a shorter one is
+self-evidently a prefix. A derived id has no length convention at all, so **a
+truncation of one is itself a syntactically valid id of the same kind, and
+nothing on the screen distinguishes it from a whole one.** `q_accident_count` cut
+to prefix-plus-8 is `q_accident`, a string that could perfectly well be another
+question in the same form. That is the harm the anti-ellipsis clause already
+names, arriving by a different route: a truncation that looks like data.
+
+**A correction to the record, because this ruling was nearly built on a false
+premise.** The PO review of #584 asserted that `q_accident` and `q_accident_count`
+both exist in the golden corpus, making the collision demonstrable in-repo. **That
+is wrong.** The corpus holds `q_accident_count` and `q_at_fault_accident`; there
+is no `q_accident`, and no two ids in it share a prefix-plus-8. The argument above
+is stated so that it needs no collision to exist today - it is about what a reader
+can tell from the rendered string, which is the stronger form of the claim and the
+one that survives someone checking it. The false claim is corrected on the PR as
+well as here.
+
+**Known deviation, named rather than shipped silently: the option grid ellipsizes
+`opt_` ids today.** `.qcms-opt-cell--id` (`apps/admin/app/globals.css:929-938`)
+sets `white-space: nowrap` with `text-overflow: ellipsis` inside the frozen card's
+140px column, putting the whole id in a `title` tooltip and shipping no copy
+control. Task 057 landed that on 2026-08-09 (`15a3ba7`), twelve days before this
+amendment existed, so it cannot have rejected a clause that did not exist. Its own
+comment records both the cause and the deferral: the Code Owner's minting ruling
+keeps option ids label-derived, so a real `opt_roadside_assistance` overflows a
+column sized for the mock's opaque `opt_8f2ka91m`, and the width is left as "the
+card's call to revisit, not this task's to change".
+
+So this amendment makes shipped code non-compliant on the day it lands. That is
+stated here with an issue attached rather than left for a future reader to
+discover as a silent contradiction. It also moves the column width out of the
+card's hands and into this contract's: rendering a derived id whole is now what
+the width has to accommodate, and the frozen card's 140px is evidence of an intent
+formed before the rule existed, not an authority against it.
+
 ## 3. Empty state
 
 The frozen card's shape, everywhere: centred panel, `1.5px dashed
@@ -135,6 +189,34 @@ gets reinvented:
   obligations, invented to satisfy a clause rather than to serve a user. Under
   §7a's lesson, a new pattern arriving to fill a contract gap is exactly the thing
   to refuse.
+
+**Amendment, 2026-08-21 (PM/PO seat): "and nothing else" means nothing that makes
+a claim about the failed read, not nothing at all.**
+
+Two PRs have now read the clause broadly - #571 (#514) and #593 (#543) - and both
+were right to. The wording invites the narrow reading anyway, so it is restated
+here rather than re-litigated a third time.
+
+**The rule: on a failed read, the screen renders the error alert and nothing that
+states or implies anything about the collection that failed to load.** That
+forbids the empty `<ul>`, the empty-state panel, a "no items" sentence, a zero
+count, and - since #514 made the panel loud - a creating CTA presented as the
+answer to an empty collection.
+
+**What it does not forbid is chrome that remains true.** A page heading, a filter
+control, a rail, and a creating action that genuinely still works are not claims
+about the failed read. `forms/[formId]/webhooks/page.tsx` carries the case in its
+own comment: an operator who cannot load the existing endpoints may still
+legitimately need to add one, and suppressing the whole component to satisfy
+"nothing else" would remove a working capability because a different read failed.
+
+The distinction to hold onto is **claim versus capability**. A failed read costs
+the screen its right to describe the collection; it does not cost the screen its
+controls. #572 and #544 apply this across the remaining sites, and #572's
+conclusion is the shape this contract expects: pass an explicit failed-versus-empty
+distinction into the client components rather than collapsing both into `[]` at the
+page boundary, with one answer for all of them instead of a third invented per
+component.
 
 ## 4. Status badges
 
@@ -179,6 +261,42 @@ Every screen states its model exactly once:
 
 Issue #518 implements the two shipped screens; this contract is what stops the
 POCs' third and fourth variants returning.
+
+**Amendment, 2026-08-21 (PM/PO seat, escalated by PR #585): one model per scope,
+not per screen.**
+
+"Every screen states its model exactly once" was true while a screen was one save
+model. The builder is not: it autosaves, and it embeds panels of its own. #585
+escalated two of them. Both are real, and they are **not the same category** -
+written as one rule about embedded statements, the amendment would license an
+arbitrary second Save button anywhere, which is the opposite of what §6 is for.
+
+**The rule: a screen states one model per scope.**
+
+- **A nested scope that persists states its own model.** `FormSettingsPanel` has
+  its own persistence, its own control and its own live region. That is a genuine
+  second save model, and it states itself where its control is, exactly as a
+  manual screen would.
+- **A nested scope that does not persist may disclaim that it does not.**
+  `QuestionPreview` has no save control, no action, no submit and no persistence -
+  local `useState` feeding the renderer. Its sentence is a sandbox disclaimer, and
+  it is allowed on that basis alone.
+- **A scope with no persistence never acquires a save control to justify its
+  sentence**, and a disclaimer is never written in the save vocabulary: no
+  "Saved", no timestamp, no reuse of the ambient strip's styling. The two
+  vocabularies stay apart for the same reason the strip carries no issue count.
+
+**The screen-level clause still binds at screen level.** The builder's ambient
+strip remains the only *screen-scope* save statement. A nested scope's statement
+is not a second one, provided it is visibly bound to its own scope rather than
+floating in the page chrome.
+
+**Consequence to accept knowingly, and it ships today:** pressing "Save settings"
+in the builder renders "Saved <time>" and "Settings saved." at once. Under this
+amendment both are legitimate - they belong to different scopes - but together
+they read as one screen contradicting itself about how many things just happened.
+Separating them is a wording and placement job rather than a licence question, and
+it belongs with #518's implementation, not here.
 
 ## 7. The rail
 
