@@ -197,32 +197,58 @@ export async function movePin(page: Page, questionId: string, version: number): 
  * The save indicator is the product's own statement that the draft reached the API, so
  * waiting on it is waiting on the thing under test rather than on a sleep. The timeout is
  * generous because `next dev` compiles the server action's route on first use.
+ *
+ * Since issue 518 the indicator is the builder's ambient save strip rather than a sentence
+ * inside the validation panel. The testid did not move with it: it names the sentence, and
+ * the sentence is the same one.
  */
 export async function waitForSaved(page: Page): Promise<void> {
-  await expect(page.getByTestId("qcms-save-state")).toContainText(/^Saved /, { timeout: 30_000 });
+  await expect(saveState(page)).toContainText(/^Saved /, { timeout: 30_000 });
 }
 
-/** The save indicator's current sentence, so a caller can wait for it to CHANGE. */
+/** The save indicator's current sentence. */
 export function saveState(page: Page): Locator {
   return page.getByTestId("qcms-save-state");
 }
 
+/** The ambient save strip, which carries the machine-readable instant of the last save. */
+export function saveStatus(page: Page): Locator {
+  return page.getByTestId("qcms-save-status");
+}
+
 /**
- * Wait for a NEW autosave to land, given the indicator's text from before the edit.
+ * The instant of the last successful autosave, or `""` before the first one this visit.
+ *
+ * The attribute rather than the sentence, and that is the whole point of the attribute:
+ * see `waitForSaveAfter`.
+ */
+export async function savedStamp(page: Page): Promise<string> {
+  return (await saveStatus(page).getAttribute("data-saved-at")) ?? "";
+}
+
+/**
+ * Wait for a NEW autosave to land, given the strip's `data-saved-at` from before the edit.
  *
  * `waitForSaved` on its own is not enough after an edit, and 034's gate capture is where
- * that stopped being theoretical: "Saved 10:14:02" is already on screen from the previous
- * save, so it returns immediately and the caller races the round trip it meant to wait
- * for. Publishing straight afterwards then freezes - or refuses to freeze - the PREVIOUS
- * draft, which reads as a bug in publish rather than as a test that jumped the queue.
+ * that stopped being theoretical: "Saved ..." is already on screen from the previous save,
+ * so it returns immediately and the caller races the round trip it meant to wait for.
+ * Publishing straight afterwards then freezes - or refuses to freeze - the PREVIOUS draft,
+ * which reads as a bug in publish rather than as a test that jumped the queue.
  *
  * Waiting for the validation panel instead does not fix it either: validate is a separate
  * debounced call, so the panel can report the engine's verdict on a document the server
- * has not been given. The indicator carries a clock time with seconds, so a *different*
- * sentence is the one signal that another save completed.
+ * has not been given.
+ *
+ * This used to compare the indicator's TEXT, which worked only because that text carried
+ * seconds. Issue 518 took the seconds out on purpose (`plan/admin-design-contracts.md` §2,
+ * and a per-minute string is what keeps the live region quiet during sustained typing), so
+ * two saves in the same minute now render identically. `data-saved-at` is the replacement:
+ * the raw ISO instant, precise enough for a test and never announced to anyone.
  */
 export async function waitForSaveAfter(page: Page, previous: string): Promise<void> {
-  await expect(saveState(page)).not.toHaveText(previous, { timeout: 30_000 });
+  await expect(saveStatus(page)).not.toHaveAttribute("data-saved-at", previous, {
+    timeout: 30_000,
+  });
   await waitForSaved(page);
 }
 

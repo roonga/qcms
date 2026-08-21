@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 
 import { Alert, Button, Checkbox, Select, TextField } from "@/components/kit";
+import { ManualSaveNote } from "@/components/save-model";
 import { t } from "@/lib/i18n/en";
 import {
   CONSTRAINT_FIELDS,
@@ -285,11 +286,24 @@ export function QuestionEditor({
         />
       )}
 
+      {/* The manual save model, stated where the author will meet it (issue 518;
+          `plan/admin-design-contracts.md` §6). It sits before the button in DOM order so a
+          linear read reaches it on the way to the control, and it is deliberately not on
+          the frozen branch: a frozen version has no Save button, and contract §6 says a
+          screen with nothing to save says nothing. There is no companion "Saved 14:02"
+          strip here, by the same rule - the builder's ambient chrome is for the one screen
+          that autosaves, and putting it beside a Save button is the confusion
+          `plan/admin-ux-audit.md` §4.6 describes rather than the fix for it. */}
       {!isFrozen && (
-        <div>
-          <Button type="submit" variant="primary" size="md" isDisabled={isPending}>
-            {isCreate ? t("questions.create.submit") : t("questions.editor.save")}
-          </Button>
+        <div className="flex flex-col gap-2">
+          <ManualSaveNote
+            messageKey={isCreate ? "questions.create.manualModel" : "questions.editor.manualModel"}
+          />
+          <div>
+            <Button type="submit" variant="primary" size="md" isDisabled={isPending}>
+              {isCreate ? t("questions.create.submit") : t("questions.editor.save")}
+            </Button>
+          </div>
         </div>
       )}
     </form>

@@ -185,6 +185,8 @@ export const messages = {
   "questions.create.typeNote":
     "Locked once the question exists. A different type is a different answer shape, so changing it means creating a new question rather than editing this one (R6).",
   "questions.create.submit": "Create draft",
+  "questions.create.manualModel":
+    "This editor does not save automatically. Nothing is stored until you select Create draft, and leaving this page first discards what you have written.",
 
   "questions.editor.heading": "Version {version}",
   "questions.editor.label": "Label",
@@ -193,6 +195,8 @@ export const messages = {
   "questions.editor.required": "An answer is required",
   "questions.editor.typeLocked": "Type is locked to {type}.",
   "questions.editor.save": "Save draft",
+  "questions.editor.manualModel":
+    "This editor does not save automatically. Your changes are stored when you select Save draft, and leaving this page first discards them.",
   "questions.editor.saved": "Draft saved.",
   "questions.editor.constraints": "Constraints",
   "questions.editor.noConstraints": "This type has no constraints to set.",
@@ -447,10 +451,10 @@ export const messages = {
   "forms.builder.closed":
     "This form is closed to new responses. Editing the draft is still allowed; publishing is what makes a change live.",
 
+  "forms.save.model": "This draft saves automatically as you edit.",
   "forms.save.idle": "No changes yet.",
   "forms.save.saving": "Saving...",
   "forms.save.saved": "Saved {time}",
-  "forms.save.validating": "Checking...",
   "forms.save.failed": "The last save failed.",
   "forms.save.pausedNoSteps":
     "Autosave is paused: a form needs at least one step before it can be stored.",
@@ -464,6 +468,11 @@ export const messages = {
   "forms.validation.countOne": "1 issue would block a publish.",
   "forms.validation.count": "{count} issues would block a publish.",
   "forms.validation.checking": "Checking the draft...",
+  // The panel's refusal to vouch. It says what it does NOT know rather than reporting a
+  // count it could not compute, because the alternative on a failed check is the panel
+  // falling through to "No issues" and asserting publish-readiness it has no basis for.
+  "forms.validation.unchecked":
+    "The draft could not be checked, so this is not a current count of what would block a publish.",
 
   "forms.steps.title": "Steps",
   "forms.steps.add": "Add step",
