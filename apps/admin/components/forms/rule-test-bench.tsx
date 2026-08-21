@@ -12,7 +12,7 @@ import {
 } from "@/lib/forms/condition";
 import { draftDocumentOrder } from "@/lib/forms/draft";
 import type { DraftForm, DraftRule, PinnableQuestion } from "@/lib/forms/types";
-import { t } from "@/lib/i18n/en";
+import { t, tPlural } from "@/lib/i18n/en";
 
 import { answerKindForType, OperandControl, type OperandValue } from "./operand-control";
 
@@ -41,6 +41,20 @@ import { answerKindForType, OperandControl, type OperandValue } from "./operand-
  * SEC-13 / ADR-34: the values typed here are answer-shaped. They are not stored, not
  * logged, and not echoed back in any message. The action forwards them, a verdict comes
  * back, and the verdict is all that is rendered.
+ *
+ * ## The summary carries a heading and a digest (issue 519)
+ *
+ * Same change, same reasons, as the settings panel beside it: an `h2` inside the
+ * `<summary>` so the bench has an entry in the builder's heading outline at the level
+ * every other section uses (`plan/admin-ux-audit.md` §4.3), and a §3.7 digest whose every
+ * fact also exists inside the panel - the rule is the Select's value, and the question
+ * count is the number of entries the "Hypothetical answers" fieldset renders.
+ *
+ * Two things the digest deliberately does not say. It states no **issue** count: the
+ * validation panel on the same screen owns the one authoritative count, and a second
+ * count of an overlapping set is §5.6's named mistake. And it states no **outcome**: the
+ * verdict only exists after a run, so before the first press "not run yet" would be a
+ * fact living in the summary alone, which is exactly what §3.7 forbids.
  */
 export function RuleTestBench({
   draft,
@@ -67,8 +81,18 @@ export function RuleTestBench({
 
   return (
     <details className="rounded-md border border-(--color-border) bg-(--color-surface) p-4">
-      <summary className="cursor-pointer text-base font-semibold text-(--color-text)">
-        {t("forms.bench.title")}
+      {/* One heading element plus phrasing content is what `<summary>` accepts; the
+          heading is `inline` so the marker, the title and the digest share a line. */}
+      <summary className="cursor-pointer">
+        <h2 className="inline text-base font-semibold text-(--color-text)">
+          {t("forms.bench.title")}
+        </h2>
+        <span
+          className="ms-2 text-sm font-normal text-(--color-text-muted)"
+          data-testid="qcms-bench-digest"
+        >
+          {benchDigest(rule?.ruleId, references.length)}
+        </span>
       </summary>
 
       <div className="mt-3 flex flex-col gap-4">
@@ -99,20 +123,26 @@ export function RuleTestBench({
               ) : (
                 <div className="flex flex-col gap-3">
                   {references.map((questionId) => (
-                    <AnswerControl
-                      key={questionId}
-                      draft={draft}
-                      library={library}
-                      questionId={questionId}
-                      value={answers[questionId]}
-                      onChange={(value) => {
-                        // Functional form on purpose: the handler outlives the render it
-                        // was created in, so spreading the `answers` it closed over drops
-                        // any sibling answer set since. Issue #224 is that exact loss in
-                        // the question editor, with two controls changed in one tick.
-                        setAnswers((previous) => ({ ...previous, [questionId]: value }));
-                      }}
-                    />
+                    // One marked entry per question the condition reads, whether it
+                    // resolves to a control or to the unpinned sentence. The digest's
+                    // "reads N questions" is a count of exactly these, so the §3.7
+                    // property - the fact in the summary also exists inside the panel -
+                    // is a countable claim rather than an argued one (issue 519).
+                    <div key={questionId} data-testid="qcms-bench-reference">
+                      <AnswerControl
+                        draft={draft}
+                        library={library}
+                        questionId={questionId}
+                        value={answers[questionId]}
+                        onChange={(value) => {
+                          // Functional form on purpose: the handler outlives the render
+                          // it was created in, so spreading the `answers` it closed over
+                          // drops any sibling answer set since. Issue #224 is that exact
+                          // loss in the question editor, two controls changed in one tick.
+                          setAnswers((previous) => ({ ...previous, [questionId]: value }));
+                        }}
+                      />
+                    </div>
                   ))}
                 </div>
               )}
@@ -154,6 +184,26 @@ export function RuleTestBench({
       </div>
     </details>
   );
+}
+
+/**
+ * What the bench is loaded with, in the summary's own words (issue 519).
+ *
+ * Two facts, both of them inside the panel: the rule id is the Select's current value,
+ * and the question count is the number of `qcms-bench-reference` entries the fieldset
+ * renders. With no rules at all there is nothing to state, and the panel says so in its
+ * own sentence.
+ */
+function benchDigest(ruleId: string | undefined, references: number): string {
+  if (ruleId === undefined) return t("forms.bench.digest.noRules");
+  return t("forms.bench.digest", {
+    rule: ruleId,
+    questions: tPlural(
+      "forms.bench.digest.questionOne",
+      "forms.bench.digest.questionOther",
+      references,
+    ),
+  });
 }
 
 /** One hypothetical answer, in the control that question's pinned type calls for. */

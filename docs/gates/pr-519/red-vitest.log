@@ -1,0 +1,186 @@
+RED-FIRST PROOF, issue 519, Vitest layer.
+Command: pnpm exec vitest run --root . --project qcms-admin components/forms/builder-digests.test.tsx components/ops/delivery-digest.test.tsx
+Tree: this branch with the three component files reverted to origin/main (f36ce69); the new tests, the i18n keys and the register edit in place.
+Captured: 2026-08-20T23:18:03Z
+------------------------------------------------------------
+
+ RUN  v4.1.10 /workspaces/qcms/.claude/worktrees/519-digests
+
+ ❯ |qcms-admin| components/ops/delivery-digest.test.tsx (7 tests | 7 failed) 8ms
+     × states status, failed attempts and latency, as facts 5ms
+     × drops latency from the sentence when there is no attempt to have measured one 0ms
+     × joins the accessible name of the trigger rather than sitting beside it 0ms
+     × keeps every digested fact inside the panel as well (§3.7) 0ms
+     × carries the latency inside the panel at every width, not only where its cell survives 0ms
+     × heads the panel at h3, so the request headers below stop skipping a level (#541) 0ms
+     × states the three facts even on a row nothing has been attempted on 0ms
+ ❯ |qcms-admin| components/forms/builder-digests.test.tsx (9 tests | 9 failed) 62ms
+     × puts an h2 inside the summary, so the panel has an entry in the heading outline 14ms
+     × states the two switches as facts, with no judgement and no save claim 9ms
+     × keeps every digested fact inside the panel as well (§3.7) 5ms
+     × says the deployment default is in force when no override is set, and shows no field 2ms
+     × puts an h2 inside the summary, at the same level as the panel beside it 12ms
+     × counts the questions the loaded rule reads, and the panel renders that many 6ms
+     × states no issue count, because the validation panel owns the screen's only one 6ms
+     × states no outcome, because a verdict exists only after a run 6ms
+     × says there is nothing to try when the draft has no rules, and the panel agrees 1ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 16 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |qcms-admin| components/forms/builder-digests.test.tsx > the form settings panel's summary (issue 519) > puts an h2 inside the summary, so the panel has an entry in the heading outline
+AssertionError: expected '<details class="rounded-md border bor…' to match /<summary[^>]*><h2[^>]*>/
+
+- Expected:
+/<summary[^>]*><h2[^>]*>/
+
++ Received:
+"<details class=\"rounded-md border border-(--color-border) bg-(--color-surface) p-4\" open=\"\"><summary class=\"cursor-pointer text-base font-semibold text-(--color-text)\">Form settings</summary><div class=\"mt-3 flex flex-col gap-4\"><p class=\"text-sm text-(--color-text-muted)\">Abuse controls for this form. They apply the next time it is published.</p><div class=\"flex flex-col gap-2\"><div class=\"flex flex-col gap-1\" data-rac=\"\"><label data-react-aria-pressable=\"true\" class=\"flex items-center gap-2 text-sm text-(--color-text) cursor-pointer select-none  \" data-rac=\"\"><span style=\"border:0;clip:rect(0 0 0 0);clip-path:inset(50%);height:1px;margin:-1px;overflow:hidden;padding:0;position:absolute;width:1px;white-space:nowrap\"><input aria-describedby=\"react-aria-_R_1a_ react-aria-_R_1aH1_\" type=\"checkbox\" data-react-aria-pressable=\"true\" tabindex=\"0\"/></span><div class=\"w-4 h-4 shrink-0 rounded border-2 flex items-center justify-center transition-colors bg-(--color-background) border-(--color-border)\"></div>Require a challenge before answering</label></div><p class=\"text-sm text-(--color-text-muted)\">Starting a session has to pass the deployment's challenge provider first.</p></div><div class=\"flex flex-col gap-2\"><div class=\"flex flex-col gap-1\" data-rac=\"\" data-selected=\"true\"><label data-react-aria-pressable=\"true\" class=\"flex items-center gap-2 text-sm text-(--color-text) cursor-pointer select-none  \" data-rac=\"\" data-selected=\"true\"><span style=\"border:0;clip:rect(0 0 0 0);clip-path:inset(50%);height:1px;margin:-1px;overflow:hidden;padding:0;position:absolute;width:1px;white-space:nowrap\"><input aria-describedby=\"react-aria-_R_1e_ react-aria-_R_1eH1_\" type=\"checkbox\" data-react-aria-pressable=\"true\" tabindex=\"0\" checked=\"\"/></span><div class=\"w-4 h-4 shrink-0 rounded border-2 flex items-center justify-center transition-colors bg-(--color-primary) border-(--color-primary) text-(--color-primary-foreground)\"><svg viewBox=\"0 0 12 12\" aria-hidden=\"true\" class=\"h-3 w-3\"><polyline points=\"1.5 6 4.5 9.5 10.5 2.5\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"></polyline></svg></div>Use the deployment's minimum time</label></div></div><div class=\"flex flex-wrap items-center gap-3\"><button class=\"inline-flex items-center justify-center rounded font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-(--color-secondary) hover:bg-(--color-secondary-hover) active:bg-(--color-secondary-active) text-(--color-secondary-foreground) px-4 py-2 text-base\" data-rac=\"\" type=\"button\" disabled=\"\" data-react-aria-pressable=\"true\" id=\"react-aria-_R_1i_\" data-disabled=\"true\">Save settings</button><p aria-live=\"polite\" class=\"text-sm text-(--color-text-muted)\" data-testid=\"qcms-form-settings-status\"><span data-testid=\"qcms-settings-state\"></span></p></div></div></details>"
+
+ ❯ components/forms/builder-digests.test.tsx:95:18
+     93|     const html = renderSettings({ challengeRequired: false, minSubmitM…
+     94|
+     95|     expect(html).toMatch(SUMMARY_HEADING);
+       |                  ^
+     96|     expect(html).toContain(t("forms.settings.title"));
+     97|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/16]⎯
+
+ FAIL  |qcms-admin| components/forms/builder-digests.test.tsx > the form settings panel's summary (issue 519) > states the two switches as facts, with no judgement and no save claim
+AssertionError: the render carries a qcms-settings-digest element: expected null not to be null
+ ❯ textOfTestId components/forms/builder-digests.test.tsx:82:63
+     80| function textOfTestId(html: string, testId: string): string {
+     81|   const match = new RegExp(`data-testid="${testId}"[^>]*>(.*?)</`, "s"…
+     82|   expect(match, `the render carries a ${testId} element`).not.toBeNull…
+       |                                                               ^
+     83|   return (match?.[1] ?? "").replaceAll(/<[^>]*>/g, "");
+     84| }
+ ❯ components/forms/builder-digests.test.tsx:100:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/16]⎯
+
+ FAIL  |qcms-admin| components/forms/builder-digests.test.tsx > the form settings panel's summary (issue 519) > keeps every digested fact inside the panel as well (§3.7)
+AssertionError: the render carries a qcms-settings-digest element: expected null not to be null
+ ❯ textOfTestId components/forms/builder-digests.test.tsx:82:63
+     80| function textOfTestId(html: string, testId: string): string {
+     81|   const match = new RegExp(`data-testid="${testId}"[^>]*>(.*?)</`, "s"…
+     82|   expect(match, `the render carries a ${testId} element`).not.toBeNull…
+       |                                                               ^
+     83|   return (match?.[1] ?? "").replaceAll(/<[^>]*>/g, "");
+     84| }
+ ❯ components/forms/builder-digests.test.tsx:115:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/16]⎯
+
+ FAIL  |qcms-admin| components/forms/builder-digests.test.tsx > the form settings panel's summary (issue 519) > says the deployment default is in force when no override is set, and shows no field
+AssertionError: the render carries a qcms-settings-digest element: expected null not to be null
+ ❯ textOfTestId components/forms/builder-digests.test.tsx:82:63
+     80| function textOfTestId(html: string, testId: string): string {
+     81|   const match = new RegExp(`data-testid="${testId}"[^>]*>(.*?)</`, "s"…
+     82|   expect(match, `the render carries a ${testId} element`).not.toBeNull…
+       |                                                               ^
+     83|   return (match?.[1] ?? "").replaceAll(/<[^>]*>/g, "");
+     84| }
+ ❯ components/forms/builder-digests.test.tsx:130:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/16]⎯
+
+ FAIL  |qcms-admin| components/forms/builder-digests.test.tsx > the rule test bench's summary (issue 519) > puts an h2 inside the summary, at the same level as the panel beside it
+AssertionError: expected '<details class="rounded-md border bor…' to match /<summary[^>]*><h2[^>]*>/
+
+- Expected:
+/<summary[^>]*><h2[^>]*>/
+
++ Received:
+"<details class=\"rounded-md border border-(--color-border) bg-(--color-surface) p-4\"><summary class=\"cursor-pointer text-base font-semibold text-(--color-text)\">Rule test bench</summary><div class=\"mt-3 flex flex-col gap-4\"><p class=\"text-sm text-(--color-text-muted)\">A read-only preview. Answers typed here are evaluated against the draft on your screen and are never saved, never logged, and never seen by a respondent.</p><template></template><div class=\"flex flex-col gap-1\" data-rac=\"\"><span class=\"text-sm font-medium text-(--color-text)\" id=\"react-aria-_R_4qH3_\">Rule</span><button id=\"react-aria-_R_4qH2_\" class=\"flex w-full min-w-40 min-h-11 cursor-pointer items-center justify-between gap-2 rounded border px-3 py-2 text-sm transition-colors border-(--color-border) bg-(--color-background) text-(--color-text) hover:border-(--color-primary)\" data-rac=\"\" type=\"button\" tabindex=\"0\" data-react-aria-pressable=\"true\" aria-labelledby=\"react-aria-_R_4qH7_ react-aria-_R_4qH3_\" aria-describedby=\"react-aria-_R_4qH5_ react-aria-_R_4qH6_\" aria-haspopup=\"listbox\" aria-expanded=\"false\"><span id=\"react-aria-_R_4qH7_\" class=\"react-aria-SelectValue\" data-rac=\"\"><span class=\"flex-1 truncate text-left\">rul_two_reads</span></span><svg aria-hidden=\"true\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" class=\"h-4 w-4 shrink-0 text-(--color-text-muted)\"><path d=\"M4 6l4 4 4-4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"></path></svg></button><div style=\"border:0;clip:rect(0 0 0 0);clip-path:inset(50%);height:1px;margin:-1px;overflow:hidden;padding:0;position:fixed;width:1px;white-space:nowrap;top:0;left:0\" aria-hidden=\"true\" data-react-aria-prevent-focus=\"true\" data-a11y-ignore=\"aria-hidden-focus\" data-testid=\"hidden-select-container\"><label><select tabindex=\"-1\"><option value=\"\" label=\" \"> </option><option value=\"rul_two_reads\" selected=\"\">rul_two_reads</option></select></label></div></div><fieldset class=\"qcms-fieldset qcms-fieldset--flat\"><legend class=\"qcms-fieldset__legend\">Hypothetical answers</legend><div class=\"flex flex-col gap-3\"><template></template><div class=\"flex flex-col gap-1\" data-rac=\"\"><span class=\"text-sm font-medium text-(--color-text)\" id=\"react-aria-_R_2daH3_\">q_colour@1</span><button id=\"react-aria-_R_2daH2_\" class=\"flex w-full min-w-40 min-h-11 cursor-pointer items-center justify-between gap-2 rounded border px-3 py-2 text-sm transition-colors border-(--color-border) bg-(--color-background) text-(--color-text) hover:border-(--color-primary)\" data-rac=\"\" type=\"button\" tabindex=\"0\" data-react-aria-pressable=\"true\" aria-labelledby=\"react-aria-_R_2daH7_ react-aria-_R_2daH3_\" aria-describedby=\"react-aria-_R_2daH5_ react-aria-_R_2daH6_\" aria-haspopup=\"listbox\" aria-expanded=\"false\"><span id=\"react-aria-_R_2daH7_\" class=\"react-aria-SelectValue\" data-rac=\"\"><span class=\"flex-1 truncate text-left\">opt_red</span></span><svg aria-hidden=\"true\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" class=\"h-4 w-4 shrink-0 text-(--color-text-muted)\"><path d=\"M4 6l4 4 4-4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"></path></svg></button><div style=\"border:0;clip:rect(0 0 0 0);clip-path:inset(50%);height:1px;margin:-1px;overflow:hidden;padding:0;position:fixed;width:1px;white-space:nowrap;top:0;left:0\" aria-hidden=\"true\" data-react-aria-prevent-focus=\"true\" data-a11y-ignore=\"aria-hidden-focus\" data-testid=\"hidden-select-container\"><label><select tabindex=\"-1\"><option value=\"\" label=\" \"> </option><option value=\"opt_red\" selected=\"\">opt_red</option><option value=\"opt_blue\">opt_blue</option></select></label></div></div><div class=\"flex flex-col gap-2\" data-rac=\"\"><label class=\"text-sm font-medium text-(--color-text)\" id=\"react-aria-_R_laH2_\" for=\"react-aria-_R_la_\">q_count@1</label><div role=\"group\" aria-disabled=\"false\" class=\"flex items-center border border-(--color-border) rounded bg-(--color-background) focus-within:ring-2 focus-within:ring-(--color-primary) focus-within:border-transparent\" data-rac=\"\"><button id=\"react-aria-_R_laH7_\" class=\"h-11 w-11 shrink-0 flex items-center justify-center text-(--color-text-muted) hover:text-(--color-text) hover:bg-(--color-background-muted) transition-colors outline-none first:rounded-l last:rounded-r focus-visible:outline-2 focus-visible:outline-(--color-primary) disabled:opacity-50 disabled:cursor-not-allowed select-none\" data-rac=\"\" type=\"button\" tabindex=\"-1\" data-react-aria-pressable=\"true\" aria-label=\"Decrease\" aria-labelledby=\"react-aria-_R_laH7_ react-aria-_R_laH2_\" aria-controls=\"react-aria-_R_la_\" slot=\"decrement\">−</button><span class=\"w-px self-stretch bg-(--color-border)\" aria-hidden=\"true\"></span><input aria-labelledby=\"react-aria-_R_laH2_\" id=\"react-aria-_R_la_\" type=\"text\" autoComplete=\"off\" inputMode=\"numeric\" autoCorrect=\"off\" spellCheck=\"false\" tabindex=\"0\" aria-describedby=\"react-aria-_R_laH4_ react-aria-_R_laH5_\" aria-roledescription=\"Number field\" class=\"self-stretch flex-1 min-w-0 px-3 text-sm bg-transparent text-(--color-text) placeholder-(--color-text-muted) focus:outline-none disabled:cursor-not-allowed\" data-rac=\"\" value=\"0\"/><span class=\"w-px self-stretch bg-(--color-border)\" aria-hidden=\"true\"></span><button id=\"react-aria-_R_laH6_\" class=\"h-11 w-11 shrink-0 flex items-center justify-center text-(--color-text-muted) hover:text-(--color-text) hover:bg-(--color-background-muted) transition-colors outline-none first:rounded-l last:rounded-r focus-visible:outline-2 focus-visible:outline-(--color-primary) disabled:opacity-50 disabled:cursor-not-allowed select-none\" data-rac=\"\" type=\"button\" tabindex=\"-1\" data-react-aria-pressable=\"true\" aria-label=\"Increase\" aria-labelledby=\"react-aria-_R_laH6_ react-aria-_R_laH2_\" aria-controls=\"react-aria-_R_la_\" slot=\"increment\">+</button></div></div></div></fieldset><div class=\"flex flex-wrap items-center gap-3\"><button class=\"inline-flex items-center justify-center rounded font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-(--color-secondary) hover:bg-(--color-secondary-hover) active:bg-(--color-secondary-active) text-(--color-secondary-foreground) px-4 py-2 text-base\" data-rac=\"\" type=\"button\" tabindex=\"0\" data-react-aria-pressable=\"true\" id=\"react-aria-_R_3q_\">Run preview</button><p aria-live=\"polite\" class=\"text-sm text-(--color-text)\" data-testid=\"qcms-bench-status\"><span data-testid=\"qcms-bench-outcome\" data-outcome=\"idle\"></span></p></div></div></details>"
+
+ ❯ components/forms/builder-digests.test.tsx:222:32
+    220| describe("the rule test bench's summary (issue 519)", () => {
+    221|   it("puts an h2 inside the summary, at the same level as the panel be…
+    222|     expect(renderBench(DRAFT)).toMatch(SUMMARY_HEADING);
+       |                                ^
+    223|     expect(renderBench(DRAFT)).toContain(t("forms.bench.title"));
+    224|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/16]⎯
+
+ FAIL  |qcms-admin| components/forms/builder-digests.test.tsx > the rule test bench's summary (issue 519) > counts the questions the loaded rule reads, and the panel renders that many
+AssertionError: the render carries a qcms-bench-digest element: expected null not to be null
+ ❯ textOfTestId components/forms/builder-digests.test.tsx:82:63
+     80| function textOfTestId(html: string, testId: string): string {
+     81|   const match = new RegExp(`data-testid="${testId}"[^>]*>(.*?)</`, "s"…
+     82|   expect(match, `the render carries a ${testId} element`).not.toBeNull…
+       |                                                               ^
+     83|   return (match?.[1] ?? "").replaceAll(/<[^>]*>/g, "");
+     84| }
+ ❯ components/forms/builder-digests.test.tsx:228:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/16]⎯
+
+ FAIL  |qcms-admin| components/forms/builder-digests.test.tsx > the rule test bench's summary (issue 519) > states no issue count, because the validation panel owns the screen's only one
+AssertionError: the render carries a qcms-bench-digest element: expected null not to be null
+ ❯ textOfTestId components/forms/builder-digests.test.tsx:82:63
+     80| function textOfTestId(html: string, testId: string): string {
+     81|   const match = new RegExp(`data-testid="${testId}"[^>]*>(.*?)</`, "s"…
+     82|   expect(match, `the render carries a ${testId} element`).not.toBeNull…
+       |                                                               ^
+     83|   return (match?.[1] ?? "").replaceAll(/<[^>]*>/g, "");
+     84| }
+ ❯ components/forms/builder-digests.test.tsx:241:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/16]⎯
+
+ FAIL  |qcms-admin| components/forms/builder-digests.test.tsx > the rule test bench's summary (issue 519) > states no outcome, because a verdict exists only after a run
+AssertionError: the render carries a qcms-bench-digest element: expected null not to be null
+ ❯ textOfTestId components/forms/builder-digests.test.tsx:82:63
+     80| function textOfTestId(html: string, testId: string): string {
+     81|   const match = new RegExp(`data-testid="${testId}"[^>]*>(.*?)</`, "s"…
+     82|   expect(match, `the render carries a ${testId} element`).not.toBeNull…
+       |                                                               ^
+     83|   return (match?.[1] ?? "").replaceAll(/<[^>]*>/g, "");
+     84| }
+ ❯ components/forms/builder-digests.test.tsx:250:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/16]⎯
+
+ FAIL  |qcms-admin| components/forms/builder-digests.test.tsx > the rule test bench's summary (issue 519) > says there is nothing to try when the draft has no rules, and the panel agrees
+AssertionError: the render carries a qcms-bench-digest element: expected null not to be null
+ ❯ textOfTestId components/forms/builder-digests.test.tsx:82:63
+     80| function textOfTestId(html: string, testId: string): string {
+     81|   const match = new RegExp(`data-testid="${testId}"[^>]*>(.*?)</`, "s"…
+     82|   expect(match, `the render carries a ${testId} element`).not.toBeNull…
+       |                                                               ^
+     83|   return (match?.[1] ?? "").replaceAll(/<[^>]*>/g, "");
+     84| }
+ ❯ components/forms/builder-digests.test.tsx:262:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/16]⎯
+
+ FAIL  |qcms-admin| components/ops/delivery-digest.test.tsx > the delivery row trigger's digest (issue 519) > states status, failed attempts and latency, as facts
+ FAIL  |qcms-admin| components/ops/delivery-digest.test.tsx > the delivery row trigger's digest (issue 519) > drops latency from the sentence when there is no attempt to have measured one
+ FAIL  |qcms-admin| components/ops/delivery-digest.test.tsx > the delivery row trigger's digest (issue 519) > joins the accessible name of the trigger rather than sitting beside it
+ FAIL  |qcms-admin| components/ops/delivery-digest.test.tsx > the delivery row trigger's digest (issue 519) > keeps every digested fact inside the panel as well (§3.7)
+ FAIL  |qcms-admin| components/ops/delivery-digest.test.tsx > the delivery row trigger's digest (issue 519) > carries the latency inside the panel at every width, not only where its cell survives
+ FAIL  |qcms-admin| components/ops/delivery-digest.test.tsx > the delivery row trigger's digest (issue 519) > heads the panel at h3, so the request headers below stop skipping a level (#541)
+ FAIL  |qcms-admin| components/ops/delivery-digest.test.tsx > the delivery row trigger's digest (issue 519) > states the three facts even on a row nothing has been attempted on
+Error: Element type is invalid: expected a string (for built-in components) or a class/function (for composite components) but got: undefined. You likely forgot to export your component from the file it's defined in, or you might have mixed up default and named imports.
+ ❯ renderElement ../../node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:6119:15
+ ❯ retryNode ../../node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:6428:21
+ ❯ renderNodeDestructive ../../node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:6367:11
+ ❯ renderNode ../../node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:6905:18
+ ❯ renderElement ../../node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:5619:18
+ ❯ retryNode ../../node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:6428:21
+ ❯ renderNodeDestructive ../../node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:6367:11
+ ❯ renderNode ../../node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:6905:18
+ ❯ renderElement ../../node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:5619:18
+ ❯ retryNode ../../node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:6428:21
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/16]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  16 failed (16)
+   Start at  23:18:04
+   Duration  1.06s (transform 372ms, setup 0ms, import 1.03s, tests 69ms, environment 0ms)
+
+exit=1

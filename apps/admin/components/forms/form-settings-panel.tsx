@@ -32,6 +32,27 @@ import { t } from "@/lib/i18n/en";
  * deployment-facing switches, so they take an explicit press: an accidental keystroke in
  * the milliseconds field should not quietly change what a live form demands of a
  * respondent.
+ *
+ * ## The summary carries a heading and a digest (issue 519)
+ *
+ * `plan/admin-ux-audit.md` §4.3: this panel and the test bench were the only two sections
+ * on the builder with no entry in the heading outline, because a bare `<summary>` is not
+ * a heading. The `h2` inside the summary is the level every other section of this page
+ * uses (steps, step editor, rules, validation), so the outline now reads h1 form, h2
+ * section, with no hole and no skip.
+ *
+ * The digest beside it is §3.7's, and its one hard rule is that a fact stated there must
+ * also exist **inside** the panel: a collapsed `<details>` is removed from the
+ * accessibility tree entirely, so a summary that is the only home of a value destroys
+ * that value for anyone who has the panel shut. Both facts here are the panel's own
+ * controls read back - the challenge checkbox and the minimum-time field - so the panel
+ * is always the fuller copy.
+ *
+ * It reads the **draft** rather than the last confirmed settings for the same reason:
+ * the draft is what the controls below are showing, so the digest and the panel can
+ * never disagree, in any state. And it says nothing about saving. `plan/admin-design-contracts.md`
+ * §6 gives an autosaving screen exactly one save statement, and on the builder that is
+ * the ambient strip; a "saved" or "unsaved" word here would be a second one.
  */
 export function FormSettingsPanel({
   settings,
@@ -59,8 +80,20 @@ export function FormSettingsPanel({
 
   return (
     <details className="rounded-md border border-(--color-border) bg-(--color-surface) p-4" open>
-      <summary className="cursor-pointer text-base font-semibold text-(--color-text)">
-        {t("forms.settings.title")}
+      {/* `<summary>` takes phrasing content intermixed with ONE heading element, so the
+          `h2` and the digest span beside it are both valid children. The heading is
+          `inline` so the disclosure marker, the title and the digest sit on one line and
+          wrap together at a narrow width. */}
+      <summary className="cursor-pointer">
+        <h2 className="inline text-base font-semibold text-(--color-text)">
+          {t("forms.settings.title")}
+        </h2>
+        <span
+          className="ms-2 text-sm font-normal text-(--color-text-muted)"
+          data-testid="qcms-settings-digest"
+        >
+          {settingsDigest(draft)}
+        </span>
       </summary>
 
       <div className="mt-3 flex flex-col gap-4">
@@ -142,6 +175,27 @@ export function FormSettingsPanel({
       </div>
     </details>
   );
+}
+
+/**
+ * The two facts this panel holds, in the summary's own words (issue 519).
+ *
+ * Read from the draft, which is what the controls below are showing, so every fact
+ * stated here is visible inside the panel the moment it is opened (§3.7). No judgement
+ * and no save claim: "Challenge required, minimum time 800 ms", never "needs attention".
+ */
+function settingsDigest(draft: FormSettings): string {
+  return t("forms.settings.digest", {
+    challenge: t(
+      draft.challengeRequired
+        ? "forms.settings.digest.challengeOn"
+        : "forms.settings.digest.challengeOff",
+    ),
+    minSubmit:
+      draft.minSubmitMs === null
+        ? t("forms.settings.digest.minSubmitDefault")
+        : t("forms.settings.digest.minSubmitValue", { ms: draft.minSubmitMs }),
+  });
 }
 
 /** What one save reported, in a sentence, or nothing before the first one. */

@@ -595,6 +595,16 @@ export const messages = {
     "One of the questions this condition reads has no answer the engine could resolve.",
   "forms.bench.failed": "The preview could not be run. {message}",
 
+  // The bench's summary digest (issue 519; `plan/admin-ux-audit.md` §3.7). Facts only,
+  // and every one of them is also inside the panel: the rule is the Select's value and
+  // the question count is the number of entries the "Hypothetical answers" fieldset
+  // renders. Nothing here counts issues - the validation panel owns the screen's one
+  // authoritative issue count (§5.6).
+  "forms.bench.digest": "{rule}, reads {questions}",
+  "forms.bench.digest.noRules": "No rules to try",
+  "forms.bench.digest.questionOne": "1 question",
+  "forms.bench.digest.questionOther": "{count} questions",
+
   "forms.settings.title": "Form settings",
   "forms.settings.note": "Abuse controls for this form. They apply the next time it is published.",
   "forms.settings.challengeRequired": "Require a challenge before answering",
@@ -609,6 +619,15 @@ export const messages = {
   "forms.settings.save": "Save settings",
   "forms.settings.saved": "Settings saved.",
   "forms.settings.failed": "The settings could not be saved. {message}",
+  // The settings summary digest (issue 519; `plan/admin-ux-audit.md` §3.7). It states
+  // the two switches the panel holds and nothing else - in particular it makes no claim
+  // about saving, because `plan/admin-design-contracts.md` §6 gives this screen exactly
+  // one save statement and the builder's ambient strip is it.
+  "forms.settings.digest": "{challenge}, {minSubmit}",
+  "forms.settings.digest.challengeOn": "Challenge required",
+  "forms.settings.digest.challengeOff": "No challenge",
+  "forms.settings.digest.minSubmitDefault": "deployment minimum time",
+  "forms.settings.digest.minSubmitValue": "minimum time {ms} ms",
 
   "forms.action.cancel": "Cancel",
 
@@ -1158,6 +1177,14 @@ export const messages = {
   "ops.deliveries.noAttempt": "No attempt has been made yet.",
   "ops.deliveries.showDetail": "Show request and response for {event}",
   "ops.deliveries.hideDetail": "Hide request and response for {event}",
+  // The row trigger's digest (issue 519; `plan/admin-ux-audit.md` §3.8). Three facts,
+  // each of which the panel below also states in full: the trigger is a shorthand for
+  // the record, never the only copy of it (§3.7).
+  "ops.deliveries.digest": "{status}, {attempts}",
+  "ops.deliveries.digest.withLatency": "{status}, {attempts}, {latency}",
+  "ops.deliveries.digest.attemptOne": "1 failed attempt",
+  "ops.deliveries.digest.attemptOther": "{count} failed attempts",
+  "ops.deliveries.attemptSummary": "This delivery",
   "ops.deliveries.requestHeaders": "Request headers",
   "ops.deliveries.signatureMasked":
     "The signature is masked before it is stored, so this record never held the HMAC.",

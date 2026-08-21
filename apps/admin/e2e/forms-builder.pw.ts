@@ -281,6 +281,42 @@ test("the rule test bench answers with the engine's own verdict", async ({ page 
   await expect(bench).toContainText("Matches.");
 });
 
+test("both collapsible panels are in the heading outline, with a digest the panel repeats", async ({
+  page,
+}) => {
+  // Issue 519. Two claims, and neither is visible to the axe sweep beside this file:
+  // `heading-order` cannot see that a section has NO heading (only that levels skip), and
+  // nothing in a rendered tree notices that a digest has become the only copy of a fact.
+  test.setTimeout(180_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.goto(`/forms/${insuranceFormId}`);
+
+  // `plan/admin-ux-audit.md` §4.3: both panels now have an entry in the outline, at the
+  // level every other section of this page uses.
+  const settingsHeading = page.getByRole("heading", { level: 2, name: "Form settings" });
+  const benchHeading = page.getByRole("heading", { level: 2, name: "Rule test bench" });
+  await expect(settingsHeading).toBeVisible();
+  await expect(benchHeading).toBeVisible();
+
+  // §3.7 on the settings panel: whichever of the two challenge phrases the digest chose,
+  // the panel's own checkbox is the fact behind it, so opening the panel finds it again.
+  const settingsDigest = await page.getByTestId("qcms-settings-digest").innerText();
+  const challenge = page.getByRole("checkbox", { name: "Require a challenge before answering" });
+  expect(
+    settingsDigest.includes("Challenge required"),
+    "the settings digest agrees with the checkbox inside the panel",
+  ).toBe(await challenge.isChecked());
+
+  // The bench ships shut, so its digest is what a reader has before opening it - and the
+  // count it states is a count of entries that exist inside the panel, which is the shape
+  // the audit blesses ("the count in the summary plus the entries inside is fine").
+  const benchDigest = page.getByTestId("qcms-bench-digest");
+  await expect(benchDigest).toContainText(/reads \d+ question/);
+  const reads = Number(/reads (\d+) question/.exec(await benchDigest.innerText())?.[1] ?? "-1");
+  await benchHeading.click();
+  await expect(page.getByTestId("qcms-bench-reference")).toHaveCount(reads);
+});
+
 /** The form library lists what was built, which is the screen the builder is reached from. */
 test("the form library lists the forms that were built", async ({ page }) => {
   test.setTimeout(120_000);
