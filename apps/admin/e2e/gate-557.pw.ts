@@ -31,12 +31,16 @@ import { openResponses, submitResponse } from "./support/ops.js";
  *   two frames are the same height in both sets.
  * - **639 / 640** bracket `--bp-compact` by one pixel. They are the frames that show the
  *   token is the boundary, and they are a pair rather than a single frame because a
- *   boundary is only visible as a difference.
- * - **700 / 767** sit in the band this change moves. Before, the builder's panes were
- *   still stacked here, because they read Tailwind's `md:` at 48rem, a third boundary the
- *   contract does not have. After, they are side by side. This is the one behaviour
- *   change in issue 557 and these two frames are where a reviewer accepts it or sends it
- *   back.
+ *   boundary is only visible as a difference. The rules/validation and settings/bench
+ *   grids split here; the steps rail does not, and that is the point of the pair.
+ * - **1023 / 1024** bracket `--bp-sidebar` the same way, for the steps rail. Before, that
+ *   grid split at Tailwind's 768 and so was already side by side at 1023; after, it turns
+ *   here.
+ * - **700 / 767** sit in the band this change moves. Before, all three grids were still
+ *   stacked here, because they read Tailwind's `md:` at 48rem, a third boundary the
+ *   contract does not have. After, the two page-content grids are side by side and the
+ *   steps rail is still stacked. This is the behaviour change in issue 557 and these two
+ *   frames are where a reviewer accepts it or sends it back.
  *
  * ## Why this spec reloads at each width instead of resizing
  *
@@ -74,8 +78,8 @@ const FORM_ID = "frm_auto_quote";
 const ACCIDENT = "q_at_fault_accident";
 const COUNT = "q_accident_count";
 
-/** The Code Owner's standing pair, plus the four widths that bracket the boundaries. */
-const BUILDER_WIDTHS = [390, 639, 640, 700, 767, 1280] as const;
+/** The Code Owner's standing pair, plus the widths that bracket the two boundaries. */
+const BUILDER_WIDTHS = [390, 639, 640, 700, 767, 1023, 1024, 1280] as const;
 const RESPONSES_WIDTHS = [390, 1280] as const;
 
 /**
@@ -119,7 +123,7 @@ test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
 });
 
-test("557 captures the form builder either side of the compact boundary", async ({ page }) => {
+test("557 captures the form builder either side of both boundaries", async ({ page }) => {
   test.setTimeout(300_000);
   totpSecret = await enrollNewAdmin(page, EMAIL);
 

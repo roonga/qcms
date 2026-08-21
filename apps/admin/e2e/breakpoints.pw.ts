@@ -31,8 +31,18 @@ import { enrollNewAdmin } from "./support/flow.js";
  * - The named-rule test pins the two specific queries §1 and §2 care about, so that
  *   deleting the citation from one of them fails here rather than passing an audit that
  *   only counts distinct numbers.
- * - The builder test measures the layout either side of the boundary, to the pixel, so
+ * - The builder test measures the layout either side of BOTH boundaries, to the pixel, so
  *   the tokens are bound to what an author sees rather than to what the sheet says.
+ *
+ * ## One thing to know before reading a failure of the audit test
+ *
+ * The audit asserts the sheet's boundary set is exactly the two tokens, which means it
+ * fails if a boundary goes MISSING as well as if one is added. Both are real sources
+ * today: the compact boundary comes from `@variant compact` in `globals.css` and the
+ * builder's `compact:` utilities, the sidebar one from the builder's steps-rail
+ * `sidebar:` utility. Tailwind's own `.container` utility also emits at both, but only
+ * while the literal word appears somewhere Tailwind scans, so it is not something to
+ * rely on and not something a missing-boundary failure should be blamed on.
  */
 
 /** The two boundaries §1 fixes, in CSS pixels at the default root font size. */
@@ -211,40 +221,71 @@ test.describe("the sheet declares two width boundaries and no others", () => {
   });
 });
 
-test.describe("the form builder's panes turn at the compact token", () => {
+test.describe("the form builder's grids turn at the token each one is assigned", () => {
   // The builder is behind sign-in, so this arc enrolls its own account.
   test.describe.configure({ mode: "serial" });
 
   const EMAIL = uniqueAdminEmail("breakpoints");
-  /** Matches `compact:grid-cols-[18rem_minmax(0,1fr)]` without escaping every bracket. */
-  const PANES = '[class*="compact:grid-cols-[18rem"]';
+
+  /**
+   * The builder's three grids, and the boundary the contract assigns to each.
+   *
+   * The steps rail is §7 rail content, so §1's carve-out ("panes stack rather than shrink
+   * unless the panes are the rail itself") applies and it turns at `--bp-sidebar`. The
+   * other two are page content, which §1 sends to `--bp-compact`. The whole point of
+   * pinning both here is that the two groups turn at DIFFERENT widths: a regression that
+   * put them back on one boundary would pass a test that only checked one of them.
+   *
+   * Matched on the class attribute rather than a test id: the class IS the assignment, so
+   * a selector that stops matching is itself the failure signal.
+   */
+  const RAIL = '[class*="sidebar:grid-cols-[18rem"]';
+  const PANES = [
+    { selector: '[class*="compact:grid-cols-[minmax(0,1fr)_20rem"]', name: "rules and validation" },
+    { selector: '[class*="compact:grid-cols-2"]', name: "settings and rule bench" },
+  ] as const;
 
   test.beforeAll(async () => {
     await createTestAdmin(EMAIL);
   });
 
-  test("stacks below the boundary and splits at it, to the pixel", async ({ page }) => {
+  test("stacks below each boundary and splits at it, to the pixel", async ({ page }) => {
     test.setTimeout(180_000);
     await enrollNewAdmin(page, EMAIL);
 
     // The seeded fixture form: this needs a builder to look at, not a particular form.
     await page.goto(`/forms/${FORM_ID}`);
-    await expect(page.locator(PANES)).toBeVisible();
+    await expect(page.locator(RAIL)).toBeVisible();
+
+    const expectPanes = async (tracks: number, where: string): Promise<void> => {
+      for (const pane of PANES) {
+        expect(await trackCount(page, pane.selector), `${pane.name}: ${where}`).toBe(tracks);
+      }
+    };
 
     await setMediaWidth(page, COMPACT_PX - 1);
-    expect(await trackCount(page, PANES), "one track at one pixel below --bp-compact").toBe(1);
+    expect(await trackCount(page, RAIL), "the rail stacks below --bp-compact too").toBe(1);
+    await expectPanes(1, "one track at one pixel below --bp-compact");
 
     await setMediaWidth(page, COMPACT_PX);
-    expect(await trackCount(page, PANES), "two tracks exactly at --bp-compact").toBe(2);
+    await expectPanes(2, "two tracks exactly at --bp-compact");
+    expect(await trackCount(page, RAIL), "the rail is still stacked at --bp-compact").toBe(1);
 
     // 700 is inside the band this migration moved: the panes read `md:` before issue 557
     // and so were still stacked here. Asserted so the change is recorded as intended
     // behaviour rather than left as a screenshot someone has to remember.
     await setMediaWidth(page, 700);
-    expect(await trackCount(page, PANES), "two tracks between the old 768 and the token").toBe(2);
+    await expectPanes(2, "two tracks between the old 768 and the token");
 
-    // And the phone width every gate reviews, which must still stack.
+    await setMediaWidth(page, SIDEBAR_PX - 1);
+    expect(await trackCount(page, RAIL), "one track at one pixel below --bp-sidebar").toBe(1);
+
+    await setMediaWidth(page, SIDEBAR_PX);
+    expect(await trackCount(page, RAIL), "two tracks exactly at --bp-sidebar").toBe(2);
+
+    // And the phone width every gate reviews, which must still stack throughout.
     await setMediaWidth(page, 390);
-    expect(await trackCount(page, PANES), "one track at the 390px gate width").toBe(1);
+    expect(await trackCount(page, RAIL), "one track at the 390px gate width").toBe(1);
+    await expectPanes(1, "one track at the 390px gate width");
   });
 });

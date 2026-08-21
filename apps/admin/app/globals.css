@@ -70,10 +70,10 @@
  *                 item 5), side-by-side panes stack rather than shrink, and
  *                 dense chrome tightens.
  *   --bp-sidebar  64rem / 1024px. At and above it the navigation rail is a 240px
- *                 grid column; below it the rail collapses to a disclosure.
- *                 Nothing reads it yet - issue 559 builds the rail. The token is
- *                 defined here because §1 fixes the boundary, not because a rule
- *                 already uses it.
+ *                 grid column; below it the rail collapses to a disclosure. The
+ *                 form builder's steps rail keys to it (§7 defines the rail as
+ *                 carrying the form's steps), which is the app's only reader of it
+ *                 today; issue 559 builds the full rail component.
  *
  * THE CONVENTION, and why it is shaped like this. A media query cannot read a
  * custom property: `@media (min-width: var(--bp-compact))` is invalid and the
@@ -82,8 +82,11 @@
  * time someone writes 39rem. The answer is to make it unwritable anywhere but
  * here:
  *
- *   - The single named constants are the two `@theme` entries below. `40rem` and
- *     `64rem` appear on those two lines and nowhere else in `apps/admin`.
+ *   - The two `@theme` entries below are the only DEFINITIONS of the numbers. No
+ *     rule, utility or component anywhere in `apps/admin` states `40rem` or
+ *     `64rem` again. The literals do appear in two other places, and neither is a
+ *     second source: this comment, which explains them, and
+ *     `e2e/breakpoints.pw.ts`, which asserts them (see below).
  *   - CSS in this sheet reaches a boundary with `@variant compact { ... }` or
  *     `@variant sidebar { ... }`. Tailwind replaces that at-rule in place with
  *     the media query built from the constant, so the rules stay exactly where
@@ -99,10 +102,19 @@
  *
  * `--bp-compact` / `--bp-sidebar` are the contract's own names for the two
  * values, aliased onto the constants so the boundary is legible at runtime via
- * `getComputedStyle(document.documentElement)`. That is how `e2e/breakpoints.pw.ts`
- * checks that every width media query in the built sheet is one of these two,
- * instead of hard-coding 640 in a test and re-creating the drift problem there.
- * They are aliases; they are never a second definition.
+ * `getComputedStyle(document.documentElement)`. They are aliases; they are never a
+ * second definition.
+ *
+ * That runtime legibility is what lets `e2e/breakpoints.pw.ts` audit the BUILT
+ * sheet: it reads both tokens from the root element and then requires every width
+ * media query the browser parsed to be one of them, which is how a boundary nobody
+ * wrote (a surviving `md:`, a stray `39rem`) gets caught. The test does also state
+ * 640 and 1024, once each, in two named constants at its top. That is deliberate
+ * and it is not the drift this block is guarding against: a test that took its
+ * expected values only from the sheet it audits would pass on any pair of numbers.
+ * The `@theme` entries are the definition the app compiles from; those two
+ * constants are an independent restatement of the contract that the definition is
+ * checked against.
  *
  * Both values are `rem` rather than `px`, which is what the queries here have
  * always been (`40rem` predates the token): the boundaries then move with a
