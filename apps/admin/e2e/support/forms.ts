@@ -117,6 +117,19 @@ export async function usePinRowMenu(
   await page.locator(`[role="menuitem"][data-row-menu-item="${action}"]`).click();
 }
 
+/**
+ * One entry of whichever pin row menu is currently open.
+ *
+ * Addressed page-wide rather than scoped to a row, the way `usePinRowMenu` addresses it:
+ * the step editor renders at most one menu at a time, so the key alone is unambiguous.
+ */
+export function pinRowMenuItem(
+  page: Page,
+  action: "insertAbove" | "insertBelow" | "moveUp" | "moveDown" | "remove",
+): Locator {
+  return page.locator(`[role="menuitem"][data-row-menu-item="${action}"]`);
+}
+
 /** The pinned question ids of the open step, in the order the form serves them. */
 export async function pinnedOrder(page: Page): Promise<string[]> {
   return page

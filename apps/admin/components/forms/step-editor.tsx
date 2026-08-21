@@ -499,6 +499,10 @@ function CopyQuestionId({ questionId }: { readonly questionId: string }) {
       data-readonly-action="copy"
       aria-label={t("forms.step.copyQuestionId", { questionId })}
       onClick={() => {
+        // The `?.` guards the whole chain, not just the property after it: optional
+        // chaining short-circuits every call and member access to its right, so with no
+        // `navigator.clipboard` (an insecure context, or an older engine) this expression
+        // is `undefined` and `.then` is never evaluated. `void undefined` is fine.
         void navigator.clipboard?.writeText(questionId).then(
           () => {
             announce(t("forms.step.copiedQuestionId", { questionId }));

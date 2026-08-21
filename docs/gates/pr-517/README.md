@@ -19,6 +19,15 @@ builder is navigated to at 390 before each frame rather than resized into it (is
 | `pin-grid-version-menu` | **R7, at 390.** The one version change the builder has, open at the width the mobile stance keeps it operable at. It offers other published versions of this one pin: no bulk move, no auto-upgrade. |
 | `pin-grid-empty-step` | **Contract §3**, and its 2026-08-20 amendment: one panel for "nothing here yet", CTA-less because the creating action ("Add question from library") is already on the same screen. This retires the bare muted paragraph the step editor still carried after issue 514. |
 
+## The one piece of evidence here that is not a frame
+
+`roving-red-first.txt` is the pre-fix run of the three roving-focus tests this change
+added, kept because a screenshot cannot photograph a keyboard dead end. The row-menu frame
+below is shot on the middle row of three, which is the only row where neither move item is
+disabled, so it is the one row on which the defect could not appear. The text file covers
+what the frame cannot: on the first row of a step, and on a step with one pin, the menu's
+arrow keys used to stop on a disabled item and leave the items behind it unreachable.
+
 ## What is deliberately not in the set
 
 **A drag in flight.** There is no drag on this table. Adding one would engage SC 2.5.7 and

@@ -1,0 +1,203 @@
+RED-FIRST PROOF: the row menu's roving focus dead-ends on a disabled item (issue 517)
+=====================================================================================
+
+What this file is
+-----------------
+The three tests added in this change, run against the PRE-FIX `components/row-menu.tsx`
+(the file reverted to the branch's previous commit for the duration of the run, then put
+back). Each one fails, and it fails at the exact press that used to do nothing. That is
+the point of keeping the output: a test that only ever ran green proves the assertion
+compiles, not that it catches the defect.
+
+The defect
+----------
+`RowMenu`'s ArrowUp/ArrowDown handler collected `[role='menuitem']` with no
+`:not([disabled])` filter, unlike the open-focus effect beside it. `.focus()` on a
+disabled `<button>` is a silent no-op, so arrowing onto a disabled item did nothing and
+the next press recomputed the same index and did nothing again. Everything behind it was
+unreachable by keyboard.
+
+It was latent on `main` because the option grid's one disabled item (Remove, at one
+option) is LAST, so no live item sat behind it. The pin list puts Move up and Move down
+in the MIDDLE of five items and disables them at the ends of the list, which is what
+exposes it.
+
+The three configurations, and what each loses
+---------------------------------------------
+1. First row of a step (pin list): Move up is dead and sits third of five, so
+   Move down and Remove are unreachable.
+2. Single-pin step (pin list): both moves are dead and adjacent, so Remove is
+   unreachable - and Remove is the only route to unpinning a question.
+3. Option grid, one option (Remove dead and LAST): nothing is stranded behind it, but
+   the roving ring is still open - ArrowDown on the last live item aimed at the dead
+   Remove and did nothing, so the wrap never happened. This is the shared component's
+   other caller, in the other item order.
+
+Why this proof is in two parts
+------------------------------
+`pin-grid.pw.ts` runs `test.describe.configure({ mode: "serial" })`, so the first failure
+skips every test after it. Part 1 runs the pin-grid and questions-lifecycle files whole
+and catches cases 1 and 3; the single-pin test never ran. Part 2 re-runs the pin-grid
+file with the first-row test excluded so the serial chain reaches case 2.
+
+Seat 5, admin-chromium project, from the branch worktree.
+
+The green side is the full `verify:browser` run recorded in the PR conversation: the same
+three tests pass against the fixed component, with the rest of the browser suite.
+
+================================================================
+PART 1
+command: pnpm exec playwright test --project=admin-chromium apps/admin/e2e/pin-grid.pw.ts apps/admin/e2e/questions-lifecycle.pw.ts
+================================================================
+
+[playwright] port seat 5: portal 17500, api 17510, admin 17540, otlp 17530
+
+Running 28 tests using 1 worker
+
+  ✓   1 [admin-chromium] › apps/admin/e2e/pin-grid.pw.ts:103:1 › authors the library and the step the rest of this file edits (15.5s)
+  ✓   2 [admin-chromium] › apps/admin/e2e/pin-grid.pw.ts:140:1 › the grip menu offers insert above, insert below, move up, move down and remove (2.5s)
+  ✘   3 [admin-chromium] › apps/admin/e2e/pin-grid.pw.ts:197:1 › the menu's arrow keys skip a disabled item on the first row of a step (7.0s)
+  -   4 [admin-chromium] › apps/admin/e2e/pin-grid.pw.ts:236:1 › keyboard reorder still works, and the grip keeps focus across the move
+  -   5 [admin-chromium] › apps/admin/e2e/pin-grid.pw.ts:263:1 › insert below pins into the slot it named, not onto the end
+  -   6 [admin-chromium] › apps/admin/e2e/pin-grid.pw.ts:281:1 › remove takes the pin out and leaves focus on a neighbouring grip
+  -   7 [admin-chromium] › apps/admin/e2e/pin-grid.pw.ts:295:1 › the version pin is operable at 390, and the page never scrolls sideways
+  -   8 [admin-chromium] › apps/admin/e2e/pin-grid.pw.ts:326:1 › on a single-pin step, Remove is still reachable with both moves disabled
+  ✓   9 [admin-chromium] › apps/admin/e2e/questions-lifecycle.pw.ts:109:1 › the whole lifecycle works for the text, number and date types (13.5s)
+  ✓  10 [admin-chromium] › apps/admin/e2e/questions-lifecycle.pw.ts:115:1 › the whole lifecycle works for the boolean and choice types (9.8s)
+  ✓  11 [admin-chromium] › apps/admin/e2e/questions-lifecycle.pw.ts:121:1 › option ids survive a relabel and a reorder (exit criterion 2) (3.0s)
+  ✓  12 [admin-chromium] › apps/admin/e2e/questions-lifecycle.pw.ts:161:1 › an abandoned ghost row consumes no option id (the minting ruling, 2026-08-06) (3.0s)
+  ✓  13 [admin-chromium] › apps/admin/e2e/questions-lifecycle.pw.ts:195:1 › insert lands an option at the top, between two rows and at the bottom (3.3s)
+  ✓  14 [admin-chromium] › apps/admin/e2e/questions-lifecycle.pw.ts:253:1 › a real drag reorders to the position the drop indicator marks (3.1s)
+  ✘  15 [admin-chromium] › apps/admin/e2e/questions-lifecycle.pw.ts:284:1 › the grid's hidden controls are reachable without a pointer (8.1s)
+  -  16 [admin-chromium] › apps/admin/e2e/questions-lifecycle.pw.ts:430:1 › a cleared label renders the grid's error state, joined to its message line
+  -  17 [admin-chromium] › apps/admin/e2e/questions-lifecycle.pw.ts:477:1 › the narrow layout folds the ID under the label, keyed off the editor's width
+  -  18 [admin-chromium] › apps/admin/e2e/questions-lifecycle.pw.ts:515:1 › the version preview renders the real control for the type
+  -  19 [admin-chromium] › apps/admin/e2e/questions-lifecycle.pw.ts:548:1 › a preview control accepts input, and nothing leaves the browser
+  -  20 [admin-chromium] › apps/admin/e2e/questions-lifecycle.pw.ts:615:1 › errors from the API are readable, and land on the field that caused them
+  -  21 [admin-chromium] › apps/admin/e2e/questions-lifecycle.pw.ts:664:1 › the list filters, and says something useful when it finds nothing
+  -  22 [admin-chromium] › apps/admin/e2e/questions-lifecycle.pw.ts:684:1 › the type column and the type filter narrow the library (issue #218)
+  -  23 [admin-chromium] › apps/admin/e2e/questions-lifecycle.pw.ts:709:1 › a row opens its question from the keyboard alone
+  -  24 [admin-chromium] › apps/admin/e2e/questions-lifecycle.pw.ts:767:1 › a frozen number version renders cleanly with its bounds saved
+  -  25 [admin-chromium] › apps/admin/e2e/questions-lifecycle.pw.ts:797:1 › a frozen date version renders cleanly with its bounds saved
+  -  26 [admin-chromium] › apps/admin/e2e/questions-lifecycle.pw.ts:834:1 › a validation message inherits until it is written, then round-trips (048)
+  -  27 [admin-chromium] › apps/admin/e2e/questions-lifecycle.pw.ts:887:1 › each boolean label overrides independently of the other (048, ADR-36)
+  -  28 [admin-chromium] › apps/admin/e2e/questions-lifecycle.pw.ts:916:1 › the type picker is locked once the question exists
+
+
+  1) [admin-chromium] › apps/admin/e2e/pin-grid.pw.ts:197:1 › the menu's arrow keys skip a disabled item on the first row of a step 
+
+    Error: expect(locator).toBeFocused() failed
+
+    Locator:  locator('[role="menuitem"][data-row-menu-item="moveDown"]')
+    Expected: focused
+    Received: inactive
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toBeFocused" with timeout 5000ms
+      - waiting for locator('[role="menuitem"][data-row-menu-item="moveDown"]')
+        14 × locator resolved to <button type="button" role="menuitem" class="qcms-rowmenu__item" data-row-menu-item="moveDown">Move q_pg_cover_e7mpl down</button>
+           - unexpected value "inactive"
+
+
+      212 |   // before this fix a keyboard operator stopped here and every further press was a no-op.
+      213 |   await page.keyboard.press("ArrowDown");
+    > 214 |   await expect(pinRowMenuItem(page, "moveDown")).toBeFocused();
+          |                                                  ^
+      215 |   await page.keyboard.press("ArrowDown");
+      216 |   await expect(pinRowMenuItem(page, "remove")).toBeFocused();
+      217 |
+        at apps/admin/e2e/pin-grid.pw.ts:214:50
+
+    Error Context: apps/portal/.playwright/output/pin-grid.pw.ts-the-menu-s--3315d--on-the-first-row-of-a-step-admin-chromium/error-context.md
+
+  2) [admin-chromium] › apps/admin/e2e/questions-lifecycle.pw.ts:284:1 › the grid's hidden controls are reachable without a pointer 
+
+    Error: expect(locator).toBeFocused() failed
+
+    Locator:  locator('[role="menuitem"][data-row-menu-item="insertAbove"]')
+    Expected: focused
+    Received: inactive
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toBeFocused" with timeout 5000ms
+      - waiting for locator('[role="menuitem"][data-row-menu-item="insertAbove"]')
+        14 × locator resolved to <button type="button" role="menuitem" class="qcms-rowmenu__item" data-row-menu-item="insertAbove">Insert option above Yes, always</button>
+           - unexpected value "inactive"
+
+
+      372 |   await expect(menuItem("insertBelow")).toBeFocused();
+      373 |   await page.keyboard.press("ArrowDown");
+    > 374 |   await expect(menuItem("insertAbove")).toBeFocused();
+          |                                         ^
+      375 |   await page.keyboard.press("ArrowUp");
+      376 |   await expect(menuItem("insertBelow")).toBeFocused();
+      377 |
+        at apps/admin/e2e/questions-lifecycle.pw.ts:374:41
+
+    Error Context: apps/portal/.playwright/output/questions-lifecycle.pw.ts--f0953-reachable-without-a-pointer-admin-chromium/error-context.md
+
+  2 failed
+    [admin-chromium] › apps/admin/e2e/pin-grid.pw.ts:197:1 › the menu's arrow keys skip a disabled item on the first row of a step 
+    [admin-chromium] › apps/admin/e2e/questions-lifecycle.pw.ts:284:1 › the grid's hidden controls are reachable without a pointer 
+  18 did not run
+  8 passed (1.7m)
+PLAYWRIGHT-EXIT=1
+
+
+================================================================
+PART 2: the single-pin step, proved separately.
+
+Part 1 above runs the pin-grid file whole. That file is serial, so the first-row
+failure skips every test after it and the single-pin case never ran. This part
+re-runs the same file with the first-row test excluded, so the serial chain gets
+past it and reaches the last test.
+
+command: pnpm exec playwright test --project=admin-chromium apps/admin/e2e/pin-grid.pw.ts --grep-invert "skip a disabled item on the first row"
+================================================================
+
+[playwright] port seat 5: portal 17500, api 17510, admin 17540, otlp 17530
+
+Running 7 tests using 1 worker
+
+  ✓  1 [admin-chromium] › apps/admin/e2e/pin-grid.pw.ts:103:1 › authors the library and the step the rest of this file edits (12.0s)
+  ✓  2 [admin-chromium] › apps/admin/e2e/pin-grid.pw.ts:140:1 › the grip menu offers insert above, insert below, move up, move down and remove (2.1s)
+  ✓  3 [admin-chromium] › apps/admin/e2e/pin-grid.pw.ts:236:1 › keyboard reorder still works, and the grip keeps focus across the move (2.9s)
+  ✓  4 [admin-chromium] › apps/admin/e2e/pin-grid.pw.ts:263:1 › insert below pins into the slot it named, not onto the end (3.1s)
+  ✓  5 [admin-chromium] › apps/admin/e2e/pin-grid.pw.ts:281:1 › remove takes the pin out and leaves focus on a neighbouring grip (3.2s)
+  ✓  6 [admin-chromium] › apps/admin/e2e/pin-grid.pw.ts:295:1 › the version pin is operable at 390, and the page never scrolls sideways (3.3s)
+  ✘  7 [admin-chromium] › apps/admin/e2e/pin-grid.pw.ts:326:1 › on a single-pin step, Remove is still reachable with both moves disabled (8.1s)
+
+
+  1) [admin-chromium] › apps/admin/e2e/pin-grid.pw.ts:326:1 › on a single-pin step, Remove is still reachable with both moves disabled 
+
+    Error: expect(locator).toBeFocused() failed
+
+    Locator:  locator('[role="menuitem"][data-row-menu-item="remove"]')
+    Expected: focused
+    Received: inactive
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toBeFocused" with timeout 5000ms
+      - waiting for locator('[role="menuitem"][data-row-menu-item="remove"]')
+        14 × locator resolved to <button type="button" role="menuitem" data-row-menu-item="remove" class="qcms-rowmenu__item qcms-rowmenu__item--danger">Remove q_pg_extra_eb0ko</button>
+           - unexpected value "inactive"
+
+
+      350 |   await expect(pinRowMenuItem(page, "insertBelow")).toBeFocused();
+      351 |   await page.keyboard.press("ArrowDown");
+    > 352 |   await expect(pinRowMenuItem(page, "remove")).toBeFocused();
+          |                                                ^
+      353 |
+      354 |   // Reachable is not the same as operable, so it is pressed rather than merely focused:
+      355 |   // Remove is never disabled on a pin row (unlike the option grid's, which a one-option
+        at apps/admin/e2e/pin-grid.pw.ts:352:48
+
+    Error Context: apps/portal/.playwright/output/pin-grid.pw.ts-on-a-single-0c18f-le-with-both-moves-disabled-admin-chromium/error-context.md
+
+  1 failed
+    [admin-chromium] › apps/admin/e2e/pin-grid.pw.ts:326:1 › on a single-pin step, Remove is still reachable with both moves disabled 
+  6 passed (56.6s)
+PLAYWRIGHT-EXIT=1

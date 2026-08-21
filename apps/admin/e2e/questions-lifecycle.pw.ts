@@ -351,6 +351,32 @@ test("the grid's hidden controls are reachable without a pointer", async ({ page
   // grip and toggle this menu shut, and a fresh one is not the one that was measured.
   await remove.click();
   expect(await optionIds(page)).toEqual(["opt_yes_always"]);
+
+  // One option left, so Remove is now the disabled item, and roving has to cope with it.
+  //
+  // This grid shares `components/row-menu.tsx` with the step editor's pin list (issue 517),
+  // and the pin list is where a disabled item in the MIDDLE of the list first stranded the
+  // items behind it. Here the disabled item is LAST, which is why nothing was ever visibly
+  // broken and why the defect stayed latent: no live item sits behind Remove. What was
+  // still wrong is the wrap - pressing ArrowDown on the last live item aimed at the dead
+  // Remove and did nothing, so the ring was open. Asserted here rather than only on the
+  // pin list, so the shared component is proved in both item orders its callers use.
+  const menuItem = (key: string): Locator =>
+    page.locator(`[role="menuitem"][data-row-menu-item="${key}"]`);
+  await grip(page, 0).focus();
+  await grip(page, 0).press("Enter");
+  await expect(menuItem("remove")).toBeDisabled();
+  await expect(menuItem("insertAbove")).toBeFocused();
+
+  await page.keyboard.press("ArrowDown");
+  await expect(menuItem("insertBelow")).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(menuItem("insertAbove")).toBeFocused();
+  await page.keyboard.press("ArrowUp");
+  await expect(menuItem("insertBelow")).toBeFocused();
+
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toHaveCount(0);
 });
 
 /**

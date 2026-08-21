@@ -12,6 +12,7 @@ import {
   pinGrip,
   pinLabel,
   pinQuestion,
+  pinRowMenuItem,
   pinnedOrder,
   usePinRowMenu,
   waitForSaved,
@@ -172,6 +173,66 @@ test("the grip menu offers insert above, insert below, move up, move down and re
   await expect(pinGrip(page, COUNT_ID)).toBeFocused();
 });
 
+/**
+ * The two tests below are the roving-focus half of the SC 2.5.8 argument this whole
+ * redesign rests on.
+ *
+ * Insert above and insert below are what make a row-boundary insert affordance legal at a
+ * hairline target size: they are the equivalent controls the exception points at. An
+ * equivalent control that a keyboard cannot reach is not an equivalent control, so the
+ * menu's arrow keys reaching every live item is part of the acceptance criterion rather
+ * than a nicety on top of it.
+ *
+ * A disabled `<button>` cannot take focus, so `.focus()` on one does nothing at all. This
+ * menu's items are the caller's, in the caller's order, and the pin list puts Move up and
+ * Move down in the MIDDLE and disables them at the ends of the list. The two configurations
+ * that strand items are therefore the first row of any step (Move up dead) and a step with
+ * one pin (both moves dead), and each has its own test below because they fail differently:
+ * the first loses Move down and Remove, the second loses Remove, which is the only route
+ * to unpinning a question at all.
+ *
+ * Both are stated as "the next press lands HERE", not as "the menu has five items", so a
+ * regression reports the dead end rather than a count.
+ */
+test("the menu's arrow keys skip a disabled item on the first row of a step", async ({ page }) => {
+  test.setTimeout(240_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await openBuilder(page);
+  expect(await pinnedOrder(page)).toEqual([COVER_ID, COUNT_ID, NOTES_ID]);
+
+  // First row of the step, so Move up is the dead item and it sits third of five.
+  await pinGrip(page, COVER_ID).click();
+  await expect(pinRowMenuItem(page, "moveUp")).toBeDisabled();
+  await expect(pinRowMenuItem(page, "insertAbove")).toBeFocused();
+
+  await page.keyboard.press("ArrowDown");
+  await expect(pinRowMenuItem(page, "insertBelow")).toBeFocused();
+
+  // The press that used to do nothing. Move down and Remove live behind Move up, so
+  // before this fix a keyboard operator stopped here and every further press was a no-op.
+  await page.keyboard.press("ArrowDown");
+  await expect(pinRowMenuItem(page, "moveDown")).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(pinRowMenuItem(page, "remove")).toBeFocused();
+
+  // Backwards over the same gap, and the wrap in both directions, because roving is a
+  // ring: an implementation that only special-cased "forwards" would pass the four above.
+  await page.keyboard.press("ArrowUp");
+  await expect(pinRowMenuItem(page, "moveDown")).toBeFocused();
+  await page.keyboard.press("ArrowUp");
+  await expect(pinRowMenuItem(page, "insertBelow")).toBeFocused();
+  await page.keyboard.press("ArrowUp");
+  await expect(pinRowMenuItem(page, "insertAbove")).toBeFocused();
+  await page.keyboard.press("ArrowUp");
+  await expect(pinRowMenuItem(page, "remove")).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(pinRowMenuItem(page, "insertAbove")).toBeFocused();
+
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await expect(pinGrip(page, COVER_ID)).toBeFocused();
+});
+
 test("keyboard reorder still works, and the grip keeps focus across the move", async ({ page }) => {
   test.setTimeout(240_000);
   await signInWithTotp(page, EMAIL, totpSecret);
@@ -260,4 +321,40 @@ test("the version pin is operable at 390, and the page never scrolls sideways", 
   // SC 1.4.10 Reflow, which axe does not test, so it is measured here.
   const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
   expect(scrollWidth, "the builder must not scroll horizontally at 390").toBeLessThanOrEqual(390);
+});
+
+test("on a single-pin step, Remove is still reachable with both moves disabled", async ({
+  page,
+}) => {
+  test.setTimeout(240_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+
+  // Its own step rather than unpinning "Driving history" down to one: this runs last, and
+  // a step the earlier tests never open cannot change what any of them saw.
+  await page.goto(builderPath);
+  await addStep(page, "Excess");
+  await openStep(page, "Excess");
+  await pinQuestion(page, EXTRA_ID, 1);
+  await waitForSaved(page);
+  expect(await pinnedOrder(page)).toEqual([EXTRA_ID]);
+
+  // The worst case for roving: the only row is both the first and the last, so TWO
+  // adjacent items are dead and Remove sits behind both of them. Remove is the only route
+  // to unpinning a question, so losing it here is a keyboard operator unable to undo a pin.
+  await pinGrip(page, EXTRA_ID).click();
+  await expect(pinRowMenuItem(page, "moveUp")).toBeDisabled();
+  await expect(pinRowMenuItem(page, "moveDown")).toBeDisabled();
+  await expect(pinRowMenuItem(page, "insertAbove")).toBeFocused();
+
+  await page.keyboard.press("ArrowDown");
+  await expect(pinRowMenuItem(page, "insertBelow")).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(pinRowMenuItem(page, "remove")).toBeFocused();
+
+  // Reachable is not the same as operable, so it is pressed rather than merely focused:
+  // Remove is never disabled on a pin row (unlike the option grid's, which a one-option
+  // list turns off), so the key that reaches it must also be able to fire it.
+  await page.keyboard.press("Enter");
+  await expect.poll(async () => pinnedOrder(page)).toEqual([]);
+  await waitForSaved(page);
 });
