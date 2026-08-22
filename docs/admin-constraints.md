@@ -1,77 +1,57 @@
 # What binds the admin
 
-**Status:** drafted by the PM/PO seat, 2026-08-22, after a portal constraint was imported
-into an admin decision and shipped. Lives in `docs/` by Code Owner instruction, 2026-08-22. **This document exists to be checked before a rule is cited in an admin
-decision.**
+**Status:** current as of 2026-08-22. Check this document before citing a rule in an admin
+decision.
 
 **Audience:** authenticated staff, on machines they chose, in a session they signed into.
-That sentence is the reason most of the portal's constraints do not reach here.
 
 ---
 
-## The rule that produced this document
+## Design
 
-On 2026-08-21 this seat told a lane that the Settings rail *"must remain usable without JS"*,
-calling it a floor rather than a design preference. **There has never been a no-JS
-requirement in the admin.** `docs/PROJECT_GOAL.md:339` scopes that path to *"the browsers an
-institutional or government **respondent** runs"* - the portal. The lane obeyed correctly and
-built fragment anchors with `:target` where its POC draws buttons calling a panel switcher.
+**The POCs are the design.** `plan/admin-shell-poc/*.html` holds one POC per screen, and each
+is the approved design for its screen. Where a POC and `plan/admin-design-contracts.md`
+disagree, the POC wins and the contract changes.
 
-> **A constraint proven for the portal does not transfer to the admin.** Before citing a rule
-> in an admin decision, find where it is *stated* and read what it is scoped to. A sentence
-> that names respondents is not about staff.
+`plan/admin-design-contracts.md` remains useful as description, as rationale for why shipped
+code looks as it does, and as a fallback for a screen no POC covers. It does not overrule a
+drawing.
 
----
+**There are no design or technical limits beyond the POCs.** JavaScript is available and a
+design may depend on it.
 
-## What binds the admin
+## Accessibility
 
-**The POCs are the design.** `plan/admin-shell-poc/*.html`, one per screen, are the approved
-design (Code Owner, 2026-08-22). Where a POC and `plan/admin-design-contracts.md` disagree,
-**the POC wins and the contract changes.** The contracts remain useful as description and as
-a fallback for a screen no POC covers.
+**Aim for WCAG 2.2 AA.** It is a goal the admin builds toward and a legitimate reason to
+prefer one design over another. It is not a blocking gate: no admin PR parks on it.
 
-**WCAG 2.2 AA - an AIM, not a gate** (Code Owner, 2026-08-22: *"for admin, we should aim to
-be wcag compliant"*). Accessibility is a goal the admin builds toward and a legitimate reason
-to prefer one design over another. It is **not** a blocking gate here: no admin PR parks on
-it, and a POC is not overruled by it.
+The accessible option wins where it is available at reasonable cost. Where it is not, the
+trade is stated rather than left silent.
 
-The distinction is deliberate and follows the audience. The portal's floor is hard because
-its audience is respondents on browsers nobody chose, and task **030**'s human gate is
-scoped to the portal. The admin's users are staff on machines they chose.
+## Internationalization
 
-**What this does not license:** shipping something knowingly inaccessible because it is
-faster. "Aim" means the accessible option wins where it is available at reasonable cost, and
-where it is not, the trade is stated rather than silent.
+**ADR-27.** No hardcoded user-facing strings. Copy lives in the message catalogue and
+formatting is locale-aware.
 
-**ADR-27.** No hardcoded user-facing strings; locale-aware formatting. Binds both apps.
+## Security
 
-**SEC-1 to SEC-13.** Security controls, verified as a system by task 040, whose sign-off is a
-launch gate. SEC-1's no-catch-all rule shapes the auth mount; SEC-13's allowlist shapes what
-may be logged or exported.
+**SEC-1 to SEC-13**, verified as a system by task 040, whose sign-off is a launch gate. Two
+that shape admin work directly:
 
-**Authenticated-session architecture** (ADR-35 as amended). The admin holds no database
-handle; better-auth lives in the API. The admin's auth screens keep named route handlers for
-that reason - an architecture constraint on that flow, **not** a general no-JS rule.
+- **SEC-1** forbids a catch-all mount, which is why the API mounts `auth.handler` behind an
+  explicit endpoint allowlist.
+- **SEC-13** is a strict allowlist on anything logged or exported: no answers, no PII, no
+  secrets.
 
----
+## Architecture
 
-## What does NOT bind the admin
+**ADR-35 as amended.** The admin holds no database handle. better-auth lives in the API, and
+the admin reaches it over HTTP inside the ordinary admin-session gate.
 
-**No-JS operation.** JavaScript is available. A design may depend on it.
+The admin's auth screens keep named route handlers so the flow is not moved into client
+JavaScript and the endpoint set is not republished. This is a constraint on that flow.
 
-**All design and technical limits are removed** (Code Owner, 2026-08-22). No contract
-constrains an admin screen against its own POC.
+## Semantics
 
-**Portal-derived reasoning of any kind** unless independently established here: unknown
-browsers, respondent device profiles, ADR-28's step navigation, R2's no-rule-evaluation rule,
-the managed-theme model (ADR-30), and the respondent-facing threat model.
-
----
-
-## The distinction that keeps being confused
-
-**Anchors versus buttons is not a no-JS question.** An anchor is the right element for a row
-that navigates to another **route**, because that is what an anchor means and it is what
-makes open-in-new-tab work. A button is right for a control that **acts** on the page. Both
-hold with JavaScript freely available, and #570's kit-table work stands on that basis rather
-than on scripting being off.
+**An anchor navigates, a button acts.** A row that goes to another route is an anchor, which
+is what makes open-in-new-tab work. A control that acts on the current page is a button.
