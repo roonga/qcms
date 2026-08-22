@@ -114,8 +114,17 @@ describe("pinRows", () => {
     ];
     const rows = pinRows(STEP, ok([question(), COUNT]), issues);
 
-    expect(rows[0]?.issues.map((issue) => issue.code)).toEqual(["PIN_DEPRECATED"]);
-    expect(rows[1]?.issues.map((issue) => issue.code)).toEqual(["OTHER"]);
+    expect(rows[0]?.issues?.map((issue) => issue.code)).toEqual(["PIN_DEPRECATED"]);
+    expect(rows[1]?.issues?.map((issue) => issue.code)).toEqual(["OTHER"]);
+  });
+
+  it("hands every row no verdict at all when it was given none (issue 625)", () => {
+    // Not `[]` per row. The builder has not validated anything when the screen opens, and
+    // an empty list here is what let the Issues column print `None` about a draft nobody
+    // had checked. The union is the same one `otherVersions` uses for the same reason.
+    const rows = pinRows(STEP, ok([question(), COUNT]), undefined);
+
+    expect(rows.map((row) => row.issues)).toEqual([undefined, undefined]);
   });
 });
 

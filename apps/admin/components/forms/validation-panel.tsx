@@ -38,6 +38,27 @@ import { t } from "@/lib/i18n/en";
  * rather than a confident zero. The sentence stays in issue vocabulary and carries no save
  * state, so the split with the strip holds in both directions.
  *
+ * ## A check that has not run yet is a third thing, and it is the common one (issue 625)
+ *
+ * The argument above was written about `"error"` and it applies unchanged one door along.
+ * The builder seeds its issue list empty and only talks to the API once the author has
+ * changed something, so opening a form and touching nothing rendered the all-clear beside
+ * the Publish button on a draft nothing had ever validated. On the seeded insurance form,
+ * whose two pins name versions that were never published, the API's dry run reports two
+ * issues and the §7 rail badges them on the other seven form screens - while this panel,
+ * the one §5.6 makes authoritative, said there were none.
+ *
+ * So the absence of a verdict is now a value rather than an empty list: `issues` is
+ * `undefined` until a check lands, and that is the state this panel reports. It is a
+ * separate sentence from `"error"` on purpose. "The check did not land" is something an
+ * author can act on and "the check has not run" is not, and collapsing them would tell
+ * someone their draft failed a check nobody attempted.
+ *
+ * **`status` cannot carry this fact**, which is why the absence lives on `issues`. The
+ * builder sets `status` to `"saving"` the moment anything is touched, so a panel keyed on
+ * `"idle"` would go back to announcing the all-clear for the whole of the first debounce
+ * and round trip: the same fabricated zero, one keystroke later.
+ *
  * Every entry is a **link that moves focus**, which is the whole reason the API's issues
  * carry a structured domain path rather than a positional index: `{ rule: "rul_x" }` is an
  * address the builder can resolve to a DOM id it owns, so "your rule targets a question
@@ -63,7 +84,8 @@ export function ValidationPanel({
   status,
 }: {
   readonly draft: DraftForm;
-  readonly issues: readonly FormIssue[];
+  /** The verdict, or `undefined` when no check has landed yet. Never a stand-in for zero. */
+  readonly issues: readonly FormIssue[] | undefined;
   readonly status: BuilderStatus;
 }) {
   return (
@@ -83,10 +105,10 @@ export function ValidationPanel({
         className="flex flex-col gap-1 text-sm text-(--color-text-muted)"
         data-testid="qcms-validation-status"
       >
-        <span data-testid="qcms-issue-summary">{issueSummary(issues.length, status)}</span>
+        <span data-testid="qcms-issue-summary">{issueSummary(issues, status)}</span>
       </p>
 
-      {issues.length > 0 && (
+      {issues !== undefined && issues.length > 0 && (
         <ul className="flex flex-col gap-2">
           {issues.map((issue, index) => (
             <li key={`${issue.code}:${locationOf(issue)}:${String(index)}`}>
@@ -100,7 +122,7 @@ export function ValidationPanel({
 }
 
 /** What the draft's issues add up to, in one sentence. */
-function issueSummary(count: number, status: BuilderStatus): string {
+function issueSummary(issues: readonly FormIssue[] | undefined, status: BuilderStatus): string {
   if (status === "validating") return t("forms.validation.checking");
   // A failed round trip is reported here, and the order matters: `"error"` has to be
   // read BEFORE the count, because the count on that path is not a count. The API
@@ -108,6 +130,10 @@ function issueSummary(count: number, status: BuilderStatus): string {
   // `details.issues`, so falling through to the count branches renders the all-clear
   // sentence at the exact moment the app knows least - beside the Publish button.
   if (status === "error") return t("forms.validation.unchecked");
+  // No verdict at all, which is neither a count nor a failure. Read before the count
+  // branches for the same reason `"error"` is: there is no number here to fall through to.
+  if (issues === undefined) return t("forms.validation.notChecked");
+  const count = issues.length;
   if (count === 0) return t("forms.validation.none");
   if (count === 1) return t("forms.validation.countOne");
   return t("forms.validation.count", { count });

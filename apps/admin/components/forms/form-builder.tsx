@@ -125,7 +125,13 @@ export function FormBuilder({
   const [draft, setDraft] = useState<DraftForm>(
     detail.draft ?? blankDraft(detail.formId, detail.defaultLocale),
   );
-  const [issues, setIssues] = useState<readonly FormIssue[]>([]);
+  // `undefined`, not `[]`. Nothing has validated this draft when the screen opens, and a
+  // seeded empty list is an initial value that the panel and the pin grid used to render
+  // as a verdict: "No issues. Everything here would pass a publish." beside the Publish
+  // button, on a form whose stored draft may be full of them (issue 625). The effect below
+  // does not fire until the author changes something, so this stays `undefined` for as long
+  // as the screen genuinely knows nothing, and the surfaces that read it say so.
+  const [issues, setIssues] = useState<readonly FormIssue[] | undefined>(undefined);
   const [status, setStatus] = useState<BuilderStatus>("idle");
   // An ISO instant, not a formatted clock time. The strip renders it through the app's one
   // timestamp formatter (`plan/admin-design-contracts.md` §2: date, HH:MM, zone, no
@@ -162,12 +168,16 @@ export function FormBuilder({
     const timer = setTimeout(() => {
       void (async () => {
         const saved = await actions.current.saveDraft(draft);
-        setIssues(saved.issues);
         if (saved.status === "error") {
+          // The verdict is left exactly as it was, which on a first save means still
+          // absent. `saved.issues` is the empty list a failed read supplies, and writing
+          // it here would turn a store failure into a fabricated all-clear one layer
+          // below the panel - the same trap the validate leg avoids below (issue 625).
           setSaveError(saved.message);
           setStatus("error");
           return;
         }
+        setIssues(saved.issues);
         setSaveError(undefined);
         setLastSavedAt(new Date().toISOString());
         setStatus("validating");
@@ -194,7 +204,12 @@ export function FormBuilder({
   }, [draft, paused]);
 
   const selectedStep = draft.steps.find((step) => step.stepId === selectedStepId) ?? draft.steps[0];
-  const counts = stepIssueCounts(issues, draft);
+  // The step rail badges a step only when its count is ABOVE zero, so it has no all-clear
+  // to fabricate: with no verdict it renders no badges and asserts nothing, which is the
+  // same silence §7's form-subtree rail keeps on the other seven screens when a dry run
+  // could not be had (`lib/server/form-rail.ts`). Collapsing the absence to an empty list
+  // here is therefore safe, and it is the only place in this file where that is true.
+  const counts = stepIssueCounts(issues ?? [], draft);
 
   return (
     <div className="flex flex-col gap-6">
@@ -310,7 +325,10 @@ export function FormBuilder({
       </div>
 
       <div className="grid gap-4 compact:grid-cols-[minmax(0,1fr)_20rem]">
-        <RulesSection draft={draft} library={library} issues={issues} onChange={mutate} />
+        {/* Same reasoning as the step counts above: a rule renders its issue list only
+            when there is something in it, so an absent verdict and an empty one both come
+            out as no list rather than as an all-clear about the rule. */}
+        <RulesSection draft={draft} library={library} issues={issues ?? []} onChange={mutate} />
         <ValidationPanel draft={draft} issues={issues} status={status} />
       </div>
 

@@ -79,7 +79,16 @@ export interface PinRowView {
    * every failed library read.
    */
   readonly otherVersions: readonly number[] | undefined;
-  readonly issues: readonly FormIssue[];
+  /**
+   * What the engine said about this pin, or `undefined` when it has not been asked yet.
+   *
+   * A union for exactly the reason `otherVersions` above is one, and issue 625 is where
+   * the empty array cost something: the builder seeds its issue list empty and only
+   * validates once the author has changed something, so every pin of an untouched form
+   * rendered `Issues: None` about a draft nothing had checked. "No issues here" and "no
+   * verdict yet" are different answers and an empty array can only say the first.
+   */
+  readonly issues: readonly FormIssue[] | undefined;
 }
 
 /**
@@ -102,7 +111,7 @@ export interface PinRowView {
 export function pinRows(
   step: DraftStep,
   library: ReadState<readonly PinnableQuestion[]>,
-  issues: readonly FormIssue[],
+  issues: readonly FormIssue[] | undefined,
 ): readonly PinRowView[] {
   return step.items.map((pin, index) => {
     const question = library.ok
@@ -123,7 +132,9 @@ export function pinRows(
       otherVersions: library.ok
         ? pinnableVersions(question ?? EMPTY_QUESTION).filter((version) => version !== pin.version)
         : undefined,
-      issues: issuesForPin(issues, pin.questionId),
+      // The absence of a verdict is carried down to every row rather than flattened into
+      // an empty one, so the cell that renders it can tell the two apart (issue 625).
+      issues: issues === undefined ? undefined : issuesForPin(issues, pin.questionId),
     };
   });
 }

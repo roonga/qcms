@@ -38,11 +38,19 @@ import type { BuilderStatus } from "./validation-panel.tsx";
  *
  * ## Red-first
  *
- * Against the panel as it stood before this change (`git show HEAD:` the panel over the
- * fixed one and run this file), 2 of the 5 fail and 3 pass. "renders no all-clear when
- * the check failed" fails on the all-clear assertion, and "says the count is not current
- * rather than counting" fails on the count one. The three that pass unchanged are the
- * point of including them: the fix adds a branch rather than moving the existing ones.
+ * Against the panel as it stood before issue 518's change (`git show HEAD:` the panel over
+ * the fixed one and run this file), 2 of the 5 then here fail and 3 pass. "renders no
+ * all-clear when the check failed" fails on the all-clear assertion, and "says the count
+ * is not current rather than counting" fails on the count one. The three that pass
+ * unchanged are the point of including them: the fix adds a branch rather than moving the
+ * existing ones.
+ *
+ * The three issue-625 cases were measured the same way against the panel before that fix:
+ * all three failed and the other five passed. They failed by TypeError rather than by
+ * assertion, which is the defect stated precisely - the panel took `readonly FormIssue[]`,
+ * so there was no value the builder could have passed to mean "nothing has checked this".
+ * Handed instead the empty array the builder really did seed, the pre-fix panel rendered
+ * `No issues. Everything here would pass a publish.` for `status="idle"`.
  */
 
 /**
@@ -73,7 +81,13 @@ const ALL_CLEAR = "Everything here would pass a publish";
 /** The sentence that replaces it when the check did not land. */
 const UNCHECKED = "The draft could not be checked";
 
-async function render(status: BuilderStatus, issues: readonly FormIssue[]): Promise<string> {
+/** And the one that replaces it before any check has been attempted (issue 625). */
+const NOT_CHECKED = "has not been checked yet";
+
+async function render(
+  status: BuilderStatus,
+  issues: readonly FormIssue[] | undefined,
+): Promise<string> {
   const { ValidationPanel } = await import("./validation-panel.tsx");
   return renderToStaticMarkup(<ValidationPanel draft={DRAFT} issues={issues} status={status} />);
 }
@@ -118,6 +132,31 @@ describe("the validation panel states what it knows", () => {
     expect(html).toContain('data-testid="qcms-issue-summary"');
     expect(html, "the panel says nothing about storage").not.toContain("The last save failed");
     expect(html).not.toContain("Saved ");
+  });
+
+  it("renders no all-clear before the first check has been run (issue 625)", async () => {
+    const html = await render("idle", undefined);
+
+    // The same defect as the failed check, through a different door: the count the panel
+    // was seeded with is an initial value rather than a verdict, and rendering it as one
+    // asserts publish-readiness the app has not asked anybody about.
+    expect(html, "an unvalidated draft must not read as publish-ready").not.toContain(ALL_CLEAR);
+    expect(html).toContain(NOT_CHECKED);
+  });
+
+  it("renders no all-clear while the first check is still on its way (issue 625)", async () => {
+    // `status` alone cannot carry this: the builder sets "saving" the moment the author
+    // touches anything, so a panel keyed on `status === "idle"` would announce the
+    // all-clear for the whole of the first debounce and round trip.
+    expect(await render("saving", undefined)).not.toContain(ALL_CLEAR);
+    expect(await render("saving", undefined)).toContain(NOT_CHECKED);
+  });
+
+  it("distinguishes a check that never ran from one that failed (issue 625)", async () => {
+    // Two different things the panel does not know, and an author can act on the second
+    // (retry, look at the network) in a way the first does not call for.
+    expect(await render("idle", undefined)).not.toContain(UNCHECKED);
+    expect(await render("error", [])).not.toContain(NOT_CHECKED);
   });
 
   it("still counts normally while a check is in flight and after one lands", async () => {
