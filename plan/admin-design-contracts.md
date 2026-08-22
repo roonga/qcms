@@ -101,6 +101,42 @@ own, have exhibited the property you are invoking?*
 - A width cap that looks odd beside another screen's - **yes, obviously**; that comparison is
   available from the drawings alone. Ordinary disagreement, and the POC wins it.
 
+**A FOURTH category: the POC spoke, and the question is what the saying REFERS TO, 2026-08-22
+(this seat, adopting the dev seat's #678).** The four are now: *could not have spoken* ·
+*spoke* · *spoke, but the expression is unbuildable in context* · *spoke ambiguously because
+of how the file is packed*.
+
+Several POCs draw **two or three screens in one file** behind a switcher. A cap written on
+the shared `.main` of such a file is ambiguous by construction: it may be that file's chrome
+or it may be every screen's answer, and the markup cannot say which.
+
+**The convention, which was previously recoverable only by comparing two files:** where the
+author wanted a per-screen width they wrote an **inner class**, and where they did not, the
+shared `.main` stands for every screen in the file. `deployment-ops-poc.html` gives its three
+screens `.ops-inner--responses` 900, `--erasures` 1180 and `--webhooks` 1820 over a `.main`
+with **no cap at all**; `preview-versions-poc.html` shares one `.main` at 1600 and overrides
+only the screens carrying a 640px `.respondent-frame`, which is how its version-history
+screen correctly keeps the 1600.
+
+So the rule is **"inner class wins where present"**, *not* "a shared cap means nothing". This
+seat's first formulation was the latter and was wrong; the correction is the dev seat's,
+found while implementing #676.
+
+**And a multi-screen file does not only make caps ambiguous - it hides whole screens.** The
+`/questions/new` route was **missing entirely** from this seat's sixteen-row table, because
+`settings-newquestion-poc.html` draws it as its second screen. Its cap moved 1024 -> 640 once
+found, the second-largest change in the set.
+
+**How this seat missed it, recorded because it is the same root cause three times.** The
+multi-screen check was run over **five** of the eleven POCs and its result stated as a
+property of the set. The `margin: 0 auto` sweep and the `.main`-is-chrome reading failed the
+same way: **one spelling, or one sample, generalised to the whole.** The file even announces
+itself - its first line reads *"Settings and New question ... Two form-dense admin screens"* -
+so no clever technique was needed, only reading eleven files instead of five.
+
+**When a POC file is multi-screen, enumerate its screens from its own `@dsCard` line before
+reading anything else.**
+
 **§7a's "no third screen" sentence is now out of date, 2026-08-22.** It said no third screen
 gets a rail without its own ruling recorded here. The question detail screen is the third
 (issue 650, PR #670), built to `question-editor-poc.html`, which draws one and states its own
