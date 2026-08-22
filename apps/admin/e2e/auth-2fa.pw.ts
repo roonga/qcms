@@ -176,9 +176,13 @@ test("the session persists across navigation and reload, then sign-out ends it",
 }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto("/settings");
-  await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
+  // "Account", not "Settings": the Settings heading names the SELECTED SECTION rather than
+  // the screen (issue 655, and the POC's own reason - the screen's name is already in the
+  // rail summary and the topbar). What this test needs from it is unchanged: a heading only
+  // the authenticated shell can render, so a lost session shows up as a redirect instead.
+  await expect(page.getByRole("heading", { name: "Account", exact: true })).toBeVisible();
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Account", exact: true })).toBeVisible();
 
   await signOut(page);
   // Server-side invalidation, not just a cleared cookie: the shell is gone for good.
