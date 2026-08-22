@@ -16,6 +16,17 @@
 > builder above. Everything from the sketch down to the first A11y notes describes the
 > builder; the new section describes the library.
 
+> **Amendment, issue #661 (the section that lists rules is called Rules).** The sketch
+> labelled that box `conditions` and the shipped heading read "Conditions", while the
+> button inside it said "Add rule", the entities in it rendered as `Rule rul_...`, and
+> the panel next to it is the Rule test bench. The POC for this screen
+> (`plan/admin-shell-poc/admin-shell-poc.html`) draws `<h2 class="stacked-heading">Rules</h2>`,
+> which is also the direction the domain already points: the closed rules DSL is ADR-19.
+> **The word "condition" is not being retired.** A rule is the whole object - an id, a
+> condition and a consequence - and the condition is its `when` half, so the region below
+> stays the **condition editor**, `condition-editor.tsx` keeps its filename, and the JSON
+> mirror stays "Condition JSON". Only the name of the section that lists rules changed.
+
 ## ASCII sketch
 
 ```
@@ -25,7 +36,7 @@
 │ │ 2 Lifestyle  │ │ q_accident_count  @v1  [move pin ▾] [×] ││
 │ │ [+ add step] │ │ [+ add question from library]       ││
 │ └──────────────┘ └─────────────────────────────────────┘│
-│ ┌─ conditions (rul_accident_followup) ──┐ ┌─ validation ─┐│
+│ ┌─ rules (rul_accident_followup) ───────┐ ┌─ validation ─┐│
 │ │ { "op":"equals",                    │ │ ✓ no issues  ││
 │ │   "questionId":"q_at_fault_accident", … }      │ │              ││
 │ │ show: [q_accident_count ▾]              │ └──────────────┘│
