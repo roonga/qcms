@@ -59,6 +59,31 @@ Once confirmed, these contracts are normative for Wave 3 implementation and for
 the Wave 4 POC regeneration. Anything a POC draws that contradicts a contract is
 wrong by definition; the contract does not bend to the drawing.
 
+**Standing correction, 2026-08-22 (Code Owner): there is NO no-JS requirement in the admin.**
+
+Several arguments in this document, and at least one instruction this seat gave a lane,
+treated "works without JavaScript" as an admin constraint. **It is not one.**
+`docs/PROJECT_GOAL.md:339` scopes it: the no-JS path exists for *"the browsers an
+institutional or government **respondent** runs"* - the portal. The admin's auth screens
+keep named no-JS route handlers for a different reason entirely (ADR-35 / SEC-1: not moving
+the flow into client JavaScript and republishing the endpoint set), which is an architecture
+constraint on that flow rather than a general rule.
+
+What this invalidates, named so it is not re-derived:
+
+- **§7's "rail items are anchors, not buttons" loses its no-JS justification.** An anchor is
+  still the right element for a row that *navigates* to another route, because that is what
+  an anchor means and it is what makes open-in-new-tab work. That half stands. The no-JS
+  half does not, and it was never the admin's requirement.
+- **§7a's Settings rail was built on the wrong constraint.** #562 chose fragment anchors and
+  `:target` over the POC's panel-switching buttons, and this seat told that lane the rail
+  "must remain usable without JS" as a floor. **That instruction was wrong.** The POC draws
+  `<button>` elements calling `showSettingsPanel()`, and under the POC-wins ruling above,
+  that is the approved design.
+- **#570's anchor work is unaffected.** Its argument had two halves - a whole-row click
+  handler is a control only a mouse understands, and it cannot be opened in a new tab.
+  Neither depends on scripting being off.
+
 ## 1. Breakpoints
 
 Two, tokenized, no others:
