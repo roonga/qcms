@@ -718,7 +718,10 @@ export const messages = {
   // token, so it genuinely cannot be shown again - the copy says so at the moment it
   // matters rather than leaving an operator to discover it.
 
-  "forms.tab.label": "Form sections",
+  // The `forms.tab.*` names outlived the tab strip they were written for: the §7 rail
+  // carries the same six sections on all eight form screens (issue 561), and the
+  // breadcrumb builds its last crumb from the same names, so all six are still one place.
+  // Only the strip's own landmark label went with `form-tabs.tsx`.
   "forms.tab.builder": "Builder",
   "forms.tab.preview": "Preview",
   "forms.tab.versions": "History",

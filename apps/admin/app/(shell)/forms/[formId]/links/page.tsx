@@ -47,16 +47,7 @@ export default async function FormLinksPage({
 
   return (
     <div className="flex flex-col gap-6">
-      {/* `sectionsInRail` because this screen's §7 rail carries the six section routes
-          (issue 559, `app/(shell)/@rail/forms/[formId]/links/page.tsx`), and one screen
-          does not offer the same six links twice. */}
-      <FormPageHeader
-        formId={form.formId}
-        slug={form.slug}
-        section="links"
-        status={form.status}
-        sectionsInRail
-      />
+      <FormPageHeader formId={form.formId} slug={form.slug} section="links" status={form.status} />
       {!links.ok && (
         <Alert variant="warning">{t("forms.links.listFailed", { message: links.message })}</Alert>
       )}

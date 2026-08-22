@@ -123,13 +123,50 @@ const SCREENS: readonly ScreenRow[] = [
     model: "readonly",
     why: "Renders the draft for inspection; its own copy already says nothing here is saved.",
   },
+  // The eight `@rail` entries below are parallel-route slots rather than screens (issue
+  // 559 wired the first, issue 561 the rest): each renders the §7 rail beside `<main>` on
+  // a route some form page already owns. They are listed rather than filtered out because
+  // the value of this inventory is that a new `page.tsx` forces someone to write down how
+  // it saves, and a slot that grew a control would need that question asked of it exactly
+  // as a screen would. All eight answer the same way, and that is the contract rather than
+  // a coincidence: §7 gives the rail no actions at all.
   {
-    // A parallel-route slot rather than a screen (issue 559): it renders the §7 rail
-    // beside `<main>` on the route the links page owns. It is listed rather than filtered
-    // out because the value of this inventory is that a new `page.tsx` forces someone to
-    // write down how it saves, and a slot that grew a control would need that question
-    // asked of it exactly as a screen would.
+    route: "app/(shell)/@rail/forms/[formId]/page.tsx",
+    model: "readonly",
+    why: "Navigation only. §7 gives the rail no actions at all, so there is nothing on it to save.",
+  },
+  {
+    route: "app/(shell)/@rail/forms/[formId]/preview/page.tsx",
+    model: "readonly",
+    why: "Navigation only. §7 gives the rail no actions at all, so there is nothing on it to save.",
+  },
+  {
+    route: "app/(shell)/@rail/forms/[formId]/versions/page.tsx",
+    model: "readonly",
+    why: "Navigation only. §7 gives the rail no actions at all, so there is nothing on it to save.",
+  },
+  {
+    route: "app/(shell)/@rail/forms/[formId]/versions/[version]/page.tsx",
+    model: "readonly",
+    why: "Navigation only. §7 gives the rail no actions at all, so there is nothing on it to save.",
+  },
+  {
     route: "app/(shell)/@rail/forms/[formId]/links/page.tsx",
+    model: "readonly",
+    why: "Navigation only. §7 gives the rail no actions at all, so there is nothing on it to save.",
+  },
+  {
+    route: "app/(shell)/@rail/forms/[formId]/responses/page.tsx",
+    model: "readonly",
+    why: "Navigation only. §7 gives the rail no actions at all, so there is nothing on it to save.",
+  },
+  {
+    route: "app/(shell)/@rail/forms/[formId]/responses/[sessionId]/page.tsx",
+    model: "readonly",
+    why: "Navigation only. §7 gives the rail no actions at all, so there is nothing on it to save.",
+  },
+  {
+    route: "app/(shell)/@rail/forms/[formId]/webhooks/page.tsx",
     model: "readonly",
     why: "Navigation only. §7 gives the rail no actions at all, so there is nothing on it to save.",
   },

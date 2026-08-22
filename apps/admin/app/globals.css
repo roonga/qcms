@@ -1656,27 +1656,12 @@ button {
 
 /* --- publish, preview, version history, secure links (task 034) ---------- */
 
-/* The four section links under a form's heading. Ordinary links, so the current
-   one is marked by aria-current and the underline is only the visual echo of
-   that (never the sole signal). The 2px inline-size keeps the row from shifting
-   when the marker moves. */
-.qcms-form-tab {
-  display: inline-block;
-  padding-inline: 0.75rem;
-  padding-block: 0.5rem;
-  border-block-end: 2px solid transparent;
-  color: var(--color-text-muted);
-  font-size: 0.875rem;
-  font-weight: 600;
-  text-decoration: none;
-}
-.qcms-form-tab:hover {
-  color: var(--color-text);
-}
-.qcms-form-tab[aria-current="page"] {
-  color: var(--color-text);
-  border-block-end-color: var(--color-primary);
-}
+/* The section-link strip under a form's heading retired with `form-tabs.tsx`
+   (issue 561): all eight form-scoped screens carry the §7 rail, which holds the
+   same six routes, and one screen does not offer them twice. Its current-row
+   treatment survives in `.qcms-rail__link[aria-current="page"]`, which is where
+   this block's reasoning went: the marker is aria-current and the paint is only
+   its visual echo, never the sole signal. */
 
 /* "Preview - not published". Deliberately loud: an author looking at a working
    preview must never mistake it for the published form. It is prose rather than
