@@ -99,10 +99,15 @@ export default async function ShellLayout({
             from the left edge at 1280 while the content column beside a rail started at
             24px: two unrelated layouts on one screen.
 
-            `px-6` rather than the POC's 1.25rem because the shared left edge is the point
-            and `<main>` carries `p-6`. The POC pads both by 1.25rem and so also shares
-            one edge; matching on the shipped 1.5rem gets the same alignment without
-            moving every screen's content padding, which neither issue asks for. */}
+            `px-6` rather than the POC's 1.25rem, and that 4px is a DEVIATION rather than
+            a reading of the drawing (issue 675). The POC pads the bar and the column by
+            one value and gets its shared edge that way; this app's column has carried
+            `p-6` since the shell was built, so the bar matches the column and the edge is
+            shared at 24px instead of 20px. Following the drawing on the bar alone would
+            put a 20px bar against a 24px column and break the very property issue 648 is
+            about; following it properly means moving `<main>` to `p-5`, a density change
+            on all sixteen screens that neither issue asks for and that wants its own
+            frames. Recorded as its own issue rather than settled here. */}
         <div className="flex w-full flex-wrap items-center gap-x-5 gap-y-2 px-6 py-2">
           {/* "QCMS" and nothing else. No sub-label, and no word here names this app
               to an operator: the product is QCMS and the respondent app is the

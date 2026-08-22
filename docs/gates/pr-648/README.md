@@ -21,4 +21,4 @@ Approve two changes that are visible on every authenticated screen, against the 
 
 Captured by `apps/admin/e2e/gate-648.pw.ts`, one frame per test, against the seeded insurance fixture with one submitted response.
 
-One deviation from the POCs is deliberate and is called out in the PR body: the POCs pad both the topbar and the main column by 1.25rem, and these frames pad both by the shipped 1.5rem. The shared left edge is the same either way; matching on 1.5rem avoids moving every screen's content padding, which neither issue asks for.
+One deviation from the POCs is deliberate, is called out in the PR body, and has its own issue (#675): the POCs pad both the topbar and the main column by 1.25rem, and these frames pad both by the shipped 1.5rem. The shared left edge is present either way, at 24px rather than the drawn 20px. Matching on 1.5rem avoids moving every screen's content padding, which neither issue asks for and which would want its own frames.

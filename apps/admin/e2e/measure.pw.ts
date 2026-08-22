@@ -248,19 +248,41 @@ test("648 puts the wordmark, the nav and the content column on one left edge, at
   await expect(page.locator(".qcms-rail"), "a screen with no rail").toHaveCount(0);
 
   const edges = await page.evaluate(() => {
-    const left = (selector: string) => {
+    // THE EDGE IS THE CONTENT EDGE, NOT THE BORDER EDGE, and the distinction is the whole
+    // measurement. `<main>` and `<footer>` are full-width boxes whose padding holds their
+    // text in; the wordmark is a span sitting inside the bar's padding. Comparing
+    // `getBoundingClientRect().left` across the three compares 24 against 0 and says
+    // nothing about alignment. What an operator sees line up is where the TEXT starts.
+    const contentLeft = (selector: string) => {
       const element = document.querySelector(selector);
-      return element === null ? Number.NaN : element.getBoundingClientRect().left;
+      if (element === null) return Number.NaN;
+      const pad = Number.parseFloat(getComputedStyle(element).paddingInlineStart);
+      return element.getBoundingClientRect().left + (Number.isNaN(pad) ? 0 : pad);
     };
     const header = document.querySelector("header");
+    const trailing = document.querySelector("header nav")?.parentElement?.nextElementSibling;
+    const nav = document.querySelector("header nav")?.parentElement?.getBoundingClientRect();
     return {
-      wordmark: left(".qcms-wordmark"),
-      navItem: left("header nav a"),
-      main: left("main#main-content"),
-      footer: left("footer"),
-      // The bar spans: its own box reaches both edges of the viewport, so nothing about
-      // this alignment is a 1024px box that happens to sit on the left.
+      wordmark: contentLeft(".qcms-wordmark"),
+      main: contentLeft("main#main-content"),
+      footer: contentLeft("footer"),
+      wordmarkRight:
+        document.querySelector(".qcms-wordmark")?.getBoundingClientRect().right ?? Number.NaN,
+      navLeft: nav?.left ?? Number.NaN,
+      navRight: nav?.right ?? Number.NaN,
+      trailingLeft:
+        trailing === null || trailing === undefined
+          ? Number.NaN
+          : trailing.getBoundingClientRect().left,
+      // The bar spans, and its contents span with it: the box reaches both edges of the
+      // viewport, and the trailing controls sit against the far edge inside the same
+      // padding. Together those rule out the shape this issue reported - a centred 1024px
+      // box whose contents merely happen to start on its left.
       barWidth: header === null ? Number.NaN : header.getBoundingClientRect().width,
+      trailingRight:
+        trailing === null || trailing === undefined
+          ? Number.NaN
+          : trailing.getBoundingClientRect().right,
       viewport: document.documentElement.clientWidth,
     };
   });
@@ -269,8 +291,30 @@ test("648 puts the wordmark, the nav and the content column on one left edge, at
     edges.viewport,
   );
   expect(edges.wordmark, "the wordmark starts at the shared edge").toBe(edges.main);
-  expect(edges.navItem, "the first nav item starts at the shared edge").toBe(edges.main);
   expect(edges.footer, "and so does the footer").toBe(edges.main);
+  // The bar's own inline padding, read off the shared edge rather than hard-coded, so this
+  // still holds if the shell's padding is ever retuned.
+  expect(
+    edges.trailingRight,
+    "and the trailing controls reach the far edge, so the bar is not a centred box",
+  ).toBe(edges.viewport - edges.wordmark);
+
+  // THE NAV, which the acceptance names alongside the wordmark. It cannot literally share
+  // the wordmark's left edge: both POC and app put it on the same row, immediately after
+  // the mark (`.topbar__nav { flex: 1 1 160px }`). What the acceptance is about is that
+  // the bar's members are laid out from the PAGE's edges rather than from a centred
+  // 1024px box, and these three orderings say exactly that - mark, then nav, then trailing
+  // controls, spanning between the two edges asserted above.
+  expect(edges.navLeft, "the nav follows the mark on the same row").toBeGreaterThan(
+    edges.wordmarkRight,
+  );
+  expect(edges.navRight, "and runs up to the trailing controls").toBeLessThanOrEqual(
+    edges.trailingLeft,
+  );
+  expect(
+    edges.trailingLeft - edges.navLeft,
+    "so the nav spans the bar rather than sitting inside a capped box",
+  ).toBeGreaterThan(edges.viewport / 2);
 });
 
 test("648 leaves the auth screens centred, because their own POC centres them", async ({
