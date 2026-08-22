@@ -14,8 +14,10 @@ import {
 /**
  * The route-to-cap table is the mechanism, so these are its tests (issues 558, 648, 657).
  *
- * Each of the sixteen screens takes the cap its own POC draws, and the acceptance asks
- * that adding a seventeenth make its cap an obvious one-line decision. A table only earns
+ * Each of the seventeen screens takes the cap its own POC draws, and the acceptance asks
+ * that adding one more make its cap an obvious one-line decision. Issue 685 is the first
+ * time that promise was called in: `/forms/new` arrived and its cap was one row. A table
+ * only earns
  * that if it cannot fall out of step with the route tree, so the first test here is not
  * about widths at all: it reads the route patterns off the filesystem and requires the
  * table's keys to be exactly that set. A new screen fails this test until someone writes
@@ -42,7 +44,7 @@ const SHELL = fileURLToPath(new URL("../app/(shell)", import.meta.url));
  * wide is this screen's content column - and a slot has no content column: it renders
  * beside `<main>`, not inside it, and its pages are matched against a URL some other page
  * already owns. Counting them would ask the width question twice about one screen and
- * would make the table's own "sixteen screens" count wrong.
+ * would make the table's own screen count wrong.
  */
 function routePatternsUnder(directory: string, prefix: string): string[] {
   const entries = readdirSync(directory, { withFileTypes: true });
@@ -71,18 +73,18 @@ describe("the route-to-cap table", () => {
     expect(Object.values(MEASURE_BY_ROUTE)).not.toContain("default");
   });
 
-  it("counts the drawings: seven at 1600, three narrow, two at 40rem, two at 1080", () => {
+  it("counts the drawings: seven at 1600, three narrow, three at 40rem, two at 1080", () => {
     // Restated from the POCs rather than derived from the table, so a wrong row is a
     // failure here instead of a table that agrees with itself.
     const measures = Object.values(MEASURE_BY_ROUTE);
     const count = (measure: string) => measures.filter((value) => value === measure).length;
     expect(count("wide")).toBe(7);
     expect(count("narrow")).toBe(3);
-    expect(count("prose")).toBe(2);
+    expect(count("prose")).toBe(3);
     expect(count("list")).toBe(2);
     expect(count("ops")).toBe(1);
     expect(count("log")).toBe(1);
-    expect(measures).toHaveLength(16);
+    expect(measures).toHaveLength(17);
   });
 
   it("puts the six screens whose POC `.main` is 1600 on that cap", () => {
@@ -128,6 +130,18 @@ describe("the route-to-cap table", () => {
     // is the screen that file draws beside it and issue 657's own table did not list.
     expect(MEASURE_BY_ROUTE["/settings"]).toBe("prose");
     expect(MEASURE_BY_ROUTE["/questions/new"]).toBe("prose");
+  });
+
+  it("gives the new-form screen the same 40rem, because a POC ruled it the same screen", () => {
+    // The seventeenth row (issue 685), and the only one reached by a step. No POC draws
+    // `/forms/new`; `library-lists-poc.html` rules that BOTH library screens create on a
+    // separate route and names `/questions/new` as the model, so the model's drawing is
+    // this screen's drawing too. Pinned as its own case rather than folded into the one
+    // above, because "the same as its model" is the claim, and a later pass that widened
+    // the creating screens apart should have to argue with a sentence rather than change
+    // a number in a list.
+    expect(MEASURE_BY_ROUTE["/forms/new"]).toBe(MEASURE_BY_ROUTE["/questions/new"]);
+    expect(MEASURE_BY_ROUTE["/forms/new"]).toBe("prose");
   });
 
   it("gives both screens of `library-lists-poc.html` its 1080px `.main`", () => {

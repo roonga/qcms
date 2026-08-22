@@ -6,7 +6,8 @@
  * `plan/admin-shell-poc/`, so every row below names the POC it was read off and the
  * selector inside it that carries the cap. Issue 558 built this mechanism and sourced
  * its values from `plan/admin-ux-audit.md` §6, which was the correct authority then;
- * issue 657 re-sourced all sixteen from the drawings without touching the mechanism.
+ * issue 657 re-sourced all sixteen from the drawings without touching the mechanism, and
+ * issue 685 added the seventeenth by exactly the one-line route this table promises.
  *
  * THE POCs SPECIFY WIDTH IN TWO LAYERS AND THIS TABLE IS ONE. A POC caps an outer
  * `.main` and then, on some screens, caps the content inside it again - a 720px
@@ -31,10 +32,10 @@
  * ONE ROW IS OPEN. `/webhooks` is drawn at 1820, wider than any token here, so it keeps
  * the cap it had. See its comment.
  *
- * WHY A TABLE, AND WHY HERE. Sixteen screens is a routing question, so it is answered
- * once, in route terms, in this file - not by sixteen pages each reaching up to override
+ * WHY A TABLE, AND WHY HERE. Seventeen screens is a routing question, so it is answered
+ * once, in route terms, in this file - not by seventeen pages each reaching up to override
  * a container they do not own. The practical difference is what happens when a
- * seventeenth screen arrives: with the table, its cap is one row added below, and
+ * new screen arrives: with the table, its cap is one row added below, and
  * `measure.test.ts` fails until that row exists, because it reads the route patterns off
  * the `app/(shell)` tree and requires these keys to be exactly that set. A scattered
  * per-page override has no such moment - a new screen simply inherits whatever the
@@ -62,8 +63,8 @@
 /**
  * The class each answer puts on the shell's content column.
  *
- * Six caps for sixteen screens, and the count is the POCs' rather than a taste: seven
- * screens share the drawings' dominant 1600, three sit on the narrow measure, two share
+ * Six caps for seventeen screens, and the count is the POCs' rather than a taste: seven
+ * screens share the drawings' dominant 1600, three sit on the narrow measure, three share
  * 40rem, two share 1080, and two are each the only screen drawn at their number.
  * Collapsing a singleton onto a neighbour would be this file deciding a width the drawing
  * already decided.
@@ -97,6 +98,18 @@ export type Measure = keyof typeof MEASURE_CLASS;
 export const MEASURE_BY_ROUTE = {
   /** `library-lists-poc.html` `.main` 1080, its Forms screen. */
   "/forms": "list",
+  /**
+   * `settings-newquestion-poc.html` `.page-main` 40rem, through its New question screen.
+   *
+   * The one row whose drawing is reached by a step rather than read straight off a file,
+   * and the step is itself a POC's ruling. `library-lists-poc.html` picks a separate
+   * creation route for BOTH library screens and names `/questions/new` as the model the
+   * forms list should be brought into line with (issue 685); `/questions/new` is drawn in
+   * `settings-newquestion-poc.html` at 40rem. Taking any other number here would make the
+   * two creating screens two widths, which is the second answer that ruling exists to
+   * prevent.
+   */
+  "/forms/new": "prose",
   /** `admin-shell-poc.html` `.main` 1600. The builder is what that file draws. */
   "/forms/[formId]": "wide",
   /** `links-webhooks-poc.html` `.main` 1600, its Secure links screen. */

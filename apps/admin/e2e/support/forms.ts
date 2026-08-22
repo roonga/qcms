@@ -33,9 +33,16 @@ export function field(page: Page, name: string): Locator {
  * The form id is minted from the slug and is what the URL carries, so the return value is
  * read from the URL rather than recomputed: if the two ever disagreed, this would fail
  * here rather than several assertions later.
+ *
+ * Since issue 685 the fields are on `/forms/new` rather than in a card on the library
+ * screen, and this one line is the whole of that change for the twenty-odd specs that
+ * reach a builder through here. The control names did not move with the fields, which is
+ * deliberate: "Slug", "Title" and "Create form" are what an assistive technology
+ * announces, so keeping them means this helper still asserts the same contract it did
+ * before the screen moved.
  */
 export async function createForm(page: Page, slug: string, title: string): Promise<string> {
-  await page.goto("/forms");
+  await page.goto("/forms/new");
   await fillStable(field(page, "Slug"), slug);
   await fillStable(field(page, "Title"), title);
   await Promise.all([
