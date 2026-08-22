@@ -2,6 +2,7 @@ import { Alert, Button, Card, TextField } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
 import { MIN_PASSWORD_LENGTH } from "@/lib/server/config";
 import { requireAdminSession } from "@/lib/server/session";
+import { settingsSectionHeadingId, SETTINGS_SECTION_IDS } from "@/lib/settings-sections";
 
 /**
  * Settings (task 031; wireframe "Settings area at launch: account (change password →
@@ -29,6 +30,21 @@ import { requireAdminSession } from "@/lib/server/session";
  * asks - sign out, sign in, and enrollment is provisioned on the way through when the
  * account has no live factor. An account that already has one must first disable it,
  * which is a deliberate action this launch surface does not expose.
+ *
+ * ## The three cards are the three sections the rail anchors (issue 562)
+ *
+ * `plan/admin-design-contracts.md` §7a gives this one screen a rail of same-page section
+ * anchors, so each card is a `<section>` carrying the id its rail row points at, named by
+ * its own `<h2>` through `aria-labelledby`. Nothing about the layout changes: the audit
+ * calls Settings "the clearest reject on width in the app", the two password forms stay
+ * capped at `max-w-sm`, and the rail is a sibling of `<main>` rather than a child of it, so
+ * this column keeps the measure issue 558 assigned it.
+ *
+ * `tabindex={-1}` is what makes following a rail row move FOCUS into the section rather
+ * than only scrolling to it, so the next Tab continues from the section a reader chose and
+ * a screen reader announces which region it landed in. It takes no focus ring: the browser
+ * only paints one for `:focus-visible`, which programmatic focus on a non-control does not
+ * set.
  */
 export default async function SettingsPage({
   searchParams,
@@ -42,23 +58,43 @@ export default async function SettingsPage({
     <div className="flex flex-col gap-6">
       <h1 className="text-xl font-semibold text-(--color-text)">{t("settings.title")}</h1>
 
-      <div className="qcms-card">
+      <section
+        className="qcms-card qcms-settings-section"
+        id={SETTINGS_SECTION_IDS.account}
+        aria-labelledby={settingsSectionHeadingId(SETTINGS_SECTION_IDS.account)}
+        tabIndex={-1}
+      >
         <Card padding="md" radius="md" border>
           <div className="flex flex-col gap-3">
-            <h2 className="text-base font-semibold text-(--color-text)">{t("settings.account")}</h2>
+            <h2
+              className="text-base font-semibold text-(--color-text)"
+              id={settingsSectionHeadingId(SETTINGS_SECTION_IDS.account)}
+            >
+              {t("settings.account")}
+            </h2>
             <p className="text-sm text-(--color-text-muted)">
               {t("settings.signedInAs", { email: session.email })}
             </p>
           </div>
         </Card>
-      </div>
+      </section>
 
       {/* The account menu's Change password item links straight here (task 032), so
-          the anchor is part of that control's contract rather than decoration. */}
-      <div className="qcms-card" id="change-password">
+          the anchor is part of that control's contract rather than decoration - and it
+          is why this id keeps the name it has always had while the other two were
+          written to match it (`lib/settings-sections.ts`). */}
+      <section
+        className="qcms-card qcms-settings-section"
+        id={SETTINGS_SECTION_IDS.changePassword}
+        aria-labelledby={settingsSectionHeadingId(SETTINGS_SECTION_IDS.changePassword)}
+        tabIndex={-1}
+      >
         <Card padding="md" radius="md" border>
           <div className="flex flex-col gap-4">
-            <h2 className="text-base font-semibold text-(--color-text)">
+            <h2
+              className="text-base font-semibold text-(--color-text)"
+              id={settingsSectionHeadingId(SETTINGS_SECTION_IDS.changePassword)}
+            >
               {t("settings.passwordTitle")}
             </h2>
             <p className="text-sm text-(--color-text-muted)">{t("settings.passwordIntro")}</p>
@@ -97,12 +133,20 @@ export default async function SettingsPage({
             </form>
           </div>
         </Card>
-      </div>
+      </section>
 
-      <div className="qcms-card">
+      <section
+        className="qcms-card qcms-settings-section"
+        id={SETTINGS_SECTION_IDS.twoFactor}
+        aria-labelledby={settingsSectionHeadingId(SETTINGS_SECTION_IDS.twoFactor)}
+        tabIndex={-1}
+      >
         <Card padding="md" radius="md" border>
           <div className="flex flex-col gap-3">
-            <h2 className="text-base font-semibold text-(--color-text)">
+            <h2
+              className="text-base font-semibold text-(--color-text)"
+              id={settingsSectionHeadingId(SETTINGS_SECTION_IDS.twoFactor)}
+            >
               {t("settings.twoFactorTitle")}
             </h2>
             {/* Prose, not an `Alert`: the vendored Alert is a live region (`role="alert"`),
@@ -158,7 +202,7 @@ export default async function SettingsPage({
             )}
           </div>
         </Card>
-      </div>
+      </section>
     </div>
   );
 }

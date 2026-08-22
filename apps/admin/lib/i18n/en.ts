@@ -105,6 +105,15 @@ export const messages = {
   "settings.recoveryCodesPassword": "Your password",
   "settings.recoveryCodesAction": "Generate new recovery codes",
 
+  // The Settings section rail (`plan/admin-design-contracts.md` §7a). Four strings, and
+  // the two that are not section names both exist because the rail has no route to speak
+  // for it: `summaryDefault` is what the collapsed summary says before the URL names a
+  // section, and `current` is the phrase that replaces the `aria-current` a stylesheet
+  // cannot set, so the active row is not marked by colour alone.
+  "settings.rail.label": "Settings sections",
+  "settings.rail.summaryDefault": "Sections",
+  "settings.rail.current": "Current section",
+
   // The area screens tasks 033-035 replace. Each says what it will hold so the
   // shell is navigable and reviewable now, and so an empty page never reads as a
   // bug during the screenshot gate. (Questions is no longer among them: task 032

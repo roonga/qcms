@@ -2242,6 +2242,96 @@ button {
   margin-inline-start: auto;
 }
 
+/* ===========================================================================
+   THE SETTINGS RAIL - `plan/admin-design-contracts.md` §7a, issue 562.
+
+   A SECOND, NARROWER RAIL, NOT THE ONE ABOVE. §7's rail navigates between
+   ROUTES and never carries a same-page section switch; Settings is one route,
+   so its rail can only carry same-page section switches. The ruling that kept a
+   rail here made it an exception in writing rather than a third contract by
+   accident, and named the four things the two share: the grid column, the 240px
+   width, the `--bp-sidebar` collapse behaviour and anchors-not-buttons. Those
+   four are the `qcms-rail*` block above, which knows nothing about what a rail
+   carries. Everything below is §7a's alone.
+
+   WHY THE CURRENT-ROW DECLARATIONS ARE RESTATED RATHER THAN ADDED TO §7's
+   SELECTOR LIST. Joining them would make one rule the place where both rails'
+   active marks are decided, and the next change to either would have to be
+   argued as a change to both. Four duplicated declarations is the cheaper side
+   of that trade, and it is the same trade the two components make.
+
+   WHY `:target` AND NOT A SCRIPT. The active section is the fragment in the URL,
+   which is never sent to a server, so no server component can know it - and the
+   rail must work with JavaScript disabled, so no client component may be what
+   decides it. `:target` is the platform's own answer to "which fragment is
+   current" and costs nothing. It deliberately does not follow the scroll: a
+   scroll spy needs script, and it would assert a section the reader never chose.
+
+   THE ID LIST BELOW IS DUPLICATED FROM `lib/settings-sections.ts` because CSS
+   cannot interpolate one. `lib/settings-sections.test.ts` reads this file and
+   fails when the two disagree in either direction, so the duplication is a
+   checked invariant rather than a hazard. ==================================== */
+
+/* The section a rail row lands on. The topbar is sticky, so a fragment jump that
+   scrolled the heading to y=0 would park it underneath. */
+.qcms-settings-section {
+  scroll-margin-block-start: 4.5rem;
+}
+
+/* One name per section plus a fallback, all in the DOM, exactly one displayed.
+   `display: none` rather than a visual hide, so the other three are out of the
+   accessibility tree and the collapsed summary names one section, not four. */
+.qcms-settings-rail__summary-name {
+  display: none;
+}
+.qcms-settings-rail__summary-name[data-settings-summary=""] {
+  display: inline;
+}
+.qcms-shell-body:has(.qcms-settings-section:target)
+  .qcms-settings-rail__summary-name[data-settings-summary=""] {
+  display: none;
+}
+.qcms-shell-body:has(#account:target) [data-settings-summary="account"],
+.qcms-shell-body:has(#change-password:target) [data-settings-summary="change-password"],
+.qcms-shell-body:has(#two-factor:target) [data-settings-summary="two-factor"] {
+  display: inline;
+}
+
+/* The visually-hidden phrase that says "current" to a screen reader, since a
+   stylesheet cannot set `aria-current`. Out of the tree entirely until its row
+   is the target, so exactly one row ever announces it. `position: relative` on
+   the row gives the absolute span a containing block inside the rail rather than
+   on the page. */
+.qcms-settings-rail__link {
+  position: relative;
+}
+.qcms-settings-rail__current {
+  display: none;
+}
+.qcms-shell-body:has(#account:target)
+  .qcms-settings-rail__link[href="#account"]
+  .qcms-settings-rail__current,
+.qcms-shell-body:has(#change-password:target)
+  .qcms-settings-rail__link[href="#change-password"]
+  .qcms-settings-rail__current,
+.qcms-shell-body:has(#two-factor:target)
+  .qcms-settings-rail__link[href="#two-factor"]
+  .qcms-settings-rail__current {
+  display: block;
+}
+
+/* The visible half of the same statement. Never colour alone: the accent edge
+   and the heavier weight carry it too, which is what keeps it readable in high
+   contrast where the tint collapses into the surface. */
+.qcms-shell-body:has(#account:target) .qcms-settings-rail__link[href="#account"],
+.qcms-shell-body:has(#change-password:target) .qcms-settings-rail__link[href="#change-password"],
+.qcms-shell-body:has(#two-factor:target) .qcms-settings-rail__link[href="#two-factor"] {
+  border-inline-start-color: var(--color-primary);
+  background-color: var(--color-info-subtle);
+  color: var(--color-info-fg);
+  font-weight: 700;
+}
+
 /* Standard clip-rect visually hidden utility: present for assistive tech,
    removed from the visual layout without display:none, which would also
    remove it from the accessibility tree. */
