@@ -26,6 +26,13 @@ const SHELL = fileURLToPath(new URL("../app/(shell)", import.meta.url));
  * `(shell)` wrapper itself and any future sibling) contribute no segment, which is what
  * makes `app/(shell)/forms/page.tsx` the pattern `/forms`. Dynamic directories keep their
  * brackets, so the pattern read here is spelled the same way the table keys are.
+ *
+ * PARALLEL SLOTS (`@rail`, issue 559) are skipped whole, and that is a statement about
+ * what this table is for rather than a convenience. The table answers one question - how
+ * wide is this screen's content column - and a slot has no content column: it renders
+ * beside `<main>`, not inside it, and its pages are matched against a URL some other page
+ * already owns. Counting them would ask the width question twice about one screen and
+ * would make the table's own "sixteen screens" count wrong.
  */
 function routePatternsUnder(directory: string, prefix: string): string[] {
   const entries = readdirSync(directory, { withFileTypes: true });
@@ -33,7 +40,7 @@ function routePatternsUnder(directory: string, prefix: string): string[] {
     ? [prefix === "" ? "/" : prefix]
     : [];
   for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
+    if (!entry.isDirectory() || entry.name.startsWith("@")) continue;
     const segment = entry.name.startsWith("(") ? prefix : `${prefix}/${entry.name}`;
     patterns.push(...routePatternsUnder(`${directory}/${entry.name}`, segment));
   }

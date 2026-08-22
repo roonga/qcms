@@ -124,6 +124,16 @@ const SCREENS: readonly ScreenRow[] = [
     why: "Renders the draft for inspection; its own copy already says nothing here is saved.",
   },
   {
+    // A parallel-route slot rather than a screen (issue 559): it renders the §7 rail
+    // beside `<main>` on the route the links page owns. It is listed rather than filtered
+    // out because the value of this inventory is that a new `page.tsx` forces someone to
+    // write down how it saves, and a slot that grew a control would need that question
+    // asked of it exactly as a screen would.
+    route: "app/(shell)/@rail/forms/[formId]/links/page.tsx",
+    model: "readonly",
+    why: "Navigation only. §7 gives the rail no actions at all, so there is nothing on it to save.",
+  },
+  {
     route: "app/(shell)/forms/[formId]/links/page.tsx",
     model: "action",
     why: "Mint and revoke. Its live region reports the outcome of a completed action, not a save state.",
