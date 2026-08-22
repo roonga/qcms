@@ -296,9 +296,11 @@ a { color: inherit; }
 /* Pinned above the version list, not below it: the list is the one thing on this screen
    that grows without bound (a question can accumulate many versions over years), and a
    lifecycle action anchored below it would drift further down the rail with every one -
-   exactly the shipped page's own layout avoids by keeping LifecycleActions in the fixed
-   header above its own version history (apps/admin/app/(shell)/questions/[questionId]/
-   page.tsx). The divider moves with the block: it now marks the end of the fixed action
+   exactly the shipped layout's own arrangement avoids by keeping LifecycleActions pinned
+   above the version list rather than below it (apps/admin/app/(shell)/@rail/questions/
+   [questionId]/page.tsx, where issue #650 moved it on 2026-08-22; it was on the
+   non-rail route when this POC was drawn). The divider moves with the block: it now
+   marks the end of the fixed action
    area rather than the start of it. */
 .rail-lifecycle { display: flex; flex-direction: column; gap: 6px; padding: 0 0.6rem 0.6rem; margin-bottom: 0.6rem;
   border-bottom: 1px dashed var(--color-border); }

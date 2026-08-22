@@ -318,12 +318,17 @@ h1.page-title { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.01em; ma
   color: var(--color-info-fg); font-weight: 700; }
 
 /* Table: the frozen data-table card (plan/admin-theme/ds-table.html) is the reference this
-   task exists to bring these two screens onto - none of the app's nine shipped tables
-   follow it yet. Uppercase small letter-spaced headers on a strong bottom rule, 44px rows,
-   tabular figures, zebra striping, hover. No editable cells here (unlike the step editor's
-   qgrid): every column on both lists is owned by the row's own entity, so there is no
-   foreign-owner distinction to draw and no grip/reorder affordance, because neither list
-   has an author-controlled row order. */
+   task exists to bring these two screens onto. Uppercase small letter-spaced headers on a
+   strong bottom rule, 44px rows, tabular figures, zebra striping, hover. No editable cells
+   here (unlike the step editor's qgrid): every column on both lists is owned by the row's
+   own entity, so there is no foreign-owner distinction to draw and no grip/reorder
+   affordance, because neither list has an author-controlled row order.
+
+   History, not a live warning: none of the app's nine shipped tables followed the card
+   when this POC was drawn, and issue #514 put them all on one .qcms-table family on
+   2026-08-21 (PR #571, apps/admin/app/globals.css). Where that family and this card
+   disagree, section 2 of plan/admin-design-contracts.md is the authority, so read it
+   before carrying a property across. */
 .table-region { position: relative; }
 /* Only the x axis scrolls, and only this element scrolls it - see the row-menu comment
    below for why that distinction matters. */
@@ -340,8 +345,11 @@ table.lib-table { width: 100%; min-width: 720px; border-collapse: collapse; font
 .lib-table td { padding: 0.4rem 0.75rem; height: var(--admin-table-row-h); vertical-align: middle;
   font-variant-numeric: tabular-nums; }
 
-/* The identifier cell: a real <a>, unlike the shipped kit Table this POC deliberately
-   diverges from (see the top-of-file HTML comment for the full rationale). */
+/* The identifier cell is a real <a>, so open-in-new-tab and no-JS both work and the row's
+   destination is named by the control rather than by the whole row. History, not a live
+   warning: when this POC was drawn the shipped lists routed through the vendored kit
+   Table's onRowAction, which is what this diverged from; issue #570 gave the shipped
+   tables real anchors and retired that handler on 2026-08-22 (PR #624). */
 .row-id-link { display: block; font-family: var(--font-mono); font-size: 0.85rem; font-weight: 600;
   color: var(--color-primary); text-decoration: none; }
 .row-id-link:hover { text-decoration: underline; }
