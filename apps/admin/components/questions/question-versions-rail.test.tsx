@@ -2,7 +2,11 @@ import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-import type { QuestionDefinitionView, QuestionStatus, QuestionVersion } from "../../lib/questions/types.ts";
+import type {
+  QuestionDefinitionView,
+  QuestionStatus,
+  QuestionVersion,
+} from "../../lib/questions/types.ts";
 
 /**
  * The question rail's MARKUP contract (issue 650, built to
@@ -62,7 +66,13 @@ vi.mock("@/lib/questions/version-rail", () => import("../../lib/questions/versio
 const DEFINITION = { type: "shortText" } as unknown as QuestionDefinitionView;
 
 function version(n: number, status: QuestionStatus, publishedAt: string | null): QuestionVersion {
-  return { questionId: "q_smoking_status", version: n, status, definition: DEFINITION, publishedAt };
+  return {
+    questionId: "q_smoking_status",
+    version: n,
+    status,
+    definition: DEFINITION,
+    publishedAt,
+  };
 }
 
 const VERSIONS: readonly QuestionVersion[] = [

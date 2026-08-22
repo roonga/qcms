@@ -1,12 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { QuestionDefinitionView, QuestionStatus, QuestionVersion } from "./types.ts";
-import {
-  isoDay,
-  latestPublishedVersion,
-  selectVersion,
-  versionRailItems,
-} from "./version-rail.ts";
+import { isoDay, latestPublishedVersion, selectVersion, versionRailItems } from "./version-rail.ts";
 
 /**
  * What the question rail carries, as a decision rather than as pixels (issue 650).
@@ -25,7 +20,13 @@ import {
 const DEFINITION = { type: "shortText" } as unknown as QuestionDefinitionView;
 
 function version(n: number, status: QuestionStatus, publishedAt: string | null): QuestionVersion {
-  return { questionId: "q_smoking_status", version: n, status, definition: DEFINITION, publishedAt };
+  return {
+    questionId: "q_smoking_status",
+    version: n,
+    status,
+    definition: DEFINITION,
+    publishedAt,
+  };
 }
 
 /** Oldest first, as the API returns them: v1 deprecated, v2 and v3 published, v4 a draft. */

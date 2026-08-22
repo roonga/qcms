@@ -2107,7 +2107,8 @@ button {
    or cares what the rail carries.
 
    THE COLUMN IS CONDITIONAL, and `:has()` is why there is no empty track on the
-   fourteen screens that have no rail. The shell body is a flex column by
+   screens that have no rail. (A count stood here and went stale twice as rails
+   were added, so it is a description now.) The shell body is a flex column by
    default, which is what `<main class="flex-1">` grew inside before this block
    existed; it becomes a two-track grid only when a rail is actually a child of
    it. Written the other way round - an always-grid whose first track collapses -
