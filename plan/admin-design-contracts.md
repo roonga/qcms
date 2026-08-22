@@ -92,6 +92,15 @@ is one a **fragment cannot have**. "It is awkward in context", "it conflicts wit
 pattern", or "another screen does it differently" are **not** this category - those are
 ordinary design disagreements and the POC wins them.
 
+**As a test a lane can actually run** (the dev seat's mechanical form, which is better than
+the sentence above and is the one to brief): *could a single standalone HTML file, on its
+own, have exhibited the property you are invoking?*
+
+- A heading level relative to an ancestor `<h1>` - **no**, there is no ancestor. Category three.
+- A landmark's name relative to what it contains - **no**, it is a box in isolation. Category three.
+- A width cap that looks odd beside another screen's - **yes, obviously**; that comparison is
+  available from the drawings alone. Ordinary disagreement, and the POC wins it.
+
 **§7a's "no third screen" sentence is now out of date, 2026-08-22.** It said no third screen
 gets a rail without its own ruling recorded here. The question detail screen is the third
 (issue 650, PR #670), built to `question-editor-poc.html`, which draws one and states its own
