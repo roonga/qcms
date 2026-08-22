@@ -24,19 +24,48 @@ The clauses below are retained as **description and rationale**, not as constrai
 remain useful for a screen no POC covers, and for explaining why shipped code looks as it
 does. They no longer overrule a drawing.
 
-**Three things this seat has NOT removed, because they are not design limits and removing
+**Three things this seat did NOT remove, because they are not design limits and removing
 them is a product decision rather than a workstream one.** Named here so the omission is
-visible rather than assumed, and awaiting an explicit word either way:
+visible rather than assumed. **One of the three has since been answered:**
 
-- **WCAG 2.2 AA.** A standing non-negotiable in this seat's charter, a Code Owner human gate
-  at task 030, and §8's own ruling says "different apps" never licensed a different
-  accessibility standard.
-- **ADR-27** (no hardcoded user-facing strings, locale-aware formatting).
+- **WCAG 2.2 AA - ANSWERED 2026-08-21 (Code Owner):** *"for admin, we should aim to be wcag
+  compliant."* It is an **aim** for the admin, not a blocking gate: no admin PR parks on it,
+  the accessible option wins where it is available at reasonable cost, and where it is not
+  the trade is stated rather than left silent. Recorded in `docs/admin-constraints.md`, which
+  is the operative text. This is a genuine change from the charter's standing
+  non-negotiable, and it is scoped to the admin: the portal's floor is untouched and task
+  030's manual gate still stands there.
+- **ADR-27** (no hardcoded user-facing strings, locale-aware formatting) - **still awaiting a
+  word.**
 - **SEC-1 to SEC-13.** Security controls, verified as a system by task 040, whose sign-off
-  is a launch gate.
+  is a launch gate - **still awaiting a word.**
 
-If "all limits" is meant to include any of those three, say so plainly and it is recorded
-the same way. This seat will not infer it from a design instruction.
+If "all limits" is meant to include either of the remaining two, say so plainly and it is
+recorded the same way. This seat will not infer it from a design instruction.
+
+**A POC's SILENCE is not a ruling, 2026-08-22 (this seat, on the dev seat's escalation).**
+
+The POCs are static HTML files. They cannot express URL handling, redirect markers, server
+behaviour, data lifetimes, or state that arrives from somewhere other than the screen. Where
+a POC is silent **because it could not have spoken**, the shipped behaviour stands unchanged.
+
+"POC wins" settles disagreements about **what a screen looks like**. It does not delete
+guarantees the drawing had no way to draw, and a lane meeting such a silence should preserve
+the shipped contract rather than park - that is not designing something new, it is declining
+to destroy something on the strength of a file that was never asked the question.
+
+The case: `settings-newquestion-poc.html` says nothing about which panel opens when the URL
+asks for one. Three shipped behaviours depend on it - the account menu's
+`/settings#change-password` link, and the `?changed=1` / `?error=1` / `?codesError=1`
+redirect markers. The lane preserved all of them.
+
+**Two things make this the clear call rather than a close one.** First, `e2e/gate-319.pw.ts`
+navigates `/settings#two-factor` and asserts `?codesError=1`: that behaviour is not merely
+shipped, it is covered by a **named regression gate**, so reading the silence the other way
+would have turned a gate red rather than exercised discretion. Second, the specific failure
+it avoided is this campaign's own recurring defect - opening Account regardless would hide a
+successful password change inside a hidden panel, presenting success as failure. A screen
+asserting something it does not know is the family behind five fixes this week.
 
 **AUTHORITY REVERSED, 2026-08-22 (Code Owner): the POCs win. "This is the approved
 design."**
