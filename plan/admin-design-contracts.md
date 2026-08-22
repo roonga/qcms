@@ -165,6 +165,48 @@ every row-menu item names its row, so a screen reader user hears which option is
 move rather than the same two words on every row. Both point the same way, so the bare
 "Move up" the POC also drew loses to the POC's own majority rather than to a preference.
 
+**A SIXTH case: the POC spoke about something it was NOT TRYING TO SPECIFY, 2026-08-22 (this
+seat, on the dev seat's #688 report).** The fifth case above resolved that PR because the
+drawing happened to contradict itself. **It would not have, had the shorthand been
+consistent**, and the dev seat is right that the general question is still unanswered.
+
+**A drawing writes labels because it must write something.** A POC specifies **what it is
+drawing**. It does not specify things it merely had to write in order to draw them.
+
+- **Drawn, therefore specified:** that a control exists, where it sits, what kind of control
+  it is, what its visible text says, what order items appear in, what is disabled when.
+- **Incidental, therefore not specified:** properties the drawing exhibits only because
+  static HTML cannot omit them - and, specifically, **whether an accessible name carries an
+  identity the visible text leaves to context**.
+
+**Where a house convention exists, was set deliberately and for a stated reason, and does not
+change what the drawing shows, the convention survives the POC's shorthand.** Issue 570's
+rule - every row-menu item names its row, so a screen reader user hears which row an action
+belongs to rather than "Add" thirty times - is exactly that.
+
+**Two guards, because this is the easiest case to abuse.**
+
+1. **SC 2.5.3 Label in Name is not tradeable.** Visible text and accessible name stay the
+   same string. `Move {row} up` is visible *and* announced; a bare visible "Move up" with a
+   richer hidden name would fail this and is not what the convention licenses.
+2. **The test is whether the POC was SPECIFYING the property or incidentally exhibiting it.**
+   "The drawing did not think about this" is a claim to be argued from the drawing itself -
+   as here, where the same menu names the row in three items and not in two. A POC that
+   states a naming rule in its own comment **is** specifying it, and wins.
+
+**A SEVENTH case: the POC POSES A QUESTION rather than answering it, 2026-08-22 (this seat,
+on #689).** `add-question-poc.html` draws **two** dialogs, `#dialog-strict` and
+`#dialog-multi`, and its intro prose declines to choose between them: *"Use the toggle below
+to compare a strict one-question-at-a-time flow against a multi-select flow and judge which
+reads more clearly."*
+
+**POC-wins cannot resolve a drawing that deliberately declined to decide.** The authority is
+then this seat or the Code Owner, and the POC's value is that it supplies the vocabulary and
+the full markup for **both** options, so whichever is chosen is still built to a drawing.
+Issue #660 settled it for the picker; the lane recorded that the issue was the authority
+rather than the POC, which is the right reading.
+
+
 
 **§7a's "no third screen" sentence is now out of date, 2026-08-22.** It said no third screen
 gets a rail without its own ruling recorded here. The question detail screen is the third
