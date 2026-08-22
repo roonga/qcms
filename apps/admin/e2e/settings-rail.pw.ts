@@ -1,0 +1,282 @@
+import type { Locator } from "@playwright/test";
+
+import { expect, test } from "../../portal/e2e/support/gates.js";
+
+import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
+import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
+
+/**
+ * The Settings rail in a browser (`plan/admin-design-contracts.md` §7a, issue 562).
+ *
+ * The markup and the section list are pinned without a browser
+ * (`components/settings-section-rail.test.tsx`, `lib/settings-sections.test.ts`). What is
+ * left is everything that is a computed style, a measured box or a navigation, and that is
+ * what this file is: the 240px track turning on at `--bp-sidebar` and not one pixel below
+ * it, a fragment anchor actually moving the reader to the section it names, `:target`
+ * marking exactly one row and naming it in the collapsed summary, and the whole rail
+ * working with no JavaScript at all.
+ *
+ * ## The one question §7's rail never had to answer
+ *
+ * On a form-subtree screen the active item is the route, and the server knows it. Here the
+ * active section is a URL fragment, which no server is ever sent. It is decided by `:target`
+ * in `app/globals.css`, which is why nearly every assertion below is about what the browser
+ * did with the URL rather than about what was rendered.
+ *
+ * ## The 1023 / 1024 pair
+ *
+ * Same shape issues 557 and 559 take, for the same reason: a boundary is only pinned by
+ * measuring both sides of it. §1 gives the app two breakpoints, and a rail that collapsed
+ * at 1000 or at 1100 would be a third boundary nobody wrote down.
+ */
+
+test.describe.configure({ mode: "serial" });
+
+const EMAIL = uniqueAdminEmail("settingsrail562");
+
+/** `--bp-sidebar` is 64rem, and the browser's default root size makes that 1024px. */
+const SIDEBAR = 1024;
+
+/** Set by the first test; every later one signs in and reuses the account it enrolled. */
+let totpSecret = "";
+
+/**
+ * The hrefs of the rows whose hidden "current" phrase is actually in the accessibility tree.
+ *
+ * `display: none` rather than a visual hide is what makes this readable at all: an element
+ * that is merely off-screen is still announced, so a rail that revealed all three phrases
+ * would sound identical to one that revealed the right one.
+ */
+function displayed(current: Locator): Promise<string[]> {
+  return current.evaluateAll((spans) =>
+    spans
+      .filter((span) => getComputedStyle(span).display !== "none")
+      .map((span) => span.closest("a")?.getAttribute("href") ?? ""),
+  );
+}
+
+test.beforeAll(async () => {
+  await createTestAdmin(EMAIL);
+});
+
+test("562 turns the Settings rail into a 240px column at --bp-sidebar, and not one below", async ({
+  page,
+}) => {
+  test.setTimeout(600_000);
+  totpSecret = await enrollNewAdmin(page, EMAIL);
+
+  await page.setViewportSize({ width: SIDEBAR, height: 900 });
+  await page.goto("/settings");
+  await expect(page.getByTestId("qcms-settings-rail")).toBeVisible();
+
+  const at = await page.evaluate(() => {
+    const rail = document.querySelector('[data-testid="qcms-settings-rail"]');
+    const main = document.querySelector("main#main-content");
+    if (rail === null || main === null) throw new Error("the rail and the column must both exist");
+    return {
+      railWidth: rail.getBoundingClientRect().width,
+      railRight: rail.getBoundingClientRect().right,
+      mainLeft: main.getBoundingClientRect().left,
+      viewportWidth: document.documentElement.clientWidth,
+    };
+  });
+  expect(at.railWidth, "the 240px track §7a shares with §7").toBe(240);
+  // The consequence #623 settled: a rail nested inside `<main>` would take 240px off the
+  // measure issue 558 assigned this route. Beside it, the cap keeps measuring the content.
+  expect(at.railRight, "the rail is beside the content column, not inside it").toBeLessThanOrEqual(
+    at.mainLeft,
+  );
+
+  await page.setViewportSize({ width: SIDEBAR - 1, height: 900 });
+  await page.goto("/settings");
+  const below = await page.evaluate(() => {
+    const rail = document.querySelector('[data-testid="qcms-settings-rail"]');
+    const main = document.querySelector("main#main-content");
+    if (rail === null || main === null) throw new Error("the rail and the column must both exist");
+    return {
+      railWidth: rail.getBoundingClientRect().width,
+      railBottom: rail.getBoundingClientRect().bottom,
+      mainTop: main.getBoundingClientRect().top,
+      viewportWidth: document.documentElement.clientWidth,
+    };
+  });
+  expect(below.railWidth, "one pixel below the boundary it is the full width").toBe(
+    below.viewportWidth,
+  );
+  expect(
+    below.railBottom,
+    "and stacked above the column rather than beside it",
+  ).toBeLessThanOrEqual(below.mainTop);
+});
+
+test("562 names no section until the URL does, then names exactly that one", async ({ page }) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.setViewportSize({ width: 390, height: 900 });
+
+  // The decision this change makes, asserted: before a section is chosen there is no active
+  // section, and the summary says so with its own name rather than guessing at the topmost.
+  await page.goto("/settings");
+  // `useInnerText`, and it is the assertion rather than a detail: all four names are in the
+  // DOM and CSS displays one, so `textContent` would read the whole list back and pass on a
+  // rail that revealed every name at once.
+  const summary = page.locator(".qcms-rail__summary-text");
+  await expect(summary).toHaveText("Sections", { useInnerText: true });
+  const current = page.locator(".qcms-settings-rail__current");
+  await expect(current).toHaveCount(3);
+  expect(await displayed(current), "no row is current until the URL names one").toEqual([]);
+
+  // Then the fragment, which is the only statement of "which section" that exists.
+  await page.goto("/settings#two-factor");
+  await expect(summary).toHaveText("Two-factor authentication", { useInnerText: true });
+
+  // Exactly one row marked, and the mark is not colour alone: the visually-hidden phrase
+  // that replaces `aria-current` is in the accessibility tree for that row and no other.
+  const announced = await displayed(current);
+  expect(announced, "one row announces itself current, and it is the one the URL names").toEqual([
+    "#two-factor",
+  ]);
+});
+
+test("562 follows a section anchor to the section it names, clear of the sticky topbar", async ({
+  page,
+}) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.setViewportSize({ width: 1280, height: 700 });
+  await page.goto("/settings");
+
+  await page.locator('.qcms-settings-rail__link[href="#two-factor"]').click();
+  await expect(page).toHaveURL(/#two-factor$/u);
+
+  const landed = await page.evaluate(() => {
+    const section = document.querySelector("#two-factor");
+    const topbar = document.querySelector(".qcms-topbar");
+    if (section === null || topbar === null) throw new Error("the section and topbar must exist");
+    return {
+      sectionTop: section.getBoundingClientRect().top,
+      topbarBottom: topbar.getBoundingClientRect().bottom,
+      focusedId: document.activeElement?.id ?? "",
+    };
+  });
+  // `scroll-margin-block-start` earning its place: without it the heading parks underneath
+  // the sticky topbar, which is a jump that lands on the wrong thing.
+  expect(landed.sectionTop, "the section clears the sticky topbar").toBeGreaterThanOrEqual(
+    landed.topbarBottom,
+  );
+  // And focus moved into the section, so the next Tab continues from where the reader chose
+  // rather than from the rail.
+  expect(landed.focusedId, "following the anchor moves focus into the section").toBe("two-factor");
+});
+
+test("562 keeps every rail row pointing at a section that exists and is named the same", async ({
+  page,
+}) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/settings");
+
+  // A rail row whose fragment nothing carries scrolls nowhere and marks nothing, silently.
+  // Checked against the live DOM as well as against the list, because the page renders its
+  // three cards by hand rather than by mapping.
+  const rows = await page.locator(".qcms-settings-rail__link").evaluateAll((links) =>
+    links.map((link) => {
+      const href = link.getAttribute("href") ?? "";
+      const section = document.querySelector(href);
+      return {
+        href,
+        rowText: link.textContent?.trim() ?? "",
+        headingText: section?.querySelector("h2")?.textContent?.trim() ?? null,
+      };
+    }),
+  );
+  expect(rows).toHaveLength(3);
+  for (const row of rows) {
+    expect(row.headingText, `${row.href} lands on a section`).not.toBeNull();
+    // The row's own name is the section's `<h2>`, so the rail is not a second opinion about
+    // what the screen calls its parts. The row also carries the hidden "current" phrase, so
+    // the comparison is on the prefix rather than on equality.
+    expect(row.rowText.startsWith(row.headingText ?? ""), `${row.href} is named for it`).toBe(true);
+  }
+});
+
+test("562 leaves every other screen without a Settings rail", async ({ page }) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.setViewportSize({ width: 1280, height: 900 });
+
+  // §7a: "Settings is now the single named exception, not the first of a series." The slot's
+  // `default.tsx` is what enforces it, and a full load is the navigation it actually governs.
+  await page.goto("/settings");
+  await expect(page.getByTestId("qcms-settings-rail")).toBeVisible();
+  await page.goto("/questions");
+  await expect(page.getByTestId("qcms-settings-rail")).toHaveCount(0);
+  await expect(page.getByTestId("qcms-rail")).toHaveCount(0);
+});
+
+/**
+ * The other half of the same clause, which does NOT hold today. Issue 633.
+ *
+ * Clicking Questions in the topbar leaves this rail standing beside the questions table,
+ * with three anchors pointing at fragments that page does not carry. It is not this rail's
+ * bug and not this rail's to fix: it is how a parallel-route slot behaves, so §7's rail on
+ * `main` has it too and every screen issue 561 is adding one to will inherit it.
+ *
+ * Next's own reference says so in as many words (`next/dist/docs/01-app/03-api-reference/
+ * 03-file-conventions/parallel-routes.md`): on a soft navigation it maintains "the other
+ * slot's active subpages, even if they don't match the current URL", and consults
+ * `default.js` only "after a full-page load". So `@rail/default.tsx` does half of what its
+ * own comment claims, and fixing it means giving the slot a match for every URL - a change
+ * to the shared seam that `fix/561-rail-across-screens` is live in, which is why it is an
+ * issue rather than a fix ridden along here.
+ *
+ * Kept as a skipped test rather than deleted, so the clause is in the suite as a known gap
+ * instead of being silently unasserted: whoever closes issue 633 removes the `skip` and the
+ * assertion is already written. It is not a flake and not a disabled test, and the
+ * distinction matters enough to say it here.
+ */
+test.skip("562 drops the rail on a soft navigation too, once issue 633 lands", async ({ page }) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.setViewportSize({ width: 1280, height: 900 });
+
+  await page.goto("/settings");
+  await expect(page.getByTestId("qcms-settings-rail")).toBeVisible();
+  await page.getByRole("link", { name: "Questions" }).first().click();
+  await expect(page).toHaveURL(/\/questions$/u);
+  await expect(page.getByTestId("qcms-settings-rail")).toHaveCount(0);
+});
+
+test.describe("without JavaScript", () => {
+  test.use({ javaScriptEnabled: false });
+
+  test("562 leaves the rail, its disclosure and its active mark all working", async ({ page }) => {
+    test.setTimeout(300_000);
+    await signInWithTotp(page, EMAIL, totpSecret);
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto("/settings");
+
+    // Every row is a bare fragment anchor, so middle-click, open-in-new-tab and a scriptless
+    // browser all work. A rail built out of buttons would be inert here, and one built out
+    // of `next/link` would be a page load for an in-page jump.
+    const hrefs = await page
+      .locator(".qcms-settings-rail__link")
+      .evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? ""));
+    expect(hrefs).toStrictEqual(["#account", "#change-password", "#two-factor"]);
+
+    // The disclosure is the browser's own.
+    const disclosure = page.locator("details.qcms-rail__disclosure");
+    await page.locator("summary.qcms-rail__summary").click();
+    await expect(disclosure).not.toHaveAttribute("open", "");
+    await page.locator("summary.qcms-rail__summary").click();
+    await expect(disclosure).toHaveAttribute("open", "");
+
+    // And the active mark is a stylesheet rule, so it survives with nothing loaded. This is
+    // the whole reason `:target` was chosen over a scroll spy.
+    await page.locator('.qcms-settings-rail__link[href="#change-password"]').click();
+    await expect(page.locator(".qcms-rail__summary-text")).toHaveText("Change password", {
+      useInnerText: true,
+    });
+  });
+});

@@ -171,6 +171,15 @@ const SCREENS: readonly ScreenRow[] = [
     why: "Navigation only. §7 gives the rail no actions at all, so there is nothing on it to save.",
   },
   {
+    // The ninth slot page, and the only one of them behind a different contract (issue
+    // 562): §7a's Settings rail carries same-page section anchors rather than routes. The
+    // save answer is the same for the same reason, and that reason - a rail carries no
+    // actions - is the whole of what the two contracts have in common here.
+    route: "app/(shell)/@rail/settings/page.tsx",
+    model: "readonly",
+    why: "Navigation only. §7a gives the Settings rail no actions and no counts, so there is nothing on it to save.",
+  },
+  {
     route: "app/(shell)/forms/[formId]/links/page.tsx",
     model: "action",
     why: "Mint and revoke. Its live region reports the outcome of a completed action, not a save state.",
