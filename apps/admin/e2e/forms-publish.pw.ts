@@ -249,11 +249,13 @@ test("history renders the stored compiled document and never previews (exit crit
   // ADR-27: what an operator reads is a formatted date, never the wire representation.
   await expect(table).not.toContainText(ISO_TIMESTAMP);
 
-  // The list itself is about the form, so its heading is the form. The page's own
-  // heading is the first `<h1>`, in the chrome: the version body below renders the
-  // stored A2UI document, which carries the form's title as an `<h1>` of its own (a
-  // page inside a page), so a role query by level is ambiguous on the detail route.
-  await expect(page.locator("h1").first()).toHaveText(FORM_SLUG);
+  // The list's heading names the section and then the form (issue 679). It used to be the
+  // form's slug alone, which is what gave five sibling sections of one form five identical
+  // page headings. The page's own heading is the first `<h1>`, in the chrome: the version
+  // body below renders the stored A2UI document, which carries the form's title as an
+  // `<h1>` of its own (a page inside a page), so a role query by level is ambiguous on the
+  // detail route.
+  await expect(page.locator("h1").first()).toHaveText(`Version history: ${FORM_SLUG}`);
 
   await page.getByRole("link", { name: "View v1" }).click();
   await expect(page.getByTestId("qcms-version-view")).toBeVisible({ timeout: 30_000 });

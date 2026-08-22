@@ -72,7 +72,7 @@ interface Screen {
  * The two detail routes expect their SECTION rather than themselves, and that is the same
  * answer the app has given on those URLs since task 034: neither a stored version nor one
  * collected response is a row of §7's sibling group, and `components/forms/form-tabs.tsx`
- * resolves `/versions/3` to History and `/responses/{id}` to Responses.
+ * resolves `/versions/3` to the version-history section and `/responses/{id}` to Responses.
  */
 function screens(): readonly Screen[] {
   return [
