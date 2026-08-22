@@ -793,9 +793,15 @@ table.qgrid { width: 100%; min-width: 640px; border-collapse: collapse; font-siz
          this version saw". No editing affordance of any kind lives here: no rename, no
          drag, no add/remove, no settings. The h1 names the version, because this page is
          about one stored version and not about the form; the form is breadcrumb context
-         only. History, not a live warning: the shipped h1 read the form's slug on every
-         section when this POC was drawn, and issue #510 fixed that on 2026-08-21 (PR #539).
-         The shipped counterpart is apps/admin/components/forms/form-page-header.tsx. -->
+         only. History for THIS screen, not a live warning: the shipped h1 read the form's
+         slug here when this POC was drawn, and issue #510 gave the two child-entity routes
+         their own headings on 2026-08-21 (PR #539); the shipped counterpart is
+         apps/admin/components/forms/form-page-header.tsx.
+         Still LIVE for the six sibling SECTION routes, which all render the bare slug:
+         that is issue #679, and this file draws two of the six. The Draft preview and
+         Version history screens above both name their section in the h1 ("Draft preview:
+         Life insurance", "Version history: Life insurance") and the shipped routes do not,
+         so this drawing is pointing at its own unimplemented half. -->
     <div id="screen-version-detail" class="main-layout main-layout--stacked" hidden>
       <nav class="breadcrumb" aria-label="Breadcrumb">
         <ol>
