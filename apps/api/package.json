@@ -26,9 +26,9 @@
     "seed-fixtures": "node scripts/seed-fixtures.ts"
   },
   "dependencies": {
-    "@hono/node-server": "^2.1.0",
+    "@hono/node-server": "^2.1.1",
     "@hono/otel": "^1.1.2",
-    "@hono/zod-openapi": "^1.5.1",
+    "@hono/zod-openapi": "^1.6.0",
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/exporter-logs-otlp-http": "^0.221.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.221.0",
@@ -43,17 +43,17 @@
     "@qcms/core": "workspace:*",
     "@qcms/csv": "workspace:*",
     "@qcms/db": "workspace:*",
-    "better-auth": "^1.6.26",
+    "better-auth": "^1.7.1",
     "drizzle-orm": "^0.45.2",
-    "hono": "^4.13.1",
-    "pg": "^8.22.0",
+    "hono": "^4.13.3",
+    "pg": "^8.23.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@seriousme/openapi-schema-validator": "^2.9.1",
     "@testcontainers/postgresql": "^12.1.0",
     "@types/node": "^24.13.3",
-    "@types/pg": "^8.20.4",
+    "@types/pg": "^8.23.1",
     "otplib": "^13.4.1"
   }
 }
