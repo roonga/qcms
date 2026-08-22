@@ -648,6 +648,27 @@ to the narrower draft:
 Nothing in `packages/ui/src/theme.css` changes as a result of this ruling. The
 portal's managed themes (ADR-30) are untouched.
 
+**Amendment, 2026-08-22 (Code Owner): "different apps" governs CONSTRAINTS, not only
+tokens.** The ruling above was written as a token decision and this seat read it that way,
+which is how a **portal** requirement ended up justifying an **admin** design (see the no-JS
+correction at the top of this document). The Code Owner has restated it twice: *"admin and
+end user portal have different constraints. This work stream is purely admin."*
+
+> **A constraint proven for the portal does not transfer to the admin, and must not be cited
+> in an admin decision without being established for the admin on its own terms.** The
+> portal's audience is respondents on unknown browsers; the admin's is authenticated staff.
+> Those differ in device, network, scripting, session and threat model, and the burden is on
+> whoever imports a rule to say why it applies here.
+
+**The two floors that do bind both, unchanged from the ruling above:** **WCAG 2.2 AA** and
+**ADR-27** (i18n). "Different apps" has never licensed a different accessibility standard or
+a second way of handling user-facing strings, and does not now.
+
+**The practical test**, since this seat failed it once: before citing a rule in an admin
+decision, find where it is *stated* and check what it is scoped to. `docs/PROJECT_GOAL.md`
+scopes the no-JS path to *"the browsers an institutional or government respondent runs"*.
+That sentence names its own audience, and reading it would have prevented the error.
+
 ---
 
 ## What confirmation unblocks
