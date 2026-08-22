@@ -447,3 +447,47 @@ section understated how far the viewport-fill fix had been carried):
   preview column are both provisional pending C1 and C2. If either decision goes
   against what is currently drawn, that POC is the one that needs revisiting before
   Wave 3/4, not shipped code (nothing has been built yet).
+
+---
+
+## 5. Wave 3 is complete (recorded 2026-08-22)
+
+**This document is now a record, not a plan.** Everything §3 sequenced has landed, and the four items it left open are resolved or tracked. Read the sections above as history: where they say Wave 3 "does not start until" or "puts a rail into real code", that has happened.
+
+### What landed
+
+| Issue | PR | What |
+|---|---|---|
+| #557 | #576 | two tokenized breakpoints, six ad hoc ones retired |
+| #558 | #592 | the width cap becomes per-route |
+| #563 | #573 | the wireframe screen-scope rule |
+| #559 | #621 | the form-subtree rail, built once against §7 |
+| #561 | #634 | the rail across all eight form-scoped screens |
+| #562 | #636 | the Settings rail, as §7a's written exception |
+
+### The four items this document opened
+
+- **N1** (no public/published form URL exists anywhere in `apps/admin`) - still open as **#580**. The only one of the four not closed.
+- **N2** (a rail can visually stop short of the viewport on a short screen) - became an **acceptance criterion of #559** rather than a follow-up, and landed with it. Found before the rail existed, fixed as it was built.
+- **C1** (Settings: rail-split versus the audit's explicit reject) - decided by the Code Owner 2026-08-20, written as **§7a** with its boundary drawn, built as **#562**.
+- **C2** (answer-preview column: build versus record-as-accepted) - decided "build it", filed as **#515**, landed via PR #568.
+
+### The premise held, and it was incomplete
+
+This document's central bet was **write the contracts first, or every implementer copies whichever POC they opened**. That bet paid: eleven POCs answering eight questions two to seven different ways became one document, and no Wave 3 PR had to guess.
+
+What it did not anticipate is that **building would find silences reading could not**. §7 was confirmed on 2026-08-20 and Wave 3 then surfaced five questions it had never been asked:
+
+1. what the rail's disclosure does when **expanded** (#559);
+2. where a **step item links** (#559);
+3. whether the rail sits **inside or beside** the capped content column (#559, #623);
+4. what the rail does on the **builder**, which already has a step list that is an editor (#559, ruled on #561);
+5. how an in-page rail marks an **active section**, which §7 never needed because its active item is a route (#562).
+
+All five are now amendments. **Four of the five were answerable from clauses §7 already carried** - the builder question in particular derives from "the rail never carries same-page section switches", which was in the confirmed text the whole time. Only the first genuinely needed implementation experience to answer.
+
+That is the lesson worth carrying into Wave 4: **a contract written from analysis is complete against the questions the analysis asked.** The gap is not between drafting and confirming, it is between confirming and *building* - and most of what building finds was already decided, unread.
+
+### What Wave 4 inherits
+
+The POC regeneration §4 describes now has **nine contracts and eleven amendments** to regenerate against, not eight recommendations. `plan/admin-design-contracts.md` is the authority; the eleven POCs in `plan/admin-shell-poc/` remain inconsistent proposals and are evidence of intent only where a contract is silent.
