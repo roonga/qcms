@@ -2,7 +2,7 @@
 
 Approve two changes that are visible on every authenticated screen, against the POCs in `plan/admin-shell-poc/`:
 
-1. **Nothing is centred and the chrome is no longer capped.** The topbar carried `mx-auto max-w-5xl`, which put the wordmark about 145px in from the page edge at 1280 while the content column beside a rail started at the rail. Every POC writes `.topbar__inner` with neither a `max-width` nor an auto margin, so both come off the bar and off the footer, and the wordmark, the first nav item, the content column and the footer share one left edge. Where a rail is present the column begins at the rail's edge instead.
+1. **Nothing is centred and the chrome is no longer capped.** The topbar carried `mx-auto max-w-5xl`, which put the wordmark about 145px in from the page edge at 1280 while the content column beside a rail started at the rail. Every POC that draws the shell (ten of the eleven; `auth-poc.html` drops the shell deliberately) writes `.topbar__inner` with neither a `max-width` nor an auto margin, so both come off the bar and off the footer, and the wordmark, the first nav item, the content column and the footer share one left edge. Where a rail is present the column begins at the rail's edge instead.
 2. **Each route's cap is the one its own POC draws.** Ten of the sixteen screens move.
 
 | Frame | Viewport | What to approve |

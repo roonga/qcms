@@ -21,9 +21,9 @@ import { submitResponse } from "./support/ops.js";
  *
  * - **The column and the chrome left-anchor** (issue 648). The topbar took `mx-auto
  *   max-w-5xl` until now, so at 1280 the wordmark sat about 145px in from the page edge
- *   while a railed content column started at the rail. Every POC writes the bar with
- *   neither a cap nor an auto margin, so both come off and the wordmark, the first nav
- *   item, the content column and the footer share one left edge.
+ *   while a railed content column started at the rail. Every POC that draws the shell
+ *   writes the bar with neither a cap nor an auto margin, so both come off and the
+ *   wordmark, the first nav item, the content column and the footer share one left edge.
  * - **Each route's cap is re-sourced from its own POC** (issue 657). Ten of the sixteen
  *   screens move.
  *

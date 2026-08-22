@@ -87,13 +87,17 @@ export default async function ShellLayout({
             own items wrap onto further lines while the trailing controls stay on the
             top row beside the wordmark. Nested inside a "wordmark plus nav" group they
             were pushed onto a row of their own below the whole nav instead. */}
-        {/* THE BAR IS NOT CAPPED AND NOT CENTRED (issue 648). Every POC writes the same
-            rule - `.topbar__inner { display: flex; flex-wrap: wrap; align-items: center;
-            gap: 1.25rem; padding: 0 1.25rem; min-height: 56px; }` - with no `max-width`
-            and no auto margin, so the bar spans the viewport and its first item starts at
-            the page's own inline padding. It carried `mx-auto max-w-5xl` until now, which
-            put the wordmark ~145px in from the left edge at 1280 while the content column
-            beside a rail started at 24px: two unrelated layouts on one screen.
+        {/* THE BAR IS NOT CAPPED AND NOT CENTRED (issue 648). Every POC that draws the
+            shell writes one identical rule for it, `.topbar__inner { display: flex;
+            flex-wrap: wrap; align-items: center; gap: 1.25rem; padding: 0 1.25rem;
+            min-height: 56px; }`, with NO `max-width` and NO auto margin - ten of the
+            eleven files, the eleventh being `auth-poc.html`, which drops the shell
+            deliberately and so has no bar to cap. The bar spans the viewport and its
+            first item starts at the page's own inline padding.
+
+            It carried `mx-auto max-w-5xl` until now, which put the wordmark ~145px in
+            from the left edge at 1280 while the content column beside a rail started at
+            24px: two unrelated layouts on one screen.
 
             `px-6` rather than the POC's 1.25rem because the shared left edge is the point
             and `<main>` carries `p-6`. The POC pads both by 1.25rem and so also shares

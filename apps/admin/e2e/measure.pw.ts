@@ -213,7 +213,8 @@ test("648 puts the wordmark, the nav and the content column on one left edge, at
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.setViewportSize({ width: 1280, height: 900 });
 
-  // The bar itself takes no cap: every POC's `.topbar__inner` has no `max-width` and no
+  // The bar itself takes no cap: the `.topbar__inner` of every POC that draws the shell
+  // has no `max-width` and no
   // auto margin, so it spans the viewport and its first item starts at the bar's own
   // inline padding. It carried `mx-auto max-w-5xl` until issue 648, which put the wordmark
   // ~145px in from the page edge at 1280 while the content column started at 24px.

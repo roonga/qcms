@@ -400,9 +400,10 @@ the paragraphs before this one, both found by reading the drawings rather than b
 decision.
 
 - **The top nav is not a centred bar to left-anchor. It is a capped bar, and no POC caps
-  it.** Every POC writes `.topbar__inner { display: flex; flex-wrap: wrap; align-items:
-  center; gap: 1.25rem; padding: 0 1.25rem; min-height: 56px; }` with no `max-width` and no
-  auto margin. So `mx-auto` **and** `max-w-5xl` came off the bar, and off the footer with
+  it.** Every POC that draws the shell writes `.topbar__inner { display: flex;
+  flex-wrap: wrap; align-items: center; gap: 1.25rem; padding: 0 1.25rem; min-height:
+  56px; }` with no `max-width` and no auto margin - ten of the eleven files, the eleventh
+  being `auth-poc.html`, which drops the shell deliberately and so has no bar to cap. So `mx-auto` **and** `max-w-5xl` came off the bar, and off the footer with
   it. Removing the auto margin alone would have left a 1024px bar sitting at the left of a
   wider viewport, which is not a screen any POC draws.
 - **The caps did move after all, and by a different issue.** #657 re-sourced all sixteen

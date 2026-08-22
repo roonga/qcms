@@ -190,8 +190,8 @@
  * the cap a per-route use of a boundary, which `plan/admin-design-contracts.md` §1
  * does not have and issue 557 exists to prevent.
  *
- * NONE OF THEM CENTRE. Every column these cap is left-anchored (issue 648): eleven
- * POCs were read for a centring rule on the main column and there is not one, and
+ * NONE OF THEM CENTRE. Every column these cap is left-anchored (issue 648): all eleven
+ * POCs were read for a centring rule on a main column and there is not one, and
  * `settings-newquestion-poc.html` writes `margin: 0` where `margin: 0 auto` would go.
  * The alignment is not spelled here because it is not a length; `lib/measure.ts`
  * composes the whole class attribute and simply never emits `mx-auto`.
