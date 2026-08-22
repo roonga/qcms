@@ -486,7 +486,7 @@ test("the form builder and the condition editor have zero violations", async ({ 
   await page.getByRole("button", { name: "Add question from library" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await expectNoViolations(page, "library picker dialog");
-  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
 
   await pinQuestion(page, choiceId, 1);
   await addStep(page, "Details");

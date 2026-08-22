@@ -5,7 +5,14 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { CAPTURE_ENABLED, hideDevChrome, waitForHydration } from "./support/capture.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
-import { addStep, createForm, openStep, pickerChoice, waitForSaved } from "./support/forms.js";
+import {
+  addStep,
+  createForm,
+  openStep,
+  pickerChoice,
+  pinQuestion,
+  waitForSaved,
+} from "./support/forms.js";
 import { confirmLifecycle, createDraft } from "./support/questions.js";
 
 /**
@@ -35,6 +42,14 @@ import { confirmLifecycle, createDraft } from "./support/questions.js";
  * two-pane master-detail with the chosen list beside a paginated list; this dialog is one
  * column at every width the admin supports, so the pane sits under the table rather than
  * beside it.
+ *
+ * ## The step starts with one pin, and that is visible in every frame
+ *
+ * A step with no questions is an unsaveable draft ("emptyStep"), so the builder pauses its
+ * autosave and the step would not survive the navigation each frame makes. The anchor pin
+ * that fixes it also puts the "Already in this form" refusal in every frame, which is the
+ * rule the Code Owner is being asked to see preserved: no control on the row, and the
+ * reason in words in the State cell.
  */
 
 test.describe.configure({ mode: "serial" });
@@ -44,6 +59,7 @@ const OUT_DIR = "docs/gates/pr-660";
 const EMAIL = uniqueAdminEmail("gate660");
 const RUN = Date.now().toString(36).slice(-5);
 
+const ANCHOR = `g660-anchor-${RUN}`;
 const ALPHA = `g660-cover-${RUN}`;
 const BETA = `g660-count-${RUN}`;
 const GAMMA = `g660-notes-${RUN}`;
@@ -119,10 +135,13 @@ test("builds the fixture the frames are shot against", async ({ page }) => {
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
   await createDraft(page, GAMMA, "Long text");
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
+  await createDraft(page, ANCHOR, "Short text");
+  await confirmLifecycle(page, /^Publish version 1$/, "Publish");
 
   await createForm(page, `gate660-${RUN}`, "Vehicle insurance");
   builderPath = new URL(page.url()).pathname;
   await addStep(page, "Only step");
+  await pinQuestion(page, questionIdFor(ANCHOR), 1);
   await waitForSaved(page);
 });
 

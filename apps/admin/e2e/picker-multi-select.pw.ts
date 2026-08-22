@@ -9,6 +9,7 @@ import {
   pickerChoice,
   pickerCommit,
   pinLabel,
+  pinQuestion,
   pinQuestions,
   pinnedOrder,
   waitForSaved,
@@ -41,6 +42,15 @@ import { confirmLifecycle, createDraft } from "./support/questions.js";
  * Serial, and each test leaves the step as the next expects it. The batch test is the one
  * that adds pins; the tests before it choose and unchoose without committing, which is
  * precisely the state that did not exist before this issue.
+ *
+ * ## Why the step starts with one pin in it rather than empty
+ *
+ * A step with no questions is an UNSAVEABLE draft (`unsaveableReason` returns "emptyStep"),
+ * so the builder pauses its autosave and the step does not survive a navigation. Every
+ * spec in this directory that waits for a save pins something first, and this one has to
+ * as well. The anchor earns its place twice over: it is also the "Already in this form"
+ * refusal, so each test below opens a picker that is already showing one row it cannot
+ * choose.
  */
 
 test.describe.configure({ mode: "serial" });
@@ -48,6 +58,7 @@ test.describe.configure({ mode: "serial" });
 const EMAIL = uniqueAdminEmail("picker660");
 const RUN = Date.now().toString(36).slice(-5);
 
+const ANCHOR = `ms-anchor-${RUN}`;
 const ALPHA = `ms-alpha-${RUN}`;
 const BETA = `ms-beta-${RUN}`;
 const GAMMA = `ms-gamma-${RUN}`;
@@ -56,6 +67,7 @@ function questionIdFor(slug: string): string {
   return `q_${slug.replaceAll("-", "_")}`;
 }
 
+const ANCHOR_ID = questionIdFor(ANCHOR);
 const ALPHA_ID = questionIdFor(ALPHA);
 const BETA_ID = questionIdFor(BETA);
 const GAMMA_ID = questionIdFor(GAMMA);
@@ -69,7 +81,7 @@ test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
 });
 
-test("authors a library with a two-version question and an empty step", async ({ page }) => {
+test("authors a library with a two-version question and a step to add into", async ({ page }) => {
   test.setTimeout(300_000);
   totpSecret = await enrollNewAdmin(page, EMAIL);
 
@@ -85,10 +97,15 @@ test("authors a library with a two-version question and an empty step", async ({
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
   await createDraft(page, GAMMA, "Long text");
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
+  await createDraft(page, ANCHOR, "Short text");
+  await confirmLifecycle(page, /^Publish version 1$/, "Publish");
 
   await createForm(page, `picker-multi-${RUN}`, "Multi select");
   builderPath = new URL(page.url()).pathname;
   await addStep(page, "Only step");
+  // The anchor, without which the step is an unsaveable draft and does not survive the
+  // navigations the rest of this file makes.
+  await pinQuestion(page, ANCHOR_ID, 1);
   await waitForSaved(page);
 });
 
@@ -125,7 +142,8 @@ test("counts what is chosen, on the tally and on the button that will commit it"
   await expect(tally.getByRole("listitem")).toHaveCount(3);
   await expect(tally).toContainText(`${ALPHA_ID}@2`);
 
-  // The dialog is left as it was found, so the next test starts from an empty step.
+  // Nothing is committed: the dialog is dismissed, and the step is left holding only
+  // the anchor for the next test.
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
 });
@@ -207,7 +225,11 @@ test("adds three questions in one trip, in the order they were chosen", async ({
   // boundary outwards, so the author's sequence is what lands. A handler called once per
   // pin would have folded each one into the same stale draft and kept only the last, so
   // this assertion is also the regression test for that.
-  await expect.poll(async () => pinnedOrder(page)).toEqual([GAMMA_ID, ALPHA_ID, BETA_ID]);
+  // The anchor first, because the picker appends at the end of the step, then the three
+  // in the order they were ticked.
+  await expect
+    .poll(async () => pinnedOrder(page))
+    .toEqual([ANCHOR_ID, GAMMA_ID, ALPHA_ID, BETA_ID]);
   await expect(pinLabel(page, ALPHA_ID, 2)).toBeVisible();
   await waitForSaved(page);
 
