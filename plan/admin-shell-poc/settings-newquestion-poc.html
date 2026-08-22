@@ -656,12 +656,15 @@ h3.card-subheading { margin: 0.2rem 0 0; font-size: 0.88rem; font-weight: 700; }
               <li>sample-0010</li>
             </ul>
 
-            <!-- The shipped screen deliberately ships with no copy-all button (a clipboard
-                 write needs client JavaScript and a status region this app has no other use
-                 for yet, recorded as a discovery rather than improvised - see the doc comment
-                 on RecoveryCodesPage). The task brief for this POC asks for a copy affordance
-                 regardless, so it is shown here as a forward-looking addition, not a claim
-                 that it already ships. -->
+            <!-- This ships (issue 683). The comment here used to say the opposite, that the
+                 screen deliberately had no copy-all because a clipboard write needed client
+                 JavaScript and a status region this app had no other use for, and that this
+                 was a forward-looking addition rather than a claim about shipped code. Both
+                 halves stopped being true without anyone editing the drawing:
+                 docs/admin-constraints.md records that JavaScript is available and a design
+                 may depend on it, and under POC-wins a drawing is the approved design rather
+                 than a proposal. auth-poc.html draws the same control identically, and
+                 apps/admin/components/recovery-codes.tsx is what both now describe. -->
             <div class="recovery-panel__actions">
               <button type="button" class="btn btn-secondary btn-sm" onclick="copyCodes(this)">Copy codes</button>
               <p id="copy-status" class="recovery-panel__status" aria-live="polite"></p>
