@@ -314,6 +314,33 @@ it belongs with #518's implementation, not here.
   The summary text truncates with an ellipsis; the markup is one shared
   component, not per-screen copies.
 - Rail items are anchors, not buttons.
+
+**Amendment, 2026-08-22 (PM/PO seat, from PR #621): the disclosure is one element at
+every width, and its summary stays visible when expanded.**
+
+§7 described the collapsed state and said nothing about the expanded one, which left
+the reference implementation free to answer a question the contract had not asked.
+It answered it well, and this records the answer **before #561 and #562 inherit it as
+precedent** rather than as a decision. A silent contract plus shipped code is exactly
+how an unexamined choice becomes the house pattern.
+
+- **One native `<details open>` at both widths**, not a rail plus a separate collapsed
+  variant. Two components would mean **two copies of the same navigation in the DOM**,
+  which is a real accessibility defect rather than a tidiness question, and a native
+  disclosure is keyboard-operable by construction and announces its own expanded state
+  more reliably than any hand-written `aria-expanded`.
+- **The `<summary>` remains rendered above `--bp-sidebar`**, naming the active item, with
+  the chevron suppressed. So the active item's name appears twice on a wide screen: once
+  as the summary and once as the marked row. That redundancy is **accepted**, because the
+  alternatives are worse: hiding the summary at one width reintroduces a second code path
+  for the state a screen reader relies on, and removing it entirely takes the disclosure
+  semantics with it.
+- **The Settings rail (§7a) follows the same mechanism**, being a different component with
+  the same collapse behaviour. It does not get to answer this differently.
+
+`components/rail-frame.tsx` is the shared chrome and `components/forms/form-subtree-rail.tsx`
+is §7's contents; the split is what keeps §7a a distinct component that shares the column,
+the width and the collapse behaviour and nothing else.
 ### 7a. Settings keeps a rail, as a written exception
 
 **[Code Owner ruling, 2026-08-20 - decision C1 closed]** Settings keeps its rail.
