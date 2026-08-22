@@ -67,6 +67,61 @@ it avoided is this campaign's own recurring defect - opening Account regardless 
 successful password change inside a hidden panel, presenting success as failure. A screen
 asserting something it does not know is the family behind five fixes this week.
 
+**A POC can SPEAK and still be unbuildable AS DRAWN, 2026-08-22 (this seat, adopting the dev
+seat's #674).** The third category, and the two above did not cover it.
+
+A POC is a **standalone HTML file**. Some properties belong to a whole document rather than
+to a fragment: heading order, what a landmark contains and is therefore named, focus order,
+skip links, id uniqueness. A drawing cannot exhibit those, because there is no shell around
+it - so a POC can state something plainly and have that statement be impossible once the
+screen is placed in the app.
+
+**When that happens, the intent is honoured and the expression changes, and the change is
+stated in the code.** This is not "the POC loses": the drawing is not wrong, and the conflict
+does not exist in the drawing.
+
+The instance: `question-editor-poc.html` draws the rail summary as an `<h2>`. Shipped, that
+summary sits **above the page `<h1>`**, which is a `heading-order` violation on a screen
+`e2e/a11y-axe.pw.ts` runs over in three states. The lane built a `<span>` and said why. Its
+sentence is the whole finding: *"a standalone POC page had no such neighbour to discover
+it."* The same lane hit a second: the POC puts the lifecycle block **inside** the `<nav>`,
+which shipped would name a landmark "Versions of q_x" and then fill it with three actions.
+
+**The criterion, so this does not become a licence.** It applies when the property violated
+is one a **fragment cannot have**. "It is awkward in context", "it conflicts with a house
+pattern", or "another screen does it differently" are **not** this category - those are
+ordinary design disagreements and the POC wins them.
+
+**§7a's "no third screen" sentence is now out of date, 2026-08-22.** It said no third screen
+gets a rail without its own ruling recorded here. The question detail screen is the third
+(issue 650, PR #670), built to `question-editor-poc.html`, which draws one and states its own
+reason beside the markup: a question's only children are its versions and it has no sibling
+screens. Under POC-wins that drawing is the ruling, so the sentence describes a gate that no
+longer exists. What §7a still does is prohibit a shared rail abstraction, and **that has now
+held three times** - `rail-frame.tsx` and `form-subtree-rail.tsx` are absent from the diffs of
+PRs #662, #665 and #670, and #670 restated the boundary in the settings rail's own docblock:
+*"The three share the directory and the 240px track and nothing else."*
+
+**The question editor's state switcher is a fixture device, not shipped UI, 2026-08-22 (this
+seat, on the #650 lane's flag).** `question-editor-poc.html:652-653` draws a "Draft (v4) /
+Published (v3)" toggle, and the CSS comment at `:312` says *"this one is shipped UI, not a
+viewer aid"*. The lane did not build it and was right.
+
+The comment describes **two axes**: the rail picks a version, the switcher picks *"which of
+the two rendered states - draft or frozen - is on screen **for whichever version is
+selected**"*. The markup implements **one** - `rail-v4` and `btn-state-draft` both call
+`showState('draft')` - because in a two-version fixture the axes coincide.
+
+**In the real model they cannot come apart at all.** A version carries exactly one status
+(`draft | published | deprecated`), and that status determines its rendering: selecting a
+published version already yields the frozen editor, as `docs/gates/pr-650/detail-1280-published.png`
+shows. A control offering to view a published version *in draft state* would be offering
+something **R6 immutability forbids**. The switcher's stated purpose needs a degree of freedom
+the domain does not have, so it is a device for drawing both renderings on one page.
+
+Same family as #659: a drawing proposing something a shipped guarantee does not permit. The
+duplication argument is true but secondary; this is the reason.
+
 **AUTHORITY REVERSED, 2026-08-22 (Code Owner): the POCs win. "This is the approved
 design."**
 
