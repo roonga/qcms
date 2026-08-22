@@ -110,6 +110,23 @@ export async function moveOptionByKey(page: Page, index: number, key: "ArrowUp" 
   await grip(page, index).press(key);
 }
 
+/**
+ * Open a row's menu the way a pointer user does: one press on the grip that goes nowhere.
+ *
+ * This is the whole of the SC 2.5.7 path in one helper. `click()` moves the pointer to the
+ * grip, presses, and releases at the same coordinate, so no `pointermove` ever lands
+ * between down and up: the component's drag session records `moved: false` and treats the
+ * press as a click. Anything that regressed the menu into opening on drag, or the move
+ * items into needing a gesture, fails here rather than in a comment.
+ */
+export async function openRowMenuByPointer(page: Page, index: number): Promise<Locator> {
+  await page.locator(".qcms-opt-grid").scrollIntoViewIfNeeded();
+  await grip(page, index).click();
+  const menu = page.getByRole("menu");
+  await expect(menu).toBeVisible();
+  return menu;
+}
+
 /** Open a row's menu from the keyboard (Enter on the focused grip) and pick an item. */
 export async function useRowMenu(page: Page, index: number, item: RegExp): Promise<void> {
   await grip(page, index).focus();

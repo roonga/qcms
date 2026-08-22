@@ -798,15 +798,20 @@ h3.card-subheading { margin: 0.2rem 0 0; font-size: 0.88rem; font-weight: 700; }
             </ul>
             <button type="button" class="opt-row--add"><span aria-hidden="true">+</span> Add option</button>
           </div>
-          <!-- Move up / Move down stay in this menu alongside the shipped Insert above /
-               Insert below / Remove: WCAG 2.2 SC 2.5.7 Dragging Movements (AA) requires that
-               any functionality operable by a dragging movement is also achievable with a
+          <!-- Move up / Move down stay in this menu alongside Insert above / Insert below /
+               Remove: WCAG 2.2 SC 2.5.7 Dragging Movements (AA) requires that any
+               functionality operable by a dragging movement is also achievable with a
                single pointer, without dragging. The grip's Arrow Up/Down while focused
                satisfies SC 2.1.1 Keyboard, a different criterion, and does not discharge
                2.5.7 - Move up and Move down, ordinary tap/click targets, are the
-               single-pointer path. This is the corrected menu (matching the one in
-               admin-shell-poc.html's step rail and question grid), not the narrower
-               three-item menu currently shipped in option-grid-editor.tsx. -->
+               single-pointer path. Same five items as admin-shell-poc.html's step rail and
+               question grid.
+
+               History: this comment used to call the shipped option-grid-editor.tsx menu a
+               narrower three-item one. That was true until issue 680 (2026-08-22) added the
+               two move items to it. The shipped menu now matches this drawing, and its
+               labels name their row ("Move Comprehensive cover up"), which is the shipped
+               convention for every item in a row menu. -->
           <div class="opt-menu opt-menu--below-grid" role="menu" id="opt-menu-3" aria-label="Comprehensive cover row actions">
             <button type="button" role="menuitem" class="mi">Insert option above Comprehensive cover</button>
             <button type="button" role="menuitem" class="mi">Insert option below Comprehensive cover</button>

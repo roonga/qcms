@@ -1,3 +1,5 @@
+import { t } from "../i18n/en.ts";
+
 import { addOption, moveOption, textOf } from "./definition.ts";
 
 import type { ChoiceOptionView } from "./types.ts";
@@ -223,4 +225,86 @@ export function gridRows(state: OptionGridState): readonly GridRow[] {
     key: "qcms-pending-option-row",
   });
   return rows;
+}
+
+/** What one entry of a row's grip menu does. */
+export type OptionRowAction = "insertAbove" | "insertBelow" | "moveUp" | "moveDown" | "remove";
+
+export interface OptionRowMenuItem {
+  readonly action: OptionRowAction;
+  readonly label: string;
+  readonly isDisabled: boolean;
+  readonly isDanger: boolean;
+}
+
+/**
+ * The five entries of an option row's grip menu.
+ *
+ * **Move up and Move down are not a convenience.** The grip reorders by pointer-drag, and
+ * WCAG 2.2 SC 2.5.7 Dragging Movements (AA) asks that anything a drag can do is also
+ * reachable with a single pointer and no dragging. The grip's Arrow Up/Down satisfies
+ * SC 2.1.1 Keyboard, which is a different criterion and does not discharge 2.5.7: the
+ * operator this is for is on a pointer they cannot drag with (a head pointer, a switch, an
+ * eye tracker, a tremor), not on a keyboard. These two items are ordinary tap targets, and
+ * they are that path. Removing either is a conformance regression rather than a
+ * simplification, which is why the list is built here and asserted in `option-grid.test.ts`
+ * instead of living inline in the component's JSX.
+ *
+ * The order is the one all three POCs draw (`plan/admin-shell-poc/admin-shell-poc.html`,
+ * `settings-newquestion-poc.html`, `question-editor-poc.html`): the two inserts, the two
+ * moves, then the destructive item last.
+ *
+ * **Disabled items now sit in the MIDDLE of this menu.** Move up is dead on the first row
+ * and Move down on the last, at positions three and four of five. `components/row-menu.tsx`
+ * skips disabled items wherever they sit (issue 517), so arrowing past one still reaches
+ * Remove; that filter is what this ordering depends on.
+ *
+ * Every label names its row, because two rows' menus are otherwise five identical phrases.
+ * The POCs write the move items as a bare "Move up" / "Move down"; the shipped app names
+ * the row in every menu item it has (the pin list included), and a name that identifies the
+ * row is worth more to the operator this change is for than matching the drawing's
+ * shorthand.
+ */
+export function optionRowMenuItems(row: {
+  /** The row's name, as the operator sees it: its label, or a positional fallback. */
+  readonly name: string;
+  /** 0-based position among the committed options. */
+  readonly index: number;
+  readonly total: number;
+}): readonly OptionRowMenuItem[] {
+  const name = row.name;
+  return [
+    {
+      action: "insertAbove",
+      label: t("questions.options.insertAbove", { row: name }),
+      isDisabled: false,
+      isDanger: false,
+    },
+    {
+      action: "insertBelow",
+      label: t("questions.options.insertBelow", { row: name }),
+      isDisabled: false,
+      isDanger: false,
+    },
+    {
+      action: "moveUp",
+      label: t("questions.options.moveUp", { row: name }),
+      isDisabled: row.index <= 0,
+      isDanger: false,
+    },
+    {
+      action: "moveDown",
+      label: t("questions.options.moveDown", { row: name }),
+      isDisabled: row.index >= row.total - 1,
+      isDanger: false,
+    },
+    {
+      action: "remove",
+      // The list can never empty from here: at one option Remove is dead, which is also why
+      // the component's `removeAt` never needs a "focus the add row instead" case.
+      label: t("questions.options.remove", { row: name }),
+      isDisabled: row.total <= 1,
+      isDanger: true,
+    },
+  ];
 }

@@ -1100,15 +1100,18 @@ table.qgrid { width: 100%; min-width: 640px; border-collapse: collapse; font-siz
             <button type="button" class="qgrid-add">+ Add question from library</button>
             <p class="stacked-note qgrid-footnote">Inserting opens the question library and places the chosen question at that position.</p>
           </div>
-          <!-- Move up / Move down stay in this menu, and in every step menu in the rail above -
-               unlike the shipped option grid's row menu (option-grid-editor.tsx), which
-               currently offers only pointer-drag and keyboard arrows. WCAG 2.2 SC 2.5.7
-               Dragging Movements (AA) requires that any functionality operable by a dragging
-               movement is also achievable with a single pointer, without dragging. Keyboard
-               Arrow Up/Down on the grip satisfies SC 2.1.1 Keyboard, a different criterion,
-               and does not discharge 2.5.7 - Move up and Move down, ordinary tap/click
-               targets, are the single-pointer path. Do not "tidy" these two items away to
-               match the option grid; this POC is deliberately the corrected version. -->
+          <!-- Move up / Move down stay in this menu, and in every step menu in the rail above.
+               WCAG 2.2 SC 2.5.7 Dragging Movements (AA) requires that any functionality
+               operable by a dragging movement is also achievable with a single pointer,
+               without dragging. Keyboard Arrow Up/Down on the grip satisfies SC 2.1.1
+               Keyboard, a different criterion, and does not discharge 2.5.7 - Move up and
+               Move down, ordinary tap/click targets, are the single-pointer path. Do not
+               "tidy" these two items away.
+
+               History: this comment used to say the shipped option grid's row menu offered
+               only pointer-drag and keyboard arrows, and that was true until issue 680
+               (2026-08-22) put the same two items in option-grid-editor.tsx's menu. Both
+               menus now carry them, and neither is the odd one out. -->
           <div class="menu qrow-menu" role="menu" id="qrow-menu-c" aria-label="Row actions for q_quit_date">
             <button type="button" role="menuitem" class="mi">Insert question above</button>
             <button type="button" role="menuitem" class="mi">Insert question below</button>

@@ -14,6 +14,7 @@ import {
   grip,
   insertOptionAbove,
   moveOptionByKey,
+  openRowMenuByPointer,
   optionIds,
   pendingRow,
   setNumericConstraint,
@@ -279,6 +280,96 @@ test("a real drag reorders to the position the drop indicator marks", async ({ p
   await expect(page.getByText("Draft saved.")).toBeVisible();
   await page.reload();
   expect(await optionIds(page)).toEqual(["opt_no_never", "opt_green", "opt_yes_always"]);
+});
+
+test("the row menu reorders an option with a single pointer and no dragging", async ({ page }) => {
+  test.setTimeout(180_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await createDraft(page, slugFor("nodrag"), "Single choice");
+  await addOption(page, "Maybe");
+  const minted = await optionIds(page);
+  expect(minted).toEqual(["opt_yes_always", "opt_no_never", "opt_maybe"]);
+
+  // A middle row's menu, opened by one press that travels nowhere. Five items, in the
+  // order all three POCs draw, each naming the row it acts on.
+  const middle = await openRowMenuByPointer(page, 1);
+  await expect(middle.getByRole("menuitem")).toHaveText([
+    "Insert option above No, never",
+    "Insert option below No, never",
+    "Move No, never up",
+    "Move No, never down",
+    "Remove option No, never",
+  ]);
+
+  // The reorder itself, and the whole point of the issue: a tap on an ordinary control
+  // moved the row, with no gesture anywhere in it.
+  await middle.getByRole("menuitem", { name: "Move No, never up", exact: true }).click();
+  expect(await optionIds(page)).toEqual(["opt_no_never", "opt_yes_always", "opt_maybe"]);
+  await expect(page.getByTestId("qcms-announcer")).toHaveText(
+    "No, never moved to position 1 of 3.",
+  );
+  // The menu closes and the moved row keeps the operator, at its NEW index rather than on
+  // whatever slid into the old slot.
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await expect(grip(page, 0)).toBeFocused();
+
+  // The first row: Move up is gone, and it is gone as a native `disabled` button rather
+  // than a live control that refuses.
+  const first = await openRowMenuByPointer(page, 0);
+  await expect(
+    first.getByRole("menuitem", { name: "Move No, never up", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    first.getByRole("menuitem", { name: "Move No, never down", exact: true }),
+  ).toBeEnabled();
+
+  // Which puts a dead item at position three of five, the arrangement issue 517 fixed:
+  // arrowing down has to skip it, or Move down and Remove are unreachable by keyboard.
+  await expect(first.getByRole("menuitem").first()).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowDown");
+  await expect(
+    first.getByRole("menuitem", { name: "Move No, never down", exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(
+    first.getByRole("menuitem", { name: "Remove option No, never", exact: true }),
+  ).toBeFocused();
+
+  // And the other direction moves too, by pointer, back to where the row started.
+  await first.getByRole("menuitem", { name: "Move No, never down", exact: true }).click();
+  expect(await optionIds(page)).toEqual(minted);
+  await expect(grip(page, 1)).toBeFocused();
+
+  // The last row is the mirror image.
+  const last = await openRowMenuByPointer(page, 2);
+  await expect(last.getByRole("menuitem", { name: "Move Maybe down", exact: true })).toBeDisabled();
+  await expect(last.getByRole("menuitem", { name: "Move Maybe up", exact: true })).toBeEnabled();
+  await page.keyboard.press("Escape");
+
+  // A single-option grid has no move to offer at all, and no Remove either. Reached by
+  // removing rows through the same pointer path, since that is the state an author gets
+  // to it from.
+  const lastMenu = await openRowMenuByPointer(page, 2);
+  await lastMenu.getByRole("menuitem", { name: "Remove option Maybe", exact: true }).click();
+  const middleMenu = await openRowMenuByPointer(page, 1);
+  await middleMenu.getByRole("menuitem", { name: "Remove option No, never", exact: true }).click();
+  expect(await optionIds(page)).toEqual(["opt_yes_always"]);
+
+  const only = await openRowMenuByPointer(page, 0);
+  await expect(
+    only.getByRole("menuitem", { name: "Move Yes, always up", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    only.getByRole("menuitem", { name: "Move Yes, always down", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    only.getByRole("menuitem", { name: "Remove option Yes, always", exact: true }),
+  ).toBeDisabled();
+  // Three of five dead, and the menu still opens onto a live item rather than stranding
+  // focus on a button that cannot take it.
+  await expect(only.getByRole("menuitem").first()).toBeFocused();
+  await page.keyboard.press("Escape");
 });
 
 test("the grid's hidden controls are reachable without a pointer", async ({ page }) => {

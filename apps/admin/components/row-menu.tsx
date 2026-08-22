@@ -46,13 +46,14 @@ import { useEffect, useRef, type KeyboardEvent } from "react";
  * the same index and does nothing again. Everything past it is unreachable by keyboard.
  *
  * Item ORDER is the caller's, so this component cannot assume disabled items sit at one
- * end. The option grid disables only Remove, which it lists last, so nothing was ever
- * stranded behind it and the defect stayed latent. The pin list (issue 517) puts Move up
- * and Move down in the middle of five items and disables them at the ends of the list:
- * without this filter, the first row of every step loses Move down and Remove, and a
- * single-pin step loses Remove entirely. Filtering here keeps the menu sound for any
- * item order a future caller picks, rather than making "disabled items last" an unwritten
- * rule two callers happen to follow.
+ * end. Both callers now put Move up and Move down in the middle of five items and disable
+ * them at the ends of the list: the pin list from the start (issue 517), the option grid
+ * since issue 680 gave it the same pair. Without this filter, the first row of every step
+ * and of every option list loses Move down and Remove, and a single-row one loses Remove
+ * entirely. Filtering here keeps the menu sound for any item order a future caller picks,
+ * rather than making "disabled items last" an unwritten rule the callers happen to follow -
+ * which is what the option grid's own menu looked like until 680, and why the defect 517
+ * fixed stayed latent there.
  *
  * ## `disabled` rather than `aria-disabled`
  *
