@@ -115,26 +115,33 @@ describe("which screens carry the form-subtree rail", () => {
     expect(sorted(railSlotRoutes())).toEqual(sorted(formScopedScreens()));
   });
 
-  it("puts no rail outside one form's subtree, except the one screen §7a names", () => {
-    // §7a's "does not generalise" clause, checked - but read the whole clause. It does not
-    // say the slot tree holds nothing but `forms/`: it says "Settings is now the single
-    // named exception, not the first of a series", and the same ruling grants Settings a
-    // rail outright. So the tripwire is that the slot root holds exactly these two roots.
+  it("puts no rail outside the three screens that have been granted one", () => {
+    // The tripwire is that the slot root holds exactly these three roots, and it keeps its
+    // teeth where they matter: a FOURTH appearing fails here, which is the moment a rail on
+    // a new screen has to be argued rather than assumed. The other authenticated screens
+    // would still get an empty rail or one duplicating their own body
+    // (`plan/admin-ux-audit.md` §3 and §5.4), which is why the default is nothing.
     //
-    // It keeps its teeth where they matter. A THIRD root appearing fails here, which is the
-    // moment §7a asks for a ruling of its own recorded in the contracts document, and the
-    // other eight authenticated screens would still get an empty rail or one duplicating
-    // their own body. What changed with issue 562 is only that the exception now exists in
-    // the tree as well as in the contract.
+    // Each of the three was granted separately and the grants are not one rule:
     //
-    // `settings/` is NOT a second form-subtree rail and nothing below it is checked by the
-    // rest of this file: every other assertion here walks `@rail/forms` alone, because §7a
-    // is a different contract that happens to share the column. Its own coverage is
-    // `lib/settings-sections.test.ts` and `components/settings-section-rail.test.tsx`.
+    // - `forms/` is the form-subtree rail (issue 559, rolled out by 561).
+    // - `settings/` was §7a's single named exception (issue 562, rebuilt to its POC by 655).
+    // - `questions/` is issue 650, and its authority is the screen's own POC
+    //   (`plan/admin-shell-poc/question-editor-poc.html`), which draws a rail carrying the
+    //   question's versions. `docs/admin-constraints.md` is what makes that the ruling: the
+    //   POCs are the design, one per screen, and the contracts document is description. §7a
+    //   asked for a ruling recorded in the contracts document because that document was the
+    //   authority when it was written; the drawing is now where a screen's answer lives.
+    //
+    // None of the three is checked below by the rest of this file: every other assertion
+    // here walks `@rail/forms` alone, because the other two are different contracts that
+    // happen to share the column. Their own coverage is `lib/settings-sections.test.ts` and
+    // `components/settings-section-rail.test.tsx`, and `lib/questions/version-rail.test.ts`
+    // and `components/questions/question-versions-rail.test.tsx`.
     const slotRoot = readdirSync(`${SHELL}/@rail`, { withFileTypes: true });
     expect(
       sorted(slotRoot.filter((entry) => entry.isDirectory()).map((entry) => entry.name)),
-    ).toEqual(["forms", "settings"]);
+    ).toEqual(["forms", "questions", "settings"]);
   });
 });
 
