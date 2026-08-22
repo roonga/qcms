@@ -63,8 +63,8 @@ import type { QuestionDefinitionView, QuestionListItem } from "../../lib/questio
  * The kit is real except for `Dialog`, and the exception is not a convenience. A
  * react-aria `Modal` renders through a portal, which server rendering has nowhere to put,
  * so the real one emits an empty string and the picker's whole table would vanish from
- * the markup this file reads. `Button` stays real, because the picker's new per-row
- * control IS the subject and a stub button would only assert that the stub is a button.
+ * the markup this file reads (issue 628). `Button` stays real, because the dialog's commit
+ * control IS a kit button and a stub would only assert that the stub is a button.
  */
 vi.mock("@/components/kit", async () => {
   const kit = await import("../../components/kit.tsx");
@@ -77,6 +77,7 @@ vi.mock("@/components/kit", async () => {
 });
 vi.mock("@/components/empty-state", () => import("../../components/empty-state.tsx"));
 vi.mock("@/lib/forms/draft", () => import("../../lib/forms/draft.ts"));
+vi.mock("@/lib/forms/picker-selection", () => import("../../lib/forms/picker-selection.ts"));
 vi.mock("@/lib/forms/types", () => import("../../lib/forms/types.ts"));
 vi.mock("@/lib/forms/version-diff", () => import("../../lib/forms/version-diff.ts"));
 vi.mock("@/lib/i18n/en", () => import("../../lib/i18n/en.ts"));
@@ -179,7 +180,7 @@ function pickerMarkup(): string {
       stepTitle="Step one"
       draft={EMPTY_DRAFT as never}
       library={{ ok: true, data: LIBRARY }}
-      onPin={() => undefined}
+      onAddPins={() => undefined}
       onClose={() => undefined}
     />,
   );
@@ -274,18 +275,43 @@ describe("the version history table", () => {
 });
 
 describe("the library picker", () => {
-  it("gives each choosable row its own named button rather than a clickable row", () => {
+  // Since issue 660 the row control is a CHECKBOX rather than the per-row button issue
+  // 570 put here, and the reasoning that governed that choice is unchanged: a picker row
+  // has no address, so it is not a link, and whatever control it carries has to be named
+  // by the row it sits in. What multi-select changes is what the control does. The
+  // assertions below therefore still refuse an anchor and still demand the named string.
+  it("gives each choosable row its own named control rather than a clickable row", () => {
     const markup = pickerMarkup();
     expect(markup).not.toContain(MARKER);
     expect(markup).not.toContain('role="grid"');
-    expect(markup).toContain("Add q_free version 2");
+    expect(markup).toContain('aria-label="Add q_free version 2"');
+  });
+
+  it("makes that control a checkbox, so its own state is part of what it announces", () => {
+    const markup = pickerMarkup();
+    expect(markup).toMatch(/<input[^>]*type="checkbox"[^>]*aria-label="Add q_free version 2"/);
   });
 
   it("offers no control at all on a version that cannot be pinned", () => {
     const markup = pickerMarkup();
-    // v1 is deprecated, so there is nothing to press and the State cell says why.
+    // v1 is deprecated, so there is nothing to tick and the State cell says why.
     expect(markup).not.toContain("Add q_free version 1");
     expect(markup).toContain("Deprecated");
+  });
+
+  it("names its commit control with the count, and cannot be pressed at zero", () => {
+    const markup = pickerMarkup();
+    // The static render is the zero state, which is the one case the plural rule does not
+    // cover: "Add 0 questions to step" is a sentence no locale wants.
+    expect(markup).toContain("Add questions to step");
+    expect(markup).not.toContain("Add 0 questions");
+    expect(markup).toMatch(/<button[^>]*disabled[^>]*>(?:(?!<\/button>).)*Add questions to step/s);
+  });
+
+  it("shows the chosen pane before anything is chosen, with its running tally at zero", () => {
+    const markup = pickerMarkup();
+    expect(markup).toContain("Chosen (0)");
+    expect(markup).toContain("Nothing chosen yet.");
   });
 
   it("states which columns drop at compact width", () => {

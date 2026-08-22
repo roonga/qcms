@@ -57,6 +57,7 @@ vi.mock("@/components/empty-state", () => import("../empty-state.tsx"));
 vi.mock("@/components/row-menu", () => import("../row-menu.tsx"));
 vi.mock("@/lib/announce", () => import("../../lib/announce.ts"));
 vi.mock("@/lib/forms/draft", () => import("../../lib/forms/draft.ts"));
+vi.mock("@/lib/forms/picker-selection", () => import("../../lib/forms/picker-selection.ts"));
 vi.mock("@/lib/forms/issues", () => import("../../lib/forms/issues.ts"));
 vi.mock("@/lib/forms/pin-grid", () => import("../../lib/forms/pin-grid.ts"));
 vi.mock("@/lib/i18n/en", () => import("../../lib/i18n/en.ts"));
@@ -113,7 +114,7 @@ async function render(step: DraftStep, issues: readonly FormIssue[] = []): Promi
       step={step}
       library={{ ok: true, data: LIBRARY }}
       issues={issues}
-      onAddPin={() => undefined}
+      onAddPins={() => undefined}
       onMovePin={() => undefined}
       onRemovePin={() => undefined}
       onReorderPin={() => undefined}

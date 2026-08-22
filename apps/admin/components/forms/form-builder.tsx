@@ -308,8 +308,28 @@ export function FormBuilder({
             step={selectedStep}
             library={library}
             issues={issues}
-            onAddPin={(questionId, version, index) => {
-              mutate(addPinAt(draft, selectedStep.stepId, questionId, version, index));
+            /* One `mutate` for the whole batch, folded left over the pins.
+               `addPinAt` is pure and returns the next draft, so the fold is what makes a
+               multi-pin add correct: calling this handler once per pin would hand
+               `addPinAt` the SAME closed-over `draft` every time and keep only the last
+               result. Folding also makes the batch one entry in the draft's history, which
+               is what it is to the author: one press of one button.
+               The boundary advances with each pin so the batch lands in the order it was
+               chosen, rather than every pin insetting at `index` and arriving reversed. */
+            onAddPins={(pins, index) => {
+              mutate(
+                pins.reduce(
+                  (next, pin, offset) =>
+                    addPinAt(
+                      next,
+                      selectedStep.stepId,
+                      pin.questionId,
+                      pin.version,
+                      index + offset,
+                    ),
+                  draft,
+                ),
+              );
             }}
             onMovePin={(questionId, version) => {
               mutate(movePin(draft, questionId, version));

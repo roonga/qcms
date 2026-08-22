@@ -2509,6 +2509,150 @@ button {
   color: var(--color-text-muted);
 }
 
+/* THE ADD-QUESTION PICKER'S MULTI-SELECT (issue 660).
+   `plan/admin-shell-poc/add-question-poc.html` holds two dialogs behind a variant
+   toggle and this is its multi-select one: a checkbox leading each choosable row,
+   and a pane listing what has been chosen so far. */
+
+/* The leading selection column. Sized to its control and nothing else, so the
+   identifying column keeps the width it had. `text-align: start` overrides the
+   table family's centred numeric headers, which this one is not. */
+.qcms-picker__choose {
+  inline-size: 1px;
+  text-align: start;
+  white-space: nowrap;
+}
+
+/* The row control. `accent-color` is the POC's own rule and is what keeps a native
+   checkbox inside the theme without a wrapper element to paint.
+
+   SIZE AND SC 2.5.8. The POC draws 16px, which is under the 24px target floor the
+   admin's control height clears elsewhere, and the base rule for `input` in this
+   sheet deliberately excludes `[type="checkbox"]` from that floor. This takes the
+   drawing's size and meets 2.5.8 through its SPACING exception instead: the cell's
+   padding comes from the table family, so no other target comes within a 24px
+   circle centred on this one. `docs/admin-constraints.md` asks for the trade to be
+   stated rather than left silent, and that is the trade. */
+.qcms-picker__checkbox {
+  inline-size: 16px;
+  block-size: 16px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+/* THE TABLE ABSORBS THE SLACK, WHICH IS WHAT KEEPS THE COUNTED PRIMARY IN VIEW.
+
+   This dialog is one scrolling column, so before this rule a library of any size
+   pushed "Add 3 questions to step" below the dialog's own fold: the control whose
+   whole job is to say what the commit will do was reachable only by scrolling past
+   the thing it was describing. Both gate frames at 003d45f show it clipped, and a
+   fixed cap on the table alone (c1553c3) moved the fold rather than removing it,
+   because the header, the search field, the chosen pane and the pin note still sum
+   to more than what is left.
+
+   So the body takes a height budget and the TABLE is the only part allowed to
+   flex inside it. Everything else keeps its natural height, which means the footer
+   is placed by the budget rather than by however many rows the library happens to
+   have. `min-block-size: 0` is the part that is not optional: a flex item's default
+   `min-height: auto` refuses to shrink below its content, so without it the table
+   would still push the footer down and `overflow` would never engage.
+
+   The budget is a proportion rather than a pixel count so it holds at any viewport,
+   and it is set here rather than by restructuring the dialog because the
+   sticky-footer shape belongs to the vendored `Dialog`, not to one of its callers.
+   The POC keeps its footer outside its scrolling body for exactly this reason.
+   Nothing is hidden either way: the table scrolls, and Tab reaches its checkboxes,
+   which scrolls them into view. */
+.qcms-picker__body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-block-size: 58vh;
+}
+.qcms-table--picker {
+  flex: 1 1 auto;
+  /* The floor, so a tall selection cannot squeeze the library out of existence. */
+  min-block-size: 6rem;
+  overflow: auto;
+}
+
+/* The chosen pane. A bordered block rather than a second column: this dialog is one
+   column at every width the admin supports, where the POC's is a two-pane
+   master-detail built around a paginated server-side list this picker does not have. */
+.qcms-picker__chosen {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.qcms-picker__chosen-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  /* Capped for the same reason the table above flexes: a long selection must not be
+     what pushes the button that commits it off the screen. Fixed rather than flexing,
+     because between the two lists it is the library that should give up room first -
+     the chosen list is the shorter one and the one being read at the moment of
+     commit. */
+  max-block-size: 16vh;
+  overflow-y: auto;
+}
+.qcms-picker__chosen-list li {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background-color: var(--color-background-muted);
+}
+
+/* The pin and its label stack, so a long label wraps under the id it belongs to
+   rather than pushing the remove control off a 390px row. */
+.qcms-picker__chosen-main {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+/* 28px square, which clears the 24px target floor without taking the 40px the
+   sheet's base `button` rule gives a control that carries words. */
+.qcms-picker__unchoose {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  inline-size: 28px;
+  block-size: 28px;
+  min-block-size: 28px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background-color: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.qcms-picker__unchoose:hover {
+  background-color: var(--color-ghost-hover);
+  color: var(--color-danger-fg);
+}
+.qcms-picker__unchoose svg {
+  inline-size: 14px;
+  block-size: 14px;
+}
+
+/* Cancel to the start, the counted primary to the end, which is the POC's footer. */
+.qcms-picker__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
 /* Standard clip-rect visually hidden utility: present for assistive tech,
    removed from the visual layout without display:none, which would also
    remove it from the accessibility tree. */
