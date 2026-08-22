@@ -76,6 +76,14 @@ export const messages = {
   "recovery.intro":
     "Each code signs you in once if you lose your authenticator. This is the only time they are shown.",
   "recovery.listLabel": "Recovery codes",
+  // The copy control and its status line, worded as both POCs draw them
+  // (`plan/admin-shell-poc/auth-poc.html`, `settings-newquestion-poc.html`). The failure
+  // sentence names the remedy rather than the cause: an absent clipboard API and a refused
+  // write leave the operator with the same thing to do, and "insecure context" is jargon
+  // that helps nobody standing in front of ten codes they cannot see again.
+  "recovery.copy": "Copy codes",
+  "recovery.copied": "Codes copied.",
+  "recovery.copyFailed": "Could not copy automatically. Select the codes above and copy manually.",
   "recovery.confirm": "I have saved these codes",
 
   "challenge.title": "Two-factor authentication",
