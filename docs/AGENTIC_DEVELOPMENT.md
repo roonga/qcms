@@ -1,100 +1,61 @@
-# QCMS - Agentic Development Methodology
+# QCMS agent workflow
 
-**Status:** v1.0 · how this project is built with AI agents, and the checklist its plan is audited against
-**Premise:** agents are brilliant executors with two structural traits - **amnesia** (every session starts cold) and **no restraint** (underspecification gets filled confidently and wrongly; scope creeps unless bounded). Everything below follows from designing around those two traits.
+This document defines how agent-led work is planned, implemented, reviewed, and merged. See `docs/DEVELOPER_GUIDE.md` for operator commands.
 
-> **Methodology vs. runbook:** this doc is the *why* - principles and the audit checklist. For the operator's *how* (launching, `/task`/`/loop`, gates, monitoring) see [`DEVELOPER_GUIDE.md`](DEVELOPER_GUIDE.md).
+## Operating model
 
----
+- The Code Owner makes ADR, scope, security acceptance, destructive-operation, and explicit human-gate decisions.
+- One root conductor selects work, plans, delegates, handles PR state, and serializes merges.
+- Executor subagents implement isolated tasks or issues in separate worktrees.
+- Reviewer subagents independently review an exact PR head and never edit it.
+- Repository documents, branches, PRs, `HANDOFF.md`, and the ledger are durable state. Trust them over chat or memory.
 
-## 1. Principles
+## Documents and decisions
 
-### 1.1 Documents are the agent's memory
+Each authoritative document owns one concern. Correct a stale or contradicted document in the same change that exposes the conflict.
 
-The persistent state of the project is its document set, not anyone's head. Therefore: few documents, each authoritative for one concern, current, and cross-referenced - agents follow references well but cannot guess which of several stale docs wins.
+Record decisions that constrain future work in an ADR or SEC entry. Agents may recommend a change but must not silently override one. Semantics that affect stored data or public contracts must be decided before implementation.
 
-This project's set (all under `docs/` except the read-first file and `CONTRIBUTING.md`, which sit at the repo root): `docs/PROJECT_GOAL.md` (vision, scope, ADRs) · `docs/ARCHITECTURE.md` (system design, repo layout) · `docs/DOMAIN_SCHEMA.md` (domain model) · `docs/SECURITY_DESIGN.md` (SEC decisions) · `docs/IMPLEMENTATION_PLAN.md` (stages) · `docs/features/` (task files, ledger, ordering exceptions) · `docs/COMPONENT_GUIDELINES.md` (binding for input-control work) · `PROJECT_INSTRUCTIONS.md` (read-first rules) · `CONTRIBUTING.md` (standards and the merge gate). Alongside them, three docs that are authoritative for *how the work runs* rather than for the product: `docs/DEVELOPER_GUIDE.md` (the operator runbook), `docs/PRODUCT_OWNER.md` (the PO seat's charter) and `docs/AUDIT_AGENT.md` (a charter only, not wired to any agent). **Staleness rule:** a doc contradicted by a newer decision is corrected or banner-marked as superseded *in the same change that makes the decision* - a stale authoritative doc is worse than none, because an agent will follow it.
+## Work-order design
 
-### 1.2 Decisions carry rationale (ADRs)
+Every numbered task should contain:
 
-An agent that knows *what* was chosen but not *why* will "improve" it. Every decision that must survive contact with future agents is recorded with its why (ADR-01…35, SEC-1…13) and never relitigated in a task - conflicts are flagged, not resolved ad hoc.
+- context and dependencies;
+- exact references;
+- concrete deliverables;
+- observable exit criteria;
+- a binding out-of-scope section.
 
-### 1.3 Short, numbered, checkable rules
+Keep tasks small enough for one executor. Tests ship with behavior, and named documentation updates in the same PR. Record unrelated discoveries as issues instead of expanding scope.
 
-Discipline rules (R1–R8) are enforceable at review by mechanical checks where possible ("core never imports db" → import-surface test), not vibes ("keep it clean"). The read-first file (`PROJECT_INSTRUCTIONS.md`) is small enough to actually be read at the start of every session.
+## Execution protocol
 
-### 1.4 Ambiguity is resolved in documents, before code
+1. Read `PROJECT_INSTRUCTIONS.md`, the work order, and its references. Inspect current repository and PR state.
+2. Claim work by pushing its branch. A ledger edit is not a claim.
+3. Delegate implementation to an executor in an isolated worktree.
+4. Run the work order's checks and the repository gates in `CONTRIBUTING.md`.
+5. Open or update the PR. For numbered work, update the ledger only in the completing PR.
+6. Delegate an independent review of the exact current head. The root conductor posts the report with `AGENT-REVIEW: APPROVE @<full-head-sha>` or `AGENT-REVIEW: CHANGES-REQUESTED @<full-head-sha>`.
+7. A push invalidates the verdict. Resolve every current comment and repeat review when needed.
+8. Merge only a current approved head with required CI green and every explicit human gate complete. Squash-merge through GitHub and serialize merges.
 
-Humans ask when unsure; agents pick something plausible and proceed. Any semantic left underspecified will be specified for you, randomly, by whichever agent reaches it first - and then frozen by the tests that agent writes. Semantics that freeze into data (evaluation rules, encodings, token formats) get decided at design time (ADR-16, the AnswerValue decision in task 002's spec, SEC-2/5/6).
+If work cannot finish, leave the branch green or commit `HANDOFF.md` with `HANDOFF: AWAITING-HUMAN`, `HANDOFF: BLOCKED`, or `HANDOFF: INTERRUPTED`, plus the next action and any failing checks. Never merge red or leave `main` broken.
 
-### 1.5 Architecture follows the testability gradient
+## Verification principles
 
-Pure core → I/O → UI. Agents are most reliable where feedback is instant, deterministic, and machine-checkable; a headless kernel with total coverage is agent-friendly terrain, a half-mocked UI is not. Build and prove the kernel before HTTP exists; HTTP before UI (the plan's spine).
+- Prefer observable exit criteria to estimates.
+- Put business rules in pure, deterministic code where possible.
+- Build permanent regression checks for contracts and invariants.
+- Keep human gates explicit. Do not invent extra artifacts or simulate human approval.
+- Treat current CI as necessary but still inspect the full diff and all PR comment surfaces.
 
-### 1.6 Exit criteria, not estimates
+## Audit checklist
 
-Agents make effort estimates meaningless and "done" ambiguous. Every stage and task gates on observable, mostly machine-checkable criteria. CI green is the only trust anchor between sessions.
-
-### 1.7 Verification machinery is built early and drift-proofed
-
-Golden files, property tests, conformance suites, append-only corpus guards, permanent regression suites (the 040 matrix stays in CI). These are how agent N+1 avoids silently breaking agent N's work.
-
-### 1.8 Human-in-the-loop points are explicit
-
-Design decisions, wireframe sign-off (042) and the per-screen static-render screenshot gates in every UI task, manual accessibility passes (030), the external-tester launch gate (038), security review sign-off (040). Marked in the task files so agents prepare for them rather than routing around or simulating them.
-
-### 1.9 Division of labor
-
-The human owns decisions, taste, and review; agents own execution and verification; the documents are the interface between them. Time spent making documents unambiguous repays itself multiplied across every future session.
-
-## 2. Task design rules
-
-1. **One task = one agent session**, sized so the task file plus its referenced contracts fit in context with room to work.
-2. **Self-contained work order:** context (why this exists), hard dependencies, references to the *specific* sections that govern it, concrete deliverables, exit criteria, and a **binding out-of-scope** section - scope creep is the top agent failure mode, and "don't" must be written per task.
-3. **Tests are the handoff contract.** They ship with the code and encode what the session promised the next one.
-4. **Discoveries become issues, never expansions.** Beyond-cut-line itches get labeled `phase-4`.
-5. **Docs named in a task are deliverables**, updated in the same change - this is how 1.1's staleness rule is honored in practice.
-
-## 3. Session protocol (normative - agents follow this)
-
-**Start:** read `PROJECT_INSTRUCTIONS.md` → the task file → its listed references. Check the progress ledger (`docs/features/README.md` status column) and `git log` for the actual repo state - trust the repo over memory.
-
-**During:** work only within deliverables/exit criteria; run tests continuously; when blocked by a genuine decision (not a lookup), stop and surface the question rather than choosing silently.
-
-**End - every session leaves the repo green or clean:**
-- Done: all exit criteria pass, `pnpm verify` green at root (add `QCMS_PORT_SEAT=<0-9> pnpm verify:browser` for portal/admin/`@qcms/ui` work - the seat is required from a worktree, R8/`docs/PORTS.md`; gate contents and the CI mapping are owned by `CONTRIBUTING.md`), docs updated, and the ledger row flipped to `done (PR #N)` **inside the completing PR**. The claim is the pushed `feat/NNN-slug` branch, not a ledger edit - so there is no mid-task ledger write, and under the `/task` flow the orchestrator lands the row change, never the executor.
-- Not done: either revert to green, or park on the task branch with a `HANDOFF.md` note (state, next step, what's red) - **never merge red, never leave main broken.**
-
-**Conventions:** one branch per task (`feat/NNN-slug`); task number in commit messages; PR description = exit-criteria checklist checked off.
-
-**Review:** every task's merge is reviewed (human, or a second agent session given the task file + diff with instructions to verify exit criteria and rule compliance - not to extend the work). The cut-line and R-rules are enforced here, not remembered.
-
-## 4. Audit checklist
-
-Used to review this plan (and re-review after major changes). For each item: pass / gap / fix.
-
-**Documents**
-- [ ] D1. Every authoritative doc current or banner-superseded; no contradictions between docs.
-- [ ] D2. Every decision that constrains future work has a recorded rationale.
-- [ ] D3. A read-first instructions file exists, is short, and reflects the *current* doc set and rules.
-- [ ] D4. Semantics that freeze into data are decided in docs, not deferred to implementation.
-- [ ] D5. The doc set is complete as a drop-in: a fresh agent (or human) needs nothing outside the repo.
-
-**Plan**
-- [ ] P1. Stages ordered along the testability gradient; each lands an independently verifiable increment.
-- [ ] P2. Every stage/task gated by observable exit criteria; no date-based gates.
-- [ ] P3. Verification machinery (goldens, property tests, guards) built before or with the behavior it protects.
-- [ ] P4. Human-in-the-loop points explicit, with agent-prepares/human-executes split stated.
-- [ ] P5. Risks named with mitigations that are mechanisms, not intentions.
-
-**Tasks**
-- [ ] T1. Session-sized; dependencies explicit; no forward dependencies.
-- [ ] T2. Each has context, references, deliverables, exit criteria, binding out-of-scope.
-- [ ] T3. Tests-with-code and docs-in-same-change stated where relevant.
-- [ ] T4. A progress ledger exists and the protocol requires updating it.
-- [ ] T5. Failure/handoff behavior defined (green-or-clean rule).
-- [ ] T6. Branch/commit/PR conventions defined; review step defined with reviewer instructions.
-
-## 5. Known limits
-
-This methodology reflects mid-2026 practice; principles (§1) are durable, tooling conventions (§3) shift - re-audit when the agent tooling changes materially. It also assumes a single human decision-maker; multi-human projects need an owner per document.
+- Authoritative documents agree and point to the current workflow.
+- The read-first instructions are short and current.
+- Every task has dependencies, deliverables, exit criteria, and out-of-scope boundaries.
+- Claims, interruption recovery, and completion state are unambiguous.
+- Tests and required docs ship with the change.
+- Review is independent and bound to the exact PR head.
+- Merge requires current approval, resolved comments, green gates, and completed explicit human actions.
+- Concurrent executors have independent dependencies and file footprints; review and merge remain serialized.
