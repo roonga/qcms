@@ -3,7 +3,7 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { CAPTURE_ENABLED, captureInto } from "./support/capture.js";
 import { enrollNewAdmin } from "./support/flow.js";
-import { addStep, createForm, openStep, waitForSaved } from "./support/forms.js";
+import { addStep, createForm, openStep } from "./support/forms.js";
 import { confirmLifecycle, createDraft } from "./support/questions.js";
 
 /**
@@ -71,11 +71,11 @@ test("captures the four converted tables at both widths", async ({ page }) => {
   await createForm(page, `gate570-form-${RUN}`, "Anchors 570");
   await addStep(page, "Only step");
 
-  // The picker first, from the builder this walk is already standing on. A step lives in
-  // the autosaved draft, so leaving the builder before the save lands and coming back
-  // finds a form with no step and no way to open the dialog. The wait is the fix; the
-  // order is the belt.
-  await waitForSaved(page);
+  // The picker first, from the builder this walk is already standing on, and deliberately
+  // NOT by navigating back to it. A step lives in the autosaved draft: leaving the builder
+  // and returning finds a form with no step whenever the debounce has not landed, and
+  // waiting on the save indicator is no help either, because adding a step through the
+  // rail leaves it reading "No changes yet." Staying put needs neither.
   await openStep(page, "Only step");
   await page.getByRole("button", { name: "Add question from library" }).click();
   const dialog = page.getByRole("dialog");

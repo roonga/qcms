@@ -4,14 +4,7 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
-import {
-  addStep,
-  createForm,
-  openStep,
-  pickerAddButton,
-  pinLabel,
-  waitForSaved,
-} from "./support/forms.js";
+import { addStep, createForm, openStep, pickerAddButton, pinLabel } from "./support/forms.js";
 import { confirmLifecycle, createDraft } from "./support/questions.js";
 
 /**
@@ -97,11 +90,31 @@ test("every converted table's row control is in the document's own tab order", a
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
   pickerFormId = await createForm(page, `anchors570-form-${RUN}`, "Anchors 570");
   await addStep(page, "Only step");
-  // A step lives in the autosaved draft. Leaving the builder before the save lands and
-  // coming back finds a form with no step, and the picker test below has nothing to open.
-  await waitForSaved(page);
 
-  // 1. The question library. The identifying cell is the ID, and the anchor's accessible
+  // 1. The picker, from the builder this walk is already standing on. It comes first and
+  //    stays in place on purpose: a step lives in the autosaved draft, so navigating away
+  //    and back finds a form with no step whenever the debounce has not landed.
+  //
+  //    Named by the row it acts on, not "Add" repeated down a column. That is the property
+  //    §2's amendment asks of an identifying column's copy control, for the same reason: a
+  //    control announced identically on every row tells a screen-reader author nothing.
+  await openStep(page, "Only step");
+  await page.getByRole("button", { name: "Add question from library" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  const add = pickerAddButton(dialog, questionIdFor(PICKER_SLUG), 1);
+  await expect(add).toBeVisible();
+
+  //    Space, not Enter. A `<button>` takes both and an `<a href>` takes only Enter, so
+  //    this is the assertion that would notice the control quietly becoming a link-shaped
+  //    thing.
+  await tabTo(page, add);
+  await expect(add, "the picker's add button is reachable by Tab").toBeFocused();
+  await page.keyboard.press("Space");
+  await expect(dialog).toBeHidden();
+  await expect(pinLabel(page, questionIdFor(PICKER_SLUG), 1)).toBeVisible();
+
+  // 2. The question library. The identifying cell is the ID, and the anchor's accessible
   //    name says where it goes rather than repeating the id a screen reader has just read
   //    from the row header.
   await page.goto(`/questions?q=${PICKER_SLUG}`);
@@ -114,7 +127,7 @@ test("every converted table's row control is in the document's own tab order", a
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(new RegExp(questionIdFor(PICKER_SLUG)));
 
-  // 2. The form library. The identifying cell is the SLUG, so the link text is a name and
+  // 3. The form library. The identifying cell is the SLUG, so the link text is a name and
   //    not a hex string, and the form id keeps a column of its own.
   await page.goto("/forms");
   const formLink = page.getByRole("link", { name: `Open form anchors570-form-${RUN}` });
@@ -124,7 +137,7 @@ test("every converted table's row control is in the document's own tab order", a
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(new RegExp(pickerFormId));
 
-  // 3. The version history, where the link used to live in a list underneath the table.
+  // 4. The version history, where the link used to live in a list underneath the table.
   await page.goto(`/forms/${SEEDED_FORM_ID}/versions`);
   const versionLink = page.getByRole("link", { name: "View v1" });
   await expect(versionLink).toHaveAttribute("href", `/forms/${SEEDED_FORM_ID}/versions/1`);
@@ -132,32 +145,6 @@ test("every converted table's row control is in the document's own tab order", a
   await expect(versionLink, "the version history's row link is reachable by Tab").toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(new RegExp(`/versions/1$`));
-});
-
-test("the picker's row control is a named button a keyboard can operate", async ({ page }) => {
-  test.setTimeout(240_000);
-  await signInWithTotp(page, EMAIL, totpSecret);
-  await page.goto(`/forms/${pickerFormId}`);
-  await openStep(page, "Only step");
-
-  await page.getByRole("button", { name: "Add question from library" }).click();
-  const dialog = page.getByRole("dialog");
-  await expect(dialog).toBeVisible();
-
-  // Named by the row it acts on, not "Add" repeated down a column. This is the property
-  // §2's amendment asks of an identifying column's copy control, for the same reason: a
-  // control announced identically on every row tells a screen-reader author nothing.
-  const add = pickerAddButton(dialog, questionIdFor(PICKER_SLUG), 1);
-  await expect(add).toBeVisible();
-
-  // Space, not Enter. A `<button>` takes both and an `<a href>` takes only Enter, so this
-  // is the assertion that would notice the control quietly becoming a link-shaped thing.
-  await tabTo(page, add);
-  await expect(add, "the picker's add button is reachable by Tab").toBeFocused();
-  await page.keyboard.press("Space");
-
-  await expect(dialog).toBeHidden();
-  await expect(pinLabel(page, questionIdFor(PICKER_SLUG), 1)).toBeVisible();
 });
 
 test.describe("without JavaScript", () => {
