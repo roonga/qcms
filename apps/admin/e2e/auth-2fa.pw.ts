@@ -235,12 +235,19 @@ test("a second recovery code still works, and the TOTP factor is unaffected", as
 
 test("changing the password reports success and keeps this session signed in", async ({ page }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
-  await page.goto("/settings");
+  // The password form is one of three PANELS on this screen and only one shows at a time
+  // (issue 655), so the panel is selected before the form is used. Arriving by the fragment
+  // rather than by pressing the rail row, because this is the link the account menu has
+  // published since task 032 and it is what a reader following it actually gets.
+  await page.goto("/settings#change-password");
+  const panel = page.locator("#settings-panel-password");
 
   // A rejected change must be indistinguishable from any other auth failure (SEC-1).
-  await fillStable(page.getByLabel("Current password"), "not-the-current-password");
-  await fillStable(page.getByLabel("New password"), "another-long-enough-passphrase");
-  await page.getByRole("button", { name: "Change password" }).click();
+  await fillStable(panel.getByLabel("Current password"), "not-the-current-password");
+  await fillStable(panel.getByLabel("New password"), "another-long-enough-passphrase");
+  // Scoped to the panel: the rail row that opens it carries the same name as the submit
+  // button, correctly, so an unscoped query matches two controls once the panel is up.
+  await panel.getByRole("button", { name: "Change password" }).click();
   await expect(page).toHaveURL(/\/settings\?error=1$/);
   await expect(page.getByRole("alert")).toContainText("Those details did not match");
 });
@@ -252,7 +259,9 @@ test("regenerating recovery codes needs the password, and retires the old set (i
   // back, so both halves of what it buys are asserted: a session alone cannot do it,
   // and doing it kills the previous set.
   await signInWithTotp(page, EMAIL, totpSecret);
-  await page.goto("/settings");
+  // Same reason as the password test above: the recovery-codes form lives on the two-factor
+  // panel, and a panel that is not selected is `hidden` rather than merely below the fold.
+  await page.goto("/settings#two-factor");
 
   const passwordField = page.getByLabel("Your password");
   await expect(passwordField).toBeVisible();
