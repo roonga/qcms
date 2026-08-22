@@ -5,36 +5,41 @@ metadata:
   node_type: memory
   type: project
   originSessionId: 9e5da939-93c1-4e50-a639-645e68acd50d
-  modified: 2026-08-22T02:15:00.000Z
+  modified: 2026-08-22T14:30:00.000Z
 ---
 
 **Read this section first. It is the reason the file exists.**
 
-## Waiting on the Code Owner as of 2026-08-22
+## Do not list open PRs here. Query them.
 
-The previous revision of this file ended its summary with *"No Code Owner decision is currently pending."* That was true on 2026-07-26 and had been false for weeks by the time anyone read it again. A boot-time memory asserting that nothing is pending will suppress exactly the escalation it should prompt, so this section is now the top of the file and **is dated on every edit**.
+This file has now gone stale **twice in the same way**, and the second time it happened within a day of being rewritten to stop it happening.
 
-**Plan PRs open, all `plan/`-only, all green, verified to merge cleanly against `main` individually and in sequence:**
+- Rev 1 ended with *"No Code Owner decision is currently pending."* True on 2026-07-26, false for weeks before anyone read it again.
+- Rev 2 fixed that by enumerating the open plan PRs (#594, #599, #608, #610) under a dated heading. **All four merged the same day**, so a boot-time memory dated 2026-08-22 asserted four merged PRs were awaiting a decision.
 
-- **#594** - contract amendments: §2 splits ids by minting convention, §3 is claim-versus-capability, §6 is one model per scope.
-- **#608** - **§9, a ninth contract** (author-authored text of unbounded length). Explicitly **not** covered by the 2026-08-20 confirmation, which was given over eight. This one needs a decision rather than a merge.
-- **#599** - the admin UX audit swept against what has landed.
-- **#610** - this seat's workstream snapshot, which had gone a month stale, plus the stale-checkout trap.
+Dating the section did not save it, because the problem is not freshness discipline - it is that **PR state is not memory-shaped.** A fact that changes without anyone editing this file does not belong in this file.
 
-**Decisions with no PR attached:**
+**So: the live list is a query, not a list.**
 
-- **The `admin-redesign` tier's future.** All twelve authorised issues (#510-#515, #517-#522) are **closed**. Nineteen-plus remain under the label, none from the original set: they are all second-generation, found while draining the first. "Drain the twelve" was authorised on 2026-08-19; "drain whatever the twelve uncover, recursively" was not. Options: let the label stand as rolling, close it as discharged and re-prioritise against the whole backlog, or draw a new explicit tier.
-- **PR #438's premise** - 333 files renaming the published npm scope to `@roonga`, open since 2026-08-09 with no engagement. It rests entirely on "the `qcms` organisation is not available on npm", which **contradicts `CLAUDE.md`** and cannot be checked from inside this seat: a package-name 404 does not distinguish a free scope from a held one. One check settles whether the PR should exist at all.
-- **Instruction fixes filed but unmakeable from here** (all outside `plan/`): **#600** embed gate frames by commit SHA, **#604** one forced run is not evidence a suite is stable, **#605** the gate-directory naming convention that silently flipped, **#606** stop grouping `better-auth` with `jscpd`, **#607** capture re-shoots regenerate every frame, **#609** the browser gate outlasts its own timeout and drops the lock.
-- **#618** - the empty library recommends a command that cannot work against the stack showing it. Lands on **038**'s path, where an external tester follows the README alone.
+```
+gh pr list -R roonga/qcms --state open
+gh issue list -R roonga/qcms --state open --label needs-decision
+```
 
-**Launch-path human gates** (`docs/features/README.md` is authoritative; 54 of 62 tasks done):
+What belongs below is only what a query **cannot** tell you: what the decision is *about*, and why it matters.
 
-- **030** manual screen-reader pass - automated portion landed 2026-07-22.
-- **040** security sign-off - the implementation **merged 2026-08-16** (PR #495) and exit criterion 3 is met. Waiting on the signature, not on work.
-- **038** launch-gate validation itself.
+## Standing decisions the Code Owner holds (durable, not perishable)
 
-Remaining implementation on that path: **049**, **061**, **037**. **041 never gates 038** (flag-gated, ADR-25). **039** is Stage 9.
+- **Whether ADR-27 and SEC-1 to SEC-13 survive "remove all limits on the admin portal."** WCAG was answered on 2026-08-21 (an **aim** for the admin, not a blocking gate). The other two were never answered, and this seat will not infer them from a design instruction. Recorded in `plan/admin-design-contracts.md`.
+- **How far POC-wins reaches when a drawing proposes removing shipped behaviour.** The live instance is the `rules-screen-poc` route split: Validation cannot move without breaking the focus-moving issue anchors and the publish rejection list, while Rules can at a stated price. `plan/admin-ux-audit.md` §5.5 is the only place all four extractions in that rail were ever costed.
+- **What the `admin-redesign` label means now that its twelve authorised issues are all closed.** "Drain the twelve" was authorised 2026-08-19; "drain whatever the twelve uncover, recursively" was not, and by inspection it does not terminate. The security cluster waits behind whatever this decides.
+- **PR #438's premise** - 333 files renaming the published npm scope. It rests on *"the `qcms` organisation is not available on npm"*, which contradicts `CLAUDE.md`. **Measured 2026-08-22:** `registry.npmjs.org` is reachable and returns 404 for `qcms`, `@qcms/core` and `@roonga/core`, so nothing is published under either scope - but a package 404 does not distinguish a free scope from a held one, and the org endpoints return 403 (bot protection, not an answer). **One authenticated `npm org ls qcms` settles it.** Do not read a 403 or an auth error as evidence the name is taken.
+- **Instruction fixes filed but unmakeable from this seat** (everything outside `plan/` is ask-gated). These accumulate; find them with the query above rather than trusting a list here.
+
+**Launch-path human gates** (`docs/features/README.md` is authoritative - do not copy its counts here):
+
+- **030** manual screen-reader pass, **040** security sign-off (implementation merged 2026-08-16, waiting on the signature rather than on work), **038** launch-gate validation.
+- **041 never gates 038** (flag-gated, ADR-25). **039** is Stage 9.
 
 ---
 
