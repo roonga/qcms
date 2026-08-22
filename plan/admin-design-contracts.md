@@ -18,22 +18,28 @@ draws a rail carrying a `.rail-lifecycle` **action block** (`:589-598`). §7 say
 never carries actions. That §7 clause was overruled during the POC work, and the ruling
 stands generally rather than only for that screen.
 
-**One thing this leaves undecided, and it is not a quibble.** The eleven POCs contradict
-**each other** - which is the documented reason this document exists
-(`plan/admin-poc-consistency-audit.md` §4 found them answering the same eight questions two
-to seven different ways). "The POC wins" is complete where one POC speaks and this document
-disagrees. It is **underdetermined** where two POCs disagree:
+**A blocker this seat raised and then withdrew.** I first recorded that "the POC wins" was
+underdetermined because the eleven POCs contradict each other, citing four rail contracts and
+five main caps from `plan/admin-poc-consistency-audit.md` §4. **That was wrong, and the Code
+Owner corrected it: there is one POC per screen.** Checked rather than argued -
 
-- **The rail** has four different contracts across the POCs: children plus siblings
-  (`admin-shell-poc` and three others), children only plus actions
-  (`question-editor-poc`), same-page section buttons (`settings-newquestion-poc`), and
-  children plus siblings plus a second tier with a different group label
-  (`rules-screen-poc`).
-- **The main cap** is 1600 in five POCs, 1080 in one, 40rem in one, 26rem in one, and
-  per-screen 900/1180/1820 in another.
+- `admin-shell-poc` draws the step screens (`<h1 class="step-heading">Life insurance`,
+  `Step 2:`); `rules-screen-poc` draws the Rules screen (`<h1 class="rules-h1">Rules`).
+  Different screens.
+- All eleven carry distinct titles: the shell, the rules screen, the question editor,
+  library lists, links and webhooks, preview and versions, responses, deployment ops,
+  settings and new question, the add-question dialog, and auth. **No two draw the same
+  screen.**
 
-Until that is resolved, this seat applies the ruling where a single POC is the only drawing
-of a screen, and escalates where two disagree rather than picking one.
+So the four "rail contracts" were four **screens** each drawing its own rail, and the five
+"main caps" were per-screen caps. Neither is a contradiction. They read as one only under the
+assumption that a single component must serve every screen - which is the assumption this
+document imposed, and which the ruling above removes.
+
+The consistency audit's framing needs reading in that light: what it recorded as *"the same
+eight questions answered two to seven different ways"* is, under this ruling, **per-screen
+specification** rather than inconsistency.
+
 
 **Wave 3 is unblocked.** Anything a POC draws that contradicts a contract here is
 wrong by definition, and that is now a statement about shipped work rather than
