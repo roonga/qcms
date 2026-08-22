@@ -279,7 +279,8 @@ Inventory-only: two stacked sections.
   - **total `text`** and a secondary **`Redeliver all`** `button`, side by side above the table (`:166-184`).
   - **queue `table`**: a visually-hidden caption and six columns - Event (a `th scope="row"` in the id style), Endpoint (the URL), Attempts, Last error, Dead-lettered (a UTC timestamp), and a per-row **`Redeliver`** `button` in a column whose header text is visually hidden (`:191-253`). **Which column drops at compact width: Last error.** It is the widest cell by a long way (a raw upstream error string) and it describes a failure rather than identifying the delivery; Event, Endpoint, Attempts and Dead-lettered-at are what an operator scans to decide whether to redeliver, and the control travels with them.
   - **bulk confirm `dialog`** (`role="alertdialog"`), which cannot outlive its rows: its only trigger is inside the rows branch, and it is gated on the read having succeeded, so it can never name targets from a queue nobody read (`:260-298`).
-- **forms section**: an `h2` `Forms`, a **warning** `alert` when the form read failed (a warning, not an error: the queue above is the screen's subject and it read fine), the no-forms sentence, or a `ul` of links `Configure webhooks for {slug}` -> `/forms/{id}/webhooks` (`:53-85`).
+- **forms section**: an `h2` `Forms`, a **warning** `alert` when the form read failed, the no-forms sentence, or a `ul` of links `Configure webhooks for {slug}` -> `/forms/{id}/webhooks` (`:53-85`).
+  - The severity differs from the sibling screen and the sentence does not: both this section and the Responses area screen render `ops.area.responses.formsFailed`, here as `variant="warning"` (`:58`) and there as `variant="error"` (`responses/page.tsx:37`). Recorded as observed; nothing in either file explains the difference, and this inventory does not invent a reason for it.
 
 ## States (normative) - webhook operations
 
