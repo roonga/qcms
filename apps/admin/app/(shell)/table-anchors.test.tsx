@@ -1,4 +1,5 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -293,29 +294,103 @@ describe("the library picker", () => {
 });
 
 /**
- * Walk the admin source tree. `readdirSync` rather than a shell walk, because a
- * subprocess anywhere in this workspace has to resolve an absolute binary path or
- * `sonarjs/no-os-command-from-path` fails lint, and there is nothing here a shell does
- * better.
+ * Absolute git path: a bare `git` would trip `sonarjs/no-os-command-from-path`, which is
+ * workspace-wide. Probing known locations and failing by name keeps the miss readable.
  */
-function sourceFiles(dir: string): string[] {
-  const found: string[] = [];
-  for (const entry of readdirSync(dir)) {
-    if (entry === "node_modules" || entry === ".next") continue;
-    const path = join(dir, entry);
-    if (statSync(path).isDirectory()) {
-      found.push(...sourceFiles(path));
-      continue;
-    }
-    if (/\.(?:tsx?|css)$/.test(entry)) found.push(path);
+const GIT_CANDIDATES = ["/usr/bin/git", "/usr/local/bin/git", "/bin/git"];
+
+function gitBinary(): string {
+  const found = GIT_CANDIDATES.find((candidate) => existsSync(candidate));
+  if (found === undefined) {
+    throw new Error(`no git binary at any of: ${GIT_CANDIDATES.join(", ")}`);
   }
   return found;
+}
+
+/**
+ * The admin app's source files, as absolute paths: ask git, never walk the directory.
+ *
+ * Issue 629. The first version of this walked `readdirSync` from the app root and skipped
+ * `node_modules` and `.next` by name. `next dev` writes to `.next-dev` (`.gitignore` line
+ * 5, and the Playwright harness boots the dev server there), so in any checkout that had
+ * run a dev server the walk read a *compiled copy* of `globals.css` and reported it as a
+ * source offender. The failure was not flaky: it was a stable red for a lane that had run
+ * the browser suite and a stable green on CI, which has no prior dev build. That is worse
+ * than a flake, because both parties have a repeatable result and no reason to doubt it,
+ * and the lane that hits it reads it as its own branch being broken.
+ *
+ * A longer skip list would not have fixed it, only postponed it: the next tool emits the
+ * next name. The repository already maintains exactly one catalogue of what is generated
+ * rather than authored, and it is `.gitignore` - which named `.next-dev` all along. So the
+ * scan consults that catalogue through git instead of keeping a second, always-lagging
+ * copy of it here. `--cached --others --exclude-standard` is tracked files plus files that
+ * are new but not ignored, so a source file added and not yet staged is still scanned:
+ * the set is "what this repository contains", not "what this working directory holds".
+ *
+ * A subprocess is the cost, which the walk was written to avoid. It buys a gate that
+ * asserts a property of the repository rather than of the machine it runs on.
+ */
+function sourceFiles(root: string): string[] {
+  const listed = execFileSync(
+    gitBinary(),
+    ["ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+    { cwd: root, encoding: "utf8", maxBuffer: 32 * 1024 * 1024 },
+  );
+  return listed
+    .split("\0")
+    .filter((path) => /\.(?:tsx?|css)$/.test(path))
+    .map((path) => join(root, path));
 }
 
 describe("the marker class and the retired handler", () => {
   const here = fileURLToPath(import.meta.url);
   const adminRoot = join(here, "..", "..", "..");
   const files = sourceFiles(adminRoot).filter((path) => path !== here);
+
+  /**
+   * A scan that finds nothing passes both assertions below, so the enumeration has to be
+   * shown to work before its emptiness means anything. A directory walk fails loudly when
+   * it is pointed somewhere wrong; a subprocess can fail *open*, returning an empty list
+   * from the wrong working directory. This is the guard against that, and it names two
+   * files the scan must reach: the stylesheet the marker lived in, and one component.
+   */
+  it("reaches the admin sources it is meant to scan", () => {
+    const relative = files.map((path) => path.slice(adminRoot.length + 1));
+    expect(relative).toContain("app/globals.css");
+    expect(relative).toContain("components/kit.tsx");
+    expect(relative.length).toBeGreaterThan(100);
+  });
+
+  /**
+   * The regression, made independent of the order the gates happened to run in. The
+   * observation below it is the real-world one and only fires in a checkout that has
+   * built; this plants the offending file itself, so the property is checked on CI and in
+   * a fresh worktree too. `.next-dev` is where `next dev` writes (`.gitignore` line 5), so
+   * a file placed there is ignored by exactly the rule that made the original failure
+   * possible, and a scan that reads it has the bug however its skip list is spelled.
+   */
+  it("does not read a stylesheet a dev server left in the build directory", () => {
+    const distDir = join(adminRoot, ".next-dev");
+    const planted = join(distDir, "qcms-scan-probe.css");
+    const distExisted = existsSync(distDir);
+    try {
+      mkdirSync(distDir, { recursive: true });
+      writeFileSync(planted, `.${MARKER} { color: red; }\n`, "utf8");
+      expect(sourceFiles(adminRoot)).not.toContain(planted);
+    } finally {
+      rmSync(planted, { force: true });
+      if (!distExisted) rmSync(distDir, { force: true, recursive: true });
+    }
+  });
+
+  /** And the same property as observed, on whatever this checkout happens to hold. */
+  it("reads no build output this checkout already has on disk", () => {
+    const generated = files.filter(
+      (path) =>
+        path.includes("/.next/") || path.includes("/.next-dev/") || path.endsWith("next-env.d.ts"),
+    );
+    expect(generated).toEqual([]);
+  });
 
   /**
    * The USE of the handler, not the word. Several files here name `onRowAction` in prose
