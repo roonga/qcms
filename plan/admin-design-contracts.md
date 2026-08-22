@@ -154,7 +154,37 @@ card's hands and into this contract's: rendering a derived id whole is now what
 the width has to accommodate, and the frozen card's 140px is evidence of an intent
 formed before the rule existed, not an authority against it.
 
-## 3. Empty state
+**Amendment, 2026-08-22 (PM/PO seat, from PR #624): a row that acts rather than navigates
+takes a button, not an anchor.**
+
+§2's row-action clause was written for tables whose rows go somewhere. `library-picker.tsx`
+is a table whose rows **do** something: choosing one pins a question into the draft the
+author is already editing, changes the page they are on, and closes the dialog they are in.
+
+> Where a row has no destination, the identifying cell carries **no anchor**. The row gets a
+> **`<button>` in a trailing action column**, whose accessible name carries the row's subject
+> ("Add q_x version 2", never "Add" repeated down the column).
+
+**Applying the anchor clause literally here would produce a link that lies.** There is no URL
+meaning "having added q_x at v2", so an invented `href` would open, on a middle click, a tab
+that does not do what the row said. That is worse than the whole-row handler it replaced, not
+better.
+
+The clause is satisfied by its **reasons** rather than its wording, and it is worth recording
+which reason survives:
+
+- **"A control only a mouse understands"** - the reason that applies. A button is a real,
+  announced control reachable by Tab, and it takes **Enter and Space** where an anchor takes
+  Enter alone. #624 presses Space in its e2e test deliberately, so a regression back to a
+  link-shaped thing fails on a keystroke rather than on review.
+- **"Open in a new tab"** - does not apply. There is nothing to open.
+- **"Works without JS"** - does not apply, and never did. A modal dialog inside the builder,
+  opened by a scripted control, over a draft held in client state, does not survive scripting
+  being off by construction.
+
+**This is not a general licence to prefer buttons.** The test is whether the row has an
+address. If it does, §2's anchor clause applies unchanged, and the two shipped tables that
+navigate are the reason that clause exists.
 
 The frozen card's shape, everywhere: centred panel, `1.5px dashed
 var(--color-border-strong)`, surface background, an `h2`, one sentence, and a
