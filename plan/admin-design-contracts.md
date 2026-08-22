@@ -137,6 +137,35 @@ so no clever technique was needed, only reading eleven files instead of five.
 **When a POC file is multi-screen, enumerate its screens from its own `@dsCard` line before
 reading anything else.**
 
+**A FIFTH case: the POC contradicts ITSELF on one screen, 2026-08-22 (this seat, on #688).**
+The four above all assume the drawing says one thing. Sometimes it says two.
+
+`settings-newquestion-poc.html` draws one option-row menu whose five items are:
+
+```
+Insert option above Comprehensive cover
+Insert option below Comprehensive cover
+Move up
+Move down
+Remove option Comprehensive cover
+```
+
+**Three items name the row and two do not**, in the same menu, on the same screen. This is
+not a POC-versus-shipped divergence and none of the four categories reaches it.
+
+**When a drawing contradicts itself, POC-wins has nothing to decide between.** The tie-break
+is, in order: the drawing's own **majority** and its **stated rationale**, then a convention
+the app already set **deliberately and for a reason**. Never an outside preference, and never
+"the shipped app does X" on its own - that is how a constraint the Code Owner never set gets
+imported, which is what halted this campaign.
+
+Worked: #688 labelled the new items `Move {row} up` / `Move {row} down`. The drawing's
+majority names the row; `components/row-menu.tsx` records issue 570's deliberate rule that
+every row-menu item names its row, so a screen reader user hears which option is about to
+move rather than the same two words on every row. Both point the same way, so the bare
+"Move up" the POC also drew loses to the POC's own majority rather than to a preference.
+
+
 **§7a's "no third screen" sentence is now out of date, 2026-08-22.** It said no third screen
 gets a rail without its own ruling recorded here. The question detail screen is the third
 (issue 650, PR #670), built to `question-editor-poc.html`, which draws one and states its own
