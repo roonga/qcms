@@ -120,16 +120,26 @@ async function measure(page: Page, path: string): Promise<Measured> {
   await page.goto(path);
   const main = page.locator("main#main-content");
   await expect(main, `${path} renders the authenticated shell`).toHaveCount(1);
-  return main.evaluate((element) => ({
-    cap: Number.parseFloat(getComputedStyle(element).maxWidth),
-    width: element.getBoundingClientRect().width,
-    // The viewport minus whatever the scrollbar takes: the real ceiling on a column that
-    // is `w-full`, and the number a cap above it can never beat.
-    available: document.documentElement.clientWidth,
-    // Read as an attribute rather than through `className`, which is a string on an
-    // HTML element and an `SVGAnimatedString` on an SVG one, so the union is untyped.
-    className: element.getAttribute("class") ?? "",
-  }));
+  return main.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    // The room the column actually had. Until issue 559 that was simply the viewport
+    // minus whatever the scrollbar takes; a screen carrying the §7 rail spends 240px of
+    // it on the rail's track, so the ceiling on a `w-full` column is the viewport minus
+    // that track. Measured from the rail's own box rather than from the number in the
+    // stylesheet, and only when the rail is genuinely BESIDE the column: below
+    // `--bp-sidebar` the same element is a disclosure stacked above `<main>` and takes no
+    // width from it at all.
+    const rail = document.querySelector('[data-testid="qcms-rail"]')?.getBoundingClientRect();
+    const besideTheColumn = rail !== undefined && rail.right <= box.left;
+    return {
+      cap: Number.parseFloat(getComputedStyle(element).maxWidth),
+      width: box.width,
+      available: document.documentElement.clientWidth - (besideTheColumn ? rail.width : 0),
+      // Read as an attribute rather than through `className`, which is a string on an
+      // HTML element and an `SVGAnimatedString` on an SVG one, so the union is untyped.
+      className: element.getAttribute("class") ?? "",
+    };
+  });
 }
 
 /** Set by the first test, which enrolls the account and creates the response subject. */

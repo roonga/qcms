@@ -1,0 +1,141 @@
+import { describe, expect, it } from "vitest";
+
+import type { DraftStep } from "./types.ts";
+import { formSubtreeRail, railSummary, RAIL_SECTIONS } from "./subtree-rail.ts";
+
+/**
+ * What the rail carries, as a decision rather than as pixels (`plan/admin-design-
+ * contracts.md` §7, issue 559).
+ *
+ * §7 is four sentences and three of them are answerable without a DOM: which two groups,
+ * in which order, with which row marked current, and which count on which step. Testing
+ * those through rendered markup would test them through a second thing at the same time,
+ * so they are tested here and the markup is tested next door for being markup.
+ *
+ * The section list is restated below rather than imported from the module, for the same
+ * reason `measure.pw.ts` restates its own table: a list checked against itself passes on
+ * any list. In particular VALIDATION IS ABSENT, and that is the clause most likely to be
+ * "fixed" by someone reading `rules-screen-poc.html`, which draws it as a rail route
+ * (`plan/admin-ux-audit.md` §5.5 is why it is not one).
+ */
+
+const STEPS: readonly DraftStep[] = [
+  { stepId: "stp_about", title: { en: "About you" }, items: [] },
+  { stepId: "stp_health", title: { en: "Health" }, items: [] },
+  { stepId: "stp_blank", title: { en: "" }, items: [] },
+];
+
+const FORM_ID = "frm_life";
+
+function rail(current: Parameters<typeof formSubtreeRail>[0]["current"], counts = new Map()) {
+  return formSubtreeRail({ formId: FORM_ID, steps: STEPS, issueCounts: counts, current });
+}
+
+describe("the form-subtree rail's contents", () => {
+  it("carries the six sibling routes in §7's order, and Validation is not one of them", () => {
+    expect([...RAIL_SECTIONS]).toStrictEqual([
+      "builder",
+      "preview",
+      "versions",
+      "links",
+      "responses",
+      "webhooks",
+    ]);
+  });
+
+  it("puts the form's children first and its siblings second", () => {
+    const groups = rail({ kind: "section", section: "links" });
+    expect(groups.children.map((item) => item.label)).toStrictEqual([
+      "About you",
+      "Health",
+      // A step an author has added but not named yet still has to be clickable and
+      // readable, so it takes the same stand-in the builder's own step list gives it.
+      "Untitled step",
+    ]);
+    expect(groups.siblings.map((item) => item.label)).toStrictEqual([
+      "Builder",
+      "Preview",
+      "History",
+      "Links",
+      "Responses",
+      "Webhooks",
+    ]);
+  });
+
+  it("points each sibling at its own route, with the builder as the form itself", () => {
+    const groups = rail({ kind: "section", section: "links" });
+    expect(groups.siblings.map((item) => item.href)).toStrictEqual([
+      "/forms/frm_life",
+      "/forms/frm_life/preview",
+      "/forms/frm_life/versions",
+      "/forms/frm_life/links",
+      "/forms/frm_life/responses",
+      "/forms/frm_life/webhooks",
+    ]);
+  });
+
+  it("points a step at the builder's anchor for it, which is the only address a step has", () => {
+    const groups = rail({ kind: "section", section: "links" });
+    expect(groups.children.map((item) => item.href)).toStrictEqual([
+      "/forms/frm_life#step-stp_about",
+      "/forms/frm_life#step-stp_health",
+      "/forms/frm_life#step-stp_blank",
+    ]);
+  });
+
+  it("numbers the steps in document order and leaves the sections unnumbered", () => {
+    const groups = rail({ kind: "section", section: "links" });
+    expect(groups.children.map((item) => item.position)).toStrictEqual([1, 2, 3]);
+    expect(groups.siblings.every((item) => item.position === undefined)).toBe(true);
+  });
+
+  it("marks exactly one row current, and marks the right one", () => {
+    const groups = rail({ kind: "section", section: "responses" });
+    const current = [...groups.children, ...groups.siblings].filter((item) => item.isCurrent);
+    expect(current.map((item) => item.key)).toStrictEqual(["section:responses"]);
+  });
+
+  it("marks a step current when the screen is that step", () => {
+    const groups = rail({ kind: "step", stepId: "stp_health" });
+    const current = [...groups.children, ...groups.siblings].filter((item) => item.isCurrent);
+    expect(current.map((item) => item.key)).toStrictEqual(["step:stp_health"]);
+  });
+
+  it("badges a step with its own issue count and never badges a section", () => {
+    const groups = rail({ kind: "section", section: "links" }, new Map([["stp_health", 2]]));
+    expect(groups.children.map((item) => item.issueCount)).toStrictEqual([0, 2, 0]);
+    expect(groups.siblings.every((item) => item.issueCount === 0)).toBe(true);
+  });
+
+  it("renders without badges rather than claiming a clean form when there is no verdict", () => {
+    const groups = rail({ kind: "section", section: "links" });
+    expect(groups.children.every((item) => item.issueCount === 0)).toBe(true);
+  });
+
+  it("escapes a form id on its way into an href", () => {
+    const groups = formSubtreeRail({
+      formId: "frm_a b",
+      steps: [],
+      issueCounts: new Map(),
+      current: { kind: "section", section: "builder" },
+    });
+    expect(groups.siblings[0]?.href).toBe("/forms/frm_a%20b");
+  });
+});
+
+describe("the collapsed summary", () => {
+  it("names the active section and carries no count, because a section has none", () => {
+    const groups = rail({ kind: "section", section: "links" }, new Map([["stp_health", 2]]));
+    expect(railSummary(groups, "life")).toStrictEqual({ text: "Links", issueCount: 0 });
+  });
+
+  it("names the active step and its count, which is the case §7 spells out", () => {
+    const groups = rail({ kind: "step", stepId: "stp_health" }, new Map([["stp_health", 2]]));
+    expect(railSummary(groups, "life")).toStrictEqual({ text: "Health", issueCount: 2 });
+  });
+
+  it("falls back to the form's own name rather than saying nothing", () => {
+    const groups = rail({ kind: "step", stepId: "stp_gone" });
+    expect(railSummary(groups, "life")).toStrictEqual({ text: "life", issueCount: 0 });
+  });
+});

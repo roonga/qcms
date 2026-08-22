@@ -2069,6 +2069,195 @@ button {
   color-scheme: dark;
 }
 
+/* ===========================================================================
+   THE RAIL - `plan/admin-design-contracts.md` §7, issue 559.
+
+   WHAT IS SHARED AND WHAT IS NOT. §7a keeps a second rail on Settings and is
+   explicit that it is a DIFFERENT component which merely "share[s] the grid
+   column, the 240px width, the `--bp-sidebar` collapse behaviour and the
+   anchors-not-buttons rule - and nothing else". That sentence is the reason the
+   geometry lives here as `qcms-rail*` classes while the CONTENT lives in two
+   separate components: `components/forms/form-subtree-rail.tsx` for §7 and,
+   when it is built, a distinctly named Settings component for §7a. Sharing a
+   stylesheet block is not sharing a contract, and nothing in this block knows
+   or cares what the rail carries.
+
+   THE COLUMN IS CONDITIONAL, and `:has()` is why there is no empty track on the
+   fourteen screens that have no rail. The shell body is a flex column by
+   default, which is what `<main class="flex-1">` grew inside before this block
+   existed; it becomes a two-track grid only when a rail is actually a child of
+   it. Written the other way round - an always-grid whose first track collapses -
+   every railless screen would carry a 0-width track and a gap nobody asked for,
+   and a slot that rendered nothing would silently push `<main>` into track one.
+
+   `15rem` rather than `240px`, for §1's own reason for writing the two
+   breakpoints in `rem`: it is 240px at the default root size and it grows with
+   an operator's browser font size, so a zoomed reader gets a rail their text
+   still fits in rather than a fixed track their text overflows.
+
+   VIEWPORT FILL (N2, `plan/admin-redesign-implementation-plan.md` §1). `flex: 1
+   1 auto` on the shell body is what makes a short screen's rail reach the bottom
+   of the shell rather than stopping at its own content height: the grid's own
+   `align-items: stretch` already matches the rail to the row, and the row was
+   the thing that was too short. `min-height: 0` overrides flexbox's `auto`
+   minimum, which would otherwise refuse the shrink half of that and defeat the
+   grow on some browsers. ==================================================== */
+.qcms-shell-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+@variant sidebar {
+  .qcms-shell-body:has(> .qcms-rail) {
+    display: grid;
+    grid-template-columns: 15rem 1fr;
+  }
+}
+
+/* The rail's own surface. `min-width: 0` is load-bearing rather than tidy: a
+   grid item's default `min-width: auto` lets its content push it wider than its
+   track, and this track is full of author-supplied step titles. */
+.qcms-rail {
+  min-width: 0;
+  background-color: var(--color-surface);
+  border-block-end: 1px solid var(--color-border);
+}
+@variant sidebar {
+  .qcms-rail {
+    border-block-end: none;
+    border-inline-end: 1px solid var(--color-border);
+  }
+}
+:root.hc .qcms-rail {
+  border-color: var(--color-border-strong);
+}
+
+/* A native `<details>`, open by default, at every width. It is the only way to
+   get a disclosure that works with no JavaScript, announces its own state and
+   needs no override to look like a plain sidebar above the boundary - which is
+   also what the POCs draw. Above `--bp-sidebar` the chevron goes and the summary
+   stops advertising itself as a control; it remains one, so an operator who
+   wants the width back can still take it. */
+.qcms-rail__summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-inline: 1rem;
+  padding-block: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--color-text);
+  cursor: pointer;
+  list-style: none;
+}
+.qcms-rail__summary::-webkit-details-marker {
+  display: none;
+}
+/* The one line the contract says truncates with an ellipsis. It is the flexible
+   member and everything beside it is `flex-shrink: 0`, so at 390px a long step
+   title gives way and the issue count it is paired with never does: a count that
+   truncated to "2 iss" would be worse than no count at all. */
+.qcms-rail__summary-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.qcms-rail__summary .qcms-tag,
+.qcms-rail__chevron {
+  flex-shrink: 0;
+}
+.qcms-rail__chevron {
+  display: inline-block;
+  color: var(--color-text-muted);
+}
+.qcms-rail__disclosure[open] > .qcms-rail__summary .qcms-rail__chevron {
+  transform: rotate(90deg);
+}
+@variant sidebar {
+  .qcms-rail__summary {
+    cursor: default;
+  }
+  .qcms-rail__chevron {
+    display: none;
+  }
+}
+
+.qcms-rail__body {
+  padding-inline: 0.5rem;
+  padding-block-end: 1rem;
+}
+.qcms-rail__group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+/* The one divider §7 asks for, between the two groups. */
+.qcms-rail__divider {
+  margin-block: 0.5rem;
+  margin-inline: 0.5rem;
+  border: 0;
+  border-block-start: 1px solid var(--color-border);
+}
+:root.hc .qcms-rail__divider {
+  border-block-start-color: var(--color-border-strong);
+}
+
+/* A rail item is an anchor (§7), so everything here styles a link and nothing
+   here styles a button. The 3px inline-start edge is present and transparent on
+   every row, so marking the current one moves no text.
+
+   A LONG TITLE WRAPS HERE RATHER THAN TRUNCATING, which is the opposite of what
+   the collapsed summary does and is deliberate (issues 582, 595, 596). The
+   summary is one line by construction and the contract says it truncates. This
+   column is a list whose whole job is telling two author-named steps apart, and
+   there is no tooltip carrying the full text, so hiding the end of a title would
+   hide the only thing that distinguishes them. `overflow-wrap: anywhere` is the
+   half that matters for the pathological case: an id or a URL pasted in as a
+   title has no space to break at and would otherwise overflow the track. */
+.qcms-rail__link {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding-inline: 0.5rem;
+  padding-block: 0.4rem;
+  border-inline-start: 3px solid transparent;
+  border-radius: var(--radius-control);
+  color: var(--color-text);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.qcms-rail__link:hover {
+  background-color: var(--color-surface-hover);
+  color: var(--color-text);
+}
+/* Never colour alone: the accent edge and the heavier weight carry the same
+   statement `aria-current` makes to a screen reader, which is what keeps this
+   readable in high contrast where the tint collapses into the surface. */
+.qcms-rail__link[aria-current="page"] {
+  border-inline-start-color: var(--color-primary);
+  background-color: var(--color-info-subtle);
+  color: var(--color-info-fg);
+  font-weight: 700;
+}
+/* The step's ordinal. Muted and unshrinkable, so the title beside it is what
+   takes the width. */
+.qcms-rail__position {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+/* The per-step issue count, pushed to the trailing edge and never shrunk. */
+.qcms-rail__link .qcms-tag {
+  flex-shrink: 0;
+  margin-inline-start: auto;
+}
+
 /* Standard clip-rect visually hidden utility: present for assistive tech,
    removed from the visual layout without display:none, which would also
    remove it from the accessibility tree. */

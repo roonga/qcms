@@ -1316,6 +1316,19 @@ export const messages = {
   // (ADR-27) - a defensive branch that renders is still a rendered string.
   "ops.error.invalidErasureReason":
     "That erasure reason is not one this build records, so nothing was erased.",
+
+  // --- the form-subtree rail (`plan/admin-design-contracts.md` §7, issue 559) ---
+  //
+  // The rail's accessible name says what it carries rather than what it is: a `nav`
+  // is already announced as a navigation landmark, so repeating the word here would
+  // make a screen reader say it twice. Naming the form as well is what keeps this
+  // distinct from the topbar's own landmark on the same page.
+  "forms.rail.label": "{slug} steps and sections",
+  "forms.rail.steps": "Steps",
+  "forms.rail.sections": "Sections",
+  // The ordinal beside a step title. A separate string rather than a template at the
+  // call site because a locale that numbers differently changes it here (ADR-27).
+  "forms.rail.stepPosition": "{position}.",
 } as const;
 
 export type MessageKey = keyof typeof messages;

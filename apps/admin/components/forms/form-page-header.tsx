@@ -26,6 +26,7 @@ export function FormPageHeader({
   section,
   status,
   heading,
+  sectionsInRail = false,
 }: {
   readonly formId: string;
   readonly slug: string;
@@ -41,6 +42,19 @@ export function FormPageHeader({
    * an in-place action. Ids come from `lib/page-headings.ts`.
    */
   readonly heading?: { readonly id: string; readonly text: string };
+  /**
+   * Suppresses the section strip on a screen whose rail already carries those six routes.
+   *
+   * `plan/admin-design-contracts.md` §7 gives the rail the form's siblings - Builder,
+   * Preview, Versions, Links, Responses, Webhooks - which is exactly what {@link FormTabs}
+   * is. A screen with both would offer one operator two navigations to the same six
+   * places, and would give a screen reader two `nav` landmarks saying the same thing.
+   *
+   * A flag rather than a deletion because issue 559 wires the rail on one screen and issue
+   * 561 wires the other seven: while that is in flight, seven screens still need the
+   * strip. When 561 lands, this prop and `form-tabs.tsx` go together.
+   */
+  readonly sectionsInRail?: boolean;
 }) {
   const crumbs: BreadcrumbItem[] = [
     { id: "forms", label: t("forms.builder.crumbs"), href: "/forms" },
@@ -66,7 +80,7 @@ export function FormPageHeader({
           {t(`forms.status.${status}`)}
         </p>
       )}
-      <FormTabs formId={formId} />
+      {!sectionsInRail && <FormTabs formId={formId} />}
     </div>
   );
 }
