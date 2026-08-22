@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { EmptyState } from "@/components/empty-state";
-import { Button, Select, Table } from "@/components/kit";
+import { Button, Select } from "@/components/kit";
 import { diffDefinitions, type DiffRow } from "@/lib/forms/version-diff";
 import type { FormVersionSummary } from "@/lib/forms/types";
 import { formatDay } from "@/lib/i18n/format";
@@ -70,10 +70,7 @@ export function VersionHistory({
       {/* The scroll box, not the page: five stamp columns of monospace do not fit a
           390px viewport, and a table that made the page body scroll sideways would fail
           WCAG 2.2 AA SC 1.4.10 Reflow. `qcms-table` is the app's one table family
-          (issue 514), and it no longer needs the `--static` opt-out this wrapper used to
-          carry: the hover affordance is opt-IN now, via `--rowaction`, so a table whose
-          rows do nothing simply does not ask for it. Viewing a version is the link list
-          below, so this table asks for nothing.
+          (issue 514).
 
           Issue 558 gave this screen the wide cap and re-examined the box, because the
           audit had it down as a device this component added to survive `max-w-5xl`
@@ -85,46 +82,70 @@ export function VersionHistory({
           written was the 390px viewport rather than the cap, which is the sentence
           above: more room at 1280 does nothing for a phone. At the wide cap the box is
           simply inert on a desktop, since `overflow-x: auto` scrolls only what
-          overflows. */}
-      <div className="qcms-table qcms-table--versions">
-        <Table
-          ariaLabel={t("forms.history.table")}
-          columns={[
-            { id: "version", label: t("forms.history.column.version"), isRowHeader: true },
-            { id: "publishedAt", label: t("forms.history.column.publishedAt") },
-            { id: "compilerVersion", label: t("forms.history.column.compilerVersion") },
-            { id: "a2uiSpecVersion", label: t("forms.history.column.a2uiSpecVersion") },
-            { id: "semanticsVersion", label: t("forms.history.column.semanticsVersion") },
-          ]}
-          rows={versions.map((version) => ({
-            id: String(version.version),
-            data: {
-              version: t("forms.version.value", { version: version.version }),
-              publishedAt: formatDay(version.publishedAt),
-              compilerVersion: version.compilerVersion,
-              a2uiSpecVersion: version.a2uiSpecVersion,
-              semanticsVersion: version.semanticsVersion,
-            },
-          }))}
-        />
-      </div>
+          overflows.
 
-      {/* The view links live outside the table because a kit table cell is text: a row
-          holding an anchor is not something the vendored component renders (ADR-22, no
-          wrappers). A list of links is also the better keyboard surface - every version
-          is reachable by Tab, with its number in the link text. */}
-      <ul className="flex flex-wrap gap-2" data-testid="qcms-history-links">
-        {versions.map((version) => (
-          <li key={version.version}>
-            <Link
-              className="qcms-text-link"
-              href={`/forms/${encodeURIComponent(formId)}/versions/${String(version.version)}`}
-            >
-              {t("forms.history.view", { version: version.version })}
-            </Link>
-          </li>
-        ))}
-      </ul>
+          Issue 570 gives the box a second line of defence at phone width, which the
+          sentence above had no way to ask for while the markup came from the kit: the
+          three engine stamps DROP at `--bp-compact` (§2). They describe the row rather
+          than identifying it, and they are the widest thing in it by a distance. Version
+          and Published stay, and the Version column never drops anywhere
+          (`plan/admin-mobile-stance.md`, item 5). No `min-inline-size` is declared here,
+          so there is none to reset at the boundary, and with the stamps gone the scroll
+          container is the fallback rather than the default experience. */}
+      <div className="qcms-table qcms-table--versions">
+        <table data-testid="qcms-history-table">
+          <caption className="qcms-visually-hidden">{t("forms.history.table")}</caption>
+          <thead>
+            <tr>
+              <th scope="col" className="qcms-cell--num">
+                {t("forms.history.column.version")}
+              </th>
+              <th scope="col" className="qcms-cell--num">
+                {t("forms.history.column.publishedAt")}
+              </th>
+              <th scope="col" className="qcms-cell--drop">
+                {t("forms.history.column.compilerVersion")}
+              </th>
+              <th scope="col" className="qcms-cell--drop">
+                {t("forms.history.column.a2uiSpecVersion")}
+              </th>
+              <th scope="col" className="qcms-cell--drop">
+                {t("forms.history.column.semanticsVersion")}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {versions.map((version) => (
+              <tr key={version.version} data-form-version={version.version}>
+                {/* The view link, folded back into the row it belongs to (issue 570).
+                    It used to be a separate list under the table, because a kit table
+                    cell is a string and a row holding an anchor was not something the
+                    vendored component rendered. The list was a defensible workaround
+                    and it is still a worse answer than the row: it repeated every
+                    version number a second time, it put the control an arbitrary
+                    distance from the data it acted on, and a screen reader walking the
+                    table found no way out of it at all. `forms.history.view` carries
+                    the accessible name so the link announces "View v3" rather than the
+                    bare "v3" the cell shows, which is the same treatment the response
+                    browser gives its session ids. */}
+                <th scope="row" className="qcms-cell--num">
+                  <Link
+                    className="qcms-text-link"
+                    href={`/forms/${encodeURIComponent(formId)}/versions/${String(version.version)}`}
+                    aria-label={t("forms.history.view", { version: version.version })}
+                  >
+                    {t("forms.version.value", { version: version.version })}
+                  </Link>
+                </th>
+                <td className="qcms-cell--num">{formatDay(version.publishedAt)}</td>
+                <td className="qcms-cell--drop">{version.compilerVersion}</td>
+                <td className="qcms-cell--drop">{version.a2uiSpecVersion}</td>
+                <td className="qcms-cell--drop">{version.semanticsVersion}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       <section aria-labelledby="qcms-diff-heading" className="flex flex-col gap-3">
         <h3 id="qcms-diff-heading" className="text-base font-semibold text-(--color-text)">

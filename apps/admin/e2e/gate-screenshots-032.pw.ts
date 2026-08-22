@@ -109,7 +109,7 @@ for (const mode of CAPTURE_MODES) {
     await page.goto("/questions");
     // `grid`, not `table`: the vendored Table is interactive (rows open a question),
     // so react-aria gives it the grid role.
-    await expect(page.getByRole("grid", { name: "Question library" })).toBeVisible();
+    await expect(page.getByRole("table", { name: "Question library" })).toBeVisible();
     await capture(page, `library-list-${mode}`);
 
     // The detail screen of the featured question: version timeline plus the preview

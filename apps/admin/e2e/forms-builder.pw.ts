@@ -322,7 +322,7 @@ test("the form library lists the forms that were built", async ({ page }) => {
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto("/forms");
-  await expect(page.getByRole("grid", { name: "Form library" })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Form library" })).toBeVisible();
   await expect(page.getByRole("row").filter({ hasText: insuranceFormId })).toBeVisible();
   await expect(page.getByRole("row").filter({ hasText: insuranceFormId })).toContainText(
     "Unpublished draft",

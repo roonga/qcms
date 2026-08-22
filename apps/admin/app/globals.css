@@ -780,37 +780,30 @@ button {
   font-weight: 400;
 }
 
-/* Rows that ARE the control. Today that is the two kit tables whose whole row
-   navigates and the library picker's choose-a-question dialog. §2 retires
-   whole-row activation in favour of a real anchor in the identifying cell, and
-   this modifier retires with it; until then, a row that responds to a click
-   says so. Rows without the modifier get no hover affordance, because promising
-   a click that does nothing is worse than promising none. */
-.qcms-table--rowaction tbody tr:hover,
-.qcms-table--rowaction [role="row"]:hover {
-  background-color: var(--color-surface-hover);
-  cursor: pointer;
-}
+/* NO ROW IS THE CONTROL ANY MORE (§2, issue 570). A `--rowaction` modifier used
+   to give a hover affordance to the four tables whose whole row navigated or
+   chose through the vendored kit's `onRowAction`. §2 settled that the other way:
+   the row's identifying cell carries a real anchor, so open-in-new-tab and no-JS
+   work, and the picker (which has no address to link to) carries a named button
+   per row instead. All four are hand-authored now, the handler is gone from the
+   app, and the modifier goes with it. Nothing here may reintroduce a whole-row
+   hover: promising a click that does nothing is worse than promising none, and
+   the control in the row says where it goes.
+
+   The positional `nth-child` rules that gave those four tables their
+   `tabular-nums` are gone for the same reason, replaced by the `.qcms-cell--num`
+   below. They were the compromise this sheet described while the markup came
+   from the kit, and issue 514 recorded why it accepted them for figures and
+   refused them for compact-width drops: a wrong index for `tabular-nums` only
+   un-tabularises a column and the frame shows it, while a wrong index for a drop
+   HIDES a data column, silently. One of the seven had in fact drifted -
+   `.qcms-table--forms td:nth-child(5)` was commented "Draft version" and
+   selected a cell reading "Unpublished draft" - which is the asymmetry's benign
+   half arriving exactly on schedule. */
 
 /* Figure-width digits on numeric and stamp columns ONLY (§2). Applied per cell,
    header included, so a column opts in as a column. */
 .qcms-table .qcms-cell--num {
-  font-variant-numeric: tabular-nums;
-}
-
-/* The vendored kit `Table` renders its cells from a column list and takes no
-   per-cell className, so its numeric and stamp columns opt in positionally.
-   Each rule below names the columns it is selecting and lives next to the
-   markup's own column list in review. These are the four kit tables; when §2's
-   row-action clause retires `onRowAction` their markup becomes hand-authored
-   and every one of these rules is deleted in favour of `.qcms-cell--num`. */
-.qcms-table--questions td:nth-child(4), /* Version */
-.qcms-table--questions td:nth-child(6), /* Created */
-.qcms-table--forms td:nth-child(5), /* Draft version */
-.qcms-table--forms td:nth-child(6), /* Published version */
-.qcms-table--versions td:nth-child(1), /* Version */
-.qcms-table--versions td:nth-child(2), /* Published at */
-.qcms-table--picker td:nth-child(4) /* Version */ {
   font-variant-numeric: tabular-nums;
 }
 
@@ -830,7 +823,13 @@ button {
 
    No table in the app declares a `min-inline-size`, so there is none to reset
    here: with the dropped columns gone the remainder fits, and the scroll
-   container stays the fallback rather than the default experience. */
+   container stays the fallback rather than the default experience.
+
+   Issue 570 closed the last gap in "every table". The four kit tables owed a
+   drop statement and could not make one, because a kit cell takes no className
+   and the only mechanism left was the `nth-child` the paragraph above refuses.
+   Giving them hand-authored markup for their anchors gave them this class as
+   well, so all ten tables now state their drops in their own markup. */
 .qcms-cell--drop {
   display: none;
 }
@@ -1124,8 +1123,8 @@ button {
    row whose only control cannot be found. `plan/admin-mobile-stance.md` puts
    "reorder questions within a step" and "remove a question from a step" on the
    supported-at-390 path, so that is a defect rather than a preference. Contract §2
-   is content with this: it makes ROW hover opt-in (`--rowaction`) and says nothing
-   that requires a row's own control to hide. */
+   is content with this: since issue 570 no row in the app is itself a control, and
+   §2 says nothing that requires a row's own control to hide. */
 .qcms-rowgrip {
   display: inline-flex;
   align-items: center;

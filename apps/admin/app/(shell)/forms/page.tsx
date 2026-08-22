@@ -1,6 +1,5 @@
 import { EmptyState } from "@/components/empty-state";
-import { Alert, type TableRow } from "@/components/kit";
-import type { FormListItem } from "@/lib/forms/types";
+import { Alert } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
 import { listForms } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
@@ -29,35 +28,6 @@ import { FormsTable } from "./forms-table";
  * `status` is the third and separate thing: whether the form accepts responses at all
  * (open/closed), which 034's publish flow and the link screens act on.
  */
-
-/** ISO day. Formatted on the server so the client renders the identical string. */
-function isoDay(timestamp: string): string {
-  return timestamp.slice(0, 10);
-}
-
-function publishedCell(form: FormListItem): string {
-  if (form.latestVersion === null) return t("forms.version.none");
-  return form.publishedAt === null
-    ? t("forms.version.value", { version: form.latestVersion })
-    : t("forms.version.valueAt", {
-        version: form.latestVersion,
-        date: isoDay(form.publishedAt),
-      });
-}
-
-function toRow(form: FormListItem): TableRow {
-  return {
-    id: form.formId,
-    data: {
-      slug: form.slug,
-      formId: form.formId,
-      locale: form.defaultLocale,
-      status: t(`forms.status.${form.status}`),
-      draft: form.hasDraft ? t("forms.draft.present") : t("forms.draft.none"),
-      published: publishedCell(form),
-    },
-  };
-}
 
 export default async function FormsPage() {
   const session = await requireAdminSession();
@@ -94,17 +64,7 @@ export default async function FormsPage() {
 
       {result.ok && result.data.length > 0 && (
         <div className="flex flex-col gap-2">
-          <FormsTable
-            rows={result.data.map(toRow)}
-            columns={[
-              { id: "slug", label: t("forms.column.slug"), isRowHeader: true },
-              { id: "formId", label: t("forms.column.formId") },
-              { id: "locale", label: t("forms.column.locale") },
-              { id: "status", label: t("forms.column.status") },
-              { id: "draft", label: t("forms.column.draft") },
-              { id: "published", label: t("forms.column.version") },
-            ]}
-          />
+          <FormsTable rows={result.data} />
           <p className="text-sm text-(--color-text-muted)">{t("forms.table.hint")}</p>
         </div>
       )}
