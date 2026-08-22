@@ -1,0 +1,246 @@
+# Red-first, browser layer: apps/admin/e2e/measure.pw.ts run against the PARENT state -
+# app/(shell)/layout.tsx and app/globals.css restored to fix/557-breakpoint-tokens, and
+# lib/measure.ts, lib/measure.test.ts, components/measured-main.tsx removed. One global cap
+# of max-w-5xl on every route, which is what the received 1024 values below are.
+# Command: QCMS_PORT_SEAT=6 pnpm exec playwright test --project=admin-chromium apps/admin/e2e/measure.pw.ts
+
+[playwright] port seat 6: portal 17600, api 17610, admin 17640, otlp 17630
+
+Running 2 tests using 1 worker
+
+  ✘  1 [admin-chromium] › apps/admin/e2e/measure.pw.ts:143:1 › 558 caps each screen at the width its route asks for, at 1280 (12.4s)
+  -  2 [admin-chromium] › apps/admin/e2e/measure.pw.ts:176:1 › 558 leaves every screen the same width at 390, because a cap is fluid below itself
+
+
+  1) [admin-chromium] › apps/admin/e2e/measure.pw.ts:143:1 › 558 caps each screen at the width its route asks for, at 1280 
+
+    Error: /forms/frm_auto_quote caps at the wide measure
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1600
+    Received: 1024
+
+      159 |     expect
+      160 |       .soft(measured.cap, `${screen.path} caps at the ${screen.cap} measure`)
+    > 161 |       .toBe(CAP_PX[screen.cap]);
+          |        ^
+      162 |     expect
+      163 |       .soft(measured.width, `${screen.path} fills the smaller of cap and viewport`)
+      164 |       .toBe(Math.min(CAP_PX[screen.cap], measured.available));
+        at apps/admin/e2e/measure.pw.ts:161:8
+
+    Error: /forms/frm_auto_quote fills the smaller of cap and viewport
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1280
+    Received: 1024
+
+      162 |     expect
+      163 |       .soft(measured.width, `${screen.path} fills the smaller of cap and viewport`)
+    > 164 |       .toBe(Math.min(CAP_PX[screen.cap], measured.available));
+          |        ^
+      165 |     if (screen.cap === "default") {
+      166 |       expect
+      167 |         .soft(
+        at apps/admin/e2e/measure.pw.ts:164:8
+
+    Error: /forms/frm_auto_quote/links caps at the wide measure
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1600
+    Received: 1024
+
+      159 |     expect
+      160 |       .soft(measured.cap, `${screen.path} caps at the ${screen.cap} measure`)
+    > 161 |       .toBe(CAP_PX[screen.cap]);
+          |        ^
+      162 |     expect
+      163 |       .soft(measured.width, `${screen.path} fills the smaller of cap and viewport`)
+      164 |       .toBe(Math.min(CAP_PX[screen.cap], measured.available));
+        at apps/admin/e2e/measure.pw.ts:161:8
+
+    Error: /forms/frm_auto_quote/links fills the smaller of cap and viewport
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1280
+    Received: 1024
+
+      162 |     expect
+      163 |       .soft(measured.width, `${screen.path} fills the smaller of cap and viewport`)
+    > 164 |       .toBe(Math.min(CAP_PX[screen.cap], measured.available));
+          |        ^
+      165 |     if (screen.cap === "default") {
+      166 |       expect
+      167 |         .soft(
+        at apps/admin/e2e/measure.pw.ts:164:8
+
+    Error: /forms/frm_auto_quote/preview caps at the narrow measure
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 720
+    Received: 1024
+
+      159 |     expect
+      160 |       .soft(measured.cap, `${screen.path} caps at the ${screen.cap} measure`)
+    > 161 |       .toBe(CAP_PX[screen.cap]);
+          |        ^
+      162 |     expect
+      163 |       .soft(measured.width, `${screen.path} fills the smaller of cap and viewport`)
+      164 |       .toBe(Math.min(CAP_PX[screen.cap], measured.available));
+        at apps/admin/e2e/measure.pw.ts:161:8
+
+    Error: /forms/frm_auto_quote/preview fills the smaller of cap and viewport
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 720
+    Received: 1024
+
+      162 |     expect
+      163 |       .soft(measured.width, `${screen.path} fills the smaller of cap and viewport`)
+    > 164 |       .toBe(Math.min(CAP_PX[screen.cap], measured.available));
+          |        ^
+      165 |     if (screen.cap === "default") {
+      166 |       expect
+      167 |         .soft(
+        at apps/admin/e2e/measure.pw.ts:164:8
+
+    Error: /forms/frm_auto_quote/versions caps at the wide measure
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1600
+    Received: 1024
+
+      159 |     expect
+      160 |       .soft(measured.cap, `${screen.path} caps at the ${screen.cap} measure`)
+    > 161 |       .toBe(CAP_PX[screen.cap]);
+          |        ^
+      162 |     expect
+      163 |       .soft(measured.width, `${screen.path} fills the smaller of cap and viewport`)
+      164 |       .toBe(Math.min(CAP_PX[screen.cap], measured.available));
+        at apps/admin/e2e/measure.pw.ts:161:8
+
+    Error: /forms/frm_auto_quote/versions fills the smaller of cap and viewport
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1280
+    Received: 1024
+
+      162 |     expect
+      163 |       .soft(measured.width, `${screen.path} fills the smaller of cap and viewport`)
+    > 164 |       .toBe(Math.min(CAP_PX[screen.cap], measured.available));
+          |        ^
+      165 |     if (screen.cap === "default") {
+      166 |       expect
+      167 |         .soft(
+        at apps/admin/e2e/measure.pw.ts:164:8
+
+    Error: /forms/frm_auto_quote/versions/1 caps at the narrow measure
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 720
+    Received: 1024
+
+      159 |     expect
+      160 |       .soft(measured.cap, `${screen.path} caps at the ${screen.cap} measure`)
+    > 161 |       .toBe(CAP_PX[screen.cap]);
+          |        ^
+      162 |     expect
+      163 |       .soft(measured.width, `${screen.path} fills the smaller of cap and viewport`)
+      164 |       .toBe(Math.min(CAP_PX[screen.cap], measured.available));
+        at apps/admin/e2e/measure.pw.ts:161:8
+
+    Error: /forms/frm_auto_quote/versions/1 fills the smaller of cap and viewport
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 720
+    Received: 1024
+
+      162 |     expect
+      163 |       .soft(measured.width, `${screen.path} fills the smaller of cap and viewport`)
+    > 164 |       .toBe(Math.min(CAP_PX[screen.cap], measured.available));
+          |        ^
+      165 |     if (screen.cap === "default") {
+      166 |       expect
+      167 |         .soft(
+        at apps/admin/e2e/measure.pw.ts:164:8
+
+    Error: /forms/frm_auto_quote/webhooks caps at the wide measure
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1600
+    Received: 1024
+
+      159 |     expect
+      160 |       .soft(measured.cap, `${screen.path} caps at the ${screen.cap} measure`)
+    > 161 |       .toBe(CAP_PX[screen.cap]);
+          |        ^
+      162 |     expect
+      163 |       .soft(measured.width, `${screen.path} fills the smaller of cap and viewport`)
+      164 |       .toBe(Math.min(CAP_PX[screen.cap], measured.available));
+        at apps/admin/e2e/measure.pw.ts:161:8
+
+    Error: /forms/frm_auto_quote/webhooks fills the smaller of cap and viewport
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1280
+    Received: 1024
+
+      162 |     expect
+      163 |       .soft(measured.width, `${screen.path} fills the smaller of cap and viewport`)
+    > 164 |       .toBe(Math.min(CAP_PX[screen.cap], measured.available));
+          |        ^
+      165 |     if (screen.cap === "default") {
+      166 |       expect
+      167 |         .soft(
+        at apps/admin/e2e/measure.pw.ts:164:8
+
+    Error: /webhooks caps at the wide measure
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1600
+    Received: 1024
+
+      159 |     expect
+      160 |       .soft(measured.cap, `${screen.path} caps at the ${screen.cap} measure`)
+    > 161 |       .toBe(CAP_PX[screen.cap]);
+          |        ^
+      162 |     expect
+      163 |       .soft(measured.width, `${screen.path} fills the smaller of cap and viewport`)
+      164 |       .toBe(Math.min(CAP_PX[screen.cap], measured.available));
+        at apps/admin/e2e/measure.pw.ts:161:8
+
+    Error: /webhooks fills the smaller of cap and viewport
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1280
+    Received: 1024
+
+      162 |     expect
+      163 |       .soft(measured.width, `${screen.path} fills the smaller of cap and viewport`)
+    > 164 |       .toBe(Math.min(CAP_PX[screen.cap], measured.available));
+          |        ^
+      165 |     if (screen.cap === "default") {
+      166 |       expect
+      167 |         .soft(
+        at apps/admin/e2e/measure.pw.ts:164:8
+
+    Error Context: apps/portal/.playwright/output/measure.pw.ts-558-caps-eac-1480d--its-route-asks-for-at-1280-admin-chromium/error-context.md
+
+  1 failed
+    [admin-chromium] › apps/admin/e2e/measure.pw.ts:143:1 › 558 caps each screen at the width its route asks for, at 1280 
+  1 did not run
+EXIT_MARKER=1

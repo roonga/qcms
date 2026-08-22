@@ -31,6 +31,11 @@
 
 @source "../app";
 @source "../components";
+/* `lib/measure.ts` holds the route-to-cap table (issue 558) and is therefore the
+   one module outside `app` and `components` that names a utility class. Without
+   it on the scan list Tailwind never emits `max-w-measure-wide` and the cap
+   silently falls back to the element's fluid width. */
+@source "../lib";
 @source "../../../packages/ui/src";
 
 /*
@@ -129,6 +134,45 @@
 :root {
   --bp-compact: var(--breakpoint-compact);
   --bp-sidebar: var(--breakpoint-sidebar);
+}
+
+/*
+ * THE MEASURE - the three caps a screen's content column can take, issue 558.
+ *
+ * `plan/admin-ux-audit.md` §6 asks the width question screen by screen and answers
+ * it in three values rather than one: five screens earn width, two need LESS than
+ * the app default because they render respondent-facing content (§3.4), and nine
+ * keep the readable measure they have. Which value a given route takes is decided
+ * in `lib/measure.ts`, in one table; the numbers themselves are here, because a
+ * length that decides a layout belongs in the theme with the other lengths.
+ *
+ *   wide    100rem / 1600px. The POCs' own content cap, on every multi-screen
+ *           file that has one (`plan/admin-shell-poc/admin-shell-poc.html`,
+ *           `links-webhooks-poc.html`, `rules-screen-poc.html`,
+ *           `question-editor-poc.html`, all `.main { max-width: 1600px }`).
+ *   narrow  45rem / 720px. DERIVED, not chosen: §5.3 states the rule as "a screen
+ *           whose job is to show what a respondent sees inherits the respondent's
+ *           measure, not the admin's", and the respondent's measure is the
+ *           portal shell's own `max-w-2xl`, 42rem
+ *           (`apps/portal/components/portal-shell.tsx`). The shell's `<main>`
+ *           carries `p-6` inside its cap, 1.5rem a side, so the page cap that
+ *           delivers a 42rem respondent column is 42 + 3 = 45rem.
+ *   default 64rem / 1024px. Unchanged, and deliberately still spelled `max-w-5xl`
+ *           at the call site rather than re-tokenized: nine screens have to render
+ *           byte-identically after this change, and the cheapest way to be sure of
+ *           that is for their `<main>` to keep the exact class attribute it had.
+ *           The number is Tailwind's own `--container-5xl`.
+ *
+ * NO BREAKPOINT IS INVOLVED, and that is the point. A `max-inline-size` is already
+ * a responsive condition: below the cap the column is fluid and every one of these
+ * three values renders identically, so "wider at 1280 and above" and "unchanged at
+ * 390" both fall out of the cap alone. Writing them as `sidebar:` variants would
+ * have made the cap a per-route use of a boundary, which `plan/admin-design-
+ * contracts.md` §1 does not have and issue 557 exists to prevent.
+ */
+@theme static {
+  --container-measure-wide: 100rem;
+  --container-measure-narrow: 45rem;
 }
 
 /*
