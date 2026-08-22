@@ -341,6 +341,50 @@ how an unexamined choice becomes the house pattern.
 `components/rail-frame.tsx` is the shared chrome and `components/forms/form-subtree-rail.tsx`
 is §7's contents; the split is what keeps §7a a distinct component that shares the column,
 the width and the collapse behaviour and nothing else.
+
+**Amendment, 2026-08-22 (PM/PO seat, escalated by PR #621): a step item is a fragment on
+the builder, not a route.**
+
+§7 says the rail carries the form's steps and never said what a step item points at. The
+answer is:
+
+> `/forms/{formId}#step-{stepId}` - the builder route plus the step's existing anchor.
+> **A step is never given a route of its own.**
+
+**This is not a preference, it is the audit's own negative result.** `plan/admin-ux-audit.md`
+records that the POC "created the mismatch by moving to a step-scoped route and then had to
+split it back out", and concludes: *"the mismatch is a consequence of the rail's
+step-per-route model, not a pre-existing defect."* Step-per-route is the thing that produced
+the scope bug D1 belongs to. A contract that adopts the rail while leaving its link target
+open invites the defect back through the one door it was known to come through.
+
+The mechanism already exists and was minted for a neighbouring purpose: `stepAnchorId`
+(`apps/admin/lib/forms/issues.ts:33`) gives every step a stable, focus-targetable DOM id, and
+`components/forms/steps-rail.tsx:273` is what the validation panel's issue links resolve
+against. §5.5 of the audit is the reason those anchors must keep working. So the rail reuses
+the app's established focus-anchor rather than inventing navigation, and the two features now
+depend on the same id, which is a property to preserve rather than an accident.
+
+**Amendment, 2026-08-22 (PM/PO seat, escalated by PR #621 and issue #623): the rail sits
+outside the capped content column.**
+
+Three rules met for the first time in #559 and none of them composed: §7 makes the rail a
+240px grid column, §6-as-implemented caps the **content** column per route, and N2 requires
+the rail to reach the bottom. Nothing said **which of the two the cap governs**.
+
+> The rail is a **sibling** of the capped content column, not a child of it. A route's width
+> cap governs the content column alone, and the rail's 240px is additional to it.
+
+Nesting the rail inside the capped column would silently subtract 240px from the measure
+every route was assigned in `plan/admin-ux-audit.md` §6, and stand the rail on the content
+column's padding. The failure mode is the reason this is worth writing down: **the symptom is
+a slightly narrow screen, which nobody attributes to a contract silence.** It would be
+absorbed as a styling nit rather than diagnosed.
+
+The consequence is accepted rather than discovered: because a layout is never told which
+child route rendered, a sibling rail needs a **parallel route slot**, and the shared tooling
+has to understand one. #559 taught four files about it rather than filtering it out, which is
+the standard for the next two rails as well.
 ### 7a. Settings keeps a rail, as a written exception
 
 **[Code Owner ruling, 2026-08-20 - decision C1 closed]** Settings keeps its rail.
