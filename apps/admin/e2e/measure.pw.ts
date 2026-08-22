@@ -158,7 +158,13 @@ async function measure(page: Page, path: string): Promise<Measured> {
     // stylesheet, and only when the rail is genuinely BESIDE the column: below
     // `--bp-sidebar` the same element is a disclosure stacked above `<main>` and takes no
     // width from it at all.
-    const rail = document.querySelector('[data-testid="qcms-rail"]')?.getBoundingClientRect();
+    // `.qcms-rail` rather than a testid, because there are three rail COMPONENTS and they
+    // do not share one: `qcms-rail` (the form subtree, issue 559), `qcms-settings-rail`
+    // (issue 562) and `qcms-question-rail` (issue 650). What they do share is the class,
+    // which is also what `app/globals.css` keys the two-track grid off
+    // (`.qcms-shell-body:has(> .qcms-rail)`), so it is the selector that means "a rail is
+    // occupying the first track" rather than "a particular rail is on screen".
+    const rail = document.querySelector(".qcms-rail")?.getBoundingClientRect();
     const besideTheColumn = rail !== undefined && rail.right <= box.left;
     return {
       cap: Number.parseFloat(getComputedStyle(element).maxWidth),
@@ -236,7 +242,10 @@ test("648 puts the wordmark, the nav and the content column on one left edge, at
   // railed screen the column deliberately starts at the rail's edge instead, which is
   // asserted in the sweep above.
   await page.goto("/webhooks");
-  await expect(page.getByTestId("qcms-rail"), "a screen with no rail").toHaveCount(0);
+  // Same reason as the sweep's helper: three rail components, one shared class. Asserting
+  // the class is absent is the claim "no rail occupies the first track here", which is what
+  // makes the three edges below comparable to the viewport's origin.
+  await expect(page.locator(".qcms-rail"), "a screen with no rail").toHaveCount(0);
 
   const edges = await page.evaluate(() => {
     const left = (selector: string) => {
