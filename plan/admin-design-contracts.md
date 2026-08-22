@@ -345,6 +345,27 @@ it belongs with #518's implementation, not here.
   component, not per-screen copies.
 - Rail items are anchors, not buttons.
 
+**Amendment, 2026-08-22 (PM/PO seat, owed twice): the rail shows each screen's own name,
+which for the version list is "History".**
+
+§7's sibling list writes **"Versions"**; the shipped copy catalog calls that screen
+**"History"**. #559 reported the mismatch, it reached #561 still unruled, and **two lanes
+wrote the same paragraph of reasoning and each decided alone**. A third should not have to.
+
+> The rail row carries **the name the screen carries**. Where §7's list and the shipped
+> copy disagree, the copy wins and §7's wording is the loser.
+
+The reason is #561's and it is adopted verbatim because it is better than a preference:
+**the rail must not give a screen a second name for a place the breadcrumb and the screen's
+own copy already name.** §7's normative content is *which* siblings appear and *in what
+order*; both are honoured either way, so the wording was never the part doing work.
+
+So the rail reads Builder / Preview / **History** / Links / Responses / Webhooks, and §7's
+"Versions" above should be read as identifying the route (`/versions`), not prescribing a
+label. The same rule applies to any future rename: change the copy, and the rail follows
+without a contract amendment.
+
+
 **Amendment, 2026-08-22 (PM/PO seat, from PR #621): the disclosure is one element at
 every width, and its summary stays visible when expanded.**
 
