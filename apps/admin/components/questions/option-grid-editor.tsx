@@ -16,7 +16,7 @@ import {
   setPendingLabel,
   type GridRow,
   type OptionGridState,
-  type OptionRowAction,
+  type OptionRowMenuAction,
   type PendingRow,
 } from "@/lib/questions/option-grid";
 import type { ChoiceOptionView, DefinitionIssue } from "@/lib/questions/types";
@@ -245,7 +245,7 @@ export function OptionGridEditor({
    * moved row's grip at its NEW index - the operator's next press should be on the row they
    * just moved, wherever it went, rather than on whatever slid into the old slot.
    */
-  function runAction(row: GridRow, action: OptionRowAction): void {
+  function runAction(row: GridRow, action: OptionRowMenuAction): void {
     if (action === "insertAbove") {
       openAt(row.index);
       return;

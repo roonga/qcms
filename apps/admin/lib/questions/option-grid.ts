@@ -227,11 +227,19 @@ export function gridRows(state: OptionGridState): readonly GridRow[] {
   return rows;
 }
 
-/** What one entry of a row's grip menu does. */
-export type OptionRowAction = "insertAbove" | "insertBelow" | "moveUp" | "moveDown" | "remove";
+/**
+ * What one entry of a row's grip menu does.
+ *
+ * The pin list's equivalent is `PinRowAction`, and the parallel name here would be
+ * `OptionRowAction` - which contains the substring `onRowAction`, and so trips the scan in
+ * `app/(shell)/table-anchors.test.tsx` that keeps the retired whole-row click handler from
+ * coming back (issue 570). The `MenuAction` spelling says the same thing and stays out of
+ * that gate's way.
+ */
+export type OptionRowMenuAction = "insertAbove" | "insertBelow" | "moveUp" | "moveDown" | "remove";
 
 export interface OptionRowMenuItem {
-  readonly action: OptionRowAction;
+  readonly action: OptionRowMenuAction;
   readonly label: string;
   readonly isDisabled: boolean;
   readonly isDanger: boolean;

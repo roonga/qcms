@@ -12,7 +12,7 @@ import {
   optionRowMenuItems,
   setPendingLabel,
   type OptionGridState,
-  type OptionRowAction,
+  type OptionRowMenuAction,
 } from "./option-grid.ts";
 
 import type { ChoiceOptionView } from "./types.ts";
@@ -306,7 +306,7 @@ describe("committedIndexOf", () => {
  * because a click is not a thing a unit test can observe.
  */
 describe("optionRowMenuItems", () => {
-  const ORDER: readonly OptionRowAction[] = [
+  const ORDER: readonly OptionRowMenuAction[] = [
     "insertAbove",
     "insertBelow",
     "moveUp",
@@ -314,7 +314,7 @@ describe("optionRowMenuItems", () => {
     "remove",
   ];
 
-  function disabledIn(index: number, total: number): Map<OptionRowAction, boolean> {
+  function disabledIn(index: number, total: number): Map<OptionRowMenuAction, boolean> {
     const items = optionRowMenuItems({ name: "Crimson", index, total });
     return new Map(items.map((item) => [item.action, item.isDisabled]));
   }
