@@ -38,15 +38,24 @@ import { SETTINGS_SECTIONS } from "@/lib/settings-sections";
  *
  * ## The active section is the fragment in the URL, and it does not follow the scroll
  *
- * §7 never had to answer this: on a form-subtree screen the active item is the route you
- * are on, and the server knows it. A fragment is never sent to the server, so the active
- * section is settled in the stylesheet with `:target` (`app/globals.css`, the §7a block),
- * which is the platform's own answer to "which fragment is current" and costs no script.
+ * §7 never had to answer this: on a form-subtree screen the active item is whatever route
+ * you are on, and the server knows it. An in-page rail has no route to ask, and neither
+ * contract answers the question, so this is the third silence Wave 3 has found by building
+ * rather than by reading. It is closed the way the other two were - by deriving from a
+ * clause that already exists rather than by inventing a rule.
  *
- * It deliberately does **not** update as the reader scrolls. A scroll spy would need client
- * JavaScript on a screen that ships none, would leave the no-JavaScript reader with a rail
- * that names nothing, and - the real objection - would assert a current section the reader
- * never chose. The fragment is a choice: clicked here, bookmarked, or arrived at from the
+ * **The clause is anchors-not-buttons.** §7 makes rail items anchors precisely so they work
+ * without scripting, and §7a binds this rail to that rule as one of the four things the two
+ * rails share. A mark that only a script could produce would make the rail's own contract
+ * conditional on JavaScript, which that clause forbids. So the active section is the
+ * fragment in the URL, settled in the stylesheet with `:target` (`app/globals.css`, the §7a
+ * block): the platform's own answer to "which fragment is current", and no script at all.
+ *
+ * It deliberately does **not** also track the scroll. A scroll spy would be legitimate as an
+ * enhancement on top of the fragment mark, and it is declined on its own merits rather than
+ * on the floor: it would assert a current section the reader never chose, and it would put
+ * the first client component on a screen that ships none to say something the reader can
+ * already see. The fragment is a choice - clicked here, bookmarked, or arrived at from the
  * account menu's Change password item. Before any choice is made there is no active section,
  * and the summary says so with its own name rather than guessing at the topmost one.
  *
