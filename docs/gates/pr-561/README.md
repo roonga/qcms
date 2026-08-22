@@ -4,7 +4,7 @@ Approve that the §7 rail reads correctly on the seven screens that gained it, i
 
 | Frame | The clause it claims |
 | --- | --- |
-| `builder-390.png` | §7 collapsed on the builder: one group, so the disclosure opens straight onto the sections. |
+| `builder-390.png` | §7 collapsed on the builder: one group, so the disclosure opens straight onto the sections. This frame is 391px wide, not 390: the builder scrolls sideways by one pixel at that width, which is a pre-existing defect tracked separately and is not the rail's (below the breakpoint the rail is a full-width stacked disclosure and takes no horizontal room from the column). |
 | `builder-1280.png` | §7 on the builder: the sibling group alone, no children group and therefore no divider, because a step item here would be a same-page fragment. The builder's own step editor is untouched, in the content column. |
 | `preview-390.png` | §7 collapsed: below `--bp-sidebar` the rail is a disclosure. |
 | `preview-1280.png` | §7 with `plan/admin-ux-audit.md` §3.4: the rail beside a respondent-facing render that keeps its narrow measure. |
