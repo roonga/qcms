@@ -811,6 +811,19 @@ new rule is needed and none is invented here.
 - **One shared component still.** Omitting a group is *data* passed to the rail, not a
   per-screen copy of it, so the "no per-screen copies" clause is untouched.
 
+  **Scope, stated because this clause and §7a's read as opposites and are not (added
+  2026-08-22).** The question this answers is *may the eight form-section screens each keep
+  their own copy of the form rail?* - and the answer is no, they share
+  `components/forms/form-subtree-rail.tsx`. **§7a answers a different question:** *must a
+  screen outside that family be made to use it?* - and the answer is also no. Share **within**
+  a family; do not force an unrelated screen **into** one.
+
+  Both have now been honoured together three times: the Settings rail (#562, PR #662) and the
+  question-versions rail (#650, PR #670) were each built locally without touching
+  `form-subtree-rail.tsx` or `rail-frame.tsx`, while the eight form screens still share one
+  component. A reader meeting only one of the two clauses could reasonably conclude the other
+  is being violated, which is why the scope is now written rather than inferred.
+
 **What this does not settle.** Whether the builder's step editor should eventually *look*
 like the rail's step group, or move, is a builder-layout question and remains open. It is not
 answered by making it a second rail, and nothing here licenses that.
