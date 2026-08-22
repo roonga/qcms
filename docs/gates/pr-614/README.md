@@ -32,15 +32,27 @@ than assumed.
 - **The FORM read failing is not reachable by URL at all.** The route 404s on
   `FORM_NOT_FOUND` and `INVALID_FORM_ID`, which are the only failures a chosen form id can
   produce. There is no form id that makes `getForm` fail with anything else.
-- **The VERSION read failing non-404 requires making the API fault.** Every in-range
-  version that does not exist answers 404, which the route turns into `notFound()`. The one
-  path to a non-404 is a version segment outside `int4`, and that reaches Postgres as an
-  out-of-range comparison: a 500, an error-level "unhandled error" in the API log, and a
-  hard failure of the suite's own server-error gate, which never allowlists one
-  (`apps/portal/e2e/support/gates.ts`). Photographing a screen by provoking a server fault
-  the suite exists to catch is not a capture, and weakening that gate for a screenshot is
-  not a trade this change is entitled to make. (The 500 itself is reported as a follow-up
-  rather than fixed here: it is a different component and a different decision.)
+- **The VERSION read failing non-404 requires making the API fault.** Measured against the
+  real handler and a Testcontainers Postgres rather than reasoned about, because the whole
+  judgement rests on it:
+
+  | `GET /admin/forms/{id}/versions/{v}` | Status | Code |
+  |---|---|---|
+  | `1` | 404 | `VERSION_NOT_FOUND` |
+  | `2000000000` | 404 | `VERSION_NOT_FOUND` |
+  | `2147483648` | **500** | `internal` |
+
+  Every in-range version answers 404, which the route turns into `notFound()`. The only
+  path to a non-404 is a version segment outside `int4`, which the route's own guard
+  accepts (it is a positive integer) and which then reaches Postgres as an out-of-range
+  comparison against an `integer` column. That is a 500, an error-level "unhandled error"
+  in the API log, and a hard failure of the suite's own server-error gate, which never
+  allowlists one (`apps/portal/e2e/support/gates.ts`). Photographing a screen by provoking
+  a server fault the suite exists to catch is not a capture, and weakening that gate for a
+  screenshot is not a trade this change is entitled to make. (The 500 itself is a
+  different component and a different decision, so it is filed as issue #645 rather than
+  fixed here. Closing that one makes this state unreachable from a browser outright, which
+  is a strictly better place to be than the one this note describes.)
 
 These reads run in the Next **server** process, so `page.route()` never sees the request
 either; `playwright.config.ts` records the underlying constraint. That is the same wall
@@ -82,6 +94,6 @@ Runner output in both is filtered to repo-root-relative paths.
 
 The rail's two answers are asserted through `FormRailSlot`, which is where the reads and
 the degrade policy live. The three-line slot route above it, which only chooses that the
-current row is Versions, is not rendered here: handing `renderToStaticMarkup` a route file
-that returns an un-awaited async component renders nothing. The claim that this URL's rail
-marks Versions is covered where it was made, in `apps/admin/e2e/rail-screens.pw.ts`.
+current row is Versions, is not rendered here: it returns an async component, and
+`renderToStaticMarkup` is synchronous. The claim that this URL's rail marks Versions is
+covered where it was made, in `apps/admin/e2e/rail-screens.pw.ts:82`.
