@@ -274,9 +274,31 @@ One family, reconciled with the frozen card (`plan/admin-theme/ds-table.html`):
   §4.1) all converge on it.
 - 44px rows (`--admin-table-row-h`), header 0.72rem strong-border underline, cell
   padding 0.4rem 0.6rem, `tabular-nums` on numeric and stamp columns.
-- No zebra striping. Rationale: the 44px row and hairline dividers carry the row
-  rhythm; zebra fights the ownership-grid contrast (element 4) where the two
-  meet, and the frozen card does not stripe.
+- No zebra striping **on a table that carries the ownership grid**. Rationale: the
+  44px row and hairline dividers carry the row rhythm, and zebra fights the
+  ownership-grid contrast (element 4) where the two meet.
+
+  **NARROWED 2026-08-22 (this seat, on the dev seat's #681), and one clause of the
+  original was simply wrong.** It read "and the frozen card does not stripe". It
+  does: `plan/admin-theme/ds-table.html:225` is
+  `tbody tr:nth-child(even) { background: var(--color-background-muted); }`. So
+  this rule cited the frozen card as support for the opposite of what the card
+  says, and nobody checked until #682's sweep.
+
+  What survives is the scoped clause. **Two POCs stripe** -
+  `library-lists-poc.html` and `deployment-ops-poc.html` - and they are precisely
+  the two whose tables have **no** foreign-owner distinction:
+  `library-lists-poc.html:325` says so in as many words, *"every column on both
+  lists is owned by the row's own entity, so there is no foreign-owner distinction
+  to draw"*. The condition the rationale depends on is absent there, so the
+  rationale never reached those screens.
+
+  Under POC-wins those two drawings take it. `apps/admin/app/globals.css` currently
+  says "NO ZEBRA (§2) ... nothing else may add one", which was a faithful reading of
+  the old wording and is now too broad.
+
+  **Same error shape this seat has now made four times: a rule stated more broadly
+  than its reason supports, resting on a fact nobody re-read.**
 - Row action: the row's identifying cell carries a real anchor (open-in-new-tab
   and no-JS work); whole-row `onRowAction` click is retired with the kit-table
   migration. Rows with an author-controlled order get the grip menu; rows without
