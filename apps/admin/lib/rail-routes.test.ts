@@ -115,14 +115,26 @@ describe("which screens carry the form-subtree rail", () => {
     expect(sorted(railSlotRoutes())).toEqual(sorted(formScopedScreens()));
   });
 
-  it("puts no rail on a screen outside one form's subtree", () => {
-    // §7a is explicit that the exception for Settings "does not generalise" and that the
-    // other eight authenticated screens would get an empty rail or one duplicating their
-    // own body. The slot tree holding nothing but `forms/` is that clause, checked.
+  it("puts no rail outside one form's subtree, except the one screen §7a names", () => {
+    // §7a's "does not generalise" clause, checked - but read the whole clause. It does not
+    // say the slot tree holds nothing but `forms/`: it says "Settings is now the single
+    // named exception, not the first of a series", and the same ruling grants Settings a
+    // rail outright. So the tripwire is that the slot root holds exactly these two roots.
+    //
+    // It keeps its teeth where they matter. A THIRD root appearing fails here, which is the
+    // moment §7a asks for a ruling of its own recorded in the contracts document, and the
+    // other eight authenticated screens would still get an empty rail or one duplicating
+    // their own body. What changed with issue 562 is only that the exception now exists in
+    // the tree as well as in the contract.
+    //
+    // `settings/` is NOT a second form-subtree rail and nothing below it is checked by the
+    // rest of this file: every other assertion here walks `@rail/forms` alone, because §7a
+    // is a different contract that happens to share the column. Its own coverage is
+    // `lib/settings-sections.test.ts` and `components/settings-section-rail.test.tsx`.
     const slotRoot = readdirSync(`${SHELL}/@rail`, { withFileTypes: true });
     expect(
       sorted(slotRoot.filter((entry) => entry.isDirectory()).map((entry) => entry.name)),
-    ).toEqual(["forms"]);
+    ).toEqual(["forms", "settings"]);
   });
 });
 
