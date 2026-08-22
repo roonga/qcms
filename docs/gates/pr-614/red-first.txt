@@ -1,0 +1,126 @@
+
+ RUN  v4.1.10 <repo-root>
+
+ ❯ |qcms-admin| app/(shell)/version-detail-read-states.test.tsx (8 tests | 1 failed) 92ms
+     × keeps the breadcrumb, the h1, the back link and the identity line 43ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |qcms-admin| app/(shell)/version-detail-read-states.test.tsx > the version read failing (issue 614) > keeps the breadcrumb, the h1, the back link and the identity line
+AssertionError: expected '<div data-testid="qcms-alert" data-va…' to contain 'data-testid="qcms-breadcrumb-stub"'
+
+Expected: "data-testid="qcms-breadcrumb-stub""
+Received: "<div data-testid="qcms-alert" data-variant="error">forms.history.failed(upstream said 503)</div>"
+
+ ❯ app/(shell)/version-detail-read-states.test.tsx:242:23
+    240|     // the first. Against the pre-614 route all seven of these fail at…
+    241|     // shape of the defect: not one missing element but the whole head…
+    242|     expect.soft(html).toContain('data-testid="qcms-breadcrumb-stub"');
+       |                       ^
+    243|     // The `h1` names the version, and names it from the route params:…
+    244|     // not exist in this branch, so a 7 here is proof the heading no l…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL  |qcms-admin| app/(shell)/version-detail-read-states.test.tsx > the version read failing (issue 614) > keeps the breadcrumb, the h1, the back link and the identity line
+AssertionError: expected '<div data-testid="qcms-alert" data-va…' to contain 'id="qcms-version-heading"'
+
+Expected: "id="qcms-version-heading""
+Received: "<div data-testid="qcms-alert" data-variant="error">forms.history.failed(upstream said 503)</div>"
+
+ ❯ app/(shell)/version-detail-read-states.test.tsx:246:23
+    244|     // not exist in this branch, so a 7 here is proof the heading no l…
+    245|     // read that failed.
+    246|     expect.soft(html).toContain('id="qcms-version-heading"');
+       |                       ^
+    247|     expect.soft(html).toContain("forms.history.versionHeading(7)");
+    248|     expect.soft(html).toContain("forms.history.backToHistory");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL  |qcms-admin| app/(shell)/version-detail-read-states.test.tsx > the version read failing (issue 614) > keeps the breadcrumb, the h1, the back link and the identity line
+AssertionError: expected '<div data-testid="qcms-alert" data-va…' to contain 'forms.history.versionHeading(7)'
+
+Expected: "forms.history.versionHeading(7)"
+Received: "<div data-testid="qcms-alert" data-variant="error">forms.history.failed(upstream said 503)</div>"
+
+ ❯ app/(shell)/version-detail-read-states.test.tsx:247:23
+    245|     // read that failed.
+    246|     expect.soft(html).toContain('id="qcms-version-heading"');
+    247|     expect.soft(html).toContain("forms.history.versionHeading(7)");
+       |                       ^
+    248|     expect.soft(html).toContain("forms.history.backToHistory");
+    249|     expect.soft(html).toContain('href="/forms/frm_one/versions"');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL  |qcms-admin| app/(shell)/version-detail-read-states.test.tsx > the version read failing (issue 614) > keeps the breadcrumb, the h1, the back link and the identity line
+AssertionError: expected '<div data-testid="qcms-alert" data-va…' to contain 'forms.history.backToHistory'
+
+Expected: "forms.history.backToHistory"
+Received: "<div data-testid="qcms-alert" data-variant="error">forms.history.failed(upstream said 503)</div>"
+
+ ❯ app/(shell)/version-detail-read-states.test.tsx:248:23
+    246|     expect.soft(html).toContain('id="qcms-version-heading"');
+    247|     expect.soft(html).toContain("forms.history.versionHeading(7)");
+    248|     expect.soft(html).toContain("forms.history.backToHistory");
+       |                       ^
+    249|     expect.soft(html).toContain('href="/forms/frm_one/versions"');
+    250|     // The identity line, which comes from the form read and is theref…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL  |qcms-admin| app/(shell)/version-detail-read-states.test.tsx > the version read failing (issue 614) > keeps the breadcrumb, the h1, the back link and the identity line
+AssertionError: expected '<div data-testid="qcms-alert" data-va…' to contain 'href="/forms/frm_one/versions"'
+
+Expected: "href="/forms/frm_one/versions""
+Received: "<div data-testid="qcms-alert" data-variant="error">forms.history.failed(upstream said 503)</div>"
+
+ ❯ app/(shell)/version-detail-read-states.test.tsx:249:23
+    247|     expect.soft(html).toContain("forms.history.versionHeading(7)");
+    248|     expect.soft(html).toContain("forms.history.backToHistory");
+    249|     expect.soft(html).toContain('href="/forms/frm_one/versions"');
+       |                       ^
+    250|     // The identity line, which comes from the form read and is theref…
+    251|     expect.soft(html).toContain("forms.builder.formId");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+ FAIL  |qcms-admin| app/(shell)/version-detail-read-states.test.tsx > the version read failing (issue 614) > keeps the breadcrumb, the h1, the back link and the identity line
+AssertionError: expected '<div data-testid="qcms-alert" data-va…' to contain 'forms.builder.formId'
+
+Expected: "forms.builder.formId"
+Received: "<div data-testid="qcms-alert" data-variant="error">forms.history.failed(upstream said 503)</div>"
+
+ ❯ app/(shell)/version-detail-read-states.test.tsx:251:23
+    249|     expect.soft(html).toContain('href="/forms/frm_one/versions"');
+    250|     // The identity line, which comes from the form read and is theref…
+    251|     expect.soft(html).toContain("forms.builder.formId");
+       |                       ^
+    252|     expect.soft(html).toContain("forms.status.open");
+    253|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+
+ FAIL  |qcms-admin| app/(shell)/version-detail-read-states.test.tsx > the version read failing (issue 614) > keeps the breadcrumb, the h1, the back link and the identity line
+AssertionError: expected '<div data-testid="qcms-alert" data-va…' to contain 'forms.status.open'
+
+Expected: "forms.status.open"
+Received: "<div data-testid="qcms-alert" data-variant="error">forms.history.failed(upstream said 503)</div>"
+
+ ❯ app/(shell)/version-detail-read-states.test.tsx:252:23
+    250|     // The identity line, which comes from the form read and is theref…
+    251|     expect.soft(html).toContain("forms.builder.formId");
+    252|     expect.soft(html).toContain("forms.status.open");
+       |                       ^
+    253|   });
+    254|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 7 passed (8)
+   Start at  07:38:00
+   Duration  254ms (transform 84ms, setup 0ms, import 63ms, tests 92ms, environment 0ms)
+
