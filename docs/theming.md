@@ -7,8 +7,8 @@ presets, the single High-contrast mode layer, the three density levels,
 per-deployment selection, the brand mark, the declarative self-hosted font registry
 with its curation config, and the respondent mode / font / density controls with
 their persistence.
-**Does not own:** the admin theme editor (task 049), the admin font-curation UI
-(Phase-4), per-form theming, multi-script font fallback (issue #27), and the
+**Does not own:** the Phase 4 admin theme editor (task 049), the admin font-curation UI,
+per-form theming, multi-script font fallback (issue #27), and the
 `forced-colors` / Windows High Contrast Mode baseline (issue #28). Note the split
 on that last one: defaulting the mode from **`prefers-contrast: more`** is here
 (it is one line of the pre-paint script), while `forced-colors` is a separate
@@ -629,7 +629,7 @@ gate, so a deployment that changes colours checks its own pairs.
 5. Run `pnpm --filter @qcms/ui test` (the ratios and the HC shape) and
    `pnpm verify:browser` (axe in all three modes).
 
-## Where the evidence lives
+## Verification map
 
 | Claim | Test |
 | --- | --- |

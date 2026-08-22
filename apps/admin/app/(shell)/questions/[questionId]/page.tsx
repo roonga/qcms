@@ -15,7 +15,7 @@ import { saveDraftAction } from "../actions";
 
 /**
  * One question: a rendered preview and the editor for the selected version (task 032;
- * wireframe "editor `form`").
+ * screen contract "editor `form`").
  *
  * ## Every version is reachable, and only one is editable
  *

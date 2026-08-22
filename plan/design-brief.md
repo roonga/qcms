@@ -37,7 +37,7 @@ An MIT-licensed, self-hosted TypeScript engine for questionnaires with deeply co
 **Mandate:** because it is internal and fixed, this pass **designs the admin components and screens themselves** as a finished, opinionated tool carrying QCMS's own identity, built on the a2ra primitives. More latitude than the portal: this is our voice, not a neutral baseline.
 
 **Deliverables:**
-1. Designed **admin screens / component patterns** for: shell + 2FA, question library, form builder + condition editor, publish / preview / versions / links, responses + erasure + webhook ops, and the agent panel. (Structure per `docs/wireframes/`; this pass is the visual + interaction skin over that fixed structure.)
+1. Designed **admin screens / component patterns** for: shell + 2FA, question library, form builder + condition editor, publish / preview / versions / links, responses + erasure + webhook ops, and the agent panel.
 2. Fixed **light + dark** QCMS admin theme, both AA. No adopter re-brand required.
 3. Applied previews on the three densest screens (form builder, responses browser, publish/preview) with real fixture content, both themes.
 
@@ -70,7 +70,6 @@ An MIT-licensed, self-hosted TypeScript engine for questionnaires with deeply co
 
 ## 6. Handoff references
 
-- Wireframes (fixed structure, both surfaces): `docs/wireframes/` and the [042 review page](https://claude.ai/code/artifact/0263ae87-8e2c-4462-94e1-e824e61c6288).
 - Token / component reference: the a2-react-aria styling guide (`@a2ra/core`), the authority for variable names and styling conventions.
 - Stack facts: React 19, Tailwind, vendored a2ra components (ADR-22, `docs/PROJECT_GOAL.md`).
 

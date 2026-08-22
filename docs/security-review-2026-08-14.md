@@ -300,9 +300,8 @@ the blind spot was warranted:
 
 - The **reporting role** exists only as a fenced SQL sample in
   `docs/reporting-view.md`. No migration creates it. Nothing had ever run it.
-- The **app/migration role split** that `docs/SECURITY_DESIGN.md` §7 attributes
-  to "036 documents the split" does not exist: `docs/features/036-*.md` contains
-  no role, grant or privilege text, `docs/deploy-enterprise.md` runs the
+- The **app/migration role split** does not exist: the completed distribution work
+  contains no role, grant, or privilege setup, and `docs/deploy-enterprise.md` runs the
   migration step with the same credential as the app, and no migration creates
   any role. The credential the API runs as owns the schema and can issue DDL.
 - The only role SQL that ships anywhere is `qcms_ro` in

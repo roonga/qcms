@@ -1,7 +1,6 @@
 # What binds the portal
 
-**Status:** current as of 2026-08-22. Check this document before citing a rule in a portal
-decision.
+**Status:** authoritative. Check this document before citing a portal rule.
 
 **Audience:** respondents, on browsers nobody chose, often reached by a link they were sent.
 

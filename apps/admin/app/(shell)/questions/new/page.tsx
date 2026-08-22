@@ -9,7 +9,7 @@ import { requireAdminSession } from "@/lib/server/session";
 import { createQuestionAction } from "../actions";
 
 /**
- * Creating a question (task 032; wireframe "editor new" state).
+ * Creating a question (task 032; screen contract "editor new" state).
  *
  * The only screen where `slug` and `type` can be chosen, and it says so in the two notes
  * beside them. That is not decoration: an id is permanent and never reused for a

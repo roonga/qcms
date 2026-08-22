@@ -20,7 +20,7 @@ import { unexpected } from "@/lib/ops/unexpected";
 import type { PreviewTheme } from "@/lib/preview-theme";
 
 /**
- * The live draft preview (task 034; wireframe "preview").
+ * The live draft preview (task 034; screen contract "preview").
  *
  * ## Why this is the same thing a respondent gets, and not a lookalike
  *
@@ -40,10 +40,10 @@ import type { PreviewTheme } from "@/lib/preview-theme";
  *
  * ## Why the branch walk is a round trip
  *
- * The wireframe describes "live rule evaluation (core evaluator client-side)". That is not
+ * The screen contract describes "live rule evaluation (core evaluator client-side)". That is not
  * implementable and has already been ruled on once: the admin imports no `@qcms/core`
  * value at all (R2, `r2-import-surface.test.ts`), and 033's rule bench was moved into the
- * API for exactly this reason (amendment, 2026-08-01, PO seat). It is also not what the
+ * API for exactly this reason. It is also not what the
  * portal does - the portal receives an authoritative `visibleQuestions` list and projects
  * onto it, performing no evaluation of its own. Doing the same here is therefore not a
  * compromise, it is the fidelity: a second evaluator in the admin would be the one part of

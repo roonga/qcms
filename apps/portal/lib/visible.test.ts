@@ -6,7 +6,7 @@ import { commitMoments, documentForVisible, questionLabels, questionPositions } 
 
 /**
  * The portal renders only the questions the API's flow projection marks visible,
- * so a conditional follow-up appears / disappears (wireframe branch states). The
+ * so a conditional follow-up appears / disappears (screen contract branch states). The
  * insurance step: q_at_fault_accident always visible; q_accident_count visible only after "Yes".
  */
 const stepDoc = {

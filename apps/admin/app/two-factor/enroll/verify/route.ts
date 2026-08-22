@@ -16,7 +16,7 @@ import { ENROLL_PATH, SIGN_IN_PATH } from "@/lib/server/session";
  * This is the step that flips `user.twoFactorEnabled`, so it is the step that makes
  * the account usable against the API at all (an unenrolled session is rejected there
  * under the default policy). Only after it succeeds does the one-time
- * recovery-code display open, which is the wireframe's order: verify the factor
+ * recovery-code display open, which is the screen contract's order: verify the factor
  * works, *then* hand over the codes that bypass it.
  *
  * A wrong code redirects back to the enrollment screen with the same opaque marker

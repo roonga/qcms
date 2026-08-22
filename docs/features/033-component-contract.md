@@ -1,12 +1,8 @@
-# 033 - component API contract (working appendix, not a task file)
+# Form-builder component API contract
 
-> Companion to `docs/features/033-admin-form-builder-conditions.md`. It records HOW the
-> admin's form-builder pieces fit, not WHAT the task requires. Originally written to
-> coordinate a split across two agents; that split is over and every path below landed in
-> one lane, so the coordination scaffolding is gone and what remains is the contract the
-> code actually holds to. Read it before changing any shape here: the prop types, the four
-> server-action signatures and the import-surface rules are what keep the builder's state
-> ownership and its `"use client"` boundary intact.
+This records how the admin form-builder pieces fit. Read it before changing these shapes:
+the prop types, four server-action signatures, and import-surface rules preserve state
+ownership and the `"use client"` boundary.
 
 ## Who owns state
 

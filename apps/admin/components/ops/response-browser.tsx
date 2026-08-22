@@ -18,7 +18,7 @@ import { t, tPlural } from "@/lib/i18n/en";
 import type { ReadState } from "@/lib/read-state";
 
 /**
- * The response browser: filter, page, open, export (task 035; wireframe "browser
+ * The response browser: filter, page, open, export (task 035; screen contract "browser
  * toolbar", "browser `table`").
  *
  * ## Filtering is a navigation, not client state
@@ -288,7 +288,7 @@ export function ResponseBrowser({
                       <FlagTag flagged={row.flaggedReason !== null} />
                     </td>
                     {/*
-                    The answer preview (issue 515; the wireframe's sixth column). Real
+                    The answer preview (issue 515; the screen contract's sixth column). Real
                     respondent data by definition, so the cell shows exactly what
                     `answerPreviewText` allows and nothing more: two answered questions,
                     each value clipped to a character budget before it becomes text.
@@ -352,7 +352,7 @@ export function ResponseBrowser({
 }
 
 /**
- * The export dialog (wireframe "export UI").
+ * The export dialog (screen contract "export UI").
  *
  * The version control is **disabled with a hint** for JSON rather than hidden, so the
  * two formats' controls stay in the same place and the reason the control is inert is

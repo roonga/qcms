@@ -333,7 +333,7 @@ carry the DS tight tracking.
 
 ## Design intent
 
-- **One system, two seats.** The QCMS app reuses the portal's slate neutrals and
+- **One system, two surfaces.** The QCMS app reuses the portal's slate neutrals and
   semantic colours (051, already verified) unchanged, and takes its accent and
   chrome language from the design system overview. There are two deliberate
   divergences: Corners and Typeface. Corners: the DS overview and the portal's

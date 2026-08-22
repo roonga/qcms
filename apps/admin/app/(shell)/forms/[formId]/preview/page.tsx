@@ -11,7 +11,7 @@ import { requireAdminSession } from "@/lib/server/session";
 import { previewDraftAction } from "../../actions";
 
 /**
- * The live preview of a form's draft (task 034; wireframe "preview").
+ * The live preview of a form's draft (task 034; screen contract "preview").
  *
  * A server component that loads the form and hands the draft to the pane. The action is
  * bound to **this route's** form id, exactly as the builder binds its four: the id comes

@@ -122,7 +122,7 @@ export const messages = {
 
   // The area screens tasks 033-035 replace. Each says what it will hold so the
   // shell is navigable and reviewable now, and so an empty page never reads as a
-  // bug during the screenshot gate. (Questions is no longer among them: task 032
+  // bug. (Questions is no longer among them: task 032
   // replaced its placeholder with the real library.)
   "area.forms.title": "Forms",
   "area.forms.pending": "The form builder and condition editor land in task 033.",

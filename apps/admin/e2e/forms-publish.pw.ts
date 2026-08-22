@@ -38,7 +38,7 @@ import { confirmLifecycle, createDraft, fillDate, optionIds } from "./support/qu
  *
  * ## The rule is inside one step, on purpose
  *
- * The wireframe's preview sketch shows the follow-up appearing *beside* the question that
+ * The screen contract's preview sketch shows the follow-up appearing *beside* the question that
  * revealed it, and that is the interesting case: within one step the reveal is visible
  * without any navigation, so a branch that fails to appear cannot be mistaken for a step
  * that has not been reached. It is also the arrangement ADR-16's forward pass makes

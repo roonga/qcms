@@ -45,7 +45,7 @@ test("kitchen-sink: every type via Continue/Back, Submit, and independent DB ver
 
   // --- Step 1: About you (short text + date) --------------------------------
   await expect(page.getByRole("heading", { name: "About you" })).toBeVisible();
-  // Back is hidden on the first step (042 wireframe).
+  // Back is hidden on the first step (042 screen contract).
   await expect(page.getByTestId("back-action")).toHaveCount(0);
   await expect(page.getByTestId("primary-action")).toHaveText("Continue");
 

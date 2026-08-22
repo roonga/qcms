@@ -6,7 +6,7 @@ import { exportResponses } from "@/lib/server/responses";
 import { requireAdminSessionForRequest } from "@/lib/server/session";
 
 /**
- * The export download (task 035; wireframe "export UI - streams the download").
+ * The export download (task 035; screen contract "export UI - streams the download").
  *
  * A route handler rather than a server action, because the product of this call is
  * **bytes for the browser to save**, not state for a component to render. The API

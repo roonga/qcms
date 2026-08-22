@@ -1,6 +1,6 @@
 # Admin POC consistency audit: is the proposed design one system?
 
-**Status:** working analysis, PM/PO seat, 2026-08-19. **Subject:** the eleven
+**Status:** working analysis, 2026-08-19. **Subject:** the eleven
 proposals under `plan/admin-shell-poc/`, audited against each other and against
 the branch's own normative documents (`plan/admin-ux-audit.md`,
 `plan/admin-mobile-stance.md`, the frozen `plan/admin-theme/ds-table.html` card,

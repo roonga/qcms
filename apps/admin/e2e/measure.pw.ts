@@ -38,12 +38,8 @@ import { submitResponse } from "./support/ops.js";
  * `lib/measure.ts`. Importing it would make this spec agree with the table by
  * construction; written out, a table row that says the wrong thing fails here.
  *
- * ## Why every frame starts from its own load
- *
- * Same reason `gate-557.pw.ts` gives: the builder's rules pane sits in a `container-type:
- * inline-size` context, and a container query resolves on the layout after a resize rather
- * than during it. Measuring `<main>` is not itself sensitive to that, but reloading costs
- * nothing here and removes the whole class of question.
+ * Every measurement starts from a fresh load because the builder's rules pane sits in a
+ * `container-type: inline-size` context and container queries resolve after resize layout.
  */
 
 test.describe.configure({ mode: "serial" });

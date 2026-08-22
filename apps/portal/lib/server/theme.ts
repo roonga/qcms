@@ -7,8 +7,8 @@
  * weight answers do. QCMS is single-tenant (ADR-20), so one deployment picks one
  * theme, one corner preset, one brand mark and one default mode / font / density
  * from the environment, and the root layout stamps them onto `<html>` during SSR.
- * There is no admin editor yet (task 049); this module is the whole operator-side
- * selection surface.
+ * The named-theme admin editor is Phase 4 (task 049); this module is the launch
+ * operator-side selection surface.
  *
  * TWO LAYERS, RESOLVED HERE
  * Config is the deployment's DEFAULT. Mode, font and density are also respondent

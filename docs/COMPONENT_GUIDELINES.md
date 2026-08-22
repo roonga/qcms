@@ -1,6 +1,6 @@
 # Component guidelines: adding or changing an input control
 
-The checklist a session walks when the `@qcms/ui` registry gains a control or an existing question type changes how it renders. Codifies the 028 retro patterns, ADR-31, and the lint/tripwire lessons (#60, #64, #91) so they stop being rediscovered per session.
+Use this checklist when the `@qcms/ui` registry gains a control or an existing question type changes how it renders.
 
 ## First: is this ADR-sized or checklist-sized?
 
@@ -24,4 +24,4 @@ The checklist a session walks when the `@qcms/ui` registry gains a control or an
 
 ## Evidence expectations
 
-The PR body proves each step it claims: pack/diff transcripts for vendoring, exact-count post assertions for the commit moment (the #90 pattern), tree-level conformance output, and gate screenshots when the rendering is respondent-visible. A clear-path claim needs the same exact-count discipline plus the post's **body** (`null` versus `""` versus `[]`), because a count alone passes on every wrong spelling (issue #98).
+The PR body proves each step it claims: pack/diff transcripts for vendoring, exact-count post assertions for the commit moment, tree-level conformance output, and browser assertions for affected respondent-visible states and viewports. A clear-path claim also asserts the post's **body** (`null` versus `""` versus `[]`), because a count alone cannot distinguish the encodings.

@@ -34,8 +34,8 @@ in the generated OpenAPI document so Phase-4 activation is wiring, not archaeolo
 condition match these hypothetical answers?* The admin app cannot answer it -
 it is a strict BFF with no `@qcms/core` value import at all (R2, enforced by its
 `r2-import-surface.test.ts`) - so the evaluator runs here, exactly as 032 put the
-question-preview compile here. The 042 wireframe's original "client-side
-evaluation" wording is amended to match (2026-08-01, PO seat).
+question-preview compile here. The 042 screen contract's original "client-side
+evaluation" wording is superseded by the enforced server-side boundary.
 
 `evaluateRules` answers "what is visible", not "did this condition match", so the
 handler builds a **synthetic two-step form** and evaluates that instead of the

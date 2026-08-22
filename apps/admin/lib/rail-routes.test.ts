@@ -17,7 +17,7 @@ import { describe, expect, it } from "vitest";
  * ## The builder carries the sibling group and no children, and that is §7
  *
  * It is asserted here rather than left as a shape someone might "fix", because it looks
- * like an inconsistency and is not one (PM seat ruling on issue 561). A rail step item is
+ * like an inconsistency and is not one. A rail step item is
  * `/forms/{formId}#step-{stepId}`. On the other seven screens that is a cross-route link;
  * on the builder the route part is that same route, so the item is a bare same-page
  * fragment, and §7 says the rail "never carries same-page section switches". The children

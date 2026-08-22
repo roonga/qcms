@@ -9,6 +9,7 @@
  */
 
 import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -146,6 +147,7 @@ describe("SQL concatenation, the form a regex can reach", () => {
 });
 
 describe("the scanned roots cover the workspace they claim to", () => {
+  const repoRoot = fileURLToPath(new URL("..", import.meta.url));
   /**
    * The gate reported "417 source files" while 59 tracked files were outside its
    * enumeration: 29 `packages/ui/**` TSX, 5 `apps/**` mjs, and every one of the
@@ -163,13 +165,14 @@ describe("the scanned roots cover the workspace they claim to", () => {
 
   it("scans every tracked executable source file under apps, packages, scripts and tooling", () => {
     const tracked = execFileSync("/usr/bin/git", ["ls-files"], {
-      cwd: fileURLToPath(new URL("..", import.meta.url)),
+      cwd: repoRoot,
       encoding: "utf8",
     })
       .split("\n")
       .filter(
         (path: string) =>
           path !== "" &&
+          existsSync(`${repoRoot}${path}`) &&
           ROOTS.some((root) => path.startsWith(root)) &&
           EXECUTABLE.test(path) &&
           !TEST_FILE.test(path),

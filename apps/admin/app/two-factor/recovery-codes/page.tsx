@@ -8,7 +8,7 @@ import { owedRecoveryCodes } from "@/lib/server/enrollment";
 import { currentAdminSession, SHELL_HOME_PATH, SIGN_IN_PATH } from "@/lib/server/session";
 
 /**
- * The one-time recovery-code display (task 031; wireframe state
+ * The one-time recovery-code display (task 031; screen contract state
  * `recovery-codes-display`).
  *
  * "One-time" is enforced by the {@link owedRecoveryCodes} cookie, not by hoping nobody

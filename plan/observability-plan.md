@@ -74,4 +74,4 @@ Backend/vendor selection, alerting/SLOs, dashboards-as-code, browser RUM, client
 - **D3 - `ses_` in telemetry:** allowed as pseudonymous (recommended) vs hashed at the exporter.
 - **D4 - dev viewer:** documented optional recipe (recommended) vs wired into `pnpm dev:portal` behind a flag.
 
-On a "go" (with D1-D4 calls or "use recommended"), the PO seat drafts ADR-34 + the task file and proposes them for `docs/` in a reviewed PR - outside-`plan/` landing stays ask-gated.
+On a "go" (with D1-D4 calls or "use recommended"), the root conductor drafts ADR-34 and the task file in a reviewed PR.

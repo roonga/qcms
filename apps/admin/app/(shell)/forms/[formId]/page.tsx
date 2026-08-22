@@ -19,7 +19,7 @@ import {
 } from "../actions";
 
 /**
- * One form's builder (task 033; wireframe `admin-form-builder.md`).
+ * One form's builder (task 033; screen contract `admin-form-builder.md`).
  *
  * A server component that does three things and hands over: load the form, load the
  * library it can pin from, and bind the four mutations to this route's form id. Everything

@@ -9,7 +9,7 @@ import { listErasures } from "@/lib/server/responses";
 import { requireAdminSession } from "@/lib/server/session";
 
 /**
- * The erasure log (task 035; wireframe "erasure log screen - compliance evidence").
+ * The erasure log (task 035; screen contract "erasure log screen - compliance evidence").
  *
  * A tombstone is what an ADR-17 erasure leaves: the session id, the form, the version,
  * when and why. It holds no answers, which is exactly what makes it publishable as

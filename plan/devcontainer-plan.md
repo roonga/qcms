@@ -9,7 +9,7 @@ Three goals, one change:
 
 ## 1. Decision (ADR-27, draft)
 
-Adopt a **Dev Container** (containers.dev spec; plain Docker underneath) as the canonical environment for both the agentic loop and human contributors. The autonomous loop runs inside it with `--permission-mode bypassPermissions`; the container is the blast radius, so full autonomy is safe. The product build, gates, and Testcontainers suite all run inside it. The product-owner seat stays on the host.
+Adopt a **Dev Container** (containers.dev spec; plain Docker underneath) as the canonical environment for both the agentic loop and human contributors. The autonomous loop runs inside it with `--permission-mode bypassPermissions`; the container is the blast radius, so full autonomy is safe. The product build, gates, and Testcontainers suite all run inside it.
 
 ## 2. Why (and the trade-off recorded)
 
@@ -56,7 +56,7 @@ The `devcontainers/templates/.../javascript-node-postgres` template is a **docke
 
 - `docker-outside-of-docker` mounts the host socket so Testcontainers works.
 - `powershell` Feature keeps `scripts/agent-loop.ps1` runnable unchanged (see open decision B).
-- Playwright browsers installed headless for the screenshot gate (use the headless Playwright MCP, not `claude-in-chrome`, which is host-side).
+- Playwright browsers installed for headless browser tests.
 - No Dockerfile needed yet; add `build.dockerfile` later if we want more baked in.
 
 ## 5. Removing / canonicalizing Windows-isms
@@ -98,11 +98,11 @@ devcontainer exec --workspace-folder . ./scripts/agent-loop.sh      # or pwsh sc
 You do **not** open a browser from *inside* the container (separate Linux namespace, no host GUI). You view the app that runs inside it from your **host** browser via **port forwarding**:
 - The forwarded ports (`forwardPorts` above; VS Code also auto-detects listening ports and offers "Open in Browser") make the container's `localhost:3000` reachable at `http://localhost:3000` on the Windows host. Open it in any host browser.
 - **The dev server must bind `0.0.0.0`** inside the container (e.g. `next dev -H 0.0.0.0`), not just `127.0.0.1`, or the forward has nothing to reach. Wire that into the portal/admin dev scripts.
-- Keep the two browser roles separate: **human viewing = host browser on the forwarded port; agent screenshot gate = headless Playwright *inside* the container** (writes image files, no host browser). The one thing that will **not** work in the container is the `claude-in-chrome` MCP - it drives your real host Chrome and cannot reach into the container - which is exactly why the gate uses headless Playwright.
+- Keep the two browser roles separate: **human viewing uses the host browser on the forwarded port; automated browser tests use headless Playwright inside the container**. Host-browser automation cannot reach into the container directly.
 
 ## 9. Open decisions (need your call)
 
-- **A. Repo location / performance.** Bind-mounting a Windows path (`H:\...`) over the WSL2 boundary is slow for heavy pnpm/test I/O. Best perf = clone the repos into the **WSL2 filesystem** and open the container from there. My rec: **relocate the dev-loop repos into WSL2**; the PO seat can stay on the Windows checkout.
+- **A. Repo location / performance.** Bind-mounting a Windows path (`H:\...`) over the WSL2 boundary is slow for heavy pnpm/test I/O. Best perf = clone the repos into the **WSL2 filesystem** and open the container from there. My rec: **relocate the repositories into WSL2**.
 - **B. Supervisor.** `powershell` Feature keeps `agent-loop.ps1` (zero rewrite) vs a canonical bash `agent-loop.sh`. My rec: **write `agent-loop.sh` as canonical** and keep `.ps1` for Windows-host fallback (small port, cleaner Linux story).
 - **C. Autonomy.** `bypassPermissions` (the point) vs `acceptEdits` in-container. My rec: **`bypassPermissions`**.
 - **D. Windows-host support.** Keep it (cross-platform guards stay, `.ps1` retained) vs Linux-only. My rec: **keep cross-platform**; the container is canonical but the repo stays OS-agnostic for open-source contributors.

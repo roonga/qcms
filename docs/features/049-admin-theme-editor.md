@@ -1,11 +1,11 @@
-# 049 - Admin theme editor: customize tokens + save named custom theme (ADR-30 amended)
+# 049 - Admin theme editor: customize tokens and save named custom themes
 
-**Stage:** 8a · **Apps/packages:** `apps/admin` · `@qcms/ui` (token contract consumer) · **Depends on:** 031 (admin shell), 047 (token contract + predefined themes)
-**References:** ADR-30 as amended 2026-07-25 (launch tier, Code Owner decision) · ADR-22/26 · WCAG 2.2 AA · folds issue #26 · wireframe to be added to `docs/wireframes/` before dispatch (042 convention)
+**Stage:** 9 (Phase 4) · **Apps/packages:** `apps/admin` · `@qcms/ui` (token contract consumer) · **Depends on:** 038 (launch validation), 031 (admin shell), 047 (token contract + predefined themes)
+**References:** ADR-30 · ADR-22/26 · WCAG 2.2 AA · issue #26
 
 ## Context
 
-ADR-30 shipped managed themes with per-deployment selection; the Code Owner moved the customize-and-save half to launch. Admins start from a predefined theme, adjust tokens within the four-group contract (color/type/spacing/radius), and save the result as a **named custom theme** selectable like any predefined one. Themes remain mutable operator config, not form-grade immutable content (ADR-30) - the non-negotiables are untouched.
+Launch ships predefined themes, per-deployment selection, and respondent appearance controls. This Phase 4 task adds persistence, runtime emission, and an admin editor for named custom themes. Themes remain mutable operator config, not form-grade immutable content.
 
 ## Deliverables
 
@@ -19,7 +19,7 @@ ADR-30 shipped managed themes with per-deployment selection; the Code Owner move
 1. Create-customize-save-select round trip proven in Playwright against a real portal render using the saved theme.
 2. Contrast floor enforced: a failing pair blocks save with an inline explanation (test).
 3. Predefined themes remain immutable; forking is the only edit path (test).
-4. axe pass on the editor; screenshot gate (wireframe sign-off before dispatch, static-render sign-off at review - Code Owner).
+4. axe and responsive browser checks pass for the editor and its live preview.
 5. `pnpm verify` + `verify:browser` green.
 
 ## Out of scope (binding)

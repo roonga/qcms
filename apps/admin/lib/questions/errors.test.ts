@@ -40,7 +40,7 @@ describe("messageForCode", () => {
     expect(message.length).toBeGreaterThan(10);
   });
 
-  it("names the rule for the two codes the wireframe calls out", () => {
+  it("names the rule for the two codes the screen contract calls out", () => {
     expect(messageForCode("VERSION_IMMUTABLE")).toMatch(/frozen/i);
     expect(messageForCode("VERSION_IMMUTABLE")).toMatch(/new version/i);
     expect(messageForCode("QUESTION_ID_REUSED")).toMatch(/never reused/i);

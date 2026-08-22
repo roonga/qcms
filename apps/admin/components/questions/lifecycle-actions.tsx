@@ -8,7 +8,7 @@ import { IDLE_MUTATION, type MutationState } from "@/lib/questions/editor-state"
 import type { QuestionStatus } from "@/lib/questions/types";
 
 /**
- * Publish, new version, deprecate (task 032; wireframe "lifecycle actions").
+ * Publish, new version, deprecate (task 032; screen contract "lifecycle actions").
  *
  * ## Where these render, and why it is a column
  *
@@ -35,7 +35,7 @@ import type { QuestionStatus } from "@/lib/questions/types";
  *
  * `role="alertdialog"` on all three because each is a confirmation of a consequential,
  * one-way action; react-aria supplies the focus trap and the return-focus-on-close that
- * the wireframe's a11y note asks for.
+ * the screen contract's a11y note asks for.
  *
  * ## Why each dialog owns its own submission state
  *

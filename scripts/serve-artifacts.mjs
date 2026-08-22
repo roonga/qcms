@@ -1,10 +1,8 @@
-// Serve repo artifacts (gate evidence, design previews) read-only over HTTP so
-// they can be viewed from the host browser on this machine seat's artifacts port
+// Serve design previews read-only over HTTP so they can be viewed from the host
+// browser on this machine seat's artifacts port
 // (7S30, so http://localhost:7030 at the default seat 0; published by the
 // devcontainer's appPort). The allocation rule and table: docs/PORTS.md. Roots:
-//   /gates/      -> docs/gates/                       (landed gate evidence)
 //   /plan/       -> plan/                             (design previews, specs)
-//   /worktrees/  -> .claude/worktrees/<name>/docs/gates/  (in-flight task evidence)
 // Start with `pnpm artifacts`. Seat: QCMS_PORT_SEAT. Port override (wins over the
 // seat, for an unusual machine): QCMS_ARTIFACTS_PORT.
 
@@ -18,11 +16,7 @@ import { stablePort } from "./ports.mjs";
 const repoRoot = resolve(fileURLToPath(import.meta.url), "..", "..");
 const port = Number(process.env.QCMS_ARTIFACTS_PORT ?? stablePort("artifacts"));
 
-const roots = {
-  gates: join(repoRoot, "docs", "gates"),
-  plan: join(repoRoot, "plan"),
-};
-const worktreesDir = join(repoRoot, ".claude", "worktrees");
+const roots = { plan: join(repoRoot, "plan") };
 
 const contentTypes = {
   ".html": "text/html; charset=utf-8",
@@ -66,24 +60,7 @@ const listDir = async (dir, urlBase) => {
 };
 
 const serveIndex = async (res) => {
-  let worktrees = [];
-  try {
-    worktrees = (await readdir(worktreesDir, { withFileTypes: true }))
-      .filter((e) => e.isDirectory())
-      .map((e) => e.name);
-  } catch {
-    // no worktrees directory; fine
-  }
-  const wt = worktrees
-    .map(
-      (n) =>
-        `<li><a href="/worktrees/${encodeURIComponent(n)}/">${escapeHtml(n)}</a> (docs/gates)</li>`,
-    )
-    .join("");
-  const body =
-    `<ul><li><a href="/gates/">gates/</a> - landed gate evidence (docs/gates)</li>` +
-    `<li><a href="/plan/">plan/</a> - design previews and planning artifacts</li></ul>` +
-    `<h2>Worktrees (in-flight gate evidence)</h2><ul>${wt || "<li>none</li>"}</ul>`;
+  const body = `<ul><li><a href="/plan/">plan/</a> - design previews and planning files</li></ul>`;
   res.writeHead(200, { "content-type": contentTypes[".html"] });
   res.end(page("QCMS artifacts", body));
 };
@@ -91,13 +68,6 @@ const serveIndex = async (res) => {
 // Map a request path to { fsPath, urlBase } or null when it matches no root.
 const resolveTarget = (path) => {
   const [, top, ...rest] = path.split("/");
-  if (top === "worktrees") {
-    const [name, ...inner] = rest;
-    if (!name) return null;
-    const rootDir = join(worktreesDir, name, "docs", "gates");
-    const fsPath = safeJoin(rootDir, "/" + inner.join("/"));
-    return fsPath ? { fsPath, urlBase: `/worktrees/${name}/` } : null;
-  }
   if (top in roots) {
     const fsPath = safeJoin(roots[top], "/" + rest.join("/"));
     return fsPath ? { fsPath, urlBase: `/${top}/` } : null;

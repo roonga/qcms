@@ -36,7 +36,7 @@ import { BooleanLabelsEditor, MessagesEditor } from "./messages-editor";
 import { OptionGridEditor } from "./option-grid-editor";
 
 /**
- * The question editor (task 032; wireframe "editor `form`").
+ * The question editor (task 032; screen contract "editor `form`").
  *
  * One component for both creating and editing, because they are the same form with two
  * fields unlocked: creation is the only moment `slug` and `type` can be chosen, and the

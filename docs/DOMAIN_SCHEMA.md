@@ -1,9 +1,6 @@
 # QCMS - Domain Schema Design
 
-**Status:** v1.2 · supersedes Draft v1 · companion to `ARCHITECTURE.md` §3–4 and `IMPLEMENTATION_PLAN.md` Stages 1–3
-**Changes from v1:** evaluation semantics rewritten per **ADR-16** (forward pass replaces fixpoint); `ChoiceOption` declaration order fixed; `VisibilityRule` semantics comment cleaned; §2.4 canonical `AnswerValue` encodings added (resolving the open item, finalized by task 002); nesting depth cap resolved (8); `show`-targets question resolved (forward-only); invariants I10–I11 added (ADR-16/17).
-**Changes from v1.1 (ADR-21, 2026-07-19):** canonical value equality defined per type (§2.4 - multiChoice is set equality); `contains`/`containsAny` operators added (§3); erasure shown from any session state (§4.3).
-**Changes from v1.2 (task 003, 2026-07-19):** §2.2 safe `pattern` subset finalized (implemented in `@qcms/core` `safe-pattern.ts`); cross-field refinements and their typed error codes listed; `QuestionVersionRecord` shape added to §4.2.
+**Status:** authoritative · companion to `ARCHITECTURE.md` §3–4
 **Owner package:** `@qcms/core` (all types are Zod schemas; TypeScript types are inferred, never hand-written)
 
 This document defines the domain model - the layer that governs *meaning*. Nothing here knows about A2UI, HTTP, or Postgres. Storage shapes live in `@qcms/db`; rendered shapes live in `@qcms/a2ui-compiler`; both derive from this model and never feed back into it.
@@ -404,13 +401,3 @@ Evaluating (task 006) as answers arrive - `evaluateRules(snapshot, answers, reso
 | `q_at_fault_accident=false, q_accident_count=2` (stale) | `q_at_fault_accident` | `null` | - | `true` |
 
 The last row is hidden-answer exclusion (I6) at work: a session answering `q_at_fault_accident=true`, then `q_accident_count=2`, then `q_at_fault_accident=false` leaves three ledger rows; the forward pass sees the latest per question, hides `q_accident_count`, excludes its stale `2` from every later condition, and does not count it against completeness. The eventual submission excludes the orphaned answer from the locked set - while the ledger still shows it was once given, which is the audit property working as designed.
-
----
-
-## Resolution of v1 open items
-
-| v1 open item | Resolution |
-|---|---|
-| Canonical `AnswerValue` encoding (esp. dates/timezones) | §2.4, finalized by task 002 - decided before the evaluator exists |
-| May `show` target future steps only, or any step? | Forward-only, publish-enforced (ADR-16, I10) |
-| Max nesting depth for `Condition` | 8, publish-validated (`RULE_DEPTH_EXCEEDED`) |

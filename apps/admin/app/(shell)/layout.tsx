@@ -12,7 +12,7 @@ import { t } from "@/lib/i18n/en";
 import { requireAdminSession } from "@/lib/server/session";
 
 /**
- * The authenticated shell (task 031; wireframe "ASCII sketch - authenticated shell").
+ * The authenticated shell (task 031; screen contract "ASCII sketch - authenticated shell").
  *
  * This layout is the authentication gate for every **page** tasks 032-035 add: a page
  * placed in this route group is behind `requireAdminSession()` by construction, so a

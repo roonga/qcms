@@ -11,7 +11,7 @@ import { formatDay } from "@/lib/i18n/format";
 import { t } from "@/lib/i18n/en";
 
 /**
- * The published-version list and the definition diff (task 034; wireframe "version
+ * The published-version list and the definition diff (task 034; screen contract "version
  * history").
  *
  * ## Immutability, made visible

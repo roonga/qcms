@@ -32,9 +32,7 @@ import { stripTags } from "../test-support/markup.ts";
  *
  * ## Red-first
  *
- * Against the pre-change JSX (`red-vitest.log`): every heading assertion fails (the
- * summaries held a bare string, so `<summary><h2` appears nowhere), and every digest
- * assertion fails on a missing `data-testid`. `docs/gates/pr-519/` carries the visual half.
+ * The assertions fail if summary headings or digest test identifiers are removed.
  */
 
 /** The `@/` alias is a Next/tsconfig path; Vitest resolves nothing for it (task 001). */

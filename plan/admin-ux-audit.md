@@ -1,6 +1,6 @@
 # Admin UX audit: how far the form-editor design language should travel
 
-**Status:** working analysis, PM/PO seat, 2026-08-18 · **Subject:** every authenticated screen under `apps/admin/app/(shell)/` · **Tested against:** `plan/admin-shell-poc/admin-shell-poc.html`, `plan/admin-shell-poc/rules-screen-poc.html`
+**Status:** working analysis, 2026-08-18 · **Subject:** every authenticated screen under `apps/admin/app/(shell)/` · **Tested against:** `plan/admin-shell-poc/admin-shell-poc.html`, `plan/admin-shell-poc/rules-screen-poc.html`
 
 Nothing was run. Every claim about current behaviour is read from the source and cited by file and line.
 
@@ -272,7 +272,7 @@ In both cases the document title region describes the parent while the content i
 > **Closed by issue 510 (PR #539), 2026-08-20.** Both routes are headed with their own entity. Two things it left behind, and both are worth reading as part of this finding rather than as unrelated bugs:
 >
 > - **#537**: version-detail now renders **two** `<h1>`s, because the stored A2UI document emits the form title as a page-level heading of its own. Fixing the header did not make the route's heading outline correct; it revealed the second source.
-> - **#574**: version-detail and response-detail have **no Regions inventory** in the wireframes, which is how D1 happened in the first place. The defect was downstream of a gap in the normative spec, so fixing the render without filling that gap leaves the next screen exposed the same way.
+> - **#574**: version-detail and response-detail have **no Regions inventory** in the screen contracts, which is how D1 happened in the first place. The defect was downstream of a gap in the normative spec, so fixing the render without filling that gap leaves the next screen exposed the same way.
 >
 > Note also that the "two browser tabs are indistinguishable" argument here is about the `<h1>`; the **document title** is a separate and still-open defect (**#536**: every page shares one static `<title>`).
 
@@ -306,11 +306,11 @@ When `forms.ok` is false the ternary takes the **else** branch, so an empty `<ul
 >
 > The generalisation is worth stating because this entry's own framing understated it: the defect is not a stray ternary in two files, it is that **a failed read and an empty result are the same value by the time the component sees it**. `plan/admin-design-contracts.md` §3, as amended 2026-08-21, draws the line as **claim versus capability**: a failed read costs the screen its right to describe the collection, not its controls. #572's conclusion - pass an explicit failed-versus-empty distinction into the components rather than collapsing both at the page boundary - is the structural fix.
 
-### D5. An unrecorded wireframe deviation on the response browser - closed by building the column
+### D5. The response browser lacked its required answer-preview column - closed
 
-`docs/wireframes/admin-responses-ops.md` (normative Regions) specifies the browser table as "sessionId, formVersion, submittedAt, accessMode, flagged `tag`, **answer preview**". The shipped table had five columns and no answer preview.
+The response browser requires six columns: sessionId, formVersion, submittedAt, accessMode, flagged `tag`, and **answer preview**. The shipped table had five columns and no answer preview.
 
-This entry originally offered two ways out and leaned toward the wrong one: it suggested the omission "may well be right" on privacy grounds and asked only that the deviation be **recorded**, in the form the question-library wireframe uses for its dropped "Updated" column. That question has since been asked and answered the other way, in issue 515: the column is built, not deviated from. The wireframe was right, and a preview is only a privacy problem if it is unbounded, which is a property of the implementation rather than of the column.
+Issue 515 resolved the privacy concern by building a bounded preview rather than omitting the column. A preview is only a privacy problem if it is unbounded, which is a property of the implementation rather than of the column.
 
 **Resolved by issue 515.** The column ships bounded by construction: two answered questions per row, each value clipped to a character budget on the string that becomes the text node, no tooltip holding the untruncated value, and nothing on the path logging one (SEC-13). It carries a question id rather than a resolved label, because the list payload has no labels and one page mixes form versions. It is also the column that drops at compact width, which is this table's answer to `plan/admin-design-contracts.md` §2's compact-width clause.
 
@@ -341,7 +341,7 @@ Ordered by value against effort. What I would do first, and what I would not do 
    >
    > **This document is maintained, not frozen** (ruled 2026-08-20). It is a working audit that the tier is executing against, so a claim it makes that stops being true gets corrected here rather than preserved with a dated note appended. That is the opposite of the convention for `docs/security-review-2026-08-14.md`, whose table column is literally headed "State at close of review" and which stays frozen. The difference is what the document is for: a review snapshot records what was true on a date; an audit drives work and has to stay accurate to be usable.
 3. **Pick one empty state and one table treatment.** The frozen `plan/admin-theme/ds-table.html` card already exists and is followed by nothing; either the card changes or the nine tables do, but three answers to one question is not a position. This is the single change that most affects how the app reads, and it touches no behaviour.
-4. ~~**Record D5** as an accepted deviation in `docs/wireframes/admin-responses-ops.md`.~~ **Superseded, 2026-08-20:** issue 515 built the column instead, so there is no deviation left to record and the wireframe and the app now agree. See D5 above.
+4. ~~**Record D5** as an accepted deviation.~~ Issue 515 built the column instead, so there is no deviation left to record. See D5 above.
 
 **Then, the elements that are already house patterns.**
 
@@ -352,7 +352,7 @@ Ordered by value against effort. What I would do first, and what I would not do 
 **Then, and only with a written contract first.**
 
 8. **Elements 1 and 2 on the form subtree only.** Eight screens, one rail, one raised cap on the five screens that earn it and a **lowered** one on the two preview surfaces. Before this starts, the rail's contract has to be written down: what it carries, and specifically whether it carries children (steps, versions) or siblings (sections) or both, because §3.2 shows the two meanings colliding on the very next screen anyone will want to apply it to.
-9. **Element 6 as a written rule** in the wireframe format spec, since the Regions inventories are the normative artifact and this is a rule about them: a screen's h1 names the entity its content is scoped to. That is a one-paragraph amendment that makes D1 impossible to reintroduce.
+9. **Element 6 as a written rule:** a screen's h1 names the entity its content is scoped to.
 
 **What I would not do at all.**
 

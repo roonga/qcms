@@ -61,13 +61,11 @@ import { createDraft } from "./support/questions.js";
  *
  * `Select`, `DatePicker`'s calendar and `Menu` render their popover into a portal on
  * `document.body`, outside the carrier, so they inherit the authoring app's tokens and
- * no selector can reach them. That is the amendment of 2026-08-14's accepted limitation
- * rather than a defect: both fixes for it are fenced (a new dependency, or a `@qcms/ui`
- * change), it is documented in `components/preview-theme-island.tsx` and in
- * `docs/gates/058/README.md`, and the gate set carries a shot of an open overlay so the
- * Code Owner ruled on the appearance rather than meeting it later. The question type
+ * no selector can reach them. This accepted limitation is documented in
+ * `components/preview-theme-island.tsx`. The question type
  * used below (`Multiple choice`) renders checkboxes, which are real descendants, so
- * nothing here depends on that unresolved case in either direction.
+ * below (`Multiple choice`) uses descendant checkboxes, so this test does not depend on
+ * portal behavior.
  */
 
 test.describe.configure({ mode: "serial" });

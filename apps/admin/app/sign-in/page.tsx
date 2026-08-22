@@ -6,8 +6,7 @@ import { t } from "@/lib/i18n/en";
 import { currentAdminSession, SHELL_HOME_PATH } from "@/lib/server/session";
 
 /**
- * Sign-in (task 031; wireframe `docs/wireframes/admin-shell.md`, the signed-out and
- * sign-in-error states).
+ * Sign-in (task 031, including signed-out and sign-in-error states).
  *
  * There is **no registration link, hint, or "create an account" affordance anywhere
  * on this page**, and there is no route that would serve one: SEC-1 requires that
@@ -22,7 +21,7 @@ import { currentAdminSession, SHELL_HOME_PATH } from "@/lib/server/session";
 
 /**
  * The one message this screen may show, chosen from the opaque markers a failed POST
- * redirects with. Three distinguishable markers, one for each state the wireframe names
+ * redirects with. Three distinguishable markers, one for each state the screen contract names
  * (generic failure, throttled, session expired) - and nothing more granular than that,
  * because a fourth marker is how enumeration gets reintroduced (SEC-1).
  */

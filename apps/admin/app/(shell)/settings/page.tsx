@@ -6,14 +6,14 @@ import { requireAdminSession } from "@/lib/server/session";
 import { SETTINGS_HEADING_ID, settingsSectionFromParams } from "@/lib/settings-sections";
 
 /**
- * Settings (task 031; wireframe "Settings area at launch: account (change password →
+ * Settings (task 031; screen contract "Settings area at launch: account (change password →
  * sessions invalidated), 2FA re-enrollment, nothing else").
  *
  * Exactly those two things, and the "nothing else" is the binding half: no profile,
  * no preferences, no user list, no roles. RBAC is Phase 4 (R7).
  *
  * Regenerating recovery codes joined the 2FA panel in issue #319, and it belongs to
- * the wireframe's "2FA re-enrollment" line rather than widening the area: it is the
+ * the screen contract's "2FA re-enrollment" line rather than widening the area: it is the
  * only remedy an enrolled admin has for lost codes, now that no route reads the stored
  * set back. Password-gated, because better-auth requires the password and that is
  * exactly the re-authentication the operation wants.

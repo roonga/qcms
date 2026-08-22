@@ -2,7 +2,7 @@ import { t } from "@/lib/i18n/en";
 import type { QuestionStatus } from "@/lib/questions/types";
 
 /**
- * The draft / published / deprecated badge (task 032; wireframe "status `tag`").
+ * The draft / published / deprecated badge (task 032; screen contract "status `tag`").
  *
  * A plain span rather than a kit component, because the kit has no tag: this is app
  * chrome in the same family as the topbar and the nav underline, not a new variant of a
@@ -11,7 +11,7 @@ import type { QuestionStatus } from "@/lib/questions/types";
  *
  * **The status is always spelled out.** Colour is the secondary signal, never the only
  * one (WCAG 1.4.1), which also means the same component works unchanged in high contrast
- * where the palette collapses. The wireframe's a11y note asks for exactly this.
+ * where the palette collapses. The screen contract's a11y note asks for exactly this.
  */
 export function StatusTag({ status }: { readonly status: QuestionStatus }) {
   return (

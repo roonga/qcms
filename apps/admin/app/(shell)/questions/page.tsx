@@ -10,7 +10,7 @@ import { listQuestions } from "@/lib/server/questions";
 import { requireAdminSession } from "@/lib/server/session";
 
 /**
- * The question library list (task 032; wireframe "list toolbar" + "list `table`").
+ * The question library list (task 032; screen contract "list toolbar" + "list `table`").
  *
  * A server component that proxies one call and renders the answer. Every filter is the
  * API's own (`status`, `type`, and `search` which matches the slug or any locale of the
@@ -18,9 +18,9 @@ import { requireAdminSession } from "@/lib/server/session";
  * library is a place an author can link to and come back to, and the filtering stays
  * where the data is instead of being re-implemented over a page of rows.
  *
- * ## The one column the wireframe asks for that is not here
+ * ## The one column the screen contract asks for that is not here
  *
- * **Updated** is drawn in the wireframe and there is nothing to draw it from: nothing in
+ * **Updated** is drawn in the screen contract and there is nothing to draw it from: nothing in
  * the schema records when a version was last edited. `question_versions` carries
  * `published_at` and nothing else, and `questions.created_at` is the identity's birthday
  * rather than the latest version's. So the honest options are a `question_versions`
@@ -30,7 +30,7 @@ import { requireAdminSession } from "@/lib/server/session";
  * Neither is this screen's call to make, so the created date is what is shown, under its
  * own name, and the choice is recorded on issue #218 for the Code Owner.
  *
- * Pagination is absent by the wireframe's own note (`[upstream gap]`): the list route
+ * Pagination is absent by the screen contract's own note (`[upstream gap]`): the list route
  * takes no page or cursor parameter, and client-side paging over a full result set would
  * be a worse answer than none at launch scale.
  */

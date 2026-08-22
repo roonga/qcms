@@ -616,8 +616,8 @@ function collectBenchAnswers(
  * The bench needs `@qcms/core`'s evaluator, and the admin app is a strict BFF
  * that imports no kernel value at all (R2, enforced by the admin's
  * `r2-import-surface.test.ts`). So the evaluator runs where it already lives.
- * The task file's original "client-side evaluation" wording is amended
- * accordingly (2026-08-01, PO seat).
+ * The task file's original "client-side evaluation" wording is superseded by
+ * the enforced server-side boundary.
  *
  * ## Why a synthetic two-step form, and not the draft itself
  *
@@ -785,10 +785,10 @@ function collectPreviewAnswers(
  *
  * ## Why the visible set comes back with it
  *
- * The task file and the wireframe both describe the author walking branches with
+ * The task file and the screen contract both describe the author walking branches with
  * "the core evaluator client-side". That is not implementable and has already
- * been ruled on once: rule evaluation lives in the API (033's amendment,
- * 2026-08-01, PO seat), and the portal does no rule evaluation either - it
+ * been ruled on once: rule evaluation lives in the API, and the portal does no
+ * rule evaluation either - it
  * receives an authoritative `visibleQuestions` list and projects the full
  * compiled document onto it (`documentForVisible`, R2). So this route returns the
  * *same pair* the portal's serve-step returns, and the admin projects and renders

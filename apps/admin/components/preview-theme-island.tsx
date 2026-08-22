@@ -51,14 +51,9 @@ import {
  * and the committed value are all real descendants and wear the previewed theme. It is
  * the transient overlay, open only while the author is choosing, that does not.
  *
- * This is a known and accepted limitation rather than a defect, and both fixes for it
- * are fenced by constraints task 058 may not cross alone (its amendment of 2026-08-14
- * records the ruling): `UNSAFE_PortalProvider` lives in `react-aria`, which is a
- * transitive dependency here and so a new dependency under the CONTRIBUTING policy, and
- * `PopoverContext`'s `UNSTABLE_portalContainer` needs a `@qcms/ui` change, which this
- * task's exit criterion 8 fences. `docs/gates/058/README.md` states it in an operator's
- * terms and the gate set includes a shot of an open overlay so the appearance was ruled
- * on rather than discovered.
+ * This is a known limitation. Fixing it requires either adding `react-aria` as a direct
+ * dependency for `UNSAFE_PortalProvider`, or changing `@qcms/ui` to expose a portal
+ * container through `PopoverContext`'s `UNSTABLE_portalContainer`.
  *
  * ## Ephemeral by design
  *
@@ -73,8 +68,8 @@ import {
  * This component owns the `qcms-preview-surface` container that task 034 built, so all
  * three preview surfaces - the question preview, the draft preview and the published
  * version view - mount the same island by rendering their step inside it, with no
- * restructuring of any of the three. Task 049's custom themes join by extending
- * `PREVIEW_THEMES`; nothing here changes shape for them.
+ * restructuring of any of the three. Phase 4 custom themes can extend
+ * `PREVIEW_THEMES` without changing this component's shape.
  */
 export function PreviewThemeIsland({
   defaultTheme,

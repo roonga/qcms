@@ -527,9 +527,8 @@ test("a cleared label renders the grid's error state, joined to its message line
 
   // Clearing a committed row is now the ONLY route to a blank option: the pending path
   // abandons a row it cannot name, so an empty label can no longer be created. That makes
-  // this state both harder to reach and the one most likely to lose coverage, which is why
-  // it is asserted here in the standing suite rather than only in the capture spec (which
-  // is skipped unless QCMS_ADMIN_CAPTURE_GATE=1, so it never runs under `verify:browser`).
+  // this state both harder to reach and the one most likely to lose coverage, so it is
+  // asserted in the standing browser suite.
   await fillStable(field(page, "Option 2 label"), "");
   await page.getByRole("button", { name: "Save draft" }).click();
 

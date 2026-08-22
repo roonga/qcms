@@ -12,7 +12,7 @@ import { redeliverAction, redeliverAllAction } from "./actions";
 
 /**
  * Webhook operations: the dead-letter queue, and a way into each form's endpoints
- * (task 035; wireframe "dead-letter list").
+ * (task 035; screen contract "dead-letter list").
  *
  * The queue is **not** form-scoped, and that is the API's shape rather than a
  * simplification: `GET /admin/outbox/dead-letters` is global, because a stuck

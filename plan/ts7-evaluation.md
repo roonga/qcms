@@ -1,6 +1,6 @@
 # TypeScript 7 (native compiler) evaluation - 2026-07-25
 
-Side-by-side, non-gating comparison of TypeScript 7.0.2 (the native compiler, npm `latest`) against the repo's pinned 6.0.3, run by the PO seat at the Code Owner's request. No repo configuration changed; TS 7 ran via `pnpm --package=typescript@7.0.2 dlx tsc`.
+Side-by-side, non-gating comparison of TypeScript 7.0.2 (the native compiler, npm `latest`) against the repo's pinned 6.0.3, run at the Code Owner's request. No repo configuration changed; TS 7 ran via `pnpm --package=typescript@7.0.2 dlx tsc`.
 
 ## Method
 

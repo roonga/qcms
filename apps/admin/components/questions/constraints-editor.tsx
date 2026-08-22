@@ -9,7 +9,7 @@ import { fieldErrorProps, optionalProp } from "@/lib/questions/errors";
 import type { ConstraintsView, DefinitionIssue, QuestionType } from "@/lib/questions/types";
 
 /**
- * The per-type constraint panel (task 032; wireframe "constraints panel, per type").
+ * The per-type constraint panel (task 032; screen contract "constraints panel, per type").
  *
  * One component per type rather than one component with seven branches, and 032 kept it
  * that way for task 048 ("leave the constraint editor composable for that"): ADR-32's

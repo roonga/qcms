@@ -3,7 +3,7 @@ import type { DeliveryStatus } from "@/lib/ops/types";
 import { t } from "@/lib/i18n/en";
 
 /**
- * The operations screens' badges (task 035; wireframe "status `tag`", "flagged `tag`").
+ * The operations screens' badges (task 035; screen contract "status `tag`", "flagged `tag`").
  *
  * The same shape `LinkStateTag` and `StatusTag` are, and for the same two reasons: the
  * kit has no tag component and this is app chrome rather than a new variant of a

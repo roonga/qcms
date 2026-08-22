@@ -9,7 +9,7 @@ import { requireAdminSession } from "@/lib/server/session";
 import { FormsTable } from "./forms-table";
 
 /**
- * The form library (task 033; wireframe `admin-form-builder.md`, the screen its breadcrumb
+ * The form library (task 033; screen contract `admin-form-builder.md`, the screen its breadcrumb
  * roots at).
  *
  * A server component that proxies one call and renders the answer, exactly as 032's

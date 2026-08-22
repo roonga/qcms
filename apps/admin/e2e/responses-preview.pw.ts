@@ -8,9 +8,9 @@ import { openResponses, submitResponse } from "./support/ops.js";
 /**
  * The browser table's answer-preview column (issue 515).
  *
- * `docs/wireframes/admin-responses-ops.md` specifies six columns for this table and
- * the shipped one had five: sessionId, formVersion, submittedAt, accessMode and the
- * flagged tag, with no preview. This spec holds the sixth to the two things only a
+ * The table requires six columns. The original implementation had five: sessionId,
+ * formVersion, submittedAt, accessMode and the flagged tag, with no preview. This
+ * spec holds the sixth to the two things only a
  * browser can say about it - that it renders the row's real submitted answers, and
  * that it is the column that disappears at compact width.
  *
@@ -46,7 +46,7 @@ const COUNT = "q_accident_count";
  */
 const BELOW_COMPACT = 600;
 const ABOVE_COMPACT = 680;
-/** The width every admin screenshot gate reviews, and the one the drop must hold at. */
+/** The compact viewport where the drop behavior must hold. */
 const PHONE = 390;
 
 const EMAIL = uniqueAdminEmail("preview");
@@ -66,7 +66,9 @@ test.beforeAll(async () => {
 });
 
 test.describe("the responses table previews its answers", () => {
-  test("shows the wireframe's sixth column, carrying the row's own answers", async ({ page }) => {
+  test("shows the screen contract's sixth column, carrying the row's own answers", async ({
+    page,
+  }) => {
     totpSecret = await enrollNewAdmin(page, EMAIL);
 
     both = await submitResponse(SLUG, [

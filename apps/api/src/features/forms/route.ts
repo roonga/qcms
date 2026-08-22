@@ -174,7 +174,7 @@ export const previewConditionRoute = createRoute({
  * The live draft preview (034).
  *
  * Deliberately absent from the frozen 027 contract, which predates it: the
- * wireframe records it as a thin extension of 022's draft slice that task 034
+ * screen contract records it as a thin extension of 022's draft slice that task 034
  * lands. It is a dry run in the strictest sense - it compiles, it evaluates, and
  * it writes nothing.
  */

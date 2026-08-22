@@ -132,6 +132,5 @@ The supported path is exercised, the rest is checked for absence of breakage.
 - **Supported path:** walk items 1 to 7 at 390 and confirm each completes.
 - **Everything else:** at 390, no horizontal page scroll, no overlapping text, no
   clipped control, and no interactive element that cannot be reached.
-- The screenshot gate already requires evidence at 390 and 1280 minimum, so narrow
-  widths are reviewed on every UI task whether or not they were designed for. That
-  is an argument for settling this now rather than discovering it at a gate.
+- Browser checks cover both narrow and wide layouts when responsive behavior changes.
+  That is an argument for settling this now rather than discovering it during review.

@@ -5,10 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 /**
  * Issue 514: one table family and one empty state.
  *
- * `plan/admin-design-contracts.md` §2 and §3 (CONFIRMED 2026-08-20) replace three table
- * treatments and two empty-state treatments with one of each. Most of that change is
- * visual and is evidenced by the committed capture under `docs/gates/pr-514/`. Three
- * parts of it are STRUCTURAL, which is what this file pins, so a later edit cannot
+ * `plan/admin-design-contracts.md` §2 and §3 define one table treatment and one empty-state
+ * treatment. Three parts are structural, which is what this file pins, so a later edit cannot
  * quietly put a screen back into its own private shape:
  *
  * 1. The empty state is the panel - a `qcms-empty` element containing an `h2` - and not
@@ -497,7 +495,7 @@ describe("the response browser's read states (issues 521, 572)", () => {
   it("keeps the filtered sentence when a valid filter survives beside a rejected one", async () => {
     const html = await renderResponses({ flagged: "true", from: "nope" });
 
-    // The control, and the case the wireframe line used to get wrong: an ignored value
+    // The control, and the case the screen contract line used to get wrong: an ignored value
     // does not decide the empty state, the filters that DID parse do.
     expect(html).toContain("ops.responses.filteredEmpty");
     expect(html).toContain('data-testid="qcms-responses-ignored-filters"');

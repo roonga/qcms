@@ -426,9 +426,8 @@ jobs:
       - uses: ./.github/actions/assert-no-docker-hub-pulls
         if: ${{ !cancelled() && env.PLAN_ONLY != 'true' }}
 
-      # Failure forensics (issue #102): screenshots, traces, and the captured
-      # portal/API server logs, only when the job fails. docs/gates/pr-NN stays
-      # the sign-off mechanism; this is debugging evidence.
+      # Ephemeral failure forensics: Playwright output and captured portal/API
+      # server logs, uploaded only when the job fails.
       - uses: actions/upload-artifact@v7
         if: ${{ failure() && env.PLAN_ONLY != 'true' }}
         with:

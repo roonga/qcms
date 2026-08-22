@@ -18,11 +18,11 @@ import { t } from "@/lib/i18n/en";
 import { textOf } from "@/lib/questions/definition";
 
 /**
- * The ordered step rail (task 033; wireframe "steps rail").
+ * The ordered step rail (task 033; screen contract "steps rail").
  *
  * ## Reorder is a menu command, never a drag
  *
- * The wireframe's a11y note asks for this outright, and it is the same call 032's option
+ * The screen contract's a11y note asks for this outright, and it is the same call 032's option
  * list made for the same reason: a drag-only reorder is unusable by keyboard and by anyone
  * with a motor impairment. Move up and move down are ordinary menu items, so the whole
  * rail is operable with Tab, Enter and the arrow keys, and there is no second

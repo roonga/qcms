@@ -40,8 +40,7 @@ import { describe, expect, it, vi } from "vitest";
  * that produces the actual heading string, and the heading string is the whole claim. The
  * five routes reach it by passing no `heading` override, which is a fact about the route
  * files rather than about anything a render can observe, so it is read off their source
- * here and shot in the browser in `apps/admin/e2e/gate-679.pw.ts`, which asserts each of
- * the five headings against a running app before its shutter.
+ * here, while the ordinary browser suite checks the routed screens.
  */
 
 // The real kit, and the real catalog: this file is about which string the heading holds,

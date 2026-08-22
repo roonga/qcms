@@ -1,3 +1,0 @@
-# Gate evidence - issue #319
-
-Approve the one new control this change puts in front of an operator: the **Generate new recovery codes** form on the Settings two-factor card, which replaces the removed route that read the stored codes back. Check that the form reads as part of the 2FA card rather than a second password change (`settings-recovery-codes-{light,dark,hc}-390.png` phone, `-1280.png` desktop), that a wrong password shows the generic sentence beside this form and not under the password form above it (`settings-recovery-codes-error-*`), and that regenerating lands on the same one-time display the enrollment flow uses, unchanged (`recovery-codes-display-after-regenerate-light-390.png` / `-1280.png`).

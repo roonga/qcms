@@ -29,7 +29,7 @@ import { t } from "@/lib/i18n/en";
 
 /**
  * One response, with its audit ledger, its flag disposition and its erasure door
- * (task 035; wireframe "detail", "erasure").
+ * (task 035; screen contract "detail", "erasure").
  *
  * ## Two states, and the second one is the point
  *
@@ -42,7 +42,7 @@ import { t } from "@/lib/i18n/en";
  * ## The ledger is a list, and it says what each entry did
  *
  * Chronology is carried in the text of each entry, not in the layout, so it survives
- * a screen reader linearising the page (the wireframe's a11y note). A retraction is
+ * a screen reader linearising the page (the screen contract's a11y note). A retraction is
  * announced as "cleared" rather than rendered as an answer with no value: ADR-33
  * makes clearing an appended fact of its own, and flattening it would turn "the
  * respondent removed their answer" into "the respondent answered with nothing".

@@ -6,9 +6,9 @@ import { usePathname } from "next/navigation";
 import { t } from "@/lib/i18n/en";
 
 /**
- * The shell's primary navigation (task 031; wireframe region "shell top bar").
+ * The shell's primary navigation (task 031; screen contract region "shell top bar").
  *
- * A client component for exactly one reason: the active item. The wireframe makes
+ * A client component for exactly one reason: the active item. The screen contract makes
  * "active state visible" and `aria-current` normative, and a layout cannot know which
  * child route rendered, so the pathname has to be read where it is available.
  * `usePathname` works during server rendering of a client component too, so the

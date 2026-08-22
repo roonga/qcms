@@ -18,7 +18,7 @@ import type { ReadState } from "@/lib/read-state";
 import { answerKindForType, OperandControl, type OperandValue } from "./operand-control";
 
 /**
- * The rule test bench (task 033; wireframe "test bench").
+ * The rule test bench (task 033; screen contract "test bench").
  *
  * ## Read-only, and evaluated server-side
  *

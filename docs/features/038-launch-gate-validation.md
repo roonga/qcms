@@ -16,14 +16,14 @@ The launch gate is a human test, not a CI job: someone who is not the author of 
   4. Respond: complete the form twice via secure link and anonymously, exercising both branch paths, on a phone for at least one run.
   5. Receive: see both responses in admin; export CSV; receive the signed webhook at a provided test receiver (supply a one-command receiver, e.g. `npx qcms-webhook-echo`, that verifies the signature and prints the payload).
   6. Operate: erase one response; verify the export excludes it; view the tombstone.
-- **Evidence log template:** per step - success/failure, time taken, friction notes verbatim, screenshots. Friction is data: every point where the tester left the README (searched, guessed, asked) is an issue.
+- **Run log template:** per step, record success or failure, time taken, relevant command output, and friction notes verbatim. Every point where the tester left the README to search, guess, or ask becomes an issue.
 - **Pre-flight:** all CI suites green (kernel, corpus drift, conformance, e2e, **security matrix (040)**, compose smoke, restore drill, CLI e2e if in scope); axe/Lighthouse gates green; a11y manual pass (030) has no open blockers; **security review doc (040) dated and cited - `docs/security-review-2026-08-14.md` as of that pass (040 landed it; a later pass supersedes it by date) - with zero open high-severity findings**; version stamps in a published snapshot verified by hand once.
 - **Triage rule:** launch-blocking = the tester cannot complete a step from the README, or data-integrity/auth failures. Everything else → issues (label `post-launch-polish`). Fix blockers, re-run only the failed steps with a *fresh* environment.
 - Launch collateral check: README final pass, LICENSE, repo description, versioned package publish (Changesets release PR), tagged release.
 
 ## Exit criteria
 
-1. An external tester completes all six goals from the README alone; evidence log committed.
+1. An external tester completes all six goals from the README alone; run log committed.
 2. Zero launch-blocking findings open.
 3. Packages published; release tagged; the announcement can honestly repeat `PROJECT_GOAL.md` §4's launch criteria.
 

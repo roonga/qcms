@@ -12,7 +12,7 @@ import { listResponses } from "@/lib/server/responses";
 import { requireAdminSession } from "@/lib/server/session";
 
 /**
- * One form's response browser (task 035; wireframe "browser toolbar / table").
+ * One form's response browser (task 035; screen contract "browser toolbar / table").
  *
  * The filters live in the URL and the **server** applies them, by handing them
  * straight to the API's list route. That is what makes the paging honest: the count

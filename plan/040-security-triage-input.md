@@ -1,6 +1,6 @@
 # Task 040: security-finding triage input
 
-**Prepared:** 2026-08-13 (PM/PO seat) · **Verified against:** `origin/main` at `4ade1a1`
+**Prepared:** 2026-08-13 · **Verified against:** `origin/main` at `4ade1a1`
 **Status:** working artifact in `plan/`. Not a decision, not a sign-off, not a deliverable of task 040.
 
 ## What this is, and what it is not

@@ -24,7 +24,7 @@ export interface RedeliverState {
 const IDLE: RedeliverState = { status: "idle" };
 
 /**
- * The dead-letter queue (task 035; wireframe "dead-letter list").
+ * The dead-letter queue (task 035; screen contract "dead-letter list").
  *
  * This is the reliability story made visible: a delivery that exhausted its retries
  * is not lost and is not silent, it is here with its last error and its attempt
