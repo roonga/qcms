@@ -126,6 +126,13 @@ test("builds the insurance form through the UI and saves it (exit criterion 1)",
   await addStep(page, "Claim details");
   await pinQuestion(page, questionIdFor(CLAIM_NOTES), 1);
 
+  // The section that lists rules is headed "Rules", which is the word its own button, its
+  // entities and the bench beside it already use (issue 661). It used to read
+  // "Conditions", so an author read one name in the heading and another in everything
+  // under it. The condition inside a rule keeps the word "condition": that is the `when`
+  // half of a rule, not another name for the whole thing.
+  await expect(page.getByRole("heading", { level: 2, name: "Rules", exact: true })).toBeVisible();
+
   // The at-fault-accident rule: when the driver says yes, ask for the notes in the next
   // step. A new rule starts as `answered` against the first pinned question, which is
   // already the one this rule reads.

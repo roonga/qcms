@@ -9,7 +9,7 @@
 │                             ││ You: vehicle insurance  │
 │                             ││ quote, at-fault accident  │
 │  (steps rail, step editor,  ││ a follow-up          │
-│   conditions, validation)   ││ ── proposal ──────── │
+│   rules, validation)        ││ ── proposal ──────── │
 │                             ││ + step: Driving history       │
 │                             ││ + q_at_fault_accident (boolean) │
 │                             ││ + q_accident_count (num) │

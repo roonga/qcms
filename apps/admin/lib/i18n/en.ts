@@ -569,7 +569,7 @@ export const messages = {
     "The question library could not be loaded, so there is nothing to choose from. Close this dialog and reload the page to try again.",
   "forms.picker.close": "Close",
 
-  "forms.rules.title": "Conditions",
+  "forms.rules.title": "Rules",
   "forms.rules.add": "Add rule",
   "forms.rules.empty": "No rules yet. A rule shows questions or steps when its condition matches.",
   "forms.rules.needPin": "Pin a question first: a condition has to read one.",
