@@ -165,6 +165,29 @@ every row-menu item names its row, so a screen reader user hears which option is
 move rather than the same two words on every row. Both point the same way, so the bare
 "Move up" the POC also drew loses to the POC's own majority rather than to a preference.
 
+**A second worked case, where the MAJORITY TIES and the rationale carries it (2026-08-22,
+found by the #679 lane).** The version-history section has **three** names across two files:
+`admin-shell-poc.html`'s rail draws **"Versions"**, `preview-versions-poc.html`'s heading
+draws **"Version history"**, and shipped carried **"History"** until #692.
+
+One drawn label each, so the majority test returns nothing. What decided it:
+
+- **"History" was the only one of the six section names naming a SHAPE rather than an
+  object**, and composition is what turns that into ambiguity - *"History: auto"* reads as
+  edit history or response history, neither of which that screen shows.
+- **The app's own prose already said "version history" twice**, at
+  `forms.publish.viewHistory` and `forms.history.backToHistory`.
+- **§7's own amendment** already rules that the rail carries the screen's name and that a
+  copy rename needs no contract amendment, so the rail label follows rather than competes.
+
+So shipped is now **"Version history"** everywhere and the POC's rail label is the odd one
+out. **Recorded here so nobody later "fixes" shipped back to match that one drawn word.**
+
+Note the contrast with #661, which is the inverse: there the existing name was correct and
+renaming would have made a correct name wrong. The test is the same in both - *what does the
+word name* - and it points opposite ways.
+
+
 **A SIXTH case: the POC spoke about something it was NOT TRYING TO SPECIFY, 2026-08-22 (this
 seat, on the dev seat's #688 report).** The fifth case above resolved that PR because the
 drawing happened to contradict itself. **It would not have, had the shorthand been
