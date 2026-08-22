@@ -1,7 +1,7 @@
 # What binds the portal
 
 **Status:** drafted by the PM/PO seat, 2026-08-22, as the counterpart to
-`plan/admin-constraints.md`. Proposed for `docs/`. **This document exists so that a portal
+`docs/admin-constraints.md`. **This document exists so that a portal
 rule is found here rather than inferred from an admin decision, and vice versa.**
 
 **Audience:** respondents, on browsers nobody chose, often reached by a link they were sent.
@@ -30,7 +30,10 @@ emptied control reports **absence** rather than an empty string or empty array.
 **ADR-30.** Managed themes. The portal's appearance is operator-configurable in a way the
 admin's is not.
 
-**WCAG 2.2 AA.** Binds both apps.
+**WCAG 2.2 AA - a floor.** Hard here, and task **030**'s manual screen-reader pass is a Code
+Owner human gate on this app. The admin **aims** at the same standard without it gating
+(Code Owner, 2026-08-22); this app does not have that latitude, because its audience is
+respondents on browsers nobody chose.
 
 **ADR-27.** No hardcoded user-facing strings; locale-aware formatting. Binds both apps.
 

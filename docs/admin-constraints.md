@@ -1,8 +1,7 @@
 # What binds the admin
 
 **Status:** drafted by the PM/PO seat, 2026-08-22, after a portal constraint was imported
-into an admin decision and shipped. Proposed for `docs/`; drafted in `plan/` because that is
-this seat's grant. **This document exists to be checked before a rule is cited in an admin
+into an admin decision and shipped. Lives in `docs/` by Code Owner instruction, 2026-08-22. **This document exists to be checked before a rule is cited in an admin
 decision.**
 
 **Audience:** authenticated staff, on machines they chose, in a session they signed into.
@@ -31,9 +30,18 @@ design (Code Owner, 2026-08-22). Where a POC and `plan/admin-design-contracts.md
 **the POC wins and the contract changes.** The contracts remain useful as description and as
 a fallback for a screen no POC covers.
 
-**WCAG 2.2 AA.** Binds both apps. A standing non-negotiable in this seat's charter, a Code
-Owner human gate at task 030, and §8's own ruling states that "different apps" never licensed
-a different accessibility standard.
+**WCAG 2.2 AA - an AIM, not a gate** (Code Owner, 2026-08-22: *"for admin, we should aim to
+be wcag compliant"*). Accessibility is a goal the admin builds toward and a legitimate reason
+to prefer one design over another. It is **not** a blocking gate here: no admin PR parks on
+it, and a POC is not overruled by it.
+
+The distinction is deliberate and follows the audience. The portal's floor is hard because
+its audience is respondents on browsers nobody chose, and task **030**'s human gate is
+scoped to the portal. The admin's users are staff on machines they chose.
+
+**What this does not license:** shipping something knowingly inaccessible because it is
+faster. "Aim" means the accessible option wins where it is available at reasonable cost, and
+where it is not, the trade is stated rather than silent.
 
 **ADR-27.** No hardcoded user-facing strings; locale-aware formatting. Binds both apps.
 
