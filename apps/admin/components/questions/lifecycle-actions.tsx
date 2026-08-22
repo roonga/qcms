@@ -10,6 +10,20 @@ import type { QuestionStatus } from "@/lib/questions/types";
 /**
  * Publish, new version, deprecate (task 032; wireframe "lifecycle actions").
  *
+ * ## Where these render, and why it is a column
+ *
+ * In the rail, pinned above the version list, which is where the screen's own POC draws them
+ * (`plan/admin-shell-poc/question-editor-poc.html`, issue 650). Its reason is worth keeping
+ * beside the code: the version list is the one thing on this screen that grows without bound,
+ * so an action anchored below it would drift further down the rail with every version the
+ * question accumulates, while up here it stays at a fixed place a hand can learn.
+ *
+ * So the buttons stack rather than sitting in a row, and each fills the 240px track: they are
+ * in a column now, and a wrapped row of three would read as a paragraph of controls. The
+ * width comes from `app/globals.css` rather than from a prop, because the vendored `Button`
+ * takes a variant and a size and no class name, and wrapping it here to add one would be the
+ * start of a second design language outside `packages/ui` (ADR-22).
+ *
  * ## The confirmations are the teaching surface
  *
  * ADR-02 makes the governed library the product's identity, and these three dialogs are
@@ -52,11 +66,24 @@ export function LifecycleActions({
   const next = latestVersion + 1;
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="qcms-question-rail__lifecycle">
+      {/* New version first, and that is the POC's order rather than a ranking of the three.
+          It is the one control that is offered whatever the selected version's status, so
+          first is the only position it can hold without the buttons below it moving as an
+          author walks the version list. */}
+      <Button
+        variant="secondary"
+        size="sm"
+        onPress={() => {
+          setOpen("newVersion");
+        }}
+      >
+        {t("questions.action.newVersion")}
+      </Button>
       {status === "draft" && (
         <Button
           variant="primary"
-          size="md"
+          size="sm"
           onPress={() => {
             setOpen("publish");
           }}
@@ -64,19 +91,10 @@ export function LifecycleActions({
           {t("questions.action.publish", { version })}
         </Button>
       )}
-      <Button
-        variant="secondary"
-        size="md"
-        onPress={() => {
-          setOpen("newVersion");
-        }}
-      >
-        {t("questions.action.newVersion")}
-      </Button>
       {status === "published" && (
         <Button
           variant="danger"
-          size="md"
+          size="sm"
           onPress={() => {
             setOpen("deprecate");
           }}
