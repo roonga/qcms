@@ -62,15 +62,14 @@ not. The ninth unchanged screen, `/forms/[formId]/responses/[sessionId]`, is abs
 this sweep because its subject is a session created at run time; it is measured instead in
 `apps/admin/e2e/measure.pw.ts`.
 
-Expect one SOFT failure when re-running this sweep at `d78e0ba`, and do not read it as a
-width-cap problem. The builder reports `document.scrollWidth` 391 in a 390px viewport, one
-pixel of horizontal overflow, which the spec's own Reflow check reports without costing the
-other frames their evidence. It is NOT this branch's: the `before/` run, with `lib/measure.ts`
-and `components/measured-main.tsx` absent and the layout and stylesheet back at the base,
-reports the identical 391. Same spec, same base, cap present and cap absent, same overflow.
-It arrived with the base, and it is reported alongside this change rather than fixed in it,
-because it belongs to files this branch does not touch. A cap is a `max-inline-size` and
-cannot push a document wider than its own viewport.
+This sweep used to warn of one SOFT failure at `d78e0ba`: the builder reported
+`document.scrollWidth` 391 in a 390px viewport, and the note here said so, said it was not
+this branch's, and asked the next reader not to read it as a width-cap problem. That was
+correct at the time and is no longer true of the code. Issue 616 owns and has fixed it (the
+version cell's `white-space: nowrap` set a 209px column minimum on a table with no scroll
+box, which became the document's floor at every viewport). The observation stays recorded
+because it is what the finding was made of; the instruction to expect it is gone, because
+re-running this sweep now reports no such failure.
 
 FRAME                  WIDTH  VERDICT    SHA256 BEFORE / AFTER
 erasures               1280   IDENTICAL  c570414cb50019fe585386c8c7c888c3
