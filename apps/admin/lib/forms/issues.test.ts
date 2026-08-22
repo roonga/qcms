@@ -32,7 +32,11 @@ const DRAFT: DraftForm = {
   defaultLocale: "en",
   title: { en: "Life cover" },
   steps: [
-    { stepId: "stp_about", title: { en: "About you" }, items: [{ questionId: "q_age", version: 1 }] },
+    {
+      stepId: "stp_about",
+      title: { en: "About you" },
+      items: [{ questionId: "q_age", version: 1 }],
+    },
     {
       stepId: "stp_health",
       title: { en: "Health" },
@@ -42,9 +46,7 @@ const DRAFT: DraftForm = {
       ],
     },
   ],
-  rules: [
-    { ruleId: "rul_one", when: { op: "answered", questionId: "q_age" }, show: ["q_smoker"] },
-  ],
+  rules: [{ ruleId: "rul_one", when: { op: "answered", questionId: "q_age" }, show: ["q_smoker"] }],
 };
 
 /** The total a step's badges may never exceed: what the panel would list. */
@@ -73,7 +75,11 @@ describe("attributing issues to steps for the rail's badge", () => {
     // The property that keeps the badges a decomposition rather than a second opinion: an
     // issue naming both a step and a question pinned in a different step still lands once.
     const issues: readonly FormIssue[] = [
-      { code: "DANGLING_STEP_REF", message: "x", path: { step: "stp_about", question: "q_smoker" } },
+      {
+        code: "DANGLING_STEP_REF",
+        message: "x",
+        path: { step: "stp_about", question: "q_smoker" },
+      },
     ];
     const counts = stepIssueCounts(issues, DRAFT);
     expect(railTotal(counts)).toBe(1);

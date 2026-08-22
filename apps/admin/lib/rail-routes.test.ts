@@ -142,9 +142,9 @@ describe("which screens carry the form-subtree rail", () => {
     // other eight authenticated screens would get an empty rail or one duplicating their
     // own body. The slot tree holding nothing but `forms/` is that clause, checked.
     const slotRoot = readdirSync(`${SHELL}/@rail`, { withFileTypes: true });
-    expect(sorted(slotRoot.filter((entry) => entry.isDirectory()).map((entry) => entry.name))).toEqual(
-      ["forms"],
-    );
+    expect(
+      sorted(slotRoot.filter((entry) => entry.isDirectory()).map((entry) => entry.name)),
+    ).toEqual(["forms"]);
   });
 });
 
@@ -170,9 +170,7 @@ describe("which row of the rail each screen marks", () => {
     // fall back honestly, and this pins that no screen has quietly started claiming to be
     // one.
     for (const route of railSlotRoutes()) {
-      expect(readFileSync(`${SHELL}/@rail${route}/page.tsx`, "utf8")).not.toContain(
-        'kind: "step"',
-      );
+      expect(readFileSync(`${SHELL}/@rail${route}/page.tsx`, "utf8")).not.toContain('kind: "step"');
     }
   });
 });
