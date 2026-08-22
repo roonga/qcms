@@ -139,11 +139,7 @@ let sessionId = "";
  * container is explicitly fine (that is what a wide data table is supposed to do),
  * and only what reaches the page's own scrollport is a Reflow failure.
  */
-async function documentWidth(
-  page: Page,
-  path: string,
-  width: number,
-): Promise<number> {
+async function documentWidth(page: Page, path: string, width: number): Promise<number> {
   await page.setViewportSize({ width, height: 900 });
   await page.goto(path);
   await expect(page.locator("main#main-content"), `${path} renders the shell`).toHaveCount(1);
