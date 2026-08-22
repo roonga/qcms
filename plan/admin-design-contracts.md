@@ -5,6 +5,36 @@ normative. C1 is closed at §7a (Settings keeps a rail as a written exception) a
 §8 is closed in the Code Owner's framing (portal and admin are different apps);
 contracts 1-6 were confirmed in the same ruling ("all agree").
 
+**AUTHORITY REVERSED, 2026-08-22 (Code Owner): the POCs win. "This is the approved
+design."**
+
+This document was written on the opposite premise, stated twice below: *"Anything a POC
+draws that contradicts a contract here is wrong by definition; the contract does not bend
+to the drawing."* **That is no longer the rule.** Where `plan/admin-shell-poc/*.html` and a
+contract here disagree, the POC is the approved design and this document is what changes.
+
+The Code Owner's example, and the case that prompted the ruling: `question-editor-poc.html`
+draws a rail carrying a `.rail-lifecycle` **action block** (`:589-598`). §7 says the rail
+never carries actions. That §7 clause was overruled during the POC work, and the ruling
+stands generally rather than only for that screen.
+
+**One thing this leaves undecided, and it is not a quibble.** The eleven POCs contradict
+**each other** - which is the documented reason this document exists
+(`plan/admin-poc-consistency-audit.md` §4 found them answering the same eight questions two
+to seven different ways). "The POC wins" is complete where one POC speaks and this document
+disagrees. It is **underdetermined** where two POCs disagree:
+
+- **The rail** has four different contracts across the POCs: children plus siblings
+  (`admin-shell-poc` and three others), children only plus actions
+  (`question-editor-poc`), same-page section buttons (`settings-newquestion-poc`), and
+  children plus siblings plus a second tier with a different group label
+  (`rules-screen-poc`).
+- **The main cap** is 1600 in five POCs, 1080 in one, 40rem in one, 26rem in one, and
+  per-screen 900/1180/1820 in another.
+
+Until that is resolved, this seat applies the ruling where a single POC is the only drawing
+of a screen, and escalates where two disagree rather than picking one.
+
 **Wave 3 is unblocked.** Anything a POC draws that contradicts a contract here is
 wrong by definition, and that is now a statement about shipped work rather than
 about proposals: `plan/admin-shell-poc/*.html` remains eleven inconsistent
