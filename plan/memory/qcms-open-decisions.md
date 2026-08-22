@@ -41,14 +41,6 @@ What belongs below is only what a query **cannot** tell you: what the decision i
 - **030** manual screen-reader pass, **040** security sign-off (implementation merged 2026-08-16, waiting on the signature rather than on work), **038** launch-gate validation.
 - **041 never gates 038** (flag-gated, ADR-25). **039** is Stage 9.
 
-**Launch-path human gates** (`docs/features/README.md` is authoritative; 54 of 62 tasks done):
-
-- **030** manual screen-reader pass - automated portion landed 2026-07-22.
-- **040** security sign-off - the implementation **merged 2026-08-16** (PR #495) and exit criterion 3 is met. Waiting on the signature, not on work.
-- **038** launch-gate validation itself.
-
-Remaining implementation on that path: **049**, **061**, **037**. **041 never gates 038** (flag-gated, ADR-25). **039** is Stage 9.
-
 ---
 
 ## Historical disposition record
