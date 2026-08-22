@@ -297,6 +297,11 @@ export const messages = {
   "questions.options.rowActions": "{row} row actions",
   "questions.options.insertAbove": "Insert option above {row}",
   "questions.options.insertBelow": "Insert option below {row}",
+  // The single-pointer, non-dragging reorder path (WCAG 2.2 SC 2.5.7). Named per row like
+  // every other item in this menu and like the pin list's own pair, so a screen reader
+  // hears which option is about to move rather than two identical words.
+  "questions.options.moveUp": "Move {row} up",
+  "questions.options.moveDown": "Move {row} down",
   "questions.options.remove": "Remove option {row}",
   "questions.options.add": "Add option",
   "questions.options.moved": "{row} moved to position {position} of {total}.",

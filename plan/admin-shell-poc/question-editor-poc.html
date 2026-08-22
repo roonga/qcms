@@ -436,9 +436,12 @@ a { color: inherit; }
    pointer-drag and its keyboard Arrow Up/Down satisfy SC 2.1.1 (Keyboard) but do not by
    themselves satisfy 2.5.7 - a keyboard path is a different criterion, not a substitute
    for a non-dragging pointer path. So this menu carries Move up / Move down alongside
-   Insert above/below and Remove, the same correction admin-shell-poc.html already made
-   to the step-questions grid's own row menu; the shipped option-grid-editor.tsx menu
-   does not have them yet, and this is the corrected shape, not a second idiom.
+   Insert above/below and Remove, the same five items admin-shell-poc.html draws for the
+   step-questions grid's own row menu.
+
+   History: this comment used to say the shipped option-grid-editor.tsx menu did not have
+   them yet. True until issue 680 (2026-08-22) added them, so the shipped menu is this
+   shape now rather than a second idiom.
    ------------------------------------------------------------------------------------- */
 .opt-grid-region { position: relative; }
 .opt-grid-wrap { border: 1px solid var(--color-border); border-radius: var(--radius-card); overflow: hidden; background: var(--color-surface); }

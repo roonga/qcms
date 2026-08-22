@@ -12,9 +12,11 @@ import {
   gridRows,
   moveOptionTo,
   openPendingRow,
+  optionRowMenuItems,
   setPendingLabel,
   type GridRow,
   type OptionGridState,
+  type OptionRowMenuAction,
   type PendingRow,
 } from "@/lib/questions/option-grid";
 import type { ChoiceOptionView, DefinitionIssue } from "@/lib/questions/types";
@@ -63,9 +65,14 @@ import type { ChoiceOptionView, DefinitionIssue } from "@/lib/questions/types";
  * ## The grip is three controls in one
  *
  * The card makes the grip the row's only control: pointer-drag to reorder, Arrow Up/Down to
- * reorder by keyboard, Enter or Space to open a menu carrying insert-above, insert-below
- * and remove. That absorbs a separate trailing remove button rather than adding a second
- * row-end target.
+ * reorder by keyboard, Enter or Space to open a menu carrying insert-above, insert-below,
+ * move-up, move-down and remove. That absorbs a separate trailing remove button rather than
+ * adding a second row-end target.
+ *
+ * The menu's two move items are the row's only reorder path for an operator on a pointer
+ * that cannot drag (issue 680, WCAG 2.2 SC 2.5.7 Dragging Movements). `optionRowMenuItems`
+ * in `lib/questions/option-grid.ts` builds and defends the list; the argument for why the
+ * grip's arrow keys are not that path lives there.
  *
  * The popup itself is `components/row-menu.tsx`, which is where the ADR-22 argument for
  * hand-rolling it lives now. It moved there in issue 517, when the step editor's pin list
@@ -208,11 +215,12 @@ export function OptionGridEditor({
     setFocusWant({ kind: "pending" });
   }
 
-  function moveBy(row: GridRow, delta: -1 | 1): void {
+  /** Move a row one place and answer where it landed, or nothing if it could not move. */
+  function moveBy(row: GridRow, delta: -1 | 1): number | undefined {
     const settled = settle();
     const from = settled.at(row.index);
     const to = from + delta;
-    if (to < 0 || to >= settled.options.length) return;
+    if (to < 0 || to >= settled.options.length) return undefined;
     // No focus request: the row is keyed by its optionId, so React relocates the existing
     // DOM node rather than rebuilding it, and the grip the operator is holding travels
     // with it already focused. That is also what makes repeated presses move one option
@@ -225,6 +233,34 @@ export function OptionGridEditor({
         total: settled.options.length,
       }),
     );
+    return to;
+  }
+
+  /**
+   * Run one row-menu item.
+   *
+   * Move up and Move down are the reason this exists: they are the single-pointer,
+   * non-dragging reorder path (SC 2.5.7), and unlike the grip's arrow keys they run with a
+   * menu open over the row. So the menu closes and focus is placed deliberately, on the
+   * moved row's grip at its NEW index - the operator's next press should be on the row they
+   * just moved, wherever it went, rather than on whatever slid into the old slot.
+   */
+  function runAction(row: GridRow, action: OptionRowMenuAction): void {
+    if (action === "insertAbove") {
+      openAt(row.index);
+      return;
+    }
+    if (action === "insertBelow") {
+      openAt(row.index + 1);
+      return;
+    }
+    if (action === "remove") {
+      removeAt(row);
+      return;
+    }
+    const landed = moveBy(row, action === "moveUp" ? -1 : 1);
+    setMenuAt(undefined);
+    setFocusWant({ kind: "grip", index: landed ?? row.index });
   }
 
   function removeAt(row: GridRow): void {
@@ -275,8 +311,10 @@ export function OptionGridEditor({
     setDrop(undefined);
     if (!session.moved) {
       // A press that never travelled is a click, and a click on the row's one control
-      // opens its menu. The pointer path has to reach insert and remove somehow, and the
-      // card gives the row no second control to reach them by.
+      // opens its menu. The pointer path has to reach insert, move and remove somehow, and
+      // the card gives the row no second control to reach them by. That press is also the
+      // whole of SC 2.5.7 here: a tap opens the menu, and a tap on Move up or Move down
+      // reorders, with nothing dragged anywhere.
       setMenuAt((open) => (open === row.index ? undefined : row.index));
       return;
     }
@@ -479,34 +517,19 @@ export function OptionGridEditor({
                   {menuAt === row.index && (
                     <RowMenu
                       menuLabel={t("questions.options.rowActions", { row: rowName })}
-                      items={[
-                        {
-                          key: "insertAbove",
-                          label: t("questions.options.insertAbove", { row: rowName }),
-                          onSelect: () => {
-                            openAt(row.index);
-                          },
+                      items={optionRowMenuItems({
+                        name: rowName,
+                        index: row.index,
+                        total: options.length,
+                      }).map((item) => ({
+                        key: item.action,
+                        label: item.label,
+                        isDisabled: item.isDisabled,
+                        isDanger: item.isDanger,
+                        onSelect: () => {
+                          runAction(row, item.action);
                         },
-                        {
-                          key: "insertBelow",
-                          label: t("questions.options.insertBelow", { row: rowName }),
-                          onSelect: () => {
-                            openAt(row.index + 1);
-                          },
-                        },
-                        {
-                          key: "remove",
-                          label: t("questions.options.remove", { row: rowName }),
-                          isDanger: true,
-                          // The list can never empty from here: at one option Remove is
-                          // dead, which is also why `removeAt` never needs a "focus the
-                          // add row instead" case.
-                          isDisabled: options.length <= 1,
-                          onSelect: () => {
-                            removeAt(row);
-                          },
-                        },
-                      ]}
+                      }))}
                       onClose={() => {
                         setMenuAt(undefined);
                         setFocusWant({ kind: "grip", index: row.index });

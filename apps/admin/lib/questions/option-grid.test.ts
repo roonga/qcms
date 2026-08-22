@@ -9,8 +9,10 @@ import {
   insertOptionAt,
   moveOptionTo,
   openPendingRow,
+  optionRowMenuItems,
   setPendingLabel,
   type OptionGridState,
+  type OptionRowMenuAction,
 } from "./option-grid.ts";
 
 import type { ChoiceOptionView } from "./types.ts";
@@ -287,5 +289,80 @@ describe("committedIndexOf", () => {
 
   it("is undefined when nothing will land", () => {
     expect(committedIndexOf({ options: seeded(), pending: undefined })).toBeUndefined();
+  });
+});
+
+/**
+ * The row menu's contents, which are conformance rather than convenience (issue 680).
+ *
+ * The grip reorders by pointer-drag. WCAG 2.2 SC 2.5.7 Dragging Movements (AA) asks that
+ * everything a drag can do is also reachable with a single pointer and no dragging, and
+ * Move up / Move down are that path. The grip's Arrow Up/Down is SC 2.1.1 Keyboard, a
+ * different criterion, and it does not discharge 2.5.7: the operator these two items are
+ * for is on a head pointer, a switch or an eye tracker, not on a keyboard.
+ *
+ * A menu that has quietly lost either item still looks fine in a screenshot, so the list is
+ * asserted here. What the two items DO under a pointer is `questions-lifecycle.pw.ts`,
+ * because a click is not a thing a unit test can observe.
+ */
+describe("optionRowMenuItems", () => {
+  const ORDER: readonly OptionRowMenuAction[] = [
+    "insertAbove",
+    "insertBelow",
+    "moveUp",
+    "moveDown",
+    "remove",
+  ];
+
+  function disabledIn(index: number, total: number): Map<OptionRowMenuAction, boolean> {
+    const items = optionRowMenuItems({ name: "Crimson", index, total });
+    return new Map(items.map((item) => [item.action, item.isDisabled]));
+  }
+
+  it("offers insert above, insert below, move up, move down and remove, in the order the POCs draw", () => {
+    const items = optionRowMenuItems({ name: "Crimson", index: 1, total: 3 });
+    expect(items.map((item) => item.action)).toEqual(ORDER);
+  });
+
+  it("names the row in every label, so two rows' menus stay distinguishable", () => {
+    for (const item of optionRowMenuItems({ name: "Crimson", index: 1, total: 3 })) {
+      expect(item.label).toContain("Crimson");
+    }
+  });
+
+  it("leaves both moves live on a middle row", () => {
+    const middle = disabledIn(1, 3);
+    expect(middle.get("moveUp")).toBe(false);
+    expect(middle.get("moveDown")).toBe(false);
+    expect(middle.get("remove")).toBe(false);
+  });
+
+  it("disables only the move that would run off the end of the list", () => {
+    // Disabled at position three of five, with two live items after it: the arrangement
+    // `components/row-menu.tsx` has to skip past rather than dead-end on (issue 517).
+    const top = disabledIn(0, 3);
+    expect(top.get("moveUp")).toBe(true);
+    expect(top.get("moveDown")).toBe(false);
+    expect(top.get("remove")).toBe(false);
+
+    const bottom = disabledIn(2, 3);
+    expect(bottom.get("moveUp")).toBe(false);
+    expect(bottom.get("moveDown")).toBe(true);
+  });
+
+  it("disables both moves and remove on a single-option grid", () => {
+    const only = disabledIn(0, 1);
+    expect(only.get("moveUp")).toBe(true);
+    expect(only.get("moveDown")).toBe(true);
+    // The list can never empty from the menu, which is the older rule this one joins.
+    expect(only.get("remove")).toBe(true);
+    // And the two inserts stay live, so a one-option question is not a dead end.
+    expect(only.get("insertAbove")).toBe(false);
+    expect(only.get("insertBelow")).toBe(false);
+  });
+
+  it("marks only remove as destructive", () => {
+    const items = optionRowMenuItems({ name: "Crimson", index: 1, total: 3 });
+    expect(items.filter((item) => item.isDanger).map((item) => item.action)).toEqual(["remove"]);
   });
 });
