@@ -513,10 +513,17 @@ The reason is #561's and it is adopted verbatim because it is better than a pref
 own copy already name.** §7's normative content is *which* siblings appear and *in what
 order*; both are honoured either way, so the wording was never the part doing work.
 
-So the rail reads Builder / Preview / **History** / Links / Responses / Webhooks, and §7's
-"Versions" above should be read as identifying the route (`/versions`), not prescribing a
-label. The same rule applies to any future rename: change the copy, and the rail follows
-without a contract amendment.
+So the rail reads the version list's own name, and §7's "Versions" above should be read as
+identifying the route (`/versions`), not prescribing a label. The same rule applies to any
+future rename: change the copy, and the rail follows without a contract amendment.
+
+That rename arrived the same week. Issue 679 gave the five section screens an `<h1>` that
+names the section before the form, which is what the approved drawing for this one carries
+("Version history: Life insurance", `plan/admin-shell-poc/preview-versions-poc.html`), and
+composing "History" into that heading would have read as the form's edit history rather than
+its published versions. So `forms.tab.versions` is **"Version history"**, and the rail reads
+Builder / Preview / **Version history** / Links / Responses / Webhooks. That is this
+amendment being applied rather than revisited: the copy moved and the rail followed it.
 
 
 **Amendment, 2026-08-22 (PM/PO seat, from PR #621): the disclosure is one element at

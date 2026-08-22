@@ -55,7 +55,9 @@ describe("the form-subtree rail's contents", () => {
     expect(groups.siblings.map((item) => item.label)).toStrictEqual([
       "Builder",
       "Preview",
-      "History",
+      // "Version history" since issue 679, which named the version list's screen and so,
+      // by §7's rule that the rail carries the screen's own name, named this row too.
+      "Version history",
       "Links",
       "Responses",
       "Webhooks",

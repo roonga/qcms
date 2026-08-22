@@ -42,9 +42,10 @@ import { requireAdminSession } from "@/lib/server/session";
  * asks for a rail that grows a row per stored version or per collected response. So each
  * detail route marks the section it lives under, which is the same answer the app already
  * gave on the same URLs: the section strip this rail replaced (`form-tabs.tsx`, retired by
- * issue 561) marked History as `aria-current="page"` on `/versions/3` from task 034
- * onward, and `FormPageHeader` still builds its last breadcrumb crumb from the same
- * section name. Deciding differently here would have made one screen say two things.
+ * issue 561) marked the version-history row as `aria-current="page"` on `/versions/3` from
+ * task 034 onward, and `FormPageHeader` still builds its last breadcrumb crumb, and since
+ * issue 679 the section half of its `<h1>`, from the same section name. Deciding
+ * differently here would have made one screen say two things.
  */
 export async function FormRailSlot({
   params,
