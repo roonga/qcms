@@ -16,13 +16,15 @@ import { settingsSectionFromParams } from "@/lib/settings-sections";
  * renders beside `<main>` instead of inside it. Issue 559 established the slot and
  * `@rail/default.tsx` returns nothing, so every screen without one renders exactly as it did.
  *
- * ## The one page in this tree that is not the form-subtree rail's
+ * ## Not the form-subtree rail's page, and not the question rail's either
  *
- * The slot holds nine pages: eight under `@rail/forms/[formId]/`, which all delegate to the
- * shared `rail-slot.tsx`, and this one. **This file deliberately does not use that helper,
- * and could not.** `rail-slot.tsx` loads a form's steps and issue counts and renders
- * `FormSubtreeRail`, which navigates between ROUTES. This rail switches which panel of one
- * route is on screen. The two share the directory and the 240px track and nothing else.
+ * The slot holds ten pages: eight under `@rail/forms/[formId]/`, which all delegate to the
+ * shared `rail-slot.tsx`, this one, and `@rail/questions/[questionId]/` (issue 650).
+ * **This file deliberately does not use that helper, and could not.** `rail-slot.tsx` loads a
+ * form's steps and issue counts and renders `FormSubtreeRail`, which navigates between
+ * ROUTES. This rail switches which panel of one route is on screen, and the question rail
+ * lists one question's versions. The three share the directory and the 240px track and
+ * nothing else.
  *
  * ## Why it reads the query
  *

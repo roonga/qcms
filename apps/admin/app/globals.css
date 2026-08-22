@@ -1678,44 +1678,11 @@ button {
   overflow-wrap: anywhere;
 }
 
-/* One row of the version timeline. A full-width link at the dense row
-   height, with the currently selected version marked by more than colour
-   alone (WCAG 1.4.1): heavier weight, a left accent bar and a muted
-   background, driven off aria-current rather than a class so the state
-   can never drift from the accessible name. */
-.qcms-version-row {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: var(--admin-stack);
-  min-block-size: var(--admin-table-row-h);
-  padding-inline: var(--admin-control-pad-x);
-  border-radius: var(--radius-control);
-  color: var(--color-text);
-  text-decoration: none;
-}
-.qcms-version-row:hover {
-  background-color: var(--color-ghost-hover);
-}
-.qcms-version-row[aria-current="true"] {
-  background-color: var(--color-background-muted);
-}
-.qcms-version-row[aria-current="true"]::before {
-  content: "";
-  position: absolute;
-  inset-block: 0;
-  inset-inline-start: 0;
-  inline-size: 3px;
-  background-color: var(--color-primary);
-  border-radius: var(--radius-sm);
-}
-.qcms-version-row__name {
-  flex-shrink: 0;
-  font-weight: 400;
-}
-.qcms-version-row[aria-current="true"] .qcms-version-row__name {
-  font-weight: 600;
-}
+/* The version timeline's row rules used to live here. The timeline moved into
+   the rail in issue 650, where the screen's POC draws it, so its geometry is
+   the question rail's block near the end of this sheet and the classes it used
+   here are gone rather than left behind for a future reader to wire something
+   new onto. */
 
 /* The window onto the shared A2UI renderer: it draws a respondent-facing
    control, which is deliberately not this screen's own surface, so the
@@ -2140,7 +2107,8 @@ button {
    or cares what the rail carries.
 
    THE COLUMN IS CONDITIONAL, and `:has()` is why there is no empty track on the
-   fourteen screens that have no rail. The shell body is a flex column by
+   screens that have no rail. (A count stood here and went stale twice as rails
+   were added, so it is a description now.) The shell body is a flex column by
    default, which is what `<main class="flex-1">` grew inside before this block
    existed; it becomes a two-track grid only when a rail is actually a child of
    it. Written the other way round - an always-grid whose first track collapses -
@@ -2372,6 +2340,143 @@ button {
    rather than by keeping utilities off these three elements forever. */
 .qcms-settings-panel[hidden] {
   display: none;
+}
+
+/* ===========================================================================
+   THE QUESTION DETAIL RAIL - issue 650, built to
+   `plan/admin-shell-poc/question-editor-poc.html`.
+
+   A THIRD RAIL, AND THE THIRD ANSWER TO "WHAT DOES A RAIL CARRY". The first
+   navigates between the routes of one form's subtree; the second switches which
+   panel of the single Settings route is showing; this one lists one question's
+   versions, each of which is a `?v=` on the route the reader is already standing
+   on. What all three share is the grid column, the 240px width and the
+   `--bp-sidebar` collapse behaviour, which are the `qcms-rail*` rules above and
+   know nothing about what a rail carries. Everything below is this screen's own.
+
+   WHY A ROW IS TWO LINES HERE AND ONE LINE THERE. A form's rail row is a step
+   title and a badge. A version row carries three facts an operator reads
+   together - which version, what its status is, and when it was published - and
+   at 240px those do not fit on one line without the date being the thing that
+   truncates. The POC stacks them, so the row is a column and the status tag sits
+   beside the version number rather than after the date.
+
+   THE LIFECYCLE BLOCK IS PINNED ABOVE THE LIST, not below it, and the POC states
+   the reason: the version list is the one thing on this screen that grows without
+   bound, so an action anchored under it would drift further down the rail with
+   every version the question accumulates. The dashed rule belongs to that block
+   and moves with it, marking the end of the fixed area rather than the start of
+   one. ======================================================================= */
+
+/* The question id, in the mono face it is written in everywhere else, because it
+   is a machine identifier an author pastes into a ticket. Truncation comes from
+   `.qcms-rail__summary-text`, which is the one line the rail lets ellipse. */
+.qcms-question-rail__summary-id {
+  font-family: var(--font-mono);
+}
+
+/* The collapsed-only "which version" indicator. Hidden by default and hidden
+   again above `--bp-sidebar`, where the rail is a permanent sidebar and the
+   marked row is on screen anyway; visible only below the boundary while the
+   disclosure is shut, when this line is the whole rail. The two `display: none`
+   rules are written at the same specificity as the rule between them so source
+   order settles it, which is why the second one restates the whole selector. */
+.qcms-question-rail__summary-version {
+  display: none;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+}
+.qcms-rail__disclosure:not([open]) > .qcms-rail__summary .qcms-question-rail__summary-version {
+  display: inline-flex;
+}
+@variant sidebar {
+  .qcms-rail__disclosure:not([open]) > .qcms-rail__summary .qcms-question-rail__summary-version {
+    display: none;
+  }
+}
+.qcms-question-rail__summary-sep {
+  font-weight: 400;
+}
+
+/* "Versions" and its digest, as a labelled row rather than a heading. The rail
+   renders before `<main>`, so a heading here would sit above the screen's `<h1>`
+   and be a `heading-order` violation on this screen in all three modes. */
+.qcms-question-rail__label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding-inline: 0.5rem;
+  padding-block: 0.375rem 0.25rem;
+}
+.qcms-question-rail__title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+}
+.qcms-question-rail__digest {
+  font-size: 0.75rem;
+  text-align: end;
+  color: var(--color-text-muted);
+}
+
+/* The pinned lifecycle block. The buttons fill the track from here rather than
+   from a prop, because the vendored `Button` takes a variant and a size and no
+   class name, and a wrapper added to give it one would be the first component of
+   a second design language outside `packages/ui` (ADR-22). */
+.qcms-question-rail__lifecycle {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding-inline: 0.5rem;
+  padding-block-end: 0.5rem;
+  margin-block-end: 0.5rem;
+  border-block-end: 1px dashed var(--color-border);
+}
+.qcms-question-rail__lifecycle > button {
+  inline-size: 100%;
+  justify-content: center;
+}
+:root.hc .qcms-question-rail__lifecycle {
+  border-block-end-color: var(--color-border-strong);
+}
+
+/* One version row: the shared rail link, stacked. `align-items` is overridden
+   from the shared rule's `baseline`, which aligns two things on a line and is the
+   wrong instruction for a column. */
+.qcms-question-rail__version {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.125rem;
+}
+.qcms-question-rail__version-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+/* The status tag keeps its own size here and is not pushed to the trailing edge:
+   the shared rule does that to an issue badge, which is a count at the end of a
+   title, and this one is part of the phrase "Version 3, published". */
+.qcms-question-rail__version .qcms-tag {
+  margin-inline-start: 0;
+}
+.qcms-question-rail__version-date {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+/* The current row's date stays muted rather than taking the active colour with
+   the rest of the row: it is the one part of the row that is not a statement
+   about which version is selected. */
+.qcms-question-rail__version[aria-current="page"] .qcms-question-rail__version-date {
+  color: var(--color-text-muted);
 }
 
 /* Standard clip-rect visually hidden utility: present for assistive tech,

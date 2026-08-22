@@ -171,13 +171,25 @@ const SCREENS: readonly ScreenRow[] = [
     why: "Navigation only. §7 gives the rail no actions at all, so there is nothing on it to save.",
   },
   {
-    // The ninth slot page, and the only one of them behind a different contract (issue
-    // 562): §7a's Settings rail carries same-page section anchors rather than routes. The
-    // save answer is the same for the same reason, and that reason - a rail carries no
-    // actions - is the whole of what the two contracts have in common here.
+    // The ninth slot page, and behind a different contract (issue 562): §7a's Settings rail
+    // carries same-page section switches rather than routes. The save answer is the same for
+    // the same reason, and that reason - this rail carries no actions - is the whole of what
+    // the two contracts have in common here.
     route: "app/(shell)/@rail/settings/page.tsx",
     model: "readonly",
     why: "Navigation only. §7a gives the Settings rail no actions and no counts, so there is nothing on it to save.",
+  },
+  {
+    // The tenth slot page, and the first rail in the app that carries controls (issue 650).
+    // Its POC (`plan/admin-shell-poc/question-editor-poc.html`) draws the three lifecycle
+    // buttons pinned above the version list, so this row is `action` where the other nine
+    // are `readonly`. What it is NOT is `manual`: publish, deprecate and new-version are
+    // discrete confirmed operations with nothing accumulating behind them, so there is no
+    // unsaved work here for a navigation to discard. The authored document is next door in
+    // the content column, and that column's row below is the one that owes the statement.
+    route: "app/(shell)/@rail/questions/[questionId]/page.tsx",
+    model: "action",
+    why: "Publish, deprecate and new version, each a discrete confirmed operation that reports its own outcome inside its dialog. The version rows beside them are navigation.",
   },
   {
     route: "app/(shell)/forms/[formId]/links/page.tsx",
@@ -224,7 +236,7 @@ const SCREENS: readonly ScreenRow[] = [
     route: "app/(shell)/questions/[questionId]/page.tsx",
     model: "manual",
     statedBy: QUESTION_EDITOR,
-    why: "The question editor in edit mode. Same document, same explicit press. The lifecycle actions beside it are discrete operations and report no save state.",
+    why: "The question editor in edit mode. Same document, same explicit press. The lifecycle actions moved to this screen's rail in issue 650 and are inventoried on that slot's own row; they are discrete operations and report no save state either way.",
   },
   {
     route: "app/(shell)/responses/page.tsx",

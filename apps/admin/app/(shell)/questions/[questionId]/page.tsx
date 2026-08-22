@@ -2,28 +2,31 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Alert, Card } from "@/components/kit";
-import { LifecycleActions } from "@/components/questions/lifecycle-actions";
 import { QuestionEditor } from "@/components/questions/question-editor";
 import { QuestionPreview } from "@/components/questions/question-preview";
 import { StatusTag } from "@/components/questions/status-tag";
 import { t } from "@/lib/i18n/en";
-import type { QuestionVersion } from "@/lib/questions/types";
+import { isoDay, selectVersion } from "@/lib/questions/version-rail";
 import { previewPortalTheme } from "@/lib/server/config";
 import { getPreview, getQuestion } from "@/lib/server/questions";
 import { requireAdminSession } from "@/lib/server/session";
 
-import { lifecycleAction, saveDraftAction } from "../actions";
+import { saveDraftAction } from "../actions";
 
 /**
- * One question: its version history, a rendered preview, and the editor (task 032;
- * wireframe "detail - version timeline" + "editor `form`").
+ * One question: a rendered preview and the editor for the selected version (task 032;
+ * wireframe "editor `form`").
  *
  * ## Every version is reachable, and only one is editable
  *
- * The timeline lists every version the question has ever had, because that history *is*
- * the governance record: what was published, when, and what replaced it. Selecting one
- * puts it in the URL (`?v=3`), so a specific version of a specific question is a link an
- * author can paste into a ticket.
+ * Every version the question has ever had is listed in the RAIL beside this column, because
+ * that history *is* the governance record: what was published, when, and what replaced it.
+ * Selecting one puts it in the URL (`?v=3`), so a specific version of a specific question is
+ * a link an author can paste into a ticket. The rail and the lifecycle actions moved out of
+ * this column in issue 650, to where `plan/admin-shell-poc/question-editor-poc.html` draws
+ * them: `app/(shell)/@rail/questions/[questionId]/page.tsx` is the slot, and it reads the
+ * same `?v=` through the same `selectVersion` this page does, so the marked row and the
+ * rendered version cannot disagree.
  *
  * A draft renders an editable form; a published or deprecated version renders the same
  * form frozen, with the rule stated above it. Rendering the frozen version through the
@@ -31,31 +34,12 @@ import { lifecycleAction, saveDraftAction } from "../actions";
  * the identical layout whether or not they can type in it, so "why can I not edit this?"
  * is answered by the sentence at the top instead of by the screen looking unfamiliar.
  *
- * ## The timeline is links, not a table
+ * ## Which version is selected is decided in one place
  *
- * The list screen uses the vendored `Table`, whose cells are strings, so its rows can
- * only be activated with JavaScript. Here the rows are navigation, and navigation should
- * be anchors: they work with JavaScript off, they can be opened in a new tab, and a
- * screen reader announces them as the links they are. The wireframe calls this region a
- * timeline rather than a table, which is the same distinction.
+ * `selectVersion` and the ISO day formatter live in `lib/questions/version-rail.ts` rather
+ * than here, because the rail beside this column has to answer the same question about the
+ * same address. Two copies of that rule would be two answers the first time either changed.
  */
-
-/** ISO day. Rendered on the server, so no locale or timezone can shift it on hydration. */
-function isoDay(timestamp: string): string {
-  return timestamp.slice(0, 10);
-}
-
-function selectVersion(
-  versions: readonly QuestionVersion[],
-  requested: string | string[] | undefined,
-): QuestionVersion | undefined {
-  const raw = Array.isArray(requested) ? requested[0] : requested;
-  const wanted = raw === undefined ? Number.NaN : Number.parseInt(raw, 10);
-  const match = versions.find((version) => version.version === wanted);
-  // Newest by default: an author arriving from the list wants what is current, not the
-  // v1 that has not been the answer for a year.
-  return match ?? versions[versions.length - 1];
-}
 
 export default async function QuestionDetailPage({
   params,
@@ -74,10 +58,8 @@ export default async function QuestionDetailPage({
     return <Alert variant="error">{detail.message}</Alert>;
   }
 
-  const versions = detail.data.versions;
-  const selected = selectVersion(versions, query["v"]);
+  const selected = selectVersion(detail.data.versions, query["v"]);
   if (selected === undefined) notFound();
-  const latest = versions[versions.length - 1];
   const isFrozen = selected.status !== "draft";
 
   const preview = await getPreview(session, questionId, selected.version);
@@ -99,44 +81,11 @@ export default async function QuestionDetailPage({
         </p>
       </div>
 
-      <LifecycleActions
-        action={lifecycleAction}
-        questionId={detail.data.questionId}
-        version={selected.version}
-        status={selected.status}
-        latestVersion={latest?.version ?? selected.version}
-      />
-
-      <div className="qcms-card">
-        <Card padding="md" radius="md" border>
-          <nav aria-label={t("questions.detail.versions")} className="flex flex-col gap-3">
-            <h2 className="text-base font-semibold text-(--color-text)">
-              {t("questions.detail.versions")}
-            </h2>
-            <ul className="flex flex-col gap-1">
-              {[...versions].reverse().map((version) => (
-                <li key={version.version}>
-                  <Link
-                    href={`/questions/${encodeURIComponent(detail.data.questionId)}?v=${String(version.version)}`}
-                    className="qcms-version-row"
-                    aria-current={version.version === selected.version ? "true" : undefined}
-                  >
-                    <span className="qcms-version-row__name">
-                      {t("questions.detail.version", { version: version.version })}
-                    </span>
-                    <StatusTag status={version.status} />
-                    <span className="text-sm text-(--color-text-muted)">
-                      {version.publishedAt === null
-                        ? t("questions.detail.unpublished")
-                        : t("questions.detail.publishedAt", { date: isoDay(version.publishedAt) })}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </nav>
-        </Card>
-      </div>
+      {/* The version list and the lifecycle actions used to sit here, in two cards of this
+          column. They are the rail's now (issue 650), which is where the screen's POC draws
+          them: `app/(shell)/@rail/questions/[questionId]/page.tsx`. They are not repeated
+          here, because a navigation rendered twice on one screen is two lists that can
+          disagree and two sets of links to walk. */}
 
       <div className="qcms-card">
         <Card padding="md" radius="md" border>

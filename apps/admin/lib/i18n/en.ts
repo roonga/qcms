@@ -337,6 +337,16 @@ export const messages = {
   "questions.detail.deprecatedNote":
     "This version is deprecated: no new form can pin it. Forms that already pin it keep working exactly as they are, and no answer already collected changes.",
 
+  // The question detail screen's rail (issue 650). The digest is four whole sentences
+  // rather than a count and a fragment joined in the component: a locale that puts the
+  // published version first, or that needs a different separator, changes it here (ADR-27).
+  // `tPlural` picks the singular, which is the state a question spends its first minute in.
+  "questions.rail.label": "Versions of {questionId}",
+  "questions.rail.digestOne": "{count} version, v{version} published",
+  "questions.rail.digest": "{count} versions, v{version} published",
+  "questions.rail.digestNoneOne": "{count} version, none published",
+  "questions.rail.digestNone": "{count} versions, none published",
+
   "questions.action.publish": "Publish version {version}",
   "questions.action.newVersion": "New version",
   "questions.action.deprecate": "Deprecate version {version}",
