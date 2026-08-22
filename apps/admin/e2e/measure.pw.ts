@@ -7,31 +7,34 @@ import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import { submitResponse } from "./support/ops.js";
 
 /**
- * The width cap is set by the route (issue 558).
+ * The width cap is set by the route, and every route's column is left-anchored.
+ * Issues 558, 648 and 657.
  *
- * `plan/admin-ux-audit.md` §6 answers the width question with three values across sixteen
- * screens: five earn width, two must have LESS than the app default because they render
- * respondent-facing content, and nine keep the readable measure. `lib/measure.ts` holds
- * that as one table and `measure.test.ts` proves the table covers exactly the route tree.
- * Neither of those checks that the cap reaches the browser, which is what this spec is
- * for: it opens all sixteen screens and measures the shell's content column.
+ * Each of the sixteen authenticated screens takes the cap its own POC draws.
+ * `lib/measure.ts` holds that as one table and `measure.test.ts` proves the table covers
+ * exactly the route tree. Neither of those checks that the cap reaches the browser, which
+ * is what this spec is for: it opens all sixteen screens and measures the shell's content
+ * column.
  *
- * ## What is asserted, and why it is three things rather than one
+ * ## What is asserted, and why it is four things rather than one
  *
  * - The **computed cap** on `<main>` is the value the route's row asks for. This is the
- *   check that the utility class actually compiled: `max-w-measure-wide` comes from a
- *   theme token added in `app/globals.css`, and a token Tailwind never emitted produces a
+ *   check that the utility class actually compiled: `max-w-measure-*` classes come from
+ *   theme tokens in `app/globals.css`, and a token Tailwind never emitted produces a
  *   `max-width: none` that looks like "wide" on a narrow viewport and is nothing of the
- *   kind.
- * - At **1280** the measured box is the cap or the viewport, whichever is smaller. That is
- *   the acceptance criterion in the only terms a reviewer can check: five screens wider
- *   than they were, two narrower, nine the same 1024px.
- * - At **390** every one of the sixteen measures the SAME width. This is the other half of
- *   the acceptance - nine screens unchanged, and the seven changed ones unchanged on a
- *   phone - and it is a property of the mechanism rather than of the values: a cap is
- *   fluid below itself, so no breakpoint is involved at any width.
+ *   kind. Seven of the eight names are tokens, so this is seven separate chances to ship
+ *   a cap that silently does not exist.
+ * - At **1280** the measured box is the cap or the room available, whichever is smaller.
+ *   That is issue 657's acceptance in the only terms a reviewer can check.
+ * - At **1280** the column's left edge is the **left of the space it has**: the rail's
+ *   right edge where a rail is beside it, and the viewport's origin where there is none.
+ *   That is issue 648's acceptance, and it is asserted on all sixteen rather than sampled
+ *   because a single `mx-auto` reintroduced anywhere puts one screen back.
+ * - At **390** every one of the sixteen measures the SAME width. It is a property of the
+ *   mechanism rather than of the values: a cap is fluid below itself, so no breakpoint is
+ *   involved at any width, and a phone sees none of this change.
  *
- * The expected assignment below is restated from the issue rather than imported from
+ * The expected assignment below is restated from the POCs rather than imported from
  * `lib/measure.ts`. Importing it would make this spec agree with the table by
  * construction; written out, a table row that says the wrong thing fails here.
  *
@@ -55,15 +58,26 @@ const QUESTION_ID = "q_at_fault_accident";
 const COUNT_ID = "q_accident_count";
 
 /**
- * The caps, in the CSS pixels `getComputedStyle` reports them as.
- *
- * `prose` is the fourth, and it belongs to one screen: Settings takes the 40rem cap its own
- * POC draws (`plan/admin-shell-poc/settings-newquestion-poc.html`, issue 655), which is also
- * the only column in the app that is left-anchored rather than centred. The alignment is
- * asserted where the screen is, in `settings-rail.pw.ts`; what belongs here is the cap, so
- * the sweep across all sixteen screens still describes all sixteen.
+ * The caps, in the CSS pixels `getComputedStyle` reports them as, each with the POC that
+ * draws it. `default` (1024) is absent on purpose: since issue 657 no route takes it, and a
+ * screen that measures 1024 here is a screen that has fallen off the table.
  */
-const CAP_PX = { default: 1024, wide: 1600, narrow: 720, prose: 640 } as const;
+const CAP_PX = {
+  /** `settings-newquestion-poc.html` `.page-main`, and `preview-versions-poc.html`'s frame. */
+  prose: 640,
+  /** `question-editor-poc.html` `.editor-column`. */
+  narrow: 720,
+  /** `deployment-ops-poc.html` `.ops-inner--responses`. */
+  ops: 900,
+  /** `library-lists-poc.html` `.main`. */
+  list: 1080,
+  /** `deployment-ops-poc.html` `.ops-inner--erasures`. */
+  log: 1180,
+  /** The `.main` of every POC that caps it and draws nothing narrower inside. */
+  wide: 1600,
+  /** `deployment-ops-poc.html` `.ops-inner--webhooks`. */
+  queue: 1820,
+} as const;
 
 type Cap = keyof typeof CAP_PX;
 
@@ -80,39 +94,33 @@ type Screen = { readonly path: string; readonly cap: Cap };
  */
 function screens(sessionId: string): readonly Screen[] {
   return [
-    { path: "/forms", cap: "default" },
+    { path: "/forms", cap: "list" },
     { path: `/forms/${FORM_ID}`, cap: "wide" },
     { path: `/forms/${FORM_ID}/links`, cap: "wide" },
-    { path: `/forms/${FORM_ID}/preview`, cap: "narrow" },
-    { path: `/forms/${FORM_ID}/responses`, cap: "default" },
-    { path: `/forms/${FORM_ID}/responses/${sessionId}`, cap: "default" },
+    { path: `/forms/${FORM_ID}/preview`, cap: "prose" },
+    { path: `/forms/${FORM_ID}/responses`, cap: "wide" },
+    { path: `/forms/${FORM_ID}/responses/${sessionId}`, cap: "wide" },
     { path: `/forms/${FORM_ID}/versions`, cap: "wide" },
-    { path: `/forms/${FORM_ID}/versions/1`, cap: "narrow" },
+    { path: `/forms/${FORM_ID}/versions/1`, cap: "prose" },
     { path: `/forms/${FORM_ID}/webhooks`, cap: "wide" },
-    { path: "/questions", cap: "default" },
-    { path: `/questions/${QUESTION_ID}`, cap: "default" },
-    { path: "/questions/new", cap: "default" },
-    { path: "/responses", cap: "default" },
-    { path: "/responses/erasures", cap: "default" },
+    { path: "/questions", cap: "list" },
+    { path: `/questions/${QUESTION_ID}`, cap: "narrow" },
+    { path: "/questions/new", cap: "prose" },
+    { path: "/responses", cap: "ops" },
+    { path: "/responses/erasures", cap: "log" },
     { path: "/settings", cap: "prose" },
-    { path: "/webhooks", cap: "wide" },
+    { path: "/webhooks", cap: "queue" },
   ];
 }
-
-/**
- * The exact class attribute the shell's content column carried before issue 558.
- *
- * The nine unchanged screens have to render byte-identically, and their `<main>` keeping
- * this attribute character for character is the strongest form of that claim available in
- * a test: nothing downstream of the element can differ if the element itself does not.
- */
-const UNCHANGED_MAIN_CLASS = "mx-auto w-full max-w-5xl flex-1 p-6";
 
 /** What one screen's content column measures, and how much room it had to do it in. */
 type Measured = {
   readonly cap: number;
   readonly width: number;
   readonly available: number;
+  /** The column's left edge, and the left edge of the space it was given. */
+  readonly left: number;
+  readonly spaceStartsAt: number;
   readonly className: string;
 };
 
@@ -143,6 +151,12 @@ async function measure(page: Page, path: string): Promise<Measured> {
       cap: Number.parseFloat(getComputedStyle(element).maxWidth),
       width: box.width,
       available: document.documentElement.clientWidth - (besideTheColumn ? rail.width : 0),
+      left: box.left,
+      // Where the column's available space begins (issue 648): the rail's right edge when
+      // the rail is genuinely beside it, and the viewport origin otherwise. Below
+      // `--bp-sidebar` the rail stacks ABOVE `<main>` and takes no inline space, which is
+      // why this reads the measured box rather than the presence of the element.
+      spaceStartsAt: besideTheColumn ? rail.right : 0,
       // Read as an attribute rather than through `className`, which is a string on an
       // HTML element and an `SVGAnimatedString` on an SVG one, so the union is untyped.
       className: element.getAttribute("class") ?? "",
@@ -158,7 +172,7 @@ test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
 });
 
-test("558 caps each screen at the width its route asks for, at 1280", async ({ page }) => {
+test("657 caps each screen at the width its own POC draws, at 1280", async ({ page }) => {
   test.setTimeout(300_000);
   totpSecret = await enrollNewAdmin(page, EMAIL);
   // One submitted response, purely so the response-detail route has a subject. It is one
@@ -180,18 +194,63 @@ test("558 caps each screen at the width its route asks for, at 1280", async ({ p
     expect
       .soft(measured.width, `${screen.path} fills the smaller of cap and viewport`)
       .toBe(Math.min(CAP_PX[screen.cap], measured.available));
-    if (screen.cap === "default") {
-      expect
-        .soft(
-          measured.className,
-          `${screen.path} is one of the nine and keeps its exact class attribute`,
-        )
-        .toBe(UNCHANGED_MAIN_CLASS);
-    }
+    // Issue 648, on every screen rather than a sample: the column starts at the left of
+    // the space it has. Where a rail is beside it that is the rail's edge, so the two
+    // systems share one edge down the page instead of reading as two layouts.
+    expect
+      .soft(measured.left, `${screen.path} is left-anchored in the space it has`)
+      .toBe(measured.spaceStartsAt);
+    expect
+      .soft(measured.className, `${screen.path} carries no centring utility`)
+      .not.toContain("mx-auto");
   }
 });
 
-test("558 leaves every screen the same width at 390, because a cap is fluid below itself", async ({
+test("648 puts the wordmark, the nav and the content column on one left edge, at 1280", async ({
+  page,
+}) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.setViewportSize({ width: 1280, height: 900 });
+
+  // The bar itself takes no cap: every POC's `.topbar__inner` has no `max-width` and no
+  // auto margin, so it spans the viewport and its first item starts at the bar's own
+  // inline padding. It carried `mx-auto max-w-5xl` until issue 648, which put the wordmark
+  // ~145px in from the page edge at 1280 while the content column started at 24px.
+  //
+  // A screen with NO rail is the one where the three edges must coincide exactly; on a
+  // railed screen the column deliberately starts at the rail's edge instead, which is
+  // asserted in the sweep above.
+  await page.goto("/webhooks");
+  await expect(page.getByTestId("qcms-rail"), "a screen with no rail").toHaveCount(0);
+
+  const edges = await page.evaluate(() => {
+    const left = (selector: string) => {
+      const element = document.querySelector(selector);
+      return element === null ? Number.NaN : element.getBoundingClientRect().left;
+    };
+    const header = document.querySelector("header");
+    return {
+      wordmark: left(".qcms-wordmark"),
+      navItem: left("header nav a"),
+      main: left("main#main-content"),
+      footer: left("footer"),
+      // The bar spans: its own box reaches both edges of the viewport, so nothing about
+      // this alignment is a 1024px box that happens to sit on the left.
+      barWidth: header === null ? Number.NaN : header.getBoundingClientRect().width,
+      viewport: document.documentElement.clientWidth,
+    };
+  });
+
+  expect(edges.barWidth, "the bar spans the viewport rather than being capped").toBe(
+    edges.viewport,
+  );
+  expect(edges.wordmark, "the wordmark starts at the shared edge").toBe(edges.main);
+  expect(edges.navItem, "the first nav item starts at the shared edge").toBe(edges.main);
+  expect(edges.footer, "and so does the footer").toBe(edges.main);
+});
+
+test("657 leaves every screen the same width at 390, because a cap is fluid below itself", async ({
   page,
 }) => {
   test.setTimeout(300_000);

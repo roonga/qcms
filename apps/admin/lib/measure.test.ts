@@ -12,14 +12,18 @@ import {
 } from "./measure.js";
 
 /**
- * The route-to-cap table is the mechanism, so these are its tests (issue 558).
+ * The route-to-cap table is the mechanism, so these are its tests (issues 558, 648, 657).
  *
- * `plan/admin-ux-audit.md` §6 answers the width question with three values across
- * sixteen screens, and the acceptance asks that adding a seventeenth make its cap an
- * obvious one-line decision. A table only earns that if it cannot fall out of step with
- * the route tree, so the first test here is not about widths at all: it reads the route
- * patterns off the filesystem and requires the table's keys to be exactly that set. A new
- * screen fails this test until someone writes its row, which is the one-line decision.
+ * Each of the sixteen screens takes the cap its own POC draws, and the acceptance asks
+ * that adding a seventeenth make its cap an obvious one-line decision. A table only earns
+ * that if it cannot fall out of step with the route tree, so the first test here is not
+ * about widths at all: it reads the route patterns off the filesystem and requires the
+ * table's keys to be exactly that set. A new screen fails this test until someone writes
+ * its row, which is the one-line decision.
+ *
+ * The values below are restated from the POCs rather than imported from `measure.ts`.
+ * Importing them would make this file agree with the table by construction; written out,
+ * a row that says the wrong thing fails here.
  */
 
 /** The authenticated route group. Everything outside it is unauthenticated chrome. */
@@ -59,28 +63,62 @@ describe("the route-to-cap table", () => {
     expect(Object.keys(MEASURE_BY_ROUTE).sort((a, b) => a.localeCompare(b))).toEqual(routes);
   });
 
-  it("answers the audit's count, less the one screen its own POC re-answered", () => {
-    // Five wide and two narrow are the audit's; the nine were nine until issue 655 moved
-    // Settings onto the 40rem prose cap its POC draws. Eight plus that one is still the
-    // audit's nine, and counting them separately is what makes the move visible here.
-    const measures = Object.values(MEASURE_BY_ROUTE);
-    expect(measures.filter((measure) => measure === "wide")).toHaveLength(5);
-    expect(measures.filter((measure) => measure === "narrow")).toHaveLength(2);
-    expect(measures.filter((measure) => measure === "default")).toHaveLength(8);
-    expect(measures.filter((measure) => measure === "prose")).toHaveLength(1);
-    expect(MEASURE_BY_ROUTE["/settings"]).toBe("prose");
+  it("assigns every route a cap some POC draws, and no route the untraced default", () => {
+    // The clause issue 657 landed on. `default` is Tailwind's `max-w-5xl` and no POC puts
+    // 1024 on anything; it survives only as `measureFor`'s fallback for a path no route
+    // claims. A row that drifts back onto it is a row that has stopped tracing to a
+    // drawing, which is the exact failure this issue existed to fix.
+    expect(Object.values(MEASURE_BY_ROUTE)).not.toContain("default");
   });
 
-  it("assigns the five screens that earn width and the two that must not have it", () => {
-    // Restated from the issue rather than derived from the table, so a wrong row is a
+  it("counts the drawings: six at 1600, four at 640, two at 1080, four singletons", () => {
+    // Restated from the POCs rather than derived from the table, so a wrong row is a
     // failure here instead of a table that agrees with itself.
+    const measures = Object.values(MEASURE_BY_ROUTE);
+    const count = (measure: string) => measures.filter((value) => value === measure).length;
+    expect(count("wide")).toBe(6);
+    expect(count("prose")).toBe(4);
+    expect(count("list")).toBe(2);
+    expect(count("narrow")).toBe(1);
+    expect(count("ops")).toBe(1);
+    expect(count("log")).toBe(1);
+    expect(count("queue")).toBe(1);
+    expect(measures).toHaveLength(16);
+  });
+
+  it("puts the six 1600px screens on the cap their POCs' `.main` carries", () => {
+    // `admin-shell-poc.html`, `links-webhooks-poc.html` (both screens), `responses-poc.html`
+    // (both screens) and the version-history screen of `preview-versions-poc.html`.
     expect(MEASURE_BY_ROUTE["/forms/[formId]"]).toBe("wide");
-    expect(MEASURE_BY_ROUTE["/forms/[formId]/webhooks"]).toBe("wide");
-    expect(MEASURE_BY_ROUTE["/webhooks"]).toBe("wide");
-    expect(MEASURE_BY_ROUTE["/forms/[formId]/versions"]).toBe("wide");
     expect(MEASURE_BY_ROUTE["/forms/[formId]/links"]).toBe("wide");
-    expect(MEASURE_BY_ROUTE["/forms/[formId]/preview"]).toBe("narrow");
-    expect(MEASURE_BY_ROUTE["/forms/[formId]/versions/[version]"]).toBe("narrow");
+    expect(MEASURE_BY_ROUTE["/forms/[formId]/webhooks"]).toBe("wide");
+    expect(MEASURE_BY_ROUTE["/forms/[formId]/responses"]).toBe("wide");
+    expect(MEASURE_BY_ROUTE["/forms/[formId]/responses/[sessionId]"]).toBe("wide");
+    expect(MEASURE_BY_ROUTE["/forms/[formId]/versions"]).toBe("wide");
+  });
+
+  it("takes the inner cap wherever a POC draws one inside its `.main`", () => {
+    // The two-layer reading, stated as its four consequences. Each of these routes' POC
+    // caps `.main` at 1600 or leaves it uncapped, and then caps the screen's own content
+    // narrower; the inner number is what a reader sees, so it is what the route takes.
+    expect(MEASURE_BY_ROUTE["/questions/[questionId]"]).toBe("narrow"); // .editor-column 720
+    expect(MEASURE_BY_ROUTE["/forms/[formId]/preview"]).toBe("prose"); // .respondent-frame 640
+    expect(MEASURE_BY_ROUTE["/forms/[formId]/versions/[version]"]).toBe("prose"); // same frame
+    expect(MEASURE_BY_ROUTE["/responses"]).toBe("ops"); // .ops-inner--responses 900
+    expect(MEASURE_BY_ROUTE["/responses/erasures"]).toBe("log"); // .ops-inner--erasures 1180
+    expect(MEASURE_BY_ROUTE["/webhooks"]).toBe("queue"); // .ops-inner--webhooks 1820
+  });
+
+  it("gives both screens of `settings-newquestion-poc.html` its 40rem `.page-main`", () => {
+    // One POC file, two screens, one cap. `/settings` arrived in issue 655; `/questions/new`
+    // is the screen that file draws beside it and issue 657's own table did not list.
+    expect(MEASURE_BY_ROUTE["/settings"]).toBe("prose");
+    expect(MEASURE_BY_ROUTE["/questions/new"]).toBe("prose");
+  });
+
+  it("gives both screens of `library-lists-poc.html` its 1080px `.main`", () => {
+    expect(MEASURE_BY_ROUTE["/forms"]).toBe("list");
+    expect(MEASURE_BY_ROUTE["/questions"]).toBe("list");
   });
 });
 
@@ -88,16 +126,18 @@ describe("resolving a live pathname to a cap", () => {
   it("fills a dynamic segment with whatever id is in the path", () => {
     expect(measureFor("/forms/frm_auto_quote")).toBe("wide");
     expect(measureFor("/forms/frm_auto_quote/versions")).toBe("wide");
-    expect(measureFor("/forms/frm_auto_quote/versions/3")).toBe("narrow");
-    expect(measureFor("/forms/frm_auto_quote/responses/ses_abc")).toBe("default");
+    expect(measureFor("/forms/frm_auto_quote/versions/3")).toBe("prose");
+    expect(measureFor("/forms/frm_auto_quote/responses/ses_abc")).toBe("wide");
   });
 
   it("prefers a literal segment over a dynamic one, the way Next resolves them", () => {
-    // `/questions/new` matches `/questions/[questionId]` as well; the static route wins,
-    // and both are "default" today, so this is checked on the resolved pattern.
-    expect(measureFor("/questions/new")).toBe("default");
-    expect(measureFor("/questions/q_full_name")).toBe("default");
-    expect(measureFor("/responses/erasures")).toBe("default");
+    // `/questions/new` matches `/questions/[questionId]` as well and the static route wins.
+    // Since issue 657 the two take DIFFERENT caps - a 40rem form and a 720px editor - so
+    // this is now a resolution the rendered width depends on rather than a tie.
+    expect(measureFor("/questions/new")).toBe("prose");
+    expect(measureFor("/questions/q_full_name")).toBe("narrow");
+    expect(measureFor("/responses/erasures")).toBe("log");
+    expect(measureFor("/responses")).toBe("ops");
   });
 
   it("keeps a trailing slash and a query-free path meaning the same route", () => {
@@ -111,39 +151,42 @@ describe("resolving a live pathname to a cap", () => {
 
   it("hands back the class the shell puts on its content column", () => {
     expect(measureClassFor("/settings")).toBe(MEASURE_CLASS.prose);
-    expect(measureClassFor("/webhooks")).toBe(MEASURE_CLASS.wide);
-    expect(measureClassFor("/forms/frm_auto_quote/preview")).toBe(MEASURE_CLASS.narrow);
+    expect(measureClassFor("/webhooks")).toBe(MEASURE_CLASS.queue);
+    expect(measureClassFor("/forms/frm_auto_quote/preview")).toBe(MEASURE_CLASS.prose);
+    expect(measureClassFor("/forms")).toBe(MEASURE_CLASS.list);
   });
 
-  it("left-anchors the one screen whose POC draws it that way, and centres the rest", () => {
-    // `margin: 0`, not `margin: 0 auto`: the POC's own statement, and the difference is
-    // visible only as the absence of `mx-auto`, which is easy to reintroduce by accident.
-    expect(mainClassFor("/settings")).toBe("w-full max-w-measure-prose flex-1 p-6");
-    expect(mainClassFor("/settings").startsWith("mx-auto")).toBe(false);
-    expect(mainClassFor("/webhooks")).toBe("mx-auto w-full max-w-measure-wide flex-1 p-6");
-  });
-
-  it("keeps every other screen's column attribute character for character", () => {
-    // The clause issue 558 landed on: fifteen `<main>` elements must not move because one
-    // of them did. Asserted as the whole attribute rather than as the cap alone, because
-    // the alignment now comes from the same place and could drift on its own.
+  it("left-anchors every screen, because no POC centres one", () => {
+    // `margin: 0`, not `margin: 0 auto`: `settings-newquestion-poc.html`'s own statement,
+    // and all eleven POCs were read for a centring rule on the main column with no hits.
+    // The difference is visible only as the ABSENCE of `mx-auto`, which is easy to
+    // reintroduce by accident, so it is asserted on every route rather than sampled.
     for (const route of Object.keys(MEASURE_BY_ROUTE)) {
-      if (route === "/settings") continue;
-      // A live path for the pattern: every dynamic segment filled with something a route
-      // could actually carry, since `mainClassFor` is asked about pathnames, not patterns.
       const live = route
         .split("/")
         .map((segment) => (segment.startsWith("[") ? "x" : segment))
         .join("/");
-      expect(mainClassFor(live), `${route} is unmoved`).toBe(
-        `mx-auto w-full ${MEASURE_CLASS[MEASURE_BY_ROUTE[route as keyof typeof MEASURE_BY_ROUTE]]} flex-1 p-6`,
+      expect(mainClassFor(live), `${route} is left-anchored`).not.toContain("mx-auto");
+    }
+    expect(mainClassFor("/nothing/here"), "and so is an unknown path").not.toContain("mx-auto");
+  });
+
+  it("composes the cap and the alignment into one attribute per route", () => {
+    expect(mainClassFor("/settings")).toBe("w-full max-w-measure-prose flex-1 p-6");
+    expect(mainClassFor("/webhooks")).toBe("w-full max-w-measure-queue flex-1 p-6");
+    for (const route of Object.keys(MEASURE_BY_ROUTE)) {
+      const live = route
+        .split("/")
+        .map((segment) => (segment.startsWith("[") ? "x" : segment))
+        .join("/");
+      expect(mainClassFor(live), `${route} composes its row`).toBe(
+        `w-full ${MEASURE_CLASS[MEASURE_BY_ROUTE[route as keyof typeof MEASURE_BY_ROUTE]]} flex-1 p-6`,
       );
     }
   });
 
-  it("keeps the unchanged screens on the exact class they already carried", () => {
-    // The nine-screens-render-byte-identically clause, stated where it is cheap to check:
-    // if this string ever drifts, those nine `<main>` elements stop being identical.
+  it("keeps the untraced fallback on Tailwind's own readable measure", () => {
     expect(MEASURE_CLASS.default).toBe("max-w-5xl");
+    expect(mainClassFor("/nothing/here")).toBe("w-full max-w-5xl flex-1 p-6");
   });
 });

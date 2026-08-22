@@ -137,50 +137,73 @@
 }
 
 /*
- * THE MEASURE - the caps a screen's content column can take, issues 558 and 655.
+ * THE MEASURE - the caps a screen's content column can take. Issues 558, 655, 657.
  *
- * `plan/admin-ux-audit.md` §6 asks the width question screen by screen and answers
- * it in three values rather than one: five screens earn width, two need LESS than
- * the app default because they render respondent-facing content (§3.4), and nine
- * keep the readable measure they have. Which value a given route takes is decided
- * in `lib/measure.ts`, in one table; the numbers themselves are here, because a
- * length that decides a layout belongs in the theme with the other lengths.
+ * EVERY NUMBER BELOW IS READ OFF A POC. That is the change issue 657 made and it is
+ * the whole of the change: issue 558 built this mechanism and sourced its values from
+ * `plan/admin-ux-audit.md` §6, which was the authority at the time. Since 2026-08-22
+ * the drawing for a screen is that screen's POC in `plan/admin-shell-poc/`, so each
+ * value here is the cap the POC puts on the content of the screen it draws, and
+ * `lib/measure.ts` names the POC beside every route it assigns.
  *
- *   wide    100rem / 1600px. The POCs' own content cap, on every multi-screen
- *           file that has one (`plan/admin-shell-poc/admin-shell-poc.html`,
- *           `links-webhooks-poc.html`, `rules-screen-poc.html`,
- *           `question-editor-poc.html`, all `.main { max-width: 1600px }`).
- *   prose   40rem / 640px. ONE SCREEN, and it is the number
- *           `plan/admin-shell-poc/settings-newquestion-poc.html` puts on its own
- *           `.page-main`. Settings is prose and two short forms, and the POC says
- *           a readable line length matters there more than room to spread out.
- *           That screen's column is also LEFT-ANCHORED rather than centred, which
- *           is a separate statement the same POC makes and `lib/measure.ts`
- *           carries: `margin: 0`, not `margin: 0 auto`.
- *   narrow  45rem / 720px. DERIVED, not chosen: §5.3 states the rule as "a screen
- *           whose job is to show what a respondent sees inherits the respondent's
- *           measure, not the admin's", and the respondent's measure is the
- *           portal shell's own `max-w-2xl`, 42rem
- *           (`apps/portal/components/portal-shell.tsx`). The shell's `<main>`
- *           carries `p-6` inside its cap, 1.5rem a side, so the page cap that
- *           delivers a 42rem respondent column is 42 + 3 = 45rem.
- *   default 64rem / 1024px. Unchanged, and deliberately still spelled `max-w-5xl`
- *           at the call site rather than re-tokenized: nine screens have to render
- *           byte-identically after this change, and the cheapest way to be sure of
- *           that is for their `<main>` to keep the exact class attribute it had.
- *           The number is Tailwind's own `--container-5xl`.
+ * THE POCs SPECIFY WIDTH IN TWO LAYERS AND THIS APP HAS ONE. A POC caps an outer
+ * `.main` and then, on some screens, caps the content inside it again: the question
+ * editor's `.editor-column` is 720px inside a 1600px `.main`, the preview and version
+ * screens put a 640px `.respondent-frame` inside the same 1600px `.main`, and the
+ * deployment-ops file gives `.main` no cap at all and caps each of its three screens
+ * separately. What a reader of the running app sees is the INNER number wherever there
+ * is one, so that is the number a route takes here. Reproducing the outer layer alone
+ * would spread a 720px editor across 1600px, which no POC draws.
+ *
+ *   prose   40rem / 640px. `settings-newquestion-poc.html`'s `.page-main`, which is
+ *           both of that file's screens (Account, New question). The same 640 is also
+ *           `preview-versions-poc.html`'s `.respondent-frame` - a different argument
+ *           reaching the same number, and its own file says so: 640 is "a respondent's
+ *           reading column", chosen so the frame reads as a device-like inset.
+ *   narrow  45rem / 720px. `question-editor-poc.html`'s `.editor-column`, the single
+ *           child of that file's `.main`. The number is unchanged from issue 558,
+ *           which derived it from the portal's own measure; the POC arrives at the
+ *           same 720 by drawing it, and a drawn number outranks a derived one.
+ *   ops     56.25rem / 900px. `deployment-ops-poc.html`'s `.ops-inner--responses`.
+ *           Its comment: the site-wide responses screen "gets neither a rail nor
+ *           extra width".
+ *   list    67.5rem / 1080px. `library-lists-poc.html`'s `.main`, which is that
+ *           file's Questions screen and its Forms screen.
+ *   log     73.75rem / 1180px. `deployment-ops-poc.html`'s `.ops-inner--erasures`:
+ *           "the erasure log gets a modest increase".
+ *   wide    100rem / 1600px. The `.main` cap of every POC that caps `.main` and puts
+ *           nothing narrower inside it (`admin-shell-poc.html`,
+ *           `links-webhooks-poc.html`, `responses-poc.html`, and the version-history
+ *           screen of `preview-versions-poc.html`).
+ *   queue   113.75rem / 1820px. `deployment-ops-poc.html`'s `.ops-inner--webhooks`:
+ *           the widest thing the design draws, because "a delivery queue with status,
+ *           attempts, latency and error text needs room".
+ *
+ * `default` (64rem, Tailwind's own `max-w-5xl`) is not in this block because it is not
+ * a token and, since issue 657, not an assignment either: no route takes it. It
+ * survives in `lib/measure.ts` as the fallback for a pathname no route claims.
  *
  * NO BREAKPOINT IS INVOLVED, and that is the point. A `max-inline-size` is already
  * a responsive condition: below the cap the column is fluid and every one of these
- * three values renders identically, so "wider at 1280 and above" and "unchanged at
- * 390" both fall out of the cap alone. Writing them as `sidebar:` variants would
- * have made the cap a per-route use of a boundary, which `plan/admin-design-
- * contracts.md` §1 does not have and issue 557 exists to prevent.
+ * values renders identically, so "wider at 1280 and above" and "unchanged at 390"
+ * both fall out of the cap alone. Writing them as `sidebar:` variants would have made
+ * the cap a per-route use of a boundary, which `plan/admin-design-contracts.md` §1
+ * does not have and issue 557 exists to prevent.
+ *
+ * NONE OF THEM CENTRE. Every column these cap is left-anchored (issue 648): eleven
+ * POCs were read for a centring rule on the main column and there is not one, and
+ * `settings-newquestion-poc.html` writes `margin: 0` where `margin: 0 auto` would go.
+ * The alignment is not spelled here because it is not a length; `lib/measure.ts`
+ * composes the whole class attribute and simply never emits `mx-auto`.
  */
 @theme static {
-  --container-measure-wide: 100rem;
-  --container-measure-narrow: 45rem;
   --container-measure-prose: 40rem;
+  --container-measure-narrow: 45rem;
+  --container-measure-ops: 56.25rem;
+  --container-measure-list: 67.5rem;
+  --container-measure-log: 73.75rem;
+  --container-measure-wide: 100rem;
+  --container-measure-queue: 113.75rem;
 }
 
 /*

@@ -20,19 +20,21 @@ import { mainClassFor } from "@/lib/measure";
  * `lib/measure.ts` and renders what it is given, so the sixteen answers stay in one table
  * rather than becoming a condition here.
  *
- * WHY THE TOPBAR AND FOOTER DO NOT FOLLOW. They keep the shell's own `max-w-5xl`.
- * `plan/admin-ux-audit.md` §6 is a question about the content column ("roughly 976px of
- * content after `p-6`"), and the two are separable: the topbar is chrome with its own
- * design card and its own wrapping behaviour, and it is what issue 559's rail replaces.
- * Tying it to the route cap would also make the bar reflow on navigation - narrower on
- * the two preview screens, where five nav items plus the trailing controls would begin to
- * wrap - which is a worse outcome than chrome and content having different measures.
+ * WHY THE TOPBAR AND FOOTER STILL DO NOT FOLLOW THE ROUTE, and what changed anyway. They
+ * take no cap at all now (issue 648): every POC's `.topbar__inner` has no `max-width` and
+ * no auto margin, so the bar spans the viewport and starts at the page's inline padding.
+ * That removes the reason this note used to exist - the bar no longer carries a DIFFERENT
+ * cap from the column, it carries none - while keeping the bar off the route table, which
+ * is still right: tying chrome to the route cap would make the bar reflow on navigation,
+ * narrower on the preview screens, where five nav items plus the trailing controls would
+ * begin to wrap. Chrome that spans and content that is capped share their left edge and
+ * disagree about nothing else.
  */
 export function MeasuredMain({ children }: { readonly children: ReactNode }) {
   const pathname = usePathname();
   // The whole attribute comes from the table, because the cap and the alignment are one
-  // answer per route and only one screen takes a different one on either count (issue 655).
-  // The nine unchanged screens still get `mx-auto w-full max-w-5xl flex-1 p-6`, unmoved.
+  // answer per route: sixteen caps read off sixteen drawings (issue 657) and one alignment
+  // they all share, left, which is expressed as `mx-auto` never being emitted (issue 648).
   return (
     <main id="main-content" className={mainClassFor(pathname)}>
       {children}

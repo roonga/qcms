@@ -193,17 +193,21 @@ test("561 gives every screen the form's steps as its children, never the list it
   ).toBeVisible();
 });
 
-test("561 keeps the two respondent-facing screens on the narrow cap the rail sits beside", async ({
+test("561 keeps the two respondent-facing screens on the narrower cap the rail sits beside", async ({
   page,
 }) => {
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.setViewportSize({ width: 1280, height: 900 });
 
-  // Issue 558 gives the preview and the version detail LESS than the app default, because
-  // both render what a respondent sees and a wider container makes the preview lie
-  // (`plan/admin-ux-audit.md` §3.4). The rail is a sibling of `<main>` rather than a child
-  // of it, so it takes nothing off that measure and is no excuse to widen it either.
+  // The preview and the version detail get LESS than any other screen, because both render
+  // what a respondent sees and a wider container makes the preview lie
+  // (`plan/admin-ux-audit.md` §3.4). Issue 558 spelled that as 720, derived from the
+  // portal's own measure; issue 657 re-read it off the drawing, where it is the 640px
+  // `.respondent-frame` of `plan/admin-shell-poc/preview-versions-poc.html`. The argument
+  // is the one this test was written for and only the number moved. The rail is a sibling
+  // of `<main>` rather than a child of it, so it takes nothing off that measure and is no
+  // excuse to widen it either.
   for (const path of [`/forms/${FORM_ID}/preview`, `/forms/${FORM_ID}/versions/1`]) {
     await page.goto(path);
     await expect(page.getByTestId("qcms-rail")).toBeVisible();
@@ -211,7 +215,7 @@ test("561 keeps the two respondent-facing screens on the narrow cap the rail sit
       cap: Number.parseFloat(getComputedStyle(element).maxWidth),
       width: element.getBoundingClientRect().width,
     }));
-    expect.soft(measured.cap, `${path} still caps at the narrow measure`).toBe(720);
-    expect.soft(measured.width, `${path} is not widened by having a rail`).toBe(720);
+    expect.soft(measured.cap, `${path} caps at the respondent frame's measure`).toBe(640);
+    expect.soft(measured.width, `${path} is not widened by having a rail`).toBe(640);
   }
 });
