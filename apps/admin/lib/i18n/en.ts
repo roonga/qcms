@@ -111,8 +111,6 @@ export const messages = {
   // section, and `current` is the phrase that replaces the `aria-current` a stylesheet
   // cannot set, so the active row is not marked by colour alone.
   "settings.rail.label": "Settings sections",
-  "settings.rail.summaryDefault": "Sections",
-  "settings.rail.current": "Current section",
 
   // The area screens tasks 033-035 replace. Each says what it will hold so the
   // shell is navigable and reviewable now, and so an empty page never reads as a

@@ -3,7 +3,13 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { MEASURE_BY_ROUTE, MEASURE_CLASS, measureClassFor, measureFor } from "./measure.js";
+import {
+  mainClassFor,
+  MEASURE_BY_ROUTE,
+  MEASURE_CLASS,
+  measureClassFor,
+  measureFor,
+} from "./measure.js";
 
 /**
  * The route-to-cap table is the mechanism, so these are its tests (issue 558).
@@ -53,11 +59,16 @@ describe("the route-to-cap table", () => {
     expect(Object.keys(MEASURE_BY_ROUTE).sort((a, b) => a.localeCompare(b))).toEqual(routes);
   });
 
-  it("answers the audit's count: five wide, two narrow, nine unchanged", () => {
+  it("answers the audit's count, less the one screen its own POC re-answered", () => {
+    // Five wide and two narrow are the audit's; the nine were nine until issue 655 moved
+    // Settings onto the 40rem prose cap its POC draws. Eight plus that one is still the
+    // audit's nine, and counting them separately is what makes the move visible here.
     const measures = Object.values(MEASURE_BY_ROUTE);
     expect(measures.filter((measure) => measure === "wide")).toHaveLength(5);
     expect(measures.filter((measure) => measure === "narrow")).toHaveLength(2);
-    expect(measures.filter((measure) => measure === "default")).toHaveLength(9);
+    expect(measures.filter((measure) => measure === "default")).toHaveLength(8);
+    expect(measures.filter((measure) => measure === "prose")).toHaveLength(1);
+    expect(MEASURE_BY_ROUTE["/settings"]).toBe("prose");
   });
 
   it("assigns the five screens that earn width and the two that must not have it", () => {
@@ -99,9 +110,35 @@ describe("resolving a live pathname to a cap", () => {
   });
 
   it("hands back the class the shell puts on its content column", () => {
-    expect(measureClassFor("/settings")).toBe(MEASURE_CLASS.default);
+    expect(measureClassFor("/settings")).toBe(MEASURE_CLASS.prose);
     expect(measureClassFor("/webhooks")).toBe(MEASURE_CLASS.wide);
     expect(measureClassFor("/forms/frm_auto_quote/preview")).toBe(MEASURE_CLASS.narrow);
+  });
+
+  it("left-anchors the one screen whose POC draws it that way, and centres the rest", () => {
+    // `margin: 0`, not `margin: 0 auto`: the POC's own statement, and the difference is
+    // visible only as the absence of `mx-auto`, which is easy to reintroduce by accident.
+    expect(mainClassFor("/settings")).toBe("w-full max-w-measure-prose flex-1 p-6");
+    expect(mainClassFor("/settings").startsWith("mx-auto")).toBe(false);
+    expect(mainClassFor("/webhooks")).toBe("mx-auto w-full max-w-measure-wide flex-1 p-6");
+  });
+
+  it("keeps every other screen's column attribute character for character", () => {
+    // The clause issue 558 landed on: fifteen `<main>` elements must not move because one
+    // of them did. Asserted as the whole attribute rather than as the cap alone, because
+    // the alignment now comes from the same place and could drift on its own.
+    for (const route of Object.keys(MEASURE_BY_ROUTE)) {
+      if (route === "/settings") continue;
+      // A live path for the pattern: every dynamic segment filled with something a route
+      // could actually carry, since `mainClassFor` is asked about pathnames, not patterns.
+      const live = route
+        .split("/")
+        .map((segment) => (segment.startsWith("[") ? "x" : segment))
+        .join("/");
+      expect(mainClassFor(live), `${route} is unmoved`).toBe(
+        `mx-auto w-full ${MEASURE_CLASS[MEASURE_BY_ROUTE[route as keyof typeof MEASURE_BY_ROUTE]]} flex-1 p-6`,
+      );
+    }
   });
 
   it("keeps the unchanged screens on the exact class they already carried", () => {

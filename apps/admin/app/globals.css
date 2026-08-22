@@ -137,7 +137,7 @@
 }
 
 /*
- * THE MEASURE - the three caps a screen's content column can take, issue 558.
+ * THE MEASURE - the caps a screen's content column can take, issues 558 and 655.
  *
  * `plan/admin-ux-audit.md` §6 asks the width question screen by screen and answers
  * it in three values rather than one: five screens earn width, two need LESS than
@@ -150,6 +150,13 @@
  *           file that has one (`plan/admin-shell-poc/admin-shell-poc.html`,
  *           `links-webhooks-poc.html`, `rules-screen-poc.html`,
  *           `question-editor-poc.html`, all `.main { max-width: 1600px }`).
+ *   prose   40rem / 640px. ONE SCREEN, and it is the number
+ *           `plan/admin-shell-poc/settings-newquestion-poc.html` puts on its own
+ *           `.page-main`. Settings is prose and two short forms, and the POC says
+ *           a readable line length matters there more than room to spread out.
+ *           That screen's column is also LEFT-ANCHORED rather than centred, which
+ *           is a separate statement the same POC makes and `lib/measure.ts`
+ *           carries: `margin: 0`, not `margin: 0 auto`.
  *   narrow  45rem / 720px. DERIVED, not chosen: §5.3 states the rule as "a screen
  *           whose job is to show what a respondent sees inherits the respondent's
  *           measure, not the admin's", and the respondent's measure is the
@@ -173,6 +180,7 @@
 @theme static {
   --container-measure-wide: 100rem;
   --container-measure-narrow: 45rem;
+  --container-measure-prose: 40rem;
 }
 
 /*
@@ -2308,93 +2316,62 @@ button {
 }
 
 /* ===========================================================================
-   THE SETTINGS RAIL - `plan/admin-design-contracts.md` §7a, issue 562.
+   THE SETTINGS RAIL AND ITS PANELS - issue 655, built to
+   `plan/admin-shell-poc/settings-newquestion-poc.html`.
 
-   A SECOND, NARROWER RAIL, NOT THE ONE ABOVE. §7's rail navigates between
-   ROUTES and never carries a same-page section switch; Settings is one route,
-   so its rail can only carry same-page section switches. The ruling that kept a
-   rail here made it an exception in writing rather than a third contract by
-   accident, and named the four things the two share: the grid column, the 240px
-   width, the `--bp-sidebar` collapse behaviour and anchors-not-buttons. Those
-   four are the `qcms-rail*` block above, which knows nothing about what a rail
-   carries. Everything below is §7a's alone.
+   A SECOND, NARROWER RAIL, NOT THE ONE ABOVE. The rail above navigates between
+   ROUTES. Settings is one route, so its rail switches which PANEL of that route
+   is on screen. The two share the grid column, the 240px width and the
+   `--bp-sidebar` collapse behaviour, which are the `qcms-rail*` rules above and
+   know nothing about what a rail carries. Everything below is this screen's own.
 
-   WHY THE CURRENT-ROW DECLARATIONS ARE RESTATED RATHER THAN ADDED TO §7's
-   SELECTOR LIST. Joining them would make one rule the place where both rails'
-   active marks are decided, and the next change to either would have to be
-   argued as a change to both. Four duplicated declarations is the cheaper side
-   of that trade, and it is the same trade the two components make.
+   THE POC SWITCHES PANELS WITH A SCRIPT AND SO DOES THIS SCREEN. The rows are
+   buttons, the active row is marked with `aria-current="page"` set by React, and
+   the two panels that are not showing carry `hidden`. Nothing here is conditional
+   on a stylesheet knowing which section is current, which is what the `:target`
+   machinery this replaces existed to arrange. `docs/admin-constraints.md` says
+   what binds this app: the POCs are the design, and JavaScript is available.
 
-   WHY `:target` AND NOT A SCRIPT. The active section is the fragment in the URL,
-   which is never sent to a server, so no server component can know it - and the
-   rail must work with JavaScript disabled, so no client component may be what
-   decides it. `:target` is the platform's own answer to "which fragment is
-   current" and costs nothing. It deliberately does not follow the scroll: a
-   scroll spy needs script, and it would assert a section the reader never chose.
+   WHY THE CURRENT-ROW DECLARATIONS ARE RESTATED RATHER THAN LEANT ON. The shared
+   block above already has a `[aria-current="page"]` rule, and taking it would
+   make one rule the place where both rails' active marks are decided, so the next
+   change to either would have to be argued as a change to both. Four duplicated
+   declarations is the cheaper side of that trade, and it is the same trade the
+   two components make. ==================================================== */
 
-   THE ID LIST BELOW IS DUPLICATED FROM `lib/settings-sections.ts` because CSS
-   cannot interpolate one. `lib/settings-sections.test.ts` reads this file and
-   fails when the two disagree in either direction, so the duplication is a
-   checked invariant rather than a hazard. ==================================== */
-
-/* The section a rail row lands on. The topbar is sticky, so a fragment jump that
-   scrolled the heading to y=0 would park it underneath. */
-.qcms-settings-section {
-  scroll-margin-block-start: 4.5rem;
-}
-
-/* One name per section plus a fallback, all in the DOM, exactly one displayed.
-   `display: none` rather than a visual hide, so the other three are out of the
-   accessibility tree and the collapsed summary names one section, not four. */
-.qcms-settings-rail__summary-name {
-  display: none;
-}
-.qcms-settings-rail__summary-name[data-settings-summary=""] {
-  display: inline;
-}
-.qcms-shell-body:has(.qcms-settings-section:target)
-  .qcms-settings-rail__summary-name[data-settings-summary=""] {
-  display: none;
-}
-.qcms-shell-body:has(#account:target) [data-settings-summary="account"],
-.qcms-shell-body:has(#change-password:target) [data-settings-summary="change-password"],
-.qcms-shell-body:has(#two-factor:target) [data-settings-summary="two-factor"] {
-  display: inline;
-}
-
-/* The visually-hidden phrase that says "current" to a screen reader, since a
-   stylesheet cannot set `aria-current`. Out of the tree entirely until its row
-   is the target, so exactly one row ever announces it. `position: relative` on
-   the row gives the absolute span a containing block inside the rail rather than
-   on the page. */
+/* A row here is a BUTTON wearing the shared row geometry, so the control chrome
+   the anchor never had is taken off: the user-agent border on three sides (the
+   inline-start edge is kept, because that is what the active mark paints), the
+   button background, the centred text and the button font. */
 .qcms-settings-rail__link {
-  position: relative;
-}
-.qcms-settings-rail__current {
-  display: none;
-}
-.qcms-shell-body:has(#account:target)
-  .qcms-settings-rail__link[href="#account"]
-  .qcms-settings-rail__current,
-.qcms-shell-body:has(#change-password:target)
-  .qcms-settings-rail__link[href="#change-password"]
-  .qcms-settings-rail__current,
-.qcms-shell-body:has(#two-factor:target)
-  .qcms-settings-rail__link[href="#two-factor"]
-  .qcms-settings-rail__current {
-  display: block;
+  inline-size: 100%;
+  border-block: 0;
+  border-inline-end: 0;
+  background-color: transparent;
+  font-family: inherit;
+  text-align: start;
+  cursor: pointer;
+  appearance: none;
 }
 
-/* The visible half of the same statement. Never colour alone: the accent edge
-   and the heavier weight carry it too, which is what keeps it readable in high
-   contrast where the tint collapses into the surface. */
-.qcms-shell-body:has(#account:target) .qcms-settings-rail__link[href="#account"],
-.qcms-shell-body:has(#change-password:target) .qcms-settings-rail__link[href="#change-password"],
-.qcms-shell-body:has(#two-factor:target) .qcms-settings-rail__link[href="#two-factor"] {
+/* Never colour alone: the accent edge and the heavier weight carry the same
+   statement `aria-current` makes to a screen reader, which is what keeps this
+   readable in high contrast where the tint collapses into the surface. */
+.qcms-settings-rail__link[aria-current="page"] {
   border-inline-start-color: var(--color-primary);
   background-color: var(--color-info-subtle);
   color: var(--color-info-fg);
   font-weight: 700;
+}
+
+/* The two panels that are not showing, and this rule is load-bearing rather than
+   a restatement of the browser default. The `[hidden]` rule the framework's reset
+   ships is written with `:where()`, which gives it zero specificity, so a single
+   utility class on the same element would out-specify it and leave a "hidden"
+   panel on screen. An id-free class plus the attribute settles it in one place
+   rather than by keeping utilities off these three elements forever. */
+.qcms-settings-panel[hidden] {
+  display: none;
 }
 
 /* Standard clip-rect visually hidden utility: present for assistive tech,

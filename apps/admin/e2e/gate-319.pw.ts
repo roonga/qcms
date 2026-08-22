@@ -54,7 +54,9 @@ for (const mode of CAPTURE_MODES) {
     await submitTotp(page, totpSecret);
     await page.waitForURL(/\/questions$/);
 
-    await page.goto("/settings");
+    // The recovery-codes form is on the two-factor PANEL, and Settings shows one panel at a
+    // time (issue 655), so the panel is selected by fragment before the form is used.
+    await page.goto("/settings#two-factor");
     await expect(page.getByLabel("Your password")).toBeVisible();
     await capture(page, `settings-recovery-codes-${mode}`);
 
@@ -77,7 +79,7 @@ test("captures the one-time display reached by regenerating", async ({ page }) =
   await submitTotp(page, totpSecret);
   await page.waitForURL(/\/questions$/);
 
-  await page.goto("/settings");
+  await page.goto("/settings#two-factor");
   await fillStable(page.getByLabel("Your password"), TEST_PASSWORD);
   await page.getByRole("button", { name: "Generate new recovery codes" }).click();
   await expect(page).toHaveURL(/\/two-factor\/recovery-codes$/);
