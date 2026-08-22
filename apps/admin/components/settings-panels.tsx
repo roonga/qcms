@@ -24,9 +24,9 @@ import {
  * carry `hidden` - out of the layout and out of the accessibility tree, not merely scrolled
  * past - and the rail is the only way between them.
  *
- * **This requires JavaScript and adds no fallback.** The POC switches panels with a script,
- * that is the approved design, and the no-script floor is the respondent portal's constraint
- * rather than this app's.
+ * **This requires JavaScript and adds no fallback.** The POC switches panels with a script and
+ * that is the approved design; `docs/admin-constraints.md` states plainly that JavaScript is
+ * available here and that a design may depend on it.
  *
  * ## The heading names the section, not the screen
  *

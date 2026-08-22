@@ -30,14 +30,14 @@ import { SETTINGS_SECTIONS } from "@/lib/settings-sections";
  * `<button onclick="showSettingsPanel(...)">`, moves `aria-current="page"` onto the row that
  * was pressed, shows that section's panel and hides the other two. That is the approved
  * design and it is what this renders. **It requires JavaScript and there is no fallback.**
- * The no-script floor belongs to the respondent portal, which is a different app with a
- * different audience; nothing in the admin has ever had a reason to inherit it, and issue
- * 655 exists because this screen was built as though it did.
+ * `docs/admin-constraints.md` is explicit on both halves of that: the POCs are the design,
+ * and "JavaScript is available and a design may depend on it". Issue 655 exists because this
+ * screen was built as though a no-script floor bound it.
  *
- * The rows are buttons rather than anchors because a section here is not a destination. It
- * is a switch on the screen the reader is already standing on: there is nothing to open in a
- * new tab, nothing to bookmark that a fragment does not already say, and a `next/link` would
- * re-render the screen under a half-typed password field.
+ * The rows are buttons rather than anchors for the reason the same document gives: "an anchor
+ * navigates, a button acts", and a section here is not a destination. It is a switch on the
+ * screen the reader is already standing on, so there is nothing to open in a new tab, and a
+ * `next/link` would re-render the screen under a half-typed password field.
  *
  * ## The active row, and why the mark is not colour alone
  *
@@ -48,7 +48,8 @@ import { SETTINGS_SECTIONS } from "@/lib/settings-sections";
  *
  * Visually the mark is a tint, an accent edge and a heavier weight (`app/globals.css`), so it
  * survives high contrast where the tint collapses into the surface and it never rests on
- * colour alone (WCAG 2.2 AA, SC 1.4.1).
+ * colour alone. WCAG 2.2 AA is an aim rather than a gate here (`docs/admin-constraints.md`),
+ * and this is the cheap end of it: the POC draws the mark this way regardless.
  *
  * ## The summary says "Settings"
  *

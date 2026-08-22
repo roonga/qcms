@@ -2329,8 +2329,8 @@ button {
    buttons, the active row is marked with `aria-current="page"` set by React, and
    the two panels that are not showing carry `hidden`. Nothing here is conditional
    on a stylesheet knowing which section is current, which is what the `:target`
-   machinery this replaces existed to arrange. The no-script floor belongs to the
-   respondent portal, not to this app.
+   machinery this replaces existed to arrange. `docs/admin-constraints.md` says
+   what binds this app: the POCs are the design, and JavaScript is available.
 
    WHY THE CURRENT-ROW DECLARATIONS ARE RESTATED RATHER THAN LEANT ON. The shared
    block above already has a `[aria-current="page"]` rule, and taking it would

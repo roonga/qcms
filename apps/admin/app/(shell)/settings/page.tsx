@@ -41,9 +41,9 @@ import { SETTINGS_HEADING_ID, settingsSectionFromParams } from "@/lib/settings-s
  * stacking all three in one scroll was hiding that". Before this change all three were
  * stacked in one scroll, which is what issue 655 exists to correct.
  *
- * The switch needs JavaScript and **no fallback is provided**. The no-script floor belongs to
- * the respondent portal, a different app with a different audience; this screen was
- * previously built as though the admin inherited it, and it does not.
+ * The switch needs JavaScript and **no fallback is provided**. `docs/admin-constraints.md`
+ * settles it: the POCs are the design, and JavaScript is available here. This screen was
+ * previously built as though a no-script floor bound the admin, and none does.
  *
  * This page stays a server component: it reads the session and renders the three panel
  * bodies, and `components/settings-panels.tsx` is the only client piece, deciding which one
