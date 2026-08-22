@@ -787,10 +787,14 @@ table.qgrid { width: 100%; min-width: 860px; border-collapse: collapse; font-siz
         </ol>
       </nav>
       <!-- The heading names the RESPONSE, with the form carried only as breadcrumb context
-           above - the shipped page's h1 currently renders the form slug here instead
-           (forms.builder.heading = "{slug}", reused by every tab including this one), which
-           reads as "what form is this" rather than "what response is this". This POC is the
-           corrected version: do not regress it back to the slug. -->
+           above. Two responses of one form would otherwise be two pages with identical
+           headings, and the one landmark heading a screen reader user relies on has to
+           answer "what response is this" rather than "what form is this".
+           History, not a live warning: the shipped h1 did render the form slug here when
+           this POC was drawn, and issue #510 fixed that on 2026-08-21 (PR #539). The rule
+           and the guard against regressing it now live in the shipped
+           apps/admin/components/forms/form-page-header.tsx docblock and its tests, which
+           is where a regression can actually fail. -->
       <h1 class="page-heading">Response <code>ses_8f2a1c9d4e07b31a</code></h1>
 
       <div class="switcher switcher--local" role="group" aria-label="Detail state, viewer aid">

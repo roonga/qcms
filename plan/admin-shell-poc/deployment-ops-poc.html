@@ -272,8 +272,12 @@ h3.ops-subheading { font-size: 0.88rem; font-weight: 700; margin: 0 0 0.4rem; co
 
 /* The frozen data-table card (plan/admin-theme/ds-table.html): real <table>, uppercase
    header row with a 2px strong bottom border, 44px rows, tabular figures, alternating
-   row shading and a hover state. An audit found none of the app's nine shipped tables
-   actually followed this card - every table in this file does. */
+   row shading and a hover state. Every table in this file follows it. History, not a live
+   warning: an audit found none of the app's nine shipped tables followed the card, and
+   issue #514 put them all on one .qcms-table family on 2026-08-21 (PR #571,
+   apps/admin/app/globals.css). Where that family and this card disagree, section 2 of
+   plan/admin-design-contracts.md is the authority, so read it before carrying a property
+   across. */
 .ops-table-card { border: 1px solid var(--color-border); border-radius: var(--radius-card);
   background: var(--color-surface); overflow: hidden; margin-bottom: 1.1rem; }
 .ops-table-card:last-child { margin-bottom: 0; }
