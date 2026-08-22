@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { portalBaseUrl, secureCookies } from "./config";
 import { ApiError, type SubmitResponse } from "./api";
+import { logOriginBeltRefusal } from "./origin-belt-log";
 
 /**
  * Shared BFF route-handler helpers (task 029). Still strict-BFF duty only:
@@ -22,6 +23,20 @@ import { ApiError, type SubmitResponse } from "./api";
  * own base URL. A request with neither is refused rather than assumed friendly.
  *
  * Returns `true` when the request may proceed.
+ *
+ * ## Refusing writes exactly one log line
+ *
+ * A refusal returns before any API call, so for a long time it produced no `api.call`
+ * line and no error line either: the only server-side evidence of a locked-out
+ * respondent was the *absence* of a line, which cannot be counted (issue #578).
+ * `logOriginBeltRefusal` closes that. The call is here rather than at the four route
+ * handlers on purpose - this function is the single choke point every state-changing
+ * handler must pass through (`scripts/check-origin-guards.test.ts` derives them from
+ * disk and fails if one does not), so one line per refusal, and no line on an
+ * admitted request, are properties of this seam rather than of whoever edits a route
+ * next. It costs the function its purity, which is the trade this docblock is making
+ * explicit. It records classifications only, never a header value: see
+ * `./origin-belt-log.ts` for why every field it emits is a constant.
  *
  * ## Why `Sec-Fetch-Site` is read first, and the `Origin` fallback is nearly dead
  *
@@ -64,6 +79,19 @@ import { ApiError, type SubmitResponse } from "./api";
  * turn into a red.
  */
 export function isSameOriginPost(request: Request): boolean {
+  const allowed = admitsAsSameOrigin(request);
+  if (!allowed) logOriginBeltRefusal(request);
+  return allowed;
+}
+
+/**
+ * The belt's decision, unchanged and still pure.
+ *
+ * Split out so {@link isSameOriginPost} can log a refusal exactly once without the
+ * decision itself growing a side effect: every `return false` in here is one refusal,
+ * whichever branch reached it.
+ */
+function admitsAsSameOrigin(request: Request): boolean {
   const fetchSite = request.headers.get("sec-fetch-site");
   if (fetchSite !== null) return fetchSite === "same-origin" || fetchSite === "none";
   const origin = request.headers.get("origin");

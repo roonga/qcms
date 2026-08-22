@@ -331,8 +331,14 @@ backward-compatible migration lets you roll back images alone.
   typed answers gone.
 
 In both cases the form is published and other respondents are completing it normally, and
-**nothing in the portal's logs looks like an error**, because nothing was logged at all:
-the request was refused before it reached the API, and the refusal path writes no log line.
+**nothing in the portal's logs looks like an error**: the request was refused before it
+reached the API, so there is no failed `api.call` and no exception anywhere. There is a
+line for it, though, and it is the first thing to look for:
+
+```
+grep 'origin.belt.refused' <portal stdout>
+```
+
 The respondent is on an old browser in both cases.
 
 **Cause.** The portal's four state-changing BFF routes carry a CSRF belt (SEC-9,
@@ -437,11 +443,10 @@ under a respondent's session cannot be unmade.
    version, and on an iPhone or iPad for their iOS version, then compare against the list
    above. A modern browser hitting the same symptom is a different fault.
 2. **Tell the two entry-page failures apart in your logs.** `/f/{slug}?state=error` is also
-   where a genuine API failure lands, and the two are distinguishable: an API failure
-   always writes an `api.call` line to the portal's stdout carrying a non-2xx `status`,
-   while a belt refusal writes nothing, because it never calls the API. So an ingress
-   access log showing `POST /f/{slug}/start` answered 303, followed by
-   `GET /f/{slug}?state=error`, with **no** `api.call` line for that request, is the belt.
+   where a genuine API failure lands, and the two are distinguishable by which line the
+   portal wrote: an API failure writes an `api.call` line carrying a non-2xx `status`, a
+   belt refusal writes an `origin.belt.refused` line and never calls the API at all. Read
+   the refusal line's fields (below) to tell the old browser from the forged request.
 3. **Send them a secure link.** This is the one workaround that needs nothing from the
    respondent, and it works because `/l/{token}` is a GET the belt does not cover. A
    respondent blocked at anonymous entry will start fine from a secure link, and unless
@@ -458,13 +463,49 @@ under a respondent's session cannot be unmade.
    adopted in advance. A deployment that recruits respondents in one of the concentrated
    regions above is exactly the evidence that would move it.
 
-**Known gap: the refusal is not observable from the application.** None of the four route
-handlers logs when the belt refuses, and the portal's only application log line is
-`api.call` for outbound API calls, which a refused request never reaches. The absence
-described in step 2 is currently the whole of the server-side signal. A structured log line
-or a counter on the refusal path is a candidate improvement, bounded by SEC-13: whatever it
-records must be a route template and a reason, never an address, an answer value or a
-header value copied verbatim.
+#### The refusal line
+
+Every belt refusal writes exactly one `warn` line to the portal's stdout, and an admitted
+request writes none, so a count of these lines is a count of refused requests. One line per
+refusal is a property of the belt itself rather than of the four route handlers, so a route
+added later is covered without anyone remembering to instrument it.
+
+```json
+{"level":"warn","time":"...","service":"qcms-portal","beltRoute":"/f/{formSlug}/start",
+ "beltFetchSite":"absent","beltOrigin":"null","beltOutcome":"redirect-to-entry",
+ "msg":"origin.belt.refused"}
+```
+
+| Field | What it holds |
+| --- | --- |
+| `beltRoute` | Which route refused, as a path template: `/f/{formSlug}/start`, `/s/{sessionId}/answers`, `/s/{sessionId}/step` or `/s/{sessionId}/submit` |
+| `beltFetchSite` | How `Sec-Fetch-Site` read: `absent`, `same-site`, `cross-site`, or `other` for a token that is not one of the spec's four |
+| `beltOrigin` | How `Origin` read against the portal's own base URL: `absent`, `null`, `mismatch`, or `unverifiable` if `QCMS_PORTAL_BASE_URL` could not be read |
+| `beltOutcome` | What the respondent got: `redirect-to-entry` (the "This form is not available" page), `redirect-to-step` (bounced back to the same step) or `forbidden` (a 403 to a hydrated `fetch()`) |
+
+**Reading the two signals together is the point.** They separate the old browser from the
+forged request, which is the distinction the absence of a log line could never make:
+
+- `beltFetchSite: "absent"` with `beltOrigin: "null"` or `"absent"` is a **browser that
+  sends no Fetch Metadata**: the population this whole runbook is about. On
+  `/f/{formSlug}/start` or `/s/{sessionId}/step` that is almost certainly a real
+  respondent who is now stuck.
+- `beltFetchSite: "cross-site"` or `beltOrigin: "mismatch"` is a request that **named a
+  foreign origin**. That is a forged POST or a misconfigured embed, and the belt did
+  exactly its job.
+
+**Measuring your own rate.** The accepted global floor is about 1.6% (see the estimate
+above), but it is a global figure and not a measurement of your respondents. Count
+`origin.belt.refused` lines with `beltFetchSite: "absent"` on `/f/{formSlug}/start`
+against successful starts over the same window, and you have your deployment's actual
+rate. That number is the evidence that would move the trade-off recorded in issue #504.
+
+**What the line deliberately does not carry** (SEC-13). Every field above is a value from
+a closed vocabulary chosen by the request, never a value written by it: no session id, no
+form slug, no address, no answer, and no header value copied verbatim. `Origin` in
+particular is attacker-controlled, so it is classified into the four outcomes in the table
+and never recorded. A refusal line is therefore safe to ship to a log aggregator, and it
+survives the OTLP export allowlist intact rather than collapsing to `application.event`.
 
 ### Webhook dead-letters
 
