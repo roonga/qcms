@@ -122,7 +122,7 @@ draws the editor half, and the rest is a link list, a preview and the shared chr
 
 ## Interactions - question detail
 
-- Arrive → the slug anchor in the list `table`, or a pasted `/questions/{id}?v={n}` link, which is the point of the version being in the address.
+- Arrive → the questionId anchor in the list `table`'s identifying cell (`apps/admin/components/questions/questions-table.tsx:90-98`), or a pasted `/questions/{id}?v={n}` link, which is the point of the version being in the address.
 - Load → `GET /admin/questions/{id}` (021) for the question and every version, then `GET /admin/questions/{id}/versions/{v}/preview` (021) for the selected version's document (`:71,83`).
 - Select a version → a `?v=` navigation on this route. No new read of the question; the timeline and the editor re-render against the version already in hand, and the preview is read for the new version.
 - Save draft → `saveDraftAction` → `PUT /admin/questions/{id}/versions/{v}` (021), which 409s on a published version. Revalidates this route and the list (`app/(shell)/questions/actions.ts:126-147`).

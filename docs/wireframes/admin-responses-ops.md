@@ -38,6 +38,17 @@
 > in-flight/succeeded`), because they are states of that screen and of no other. They stay
 > in this file rather than becoming files of their own because they render these API slices
 > and each is the way into the per-form screen beside it.
+>
+> **Ridden along in the same change (issue #646).** The response detail screen's inventory
+> below named a `section tabs` region and listed `tabs` in two of its states. `FormTabs` was
+> deleted when issue #561 gave every form-scoped screen the §7 rail, so those three lines
+> described a component that no longer exists. They are corrected here rather than left,
+> because this change makes `docs/wireframes/admin-shell.md` state that all eight
+> form-scoped screens carry the rail, and one folder cannot hold both claims. The sibling
+> line in `docs/wireframes/admin-publish-preview.md` is **not** touched here: it is being
+> corrected on the #614 branch, which is rewriting that screen's States.
+
+
 
 ## ASCII sketch - two screens: response browser, response detail
 
@@ -100,7 +111,7 @@ illustrative, and the inventories here are what binds.
 
 - **`breadcrumb`**: Forms > the form's slug > Responses. The form is this screen's **context**, not its subject (screen scope rule, `docs/wireframes/README.md`). Rendered by the shared `FormPageHeader` (`apps/admin/components/forms/form-page-header.tsx:45-53`), so the last crumb names the section rather than the response.
 - **page heading**: **one `h1`, naming the response** - `Response {sessionId}` (`ops.detail.heading`), passed by the route as a heading override on **both** of its branches, the live response and the tombstone (`.../responses/[sessionId]/page.tsx:71,94,112-121`). Not the form's slug: two responses of one form are two screens, and the slug gave them the same heading (#510). It carries the id `RESPONSE_HEADING_ID` and `tabIndex={-1}` (`form-page-header.tsx:56-62`). An erased session is still the session an operator has in a ticket, so its tombstone takes the same heading.
-- **identity line** and **section `tabs`**: `formId`, open/closed status, and the form's section nav with Responses current (`form-page-header.tsx:63-69`).
+- **identity line**: `formId` and open/closed status `text`, shared with every other form section (`form-page-header.tsx:71-76`). **No section `tabs`**: this entry named `FormTabs`, an in-header `<nav>` of the form's six sibling routes, and issue #561 deleted that component when the §7 rail took the same six links into the column beside the content. The form's section nav is the rail's now, and the rail is a sibling of the capped content column rather than a region inside it (`docs/wireframes/admin-shell.md`, the rail bullet). Corrected here as a same-area rider on issue #612, which is rewriting this file's other inventories; **#646** filed it.
 - **back link**: `Back to responses` -> `/forms/{id}/responses`, on both branches (`.../responses/[sessionId]/page.tsx:73-75,96-98`).
 - **detail body** (`ResponseDetail`, `apps/admin/components/ops/response-detail.tsx`): a `section` labelled by the page `h1` rather than repeating it (`:191-199`). It contains, in order:
   - **action feedback `alert`s**: the erasure outcome (error or success) and the unflag outcome. Deliberately **not** a live region here: the erasure revalidates the route and this subtree unmounts, taking any region with it, so the announcement is made into the shell's region instead and these alerts exist to put the message beside the state that produced it (`:201-214`, issue #355).
@@ -116,9 +127,9 @@ illustrative, and the inventories here are what binds.
 
 - **submitted response** - summary, answers, ledger, erasure door.
 - **flagged response** - the flag panel above the answers, with the unflag action.
-- **erased response (tombstone)** - reached both by opening the URL of an already-erased session and by erasing in place; the heading, breadcrumb, tabs and back link are unchanged, and the body is the tombstone.
+- **erased response (tombstone)** - reached both by opening the URL of an already-erased session and by erasing in place; the heading, breadcrumb, identity line, rail and back link are unchanged, and the body is the tombstone.
 - **captions unresolved** - the version read failed, the warning `alert` shows, and the answers are captioned by questionId. The screen still renders: an id is honest, and an unopenable audit view is worse than an unlabelled one.
-- **response read failed** (a non-404 error) - the breadcrumb, `h1`, identity line, tabs and back link **stay**, and the error `alert` replaces the body (`.../responses/[sessionId]/page.tsx:54-83`). Worth noting against the version detail screen's failed read, which drops the chrome instead; the two are inconsistent today and this file records rather than reconciles it.
+- **response read failed** (a non-404 error) - the breadcrumb, `h1`, identity line, rail and back link **stay**, and the error `alert` replaces the body (`.../responses/[sessionId]/page.tsx:54-83`). Worth noting against the version detail screen's failed read, which drops the chrome instead; the two are inconsistent today and this file records rather than reconciles it.
 - **unknown session with no tombstone** - 404. A `RESPONSE_NOT_FOUND` is checked against the erasure log first, because a URL from a ticket is most often an erased session rather than a wrong one (`:59-63,158-172`).
 - **erase confirm (typed)** · **erase succeeded** · **erase found the session already erased** · **erase failed** (the alert, the session unchanged).
 - **unflag confirm** · **event released** · **nothing to release** · **unflag failed**.
