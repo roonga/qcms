@@ -32,6 +32,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  * portal's own no-JS form path sends, and also what an attacker's page sends if it
  * declares the same policy, so it must be refused rather than read as "local".
  * `Sec-Fetch-Site` is what separates the two, which is why it is read first.
+ *
+ * ## The refusal is also asserted to be observable (issue #578)
+ *
+ * Every refusal case below additionally pins that the belt wrote **exactly one** log
+ * line, and every admitted case pins that it wrote none. Exactly-one rather than
+ * at-least-one because a duplicated line on any route would silently double an
+ * operator's refusal count, and the count is the whole reason the line exists.
+ *
+ * The capture is a **real** `createJsonLogger` writing into an array, not a spy on the
+ * logger interface: the assertions then read the serialized line the portal's stdout
+ * would carry, so they see the SEC-8 redaction pass as well as the fields the caller
+ * chose. A spy would assert what the belt *asked* to log, which is the weaker claim.
  */
 
 const PORTAL_BASE = "https://forms.qcms.test";
@@ -99,6 +111,50 @@ vi.mock("next/headers", () => ({
   cookies: () => Promise.resolve({ get: () => undefined, set: () => undefined }),
 }));
 
+/**
+ * The portal's stdout, captured. `vi.hoisted` because the `vi.mock` factory below is
+ * lifted above every other statement in this file, so an ordinary `const` would not
+ * exist yet when the factory runs.
+ */
+const { emitted } = vi.hoisted(() => ({ emitted: [] as string[] }));
+
+/**
+ * The one substitution: the logger's **sink**, not the logger. `createJsonLogger` is
+ * the real one, so redaction, field ordering and serialization all run exactly as they
+ * do in the portal, and `emitted` holds the very lines an operator would grep.
+ */
+vi.mock("./logger", async () => {
+  const { createJsonLogger } = await import("@qcms/observability/logger");
+  return {
+    serverLogger: createJsonLogger({
+      base: { service: "qcms-portal" },
+      write: (line: string) => emitted.push(line),
+    }),
+  };
+});
+
+beforeEach(() => {
+  emitted.length = 0;
+});
+
+/**
+ * The refusal outcome read back off a real refusal response, in the same vocabulary
+ * the log line uses. Derived from the wire rather than from the route table, so that
+ * comparing the two says something.
+ */
+function outcomeOnTheWire(response: Response): string {
+  if (response.status === 403) return "forbidden";
+  const location = new URL(response.headers.get("location") ?? "", PORTAL_BASE);
+  return location.pathname.startsWith("/f/") ? "redirect-to-entry" : "redirect-to-step";
+}
+
+/** The refusal lines written since the last test started, parsed. */
+function refusalLines(): Record<string, unknown>[] {
+  return emitted
+    .map((line) => JSON.parse(line) as Record<string, unknown>)
+    .filter((line) => line["msg"] === "origin.belt.refused");
+}
+
 /*
  * The `@/` alias is a tsconfig path that Next resolves and Vitest does not, so a route
  * module imported here cannot load its own dependencies by that specifier. These four
@@ -127,6 +183,12 @@ interface OriginCase {
   readonly name: string;
   readonly headers: Record<string, string>;
   readonly allowed: boolean;
+  /**
+   * How the refusal line must classify these headers. Required on every refused case
+   * and absent on every admitted one, which is checked below: a refused case that
+   * forgot its expectation would otherwise assert only that *some* line was written.
+   */
+  readonly logged?: { readonly beltFetchSite: string; readonly beltOrigin: string };
 }
 
 const ORIGIN_CASES: readonly OriginCase[] = [
@@ -144,16 +206,19 @@ const ORIGIN_CASES: readonly OriginCase[] = [
     name: "Sec-Fetch-Site: cross-site with a foreign Origin (the forged POST)",
     headers: { "sec-fetch-site": "cross-site", origin: "https://evil.example" },
     allowed: false,
+    logged: { beltFetchSite: "cross-site", beltOrigin: "mismatch" },
   },
   {
     name: "Sec-Fetch-Site: same-site (a sibling subdomain, not us)",
     headers: { "sec-fetch-site": "same-site", origin: "https://other.qcms.test" },
     allowed: false,
+    logged: { beltFetchSite: "same-site", beltOrigin: "mismatch" },
   },
   {
     name: "a foreign Origin and no Fetch Metadata (a client that sends neither)",
     headers: { origin: "https://evil.example" },
     allowed: false,
+    logged: { beltFetchSite: "absent", beltOrigin: "mismatch" },
   },
   {
     name: "our own Origin and no Fetch Metadata (the hydrated fetch() path)",
@@ -164,11 +229,15 @@ const ORIGIN_CASES: readonly OriginCase[] = [
     name: "Origin: null and no Fetch Metadata (Referrer-Policy: no-referrer, either side)",
     headers: { origin: "null" },
     allowed: false,
+    // The shape that separates the honest old browser from the forgery: no Fetch
+    // Metadata at all, and the `null` origin the portal's own no-JS form produces.
+    logged: { beltFetchSite: "absent", beltOrigin: "null" },
   },
   {
     name: "neither header (fails closed rather than assuming friendly)",
     headers: {},
     allowed: false,
+    logged: { beltFetchSite: "absent", beltOrigin: "absent" },
   },
 ];
 
@@ -182,6 +251,15 @@ interface GuardedRoute {
   readonly reached: () => (typeof api)[keyof typeof api];
   /** What the refusal looks like on the wire, beyond having changed nothing. */
   readonly assertRefusal: (response: Response) => void | Promise<void>;
+  /**
+   * The route template the refusal line must carry, and the outcome it must name.
+   *
+   * `beltOutcome` is asserted here, beside `assertRefusal`, on purpose: the belt runs
+   * before the handler builds its response, so the outcome is derived from the route
+   * rather than observed, and the two would otherwise be free to drift. Asserting the
+   * real response and the logged claim about it in one case makes a drift a red.
+   */
+  readonly logged: { readonly beltRoute: string; readonly beltOutcome: string };
 }
 
 function formPost(url: string, headers: Record<string, string>, form: FormData): Request {
@@ -211,6 +289,7 @@ const ROUTES: readonly GuardedRoute[] = [
       expect(response.status).toBe(303);
       expect(response.headers.get("location")).toBe(`${PORTAL_BASE}/f/survey?state=error`);
     },
+    logged: { beltRoute: "/f/{formSlug}/start", beltOutcome: "redirect-to-entry" },
   },
   {
     path: "app/s/[sessionId]/answers/route.ts",
@@ -224,6 +303,7 @@ const ROUTES: readonly GuardedRoute[] = [
       expect(response.status).toBe(403);
       await expect(response.json()).resolves.toEqual({ error: { code: "forbidden" } });
     },
+    logged: { beltRoute: "/s/{sessionId}/answers", beltOutcome: "forbidden" },
   },
   {
     path: "app/s/[sessionId]/step/route.ts",
@@ -236,6 +316,7 @@ const ROUTES: readonly GuardedRoute[] = [
       expect(response.status).toBe(303);
       expect(response.headers.get("location")).toBe(`${PORTAL_BASE}/s/ses_1`);
     },
+    logged: { beltRoute: "/s/{sessionId}/step", beltOutcome: "redirect-to-step" },
   },
   {
     path: "app/s/[sessionId]/submit/route.ts",
@@ -248,6 +329,7 @@ const ROUTES: readonly GuardedRoute[] = [
       expect(response.status).toBe(403);
       await expect(response.json()).resolves.toEqual({ error: { code: "forbidden" } });
     },
+    logged: { beltRoute: "/s/{sessionId}/submit", beltOutcome: "forbidden" },
   },
 ];
 
@@ -256,6 +338,26 @@ describe("isSameOriginPost", () => {
     expect(
       isSameOriginPost(new Request(`${PORTAL_BASE}/s/ses_1/submit`, { method: "POST", headers })),
     ).toBe(allowed);
+  });
+
+  it.each(ORIGIN_CASES)("$name -> writes one line only when it refuses", ({ headers, allowed }) => {
+    isSameOriginPost(new Request(`${PORTAL_BASE}/s/ses_1/submit`, { method: "POST", headers }));
+    // At the belt itself rather than only through the routes: this is the seam that
+    // guarantees the count, so a second `return false` branch added here without a
+    // second line, or with two, is caught before any route is involved.
+    expect(refusalLines()).toHaveLength(allowed ? 0 : 1);
+  });
+
+  it("every refused case says what the line must classify it as", () => {
+    // Guards the table rather than the code. A refused case added below without a
+    // `logged` expectation would still pass the route assertions, having asserted only
+    // that some line was written - which is the weaker claim this file is avoiding.
+    for (const probe of ORIGIN_CASES) {
+      expect({ name: probe.name, hasExpectation: probe.logged !== undefined }).toEqual({
+        name: probe.name,
+        hasExpectation: !probe.allowed,
+      });
+    }
   });
 
   it("compares against the configured base URL rather than the request's own host", () => {
@@ -284,6 +386,10 @@ describe.each(ROUTES)("$path", (route) => {
     async ({ headers }) => {
       await route.post(headers);
       expect(route.reached()).toHaveBeenCalled();
+      // An admitted request writes no refusal line. Without this, a belt that logged
+      // unconditionally would pass every "exactly one" assertion below while making
+      // the count useless.
+      expect(refusalLines()).toEqual([]);
     },
   );
 
@@ -298,4 +404,34 @@ describe.each(ROUTES)("$path", (route) => {
       await route.assertRefusal(response);
     },
   );
+
+  it.each(ORIGIN_CASES.filter((probe) => !probe.allowed))(
+    "writes exactly one refusal line, carrying route, signals and outcome, with $name",
+    async ({ headers, logged }) => {
+      await route.post(headers);
+      // `toEqual` on the whole array rather than a length check plus a member check:
+      // it fails readably on a duplicate and pins the fields at the same time.
+      expect(refusalLines()).toEqual([
+        expect.objectContaining({
+          level: "warn",
+          msg: "origin.belt.refused",
+          service: "qcms-portal",
+          beltRoute: route.logged.beltRoute,
+          beltOutcome: route.logged.beltOutcome,
+          ...logged,
+        }),
+      ]);
+    },
+  );
+
+  it("names the outcome the respondent actually gets", async () => {
+    // The belt runs before the handler builds its response, so `beltOutcome` is
+    // derived from the route rather than observed. This is the cross-check that keeps
+    // the derivation honest: the response asserted here is the real one this route
+    // returns, and the mapping under test is what the log line claims about it.
+    const refused = ORIGIN_CASES.find((probe) => !probe.allowed);
+    const response = await route.post(refused?.headers ?? {});
+    await route.assertRefusal(response);
+    expect(route.logged.beltOutcome).toBe(outcomeOnTheWire(response));
+  });
 });
