@@ -1,4 +1,5 @@
 import { adminBaseUrl } from "./config.ts";
+import { logOriginBeltRefusal } from "./origin-belt-log.ts";
 
 /**
  * Shared plumbing for the admin's auth route handlers (task 031).
@@ -75,6 +76,21 @@ export function cookiesFrom(response: Response): string[] {
  *
  * Returns `true` when the request may proceed.
  *
+ * ## Refusing writes exactly one log line
+ *
+ * A refusal returns before the handler calls anything, so for a long time it produced
+ * no `auth.api.call` line and no error line either: the only server-side evidence was
+ * the *absence* of a line, which cannot be counted (issue #620). `logOriginBeltRefusal`
+ * closes that. The call is here rather than at the eight route handlers on purpose -
+ * this function is the single choke point every state-changing handler must pass
+ * through (`scripts/check-origin-guards.test.ts` derives them from disk and fails if
+ * one does not), so one line per refusal, and no line on an admitted request, are
+ * properties of this seam rather than of whoever edits a route next. It costs the
+ * function its purity, which is the trade this docblock is making explicit. It records
+ * classifications only, never a header value: see `./origin-belt-log.ts` for why every
+ * field it emits is a constant, which matters here because these are the routes that
+ * carry credentials.
+ *
  * **The header order is not a preference, and the `Origin` branch is not merely a
  * fallback for old clients.** `proxy.ts` sets `Referrer-Policy: no-referrer`, and per
  * Fetch a navigation POST (which is what every auth screen's `<form method="post">`
@@ -96,8 +112,27 @@ export function cookiesFrom(response: Response): string[] {
  * drifting is `scripts/check-origin-guards.test.ts`, which derives both apps'
  * state-changing route handlers from disk and asserts each one calls this function
  * by name.
+ *
+ * Both sides now log their refusals, and the two log modules are twins in shape rather
+ * than in purpose: the portal's counts an accepted lockout rate among respondents,
+ * this one is the only trace a probe against the auth routes leaves. `BeltOutcome` is
+ * the field where that shows - the portal has three outcomes because a respondent can
+ * meet a 403, and this app has two because every refusal here is a 303 to a screen.
  */
 export function isSameOriginPost(request: Request): boolean {
+  const allowed = admitsAsSameOrigin(request);
+  if (!allowed) logOriginBeltRefusal(request);
+  return allowed;
+}
+
+/**
+ * The belt's decision, unchanged and still pure.
+ *
+ * Split out so {@link isSameOriginPost} can log a refusal exactly once without the
+ * decision itself growing a side effect: every `return false` in here is one refusal,
+ * whichever branch reached it.
+ */
+function admitsAsSameOrigin(request: Request): boolean {
   const fetchSite = request.headers.get("sec-fetch-site");
   if (fetchSite !== null) return fetchSite === "same-origin" || fetchSite === "none";
   const origin = request.headers.get("origin");

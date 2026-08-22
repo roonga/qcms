@@ -78,13 +78,19 @@ import { logOriginBeltRefusal } from "./origin-belt-log";
  * while this document asserted one of both apps, which is what that gate exists to
  * turn into a red.
  *
- * The two now differ in one respect: the **decision** is still identical, but only
- * this side logs its refusals. That is deliberate scope rather than drift. The cost
- * of an invisible refusal is not the same on both surfaces: this one faces the public
- * and refuses a measured share of ordinary respondents, while the admin's faces staff
- * who can be asked what they saw. The admin's refusals are equally unobservable and
- * are worth the same treatment; that belongs in its own change, not smuggled into a
- * portal one.
+ * Both sides now log their refusals (issue #620 followed this change), and the two log
+ * modules stay twins in shape rather than in purpose. This one exists to count an
+ * **accepted** loss: a measured share of ordinary respondents on browsers too old for
+ * Fetch Metadata. The admin's exists to **detect** something, because every route it
+ * covers is an authentication route and a burst of refusals there is not an old
+ * browser. The earlier reading of that asymmetry, that the admin mattered less because
+ * staff can be asked what they saw, holds only for accidental refusals: nobody reports
+ * that they are probing a two-factor endpoint.
+ *
+ * The one place the divergence is visible in code is `BeltOutcome`. Three members
+ * here, because a respondent can meet a 403 from the hydrated path; two on the admin,
+ * because every refusal there is a 303 back to a screen and what varies is whether it
+ * carries the generic-failure marker.
  */
 export function isSameOriginPost(request: Request): boolean {
   const allowed = admitsAsSameOrigin(request);
