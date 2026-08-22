@@ -79,13 +79,21 @@ export function ConditionEditor({
   const references = conditionReferences(rule.when);
   const eligible = eligibleTargets(draft, references);
 
+  // `qcms-scroll-x` on the card: a condition tree is a nested boolean editor beside a
+  // JSON pane, and `plan/admin-mobile-stance.md` explicitly declines to ask that it be
+  // usable on a phone - only that it not be broken there. Its controls carry real
+  // minimum widths that no amount of wrapping reduces (measured at 281px of
+  // irreducible minimum against the 238px a rule card is given in a 320px viewport),
+  // so the card scrolls inside itself rather than handing that minimum to the page.
+  // That is the stance document's own rule: wide content scrolls in its own
+  // container, and the page body never scrolls horizontally at any width (issue 616).
   return (
     <section
       id={ruleAnchorId(rule.ruleId)}
       tabIndex={-1}
       data-rule-id={rule.ruleId}
       aria-label={t("forms.rule.heading", { ruleId: rule.ruleId })}
-      className="flex flex-col gap-4 rounded-md border border-(--color-border) bg-(--color-surface) p-4"
+      className="qcms-scroll-x flex flex-col gap-4 rounded-md border border-(--color-border) bg-(--color-surface) p-4"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="qcms-question-id text-sm">

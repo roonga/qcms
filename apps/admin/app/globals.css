@@ -285,6 +285,39 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
+/* ===========================================================================
+   WIDE CONTENT SCROLLS INSIDE ITS OWN CONTAINER (issue 616).
+
+   `plan/admin-mobile-stance.md` states the rule this class implements: "Wide
+   content scrolls inside its own container. The page body never scrolls
+   horizontally at any width." WCAG 2.2 AA SC 1.4.10 Reflow says the same thing
+   from the other side, and names 320px as the width at which it has to hold.
+
+   WHY `inline-size: 0` WITH `min-inline-size: 100%` RATHER THAN `inline-size: 100%`.
+   This is the part that is not guessable and was measured rather than reasoned.
+   `overflow-x: auto` on its own does NOT stop a box from handing its widest
+   unbreakable line to its ancestors: the condition JSON pane carried
+   `overflow-x-auto` throughout and still contributed its longest line, 277px, to
+   the builder's minimum width. Nor does adding `inline-size: 100%` - a percentage
+   is treated as indefinite while an intrinsic size is being resolved, so the box
+   falls back to its content and nothing changes (measured: the builder still
+   reported 369px in a 320px viewport). A ZERO inline size is definite, so the box
+   contributes nothing, and `min-inline-size: 100%` then grows it back to fill its
+   container at layout time. With that pair the builder measures exactly its
+   viewport at 320.
+
+   WHAT IT COSTS. `overflow-x: auto` on one axis makes the other compute to `auto`
+   as well, so an element carrying this must not be the containing block of a popup
+   that needs to escape it (the trap `.qcms-table--pins` documents further down).
+   The two elements wearing it here hold react-aria menus and selects, which portal
+   their popovers to the body and so leave the box regardless.
+   =========================================================================== */
+.qcms-scroll-x {
+  overflow-x: auto;
+  inline-size: 0;
+  min-inline-size: 100%;
+}
+
 /* Visible-on-focus skip link, matching the portal's structure (task 030). */
 .skip-link {
   position: absolute;
@@ -672,6 +705,13 @@ button {
   font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--color-text);
+  /* A branded id (R6) is one token with no space in it, so a narrow column has no
+     legal place to break it and the whole id runs off the edge instead. `anywhere`
+     rather than `break-word` because only `anywhere` also lowers the element's
+     min-content width, which is what stops the id reaching the page as horizontal
+     scroll (issue 616). It breaks a word only when that word cannot fit on a line of
+     its own, so nothing changes at any width where the id already fits. */
+  overflow-wrap: anywhere;
 }
 
 /* A plain inline text link (back links, "Clear filters"). The focus ring
@@ -1397,8 +1437,17 @@ button {
    task 057 removed its `overflow: hidden`. This table does not need the scroll
    box: it drops its two describing columns at compact width and every remaining
    cell wraps, so it fits. The Reflow guarantee it gives up is carried by the drops
-   instead, and proven rather than asserted - `pin-grid.pw.ts` and `gate-517.pw.ts`
-   both fail the frame if the document is wider than a 390px viewport.
+   and by the wrapping instead.
+
+   "EVERY REMAINING CELL WRAPS" IS A REQUIREMENT, not an observation, and issue 616
+   is what happens when one of them quietly stops: the version cell carried a
+   `white-space: nowrap`, its column's minimum became 209px, and with no scroll box
+   to absorb it the whole document went one pixel past a 390px viewport and 71 past
+   a 320px one. `pin-grid.pw.ts` and `gate-517.pw.ts` do measure the document at 390
+   and did not catch it, because they build their own fixture through the app and it
+   carries no version state tag: the unbreakable phrase was never on their screen.
+   `reflow.pw.ts` sweeps every route against the seeded fixture at 390 AND 320,
+   which is the check that would have.
    =========================================================================== */
 .qcms-table--pins {
   overflow: visible;
@@ -1473,9 +1522,25 @@ button {
 /* Form-owned: the one version change the builder has (R7). It reads as a control
    at rest - a real edge, a disclosure caret - because that is the contrast element
    4 is made of, and it is the control `plan/admin-mobile-stance.md` item 5 keeps
-   operable at 390. */
+   operable at 390.
+
+   THIS CELL WRAPS, and issue 616 is why the `white-space: nowrap` it used to carry
+   is gone. The cell holds two things, the version control and the state tag beside
+   it, and the tag's text is a PHRASE: "Unpublished version", "Deprecated version",
+   "Version not found". `nowrap` inherits, so it made the phrase unbreakable as well
+   as keeping the pair on one line, and the column's min-content width became the
+   whole of both at 209px. This table has no scroll box (see `.qcms-table--pins`), so
+   that number became the table's minimum, then the pane's, then the document's: the
+   builder measured 391px wide in a 390px viewport AND in a 320px one, because the
+   minimum was a fixed number rather than a proportion of anything.
+
+   Wrapping is the fix rather than a scroll box because the pair reads perfectly well
+   stacked: at a width where they do not fit side by side, the tag sits under the
+   control it describes. Nothing changes at a desk width, where they never wrapped.
+   `.qcms-pinversion` below is an `inline-flex` holding one word and a caret, so the
+   control itself still cannot be split. */
 .qcms-pincell--version {
-  white-space: nowrap;
+  white-space: normal;
 }
 .qcms-pinversion {
   display: inline-flex;

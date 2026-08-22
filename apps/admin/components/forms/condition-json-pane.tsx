@@ -164,7 +164,10 @@ export function ConditionJsonPane({
       <p className="text-sm text-(--color-text-muted)">{t("forms.json.note")}</p>
       <div ref={host} data-testid="qcms-condition-json" />
       {!isReady && (
-        <pre className="qcms-tabular overflow-x-auto rounded-md border border-(--color-border) bg-(--color-background) p-2 text-sm text-(--color-text)">
+        // `qcms-scroll-x` replaces a bare `overflow-x-auto`: the pane scrolled, but it
+        // still handed its longest JSON line (277px, measured) to every ancestor, and
+        // that reached the page as horizontal scroll at narrow widths (issue 616).
+        <pre className="qcms-tabular qcms-scroll-x rounded-md border border-(--color-border) bg-(--color-background) p-2 text-sm text-(--color-text)">
           {text}
         </pre>
       )}
