@@ -63,20 +63,24 @@ export async function openStep(page: Page, title: string): Promise<void> {
 /**
  * Pin one question version into the open step, through the library picker.
  *
- * The picker's rows are `questionId@version` and activating a row is the pin, so this is
- * the same interaction an author performs: open, find the row, press it.
+ * Addressed by the row's own button since issue 570. The picker's row used to BE the
+ * control (`onRowAction`), and contract §2 retired that; a picker has no address to link
+ * to, so what it got instead is a named button per choosable row. Locating it by its
+ * accessible name is deliberate: it is the same string a screen-reader author hears, so a
+ * regression that leaves the column full of bare "Add" buttons fails here rather than in
+ * a manual pass.
  */
+export function pickerAddButton(scope: Locator, questionId: string, version: number): Locator {
+  return scope.getByRole("button", { name: `Add ${questionId} version ${String(version)}` });
+}
+
 export async function pinQuestion(page: Page, questionId: string, version: number): Promise<void> {
   await page.getByRole("button", { name: "Add question from library" }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
-  const row = dialog
-    .getByRole("row")
-    .filter({ hasText: questionId })
-    .filter({ hasText: `v${String(version)}` })
-    .first();
-  await expect(row).toBeVisible();
-  await row.click();
+  const add = pickerAddButton(dialog, questionId, version);
+  await expect(add).toBeVisible();
+  await add.click();
   await expect(dialog).toBeHidden();
   await expect(pinLabel(page, questionId, version)).toBeVisible();
 }

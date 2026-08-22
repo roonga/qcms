@@ -1,17 +1,11 @@
 import Link from "next/link";
 
 import { EmptyState } from "@/components/empty-state";
-import { Alert, Button, Card, Select, TextField, type TableRow } from "@/components/kit";
+import { Alert, Button, Card, Select, TextField } from "@/components/kit";
 import { QuestionsTable } from "@/components/questions/questions-table";
 import { t } from "@/lib/i18n/en";
-import { textOf } from "@/lib/questions/definition";
 import { optionalProp } from "@/lib/questions/errors";
-import {
-  QUESTION_TYPES,
-  type QuestionListItem,
-  type QuestionStatus,
-  type QuestionType,
-} from "@/lib/questions/types";
+import { QUESTION_TYPES, type QuestionStatus, type QuestionType } from "@/lib/questions/types";
 import { listQuestions } from "@/lib/server/questions";
 import { requireAdminSession } from "@/lib/server/session";
 
@@ -59,30 +53,6 @@ function parseType(raw: SearchParam): QuestionType | undefined {
 function firstValue(raw: SearchParam): string {
   const value = Array.isArray(raw) ? raw[0] : raw;
   return value ?? "";
-}
-
-/** ISO day. Formatted on the server so the client renders the identical string. */
-function isoDay(timestamp: string): string {
-  return timestamp.slice(0, 10);
-}
-
-function toRow(question: QuestionListItem): TableRow {
-  return {
-    id: question.questionId,
-    data: {
-      questionId: question.questionId,
-      label: textOf(question.label ?? undefined),
-      // A row whose latest version has gone missing has no type to name; an em dash is
-      // not available and a blank cell reads as "none", so say it in words.
-      type:
-        question.type === null
-          ? t("questions.column.typeUnknown")
-          : t(`questions.type.${question.type}`),
-      version: `v${String(question.latestVersion)}`,
-      status: t(`questions.status.${question.latestStatus}`),
-      created: isoDay(question.createdAt),
-    },
-  };
 }
 
 export default async function QuestionsPage({
@@ -228,17 +198,7 @@ export default async function QuestionsPage({
 
       {result.ok && result.data.length > 0 && (
         <div className="flex flex-col gap-2">
-          <QuestionsTable
-            rows={result.data.map(toRow)}
-            columns={[
-              { id: "questionId", label: t("questions.column.id"), isRowHeader: true },
-              { id: "label", label: t("questions.column.label") },
-              { id: "type", label: t("questions.column.type") },
-              { id: "version", label: t("questions.column.version") },
-              { id: "status", label: t("questions.column.status") },
-              { id: "created", label: t("questions.column.created") },
-            ]}
-          />
+          <QuestionsTable rows={result.data} />
           <p className="text-sm text-(--color-text-muted)">{t("questions.table.hint")}</p>
         </div>
       )}

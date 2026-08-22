@@ -145,7 +145,7 @@ for (const mode of CAPTURE_MODES) {
 
     // --- history, and one frozen version -----------------------------------
     await page.goto(`/forms/${formId}/versions`);
-    await expect(page.getByRole("grid", { name: "Published versions" })).toBeVisible();
+    await expect(page.getByRole("table", { name: "Published versions" })).toBeVisible();
     await capture(page, `version-history-${mode}`);
 
     await page.getByRole("link", { name: "View v1" }).click();

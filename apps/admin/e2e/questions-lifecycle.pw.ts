@@ -666,7 +666,7 @@ test("the list filters, and says something useful when it finds nothing", async 
 
   await page.goto("/questions");
   await expect(page.getByRole("heading", { name: "Questions", level: 1 })).toBeVisible();
-  await expect(page.getByRole("grid", { name: "Question library" })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Question library" })).toBeVisible();
 
   // A search that matches nothing is a different state from an empty library, and says so:
   // suggesting the seed command to someone whose library is full would be noise.
@@ -678,7 +678,7 @@ test("the list filters, and says something useful when it finds nothing", async 
   await expect(page).toHaveURL(/[?&]q=no-such-question/);
 
   await page.getByRole("link", { name: "Clear filters" }).click();
-  await expect(page.getByRole("grid", { name: "Question library" })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Question library" })).toBeVisible();
 });
 
 test("the type column and the type filter narrow the library (issue #218)", async ({ page }) => {
@@ -707,47 +707,42 @@ test("the type column and the type filter narrow the library (issue #218)", asyn
 });
 
 test("a row opens its question from the keyboard alone", async ({ page }) => {
-  // Not an axe check: axe cannot tell whether a row is *reachable*. The vendored table's
-  // rows are the navigation, so if they are not keyboard-operable the library has no
-  // keyboard-accessible way in at all.
+  // Not an axe check: axe cannot tell whether the route into a row is *reachable*.
+  //
+  // ## What this test used to have to do, and why it does not any more (issue 570)
+  //
+  // Until issue 570 the vendored kit table's ROW was the navigation, and reaching it from
+  // the keyboard needed a retried `row.focus()` with `data-focused` as the readiness
+  // discriminator, because the server rendered the row already carrying `tabindex="-1"`
+  // and a focus arriving before hydration succeeded on a node React then replaced (issue
+  // #419). Contract §2 retired that handler: the identifying cell carries a real anchor
+  // now, the component is not even a client component any more, and an anchor in server
+  // HTML is focusable and activatable from the moment the document parses. There is no
+  // hydration race left to time around, so the retry is gone with the thing it was
+  // guarding.
+  //
+  // The assertion is stronger than the one it replaces, not weaker. Tabbing to the link
+  // proves it is in the document's own tab order rather than merely programmatically
+  // focusable, which is what a keyboard author actually has.
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/questions?q=${slugFor("preview")}`);
 
-  const row = page.getByRole("row").nth(1);
-  // The focus is RETRIED, deliberately. This is not flake-papering, so do not collapse
-  // it back to a bare `row.focus()` (issue #419).
-  //
-  // The mechanism: the server renders the row already carrying `tabindex="-1"`, so a
-  // `focus()` that arrives before hydration SUCCEEDS on a dead node, and the adopting
-  // re-render then REPLACES that node. Focus falls back to the body and no later focus
-  // event ever arrives, which is why waiting longer before pressing Enter does not
-  // rescue it and only focusing again does. On `main` the window is narrow enough that
-  // the single focus won the race every time; `next` 16.3.0 and `react-aria-components`
-  // 1.20.0 each widen it on their own and turn the race deterministically red, which is
-  // how the missing wait surfaced at all.
-  //
-  // `data-focused` is the discriminator, and it has to be: measured on the failing tree,
-  // the pre-hydration row reports `document.activeElement === row` for ~145ms before it
-  // is swapped out, so `toBeFocused` alone passes on the doomed node and the retry exits
-  // on its first turn. Only the hydrated row gets the attribute, because only it has a
-  // React listener to set it. `tabindex` is no use as a readiness signal either, for the
-  // same underlying reason: it is `-1` in the server HTML and stays `-1` after hydration,
-  // flipping to `0` only as a CONSEQUENCE of a focus that landed on the live row.
-  //
-  // So the attribute is react-aria's own, and that is a known cost: if a future version
-  // stops emitting it, this line times out. It fails loudly and names itself, which is
-  // the right direction, and this comment is where to start.
-  //
-  // None of this weakens the assertion below, which matters because rows are the only
-  // route into a question (`onRowAction`, `selectionMode="none"`), making this a WCAG
-  // 2.2 AA tripwire. A regression that leaves rows unfocusable never satisfies the retry
-  // and fails as a `toPass` timeout; a regression that keeps them focusable but breaks
-  // row activation still fails on the URL.
-  await expect(async () => {
-    await row.focus();
-    await expect(row).toHaveAttribute("data-focused", "true", { timeout: 1_000 });
-    await expect(row).toBeFocused({ timeout: 1_000 });
-  }).toPass({ timeout: 15_000 });
+  const link = page.getByRole("link", { name: `Open question ${questionIdFor("preview")}` });
+  await expect(link).toBeVisible();
+
+  // Tab from the top of the document until the link takes focus, rather than focusing it
+  // directly. A bounded walk: the toolbar above the table is a handful of controls, and a
+  // regression that drops the link out of the tab order exhausts the budget and fails
+  // here rather than passing on a `focus()` no keyboard can perform.
+  for (
+    let step = 0;
+    step < 40 && !(await link.evaluate((el) => el === document.activeElement));
+    step++
+  ) {
+    await page.keyboard.press("Tab");
+  }
+  await expect(link).toBeFocused();
+
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(new RegExp(questionIdFor("preview")));
 });

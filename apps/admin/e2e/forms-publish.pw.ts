@@ -243,7 +243,7 @@ test("history renders the stored compiled document and never previews (exit crit
   const previewCalls = watchPreviewCalls(page);
   await page.goto(`/forms/${formId}/versions`);
 
-  const table = page.getByRole("grid", { name: "Published versions" });
+  const table = page.getByRole("table", { name: "Published versions" });
   await expect(table).toBeVisible();
   await expect(table).toContainText("v1");
   // ADR-27: what an operator reads is a formatted date, never the wire representation.

@@ -45,7 +45,9 @@ Only where there is something worth saying.
 
 ### 3.1 `/questions` and `/forms` (the two library lists)
 
-Both are list-shaped, both render through the vendored kit `Table` with `onRowAction` navigation (`components/questions/questions-table.tsx:35-42`, `app/(shell)/forms/forms-table.tsx:29-37`), and both accept the same recorded trade: a kit table cell is a string, so a row cannot hold an anchor, so the row is the control and open-in-new-tab and no-JS operation are given up.
+Both are list-shaped, and both used to render through the vendored kit `Table` with `onRowAction` navigation, accepting the same recorded trade: a kit table cell is a string, so a row could not hold an anchor, so the row was the control and open-in-new-tab and no-JS operation were given up.
+
+> **Fixed as of 2026-08-22, [#570](https://github.com/roonga/qcms/issues/570)** (this document is maintained, not a frozen snapshot). Contract §2 settled that trade the other way, and both tables are hand-authored inside the one `qcms-table` family now: the identifying cell carries a real anchor, neither component is a client component any more, and both work with scripting off. The finding stands as a record of what was traded and why it was reversed.
 
 A rail on either would carry the same five items the top nav already carries. Reject.
 
@@ -85,7 +87,7 @@ The version-detail screen carries a live scope bug, covered in §7.
 
 The one screen where the shipped code already made the element-2 argument and won: the version table is five monospace stamp columns and it is wrapped in its own scroll box precisely so the page body does not scroll sideways (`components/forms/version-history.tsx:67-93`, with the reasoning in the comment). That box exists because the page is capped at `max-w-5xl`. Give the screen width and the box stops being load-bearing.
 
-It also holds the app's only correct use of a non-interactive kit table: `qcms-table--static` suppresses the hover affordance because these rows have no row action (`app/globals.css:604-609`). That distinction is good and should survive whatever table consolidation happens.
+It also held the app's only correct use of a non-interactive kit table: `qcms-table--static` suppressed the hover affordance because those rows had no row action. The distinction did survive the consolidation, in the form the finding asked for: issue 514 made the hover affordance opt-in rather than opt-out, and issue 570 removed the opt-in with the last whole-row handler, so no table in the app promises a click its rows do not perform. The rows themselves gained the view link that used to sit in a separate list beneath the table.
 
 Element 3 adapts to the diff only: the compare control and its output are the collapsible half, and "v2 to v3 . 4 added, 1 removed" is a digest with facts in it.
 
@@ -135,10 +137,12 @@ These are live today, cost nothing to decide now, and get more expensive with ev
 
 ### 4.1 Three table treatments
 
+> **Fixed as of 2026-08-22.** Issue 514 made the three treatments one visual family (`qcms-table`), and issue 570 finished the job behaviourally: all four kit tables are hand-authored now, so the table below is a record of what shipped in August 2026 rather than a description of the app. Every table is the last row's shape, and the count is ten rather than nine (the library picker was omitted here).
+
 | Treatment | Where | Rows activate | Works without JS | Cells can hold controls |
 |---|---|---|---|---|
-| Kit `Table` + `onRowAction` | `components/questions/questions-table.tsx:35-42`, `app/(shell)/forms/forms-table.tsx:29-37` | yes (whole row) | no | no (strings only) |
-| Kit `Table` static | `components/forms/version-history.tsx:72-93` | no | yes (read-only) | no |
+| Kit `Table` + `onRowAction` | `components/questions/questions-table.tsx`, `app/(shell)/forms/forms-table.tsx`, `components/forms/library-picker.tsx` | yes (whole row) | no | no (strings only) |
+| Kit `Table` static | `components/forms/version-history.tsx` | no | yes (read-only) | no |
 | Hand-authored `qcms-ops-table` / `qcms-links-table` | `components/ops/response-browser.tsx:203`, `app/(shell)/responses/erasures/page.tsx:54`, `components/ops/webhook-config.tsx:164`, `components/ops/dead-letters.tsx:155`, `components/ops/delivery-dashboard.tsx:57`, `components/forms/secure-links.tsx:435` | no (anchor in the row header) | yes for the links | yes |
 
 Six of the nine tables are hand-authored. The two kit tables that navigate are the two that cannot be opened in a new tab. The two class names `qcms-links-table` and `qcms-ops-table` are already selector-listed together in `app/globals.css:1271-1272` with a comment explaining they are the same thing, which is the code telling us it wants to be one class.

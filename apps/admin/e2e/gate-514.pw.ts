@@ -106,7 +106,7 @@ test("captures the library and operations tables, and the reachable empty states
   //    frame that shows the vendored component and the hand-authored tables reading the
   //    same: same 44px row, same header underline, same dividers, no zebra.
   await page.goto("/questions");
-  await expect(page.getByRole("grid")).toBeVisible();
+  await expect(page.getByRole("table")).toBeVisible();
   await capture(page, "questions-table-light");
 
   // 2. §3's FILTERED empty panel: the heading swapped to this screen's "no matches"
@@ -117,7 +117,7 @@ test("captures the library and operations tables, and the reachable empty states
 
   // 3. The form library, the second kit table.
   await page.goto("/forms");
-  await expect(page.getByRole("grid")).toBeVisible();
+  await expect(page.getByRole("table")).toBeVisible();
   await capture(page, "forms-table-light");
 
   // 4. §3's panel with NO CTA, on a screen with no creating action: the erasure log
@@ -205,11 +205,13 @@ test("captures the version-history and secure-link tables", async ({ page }) => 
   // this run mints on that form, and the harness database does not outlive the run.
   const ownedFormId = FORM_ID;
 
-  // 12. The version history: the third kit table, and the one whose rows deliberately do
+  // 12. The version history: the third kit table, and the one whose rows deliberately did
   //     nothing. It used to opt OUT of the hover affordance with `qcms-table--static`;
-  //     the family made the affordance opt-in, so this table simply does not ask.
+  //     the family made the affordance opt-in, and issue 570 removed the opt-in along
+  //     with the last whole-row handler. Its rows now carry the view link that used to
+  //     sit in a list beneath the table, so this capture no longer matches what ships.
   await page.goto(`/forms/${ownedFormId}/versions`);
-  await expect(page.getByRole("grid", { name: "Published versions" })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Published versions" })).toBeVisible();
   await capture(page, "version-history-table-light");
 
   // 13. The link lifecycle table - the last of the nine, and the one the issue flagged
@@ -244,7 +246,7 @@ for (const mode of ["dark", "hc"] as const) {
 
     // One populated table, for the divider, the header underline and the row rhythm.
     await page.goto("/questions");
-    await expect(page.getByRole("grid")).toBeVisible();
+    await expect(page.getByRole("table")).toBeVisible();
     await capture(page, `questions-table-${mode}`);
 
     // One empty panel, for the 1.5px dashed `--color-border-strong` edge on the surface

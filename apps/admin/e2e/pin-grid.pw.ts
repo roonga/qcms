@@ -9,6 +9,7 @@ import {
   addStep,
   createForm,
   openStep,
+  pickerAddButton,
   pinGrip,
   pinLabel,
   pinQuestion,
@@ -268,7 +269,7 @@ test("insert below pins into the slot it named, not onto the end", async ({ page
   await usePinRowMenu(page, COVER_ID, "insertBelow");
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
-  await dialog.getByRole("row").filter({ hasText: EXTRA_ID }).first().click();
+  await pickerAddButton(dialog, EXTRA_ID, 1).click();
   await expect(dialog).toBeHidden();
 
   // Second, because that is the boundary the menu item named. Appending would put it last.
