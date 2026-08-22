@@ -5,6 +5,33 @@ normative. C1 is closed at §7a (Settings keeps a rail as a written exception) a
 §8 is closed in the Code Owner's framing (portal and admin are different apps);
 contracts 1-6 were confirmed in the same ruling ("all agree").
 
+**ALL DESIGN AND TECHNICAL LIMITS ON THE ADMIN ARE REMOVED, 2026-08-22 (Code Owner):**
+*"remove all limits on the admin portal."*
+
+Taken together with the ruling below, this means the admin is built to its POCs and to
+nothing else. **No contract in this document constrains an admin screen against its own
+POC.** Where a POC draws it, that is the design: buttons where it draws buttons, JavaScript
+where it needs JavaScript, per-screen widths where it sets them, and whatever rail each
+screen's POC gives it.
+
+The clauses below are retained as **description and rationale**, not as constraints. They
+remain useful for a screen no POC covers, and for explaining why shipped code looks as it
+does. They no longer overrule a drawing.
+
+**Three things this seat has NOT removed, because they are not design limits and removing
+them is a product decision rather than a workstream one.** Named here so the omission is
+visible rather than assumed, and awaiting an explicit word either way:
+
+- **WCAG 2.2 AA.** A standing non-negotiable in this seat's charter, a Code Owner human gate
+  at task 030, and §8's own ruling says "different apps" never licensed a different
+  accessibility standard.
+- **ADR-27** (no hardcoded user-facing strings, locale-aware formatting).
+- **SEC-1 to SEC-13.** Security controls, verified as a system by task 040, whose sign-off
+  is a launch gate.
+
+If "all limits" is meant to include any of those three, say so plainly and it is recorded
+the same way. This seat will not infer it from a design instruction.
+
 **AUTHORITY REVERSED, 2026-08-22 (Code Owner): the POCs win. "This is the approved
 design."**
 
