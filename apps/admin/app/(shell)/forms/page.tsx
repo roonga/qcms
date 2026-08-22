@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { EmptyState } from "@/components/empty-state";
 import { Alert } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
@@ -35,9 +37,23 @@ export default async function FormsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-xl font-semibold text-(--color-text)">{t("forms.title")}</h1>
-        <p className="text-sm text-(--color-text-muted)">{t("forms.intro")}</p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-xl font-semibold text-(--color-text)">{t("forms.title")}</h1>
+          <p className="text-sm text-(--color-text-muted)">{t("forms.intro")}</p>
+        </div>
+        {/* The header's creating action, rendered except in the one state where the
+            empty panel below carries it instead. Same rule and same reason as
+            `/questions`, whose header this is copied from rather than re-derived: two
+            controls with the same accessible name on one screen are ambiguous to anyone
+            navigating by name, and `plan/admin-design-contracts.md` §3 asks the empty
+            state to OFFER the creating action rather than to sit beside a copy of it.
+            This list takes no filters, so "empty" has only the one meaning here. */}
+        {!(result.ok && result.data.length === 0) && (
+          <Link href="/forms/new" className="qcms-button-link">
+            {t("forms.new")}
+          </Link>
+        )}
       </div>
 
       <CreateForm action={createFormAction} />
@@ -46,19 +62,23 @@ export default async function FormsPage() {
         <Alert variant="error">{t("forms.error.listFailed", { message: result.message })}</Alert>
       )}
 
-      {/* `plan/admin-design-contracts.md` §3's panel. It carries no CTA, and that is
-          the one place on this screen where §3's "a primary CTA when a creating
-          action exists" is not applied literally: this screen's creating action is
-          the `CreateForm` fieldset rendered immediately above, not a button leading
-          somewhere, and there is no `/forms/new` route for a CTA to point at.
-          Duplicating a two-field form inside the panel, or inventing a control that
-          scrolls to it, would both be new patterns rather than applications of an
-          existing one. Recorded for the design gate rather than decided quietly. */}
+      {/* `plan/admin-design-contracts.md` §3's panel, now with the primary CTA the base
+          clause asks for. The 2026-08-20 amendment exempted this one screen because its
+          creating action was a fieldset on the screen itself and there was no
+          `/forms/new` route for a CTA to point at. Issue 685 removed both halves of that
+          premise: the POC picks a separate route for both library screens, so the panel
+          points at it exactly as the question library's does. An empty screen is where a
+          first-time operator looks, not the corner of the header. */}
       {result.ok && result.data.length === 0 && (
         <EmptyState
           heading={t("forms.empty.title")}
           body={t("forms.empty.body")}
           testId="qcms-forms-empty"
+          action={
+            <Link href="/forms/new" className="qcms-button-link">
+              {t("forms.new")}
+            </Link>
+          }
         />
       )}
 
