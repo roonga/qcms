@@ -1,23 +1,40 @@
 /**
- * THE MEASURE TABLE - which cap each authenticated screen's content column takes.
+ * THE MEASURE TABLE - which cap each authenticated screen's content column takes, and
+ * where that column sits in the space it is given.
  *
- * `plan/admin-ux-audit.md` §6 asks the width question screen by screen and comes back
- * with three answers across sixteen screens: five earn width, two need LESS than the app
- * default because they render respondent-facing content (§3.4, §5.3), and nine keep the
- * readable measure they already have. Before issue 558 the shell answered all sixteen
- * with one number, `max-w-5xl` on `<main>`, and §6 is explicit that a single global raise
- * "would be wrong for eleven of the sixteen".
+ * WHERE THE NUMBERS COME FROM. The design for a screen is that screen's POC in
+ * `plan/admin-shell-poc/`, so every row below names the POC it was read off and the
+ * selector inside it that carries the cap. Issue 558 built this mechanism and sourced
+ * its values from `plan/admin-ux-audit.md` §6, which was the correct authority then;
+ * issue 657 re-sourced all sixteen from the drawings without touching the mechanism.
  *
- * A FOURTH ANSWER JOINED THE THREE IN ISSUE 655, and it is the reason this table now
- * decides an alignment as well as a cap. Settings is drawn by its own POC
- * (`plan/admin-shell-poc/settings-newquestion-poc.html`), which caps that screen at 40rem
- * and left-anchors it, and one screen differing from the other fifteen on both counts is
- * exactly the kind of question this file exists to answer once, in route terms.
+ * THE POCs SPECIFY WIDTH IN TWO LAYERS AND THIS TABLE IS ONE. A POC caps an outer
+ * `.main` and then, on some screens, caps the content inside it again - a 720px
+ * `.editor-column` inside a 1600px `.main`, a 640px `.respondent-frame` inside another,
+ * and a `deployment-ops-poc.html` whose `.main` has no cap at all (`:229`) and whose three
+ * screens cap themselves at 900, 1180 and 1820. The number a reader of the running app
+ * actually sees is the INNER one wherever there is one, so that is the number a route
+ * takes here. Assigning the outer number instead would spread a 720px editor across
+ * 1600px, which is not a screen any POC draws.
  *
- * WHY A TABLE, AND WHY HERE. Sixteen screens with three answers is a routing question, so
- * it is answered once, in route terms, in this file - not by sixteen pages each reaching
- * up to override a container they do not own. The practical difference is what happens
- * when a seventeenth screen arrives: with the table, its cap is one row added below, and
+ * READING A MULTI-SCREEN POC, which is where that rule earns its keep. Six of the eleven
+ * files pack two or three screens behind a switcher, and a shared `.main` in such a file
+ * is ambiguous by construction: it may be that file's chrome or it may be every screen's
+ * answer, and the markup alone cannot say which. **The inner class is what disambiguates
+ * it.** Where the author wanted a per-screen width they wrote one - three of them in
+ * `deployment-ops-poc.html`, one in `preview-versions-poc.html` used by two of its three
+ * screens - and where they did not, the shared `.main` stands for every screen in the
+ * file, which is how the version-history screen takes 1600 from a file two of whose
+ * screens do not. That rule is the whole of the reading; it is not a preference for inner
+ * numbers, and it does not make a shared cap meaningless.
+ *
+ * ONE ROW IS OPEN. `/webhooks` is drawn at 1820, wider than any token here, so it keeps
+ * the cap it had. See its comment.
+ *
+ * WHY A TABLE, AND WHY HERE. Sixteen screens is a routing question, so it is answered
+ * once, in route terms, in this file - not by sixteen pages each reaching up to override
+ * a container they do not own. The practical difference is what happens when a
+ * seventeenth screen arrives: with the table, its cap is one row added below, and
  * `measure.test.ts` fails until that row exists, because it reads the route patterns off
  * the `app/(shell)` tree and requires these keys to be exactly that set. A scattered
  * per-page override has no such moment - a new screen simply inherits whatever the
@@ -30,87 +47,111 @@
  * against the route tree, which is what its completeness test compares it to.
  *
  * NO BREAKPOINT IS INVOLVED. A `max-inline-size` is already a responsive condition: below
- * the cap the column is fluid, so all three values render identically at 390px and differ
- * only once the viewport passes them. "Measurably wider at 1280 and above" and "unchanged
- * at 390" both fall out of the cap alone, with no media query at any width. Spelling these
- * as `sidebar:` variants would have turned the cap into a per-route use of a boundary,
- * which `plan/admin-design-contracts.md` §1 does not have and issue 557 exists to prevent.
+ * the cap the column is fluid, so every value renders identically at 390px and they
+ * differ only once the viewport passes them. "Measurably wider at 1280 and above" and
+ * "unchanged at 390" both fall out of the cap alone, with no media query at any width.
+ * Spelling these as `sidebar:` variants would have turned the cap into a per-route use of
+ * a boundary, which `plan/admin-design-contracts.md` §1 does not have and issue 557
+ * exists to prevent.
  *
- * The numbers behind the three names live in `app/globals.css` beside the breakpoint
- * tokens, with the derivation of each. This module names them and nothing else.
+ * The numbers behind the names live in `app/globals.css` beside the breakpoint tokens,
+ * with the derivation of each. This module names them, assigns them, and states the one
+ * thing that is not a length: the alignment.
  */
 
 /**
  * The class each answer puts on the shell's content column.
  *
- * `default` is deliberately still Tailwind's own `max-w-5xl` rather than a fourth token of
- * the same value: nine screens have to render byte-identically after issue 558, and the
- * cheapest way to be certain is for their `<main>` to keep the exact class attribute it
- * carried before. `measure.test.ts` pins that string for the same reason.
+ * Six caps for sixteen screens, and the count is the POCs' rather than a taste: seven
+ * screens share the drawings' dominant 1600, three sit on the narrow measure, two share
+ * 40rem, two share 1080, and two are each the only screen drawn at their number.
+ * Collapsing a singleton onto a neighbour would be this file deciding a width the drawing
+ * already decided.
+ *
+ * `default` is the odd member and is deliberately not a token. No route takes it since
+ * issue 657 re-sourced the table; it is what `measureFor` falls back to for a pathname no
+ * route claims, and Tailwind's own `max-w-5xl` is the right shape for that - a readable
+ * measure for a screen nobody has drawn yet.
  */
 export const MEASURE_CLASS = {
   default: "max-w-5xl",
-  wide: "max-w-measure-wide",
-  narrow: "max-w-measure-narrow",
   prose: "max-w-measure-prose",
+  narrow: "max-w-measure-narrow",
+  ops: "max-w-measure-ops",
+  list: "max-w-measure-list",
+  log: "max-w-measure-log",
+  wide: "max-w-measure-wide",
 } as const;
 
-/** One of the answers a route can take: §6's three, plus the POC's prose cap (issue 655). */
+/** One of the caps a route can take. Each one is a number some POC draws. */
 export type Measure = keyof typeof MEASURE_CLASS;
 
 /**
- * The answers whose column is LEFT-ANCHORED instead of centred in the shell.
+ * Every authenticated route, with the cap its own POC gives that screen's content.
  *
- * `plan/admin-shell-poc/settings-newquestion-poc.html` writes `margin: 0` on its main column
- * and says why: every rail-adjacent screen in the design follows "left-anchored, fluid up to
- * a cap, never re-centred", and a screen with a narrower column floating to the middle while
- * every other screen hugs the left edge "reads as a different app, not a lighter one".
- *
- * ONE ANSWER IS IN THIS SET, DELIBERATELY. Issue 648 carries left-anchoring for the app as a
- * whole; issue 655 carries the 40rem prose cap for the Settings screen, and this is the least
- * that cap needs to be what the POC draws. Whichever of the two lands second inherits the
- * other, and if that is 648 then this set stops being a set: `mx-auto` leaves the shell
- * entirely and these two lines go with it.
- */
-const LEFT_ANCHORED: ReadonlySet<Measure> = new Set<Measure>(["prose"]);
-
-/**
- * Every authenticated route, with the cap §6 assigns it.
- *
- * Ordered the way the route tree reads, so the two can be compared by eye. The reason
- * beside each non-default row is §6's, compressed; the full argument is in the audit.
- *
- * The three "borderline, take width if it is free" screens of §6 (`/forms/[formId]/
- * responses`, `/responses/erasures`, `/forms/[formId]/responses/[sessionId]`) stay on the
- * default. Width is not free for them: §6's own summary counts nine screens staying, and
- * these are three of the nine. Their columns fit the readable measure today, and the
- * `qcms-ops-summary` label track that would benefit from more room is a grid question
- * rather than a container one.
+ * Ordered the way the route tree reads, so the two can be compared by eye. Each comment
+ * is the POC file and the selector the number was read from; where the POC's outer
+ * `.main` differs from the inner cap that governs what is on screen, both are named, so a
+ * reader can check the row against the drawing without opening this file's doc block.
  */
 export const MEASURE_BY_ROUTE = {
-  "/forms": "default",
-  /** The builder: the app's only three responsive utilities, already fighting the cap. */
+  /** `library-lists-poc.html` `.main` 1080, its Forms screen. */
+  "/forms": "list",
+  /** `admin-shell-poc.html` `.main` 1600. The builder is what that file draws. */
   "/forms/[formId]": "wide",
-  /** Seven columns, four of them timestamps. */
+  /** `links-webhooks-poc.html` `.main` 1600, its Secure links screen. */
   "/forms/[formId]/links": "wide",
-  /** Respondent-facing render. A wider container here makes the preview lie (§3.4). */
+  /**
+   * `preview-versions-poc.html`: `.main` is 1600 and holds three screens, but the draft
+   * preview's own content is the 640px `.respondent-frame` and two 640px banners beside
+   * it. The inner number is the screen; the shared `.main` is that file's chrome.
+   *
+   * WHY 45rem AND NOT 40rem, WHICH IS 640 EXACTLY. The drawn 640 is the frame's own box,
+   * sitting inside `.main`'s padding, while this cap sits on a `<main>` that carries
+   * `p-6`. 45rem renders 672px of content, 32px over the drawing; 40rem would render
+   * 592px, 48px under it. 45rem is the closer of the two and is also the value this
+   * screen already had, so nothing moves. `plan/admin-ux-audit.md` §3.4's correctness
+   * argument is satisfied either way: a respondent-facing render is never given a
+   * container wider than a respondent's.
+   */
   "/forms/[formId]/preview": "narrow",
-  "/forms/[formId]/responses": "default",
-  "/forms/[formId]/responses/[sessionId]": "default",
-  /** Five monospace stamp columns. */
+  /** `responses-poc.html` `.main` 1600, its list screen; nothing inside caps narrower. */
+  "/forms/[formId]/responses": "wide",
+  /** `responses-poc.html` `.main` 1600, its detail screen; same, nothing narrower inside. */
+  "/forms/[formId]/responses/[sessionId]": "wide",
+  /** `preview-versions-poc.html` `.main` 1600, its version-history table. */
   "/forms/[formId]/versions": "wide",
-  /** Respondent-facing render, same correctness argument as the preview (§3.4). */
+  /** `preview-versions-poc.html` again: the stored render is the same 640px frame. */
   "/forms/[formId]/versions/[version]": "narrow",
-  /** Two wide tables stacked, one of them seven columns with a URL and nowrap cells. */
+  /** `links-webhooks-poc.html` `.main` 1600, its Webhook endpoints screen. */
   "/forms/[formId]/webhooks": "wide",
-  "/questions": "default",
-  "/questions/[questionId]": "default",
-  "/questions/new": "default",
-  "/responses": "default",
-  "/responses/erasures": "default",
-  /** Prose and two short forms. The POC caps it at 40rem and does not centre it. */
+  /** `library-lists-poc.html` `.main` 1080, its Questions screen. */
+  "/questions": "list",
+  /**
+   * `question-editor-poc.html`: `.main` 1600 with a single child, `.editor-column` 720.
+   * The editor is that column, so 720 is the screen. Same padding caveat as the preview
+   * above, in the other direction: 45rem renders 672px against a drawn 720.
+   */
+  "/questions/[questionId]": "narrow",
+  /** `settings-newquestion-poc.html` `.page-main` 40rem, its New question screen. */
+  "/questions/new": "prose",
+  /**
+   * `deployment-ops-poc.html` `.ops-inner--responses` 900. That file's `.main` carries no
+   * cap at all (`:229`), so its three screens are pure per-screen statements: where the
+   * author wanted a per-screen width they wrote an inner class for it.
+   */
+  "/responses": "ops",
+  /** `deployment-ops-poc.html` `.ops-inner--erasures` 1180. */
+  "/responses/erasures": "log",
+  /** `settings-newquestion-poc.html` `.page-main` 40rem, its Account screen (issue 655). */
   "/settings": "prose",
-  /** Six columns including a URL and a free-text `lastError`. */
+  /**
+   * UNRESOLVED, and left where it was rather than guessed. `deployment-ops-poc.html`'s
+   * `.ops-inner--webhooks` is 1820px, which is wider than `wide` and so cannot be
+   * expressed by reassignment: it needs an eighth value in the vocabulary, which is a
+   * change to the scheme rather than a row in this table. Issue 657 names it as the one
+   * route whose cap does not match its drawing.
+   */
   "/webhooks": "wide",
 } as const satisfies Record<string, Measure>;
 
@@ -130,8 +171,11 @@ function patternMatches(pattern: readonly string[], path: readonly string[]): bo
  *
  * Where two patterns match - `/questions/new` is also a `/questions/[questionId]` - the
  * one with more literal segments wins, which is how Next itself resolves a static segment
- * against a dynamic sibling. An unknown path takes the readable measure: a route that has
- * not been through §6 is not a route that should be handed extra width by default.
+ * against a dynamic sibling. Here that distinction now decides two different caps rather
+ * than agreeing by accident: the new-question form is 40rem and the editor is 720px.
+ *
+ * An unknown path takes the readable measure: a route with no POC behind it is not a
+ * route that should be handed extra width by default.
  */
 export function measureFor(pathname: string): Measure {
   const path = segmentsOf(pathname);
@@ -153,14 +197,20 @@ export function measureClassFor(pathname: string): string {
 /**
  * The whole class attribute the shell's content column carries for a pathname.
  *
+ * THERE IS NO ALIGNMENT BRANCH HERE, and its absence is the statement. Issue 655 left a
+ * one-member set of left-anchored caps behind, with a note that issue 648 would either
+ * make it the mechanism or make it redundant; reading the POCs made it redundant. All
+ * eleven were checked for a centring rule on the main column and there is not one in the
+ * set, and `settings-newquestion-poc.html` is explicit about why it writes `margin: 0`
+ * where `margin: 0 auto` would go: a screen floating to the middle while every other
+ * screen hugs the left edge "reads as a different app, not a lighter one". So every route
+ * gets the same shape and `mx-auto` is simply never emitted.
+ *
  * Composed here rather than at the call site because the cap and the alignment are one
- * answer: a column capped at 40rem and then centred is not the screen the POC draws. The
- * fifteen screens that are not Settings get back the exact string `<main>` has carried since
- * issue 558 - `mx-auto w-full <cap> flex-1 p-6` - character for character, which is the
- * strongest available form of "nothing else moved".
+ * answer per route: a column capped at 40rem and then centred is not the screen any POC
+ * draws, and a caller free to add `mx-auto` back is a caller free to reintroduce exactly
+ * the bug issue 648 reported.
  */
 export function mainClassFor(pathname: string): string {
-  const measure = measureFor(pathname);
-  const alignment = LEFT_ANCHORED.has(measure) ? "" : "mx-auto ";
-  return `${alignment}w-full ${MEASURE_CLASS[measure]} flex-1 p-6`;
+  return `w-full ${MEASURE_CLASS[measureFor(pathname)]} flex-1 p-6`;
 }

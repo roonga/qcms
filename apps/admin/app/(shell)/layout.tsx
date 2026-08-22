@@ -87,7 +87,28 @@ export default async function ShellLayout({
             own items wrap onto further lines while the trailing controls stay on the
             top row beside the wordmark. Nested inside a "wordmark plus nav" group they
             were pushed onto a row of their own below the whole nav instead. */}
-        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-x-5 gap-y-2 px-4 py-2">
+        {/* THE BAR IS NOT CAPPED AND NOT CENTRED (issue 648). Every POC that draws the
+            shell writes one identical rule for it, `.topbar__inner { display: flex;
+            flex-wrap: wrap; align-items: center; gap: 1.25rem; padding: 0 1.25rem;
+            min-height: 56px; }`, with NO `max-width` and NO auto margin - ten of the
+            eleven files, the eleventh being `auth-poc.html`, which drops the shell
+            deliberately and so has no bar to cap. The bar spans the viewport and its
+            first item starts at the page's own inline padding.
+
+            It carried `mx-auto max-w-5xl` until now, which put the wordmark ~145px in
+            from the left edge at 1280 while the content column beside a rail started at
+            24px: two unrelated layouts on one screen.
+
+            `px-6` rather than the POC's 1.25rem, and that 4px is a DEVIATION rather than
+            a reading of the drawing (issue 675). The POC pads the bar and the column by
+            one value and gets its shared edge that way; this app's column has carried
+            `p-6` since the shell was built, so the bar matches the column and the edge is
+            shared at 24px instead of 20px. Following the drawing on the bar alone would
+            put a 20px bar against a 24px column and break the very property issue 648 is
+            about; following it properly means moving `<main>` to `p-5`, a density change
+            on all sixteen screens that neither issue asks for and that wants its own
+            frames. Recorded as its own issue rather than settled here. */}
+        <div className="flex w-full flex-wrap items-center gap-x-5 gap-y-2 px-6 py-2">
           {/* "QCMS" and nothing else. No sub-label, and no word here names this app
               to an operator: the product is QCMS and the respondent app is the
               Portal (Code Owner naming call, 2026-07-30). */}
@@ -117,8 +138,13 @@ export default async function ShellLayout({
         <MeasuredMain>{children}</MeasuredMain>
       </div>
       {/* The email is shell chrome, not a credential; it tells an operator which
-          account is acting when several people share a screen. */}
-      <footer className="mx-auto w-full max-w-5xl px-6 pb-6 text-xs text-(--color-text-muted)">
+          account is acting when several people share a screen.
+
+          Uncapped and left-anchored for the same reason the bar above it is (issue 648),
+          with one honest difference: no POC draws a page footer at all, so this follows
+          the chrome it sits under rather than a drawing of its own. `px-6` puts its text
+          on the same left edge as the wordmark and the content column. */}
+      <footer className="w-full px-6 pb-6 text-xs text-(--color-text-muted)">
         {t("settings.signedInAs", { email: session.email })}
       </footer>
     </div>

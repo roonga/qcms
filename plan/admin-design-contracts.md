@@ -395,6 +395,41 @@ The width caps #558 assigned per route are unchanged: a cap sets **how wide** th
 be, and this says **where** it sits. The two were conflated only because a centred column
 makes the question invisible.
 
+**Follow-on, from the lane that implemented the above (#648 with #657).** Two corrections to
+the paragraphs before this one, both found by reading the drawings rather than by a new
+decision.
+
+- **The top nav is not a centred bar to left-anchor. It is a capped bar, and no POC caps
+  it.** Every POC that draws the shell writes `.topbar__inner { display: flex;
+  flex-wrap: wrap; align-items: center; gap: 1.25rem; padding: 0 1.25rem; min-height:
+  56px; }` with no `max-width` and no auto margin - ten of the eleven files, the eleventh
+  being `auth-poc.html`, which drops the shell deliberately and so has no bar to cap. So `mx-auto` **and** `max-w-5xl` came off the bar, and off the footer with
+  it. Removing the auto margin alone would have left a 1024px bar sitting at the left of a
+  wider viewport, which is not a screen any POC draws.
+- **The caps did move after all, and by a different issue.** #657 re-sourced all sixteen
+  from each screen's own POC, which is the authority as of 2026-08-22; #558 had sourced them
+  from `plan/admin-ux-audit.md` §6, correctly for its date. Eight of the sixteen changed. The
+  sentence above is still true of #648 in isolation - anchoring moved no cap - and is no
+  longer a description of the shipped table. `apps/admin/lib/measure.ts` names the POC and
+  the selector behind every row.
+- **Reading a multi-screen POC needs a rule, and this is it.** Six of the eleven files pack
+  two or three screens behind a switcher, so a shared `.main` cap in one of them is ambiguous
+  by construction: it may be that file's chrome or it may be every screen's answer, and the
+  markup cannot say which. **An inner class is what disambiguates it.** Where the author
+  wanted a per-screen width they wrote one - `deployment-ops-poc.html` gives its three
+  screens `.ops-inner--responses` 900, `--erasures` 1180 and `--webhooks` 1820 over a `.main`
+  with no cap at all (`:229`); `preview-versions-poc.html` gives two of its three screens a
+  640px `.respondent-frame`. Where they did not, the shared `.main` stands for every screen
+  in the file, which is how that same file's version-history screen takes its 1600. The rule
+  is "inner class wins where present", not "a shared cap means nothing".
+- **One drawn number has no token, and it is left open rather than guessed.**
+  `.ops-inner--webhooks` is 1820px, wider than the widest cap the app has (100rem). `/webhooks`
+  therefore keeps the cap it had and is the one route whose value does not match its drawing.
+  Reaching it means adding a value to the vocabulary, which is a change to the scheme rather
+  than an assignment inside it. Worth noticing for the Wave 4 POC regeneration: 900, 1180 and
+  1820 match none of the app's caps, which reads as three screens drawn before the token
+  scheme existed rather than against it.
+
 ## 6. Save model
 
 Every screen states its model exactly once:

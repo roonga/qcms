@@ -268,19 +268,25 @@ test("559 leaves a screen with no rail exactly as wide as it was", async ({ page
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/questions");
 
-  await expect(page.getByTestId("qcms-rail")).toHaveCount(0);
+  await expect(page.locator(".qcms-rail")).toHaveCount(0);
   // The regression this guards is specific: a grid that declared its 240px track
   // unconditionally would leave an empty one here and push the column right by 240px.
+  //
+  // ISSUE 648 CHANGED WHAT "AS IT WAS" MEANS, and this test is the place that says so. It
+  // asserted equal gutters either side, because the column was centred; the column is now
+  // left-anchored on every screen, so equal gutters is exactly the thing that must NOT be
+  // true. The claim this test exists to make is untouched: no phantom track pushes a
+  // railless column right. Stated as "the column starts at the viewport's origin", which
+  // fails on a 240px phantom track just as loudly as the old assertion did and does not
+  // also re-assert a layout the app no longer has.
   const offset = await page.evaluate(() => {
     const main = document.querySelector("main#main-content");
     if (main === null) throw new Error("the authenticated shell must be on screen");
     const box = main.getBoundingClientRect();
     return { left: box.left, right: document.documentElement.clientWidth - box.right };
   });
-  expect(offset.left, "the column is centred in the whole viewport, as it always was").toBeCloseTo(
-    offset.right,
-    0,
-  );
+  expect(offset.left, "no phantom rail track pushes the column right").toBe(0);
+  expect(offset.right, "and the column is left-anchored rather than centred").toBeGreaterThan(0);
 });
 
 test.describe("without JavaScript", () => {
