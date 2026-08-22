@@ -507,6 +507,123 @@ particular is attacker-controlled, so it is classified into the four outcomes in
 and never recorded. A refusal line is therefore safe to ship to a log aggregator, and it
 survives the OTLP export allowlist intact rather than collapsing to `application.event`.
 
+**The admin writes this event too**, with the same name and the same four field names but
+a different route vocabulary and a different meaning. If your grep is running over more
+than one app's output, read the next runbook before drawing any conclusion from a count:
+a refusal on the portal is usually an old browser, and a refusal on the admin usually is
+not.
+
+### Admin belt refusals: a stuck sign-in, or something probing the auth routes
+
+**Symptom, in the case anyone reports.** A member of staff cannot sign in, cannot get past
+the two-factor screen, or cannot change their password, and the screen shows the one
+generic failure sentence with no further detail. Nothing in the admin's logs looks like an
+error: the request was refused before it reached the API, so there is no failed
+`auth.api.call` and no exception.
+
+**The case nobody reports, which is why this runbook exists.** A cross-origin caller
+posting at the admin's authentication routes is refused by the same belt and says nothing
+to anyone. It is the same mechanism as the portal's and a different problem: the portal's
+line makes an accepted loss countable, this one is the only trace an attempt against
+sign-in, the two-factor challenge or the password change leaves anywhere.
+
+Either way the first thing to look for is the same:
+
+```
+grep 'origin.belt.refused' <admin stdout>
+```
+
+**Cause.** All eight of the admin's state-changing BFF routes carry a CSRF belt (SEC-9,
+`isSameOriginPost` in `apps/admin/lib/server/route-helpers.ts`). It admits a request that
+either declares `Sec-Fetch-Site: same-origin` or `none`, or carries an `Origin` header
+matching `QCMS_ADMIN_BASE_URL`. A request that can do neither is refused. As on the portal
+this is unconditional and there is no variable that relaxes it.
+
+**The refusal line.** Every belt refusal writes exactly one `warn` line to the admin's
+stdout, and an admitted request writes none, so a count of these lines is a count of
+refused requests. One line per refusal is a property of the belt itself rather than of the
+eight route handlers, so a route added later is covered without anyone remembering to
+instrument it.
+
+```json
+{"level":"warn","time":"...","service":"qcms-admin","beltRoute":"/two-factor/challenge/verify",
+ "beltFetchSite":"cross-site","beltOrigin":"mismatch","beltOutcome":"redirect-with-failure",
+ "msg":"origin.belt.refused"}
+```
+
+| Field | What it holds |
+| --- | --- |
+| `beltRoute` | Which route refused, as a path template: `/sign-in/submit`, `/sign-out`, `/two-factor/challenge/verify`, `/two-factor/enroll/verify`, `/two-factor/recovery/verify`, `/two-factor/recovery-codes/confirm`, `/settings/password` or `/settings/recovery-codes` |
+| `beltFetchSite` | How `Sec-Fetch-Site` read: `absent`, `same-site`, `cross-site`, or `other` for a token that is not one of the spec's four |
+| `beltOrigin` | How `Origin` read against the admin's own base URL: `absent`, `null`, `mismatch`, or `unverifiable` if `QCMS_ADMIN_BASE_URL` could not be read |
+| `beltOutcome` | `redirect-with-failure` (bounced back to the screen they were on, which renders its one generic sentence) or `redirect-without-message` (moved elsewhere with nothing said: a refused sign-out lands on the sign-in screen **while the session is still live**, and a refused recovery-code confirmation lands in the shell) |
+
+#### Telling an admin refusal from a portal one
+
+Both apps emit `origin.belt.refused` with the same four field names, so a grep across
+aggregated logs returns them mixed together. Three ways to separate them, in the order you
+should reach for them:
+
+1. **The stdout line carries `service`.** `"service":"qcms-admin"` or
+   `"service":"qcms-portal"`. This is the direct answer whenever you are reading raw
+   lines, including `docker compose logs admin`, which separates them anyway.
+2. **An exported record carries the resource, not the field.** `service` is a logger
+   binding rather than an allowlisted attribute, so it is deleted on the way out under
+   SEC-13. In an OTLP backend the app is the record's resource `service.name`, which is
+   `OTEL_SERVICE_NAME` if you set it and otherwise `qcms-admin` or `qcms-portal`. Filtering
+   an exported stream on a `service` **attribute** returns nothing at all, which reads
+   exactly like "no refusals".
+3. **`beltRoute` is disjoint between the two.** The portal's templates all begin `/f/` or
+   `/s/`; the admin's are the eight auth and settings paths in the table above. This is the
+   fallback when you have the line but not its provenance.
+
+#### Reading an admin refusal
+
+The fields read the same as the portal's. What is different is the base rate underneath
+them, and that changes the conclusion rather than shading it:
+
+- **On the portal there is an accepted population.** About 1.6% of browsers send no Fetch
+  Metadata, that floor was accepted deliberately (issue #504), and `beltFetchSite:
+  "absent"` with `beltOrigin: "null"` or `"absent"` is very likely one of them.
+- **On the admin there is no accepted population.** The admin is not a public surface: it
+  is reached by a known, small set of staff. The same old-browser shape can occur here, but
+  it is one identifiable person you can call rather than a rate you have to live with, and
+  it is a one-off rather than a stream.
+
+So:
+
+- `beltFetchSite: "cross-site"` or `beltOrigin: "mismatch"` on **any** admin route is a
+  request that named a foreign origin. Nothing legitimate produces that. One is a
+  misconfigured embed or a stray bookmarklet; a **burst** is something probing you.
+- A burst on `/sign-in/submit`, `/two-factor/challenge/verify` or
+  `/two-factor/recovery/verify` in particular is an attempt against authentication, and it
+  is the shape to act on. Read it beside the sign-in throttle (see "Checking that sign-in
+  throttling is running" above), which counts attempts that got **past** the belt: the two
+  together are the credential-attack picture, and neither half sees the other's requests.
+- `beltFetchSite: "absent"` with `beltOrigin: "null"` or `"absent"` on
+  `/sign-in/submit` is the old-browser shape. Ask that person their browser and version
+  against the list in the previous runbook; the remedy is the same and there is no
+  workaround equivalent to the portal's secure link.
+- `beltOutcome: "redirect-without-message"` deserves a second look for what it is: nobody
+  will ever report one, because nothing was said. A refused sign-out in particular leaves
+  the session alive, so a staff member may believe they signed out on a shared machine when
+  they did not.
+
+**What you can do about it.** There is no configuration switch, by design: the belt is
+unconditional and QCMS ships no variable that relaxes it. What the line supports is
+detection and evidence. Count refusals per `beltRoute` over a window, keep the counts you
+already have from before an incident, and if the source is reachable from your edge, block
+it there. A refusal costs the caller nothing, so the belt will keep refusing for as long as
+they keep asking; the line is what lets you know they are.
+
+**What the line deliberately does not carry** (SEC-13). Every field above is a value from a
+closed vocabulary chosen by the request, never a value written by it: no session token, no
+email address, no TOTP code, no recovery code, no address, and no header value copied
+verbatim. `Origin` in particular is attacker-controlled, so it is classified and never
+recorded. That is what makes the line safe to ship to a log aggregator even though the
+requests it describes are the ones carrying credentials, and it survives the OTLP export
+allowlist intact rather than collapsing to `application.event`.
+
 ### Webhook dead-letters
 
 Domain events (`response.submitted`, `form.published`) are written to the `outbox`
