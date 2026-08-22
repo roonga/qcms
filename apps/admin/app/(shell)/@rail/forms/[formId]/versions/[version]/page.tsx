@@ -7,8 +7,8 @@ import { FormRailSlot } from "../../rail-slot";
  * URL. Its children are the FORM's steps rather than the steps frozen inside the version
  * being read: the rail is navigation within the form's subtree, and a step row leads to
  * the builder, which only ever edits the draft. And the row marked current is History,
- * because a stored version is not a row of the rail and `components/forms/form-tabs.tsx`
- * has marked History on `/versions/{n}` since task 034.
+ * because a stored version is not a row of the rail, and the section strip this rail
+ * replaced marked History on `/versions/{n}` from task 034 onward.
  *
  * The narrow cap issue 558 gave this route is untouched: the rail is a sibling of `<main>`
  * and takes nothing off the measure (`app/(shell)/layout.tsx`).

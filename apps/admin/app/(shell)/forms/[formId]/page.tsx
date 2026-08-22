@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import { Alert, Breadcrumb, type BreadcrumbItem } from "@/components/kit";
 import { FormActions } from "@/components/forms/form-actions";
 import { FormBuilder } from "@/components/forms/form-builder";
-import { FormTabs } from "@/components/forms/form-tabs";
 import type { FormDetail } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
 import { readState } from "@/lib/read-state";
@@ -119,7 +118,6 @@ export default async function FormBuilderPage({
         <p className="text-sm text-(--color-text-muted)">
           {t(`forms.builder.draftSource.${form.draftSource}`)}
         </p>
-        <FormTabs formId={form.formId} />
       </div>
 
       {/* Publish and close/reopen sit above the builder rather than on a screen of their

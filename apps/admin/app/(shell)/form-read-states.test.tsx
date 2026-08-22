@@ -179,9 +179,6 @@ vi.mock("@/components/save-model", () => ({
 vi.mock("@/components/forms/form-actions", () => ({
   FormActions: () => <div data-testid="qcms-form-actions-stub" />,
 }));
-vi.mock("@/components/forms/form-tabs", () => ({
-  FormTabs: () => <nav data-testid="qcms-form-tabs-stub" />,
-}));
 vi.mock("@/lib/ops/unexpected", () => ({ unexpected: () => "ops.error.unexpected" }));
 
 vi.mock("next/navigation", () => ({

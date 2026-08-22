@@ -27,19 +27,20 @@ import { submitResponse } from "./support/ops.js";
  *
  * ## What the set is claiming
  *
- * Six screens gained the rail (the seventh, secure links, was issue 559's reference screen
- * and is unchanged by this issue, so its frames are not re-shot). Each is shown at the
- * Code Owner's standing pair, 390 and 1280. The `--bp-sidebar` boundary pair is shot on
- * the history screen, because that is the screen where the contract's one genuine trap is
- * visible: the rail's children are the form's STEPS while the column beside it is a table
- * of VERSIONS, and a reviewer can see in one frame that the rail is not repeating the
- * page's own body (`plan/admin-ux-audit.md` §3.2 and §5.4).
+ * Seven screens gained the rail (the eighth, secure links, was issue 559's reference
+ * screen and is unchanged by this issue, so its frames are not re-shot). Each is shown at
+ * the Code Owner's standing pair, 390 and 1280. The `--bp-sidebar` boundary pair is shot
+ * on the history screen, because that is the screen where the contract's one genuine trap
+ * is visible: the rail's children are the form's STEPS while the column beside it is a
+ * table of VERSIONS, and a reviewer can see in one frame that the rail is not repeating
+ * the page's own body (`plan/admin-ux-audit.md` §3.2 and §5.4).
  *
- * The builder is shot too, at 1280, and it is the one frame in the set showing NO rail.
- * That is the escalation this issue made rather than settled: the builder already carries
- * a step list that is an editor, and reconciling it with §7's read-only step group is a
- * layout ruling nobody has recorded. The frame is here so the gate can see what was left
- * alone.
+ * The builder's two frames are the ones to read carefully, because its rail is the only
+ * one in the app with a single group and no divider. That is §7 rather than an exception
+ * to it (PM seat ruling on issue 561): a step item is `/forms/{id}#step-{stepId}`, which
+ * is a bare same-page fragment on this one route, and §7 says the rail "never carries
+ * same-page section switches". The builder's own step list stays where it is, in the
+ * content column, because it is an editor rather than navigation.
  */
 
 test.describe.configure({ mode: "serial" });
@@ -93,7 +94,12 @@ test.beforeAll(async ({ browser }) => {
   await page.close();
 });
 
-/** §7 / the escalation: the builder is the one form-scoped screen still without a rail. */
+/** §7 collapsed on the builder: one group, so the summary opens straight onto the sections. */
+test("builder-390", async ({ page }) => {
+  await capture(page, "builder-390", { path: `/forms/${FORM_ID}`, width: 390 });
+});
+
+/** §7 on the builder: the sibling group alone, no children, no divider, editor untouched. */
 test("builder-1280", async ({ page }) => {
   await capture(page, "builder-1280", { path: `/forms/${FORM_ID}`, width: 1280 });
 });

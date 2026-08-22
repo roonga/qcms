@@ -1,10 +1,11 @@
 # Gate: the form-subtree rail across the remaining screens (issue 561)
 
-Approve that the §7 rail reads correctly on the six screens that gained it, and that the builder was right to be left without one.
+Approve that the §7 rail reads correctly on the seven screens that gained it, including the builder, whose rail carries the sibling group alone.
 
 | Frame | The clause it claims |
 | --- | --- |
-| `builder-1280.png` | The escalation: the builder is the one form-scoped screen still without a rail, and keeps its section strip. |
+| `builder-390.png` | §7 collapsed on the builder: one group, so the disclosure opens straight onto the sections. |
+| `builder-1280.png` | §7 on the builder: the sibling group alone, no children group and therefore no divider, because a step item here would be a same-page fragment. The builder's own step editor is untouched, in the content column. |
 | `preview-390.png` | §7 collapsed: below `--bp-sidebar` the rail is a disclosure. |
 | `preview-1280.png` | §7 with `plan/admin-ux-audit.md` §3.4: the rail beside a respondent-facing render that keeps its narrow measure. |
 | `versions-390.png` | §7 collapsed on the history screen. |

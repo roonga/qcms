@@ -27,13 +27,15 @@ import { submitResponse } from "./support/ops.js";
  * on the responses screen listing responses, would also be the rail §5.4 rejects outright
  * for repeating the page's own body "and now there are two of them and they can disagree".
  *
- * ## The builder is deliberately the one screen without a rail
+ * ## The builder's rail carries one group, and that is §7 rather than an exception to it
  *
- * It is asserted here rather than left as an absence, because the absence is a decision:
- * the builder already carries a step list that is an EDITOR, and reconciling that with
- * §7's read-only step group is an open layout question (`lib/rail-routes.test.ts` records
- * it with the exception that keeps it that way). A rail appearing there without that
- * ruling should fail something, so it fails this.
+ * A rail step item is `/forms/{formId}#step-{stepId}`, which is a cross-route link on
+ * seven screens and a bare same-page fragment on the builder, and §7 says the rail "never
+ * carries same-page section switches". So the builder gets the sibling group and no
+ * children, and with one group there is no divider. Asserted here because it looks like an
+ * inconsistency and is not one, and because the builder's own step editor has to be left
+ * exactly where it is: it is content rather than navigation, which is why §7 never reached
+ * it.
  */
 
 test.describe.configure({ mode: "serial" });
@@ -44,6 +46,7 @@ const EMAIL = uniqueAdminEmail("rail561");
 const FORM_ID = "frm_auto_quote";
 const SLUG = "auto";
 const STEP_ID = "stp_history";
+const STEP_TITLE = "Driving history";
 const ACCIDENT = "q_at_fault_accident";
 
 /** The rail turns into its column at `--bp-sidebar`, which is 64rem at the default root size. */
@@ -54,11 +57,13 @@ let totpSecret = "";
 /** A submitted response, purely so the response-detail route has a subject. */
 let sessionId = "";
 
-/** One screen: the path, and the sibling row its rail is expected to mark. */
+/** One screen: the path, the sibling row its rail marks, and which groups it carries. */
 interface Screen {
   readonly path: string;
-  /** The rail row that should carry `aria-current`, or `null` when the screen has no rail. */
-  readonly current: string | null;
+  /** The `data-rail-item` key that should carry `aria-current`. */
+  readonly current: string;
+  /** Whether §7's children group is present. False only on the builder. */
+  readonly children: boolean;
 }
 
 /**
@@ -71,14 +76,18 @@ interface Screen {
  */
 function screens(): readonly Screen[] {
   return [
-    { path: `/forms/${FORM_ID}`, current: null },
-    { path: `/forms/${FORM_ID}/preview`, current: "section:preview" },
-    { path: `/forms/${FORM_ID}/versions`, current: "section:versions" },
-    { path: `/forms/${FORM_ID}/versions/1`, current: "section:versions" },
-    { path: `/forms/${FORM_ID}/links`, current: "section:links" },
-    { path: `/forms/${FORM_ID}/responses`, current: "section:responses" },
-    { path: `/forms/${FORM_ID}/responses/${sessionId}`, current: "section:responses" },
-    { path: `/forms/${FORM_ID}/webhooks`, current: "section:webhooks" },
+    { path: `/forms/${FORM_ID}`, current: "section:builder", children: false },
+    { path: `/forms/${FORM_ID}/preview`, current: "section:preview", children: true },
+    { path: `/forms/${FORM_ID}/versions`, current: "section:versions", children: true },
+    { path: `/forms/${FORM_ID}/versions/1`, current: "section:versions", children: true },
+    { path: `/forms/${FORM_ID}/links`, current: "section:links", children: true },
+    { path: `/forms/${FORM_ID}/responses`, current: "section:responses", children: true },
+    {
+      path: `/forms/${FORM_ID}/responses/${sessionId}`,
+      current: "section:responses",
+      children: true,
+    },
+    { path: `/forms/${FORM_ID}/webhooks`, current: "section:webhooks", children: true },
   ];
 }
 
@@ -93,7 +102,7 @@ test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
 });
 
-test("561 puts the rail on every form-scoped screen but the builder, marking the row the screen is", async ({
+test("561 puts the rail on all eight form-scoped screens, marking the row the screen is", async ({
   page,
 }) => {
   test.setTimeout(600_000);
@@ -105,18 +114,8 @@ test("561 puts the rail on every form-scoped screen but the builder, marking the
     await page.goto(screen.path);
     await expect(page.locator("main#main-content"), `${screen.path} is the shell`).toHaveCount(1);
 
-    if (screen.current === null) {
-      // Soft throughout, so one sweep reports all eight verdicts rather than stopping at
-      // the first screen that disagrees.
-      await expect
-        .soft(page.getByTestId("qcms-rail"), `${screen.path} is the written exception`)
-        .toHaveCount(0);
-      await expect
-        .soft(page.getByTestId("qcms-form-tabs"), `${screen.path} keeps the section strip`)
-        .toHaveCount(1);
-      continue;
-    }
-
+    // Soft throughout, so one sweep reports all eight verdicts rather than stopping at the
+    // first screen that disagrees.
     await expect
       .soft(page.getByTestId("qcms-rail"), `${screen.path} carries the rail`)
       .toBeVisible();
@@ -132,11 +131,30 @@ test("561 puts the rail on every form-scoped screen but the builder, marking the
         `${screen.path} marks exactly one row`,
       )
       .toHaveCount(1);
-    // One navigation to the six sections, not two. `FormPageHeader` dropped the strip when
-    // every screen it serves gained a rail (issue 561).
+    // The six sections are one navigation on every screen, never two: the strip that used
+    // to render under the heading retired with `form-tabs.tsx` (issue 561), so a second
+    // nav to the same six places cannot come back unnoticed.
     await expect
-      .soft(page.getByTestId("qcms-form-tabs"), `${screen.path} has no second section nav`)
+      .soft(page.locator('[data-rail-group="sections"]'), `${screen.path} has the sibling group`)
+      .toHaveCount(1);
+    await expect
+      .soft(
+        page.getByRole("navigation", { name: "Form sections" }),
+        `${screen.path} has no second section nav`,
+      )
       .toHaveCount(0);
+
+    // The builder's children group is absent, and with one group there is no divider.
+    const expected = screen.children ? 1 : 0;
+    await expect
+      .soft(
+        page.locator('[data-rail-group="steps"]'),
+        `${screen.path} ${screen.children ? "carries" : "omits"} §7's children group`,
+      )
+      .toHaveCount(expected);
+    await expect
+      .soft(page.locator("hr.qcms-rail__divider"), `${screen.path} divides only two groups`)
+      .toHaveCount(expected);
   }
 });
 
@@ -154,13 +172,25 @@ test("561 gives every screen the form's steps as its children, never the list it
   const expected = [`/forms/${FORM_ID}#step-${STEP_ID}`];
 
   for (const screen of screens()) {
-    if (screen.current === null) continue;
     await page.goto(screen.path);
     await expect(page.getByTestId("qcms-rail")).toBeVisible();
     expect
-      .soft(await childHrefs(page), `${screen.path} lists the form's steps as its children`)
-      .toEqual(expected);
+      .soft(
+        await childHrefs(page),
+        screen.children
+          ? `${screen.path} lists the form's steps as its children`
+          : `${screen.path} carries no children group at all`,
+      )
+      .toEqual(screen.children ? expected : []);
   }
+
+  // The builder keeps its own step list, and that list is the editor rather than a second
+  // copy of the rail's group: its rows are buttons and they select a step in the page.
+  await page.goto(`/forms/${FORM_ID}`);
+  await expect(
+    page.getByRole("button", { name: new RegExp(STEP_TITLE) }).first(),
+    "the builder's own step list is still an editor of buttons",
+  ).toBeVisible();
 });
 
 test("561 keeps the two respondent-facing screens on the narrow cap the rail sits beside", async ({

@@ -12,17 +12,12 @@ import { t } from "@/lib/i18n/en";
  * ## The section nav left this header for the rail (issue 561)
  *
  * It used to end with `FormTabs`, a `<nav>` of the same six routes
- * `plan/admin-design-contracts.md` §7 gives the rail. Every screen that renders this
- * header now carries that rail (`app/(shell)/@rail/forms/[formId]/`), and one screen does
- * not offer an operator two navigations to the same six places, or give a screen reader
- * two `nav` landmarks saying the same thing. Issue 559 held the difference in a
- * `sectionsInRail` flag while one screen had a rail and six did not; with all seven wired
- * the flag had exactly one value and went.
- *
- * `form-tabs.tsx` itself survives, and deliberately: the builder is the one form-scoped
- * screen still without a rail, for a reason recorded with the exception that keeps it that
- * way (`lib/rail-routes.test.ts`), and it renders the strip directly rather than through
- * this header.
+ * `plan/admin-design-contracts.md` §7 gives the rail. All eight form-scoped screens now
+ * carry that rail (`app/(shell)/@rail/forms/[formId]/`), and one screen does not offer an
+ * operator two navigations to the same six places, or give a screen reader two `nav`
+ * landmarks saying the same thing. Issue 559 held the difference in a `sectionsInRail`
+ * flag while one screen had a rail and seven did not; with every screen wired the flag had
+ * exactly one value, and `form-tabs.tsx` had no caller left, so both went.
  *
  * ## The heading is the form only when the page is about the form
  *
