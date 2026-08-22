@@ -77,6 +77,14 @@ import { logOriginBeltRefusal } from "./origin-belt-log";
  * calls this function by name. The portal went four tasks without any origin check
  * while this document asserted one of both apps, which is what that gate exists to
  * turn into a red.
+ *
+ * The two now differ in one respect: the **decision** is still identical, but only
+ * this side logs its refusals. That is deliberate scope rather than drift. The cost
+ * of an invisible refusal is not the same on both surfaces: this one faces the public
+ * and refuses a measured share of ordinary respondents, while the admin's faces staff
+ * who can be asked what they saw. The admin's refusals are equally unobservable and
+ * are worth the same treatment; that belongs in its own change, not smuggled into a
+ * portal one.
  */
 export function isSameOriginPost(request: Request): boolean {
   const allowed = admitsAsSameOrigin(request);
