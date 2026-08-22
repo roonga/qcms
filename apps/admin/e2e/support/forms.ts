@@ -61,28 +61,52 @@ export async function openStep(page: Page, title: string): Promise<void> {
 }
 
 /**
- * Pin one question version into the open step, through the library picker.
+ * The picker's control for one choosable row: a CHECKBOX since issue 660.
  *
- * Addressed by the row's own button since issue 570. The picker's row used to BE the
- * control (`onRowAction`), and contract §2 retired that; a picker has no address to link
- * to, so what it got instead is a named button per choosable row. Locating it by its
- * accessible name is deliberate: it is the same string a screen-reader author hears, so a
- * regression that leaves the column full of bare "Add" buttons fails here rather than in
- * a manual pass.
+ * The row used to BE the control (`onRowAction`); contract §2 retired that and issue 570
+ * gave the row a named button, because a picker has no address to link to. Issue 660 made
+ * the dialog multi-select, so the row control now stages a choice rather than committing
+ * it and a checkbox is what states that. What did NOT change is the accessible name:
+ * locating by it is deliberate, because it is the same string a screen-reader author
+ * hears, so a regression that leaves the column full of bare unnamed checkboxes fails here
+ * rather than in a manual pass.
  */
-export function pickerAddButton(scope: Locator, questionId: string, version: number): Locator {
-  return scope.getByRole("button", { name: `Add ${questionId} version ${String(version)}` });
+export function pickerChoice(scope: Locator, questionId: string, version: number): Locator {
+  return scope.getByRole("checkbox", { name: `Add ${questionId} version ${String(version)}` });
 }
 
+/** The dialog's one commit control, whose label carries the count it is about to add. */
+export function pickerCommit(scope: Locator, count: number): Locator {
+  const label = count === 1 ? "Add 1 question to step" : `Add ${String(count)} questions to step`;
+  return scope.getByRole("button", { name: label });
+}
+
+/** Pin one question version into the open step, through the library picker. */
 export async function pinQuestion(page: Page, questionId: string, version: number): Promise<void> {
+  await pinQuestions(page, [{ questionId, version }]);
+}
+
+/**
+ * Pin several question versions in ONE trip through the picker, which is what issue 660
+ * added and what every caller of `pinQuestion` used to have to do one dialog at a time.
+ */
+export async function pinQuestions(
+  page: Page,
+  pins: readonly { questionId: string; version: number }[],
+): Promise<void> {
   await page.getByRole("button", { name: "Add question from library" }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
-  const add = pickerAddButton(dialog, questionId, version);
-  await expect(add).toBeVisible();
-  await add.click();
+  for (const pin of pins) {
+    const choice = pickerChoice(dialog, pin.questionId, pin.version);
+    await expect(choice).toBeVisible();
+    await choice.check();
+  }
+  await pickerCommit(dialog, pins.length).click();
   await expect(dialog).toBeHidden();
-  await expect(pinLabel(page, questionId, version)).toBeVisible();
+  for (const pin of pins) {
+    await expect(pinLabel(page, pin.questionId, pin.version)).toBeVisible();
+  }
 }
 
 /**

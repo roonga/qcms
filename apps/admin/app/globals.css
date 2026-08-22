@@ -2509,6 +2509,107 @@ button {
   color: var(--color-text-muted);
 }
 
+/* THE ADD-QUESTION PICKER'S MULTI-SELECT (issue 660).
+   `plan/admin-shell-poc/add-question-poc.html` holds two dialogs behind a variant
+   toggle and this is its multi-select one: a checkbox leading each choosable row,
+   and a pane listing what has been chosen so far. */
+
+/* The leading selection column. Sized to its control and nothing else, so the
+   identifying column keeps the width it had. `text-align: start` overrides the
+   table family's centred numeric headers, which this one is not. */
+.qcms-picker__choose {
+  inline-size: 1px;
+  text-align: start;
+  white-space: nowrap;
+}
+
+/* The row control. `accent-color` is the POC's own rule and is what keeps a native
+   checkbox inside the theme without a wrapper element to paint.
+
+   SIZE AND SC 2.5.8. The POC draws 16px, which is under the 24px target floor the
+   admin's control height clears elsewhere, and the base rule for `input` in this
+   sheet deliberately excludes `[type="checkbox"]` from that floor. This takes the
+   drawing's size and meets 2.5.8 through its SPACING exception instead: the cell's
+   padding comes from the table family, so no other target comes within a 24px
+   circle centred on this one. `docs/admin-constraints.md` asks for the trade to be
+   stated rather than left silent, and that is the trade. */
+.qcms-picker__checkbox {
+  inline-size: 16px;
+  block-size: 16px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+/* The chosen pane. A bordered block rather than a second column: this dialog is one
+   column at every width the admin supports, where the POC's is a two-pane
+   master-detail built around a paginated server-side list this picker does not have. */
+.qcms-picker__chosen {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.qcms-picker__chosen-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.qcms-picker__chosen-list li {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background-color: var(--color-background-muted);
+}
+
+/* The pin and its label stack, so a long label wraps under the id it belongs to
+   rather than pushing the remove control off a 390px row. */
+.qcms-picker__chosen-main {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+/* 28px square, which clears the 24px target floor without taking the 40px the
+   sheet's base `button` rule gives a control that carries words. */
+.qcms-picker__unchoose {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  inline-size: 28px;
+  block-size: 28px;
+  min-block-size: 28px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background-color: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.qcms-picker__unchoose:hover {
+  background-color: var(--color-ghost-hover);
+  color: var(--color-danger-fg);
+}
+.qcms-picker__unchoose svg {
+  inline-size: 14px;
+  block-size: 14px;
+}
+
+/* Cancel to the start, the counted primary to the end, which is the POC's footer. */
+.qcms-picker__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
 /* Standard clip-rect visually hidden utility: present for assistive tech,
    removed from the visual layout without display:none, which would also
    remove it from the accessibility tree. */

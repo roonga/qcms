@@ -557,15 +557,20 @@ export const messages = {
   "forms.step.labelMissing": "No label in the library",
   "forms.step.labelUnknown": "Label not known",
 
-  "forms.picker.title": "Add a question to {title}",
+  "forms.picker.title": "Add questions to {title}",
   "forms.picker.description":
-    "Published versions only. A deprecated version is listed but cannot be pinned, and a question already in this form cannot be pinned twice.",
+    "Choose one or more published versions, then add them together. A deprecated version is listed but cannot be pinned, and a question already in this form cannot be pinned twice.",
   "forms.picker.search": "Search",
   "forms.picker.tableLabel": "Question versions",
-  "forms.picker.hint": "Add a version to pin that question at it.",
-  "forms.picker.column.action": "Add to this step",
-  "forms.picker.add": "Add",
+  "forms.picker.hint":
+    "Each version chosen here becomes a pin frozen at that version. Nothing upgrades it afterwards, and every pin stays changeable in the step's grid.",
+  "forms.picker.column.choose": "Choose",
+  // The checkbox's accessible name, and the same string the version's entry in the
+  // chosen list is removed by. A checkbox announced as "checkbox, unchecked" on every
+  // one of thirty rows tells a screen-reader author nothing about which row it sits in,
+  // which is the property issue 570 put on this row's control and multi-select keeps.
   "forms.picker.addNamed": "Add {questionId} version {version}",
+  "forms.picker.removeNamed": "Remove {questionId} version {version} from the chosen list",
   "forms.picker.column.questionId": "Question ID",
   "forms.picker.column.label": "Label",
   "forms.picker.column.type": "Type",
@@ -574,10 +579,27 @@ export const messages = {
   "forms.picker.statePinnable": "Pinnable",
   "forms.picker.stateDeprecated": "Deprecated",
   "forms.picker.statePinned": "Already in this form",
+  "forms.picker.stateChosen": "Chosen to add",
+  // A question is pinned once per form, so choosing one version of it rules out its
+  // siblings for as long as that choice stands. Saying which is the point: the author is
+  // looking at a row whose checkbox has just gone, and the reason is two rows away.
+  "forms.picker.stateOtherVersionChosen": "Version {version} of this question is chosen",
+  // No plural rule: the noun is inside the count's parentheses, not after it, so English
+  // and every locale that renders this heading pick the same form. `tPlural` is for the
+  // commit label below, where the noun does inflect.
+  "forms.picker.chosenHeading": "Chosen ({count})",
+  "forms.picker.chosenEmpty": "Nothing chosen yet. Check a version to add it.",
+  // ADR-27: the count is a substitution into a chosen plural form, never a number
+  // concatenated onto a fixed noun. The zero case is its own message rather than the
+  // "other" form with a 0 in it, because "Add 0 questions to step" is a sentence no
+  // locale wants and the button it sits on cannot be pressed anyway.
+  "forms.picker.commitNone": "Add questions to step",
+  "forms.picker.commit.one": "Add 1 question to step",
+  "forms.picker.commit.other": "Add {count} questions to step",
   "forms.picker.empty": "No published question version matches this search.",
   "forms.picker.loadFailed":
     "The question library could not be loaded, so there is nothing to choose from. Close this dialog and reload the page to try again.",
-  "forms.picker.close": "Close",
+  "forms.picker.cancel": "Cancel",
 
   "forms.rules.title": "Rules",
   "forms.rules.add": "Add rule",

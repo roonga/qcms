@@ -21,7 +21,13 @@ import {
   type PinRowAction,
   type PinRowView,
 } from "@/lib/forms/pin-grid";
-import type { DraftForm, DraftStep, PinnableQuestion, FormIssue } from "@/lib/forms/types";
+import type {
+  DraftForm,
+  DraftPin,
+  DraftStep,
+  PinnableQuestion,
+  FormIssue,
+} from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
 import { textOf } from "@/lib/questions/definition";
 import type { ReadState } from "@/lib/read-state";
@@ -119,7 +125,7 @@ export function StepEditor({
   step,
   library,
   issues,
-  onAddPin,
+  onAddPins,
   onMovePin,
   onRemovePin,
   onReorderPin,
@@ -133,8 +139,15 @@ export function StepEditor({
    * printing an all-clear per pin about a draft nothing has validated.
    */
   readonly issues: readonly FormIssue[] | undefined;
-  /** `index` is an insert boundary: 0 is before the first pin, `items.length` appends. */
-  readonly onAddPin: (questionId: string, version: number, index: number) => void;
+  /**
+   * Every pin the picker chose, in one call, at one insert boundary.
+   *
+   * `index` is an insert boundary: 0 is before the first pin, `items.length` appends,
+   * and the pins land in list order from there. A list rather than a call per pin
+   * because the builder folds them into one draft update (issue 660): a handler called
+   * N times computes N times from the same closed-over draft and keeps only the last.
+   */
+  readonly onAddPins: (pins: readonly DraftPin[], index: number) => void;
   readonly onMovePin: (questionId: string, version: number) => void;
   readonly onRemovePin: (questionId: string) => void;
   readonly onReorderPin: (questionId: string, delta: -1 | 1) => void;
@@ -324,8 +337,8 @@ export function StepEditor({
           stepTitle={title}
           draft={draft}
           library={library}
-          onPin={(questionId, version) => {
-            onAddPin(questionId, version, pickerAt);
+          onAddPins={(pins) => {
+            onAddPins(pins, pickerAt);
           }}
           onClose={() => {
             setPickerAt(undefined);

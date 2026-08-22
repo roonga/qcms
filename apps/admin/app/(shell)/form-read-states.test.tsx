@@ -155,6 +155,7 @@ vi.mock("@/lib/i18n/format", () => import("../../lib/i18n/format"));
 vi.mock("@/lib/questions/definition", () => import("../../lib/questions/definition"));
 vi.mock("@/lib/forms/links", () => import("../../lib/forms/links"));
 vi.mock("@/lib/forms/draft", () => import("../../lib/forms/draft"));
+vi.mock("@/lib/forms/picker-selection", () => import("../../lib/forms/picker-selection"));
 vi.mock("@/lib/forms/issues", () => import("../../lib/forms/issues"));
 vi.mock("@/lib/forms/condition", () => import("../../lib/forms/condition"));
 vi.mock("@/lib/forms/pin-grid", () => import("../../lib/forms/pin-grid"));
@@ -552,7 +553,7 @@ describe("the move-pin menu's account of the library (issues 572, 544)", () => {
         step={STEP as never}
         library={library as never}
         issues={[]}
-        onAddPin={() => undefined}
+        onAddPins={() => undefined}
         onMovePin={() => undefined}
         onRemovePin={() => undefined}
         onReorderPin={() => undefined}

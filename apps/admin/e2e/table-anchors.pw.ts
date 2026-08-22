@@ -4,7 +4,14 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
-import { addStep, createForm, openStep, pickerAddButton, pinLabel } from "./support/forms.js";
+import {
+  addStep,
+  createForm,
+  openStep,
+  pickerChoice,
+  pickerCommit,
+  pinLabel,
+} from "./support/forms.js";
 import { confirmLifecycle, createDraft } from "./support/questions.js";
 
 /**
@@ -36,11 +43,12 @@ import { confirmLifecycle, createDraft } from "./support/questions.js";
  *
  * ## Why the picker is here and is different
  *
- * `components/forms/library-picker.tsx` has no address to link to: choosing a row adds a
- * pin to the draft the author is editing. Its rows carry a named button instead, and the
- * reasoning is on the component. The claim made about it here is the one §2 actually wants
- * from an anchor - a real, announced, keyboard-operable control - and no no-JS claim at
- * all, because a modal dialog over client-held draft state has never had one to make.
+ * `components/forms/library-picker.tsx` has no address to link to: choosing a row stages a
+ * pin for the draft the author is editing. Its rows carry a named CHECKBOX since issue 660
+ * made the dialog multi-select, and the reasoning is on the component. The claim made about
+ * it here is the one §2 actually wants from an anchor - a real, announced,
+ * keyboard-operable, named control - and no no-JS claim at all, because a modal dialog over
+ * client-held draft state has never had one to make.
  */
 
 test.describe.configure({ mode: "serial" });
@@ -102,15 +110,18 @@ test("every converted table's row control is in the document's own tab order", a
   await page.getByRole("button", { name: "Add question from library" }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
-  const add = pickerAddButton(dialog, questionIdFor(PICKER_SLUG), 1);
-  await expect(add).toBeVisible();
+  const choice = pickerChoice(dialog, questionIdFor(PICKER_SLUG), 1);
+  await expect(choice).toBeVisible();
 
-  //    Space, not Enter. A `<button>` takes both and an `<a href>` takes only Enter, so
-  //    this is the assertion that would notice the control quietly becoming a link-shaped
-  //    thing.
-  await tabTo(page, add);
-  await expect(add, "the picker's add button is reachable by Tab").toBeFocused();
+  //    Space, not Enter. A checkbox toggles on Space and an `<a href>` activates on Enter
+  //    only, so this is the assertion that would notice the control quietly becoming a
+  //    link-shaped thing. The choice is then committed by the dialog's own button, which
+  //    is where "a button acts" now lives.
+  await tabTo(page, choice);
+  await expect(choice, "the picker's row control is reachable by Tab").toBeFocused();
   await page.keyboard.press("Space");
+  await expect(choice, "Space toggles it, as a checkbox and not a link").toBeChecked();
+  await pickerCommit(dialog, 1).click();
   await expect(dialog).toBeHidden();
   await expect(pinLabel(page, questionIdFor(PICKER_SLUG), 1)).toBeVisible();
 
