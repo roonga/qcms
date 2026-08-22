@@ -259,6 +259,7 @@ Inventory-only: two stacked sections.
 ## Regions (normative) - webhook operations
 
 - **page heading**: one `h1`, `Webhook operations` (`ops.area.webhooks.title`), with an intro sentence that states the split in words (`:29-34`). The nav item that reaches it is labelled `Webhooks`; the heading is the longer name, and the copy catalog is what the screen actually says.
+  - **The intro's second half is stale as shipped.** It sends the reader to "the form's Webhooks **tab**", and issue #561 retired the in-header section nav that word named: the form's sibling screens are rows in the §7 rail now. **#651** is open on it. The split the sentence describes is correct; only the control it names is gone.
 - **queue-read error `alert`** (`:36-40`).
 - **dead-letter queue** (`DeadLetters`, `apps/admin/components/ops/dead-letters.tsx`): a `section` labelled by its own heading, containing, in order:
   - **`h2`** `Dead-letter queue` with an intro sentence (`:121-131`). The `h2` carries `tabIndex={-1}` and is the **focus destination after a completed redelivery**, because both redelivery paths remove the control that started them - the row's own `button`, or the bulk confirmation whose trigger disappears with the last row - so there is nothing to restore focus to (`:85-95`, issue #308).
