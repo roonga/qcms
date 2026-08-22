@@ -61,6 +61,8 @@ Element 5 is worth adapting on both, but for a plainer reason than the POC's: ne
 
 The two screens disagree with each other on creation, and that is worth fixing while a language is being picked: `/questions` sends you to a **route** (`app/(shell)/questions/page.tsx:112-114`), `/forms` puts an inline create **card** on the list (`app/(shell)/forms/page.tsx:72`). Same shape, two answers.
 
+**Settled, 2026-08-22 (issue #685).** `plan/admin-shell-poc/library-lists-poc.html` picked the route for both screens, on the grounds that minting an id is a one-way door (R6) and that a card an author pays for on every visit pushes the list below the fold. `/forms/new` exists and the card is gone; the finding above is the record of the disagreement, not a live one.
+
 ### 3.2 `/questions/[questionId]`
 
 Scope is correct: the h1 is the question id (`app/(shell)/questions/[questionId]/page.tsx:92`) and the selected version is in the URL as `?v=`. No scope bug here.

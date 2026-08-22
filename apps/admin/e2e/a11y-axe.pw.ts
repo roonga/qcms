@@ -476,6 +476,12 @@ test("the form builder and the condition editor have zero violations", async ({ 
   await page.goto("/forms");
   await expectNoViolations(page, "form library");
 
+  // The creating screen issue 685 split off the library. Swept in its own right rather
+  // than left to the drive-by `createForm` makes on the way to the builder: a screen the
+  // suite only ever passes through is a screen whose own markup nothing looks at.
+  await page.goto("/forms/new");
+  await expectNoViolations(page, "new form");
+
   await createForm(page, `a11y-form-${run}`, "Accessibility sweep form");
   // A brand-new form has no steps, which is the autosave-paused state and its own layout.
   await expectNoViolations(page, "form builder, empty");

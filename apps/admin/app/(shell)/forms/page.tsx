@@ -6,8 +6,6 @@ import { t } from "@/lib/i18n/en";
 import { listForms } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
 
-import { createFormAction } from "./actions";
-import { CreateForm } from "./create-form";
 import { FormsTable } from "./forms-table";
 
 /**
@@ -18,6 +16,16 @@ import { FormsTable } from "./forms-table";
  * question library does. Nothing is filtered or sorted here: `GET /admin/forms` returns
  * the whole set and the API owns its order, so a second ordering in this app would be a
  * decision the BFF has no authority to make (R2).
+ *
+ * ## Creating is not on this screen (issue 685)
+ *
+ * It was, as a card between the heading and the table, and
+ * `plan/admin-shell-poc/library-lists-poc.html` names that card as the thing to change:
+ * it picks a separate creation route for BOTH library screens, on the grounds that
+ * minting an id is a one-way door (R6) that deserves a screen rather than a slot beside a
+ * table of everything already made, and that a card an author pays for on every visit
+ * pushes the list they came to read below the fold. So this screen links to `/forms/new`
+ * and lists, which is now the same shape `/questions` has.
  *
  * ## What each row says, and why the two state columns are separate
  *
@@ -55,8 +63,6 @@ export default async function FormsPage() {
           </Link>
         )}
       </div>
-
-      <CreateForm action={createFormAction} />
 
       {!result.ok && (
         <Alert variant="error">{t("forms.error.listFailed", { message: result.message })}</Alert>

@@ -301,6 +301,17 @@ was right.
 names it rather than duplicating it.** "Use the form above to create your first
 form." No CTA button.
 
+**The case that produced it is no longer a case (issue 685).** The rule above stands
+and is the answer for any screen that meets its condition. `/forms` no longer does:
+`plan/admin-shell-poc/library-lists-poc.html` chooses a separate creation route for
+BOTH library screens and names the forms list's inline card as the one that should
+change, so the card is gone, `/forms/new` exists, and the panel takes §3's ordinary
+primary CTA pointing at it. The POC is the authority for that (`docs/admin-constraints.md`),
+and both of the premises this amendment reasoned from - "the creating action is a
+two-field fieldset on the same screen" and "there is no `/forms/new` route" - were
+retired by it rather than argued with. The exemption has no member left; the rule
+kept its teeth for the next screen that has one.
+
 The two alternatives were both worse, and it is worth recording why so neither
 gets reinvented:
 

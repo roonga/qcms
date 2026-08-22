@@ -481,7 +481,12 @@ table.lib-table { width: 100%; min-width: 720px; border-collapse: collapse; font
            made. An inline card also pushes the very thing an author opened this screen to
            browse below the fold on every visit, even when they came to look, not to
            create. The forms list's inline card is the one that should change to match this,
-           not the other way round. -->
+           not the other way round.
+
+           The ruling above stands; its last sentence is now history rather than a live
+           instruction. Issue #685 moved creating a form onto /forms/new on 2026-08-22
+           (apps/admin/app/(shell)/forms/new/), so both library screens create the same
+           way and the shipped app matches this drawing. -->
       <a href="#" class="btn btn-primary">+ New question</a>
     </div>
 
@@ -749,9 +754,11 @@ table.lib-table { width: 100%; min-width: 720px; border-collapse: collapse; font
         <p class="page-intro">Compose published questions into steps, and branch between them with rules.</p>
       </div>
       <!-- Same creation pattern as the question library above: a separate route rather
-           than the inline create card the shipped forms list uses today. This POC's own
-           HTML comment at the top of the file records the choice once; this button is
-           that choice applied here. -->
+           than the inline create card the shipped forms list used to carry. This POC's own
+           HTML comment on the question-library screen records the choice once; this button
+           is that choice applied here. History, not a live warning: the shipped card was
+           still there when this POC was drawn, and issue #685 replaced it with this link
+           and a /forms/new route on 2026-08-22. -->
       <a href="#" class="btn btn-primary">+ New form</a>
     </div>
 

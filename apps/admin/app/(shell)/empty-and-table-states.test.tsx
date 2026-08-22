@@ -219,12 +219,10 @@ vi.mock("@/components/questions/questions-table", () => ({
 vi.mock("./forms/forms-table", () => ({
   FormsTable: () => <div data-testid="qcms-forms-table-stub" />,
 }));
-vi.mock("./forms/create-form", () => ({
-  CreateForm: () => <div data-testid="qcms-create-form-stub" />,
-}));
-vi.mock("./forms/actions", () => ({
-  createFormAction: () => Promise.resolve({ ok: true }),
-}));
+// `./forms/create-form` and `./forms/actions` used to be stubbed here, because the library
+// screen rendered the creating card and posted to the action. Issue 685 moved both to
+// `/forms/new`, so this page imports neither and a mock for them would name a module this
+// file's subject no longer reaches.
 vi.mock("@/components/ops/ops-tags", () => ({
   erasureReasonText: (reason: string) => reason,
   FlagTag: () => <span data-testid="qcms-flag-tag-stub" />,

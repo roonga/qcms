@@ -44,9 +44,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  *
  * ## Red-first, against the pre-change tree
  *
- * Six failures: `/forms` rendered `forms.create.*` and a `<form>`, carried no
- * `href="/forms/new"` in either the populated or the empty state, and `./forms/new/page.tsx`
- * did not resolve at all.
+ * Seven failed, three passed. The four in the first block: the list rendered a `<form>`
+ * and a `data-field="slug"`, it contained `forms.create.`, `hrefs` held no `/forms/new`,
+ * and the empty case counted 0 of them where 1 was expected. The three in the second
+ * block all failed the same way, on `Cannot find module './forms/new/page.tsx'`.
+ *
+ * The three that PASSED are the whole control block, which is the point of having one:
+ * the invariant was already true before the change and stayed true after it.
  */
 
 const SESSION = {
@@ -117,9 +121,7 @@ vi.mock("@/lib/i18n/en", () => ({
 
 /** Marked stand-ins, so the kit's own markup never confuses an assertion. */
 vi.mock("@/components/kit", () => ({
-  Alert: ({ children }: { children?: ReactNode }) => (
-    <div data-testid="qcms-alert">{children}</div>
-  ),
+  Alert: ({ children }: { children?: ReactNode }) => <div data-testid="qcms-alert">{children}</div>,
   Button: ({ children }: { children?: ReactNode }) => <button type="button">{children}</button>,
   Card: ({ children }: { children?: ReactNode }) => (
     <div data-testid="qcms-card-stub">{children}</div>
