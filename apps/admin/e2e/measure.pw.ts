@@ -54,8 +54,16 @@ const QUESTION_ID = "q_at_fault_accident";
 /** Answering the accident question `true` reveals this one, which is then required. */
 const COUNT_ID = "q_accident_count";
 
-/** The three caps, in the CSS pixels `getComputedStyle` reports them as. */
-const CAP_PX = { default: 1024, wide: 1600, narrow: 720 } as const;
+/**
+ * The caps, in the CSS pixels `getComputedStyle` reports them as.
+ *
+ * `prose` is the fourth, and it belongs to one screen: Settings takes the 40rem cap its own
+ * POC draws (`plan/admin-shell-poc/settings-newquestion-poc.html`, issue 655), which is also
+ * the only column in the app that is left-anchored rather than centred. The alignment is
+ * asserted where the screen is, in `settings-rail.pw.ts`; what belongs here is the cap, so
+ * the sweep across all sixteen screens still describes all sixteen.
+ */
+const CAP_PX = { default: 1024, wide: 1600, narrow: 720, prose: 640 } as const;
 
 type Cap = keyof typeof CAP_PX;
 
@@ -86,7 +94,7 @@ function screens(sessionId: string): readonly Screen[] {
     { path: "/questions/new", cap: "default" },
     { path: "/responses", cap: "default" },
     { path: "/responses/erasures", cap: "default" },
-    { path: "/settings", cap: "default" },
+    { path: "/settings", cap: "prose" },
     { path: "/webhooks", cap: "wide" },
   ];
 }
