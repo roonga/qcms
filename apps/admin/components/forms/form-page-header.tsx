@@ -1,15 +1,28 @@
 import { Breadcrumb, type BreadcrumbItem } from "@/components/kit";
-import { FormTabs } from "@/components/forms/form-tabs";
 import { t } from "@/lib/i18n/en";
 
 /**
- * The chrome every form section shares: breadcrumb, identity line, section nav (034;
- * 035 adds the responses and webhooks sections).
+ * The chrome every form section shares: breadcrumb and identity line (034; 035 adds the
+ * responses and webhooks sections).
  *
- * A server component, so the sections stay ordinary server-rendered routes and only the
- * nav's current-section highlight needs the client. Keeping it in one place is what stops
- * the builder, preview, history, links, responses and webhooks screens drifting into six
- * slightly different headings for the same form.
+ * A server component, and since issue 561 an entirely static one. Keeping it in one place
+ * is what stops the preview, history, links, responses and webhooks screens drifting into
+ * five slightly different headings for the same form.
+ *
+ * ## The section nav left this header for the rail (issue 561)
+ *
+ * It used to end with `FormTabs`, a `<nav>` of the same six routes
+ * `plan/admin-design-contracts.md` §7 gives the rail. Every screen that renders this
+ * header now carries that rail (`app/(shell)/@rail/forms/[formId]/`), and one screen does
+ * not offer an operator two navigations to the same six places, or give a screen reader
+ * two `nav` landmarks saying the same thing. Issue 559 held the difference in a
+ * `sectionsInRail` flag while one screen had a rail and six did not; with all seven wired
+ * the flag had exactly one value and went.
+ *
+ * `form-tabs.tsx` itself survives, and deliberately: the builder is the one form-scoped
+ * screen still without a rail, for a reason recorded with the exception that keeps it that
+ * way (`lib/rail-routes.test.ts`), and it renders the strip directly rather than through
+ * this header.
  *
  * ## The heading is the form only when the page is about the form
  *
@@ -26,7 +39,6 @@ export function FormPageHeader({
   section,
   status,
   heading,
-  sectionsInRail = false,
 }: {
   readonly formId: string;
   readonly slug: string;
@@ -42,19 +54,6 @@ export function FormPageHeader({
    * an in-place action. Ids come from `lib/page-headings.ts`.
    */
   readonly heading?: { readonly id: string; readonly text: string };
-  /**
-   * Suppresses the section strip on a screen whose rail already carries those six routes.
-   *
-   * `plan/admin-design-contracts.md` §7 gives the rail the form's siblings - Builder,
-   * Preview, Versions, Links, Responses, Webhooks - which is exactly what {@link FormTabs}
-   * is. A screen with both would offer one operator two navigations to the same six
-   * places, and would give a screen reader two `nav` landmarks saying the same thing.
-   *
-   * A flag rather than a deletion because issue 559 wires the rail on one screen and issue
-   * 561 wires the other seven: while that is in flight, seven screens still need the
-   * strip. When 561 lands, this prop and `form-tabs.tsx` go together.
-   */
-  readonly sectionsInRail?: boolean;
 }) {
   const crumbs: BreadcrumbItem[] = [
     { id: "forms", label: t("forms.builder.crumbs"), href: "/forms" },
@@ -80,7 +79,6 @@ export function FormPageHeader({
           {t(`forms.status.${status}`)}
         </p>
       )}
-      {!sectionsInRail && <FormTabs formId={formId} />}
     </div>
   );
 }

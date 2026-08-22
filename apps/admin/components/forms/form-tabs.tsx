@@ -9,6 +9,18 @@ import { t } from "@/lib/i18n/en";
  * The sections of one form: builder, preview, history, links, responses, webhooks
  * (task 034; the last two added by 035).
  *
+ * ## The builder is the only screen that still renders this (issue 561)
+ *
+ * `plan/admin-design-contracts.md` §7 gives the rail the same six routes, so a screen with
+ * a rail does not also carry this strip - it would offer one operator two navigations to
+ * the same six places and give a screen reader two `nav` landmarks saying the same thing.
+ * Seven of the eight form-scoped screens now have the rail and dropped the strip with it
+ * (`components/forms/form-page-header.tsx`). The builder is the exception, and the reason
+ * is recorded with the exception itself in `lib/rail-routes.test.ts`: it already carries a
+ * step list that is an EDITOR, and reconciling that with §7's read-only step group is a
+ * layout question nobody has ruled on. So this component stays until that ruling lands,
+ * and it stays reachable from exactly one page.
+ *
  * A `nav` of ordinary links rather than a tab widget, and the difference matters. These
  * are four routes, not four panels: each is separately addressable, separately
  * bookmarkable, and reloads on its own. Rendering them as ARIA tabs would promise
