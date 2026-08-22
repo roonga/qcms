@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { DraftForm, DraftStep, FormIssue, PinnableQuestion } from "../../lib/forms/types.ts";
 
@@ -130,6 +130,31 @@ async function renderStepsRail(issueCounts: ReadonlyMap<string, number>): Promis
     />,
   );
 }
+
+/**
+ * Pay for the module graph once, before anything is timed against the 5s default.
+ *
+ * The same warm-up `pin-grid-ownership.test.tsx` next door already carries, for the same
+ * measured reason and against the same component. `renderStepEditor` reaches the editor
+ * through `await import("./step-editor.tsx")` and every `@/` factory above is itself a
+ * dynamic import, so the FIRST call transforms and loads the step editor, the vendored kit,
+ * the announcer and the whole i18n table: about 5s cold against roughly 15ms warm, which on
+ * the default timeout is a coin flip decided by how loaded the machine is. Measured while
+ * issue 650 was landing: three of five `turbo run test --force` runs red on this file with
+ * two test files added to the project, three of three green on the same machine without
+ * them. Two files are not a performance regression; they are enough to change which files
+ * a worker is transforming at the moment this one imports. Nothing here is slow, and the
+ * first test was simply paying for everyone.
+ *
+ * Issue 603 is open on the same shape in `packages/ui` and asks that the cold-start cost be
+ * addressed rather than the budget quietly raised. This is that fix, not a raised budget:
+ * the 60s belongs to the warm-up, and each test below keeps the default. Both entry points
+ * are warmed, because the rail's is a second graph the step editor's does not fully cover.
+ */
+beforeAll(async () => {
+  await renderStepEditor(undefined);
+  await renderStepsRail(new Map());
+}, 60_000);
 
 describe("no builder surface reports a count it has not been given (issue 625)", () => {
   it("says the pins have not been checked rather than that they have no issues", async () => {
