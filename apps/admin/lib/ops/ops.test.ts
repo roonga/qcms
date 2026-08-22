@@ -11,7 +11,13 @@ import type { AppliedFilters } from "./browse.ts";
 import { responsePageLink } from "./browse.ts";
 import { isErasureConfirmed, isErasureReason } from "./erasure.ts";
 import type { ExportChoice } from "./export.ts";
-import { exportFilename, exportQuery, isExportable, versionRequired } from "./export.ts";
+import {
+  exportFilename,
+  exportQuery,
+  isExportable,
+  parseExportFilters,
+  versionRequired,
+} from "./export.ts";
 import { labelFor, labelsForPins, orderedAnswerKeys, pinsOf } from "./labels.ts";
 import { t } from "../i18n/en.ts";
 import type { QuestionDetail } from "../questions/types.ts";
@@ -90,6 +96,65 @@ describe("export rules", () => {
     expect(exportFilename("frm_intake", choice({ format: "json" }))).toBe(
       "frm_intake-responses.json",
     );
+  });
+});
+
+/**
+ * Reading the export link back (issue 551).
+ *
+ * The link `exportQuery` writes and the filters `parseExportFilters` reads are the two
+ * ends of one string, so the first case is the round trip: what the dialog builds is
+ * what the route applies. The rest pin the borrowed validators - a value the response
+ * browser drops is a value this refuses, rather than a second opinion about the same
+ * three parameters. The route's own behaviour on a refusal (a 400, and no upstream
+ * call) is asserted in `app/(shell)/forms/[formId]/export/route.test.ts`.
+ */
+describe("export filter parsing", () => {
+  const parse = (search: string) => parseExportFilters(new URLSearchParams(search));
+
+  it("round-trips the dialog's own link", () => {
+    const link = exportQuery(choice({ version: "2", from: "2026-07-01", to: "2026-07-31" }));
+    const parsed = parse(link);
+
+    expect(parsed).toEqual({
+      ok: true,
+      filters: {
+        version: "2",
+        from: "2026-07-01T00:00:00.000Z",
+        to: "2026-07-31T23:59:59.999Z",
+      },
+    });
+  });
+
+  it("accepts a bare day as the same day, so a hand-typed range means what it says", () => {
+    expect(parse("from=2026-07-01&to=2026-07-31")).toEqual({
+      ok: true,
+      filters: { from: "2026-07-01T00:00:00.000Z", to: "2026-07-31T23:59:59.999Z" },
+    });
+  });
+
+  it("canonicalizes the version the way the response browser does", () => {
+    expect(parse("version=0001")).toEqual({ ok: true, filters: { version: "1" } });
+  });
+
+  it("treats an absent or empty parameter as no filter and no complaint", () => {
+    expect(parse("")).toEqual({ ok: true, filters: {} });
+    expect(parse("version=&from=&to=")).toEqual({ ok: true, filters: {} });
+  });
+
+  it("refuses what the response browser would drop, naming every parameter", () => {
+    expect(parse("from=nonsense")).toEqual({ ok: false, invalid: ["from"] });
+    expect(parse("version=abc&to=03/01/2026")).toEqual({ ok: false, invalid: ["version", "to"] });
+    expect(parse("version=0")).toEqual({ ok: false, invalid: ["version"] });
+  });
+
+  it("refuses a day-shaped day that does not exist, which Date would roll forward", () => {
+    expect(parse("from=2026-02-31")).toEqual({ ok: false, invalid: ["from"] });
+  });
+
+  it("refuses a partial instant: the export's unit is a whole day at both ends", () => {
+    expect(parse("from=2026-07-01T12:00:00.000Z")).toEqual({ ok: false, invalid: ["from"] });
+    expect(parse("to=2026-07-31T00:00:00.000Z")).toEqual({ ok: false, invalid: ["to"] });
   });
 });
 
