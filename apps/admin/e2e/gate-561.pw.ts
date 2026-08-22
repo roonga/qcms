@@ -63,18 +63,6 @@ interface Frame {
   readonly path: string;
   readonly width: number;
   readonly height?: number;
-  /**
-   * Horizontal overflow this frame is knowingly allowed to carry, in CSS pixels.
-   *
-   * Zero everywhere but one frame. The builder scrolls sideways by exactly one pixel at
-   * 390, which is issue 616: a pre-existing defect on that screen, open, out of this
-   * issue's scope, and unrelated to the rail (the rail is a full-width stacked disclosure
-   * below `--bp-sidebar` and takes no horizontal room from the column). The allowance is
-   * spelled here rather than the check simply dropped, because the number is the finding
-   * and issue 616 exists precisely because it had been living in a gate transcript. If the
-   * builder is fixed, this frame overflows by nothing and the allowance should go.
-   */
-  readonly overflowAllowance?: number;
 }
 
 async function capture(page: Page, name: string, frame: Frame): Promise<void> {
@@ -89,11 +77,16 @@ async function capture(page: Page, name: string, frame: Frame): Promise<void> {
   // file wider than the width in its own name and misdescribes itself to a reviewer who
   // cannot measure a PNG in a GitHub diff. Soft, so one screen's overflow reports itself
   // without costing the rest of the set its evidence.
+  //
+  // The builder frame used to carry a one-pixel allowance here, spelled out with its
+  // reason: the builder scrolled sideways by a pixel at 390 and that was issue 616,
+  // open and out of this issue's scope. Issue 616 has since fixed it, so the allowance
+  // is gone and every frame in this set is held to its own viewport. A declared
+  // exemption that stops being needed is a defect of the test that declares it.
   const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
-  const ceiling = frame.width + (frame.overflowAllowance ?? 0);
   expect
-    .soft(scrollWidth, `the ${name} frame fits its ${String(ceiling)}px ceiling`)
-    .toBeLessThanOrEqual(ceiling);
+    .soft(scrollWidth, `the ${name} frame fits its ${String(frame.width)}px viewport`)
+    .toBeLessThanOrEqual(frame.width);
 
   await page.screenshot({ path: `${OUT_DIR}/${name}.png`, fullPage: true, caret: "initial" });
 }
@@ -109,11 +102,7 @@ test.beforeAll(async ({ browser }) => {
 
 /** §7 collapsed on the builder: one group, so the summary opens straight onto the sections. */
 test("builder-390", async ({ page }) => {
-  await capture(page, "builder-390", {
-    path: `/forms/${FORM_ID}`,
-    width: 390,
-    overflowAllowance: 1,
-  });
+  await capture(page, "builder-390", { path: `/forms/${FORM_ID}`, width: 390 });
 });
 
 /** §7 on the builder: the sibling group alone, no children, no divider, editor untouched. */
