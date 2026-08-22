@@ -255,7 +255,7 @@ export function LibraryPicker({
         if (!open) dismiss();
       }}
     >
-      <div className="flex flex-col gap-4">
+      <div className="qcms-picker__body">
         {!library.ok && <Alert variant="error">{t("forms.picker.loadFailed")}</Alert>}
 
         {library.ok && (

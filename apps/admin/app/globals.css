@@ -2540,22 +2540,39 @@ button {
   cursor: pointer;
 }
 
-/* THE TABLE SCROLLS AND THE FOOTER DOES NOT, which is what makes the counted
-   primary a statement rather than a rumour.
+/* THE TABLE ABSORBS THE SLACK, WHICH IS WHAT KEEPS THE COUNTED PRIMARY IN VIEW.
 
    This dialog is one scrolling column, so before this rule a library of any size
    pushed "Add 3 questions to step" below the dialog's own fold: the control whose
    whole job is to say what the commit will do was reachable only by scrolling past
-   the thing it was describing. Both gate frames at 003d45f show it clipped.
+   the thing it was describing. Both gate frames at 003d45f show it clipped, and a
+   fixed cap on the table alone (c1553c3) moved the fold rather than removing it,
+   because the header, the search field, the chosen pane and the pin note still sum
+   to more than what is left.
 
-   Capping the two lists is the fix rather than restructuring the dialog, because
-   the sticky-footer shape belongs to the vendored `Dialog` and not to one of its
-   callers. The POC keeps its footer outside its scrolling body for exactly this
-   reason. The caps are proportional so they hold at any viewport, and neither
-   hides anything: both regions scroll, and the chosen pane's own entries stay
-   reachable by Tab, which scrolls them into view. */
+   So the body takes a height budget and the TABLE is the only part allowed to
+   flex inside it. Everything else keeps its natural height, which means the footer
+   is placed by the budget rather than by however many rows the library happens to
+   have. `min-block-size: 0` is the part that is not optional: a flex item's default
+   `min-height: auto` refuses to shrink below its content, so without it the table
+   would still push the footer down and `overflow` would never engage.
+
+   The budget is a proportion rather than a pixel count so it holds at any viewport,
+   and it is set here rather than by restructuring the dialog because the
+   sticky-footer shape belongs to the vendored `Dialog`, not to one of its callers.
+   The POC keeps its footer outside its scrolling body for exactly this reason.
+   Nothing is hidden either way: the table scrolls, and Tab reaches its checkboxes,
+   which scrolls them into view. */
+.qcms-picker__body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-block-size: 58vh;
+}
 .qcms-table--picker {
-  max-block-size: 38vh;
+  flex: 1 1 auto;
+  /* The floor, so a tall selection cannot squeeze the library out of existence. */
+  min-block-size: 6rem;
   overflow: auto;
 }
 
@@ -2574,9 +2591,12 @@ button {
   margin: 0;
   padding: 0;
   list-style: none;
-  /* Capped for the same reason the table above is: a long selection must not be what
-     pushes the button that commits it off the screen. */
-  max-block-size: 18vh;
+  /* Capped for the same reason the table above flexes: a long selection must not be
+     what pushes the button that commits it off the screen. Fixed rather than flexing,
+     because between the two lists it is the library that should give up room first -
+     the chosen list is the shorter one and the one being read at the moment of
+     commit. */
+  max-block-size: 16vh;
   overflow-y: auto;
 }
 .qcms-picker__chosen-list li {
