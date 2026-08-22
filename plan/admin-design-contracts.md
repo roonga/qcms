@@ -24,19 +24,219 @@ The clauses below are retained as **description and rationale**, not as constrai
 remain useful for a screen no POC covers, and for explaining why shipped code looks as it
 does. They no longer overrule a drawing.
 
-**Three things this seat has NOT removed, because they are not design limits and removing
+**Three things this seat did NOT remove, because they are not design limits and removing
 them is a product decision rather than a workstream one.** Named here so the omission is
-visible rather than assumed, and awaiting an explicit word either way:
+visible rather than assumed. **One of the three has since been answered:**
 
-- **WCAG 2.2 AA.** A standing non-negotiable in this seat's charter, a Code Owner human gate
-  at task 030, and §8's own ruling says "different apps" never licensed a different
-  accessibility standard.
-- **ADR-27** (no hardcoded user-facing strings, locale-aware formatting).
+- **WCAG 2.2 AA - ANSWERED 2026-08-21 (Code Owner):** *"for admin, we should aim to be wcag
+  compliant."* It is an **aim** for the admin, not a blocking gate: no admin PR parks on it,
+  the accessible option wins where it is available at reasonable cost, and where it is not
+  the trade is stated rather than left silent. Recorded in `docs/admin-constraints.md`, which
+  is the operative text. This is a genuine change from the charter's standing
+  non-negotiable, and it is scoped to the admin: the portal's floor is untouched and task
+  030's manual gate still stands there.
+- **ADR-27** (no hardcoded user-facing strings, locale-aware formatting) - **still awaiting a
+  word.**
 - **SEC-1 to SEC-13.** Security controls, verified as a system by task 040, whose sign-off
-  is a launch gate.
+  is a launch gate - **still awaiting a word.**
 
-If "all limits" is meant to include any of those three, say so plainly and it is recorded
-the same way. This seat will not infer it from a design instruction.
+If "all limits" is meant to include either of the remaining two, say so plainly and it is
+recorded the same way. This seat will not infer it from a design instruction.
+
+**A POC's SILENCE is not a ruling, 2026-08-22 (this seat, on the dev seat's escalation).**
+
+The POCs are static HTML files. They cannot express URL handling, redirect markers, server
+behaviour, data lifetimes, or state that arrives from somewhere other than the screen. Where
+a POC is silent **because it could not have spoken**, the shipped behaviour stands unchanged.
+
+"POC wins" settles disagreements about **what a screen looks like**. It does not delete
+guarantees the drawing had no way to draw, and a lane meeting such a silence should preserve
+the shipped contract rather than park - that is not designing something new, it is declining
+to destroy something on the strength of a file that was never asked the question.
+
+The case: `settings-newquestion-poc.html` says nothing about which panel opens when the URL
+asks for one. Three shipped behaviours depend on it - the account menu's
+`/settings#change-password` link, and the `?changed=1` / `?error=1` / `?codesError=1`
+redirect markers. The lane preserved all of them.
+
+**Two things make this the clear call rather than a close one.** First, `e2e/gate-319.pw.ts`
+navigates `/settings#two-factor` and asserts `?codesError=1`: that behaviour is not merely
+shipped, it is covered by a **named regression gate**, so reading the silence the other way
+would have turned a gate red rather than exercised discretion. Second, the specific failure
+it avoided is this campaign's own recurring defect - opening Account regardless would hide a
+successful password change inside a hidden panel, presenting success as failure. A screen
+asserting something it does not know is the family behind five fixes this week.
+
+**A POC can SPEAK and still be unbuildable AS DRAWN, 2026-08-22 (this seat, adopting the dev
+seat's #674).** The third category, and the two above did not cover it.
+
+A POC is a **standalone HTML file**. Some properties belong to a whole document rather than
+to a fragment: heading order, what a landmark contains and is therefore named, focus order,
+skip links, id uniqueness. A drawing cannot exhibit those, because there is no shell around
+it - so a POC can state something plainly and have that statement be impossible once the
+screen is placed in the app.
+
+**When that happens, the intent is honoured and the expression changes, and the change is
+stated in the code.** This is not "the POC loses": the drawing is not wrong, and the conflict
+does not exist in the drawing.
+
+The instance: `question-editor-poc.html` draws the rail summary as an `<h2>`. Shipped, that
+summary sits **above the page `<h1>`**, which is a `heading-order` violation on a screen
+`e2e/a11y-axe.pw.ts` runs over in three states. The lane built a `<span>` and said why. Its
+sentence is the whole finding: *"a standalone POC page had no such neighbour to discover
+it."* The same lane hit a second: the POC puts the lifecycle block **inside** the `<nav>`,
+which shipped would name a landmark "Versions of q_x" and then fill it with three actions.
+
+**The criterion, so this does not become a licence.** It applies when the property violated
+is one a **fragment cannot have**. "It is awkward in context", "it conflicts with a house
+pattern", or "another screen does it differently" are **not** this category - those are
+ordinary design disagreements and the POC wins them.
+
+**As a test a lane can actually run** (the dev seat's mechanical form, which is better than
+the sentence above and is the one to brief): *could a single standalone HTML file, on its
+own, have exhibited the property you are invoking?*
+
+- A heading level relative to an ancestor `<h1>` - **no**, there is no ancestor. Category three.
+- A landmark's name relative to what it contains - **no**, it is a box in isolation. Category three.
+- A width cap that looks odd beside another screen's - **yes, obviously**; that comparison is
+  available from the drawings alone. Ordinary disagreement, and the POC wins it.
+
+**A FOURTH category: the POC spoke, and the question is what the saying REFERS TO, 2026-08-22
+(this seat, adopting the dev seat's #678).** The four are now: *could not have spoken* ·
+*spoke* · *spoke, but the expression is unbuildable in context* · *spoke ambiguously because
+of how the file is packed*.
+
+Several POCs draw **two or three screens in one file** behind a switcher. A cap written on
+the shared `.main` of such a file is ambiguous by construction: it may be that file's chrome
+or it may be every screen's answer, and the markup cannot say which.
+
+**The convention, which was previously recoverable only by comparing two files:** where the
+author wanted a per-screen width they wrote an **inner class**, and where they did not, the
+shared `.main` stands for every screen in the file. `deployment-ops-poc.html` gives its three
+screens `.ops-inner--responses` 900, `--erasures` 1180 and `--webhooks` 1820 over a `.main`
+with **no cap at all**; `preview-versions-poc.html` shares one `.main` at 1600 and overrides
+only the screens carrying a 640px `.respondent-frame`, which is how its version-history
+screen correctly keeps the 1600.
+
+So the rule is **"inner class wins where present"**, *not* "a shared cap means nothing". This
+seat's first formulation was the latter and was wrong; the correction is the dev seat's,
+found while implementing #676.
+
+**And a multi-screen file does not only make caps ambiguous - it hides whole screens.** The
+`/questions/new` route was **missing entirely** from this seat's sixteen-row table, because
+`settings-newquestion-poc.html` draws it as its second screen. Its cap moved 1024 -> 640 once
+found, the second-largest change in the set.
+
+**How this seat missed it, recorded because it is the same root cause three times.** The
+multi-screen check was run over **five** of the eleven POCs and its result stated as a
+property of the set. The `margin: 0 auto` sweep and the `.main`-is-chrome reading failed the
+same way: **one spelling, or one sample, generalised to the whole.** The file even announces
+itself - its first line reads *"Settings and New question ... Two form-dense admin screens"* -
+so no clever technique was needed, only reading eleven files instead of five.
+
+**When a POC file is multi-screen, enumerate its screens from its own `@dsCard` line before
+reading anything else.**
+
+**A FIFTH case: the POC contradicts ITSELF on one screen, 2026-08-22 (this seat, on #688).**
+The four above all assume the drawing says one thing. Sometimes it says two.
+
+`settings-newquestion-poc.html` draws one option-row menu whose five items are:
+
+```
+Insert option above Comprehensive cover
+Insert option below Comprehensive cover
+Move up
+Move down
+Remove option Comprehensive cover
+```
+
+**Three items name the row and two do not**, in the same menu, on the same screen. This is
+not a POC-versus-shipped divergence and none of the four categories reaches it.
+
+**When a drawing contradicts itself, POC-wins has nothing to decide between.** The tie-break
+is, in order: the drawing's own **majority** and its **stated rationale**, then a convention
+the app already set **deliberately and for a reason**. Never an outside preference, and never
+"the shipped app does X" on its own - that is how a constraint the Code Owner never set gets
+imported, which is what halted this campaign.
+
+Worked: #688 labelled the new items `Move {row} up` / `Move {row} down`. The drawing's
+majority names the row; `components/row-menu.tsx` records issue 570's deliberate rule that
+every row-menu item names its row, so a screen reader user hears which option is about to
+move rather than the same two words on every row. Both point the same way, so the bare
+"Move up" the POC also drew loses to the POC's own majority rather than to a preference.
+
+**A SIXTH case: the POC spoke about something it was NOT TRYING TO SPECIFY, 2026-08-22 (this
+seat, on the dev seat's #688 report).** The fifth case above resolved that PR because the
+drawing happened to contradict itself. **It would not have, had the shorthand been
+consistent**, and the dev seat is right that the general question is still unanswered.
+
+**A drawing writes labels because it must write something.** A POC specifies **what it is
+drawing**. It does not specify things it merely had to write in order to draw them.
+
+- **Drawn, therefore specified:** that a control exists, where it sits, what kind of control
+  it is, what its visible text says, what order items appear in, what is disabled when.
+- **Incidental, therefore not specified:** properties the drawing exhibits only because
+  static HTML cannot omit them - and, specifically, **whether an accessible name carries an
+  identity the visible text leaves to context**.
+
+**Where a house convention exists, was set deliberately and for a stated reason, and does not
+change what the drawing shows, the convention survives the POC's shorthand.** Issue 570's
+rule - every row-menu item names its row, so a screen reader user hears which row an action
+belongs to rather than "Add" thirty times - is exactly that.
+
+**Two guards, because this is the easiest case to abuse.**
+
+1. **SC 2.5.3 Label in Name is not tradeable.** Visible text and accessible name stay the
+   same string. `Move {row} up` is visible *and* announced; a bare visible "Move up" with a
+   richer hidden name would fail this and is not what the convention licenses.
+2. **The test is whether the POC was SPECIFYING the property or incidentally exhibiting it.**
+   "The drawing did not think about this" is a claim to be argued from the drawing itself -
+   as here, where the same menu names the row in three items and not in two. A POC that
+   states a naming rule in its own comment **is** specifying it, and wins.
+
+**A SEVENTH case: the POC POSES A QUESTION rather than answering it, 2026-08-22 (this seat,
+on #689).** `add-question-poc.html` draws **two** dialogs, `#dialog-strict` and
+`#dialog-multi`, and its intro prose declines to choose between them: *"Use the toggle below
+to compare a strict one-question-at-a-time flow against a multi-select flow and judge which
+reads more clearly."*
+
+**POC-wins cannot resolve a drawing that deliberately declined to decide.** The authority is
+then this seat or the Code Owner, and the POC's value is that it supplies the vocabulary and
+the full markup for **both** options, so whichever is chosen is still built to a drawing.
+Issue #660 settled it for the picker; the lane recorded that the issue was the authority
+rather than the POC, which is the right reading.
+
+
+
+**§7a's "no third screen" sentence is now out of date, 2026-08-22.** It said no third screen
+gets a rail without its own ruling recorded here. The question detail screen is the third
+(issue 650, PR #670), built to `question-editor-poc.html`, which draws one and states its own
+reason beside the markup: a question's only children are its versions and it has no sibling
+screens. Under POC-wins that drawing is the ruling, so the sentence describes a gate that no
+longer exists. What §7a still does is prohibit a shared rail abstraction, and **that has now
+held three times** - `rail-frame.tsx` and `form-subtree-rail.tsx` are absent from the diffs of
+PRs #662, #665 and #670, and #670 restated the boundary in the settings rail's own docblock:
+*"The three share the directory and the 240px track and nothing else."*
+
+**The question editor's state switcher is a fixture device, not shipped UI, 2026-08-22 (this
+seat, on the #650 lane's flag).** `question-editor-poc.html:652-653` draws a "Draft (v4) /
+Published (v3)" toggle, and the CSS comment at `:312` says *"this one is shipped UI, not a
+viewer aid"*. The lane did not build it and was right.
+
+The comment describes **two axes**: the rail picks a version, the switcher picks *"which of
+the two rendered states - draft or frozen - is on screen **for whichever version is
+selected**"*. The markup implements **one** - `rail-v4` and `btn-state-draft` both call
+`showState('draft')` - because in a two-version fixture the axes coincide.
+
+**In the real model they cannot come apart at all.** A version carries exactly one status
+(`draft | published | deprecated`), and that status determines its rendering: selecting a
+published version already yields the frozen editor, as `docs/gates/pr-650/detail-1280-published.png`
+shows. A control offering to view a published version *in draft state* would be offering
+something **R6 immutability forbids**. The switcher's stated purpose needs a degree of freedom
+the domain does not have, so it is a device for drawing both renderings on one page.
+
+Same family as #659: a drawing proposing something a shipped guarantee does not permit. The
+duplication argument is true but secondary; this is the reason.
 
 **AUTHORITY REVERSED, 2026-08-22 (Code Owner): the POCs win. "This is the approved
 design."**
@@ -145,9 +345,31 @@ One family, reconciled with the frozen card (`plan/admin-theme/ds-table.html`):
   §4.1) all converge on it.
 - 44px rows (`--admin-table-row-h`), header 0.72rem strong-border underline, cell
   padding 0.4rem 0.6rem, `tabular-nums` on numeric and stamp columns.
-- No zebra striping. Rationale: the 44px row and hairline dividers carry the row
-  rhythm; zebra fights the ownership-grid contrast (element 4) where the two
-  meet, and the frozen card does not stripe.
+- No zebra striping **on a table that carries the ownership grid**. Rationale: the
+  44px row and hairline dividers carry the row rhythm, and zebra fights the
+  ownership-grid contrast (element 4) where the two meet.
+
+  **NARROWED 2026-08-22 (this seat, on the dev seat's #681), and one clause of the
+  original was simply wrong.** It read "and the frozen card does not stripe". It
+  does: `plan/admin-theme/ds-table.html:225` is
+  `tbody tr:nth-child(even) { background: var(--color-background-muted); }`. So
+  this rule cited the frozen card as support for the opposite of what the card
+  says, and nobody checked until #682's sweep.
+
+  What survives is the scoped clause. **Two POCs stripe** -
+  `library-lists-poc.html` and `deployment-ops-poc.html` - and they are precisely
+  the two whose tables have **no** foreign-owner distinction:
+  `library-lists-poc.html:325` says so in as many words, *"every column on both
+  lists is owned by the row's own entity, so there is no foreign-owner distinction
+  to draw"*. The condition the rationale depends on is absent there, so the
+  rationale never reached those screens.
+
+  Under POC-wins those two drawings take it. `apps/admin/app/globals.css` currently
+  says "NO ZEBRA (§2) ... nothing else may add one", which was a faithful reading of
+  the old wording and is now too broad.
+
+  **Same error shape this seat has now made four times: a rule stated more broadly
+  than its reason supports, resting on a fact nobody re-read.**
 - Row action: the row's identifying cell carries a real anchor (open-in-new-tab
   and no-JS work); whole-row `onRowAction` click is retired with the kit-table
   migration. Rows with an author-controlled order get the grip menu; rows without
@@ -623,6 +845,19 @@ new rule is needed and none is invented here.
   It is content, not navigation, which is why §7 never reached it.
 - **One shared component still.** Omitting a group is *data* passed to the rail, not a
   per-screen copy of it, so the "no per-screen copies" clause is untouched.
+
+  **Scope, stated because this clause and §7a's read as opposites and are not (added
+  2026-08-22).** The question this answers is *may the eight form-section screens each keep
+  their own copy of the form rail?* - and the answer is no, they share
+  `components/forms/form-subtree-rail.tsx`. **§7a answers a different question:** *must a
+  screen outside that family be made to use it?* - and the answer is also no. Share **within**
+  a family; do not force an unrelated screen **into** one.
+
+  Both have now been honoured together three times: the Settings rail (#562, PR #662) and the
+  question-versions rail (#650, PR #670) were each built locally without touching
+  `form-subtree-rail.tsx` or `rail-frame.tsx`, while the eight form screens still share one
+  component. A reader meeting only one of the two clauses could reasonably conclude the other
+  is being violated, which is why the scope is now written rather than inferred.
 
 **What this does not settle.** Whether the builder's step editor should eventually *look*
 like the rail's step group, or move, is a builder-layout question and remains open. It is not
