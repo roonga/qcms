@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { EmptyState } from "@/components/empty-state";
 import { Alert, Button, Dialog, TextField } from "@/components/kit";
@@ -185,6 +185,8 @@ export function LibraryPicker({
   // are inserted into the step. Nothing else here has a claim to that order: list order is
   // the library's, and the library's order is not a statement about this form.
   const [chosen, setChosen] = useState<readonly DraftPin[]>([]);
+  /** The index whose entry has just been removed, or nothing. See `drop` below. */
+  const [focusWant, setFocusWant] = useState<number | undefined>(undefined);
 
   const catalogue = library.ok ? library.data : [];
   const candidates = library.ok ? withChoices(pinnableRows(catalogue, draft, search), chosen) : [];
@@ -198,9 +200,37 @@ export function LibraryPicker({
     );
   }
 
-  function drop(questionId: string): void {
+  /**
+   * Remove the chosen entry at `at`, and say where focus should land afterwards.
+   *
+   * FOCUS IS THE WHOLE REASON THIS TAKES AN INDEX. The control that removes an entry is
+   * inside the entry, so pressing it destroys the element holding focus, and a keyboard
+   * author is left on `document.body` with the dialog no longer hearing Escape. That is
+   * the same defect `step-editor.tsx` handles with `setFocusWant` after a pin is removed,
+   * and this is the same answer: the next entry's remove control, or - when that was the
+   * last entry - the search field, which is the control an author reaches for next and
+   * the only one guaranteed to exist for as long as this pane does.
+   */
+  function drop(questionId: string, at: number): void {
     setChosen((current) => unchoose(current, questionId));
+    setFocusWant(at);
   }
+
+  useEffect(() => {
+    if (focusWant === undefined) return;
+    setFocusWant(undefined);
+    const pane = document.getElementById(CHOSEN_PANE_ID);
+    if (pane === null) return;
+    const remaining = pane.querySelectorAll<HTMLElement>("button.qcms-picker__unchoose");
+    const next = remaining[Math.min(focusWant, remaining.length - 1)];
+    if (next !== undefined) {
+      next.focus();
+      return;
+    }
+    // The list is empty, so focus leaves the pane. Queried from the dialog rather than
+    // held in a ref: the search box is a kit component and does not forward one.
+    pane.closest('[role="dialog"]')?.querySelector("input")?.focus();
+  }, [focusWant]);
 
   function dismiss(): void {
     setChosen([]);
@@ -306,7 +336,11 @@ export function LibraryPicker({
             only once something is in it is a pane nobody knows to expect, and its empty
             sentence is what tells a first-time author that ticking is how this works. */}
         {library.ok && (
-          <section className="qcms-picker__chosen" data-testid="qcms-picker-chosen">
+          <section
+            className="qcms-picker__chosen"
+            data-testid="qcms-picker-chosen"
+            id={CHOSEN_PANE_ID}
+          >
             {/* Polite, and on the heading alone rather than the whole pane: the running
                 tally is the fact that changed, and a live region wrapped around the list
                 would re-read every entry on every tick. */}
@@ -317,7 +351,7 @@ export function LibraryPicker({
               <p className="text-sm text-(--color-text-muted)">{t("forms.picker.chosenEmpty")}</p>
             ) : (
               <ul aria-labelledby={CHOSEN_HEADING_ID} className="qcms-picker__chosen-list">
-                {chosenRows.map((row) => (
+                {chosenRows.map((row, at) => (
                   <li key={rowId(row.questionId, row.version)} data-chosen-pin={row.questionId}>
                     <span className="qcms-picker__chosen-main">
                       <code className="qcms-link-id">{rowId(row.questionId, row.version)}</code>
@@ -327,7 +361,7 @@ export function LibraryPicker({
                       type="button"
                       className="qcms-picker__unchoose"
                       onClick={() => {
-                        drop(row.questionId);
+                        drop(row.questionId, at);
                       }}
                     >
                       <span className="qcms-visually-hidden">
@@ -388,3 +422,6 @@ export function LibraryPicker({
 
 /** The chosen pane's heading, which also names its list. */
 const CHOSEN_HEADING_ID = "qcms-picker-chosen-heading";
+
+/** The pane itself, so the focus effect can find what is left of its remove controls. */
+const CHOSEN_PANE_ID = "qcms-picker-chosen-pane";

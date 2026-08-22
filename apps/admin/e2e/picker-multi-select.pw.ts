@@ -181,6 +181,13 @@ test("a chosen version withdraws its siblings, and unchoosing gives them back", 
   await expect(dialog.getByTestId("qcms-picker-chosen")).toContainText("Chosen (0)");
   await expect(pickerChoice(dialog, ALPHA_ID, 1)).toBeVisible();
 
+  // FOCUS SURVIVES THE REMOVAL. The control that removes an entry lives inside it, so the
+  // press destroys the element holding focus; without somewhere to send it, a keyboard
+  // author lands on `document.body` and the dialog stops hearing Escape. The search field
+  // is where it goes when the pane empties, and the Escape below is what would fail if it
+  // did not - which is exactly how this was found.
+  await expect(dialog.getByRole("textbox", { name: "Search" })).toBeFocused();
+
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
 });

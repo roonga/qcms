@@ -2540,6 +2540,25 @@ button {
   cursor: pointer;
 }
 
+/* THE TABLE SCROLLS AND THE FOOTER DOES NOT, which is what makes the counted
+   primary a statement rather than a rumour.
+
+   This dialog is one scrolling column, so before this rule a library of any size
+   pushed "Add 3 questions to step" below the dialog's own fold: the control whose
+   whole job is to say what the commit will do was reachable only by scrolling past
+   the thing it was describing. Both gate frames at 003d45f show it clipped.
+
+   Capping the two lists is the fix rather than restructuring the dialog, because
+   the sticky-footer shape belongs to the vendored `Dialog` and not to one of its
+   callers. The POC keeps its footer outside its scrolling body for exactly this
+   reason. The caps are proportional so they hold at any viewport, and neither
+   hides anything: both regions scroll, and the chosen pane's own entries stay
+   reachable by Tab, which scrolls them into view. */
+.qcms-table--picker {
+  max-block-size: 38vh;
+  overflow: auto;
+}
+
 /* The chosen pane. A bordered block rather than a second column: this dialog is one
    column at every width the admin supports, where the POC's is a two-pane
    master-detail built around a paginated server-side list this picker does not have. */
@@ -2555,6 +2574,10 @@ button {
   margin: 0;
   padding: 0;
   list-style: none;
+  /* Capped for the same reason the table above is: a long selection must not be what
+     pushes the button that commits it off the screen. */
+  max-block-size: 18vh;
+  overflow-y: auto;
 }
 .qcms-picker__chosen-list li {
   display: flex;
