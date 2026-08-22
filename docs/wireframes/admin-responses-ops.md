@@ -46,7 +46,7 @@
 > because this change makes `docs/wireframes/admin-shell.md` state that all eight
 > form-scoped screens carry the rail, and one folder cannot hold both claims. The sibling
 > line in `docs/wireframes/admin-publish-preview.md` is **not** touched here: it is being
-> corrected on the #614 branch, which is rewriting that screen's States.
+> corrected by issue #614, which landed that fix with its own rewrite of that screen's States.
 
 
 
