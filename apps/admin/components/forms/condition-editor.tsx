@@ -31,6 +31,7 @@ import {
 } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
 import type { QuestionType } from "@/lib/questions/types";
+import type { ReadState } from "@/lib/read-state";
 
 import { ConditionJsonPane } from "./condition-json-pane";
 import { OperandControl, type OperandValue } from "./operand-control";
@@ -70,7 +71,7 @@ export function ConditionEditor({
 }: {
   readonly draft: DraftForm;
   readonly rule: DraftRule;
-  readonly library: readonly PinnableQuestion[];
+  readonly library: ReadState<readonly PinnableQuestion[]>;
   readonly issues: readonly FormIssue[];
   readonly onChange: (next: DraftRule) => void;
   readonly onRemove: () => void;
@@ -268,7 +269,7 @@ function TargetGroup({
 
 interface NodeProps {
   readonly draft: DraftForm;
-  readonly library: readonly PinnableQuestion[];
+  readonly library: ReadState<readonly PinnableQuestion[]>;
   readonly root: DraftCondition;
   readonly path: ConditionPath;
   readonly onReplace: (next: DraftCondition) => void;
@@ -462,15 +463,27 @@ interface QuestionContext {
   readonly options: readonly string[];
 }
 
-/** What the pinned version of one question says about its type and options. */
+/**
+ * What the pinned version of one question says about its type and options.
+ *
+ * A library read that FAILED lands in the same branch as a question the library does not
+ * hold: nothing is known about the type, so `type` is `undefined` and the operator picker
+ * disables the ops that need one (issues 572, 544). That is the honest answer rather than
+ * a coincidence of the old `ok ? data : []` collapse, and it is why the library arrives
+ * here as a `ReadState` even though the two branches compute the same thing: a later edit
+ * that wants to say something ABOUT the library has the bit to say it with, instead of
+ * reaching for a fallback that has already thrown the bit away.
+ */
 function questionContext(
   draft: DraftForm,
-  library: readonly PinnableQuestion[],
+  library: ReadState<readonly PinnableQuestion[]>,
   questionId: string,
 ): QuestionContext {
   const pin = draftDocumentOrder(draft).find((entry) => entry.questionId === questionId);
   if (pin === undefined) return { type: undefined, options: [] };
-  const question = library.find((entry) => entry.questionId === questionId);
+  const question = library.ok
+    ? library.data.find((entry) => entry.questionId === questionId)
+    : undefined;
   return {
     type: typeOfPinnedVersion(question, pin.version),
     options: optionIdsOfVersion(question, pin.version),

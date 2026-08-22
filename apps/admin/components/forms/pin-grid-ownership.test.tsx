@@ -111,7 +111,7 @@ async function render(step: DraftStep, issues: readonly FormIssue[] = []): Promi
     <StepEditor
       draft={DRAFT}
       step={step}
-      library={LIBRARY}
+      library={{ ok: true, data: LIBRARY }}
       issues={issues}
       onAddPin={() => undefined}
       onMovePin={() => undefined}

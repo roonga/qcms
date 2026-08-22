@@ -504,6 +504,7 @@ export const messages = {
   "forms.step.movePin": "Move pin for {questionId}",
   "forms.step.movePinTo": "Move to v{version}",
   "forms.step.movePinNone": "No other published version",
+  "forms.step.movePinUnknown": "Other versions are not known: the question library did not load",
   "forms.step.removePin": "Remove {questionId}",
   "forms.step.pinUp": "Move {questionId} up",
   "forms.step.pinDown": "Move {questionId} down",
@@ -526,6 +527,7 @@ export const messages = {
   "forms.step.column.issues": "Issues",
   "forms.step.noIssues": "None",
   "forms.step.labelMissing": "No label in the library",
+  "forms.step.labelUnknown": "Label not known",
 
   "forms.picker.title": "Add a question to {title}",
   "forms.picker.description":
@@ -542,6 +544,8 @@ export const messages = {
   "forms.picker.stateDeprecated": "Deprecated",
   "forms.picker.statePinned": "Already in this form",
   "forms.picker.empty": "No published question version matches this search.",
+  "forms.picker.loadFailed":
+    "The question library could not be loaded, so there is nothing to choose from. Close this dialog and reload the page to try again.",
   "forms.picker.close": "Close",
 
   "forms.rules.title": "Conditions",

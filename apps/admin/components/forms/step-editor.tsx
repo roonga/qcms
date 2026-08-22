@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 
 import { EmptyState } from "@/components/empty-state";
 import {
@@ -24,6 +24,7 @@ import {
 import type { DraftForm, DraftStep, PinnableQuestion, FormIssue } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
 import { textOf } from "@/lib/questions/definition";
+import type { ReadState } from "@/lib/read-state";
 
 import { LibraryPicker } from "./library-picker";
 
@@ -98,6 +99,20 @@ import { LibraryPicker } from "./library-picker";
  * supported path" - so adding a gesture that needs them as a fallback would add a
  * conformance obligation and no capability. Keyboard reorder satisfies SC 2.1.1 either
  * way, and it is preserved from the previous editor rather than replaced.
+ *
+ * ## A library that did not load says nothing about the pins (issues 572, 544)
+ *
+ * `library` is a `ReadState` (`lib/read-state.ts`), not an array, and it is passed
+ * straight through to `pinRows` and to the picker rather than unwrapped here. Every
+ * library-owned cell of this grid is a lookup, and an empty library is not a neutral
+ * input to one: handed `ok ? data : []`, a failed read claimed on every row that the
+ * library had no label, no type, no such version and nowhere else to move to.
+ * `lib/forms/pin-grid.ts` carries the full account and the four answers.
+ *
+ * Nothing form-owned changes. The pins are still listed, and the grip menu, the version
+ * menu, the keyboard reorder and the library button all still work: they edit the DRAFT,
+ * which was read successfully, and suppressing them because a different read failed would
+ * take away work an author can still do (`plan/admin-design-contracts.md` §3).
  */
 export function StepEditor({
   draft,
@@ -111,7 +126,7 @@ export function StepEditor({
 }: {
   readonly draft: DraftForm;
   readonly step: DraftStep;
-  readonly library: readonly PinnableQuestion[];
+  readonly library: ReadState<readonly PinnableQuestion[]>;
   readonly issues: readonly FormIssue[];
   /** `index` is an insert boundary: 0 is before the first pin, `items.length` appends. */
   readonly onAddPin: (questionId: string, version: number, index: number) => void;
@@ -401,7 +416,7 @@ function PinRow({
           id={pinAnchorId(row.questionId)}
           tabIndex={-1}
           className="qcms-pinrow__label"
-          data-fallback={t("forms.step.labelMissing")}
+          data-fallback={row.labelFallback}
         >
           {row.label}
         </span>
@@ -444,17 +459,7 @@ function PinRow({
                 if (Number.isInteger(version)) onMovePin(row.questionId, version);
               }}
             >
-              {row.otherVersions.length === 0 ? (
-                <MenuItem id="none" className="qcms-menu__item" isDisabled>
-                  {t("forms.step.movePinNone")}
-                </MenuItem>
-              ) : (
-                row.otherVersions.map((version) => (
-                  <MenuItem key={version} id={String(version)} className="qcms-menu__item">
-                    {t("forms.step.movePinTo", { version })}
-                  </MenuItem>
-                ))
-              )}
+              {versionMenuItems(row.otherVersions)}
             </MenuList>
           </MenuPopover>
         </MenuTrigger>
@@ -486,6 +491,39 @@ function PinRow({
       </td>
     </tr>
   );
+}
+
+/**
+ * What the version menu offers, which is three answers rather than two (issue 572).
+ *
+ * "No other published version" is a statement about the LIBRARY, so it is only sayable
+ * when the library was read. `undefined` is the read that never happened, and it says so
+ * instead of reporting an absence that its own missing data produced - which is what
+ * every failed library read used to do, on every pin in the form.
+ *
+ * A function rather than a nested ternary in the cell because the third branch made it
+ * one, and because the three answers are easier to read named than nested.
+ */
+function versionMenuItems(otherVersions: readonly number[] | undefined): readonly ReactNode[] {
+  if (otherVersions === undefined) {
+    return [
+      <MenuItem key="unknown" id="unknown" className="qcms-menu__item" isDisabled>
+        {t("forms.step.movePinUnknown")}
+      </MenuItem>,
+    ];
+  }
+  if (otherVersions.length === 0) {
+    return [
+      <MenuItem key="none" id="none" className="qcms-menu__item" isDisabled>
+        {t("forms.step.movePinNone")}
+      </MenuItem>,
+    ];
+  }
+  return otherVersions.map((version) => (
+    <MenuItem key={version} id={String(version)} className="qcms-menu__item">
+      {t("forms.step.movePinTo", { version })}
+    </MenuItem>
+  ));
 }
 
 /**

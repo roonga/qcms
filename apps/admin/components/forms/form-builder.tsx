@@ -36,6 +36,7 @@ import type {
 } from "@/lib/forms/types";
 import { t, type MessageKey } from "@/lib/i18n/en";
 import { textOf } from "@/lib/questions/definition";
+import type { ReadState } from "@/lib/read-state";
 
 import { ConditionEditor } from "./condition-editor";
 import { FormSettingsPanel } from "./form-settings-panel";
@@ -81,6 +82,19 @@ import { ValidationPanel, type BuilderStatus } from "./validation-panel";
  * A `"use client"` module may not import `lib/server/`, so the page binds each action to
  * this route's form id and passes it down. The form id therefore comes from the route
  * rather than from anything the client can edit.
+ *
+ * ## The library is a `ReadState`, and it stays one all the way down (issues 572, 544)
+ *
+ * `library` used to arrive as `ok ? data : []`, which is the collapse issue 544 filed: a
+ * library that could not be read became indistinguishable from a library with nothing in
+ * it. The builder passes the `ReadState` (`lib/read-state.ts`) on unchanged to the step
+ * editor, the rules section and the test bench rather than unwrapping it here, so no part
+ * of this tree can quietly reintroduce the empty-array fallback for its own convenience,
+ * and each part decides for itself what a failure means to it. Two of them find that it
+ * means nothing new (an unknown question type is an unknown question type however it came
+ * to be unknown); the step editor and the picker find that it means two statements about
+ * the library have to stand down. The draft, and everything that edits it, is untouched:
+ * it came from a read that succeeded.
  */
 
 /** How long the builder waits after the last keystroke before it talks to the API. */
@@ -95,7 +109,7 @@ export function FormBuilder({
   previewCondition,
 }: {
   readonly detail: FormDetail;
-  readonly library: readonly PinnableQuestion[];
+  readonly library: ReadState<readonly PinnableQuestion[]>;
   readonly saveDraft: (draft: DraftForm) => Promise<SaveDraftState>;
   readonly validateDraft: (draft: DraftForm) => Promise<ValidateDraftState>;
   readonly updateSettings: (patch: {
@@ -365,7 +379,7 @@ function RulesSection({
   onChange,
 }: {
   readonly draft: DraftForm;
-  readonly library: readonly PinnableQuestion[];
+  readonly library: ReadState<readonly PinnableQuestion[]>;
   readonly issues: readonly FormIssue[];
   readonly onChange: (next: DraftForm) => void;
 }) {

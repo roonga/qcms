@@ -5,6 +5,7 @@ import { FormPageHeader } from "@/components/forms/form-page-header";
 import { DeliveryDashboard } from "@/components/ops/delivery-dashboard";
 import { WebhookConfig } from "@/components/ops/webhook-config";
 import { t } from "@/lib/i18n/en";
+import { readState } from "@/lib/read-state";
 import { getForm } from "@/lib/server/forms";
 import { listDeliveries, listWebhooks } from "@/lib/server/webhook-ops";
 import { requireAdminSession } from "@/lib/server/session";
@@ -30,6 +31,16 @@ import {
  * A failed deliveries read renders as a notice above the config rather than failing
  * the page: configuring an endpoint is still possible and is often what the operator
  * came for.
+ *
+ * Both list reads reach their components as a `ReadState` (`lib/read-state.ts`, issue
+ * 543) rather than as `ok ? data : []` (issues 572, 544). That fallback made a failed
+ * read indistinguishable from a form with no endpoint and no delivery, so each component
+ * drew its empty state - and the endpoint one is §3's panel with a primary **Add
+ * endpoint** call to action, printed directly beneath this page's own alert saying the
+ * endpoint list could not be loaded. What each component keeps through a failure is its
+ * own decision, which is the point of the type: `WebhookConfig` keeps offering creation
+ * because creation does not depend on the list that failed, and `DeliveryDashboard` has
+ * nothing to keep.
  */
 export default async function FormWebhooksPage({
   params,
@@ -63,7 +74,7 @@ export default async function FormWebhooksPage({
         <Alert variant="error">{t("ops.webhooks.listFailed", { message: webhooks.message })}</Alert>
       )}
       <WebhookConfig
-        webhooks={webhooks.ok ? webhooks.data : []}
+        webhooks={readState(webhooks)}
         create={createWebhookAction.bind(null, form.formId)}
         rotate={rotateSecretAction.bind(null, form.formId)}
         deactivate={deactivateWebhookAction.bind(null, form.formId)}
@@ -75,7 +86,7 @@ export default async function FormWebhooksPage({
           {t("ops.deliveries.loadFailed", { message: deliveries.message })}
         </Alert>
       )}
-      <DeliveryDashboard deliveries={deliveries.ok ? deliveries.data : []} />
+      <DeliveryDashboard deliveries={readState(deliveries)} />
     </div>
   );
 }

@@ -1,0 +1,47 @@
+
+ RUN  v4.1.10 <repo-root>
+
+ ✓ |qcms-admin| lib/forms/pin-grid.test.ts > pinRows > reads the library-owned half from the library and the form-owned half from the pin 2ms
+ ✓ |qcms-admin| lib/forms/pin-grid.test.ts > pinRows > offers only other PUBLISHED versions to move to, never the current one and never a draft 0ms
+ ✓ |qcms-admin| lib/forms/pin-grid.test.ts > pinRows > renders a pin whose question the library lost, rather than dropping the row 0ms
+ ✓ |qcms-admin| lib/forms/pin-grid.test.ts > pinRows > gives a row the issues about its question and not the ones about a rule 0ms
+ ✓ |qcms-admin| lib/forms/pin-grid.test.ts > pinRowMenuItems > offers insert above, insert below, move up, move down and remove 0ms
+ ✓ |qcms-admin| lib/forms/pin-grid.test.ts > pinRowMenuItems > names the row in every label, so two rows' menus stay distinguishable 0ms
+ ✓ |qcms-admin| lib/forms/pin-grid.test.ts > pinRowMenuItems > disables only the move that would run off the end of the step 0ms
+ ✓ |qcms-admin| lib/forms/pin-grid.test.ts > pinRowMenuItems > marks only remove as destructive 0ms
+ ✓ |qcms-admin| lib/forms/pin-grid.test.ts > pinStateLabel > says nothing for the ordinary case, and one word for each case worth flagging 0ms
+ ✓ |qcms-admin| lib/forms/pin-grid.test.ts > pinRows when the library read failed (issues 572, 544) > says the label is not known rather than absent from the library 0ms
+ ✓ |qcms-admin| lib/forms/pin-grid.test.ts > pinRows when the library read failed (issues 572, 544) > offers no version tag, because an unread library has found nothing 0ms
+ ✓ |qcms-admin| lib/forms/pin-grid.test.ts > pinRows when the library read failed (issues 572, 544) > distinguishes nowhere to move from nobody asked 0ms
+ ✓ |qcms-admin| lib/forms/pin-grid.test.ts > pinRows when the library read failed (issues 572, 544) > leaves every form-owned fact alone, because the draft read succeeded 1ms
+ ✓ |qcms-admin| app/(shell)/form-read-states.test.tsx > the per-form webhook config's read states (issues 572, 544) > makes no claim about endpoints when the list read fails 90ms
+ ✓ |qcms-admin| app/(shell)/form-read-states.test.tsx > the per-form webhook config's read states (issues 572, 544) > keeps the heading and the creating action when the list read fails 2ms
+ ✓ |qcms-admin| app/(shell)/form-read-states.test.tsx > the per-form webhook config's read states (issues 572, 544) > still renders the empty panel when the form genuinely has no endpoint 2ms
+ ✓ |qcms-admin| app/(shell)/form-read-states.test.tsx > the per-form webhook config's read states (issues 572, 544) > renders one family table, wrapped, when the form has an endpoint 3ms
+ ✓ |qcms-admin| app/(shell)/form-read-states.test.tsx > the delivery dashboard's read states (issues 572, 544) > makes no claim about deliveries when the read fails 2ms
+ ✓ |qcms-admin| app/(shell)/form-read-states.test.tsx > the delivery dashboard's read states (issues 572, 544) > still renders the empty panel when the form genuinely has no delivery 1ms
+ ✓ |qcms-admin| app/(shell)/form-read-states.test.tsx > the delivery dashboard's read states (issues 572, 544) > renders one family table, wrapped, when the form has a delivery 2ms
+ ✓ |qcms-admin| app/(shell)/form-read-states.test.tsx > the secure-link list's read states (issues 572, 544) > makes no claim about links when the list read fails 42ms
+ ✓ |qcms-admin| app/(shell)/form-read-states.test.tsx > the secure-link list's read states (issues 572, 544) > keeps the heading and the mint control when the list read fails 1ms
+ ✓ |qcms-admin| app/(shell)/form-read-states.test.tsx > the secure-link list's read states (issues 572, 544) > still renders the empty panel when the form genuinely has no link 1ms
+ ✓ |qcms-admin| app/(shell)/form-read-states.test.tsx > the secure-link list's read states (issues 572, 544) > renders one family table, wrapped, when the form has a link 1ms
+ ✓ |qcms-admin| app/(shell)/form-read-states.test.tsx > the form builder's library read states (issues 572, 544) > makes no claim about the pinned versions when the library read fails 133ms
+ ✓ |qcms-admin| app/(shell)/form-read-states.test.tsx > the form builder's library read states (issues 572, 544) > keeps the builder and its draft edits when the library read fails 4ms
+ ✓ |qcms-admin| app/(shell)/form-read-states.test.tsx > the form builder's library read states (issues 572, 544) > still tags a pin the library really has lost when the read succeeds 3ms
+ ✓ |qcms-admin| app/(shell)/form-read-states.test.tsx > the move-pin menu's account of the library (issues 572, 544) > says the versions are unknown when the library read failed 1ms
+ ✓ |qcms-admin| app/(shell)/form-read-states.test.tsx > the move-pin menu's account of the library (issues 572, 544) > still says there is no other version when the library was read and has none 2ms
+ ✓ |qcms-admin| components/forms/pin-grid-ownership.test.tsx > the pin list is an ownership grid > draws every form-owned cell as a control 12ms
+ ✓ |qcms-admin| components/forms/pin-grid-ownership.test.tsx > the pin list is an ownership grid > draws every library-owned cell as text, with nothing in it that could change it 12ms
+ ✓ |qcms-admin| components/forms/pin-grid-ownership.test.tsx > the pin list is an ownership grid > gives every cell an owner, so the split cannot be half-applied 6ms
+ ✓ |qcms-admin| components/forms/pin-grid-ownership.test.tsx > the identifying column follows contract section 2 > renders the question id whole, in the row, and never truncated 9ms
+ ✓ |qcms-admin| components/forms/pin-grid-ownership.test.tsx > the identifying column follows contract section 2 > names the entity and the value on the copy control, not a bare 'Copy' 7ms
+ ✓ |qcms-admin| components/forms/pin-grid-ownership.test.tsx > the pin list wears the table family > is a plain table inside the qcms-table wrapper (contract section 2) 11ms
+ ✓ |qcms-admin| components/forms/pin-grid-ownership.test.tsx > the pin list wears the table family > states its compact-width drops on the cells that drop, and not on Version 5ms
+ ✓ |qcms-admin| components/forms/pin-grid-ownership.test.tsx > the pin list wears the table family > renders the empty step as the one empty-state panel, not a bare paragraph 8ms
+ ✓ |qcms-admin| components/forms/pin-grid-ownership.test.tsx > the row keeps its issue flag where the Issues column cannot follow > marks the row itself, so a validation anchor still lands somewhere visible at 390 6ms
+
+ Test Files  3 passed (3)
+      Tests  38 passed (38)
+   Start at  23:18:30
+   Duration  1.64s (transform 860ms, setup 0ms, import 399ms, tests 1.71s, environment 0ms)
+

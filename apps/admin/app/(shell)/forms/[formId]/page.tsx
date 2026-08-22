@@ -6,6 +6,7 @@ import { FormBuilder } from "@/components/forms/form-builder";
 import { FormTabs } from "@/components/forms/form-tabs";
 import type { FormDetail } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
+import { readState } from "@/lib/read-state";
 import { getForm, loadPinnableQuestions } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
 
@@ -40,8 +41,16 @@ import {
  * is the expensive one (a list read plus a detail read per question, `lib/server/forms.ts`
  * explains why the list alone is not enough), and a builder that will not open because the
  * *question* library is unavailable would be the wrong failure: the form's own steps and
- * rules are all still editable. So a library failure renders as a notice above a builder
- * with an empty picker, while a failure to load the form itself is a 404 or an error.
+ * rules are all still editable. So a library failure renders as a notice above a working
+ * builder, while a failure to load the form itself is a 404 or an error.
+ *
+ * The library reaches the builder as a `ReadState` (`lib/read-state.ts`, issue 543) rather
+ * than as `ok ? data : []` (issues 572, 544). An empty library is not a neutral stand-in
+ * on this screen: every pin lookup misses against one, so the collapsed form used to tag
+ * every question in the form "Version not found" and offer a picker saying no published
+ * version matched a search the author had not typed. Both are claims about the library,
+ * and the read that would have supported them is the one that failed. The builder keeps
+ * everything that edits the DRAFT, which was read successfully.
  */
 
 /**
@@ -135,7 +144,7 @@ export default async function FormBuilderPage({
 
       <FormBuilder
         detail={form}
-        library={library.ok ? library.data : []}
+        library={readState(library)}
         saveDraft={saveDraftAction.bind(null, form.formId)}
         validateDraft={validateDraftAction.bind(null, form.formId)}
         updateSettings={updateSettingsAction.bind(null, form.formId)}

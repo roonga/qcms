@@ -9,6 +9,7 @@ import type { MintLinksState, RevokeLinkState } from "@/lib/forms/builder-state"
 import { IDLE_MINT, IDLE_REVOKE } from "@/lib/forms/builder-state";
 import { isRevocable, mintedLinksCsv, mintedLinksFilename } from "@/lib/forms/links";
 import type { MintedLink, SecureLink } from "@/lib/forms/types";
+import type { ReadState } from "@/lib/read-state";
 import { formatDateTime } from "@/lib/i18n/format";
 import { t, tPlural } from "@/lib/i18n/en";
 import { unexpected } from "@/lib/ops/unexpected";
@@ -61,6 +62,23 @@ const REVOKE_DELAY_MS = 60_000;
  * Switch, and hand-writing one is exactly what ADR-22 forbids, so this uses the vendored
  * `Checkbox` - the same substitution `form-settings-panel.tsx` makes for its booleans. A
  * real Switch would be a COMPONENT_GUIDELINES vendoring in its own right.
+ *
+ * ## A failed list read is not a form with no links (issues 572, 544)
+ *
+ * `links` is a `ReadState` (`lib/read-state.ts`), not an array. It used to be handed
+ * `ok ? data : []`, so a list that could not be read printed §3's "No links yet" panel
+ * with "No links have been minted for this form." underneath the page's own warning that
+ * the link list could not be loaded. An author reading that would conclude a link they
+ * minted an hour ago had vanished, and the natural response to that conclusion is to mint
+ * another one.
+ *
+ * The claim-versus-capability split §3 asks for lands here as: drop the lifecycle table
+ * and its empty panel, because both are statements about links that were never read; keep
+ * everything else. The heading and intro stay because the alert above needs a subject.
+ * **Minting stays**, because it does not depend on the list that failed - whether this
+ * form can mint at all is decided by its published versions, which came from the form
+ * read, and minting is the thing an author most often came here to do. So does the mint
+ * result panel: those URLs are this session's own answer and not part of the read.
  */
 export function SecureLinks({
   formId,
@@ -71,7 +89,7 @@ export function SecureLinks({
   revoke,
 }: {
   readonly formId: string;
-  readonly links: readonly SecureLink[];
+  readonly links: ReadState<readonly SecureLink[]>;
   /** Links open the newest published version, so a never-published form cannot mint. */
   readonly canMint: boolean;
   readonly maxBatch: number;
@@ -420,11 +438,17 @@ function LinksTable({
   onRevoke,
   isPending,
 }: {
-  readonly links: readonly SecureLink[];
+  readonly links: ReadState<readonly SecureLink[]>;
   readonly onRevoke: (linkId: string) => void;
   readonly isPending: boolean;
 }) {
-  if (links.length === 0) {
+  // Three states, not two (issue 572). A read that failed has neither a table nor an
+  // empty state to draw: both would describe links nobody managed to list. The page's
+  // alert above says what happened, and §3 asks for nothing else.
+  if (!links.ok) return null;
+  const rows = links.data;
+
+  if (rows.length === 0) {
     // §3's panel. No CTA: this screen's creating action is the mint fieldset rendered
     // directly above, which takes a count and an expiry rather than being a button that
     // goes somewhere, so there is nothing for a CTA to point at.
@@ -472,7 +496,7 @@ function LinksTable({
           </tr>
         </thead>
         <tbody>
-          {links.map((link) => (
+          {rows.map((link) => (
             <tr key={link.linkId} data-link-id={link.linkId} data-state={link.state}>
               <th scope="row">
                 <code className="qcms-link-id">{link.linkId}</code>
