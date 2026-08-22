@@ -8,6 +8,39 @@ Nothing was run. Every claim about current behaviour is read from the source and
 
 Where a note says a finding is closed, the closing PR's own code was read at the time of writing. The reason for that pedantry is filed as #598: this campaign has twice shipped a correct conclusion resting on evidence recalled instead of read.
 
+## What this document is now, after the authority reversed (2026-08-22)
+
+This audit was written on the premise that the contracts governed and the POCs were proposals. **That premise is gone**: the Code Owner ruled the POCs are the approved design, and `docs/admin-constraints.md` is the operative text.
+
+**This document is evidence, not authority.** Its value is that it is the only place the POC's proposals were ever **costed** against shipped behaviour, file and line. Where it says a thing should not be done, read that as a price rather than a veto, and the price is usually the useful half:
+
+- **"Do not split Validation onto its own route" (§5.5) still stands on its own evidence**, and is the basis of the recommendation on #659. That section also prices the other three extractions in the same rail - Rules can move at the cost of a two-hop path for rule-scoped issues (#669), Settings and Test bench move freely. Four routes, priced separately, before the authority reversed.
+- **"Do not put a rail on ... `/settings`" is STALE.** Issue 562 shipped a Settings rail and §7a of `plan/admin-design-contracts.md` records it as a written exception. The reasoning in that bullet (six of sixteen screens have nothing to put in a rail) still holds for the screens it still covers.
+- **"Do not make any one-time reveal collapsible" (§5.2) holds and is now confirmed shipped.** `components/forms/secure-links.tsx:164` is a `<section>`, and no `<details>` in the admin is a reveal.
+
+## Remediation step three is complete: all eleven POCs compared
+
+Every POC in `plan/admin-shell-poc/` has now been read against what shipped. What it found:
+
+| POC | Outcome |
+| --- | --- |
+| `settings-newquestion-poc` | Rebuilt to it (#655 / PR #662) |
+| `question-editor-poc` | Rail shipped to it (#650 / PR #670), including the §7 action block the Code Owner overruled by name |
+| `admin-shell-poc` | Alignment and topbar cap diverge (#648) |
+| `rules-screen-poc` | Heading fixed (#661 / PR #665); route split escalated (#659) and rule editing filed (#669) |
+| `add-question-poc` | Multi-select with a running tally not shipped (#660) |
+| `library-lists-poc` | **Faithful.** Both empty states distinguished, intro present, no rail. Cap 1080 vs 1024 (#657) |
+| `responses-poc` | **Faithful.** Two stale POC comments found instead (#666) |
+| `preview-versions-poc` | **Faithful.** Its `.main` is shared chrome, not a per-screen cap - see below |
+| `deployment-ops-poc` | Per-screen caps 900 / 1180 / 1820 are real statements; 1820 exceeds our widest token (#657) |
+| `auth-poc` | **Faithful.** All five headings match exactly. Centres deliberately, and shipped centres too |
+| `links-webhooks-poc` | **Faithful.** Dialogs for stated actions, reveal is a `<section>`, URLs with copy and CSV |
+
+**Two corrections this seat had to make to its own findings**, both with one cause worth naming: **a grep finds one spelling of an idea, and I twice generalised from one spelling to a property of the whole set.**
+
+1. **Per-screen width.** I read each POC's `.main` as that screen's answer. `deployment-ops-poc` gives every screen its own class while `preview-versions-poc` puts three screens inside one `.main`, so a shared `.main` is the file's chrome. Two routes struck from #657.
+2. **Left-anchoring.** I searched for `margin: 0 auto`, found none, and concluded every POC left-anchors. `auth-poc` centres with **flex**, which that search cannot see, and shipped `auth-screen.tsx` correctly centres to match. Since `mx-auto` is exactly what a lane greps for, and that one component serves five unauthenticated routes, an unqualified sweep would have moved every sign-in and 2FA screen and built green.
+
 ---
 
 ## 1. Summary and position
