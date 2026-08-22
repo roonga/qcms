@@ -81,7 +81,7 @@ proposals, and this document is the tiebreak whenever they disagree.
 
 Original header follows.
 
-**Status:** draft for Code Owner confirmation, PM/PO seat, 2026-08-19. This is the
+**Status:** draft for Code Owner confirmation, 2026-08-19. This is the
 document `plan/admin-redesign-implementation-plan.md` §3 gates Wave 3 on: the
 eight questions `plan/admin-poc-consistency-audit.md` §4 found the eleven POCs
 answering two to seven different ways, each answered exactly once. Every contract
@@ -180,10 +180,8 @@ and flagged. They are governed now.
     carries the full id without JS - which it does since #510 headed those routes
     with their own entity. If a future table's detail route does not, the prefix
     rule still holds and the full id goes somewhere reachable without JS.
-  - Evidence this replaces: `docs/gates/pr-514/links-table-light-390.png`, where
-    `lnk_revoked` shatters to roughly one character per line, dates wrap to five
-    or six lines, rows run ~180px and the Revoke button is clipped - worse than
-    the nowrap-plus-scroll it replaced.
+  - This prevents long identifiers from breaking into one-character columns and
+    clipping row actions on compact screens.
 - **A timestamp column renders date, `HH:MM`, and the zone. No seconds.** Seconds
   cost width in every row to answer a question the detail route already answers.
   Admin renders UTC with the zone named (task 034; operator-local display is a
@@ -194,7 +192,7 @@ and flagged. They are governed now.
   split this contract exists to remove. Three kit tables lose a border at #514;
   that is convergence, and it is now written down rather than inferred.
 
-**Amendment, 2026-08-21 (PM/PO seat, escalated by PR #584): the prefix rule holds
+**Amendment, 2026-08-21 (escalated by PR #584): the prefix rule holds
 for opaque ids and inverts for derived ones.**
 
 The 2026-08-20 amendment was written against `ses_` and `lnk_` columns and reads
@@ -248,7 +246,7 @@ card's hands and into this contract's: rendering a derived id whole is now what
 the width has to accommodate, and the frozen card's 140px is evidence of an intent
 formed before the rule existed, not an authority against it.
 
-**Amendment, 2026-08-22 (PM/PO seat, from PR #624): a row that acts rather than navigates
+**Amendment, 2026-08-22 (from PR #624): a row that acts rather than navigates
 takes a button, not an anchor.**
 
 §2's row-action clause was written for tables whose rows go somewhere. `library-picker.tsx`
@@ -316,16 +314,14 @@ The two alternatives were both worse, and it is worth recording why so neither
 gets reinvented:
 
 - **Putting the fieldset inside the panel** yields two controls with identical
-  accessible names on one screen. That is not hypothetical here: the capture spec
-  refused to photograph two screens during #514 for exactly that defect ("Add
-  endpoint", then "Clear filters"), which is the third time this run a screenshot
-  gate caught something no other gate could.
+  accessible names on one screen. Accessibility checks must reject that duplicate
+  control structure.
 - **A scroll-to control** is a new interactive pattern with focus-management
   obligations, invented to satisfy a clause rather than to serve a user. Under
   §7a's lesson, a new pattern arriving to fill a contract gap is exactly the thing
   to refuse.
 
-**Amendment, 2026-08-21 (PM/PO seat): "and nothing else" means nothing that makes
+**Amendment, 2026-08-21: "and nothing else" means nothing that makes
 a claim about the failed read, not nothing at all.**
 
 Two PRs have now read the clause broadly - #571 (#514) and #593 (#543) - and both
@@ -456,7 +452,7 @@ Every screen states its model exactly once:
 Issue #518 implements the two shipped screens; this contract is what stops the
 POCs' third and fourth variants returning.
 
-**Amendment, 2026-08-21 (PM/PO seat, escalated by PR #585): one model per scope,
+**Amendment, 2026-08-21 (escalated by PR #585): one model per scope,
 not per screen.**
 
 "Every screen states its model exactly once" was true while a screen was one save
@@ -509,7 +505,7 @@ it belongs with #518's implementation, not here.
   component, not per-screen copies.
 - Rail items are anchors, not buttons.
 
-**Amendment, 2026-08-22 (PM/PO seat, owed twice): the rail shows each screen's own name,
+**Amendment, 2026-08-22: the rail shows each screen's own name,
 which for the version list is "History".**
 
 §7's sibling list writes **"Versions"**; the shipped copy catalog calls that screen
@@ -537,7 +533,7 @@ Builder / Preview / **Version history** / Links / Responses / Webhooks. That is 
 amendment being applied rather than revisited: the copy moved and the rail followed it.
 
 
-**Amendment, 2026-08-22 (PM/PO seat, from PR #621): the disclosure is one element at
+**Amendment, 2026-08-22 (from PR #621): the disclosure is one element at
 every width, and its summary stays visible when expanded.**
 
 §7 described the collapsed state and said nothing about the expanded one, which left
@@ -569,7 +565,7 @@ how an unexamined choice becomes the house pattern.
 is §7's contents; the split is what keeps §7a a distinct component that shares the column,
 the width and the collapse behaviour and nothing else.
 
-**Amendment, 2026-08-22 (PM/PO seat, escalated by PR #621): a step item is a fragment on
+**Amendment, 2026-08-22 (escalated by PR #621): a step item is a fragment on
 the builder, not a route.**
 
 §7 says the rail carries the form's steps and never said what a step item points at. The
@@ -592,7 +588,7 @@ against. §5.5 of the audit is the reason those anchors must keep working. So th
 the app's established focus-anchor rather than inventing navigation, and the two features now
 depend on the same id, which is a property to preserve rather than an accident.
 
-**Amendment, 2026-08-22 (PM/PO seat, escalated by PR #621 and issue #623): the rail sits
+**Amendment, 2026-08-22 (escalated by PR #621 and issue #623): the rail sits
 outside the capped content column.**
 
 Three rules met for the first time in #559 and none of them composed: §7 makes the rail a
@@ -613,7 +609,7 @@ child route rendered, a sibling rail needs a **parallel route slot**, and the sh
 has to understand one. #559 taught four files about it rather than filtering it out, which is
 the standard for the next two rails as well.
 
-**Amendment, 2026-08-22 (PM/PO seat, blocking #561): on the builder, the rail carries the
+**Amendment, 2026-08-22 (blocking #561): on the builder, the rail carries the
 sibling-screens group only.**
 
 PR #621 made Links its reference screen and declined to answer what the rail does on the
@@ -798,7 +794,7 @@ banning it would force tier 1 in narrow containers.
   (`:1394`) sets `overflow-wrap: anywhere` and no ellipsis, so
   `q_accident_count_2nqps` renders as `q_accident_count_2nq` / `ps` with every
   character present (**#584**'s frame). A heading sitting flush against a card
-  edge is the same category (**#585**, reported by the dev seat; not
+  edge is the same category (**#585**, reported during implementation; not
   independently verified here).
 - **The harm is real anyway, and it is the harm §2's anti-ellipsis clause
   names:** the first line alone reads as a plausible complete id. Nothing on
@@ -836,7 +832,7 @@ components each deciding locally and correctly-by-their-own-clause.
 ## What confirmation unblocks
 
 Wave 3 (`plan/admin-redesign-implementation-plan.md` §3): the form-subtree rail,
-the per-screen width caps, and the scope rule in the wireframe format spec - all
+the per-screen width caps, and the scope rule in the screen contract format spec - all
 implemented against these contracts rather than against whichever POC an
 implementer opens first. The Wave 4 regeneration then brings all eleven POCs into
 line with the same answers in one pass - now nine of them, since §9 binds any POC

@@ -56,9 +56,8 @@ Concretely, the root class becomes a combination:
 
 **Why this shape rather than a flat `hc-dark` mode:**
 
-- **`.hc` keeps meaning what it means today**, so every existing sheet, test and
-  screenshot that asserts light high contrast stays true. A flat fourth value would
-  make `hc` ambiguous.
+- **`.hc` keeps meaning what it means today**, so existing light high-contrast
+  behavior and tests stay valid. A flat fourth value would make `hc` ambiguous.
 - **The universal-layer economy survives.** Dark HC is expressed as a second universal
   layer that overrides only the neutrals that must flip (text, background, surface,
   border). Semantic and accent tokens are inherited from the existing `.hc` block

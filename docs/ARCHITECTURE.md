@@ -1,6 +1,6 @@
 # QCMS - Architecture
 
-**Status:** v1.2 (formal) · supersedes `HLA.md` Draft v1 · incorporates ADR-16…25
+**Status:** authoritative
 **License:** MIT · **Runtime:** Node LTS · **Language:** TypeScript end to end
 
 ---
@@ -151,7 +151,7 @@ In the enterprise topology these run in the internal API instance only (a mount-
 
 ## 6. Frontend architecture
 
-**Portal** (Next.js, public): fully SSR pages for fast first paint, hydrating into the shared A2UI renderer. First paint is a real no-JS fallback form (a natively submittable `<form>`, see `docs/features/044-no-js-submission.md`) which React *replaces* on hydration rather than adopting in place, so an in-progress interaction with a React-controlled input landing before hydration is discarded (a completed native submission of the fallback form is the supported no-JS path and goes through by design). Route handlers are a strict BFF - session cookies, server-held credentials, proxying; no rule evaluation, no validation authority (R2).
+**Portal** (Next.js, public): fully SSR pages for fast first paint, hydrating into the shared A2UI renderer. First paint is a real no-JS fallback form, implemented and covered by the portal no-JS browser suite. React replaces that form on hydration rather than adopting it in place, so an in-progress interaction with a React-controlled input before hydration is discarded; a completed native submission is supported. Route handlers are a strict BFF - session cookies, server-held credentials, proxying; no rule evaluation, no validation authority (R2).
 
 **Admin** (Next.js, VPN in enterprise topology): predominantly client components - form builder, structured condition editor, question library - using the same BFF pattern against `/admin`. Its most important feature is preview fidelity: previews render through the identical `packages/ui` renderer, in the same runtime, so what the author sees is what the respondent gets. The condition editor is structured JSON editing with live kernel validation (ADR-19); a visual builder is Phase 4. Admin screens are **ordinary React** built from the same vendored `a2-react-aria` component set in `packages/ui` (ADR-22) - A2UI documents and `A2Renderer` appear in the admin only inside the preview pane, never for the admin's own UI.
 
@@ -186,7 +186,7 @@ portal · admin · api (all groups + workers; no published port) · postgres
 
 Both topologies run the same images; the difference is instance count and mount flags. The solo shape - four containers (portal, admin, api, postgres), one a database, with TLS/ingress supplied by the operator (ADR-20) - is the operability budget and the reference deployment the scaffold produces.
 
-Database clients (ADR-35, as amended 2026-07-31 and implemented by task 056): **the API is the only process in either topology that holds a database handle.** Neither frontend has one - not the portal, which never did, and not the admin, whose better-auth exception closed when the instance moved into the API. Concretely: `apps/admin` declares no `pg`, `drizzle-orm` or `@qcms/db` dependency, its Compose service is given no `DATABASE_URL`, and its import-surface test enforces an **empty** allowlist of `@qcms/db` value bindings as the regression gate. No admin-to-postgres edge exists in any composition, and none ever shipped: 056 landed before 036, so no production topology was ever published with one.
+**The API is the only process in either topology that holds a database handle.** Neither frontend has one. `apps/admin` declares no `pg`, `drizzle-orm`, or `@qcms/db` dependency, receives no `DATABASE_URL`, and has an import-surface test that enforces an empty allowlist of `@qcms/db` value bindings.
 
 ## 10. Operations
 
@@ -241,6 +241,7 @@ Instrumentation is an **explicit list of official packages**; `auto-instrumentat
 | Auth adapter surface | Shell (better-auth config) | OTP, social, external IdPs |
 | Locale maps | Core schema | Full i18n UX |
 | Question library machinery | Schema already question-versioned | Impact analysis, breaking-change detection |
+| Link target policy | Start-session slice and secure-link state | Always latest or exact-version distribution (ADR-39, Phase 4) |
 | Fetch-pure handlers | `apps/api` | Bun (or edge) runtime by base-image change |
 | Multi-tenancy | Documented recipe | Org-scoped SaaS derivative |
 | A2UI spec versioning | Snapshot stamps + append-only golden corpus | Breaking A2UI evolution without snapshot migration |
@@ -268,7 +269,6 @@ qcms/
 │   ├── PROJECT_GOAL.md · ARCHITECTURE.md · IMPLEMENTATION_PLAN.md
 │   ├── DOMAIN_SCHEMA.md · SECURITY_DESIGN.md
 │   ├── features/                 # the numbered task files (this plan)
-│   ├── wireframes/               # UI wireframes: ASCII + normative inventories (042)
 │   ├── a2ui-mapping.md (011) · agent-seam.md (011) · secure-links.md (010, 024)
 │   ├── reporting-view.md (015) · erasure.md (016) · a11y.md (030)
 │   ├── theming.md (051)          # the four-group token contract (ADR-30)
@@ -366,4 +366,4 @@ Layout rules: golden/fixture directories live with the package that owns their m
 
 ---
 
-*Companion documents: `PROJECT_GOAL.md` (vision, ADR-01…35) · `SECURITY_DESIGN.md` (SEC-1…13) · `IMPLEMENTATION_PLAN.md` (staged delivery) · `DOMAIN_SCHEMA.md` (domain model; §3 evaluation semantics superseded by ADR-16 as noted).*
+*Companion documents: `PROJECT_GOAL.md` (vision, ADR-01…39) · `SECURITY_DESIGN.md` (SEC-1…13) · `IMPLEMENTATION_PLAN.md` (staged delivery) · `DOMAIN_SCHEMA.md` (domain model and rule semantics).*
