@@ -155,15 +155,20 @@
  * is one, so that is the number a route takes here. Reproducing the outer layer alone
  * would spread a 720px editor across 1600px, which no POC draws.
  *
- *   prose   40rem / 640px. `settings-newquestion-poc.html`'s `.page-main`, which is
- *           both of that file's screens (Account, New question). The same 640 is also
- *           `preview-versions-poc.html`'s `.respondent-frame` - a different argument
- *           reaching the same number, and its own file says so: 640 is "a respondent's
- *           reading column", chosen so the frame reads as a device-like inset.
- *   narrow  45rem / 720px. `question-editor-poc.html`'s `.editor-column`, the single
- *           child of that file's `.main`. The number is unchanged from issue 558,
- *           which derived it from the portal's own measure; the POC arrives at the
- *           same 720 by drawing it, and a drawn number outranks a derived one.
+ *   prose   40rem / 640px. `settings-newquestion-poc.html`'s `.page-main`, and it is
+ *           that value on BOTH of that file's screens: Account and New question have a
+ *           `<main class="page-main">` each, so 40rem is stated twice, per screen.
+ *   narrow  45rem / 720px. Two screens' drawn inner cap, and neither lands on 45rem
+ *           exactly, which is the point of writing this down. `question-editor-poc.html`
+ *           draws a 720px `.editor-column`; `preview-versions-poc.html` draws a 640px
+ *           `.respondent-frame` on the preview and the stored version. Both sit INSIDE
+ *           their POC's `.main` padding, while this app's cap sits on a `<main>` that
+ *           carries `p-6`, so the token that renders a drawn number is that number plus
+ *           3rem. 45rem delivers a 42rem column: 48px under the drawn editor and 32px
+ *           over the drawn frame, and the closest available token to both. It is also
+ *           unchanged from issue 558, which derived the same 45rem from the portal's own
+ *           measure - `apps/portal/components/portal-shell.tsx`'s `max-w-2xl` plus the
+ *           same 3rem. A derivation and two drawings arriving together is why it stays.
  *   ops     56.25rem / 900px. `deployment-ops-poc.html`'s `.ops-inner--responses`.
  *           Its comment: the site-wide responses screen "gets neither a rail nor
  *           extra width".
@@ -175,9 +180,12 @@
  *           nothing narrower inside it (`admin-shell-poc.html`,
  *           `links-webhooks-poc.html`, `responses-poc.html`, and the version-history
  *           screen of `preview-versions-poc.html`).
- *   queue   113.75rem / 1820px. `deployment-ops-poc.html`'s `.ops-inner--webhooks`:
- *           the widest thing the design draws, because "a delivery queue with status,
- *           attempts, latency and error text needs room".
+ *
+ * ONE DRAWN NUMBER HAS NO TOKEN AND IS LEFT OPEN. `deployment-ops-poc.html`'s
+ * `.ops-inner--webhooks` is 1820px, wider than `wide`. `/webhooks` therefore stays on
+ * `wide` and is the one route in the table not matching its drawing. Raising the ceiling
+ * is a change to the vocabulary rather than an assignment inside it, so issue 657 left it
+ * rather than inventing an eighth value; see that issue and this PR's body.
  *
  * `default` (64rem, Tailwind's own `max-w-5xl`) is not in this block because it is not
  * a token and, since issue 657, not an assignment either: no route takes it. It
@@ -203,7 +211,6 @@
   --container-measure-list: 67.5rem;
   --container-measure-log: 73.75rem;
   --container-measure-wide: 100rem;
-  --container-measure-queue: 113.75rem;
 }
 
 /*

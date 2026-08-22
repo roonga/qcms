@@ -24,7 +24,7 @@ import { submitResponse } from "./support/ops.js";
  *   while a railed content column started at the rail. Every POC that draws the shell
  *   writes the bar with neither a cap nor an auto margin, so both come off and the
  *   wordmark, the first nav item, the content column and the footer share one left edge.
- * - **Each route's cap is re-sourced from its own POC** (issue 657). Ten of the sixteen
+ * - **Each route's cap is re-sourced from its own POC** (issue 657). Eight of the sixteen
  *   screens move.
  *
  * ## One frame per `test`, so a re-shoot can be one frame
@@ -39,11 +39,13 @@ import { submitResponse } from "./support/ops.js";
  * Issue 648 asks for one form-scoped screen, Settings, and one screen with no rail, at
  * both widths, so the shared left edge is visible with a rail and without one. Issue 657
  * asks for 1280 frames of the routes whose cap moves most. The four largest moves are the
- * form-scoped responses list (1024 to 1600), the new-question form (1024 to 640), the
- * question editor (1024 to 720) and the site-wide webhooks queue (1600 to 1820); the
- * site-wide responses list (1024 to 900) and the forms list (1024 to 1080) are here
- * because they move in opposite directions from the same old value, which is the clearest
- * single demonstration that the caps are now per-screen rather than one number.
+ * form-scoped responses list and its detail screen (1024 to 1600), the new-question form
+ * (1024 to 640) and the question editor (1024 to 720); the site-wide responses list (1024
+ * to 900) and the erasure log (1024 to 1180) are here because they move in OPPOSITE
+ * directions from the same old value, which is the clearest single demonstration that the
+ * caps are per-screen rather than one number. `/webhooks` is here for issue 648 rather
+ * than 657: its cap does not move, because the 1820 its POC draws is wider than any token
+ * the app has, and it is the screen with no rail where the shared left edge is cleanest.
  */
 
 test.describe.configure({ mode: "serial" });

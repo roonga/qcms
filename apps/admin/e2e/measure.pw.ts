@@ -63,9 +63,14 @@ const COUNT_ID = "q_accident_count";
  * screen that measures 1024 here is a screen that has fallen off the table.
  */
 const CAP_PX = {
-  /** `settings-newquestion-poc.html` `.page-main`, and `preview-versions-poc.html`'s frame. */
+  /** `settings-newquestion-poc.html` `.page-main`, on both of that file's screens. */
   prose: 640,
-  /** `question-editor-poc.html` `.editor-column`. */
+  /**
+   * The narrow measure. `question-editor-poc.html` draws a 720px `.editor-column` and
+   * `preview-versions-poc.html` a 640px `.respondent-frame`, both INSIDE their POC's
+   * `.main` padding; this cap sits on a `<main>` that carries `p-6`, so 45rem renders a
+   * 672px column, which is the closest available token to both.
+   */
   narrow: 720,
   /** `deployment-ops-poc.html` `.ops-inner--responses`. */
   ops: 900,
@@ -73,10 +78,12 @@ const CAP_PX = {
   list: 1080,
   /** `deployment-ops-poc.html` `.ops-inner--erasures`. */
   log: 1180,
-  /** The `.main` of every POC that caps it and draws nothing narrower inside. */
+  /**
+   * The `.main` of every POC that caps it and draws nothing narrower inside - and, for
+   * `/webhooks`, the cap that route keeps because its drawing (1820,
+   * `deployment-ops-poc.html` `.ops-inner--webhooks`) is wider than any token here.
+   */
   wide: 1600,
-  /** `deployment-ops-poc.html` `.ops-inner--webhooks`. */
-  queue: 1820,
 } as const;
 
 type Cap = keyof typeof CAP_PX;
@@ -97,11 +104,11 @@ function screens(sessionId: string): readonly Screen[] {
     { path: "/forms", cap: "list" },
     { path: `/forms/${FORM_ID}`, cap: "wide" },
     { path: `/forms/${FORM_ID}/links`, cap: "wide" },
-    { path: `/forms/${FORM_ID}/preview`, cap: "prose" },
+    { path: `/forms/${FORM_ID}/preview`, cap: "narrow" },
     { path: `/forms/${FORM_ID}/responses`, cap: "wide" },
     { path: `/forms/${FORM_ID}/responses/${sessionId}`, cap: "wide" },
     { path: `/forms/${FORM_ID}/versions`, cap: "wide" },
-    { path: `/forms/${FORM_ID}/versions/1`, cap: "prose" },
+    { path: `/forms/${FORM_ID}/versions/1`, cap: "narrow" },
     { path: `/forms/${FORM_ID}/webhooks`, cap: "wide" },
     { path: "/questions", cap: "list" },
     { path: `/questions/${QUESTION_ID}`, cap: "narrow" },
@@ -109,7 +116,7 @@ function screens(sessionId: string): readonly Screen[] {
     { path: "/responses", cap: "ops" },
     { path: "/responses/erasures", cap: "log" },
     { path: "/settings", cap: "prose" },
-    { path: "/webhooks", cap: "queue" },
+    { path: "/webhooks", cap: "wide" },
   ];
 }
 
@@ -127,10 +134,16 @@ type Measured = {
 /**
  * Open a screen and measure its content column.
  *
- * `<main id="main-content">` exists only inside the authenticated shell, so requiring
- * exactly one of them also rules out the two ways this sweep could measure the wrong page:
- * a `notFound()` renders Next's built-in 404 under the root layout, which has no `<main>`
- * at all, and a lost session renders the auth screen, whose `<main>` carries no id.
+ * Requiring exactly one `<main id="main-content">` rules out a `notFound()`, which renders
+ * Next's built-in 404 under the root layout and has no `<main>` at all.
+ *
+ * IT DOES NOT RULE OUT A LOST SESSION, which a comment here used to claim it did on the
+ * grounds that the auth screen's `<main>` carries no id. It does:
+ * `components/auth-screen.tsx` renders `<main id="main-content">` too. What actually
+ * catches a lost session is the measurement rather than the locator - the auth card is
+ * capped at `max-w-md`, 448px, which matches no row in the table - so the cap assertion
+ * fails loudly instead of silently measuring the sign-in screen. Recorded accurately here
+ * rather than left as a guard that does not guard.
  */
 async function measure(page: Page, path: string): Promise<Measured> {
   await page.goto(path);
@@ -249,6 +262,43 @@ test("648 puts the wordmark, the nav and the content column on one left edge, at
   expect(edges.wordmark, "the wordmark starts at the shared edge").toBe(edges.main);
   expect(edges.navItem, "the first nav item starts at the shared edge").toBe(edges.main);
   expect(edges.footer, "and so does the footer").toBe(edges.main);
+});
+
+test("648 leaves the auth screens centred, because their own POC centres them", async ({
+  page,
+}) => {
+  // THE GUARD AGAINST THE OBVIOUS SWEEP. `mx-auto` is exactly what someone implementing
+  // "left-anchor the admin" would grep for and delete, and `components/auth-screen.tsx` is
+  // one component behind five routes an operator meets before anything else in the app
+  // works. Nothing else in the suite would notice: no assertion anywhere says a sign-in
+  // card is centred, so the deletion would ship green.
+  //
+  // It must not be swept, because `plan/admin-shell-poc/auth-poc.html` centres it on
+  // purpose and does so in a spelling no `mx-auto` grep can see - `.auth-shell { display:
+  // flex; align-items: center; justify-content: center; }` over a 26rem `.auth-main`,
+  // centred on both axes because it is a sign-in card. The shipped component agrees with
+  // its drawing already. Left-anchoring is the SHELL's rule; these routes are not in it.
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/sign-in");
+
+  const card = page.locator("main#main-content");
+  await expect(card, "the sign-in screen renders").toHaveCount(1);
+  const box = await card.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return {
+      left: rect.left,
+      right: rect.right,
+      viewport: document.documentElement.clientWidth,
+    };
+  });
+  // Equal gutters either side, which is what an auto margin produces and what the POC's
+  // flex centring produces. Asserted as the symmetry rather than as a class name, so it
+  // holds whichever of the two spellings the component uses.
+  expect(box.left, "the auth card is centred horizontally").toBeCloseTo(
+    box.viewport - box.right,
+    0,
+  );
+  expect(box.left, "and is genuinely inset rather than full width").toBeGreaterThan(0);
 });
 
 test("657 leaves every screen the same width at 390, because a cap is fluid below itself", async ({

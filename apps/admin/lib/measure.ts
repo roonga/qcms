@@ -11,11 +11,25 @@
  * THE POCs SPECIFY WIDTH IN TWO LAYERS AND THIS TABLE IS ONE. A POC caps an outer
  * `.main` and then, on some screens, caps the content inside it again - a 720px
  * `.editor-column` inside a 1600px `.main`, a 640px `.respondent-frame` inside another,
- * and a `deployment-ops-poc.html` whose `.main` has no cap at all and whose three
+ * and a `deployment-ops-poc.html` whose `.main` has no cap at all (`:229`) and whose three
  * screens cap themselves at 900, 1180 and 1820. The number a reader of the running app
  * actually sees is the INNER one wherever there is one, so that is the number a route
  * takes here. Assigning the outer number instead would spread a 720px editor across
  * 1600px, which is not a screen any POC draws.
+ *
+ * READING A MULTI-SCREEN POC, which is where that rule earns its keep. Six of the eleven
+ * files pack two or three screens behind a switcher, and a shared `.main` in such a file
+ * is ambiguous by construction: it may be that file's chrome or it may be every screen's
+ * answer, and the markup alone cannot say which. **The inner class is what disambiguates
+ * it.** Where the author wanted a per-screen width they wrote one - three of them in
+ * `deployment-ops-poc.html`, one in `preview-versions-poc.html` used by two of its three
+ * screens - and where they did not, the shared `.main` stands for every screen in the
+ * file, which is how the version-history screen takes 1600 from a file two of whose
+ * screens do not. That rule is the whole of the reading; it is not a preference for inner
+ * numbers, and it does not make a shared cap meaningless.
+ *
+ * ONE ROW IS OPEN. `/webhooks` is drawn at 1820, wider than any token here, so it keeps
+ * the cap it had. See its comment.
  *
  * WHY A TABLE, AND WHY HERE. Sixteen screens is a routing question, so it is answered
  * once, in route terms, in this file - not by sixteen pages each reaching up to override
@@ -48,10 +62,11 @@
 /**
  * The class each answer puts on the shell's content column.
  *
- * Seven caps for sixteen screens, and the count is the POCs' rather than a taste: six
- * screens share the drawings' dominant 1600, four share 640, two share 1080, and the
- * remaining four are each the only screen drawn at their number. Collapsing the singletons
- * onto a neighbour would be this file deciding a width the drawing already decided.
+ * Six caps for sixteen screens, and the count is the POCs' rather than a taste: seven
+ * screens share the drawings' dominant 1600, three sit on the narrow measure, two share
+ * 40rem, two share 1080, and two are each the only screen drawn at their number.
+ * Collapsing a singleton onto a neighbour would be this file deciding a width the drawing
+ * already decided.
  *
  * `default` is the odd member and is deliberately not a token. No route takes it since
  * issue 657 re-sourced the table; it is what `measureFor` falls back to for a pathname no
@@ -66,7 +81,6 @@ export const MEASURE_CLASS = {
   list: "max-w-measure-list",
   log: "max-w-measure-log",
   wide: "max-w-measure-wide",
-  queue: "max-w-measure-queue",
 } as const;
 
 /** One of the caps a route can take. Each one is a number some POC draws. */
@@ -88,12 +102,19 @@ export const MEASURE_BY_ROUTE = {
   /** `links-webhooks-poc.html` `.main` 1600, its Secure links screen. */
   "/forms/[formId]/links": "wide",
   /**
-   * `preview-versions-poc.html`: `.main` 1600, but the draft preview's own content is the
-   * 640px `.respondent-frame` and two 640px banners beside it. 640 is the width a reader
-   * sees, and it is also the correctness argument `plan/admin-ux-audit.md` §3.4 makes -
-   * a respondent-facing render inside a wider container makes the preview lie.
+   * `preview-versions-poc.html`: `.main` is 1600 and holds three screens, but the draft
+   * preview's own content is the 640px `.respondent-frame` and two 640px banners beside
+   * it. The inner number is the screen; the shared `.main` is that file's chrome.
+   *
+   * WHY 45rem AND NOT 40rem, WHICH IS 640 EXACTLY. The drawn 640 is the frame's own box,
+   * sitting inside `.main`'s padding, while this cap sits on a `<main>` that carries
+   * `p-6`. 45rem renders 672px of content, 32px over the drawing; 40rem would render
+   * 592px, 48px under it. 45rem is the closer of the two and is also the value this
+   * screen already had, so nothing moves. `plan/admin-ux-audit.md` §3.4's correctness
+   * argument is satisfied either way: a respondent-facing render is never given a
+   * container wider than a respondent's.
    */
-  "/forms/[formId]/preview": "prose",
+  "/forms/[formId]/preview": "narrow",
   /** `responses-poc.html` `.main` 1600, its list screen; nothing inside caps narrower. */
   "/forms/[formId]/responses": "wide",
   /** `responses-poc.html` `.main` 1600, its detail screen; same, nothing narrower inside. */
@@ -101,26 +122,37 @@ export const MEASURE_BY_ROUTE = {
   /** `preview-versions-poc.html` `.main` 1600, its version-history table. */
   "/forms/[formId]/versions": "wide",
   /** `preview-versions-poc.html` again: the stored render is the same 640px frame. */
-  "/forms/[formId]/versions/[version]": "prose",
+  "/forms/[formId]/versions/[version]": "narrow",
   /** `links-webhooks-poc.html` `.main` 1600, its Webhook endpoints screen. */
   "/forms/[formId]/webhooks": "wide",
   /** `library-lists-poc.html` `.main` 1080, its Questions screen. */
   "/questions": "list",
   /**
    * `question-editor-poc.html`: `.main` 1600 with a single child, `.editor-column` 720.
-   * The editor is that column, so 720 is the screen.
+   * The editor is that column, so 720 is the screen. Same padding caveat as the preview
+   * above, in the other direction: 45rem renders 672px against a drawn 720.
    */
   "/questions/[questionId]": "narrow",
   /** `settings-newquestion-poc.html` `.page-main` 40rem, its New question screen. */
   "/questions/new": "prose",
-  /** `deployment-ops-poc.html` `.ops-inner--responses` 900; that file's `.main` has no cap. */
+  /**
+   * `deployment-ops-poc.html` `.ops-inner--responses` 900. That file's `.main` carries no
+   * cap at all (`:229`), so its three screens are pure per-screen statements: where the
+   * author wanted a per-screen width they wrote an inner class for it.
+   */
   "/responses": "ops",
   /** `deployment-ops-poc.html` `.ops-inner--erasures` 1180. */
   "/responses/erasures": "log",
   /** `settings-newquestion-poc.html` `.page-main` 40rem, its Account screen (issue 655). */
   "/settings": "prose",
-  /** `deployment-ops-poc.html` `.ops-inner--webhooks` 1820, the widest screen drawn. */
-  "/webhooks": "queue",
+  /**
+   * UNRESOLVED, and left where it was rather than guessed. `deployment-ops-poc.html`'s
+   * `.ops-inner--webhooks` is 1820px, which is wider than `wide` and so cannot be
+   * expressed by reassignment: it needs an eighth value in the vocabulary, which is a
+   * change to the scheme rather than a row in this table. Issue 657 names it as the one
+   * route whose cap does not match its drawing.
+   */
+  "/webhooks": "wide",
 } as const satisfies Record<string, Measure>;
 
 /** A pathname or route pattern split into its segments, with empties dropped. */
