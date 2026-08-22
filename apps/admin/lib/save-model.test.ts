@@ -109,9 +109,17 @@ const SCREENS: readonly ScreenRow[] = [
     why: "A one-shot code redemption.",
   },
   {
+    // Was `action`, and its `why` named the fieldset as the reason. Issue 685 moved that
+    // fieldset to `/forms/new`, so this screen keeps nothing an author could type into it
+    // and drops to `readonly` - the row below is where the create model now lives.
     route: "app/(shell)/forms/page.tsx",
+    model: "readonly",
+    why: "A listing with a link to the creating screen. Nothing on it is authored.",
+  },
+  {
+    route: "app/(shell)/forms/new/page.tsx",
     model: "action",
-    why: "A two-field slug-and-title fieldset that creates a form and navigates to it. Nothing accumulates, so there is no unsaved work a statement would protect.",
+    why: "The slug, title and locale fields that create a form and navigate to its builder. Nothing accumulates, so there is no unsaved work a statement would protect. NOT `manual` for the same reason `/questions/new` is: that screen holds a whole authored document, this one holds an identity being named.",
   },
   {
     route: "app/(shell)/forms/[formId]/page.tsx",

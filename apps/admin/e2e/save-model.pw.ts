@@ -31,7 +31,7 @@ import { confirmLifecycle, createDraft } from "./support/questions.js";
  *
  * ADR-23 puts behaviour at the highest layer that exists, which for an admin screen is
  * this one. But the third acceptance criterion - no screen in the app shows two different
- * save-state statements - is a property of sixteen screens, and a browser test can only
+ * save-state statements - is a property of every screen, and a browser test can only
  * speak for the ones it opens. `apps/admin/lib/save-model.test.ts` carries that half as a
  * source-level inventory; this file carries what an author actually sees.
  *
