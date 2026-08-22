@@ -92,13 +92,31 @@ export async function GET(
  * parameter to fix. `details.invalid` names them so a caller can act on it, and no
  * `content-disposition` is set, so the browser shows the message instead of saving a
  * file whose contents are an error.
+ *
+ * ## It says what it wants, which is what makes the narrowing safe
+ *
+ * A bare refusal would be the one real cost of tightening `from`/`to` to whole days:
+ * someone whose hand-written or scripted URL stops working, with no way to see why
+ * short of reading this source. So the message names each rejected parameter and the
+ * shape it expects, including the instant spelling, because a caller sending
+ * `to=2026-07-31T12:00:00.000Z` needs to know that instants are accepted at a day's
+ * edges rather than rejected outright. That turns a breaking change into a
+ * self-correcting one.
+ *
+ * ## Why this string is not in the message table (ADR-27)
+ *
+ * ADR-27 is about user-facing strings in a rendered surface, and this route has none:
+ * it emits bytes. Its sibling failure path is the API's own English envelope passed
+ * through untouched, no route handler in this app reads `lib/i18n`, and translating
+ * only this one refusal would leave the two errors an operator can receive from this
+ * URL in two different languages. Matching the path that already exists is the smaller
+ * inconsistency; a rendered surface for export errors would be the thing to localize.
  */
 function invalidFilters(invalid: readonly ExportFilterField[]): Response {
-  const named = invalid.join(", ");
   const body = {
     error: {
       code: "INVALID_QUERY",
-      message: `Nothing was exported: ${named} did not name a filter this export can apply. A version is a positive whole number, and from/to are whole UTC days (YYYY-MM-DD).`,
+      message: `Nothing was exported. ${invalid.map(expectedShape).join(" ")}`,
       details: { invalid },
     },
   };
@@ -106,6 +124,16 @@ function invalidFilters(invalid: readonly ExportFilterField[]): Response {
     status: 400,
     headers: { "content-type": "application/json; charset=utf-8" },
   });
+}
+
+/** What one rejected parameter should have looked like, in the caller's own terms. */
+function expectedShape(field: ExportFilterField): string {
+  if (field === "version") return "version must be a positive whole number.";
+  const edge =
+    field === "from"
+      ? "the instant it begins (YYYY-MM-DDT00:00:00.000Z)"
+      : "the instant it ends (YYYY-MM-DDT23:59:59.999Z)";
+  return `${field} must be a whole UTC day (YYYY-MM-DD), or ${edge}.`;
 }
 
 /** Carry the upstream's content typing through untouched; add nothing else. */

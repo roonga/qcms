@@ -168,6 +168,30 @@ describe("export route: what it refuses", () => {
     expect((await envelope(response)).error.details?.invalid).toEqual(["version", "from"]);
   });
 
+  /**
+   * The narrowing to whole days rejects input the API would have served, so the refusal
+   * has to be actionable without reading this app's source. The instant spelling is
+   * named on purpose: a caller who sent one needs to learn that instants are accepted at
+   * a day's edges, not that they are rejected outright, which is what a bare
+   * "must be YYYY-MM-DD" would tell them.
+   */
+  it("says what each rejected parameter should have looked like", async () => {
+    const response = await get("?format=csv&version=x&to=2026-07-31T12:00:00.000Z");
+
+    const { error } = await envelope(response);
+    expect(error.message).toContain("version must be a positive whole number");
+    expect(error.message).toContain("to must be a whole UTC day (YYYY-MM-DD)");
+    expect(error.message).toContain("the instant it ends (YYYY-MM-DDT23:59:59.999Z)");
+  });
+
+  it("names the beginning of the day for from, not the end", async () => {
+    const response = await get("?format=csv&version=1&from=2026-07-01T12:00:00.000Z");
+
+    expect((await envelope(response)).error.message).toContain(
+      "from must be a whole UTC day (YYYY-MM-DD), or the instant it begins (YYYY-MM-DDT00:00:00.000Z).",
+    );
+  });
+
   it("offers no download with the refusal, so nothing lands in a downloads folder", async () => {
     const response = await get("?format=csv&version=2&from=nonsense");
 
