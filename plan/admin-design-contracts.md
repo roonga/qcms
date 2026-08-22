@@ -385,6 +385,39 @@ The consequence is accepted rather than discovered: because a layout is never to
 child route rendered, a sibling rail needs a **parallel route slot**, and the shared tooling
 has to understand one. #559 taught four files about it rather than filtering it out, which is
 the standard for the next two rails as well.
+
+**Amendment, 2026-08-22 (PM/PO seat, blocking #561): on the builder, the rail carries the
+sibling-screens group only.**
+
+PR #621 made Links its reference screen and declined to answer what the rail does on the
+**builder**, which already renders a step list that is an *editor* - buttons, same-page
+selection, add, rename, reorder, remove. Adding §7's children group there would put two step
+lists on one screen disagreeing about what a step row is. #561 wires all eight screens
+including the builder, so this cannot stay open.
+
+**§7 already decides it, and the derivation matters more than the answer.** A step item links
+to `/forms/{formId}#step-{stepId}`. On every other form-subtree screen that is a cross-route
+link. **On the builder it is the same route** - a bare fragment - which is precisely what §7's
+existing clause bars:
+
+> The rail never carries actions [...] **never carries same-page section switches** [...]
+
+So the children group is not merely redundant on the builder, it is **already forbidden**. No
+new rule is needed and none is invented here.
+
+- **The builder's rail renders one group**: Builder / Preview / Versions / Links / Responses /
+  Webhooks, with Builder marked active.
+- **There is therefore no divider on that screen.** §7's "two groups, in that order, with one
+  divider" describes the rail's contents where both groups exist. A missing divider on the
+  builder is the rule working, not a defect, and a reviewer should not read it as one.
+- **The builder's existing step editor remains the single step list**, and keeps its buttons.
+  It is content, not navigation, which is why §7 never reached it.
+- **One shared component still.** Omitting a group is *data* passed to the rail, not a
+  per-screen copy of it, so the "no per-screen copies" clause is untouched.
+
+**What this does not settle.** Whether the builder's step editor should eventually *look*
+like the rail's step group, or move, is a builder-layout question and remains open. It is not
+answered by making it a second rail, and nothing here licenses that.
 ### 7a. Settings keeps a rail, as a written exception
 
 **[Code Owner ruling, 2026-08-20 - decision C1 closed]** Settings keeps its rail.
