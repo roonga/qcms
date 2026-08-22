@@ -4,7 +4,14 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
-import { addStep, createForm, openStep, pickerAddButton, pinLabel } from "./support/forms.js";
+import {
+  addStep,
+  createForm,
+  openStep,
+  pickerAddButton,
+  pinLabel,
+  waitForSaved,
+} from "./support/forms.js";
 import { confirmLifecycle, createDraft } from "./support/questions.js";
 
 /**
@@ -90,6 +97,9 @@ test("every converted table's row control is in the document's own tab order", a
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
   pickerFormId = await createForm(page, `anchors570-form-${RUN}`, "Anchors 570");
   await addStep(page, "Only step");
+  // A step lives in the autosaved draft. Leaving the builder before the save lands and
+  // coming back finds a form with no step, and the picker test below has nothing to open.
+  await waitForSaved(page);
 
   // 1. The question library. The identifying cell is the ID, and the anchor's accessible
   //    name says where it goes rather than repeating the id a screen reader has just read

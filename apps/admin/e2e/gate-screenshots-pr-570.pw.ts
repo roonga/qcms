@@ -3,7 +3,7 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { CAPTURE_ENABLED, captureInto } from "./support/capture.js";
 import { enrollNewAdmin } from "./support/flow.js";
-import { addStep, createForm, openStep } from "./support/forms.js";
+import { addStep, createForm, openStep, waitForSaved } from "./support/forms.js";
 import { confirmLifecycle, createDraft } from "./support/questions.js";
 
 /**
@@ -68,8 +68,22 @@ test("captures the four converted tables at both widths", async ({ page }) => {
   // picker needs to have a choosable row in it.
   await createDraft(page, SLUG, "Short text");
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
-  const formId = await createForm(page, `gate570-form-${RUN}`, "Anchors 570");
+  await createForm(page, `gate570-form-${RUN}`, "Anchors 570");
   await addStep(page, "Only step");
+
+  // The picker first, from the builder this walk is already standing on. A step lives in
+  // the autosaved draft, so leaving the builder before the save lands and coming back
+  // finds a form with no step and no way to open the dialog. The wait is the fix; the
+  // order is the belt.
+  await waitForSaved(page);
+  await openStep(page, "Only step");
+  await page.getByRole("button", { name: "Add question from library" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await expect(
+    dialog.getByRole("button", { name: `Add q_${SLUG.replaceAll("-", "_")} version 1` }),
+  ).toBeVisible();
+  await capture(page, "library-picker");
 
   // The question library, scoped to this run so the frame is a readable handful of rows
   // rather than whatever the harness database has accumulated.
@@ -87,14 +101,4 @@ test("captures the four converted tables at both widths", async ({ page }) => {
   await page.goto(`/forms/${SEEDED_FORM_ID}/versions`);
   await expect(page.getByRole("link", { name: "View v1" })).toBeVisible();
   await capture(page, "version-history");
-
-  await page.goto(`/forms/${formId}`);
-  await openStep(page, "Only step");
-  await page.getByRole("button", { name: "Add question from library" }).click();
-  const dialog = page.getByRole("dialog");
-  await expect(dialog).toBeVisible();
-  await expect(
-    dialog.getByRole("button", { name: `Add q_${SLUG.replaceAll("-", "_")} version 1` }),
-  ).toBeVisible();
-  await capture(page, "library-picker");
 });
