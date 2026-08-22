@@ -277,6 +277,30 @@ in one place in the sheet:
   primary-styled confirm button. Type-to-confirm stays reserved for erasure.
 - No inline `<details>` confirms for anything consequence-bearing.
 
+**Amendment, 2026-08-22 (Code Owner, from the running app): the content column and the top
+nav are LEFT-ANCHORED, not centred.**
+
+Nothing in these contracts ever said which, and everyone assumed. The shipped app centres
+both: at 1280 the Settings body sits with equal margins either side of its cap, and the top
+nav's items are centred within theirs. **The rail is what made it visible** - a fixed 240px
+column on the left with a centred body beside it reads as two unrelated layouts on one
+screen.
+
+> The capped content column is **anchored to the left** of its available space, not centred
+> within it. Where a rail is present the column begins at the rail's edge. **The top nav is
+> anchored the same way**, so the product mark, the nav items and the page content share one
+> left edge down the screen.
+
+**This is not a new preference, it is the design language the campaign adopted.**
+`plan/admin-ux-audit.md` §1 names element 2 as the **"wide left-anchored column"**. That is
+what the audit assessed, what the POCs drew, and what these contracts were written to
+settle - and the one word doing the work never made it into a clause, so the implementation
+centred the column and no gate could tell.
+
+The width caps #558 assigned per route are unchanged: a cap sets **how wide** the column may
+be, and this says **where** it sits. The two were conflated only because a centred column
+makes the question invisible.
+
 ## 6. Save model
 
 Every screen states its model exactly once:
@@ -380,12 +404,17 @@ how an unexamined choice becomes the house pattern.
   which is a real accessibility defect rather than a tidiness question, and a native
   disclosure is keyboard-operable by construction and announces its own expanded state
   more reliably than any hand-written `aria-expanded`.
-- **The `<summary>` remains rendered above `--bp-sidebar`**, naming the active item, with
-  the chevron suppressed. So the active item's name appears twice on a wide screen: once
-  as the summary and once as the marked row. That redundancy is **accepted**, because the
-  alternatives are worse: hiding the summary at one width reintroduces a second code path
-  for the state a screen reader relies on, and removing it entirely takes the disclosure
-  semantics with it.
+- **The `<summary>` is not a visible label above `--bp-sidebar`.** It remains in the
+  markup, because it is the disclosure's control and removing it takes the semantics with
+  it, but it is not *shown* as a heading on a wide screen.
+
+  **Corrected 2026-08-22 by the Code Owner, overruling this seat.** The earlier text
+  accepted the redundancy - the active item named once as the summary and again as the
+  marked row - on the grounds that hiding it at one width reintroduces a second code path.
+  Reviewing #621 I flagged the duplication and cleared it anyway. Seen in the running app
+  it reads as a stray page title above the rail, and the Code Owner's call is to remove it.
+  The disclosure semantics are kept by hiding the summary visually rather than by dropping
+  it, which costs no second code path.
 - **The Settings rail (§7a) follows the same mechanism**, being a different component with
   the same collapse behaviour. It does not get to answer this differently.
 
