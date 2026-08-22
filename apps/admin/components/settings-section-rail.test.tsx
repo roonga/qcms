@@ -127,8 +127,11 @@ describe("the Settings rail's markup", () => {
       "utf8",
     );
     expect(source).not.toContain('from "next/link"');
-    // And it does not widen the shared rail chrome to fit itself: the disclosure below is
-    // re-typed here on purpose, which is the whole reason `rail-frame.tsx` is untouched.
-    expect(source).not.toContain("rail-frame");
+    // And it does not reach for the shared rail chrome: the disclosure is re-typed here on
+    // purpose, which is the whole reason `components/rail-frame.tsx` is untouched by this
+    // change. Asserted on the import lines rather than on the whole source, because the doc
+    // comment above names that same file when it says the chrome stayed local.
+    const imports = source.split("\n").filter((line) => line.startsWith("import"));
+    expect(imports.some((line) => line.includes("rail-frame"))).toBe(false);
   });
 });

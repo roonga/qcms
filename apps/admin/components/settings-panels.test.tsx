@@ -57,9 +57,10 @@ describe("the Settings panels", () => {
     for (const section of SETTINGS_SECTIONS) {
       const rendered = panels(await render(section.id));
       const shown = rendered.filter((panel) => !panel.hidden);
-      expect(shown.map((panel) => panel.id), `${section.id} is the only panel shown`).toStrictEqual(
-        [section.panelId],
-      );
+      expect(
+        shown.map((panel) => panel.id),
+        `${section.id} is the only panel shown`,
+      ).toStrictEqual([section.panelId]);
     }
   });
 

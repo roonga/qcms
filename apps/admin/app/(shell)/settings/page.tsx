@@ -74,9 +74,9 @@ export default async function SettingsPage({
           <section className="qcms-card" aria-labelledby={SETTINGS_HEADING_ID}>
             <Card padding="md" radius="md" border>
               <div className="flex flex-col gap-3">
-              <p className="text-sm text-(--color-text-muted)">
-                {t("settings.signedInAs", { email: session.email })}
-              </p>
+                <p className="text-sm text-(--color-text-muted)">
+                  {t("settings.signedInAs", { email: session.email })}
+                </p>
               </div>
             </Card>
           </section>
@@ -85,40 +85,40 @@ export default async function SettingsPage({
           <section className="qcms-card" aria-labelledby={SETTINGS_HEADING_ID}>
             <Card padding="md" radius="md" border>
               <div className="flex flex-col gap-4">
-              <p className="text-sm text-(--color-text-muted)">{t("settings.passwordIntro")}</p>
-              {/* No wrapper `role` on either: the vendored `Alert` already renders
+                <p className="text-sm text-(--color-text-muted)">{t("settings.passwordIntro")}</p>
+                {/* No wrapper `role` on either: the vendored `Alert` already renders
                   `role="alert"`, and nesting a second live region for one message means it
                   is announced twice. */}
-              {params.changed !== undefined && (
-                <Alert variant="success">{t("settings.passwordChanged")}</Alert>
-              )}
-              {/* The same generic sentence as every other auth failure: a wrong current
+                {params.changed !== undefined && (
+                  <Alert variant="success">{t("settings.passwordChanged")}</Alert>
+                )}
+                {/* The same generic sentence as every other auth failure: a wrong current
                   password must not be distinguishable from a rejected new one (SEC-1). */}
-              {params.error !== undefined && <Alert variant="error">{t("signIn.error")}</Alert>}
-              <form
-                method="post"
-                action="/settings/password"
-                className="flex max-w-sm flex-col gap-4"
-              >
-                <TextField
-                  name="currentPassword"
-                  type="password"
-                  label={t("settings.currentPassword")}
-                  autoComplete="current-password"
-                  isRequired
-                />
-                <TextField
-                  name="newPassword"
-                  type="password"
-                  label={t("settings.newPassword")}
-                  autoComplete="new-password"
-                  minLength={MIN_PASSWORD_LENGTH}
-                  isRequired
-                />
-                <Button type="submit" variant="primary" size="md">
-                  {t("action.savePassword")}
-                </Button>
-              </form>
+                {params.error !== undefined && <Alert variant="error">{t("signIn.error")}</Alert>}
+                <form
+                  method="post"
+                  action="/settings/password"
+                  className="flex max-w-sm flex-col gap-4"
+                >
+                  <TextField
+                    name="currentPassword"
+                    type="password"
+                    label={t("settings.currentPassword")}
+                    autoComplete="current-password"
+                    isRequired
+                  />
+                  <TextField
+                    name="newPassword"
+                    type="password"
+                    label={t("settings.newPassword")}
+                    autoComplete="new-password"
+                    minLength={MIN_PASSWORD_LENGTH}
+                    isRequired
+                  />
+                  <Button type="submit" variant="primary" size="md">
+                    {t("action.savePassword")}
+                  </Button>
+                </form>
               </div>
             </Card>
           </section>
@@ -127,60 +127,62 @@ export default async function SettingsPage({
           <section className="qcms-card" aria-labelledby={SETTINGS_HEADING_ID}>
             <Card padding="md" radius="md" border>
               <div className="flex flex-col gap-3">
-              {/* Prose, not an `Alert`: the vendored Alert is a live region (`role="alert"`),
+                {/* Prose, not an `Alert`: the vendored Alert is a live region (`role="alert"`),
                   and this is standing state rather than something that just happened. As an
                   Alert it announced itself on every visit to Settings and competed with the
                   real password-change message for the screen reader's attention. */}
-              <p
-                className={
-                  session.twoFactorEnabled
-                    ? "text-sm text-(--color-success-fg)"
-                    : "text-sm text-(--color-warning-fg)"
-                }
-              >
-                {session.twoFactorEnabled ? t("settings.twoFactorOn") : t("settings.twoFactorOff")}
-              </p>
-              {/* Only for an enrolled account: better-auth refuses to generate codes
+                <p
+                  className={
+                    session.twoFactorEnabled
+                      ? "text-sm text-(--color-success-fg)"
+                      : "text-sm text-(--color-warning-fg)"
+                  }
+                >
+                  {session.twoFactorEnabled
+                    ? t("settings.twoFactorOn")
+                    : t("settings.twoFactorOff")}
+                </p>
+                {/* Only for an enrolled account: better-auth refuses to generate codes
                   without a factor to back them, so offering the form otherwise would be
                   a control that can only fail. */}
-              {session.twoFactorEnabled && (
-                <>
-                  {/* One level under the page heading, which now names this panel, so this
+                {session.twoFactorEnabled && (
+                  <>
+                    {/* One level under the page heading, which now names this panel, so this
                       is the panel's first subheading rather than its second (the POC makes
                       the same promotion for the same reason). */}
-                  <h2 className="text-sm font-semibold text-(--color-text)">
-                    {t("settings.recoveryCodesTitle")}
-                  </h2>
-                  {/* The same generic sentence the password form uses: a wrong password
+                    <h2 className="text-sm font-semibold text-(--color-text)">
+                      {t("settings.recoveryCodesTitle")}
+                    </h2>
+                    {/* The same generic sentence the password form uses: a wrong password
                       here must not be distinguishable from any other refusal (SEC-1). */}
-                  {params.codesError !== undefined && (
-                    <Alert variant="error">{t("signIn.error")}</Alert>
-                  )}
-                  <p className="text-sm text-(--color-text-muted)">
-                    {t("settings.recoveryCodesIntro")}
-                  </p>
-                  <form
-                    method="post"
-                    action="/settings/recovery-codes"
-                    className="flex max-w-sm flex-col gap-4"
-                  >
-                    {/* The password is what re-authenticates the operation (issue #319):
+                    {params.codesError !== undefined && (
+                      <Alert variant="error">{t("signIn.error")}</Alert>
+                    )}
+                    <p className="text-sm text-(--color-text-muted)">
+                      {t("settings.recoveryCodesIntro")}
+                    </p>
+                    <form
+                      method="post"
+                      action="/settings/recovery-codes"
+                      className="flex max-w-sm flex-col gap-4"
+                    >
+                      {/* The password is what re-authenticates the operation (issue #319):
                         better-auth requires it, so a borrowed session cannot retire an
                         admin's codes. `current-password` rather than a new-password hint,
                         because that is exactly what it is. */}
-                    <TextField
-                      name="password"
-                      type="password"
-                      label={t("settings.recoveryCodesPassword")}
-                      autoComplete="current-password"
-                      isRequired
-                    />
-                    <Button type="submit" variant="secondary" size="md">
-                      {t("settings.recoveryCodesAction")}
-                    </Button>
-                  </form>
-                </>
-              )}
+                      <TextField
+                        name="password"
+                        type="password"
+                        label={t("settings.recoveryCodesPassword")}
+                        autoComplete="current-password"
+                        isRequired
+                      />
+                      <Button type="submit" variant="secondary" size="md">
+                        {t("settings.recoveryCodesAction")}
+                      </Button>
+                    </form>
+                  </>
+                )}
               </div>
             </Card>
           </section>

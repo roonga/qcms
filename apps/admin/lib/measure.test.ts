@@ -129,7 +129,13 @@ describe("resolving a live pathname to a cap", () => {
     // the alignment now comes from the same place and could drift on its own.
     for (const route of Object.keys(MEASURE_BY_ROUTE)) {
       if (route === "/settings") continue;
-      expect(mainClassFor(route.replaceAll(/\[[^\]]+]/gu, "x")), `${route} is unmoved`).toBe(
+      // A live path for the pattern: every dynamic segment filled with something a route
+      // could actually carry, since `mainClassFor` is asked about pathnames, not patterns.
+      const live = route
+        .split("/")
+        .map((segment) => (segment.startsWith("[") ? "x" : segment))
+        .join("/");
+      expect(mainClassFor(live), `${route} is unmoved`).toBe(
         `mx-auto w-full ${MEASURE_CLASS[MEASURE_BY_ROUTE[route as keyof typeof MEASURE_BY_ROUTE]]} flex-1 p-6`,
       );
     }
