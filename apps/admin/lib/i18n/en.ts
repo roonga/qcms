@@ -457,6 +457,10 @@ export const messages = {
   "forms.builder.crumbs": "Forms",
   "forms.builder.crumbBuilder": "Builder",
   "forms.builder.crumbLabel": "Breadcrumb",
+  // The builder's own `<h1>`, and since issue 679 the builder's alone. Its five sibling
+  // sections compose `forms.section.heading` instead, because their subject is a collection
+  // belonging to the form; on the builder the subject IS the form, so the bare slug is the
+  // heading rather than a heading that has not been written yet.
   "forms.builder.heading": "{slug}",
   "forms.builder.formId": "Form ID",
   "forms.builder.locale": "Default locale",
@@ -772,12 +776,25 @@ export const messages = {
   // matters rather than leaving an operator to discover it.
 
   // The `forms.tab.*` names outlived the tab strip they were written for: the §7 rail
-  // carries the same six sections on all eight form screens (issue 561), and the
-  // breadcrumb builds its last crumb from the same names, so all six are still one place.
-  // Only the strip's own landmark label went with `form-tabs.tsx`.
+  // carries the same six sections on all eight form screens (issue 561), the breadcrumb
+  // builds its last crumb from the same names, and since issue 679 the section screens'
+  // own `<h1>` is composed from them too, so all six are still one place. Only the strip's
+  // own landmark label went with `form-tabs.tsx`.
+  //
+  // "Version history" rather than "History" (issue 679). Three things pushed the same way
+  // and none of them was consistency for its own sake. The screen's approved drawing names
+  // it that (`plan/admin-shell-poc/preview-versions-poc.html`, the `<h1>` at the head of
+  // its version-list screen). The app's own prose already did, twice, in the two links that
+  // point at this screen: `forms.publish.viewHistory` and `forms.history.backToHistory`
+  // both read "version history". And "History" was the one name in the six that did not say
+  // what it listed, which reads as under-specified in a rail and outright ambiguous once
+  // composed into a heading, where "History: Life insurance" could as easily mean the
+  // form's edit history or its responses. The rail follows the screen's name by the rule
+  // `plan/admin-design-contracts.md` §7 records, which anticipates exactly this rename.
+  "forms.section.heading": "{section}: {slug}",
   "forms.tab.builder": "Builder",
   "forms.tab.preview": "Preview",
-  "forms.tab.versions": "History",
+  "forms.tab.versions": "Version history",
   "forms.tab.links": "Links",
 
   "forms.publish.action": "Publish",

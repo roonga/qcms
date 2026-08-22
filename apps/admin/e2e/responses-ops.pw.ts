@@ -182,7 +182,11 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     // twice at two levels.
     await expect(page.getByRole("heading", { name: `Response ${revised}` })).toHaveCount(1);
 
-    // The builder tab is untouched: there the page's subject IS the form.
+    // The builder is untouched, here and by issue 679, which prefixed the section name onto
+    // the other five sections' headings and deliberately left this one alone: there the
+    // page's subject IS the form, so the bare slug is the heading rather than a heading
+    // waiting to be written. Asserted rather than assumed, because the risk to this route
+    // is a later pass at consistency, not a bug.
     await page.goto(`/forms/${FORM_ID}`);
     await expect(page.locator("h1").first()).toHaveText(SLUG);
   });
