@@ -5,73 +5,90 @@ import { describe, expect, it } from "vitest";
 
 import { messages } from "./i18n/en.js";
 import {
-  settingsSectionHeadingId,
+  DEFAULT_SETTINGS_SECTION,
   SETTINGS_SECTION_IDS,
   SETTINGS_SECTIONS,
+  settingsSectionFromHash,
+  settingsSectionFromParams,
+  settingsSectionLabelKey,
 } from "./settings-sections.js";
 
 /**
- * The Settings rail's section list, and the one duplication it cannot avoid (issue 562).
+ * The Settings section list, and the URL contracts that decide which panel opens (issue 655).
  *
- * `plan/admin-design-contracts.md` §7a puts the active-section mark in `app/globals.css` as
- * `:target` rules, because the fragment that decides it is never sent to a server and the
- * rail has to work with JavaScript disabled. CSS cannot interpolate a list, so each section
- * id is written into the stylesheet by hand - and a rail row whose id the stylesheet does
- * not know is a row that can never be marked current, silently. The first test here is that
- * tripwire: it reads the stylesheet and requires the two id sets to be exactly equal, in
- * both directions, so an added section fails until its rules exist and a removed one fails
- * until its rules go.
+ * The switch itself is three renders of one value and needs a browser to be worth asserting
+ * (`apps/admin/e2e/settings-rail.pw.ts`). What is checkable here is the list every side reads
+ * and the two pure functions that turn a URL into a section: a redirect marker landing on the
+ * wrong panel would hide the message it came back to show, silently and only after a POST.
  */
 
-const GLOBALS = readFileSync(fileURLToPath(new URL("../app/globals.css", import.meta.url)), "utf8");
-
-/** Every `#id:target` the stylesheet names, deduplicated. */
-function targetedIds(): readonly string[] {
-  const found = [...GLOBALS.matchAll(/#([a-z][\w-]*):target/gu)].map((match) => match[1] ?? "");
-  return [...new Set(found)];
-}
+const PAGE = readFileSync(
+  fileURLToPath(new URL("../app/(shell)/settings/page.tsx", import.meta.url)),
+  "utf8",
+);
 
 describe("the Settings section list", () => {
-  it("names exactly the sections `app/globals.css` writes `:target` rules for", () => {
-    const declared = SETTINGS_SECTIONS.map((section) => section.id);
-    expect(
-      [...targetedIds()].sort((a, b) => a.localeCompare(b)),
-      "the ids in `lib/settings-sections.ts` and the `:target` rules in `app/globals.css` are one list written twice, and they have drifted",
-    ).toEqual([...declared].sort((a, b) => a.localeCompare(b)));
-  });
-
-  it("gives every section all three of its rules, so a row can be marked in full", () => {
-    // Three families per section, and each is a separate promise: reveal the section's name
-    // in the collapsed summary, reveal the visually-hidden "current" phrase in its row, and
-    // paint the row's accent edge. A section with two of the three is marked for a sighted
-    // reader and not for a screen reader, or the other way round.
-    for (const section of SETTINGS_SECTIONS) {
-      const uses = GLOBALS.split(`:has(#${section.id}:target)`).length - 1;
-      expect(uses, `the ${section.id} section's three \`:target\` rules`).toBeGreaterThanOrEqual(3);
-    }
-  });
-
-  it("carries three sections with unique ids and real catalog keys", () => {
-    // Three, because the screen has three `<h2>`s. The recovery-codes form is an `<h3>`
-    // inside the two-factor card and only exists for an enrolled account, so promoting it
+  it("carries three sections with unique ids, unique panel ids and real catalog keys", () => {
+    // Three, because the screen has three panels. The recovery-codes form is a subheading
+    // inside the two-factor panel and only exists for an enrolled account, so promoting it
     // would give the rail a row that appears and disappears with account state.
     expect(SETTINGS_SECTIONS).toHaveLength(3);
     expect(new Set(SETTINGS_SECTIONS.map((section) => section.id)).size).toBe(3);
+    expect(new Set(SETTINGS_SECTIONS.map((section) => section.panelId)).size).toBe(3);
     for (const section of SETTINGS_SECTIONS) {
       expect(messages[section.labelKey], `the ${section.id} section's name`).toBeTruthy();
     }
   });
 
-  it("keeps the published `#change-password` anchor the account menu links to", () => {
-    // `components/account-menu.tsx` links to `/settings#change-password`, and that link is
-    // part of that control's contract. Renaming this id for tidiness breaks a working link.
-    expect(SETTINGS_SECTION_IDS.changePassword).toBe("change-password");
-    expect(SETTINGS_SECTIONS.some((section) => section.id === "change-password")).toBe(true);
+  it("names its panels the way the POC names them", () => {
+    // `plan/admin-shell-poc/settings-newquestion-poc.html` writes these three ids out, and
+    // two of them are NOT the section id with a prefix: the POC's panel names were written
+    // fresh while `change-password` and `two-factor` carry the URL history below.
+    expect(SETTINGS_SECTIONS.map((section) => section.panelId)).toStrictEqual([
+      "settings-panel-account",
+      "settings-panel-password",
+      "settings-panel-twofactor",
+    ]);
   });
 
-  it("derives a heading id that cannot collide with the section's own", () => {
+  it("opens on Account, which is the panel the POC leaves un-hidden", () => {
+    expect(DEFAULT_SETTINGS_SECTION).toBe(SETTINGS_SECTION_IDS.account);
+    expect(settingsSectionFromParams({})).toBe(SETTINGS_SECTION_IDS.account);
+  });
+
+  it("keeps the published `#change-password` anchor the account menu links to", () => {
+    // `components/account-menu.tsx` links to `/settings#change-password`, and that link is
+    // part of that control's contract. Under the stacked screen the fragment scrolled; under
+    // the panel screen it selects. Renaming this id for tidiness breaks a working link.
+    expect(SETTINGS_SECTION_IDS.changePassword).toBe("change-password");
+    expect(settingsSectionFromHash("#change-password")).toBe(SETTINGS_SECTION_IDS.changePassword);
+    expect(settingsSectionFromHash("change-password")).toBe(SETTINGS_SECTION_IDS.changePassword);
+    expect(settingsSectionFromHash("#two-factor")).toBe(SETTINGS_SECTION_IDS.twoFactor);
+    expect(settingsSectionFromHash("")).toBeUndefined();
+    expect(settingsSectionFromHash("#nothing-here")).toBeUndefined();
+  });
+
+  it("lands each redirect marker on the panel that renders its message", () => {
+    // The failure this rules out is invisible until it happens to someone: a password change
+    // that confirms itself inside a hidden panel reads as a change that did not take.
+    expect(settingsSectionFromParams({ changed: "1" })).toBe(SETTINGS_SECTION_IDS.changePassword);
+    expect(settingsSectionFromParams({ error: "1" })).toBe(SETTINGS_SECTION_IDS.changePassword);
+    expect(settingsSectionFromParams({ codesError: "1" })).toBe(SETTINGS_SECTION_IDS.twoFactor);
+  });
+
+  it("reads every marker the Settings page actually renders a message for", () => {
+    // The tripwire, because the two sides are one list written twice: a fourth marker added
+    // to the page renders a message on whatever panel happened to be open until it is routed
+    // here too. Read off the page's source rather than restated, so it cannot be forgotten.
+    const rendered = [...PAGE.matchAll(/params\.(\w+) !== undefined/gu)].map(
+      (match) => match[1] ?? "",
+    );
+    expect(new Set(rendered)).toEqual(new Set(["changed", "error", "codesError"]));
+  });
+
+  it("names every section, and says so rather than guessing when one is missing", () => {
     for (const section of SETTINGS_SECTIONS) {
-      expect(settingsSectionHeadingId(section.id)).not.toBe(section.id);
+      expect(settingsSectionLabelKey(section.id)).toBe(section.labelKey);
     }
   });
 });

@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
-import { measureClassFor } from "@/lib/measure";
+import { mainClassFor } from "@/lib/measure";
 
 /**
  * The shell's content column, capped by the route it is showing (issue 558).
@@ -12,12 +12,13 @@ import { measureClassFor } from "@/lib/measure";
  * a Next layout wraps the page tree and is never told which child route rendered, so a
  * decision made per route has to be taken where the pathname is readable. `usePathname`
  * is readable during the SERVER render of a client component too, so the cap is in the
- * first HTML the browser parses. Nothing here waits for hydration, nothing changes on
- * hydration, and a screen with JavaScript disabled is capped exactly the same - which
- * matters, because every authenticated screen in this app works without it.
+ * first HTML the browser parses. Nothing here waits for hydration and nothing changes on
+ * hydration, which is what keeps the column from resizing under a reader after the first
+ * paint.
  *
- * The component owns no width of its own. It asks `lib/measure.ts` and renders what it is
- * given, so the sixteen answers stay in one table rather than becoming a condition here.
+ * The component owns no width of its own, and since issue 655 no alignment either. It asks
+ * `lib/measure.ts` and renders what it is given, so the sixteen answers stay in one table
+ * rather than becoming a condition here.
  *
  * WHY THE TOPBAR AND FOOTER DO NOT FOLLOW. They keep the shell's own `max-w-5xl`.
  * `plan/admin-ux-audit.md` §6 is a question about the content column ("roughly 976px of
@@ -29,10 +30,11 @@ import { measureClassFor } from "@/lib/measure";
  */
 export function MeasuredMain({ children }: { readonly children: ReactNode }) {
   const pathname = usePathname();
-  // Composed in this order so the nine unchanged screens keep the exact class attribute
-  // they had before the table existed: `mx-auto w-full max-w-5xl flex-1 p-6`.
+  // The whole attribute comes from the table, because the cap and the alignment are one
+  // answer per route and only one screen takes a different one on either count (issue 655).
+  // The nine unchanged screens still get `mx-auto w-full max-w-5xl flex-1 p-6`, unmoved.
   return (
-    <main id="main-content" className={`mx-auto w-full ${measureClassFor(pathname)} flex-1 p-6`}>
+    <main id="main-content" className={mainClassFor(pathname)}>
       {children}
     </main>
   );

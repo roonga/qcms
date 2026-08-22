@@ -8,6 +8,12 @@
  * with one number, `max-w-5xl` on `<main>`, and §6 is explicit that a single global raise
  * "would be wrong for eleven of the sixteen".
  *
+ * A FOURTH ANSWER JOINED THE THREE IN ISSUE 655, and it is the reason this table now
+ * decides an alignment as well as a cap. Settings is drawn by its own POC
+ * (`plan/admin-shell-poc/settings-newquestion-poc.html`), which caps that screen at 40rem
+ * and left-anchors it, and one screen differing from the other fifteen on both counts is
+ * exactly the kind of question this file exists to answer once, in route terms.
+ *
  * WHY A TABLE, AND WHY HERE. Sixteen screens with three answers is a routing question, so
  * it is answered once, in route terms, in this file - not by sixteen pages each reaching
  * up to override a container they do not own. The practical difference is what happens
@@ -46,10 +52,27 @@ export const MEASURE_CLASS = {
   default: "max-w-5xl",
   wide: "max-w-measure-wide",
   narrow: "max-w-measure-narrow",
+  prose: "max-w-measure-prose",
 } as const;
 
-/** One of the three answers §6 gives. */
+/** One of the answers a route can take: §6's three, plus the POC's prose cap (issue 655). */
 export type Measure = keyof typeof MEASURE_CLASS;
+
+/**
+ * The answers whose column is LEFT-ANCHORED instead of centred in the shell.
+ *
+ * `plan/admin-shell-poc/settings-newquestion-poc.html` writes `margin: 0` on its main column
+ * and says why: every rail-adjacent screen in the design follows "left-anchored, fluid up to
+ * a cap, never re-centred", and a screen with a narrower column floating to the middle while
+ * every other screen hugs the left edge "reads as a different app, not a lighter one".
+ *
+ * ONE ANSWER IS IN THIS SET, DELIBERATELY. Issue 648 carries left-anchoring for the app as a
+ * whole; issue 655 carries the 40rem prose cap for the Settings screen, and this is the least
+ * that cap needs to be what the POC draws. Whichever of the two lands second inherits the
+ * other, and if that is 648 then this set stops being a set: `mx-auto` leaves the shell
+ * entirely and these two lines go with it.
+ */
+const LEFT_ANCHORED: ReadonlySet<Measure> = new Set<Measure>(["prose"]);
 
 /**
  * Every authenticated route, with the cap §6 assigns it.
@@ -85,7 +108,8 @@ export const MEASURE_BY_ROUTE = {
   "/questions/new": "default",
   "/responses": "default",
   "/responses/erasures": "default",
-  "/settings": "default",
+  /** Prose and two short forms. The POC caps it at 40rem and does not centre it. */
+  "/settings": "prose",
   /** Six columns including a URL and a free-text `lastError`. */
   "/webhooks": "wide",
 } as const satisfies Record<string, Measure>;
@@ -124,4 +148,19 @@ export function measureFor(pathname: string): Measure {
 /** The cap for a live pathname, as the utility class the shell puts on its column. */
 export function measureClassFor(pathname: string): string {
   return MEASURE_CLASS[measureFor(pathname)];
+}
+
+/**
+ * The whole class attribute the shell's content column carries for a pathname.
+ *
+ * Composed here rather than at the call site because the cap and the alignment are one
+ * answer: a column capped at 40rem and then centred is not the screen the POC draws. The
+ * fifteen screens that are not Settings get back the exact string `<main>` has carried since
+ * issue 558 - `mx-auto w-full <cap> flex-1 p-6` - character for character, which is the
+ * strongest available form of "nothing else moved".
+ */
+export function mainClassFor(pathname: string): string {
+  const measure = measureFor(pathname);
+  const alignment = LEFT_ANCHORED.has(measure) ? "" : "mx-auto ";
+  return `${alignment}w-full ${MEASURE_CLASS[measure]} flex-1 p-6`;
 }
