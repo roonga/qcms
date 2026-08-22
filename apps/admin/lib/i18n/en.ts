@@ -484,6 +484,12 @@ export const messages = {
   // falling through to "No issues" and asserting publish-readiness it has no basis for.
   "forms.validation.unchecked":
     "The draft could not be checked, so this is not a current count of what would block a publish.",
+  // The panel before it has checked anything at all, which is a different thing from a
+  // check that failed and from a check that came back empty. The builder validates on the
+  // first change rather than on load, so on a form opened and not touched this is the only
+  // honest sentence: the zero it was seeded with is an initial value, not a verdict.
+  "forms.validation.notChecked":
+    "This draft has not been checked yet. The check runs on your first change, and again when you publish.",
 
   "forms.steps.title": "Steps",
   "forms.steps.add": "Add step",
@@ -537,6 +543,9 @@ export const messages = {
   "forms.step.column.version": "Version",
   "forms.step.column.issues": "Issues",
   "forms.step.noIssues": "None",
+  // The same distinction the validation panel makes, one row at a time: "None" is a
+  // verdict that came back empty for this pin, and this is the absence of a verdict.
+  "forms.step.issuesUnchecked": "Not checked",
   "forms.step.labelMissing": "No label in the library",
   "forms.step.labelUnknown": "Label not known",
 

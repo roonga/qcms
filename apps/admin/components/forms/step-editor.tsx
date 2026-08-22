@@ -127,7 +127,12 @@ export function StepEditor({
   readonly draft: DraftForm;
   readonly step: DraftStep;
   readonly library: ReadState<readonly PinnableQuestion[]>;
-  readonly issues: readonly FormIssue[];
+  /**
+   * The engine's verdict, or `undefined` when no check has landed yet (issue 625). The
+   * Issues column says `None` about the first and says so about the second, rather than
+   * printing an all-clear per pin about a draft nothing has validated.
+   */
+  readonly issues: readonly FormIssue[] | undefined;
   /** `index` is an insert boundary: 0 is before the first pin, `items.length` appends. */
   readonly onAddPin: (questionId: string, version: number, index: number) => void;
   readonly onMovePin: (questionId: string, version: number) => void;
@@ -361,7 +366,7 @@ function PinRow({
 
   return (
     <tr
-      className={row.issues.length > 0 ? "qcms-pinrow is-error" : "qcms-pinrow"}
+      className={(row.issues?.length ?? 0) > 0 ? "qcms-pinrow is-error" : "qcms-pinrow"}
       data-pin-index={row.position - 1}
       data-pin-question={row.questionId}
       data-pin-version={row.version}
@@ -477,8 +482,16 @@ function PinRow({
           the validation panel carries the same text at every width, and the row keeps
           its own error flag so the panel's anchor still lands somewhere visible. */}
       <td className="qcms-cell--drop" data-owner="library">
-        {row.issues.length === 0 ? (
-          <span className="qcms-pinissues__none">{t("forms.step.noIssues")}</span>
+        {row.issues === undefined || row.issues.length === 0 ? (
+          // Three states, two of which look identical if you only count: no verdict yet,
+          // a verdict of none, and a verdict with something in it. The `data-pin-issues`
+          // attribute is how a test tells the first two apart without matching on copy.
+          <span
+            className="qcms-pinissues__none"
+            data-pin-issues={row.issues === undefined ? "unchecked" : "none"}
+          >
+            {t(row.issues === undefined ? "forms.step.issuesUnchecked" : "forms.step.noIssues")}
+          </span>
         ) : (
           <ul className="qcms-pinissues">
             {row.issues.map((issue, index) => (
