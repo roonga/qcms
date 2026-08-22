@@ -7,9 +7,16 @@ at 390px and 1280px. It was run twice against the same seeded fixture: once with
 `lib/measure.ts` / `components/measured-main.tsx` absent (the `before/` set), and once on
 the branch.
 
-The base is commit `c9a5219`. Naming the commit rather than the branch is deliberate: this
+The base is commit `d78e0ba`. Naming the commit rather than the branch is deliberate: this
 set was first shot against `fix/557-breakpoint-tokens`, which has since merged and been
 deleted, which left that description true but no longer re-derivable (issue 600).
+
+Both sides are also shot within minutes of each other, on the same calendar day, and that
+is a requirement rather than a convenience. Some of these screens render a date at
+day granularity (`formatDay`, in the version list) and one renders a timestamp
+(`formatDateTime`, in the secure-links table). A `before/` set shot on one day against an
+after set shot on the next would differ on those screens for a reason that has nothing to
+do with a width cap, and the table would report the difference as though it did.
 
 Both sides stand on that one base, and the shared base is the whole reason a pair means
 anything: it is what leaves the width cap as the only difference between two frames. So
@@ -17,15 +24,29 @@ when `main` moves under this branch, BOTH sides are re-shot together. Re-shootin
 set alone would quietly turn "the same tree twice" into "two different trees", and this
 table would go on printing IDENTICAL without it meaning anything.
 
-This set was re-shot at `c9a5219`, after issues 576, 585, 553 and 584 landed. Seven pairs
-moved and were re-committed; the other twenty-three came back byte-identical to the frames
-already here and were left alone, so the diff carries what the base move actually changed
-and nothing else. The verdict column came back unchanged: the same twenty-three pairs are
-IDENTICAL and the same seven DIFFER. That is the claim surviving a base move rather than
-being quietly restated on a new one. The screens whose pixels moved are the ones issues 585
-and 584 edited (the builder's save chrome, the question editor's option grid); the responses
-screens did NOT move, because the seeded fixture does not reach the warning banner or the
-empty-state sentence that issue 553 rewrote.
+This set has been re-shot twice as `main` moved under the branch, most recently at
+`d78e0ba` after issue 613 landed. Each time, only the frames whose bytes actually changed
+were re-committed; the rest came back byte-identical to what was already here and were left
+alone, so the diff carries what the base move moved and nothing else. At `d78e0ba` that was
+seven pairs: `forms` and `questions` and `form-links` at 1280, `form-versions` and
+`question-detail` at both widths.
+
+Which is NOT the same seven screens the table marks DIFFERS, and the distinction is the
+point. DIFFERS is about a pair, before against after on one base, and it is what this gate
+claims. The re-shot list is about one side of the set against its own older copy on an
+older base, and it claims nothing: a frame lands there whenever anything at all on that
+screen changed, from a merged PR's markup to the calendar. Both known contributors are
+visible in this last re-shoot: issue 613 edited the secure-links table that `form-links`
+photographs, and the version list renders a `formatDay` date that had rolled over since the
+previous set was shot.
+
+What survives every re-shoot is the verdict column: the same twenty-three pairs come back
+IDENTICAL and the same seven come back DIFFERS, and the seven are the seven screens issue
+558 moves. That is the claim standing up to a change of base rather than being quietly
+restated on a new one. Two screens worth naming because they were expected to move and did
+not: the responses pair, since the seeded fixture never reaches the warning banner or the
+empty-state sentence issue 553 rewrote, and the builder, since issue 613's edits to it are
+failed-read states a healthy seeded read does not render.
 
 One string is hidden in both runs: the signed-in operator's address, which the shell footer
 prints on every authenticated screen and the Settings account card prints a second time.
@@ -41,7 +62,7 @@ not. The ninth unchanged screen, `/forms/[formId]/responses/[sessionId]`, is abs
 this sweep because its subject is a session created at run time; it is measured instead in
 `apps/admin/e2e/measure.pw.ts`.
 
-Expect one SOFT failure when re-running this sweep at `c9a5219`, and do not read it as a
+Expect one SOFT failure when re-running this sweep at `d78e0ba`, and do not read it as a
 width-cap problem. The builder reports `document.scrollWidth` 391 in a 390px viewport, one
 pixel of horizontal overflow, which the spec's own Reflow check reports without costing the
 other frames their evidence. It is NOT this branch's: the `before/` run, with `lib/measure.ts`
@@ -57,27 +78,27 @@ erasures               390    IDENTICAL  5cf607909a0471e7db0e29b2e4515738
 form-builder           1280   DIFFERS    a8f2f2258768482bab55477186dee4f5
                                          d8962a2b771c00bc5fc5f2cd0ad9701d
 form-builder           390    IDENTICAL  9f9468bf0f8266df9d992f7ad0d457cd
-form-links             1280   DIFFERS    0d1b604b568b37135f9319c8d6f94dc7
-                                         24e16cf5fabb682970b62060b3f1676a
+form-links             1280   DIFFERS    ff3e6996129aabfd91c9ee1e0b71793a
+                                         ef9421db29c7c3b2f13d6ca02036c6ed
 form-links             390    IDENTICAL  b6c9363d25c9c82e6acdd70e0773e1ec
 form-preview           1280   DIFFERS    de0a61dd2e01dcbb6d575338c7ba9a00
                                          0209b52739705396132f1691d6223755
 form-preview           390    IDENTICAL  36080d337239c12787df56e69a1d1b0f
 form-responses         1280   IDENTICAL  f214866a351afa67479f052c64af3f7d
 form-responses         390    IDENTICAL  a3bd6fb38e0a6431194b2fb159d97e55
-form-versions          1280   DIFFERS    c93ef3169a6a3bac305af397d9541d8e
-                                         a9420413b1ee94dd706ef25f7217aefa
-form-versions          390    IDENTICAL  d35ec580e79d60fe69cce07fb08d056a
+form-versions          1280   DIFFERS    4f6b23a288ba87ab2eea5a5d4ed92d23
+                                         950a509b0b22980b61a7497bd40007ca
+form-versions          390    IDENTICAL  4c3e14a98ec39d434f5945fe8309aa06
 form-webhooks          1280   DIFFERS    913cdf92e2baddcd55b5d405402236af
                                          9dfe1fa485265ba5ecd29049e687def3
 form-webhooks          390    IDENTICAL  abc6284832a2007c192e0a872070494c
-forms                  1280   IDENTICAL  5d053871bcab883011533300bc5dae8f
+forms                  1280   IDENTICAL  f025172d4bff153a67274f989c6c2856
 forms                  390    IDENTICAL  956de1f97b2a6d746358df09edc188a5
-question-detail        1280   IDENTICAL  aa0029a3228813b163bc373705a068a7
-question-detail        390    IDENTICAL  fcd312507d2895fb46e89cee24c46c66
+question-detail        1280   IDENTICAL  aaf300b12395d5f594510abd34130ea8
+question-detail        390    IDENTICAL  b0cc77dfab20fb7dcf1c095724203f8c
 question-new           1280   IDENTICAL  b7f30331b330faabc1df75724a8aaec2
 question-new           390    IDENTICAL  bf96e8611eb552b0881a329b9659783f
-questions              1280   IDENTICAL  4e9ae476900ccf339dba365140f61a18
+questions              1280   IDENTICAL  701f71b750c4e56f46a067ed21e1a65b
 questions              390    IDENTICAL  651278f31e23afada32e0be292c8e571
 responses              1280   IDENTICAL  78c691b759ad5d9f49eb688e00237135
 responses              390    IDENTICAL  22d84e352b5e0969ee6b5e1e10430a75
