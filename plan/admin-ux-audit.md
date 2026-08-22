@@ -29,17 +29,28 @@ Every POC in `plan/admin-shell-poc/` has now been read against what shipped. Wha
 | `admin-shell-poc` | Alignment and topbar cap diverge (#648) |
 | `rules-screen-poc` | Heading fixed (#661 / PR #665); route split escalated (#659) and rule editing filed (#669) |
 | `add-question-poc` | Multi-select with a running tally not shipped (#660) |
-| `library-lists-poc` | **Faithful.** Both empty states distinguished, intro present, no rail. Cap 1080 vs 1024 (#657) |
-| `responses-poc` | **Faithful.** Two stale POC comments found instead (#666) |
-| `preview-versions-poc` | **Faithful.** Its `.main` is shared chrome, not a per-screen cap - see below |
+| `library-lists-poc` | **`/questions` compared and faithful** - both empty states distinguished, intro present, no rail. Cap 1080 vs 1024 (#657). **`/forms` read only for its cap**, not its content. |
+| `responses-poc` | **Detail screen compared and faithful**; two stale comments found instead (#666). Its list screen later turned out to draw *"Responses to Life insurance"* against a shipped bare slug - that is #679, and this row did not find it. |
+| `preview-versions-poc` | **CAPS COMPARED, CONTENT NOT** - and "faithful" was the wrong word for that. Reading its headings afterwards found #679: it draws *"Draft preview: X"* and *"Version history: X"* against shipped routes rendering the bare slug. |
 | `deployment-ops-poc` | Per-screen caps 900 / 1180 / 1820 are real statements; 1820 exceeds our widest token (#657) |
 | `auth-poc` | **Faithful.** All five headings match exactly. Centres deliberately, and shipped centres too |
 | `links-webhooks-poc` | **Faithful.** Dialogs for stated actions, reveal is a `<section>`, URLs with copy and CSV |
 
-**Two corrections this seat had to make to its own findings**, both with one cause worth naming: **a grep finds one spelling of an idea, and I twice generalised from one spelling to a property of the whole set.**
+**What "faithful" was worth, stated honestly (added 2026-08-22, before this landed).** Three
+of the eleven rows above were written from a **partial** comparison and said "faithful"
+anyway. A verdict is a claim about what was checked, and mine were claims about what I had
+looked at. Completing one of them - reading `preview-versions-poc`'s headings rather than only
+its caps - found #679 on the first pass, which is a live defect across five routes.
 
-1. **Per-screen width.** I read each POC's `.main` as that screen's answer. `deployment-ops-poc` gives every screen its own class while `preview-versions-poc` puts three screens inside one `.main`, so a shared `.main` is the file's chrome. Two routes struck from #657.
+The rows now say what was compared. **A partial check reported as a clean verdict is worse
+than no check**, because it stops the next person looking.
+
+**FOUR corrections this seat had to make to its own findings**, all with one cause worth naming: **I found one instance of an idea and asserted a property of the whole set.** One spelling, one reading, one sample, one unchecked citation.
+
+1. **Per-screen width.** I read each POC's `.main` as that screen's answer. Two routes struck from #657. **My correction was itself too strong** and the dev seat fixed it while implementing #676: a shared `.main` is not "the file's chrome" (which reads as *it says nothing*) - the rule is **inner class wins where present**, and where absent the shared cap stands for every screen in the file. Under my wording `preview-versions-poc`'s version-history screen would have lost its 1600 for no reason.
 2. **Left-anchoring.** I searched for `margin: 0 auto`, found none, and concluded every POC left-anchors. `auth-poc` centres with **flex**, which that search cannot see, and shipped `auth-screen.tsx` correctly centres to match. Since `mx-auto` is exactly what a lane greps for, and that one component serves five unauthenticated routes, an unqualified sweep would have moved every sign-in and 2FA screen and built green.
+3. **Sampling.** The multi-screen check was run over **five** of the eleven POCs and its result stated as a property of all eleven. `/questions/new` was missing from the sixteen-row width table as a result, because `settings-newquestion-poc.html` draws it as its second screen - and that file's **first line** announces it: *"Settings and New question ... Two form-dense admin screens."* No technique was needed, only reading eleven files instead of five.
+4. **An unchecked citation.** `plan/admin-design-contracts.md` §2 forbade zebra striping partly on the ground that *"the frozen card does not stripe"*. `plan/admin-theme/ds-table.html:225` stripes. The rule cited an artefact as support for the opposite of what it says, and nothing checked it until the #682 sweep (dev seat's #681). §2 is now narrowed to tables carrying the ownership grid, which is what its surviving clause actually supports.
 
 ---
 
