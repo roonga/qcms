@@ -75,7 +75,9 @@ test("captures the four converted tables at both widths", async ({ page }) => {
   // rather than whatever the harness database has accumulated.
   await page.goto(`/questions?q=gate570`);
   // A frame is evidence, so refuse to shoot one that does not carry the state it claims.
-  await expect(page.getByRole("link", { name: `Open question q_${SLUG.replaceAll("-", "_")}` })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: `Open question q_${SLUG.replaceAll("-", "_")}` }),
+  ).toBeVisible();
   await capture(page, "questions-table");
 
   await page.goto("/forms");

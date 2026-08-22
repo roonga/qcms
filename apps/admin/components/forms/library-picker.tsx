@@ -142,9 +142,7 @@ export function LibraryPicker({
           ) : (
             <div className="qcms-table qcms-table--picker">
               <table data-testid="qcms-picker-table">
-                <caption className="qcms-visually-hidden">
-                  {t("forms.picker.tableLabel")}
-                </caption>
+                <caption className="qcms-visually-hidden">{t("forms.picker.tableLabel")}</caption>
                 <thead>
                   <tr>
                     <th scope="col">{t("forms.picker.column.questionId")}</th>

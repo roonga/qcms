@@ -734,7 +734,11 @@ test("a row opens its question from the keyboard alone", async ({ page }) => {
   // directly. A bounded walk: the toolbar above the table is a handful of controls, and a
   // regression that drops the link out of the tab order exhausts the budget and fails
   // here rather than passing on a `focus()` no keyboard can perform.
-  for (let step = 0; step < 40 && !(await link.evaluate((el) => el === document.activeElement)); step++) {
+  for (
+    let step = 0;
+    step < 40 && !(await link.evaluate((el) => el === document.activeElement));
+    step++
+  ) {
     await page.keyboard.press("Tab");
   }
   await expect(link).toBeFocused();
