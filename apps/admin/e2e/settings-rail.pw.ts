@@ -1,3 +1,5 @@
+import type { Locator } from "@playwright/test";
+
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
@@ -37,6 +39,21 @@ const SIDEBAR = 1024;
 
 /** Set by the first test; every later one signs in and reuses the account it enrolled. */
 let totpSecret = "";
+
+/**
+ * The hrefs of the rows whose hidden "current" phrase is actually in the accessibility tree.
+ *
+ * `display: none` rather than a visual hide is what makes this readable at all: an element
+ * that is merely off-screen is still announced, so a rail that revealed all three phrases
+ * would sound identical to one that revealed the right one.
+ */
+function displayed(current: Locator): Promise<string[]> {
+  return current.evaluateAll((spans) =>
+    spans
+      .filter((span) => getComputedStyle(span).display !== "none")
+      .map((span) => span.closest("a")?.getAttribute("href") ?? ""),
+  );
+}
 
 test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
@@ -100,22 +117,22 @@ test("562 names no section until the URL does, then names exactly that one", asy
   // The decision this change makes, asserted: before a section is chosen there is no active
   // section, and the summary says so with its own name rather than guessing at the topmost.
   await page.goto("/settings");
-  await expect(page.locator(".qcms-rail__summary-text")).toHaveText("Sections");
-  await expect(page.locator(".qcms-settings-rail__current")).toBeHidden();
+  // `useInnerText`, and it is the assertion rather than a detail: all four names are in the
+  // DOM and CSS displays one, so `textContent` would read the whole list back and pass on a
+  // rail that revealed every name at once.
+  const summary = page.locator(".qcms-rail__summary-text");
+  await expect(summary).toHaveText("Sections", { useInnerText: true });
+  const current = page.locator(".qcms-settings-rail__current");
+  await expect(current).toHaveCount(3);
+  expect(await displayed(current), "no row is current until the URL names one").toEqual([]);
 
   // Then the fragment, which is the only statement of "which section" that exists.
   await page.goto("/settings#two-factor");
-  await expect(page.locator(".qcms-rail__summary-text")).toHaveText("Two-factor authentication");
+  await expect(summary).toHaveText("Two-factor authentication", { useInnerText: true });
 
   // Exactly one row marked, and the mark is not colour alone: the visually-hidden phrase
   // that replaces `aria-current` is in the accessibility tree for that row and no other.
-  const current = page.locator(".qcms-settings-rail__current");
-  await expect(current).toHaveCount(3);
-  const announced = await current.evaluateAll((spans) =>
-    spans
-      .filter((span) => getComputedStyle(span).display !== "none")
-      .map((span) => span.closest("a")?.getAttribute("href") ?? ""),
-  );
+  const announced = await displayed(current);
   expect(announced, "one row announces itself current, and it is the one the URL names").toEqual([
     "#two-factor",
   ]);
@@ -227,6 +244,8 @@ test.describe("without JavaScript", () => {
     // And the active mark is a stylesheet rule, so it survives with nothing loaded. This is
     // the whole reason `:target` was chosen over a scroll spy.
     await page.locator('.qcms-settings-rail__link[href="#change-password"]').click();
-    await expect(page.locator(".qcms-rail__summary-text")).toHaveText("Change password");
+    await expect(page.locator(".qcms-rail__summary-text")).toHaveText("Change password", {
+      useInnerText: true,
+    });
   });
 });
