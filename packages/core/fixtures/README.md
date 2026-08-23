@@ -38,15 +38,15 @@ assertion, and the fixture-driven tests check exactly that:
 
 One fixture per question type - together they seed the kitchen-sink form.
 
-| File | Type | questionId | Notes |
-|---|---|---|---|
-| `short-text.json` | `shortText` | `q_full_name` | length + safe-pattern constraints |
-| `long-text.json` | `longText` | `q_medical_history` | |
-| `number.json` | `number` | `q_accident_count` | the insurance follow-up |
-| `date.json` | `date` | `q_dob` | canonical `YYYY-MM-DD` min/max |
-| `boolean.json` | `boolean` | `q_at_fault_accident` | the insurance branch question |
-| `single-choice.json` | `singleChoice` | `q_coverage_level` | carries `opt_none` (optionId scoping, R6) |
-| `multi-choice.json` | `multiChoice` | `q_preexisting_conditions` | also carries `opt_none` - optionIds are question-scoped |
+| File                 | Type           | questionId                 | Notes                                                   |
+| -------------------- | -------------- | -------------------------- | ------------------------------------------------------- |
+| `short-text.json`    | `shortText`    | `q_full_name`              | length + safe-pattern constraints                       |
+| `long-text.json`     | `longText`     | `q_medical_history`        |                                                         |
+| `number.json`        | `number`       | `q_accident_count`         | the insurance follow-up                                 |
+| `date.json`          | `date`         | `q_dob`                    | canonical `YYYY-MM-DD` min/max                          |
+| `boolean.json`       | `boolean`      | `q_at_fault_accident`      | the insurance branch question                           |
+| `single-choice.json` | `singleChoice` | `q_coverage_level`         | carries `opt_none` (optionId scoping, R6)               |
+| `multi-choice.json`  | `multiChoice`  | `q_preexisting_conditions` | also carries `opt_none` - optionIds are question-scoped |
 
 `questions/invalid/` holds one fixture per parse refinement of
 `QuestionDefinition` (min/max ordering, selection bounds, duplicate optionIds,
@@ -54,12 +54,12 @@ empty option labels, unsafe/uncompilable patterns, empty option lists).
 
 ## Forms (`forms/valid/`, task 004)
 
-| File | formId | What it is |
-|---|---|---|
-| `kitchen-sink.json` | `frm_kitchen_sink` | **The canonical reference form** (tasks 007, 011, 012, 028, 030, 038): pins every question fixture above (all seven types), 3 steps, 2 rules (`equals` branch + `containsAny` branch) |
-| `insurance.json` | `frm_auto_quote` | The motivating flow from `DOMAIN_SCHEMA.md` §6: `q_at_fault_accident@2` → rule `rul_accident_followup` shows `q_accident_count@1` |
-| `minimal.json` | `frm_minimal` | Smallest valid form: one step, one question, empty rules array |
-| `constraints-heavy.json` | `frm_constraints_heavy` | Added by task 012 for the A2UI golden corpus: one step pinning all seven question fixtures so **every constraint-bearing control** (length/pattern, number min/max/integer, date min/max, multiChoice selection bounds) compiles in a single document. No rules. |
+| File                      | formId                   | What it is                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------------- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `kitchen-sink.json`       | `frm_kitchen_sink`       | **The canonical reference form** (tasks 007, 011, 012, 028, 030, 038): pins every question fixture above (all seven types), 3 steps, 2 rules (`equals` branch + `containsAny` branch)                                                                                                                                                                             |
+| `insurance.json`          | `frm_auto_quote`         | The motivating flow from `DOMAIN_SCHEMA.md` §6: `q_at_fault_accident@2` → rule `rul_accident_followup` shows `q_accident_count@1`                                                                                                                                                                                                                                 |
+| `minimal.json`            | `frm_minimal`            | Smallest valid form: one step, one question, empty rules array                                                                                                                                                                                                                                                                                                    |
+| `constraints-heavy.json`  | `frm_constraints_heavy`  | Added by task 012 for the A2UI golden corpus: one step pinning all seven question fixtures so **every constraint-bearing control** (length/pattern, number min/max/integer, date min/max, multiChoice selection bounds) compiles in a single document. No rules.                                                                                                  |
 | `deep-nesting-rules.json` | `frm_deep_nesting_rules` | Added by task 012: a single `and/or/not` rule nested to the depth-8 cap (`RULE_DEPTH_EXCEEDED` boundary - task 005) whose `show` reveals `q_medical_history`. Exercises the publish path's rule-graph/type checks under maximal nesting; the compiled A2UI is unaffected by rules (visibility is applied at serve time), so its golden pins the plain projection. |
 
 Form fixtures only pin questionIds that exist in `questions/valid/` (tested),
@@ -74,15 +74,15 @@ question fixtures.
 
 One per parse-level refinement of `FormDefinition`:
 
-| File | Asserted code |
-|---|---|
-| `duplicate-step-id.json` | `DUPLICATE_STEP_ID` |
-| `duplicate-question-across-steps.json` | `DUPLICATE_QUESTION_IN_FORM` |
-| `duplicate-question-same-step.json` | `DUPLICATE_QUESTION_IN_FORM` |
-| `missing-rules.json` | `INVALID_FORM_DEFINITION` (`rules` must be present, even if empty) |
-| `rule-depth-exceeded.json` | `RULE_DEPTH_EXCEEDED` (condition nested past the cap of 8 - task 005) |
-| `no-steps.json` | `INVALID_FORM_DEFINITION` (`steps` min 1) |
-| `step-no-items.json` | `INVALID_FORM_DEFINITION` (`items` min 1) |
+| File                                   | Asserted code                                                         |
+| -------------------------------------- | --------------------------------------------------------------------- |
+| `duplicate-step-id.json`               | `DUPLICATE_STEP_ID`                                                   |
+| `duplicate-question-across-steps.json` | `DUPLICATE_QUESTION_IN_FORM`                                          |
+| `duplicate-question-same-step.json`    | `DUPLICATE_QUESTION_IN_FORM`                                          |
+| `missing-rules.json`                   | `INVALID_FORM_DEFINITION` (`rules` must be present, even if empty)    |
+| `rule-depth-exceeded.json`             | `RULE_DEPTH_EXCEEDED` (condition nested past the cap of 8 - task 005) |
+| `no-steps.json`                        | `INVALID_FORM_DEFINITION` (`steps` min 1)                             |
+| `step-no-items.json`                   | `INVALID_FORM_DEFINITION` (`items` min 1)                             |
 
 Publish-time failures (dangling refs, unpublished pins, locale gaps, rule
 graph violations - the `PublishError` codes) are **not** fixture-driven here:
@@ -91,6 +91,6 @@ they need a question repository to resolve against and belong to task 008's
 
 ## Submissions (`submissions/`, task 009)
 
-| File | What it pins |
-|---|---|
+| File                    | What it pins                                                                                                                                                                                                                                                             |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `insurance-golden.json` | The `contentHash` of the DOMAIN_SCHEMA §6 complete insurance submission (`q_at_fault_accident=true, q_accident_count=2`). Guards the canonical-JSON hashing contract across machines and Node versions - a mismatch is canonicalization drift, never re-record casually. |

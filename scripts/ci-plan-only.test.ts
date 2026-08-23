@@ -20,7 +20,7 @@ import { PLAN_PREFIX, changedFiles, isPlanOnly, parsePaths } from "./ci-plan-onl
 
 describe("plan-only classification", () => {
   it("accepts a diff that is entirely under plan/", () => {
-    expect(isPlanOnly(["plan/memory/project-state.md", "plan/pr-review-loop.md"])).toBe(true);
+    expect(isPlanOnly(["plan/design-brief.md", "plan/conditional-flow-decision.md"])).toBe(true);
   });
 
   it("accepts a nested plan/ path", () => {
@@ -38,7 +38,7 @@ describe("plan-only classification", () => {
       isPlanOnly([
         "plan/admin-design-contracts.md",
         "plan/admin-ux-audit.md",
-        "plan/memory/project-state.md",
+        "plan/design-brief.md",
         "packages/ui/src/theme.css",
       ]),
     ).toBe(false);

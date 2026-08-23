@@ -17,7 +17,7 @@ import { requireAdminSession } from "@/lib/server/session";
 import { eraseSessionAction, unflagResponseAction } from "../../../../responses/actions";
 
 /**
- * One response, with the audit ledger and the erasure door (task 035; wireframe
+ * One response, with the audit ledger and the erasure door (task 035; screen contract
  * "detail", "erasure").
  *
  * ## Captions come from the version the response was submitted on

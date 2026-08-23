@@ -1,61 +1,60 @@
-# QCMS - Project Instructions (read first, every session)
+# QCMS project instructions
 
-**Status:** v2.7 · supersedes v1 · reflects the formal plan set (2026-07-18, last amended 2026-08-02) including ADR-01…37 and SEC-1…13
+QCMS is an MIT-licensed TypeScript engine for questionnaires, surveys, and registration flows with conditional logic.
 
-**This file lives at the repo root.** Every reference document listed below is under `docs/`, except `CONTRIBUTING.md`, which is also at the root.
+## Authoritative documents
 
-You are working on **QCMS**: an MIT-licensed, TypeScript, open-source engine for questionnaires, surveys, and registration flows with conditional logic, distributed in the shadcn ethos (owned scaffolded shell + versioned core packages).
+- `docs/PROJECT_GOAL.md`: vision, launch scope, and ADRs
+- `docs/PORTS.md`: port allocation and seat usage
+- `docs/ARCHITECTURE.md`: system and repository design
+- `docs/DOMAIN_SCHEMA.md`: domain model, rule semantics, and invariants
+- `docs/SECURITY_DESIGN.md`: security controls and traceability
+- `docs/IMPLEMENTATION_PLAN.md`: delivery stages and exit criteria
+- `docs/AGENTIC_DEVELOPMENT.md`: agent workflow
+- `CONTRIBUTING.md`: coding, testing, git, PR, and merge rules
+- `docs/COMPONENT_GUIDELINES.md`: rules for input controls
+- `docs/features/`: numbered work orders and the progress ledger
 
-## Reference documents (authoritative set - nothing outside it wins)
+Read the relevant documents before changing code. Trust the live repository over memory. If current requirements conflict, flag the conflict and update the affected documents when the Code Owner decides it.
 
-- `docs/PROJECT_GOAL.md` - vision, audiences, launch gate, cut-line, **ADR-01…37**
-- `docs/PORTS.md` - **the port allocation** (R8, ADR-37): the only table, the seat scheme, the runbook
-- `docs/ARCHITECTURE.md` - system design, component/repo layout (§13 full tree), ops commitments
-- `docs/DOMAIN_SCHEMA.md` (v1.2) - domain model, rules DSL, **ADR-16 evaluation semantics**, invariants I1–I11
-- `docs/SECURITY_DESIGN.md` - authn/authz/scopes, token & key inventory, **SEC-1…13**, traceability matrix
-- `docs/IMPLEMENTATION_PLAN.md` (v2) - Stages 0–9 with exit criteria and gap-resolution table
-- `docs/AGENTIC_DEVELOPMENT.md` - methodology and the **session protocol you follow (§3)**
-- `CONTRIBUTING.md` (repo root) - **coding standards, testing conventions, git/PR rules, the merge gate** (binding for every change)
-- `docs/COMPONENT_GUIDELINES.md` - **binding for adding or changing any input control**: vendoring fidelity, the registry/adapter contract, the ADR-31 commit-moment row, conformance/keyboard/no-JS/focus coverage, token compliance
-- `docs/features/` - numbered task files: your work orders. `docs/features/README.md` holds the index, progress ledger, ordering exceptions, and execution protocol.
+## Fixed stack
 
-Consult before proposing designs; **never silently contradict an ADR or SEC decision - flag conflicts instead.** Where an older doc conflicts with a newer one, the newer wins and the older gets fixed in the same change.
+Node LTS, pnpm, Turborepo, Zod, Hono, Next.js, Postgres, Drizzle, better-auth, `a2-react-aria`, Vitest, Playwright, and Docker. Do not introduce a competing framework or component library without an ADR.
 
-## Stack (fixed by ADRs - not open for relitigation)
+## Core rules
 
-Node LTS everywhere · pnpm + Turborepo · Zod as the single schema language · Hono API (vertical slices, fetch-pure handlers) · Next.js portal (SSR + strict BFF) · Next.js admin (separate app, BFF) · Postgres + Drizzle · better-auth (admin 2FA at launch) · a2-react-aria as the only UI component stack (`@a2ra/core` pinned + vendored components + Tailwind for their token styles - ADR-22; A2UI documents are for compiled form steps only, admin screens are ordinary React on the same components) · Vitest below the browser + Playwright as the only e2e framework (ADR-23: every feature ships e2e at the highest layer that exists for it) · Docker.
+- **R1:** Published versions are immutable. A new session resolves the newest published version by default or an exact published version when its public or secure link pins one. The session stays pinned to that starting version.
+- **R2:** BFF handlers manage sessions, credentials, and proxying only. Business logic belongs elsewhere.
+- **R3:** `@qcms/core` never imports the database. Answers are append-only. Erasure and retention purge are the only whole-session delete paths.
+- **R4:** API handlers remain Fetch API pure. Use WebCrypto, not Node-only APIs.
+- **R5:** Put multi-field or multi-row invariants in core functions. Otherwise use plain transaction scripts. Do not add repository interfaces, a mediator, or NestJS.
+- **R6:** `questionId` and `optionId` are stable and never reused with a different meaning.
+- **R7:** Respect the launch cut-line. Defer impact analysis, `/api/v1`, a second locale, multi-tenancy, version-targeted links, and a visual rule builder to Phase 4.
+- **R8:** Use the allocation in `docs/PORTS.md`. Never invent a port.
 
-## Discipline rules - never violate, never relitigate
+## Architecture constraints
 
-- **R1** Published versions are immutable; sessions pin the version they started on.
-- **R2** No business logic in a BFF - portal/admin route handlers do sessions, credentials, proxying only.
-- **R3** `@qcms/core` never imports the db; slices load state, pass it in, persist results. Answers are append-only - no UPDATE path exists; the sole DELETE door is whole-session erasure (**ADR-17 amendment**).
-- **R4** API handlers stay fetch-pure - no Node-only APIs (WebCrypto, not `node:crypto`).
-- **R5** Invariant spanning more than one field/row → core function; otherwise plain transaction script. No repositories-as-interfaces, no mediator, no NestJS.
-- **R6** `questionId`/`optionId` are stable forever and never reused with a different meaning.
-- **R7** The launch cut-line holds: no impact analysis, no `/api/v1`, no second locale, no multi-tenancy, no visual rule builder before Phase 4. Record itches as `phase-4` issues; don't build them.
-- **R8** Ports come from `docs/PORTS.md` - `7Sxx` human-facing, `17Sxx` ephemeral harness, seat `S` from `QCMS_PORT_SEAT`. Never invent a port.
+- Rule evaluation is one forward pass, never a fixpoint. The portal serves stored compiled A2UI.
+- The golden corpus is append-only. Multi-choice comparison uses set equality; containment uses `contains` or `containsAny`.
+- TLS and ingress are operator infrastructure. The API container is not published.
+- Both frontends use the `a2-react-aria` stack. A2UI is for compiled form steps; admin screens use ordinary React.
+- Feature flags use the typed environment registry. Form settings are not feature flags.
+- Agents may assist authoring only. The kernel validates, a human publishes, and no LLM enters the serving path or respondent data path.
+- No CORS headers. Never log answer values or expose secrets.
+- User-facing strings are localized. The portal uses an explicit Continue, Back, and Submit cursor.
+- Retraction is a tombstone append. The API is the sole domain-data client; both frontends proxy through BFF handlers.
+- Observability follows the OTel baseline and security redaction allowlist.
 
-And from the newer decisions: rule evaluation is a **forward pass, never a fixpoint** (ADR-16); the portal serves the **stored compiled A2UI, never a recompilation** (ADR-18); the golden corpus is **append-only** (ADR-18); multiChoice comparisons are **set equality** and containment uses `contains`/`containsAny` (ADR-21); the solo topology has **no bundled proxy** - TLS/ingress is operator infrastructure and the API container is never published (ADR-20); both frontends use **only** the `a2-react-aria` stack - `@a2ra/core` exact-pinned, components vendored via the a2ra CLI, design tokens single-sourced upstream, no other component library ever (ADR-22); feature flags are the typed env registry only - no client-side flag evaluation, no flag service; form-scoped toggles are form settings, not flags (ADR-24); agents assist **authoring only** - the agent proposes, the kernel validates, the human publishes; the serving path never sees an LLM and the agent's tool surface never reaches respondent data (ADR-25); security controls follow `docs/SECURITY_DESIGN.md` - notably: no CORS headers ever, answer values never logged, secrets never echoed.
+## Work protocol
 
-And from ADR-26…37 (titles and rationale in `docs/PROJECT_GOAL.md` §6): client data/state and the two-surface design mandate extend ADR-22 (**ADR-26**); i18n is first-class in both apps and **no user-facing string is ever hardcoded** (**ADR-27**); the portal uses an **explicit step cursor** (Continue/Back/Submit), never collapse-on-answer (**ADR-28**); the **dev container is the canonical environment** and `scripts/agent-loop.sh` is the only supervisor (**ADR-29**, amended 2026-07-25); portal theming is managed themes + respondent runtime controls over a four-group token contract (**ADR-30**); answer commitment semantics and conditional reveal cadence are fixed (**ADR-31**); validation messages are author-supplied with edit-level default fallback (**ADR-32**); retraction is a **tombstone append**, never a delete (**ADR-33**); observability is an OTel baseline with trace-correlated logs and the SEC-13 redaction allowlist (**ADR-34**); the **API is the sole domain-data client**, the admin's auth handle being the one scoped exception, itself closing in task 056 (**ADR-35**); boolean yes/no labels are author-localizable content over a lexicon fallback (**ADR-36**); **ports come from one allocation** - `7Sxx` human-facing, `17Sxx` ephemeral harness, one seat index, gated by `check:ports` (**ADR-37**, R8).
+1. Read this file, the work order, and its references. Check the ledger, open work, and `git log`.
+2. Stay within deliverables and exit criteria. Ask the Code Owner when a real decision is required.
+3. Ship tests and named documentation with the code.
+4. Leave the repository green or park incomplete work on its branch with `HANDOFF.md`.
+5. Use one branch per task or issue and follow `CONTRIBUTING.md` for commits, changesets, PRs, and gates.
+6. A pushed branch is the claim. Change a task ledger row only in its completing PR.
+7. An independent reviewer subagent reviews the exact PR head. The root conductor records the head-bound `AGENT-REVIEW` verdict and performs the merge.
 
-## Session protocol (normative - AGENTIC_DEVELOPMENT.md §3 in brief)
+Accessibility is part of implementation. Prefer simple defaults, preserve established seams, and record substantive architectural changes as ADRs.
 
-1. Read this file → your task file in `docs/features/` → its listed references. Check the progress ledger and `git log`; trust the repo over memory.
-2. Work only within the task's deliverables and exit criteria; **out-of-scope sections are binding**. Blocked on a real decision → stop and ask; never choose silently.
-3. Tests ship with the code; docs named in the task update in the same change.
-4. Leave the repo **green or clean**: done = all exit criteria pass and **`pnpm verify`** is green at the repo root (add **`QCMS_PORT_SEAT=<0-9> pnpm verify:browser`** when the change touches `apps/portal`, `apps/admin`, or `@qcms/ui` - the seat is not optional from a worktree, R8/`docs/PORTS.md`); not done = revert or park on the task branch with a `HANDOFF.md`. Never merge red. Gate contents and the CI mapping: `CONTRIBUTING.md`.
-5. One branch per task (`feat/NNN-slug`); Conventional Commits with task number; PR description = exit-criteria checklist; Changeset for package changes. Full rules: `CONTRIBUTING.md`.
-6. **The ledger row is not yours to flip mid-task.** The pushed `origin/feat/NNN-*` branch is the claim; the row goes `todo` -> `done (PR #N)` exactly once, in the completing PR. Under the `/task` flow the orchestrator lands that change, never the executor.
-
-## Working agreements
-
-- Follow `docs/features/` numeric order; the ordering exceptions live in one place only, the table in `docs/features/README.md`. A task is done only when its exit criteria pass.
-- Accessibility is in-scope during build (WCAG 2.2 AA, axe in CI, focus management on branch changes), not a post-launch pass.
-- Prefer boring defaults; when a fork appears, propose the seam-preserving option and record the decision as a new ADR.
-- Versioning via Changesets from Stage 5 (task 013) onward.
-
-## Owner context
-
-Solo developer; experienced full-stack (deep enterprise ASP.NET background, Next.js as FE); newer to agentic workflows. Explain unfamiliar TS-backend idioms briefly when introducing them; map to .NET concepts where a mapping exists.
+The Code Owner is a solo full-stack developer with deep ASP.NET experience and less familiarity with TypeScript backend patterns. Briefly map unfamiliar patterns to .NET concepts when useful.

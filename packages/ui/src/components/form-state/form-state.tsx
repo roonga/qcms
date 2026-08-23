@@ -1,7 +1,7 @@
-import { createContext } from "react"
+import { createContext } from "react";
 
 export interface FormStateCtx {
-	setValue: (key: string, value: string | string[]) => void
+  setValue: (key: string, value: string | string[]) => void;
 }
 
-export const FormStateContext = createContext<FormStateCtx | null>(null)
+export const FormStateContext = createContext<FormStateCtx | null>(null);

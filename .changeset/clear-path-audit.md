@@ -13,7 +13,7 @@ posted the ADR-33 retraction.
 `@qcms/ui` (patch: bug fix, no API change). The text and checkbox-group adapters
 now report an emptied control as absence, so the host posts one retraction at that
 control's ADR-31 commit moment, exactly as the number and date controls already
-did. `""` and `[]` are legal `AnswerValue`s, so they *satisfied* `required` while
+did. `""` and `[]` are legal `AnswerValue`s, so they _satisfied_ `required` while
 holding nothing; and where a constraint rejected the empty value (a
 `minLength`/`pattern` shortText, a `minSelected: 1` multiChoice - the usual shapes
 for a required question) the empty post was rejected 422, so the respondent read

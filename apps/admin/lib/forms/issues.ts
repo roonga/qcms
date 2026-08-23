@@ -15,7 +15,7 @@ import type { DraftForm, FormIssue, IssuePath } from "./types.ts";
  * 2. **An anchor per issue.** Every issue carries a *structured domain path* rather than a
  *    positional index, which is the whole reason the panel can be a list of links: the
  *    path names a rule, a step or a pinned question, and the builder gives each of those a
- *    stable DOM id. The wireframe's a11y note asks for exactly this ("activating one moves
+ *    stable DOM id. The screen contract's a11y note asks for exactly this ("activating one moves
  *    focus to the target control").
  *
  * An anchor is only produced when the thing it names is **actually in the draft**. A

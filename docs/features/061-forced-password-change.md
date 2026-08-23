@@ -7,7 +7,7 @@
 
 `qcms:create-admin` sets the first administrator's password, and that password is typically **not chosen by the person who ends up using the account**. It comes from a shell command, a provisioning script, a CI variable, or an operator's terminal history - all places a standing credential should not live. Today it simply remains the account's password until somebody decides to change it, and nothing prompts them to.
 
-Every comparable system closes this: a bootstrap credential is a *transfer mechanism*, not a permanent one. QCMS has no equivalent, and nothing in the product currently expresses "this credential is provisional".
+Every comparable system closes this: a bootstrap credential is a _transfer mechanism_, not a permanent one. QCMS has no equivalent, and nothing in the product currently expresses "this credential is provisional".
 
 This is a real gap rather than a nicety, but it is **not launch-gating** - it was raised on 2026-08-09 while adding developer tooling, and the Code Owner scheduled it to be slotted in rather than blocking 1.0.
 

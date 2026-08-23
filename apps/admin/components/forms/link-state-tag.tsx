@@ -3,7 +3,7 @@ import type { LinkState } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
 
 /**
- * The active / used / expired / revoked badge (task 034; wireframe "state `tag`").
+ * The active / used / expired / revoked badge (task 034; screen contract "state `tag`").
  *
  * The same shape 032's `StatusTag` is, for the same reason: the kit has no tag component,
  * and this is app chrome rather than a new variant of a vendored control (ADR-22). Colours

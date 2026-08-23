@@ -11,10 +11,10 @@ a cross-repo issue, never a local invention.
 
 ## Inventory source of truth
 
-| What | Value |
-| --- | --- |
-| Registry listing | `@a2ra/core` exported `*Schema` set, 2026-07-20 |
-| Schema package | `@a2ra/core@1.0.0-preview.7` (npm `latest`) - `a2uiSpecVersion` pins this |
+| What               | Value                                                                     |
+| ------------------ | ------------------------------------------------------------------------- |
+| Registry listing   | `@a2ra/core` exported `*Schema` set, 2026-07-20                           |
+| Schema package     | `@a2ra/core@1.0.0-preview.7` (npm `latest`) - `a2uiSpecVersion` pins this |
 | Validation surface | `A2NodeSchema` / `safeParseNode` (recursive) + each component's `*Schema` |
 
 Note: `@a2ra/core` still exports a `VERSION` constant of `"0.1.0-preview.0"`, stale
@@ -48,16 +48,16 @@ rejected, so the compiler emits only listed props. All constraint props are **ad
 client-side hints** - server-side domain validation (`validateAnswer`, task 009) is the
 authority.
 
-| Question type | Component | Props (from question) | Advisory hints (from constraints) |
-| --- | --- | --- | --- |
-| `shortText` | `TextField` (`text-field`) | `label`, `description` (help), `name` = questionId | `isRequired`, `minLength`, `maxLength`, `pattern` |
-| `longText` | `TextArea` (`text-area`) | `label`, `description` (help), `name` = questionId | `isRequired`, `maxLength` |
-| `number` | `NumberField` (`number-field`) | `label`, `description`, `name` | `isRequired`, `minValue`, `maxValue`, `step: 1` when `integer` |
-| `date` | `DatePicker` (`date-picker`) | `label`, `description`, `name`, `granularity: "day"` | `isRequired`, `minValue`, `maxValue` (canonical `YYYY-MM-DD` strings) |
-| `boolean` | `RadioGroup` (`radio`) with two `Radio` children, values `"true"` / `"false"` | `label`, `description`, `name`; child labels are the author's `yesLabel`/`noLabel` if set, else locale-resolved lexicon Yes/No text (ADR-36) | `isRequired` |
-| `singleChoice` (≤ 7 options) | `RadioGroup` (`radio`) with one `Radio` per option, `value` = optionId | `label`, `description`, `name`; child `label` from option label | `isRequired` |
-| `singleChoice` (> 7 options) | `Select` (`select`) with `items` (`value` = optionId) | `label`, `description`, `name`, `items` | `isRequired` |
-| `multiChoice` | `CheckboxGroup` (`checkbox`) with one `Checkbox` child per option, `value` = optionId | `label`, `description`, `name`, `orientation: "vertical"` | `isRequired` (min/maxSelected have no upstream prop - server-only, surfaced in help text by authors if desired) |
+| Question type                | Component                                                                             | Props (from question)                                                                                                                        | Advisory hints (from constraints)                                                                               |
+| ---------------------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `shortText`                  | `TextField` (`text-field`)                                                            | `label`, `description` (help), `name` = questionId                                                                                           | `isRequired`, `minLength`, `maxLength`, `pattern`                                                               |
+| `longText`                   | `TextArea` (`text-area`)                                                              | `label`, `description` (help), `name` = questionId                                                                                           | `isRequired`, `maxLength`                                                                                       |
+| `number`                     | `NumberField` (`number-field`)                                                        | `label`, `description`, `name`                                                                                                               | `isRequired`, `minValue`, `maxValue`, `step: 1` when `integer`                                                  |
+| `date`                       | `DatePicker` (`date-picker`)                                                          | `label`, `description`, `name`, `granularity: "day"`                                                                                         | `isRequired`, `minValue`, `maxValue` (canonical `YYYY-MM-DD` strings)                                           |
+| `boolean`                    | `RadioGroup` (`radio`) with two `Radio` children, values `"true"` / `"false"`         | `label`, `description`, `name`; child labels are the author's `yesLabel`/`noLabel` if set, else locale-resolved lexicon Yes/No text (ADR-36) | `isRequired`                                                                                                    |
+| `singleChoice` (≤ 7 options) | `RadioGroup` (`radio`) with one `Radio` per option, `value` = optionId                | `label`, `description`, `name`; child `label` from option label                                                                              | `isRequired`                                                                                                    |
+| `singleChoice` (> 7 options) | `Select` (`select`) with `items` (`value` = optionId)                                 | `label`, `description`, `name`, `items`                                                                                                      | `isRequired`                                                                                                    |
+| `multiChoice`                | `CheckboxGroup` (`checkbox`) with one `Checkbox` child per option, `value` = optionId | `label`, `description`, `name`, `orientation: "vertical"`                                                                                    | `isRequired` (min/maxSelected have no upstream prop - server-only, surfaced in help text by authors if desired) |
 
 ### Documented choices
 
@@ -131,16 +131,18 @@ type makes the decoy unmistakable (it can never be confused with a real field)
 and self-describing. It is a **renderer-compat contract**: the renderer (028)
 must recognize the type and emit the hidden wrapper below.
 
-| Node | Props | Renderer contract (028) |
-| --- | --- | --- |
+| Node       | Props                                                                                           | Renderer contract (028)                                                                                                                             |
+| ---------- | ----------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Honeypot` | `name` (the submit key, `"website"`), `autoComplete: "off"`, `ariaHidden: true`, `tabIndex: -1` | An `<input>` with that `name`/`autocomplete`/`tabindex`, wrapped in an `aria-hidden` off-screen container; **no** `<label>` and no accessible name. |
 
 Reference rendering (the a11y contract asserted at the node/DOM level here; the
 live axe pass is 028/030):
 
 ```html
-<div aria-hidden="true"
-     style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;">
+<div
+  aria-hidden="true"
+  style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;"
+>
   <input name="website" autocomplete="off" tabindex="-1" />
 </div>
 ```

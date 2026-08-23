@@ -1,6 +1,6 @@
 # Admin screens redesign: implementation plan
 
-**Status:** draft, PM/PO seat, 2026-08-19. **Builds on, does not duplicate:**
+**Status:** draft, 2026-08-19. **Builds on, does not duplicate:**
 `plan/admin-ux-audit.md` (the sequence in its §8 is the backbone of this plan) and
 `plan/admin-mobile-stance.md` (Code Owner decision, 2026-08-18, governs breakpoints
 and the narrow-viewport bar). Read those two first; this document only covers what a
@@ -19,14 +19,10 @@ record: twelve issues filed and tiered (§3a), the eight Wave 3 contracts drafte
 (`plan/admin-design-contracts.md`), and this branch's out-of-scope compose change
 extracted to its own PR.
 
-**One element of the freeze survives on its own merits, not the freeze's:**
-ADR-39 stays a draft and is never promoted into `docs/PROJECT_GOAL.md` without an
-explicit Code Owner decision. R1 protects immutability, one of the three
-non-negotiables; amending it is not this seat's call, and that was true before
-the freeze and remains true after it.
+**ADR-39 is confirmed.** Public and secure distribution both offer Always latest
+and Pin to version targeting. Implementation is Phase 4 task 063.
 
-**Decision status: recorded in-session, attribution not independently confirmed
-by this seat. Treat as pending Code Owner confirmation.**
+**The remaining design decisions below retain their recorded status.**
 
 - **C1 - Settings rail: keep it.** Overrides the audit's row-16 reject; see §2 for
   the recorded reasoning either way - and note that reasoning is thin (the override
@@ -34,11 +30,8 @@ by this seat. Treat as pending Code Owner confirmation.**
 - **C2 - answer-preview column: build it.** Confirmed front-end-only (the data
   already flows end to end) - filed as
   [#515](https://github.com/roonga/qcms/issues/515).
-- **N1/C3 - public form link: version-pinned, not a standing link.** No mechanism
-  in QCMS supports this today. Full mechanism, R1 amendment, and a per-version
-  open/redirect/closed lifecycle refinement are drafted in
-  `plan/adr-39-version-pinned-links-proposal.md` - **a proposal, not promoted**,
-  for the R1 reason stated above.
+- **N1/C3 - public form links:** confirmed as Always latest or Pin to version.
+  ADR-39 owns the behavior and Phase 4 task 063 owns implementation.
 
 ---
 
@@ -61,19 +54,9 @@ This is additive to the audit, not a disagreement with it: it is a missing
 **capability**, not a layout question, so it does not slot into any of the seven
 design-language elements.
 
-**Recorded in-session as resolved (attributed to the Code Owner, 2026-08-19;
-attribution not independently confirmed by this seat - treat as pending
-confirmation, per the preamble): Form builder screen, one link per version,
-shown after each publish.** This turned out to be a bigger decision than "where does
-a link live" - the request was for a link *per version*, and nothing in QCMS today
-lets a new session start on anything but the newest published version (confirmed:
-every session-creation path, anonymous and secure-link alike, calls
-`getLatestPublishedVersion`). That is a new engine capability, not an admin-UI
-placement choice. Mechanism proposed in `plan/adr-39-version-pinned-links-proposal.md`:
-a deterministic `/f/{slug}/v{version}` path (no minted token, no expiry - the version
-is either published or it isn't, so there is nothing to mint), plus the R1 amendment
-it requires. That document is the live one for this item; treat what follows here as
-superseded by it.
+**Resolved by ADR-39 and Phase 4 task 063.** The builder shows both public target
+choices after publish, version history exposes each pinned address and its state,
+and secure-link minting offers the same Always latest or Pin to version choice.
 
 ### N2. A rail can visually stop short of the viewport on a short screen
 
@@ -91,7 +74,7 @@ full-height three different ways instead (`add-question-poc.html` via `.stage
 `deployment-ops-poc.html` and `library-lists-poc.html` not at all) - see
 `plan/admin-poc-consistency-audit.md` §3.4.
 
-This has no bearing on whether any given screen *should* get a rail - it is an
+This has no bearing on whether any given screen _should_ get a rail - it is an
 acceptance criterion for whichever screens end up with one, wherever the audit's
 own sequence (§8 item 8) or this document's Wave 3 puts a rail into real code.
 Worth a quick check against the shipped form builder's rail too, since that one is
@@ -127,11 +110,12 @@ mid-session.
 `admin-ux-audit.md` already considered this screen and rejected a rail on it, on the
 record, the day before: row 16 of its verdict table marks `/settings` **reject** on
 rail, width, and collapse-with-digest alike, and §3.10 states the reasoning plainly
+
 - "Prose-and-form shaped, three cards... The whole screen is three short cards;
-collapsing a change-password form behind a summary adds a click to the only reason
-anyone is here." §8's "what I would not do at all" list names `/settings`
-explicitly among the four screens that should not get a rail, in the same breath as
-the two library lists.
+  collapsing a change-password form behind a summary adds a click to the only reason
+  anyone is here." §8's "what I would not do at all" list names `/settings`
+  explicitly among the four screens that should not get a rail, in the same breath as
+  the two library lists.
 
 The two documents do not disagree about facts - they disagree about which
 consideration wins. The audit's argument is cost (a rail plus a route split adds
@@ -155,22 +139,12 @@ The POC brief this session worked from stated a defect as settled fact: "the lis
 missing an answer preview column the normative inventory calls for. Include it," and
 `responses-poc.html` does include one.
 
-`admin-ux-audit.md`'s D5 (§7) found the same gap independently and reached a
-different conclusion: "The omission may well be right (an answer preview on a list
-screen is respondent data on a screen that does not need it). The defect is that it
-is **not recorded**." Its §8 sequence item 4 is "Record D5 as an accepted deviation
-in `docs/wireframes/admin-responses-ops.md`" - not "add the column" - citing the
-question-library wireframe's own "Accepted deviation" block as the house pattern for
-exactly this situation.
+`admin-ux-audit.md`'s D5 (§7) found the same gap independently. Issue 515 resolved
+the question by requiring a bounded answer-preview column.
 
-This is a real privacy-shaped trade, not a styling one: an answer preview column
-puts respondent-entered content into a scanning list view, which is more exposure
-than the detail screen (opened deliberately, per response) creates. **This needs a
-decision too:** build the column (confirm first whether the list API already returns
-enough of each response's answers to build a preview, or whether that needs a new
-DB/API surface - not confirmed either way this session), or close the deviation by
-recording it as accepted in the wireframe and drop the column from
-`responses-poc.html`.
+This is a privacy-shaped trade, not a styling one: an answer preview column puts
+respondent-entered content into a scanning list view. Keep the preview bounded and
+do not expose the untruncated value elsewhere.
 
 ---
 
@@ -194,23 +168,21 @@ column, decision C2). The full dispatch, including the six issues filed on
 2026-08-19 and the tier ordering for the loop, is §3a below.
 
 **Wave 1 - decisions, not code.**
+
 - C1 (Settings rail) - recorded as kept, reasoning never written down; restated
   as a `[Code Owner decision]` in `plan/admin-design-contracts.md` §7, where the
   recommendation follows the audit and drops the rail. See §2.
 - C2 (answer-preview column) - recorded as kept and filed as #515. This is the
   Wave 1 item that is unambiguously real.
-- N1/C3 (public link) - discussed at length, turned out to need a new engine
-  capability rather than a placement choice. Full proposal in
-  `plan/adr-39-version-pinned-links-proposal.md` - a proposal, not a task file
-  and not an ADR, pending the Code Owner decision on the R1 amendment it needs.
+- N1/C3 (link targeting) - confirmed in ADR-39 and assigned to Phase 4 task 063.
 
 **Wave 2 - house-pattern application** (audit §8 items 5-7). Filed as GitHub
 issues 2026-08-19, ready for `/next-issue`, in this order:
 
 - [#517](https://github.com/roonga/qcms/issues/517) - elements 4+5 (ownership grid
-  + row grip menu) on the step editor's pin list. The audit's own highest-value
-  item; the pattern already ships in `option-grid-editor.tsx`, so this is applying
-  an existing card, not inventing one.
+  - row grip menu) on the step editor's pin list. The audit's own highest-value
+    item; the pattern already ships in `option-grid-editor.tsx`, so this is applying
+    an existing card, not inventing one.
 - [#518](https://github.com/roonga/qcms/issues/518) - element 7 (ambient save) on
   the builder plus an explicit manual-save statement on the question editor.
   Closes the audit's §4.6.
@@ -228,7 +200,7 @@ same delivery-dashboard trigger: whichever lands second rebases over the first.
 
 **Wave 3 - the rail, gated on written contracts first** (audit §8 items 8-9): the
 form subtree (eight screens) gets the rail and the per-screen width the audit
-specifies, plus the scope rule written into the wireframe format spec. Before this
+specifies, plus the scope rule written into the screen contract format spec. Before this
 starts, the rail's contract has to say what it carries - children (a form's steps,
 a question's versions) or siblings (Preview/Versions/Links/Responses/Webhooks) or
 both - because §3.2 of the audit already shows those two meanings colliding the
@@ -262,6 +234,7 @@ own spacing/type vocabulary as a deliberate, documented divergence from
 wholesale. Confirming that document is what unblocks Wave 3.
 
 **Wave 4 - only once Wave 3 (or a settings-only rail from C1) is real code:**
+
 - Carry N2 (the viewport-fill CSS) into whatever ships, as an acceptance criterion,
   not an afterthought.
 - Regenerate every POC under `plan/admin-shell-poc/` in one pass so they stop
@@ -278,12 +251,10 @@ wholesale. Confirming that document is what unblocks Wave 3.
 
 ---
 
-## 3a. Dispatch to the dev seat (2026-08-19)
+## 3a. Dispatch order (2026-08-19)
 
-**The issue backlog is the instruction channel.** No seat-mail bus exists on this
-machine (`../seat-mail/dev/` absent; per its own protocol that means skip
-silently), and `/next-issue` selects from open GitHub issues rather than a live
-channel, so nothing here depends on both seats running at once.
+**The issue backlog is the instruction channel.** `/next-issue` selects from open
+GitHub issues, so the issues themselves carry scope, acceptance, and priority.
 
 **State that unblocks this work:** the ledger now shows 032, 033, 034, 035 and
 048 all `done` (PRs #228, #245, #274, #284, #313). The standing aim's priority
@@ -297,12 +268,12 @@ now, which it was not when the aim was written on 2026-08-01.
 `admin-stage` (that label routes work to tasks 031-035, all now done, so it would
 wrongly exclude them from the issue loop).
 
-| Tier | Issues | Label | What it is |
-|---|---|---|---|
-| Correctness first | #510, #511, #513, #520, #521 | `bug` | The audit's D1, D2, D4, D6, D7. Cheap, no design decision in any of them. |
-| Cleanup / recording | #512, #515, #522 | none | Dead code, the answer-preview column (front-end only, data already flows), the shipped-rail viewport check. |
-| Consolidation | #514 | none | One table treatment and one empty state, against the frozen card. The audit calls this the single change that most affects how the app reads. |
-| Wave 2, house patterns | #517, #518, #519 | none | Ownership grid + grip menu on the pin list; ambient save + manual-save statement; digests and summary headings. |
+| Tier                   | Issues                       | Label | What it is                                                                                                                                    |
+| ---------------------- | ---------------------------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Correctness first      | #510, #511, #513, #520, #521 | `bug` | The audit's D1, D2, D4, D6, D7. Cheap, no design decision in any of them.                                                                     |
+| Cleanup / recording    | #512, #515, #522             | none  | Dead code, the answer-preview column (front-end only, data already flows), the shipped-rail viewport check.                                   |
+| Consolidation          | #514                         | none  | One table treatment and one empty state, against the frozen card. The audit calls this the single change that most affects how the app reads. |
+| Wave 2, house patterns | #517, #518, #519             | none  | Ownership grid + grip menu on the pin list; ambient save + manual-save statement; digests and summary headings.                               |
 
 Deliberately left unlabeled rather than tagged `enhancement`: #514 and #517-#519
 apply patterns that already ship (`option-grid-editor.tsx`, the frozen
@@ -329,25 +300,17 @@ prioritise the redesign, so three things changed:
 
 1. **A `admin-redesign` label now carries the tier** (#510-#515, #517-#522), so
    it is selectable and reportable as one group rather than by memorised number.
-   It is deliberately *not* `admin-stage`, which routes work to tasks 031-035 and
+   It is deliberately _not_ `admin-stage`, which routes work to tasks 031-035 and
    would exclude these from the issue loop entirely.
-2. **The standing aim in `plan/CLAUDE.md` now names this tier**, in the tier order
-   of the table above. That block is the authority `/next-issue`'s own second-lane
-   discipline defers to for scope tiering, so it is the in-band channel for this
-   rather than a note in a plan file the loop never opens.
+2. **The issue labels and this section name the tier**, in the order shown above.
+   State that campaign priority when invoking `/next-issue`.
 3. **One security exception is named rather than left to judgement:** #504, whose
    exposure is unauthenticated respondent-facing, still preempts. #482, #488,
    #489, #491 and #492 are staff-surface or documentation and wait.
 
-**What the skill cannot be told from here.** `/next-issue` step 1's priority order
-is written into `.claude/skills/next-issue/SKILL.md`, which is outside `plan/` and
-therefore not this seat's to edit. Two consequences, both queued in
-`plan/workshop-queue.md` rather than fixed: an unattended `/loop /next-issue` with
-no scope argument will still select by label and reach #504 and the staff-surface
-security cluster before the unlabeled redesign issues, so the aim has to be passed
-in the invocation until the skill reads the label; and that skill's second-lane
-rule 1 still cites the discharged 033-035 chain, which would exclude every
-unlabeled redesign issue from a second lane.
+**Selection.** `/next-issue` applies its durable label priority. When this campaign
+is active, state the `admin-redesign` tier order in the invocation, with #504 as
+the only security preemption.
 
 **Invocation that matches the aim today**, from the repo root:
 
@@ -359,67 +322,16 @@ with the scope stated in the prompt: drain the `admin-redesign` label first, in
 the tier order of the table above, taking #504 ahead of it as the only security
 preemption.
 
-> **Correction, 2026-08-20: this list was wrong, and it caused a real error.** It
-> omitted **#510**, whose fix moves the detail routes' `h1` from the form slug to
-> the entity - `auto` becomes `Response ses_45cf63456927de8f2c448436930ede81`,
-> wrapping across three lines at 390px. That is unmistakably visible. PR #539
-> reasonably inherited this document's classification and committed a README and
-> a spec docblock asserting its screenshots were "reference evidence, NOT a
-> blocking gate", which is a gate classification the Code Owner never made. The
-> PR was escalated for sign-off and both assertions are coming out.
->
-> **Do not use this list to decide whether a gate is owed.** It was a planning
-> guess made before any of the fixes existed, and a guess about a diff that has
-> not been written cannot be authoritative about what that diff renders. The
-> operative test is per-fix and mechanical: does anything rendered move? An
-> attribute-only change (#520) does not; a heading level change with identical
-> classes under a preflight that neutralises UA heading styles (#511) does not;
-> a change to what an `h1` says (#510) does. When in doubt, capture - four PNGs
-> cost less than a round trip through two seats.
+### Visual review
 
-**Every one of #514, #515, #517, #518, #519 and #522 changes visible admin UI**,
-so each captures the static-render evidence: PNGs at 390px and 1280px minimum
-committed under `docs/gates/pr-<NN>/` with a one-line README, embedded in the PR
-body by raw branch URL.
+The confirmed contracts and frozen cards govern the redesign. Verify responsive
+behavior in the browser and with the applicable automated tests. Visual artifacts
+or human review apply only when an issue or authoritative task explicitly requires
+them.
 
-### The gate is delegated for contract-governed work (Code Owner ruling, 2026-08-20)
-
-**What changed:** these PRs no longer park awaiting the Code Owner. The reviewing
-seat clears them.
-
-**What did not change: the evidence is still captured and still committed.** It is
-cheap, it is the audit trail of what was approved, and the Code Owner can review
-any of it after the fact from the repo. Delegating who clears a gate is not the
-same as deciding the gate does not need evidence, and a PR that changes visible
-admin UI without committed frames is still incomplete.
-
-**The reference is the contracts, not the POCs.** This matters more than it looks.
-The ruling's stated reason was "we have POC", but the eleven POCs answer the same
-eight questions two to seven different ways - that inconsistency is the entire
-reason `plan/admin-design-contracts.md` exists. Clearing a gate against "whichever
-POC seems relevant" would reintroduce exactly what the contracts fence out. So the
-operative test is: **does the render match the confirmed contract, or the frozen
-card the contract cites?** A POC is evidence of intent where a contract is silent,
-never an authority against one.
-
-**Escalate to the Code Owner anyway, in four cases:**
-
-1. The render **contradicts** a confirmed contract or a frozen card. That is a
-   finding, not a gate call, and it goes back to the branch.
-2. **No contract or frozen card governs** the thing being changed. An ungoverned
-   visual decision is a new design decision, and those are not delegated.
-3. The change introduces a **new pattern** rather than applying an existing one -
-   the second rail (§7a) is the live example of how easily one of those arrives
-   wearing a familiar name.
-4. It touches the **portal**. This delegation covers the admin redesign tier only.
-   The portal is a respondent surface with its own managed themes and its own
-   signed wireframes; nothing here reaches it.
-
-**Consequence accepted knowingly.** The Code Owner is trading per-PR sight of
-admin visuals for throughput, on the strength of the contracts being confirmed. If
-the contracts turn out to be wrong about something, that error now ships further
-before anyone sees it. The mitigation is that the frames are still in the repo and
-the contracts are a small, readable document rather than eleven large ones.
+Escalate a contradiction, an ungoverned visual choice, a new pattern, or a portal
+change to the Code Owner. Those cases require a design decision rather than more
+evidence of an undecided design.
 
 **What is NOT dispatched:** Wave 3 (the rail and the per-screen width caps). It
 stays gated on `plan/admin-design-contracts.md` being confirmed, because the
@@ -456,14 +368,14 @@ section understated how far the viewport-fill fix had been carried):
 
 ### What landed
 
-| Issue | PR | What |
-|---|---|---|
-| #557 | #576 | two tokenized breakpoints, six ad hoc ones retired |
-| #558 | #592 | the width cap becomes per-route |
-| #563 | #573 | the wireframe screen-scope rule |
-| #559 | #621 | the form-subtree rail, built once against §7 |
-| #561 | #634 | the rail across all eight form-scoped screens |
-| #562 | #636 | the Settings rail, as §7a's written exception |
+| Issue | PR   | What                                               |
+| ----- | ---- | -------------------------------------------------- |
+| #557  | #576 | two tokenized breakpoints, six ad hoc ones retired |
+| #558  | #592 | the width cap becomes per-route                    |
+| #563  | #573 | the screen contract screen-scope rule              |
+| #559  | #621 | the form-subtree rail, built once against §7       |
+| #561  | #634 | the rail across all eight form-scoped screens      |
+| #562  | #636 | the Settings rail, as §7a's written exception      |
 
 ### The four items this document opened
 
@@ -486,7 +398,7 @@ What it did not anticipate is that **building would find silences reading could 
 
 All five are now amendments. **Four of the five were answerable from clauses §7 already carried** - the builder question in particular derives from "the rail never carries same-page section switches", which was in the confirmed text the whole time. Only the first genuinely needed implementation experience to answer.
 
-That is the lesson worth carrying into Wave 4: **a contract written from analysis is complete against the questions the analysis asked.** The gap is not between drafting and confirming, it is between confirming and *building* - and most of what building finds was already decided, unread.
+That is the lesson worth carrying into Wave 4: **a contract written from analysis is complete against the questions the analysis asked.** The gap is not between drafting and confirming, it is between confirming and _building_ - and most of what building finds was already decided, unread.
 
 ### What Wave 4 inherits
 

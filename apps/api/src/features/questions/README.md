@@ -7,23 +7,23 @@ version lifecycle is a set of single-row state checks this slice owns.
 
 ## Routes
 
-| Method & path | Scope (SEC-5) | Notes |
-|---|---|---|
-| `POST /admin/questions` | `questions:write` | Create a question + its first draft version. Body: `{ slug, definition }` (the `questionId` lives inside `definition`). |
-| `POST /admin/questions/:id/versions` | `questions:write` | Append a new draft version, seeded from the latest version's definition. |
-| `PUT /admin/questions/:id/versions/:v` | `questions:write` | Edit a **draft** version's definition. Published/deprecated → `VERSION_IMMUTABLE`. |
-| `POST /admin/questions/:id/versions/:v/publish` | `questions:write` | Draft → published (freezes the definition; makes it pinnable). |
-| `POST /admin/questions/:id/versions/:v/deprecate` | `questions:write` | Published → deprecated (blocks **new** pins only; existing pins/history untouched). |
-| `GET /admin/questions` | `questions:read` | List with latest-version summary; `?status=` filter, `?search=` over slug/label. |
-| `GET /admin/questions/:id` | `questions:read` | One question with every version, oldest first. |
-| `GET /admin/questions/:id/versions/:v/preview` | `questions:read` | Compile one version to a single-question A2UI document (`{ stepId: "stp_preview", root, a2uiSpecVersion, compilerVersion }`) for the admin preview pane. `?locale=` (default `en`, unparseable falls back to `en`). |
+| Method & path                                     | Scope (SEC-5)     | Notes                                                                                                                                                                                                               |
+| ------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /admin/questions`                           | `questions:write` | Create a question + its first draft version. Body: `{ slug, definition }` (the `questionId` lives inside `definition`).                                                                                             |
+| `POST /admin/questions/:id/versions`              | `questions:write` | Append a new draft version, seeded from the latest version's definition.                                                                                                                                            |
+| `PUT /admin/questions/:id/versions/:v`            | `questions:write` | Edit a **draft** version's definition. Published/deprecated → `VERSION_IMMUTABLE`.                                                                                                                                  |
+| `POST /admin/questions/:id/versions/:v/publish`   | `questions:write` | Draft → published (freezes the definition; makes it pinnable).                                                                                                                                                      |
+| `POST /admin/questions/:id/versions/:v/deprecate` | `questions:write` | Published → deprecated (blocks **new** pins only; existing pins/history untouched).                                                                                                                                 |
+| `GET /admin/questions`                            | `questions:read`  | List with latest-version summary; `?status=` filter, `?search=` over slug/label.                                                                                                                                    |
+| `GET /admin/questions/:id`                        | `questions:read`  | One question with every version, oldest first.                                                                                                                                                                      |
+| `GET /admin/questions/:id/versions/:v/preview`    | `questions:read`  | Compile one version to a single-question A2UI document (`{ stepId: "stp_preview", root, a2uiSpecVersion, compilerVersion }`) for the admin preview pane. `?locale=` (default `en`, unparseable falls back to `en`). |
 
 ## The preview route is not the serving path (ADR-18)
 
 `…/preview` **recompiles** a stored definition on demand - usually an
 unpublished draft - so an author can see their question drawn by the shared
 renderer (028) while editing it. That is why it lives on the admin group: the
-respondent-facing path serves the *stored* compiled document from a pinned
+respondent-facing path serves the _stored_ compiled document from a pinned
 snapshot and never a recompilation (ADR-18). Nothing the preview produces is
 stored, pinned, or reachable from the portal.
 
@@ -39,7 +39,7 @@ in the generated OpenAPI document so Phase-4 activation is wiring, not archaeolo
 ## No delete endpoint (R6)
 
 There is deliberately **no delete route**. A `questionId` is stable forever and
-never reused with a different meaning (R6), so questions are *deprecated*, never
+never reused with a different meaning (R6), so questions are _deprecated_, never
 removed. `POST /admin/questions` rejects any id ever used - including one that
 belongs to a deprecated or erased question - via `isQuestionIdTaken`
 (`QUESTION_ID_REUSED`, 409). Reuse can never silently change an id's meaning.
@@ -57,10 +57,10 @@ the trigger.
 
 The admin group carries two independent gates, applied in order:
 
-1. **Internal service token** (SEC-4) - authenticates the *channel*; applied to
+1. **Internal service token** (SEC-4) - authenticates the _channel_; applied to
    every mounted group by the composition root.
-2. **Admin auth** (`src/middleware/admin-auth.ts`) - authenticates the *admin
-   user*. Installed by `registerAdminAuth`, the first registrar in the admin
+2. **Admin auth** (`src/middleware/admin-auth.ts`) - authenticates the _admin
+   user_. Installed by `registerAdminAuth`, the first registrar in the admin
    bucket, so it runs before every route here. A request without an admin
    session is rejected **401** before any handler or database access.
 

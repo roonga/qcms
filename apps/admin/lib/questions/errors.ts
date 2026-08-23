@@ -88,7 +88,7 @@ export function fieldError(
  * The two always travel together on purpose. `errorMessage` without `isInvalid` renders
  * a message the control does not consider itself in error about, so react-aria wires no
  * `aria-invalid` and a screen reader announces a normal field with some extra text next
- * to it. The wireframe's a11y note ("validation errors `aria-describedby`-linked") is
+ * to it. The screen contract's a11y note ("validation errors `aria-describedby`-linked") is
  * what this pairing delivers.
  */
 export function fieldErrorProps(

@@ -2,7 +2,7 @@ import { PortalShell } from "@/components/portal-shell";
 import { t } from "@/lib/i18n/en";
 
 /**
- * Completion receipt (wireframe `/done`): a success card showing the submit
+ * Completion receipt (screen contract `/done`): a success card showing the submit
  * response's `submittedAt` and `contentHash`, and "you may close this page" copy.
  * The reference (content hash) is selectable so a respondent can copy it.
  */

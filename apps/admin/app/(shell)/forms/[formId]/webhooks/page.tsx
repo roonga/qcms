@@ -19,7 +19,7 @@ import {
 } from "../../../webhooks/actions";
 
 /**
- * One form's webhook endpoints and their delivery history (task 035; wireframe
+ * One form's webhook endpoints and their delivery history (task 035; screen contract
  * "webhook config", "delivery dashboard").
  *
  * Configuration and deliveries are on the same screen deliberately: the operator loop

@@ -18,7 +18,7 @@ import { t, tPlural } from "@/lib/i18n/en";
 import type { ReadState } from "@/lib/read-state";
 
 /**
- * The add-a-question dialog (task 033; wireframe "library picker `dialog`").
+ * The add-a-question dialog (task 033; screen contract "library picker `dialog`").
  *
  * ## One row per **version**, not per question
  *

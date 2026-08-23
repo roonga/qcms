@@ -26,25 +26,25 @@ Caddy overlay.
 Both recipes preserve the same properties. They are the table below, and the rest of this document
 refers to them by number.
 
-| # | Invariant | Why, and where it is enforced |
-| --- | --- | --- |
-| 1 | **TLS terminates at the ingress.** The apps speak plain HTTP on a private network and never hold a certificate. | ADR-20. The hop from ingress to app is inside the Compose bridge network (Recipe A) or inside the VPC (Recipe B). |
-| 2 | **HSTS is set at the ingress**, not by the apps. | SEC-9. Only the layer that actually terminates TLS can honestly promise it is always available. |
-| 3 | **Only portal and admin are routed.** | ADR-20. The absence of an API route is the control; see "Verifying the routing property". |
-| 4 | **The API and Postgres are never publicly reachable.** The API is reachable only by the two BFFs, on the internal network. | ADR-20. `api` and `postgres` publish no host port in `docker-compose.yml`, and no ingress recipe adds one. |
-| 5 | **The ingress tells the apps the browser-facing scheme is `https`.** | Both apps run behind a plain-HTTP hop and would otherwise mint `http://` URLs and mis-scope cookies. |
-| 6 | **The ingress writes an `X-Forwarded-For` whose rightmost entry is the address it accepted the connection from, on both hostnames.** | The ingress is the only component that sees the peer address, and two controls key on what it reports: the API's respondent rate limits and better-auth's per-IP sign-in throttle. See "The forwarded client address" below: a proxy that leaves the header untouched collapses every caller into one bucket, and one that lets a client contribute the entry the apps read hands each caller a bucket of its own. |
+| #   | Invariant                                                                                                                            | Why, and where it is enforced                                                                                                                                                                                                                                                                                                                                                                                      |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | **TLS terminates at the ingress.** The apps speak plain HTTP on a private network and never hold a certificate.                      | ADR-20. The hop from ingress to app is inside the Compose bridge network (Recipe A) or inside the VPC (Recipe B).                                                                                                                                                                                                                                                                                                  |
+| 2   | **HSTS is set at the ingress**, not by the apps.                                                                                     | SEC-9. Only the layer that actually terminates TLS can honestly promise it is always available.                                                                                                                                                                                                                                                                                                                    |
+| 3   | **Only portal and admin are routed.**                                                                                                | ADR-20. The absence of an API route is the control; see "Verifying the routing property".                                                                                                                                                                                                                                                                                                                          |
+| 4   | **The API and Postgres are never publicly reachable.** The API is reachable only by the two BFFs, on the internal network.           | ADR-20. `api` and `postgres` publish no host port in `docker-compose.yml`, and no ingress recipe adds one.                                                                                                                                                                                                                                                                                                         |
+| 5   | **The ingress tells the apps the browser-facing scheme is `https`.**                                                                 | Both apps run behind a plain-HTTP hop and would otherwise mint `http://` URLs and mis-scope cookies.                                                                                                                                                                                                                                                                                                               |
+| 6   | **The ingress writes an `X-Forwarded-For` whose rightmost entry is the address it accepted the connection from, on both hostnames.** | The ingress is the only component that sees the peer address, and two controls key on what it reports: the API's respondent rate limits and better-auth's per-IP sign-in throttle. See "The forwarded client address" below: a proxy that leaves the header untouched collapses every caller into one bucket, and one that lets a client contribute the entry the apps read hands each caller a bucket of its own. |
 
 Invariant 5 has a second half that is pure configuration and is easy to forget. The two cookie
 rows now fail loudly when you get them wrong (the app refuses to start); the two base-URL rows
 still do not, so check them by hand:
 
-| Variable | Behind an ingress, set it to | What breaks if you do not |
-| --- | --- | --- |
-| `QCMS_PORTAL_BASE_URL` | the portal's public `https://` origin | Secure links are minted as `${QCMS_PORTAL_BASE_URL}/l/<token>` (`apps/api/src/features/links/handler.ts`). Left at a local value, every link a respondent receives points at the operator's own loopback. |
-| `QCMS_ADMIN_BASE_URL` | the admin's public `https://` origin | It is better-auth's base URL and its only trusted origin (the API owns the better-auth instance since task 056). A mismatch fails sign-in, not merely link generation. |
-| `QCMS_SECURE_COOKIES` | leave unset | Unset means the image's `NODE_ENV=production` decides, which marks the portal's cookies `Secure`. That is already correct behind TLS. Set to `false` here and the portal **refuses to start**, because the base URL above is not loopback (issue #292). |
-| `QCMS_ADMIN_SECURE_COOKIES` | leave unset | Unset means the image's `NODE_ENV=production` decides, which marks the admin cookies `Secure`. That is already correct behind TLS. Set to `false` here and the admin **refuses to start**, for the same reason. |
+| Variable                    | Behind an ingress, set it to          | What breaks if you do not                                                                                                                                                                                                                               |
+| --------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `QCMS_PORTAL_BASE_URL`      | the portal's public `https://` origin | Secure links are minted as `${QCMS_PORTAL_BASE_URL}/l/<token>` (`apps/api/src/features/links/handler.ts`). Left at a local value, every link a respondent receives points at the operator's own loopback.                                               |
+| `QCMS_ADMIN_BASE_URL`       | the admin's public `https://` origin  | It is better-auth's base URL and its only trusted origin (the API owns the better-auth instance since task 056). A mismatch fails sign-in, not merely link generation.                                                                                  |
+| `QCMS_SECURE_COOKIES`       | leave unset                           | Unset means the image's `NODE_ENV=production` decides, which marks the portal's cookies `Secure`. That is already correct behind TLS. Set to `false` here and the portal **refuses to start**, because the base URL above is not loopback (issue #292). |
+| `QCMS_ADMIN_SECURE_COOKIES` | leave unset                           | Unset means the image's `NODE_ENV=production` decides, which marks the admin cookies `Secure`. That is already correct behind TLS. Set to `false` here and the admin **refuses to start**, for the same reason.                                         |
 
 Full annotations for all four are in `.env.compose.example`.
 
@@ -68,12 +68,12 @@ speak of. The overlay adds exactly one container and one routing policy.
 Three variables are **required** by the overlay, with no defaults: `docker compose` refuses to
 start if any is missing, rather than booting a half-configured ingress.
 
-| Variable | Required | Meaning |
-| --- | --- | --- |
-| `QCMS_PORTAL_DOMAIN` | yes | Public hostname for the respondent portal. Becomes a Caddy site block, and the name on its certificate. |
-| `QCMS_ADMIN_DOMAIN` | yes | Public hostname for the authoring admin. Same. |
-| `QCMS_ACME_EMAIL` | yes | The address Let's Encrypt contacts about the account (expiry warnings, policy changes). |
-| `QCMS_CADDY_IMAGE` | no (`caddy:2-alpine`) | Overridable for the same reason the Postgres image is: an operator mirroring base images into their own registry should not have to fork the file. |
+| Variable             | Required              | Meaning                                                                                                                                            |
+| -------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `QCMS_PORTAL_DOMAIN` | yes                   | Public hostname for the respondent portal. Becomes a Caddy site block, and the name on its certificate.                                            |
+| `QCMS_ADMIN_DOMAIN`  | yes                   | Public hostname for the authoring admin. Same.                                                                                                     |
+| `QCMS_ACME_EMAIL`    | yes                   | The address Let's Encrypt contacts about the account (expiry warnings, policy changes).                                                            |
+| `QCMS_CADDY_IMAGE`   | no (`caddy:2-alpine`) | Overridable for the same reason the Postgres image is: an operator mirroring base images into their own registry should not have to fork the file. |
 
 Set them in the same `.env` the base stack reads, alongside the four `*_BASE_URL` and cookie
 values from the invariants table above. `QCMS_PORTAL_BASE_URL` and `QCMS_ADMIN_BASE_URL` are the
@@ -91,12 +91,12 @@ never has it. Every subsequent command against this stack needs both files, incl
 
 ### What you get
 
-| What the overlay adds | Detail |
-| --- | --- |
-| One new service | `caddy`, `restart: unless-stopped`, waiting on portal and admin `service_healthy` before it starts. An ingress that comes up before its upstreams answers 502 to the first visitor. |
-| The only publicly bound ports in the stack | `80:80`, `443:443`, `443:443/udp`. Bound on all interfaces, unlike everything in the base file: this is the one process whose job is to be publicly reachable. |
-| Certificates | Issued and renewed automatically by Caddy for both names. |
-| Two named volumes | `qcms-caddy-data` (certificates and the ACME account key) and `qcms-caddy-config`. Named rather than container-lifetime, because losing the account key means re-issuing every certificate on the next boot, and Let's Encrypt rate-limits that. Back the data volume up with the database. |
+| What the overlay adds                      | Detail                                                                                                                                                                                                                                                                                      |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| One new service                            | `caddy`, `restart: unless-stopped`, waiting on portal and admin `service_healthy` before it starts. An ingress that comes up before its upstreams answers 502 to the first visitor.                                                                                                         |
+| The only publicly bound ports in the stack | `80:80`, `443:443`, `443:443/udp`. Bound on all interfaces, unlike everything in the base file: this is the one process whose job is to be publicly reachable.                                                                                                                              |
+| Certificates                               | Issued and renewed automatically by Caddy for both names.                                                                                                                                                                                                                                   |
+| Two named volumes                          | `qcms-caddy-data` (certificates and the ACME account key) and `qcms-caddy-config`. Named rather than container-lifetime, because losing the account key means re-issuing every certificate on the next boot, and Let's Encrypt rate-limits that. Back the data volume up with the database. |
 
 ### The edge policy
 
@@ -105,14 +105,14 @@ upstreams (`portal:3000`, `admin:3000`), no snippet indirection on the upstream 
 "what is routed" reads top to bottom. A shared `(qcms_edge)` snippet carries what SEC-9 asks of
 the edge:
 
-| Directive | What it does, and why it lives here |
-| --- | --- |
-| `Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"` | Invariant 2. Two years, subdomains included, preload-eligible. **Drop `preload`** if any sibling hostname under the same parent domain still serves plain HTTP: preload is a commitment about the whole domain, and it is slow to undo. |
-| `-Server` | Removes Caddy's version banner. Not information a respondent needs. |
-| `request_body { max_size 1MB }` | The edge-side match for the API's own `QCMS_BODY_LIMIT_BYTES` cap, so an oversized request is rejected before it crosses into a Node process. Raise both together or neither. |
-| `encode zstd gzip` | Response compression at the edge. |
-| `header_up X-Forwarded-Proto https` (per site) | Invariant 5. The hop to the app is plain HTTP on the bridge network, so nothing else would tell Next the browser-facing scheme. |
-| `header_up X-Forwarded-For {remote_host}` (per site) | Invariant 6. **Set, never append.** `{remote_host}` is the peer address the edge can actually vouch for, and setting it discards whatever the client sent, so the chain the app receives is exactly one entry and that entry is a fact. If you put another proxy in front of Caddy, see "Stacking another proxy" below: `{remote_host}` then reports that proxy, not the respondent. |
+| Directive                                                                  | What it does, and why it lives here                                                                                                                                                                                                                                                                                                                                                  |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"` | Invariant 2. Two years, subdomains included, preload-eligible. **Drop `preload`** if any sibling hostname under the same parent domain still serves plain HTTP: preload is a commitment about the whole domain, and it is slow to undo.                                                                                                                                              |
+| `-Server`                                                                  | Removes Caddy's version banner. Not information a respondent needs.                                                                                                                                                                                                                                                                                                                  |
+| `request_body { max_size 1MB }`                                            | The edge-side match for the API's own `QCMS_BODY_LIMIT_BYTES` cap, so an oversized request is rejected before it crosses into a Node process. Raise both together or neither.                                                                                                                                                                                                        |
+| `encode zstd gzip`                                                         | Response compression at the edge.                                                                                                                                                                                                                                                                                                                                                    |
+| `header_up X-Forwarded-Proto https` (per site)                             | Invariant 5. The hop to the app is plain HTTP on the bridge network, so nothing else would tell Next the browser-facing scheme.                                                                                                                                                                                                                                                      |
+| `header_up X-Forwarded-For {remote_host}` (per site)                       | Invariant 6. **Set, never append.** `{remote_host}` is the peer address the edge can actually vouch for, and setting it discards whatever the client sent, so the chain the app receives is exactly one entry and that entry is a fact. If you put another proxy in front of Caddy, see "Stacking another proxy" below: `{remote_host}` then reports that proxy, not the respondent. |
 
 Caddy redirects HTTP to HTTPS on its own; there is no rule to write for it.
 
@@ -172,10 +172,10 @@ describes at launch, with mTLS documented as the enterprise upgrade.
 
 Exactly two target groups, both `HTTP` to the containers' port `3000`:
 
-| Target group | ECS service | Health check path | Why that path |
-| --- | --- | --- | --- |
-| portal | `portal` | `/` | The portal's root is a neutral landing page (`apps/portal/app/page.tsx`): credential-free, no database read. |
-| admin | `admin` | `/healthz` | A deliberately trivial liveness probe (`apps/admin/app/healthz/route.ts`): credential-free, database-free, revealing no version or build id. |
+| Target group | ECS service | Health check path | Why that path                                                                                                                                |
+| ------------ | ----------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| portal       | `portal`    | `/`               | The portal's root is a neutral landing page (`apps/portal/app/page.tsx`): credential-free, no database read.                                 |
+| admin        | `admin`     | `/healthz`        | A deliberately trivial liveness probe (`apps/admin/app/healthz/route.ts`): credential-free, database-free, revealing no version or build id. |
 
 Both are the same paths the images' own `HEALTHCHECK` instructions use (`docker/portal.Dockerfile`,
 `docker/admin.Dockerfile`), which keeps one answer to "is this process serving HTTP" rather than
@@ -190,11 +190,11 @@ definition, or the API's readiness goes unwatched.
 
 Listener rules, and there are only two:
 
-| Listener | Rule | Action |
-| --- | --- | --- |
+| Listener    | Rule                                 | Action                             |
+| ----------- | ------------------------------------ | ---------------------------------- |
 | 443 (HTTPS) | `Host` header is the portal hostname | forward to the portal target group |
-| 443 (HTTPS) | `Host` header is the admin hostname | forward to the admin target group |
-| 80 (HTTP) | default | redirect to HTTPS 443, `HTTP_301` |
+| 443 (HTTPS) | `Host` header is the admin hostname  | forward to the admin target group  |
+| 80 (HTTP)   | default                              | redirect to HTTPS 443, `HTTP_301`  |
 
 Give the HTTPS listener an ACM certificate covering both hostnames. Host-based rules keep the two
 apps on separate origins, which is what the cookie scoping in the invariants table assumes; a
@@ -261,10 +261,10 @@ entries **from the right**, and a client padding the left cannot move the result
 
 ### Both recipes need `1`, for different reasons
 
-| Recipe | What the ingress does | Chain the app sees | Why `1` is right |
-| --- | --- | --- | --- |
-| A (Caddy overlay) | `header_up X-Forwarded-For {remote_host}` **replaces** the header | exactly `<client>` | Whatever the client sent was discarded; the single entry is the peer Caddy accepted. |
-| B (ECS + ALB) | an ALB **appends** the connection source to whatever arrived | `<anything the client sent>, <client>` | The forged prefix is ignored because the count runs from the right. |
+| Recipe            | What the ingress does                                             | Chain the app sees                     | Why `1` is right                                                                     |
+| ----------------- | ----------------------------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------ |
+| A (Caddy overlay) | `header_up X-Forwarded-For {remote_host}` **replaces** the header | exactly `<client>`                     | Whatever the client sent was discarded; the single entry is the peer Caddy accepted. |
+| B (ECS + ALB)     | an ALB **appends** the connection source to whatever arrived      | `<anything the client sent>, <client>` | The forged prefix is ignored because the count runs from the right.                  |
 
 `1` is the default for both variables, so a deployment matching either recipe sets nothing. The
 recipes front the two hostnames identically (`docker/Caddyfile` carries the same `header_up` pair
@@ -280,7 +280,7 @@ entry becomes a client-chosen value); `remove` also breaks it, by leaving no add
 A CDN or WAF in front of the ingress is the case that needs a decision, and the two halves have to
 agree:
 
-- **Recipe A.** Caddy's `{remote_host}` is the address of *its* peer, which is now the CDN's egress
+- **Recipe A.** Caddy's `{remote_host}` is the address of _its_ peer, which is now the CDN's egress
   node, so every respondent behind that node shares a bucket. That is safe but coarse. To see past
   it you must change `docker/Caddyfile`: configure `trusted_proxies` for the CDN's ranges and let
   Caddy append rather than set, **and then** raise the hop count to `2`. Doing only the second half
@@ -297,14 +297,14 @@ Read "respondent" as "admin" and "rate limit" as "sign-in backoff" for the admin
 mechanism is identical, and the consequence is worse, because the control being weakened is the one
 protecting authentication.
 
-| Mistake | Result |
-| --- | --- |
-| Hop count **higher** than the proxies that actually exist | **The dangerous one.** The BFF reads into client-supplied text, so a caller picks its own bucket and per-address rate limiting stops existing. Nothing in the stack can detect this: the chain looks the same either way. |
-| Hop count **lower** | Safe but coarse. Callers are bucketed by a proxy's egress address, so a shared NAT or CDN node can exhaust a bucket for everyone behind it. |
-| `0` | No forwarded header is trusted; every caller on that hostname shares one bucket. Deliberate, and equivalent to running with no ingress. |
-| Ingress leaves `X-Forwarded-For` untouched | No proxy-written entry exists, so nothing is vouched for and the limits become whole-deployment ceilings. At the default that is 20 session starts per hour for the entire deployment, and three sign-in attempts per ten seconds across every admin. |
-| App reachable **directly**, hop count left at `1` | The same as "hop count too high", with one hop: there is no proxy, so the only entry in the chain is one the client wrote. Set `0`. Note that no recipe here exposes either app directly, and the base Compose file binds both to loopback (`QCMS_BIND_ADDRESS`) for exactly this class of reason. |
-| Ingress **appends** where this document says set, with no `trusted_proxies` | Same as "hop count too high": the entry the BFF reads is one the client wrote. |
+| Mistake                                                                     | Result                                                                                                                                                                                                                                                                                             |
+| --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Hop count **higher** than the proxies that actually exist                   | **The dangerous one.** The BFF reads into client-supplied text, so a caller picks its own bucket and per-address rate limiting stops existing. Nothing in the stack can detect this: the chain looks the same either way.                                                                          |
+| Hop count **lower**                                                         | Safe but coarse. Callers are bucketed by a proxy's egress address, so a shared NAT or CDN node can exhaust a bucket for everyone behind it.                                                                                                                                                        |
+| `0`                                                                         | No forwarded header is trusted; every caller on that hostname shares one bucket. Deliberate, and equivalent to running with no ingress.                                                                                                                                                            |
+| Ingress leaves `X-Forwarded-For` untouched                                  | No proxy-written entry exists, so nothing is vouched for and the limits become whole-deployment ceilings. At the default that is 20 session starts per hour for the entire deployment, and three sign-in attempts per ten seconds across every admin.                                              |
+| App reachable **directly**, hop count left at `1`                           | The same as "hop count too high", with one hop: there is no proxy, so the only entry in the chain is one the client wrote. Set `0`. Note that no recipe here exposes either app directly, and the base Compose file binds both to loopback (`QCMS_BIND_ADDRESS`) for exactly this class of reason. |
+| Ingress **appends** where this document says set, with no `trusted_proxies` | Same as "hop count too high": the entry the BFF reads is one the client wrote.                                                                                                                                                                                                                     |
 
 ### Privacy
 

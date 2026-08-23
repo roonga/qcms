@@ -93,7 +93,7 @@ export function parseRoutes(raw) {
   try {
     parsed = JSON.parse(raw);
   } catch (error) {
-    throw new Error(`loopback-forward: routes must be JSON: ${String(error)}`);
+    throw new Error(`loopback-forward: routes must be JSON: ${String(error)}`, { cause: error });
   }
   if (!Array.isArray(parsed) || parsed.length === 0) {
     throw new Error("loopback-forward: routes must be a non-empty array");

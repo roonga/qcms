@@ -683,7 +683,7 @@ export function StepFlow({
 
         <div className="flex items-center justify-between gap-3 pt-2">
           {isFirstStep ? (
-            // Back is hidden on the first visible step (042 wireframe); keep the
+            // Back is hidden on the first visible step (042 screen contract); keep the
             // primary action right-aligned with a spacer.
             <span aria-hidden="true" />
           ) : (

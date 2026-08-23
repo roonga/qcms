@@ -5,7 +5,7 @@ import type { DraftForm, FormIssue } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
 
 /**
- * The live validation panel (task 033; wireframe "validation panel").
+ * The live validation panel (task 033; screen contract "validation panel").
  *
  * ## This panel counts issues and says nothing about saving (issue 518)
  *
@@ -67,7 +67,7 @@ import { t } from "@/lib/i18n/en";
  * a question that is by definition not pinned anywhere) renders as text rather than as a
  * link to nothing. Nothing is ever dropped.
  *
- * The count sits in an `aria-live="polite"` region, per the wireframe's a11y note. The
+ * The count sits in an `aria-live="polite"` region, per the screen contract's a11y note. The
  * **summary only**, never the list: re-announcing twelve sentences every time a debounce
  * lands would make the panel unusable with a screen reader, while "3 issues would block a
  * publish" is the change an author actually needs to hear.

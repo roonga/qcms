@@ -12,7 +12,7 @@ normative. C1 is closed at §7a (Settings keeps a rail as a written exception) a
 contracts 1-6 were confirmed in the same ruling ("all agree").
 
 **ALL DESIGN AND TECHNICAL LIMITS ON THE ADMIN ARE REMOVED, 2026-08-22 (Code Owner):**
-*"remove all limits on the admin portal."*
+_"remove all limits on the admin portal."_
 
 Taken together with the ruling below, this means the admin is built to its POCs and to
 nothing else. **No contract in this document constrains an admin screen against its own
@@ -41,9 +41,9 @@ the same way. This seat will not infer it from a design instruction.
 **AUTHORITY REVERSED, 2026-08-22 (Code Owner): the POCs win. "This is the approved
 design."**
 
-This document was written on the opposite premise, stated twice below: *"Anything a POC
+This document was written on the opposite premise, stated twice below: _"Anything a POC
 draws that contradicts a contract here is wrong by definition; the contract does not bend
-to the drawing."* **That is no longer the rule.** Where `plan/admin-shell-poc/*.html` and a
+to the drawing."_ **That is no longer the rule.** Where `plan/admin-shell-poc/*.html` and a
 contract here disagree, the POC is the approved design and this document is what changes.
 
 The Code Owner's example, and the case that prompted the ruling: `question-editor-poc.html`
@@ -69,10 +69,9 @@ So the four "rail contracts" were four **screens** each drawing its own rail, an
 assumption that a single component must serve every screen - which is the assumption this
 document imposed, and which the ruling above removes.
 
-The consistency audit's framing needs reading in that light: what it recorded as *"the same
-eight questions answered two to seven different ways"* is, under this ruling, **per-screen
+The consistency audit's framing needs reading in that light: what it recorded as _"the same
+eight questions answered two to seven different ways"_ is, under this ruling, **per-screen
 specification** rather than inconsistency.
-
 
 **Wave 3 is unblocked.** Anything a POC draws that contradicts a contract here is
 wrong by definition, and that is now a statement about shipped work rather than
@@ -81,7 +80,7 @@ proposals, and this document is the tiebreak whenever they disagree.
 
 Original header follows.
 
-**Status:** draft for Code Owner confirmation, PM/PO seat, 2026-08-19. This is the
+**Status:** draft for Code Owner confirmation, 2026-08-19. This is the
 document `plan/admin-redesign-implementation-plan.md` §3 gates Wave 3 on: the
 eight questions `plan/admin-poc-consistency-audit.md` §4 found the eleven POCs
 answering two to seven different ways, each answered exactly once. Every contract
@@ -96,8 +95,8 @@ wrong by definition; the contract does not bend to the drawing.
 
 Several arguments in this document, and at least one instruction this seat gave a lane,
 treated "works without JavaScript" as an admin constraint. **It is not one.**
-`docs/PROJECT_GOAL.md:339` scopes it: the no-JS path exists for *"the browsers an
-institutional or government **respondent** runs"* - the portal. The admin's auth screens
+`docs/PROJECT_GOAL.md:339` scopes it: the no-JS path exists for _"the browsers an
+institutional or government **respondent** runs"_ - the portal. The admin's auth screens
 keep named no-JS route handlers for a different reason entirely (ADR-35 / SEC-1: not moving
 the flow into client JavaScript and republishing the endpoint set), which is an architecture
 constraint on that flow rather than a general rule.
@@ -105,7 +104,7 @@ constraint on that flow rather than a general rule.
 What this invalidates, named so it is not re-derived:
 
 - **§7's "rail items are anchors, not buttons" loses its no-JS justification.** An anchor is
-  still the right element for a row that *navigates* to another route, because that is what
+  still the right element for a row that _navigates_ to another route, because that is what
   an anchor means and it is what makes open-in-new-tab work. That half stands. The no-JS
   half does not, and it was never the admin's requirement.
 - **§7a's Settings rail was built on the wrong constraint.** #562 chose fragment anchors and
@@ -180,10 +179,8 @@ and flagged. They are governed now.
     carries the full id without JS - which it does since #510 headed those routes
     with their own entity. If a future table's detail route does not, the prefix
     rule still holds and the full id goes somewhere reachable without JS.
-  - Evidence this replaces: `docs/gates/pr-514/links-table-light-390.png`, where
-    `lnk_revoked` shatters to roughly one character per line, dates wrap to five
-    or six lines, rows run ~180px and the Revoke button is clipped - worse than
-    the nowrap-plus-scroll it replaced.
+  - This prevents long identifiers from breaking into one-character columns and
+    clipping row actions on compact screens.
 - **A timestamp column renders date, `HH:MM`, and the zone. No seconds.** Seconds
   cost width in every row to answer a question the detail route already answers.
   Admin renders UTC with the zone named (task 034; operator-local display is a
@@ -194,7 +191,7 @@ and flagged. They are governed now.
   split this contract exists to remove. Three kit tables lose a border at #514;
   that is convergence, and it is now written down rather than inferred.
 
-**Amendment, 2026-08-21 (PM/PO seat, escalated by PR #584): the prefix rule holds
+**Amendment, 2026-08-21 (escalated by PR #584): the prefix rule holds
 for opaque ids and inverts for derived ones.**
 
 The 2026-08-20 amendment was written against `ses_` and `lnk_` columns and reads
@@ -248,7 +245,7 @@ card's hands and into this contract's: rendering a derived id whole is now what
 the width has to accommodate, and the frozen card's 140px is evidence of an intent
 formed before the rule existed, not an authority against it.
 
-**Amendment, 2026-08-22 (PM/PO seat, from PR #624): a row that acts rather than navigates
+**Amendment, 2026-08-22 (from PR #624): a row that acts rather than navigates
 takes a button, not an anchor.**
 
 §2's row-action clause was written for tables whose rows go somewhere. `library-picker.tsx`
@@ -316,16 +313,14 @@ The two alternatives were both worse, and it is worth recording why so neither
 gets reinvented:
 
 - **Putting the fieldset inside the panel** yields two controls with identical
-  accessible names on one screen. That is not hypothetical here: the capture spec
-  refused to photograph two screens during #514 for exactly that defect ("Add
-  endpoint", then "Clear filters"), which is the third time this run a screenshot
-  gate caught something no other gate could.
+  accessible names on one screen. Accessibility checks must reject that duplicate
+  control structure.
 - **A scroll-to control** is a new interactive pattern with focus-management
   obligations, invented to satisfy a clause rather than to serve a user. Under
   §7a's lesson, a new pattern arriving to fill a contract gap is exactly the thing
   to refuse.
 
-**Amendment, 2026-08-21 (PM/PO seat): "and nothing else" means nothing that makes
+**Amendment, 2026-08-21: "and nothing else" means nothing that makes
 a claim about the failed read, not nothing at all.**
 
 Two PRs have now read the clause broadly - #571 (#514) and #593 (#543) - and both
@@ -412,8 +407,8 @@ decision.
 
 - **The top nav is not a centred bar to left-anchor. It is a capped bar, and no POC caps
   it.** Every POC that draws the shell writes `.topbar__inner { display: flex;
-  flex-wrap: wrap; align-items: center; gap: 1.25rem; padding: 0 1.25rem; min-height:
-  56px; }` with no `max-width` and no auto margin - ten of the eleven files, the eleventh
+flex-wrap: wrap; align-items: center; gap: 1.25rem; padding: 0 1.25rem; min-height:
+56px; }` with no `max-width` and no auto margin - ten of the eleven files, the eleventh
   being `auth-poc.html`, which drops the shell deliberately and so has no bar to cap. So `mx-auto` **and** `max-w-5xl` came off the bar, and off the footer with
   it. Removing the auto margin alone would have left a 1024px bar sitting at the left of a
   wider viewport, which is not a screen any POC draws.
@@ -456,7 +451,7 @@ Every screen states its model exactly once:
 Issue #518 implements the two shipped screens; this contract is what stops the
 POCs' third and fourth variants returning.
 
-**Amendment, 2026-08-21 (PM/PO seat, escalated by PR #585): one model per scope,
+**Amendment, 2026-08-21 (escalated by PR #585): one model per scope,
 not per screen.**
 
 "Every screen states its model exactly once" was true while a screen was one save
@@ -481,7 +476,7 @@ arbitrary second Save button anywhere, which is the opposite of what §6 is for.
   vocabularies stay apart for the same reason the strip carries no issue count.
 
 **The screen-level clause still binds at screen level.** The builder's ambient
-strip remains the only *screen-scope* save statement. A nested scope's statement
+strip remains the only _screen-scope_ save statement. A nested scope's statement
 is not a second one, provided it is visibly bound to its own scope rather than
 floating in the page chrome.
 
@@ -509,7 +504,7 @@ it belongs with #518's implementation, not here.
   component, not per-screen copies.
 - Rail items are anchors, not buttons.
 
-**Amendment, 2026-08-22 (PM/PO seat, owed twice): the rail shows each screen's own name,
+**Amendment, 2026-08-22: the rail shows each screen's own name,
 which for the version list is "History".**
 
 §7's sibling list writes **"Versions"**; the shipped copy catalog calls that screen
@@ -521,8 +516,8 @@ wrote the same paragraph of reasoning and each decided alone**. A third should n
 
 The reason is #561's and it is adopted verbatim because it is better than a preference:
 **the rail must not give a screen a second name for a place the breadcrumb and the screen's
-own copy already name.** §7's normative content is *which* siblings appear and *in what
-order*; both are honoured either way, so the wording was never the part doing work.
+own copy already name.** §7's normative content is _which_ siblings appear and _in what
+order_; both are honoured either way, so the wording was never the part doing work.
 
 So the rail reads the version list's own name, and §7's "Versions" above should be read as
 identifying the route (`/versions`), not prescribing a label. The same rule applies to any
@@ -536,8 +531,7 @@ its published versions. So `forms.tab.versions` is **"Version history"**, and th
 Builder / Preview / **Version history** / Links / Responses / Webhooks. That is this
 amendment being applied rather than revisited: the copy moved and the rail followed it.
 
-
-**Amendment, 2026-08-22 (PM/PO seat, from PR #621): the disclosure is one element at
+**Amendment, 2026-08-22 (from PR #621): the disclosure is one element at
 every width, and its summary stays visible when expanded.**
 
 §7 described the collapsed state and said nothing about the expanded one, which left
@@ -553,7 +547,7 @@ how an unexamined choice becomes the house pattern.
   more reliably than any hand-written `aria-expanded`.
 - **The `<summary>` is not a visible label above `--bp-sidebar`.** It remains in the
   markup, because it is the disclosure's control and removing it takes the semantics with
-  it, but it is not *shown* as a heading on a wide screen.
+  it, but it is not _shown_ as a heading on a wide screen.
 
   **Corrected 2026-08-22 by the Code Owner, overruling this seat.** The earlier text
   accepted the redundancy - the active item named once as the summary and again as the
@@ -562,6 +556,7 @@ how an unexamined choice becomes the house pattern.
   it reads as a stray page title above the rail, and the Code Owner's call is to remove it.
   The disclosure semantics are kept by hiding the summary visually rather than by dropping
   it, which costs no second code path.
+
 - **The Settings rail (§7a) follows the same mechanism**, being a different component with
   the same collapse behaviour. It does not get to answer this differently.
 
@@ -569,7 +564,7 @@ how an unexamined choice becomes the house pattern.
 is §7's contents; the split is what keeps §7a a distinct component that shares the column,
 the width and the collapse behaviour and nothing else.
 
-**Amendment, 2026-08-22 (PM/PO seat, escalated by PR #621): a step item is a fragment on
+**Amendment, 2026-08-22 (escalated by PR #621): a step item is a fragment on
 the builder, not a route.**
 
 §7 says the rail carries the form's steps and never said what a step item points at. The
@@ -580,8 +575,8 @@ answer is:
 
 **This is not a preference, it is the audit's own negative result.** `plan/admin-ux-audit.md`
 records that the POC "created the mismatch by moving to a step-scoped route and then had to
-split it back out", and concludes: *"the mismatch is a consequence of the rail's
-step-per-route model, not a pre-existing defect."* Step-per-route is the thing that produced
+split it back out", and concludes: _"the mismatch is a consequence of the rail's
+step-per-route model, not a pre-existing defect."_ Step-per-route is the thing that produced
 the scope bug D1 belongs to. A contract that adopts the rail while leaving its link target
 open invites the defect back through the one door it was known to come through.
 
@@ -592,7 +587,7 @@ against. §5.5 of the audit is the reason those anchors must keep working. So th
 the app's established focus-anchor rather than inventing navigation, and the two features now
 depend on the same id, which is a property to preserve rather than an accident.
 
-**Amendment, 2026-08-22 (PM/PO seat, escalated by PR #621 and issue #623): the rail sits
+**Amendment, 2026-08-22 (escalated by PR #621 and issue #623): the rail sits
 outside the capped content column.**
 
 Three rules met for the first time in #559 and none of them composed: §7 makes the rail a
@@ -613,11 +608,11 @@ child route rendered, a sibling rail needs a **parallel route slot**, and the sh
 has to understand one. #559 taught four files about it rather than filtering it out, which is
 the standard for the next two rails as well.
 
-**Amendment, 2026-08-22 (PM/PO seat, blocking #561): on the builder, the rail carries the
+**Amendment, 2026-08-22 (blocking #561): on the builder, the rail carries the
 sibling-screens group only.**
 
 PR #621 made Links its reference screen and declined to answer what the rail does on the
-**builder**, which already renders a step list that is an *editor* - buttons, same-page
+**builder**, which already renders a step list that is an _editor_ - buttons, same-page
 selection, add, rename, reorder, remove. Adding §7's children group there would put two step
 lists on one screen disagreeing about what a step row is. #561 wires all eight screens
 including the builder, so this cannot stay open.
@@ -639,12 +634,13 @@ new rule is needed and none is invented here.
   builder is the rule working, not a defect, and a reviewer should not read it as one.
 - **The builder's existing step editor remains the single step list**, and keeps its buttons.
   It is content, not navigation, which is why §7 never reached it.
-- **One shared component still.** Omitting a group is *data* passed to the rail, not a
+- **One shared component still.** Omitting a group is _data_ passed to the rail, not a
   per-screen copy of it, so the "no per-screen copies" clause is untouched.
 
-**What this does not settle.** Whether the builder's step editor should eventually *look*
+**What this does not settle.** Whether the builder's step editor should eventually _look_
 like the rail's step group, or move, is a builder-layout question and remains open. It is not
 answered by making it a second rail, and nothing here licenses that.
+
 ### 7a. Settings keeps a rail, as a written exception
 
 **[Code Owner ruling, 2026-08-20 - decision C1 closed]** Settings keeps its rail.
@@ -661,7 +657,7 @@ here, with its boundary defined. Two honest notes before the contract:
    something had to be drawn, because "Settings has a rail" without a scope is
    precisely the silent third contract the condition forbids.
 2. **This is a genuinely different pattern, not the same rail on another screen.**
-   The form-subtree rail (§7) carries navigation between *routes* and explicitly
+   The form-subtree rail (§7) carries navigation between _routes_ and explicitly
    never carries same-page section switches. A Settings rail can only carry
    same-page section switches, because Settings is one route. So the exception is
    not "the rail also appears on Settings" - it is a second, narrower component
@@ -703,7 +699,7 @@ separates the two). But the divergence becomes explicit: the admin sheet keeps
 its `--admin-*` names, gains an `--admin-type-*` heading scale (h1 1.4rem/700,
 h2 0.95rem/700, replacing every raw literal), and a comment block in each sheet
 names the counterpart token and why the value differs. What retires is the
-*unstated* difference, not the difference.
+_unstated_ difference, not the difference.
 
 **[Code Owner ruling, 2026-08-20 - closed]** Divergence confirmed, in the Code
 Owner's own framing: **"we are to treat portal and admin as different apps."**
@@ -737,8 +733,8 @@ portal's managed themes (ADR-30) are untouched.
 **Amendment, 2026-08-22 (Code Owner): "different apps" governs CONSTRAINTS, not only
 tokens.** The ruling above was written as a token decision and this seat read it that way,
 which is how a **portal** requirement ended up justifying an **admin** design (see the no-JS
-correction at the top of this document). The Code Owner has restated it twice: *"admin and
-end user portal have different constraints. This work stream is purely admin."*
+correction at the top of this document). The Code Owner has restated it twice: _"admin and
+end user portal have different constraints. This work stream is purely admin."_
 
 > **A constraint proven for the portal does not transfer to the admin, and must not be cited
 > in an admin decision without being established for the admin on its own terms.** The
@@ -751,8 +747,8 @@ end user portal have different constraints. This work stream is purely admin."*
 a second way of handling user-facing strings, and does not now.
 
 **The practical test**, since this seat failed it once: before citing a rule in an admin
-decision, find where it is *stated* and check what it is scoped to. `docs/PROJECT_GOAL.md`
-scopes the no-JS path to *"the browsers an institutional or government respondent runs"*.
+decision, find where it is _stated_ and check what it is scoped to. `docs/PROJECT_GOAL.md`
+scopes the no-JS path to _"the browsers an institutional or government respondent runs"_.
 That sentence names its own audience, and reading it would have prevented the error.
 
 ---
@@ -780,7 +776,7 @@ The sightings, verified against `origin/main` at `c9a5219` rather than recalled:
 **Tier 1, characters are lost.** Forbidden for an id, anywhere, by any mechanism.
 
 - **Ellipsis truncation.** §2 already forbids this, and it is restated here
-  because §2 reads as being about *tables* and the live instance is not one. The
+  because §2 reads as being about _tables_ and the live instance is not one. The
   app has exactly four `text-overflow: ellipsis` sites
   (`apps/admin/app/globals.css:540, 1007, 1152, 1736`) and **only one truncates an
   id**: `.qcms-opt-cell--id` at `:1007`, the option grid (**#595**). The other
@@ -798,7 +794,7 @@ banning it would force tier 1 in narrow containers.
   (`:1394`) sets `overflow-wrap: anywhere` and no ellipsis, so
   `q_accident_count_2nqps` renders as `q_accident_count_2nq` / `ps` with every
   character present (**#584**'s frame). A heading sitting flush against a card
-  edge is the same category (**#585**, reported by the dev seat; not
+  edge is the same category (**#585**, reported during implementation; not
   independently verified here).
 - **The harm is real anyway, and it is the harm §2's anti-ellipsis clause
   names:** the first line alone reads as a plausible complete id. Nothing on
@@ -813,7 +809,7 @@ banning it would force tier 1 in narrow containers.
 That is not a new mechanism. It is §2's copy control, which exists for exactly
 this reason, applied wherever ids appear rather than only in tables. It also
 means a narrow container is no longer a design emergency: wrapping is acceptable
-*because* the value is recoverable, and truncation stays forbidden *because* it
+_because_ the value is recoverable, and truncation stays forbidden _because_ it
 is not.
 
 **The positive precedent, so the rule is not read as "never truncate anything".**
@@ -836,7 +832,7 @@ components each deciding locally and correctly-by-their-own-clause.
 ## What confirmation unblocks
 
 Wave 3 (`plan/admin-redesign-implementation-plan.md` §3): the form-subtree rail,
-the per-screen width caps, and the scope rule in the wireframe format spec - all
+the per-screen width caps, and the scope rule in the screen contract format spec - all
 implemented against these contracts rather than against whichever POC an
 implementer opens first. The Wave 4 regeneration then brings all eleven POCs into
 line with the same answers in one pass - now nine of them, since §9 binds any POC

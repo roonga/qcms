@@ -71,8 +71,7 @@ export function selectVersion(
  * Newest first is the POC's order and the shipped timeline's before it: the version an
  * author is most likely to want is the one they do not have to scroll a decade of history
  * to reach. Each row is an anchor to `?v={n}` on this same route, because a version is not
- * a route here - which is the distinction `docs/wireframes/admin-question-library.md`
- * draws against `/forms/{id}/versions/{v}`, where a version IS one.
+ * a route here, unlike `/forms/{id}/versions/{v}`, where a version is one.
  */
 export function versionRailItems(
   questionId: string,

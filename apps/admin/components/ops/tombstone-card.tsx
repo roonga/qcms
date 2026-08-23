@@ -9,7 +9,7 @@ import { formatDateTime } from "@/lib/i18n/format";
 import { t } from "@/lib/i18n/en";
 
 /**
- * What remains of an erased response (task 035, ADR-17; wireframe "detail erased
+ * What remains of an erased response (task 035, ADR-17; screen contract "detail erased
  * (tombstone)").
  *
  * Its own module, because it is rendered from two places for two different reasons.

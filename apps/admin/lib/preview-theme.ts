@@ -23,8 +23,8 @@
  * `MIN_PASSWORD_LENGTH` makes in `lib/server/config.ts`. A drift here is visible rather
  * than dangerous: an unknown key falls back to the base theme, which is exactly what
  * the portal does with the same environment variable, so the worst outcome is a
- * switcher that offers one theme fewer than a deployment can serve. Task 049's custom
- * themes extend this list; nothing else has to move for them.
+ * switcher that offers one theme fewer than a deployment can serve. Phase 4 custom
+ * themes can extend this list without moving the rest of the preview contract.
  *
  * ## Why `slate` is the base and not a `[data-theme]` block
  *

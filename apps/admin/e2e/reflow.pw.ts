@@ -21,12 +21,8 @@ import { submitResponse } from "./support/ops.js";
  * sideways. Issue 616's defect was found by a width spec that was looking at
  * something else entirely, and it had been shipping for as long as the screen had.
  *
- * The individual gate captures each carry an overflow guard of their own
- * (`support/capture.ts`, and the soft check in `gate-557.pw.ts` and `gate-558.pw.ts`),
- * but those only cover the screens some gate happened to photograph, only at the
- * widths that gate chose, and only when `QCMS_ADMIN_CAPTURE_GATE=1` is set. This one
- * runs in the ordinary browser suite, over every screen, at the width the criterion
- * actually names.
+ * This spec runs in the ordinary browser suite over every screen at the width the
+ * criterion names.
  *
  * ## Why 320 and not only 390
  *

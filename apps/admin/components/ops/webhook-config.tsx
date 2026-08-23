@@ -20,7 +20,7 @@ export interface WebhookActionState {
 const IDLE: WebhookActionState = { status: "idle" };
 
 /**
- * Per-form webhook configuration (task 035; wireframe "webhook config").
+ * Per-form webhook configuration (task 035; screen contract "webhook config").
  *
  * ## The secret is a state of this screen, not a column of the table
  *
@@ -407,7 +407,7 @@ export function WebhookConfig({
  *
  * The panel is the **content** of an assertive live region rather than the region
  * itself (issue #307): its caller keeps an empty `aria-live="assertive"` container
- * mounted and this panel appears inside it. Assertive because the wireframe's a11y
+ * mounted and this panel appears inside it. Assertive because the screen contract's a11y
  * note asks for it and the reason is the content, not the style: this panel is the
  * only chance to capture the value, and a polite announcement can be queued behind
  * whatever else the page is saying.

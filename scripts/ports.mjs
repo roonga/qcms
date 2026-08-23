@@ -124,7 +124,7 @@ export const HARNESS_SERVICES = {
 export function resolvePortSeat(raw) {
   const value = raw?.trim() ?? "";
   if (value === "") return DEFAULT_PORT_SEAT;
-  if (!/^[0-9]$/.test(value)) {
+  if (!/^\d$/.test(value)) {
     throw new Error(
       `${PORT_SEAT_ENV_VAR}="${raw ?? ""}" is not a valid port seat. ` +
         `It must be a single digit ${MIN_PORT_SEAT}-${MAX_PORT_SEAT} ` +

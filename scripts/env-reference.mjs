@@ -1021,20 +1021,36 @@ function defaultCell(entry) {
   return entry.fallback === "" ? "(none)" : `\`${entry.fallback}\``;
 }
 
+/**
+ * Render a Markdown table in the same aligned form Prettier enforces.
+ * @param {string[][]} rows header followed by body rows.
+ * @returns {string[]}
+ */
+function markdownTable(rows) {
+  const widths = rows[0].map((_, index) =>
+    Math.max(3, ...rows.map((row) => (row[index] ?? "").length)),
+  );
+  const renderRow = (row) =>
+    `| ${row.map((cell, index) => cell.padEnd(widths[index])).join(" | ")} |`;
+  return [
+    renderRow(rows[0]),
+    renderRow(widths.map((width) => "-".repeat(width))),
+    ...rows.slice(1).map(renderRow),
+  ];
+}
+
 /** The generated block, marker to marker. */
 export function renderEnvReference() {
   const lines = [BEGIN_MARKER, ""];
   for (const group of GROUPS) {
     const rows = ENV_REFERENCE.filter((entry) => entry.process === group.process);
     lines.push(`#### ${group.title}`, "", group.blurb, "");
-    lines.push("| Variable | Required | Default | Meaning |");
-    lines.push("| --- | --- | --- | --- |");
+    const table = [["Variable", "Required", "Default", "Meaning"]];
     for (const entry of rows) {
       const name = entry.secret === true ? `\`${entry.name}\` (secret)` : `\`${entry.name}\``;
-      lines.push(
-        `| ${name} | ${requirementCell(entry)} | ${defaultCell(entry)} | ${entry.description} |`,
-      );
+      table.push([name, requirementCell(entry), defaultCell(entry), entry.description]);
     }
+    lines.push(...markdownTable(table));
     lines.push("");
   }
   lines.push(END_MARKER);

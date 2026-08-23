@@ -1,6 +1,6 @@
 # Admin UX audit: how far the form-editor design language should travel
 
-**Status:** working analysis, PM/PO seat, 2026-08-18 · **Subject:** every authenticated screen under `apps/admin/app/(shell)/` · **Tested against:** `plan/admin-shell-poc/admin-shell-poc.html`, `plan/admin-shell-poc/rules-screen-poc.html`
+**Status:** working analysis, 2026-08-18 · **Subject:** every authenticated screen under `apps/admin/app/(shell)/` · **Tested against:** `plan/admin-shell-poc/admin-shell-poc.html`, `plan/admin-shell-poc/rules-screen-poc.html`
 
 Nothing was run. Every claim about current behaviour is read from the source and cited by file and line.
 
@@ -20,24 +20,24 @@ Where a note says a finding is closed, the closing PR's own code was read at the
 
 Verdicts: **adopt** (take as drawn), **adapt** (take the idea, change the form), **reject** (wrong for this screen), **n/a** (nothing to apply it to).
 
-| # | Screen (route) | Scope | Shape | 1 rail | 2 width | 3 collapse+digest | 4 ownership grid | 5 row menu | 6 scope fix | 7 ambient save |
-|---|---|---|---|---|---|---|---|---|---|---|
-| 1 | `/questions` | library (all questions) | list | reject | reject | reject | n/a | adapt | n/a (correct) | n/a |
-| 2 | `/questions/new` | one new question | form | reject | reject | reject | adopt (already ships) | adopt (already ships) | n/a (correct) | reject |
-| 3 | `/questions/[questionId]` | one question, one version | mixed (nav + preview + form) | adapt | reject | adapt (versions only) | adopt (already ships) | adopt (already ships) | n/a (correct) | reject |
-| 4 | `/forms` | library (all forms) | list + create | reject | reject | reject | n/a | adapt | n/a (correct) | n/a |
-| 5 | `/forms/[formId]` (builder) | one form, all steps | mixed (editor) | **adopt** | **adopt** | **adopt** | **adopt** | adapt (already ships) | adapt (see §3.5) | **adopt** |
-| 6 | `/forms/[formId]/preview` | one form's draft | detail (rendered) | adopt | **reject** | reject | n/a | n/a | n/a (correct) | n/a |
-| 7 | `/forms/[formId]/versions` | one form, all versions | list + tool | adopt | adopt | adapt (diff only) | n/a | n/a | n/a (correct) | n/a |
-| 8 | `/forms/[formId]/versions/[version]` | **one version** | detail (rendered) | adopt | **reject** | reject | n/a | n/a | **adopt (broken today)** | n/a |
-| 9 | `/forms/[formId]/links` | one form's links | list + one-time panel | adopt | adopt | **reject** (see §5.2) | n/a | adapt | n/a (correct) | n/a |
-| 10 | `/forms/[formId]/responses` | one form's responses | list | adopt | adopt | reject | n/a | n/a | n/a (correct) | n/a |
-| 11 | `/forms/[formId]/responses/[sessionId]` | **one response** | detail | adopt | reject | adapt (ledger) | n/a | n/a | **adopt (broken today)** | n/a |
-| 12 | `/forms/[formId]/webhooks` | one form's endpoints | mixed (config + dashboard) | adopt | **adopt** | adapt (already ships) | **reject** (see §5.1) | adapt | n/a (correct) | n/a |
-| 13 | `/responses` | deployment (index) | index | reject | reject | reject | n/a | n/a | n/a (correct) | n/a |
-| 14 | `/responses/erasures` | deployment (log) | list | reject | adapt | reject | n/a | n/a | n/a (correct) | n/a |
-| 15 | `/webhooks` | deployment (queue + index) | list + index | reject | **adopt** | reject | n/a | adapt | n/a (correct) | n/a |
-| 16 | `/settings` | one account | form | reject | **reject** | reject | n/a | n/a | n/a (correct) | reject |
+| #   | Screen (route)                          | Scope                      | Shape                        | 1 rail    | 2 width    | 3 collapse+digest     | 4 ownership grid      | 5 row menu            | 6 scope fix              | 7 ambient save |
+| --- | --------------------------------------- | -------------------------- | ---------------------------- | --------- | ---------- | --------------------- | --------------------- | --------------------- | ------------------------ | -------------- |
+| 1   | `/questions`                            | library (all questions)    | list                         | reject    | reject     | reject                | n/a                   | adapt                 | n/a (correct)            | n/a            |
+| 2   | `/questions/new`                        | one new question           | form                         | reject    | reject     | reject                | adopt (already ships) | adopt (already ships) | n/a (correct)            | reject         |
+| 3   | `/questions/[questionId]`               | one question, one version  | mixed (nav + preview + form) | adapt     | reject     | adapt (versions only) | adopt (already ships) | adopt (already ships) | n/a (correct)            | reject         |
+| 4   | `/forms`                                | library (all forms)        | list + create                | reject    | reject     | reject                | n/a                   | adapt                 | n/a (correct)            | n/a            |
+| 5   | `/forms/[formId]` (builder)             | one form, all steps        | mixed (editor)               | **adopt** | **adopt**  | **adopt**             | **adopt**             | adapt (already ships) | adapt (see §3.5)         | **adopt**      |
+| 6   | `/forms/[formId]/preview`               | one form's draft           | detail (rendered)            | adopt     | **reject** | reject                | n/a                   | n/a                   | n/a (correct)            | n/a            |
+| 7   | `/forms/[formId]/versions`              | one form, all versions     | list + tool                  | adopt     | adopt      | adapt (diff only)     | n/a                   | n/a                   | n/a (correct)            | n/a            |
+| 8   | `/forms/[formId]/versions/[version]`    | **one version**            | detail (rendered)            | adopt     | **reject** | reject                | n/a                   | n/a                   | **adopt (broken today)** | n/a            |
+| 9   | `/forms/[formId]/links`                 | one form's links           | list + one-time panel        | adopt     | adopt      | **reject** (see §5.2) | n/a                   | adapt                 | n/a (correct)            | n/a            |
+| 10  | `/forms/[formId]/responses`             | one form's responses       | list                         | adopt     | adopt      | reject                | n/a                   | n/a                   | n/a (correct)            | n/a            |
+| 11  | `/forms/[formId]/responses/[sessionId]` | **one response**           | detail                       | adopt     | reject     | adapt (ledger)        | n/a                   | n/a                   | **adopt (broken today)** | n/a            |
+| 12  | `/forms/[formId]/webhooks`              | one form's endpoints       | mixed (config + dashboard)   | adopt     | **adopt**  | adapt (already ships) | **reject** (see §5.1) | adapt                 | n/a (correct)            | n/a            |
+| 13  | `/responses`                            | deployment (index)         | index                        | reject    | reject     | reject                | n/a                   | n/a                   | n/a (correct)            | n/a            |
+| 14  | `/responses/erasures`                   | deployment (log)           | list                         | reject    | adapt      | reject                | n/a                   | n/a                   | n/a (correct)            | n/a            |
+| 15  | `/webhooks`                             | deployment (queue + index) | list + index                 | reject    | **adopt**  | reject                | n/a                   | adapt                 | n/a (correct)            | n/a            |
+| 16  | `/settings`                             | one account                | form                         | reject    | **reject** | reject                | n/a                   | n/a                   | n/a (correct)            | reject         |
 
 Counting the rail column: **8 adopt or adapt, 8 reject.** That is the whole argument about element 1 in one line.
 
@@ -145,11 +145,11 @@ These are live today, cost nothing to decide now, and get more expensive with ev
 
 > **Fixed as of 2026-08-22.** Issue 514 made the three treatments one visual family (`qcms-table`), and issue 570 finished the job behaviourally: all four kit tables are hand-authored now, so the table below is a record of what shipped in August 2026 rather than a description of the app. Every table is the last row's shape, and the count is ten rather than nine (the library picker was omitted here).
 
-| Treatment | Where | Rows activate | Works without JS | Cells can hold controls |
-|---|---|---|---|---|
-| Kit `Table` + `onRowAction` | `components/questions/questions-table.tsx`, `app/(shell)/forms/forms-table.tsx`, `components/forms/library-picker.tsx` | yes (whole row) | no | no (strings only) |
-| Kit `Table` static | `components/forms/version-history.tsx` | no | yes (read-only) | no |
-| Hand-authored `qcms-ops-table` / `qcms-links-table` | `components/ops/response-browser.tsx:203`, `app/(shell)/responses/erasures/page.tsx:54`, `components/ops/webhook-config.tsx:164`, `components/ops/dead-letters.tsx:155`, `components/ops/delivery-dashboard.tsx:57`, `components/forms/secure-links.tsx:435` | no (anchor in the row header) | yes for the links | yes |
+| Treatment                                           | Where                                                                                                                                                                                                                                                        | Rows activate                 | Works without JS  | Cells can hold controls |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------- | ----------------- | ----------------------- |
+| Kit `Table` + `onRowAction`                         | `components/questions/questions-table.tsx`, `app/(shell)/forms/forms-table.tsx`, `components/forms/library-picker.tsx`                                                                                                                                       | yes (whole row)               | no                | no (strings only)       |
+| Kit `Table` static                                  | `components/forms/version-history.tsx`                                                                                                                                                                                                                       | no                            | yes (read-only)   | no                      |
+| Hand-authored `qcms-ops-table` / `qcms-links-table` | `components/ops/response-browser.tsx:203`, `app/(shell)/responses/erasures/page.tsx:54`, `components/ops/webhook-config.tsx:164`, `components/ops/dead-letters.tsx:155`, `components/ops/delivery-dashboard.tsx:57`, `components/forms/secure-links.tsx:435` | no (anchor in the row header) | yes for the links | yes                     |
 
 Six of the nine tables are hand-authored. The two kit tables that navigate are the two that cannot be opened in a new tab. The two class names `qcms-links-table` and `qcms-ops-table` are already selector-listed together in `app/globals.css:1271-1272` with a comment explaining they are the same thing, which is the code telling us it wants to be one class.
 
@@ -158,8 +158,6 @@ There is also a **frozen design card for this** (`plan/admin-theme/ds-table.html
 > **Half closed by issue 514 (PR #571), 2026-08-20.** The three treatments are one class family now: `.qcms-table` (`app/globals.css:632`), with `qcms-ops-table` and `qcms-links-table` surviving only in the comment at `:602-603` that records what they were.
 >
 > **Closed by issue 570 (PR #624), merged 2026-08-22 as `434d5c9`.** The whole entry is now settled: one class family from #514, real anchors from #570. `onRowAction` remains the navigation on the kit tables (`app/(shell)/forms/forms-table.tsx:38`, `components/questions/questions-table.tsx:51`, `components/forms/library-picker.tsx:84`), so the two tables that navigate are still the two that cannot be opened in a new tab - which was this entry's sharpest point and is the one a shared stylesheet could never fix. `plan/admin-design-contracts.md` §2 requires a real anchor in the identifying cell; `questions-table.tsx:28` already carries a comment saying so, which makes it the rare case of shipped code documenting the rule it does not yet meet.
-
-
 
 ### 4.2 Two empty-state treatments
 
@@ -196,7 +194,7 @@ The builder autosaves on a 600ms debounce with an advisory issue list (`componen
 > **Closed by issue 518 (PR #585), merged 2026-08-22 as `9d5614c`.** Two things this entry did not see, both surfaced by implementing it:
 >
 > - **"Every screen states its model exactly once" does not survive contact with the builder**, because the builder is not one save model: it embeds `FormSettingsPanel`, which has its own persistence, its own control and its own live region. §6 is amended to **one model per scope, not per screen** (PR #594), with a nested scope that persists stating its own model and a non-persisting sandbox allowed only to disclaim that it does not persist. Written as one rule about embedded statements it would have licensed an arbitrary second Save button anywhere.
-> - **Naming the save model correctly exposed an unnamed failure model.** The builder's validate round trip is a second call the save strip knows nothing about, so removing the (false) "The last save failed." left a failed validation surfaced nowhere - and the issue count resets rather than going stale, rendering "No issues. Everything here would pass a publish." beside the Publish button. Filed as **#586** and carried as a rider on #585. Two save models was the visible half of the question; how many *outcomes* the screen has to state was the half underneath it.
+> - **Naming the save model correctly exposed an unnamed failure model.** The builder's validate round trip is a second call the save strip knows nothing about, so removing the (false) "The last save failed." left a failed validation surfaced nowhere - and the issue count resets rather than going stale, rendering "No issues. Everything here would pass a publish." beside the Publish button. Filed as **#586** and carried as a rider on #585. Two save models was the visible half of the question; how many _outcomes_ the screen has to state was the half underneath it.
 
 ---
 
@@ -272,7 +270,7 @@ In both cases the document title region describes the parent while the content i
 > **Closed by issue 510 (PR #539), 2026-08-20.** Both routes are headed with their own entity. Two things it left behind, and both are worth reading as part of this finding rather than as unrelated bugs:
 >
 > - **#537**: version-detail now renders **two** `<h1>`s, because the stored A2UI document emits the form title as a page-level heading of its own. Fixing the header did not make the route's heading outline correct; it revealed the second source.
-> - **#574**: version-detail and response-detail have **no Regions inventory** in the wireframes, which is how D1 happened in the first place. The defect was downstream of a gap in the normative spec, so fixing the render without filling that gap leaves the next screen exposed the same way.
+> - **#574**: version-detail and response-detail have **no Regions inventory** in the screen contracts, which is how D1 happened in the first place. The defect was downstream of a gap in the normative spec, so fixing the render without filling that gap leaves the next screen exposed the same way.
 >
 > Note also that the "two browser tabs are indistinguishable" argument here is about the `<h1>`; the **document title** is a separate and still-open defect (**#536**: every page shares one static `<title>`).
 
@@ -306,11 +304,11 @@ When `forms.ok` is false the ternary takes the **else** branch, so an empty `<ul
 >
 > The generalisation is worth stating because this entry's own framing understated it: the defect is not a stray ternary in two files, it is that **a failed read and an empty result are the same value by the time the component sees it**. `plan/admin-design-contracts.md` §3, as amended 2026-08-21, draws the line as **claim versus capability**: a failed read costs the screen its right to describe the collection, not its controls. #572's conclusion - pass an explicit failed-versus-empty distinction into the components rather than collapsing both at the page boundary - is the structural fix.
 
-### D5. An unrecorded wireframe deviation on the response browser - closed by building the column
+### D5. The response browser lacked its required answer-preview column - closed
 
-`docs/wireframes/admin-responses-ops.md` (normative Regions) specifies the browser table as "sessionId, formVersion, submittedAt, accessMode, flagged `tag`, **answer preview**". The shipped table had five columns and no answer preview.
+The response browser requires six columns: sessionId, formVersion, submittedAt, accessMode, flagged `tag`, and **answer preview**. The shipped table had five columns and no answer preview.
 
-This entry originally offered two ways out and leaned toward the wrong one: it suggested the omission "may well be right" on privacy grounds and asked only that the deviation be **recorded**, in the form the question-library wireframe uses for its dropped "Updated" column. That question has since been asked and answered the other way, in issue 515: the column is built, not deviated from. The wireframe was right, and a preview is only a privacy problem if it is unbounded, which is a property of the implementation rather than of the column.
+Issue 515 resolved the privacy concern by building a bounded preview rather than omitting the column. A preview is only a privacy problem if it is unbounded, which is a property of the implementation rather than of the column.
 
 **Resolved by issue 515.** The column ships bounded by construction: two answered questions per row, each value clipped to a character budget on the string that becomes the text node, no tooltip holding the untruncated value, and nothing on the path logging one (SEC-13). It carries a question id rather than a resolved label, because the list payload has no labels and one page mixes form versions. It is also the column that drops at compact width, which is this table's answer to `plan/admin-design-contracts.md` §2's compact-width clause.
 
@@ -340,8 +338,9 @@ Ordered by value against effort. What I would do first, and what I would not do 
    > **Two corrections, 2026-08-20.** This item originally also asked for the **version-detail** route to be added to the sweep. It is already there (`apps/admin/e2e/a11y-axe.pw.ts:604`) and was when this was written; the claim was wrong, not merely overtaken. And enabling `heading-order` turned out to surface two **pre-existing** violations outside the fix's own diff, filed as #540 and #541 and parked in a `KNOWN_HEADING_ORDER_GAPS` register - a ratchet that still fails on a new node, an unregistered state, or any other rule. Enabling a dormant rule on a shipped app is rarely the one-line change an audit item makes it sound like; budget for the debt it exposes. **#541's entry is already gone**: issue 519's digest work put an `h3` above the delivery panel's `h4`s, which repaired the skip, so the entry was deleted in the same change rather than left to re-arm a mute nobody granted. #540 (`version-history.tsx`) is the one still registered.
    >
    > **This document is maintained, not frozen** (ruled 2026-08-20). It is a working audit that the tier is executing against, so a claim it makes that stops being true gets corrected here rather than preserved with a dated note appended. That is the opposite of the convention for `docs/security-review-2026-08-14.md`, whose table column is literally headed "State at close of review" and which stays frozen. The difference is what the document is for: a review snapshot records what was true on a date; an audit drives work and has to stay accurate to be usable.
+
 3. **Pick one empty state and one table treatment.** The frozen `plan/admin-theme/ds-table.html` card already exists and is followed by nothing; either the card changes or the nine tables do, but three answers to one question is not a position. This is the single change that most affects how the app reads, and it touches no behaviour.
-4. ~~**Record D5** as an accepted deviation in `docs/wireframes/admin-responses-ops.md`.~~ **Superseded, 2026-08-20:** issue 515 built the column instead, so there is no deviation left to record and the wireframe and the app now agree. See D5 above.
+4. ~~**Record D5** as an accepted deviation.~~ Issue 515 built the column instead, so there is no deviation left to record. See D5 above.
 
 **Then, the elements that are already house patterns.**
 
@@ -352,7 +351,7 @@ Ordered by value against effort. What I would do first, and what I would not do 
 **Then, and only with a written contract first.**
 
 8. **Elements 1 and 2 on the form subtree only.** Eight screens, one rail, one raised cap on the five screens that earn it and a **lowered** one on the two preview surfaces. Before this starts, the rail's contract has to be written down: what it carries, and specifically whether it carries children (steps, versions) or siblings (sections) or both, because §3.2 shows the two meanings colliding on the very next screen anyone will want to apply it to.
-9. **Element 6 as a written rule** in the wireframe format spec, since the Regions inventories are the normative artifact and this is a rule about them: a screen's h1 names the entity its content is scoped to. That is a one-paragraph amendment that makes D1 impossible to reintroduce.
+9. **Element 6 as a written rule:** a screen's h1 names the entity its content is scoped to.
 
 **What I would not do at all.**
 

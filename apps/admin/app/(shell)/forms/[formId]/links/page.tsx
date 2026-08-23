@@ -12,7 +12,7 @@ import { requireAdminSession } from "@/lib/server/session";
 import { mintLinksAction, revokeLinkAction } from "../../actions";
 
 /**
- * The secure-link screen (task 034; wireframe "secure links").
+ * The secure-link screen (task 034; screen contract "secure links").
  *
  * Two reads, run together because they are independent: the form (for its identity and
  * whether it has a published version to point a link at) and the link list. A links read

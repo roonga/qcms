@@ -17,9 +17,9 @@ const TONE_GLYPH: Record<MessageTone, string> = {
 };
 
 /**
- * A single-message screen (wireframe companion screens: link errors, form-closed,
+ * A single-message screen (screen contract companion screens: link errors, form-closed,
  * resume-recovery, expired). Error-tone screens carry `role="alert"` per the
- * wireframe's typed-error pages. Structure is kept sound for 030's a11y pass.
+ * screen contract's typed-error pages. Structure is kept sound for 030's a11y pass.
  */
 export function MessageScreen({
   tone,

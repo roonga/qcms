@@ -201,21 +201,6 @@ export const ALLOWED = [
     why: "records why 'unconfigured' must mean silent: the exporter's default would dial this.",
   },
   {
-    file: "docs/PROJECT_GOAL.md",
-    value: 4318,
-    why: "same reasoning inside ADR-34.",
-  },
-  {
-    file: "docs/features/054-observability-otel-baseline.md",
-    value: 4318,
-    why: "same reasoning inside the task that implemented ADR-34.",
-  },
-  {
-    file: "docs/features/001-repo-bootstrap.md",
-    value: 5432,
-    why: "a completed work order, recording the connection string of the day. History, not live configuration.",
-  },
-  {
     file: "apps/api/src/features/webhooks/ssrf.test.ts",
     value: 8443,
     why: "an arbitrary destination in an SSRF fixture URL: the point is that it is somewhere else, and nothing binds it.",

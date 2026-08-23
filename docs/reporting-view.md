@@ -27,7 +27,7 @@ One row per **submitted** session.
 | Column         | Type               | Semantics                                                                                     |
 | -------------- | ------------------ | --------------------------------------------------------------------------------------------- |
 | `session_id`   | `text`             | The response's session id (`ses_…`). Stable, never reused (R6).                               |
-| `form_id`      | `text`             | The form the session answered (`frm_…`).                                                       |
+| `form_id`      | `text`             | The form the session answered (`frm_…`).                                                      |
 | `form_version` | `integer`          | The **pinned** published version the session ran on (I4 - a session never migrates versions). |
 | `submitted_at` | `timestamptz`      | When the submission lock was written (the audit instant, I6/I9).                              |
 | `access_mode`  | `access_mode` enum | How the respondent reached the form: `anonymous` or `secure_link`.                            |
@@ -178,10 +178,10 @@ operations; the retention scheduler in the API process invokes them.
 
 ### Default session TTLs
 
-| Access mode   | Default TTL                | Notes                                                              |
-| ------------- | -------------------------- | ------------------------------------------------------------------ |
+| Access mode   | Default TTL                | Notes                                                               |
+| ------------- | -------------------------- | ------------------------------------------------------------------- |
 | `anonymous`   | **24 hours** from creation | `DEFAULT_ANONYMOUS_SESSION_TTL_MS`; tunable via `SessionTtlConfig`. |
-| `secure_link` | **= the link's expiry**    | The session expires with its link (SEC-2), never after it.         |
+| `secure_link` | **= the link's expiry**    | The session expires with its link (SEC-2), never after it.          |
 
 `sessionExpiresAt({ accessMode, now, linkExpiresAt?, config? })` computes a new session's
 `expiresAt` from this policy - the single place the launch TTL numbers live, so the API's

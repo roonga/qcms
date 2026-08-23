@@ -584,8 +584,7 @@ export function OptionGridEditor({
                   // mock showed (`opt_8f2ka91m`); the Code Owner's minting ruling keeps ids
                   // LABEL-DERIVED, so a real one (`opt_roadside_assistance`) overflows that
                   // width. An author writing a rule reads option ids raw, so this at least
-                  // makes the whole one recoverable. Flagged for the screenshot gate: the
-                  // column width is the card's call to revisit, not this task's to change.
+                  // makes the whole value recoverable without widening the column.
                   title={
                     row.optionId ??
                     `${t("questions.options.idPending")}: ${t("questions.options.idPendingTitle")}`

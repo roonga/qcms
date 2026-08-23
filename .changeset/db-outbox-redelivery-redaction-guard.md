@@ -6,7 +6,7 @@ Refuse to reset a redacted outbox event for redelivery, instead of stranding it
 (issue #433).
 
 `resetForRedelivery` cleared `delivered_at` and `dead_lettered_at` without looking at
-`payload_redacted_at`, and `claimDue` filters *on* `payload_redacted_at`. So resetting
+`payload_redacted_at`, and `claimDue` filters _on_ `payload_redacted_at`. So resetting
 an event whose answers had been removed left it in the one state nothing recovers
 from: reading as pending, claimed by no deliverer, revisited by nothing. Erasure has
 been able to produce a redacted event since task 059, and issue #329's retention sweep

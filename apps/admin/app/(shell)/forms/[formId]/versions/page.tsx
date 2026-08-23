@@ -8,7 +8,7 @@ import { getForm, getFormVersion } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
 
 /**
- * The version history (task 034; wireframe "version history", ADR-18).
+ * The version history (task 034; screen contract "version history", ADR-18).
  *
  * ## Why the definitions are loaded here
  *

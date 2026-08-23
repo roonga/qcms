@@ -11,8 +11,9 @@ High-contrast mode layer (task 051, ADR-30).
   `sand`, `plum`), each authored Light and Dark, selected with `data-theme` on the
   root and a mode root class;
 - **typography** - `--font-portal` plus a `--type-*` scale that carries the WCAG
-  1.4.12 floors as token values (body >= 16px, line-height >= 1.5, letter-spacing
-  >= 0.12em, word-spacing >= 0.16em, paragraph spacing >= 2em);
+  1.4.12 floors as token values (body `>= 16px`, line-height `>= 1.5`,
+  letter-spacing `>= 0.12em`, word-spacing `>= 0.16em`, paragraph spacing
+  `>= 2em`);
 - **spacing** - `--space-control-h` / `-control-pad-x` / `-field-gap` /
   `-section-pad` / `-stack`;
 - **radius** - `--radius-control` / `-card` / `-sm` with the four corner presets

@@ -8,13 +8,13 @@ import { readAuthCookie, TWO_FACTOR_COOKIE } from "@/lib/server/auth-api";
 import { SIGN_IN_PATH } from "@/lib/server/session";
 
 /**
- * Recovery-code entry (task 031; wireframe state `2FA-recovery-entry`).
+ * Recovery-code entry (task 031; screen contract state `2FA-recovery-entry`).
  *
  * A separate route rather than a toggle on the challenge screen, for the same reason
  * the rest of this flow is route-based: it works without JavaScript, it is
  * linkable, and each state is one server-rendered page a test can land on directly.
  * The "use your authenticator app instead" link back makes the pair navigable in both
- * directions, which the wireframe's two states imply.
+ * directions, which the screen contract's two states imply.
  *
  * Same pending-challenge precondition as the TOTP screen, and the same silence about
  * the account.

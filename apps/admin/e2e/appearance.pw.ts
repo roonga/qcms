@@ -392,7 +392,7 @@ test("the appearance trigger is borderless at rest and bordered in High-contrast
 test("both topbar triggers are 32px squares, not stretched by the control floor", async ({
   page,
 }) => {
-  // A regression the screenshot gate caught by eye: the bare `button` rule sets
+  // The bare `button` rule sets
   // `min-block-size: var(--admin-control-h)` (40px), and a min-block-size beats a
   // block-size, so both triggers rendered 32 wide by 40 tall. On the avatar, whose
   // `border-radius: 50%` turns any non-square box into an oval, it was obvious; on the
@@ -450,8 +450,7 @@ test("the menu popover and its rows take their metrics from the tokens", async (
 
   // Row metrics: a 38px row with 10px of inline padding, per the card. These are the
   // numbers that make the check glyph and the label sit where they were drawn, and a
-  // silent change to either is exactly what a screenshot gate cannot be relied on to
-  // catch at a glance.
+  // silent change to either needs an exact computed-style assertion.
   expect(await computed(item, "block-size")).toBe("38px");
   expect(await computed(item, "padding-inline-start")).toBe("10px");
   expect(await computed(item, "padding-inline-end")).toBe("10px");

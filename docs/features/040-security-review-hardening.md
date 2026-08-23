@@ -6,7 +6,7 @@
 
 ## Context
 
-The structured pre-launch security pass. Most controls were built inside feature tasks; this task *verifies them as a system*, adds the cross-cutting hardening that has no single feature home, and produces the evidence 038 requires (zero open high-severity findings).
+The structured pre-launch security pass. Most controls were built inside feature tasks; this task _verifies them as a system_, adds the cross-cutting hardening that has no single feature home, and produces the evidence 038 requires (zero open high-severity findings).
 
 ## Deliverables
 

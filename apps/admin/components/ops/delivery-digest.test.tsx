@@ -20,9 +20,8 @@ import { stripTags } from "../test-support/markup.ts";
  * values is the whole comparison - no jsdom, no browser, and no reliance on a fixture
  * that has to be driven to a particular status first.
  *
- * The browser half of the coverage is elsewhere and stays there: `a11y-axe.pw.ts` opens a
- * real row and now runs `heading-order` over it with no register entry to excuse the
- * panel, and `docs/gates/pr-519/` carries the collapsed and expanded frames.
+ * The browser half of the coverage is in `a11y-axe.pw.ts`, which opens a real row and
+ * runs `heading-order` over it with no register entry to excuse the panel.
  *
  * ## The latency clause is the one that made the panel list necessary
  *

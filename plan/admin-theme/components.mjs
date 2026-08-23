@@ -149,7 +149,7 @@ const buttonRow = (name, variant) => {
     ["is-focus", "Focus"],
     ["is-disabled", "Disabled"],
     ["is-loading", "Loading"],
-  ].map(([cls, label]) => stateCell(variant, cls, name));
+  ].map(([cls]) => stateCell(variant, cls, name));
   return `<tr><th scope="row" style="text-transform: none; letter-spacing: 0; font-size: 0.9rem;">${name}</th>${cells.join("")}</tr>`;
 };
 
@@ -482,8 +482,20 @@ const cards = [
   ["ds-buttons.html", "Buttons", "Variants x states matrix, sizes, density axis", "", buttonsBody],
   ["ds-inputs.html", "Inputs", "Field family, states, error anatomy + summary", "", inputsBody],
   ["ds-alerts.html", "Alerts", "Severity family, dismissible, action, toast", "", alertsBody],
-  ["ds-table.html", "Data table", "Sort, selection, pagination, empty, skeleton", tableCss, tableBody],
-  ["ds-overlays.html", "Overlays", "Confirm dialog, dropdown, tabs, breadcrumb", overlaysCss, overlaysBody],
+  [
+    "ds-table.html",
+    "Data table",
+    "Sort, selection, pagination, empty, skeleton",
+    tableCss,
+    tableBody,
+  ],
+  [
+    "ds-overlays.html",
+    "Overlays",
+    "Confirm dialog, dropdown, tabs, breadcrumb",
+    overlaysCss,
+    overlaysBody,
+  ],
   ["ds-navbar.html", "Navbar", "QCMS topbar + portal header, states, 390px", navbarCss, navbarBody],
 ];
 

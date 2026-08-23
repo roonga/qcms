@@ -96,7 +96,7 @@ describe("version derivation", () => {
     // `+` is valid SemVer build metadata and illegal in an image reference. This
     // caught a real failure: the first build died on `invalid reference format`.
     expect(imageTag("0.0.1-alpha.0+83fa947")).toBe("0.0.1-alpha.0-83fa947");
-    expect(imageTag("0.0.1-alpha.0+83fa947")).toMatch(/^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$/);
+    expect(imageTag("0.0.1-alpha.0+83fa947")).toMatch(/^\w[\w.-]{0,127}$/);
   });
 });
 

@@ -4,7 +4,7 @@ import { t, type MessageKey } from "@/lib/i18n/en";
 /**
  * Friendly typed error page for secure links (the BFF `/l/:token` handler
  * redirects here on LINK_EXPIRED / LINK_CONSUMED / LINK_REVOKED / LINK_INVALID).
- * No retry affordance (wireframe).
+ * No retry affordance (screen contract).
  */
 interface ErrorCopy {
   readonly title: MessageKey;

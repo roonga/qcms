@@ -6,9 +6,9 @@ import { t } from "@/lib/i18n/en";
 /**
  * The shared frame for every unauthenticated screen (task 031): sign-in, 2FA
  * enrollment, the recovery-code display, the 2FA challenge, and recovery-code
- * entry. The signed wireframe specifies a `card` for each, so they share one.
+ * entry. The signed screen contract specifies a `card` for each, so they share one.
  *
- * `error` renders the generic failure `alert`, which the wireframe's a11y notes require
+ * `error` renders the generic failure `alert`, which the screen contract's a11y notes require
  * to **receive focus**. It does so with `autoFocus` on a `tabIndex={-1}` wrapper rather
  * than an effect: the alert is present in the server-rendered HTML on the very first
  * paint after a failed POST (these screens are form posts, not client fetches), so the
@@ -45,7 +45,7 @@ export function AuthScreen({
             <h1 className="text-xl font-bold text-(--color-text)">{title}</h1>
             {intro !== undefined && <p className="text-sm text-(--color-text-muted)">{intro}</p>}
             {error !== undefined && (
-              /* `autoFocus` is required by the wireframe's a11y notes ("sign-in error
+              /* `autoFocus` is required by the screen contract's a11y notes ("sign-in error
                  alert receives focus") and is safe here specifically because this
                  element only exists on the response to a failed POST: it is never
                  competing with another control for initial focus. */

@@ -10,7 +10,7 @@ import { formatDateTime } from "@/lib/i18n/format";
 import { t, tPlural } from "@/lib/i18n/en";
 
 /**
- * The delivery dashboard (task 035; wireframe "delivery dashboard").
+ * The delivery dashboard (task 035; screen contract "delivery dashboard").
  *
  * One row per (event, endpoint), each carrying the record of its **most recent
  * attempt** - status, failed-attempt count, latency, and behind a disclosure the
@@ -19,7 +19,7 @@ import { t, tPlural } from "@/lib/i18n/en";
  * here from what the deliverer is expected to send. A screen that described the
  * request from the code's intent would keep describing it after the code changed.
  *
- * ## Two labels are worded from the data rather than from the wireframe
+ * ## Two labels are worded from the data rather than from the screen contract
  *
  * The attempts column says **failed attempts**, because that is what the column
  * counts: the retry schedule increments it on failure only, so a delivery that

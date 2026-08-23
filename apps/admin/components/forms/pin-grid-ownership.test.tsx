@@ -35,7 +35,7 @@ import type { DraftForm, DraftStep, FormIssue, PinnableQuestion } from "../../li
  * including the two cells that DROP at compact width, without booting a browser (ADR-23:
  * the highest layer that exists for it). What needs a browser - keyboard reorder, the
  * menu's five entries while it is open, the version pin still being operable at 390 - is
- * `apps/admin/e2e/pin-grid.pw.ts`, and what needs an eye is `docs/gates/pr-517/`.
+ * `apps/admin/e2e/pin-grid.pw.ts`.
  *
  * ## The alias bridge
  *

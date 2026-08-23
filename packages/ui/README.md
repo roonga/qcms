@@ -70,10 +70,10 @@ The a2ra components are **vendored source**, not imported from `@a2ra/core`:
 This package owns the token contract the portal rests on. Two stylesheets, and
 which one you import matters:
 
-| Import | Contains |
-| --- | --- |
-| `@qcms/ui/theme.css` | the token **values**: four groups (`--color-*`, `--font-portal` + `--type-*`, `--space-*`, `--radius-*`), the four predefined themes each authored Light and Dark, the shared High-contrast layer, and the four corner presets. Plain CSS, no build requirement. |
-| `@qcms/ui/theme-components.css` | the CSS that makes the **vendored controls consume** the spacing, radius and type-scale tokens, plus the High-contrast mode scaffold (heavy borders, flat surfaces, heavy focus). Needs Tailwind v4 in the build. |
+| Import                          | Contains                                                                                                                                                                                                                                                         |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@qcms/ui/theme.css`            | the token **values**: four groups (`--color-*`, `--font-portal` + `--type-*`, `--space-*`, `--radius-*`), the four predefined themes each authored Light and Dark, the shared High-contrast layer, and the four corner presets. Plain CSS, no build requirement. |
+| `@qcms/ui/theme-components.css` | the CSS that makes the **vendored controls consume** the spacing, radius and type-scale tokens, plus the High-contrast mode scaffold (heavy borders, flat surfaces, heavy focus). Needs Tailwind v4 in the build.                                                |
 
 The vendored `*.styles.ts` files resolve `var(--color-*)` themselves, but their
 spacing, radius and font sizes are literal Tailwind utilities. ADR-22 keeps those

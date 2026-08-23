@@ -3,8 +3,7 @@ import { expect, type Locator, type Page } from "@playwright/test";
 import { fillStable } from "./flow.js";
 
 /**
- * Browser steps for the form builder, shared by the build walk, the axe gate and the
- * screenshot capture (task 033).
+ * Browser steps for the form builder, shared by the build walk and accessibility suite.
  *
  * ## Everything is addressed by accessible name
  *

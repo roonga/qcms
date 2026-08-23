@@ -24,8 +24,8 @@ import type { AdminSession } from "./session.ts";
  *
  * ## One screen asks for the siblings only, and then there is nothing to validate
  *
- * The builder's rail carries §7's sibling group and no children (issue 561, PM seat ruling
- * on that issue). The derivation is §7's own: a step item is `/forms/{id}#step-{stepId}`,
+ * The builder's rail carries §7's sibling group and no children (issue 561). The
+ * derivation is §7's own: a step item is `/forms/{id}#step-{stepId}`,
  * which is a cross-route link everywhere else and a bare same-page fragment on the
  * builder, and §7 says the rail "never carries same-page section switches". With no step
  * rows there is no badge, and with no badge the dry-run validation buys nothing - so

@@ -8,14 +8,14 @@ and `@qcms/db` helpers (014/016/023). This is **not** the deferred `/api/v1`
 
 ## Routes
 
-| Method & path                               | Scope (SEC-5)       | Notes                                                                                          |
-| ------------------------------------------- | ------------------- | ---------------------------------------------------------------------------------------------- |
-| `GET /admin/forms/:id/responses`            | `responses:read`    | Paginated submitted responses from `reporting.responses`. Filters: `version`, `from`, `to`, `flagged`. |
-| `GET /admin/forms/:id/responses/:sessionId` | `responses:read`    | Full detail: locked answers, the append-only **answer ledger** (audit history), `contentHash`. |
-| `GET /admin/forms/:id/export`               | `responses:export`  | `?format=csv\|json&version=&from=&to=`. Streamed (see **Export**).                              |
-| `POST /admin/forms/:id/responses/:sessionId/erase`  | `responses:erase`   | Body `{ reason }`; calls `eraseSession` (016). Returns the tombstone. Idempotent. Form-scoped (#305): a session of another form takes the same 404 as an unknown one. |
-| `GET /admin/erasures`                        | `responses:read`    | Tombstone list (compliance evidence). Filter: `formId`.                                        |
-| `POST /admin/forms/:id/responses/:sessionId/unflag` | `responses:erase`   | Release a withheld (flagged, 020) response: clear the flag and enqueue `response.submitted`. Form-scoped (#305), as erase is. |
+| Method & path                                       | Scope (SEC-5)      | Notes                                                                                                                                                                 |
+| --------------------------------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /admin/forms/:id/responses`                    | `responses:read`   | Paginated submitted responses from `reporting.responses`. Filters: `version`, `from`, `to`, `flagged`.                                                                |
+| `GET /admin/forms/:id/responses/:sessionId`         | `responses:read`   | Full detail: locked answers, the append-only **answer ledger** (audit history), `contentHash`.                                                                        |
+| `GET /admin/forms/:id/export`                       | `responses:export` | `?format=csv\|json&version=&from=&to=`. Streamed (see **Export**).                                                                                                    |
+| `POST /admin/forms/:id/responses/:sessionId/erase`  | `responses:erase`  | Body `{ reason }`; calls `eraseSession` (016). Returns the tombstone. Idempotent. Form-scoped (#305): a session of another form takes the same 404 as an unknown one. |
+| `GET /admin/erasures`                               | `responses:read`   | Tombstone list (compliance evidence). Filter: `formId`.                                                                                                               |
+| `POST /admin/forms/:id/responses/:sessionId/unflag` | `responses:erase`  | Release a withheld (flagged, 020) response: clear the flag and enqueue `response.submitted`. Form-scoped (#305), as erase is.                                         |
 
 Scopes are **inert at launch** - the `/api/v1` surface is reserved (R7). They
 ride in the generated OpenAPI document so Phase-4 activation is wiring, not
@@ -98,7 +98,7 @@ never 403 (ADR-09).
 ## Notes / follow-ups
 
 - `@qcms/db`'s `sessions` row (enum `access_mode`, branded ids) reads as a TS
-  *error* type through the emitted `.d.ts` (issue #5); the unflag handler launders
+  _error_ type through the emitted `.d.ts` (issue #5); the unflag handler launders
   its one session read through a narrow view with a single cast on an unannotated
   const. The 023 reporting helpers return explicit clean row types, so their rows
   need no launder.

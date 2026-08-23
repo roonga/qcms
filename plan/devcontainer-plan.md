@@ -3,13 +3,14 @@
 **Status:** proposal for the Code Owner's review. Commit the artifacts (ADR-27 + `.devcontainer/` + doc updates) into the repo **when 029 is done and pushed**, then switch the loop over. Nothing here changes the running 029 task.
 
 Three goals, one change:
+
 1. Run the **autonomous dev loop** in a container with `bypassPermissions` (no more permission-prompt tuning).
 2. Make **Linux the canonical dev environment** so we stop fighting Windows-isms and new code is not written against them.
 3. Give **future contributors** (any OS, including Codespaces) a one-click, preinstalled environment.
 
 ## 1. Decision (ADR-27, draft)
 
-Adopt a **Dev Container** (containers.dev spec; plain Docker underneath) as the canonical environment for both the agentic loop and human contributors. The autonomous loop runs inside it with `--permission-mode bypassPermissions`; the container is the blast radius, so full autonomy is safe. The product build, gates, and Testcontainers suite all run inside it. The product-owner seat stays on the host.
+Adopt a **Dev Container** (containers.dev spec; plain Docker underneath) as the canonical environment for both the agentic loop and human contributors. The autonomous loop runs inside it with `--permission-mode bypassPermissions`; the container is the blast radius, so full autonomy is safe. The product build, gates, and Testcontainers suite all run inside it.
 
 ## 2. Why (and the trade-off recorded)
 
@@ -17,14 +18,15 @@ Adopt a **Dev Container** (containers.dev spec; plain Docker underneath) as the 
 - Linux erases the Windows-isms this project keeps hitting (`git.exe` vs `git`, `pnpm.cmd` EINVAL, PowerShell `$env`/path-token traps, docker-credsStore).
 - One environment for every contributor on every OS; enables free GitHub Codespaces onboarding.
 - Shares a base with task 036 (production images / compose); not a detour.
-- **Trade-off (recorded honestly):** the merge gate boots real Docker Postgres per test file (Testcontainers, ADR-23). The container reaches Docker via a mounted host socket (`docker-outside-of-docker`), spinning *sibling* containers on the host. This re-widens the blast radius slightly (the container can drive host Docker). Acceptable on a solo/trusted machine; noted so it is a decision, not an accident.
+- **Trade-off (recorded honestly):** the merge gate boots real Docker Postgres per test file (Testcontainers, ADR-23). The container reaches Docker via a mounted host socket (`docker-outside-of-docker`), spinning _sibling_ containers on the host. This re-widens the blast radius slightly (the container can drive host Docker). Acceptable on a solo/trusted machine; noted so it is a decision, not an accident.
 
 ## 3. Which base? (answering the javascript-node-postgres template question)
 
 The `devcontainers/templates/.../javascript-node-postgres` template is a **docker-compose** with a node app service + a long-lived Postgres service. It does **not** fit qcms cleanly:
+
 - qcms tests use **Testcontainers** (ephemeral Postgres per test file via Docker), not a shared long-lived DB. The template's bundled Postgres is not what the suite uses.
 - Testcontainers needs **Docker access** regardless, which that template does not provide.
-- qcms already has `docker-compose.dev.yml` for the dev DB. Adding the template's Postgres makes a *third* Postgres concept (template's, compose.dev's, Testcontainers' ephemeral).
+- qcms already has `docker-compose.dev.yml` for the dev DB. Adding the template's Postgres makes a _third_ Postgres concept (template's, compose.dev's, Testcontainers' ephemeral).
 
 **Recommendation: a single-container `image` + Features devcontainer** (below). It reuses the existing `docker-compose.dev.yml` for the dev DB, gets Docker for Testcontainers via the socket Feature, and avoids compose orchestration for the container itself. The template is a fine reference, not a wholesale adopt.
 
@@ -38,7 +40,7 @@ The `devcontainers/templates/.../javascript-node-postgres` template is a **docke
     "ghcr.io/devcontainers/features/node:1": { "version": "24" },
     "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
     "ghcr.io/devcontainers/features/github-cli:1": {},
-    "ghcr.io/devcontainers/features/powershell:1": {}
+    "ghcr.io/devcontainers/features/powershell:1": {},
   },
   "workspaceFolder": "/workspaces/qcms",
   // Forward the app dev ports to the host so you view the live app in your host browser.
@@ -46,31 +48,31 @@ The `devcontainers/templates/.../javascript-node-postgres` template is a **docke
   "forwardPorts": [3000, 3001, 8787],
   "mounts": [
     // a2-react-aria sibling repo: the co-evolution contract (ADR-22, tasks 011/028)
-    "source=${localWorkspaceFolder}/../a2-react-aria,target=/workspaces/a2-react-aria,type=bind,consistency=cached"
+    "source=${localWorkspaceFolder}/../a2-react-aria,target=/workspaces/a2-react-aria,type=bind,consistency=cached",
   ],
   "postCreateCommand": "corepack enable && corepack prepare pnpm@latest --activate && pnpm install --frozen-lockfile && npx playwright install --with-deps chromium",
   "remoteUser": "vscode",
-  "runArgs": ["--init"]
+  "runArgs": ["--init"],
 }
 ```
 
 - `docker-outside-of-docker` mounts the host socket so Testcontainers works.
 - `powershell` Feature keeps `scripts/agent-loop.ps1` runnable unchanged (see open decision B).
-- Playwright browsers installed headless for the screenshot gate (use the headless Playwright MCP, not `claude-in-chrome`, which is host-side).
+- Playwright browsers installed for headless browser tests.
 - No Dockerfile needed yet; add `build.dockerfile` later if we want more baked in.
 
 ## 5. Removing / canonicalizing Windows-isms
 
-Goal is not to drop Windows *support* (contributors may be on any OS) but to make Linux the tested, canonical path so quirks stop leaking in. Audit:
+Goal is not to drop Windows _support_ (contributors may be on any OS) but to make Linux the tested, canonical path so quirks stop leaking in. Audit:
 
-| Windows-ism | Action |
-|---|---|
-| `scripts/agent-loop.ps1` (PowerShell supervisor) | Add canonical **`scripts/agent-loop.sh`** (bash); keep `.ps1` for Windows-host fallback. This is the one real port. |
-| `const GIT = win32 ? "git.exe" : "git"` in `scripts/check-*.mjs` | **Keep** - it is correct cross-platform code, harmless on Linux, needed for Windows-host contributors. Not a wart. |
-| `PowerShell(...)` permission families in `.claude/settings.json` | **Keep** - harmless on Linux; helps Windows-host contributors. |
-| docker-credsStore workaround / anonymous-pull forcing in `@qcms/db` testing | **Review** inside the container - may be unneeded on Linux Docker; simplify only if verified, guarded for Windows otherwise. |
-| Orphaned worktree dirs (`git worktree remove` leaves folders on Windows) + the `/next-task` self-heal sweep (commit 16045ea) | **Keep the sweep** - it is cross-platform-safe and a **no-op on Linux**. The *cause* (remove failing to delete the folder) does not occur on Linux, so the container removes the failure at the root while the sweep stays as a harmless backstop. One more Windows papercut the container erases. |
-| CLAUDE.md / memory notes about PowerShell path-token traps | Reframe as "host-Windows only; the container is Linux" once the container is canonical. |
+| Windows-ism                                                                                                                  | Action                                                                                                                                                                                                                                                                                             |
+| ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/agent-loop.ps1` (PowerShell supervisor)                                                                             | Add canonical **`scripts/agent-loop.sh`** (bash); keep `.ps1` for Windows-host fallback. This is the one real port.                                                                                                                                                                                |
+| `const GIT = win32 ? "git.exe" : "git"` in `scripts/check-*.mjs`                                                             | **Keep** - it is correct cross-platform code, harmless on Linux, needed for Windows-host contributors. Not a wart.                                                                                                                                                                                 |
+| `PowerShell(...)` permission families in `.claude/settings.json`                                                             | **Keep** - harmless on Linux; helps Windows-host contributors.                                                                                                                                                                                                                                     |
+| docker-credsStore workaround / anonymous-pull forcing in `@qcms/db` testing                                                  | **Review** inside the container - may be unneeded on Linux Docker; simplify only if verified, guarded for Windows otherwise.                                                                                                                                                                       |
+| Orphaned worktree dirs (`git worktree remove` leaves folders on Windows) + the `/next-task` self-heal sweep (commit 16045ea) | **Keep the sweep** - it is cross-platform-safe and a **no-op on Linux**. The _cause_ (remove failing to delete the folder) does not occur on Linux, so the container removes the failure at the root while the sweep stays as a harmless backstop. One more Windows papercut the container erases. |
+| CLAUDE.md / memory notes about PowerShell path-token traps                                                                   | Reframe as "host-Windows only; the container is Linux" once the container is canonical.                                                                                                                                                                                                            |
 
 Net: one new bash supervisor, a review of the db-testing workaround, and doc reframing. Cross-platform guards stay.
 
@@ -95,14 +97,15 @@ devcontainer exec --workspace-folder . ./scripts/agent-loop.sh      # or pwsh sc
 
 ### Viewing the running app in your host browser
 
-You do **not** open a browser from *inside* the container (separate Linux namespace, no host GUI). You view the app that runs inside it from your **host** browser via **port forwarding**:
+You do **not** open a browser from _inside_ the container (separate Linux namespace, no host GUI). You view the app that runs inside it from your **host** browser via **port forwarding**:
+
 - The forwarded ports (`forwardPorts` above; VS Code also auto-detects listening ports and offers "Open in Browser") make the container's `localhost:3000` reachable at `http://localhost:3000` on the Windows host. Open it in any host browser.
 - **The dev server must bind `0.0.0.0`** inside the container (e.g. `next dev -H 0.0.0.0`), not just `127.0.0.1`, or the forward has nothing to reach. Wire that into the portal/admin dev scripts.
-- Keep the two browser roles separate: **human viewing = host browser on the forwarded port; agent screenshot gate = headless Playwright *inside* the container** (writes image files, no host browser). The one thing that will **not** work in the container is the `claude-in-chrome` MCP - it drives your real host Chrome and cannot reach into the container - which is exactly why the gate uses headless Playwright.
+- Keep the two browser roles separate: **human viewing uses the host browser on the forwarded port; automated browser tests use headless Playwright inside the container**. Host-browser automation cannot reach into the container directly.
 
 ## 9. Open decisions (need your call)
 
-- **A. Repo location / performance.** Bind-mounting a Windows path (`H:\...`) over the WSL2 boundary is slow for heavy pnpm/test I/O. Best perf = clone the repos into the **WSL2 filesystem** and open the container from there. My rec: **relocate the dev-loop repos into WSL2**; the PO seat can stay on the Windows checkout.
+- **A. Repo location / performance.** Bind-mounting a Windows path (`H:\...`) over the WSL2 boundary is slow for heavy pnpm/test I/O. Best perf = clone the repos into the **WSL2 filesystem** and open the container from there. My rec: **relocate the repositories into WSL2**.
 - **B. Supervisor.** `powershell` Feature keeps `agent-loop.ps1` (zero rewrite) vs a canonical bash `agent-loop.sh`. My rec: **write `agent-loop.sh` as canonical** and keep `.ps1` for Windows-host fallback (small port, cleaner Linux story).
 - **C. Autonomy.** `bypassPermissions` (the point) vs `acceptEdits` in-container. My rec: **`bypassPermissions`**.
 - **D. Windows-host support.** Keep it (cross-platform guards stay, `.ps1` retained) vs Linux-only. My rec: **keep cross-platform**; the container is canonical but the repo stays OS-agnostic for open-source contributors.
@@ -110,8 +113,9 @@ You do **not** open a browser from *inside* the container (separate Linux namesp
 ## 10. Verification (acceptance before trusting it)
 
 Riskiest piece is Testcontainers-through-a-mounted-socket, so that is the gate:
+
 1. `devcontainer up` builds clean; `pnpm install --frozen-lockfile` succeeds.
-2. **`pnpm build && pnpm typecheck && pnpm test && pnpm lint` green *inside the container*** - especially the `@qcms/db` + api Testcontainers suites. If testcontainers cannot reach its sibling containers, set `TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal` (documented fallback) and re-verify.
+2. **`pnpm build && pnpm typecheck && pnpm test && pnpm lint` green _inside the container_** - especially the `@qcms/db` + api Testcontainers suites. If testcontainers cannot reach its sibling containers, set `TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal` (documented fallback) and re-verify.
 3. The four check-gates pass.
 4. A throwaway `/next-task` dry run in `bypassPermissions` completes with zero prompts.
 

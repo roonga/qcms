@@ -1481,11 +1481,8 @@ button {
    is what happens when one of them quietly stops: the version cell carried a
    `white-space: nowrap`, its column's minimum became 209px, and with no scroll box
    to absorb it the whole document went one pixel past a 390px viewport and 71 past
-   a 320px one. `pin-grid.pw.ts` and `gate-517.pw.ts` do measure the document at 390
-   and did not catch it, because they build their own fixture through the app and it
-   carries no version state tag: the unbreakable phrase was never on their screen.
-   `reflow.pw.ts` sweeps every route against the seeded fixture at 390 AND 320,
-   which is the check that would have.
+   a 320px one. `reflow.pw.ts` sweeps every route against the seeded fixture at 390
+   and 320, including version state tags.
    =========================================================================== */
 .qcms-table--pins {
   overflow: visible;
@@ -1816,8 +1813,8 @@ button {
    one line back when the cell family forced `white-space: nowrap`, and it keeps doing
    so now that issue 514 has dropped that.
 
-   11rem is the room the five identifying columns leave at 1280px, which is the width
-   the screenshot gate reviews. It is a measurement, not a taste: a 36-character
+   11rem is the room the five identifying columns leave at 1280px. It is a measurement,
+   not a taste: a 36-character
    `ses_…` id, a full timestamp, an access word and a flag tag come to about 790px of
    the 976px content column, and a preview allowed to grow past the remainder does not
    wrap or ellipsis - the table is `overflow-x: auto`, so it gets CHOPPED at the
@@ -1914,7 +1911,7 @@ button {
 }
 
 /* The answer ledger: an ordered list whose chronology is in the text of each item,
-   never in the layout (the wireframe's a11y note). The marker is suppressed because
+   never in the layout (the screen contract's a11y note). The marker is suppressed because
    each item already carries its own timestamp; a number beside a time reads as a
    second, contradictory ordering. */
 .qcms-ledger {

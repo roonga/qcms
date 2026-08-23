@@ -36,9 +36,8 @@ import type { QuestionDefinitionView, QuestionListItem } from "../../lib/questio
  * invisible to every test that shipped before this one.
  *
  * What this layer cannot see is a browser actually following the anchor with scripting
- * switched off, and a keyboard walking to it. Those are `apps/admin/e2e/table-anchors.pw.ts`
- * (ADR-23: e2e at the highest layer that exists for it), and what needs an eye is
- * `docs/gates/pr-570/`.
+ * switched off, and a keyboard walking to it. Those are covered by
+ * `apps/admin/e2e/table-anchors.pw.ts`.
  *
  * ## The completion test, asserted rather than remembered
  *
@@ -54,9 +53,6 @@ import type { QuestionDefinitionView, QuestionListItem } from "../../lib/questio
  * stub, because the markup these components emit is the whole subject: a stub shaped like
  * a table would only assert that the stub is shaped like a table.
  *
- * ## Red-first
- *
- * Measured against the pre-change components, recorded in `docs/gates/pr-570/red-first.txt`.
  */
 
 /**
@@ -365,7 +361,8 @@ function sourceFiles(root: string): string[] {
   return listed
     .split("\0")
     .filter((path) => /\.(?:tsx?|css)$/.test(path))
-    .map((path) => join(root, path));
+    .map((path) => join(root, path))
+    .filter((path) => existsSync(path));
 }
 
 describe("the marker class and the retired handler", () => {

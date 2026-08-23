@@ -5,7 +5,7 @@ import { textOf } from "@/lib/questions/definition";
 import type { QuestionListItem } from "@/lib/questions/types";
 
 /**
- * The library list table (task 032; wireframe "list `table`").
+ * The library list table (task 032; screen contract "list `table`").
  *
  * ## The row was the control, and is not any more (issue 570)
  *

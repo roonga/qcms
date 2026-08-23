@@ -28,7 +28,7 @@ import { requireAdminSession } from "@/lib/server/session";
  * own column is the column's business.
  *
  * The builder asks for `childrenGroup: "none"`, and that is §7 applying to itself rather than
- * an exception to it (PM seat ruling on issue 561). A step item is
+ * an exception to it. A step item is
  * `/forms/{id}#step-{stepId}`, which is a cross-route link on the other seven screens and
  * a bare same-page fragment on the builder, and §7 says the rail "never carries same-page
  * section switches". So the group is not merely redundant beside the builder's step

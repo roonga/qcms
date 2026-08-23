@@ -17,7 +17,7 @@ import type { PreviewTheme } from "@/lib/preview-theme";
 
 /**
  * One published version, rendered from its **stored** compiled documents (task 034;
- * wireframe "version history", ADR-18).
+ * screen contract "version history", ADR-18).
  *
  * ## Why this is not a preview
  *

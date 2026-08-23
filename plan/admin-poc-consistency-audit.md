@@ -1,6 +1,6 @@
 # Admin POC consistency audit: is the proposed design one system?
 
-**Status:** working analysis, PM/PO seat, 2026-08-19. **Subject:** the eleven
+**Status:** working analysis, 2026-08-19. **Subject:** the eleven
 proposals under `plan/admin-shell-poc/`, audited against each other and against
 the branch's own normative documents (`plan/admin-ux-audit.md`,
 `plan/admin-mobile-stance.md`, the frozen `plan/admin-theme/ds-table.html` card,
@@ -36,7 +36,7 @@ regeneration pass over the flagship files that currently teach the wrong model
   only raw functions are `hsl(var(--shadow-color) / N)` shadows, which is the
   intended usage. The tokens-only rule is met.
 - **One focus rule everywhere**, identical text: `:focus-visible { outline: 2px
-  solid var(--color-focus-ring); outline-offset: 2px; }` in all eleven.
+solid var(--color-focus-ring); outline-offset: 2px; }` in all eleven.
 - **Body type is 15px `var(--font-admin)` in all eleven**; one card recipe (1px
   `--color-border`, `--radius-card`, `--color-surface`, `--admin-section-pad`);
   a coherent 1 / 1.5 / 2 / 3px border-width system used the same way everywhere.
@@ -50,7 +50,7 @@ regeneration pass over the flagship files that currently teach the wrong model
 - **The rail mechanism and the viewport-fill fix are byte-identical in all
   seven rail-bearing files**: native `<details class="rail-shell">`, 240px grid
   column at 1024px, `body { display:flex; flex-direction:column;
-  min-height:100vh }` + `.shell-body { flex:1 1 auto; min-height:0 }`.
+min-height:100vh }` + `.shell-body { flex:1 1 auto; min-height:0 }`.
 - **Every table in the corpus scrolls inside its own `overflow-x: auto`
   container** (all 13 tables); ten of eleven files carry the page-level
   horizontal-scroll backstop on `body`.
@@ -152,12 +152,12 @@ highest-value move in this whole audit." The proposal set answers with:
 The audit (§3.2, §8 item 8) requires one written meaning before the rail
 reaches real code. The POC set has four:
 
-| File(s) | Rail carries | Contract |
-|---|---|---|
-| `admin-shell-poc.html:696-776`; `responses-poc`, `preview-versions-poc`, `links-webhooks-poc` (same shape) | form, steps group, then Preview/Versions/Links/Responses/Webhooks | children + siblings |
-| `question-editor-poc.html:576-620` | version list, plus a `.rail-lifecycle` action block (`:589-598`) | children only - and the only rail carrying actions rather than navigation |
-| `settings-newquestion-poc.html:559-565` | Account / Change password / 2FA as `<button>` elements switching panels of the same page | sections of one page |
-| `rules-screen-poc.html:459-497` | a "Builder" group (not "Steps"), then Rules/Validation/Settings/Test bench, then the sibling screens | children + siblings + a second sibling tier, different group label |
+| File(s)                                                                                                    | Rail carries                                                                                         | Contract                                                                  |
+| ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `admin-shell-poc.html:696-776`; `responses-poc`, `preview-versions-poc`, `links-webhooks-poc` (same shape) | form, steps group, then Preview/Versions/Links/Responses/Webhooks                                    | children + siblings                                                       |
+| `question-editor-poc.html:576-620`                                                                         | version list, plus a `.rail-lifecycle` action block (`:589-598`)                                     | children only - and the only rail carrying actions rather than navigation |
+| `settings-newquestion-poc.html:559-565`                                                                    | Account / Change password / 2FA as `<button>` elements switching panels of the same page             | sections of one page                                                      |
+| `rules-screen-poc.html:459-497`                                                                            | a "Builder" group (not "Steps"), then Rules/Validation/Settings/Test bench, then the sibling screens | children + siblings + a second sibling tier, different group label        |
 
 Collapsed-summary behaviour splits five ways against the stance's one rule
 ("summary names the active step and that step's issue count",
@@ -184,19 +184,19 @@ of the four children+siblings files style the active step row at all.
 
 Per-file inventory (media-query widths and main container caps):
 
-| File | Width queries | Main cap |
-|---|---|---|
-| `add-question-poc.html` | 900 max | 1600 (`.page-behind`); dialog 900 |
-| `admin-shell-poc.html` | 639 max, 1023 max, 1024 min | 1600 |
-| `auth-poc.html` | 420 max | 26rem; shell `min-height: 70vh` |
-| `deployment-ops-poc.html` | 480 max | none; per-screen 900 / 1180 / 1820 |
-| `library-lists-poc.html` | 639 max | 1080 |
-| `links-webhooks-poc.html` | 1023 max, 1024 min | 1600 |
-| `preview-versions-poc.html` | 639 max, 1023 max, 1024 min | 1600; respondent frame 640 |
-| `question-editor-poc.html` | 639 max, 1023 max, 1024 min | 1600; editor column 720 |
-| `responses-poc.html` | 900 min, 1024 min | 1600 |
-| `rules-screen-poc.html` | 999 max, 1024 min | 1600 |
-| `settings-newquestion-poc.html` | 420 max, 480 max, 1024 min | 40rem |
+| File                            | Width queries               | Main cap                           |
+| ------------------------------- | --------------------------- | ---------------------------------- |
+| `add-question-poc.html`         | 900 max                     | 1600 (`.page-behind`); dialog 900  |
+| `admin-shell-poc.html`          | 639 max, 1023 max, 1024 min | 1600                               |
+| `auth-poc.html`                 | 420 max                     | 26rem; shell `min-height: 70vh`    |
+| `deployment-ops-poc.html`       | 480 max                     | none; per-screen 900 / 1180 / 1820 |
+| `library-lists-poc.html`        | 639 max                     | 1080                               |
+| `links-webhooks-poc.html`       | 1023 max, 1024 min          | 1600                               |
+| `preview-versions-poc.html`     | 639 max, 1023 max, 1024 min | 1600; respondent frame 640         |
+| `question-editor-poc.html`      | 639 max, 1023 max, 1024 min | 1600; editor column 720            |
+| `responses-poc.html`            | 900 min, 1024 min           | 1600                               |
+| `rules-screen-poc.html`         | 999 max, 1024 min           | 1600                               |
+| `settings-newquestion-poc.html` | 420 max, 480 max, 1024 min  | 40rem                              |
 
 Specific contradictions:
 
@@ -227,7 +227,7 @@ Specific contradictions:
   which makes its absence elsewhere a known-hazard omission.
 - **The viewport-fill pattern is absent from the four unrailed files with three
   different substitutes**: `add-question-poc.html:281` uses `.stage
-  { min-height: 100vh }`, `auth-poc.html:249` uses `min-height: 70vh` (the only
+{ min-height: 100vh }`, `auth-poc.html:249` uses `min-height: 70vh` (the only
   non-100vh value), `deployment-ops-poc.html` and `library-lists-poc.html` have
   none. `library-lists-poc.html:189,196` alone uses `overflow-x: clip` (with an
   argument at `:178-188` for why `hidden` is wrong) against `hidden` in the
@@ -323,8 +323,7 @@ Each of these is a question the eleven files currently answer two to seven
 different ways. One page total; every item names its owner-decision only where
 one is genuinely open.
 
-1. **Two named, tokenized breakpoints** (`--bp-compact` ~640, `--bp-sidebar`
-   1024) and a rule for where "panes stack" keys. Executes
+1. **Two named, tokenized breakpoints** (`--bp-compact` ~640, `--bp-sidebar` 1024) and a rule for where "panes stack" keys. Executes
    `plan/admin-mobile-stance.md`'s standing recommendation.
 2. **One table spec**, reconciled with the frozen `ds-table.html` card: one
    class family, one row height, one padding, zebra or not, tabular figures or

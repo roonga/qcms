@@ -46,7 +46,7 @@ import { StepsRail } from "./steps-rail";
 import { ValidationPanel, type BuilderStatus } from "./validation-panel";
 
 /**
- * The form builder (task 033; wireframe `admin-form-builder.md`).
+ * The form builder (task 033; screen contract `admin-form-builder.md`).
  *
  * ## One state owner
  *
@@ -181,7 +181,7 @@ export function FormBuilder({
         setSaveError(undefined);
         setLastSavedAt(new Date().toISOString());
         setStatus("validating");
-        // The second round trip is the one the wireframe calls live validation. It does not
+        // The second round trip is the one the screen contract calls live validation. It does not
         // store, and it is where `RULE_BACKWARD_TARGET` and `RULE_CYCLE` come from: the
         // kernel's `analyzeRuleGraph` runs inside the same compile.
         const validated = await actions.current.validateDraft(draft);

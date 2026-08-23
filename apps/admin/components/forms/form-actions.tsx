@@ -13,7 +13,7 @@ import { t, tPlural } from "@/lib/i18n/en";
 import { unexpected } from "@/lib/ops/unexpected";
 
 /**
- * The form-level actions: publish, and close/reopen (task 034; wireframe
+ * The form-level actions: publish, and close/reopen (task 034; screen contract
  * "publish dialog" and "close/reopen").
  *
  * ## The dialog is where R1 is taught

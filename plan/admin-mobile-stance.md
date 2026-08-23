@@ -28,15 +28,15 @@ supported path needs to be exercised. The rest needs to not be visibly wrong.
 
 Ordered as the workflow runs, because that is how it should be tested.
 
-| # | Capability | Why it is on the list |
-|---|---|---|
-| 1 | See that publish is blocked, and why | The validation issue list is the entry point to the whole scenario. If this is unreadable at 390 nothing else on this list can be reached. |
-| 2 | Follow an issue to the thing that caused it | The issues are anchored links. `plan/admin-ux-audit.md` records that moving validation to its own route would break these, which makes the anchors a constraint rather than an implementation detail. |
-| 3 | Reorder questions within a step | A common last-minute repair, and the one most affected by the reorder decision below. |
-| 4 | Remove a question from a step | Same. |
-| 5 | Change a question's version pin | The version column therefore survives at 390 even where other columns are dropped. Recorded as a layout rule below. |
-| 6 | Change a form setting | Fewer occasions call for it, but it is cheap to keep and it is form-level state that can block a launch. |
-| 7 | Publish, including its confirmation | The point of the exercise. A path that reaches the publish button and cannot complete it is worse than one that never started. |
+| #   | Capability                                  | Why it is on the list                                                                                                                                                                                 |
+| --- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | See that publish is blocked, and why        | The validation issue list is the entry point to the whole scenario. If this is unreadable at 390 nothing else on this list can be reached.                                                            |
+| 2   | Follow an issue to the thing that caused it | The issues are anchored links. `plan/admin-ux-audit.md` records that moving validation to its own route would break these, which makes the anchors a constraint rather than an implementation detail. |
+| 3   | Reorder questions within a step             | A common last-minute repair, and the one most affected by the reorder decision below.                                                                                                                 |
+| 4   | Remove a question from a step               | Same.                                                                                                                                                                                                 |
+| 5   | Change a question's version pin             | The version column therefore survives at 390 even where other columns are dropped. Recorded as a layout rule below.                                                                                   |
+| 6   | Change a form setting                       | Fewer occasions call for it, but it is cheap to keep and it is form-level state that can block a launch.                                                                                              |
+| 7   | Publish, including its confirmation         | The point of the exercise. A path that reaches the publish button and cannot complete it is worse than one that never started.                                                                        |
 
 ## What is explicitly not required at 390
 
@@ -62,11 +62,11 @@ arbitrary numbers in five files is how a responsive layer becomes unmaintainable
 
 Measured from the prototypes as they stand:
 
-| Prototype | Breakpoints present |
-|---|---|
-| `plan/admin-shell-poc/admin-shell-poc.html` | 639, 1023, 1024 |
-| `plan/admin-shell-poc/add-question-poc.html` | 900 |
-| `plan/admin-shell-poc/rules-screen-poc.html` | 999, 1024 |
+| Prototype                                    | Breakpoints present |
+| -------------------------------------------- | ------------------- |
+| `plan/admin-shell-poc/admin-shell-poc.html`  | 639, 1023, 1024     |
+| `plan/admin-shell-poc/add-question-poc.html` | 900                 |
+| `plan/admin-shell-poc/rules-screen-poc.html` | 999, 1024           |
 
 **Recommendation: adopt two breakpoints, not four.** A `compact` boundary around
 640 and a `sidebar` boundary at 1024, with everything currently keyed to 900 or 999
@@ -132,6 +132,5 @@ The supported path is exercised, the rest is checked for absence of breakage.
 - **Supported path:** walk items 1 to 7 at 390 and confirm each completes.
 - **Everything else:** at 390, no horizontal page scroll, no overlapping text, no
   clipped control, and no interactive element that cannot be reached.
-- The screenshot gate already requires evidence at 390 and 1280 minimum, so narrow
-  widths are reviewed on every UI task whether or not they were designed for. That
-  is an argument for settling this now rather than discovering it at a gate.
+- Browser checks cover both narrow and wide layouts when responsive behavior changes.
+  That is an argument for settling this now rather than discovering it during review.

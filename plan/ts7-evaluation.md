@@ -1,6 +1,6 @@
 # TypeScript 7 (native compiler) evaluation - 2026-07-25
 
-Side-by-side, non-gating comparison of TypeScript 7.0.2 (the native compiler, npm `latest`) against the repo's pinned 6.0.3, run by the PO seat at the Code Owner's request. No repo configuration changed; TS 7 ran via `pnpm --package=typescript@7.0.2 dlx tsc`.
+Side-by-side, non-gating comparison of TypeScript 7.0.2 (the native compiler, npm `latest`) against the repo's pinned 6.0.3, run at the Code Owner's request. No repo configuration changed; TS 7 ran via `pnpm --package=typescript@7.0.2 dlx tsc`.
 
 ## Method
 
@@ -8,16 +8,16 @@ For each workspace project with a `typecheck` script (`tsc -p tsconfig.json --no
 
 ## Results
 
-| Project | tsc 6.0.3 | tsc 7.0.2 (native) | Speedup |
-| --- | --- | --- | --- |
-| packages/core | 1797ms | 709ms | 2.5x |
-| packages/a2ui-compiler | 1804ms | 551ms | 3.3x |
-| packages/db | 13114ms | 6041ms | 2.2x |
-| packages/ui | 7019ms | 1811ms | 3.9x |
-| apps/api | 9243ms | 2492ms | 3.7x |
-| apps/portal | 1657ms | 623ms | 2.7x |
-| apps/admin (placeholder) | 417ms | 385ms | n/a |
-| **Total** | **35.1s** | **12.6s** | **2.8x** |
+| Project                  | tsc 6.0.3 | tsc 7.0.2 (native) | Speedup  |
+| ------------------------ | --------- | ------------------ | -------- |
+| packages/core            | 1797ms    | 709ms              | 2.5x     |
+| packages/a2ui-compiler   | 1804ms    | 551ms              | 3.3x     |
+| packages/db              | 13114ms   | 6041ms             | 2.2x     |
+| packages/ui              | 7019ms    | 1811ms             | 3.9x     |
+| apps/api                 | 9243ms    | 2492ms             | 3.7x     |
+| apps/portal              | 1657ms    | 623ms              | 2.7x     |
+| apps/admin (placeholder) | 417ms     | 385ms              | n/a      |
+| **Total**                | **35.1s** | **12.6s**          | **2.8x** |
 
 - **Diagnostics parity: exact.** All seven projects exit 0 under both compilers with zero diagnostics. The native compiler accepted every tsconfig in the repo unchanged, including the packages/ui vendored-a2ra shape (`module: Preserve`, `rewriteRelativeImportExtensions`).
 - The TS 7 timings **include** `pnpm dlx` launcher overhead (roughly 300-500ms per run), so the true per-project speedups are somewhat higher than shown.

@@ -11,14 +11,14 @@ an instruction someone will follow for the first time during an incident.
 
 ## What is in scope
 
-| State | Where it lives | Backed up by |
-| --- | --- | --- |
-| Forms, versions, responses, answers, sessions | Postgres | `pg_dump` |
-| Administrator accounts and two-factor material | Postgres | `pg_dump` |
-| Outbox and delivery history | Postgres | `pg_dump` |
-| Erasure tombstones (compliance evidence) | Postgres | `pg_dump` |
-| Signing and encryption keys | the environment, never the database | **you**, separately |
-| Built images | a registry, or rebuilt from a tag | not backed up |
+| State                                          | Where it lives                      | Backed up by        |
+| ---------------------------------------------- | ----------------------------------- | ------------------- |
+| Forms, versions, responses, answers, sessions  | Postgres                            | `pg_dump`           |
+| Administrator accounts and two-factor material | Postgres                            | `pg_dump`           |
+| Outbox and delivery history                    | Postgres                            | `pg_dump`           |
+| Erasure tombstones (compliance evidence)       | Postgres                            | `pg_dump`           |
+| Signing and encryption keys                    | the environment, never the database | **you**, separately |
+| Built images                                   | a registry, or rebuilt from a tag   | not backed up       |
 
 The last two rows are the ones that bite.
 
@@ -63,11 +63,11 @@ docker compose exec -T postgres \
 
 The four flags are not incidental:
 
-| Flag | Why |
-| --- | --- |
+| Flag                  | Why                                                                                                                                                         |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--clean --if-exists` | The dump drops what it is about to create, so restoring over a partially populated database is deterministic rather than a pile of "already exists" errors. |
-| `--no-owner` | The restore target's role may not be named the same thing. Ownership is reassigned to whoever runs the restore. |
-| `--no-privileges` | Grants are the target deployment's business, not the source's. |
+| `--no-owner`          | The restore target's role may not be named the same thing. Ownership is reassigned to whoever runs the restore.                                             |
+| `--no-privileges`     | Grants are the target deployment's business, not the source's.                                                                                              |
 
 For anything but a small deployment prefer the custom format
 (`--format=custom`), which restores with `pg_restore`, supports parallel restore
@@ -127,7 +127,7 @@ migrations table, so the restored database already knows its schema version; run
 migrations against a restored database is at best a no-op and at worst applies a
 migration the dump already contained.
 
-If the restore is to a *newer* QCMS version than the dump was taken from, restore
+If the restore is to a _newer_ QCMS version than the dump was taken from, restore
 first and then migrate: that is an upgrade, and it follows the upgrade procedure in
 `docs/operations.md`.
 

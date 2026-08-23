@@ -1,7 +1,6 @@
 # What binds the admin
 
-**Status:** current as of 2026-08-22. Check this document before citing a rule in an admin
-decision.
+**Status:** authoritative. Check this document before citing an admin rule.
 
 **Audience:** authenticated staff, on machines they chose, in a session they signed into.
 

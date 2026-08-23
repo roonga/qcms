@@ -25,7 +25,7 @@ import { unexpected } from "@/lib/ops/unexpected";
 const REVOKE_DELAY_MS = 60_000;
 
 /**
- * The secure-link screen: mint, list, copy, export, revoke (task 034; wireframe "secure
+ * The secure-link screen: mint, list, copy, export, revoke (task 034; screen contract "secure
  * links").
  *
  * ## Why the minted URLs are their own state and not a table column
@@ -58,7 +58,7 @@ const REVOKE_DELAY_MS = 60_000;
  * returning to the Mint button: the operator would hear that links exist and lose where
  * they are standing. Polite queues behind that and is spoken immediately after it.
  *
- * The wireframe names a `switch` for the one-time control. The vendored a2ra set has no
+ * The screen contract names a `switch` for the one-time control. The vendored a2ra set has no
  * Switch, and hand-writing one is exactly what ADR-22 forbids, so this uses the vendored
  * `Checkbox` - the same substitution `form-settings-panel.tsx` makes for its booleans. A
  * real Switch would be a COMPONENT_GUIDELINES vendoring in its own right.

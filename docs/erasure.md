@@ -90,11 +90,11 @@ The cancellation is enforced structurally, not by convention:
   rows whose outbox payload is redacted, so a redacted payload has no path to the
   transport whatever a future caller does.
 - `claimDue` (the fan-out claim) filters out redacted rows, so a session erased
-  *before* its event was fanned out never gets a delivery row at all.
+  _before_ its event was fanned out never gets a delivery row at all.
 - `resetForRedelivery` (the outbox-level manual redeliver) refuses a redacted event
   rather than resetting it (issue #433). It clears the two timestamps `claimDue`
   reads as "terminal" while `claimDue` skips the row on a third it does not clear, so
-  without the predicate a reset moved the event to *pending and unclaimable*: not
+  without the predicate a reset moved the event to _pending and unclaimable_: not
   a leak, since the transport was still closed, but a queue entry nothing would ever
   revisit. `outboxRedeliveryRefusalFor` is the companion read that names the reason,
   the same pairing the delivery level uses.
@@ -114,7 +114,7 @@ The cancellation is enforced structurally, not by convention:
 
 - **The form snapshot** (`form_versions`): the immutable published definition and
   compiled UI. It contains no respondent data (R1) and is never touched.
-- **`link_id`** on a secure-link session: it identifies the *link*, not the
+- **`link_id`** on a secure-link session: it identifies the _link_, not the
   person. **Warning to adopters:** do not encode PII in how you distribute links
   (e.g. a per-recipient link identity that itself embeds a name or email). The
   link identifier survives erasure by design; keep it opaque.
@@ -161,7 +161,7 @@ The rest of the attempt record is unaffected at any setting.
 
 **No backfill migration is needed, and none is missing.** The sweep's predicate is
 `last_attempt_at`, a column every existing row already has, so a row written long
-before this control existed is *more* eligible than a fresh one: the first sweep
+before this control existed is _more_ eligible than a fresh one: the first sweep
 after an upgrade covers the entire back catalogue. A retention control that governed
 only rows created after it shipped would have left exactly the data this is about.
 
@@ -177,12 +177,12 @@ constraint permits every shape the delivery path actually writes: a materialized
 with neither, an attempt with a body, and an attempt with none (a timeout).
 
 **The marker is deliberately cause-free.** `last_response_snippet_redacted_at`
-records *that* a body was removed, never *why*, because it has two producers -
+records _that_ a body was removed, never _why_, because it has two producers -
 erasure and this sweep - and a marker naming one would be a false statement the
 moment the other wrote it. Where the cause matters the row already carries it: an
 erased session's undelivered deliveries hold `cancelled_reason = 'session_erased'`,
 and the tombstone is the record that the erasure happened at all.
-(`payload_redacted_at` on the outbox parent is *not* that evidence: since issue #329
+(`payload_redacted_at` on the outbox parent is _not_ that evidence: since issue #329
 it has two producers of its own.) The admin delivery dashboard
 reads the marker and says the body was removed, rather than reporting an empty body
 for one that was deleted.
@@ -228,7 +228,7 @@ the capability being kept alive.
 **What ageing out costs is deliberately small.** The envelope, the event type and the
 whole delivery record survive, so "did this response's event exist, where did it go,
 and did it arrive" is still answerable. Only the answers go - and the answer ledger
-itself is untouched by any of this; retention of *that* is the session sweep.
+itself is untouched by any of this; retention of _that_ is the session sweep.
 
 **No backfill migration is needed, and none is missing**, for the same reason as the
 snippet: the predicate is over `delivered_at`, `dead_lettered_at` and `cancelled_at`,
@@ -268,7 +268,7 @@ Either alone is sufficient; both hold after `eraseSession`.
 ## The sanctioned DELETE door (why DELETE on `answers` is guarded)
 
 The answer ledger is append-only (I5): there is no UPDATE path, and migration
-`0001` rejects UPDATE at the database level. Erasure is the *only* amendment -
+`0001` rejects UPDATE at the database level. Erasure is the _only_ amendment -
 whole-session DELETE. (Clearing one answer is **not** an amendment: it appends a
 retraction row, ADR-33, which erasure then deletes with every other row of the
 session.) To keep that door narrow, migration `0004` installs a

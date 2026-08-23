@@ -95,7 +95,7 @@ export interface AnswerPreview {
 
 /**
  * The preview of one response's answers, for the browser table's sixth column
- * (issue 515; wireframe `docs/wireframes/admin-responses-ops.md` "browser `table`").
+ * (issue 515).
  *
  * Deterministic by construction: keys are ordered by {@link orderedAnswerKeys} with no
  * pins, which sorts by id, so the same stored answers preview the same way on every

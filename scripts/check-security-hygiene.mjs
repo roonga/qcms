@@ -59,7 +59,7 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -162,7 +162,11 @@ export function sourceFiles() {
     .split("\n")
     .filter(
       (path) =>
-        path !== "" && path !== SELF && SOURCE_EXTENSIONS.test(path) && !TEST_FILE.test(path),
+        path !== "" &&
+        path !== SELF &&
+        existsSync(`${REPO_ROOT}${path}`) &&
+        SOURCE_EXTENSIONS.test(path) &&
+        !TEST_FILE.test(path),
     );
 }
 
@@ -301,7 +305,7 @@ export function scanEnvExample(label, text) {
 export function envExampleFiles() {
   return git(["ls-files", "--", "*.example", "**/*.example"])
     .split("\n")
-    .filter((path) => path !== "" && path.includes("env"));
+    .filter((path) => path !== "" && path.includes("env") && existsSync(`${REPO_ROOT}${path}`));
 }
 
 function main() {

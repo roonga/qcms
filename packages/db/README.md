@@ -14,18 +14,18 @@ shipped; add a new one.
 
 ## Table inventory (kept in sync with `ARCHITECTURE.md` §4.3)
 
-| Table                             | Purpose                                                                                                                            |
-| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `questions`, `question_versions`  | Question library; a version's `definition` is frozen once `status = 'published'` (I1)                                             |
-| `forms`, `form_drafts`            | Form identity + lifecycle `status` (`open`/`closed`, §4.1) and mutable working state; **at most one open draft per form** (the draft's `form_id` primary key) |
-| `form_versions`                   | Immutable published snapshots: domain JSONB + compiled A2UI JSONB + `compiler_version` + `a2ui_spec_version` + `semantics_version` |
-| `sessions`                        | Respondent sessions; pinned `(form_id, form_version)`, access mode, expiry (I4)                                                   |
-| `secure_links`                    | Server-side state for secure-link tokens (SEC-2, task 010): revocation and one-time consumption - a signature alone is never enough |
-| `answers`                         | **Append-only** ledger `(session_id, question_id, value, retracted, answered_at)`; current = latest row, unless it is a retraction (ADR-33), which resolves to unanswered; UPDATE rejected at the DB level (I5) |
-| `submissions`                     | Lock records: session, locked answer set + content hash, submitted timestamp                                                     |
-| `erasure_tombstones`              | ADR-17: `(session_id, form_id, form_version, erased_at, reason)` - existence without content                                     |
-| `outbox`                          | Transactionally written domain events with delivery state, attempt count, next-retry, dead-letter flag                           |
-| `user`, `session`, `account`, `verification`, `twoFactor` | better-auth tables - admin identity with TOTP 2FA at launch                                              |
+| Table                                                     | Purpose                                                                                                                                                                                                         |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `questions`, `question_versions`                          | Question library; a version's `definition` is frozen once `status = 'published'` (I1)                                                                                                                           |
+| `forms`, `form_drafts`                                    | Form identity + lifecycle `status` (`open`/`closed`, §4.1) and mutable working state; **at most one open draft per form** (the draft's `form_id` primary key)                                                   |
+| `form_versions`                                           | Immutable published snapshots: domain JSONB + compiled A2UI JSONB + `compiler_version` + `a2ui_spec_version` + `semantics_version`                                                                              |
+| `sessions`                                                | Respondent sessions; pinned `(form_id, form_version)`, access mode, expiry (I4)                                                                                                                                 |
+| `secure_links`                                            | Server-side state for secure-link tokens (SEC-2, task 010): revocation and one-time consumption - a signature alone is never enough                                                                             |
+| `answers`                                                 | **Append-only** ledger `(session_id, question_id, value, retracted, answered_at)`; current = latest row, unless it is a retraction (ADR-33), which resolves to unanswered; UPDATE rejected at the DB level (I5) |
+| `submissions`                                             | Lock records: session, locked answer set + content hash, submitted timestamp                                                                                                                                    |
+| `erasure_tombstones`                                      | ADR-17: `(session_id, form_id, form_version, erased_at, reason)` - existence without content                                                                                                                    |
+| `outbox`                                                  | Transactionally written domain events with delivery state, attempt count, next-retry, dead-letter flag                                                                                                          |
+| `user`, `session`, `account`, `verification`, `twoFactor` | better-auth tables - admin identity with TOTP 2FA at launch                                                                                                                                                     |
 
 > The better-auth `session` table (singular) is distinct from the domain
 > `sessions` table (plural).
@@ -162,7 +162,7 @@ boots a cleanup sidecar (`testcontainers/ryuk`) before the first container;
 `QCMS_TEST_POSTGRES_IMAGE` does not redirect it, so it kept pulling from Docker
 Hub after the mirror landed and a Hub timeout on it failed a CI leg while the
 mirror was fine. `startTestDb` therefore brings the reaper up as its own step,
-before asking for Postgres, and reports a failure there as a *reaper* failure
+before asking for Postgres, and reports a failure there as a _reaper_ failure
 naming `TESTCONTAINERS_RYUK_DISABLED` and `RYUK_CONTAINER_IMAGE` - never as a
 Postgres-image pull failure sending you to check a working mirror (issue #150).
 CI sets `TESTCONTAINERS_RYUK_DISABLED=true` because a runner is destroyed with the

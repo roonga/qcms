@@ -167,30 +167,8 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # THE FAST LANE (see the `changes` job). Everything below this step is guarded
-      # off for a diff that is entirely under `plan/`; this step is what still runs.
-      #
-      # `plan/**` is out of scope for check:no-em-dash, check:ports and
-      # check:lint-coverage by construction (each excludes it with a `:!plan/**`
-      # pathspec), it is not a pnpm workspace so build/typecheck/lint/test never read
-      # it, `.prettierignore` lists it so `prettier --check .` never opens it, and
-      # jscpd only scans `packages apps`. Three gates DO read it, and `check:plan` is
-      # exactly those three:
-      #
-      #   check:no-control-chars   - `git ls-files` over SOURCE_GLOBS (*.ts, *.tsx,
-      #                              *.mjs, *.mts, *.js, *.jsx, *.json, *.md) with NO
-      #                              plan/ exclusion, so a control char in prose is
-      #                              in scope.
-      #   check:security-hygiene   - its env-example scan is `git ls-files -- *.example
-      #                              **/*.example`, repo-wide, so a plan/ example file
-      #                              carrying a live-looking secret is in scope.
-      #   check:admin-theme        - plan/admin-theme/tokens.css is the SOURCE the gate
-      #                              compares apps/admin/app/theme.css against, so a
-      #                              plan-only edit to the token sheet must go red.
-      #
-      # Adding a gate that reads `plan/**` means adding it to `check:plan` too. The
-      # list is derived, not assumed: re-derive it against the scripts, not this
-      # comment, if the gates change.
+      # Plan-only pull requests skip application builds and tests, but still run the
+      # plan security, theme, ESLint, and Prettier checks.
       - run: pnpm check:plan
         if: env.PLAN_ONLY == 'true'
 
@@ -292,11 +270,9 @@ jobs:
       - run: pnpm check:duplication
         if: env.PLAN_ONLY != 'true'
 
-      # Every tracked source file must be inside some package's lint scope
-      # (issue #413, item 1 of #64). ESLint only reads the paths a lint script
-      # hands it, so a file outside all of them made `pnpm lint` report green
-      # over a file it never opened - silence, not a red. Three instances
-      # survived that way (#257, #387 item 21, #413).
+      # Prove that every tracked project JS/TS file is reached by ESLint and every
+      # tracked Markdown file is reached by Prettier. Vendored upstream source is
+      # reported separately.
       - run: pnpm check:lint-coverage
         if: env.PLAN_ONLY != 'true'
 
@@ -426,9 +402,8 @@ jobs:
       - uses: ./.github/actions/assert-no-docker-hub-pulls
         if: ${{ !cancelled() && env.PLAN_ONLY != 'true' }}
 
-      # Failure forensics (issue #102): screenshots, traces, and the captured
-      # portal/API server logs, only when the job fails. docs/gates/pr-NN stays
-      # the sign-off mechanism; this is debugging evidence.
+      # Ephemeral failure forensics: Playwright output and captured portal/API
+      # server logs, uploaded only when the job fails.
       - uses: actions/upload-artifact@v7
         if: ${{ failure() && env.PLAN_ONLY != 'true' }}
         with:

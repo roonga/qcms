@@ -7,44 +7,44 @@ script (R5); **publish is the aggregate** - the one slice where the kernel
 snapshot, projects it to A2UI, and persists version + compiled + stamps in one
 transaction. Publish compiles **once** and stores the result (ADR-18); the serve
 path (019) reads the stored compiled A2UI and never recompiles - this slice is
-the *only* caller of `compileForm`.
+the _only_ caller of `compileForm`.
 
 ## Routes
 
-| Method & path | Scope (SEC-5) | Notes |
-|---|---|---|
-| `POST /admin/forms` | `forms:write` | Create a form identity + an empty draft. Body: `{ formId, slug, defaultLocale }`. |
-| `GET /admin/forms` | `forms:read` | List forms with draft/published status. |
-| `GET /admin/forms/:id` | `forms:read` | Detail: identity, the current draft (open, else **seeded** from the latest published version), version summary. |
-| `PUT /admin/forms/:id/draft` | `forms:write` | Replace the draft definition (kernel-parsed, 004; parse errors → 422). Returns `{ draft, issues }` - advisory validation for the editor. Issues never block saving; they block publishing. |
-| `POST /admin/forms/:id/draft/validate` | `forms:write` | Dry-run publish validation (no save) for editor debounce. Includes `analyzeRuleGraph`'s backward-target and cycle findings, because `compileDraft` runs it. |
-| `POST /admin/forms/:id/draft/preview-condition` | `forms:write` | Rule test bench (033): evaluate one rule's condition against hypothetical answers on a synthetic snapshot. Read-only. |
-| `PATCH /admin/forms/:id/settings` | `forms:write` | Per-form abuse-control settings (`challengeRequired`, `minSubmitMs`) - ADR-24 tier 2, columns from 026. Partial body. |
-| `POST /admin/forms/:id/publish` | `forms:write` | The aggregate (below). |
-| `POST /admin/forms/:id/close` | `forms:write` | Close to **new** sessions; in-flight sessions finish on their pinned version (R1). |
-| `POST /admin/forms/:id/reopen` | `forms:write` | Reopen a closed form. |
-| `GET /admin/forms/:id/versions/:v` | `forms:read` | One published version's full snapshot (definition + compiled) for version history (034). |
+| Method & path                                   | Scope (SEC-5) | Notes                                                                                                                                                                                      |
+| ----------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `POST /admin/forms`                             | `forms:write` | Create a form identity + an empty draft. Body: `{ formId, slug, defaultLocale }`.                                                                                                          |
+| `GET /admin/forms`                              | `forms:read`  | List forms with draft/published status.                                                                                                                                                    |
+| `GET /admin/forms/:id`                          | `forms:read`  | Detail: identity, the current draft (open, else **seeded** from the latest published version), version summary.                                                                            |
+| `PUT /admin/forms/:id/draft`                    | `forms:write` | Replace the draft definition (kernel-parsed, 004; parse errors → 422). Returns `{ draft, issues }` - advisory validation for the editor. Issues never block saving; they block publishing. |
+| `POST /admin/forms/:id/draft/validate`          | `forms:write` | Dry-run publish validation (no save) for editor debounce. Includes `analyzeRuleGraph`'s backward-target and cycle findings, because `compileDraft` runs it.                                |
+| `POST /admin/forms/:id/draft/preview-condition` | `forms:write` | Rule test bench (033): evaluate one rule's condition against hypothetical answers on a synthetic snapshot. Read-only.                                                                      |
+| `PATCH /admin/forms/:id/settings`               | `forms:write` | Per-form abuse-control settings (`challengeRequired`, `minSubmitMs`) - ADR-24 tier 2, columns from 026. Partial body.                                                                      |
+| `POST /admin/forms/:id/publish`                 | `forms:write` | The aggregate (below).                                                                                                                                                                     |
+| `POST /admin/forms/:id/close`                   | `forms:write` | Close to **new** sessions; in-flight sessions finish on their pinned version (R1).                                                                                                         |
+| `POST /admin/forms/:id/reopen`                  | `forms:write` | Reopen a closed form.                                                                                                                                                                      |
+| `GET /admin/forms/:id/versions/:v`              | `forms:read`  | One published version's full snapshot (definition + compiled) for version history (034).                                                                                                   |
 
 Scopes are **inert at launch** - the `/api/v1` surface is reserved (R7). They ride
 in the generated OpenAPI document so Phase-4 activation is wiring, not archaeology.
 
 ## The rule test bench (033)
 
-`POST .../draft/preview-condition` answers one question: *does this rule's
-condition match these hypothetical answers?* The admin app cannot answer it -
+`POST .../draft/preview-condition` answers one question: _does this rule's
+condition match these hypothetical answers?_ The admin app cannot answer it -
 it is a strict BFF with no `@qcms/core` value import at all (R2, enforced by its
 `r2-import-surface.test.ts`) - so the evaluator runs here, exactly as 032 put the
-question-preview compile here. The 042 wireframe's original "client-side
-evaluation" wording is amended to match (2026-08-01, PO seat).
+question-preview compile here. The 042 screen contract's original "client-side
+evaluation" wording is superseded by the enforced server-side boundary.
 
 `evaluateRules` answers "what is visible", not "did this condition match", so the
 handler builds a **synthetic two-step form** and evaluates that instead of the
 draft:
 
-| Step | Contents |
-|---|---|
-| `stp_bench_reads` | the questions this condition reads, at the versions the draft pins them at |
-| `stp_bench_target` | the rule's target, alone (a step target stands for its first question) |
+| Step               | Contents                                                                   |
+| ------------------ | -------------------------------------------------------------------------- |
+| `stp_bench_reads`  | the questions this condition reads, at the versions the draft pins them at |
+| `stp_bench_target` | the rule's target, alone (a step target stands for its first question)     |
 
 with exactly one rule: this one. ADR-16 evaluation is a single forward pass, so a
 target's visibility is only well-defined when it sits after every question the
@@ -52,7 +52,7 @@ condition reads. The real draft need not satisfy that, and a backward target is
 precisely one of the things an author comes to the bench to understand. The
 synthetic layout isolates the question the bench actually asks, and since the
 target is hidden unless a targeting rule matches and there is only one rule,
-"the target is visible" *is* "the condition matched".
+"the target is visible" _is_ "the condition matched".
 
 The target is left out of step 1 even when the condition reads it, because the
 kernel rejects a question pinned twice in one form; a self-reference then reads as
@@ -60,7 +60,7 @@ unanswered, which is what a forward pass would do anyway. Pins resolve through t
 same `loadQuestionLookups` path publish uses, version-exact, so the bench and
 publish cannot disagree about what a pin names.
 
-Whether the rule is *legally placed* is `analyzeRuleGraph`'s verdict, already
+Whether the rule is _legally placed_ is `analyzeRuleGraph`'s verdict, already
 delivered by `draft/validate` as `RULE_BACKWARD_TARGET`/`RULE_CYCLE`. The bench
 does not duplicate it.
 
@@ -133,7 +133,7 @@ trigger (migration 0001) is the storage backstop.
 
 ## Deprecated-pin gate (new/moved vs carried-over)
 
-A deprecated question version may **stay** pinned only if the *exact placement*
+A deprecated question version may **stay** pinned only if the _exact placement_
 `(step, question, version)` was already in the **previous published version** - a
 carried-over pin the author did not touch. A **new** pin (no prior published
 version, or this placement is not in it) or a **moved** pin (same version, now in
@@ -142,7 +142,7 @@ a different step) to a deprecated version is rejected `DEPRECATED_PIN`.
 `DEPRECATED_PIN` is a slice-level issue the kernel does not model (`compileDraft`
 knows only published/not-published). Every pinned deprecated version is added to
 `publishedQuestionVersions` so `compileDraft` treats it as resolvable
-published-once content - leaving this gate the *sole* author of the deprecation
+published-once content - leaving this gate the _sole_ author of the deprecation
 verdict, so a rejected pin is reported once, as `DEPRECATED_PIN`, never doubled as
 `UNPUBLISHED_QUESTION_PIN`.
 
@@ -167,7 +167,7 @@ all (ADR-09), so these paths 404, never 403.
 - `GET /admin/forms` reads each row's draft + latest version (one read per row).
   Fine at launch admin scale; a denormalized status column is a Phase-4
   optimization (R7), not a launch need.
-- `@qcms/db`'s enum-bearing (and branded-id) row types resolve to a TS *error*
+- `@qcms/db`'s enum-bearing (and branded-id) row types resolve to a TS _error_
   type through the emitted `.d.ts` (issue #5). Reads are laundered through narrow
   local views with a single cast on an unannotated const - the sanctioned
   pattern; do not "fix" `@qcms/db` here.

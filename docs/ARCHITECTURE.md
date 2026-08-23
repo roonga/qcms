@@ -1,6 +1,6 @@
 # QCMS - Architecture
 
-**Status:** v1.2 (formal) · supersedes `HLA.md` Draft v1 · incorporates ADR-16…25
+**Status:** authoritative
 **License:** MIT · **Runtime:** Node LTS · **Language:** TypeScript end to end
 
 ---
@@ -63,15 +63,15 @@ apps/
 
 A functional core: pure functions over immutable data. Public surface, roughly:
 
-| Function | Contract |
-|---|---|
-| `compileDraft(draft): PublishResult` | The single true aggregate. Validates atomically: every rule resolves against pinned question versions; no dangling question/option/step refs; default locale complete; **rule dependency graph is acyclic and forward-only (ADR-16)**. Returns an immutable, deep-frozen snapshot or a typed error list - all errors, not the first. |
+| Function                                                                          | Contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `compileDraft(draft): PublishResult`                                              | The single true aggregate. Validates atomically: every rule resolves against pinned question versions; no dangling question/option/step refs; default locale complete; **rule dependency graph is acyclic and forward-only (ADR-16)**. Returns an immutable, deep-frozen snapshot or a typed error list - all errors, not the first.                                                                                                                                                                 |
 | `evaluateRules(snapshot, answers, resolveQuestion): Result<FlowState, EvalError>` | **Single forward pass in document order (ADR-16).** Deterministic, total on valid input; semantics versioned with the snapshot. Conditions over unanswered questions are `false` except `answered`; hidden questions' answers are excluded from evaluation - safe because forward-only ordering makes evaluation single-pass. `resolveQuestion` injects the pinned question definitions (required flags) - same I/O-free lookup pattern as the publish-time type check (task 006, DOMAIN_SCHEMA §3). |
-| `validateAnswer(question, value): Result` | Per-type validity; canonical `AnswerValue` encodings are defined with the Stage 1 schema (dates are timezone-less ISO `YYYY-MM-DD`; numbers are IEEE doubles with an `integer` constraint; choice values are `optionId`s). |
-| `mintSecureLink / verifySecureLink` | Signed, expiring, single-form tokens. Pure given key material - key storage and rotation live in the shell/API. |
-| Erasure semantics (ADR-17) | Core defines what erasure means (which records, tombstone shape, invariants preserved); `@qcms/db` implements it. |
+| `validateAnswer(question, value): Result`                                         | Per-type validity; canonical `AnswerValue` encodings are defined with the Stage 1 schema (dates are timezone-less ISO `YYYY-MM-DD`; numbers are IEEE doubles with an `integer` constraint; choice values are `optionId`s).                                                                                                                                                                                                                                                                           |
+| `mintSecureLink / verifySecureLink`                                               | Signed, expiring, single-form tokens. Pure given key material - key storage and rotation live in the shell/API.                                                                                                                                                                                                                                                                                                                                                                                      |
+| Erasure semantics (ADR-17)                                                        | Core defines what erasure means (which records, tombstone shape, invariants preserved); `@qcms/db` implements it.                                                                                                                                                                                                                                                                                                                                                                                    |
 
-Everything outside the invariant zones is deliberately *not* domain-modeled: admin CRUD, listing, export, configuration are transaction scripts in their API slices. Decision rule (R5): an invariant spanning more than one field or row belongs in a core function; anything else talks to the database directly.
+Everything outside the invariant zones is deliberately _not_ domain-modeled: admin CRUD, listing, export, configuration are transaction scripts in their API slices. Decision rule (R5): an invariant spanning more than one field or row belongs in a core function; anything else talks to the database directly.
 
 ### 4.2 The rules DSL
 
@@ -79,7 +79,7 @@ A closed, typed JSON rule language: `equals`, `notEquals`, `in`, `gt/gte/lt/lte`
 
 **Evaluation semantics (ADR-16, frozen with each snapshot):**
 
-1. Targets listed in any rule are *conditional*: hidden by default, shown when a rule matches. Untargeted items are unconditionally visible.
+1. Targets listed in any rule are _conditional_: hidden by default, shown when a rule matches. Untargeted items are unconditionally visible.
 2. A rule's targets must appear strictly later in document order than every question its condition references. Publish rejects violations (typed `RULE_BACKWARD_TARGET`, `RULE_CYCLE` errors).
 3. Evaluation is one pass over the document in order; when a question is evaluated as hidden, its answers are excluded from all subsequent condition evaluation and from the locked submission.
 4. Same `(snapshot, answers)` → same `FlowState`, forever. Semantic changes require a new semantics version stamped into future snapshots; old snapshots evaluate under their recorded semantics.
@@ -88,18 +88,18 @@ A closed, typed JSON rule language: `equals`, `notEquals`, `in`, `gt/gte/lt/lte`
 
 Operational tables (owned by `@qcms/db`):
 
-| Table | Purpose |
-|---|---|
-| `questions`, `question_versions` | Question library; versions immutable once referenced by a published form |
-| `forms`, `form_drafts` | Form identity and mutable working state (at most one open draft per form) |
-| `form_versions` | Immutable published snapshots: domain JSONB + compiled A2UI JSONB + `compilerVersion` + `a2uiSpecVersion` + semantics version |
-| `sessions` | Respondent sessions; pinned to a form version via the composite FK `(form_id, form_version)`, access mode, expiry |
-| `secure_links` | Server-side state for secure-link tokens (010/013): revocation, atomic one-time consumption - a signature alone is never sufficient (SEC-2) |
-| `answers` | **Append-only** ledger `(session_id, question_id, value, answered_at)`; current = latest row; submission locks the set. No UPDATE path exists. |
-| `submissions` | Lock records: session, locked answer-set hash, submitted timestamp |
-| `erasure_tombstones` | ADR-17: `(session_id, form_id, form_version, erased_at, reason)` - existence without content |
-| `outbox` | Transactionally written domain events (`response.submitted`, `form.published`) with delivery state, attempt count, next-retry, and dead-letter flag |
-| better-auth tables | Users, sessions, accounts for admin (2FA enabled) + later respondent identity |
+| Table                            | Purpose                                                                                                                                             |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `questions`, `question_versions` | Question library; versions immutable once referenced by a published form                                                                            |
+| `forms`, `form_drafts`           | Form identity and mutable working state (at most one open draft per form)                                                                           |
+| `form_versions`                  | Immutable published snapshots: domain JSONB + compiled A2UI JSONB + `compilerVersion` + `a2uiSpecVersion` + semantics version                       |
+| `sessions`                       | Respondent sessions; pinned to a form version via the composite FK `(form_id, form_version)`, access mode, expiry                                   |
+| `secure_links`                   | Server-side state for secure-link tokens (010/013): revocation, atomic one-time consumption - a signature alone is never sufficient (SEC-2)         |
+| `answers`                        | **Append-only** ledger `(session_id, question_id, value, answered_at)`; current = latest row; submission locks the set. No UPDATE path exists.      |
+| `submissions`                    | Lock records: session, locked answer-set hash, submitted timestamp                                                                                  |
+| `erasure_tombstones`             | ADR-17: `(session_id, form_id, form_version, erased_at, reason)` - existence without content                                                        |
+| `outbox`                         | Transactionally written domain events (`response.submitted`, `form.published`) with delivery state, attempt count, next-retry, and dead-letter flag |
+| better-auth tables               | Users, sessions, accounts for admin (2FA enabled) + later respondent identity                                                                       |
 
 **Reporting.** Read-only `reporting.responses` (and friends) is the documented SQL contract for BI/ETL - the pull path shipping at launch in place of the deferred API. Erased sessions are excluded by construction.
 
@@ -111,13 +111,13 @@ Operational tables (owned by `@qcms/db`):
 
 One Hono codebase defines all routes as composable groups; a deployment flag controls which groups a process mounts. Admin routes do not exist in a public-facing process - network isolation is a build-time guarantee.
 
-| Surface | Consumer | Auth | Exposure | Stability |
-|---|---|---|---|---|
-| Portal-internal endpoints | Portal BFF only | Session token binding | Internal network | None - internal contract |
-| `/admin` | Admin app BFF | better-auth session (2FA) | VPN / internal | None - internal contract |
-| `/api/auth/*` | Admin app BFF | Internal token only (it issues the session) | VPN / internal | Vendor's (better-auth), endpoint set allowlisted |
-| `/health`, `/ready` | Orchestrators, monitors | None (liveness) / internal | Both processes | Stable by convention |
-| `/api/v1` *(reserved)* | Third parties | Scoped tokens | Internet | Versioned + generated OpenAPI |
+| Surface                   | Consumer                | Auth                                        | Exposure         | Stability                                        |
+| ------------------------- | ----------------------- | ------------------------------------------- | ---------------- | ------------------------------------------------ |
+| Portal-internal endpoints | Portal BFF only         | Session token binding                       | Internal network | None - internal contract                         |
+| `/admin`                  | Admin app BFF           | better-auth session (2FA)                   | VPN / internal   | None - internal contract                         |
+| `/api/auth/*`             | Admin app BFF           | Internal token only (it issues the session) | VPN / internal   | Vendor's (better-auth), endpoint set allowlisted |
+| `/health`, `/ready`       | Orchestrators, monitors | None (liveness) / internal                  | Both processes   | Stable by convention                             |
+| `/api/v1` _(reserved)_    | Third parties           | Scoped tokens                               | Internet         | Versioned + generated OpenAPI                    |
 
 No launch surface carries a stability contract - every API can change freely while the product finds its shape. All routes are nevertheless defined with `@hono/zod-openapi` from the first slice (017's convention), and CI generates and drift-asserts valid OpenAPI documents for the respondent and admin surfaces (027) - labeled `x-stability: internal`: descriptive documentation of the current build, never a compatibility promise. When `/api/v1` returns, the same machinery publishes its versioned schema with the stability promise and PAT security scheme turned on, so the published schema cannot drift.
 
@@ -151,7 +151,7 @@ In the enterprise topology these run in the internal API instance only (a mount-
 
 ## 6. Frontend architecture
 
-**Portal** (Next.js, public): fully SSR pages for fast first paint, hydrating into the shared A2UI renderer. First paint is a real no-JS fallback form (a natively submittable `<form>`, see `docs/features/044-no-js-submission.md`) which React *replaces* on hydration rather than adopting in place, so an in-progress interaction with a React-controlled input landing before hydration is discarded (a completed native submission of the fallback form is the supported no-JS path and goes through by design). Route handlers are a strict BFF - session cookies, server-held credentials, proxying; no rule evaluation, no validation authority (R2).
+**Portal** (Next.js, public): fully SSR pages for fast first paint, hydrating into the shared A2UI renderer. First paint is a real no-JS fallback form, implemented and covered by the portal no-JS browser suite. React replaces that form on hydration rather than adopting it in place, so an in-progress interaction with a React-controlled input before hydration is discarded; a completed native submission is supported. Route handlers are a strict BFF - session cookies, server-held credentials, proxying; no rule evaluation, no validation authority (R2).
 
 **Admin** (Next.js, VPN in enterprise topology): predominantly client components - form builder, structured condition editor, question library - using the same BFF pattern against `/admin`. Its most important feature is preview fidelity: previews render through the identical `packages/ui` renderer, in the same runtime, so what the author sees is what the respondent gets. The condition editor is structured JSON editing with live kernel validation (ADR-19); a visual builder is Phase 4. Admin screens are **ordinary React** built from the same vendored `a2-react-aria` component set in `packages/ui` (ADR-22) - A2UI documents and `A2Renderer` appear in the admin only inside the preview pane, never for the admin's own UI.
 
@@ -186,14 +186,14 @@ portal · admin · api (all groups + workers; no published port) · postgres
 
 Both topologies run the same images; the difference is instance count and mount flags. The solo shape - four containers (portal, admin, api, postgres), one a database, with TLS/ingress supplied by the operator (ADR-20) - is the operability budget and the reference deployment the scaffold produces.
 
-Database clients (ADR-35, as amended 2026-07-31 and implemented by task 056): **the API is the only process in either topology that holds a database handle.** Neither frontend has one - not the portal, which never did, and not the admin, whose better-auth exception closed when the instance moved into the API. Concretely: `apps/admin` declares no `pg`, `drizzle-orm` or `@qcms/db` dependency, its Compose service is given no `DATABASE_URL`, and its import-surface test enforces an **empty** allowlist of `@qcms/db` value bindings as the regression gate. No admin-to-postgres edge exists in any composition, and none ever shipped: 056 landed before 036, so no production topology was ever published with one.
+**The API is the only process in either topology that holds a database handle.** Neither frontend has one. `apps/admin` declares no `pg`, `drizzle-orm`, or `@qcms/db` dependency, receives no `DATABASE_URL`, and has an import-surface test that enforces an empty allowlist of `@qcms/db` value bindings.
 
 ## 10. Operations
 
 Committed at launch (Stage 8b), not aspirational:
 
 - **Health:** `/health` (liveness) and `/ready` (DB connectivity) on API; equivalent checks on both Next apps; compose healthchecks wired.
-- **Backup/restore:** documented `pg_dump`/restore procedure in the README, with a tested restore drill as part of the 8b exit criteria. The database is the *only* stateful component by design.
+- **Backup/restore:** documented `pg_dump`/restore procedure in the README, with a tested restore drill as part of the 8b exit criteria. The database is the _only_ stateful component by design.
 - **Logs:** structured JSON logs to stdout from all processes (12-factor); the shared server logger redacts fields before output and adds `trace_id`/`span_id` from the active OTel context automatically when tracing is on (see §10.1). The local LGTM stack receives the same allowlisted records over OTLP.
 - **Webhook observability:** delivery state, attempt history, and dead-letters visible in admin; manual redelivery.
 - **Upgrades:** packages release via Changesets from Stage 5; `pnpm up` + `drizzle-kit migrate` is the adopter upgrade path, exercised in CI from the start.
@@ -206,11 +206,11 @@ QCMS is adopter-hosted, so it ships **instrumentation and conventions, never a b
 
 **The SDK is wired at all three app composition roots:**
 
-| Where | How | Spans it produces |
-|---|---|---|
+| Where                                             | How                                                                                                                                                                                         | Spans it produces                                                                                                                                                                                                 |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `apps/api` (`src/serve.ts` -> `src/telemetry.ts`) | canonical `NodeSDK` bootstrap; the entry starts it and only then dynamically imports `main.ts`, because the instrumentations patch `pg` and `node:http` as those modules are first required | `@hono/otel` server span (extracts the inbound `traceparent`), `instrumentation-http`, `instrumentation-undici` (outbound webhook delivery), `instrumentation-pg` (parameterized statement text, no bound values) |
-| `apps/portal` (`instrumentation.ts`) | Next's documented route: `register()` + `registerOTel` from `@vercel/otel`, Node runtime only | Next's own request/render spans plus its `fetch` span for the BFF hop, with `propagateContextUrls` covering the API origin so the fetch carries `traceparent` |
-| `apps/admin` (`instrumentation.ts`) | the same documented Next composition-root setup and API-origin propagation as the Portal | Next request/render spans and the Admin-to-API `fetch` span |
+| `apps/portal` (`instrumentation.ts`)              | Next's documented route: `register()` + `registerOTel` from `@vercel/otel`, Node runtime only                                                                                               | Next's own request/render spans plus its `fetch` span for the BFF hop, with `propagateContextUrls` covering the API origin so the fetch carries `traceparent`                                                     |
+| `apps/admin` (`instrumentation.ts`)               | the same documented Next composition-root setup and API-origin propagation as the Portal                                                                                                    | Next request/render spans and the Admin-to-API `fetch` span                                                                                                                                                       |
 
 Instrumentation is an **explicit list of official packages**; `auto-instrumentations-node` is deliberately excluded (same code, 100+ packages of dependency surface), and no fetch/undici instrumentation is added to the Next apps (Next already emits that span, so adding one double-instruments the hop). The API's raw incoming `node:http` span is suppressed because `@hono/otel` supplies the semantic server span; this prevents duplicate SERVER spans for one request. `@qcms/core` stays **OTel-free**: spans wrap the kernel, never enter it, so determinism and the golden corpus are untouched by construction.
 
@@ -232,18 +232,19 @@ Instrumentation is an **explicit list of official packages**; `auto-instrumentat
 
 ## 12. Reserved seams
 
-| Seam | Where it lives | What it enables later |
-|---|---|---|
-| Step-resolver / compiler swap | `@qcms/a2ui-compiler` | Agent-adaptive *serving* flows (Phase 4) |
-| `DraftAssistant` provider adapter | `apps/api` (041, ADR-25) | Any LLM vendor behind agent-assisted authoring; local models later |
-| `/api/v1` route group | `apps/api` composition root | Versioned pull API with generated OpenAPI |
-| Challenge adapter | Shell | Any CAPTCHA/risk vendor |
-| Auth adapter surface | Shell (better-auth config) | OTP, social, external IdPs |
-| Locale maps | Core schema | Full i18n UX |
-| Question library machinery | Schema already question-versioned | Impact analysis, breaking-change detection |
-| Fetch-pure handlers | `apps/api` | Bun (or edge) runtime by base-image change |
-| Multi-tenancy | Documented recipe | Org-scoped SaaS derivative |
-| A2UI spec versioning | Snapshot stamps + append-only golden corpus | Breaking A2UI evolution without snapshot migration |
+| Seam                              | Where it lives                              | What it enables later                                              |
+| --------------------------------- | ------------------------------------------- | ------------------------------------------------------------------ |
+| Step-resolver / compiler swap     | `@qcms/a2ui-compiler`                       | Agent-adaptive _serving_ flows (Phase 4)                           |
+| `DraftAssistant` provider adapter | `apps/api` (041, ADR-25)                    | Any LLM vendor behind agent-assisted authoring; local models later |
+| `/api/v1` route group             | `apps/api` composition root                 | Versioned pull API with generated OpenAPI                          |
+| Challenge adapter                 | Shell                                       | Any CAPTCHA/risk vendor                                            |
+| Auth adapter surface              | Shell (better-auth config)                  | OTP, social, external IdPs                                         |
+| Locale maps                       | Core schema                                 | Full i18n UX                                                       |
+| Question library machinery        | Schema already question-versioned           | Impact analysis, breaking-change detection                         |
+| Link target policy                | Start-session slice and secure-link state   | Always latest or exact-version distribution (ADR-39, Phase 4)      |
+| Fetch-pure handlers               | `apps/api`                                  | Bun (or edge) runtime by base-image change                         |
+| Multi-tenancy                     | Documented recipe                           | Org-scoped SaaS derivative                                         |
+| A2UI spec versioning              | Snapshot stamps + append-only golden corpus | Breaking A2UI evolution without snapshot migration                 |
 
 ## 13. Repository layout (monorepo, full tree)
 
@@ -268,7 +269,6 @@ qcms/
 │   ├── PROJECT_GOAL.md · ARCHITECTURE.md · IMPLEMENTATION_PLAN.md
 │   ├── DOMAIN_SCHEMA.md · SECURITY_DESIGN.md
 │   ├── features/                 # the numbered task files (this plan)
-│   ├── wireframes/               # UI wireframes: ASCII + normative inventories (042)
 │   ├── a2ui-mapping.md (011) · agent-seam.md (011) · secure-links.md (010, 024)
 │   ├── reporting-view.md (015) · erasure.md (016) · a11y.md (030)
 │   ├── theming.md (051)          # the four-group token contract (ADR-30)
@@ -366,4 +366,4 @@ Layout rules: golden/fixture directories live with the package that owns their m
 
 ---
 
-*Companion documents: `PROJECT_GOAL.md` (vision, ADR-01…35) · `SECURITY_DESIGN.md` (SEC-1…13) · `IMPLEMENTATION_PLAN.md` (staged delivery) · `DOMAIN_SCHEMA.md` (domain model; §3 evaluation semantics superseded by ADR-16 as noted).*
+_Companion documents: `PROJECT_GOAL.md` (vision, ADR-01…39) · `SECURITY_DESIGN.md` (SEC-1…13) · `IMPLEMENTATION_PLAN.md` (staged delivery) · `DOMAIN_SCHEMA.md` (domain model and rule semantics)._

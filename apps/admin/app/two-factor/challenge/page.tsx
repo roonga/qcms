@@ -8,7 +8,7 @@ import { readAuthCookie, TWO_FACTOR_COOKIE } from "@/lib/server/auth-api";
 import { SIGN_IN_PATH } from "@/lib/server/session";
 
 /**
- * The 2FA challenge (task 031; wireframe state `2FA-challenge`).
+ * The 2FA challenge (task 031; screen contract state `2FA-challenge`).
  *
  * Reached only with a pending challenge, which is the short-lived two-factor cookie
  * better-auth sets in place of a session when a password verifies for an enrolled

@@ -37,7 +37,7 @@ import type { ReadState } from "@/lib/read-state";
  * two reasons and both are worth keeping: the whole CodeMirror bundle then loads only when
  * an author actually opens a rule, and it never runs during server rendering, where there
  * is no `document` for it to attach to. Until it arrives the pane renders the same JSON as
- * plain text, so the condition is readable before hydration and in the screenshot gate.
+ * plain text, so the condition is readable before hydration.
  *
  * ## Accessibility, which is load-bearing for the axe gate
  *

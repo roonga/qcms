@@ -1,7 +1,7 @@
 import { FormRailSlot } from "./rail-slot";
 
 /**
- * The §7 rail on the builder: the sibling group only (issue 561, PM seat ruling).
+ * The §7 rail on the builder: the sibling group only (issue 561).
  *
  * ## Why this screen has one group and no divider, and why that is §7 rather than an
  * exception to it

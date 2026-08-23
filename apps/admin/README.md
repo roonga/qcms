@@ -15,14 +15,14 @@ first-party to it, and the API is the deployment's only database client. There i
 
 ## What is here at launch
 
-| Area | State |
-| --- | --- |
-| Sign-in, TOTP 2FA enrollment, recovery codes, 2FA challenge, sign-out | built (031) |
-| Settings: change password, 2FA status | built (031) |
-| Questions: library list, editor, version timeline, preview, lifecycle | built (032) |
-| Forms: builder, condition editor, validation panel, rule bench | built (033) |
-| Forms: publish, draft preview, version history, secure links | built (034) |
-| Responses: browser with filters, detail with the answer ledger, CSV/JSON export, erasure and the erasure log | built (035) |
+| Area                                                                                                            | State       |
+| --------------------------------------------------------------------------------------------------------------- | ----------- |
+| Sign-in, TOTP 2FA enrollment, recovery codes, 2FA challenge, sign-out                                           | built (031) |
+| Settings: change password, 2FA status                                                                           | built (031) |
+| Questions: library list, editor, version timeline, preview, lifecycle                                           | built (032) |
+| Forms: builder, condition editor, validation panel, rule bench                                                  | built (033) |
+| Forms: publish, draft preview, version history, secure links                                                    | built (034) |
+| Responses: browser with filters, detail with the answer ledger, CSV/JSON export, erasure and the erasure log    | built (035) |
 | Webhooks: per-form endpoints with one-time secret reveal, delivery dashboard, dead-letter queue with redelivery | built (035) |
 
 The shell nav, the auth gate, and the shared UI kit are what 031 delivers.
@@ -87,7 +87,7 @@ better-auth instance:
   and `QCMS_ADMIN_BASE_URL` (plus `QCMS_ADMIN_EMAIL` / `QCMS_ADMIN_PASSWORD`, and
   optionally `QCMS_ADMIN_NAME`). It deliberately does **not** ask for the link keys,
   session keys or app key the running API needs - none is read on this path.
-- For *this command* the secret does not have to match the running API's. It is validated,
+- For _this command_ the secret does not have to match the running API's. It is validated,
   not used: the account is created with a salted password hash (secret-independent), no
   second factor is enrolled, and the one session the creation mints is revoked immediately,
   so nothing it writes is later decrypted elsewhere.
@@ -121,6 +121,7 @@ better-auth instance:
   history entry only when `HISTCONTROL` includes `ignorespace` (bash) or
   `HIST_IGNORE_SPACE` is set (zsh), and neither is the default everywhere, which is why it
   is the fallback rather than the recipe.
+
 - It builds first (`pnpm --filter qcms-api... build`) because the entry is compiled
   (`apps/api/dist/create-admin.js`), which is what makes it available inside the API
   container image.
@@ -219,14 +220,14 @@ It is a **development** tool. It writes the database directly, which is why it l
 
 ## Tests
 
-| Layer | Where |
-| --- | --- |
-| BFF boundary, CSP, SEC-1 route tree | `lib/server/*.test.ts`, `proxy.test.ts` |
-| First-run bootstrap against a real Postgres | `lib/server/bootstrap.integration.test.ts` (Docker) |
-| Browser: the whole 2FA loop, axe in all three modes, keyboard | `e2e/*.pw.ts` (the root Playwright config) |
-| Browser: mode default, persistence, no flash, Lexend | `e2e/appearance.pw.ts` |
-| Browser: the operations arc (browse, export, erase, dead-letter, redeliver) | `e2e/responses-ops.pw.ts` |
-| The theme gates themselves (tokens-only, drift, naming) | `scripts/check-admin-theme.test.ts` |
+| Layer                                                                       | Where                                               |
+| --------------------------------------------------------------------------- | --------------------------------------------------- |
+| BFF boundary, CSP, SEC-1 route tree                                         | `lib/server/*.test.ts`, `proxy.test.ts`             |
+| First-run bootstrap against a real Postgres                                 | `lib/server/bootstrap.integration.test.ts` (Docker) |
+| Browser: the whole 2FA loop, axe in all three modes, keyboard               | `e2e/*.pw.ts` (the root Playwright config)          |
+| Browser: mode default, persistence, no flash, Lexend                        | `e2e/appearance.pw.ts`                              |
+| Browser: the operations arc (browse, export, erase, dead-letter, redeliver) | `e2e/responses-ops.pw.ts`                           |
+| The theme gates themselves (tokens-only, drift, naming)                     | `scripts/check-admin-theme.test.ts`                 |
 
 The browser suite rides on the one root Playwright config as the `admin-chromium` project
 and shares the portal harness's Postgres and composed API, so `pnpm verify:browser` runs

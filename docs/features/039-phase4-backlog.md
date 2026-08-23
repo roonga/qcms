@@ -15,13 +15,14 @@ One `phase-4` labeled issue per item, each with: motivation, the reserved seam i
 2. **Library cascade UX, staged:** (a) outdated-pin surfacing, (b) breaking-change classification, (c) cross-form impact analysis - question-versioning machinery already structural; trigger: a library with enough reuse that manual pinning hurts.
 3. **`/api/v1`** - scoped tokens, generated OpenAPI via `@hono/zod-openapi`; trigger: a real integrator asking to pull.
 4. **Locale-switching UX** - schema is ready (ADR-11); trigger: first multilingual deployment.
-5. **Agent-adaptive serving flows** - behind the `StepResolver`/compiler seam (never launched lightly; a versioned-semantics event if ever). Agent-assisted *authoring* moved to launch scope as task 041 (ADR-25); this item is only the serving-path half. Trigger: a use case immutable published flows genuinely cannot express.
-6. **File-upload question type** - versioned core change + storage story (object store adapter - new seam decision needed, flag for ADR); trigger: a flow that needs documents. *(Review-identified gap: recorded so it's a decision, not an omission.)*
+5. **Agent-adaptive serving flows** - behind the `StepResolver`/compiler seam (never launched lightly; a versioned-semantics event if ever). Agent-assisted _authoring_ moved to launch scope as task 041 (ADR-25); this item is only the serving-path half. Trigger: a use case immutable published flows genuinely cannot express.
+6. **File-upload question type** - versioned core change + storage story (object store adapter - new seam decision needed, flag for ADR); trigger: a flow that needs documents. _(Review-identified gap: recorded so it's a decision, not an omission.)_
 7. **Visual condition builder** - emits the same DSL (ADR-03 designed for this); trigger: author feedback on the structured editor.
 8. **Bun runtime** - fetch-pure handlers keep it a base-image change (R4); trigger: measured performance need.
 9. **Multi-tenancy recipe** - documented derivative, not schema tax (ADR-04); trigger: real SaaS demand.
-9a. **Runtime feature-flag provider** - DB-backed, toggleable without restart, behind ADR-24's registry seam (env stays the default provider); trigger: an operator who genuinely can't restart to flip a flag.
+   9a. **Runtime feature-flag provider** - DB-backed, toggleable without restart, behind ADR-24's registry seam (env stays the default provider); trigger: an operator who genuinely can't restart to flip a flag.
 10. Items accumulated during Stages 0–8 under `phase-4` - dedupe, merge, and re-label into this structure.
+11. **Public and secure link version targeting** - implement ADR-39 and task 063; trigger: an operator needs a stable campaign or regulated-flow link to retain exact published wording while other distribution follows the newest version.
 
 Also: a `ROADMAP.md` pointing at the label, stating the demand-ordered principle publicly (adopters should know the rule).
 

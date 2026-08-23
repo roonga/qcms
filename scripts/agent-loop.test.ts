@@ -111,7 +111,7 @@ function supervisorWorkspace(stubOutput: string) {
   // test can assert what the supervisor actually passes to `claude`. It also
   // records `QCMS_PORT_SEAT` from its own environment, which is the only way to
   // observe that the supervisor EXPORTED the seat rather than merely computing it
-  // (issue #255): every consumer downstream reads the environment.
+  // every consumer downstream reads the environment.
   const stub = join(root, "bin", "claude");
   const argvLog = join(root, "claude-argv.txt");
   const seatLog = join(root, "claude-seat.txt");
@@ -154,7 +154,7 @@ const INTERRUPT_AFTER_MS = 3_000;
 function readBackgroundPid(pidFile: string): number {
   const raw = existsSync(pidFile) ? readFileSync(pidFile, "utf8").trim() : "";
   if (raw === "") throw new Error("the session stub never recorded a background pid");
-  if (!/^[1-9][0-9]*$/.test(raw)) {
+  if (!/^[1-9]\d*$/.test(raw)) {
     throw new Error(`the session stub recorded a background pid that is not a pid: '${raw}'`);
   }
   return Number(raw);
@@ -183,8 +183,7 @@ function holdLaunchWindowOpen(source: string): string {
 
 // Same throwaway workspace as above, but the caller writes the whole stub body:
 // these tests need a `claude` that spawns background work of its own, which is
-// the thing the supervisor has to clean up. `--mailbox` is always overridden to
-// a lane-specific name so a run can never read or ack a real seat-mail inbox.
+// the thing the supervisor has to clean up.
 function runWithSessionStub(
   stubBody: string,
   timeoutMs = SUPERVISOR_KILL_MS,
@@ -202,7 +201,7 @@ function runWithSessionStub(
   writeFileSync(stub, `#!/usr/bin/env bash\nPID_FILE='${pidFile}'\n${stubBody}\n`);
   chmodSync(stub, 0o755);
 
-  const res = spawnSync("bash", [copied, "-m", "1", "-M", "test240"], {
+  const res = spawnSync("bash", [copied, "-m", "1"], {
     encoding: "utf8",
     timeout: timeoutMs,
     env: { ...process.env, PATH: `${join(root, "bin")}:${process.env.PATH ?? ""}` },
@@ -322,7 +321,7 @@ describe("agent-loop.sh argument validation", () => {
   });
 
   it("still accepts a zero-padded task id, which is the documented form", () => {
-    const res = runWithStubbedClaude("NEXT-TASK: NOTHING", "-s", "010", "-m", "1");
+    const res = runWithStubbedClaude("NEXT-WORK: NOTHING", "-s", "010", "-m", "1");
 
     expect(res.status).toBe(0);
     expect(res.stderr).not.toContain("positive integer");
@@ -348,17 +347,17 @@ describe("agent-loop.sh supervisor loop", () => {
   it("accepts valid arguments and runs an iteration", () => {
     // NOTHING is the ledger-exhausted sentinel, so the loop stops after one
     // pass rather than spinning for the full --max-iterations.
-    const res = runWithStubbedClaude("NEXT-TASK: NOTHING", "-p", "2", "-r", "5", "-m", "3");
+    const res = runWithStubbedClaude("NEXT-WORK: NOTHING", "-p", "2", "-r", "5", "-m", "3");
 
     expect(res.status).toBe(0);
     expect(res.stdout).toContain("iteration 1");
     expect(res.stdout).toContain("ledger exhausted");
     // Proves validation did not reject the parallel value on the way through.
-    expect(res.stdout).toContain("/next-task 2");
+    expect(res.stdout).toContain("/next-work 2");
   });
 
   it("pins the model, so an unattended run cannot drift with the CLI default", () => {
-    const res = runWithStubbedClaude("NEXT-TASK: NOTHING", "-m", "1");
+    const res = runWithStubbedClaude("NEXT-WORK: NOTHING", "-m", "1");
 
     expect(res.status).toBe(0);
     // Adjacency, not mere presence: `--model` has to actually carry the id.
@@ -366,11 +365,27 @@ describe("agent-loop.sh supervisor loop", () => {
   });
 
   it("stops at a human gate rather than continuing to the next task", () => {
-    const res = runWithStubbedClaude("NEXT-TASK: AWAITING-HUMAN 030", "-m", "5");
+    const res = runWithStubbedClaude("NEXT-WORK: AWAITING-HUMAN task 030", "-m", "5");
 
     expect(res.status).toBe(0);
     expect(res.stdout).toContain("human gate reached");
     expect(res.stdout).not.toContain("iteration 2");
+  });
+
+  it("stops after the requested numbered task lands", () => {
+    const res = runWithStubbedClaude("NEXT-WORK: LANDED task 010", "-s", "010", "-m", "3");
+
+    expect(res.status).toBe(0);
+    expect(res.stdout).toContain("stop-after target reached");
+    expect(res.stdout).not.toContain("iteration 2");
+  });
+
+  it("does not confuse an issue number with the stop-after task", () => {
+    const res = runWithStubbedClaude("NEXT-WORK: LANDED issue #10", "-s", "010", "-m", "2");
+
+    expect(res.status).toBe(0);
+    expect(res.stdout).toContain("iteration 2");
+    expect(res.stdout).not.toContain("stop-after target reached");
   });
 
   it("exits on the last iteration instead of paying the retry window first", () => {
@@ -413,18 +428,14 @@ describe("agent-loop.sh supervisor loop", () => {
   }, 30_000);
 });
 
-// Issue #240: an iteration's session spawns background work of its own, and
-// whatever ends the session - a normal exit, a crash, the CLI terminating its
-// own background tasks - leaves those descendants reparented to init and still
-// running. One that keeps draining ../seat-mail/<mailbox>/ can eat a steer meant
-// for the LIVE iteration, and the bus is at-most-once per file, so the message
-// is simply lost. Every test here fails against the pre-fix supervisor.
-describe.skipIf(!HAS_PROCFS)("agent-loop.sh session process groups (issue #240)", () => {
+// An iteration's session can spawn background work. Whatever ends the session
+// must also end those descendants so a fresh iteration starts cleanly.
+describe.skipIf(!HAS_PROCFS)("agent-loop.sh session process groups", () => {
   it("terminates background work the session left behind", () => {
     // Models a background task that writes somewhere other than the session's
     // stdout, which is what the CLI's own background tasks do.
     const res = runWithSessionStub(
-      ["sleep 600 >/dev/null 2>&1 &", 'echo "$!" >"$PID_FILE"', 'echo "NEXT-TASK: NOTHING"'].join(
+      ["sleep 600 >/dev/null 2>&1 &", 'echo "$!" >"$PID_FILE"', 'echo "NEXT-WORK: NOTHING"'].join(
         "\n",
       ),
     );
@@ -442,7 +453,7 @@ describe.skipIf(!HAS_PROCFS)("agent-loop.sh session process groups (issue #240)"
     // the write end of the pipe has exited - so this shape hung the supervisor
     // indefinitely instead of letting it reap and move on.
     const res = runWithSessionStub(
-      ["sleep 600 &", 'echo "$!" >"$PID_FILE"', 'echo "NEXT-TASK: NOTHING"'].join("\n"),
+      ["sleep 600 &", 'echo "$!" >"$PID_FILE"', 'echo "NEXT-WORK: NOTHING"'].join("\n"),
     );
 
     expect(res.status).toBe(0);
@@ -507,40 +518,15 @@ describe.skipIf(!HAS_PROCFS)("agent-loop.sh session process groups (issue #240)"
   );
 });
 
-describe("agent-loop.sh port seat (R8, issue #255)", () => {
-  // Why the supervisor owns this at all: every lane works in a linked git
-  // worktree, and the browser harness REFUSES to start in a worktree with no seat
-  // chosen, because two lanes that both fall back to the default contend for the
-  // same four ports. The supervisor is the only thing that knows there is more
-  // than one lane, so it is the only thing that can answer without a human.
-  // Without it, the first iteration after the seat scheme landed would hit the
-  // refusal and its error text would be the only documentation of it.
-  it.each([
-    ["dev", "0"],
-    ["dev2", "2"],
-    ["dev9", "9"],
-  ])("derives seat %s -> %s from the lane's mailbox", (mailbox, expected) => {
-    const res = runWithStubbedClaude("done", "-m", "1", "-M", mailbox);
+describe("agent-loop.sh port seat (R8)", () => {
+  it("defaults the single conductor to seat zero", () => {
+    const res = runWithStubbedClaude("done", "-m", "1");
 
-    expect(res.seat).toBe(expected);
+    expect(res.seat).toBe("0");
   });
 
-  it.each(["devx", "test240"])(
-    "still produces a seat for an unusual mailbox like '%s'",
-    (mailbox) => {
-      // Total, not strict, and deliberately so: a mailbox name the derivation did
-      // not anticipate must never hard-fail the supervisor. That would be the same
-      // class of bug as the missing seat this exists to prevent, and it is not
-      // hypothetical - an earlier strict version died on the `test240` mailbox this
-      // suite's own fixtures use.
-      const res = runWithStubbedClaude("done", "-m", "1", "-M", mailbox);
-
-      expect(res.seat).toMatch(/^[0-9]$/);
-    },
-  );
-
-  it("lets --seat override the derivation", () => {
-    const res = runWithStubbedClaude("done", "-m", "1", "-M", "dev2", "-S", "7");
+  it("lets --seat override the default", () => {
+    const res = runWithStubbedClaude("done", "-m", "1", "-S", "7");
 
     expect(res.seat).toBe("7");
   });
@@ -550,7 +536,7 @@ describe("agent-loop.sh port seat (R8, issue #255)", () => {
     // matters: the Playwright config, the dev scripts and turbo's
     // globalPassThroughEnv all read the environment, and a value that never left
     // the supervisor would be a value nothing downstream can see.
-    const res = runWithStubbedClaude("done", "-m", "1", "-M", "dev3");
+    const res = runWithStubbedClaude("done", "-m", "1", "-S", "3");
 
     expect(res.seat).not.toBe("<unset>");
     expect(res.seat).toBe("3");

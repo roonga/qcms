@@ -6,11 +6,10 @@ import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
 
 import {
-  KNOWN_UNLINTED,
-  deadEntries,
-  knownUnlinted,
+  isVendoredSource,
   lintScope,
   lintTargets,
+  trackedMarkdownFiles,
   trackedManifests,
   trackedSourceFiles,
   uncovered,
@@ -42,9 +41,6 @@ function fixtureRoot(files: Record<string, string>): string {
 afterAll(() => {
   for (const root of temporaryRoots) rmSync(root, { recursive: true, force: true });
 });
-
-/** Nothing is ESLint-ignored, unless a test says otherwise. */
-const nothingIgnored = () => Promise.resolve(false);
 
 describe("reading lint scope out of a lint script", () => {
   it("reads every target of a plain eslint invocation", () => {
@@ -146,60 +142,32 @@ describe("resolving scope against the tree", () => {
   });
 });
 
-describe("the known-unlinted inventory", () => {
-  it("matches a directory entry only on a real path boundary", () => {
-    expect(knownUnlinted("scripts/check-ports.mjs")?.path).toBe("scripts/");
-    // `scripts.ts` starts with the letters of `scripts` but is not inside it. Without
-    // the trailing slash in the entry, this file would be silently exempt.
-    expect(knownUnlinted("scripts.ts")).toBeUndefined();
-  });
-
-  it("matches a file entry exactly, never as a prefix or a suffix", () => {
-    expect(knownUnlinted("vitest.config.ts")?.path).toBe("vitest.config.ts");
-    expect(knownUnlinted("vitest.config.ts.bak")).toBeUndefined();
-    expect(knownUnlinted("packages/ui/vitest.config.ts")?.path).toBe(
-      "packages/ui/vitest.config.ts",
-    );
-    expect(knownUnlinted("nested/vitest.config.ts")).toBeUndefined();
-  });
-
-  it("gives every entry a reason", () => {
-    for (const entry of KNOWN_UNLINTED) {
-      expect(entry.why.length, `${entry.path} needs a reason`).toBeGreaterThan(20);
-    }
-  });
-
-  it("reports an entry that matches nothing, so the inventory cannot outlive the gap", () => {
-    expect(deadEntries([]).map((entry) => entry.path)).toEqual(
-      KNOWN_UNLINTED.map((entry) => entry.path),
-    );
-  });
-});
-
 describe("finding uncovered files", () => {
   const scope = { dirs: ["src/"], files: new Set(["next.config.ts"]) };
 
-  it("flags a tracked source file no lint run reaches", async () => {
-    const result = await uncovered(["stray.ts"], scope, nothingIgnored);
-    expect(result.violations).toEqual(["stray.ts"]);
+  it("flags a tracked source file no lint run reaches", () => {
+    const result = uncovered(["stray.ts"], scope);
+    expect(result).toEqual(["stray.ts"]);
   });
 
-  it("passes a file inside a directory target or named exactly", async () => {
-    const result = await uncovered(["src/a.ts", "next.config.ts"], scope, nothingIgnored);
-    expect(result.violations).toEqual([]);
+  it("passes a file inside a directory target or named exactly", () => {
+    const result = uncovered(["src/a.ts", "next.config.ts"], scope);
+    expect(result).toEqual([]);
   });
 
-  it("does not demand coverage of a file ESLint itself ignores", async () => {
-    const ignoreAll = () => Promise.resolve(true);
-    const result = await uncovered(["vendored/thing.ts"], scope, ignoreAll);
-    expect(result.violations).toEqual([]);
-    expect(result.baselined).toEqual([]);
+  it("treats every uncovered file as a violation", () => {
+    const result = uncovered(["scripts/tool.mjs", "stray.ts"], scope);
+    expect(result).toEqual(["scripts/tool.mjs", "stray.ts"]);
   });
+});
 
-  it("separates an inventoried gap from a real violation", async () => {
-    const result = await uncovered(["scripts/tool.mjs", "stray.ts"], scope, nothingIgnored);
-    expect(result.baselined).toEqual(["scripts/tool.mjs"]);
-    expect(result.violations).toEqual(["stray.ts"]);
+describe("recognizing the vendored source boundary", () => {
+  it("recognizes only files within the upstream component copy", () => {
+    expect(isVendoredSource("packages/ui/src/components/a2ui/button/Button.tsx")).toBe(true);
+    expect(isVendoredSource("packages/ui/src/components/action-context/index.ts")).toBe(false);
+    expect(isVendoredSource("packages/ui/src/components.tsx")).toBe(false);
+    expect(isVendoredSource("packages/ui/src/components-local/button.tsx")).toBe(false);
+    expect(isVendoredSource("apps/admin/components/button.tsx")).toBe(false);
   });
 });
 
@@ -208,10 +176,11 @@ describe("against this repository", () => {
     // A gate that silently scanned zero files would report OK forever. The count is
     // in the hundreds; the bound only has to rule out "empty".
     expect(trackedSourceFiles().length).toBeGreaterThan(100);
+    expect(trackedMarkdownFiles().length).toBeGreaterThan(50);
     expect(trackedManifests()).toContain("package.json");
   });
 
-  it("lints both Next.js apps by directory rather than by a hand-written file list", async () => {
+  it("lints both Next.js apps by directory rather than by a hand-written file list", () => {
     // The #413 fix itself, asserted where it cannot silently regress: with `eslint .`
     // a new root-level file is covered; with an enumerated list it is not.
     // Derived from this file's own location rather than from cwd, so the assertion
@@ -222,7 +191,7 @@ describe("against this repository", () => {
     expect(scope.dirs).toEqual(expect.arrayContaining(["apps/portal/", "apps/admin/"]));
 
     const hypothetical = ["apps/portal/new-root-file.ts", "apps/admin/new-root-file.ts"];
-    const result = await uncovered(hypothetical, scope, nothingIgnored);
-    expect(result.violations).toEqual([]);
+    const result = uncovered(hypothetical, scope);
+    expect(result).toEqual([]);
   });
 });

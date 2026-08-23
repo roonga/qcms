@@ -18,7 +18,7 @@ Three properties are non-negotiable and shape every design decision:
 
 - **Immutability** - published form versions are frozen forever; a session pins the version it started on and never migrates.
 - **Determinism** - the serving path contains no LLM and nothing nondeterministic. Same form version + same answers = same flow and same UI, forever.
-- **Auditability** - the system can always answer *what was asked, what was shown, what was answered, and when it changed.* Snapshots store both the domain definition and the compiled UI; answers are an append-only ledger.
+- **Auditability** - the system can always answer _what was asked, what was shown, what was answered, and when it changed._ Snapshots store both the domain definition and the compiled UI; answers are an append-only ledger.
 
 Accessibility (WCAG 2.2 AA) is a first-class commitment, built in and verified per release - not a bolt-on.
 
@@ -42,7 +42,7 @@ The domain kernel (`@qcms/core`) is a functional core: pure functions over immut
 
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/roonga/qcms)
 
-The **dev container** in `.devcontainer/` is the recommended environment (ADR-29): Node 24, pnpm, Docker access, the GitHub CLI and Playwright's Chromium, preinstalled. Open the repo in VS Code and *Reopen in Container*, click the badge above for a Codespace, or run `pnpm devcontainer up` from a terminal. Full guide: [`docs/DEV_CONTAINER.md`](docs/DEV_CONTAINER.md).
+The **dev container** in `.devcontainer/` is the recommended environment (ADR-29): Node 24, pnpm, Docker access, the GitHub CLI and Playwright's Chromium, preinstalled. Open the repo in VS Code and _Reopen in Container_, click the badge above for a Codespace, or run `pnpm devcontainer up` from a terminal. Full guide: [`docs/DEV_CONTAINER.md`](docs/DEV_CONTAINER.md).
 
 Working on the host instead is fully supported. Requires [Node](https://nodejs.org) (LTS, see `.nvmrc`), [pnpm](https://pnpm.io), and Docker (for the integration test database).
 
