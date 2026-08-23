@@ -163,7 +163,8 @@ describe("finding uncovered files", () => {
 
 describe("recognizing the vendored source boundary", () => {
   it("recognizes only files within the upstream component copy", () => {
-    expect(isVendoredSource("packages/ui/src/components/button.tsx")).toBe(true);
+    expect(isVendoredSource("packages/ui/src/components/a2ui/button/Button.tsx")).toBe(true);
+    expect(isVendoredSource("packages/ui/src/components/action-context/index.ts")).toBe(false);
     expect(isVendoredSource("packages/ui/src/components.tsx")).toBe(false);
     expect(isVendoredSource("packages/ui/src/components-local/button.tsx")).toBe(false);
     expect(isVendoredSource("apps/admin/components/button.tsx")).toBe(false);

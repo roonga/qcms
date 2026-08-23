@@ -19,7 +19,7 @@ import { getFileInfo } from "prettier";
 
 /** Extensions ESLint is configured to parse in this workspace. */
 const SOURCE_GLOBS = ["*.ts", "*.tsx", "*.mts", "*.cts", "*.js", "*.jsx", "*.mjs", "*.cjs"];
-const VENDORED_SOURCE_PREFIX = "packages/ui/src/components/";
+const VENDORED_SOURCE_PREFIX = "packages/ui/src/components/a2ui/";
 
 /**
  * Flags that consume the token after them, which would otherwise be read as a file

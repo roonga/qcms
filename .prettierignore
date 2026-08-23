@@ -26,5 +26,5 @@ packages/db/migrations/meta/
 # Vendored a2-react-aria component sources (task 028): upstream-owned, kept
 # byte-for-byte (tabs/format) for a clean `a2ra diff` (ADR-22). Vitest snapshots
 # are tool-generated.
-packages/ui/src/components/
+packages/ui/src/components/a2ui/
 **/__snapshots__/

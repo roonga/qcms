@@ -35,7 +35,7 @@ export default tseslint.config(
       // Vendored a2-react-aria component sources (task 028) are upstream-owned -
       // kept byte-for-byte for a clean `a2ra diff` (ADR-22) and tested upstream.
       // qcms lint rules apply to the qcms renderer code, not the vendored copy.
-      "packages/ui/src/components/**",
+      "packages/ui/src/components/a2ui/**",
       "**/__snapshots__/**",
     ],
   },
