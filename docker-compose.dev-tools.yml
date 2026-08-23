@@ -163,6 +163,57 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
 
+  # One-shot, and behind a profile so it runs only when it is asked for: the sample
+  # question library, loaded into this stack's database (`pnpm dev:seed`).
+  #
+  # WHY A PROFILE. `dev-tools-role` above runs on every `up` because creating a
+  # read-only role is idempotent and cheap. Seeding is idempotent too - the loader
+  # leaves an existing question exactly as it is, because an id is permanent (R6) -
+  # but it is not something a developer should get without asking: an empty library
+  # is a legitimate state to want, and it is the state every screen's empty-state
+  # copy is reviewed against. A profiled service is excluded from `docker compose
+  # config` and from `up` unless the profile is enabled, and `compose run` enables
+  # the named service's own profile, so `pnpm dev:seed` reaches it and nothing else
+  # does.
+  #
+  # WHY IT IS HERE rather than in the base file: the same reason as everything else
+  # in this overlay. ADR-20 defines the shipped topology as four containers, and a
+  # sample-data writer is a developer's tool.
+  #
+  # The image is built from the API image (`docker/seed.Dockerfile` says why) and so
+  # depends on `qcms-api:local` existing. It always does by the time this can be
+  # useful: `pnpm dev:up` builds it, and there is nothing to seed until the stack has
+  # migrated.
+  seed:
+    profiles: ["seed"]
+    image: qcms-seed:local
+    build:
+      context: .
+      dockerfile: docker/seed.Dockerfile
+      args:
+        QCMS_API_IMAGE: ${QCMS_API_IMAGE:-qcms-api:local}
+    # NO `environment:` BLOCK, and its absence is load-bearing. The one value this
+    # container needs is `DATABASE_URL`, and `scripts/compose-seed.mjs` passes it with
+    # `run --env DATABASE_URL` - the name only, so the credential is in the docker
+    # CLI's own environment and never in an argv (issue #440, the same control
+    # `buildAdminExec` describes).
+    #
+    # Declaring it here in Compose's required-variable form was tried and is wrong,
+    # twice over. Compose interpolates every service in every file it is given,
+    # profiles included and whatever subcommand is running, so requiring it makes
+    # `dev:up` AND `dev:down` refuse until a variable neither of them uses is set.
+    # And `requiredVariablesIn` in `scripts/dev-compose.mjs` scans these files as
+    # TEXT for that form, so even writing one inside a comment adds it to the
+    # preflight - which is why this paragraph spells the form out in words. Both
+    # measured rather than guessed.
+    depends_on:
+      # `migrate` rather than `postgres`: a healthy database with no tables in it
+      # fails inside the first insert with a message about a relation that does not
+      # exist, which reads as a broken loader rather than a stack that is not ready.
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
   # The three app services gain an endpoint and nothing else. Their composition roots
   # treat `OTEL_EXPORTER_OTLP_ENDPOINT` as the single switch (ADR-34): unset means no
   # SDK starts at all, so the base file's empty default keeps the shipped stack silent

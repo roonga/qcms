@@ -51,7 +51,7 @@
  * `down --volumes --remove-orphans`, so a silently adopted seat 0 would not merely
  * read another lane's stack, it would delete it.
  *
- * Usage:  pnpm dev:up  |  pnpm dev:down
+ * Usage:  pnpm dev:up  |  pnpm dev:seed  |  pnpm dev:down
  */
 
 import { closeSync, fchmodSync, fstatSync, openSync, readFileSync, writeFileSync } from "node:fs";
@@ -60,6 +60,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { createFirstAdmin, generatePassword } from "./compose-admin.mjs";
+import { databaseUrlFor, seedFixtures } from "./compose-seed.mjs";
 import { CommandFailed, DOCKER, REPOSITORY_ROOT, runProcess } from "./docker.mjs";
 import { isInDockerContainer } from "./docker-host.mjs";
 import { assertPortSeatChosen, localStackProjectName, stablePort } from "./ports.mjs";
@@ -689,6 +690,46 @@ export function up() {
   );
 }
 
+/**
+ * Load the sample question library into the running stack (`pnpm dev:seed`).
+ *
+ * The Questions screen's empty state has told developers to "run pnpm
+ * qcms:seed-fixtures against a development database" since task 032, and against
+ * THIS stack there was no way to do it: the loader takes a `DATABASE_URL` and this
+ * stack's Postgres is deliberately unpublished. `scripts/compose-seed.mjs` runs it
+ * inside the network instead; this function is the part that knows the stack.
+ *
+ * It preflights like `up` rather than filling placeholders like `down`, because the
+ * database credential is read for real here: a missing `QCMS_DB_PASSWORD` should say
+ * so up front instead of surfacing as an authentication failure from Postgres.
+ *
+ * Seeding an already-seeded stack is the expected second case and reports what it
+ * skipped, so this needs no idempotence machinery of its own (R6, and the loader's
+ * own docstring).
+ */
+export function seed() {
+  const envFile = envFileState();
+  preflight(envFile);
+
+  const environment = composeEnvironment(
+    devStackEnvironmentOverrides({
+      ports: seatPorts(),
+      // Nothing on this path starts an app service, so this value is never used;
+      // Compose interpolates the whole file whatever is being run, so it has to be
+      // present rather than absent. The same function `up` uses, so it reads the
+      // secret already pinned for this stack rather than inventing a second one.
+      adminAuthSecret: pinAdminAuthSecret().secret,
+    }),
+  );
+
+  log(`seeding the sample question library into project ${project} ...`);
+  seedFixtures({
+    compose: composeArgs(envFile.exists),
+    databaseUrl: databaseUrlFor({ ...envFile.values, ...process.env }),
+    environment,
+  });
+}
+
 export function down() {
   // No preflight. A teardown that refuses because a value went missing leaves a
   // running stack the documented command cannot stop; `teardownPlaceholders` fills
@@ -737,13 +778,17 @@ function main() {
   // 0 from a worktree would pick another lane's Compose project name, and `down`
   // deletes what it finds under it (issue #296).
   try {
-    assertPortSeatChosen(REPOSITORY_ROOT, `pnpm ${command === "down" ? "dev:down" : "dev:up"}`);
+    assertPortSeatChosen(
+      REPOSITORY_ROOT,
+      `pnpm dev:${command === "up" ? "up" : command === "seed" ? "seed" : "down"}`,
+    );
   } catch (error) {
     throw new UsageError(error instanceof Error ? error.message : String(error));
   }
   if (command === "up") up();
+  else if (command === "seed") seed();
   else if (command === "down") down();
-  else throw new UsageError("Usage: node scripts/dev-compose.mjs <up|down>");
+  else throw new UsageError("Usage: node scripts/dev-compose.mjs <up|seed|down>");
 }
 
 // Only when run as a command, so the pure helpers above can be imported by

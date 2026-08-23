@@ -211,6 +211,22 @@ Bring it down with the matching command, which removes the containers, the netwo
 pnpm dev:down
 ```
 
+### Sample data: `pnpm dev:seed`
+
+A freshly created stack has an empty question library, which is the right default: the empty state is a screen worth reviewing, and it is what every list screen's empty-state copy is written against. When you want content instead, load the sample insurance library the kernel already ships as fixtures:
+
+```sh
+pnpm dev:seed
+```
+
+It is safe to re-run and reports what it skipped (`Seeded 0 question(s); 7 already present.`). A question that exists is left exactly as it is, because an id is permanent (R6) and a re-run must never look like an attempt to reuse one. The loader goes through the kernel rather than inserting rows, so what lands is what the compiler can render; it seeds **questions only**, not forms.
+
+**Why this is a command rather than `DATABASE_URL=... pnpm qcms:seed-fixtures`.** That is the documented way to seed the `7S20` dev database, and it cannot reach this stack: the composed topology's Postgres is deliberately unpublished, and `scripts/compose-config.test.ts` asserts it stays that way with the toolbox overlay layered on. So the loader runs **inside** the network, as a one-shot container built from the API image (`docker/seed.Dockerfile`), which is the one image whose dependency tree already has `@qcms/core`, `@qcms/db`, drizzle and `pg`.
+
+Two shapes were rejected and both for reasons that bite elsewhere in this repo. A **bind mount of the checkout** breaks the canonical dev-container seat: Compose drives the host daemon (ADR-29), so a repository path is resolved on the host's filesystem where it does not exist, and Docker silently creates an empty directory there. **Baking the loader into the API image** would put a sample-data writer and the fixture corpus into the deployed artifact; `apps/api/package.json` ships `files: ["dist"]`, and the seeding image is a separate Dockerfile so it stays that way.
+
+The service is behind a Compose `seed` profile, so `dev:up` neither builds nor runs it, and `pnpm dev:seed` is the only thing that reaches it.
+
 **What `dev:up` does beyond `docker compose up`**, because each piece is a step that used to be manual and easy to get wrong:
 
 - **It creates the first administrator, inside this stack.** The composed stack has a Postgres of its own, separate from the `7S20` database `pnpm dev:portal` uses, so `create-admin` is run in this stack's `api` container (`scripts/compose-admin.mjs`, the same step the full-stack harness uses). An admin created against the wrong database is invisible here, and the symptom is a sign-in that fails with nothing wrong anywhere you would look.
