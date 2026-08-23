@@ -28,6 +28,7 @@ The Code Owner decides ADR changes, scope changes, explicit human gates, destruc
 - Do not use Unicode em dashes. Use punctuation or a spaced hyphen.
 - Refer to the human owner as **Code Owner** in committed content. Legal attribution in `LICENSE` and the README is exempt.
 - Use repo-relative paths in committed content. Do not commit personal names, machine-specific paths, real secrets, or AI attribution trailers.
+- **No AI attribution anywhere an agent writes**, and the rule above is only half of it. A commit takes no `Co-Authored-By` naming a model and no `Generated with` trailer; a pull request body, a PR comment, an issue and a review take none either. The tooling default is to add one, so this is a rule an agent has to apply rather than inherit (Code Owner, 2026-08-24).
 - Use pnpm only. Use Vitest below the browser and Playwright for browser tests.
 - Follow `docs/COMPONENT_GUIDELINES.md` when adding or changing an input control.
 - Follow `CONTRIBUTING.md` for dependencies, commits, PRs, and gates.
