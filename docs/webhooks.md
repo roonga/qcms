@@ -13,12 +13,12 @@ All routes carry the `webhooks:manage` SEC-5 scope (inert at launch) and sit
 behind the internal service-token gate (SEC-4) and admin-auth. A public-only
 process has no admin group, so these paths 404 (ADR-09).
 
-| Route | Effect |
-|---|---|
-| `POST /admin/forms/:id/webhooks` | `{ url, secret?, active? }` → configure a webhook. The secret is **generated** if omitted, and shown **exactly once** in the response `secret` field. |
-| `GET /admin/forms/:id/webhooks` | List the form's webhooks. Secrets are **masked** - never returned; each row reports `hasSecret: true`. |
-| `PUT /admin/forms/:id/webhooks/:webhookId` | Update `url` / `active`, or rotate the secret. Rotation is explicit (`rotateSecret: true` or an explicit `secret`) and the new secret is shown once; a plain update never re-reveals it. |
-| `DELETE /admin/forms/:id/webhooks/:webhookId` | **Soft-deactivate**: sets `active = false`, stamps `deactivated_at`; the row is retained so delivery history survives. |
+| Route                                         | Effect                                                                                                                                                                                   |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /admin/forms/:id/webhooks`              | `{ url, secret?, active? }` → configure a webhook. The secret is **generated** if omitted, and shown **exactly once** in the response `secret` field.                                    |
+| `GET /admin/forms/:id/webhooks`               | List the form's webhooks. Secrets are **masked** - never returned; each row reports `hasSecret: true`.                                                                                   |
+| `PUT /admin/forms/:id/webhooks/:webhookId`    | Update `url` / `active`, or rotate the secret. Rotation is explicit (`rotateSecret: true` or an explicit `secret`) and the new secret is shown once; a plain update never re-reveals it. |
+| `DELETE /admin/forms/:id/webhooks/:webhookId` | **Soft-deactivate**: sets `active = false`, stamps `deactivated_at`; the row is retained so delivery history survives.                                                                   |
 
 Multiple webhooks per form are allowed; 025 delivers to every `active` one.
 
@@ -26,7 +26,7 @@ Multiple webhooks per form are allowed; 025 delivers to every `active` one.
 
 The per-webhook secret is the HMAC key 025 uses to sign each delivery
 (`X-QCMS-Signature: v1=HMAC-SHA256(secret, timestamp + "." + body)`). Signing
-needs the **plaintext**, so the secret must be *recoverable* - it is
+needs the **plaintext**, so the secret must be _recoverable_ - it is
 **encrypted at rest, never hashed** (a one-way hash would make signing
 impossible).
 
@@ -88,8 +88,8 @@ best-effort.** Implementation: `apps/api/src/schedulers/outbox-delivery.ts`.
 ### Two phases, each `FOR UPDATE SKIP LOCKED` (multi-instance safe)
 
 1. **Materialize.** Claim a due outbox event and fan it out to one
-   `webhook_deliveries` row per *active* webhook (idempotent via the `(outbox_id,
-   webhook_id)` unique key), then mark the event consumed. The outbox is the
+   `webhook_deliveries` row per _active_ webhook (idempotent via the `(outbox_id,
+webhook_id)` unique key), then mark the event consumed. The outbox is the
    fan-out source; each delivery row is an independent delivery with its **own**
    retry/backoff/dead-letter state - so one webhook failing never stalls another.
 2. **Deliver.** Claim a due delivery row in its own transaction (which holds the
@@ -106,28 +106,29 @@ small envelope.
 
 ```jsonc
 {
-  "eventId":     "a1b2c3d4-…",          // the outbox event id (idempotency key)
-  "eventType":   "response.submitted",
+  "eventId": "a1b2c3d4-…", // the outbox event id (idempotency key)
+  "eventType": "response.submitted",
   "deliveredAt": "2026-07-20T02:05:00.000Z",
-  "payload": {                           // 020's response.submitted payload
+  "payload": {
+    // 020's response.submitted payload
     "sessionId": "ses_…",
     "formId": "frm_…",
     "formVersion": 3,
     "submittedAt": "2026-07-20T02:04:59.000Z",
-    "contentHash": "…",                 // idempotency key (stable per submission)
-    "answers": { "q_name": "Ada" }
-  }
+    "contentHash": "…", // idempotency key (stable per submission)
+    "answers": { "q_name": "Ada" },
+  },
 }
 ```
 
 Headers:
 
-| Header | Value |
-|---|---|
-| `X-QCMS-Event` | the event type (`response.submitted`) |
-| `X-QCMS-Delivery` | a fresh UUID, **unique per attempt** (a retry has a new one) |
-| `X-QCMS-Timestamp` | Unix seconds when the request was signed |
-| `X-QCMS-Signature` | `v1=<hex HMAC-SHA256(secret, timestamp + "." + body)>` |
+| Header             | Value                                                        |
+| ------------------ | ------------------------------------------------------------ |
+| `X-QCMS-Event`     | the event type (`response.submitted`)                        |
+| `X-QCMS-Delivery`  | a fresh UUID, **unique per attempt** (a retry has a new one) |
+| `X-QCMS-Timestamp` | Unix seconds when the request was signed                     |
+| `X-QCMS-Signature` | `v1=<hex HMAC-SHA256(secret, timestamp + "." + body)>`       |
 
 The signature covers `` `${timestamp}.${body}` `` - the exact `X-QCMS-Timestamp`
 and the raw body bytes. Because the timestamp is signed, a consumer that also
@@ -160,14 +161,14 @@ Every attempt - success or failure - also writes what it actually did onto the
 delivery row, because the operator dashboard has to answer "what went over the wire,
 and what came back" and none of that is derivable from the lifecycle timestamps:
 
-| Column | Holds |
-|---|---|
-| `last_attempt_at` | When the attempt was made. |
-| `last_status` | The HTTP status that came back, or `NULL` when no response ever arrived (timeout, network error). |
-| `last_latency_ms` | How long the attempt took, measured on the monotonic clock. |
-| `last_request_headers` | The header map **as sent**, with `X-QCMS-Signature` already replaced by `v1=<masked>`. |
-| `last_response_snippet` | A bounded prefix (500 characters) of the consumer's response body. Removed on erasure and aged out by retention - see below. |
-| `last_response_snippet_redacted_at` | When that prefix was removed, and `NULL` while it is intact. |
+| Column                              | Holds                                                                                                                        |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `last_attempt_at`                   | When the attempt was made.                                                                                                   |
+| `last_status`                       | The HTTP status that came back, or `NULL` when no response ever arrived (timeout, network error).                            |
+| `last_latency_ms`                   | How long the attempt took, measured on the monotonic clock.                                                                  |
+| `last_request_headers`              | The header map **as sent**, with `X-QCMS-Signature` already replaced by `v1=<masked>`.                                       |
+| `last_response_snippet`             | A bounded prefix (500 characters) of the consumer's response body. Removed on erasure and aged out by retention - see below. |
+| `last_response_snippet_redacted_at` | When that prefix was removed, and `NULL` while it is intact.                                                                 |
 
 Two properties are load-bearing. The **signature is masked before storage**, not
 before rendering, so the HMAC is absent from the database entirely and no later
@@ -211,8 +212,8 @@ set** - a second copy of the ledger, kept so the delivery can be re-sent. It is
 governed the same way (issue #329):
 
 - **Erasure removes the answers** from the payload on request, keeping the envelope.
-- **The retention sweep drops them** for everyone else once the event *and every
-  delivery of it* have settled - delivered, dead-lettered or cancelled - for longer
+- **The retention sweep drops them** for everyone else once the event _and every
+  delivery of it_ have settled - delivered, dead-lettered or cancelled - for longer
   than `QCMS_OUTBOX_PAYLOAD_TTL_MS` (default 30 days, `0` to drop them as soon as the
   fan-out settles). That is the redelivery window: the payload exists to support a
   re-send, so it is kept exactly as long as re-sending is possible.
@@ -299,11 +300,11 @@ authority that configures the webhooks (a `webhooks:operate` split is Phase 4).
 They sit behind the internal service-token gate (SEC-4) and admin-auth; a
 public-only process has no admin group, so they 404 (ADR-09).
 
-| Route | Effect |
-|---|---|
-| `GET /admin/outbox/dead-letters` | List dead-lettered deliveries newest-first, each with its `eventId`, `eventType`, `webhookId`, `formId`, `url`, `attempts`, and `lastError` (attempt history). The queue spans forms, so each row names its own form (#305) - redelivery is form-scoped, and without it a caller reading this list would hold an id it had no way to build a legal call for. **Cancelled deliveries are excluded** (059): the queue is a worklist of rows being offered back for redelivery, and a cancelled row may never be sent. |
+| Route                                                    | Effect                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /admin/outbox/dead-letters`                         | List dead-lettered deliveries newest-first, each with its `eventId`, `eventType`, `webhookId`, `formId`, `url`, `attempts`, and `lastError` (attempt history). The queue spans forms, so each row names its own form (#305) - redelivery is form-scoped, and without it a caller reading this list would hold an id it had no way to build a legal call for. **Cancelled deliveries are excluded** (059): the queue is a worklist of rows being offered back for redelivery, and a cancelled row may never be sent.                                                                                                                                                                                                                                                                                                                                                                                   |
 | `POST /admin/forms/:id/deliveries/:deliveryId/redeliver` | `409 DELIVERY_NOT_REDELIVERABLE` when the delivery is cancelled or its event's payload has been redacted - erasure reached this event (ADR-17 as amended 2026-08-02), or its payload aged out of the redelivery window (#329). Either way the response it carries is no longer held, so it is never re-sent; the code names the state rather than the cause, because the two are indistinguishable from the row and an operator can act on neither differently. Otherwise: reset one dead-lettered **delivery** (`:id` is the **form**, `:deliveryId` the delivery) to due-now - clears the dead-letter flag, resets attempts and the whole last-attempt record, and the next pass re-attempts it. `404` if unknown, **and the same `404` when the delivery belongs to another form** (#305): the scope is part of the query, so a cross-form id is indistinguishable from one that was never issued. |
-| `GET /admin/forms/:id/deliveries?limit=` | (035) One form's recent deliveries, newest first, each with its derived `status` (`delivered` / `cancelled` / `deadLettered` / `pending`), `attempts`, `lastError`, `cancelledAt`, `cancelledReason`, and the last-attempt record above - `lastStatus`, `latencyMs`, `requestHeaders` (signature masked), `responseSnippet`. Default 50, capped at 200. |
+| `GET /admin/forms/:id/deliveries?limit=`                 | (035) One form's recent deliveries, newest first, each with its derived `status` (`delivered` / `cancelled` / `deadLettered` / `pending`), `attempts`, `lastError`, `cancelledAt`, `cancelledReason`, and the last-attempt record above - `lastStatus`, `latencyMs`, `requestHeaders` (signature masked), `responseSnippet`. Default 50, capped at 200.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 
 A dead-letter is a single `(event, webhook)` delivery, not the whole event:
 redelivering one webhook does not touch its siblings for the same event.
@@ -353,11 +354,11 @@ delivery pass, not delivered by the button, and the confirmation says so.
 
 ## Config (task 017, extended by 024/025)
 
-| Env var | Meaning |
-|---|---|
-| `QCMS_APP_KEY` | AES-256-GCM key material for at-rest secret encryption (≥32 chars). |
-| `QCMS_PORTAL_BASE_URL` | Absolute http(s) portal base URL (used for secure-link URLs). |
-| `QCMS_WEBHOOK_ALLOW_PRIVATE` | SSRF override (default `false`); applied at config **and** delivery time. |
-| `QCMS_WEBHOOK_TIMEOUT_MS` | Per-delivery request timeout in ms (default `10000`). |
-| `QCMS_WEBHOOK_BATCH_SIZE` | Max deliveries processed per pass (default `20`). |
-| `QCMS_OUTBOX_INTERVAL_MS` / `QCMS_OUTBOX_JITTER_MS` | Deliverer poll interval and per-tick jitter (017). |
+| Env var                                             | Meaning                                                                   |
+| --------------------------------------------------- | ------------------------------------------------------------------------- |
+| `QCMS_APP_KEY`                                      | AES-256-GCM key material for at-rest secret encryption (≥32 chars).       |
+| `QCMS_PORTAL_BASE_URL`                              | Absolute http(s) portal base URL (used for secure-link URLs).             |
+| `QCMS_WEBHOOK_ALLOW_PRIVATE`                        | SSRF override (default `false`); applied at config **and** delivery time. |
+| `QCMS_WEBHOOK_TIMEOUT_MS`                           | Per-delivery request timeout in ms (default `10000`).                     |
+| `QCMS_WEBHOOK_BATCH_SIZE`                           | Max deliveries processed per pass (default `20`).                         |
+| `QCMS_OUTBOX_INTERVAL_MS` / `QCMS_OUTBOX_JITTER_MS` | Deliverer poll interval and per-tick jitter (017).                        |

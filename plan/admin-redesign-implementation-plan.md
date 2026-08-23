@@ -74,7 +74,7 @@ full-height three different ways instead (`add-question-poc.html` via `.stage
 `deployment-ops-poc.html` and `library-lists-poc.html` not at all) - see
 `plan/admin-poc-consistency-audit.md` §3.4.
 
-This has no bearing on whether any given screen *should* get a rail - it is an
+This has no bearing on whether any given screen _should_ get a rail - it is an
 acceptance criterion for whichever screens end up with one, wherever the audit's
 own sequence (§8 item 8) or this document's Wave 3 puts a rail into real code.
 Worth a quick check against the shipped form builder's rail too, since that one is
@@ -110,11 +110,12 @@ mid-session.
 `admin-ux-audit.md` already considered this screen and rejected a rail on it, on the
 record, the day before: row 16 of its verdict table marks `/settings` **reject** on
 rail, width, and collapse-with-digest alike, and §3.10 states the reasoning plainly
+
 - "Prose-and-form shaped, three cards... The whole screen is three short cards;
-collapsing a change-password form behind a summary adds a click to the only reason
-anyone is here." §8's "what I would not do at all" list names `/settings`
-explicitly among the four screens that should not get a rail, in the same breath as
-the two library lists.
+  collapsing a change-password form behind a summary adds a click to the only reason
+  anyone is here." §8's "what I would not do at all" list names `/settings`
+  explicitly among the four screens that should not get a rail, in the same breath as
+  the two library lists.
 
 The two documents do not disagree about facts - they disagree about which
 consideration wins. The audit's argument is cost (a rail plus a route split adds
@@ -167,6 +168,7 @@ column, decision C2). The full dispatch, including the six issues filed on
 2026-08-19 and the tier ordering for the loop, is §3a below.
 
 **Wave 1 - decisions, not code.**
+
 - C1 (Settings rail) - recorded as kept, reasoning never written down; restated
   as a `[Code Owner decision]` in `plan/admin-design-contracts.md` §7, where the
   recommendation follows the audit and drops the rail. See §2.
@@ -178,9 +180,9 @@ column, decision C2). The full dispatch, including the six issues filed on
 issues 2026-08-19, ready for `/next-issue`, in this order:
 
 - [#517](https://github.com/roonga/qcms/issues/517) - elements 4+5 (ownership grid
-  + row grip menu) on the step editor's pin list. The audit's own highest-value
-  item; the pattern already ships in `option-grid-editor.tsx`, so this is applying
-  an existing card, not inventing one.
+  - row grip menu) on the step editor's pin list. The audit's own highest-value
+    item; the pattern already ships in `option-grid-editor.tsx`, so this is applying
+    an existing card, not inventing one.
 - [#518](https://github.com/roonga/qcms/issues/518) - element 7 (ambient save) on
   the builder plus an explicit manual-save statement on the question editor.
   Closes the audit's §4.6.
@@ -232,6 +234,7 @@ own spacing/type vocabulary as a deliberate, documented divergence from
 wholesale. Confirming that document is what unblocks Wave 3.
 
 **Wave 4 - only once Wave 3 (or a settings-only rail from C1) is real code:**
+
 - Carry N2 (the viewport-fill CSS) into whatever ships, as an acceptance criterion,
   not an afterthought.
 - Regenerate every POC under `plan/admin-shell-poc/` in one pass so they stop
@@ -265,12 +268,12 @@ now, which it was not when the aim was written on 2026-08-01.
 `admin-stage` (that label routes work to tasks 031-035, all now done, so it would
 wrongly exclude them from the issue loop).
 
-| Tier | Issues | Label | What it is |
-|---|---|---|---|
-| Correctness first | #510, #511, #513, #520, #521 | `bug` | The audit's D1, D2, D4, D6, D7. Cheap, no design decision in any of them. |
-| Cleanup / recording | #512, #515, #522 | none | Dead code, the answer-preview column (front-end only, data already flows), the shipped-rail viewport check. |
-| Consolidation | #514 | none | One table treatment and one empty state, against the frozen card. The audit calls this the single change that most affects how the app reads. |
-| Wave 2, house patterns | #517, #518, #519 | none | Ownership grid + grip menu on the pin list; ambient save + manual-save statement; digests and summary headings. |
+| Tier                   | Issues                       | Label | What it is                                                                                                                                    |
+| ---------------------- | ---------------------------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Correctness first      | #510, #511, #513, #520, #521 | `bug` | The audit's D1, D2, D4, D6, D7. Cheap, no design decision in any of them.                                                                     |
+| Cleanup / recording    | #512, #515, #522             | none  | Dead code, the answer-preview column (front-end only, data already flows), the shipped-rail viewport check.                                   |
+| Consolidation          | #514                         | none  | One table treatment and one empty state, against the frozen card. The audit calls this the single change that most affects how the app reads. |
+| Wave 2, house patterns | #517, #518, #519             | none  | Ownership grid + grip menu on the pin list; ambient save + manual-save statement; digests and summary headings.                               |
 
 Deliberately left unlabeled rather than tagged `enhancement`: #514 and #517-#519
 apply patterns that already ship (`option-grid-editor.tsx`, the frozen
@@ -297,7 +300,7 @@ prioritise the redesign, so three things changed:
 
 1. **A `admin-redesign` label now carries the tier** (#510-#515, #517-#522), so
    it is selectable and reportable as one group rather than by memorised number.
-   It is deliberately *not* `admin-stage`, which routes work to tasks 031-035 and
+   It is deliberately _not_ `admin-stage`, which routes work to tasks 031-035 and
    would exclude these from the issue loop entirely.
 2. **The issue labels and this section name the tier**, in the order shown above.
    State that campaign priority when invoking `/next-issue`.
@@ -365,14 +368,14 @@ section understated how far the viewport-fill fix had been carried):
 
 ### What landed
 
-| Issue | PR | What |
-|---|---|---|
-| #557 | #576 | two tokenized breakpoints, six ad hoc ones retired |
-| #558 | #592 | the width cap becomes per-route |
-| #563 | #573 | the screen contract screen-scope rule |
-| #559 | #621 | the form-subtree rail, built once against §7 |
-| #561 | #634 | the rail across all eight form-scoped screens |
-| #562 | #636 | the Settings rail, as §7a's written exception |
+| Issue | PR   | What                                               |
+| ----- | ---- | -------------------------------------------------- |
+| #557  | #576 | two tokenized breakpoints, six ad hoc ones retired |
+| #558  | #592 | the width cap becomes per-route                    |
+| #563  | #573 | the screen contract screen-scope rule              |
+| #559  | #621 | the form-subtree rail, built once against §7       |
+| #561  | #634 | the rail across all eight form-scoped screens      |
+| #562  | #636 | the Settings rail, as §7a's written exception      |
 
 ### The four items this document opened
 
@@ -395,7 +398,7 @@ What it did not anticipate is that **building would find silences reading could 
 
 All five are now amendments. **Four of the five were answerable from clauses §7 already carried** - the builder question in particular derives from "the rail never carries same-page section switches", which was in the confirmed text the whole time. Only the first genuinely needed implementation experience to answer.
 
-That is the lesson worth carrying into Wave 4: **a contract written from analysis is complete against the questions the analysis asked.** The gap is not between drafting and confirming, it is between confirming and *building* - and most of what building finds was already decided, unread.
+That is the lesson worth carrying into Wave 4: **a contract written from analysis is complete against the questions the analysis asked.** The gap is not between drafting and confirming, it is between confirming and _building_ - and most of what building finds was already decided, unread.
 
 ### What Wave 4 inherits
 

@@ -7,20 +7,18 @@ coverage/
 pnpm-lock.yaml
 
 # Next.js output (production build in .next, dev server in .next-dev - issue #54),
-# generated ambient types, and captured screenshots (029)
+# generated ambient types, and Playwright output
 .next/
 .next-dev/
 **/next-env.d.ts
 apps/portal/.playwright/
-apps/portal/screenshots/
 
-# Prose and the committed plan bundle are not Prettier-owned (verbatim per task 001)
-*.md
-docs/
-plan/
-
-# Harness configuration
-.claude/
+# Generated API documents and static design showcases
+docs/openapi/
+plan/*.html
+plan/**/*.html
+plan/**/*.json
+plan/**/*.css
 
 # drizzle-kit generates these in a non-Prettier format (task 014 friction)
 packages/db/migrations/meta/

@@ -78,12 +78,12 @@ golden/
   v1/         one <form>.a2ui.json per corpus form, at A2UI spec v1
 ```
 
-| Golden | Core fixture | What it pins |
-|---|---|---|
-| `v1/kitchen-sink.a2ui.json` | `forms/valid/kitchen-sink.json` | Every question type across 3 steps; h1 on step 1, h2 on each; required/help/constraint props. |
-| `v1/insurance.a2ui.json` | `forms/valid/insurance.json` | The DOMAIN_SCHEMA §6 flow: boolean + number in one step. |
-| `v1/minimal.a2ui.json` | `forms/valid/minimal.json` | Smallest form: one step, one control. |
-| `v1/constraints-heavy.a2ui.json` | `forms/valid/constraints-heavy.json` | Every constraint-bearing control in a single dense step. |
+| Golden                            | Core fixture                          | What it pins                                                                                                          |
+| --------------------------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `v1/kitchen-sink.a2ui.json`       | `forms/valid/kitchen-sink.json`       | Every question type across 3 steps; h1 on step 1, h2 on each; required/help/constraint props.                         |
+| `v1/insurance.a2ui.json`          | `forms/valid/insurance.json`          | The DOMAIN_SCHEMA §6 flow: boolean + number in one step.                                                              |
+| `v1/minimal.a2ui.json`            | `forms/valid/minimal.json`            | Smallest form: one step, one control.                                                                                 |
+| `v1/constraints-heavy.a2ui.json`  | `forms/valid/constraints-heavy.json`  | Every constraint-bearing control in a single dense step.                                                              |
 | `v1/deep-nesting-rules.a2ui.json` | `forms/valid/deep-nesting-rules.json` | A depth-8 rule form; proves the compiled A2UI is a plain projection (rules apply at serve time, not in the document). |
 
 ## Adding a golden

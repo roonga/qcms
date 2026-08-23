@@ -22,17 +22,17 @@ Use each task's `Depends on` header and the active queue below. Two additional c
 
 ## Active queue
 
-| # | Work | Stage | Status |
-|---|---|---|---|
-| 030 | Manual portal screen-reader pass | 7 | awaiting human execution |
-| 041 | Agent-assisted form building | 8a | todo; does not gate launch |
-| 049 | Named custom-theme editor | 9 | Phase 4; does not gate launch |
-| 063 | Public and secure link version targeting | 9 | Phase 4; does not gate launch |
-| 037 | `create-qcms-app` CLI | 8b | todo; optional for launch |
-| 040 | Security review and hardening | 8b | in review; provenance verification and Code Owner sign-off remain |
-| 038 | External launch validation | 8b | todo; blocked by 030 and 040 |
-| 061 | Forced password change after bootstrap | 8b | todo; does not gate launch |
-| 039 | Phase-4 backlog publication | 9 | todo; after 038 |
+| #   | Work                                     | Stage | Status                                                            |
+| --- | ---------------------------------------- | ----- | ----------------------------------------------------------------- |
+| 030 | Manual portal screen-reader pass         | 7     | awaiting human execution                                          |
+| 041 | Agent-assisted form building             | 8a    | todo; does not gate launch                                        |
+| 049 | Named custom-theme editor                | 9     | Phase 4; does not gate launch                                     |
+| 063 | Public and secure link version targeting | 9     | Phase 4; does not gate launch                                     |
+| 037 | `create-qcms-app` CLI                    | 8b    | todo; optional for launch                                         |
+| 040 | Security review and hardening            | 8b    | in review; provenance verification and Code Owner sign-off remain |
+| 038 | External launch validation               | 8b    | todo; blocked by 030 and 040                                      |
+| 061 | Forced password change after bootstrap   | 8b    | todo; does not gate launch                                        |
+| 039 | Phase-4 backlog publication              | 9     | todo; after 038                                                   |
 
 Tasks 049 and 063 are demand-ordered Phase 4 work. Do not dispatch them before launch validation.
 

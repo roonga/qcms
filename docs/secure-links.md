@@ -23,8 +23,8 @@ base64url( canonicalJson( claims ∪ { purpose } ) ) "." base64url( HMAC-SHA256 
 - **Payload** = the claims object plus a reserved `purpose` claim, serialized
   with the package-wide canonical JSON (sorted keys - signing is deterministic
   regardless of claim order), UTF-8 encoded, base64url (unpadded).
-- **Signature** = HMAC-SHA256 over the UTF-8 bytes of the *encoded payload
-  segment*, base64url (unpadded). Computed and verified with WebCrypto
+- **Signature** = HMAC-SHA256 over the UTF-8 bytes of the _encoded payload
+  segment_, base64url (unpadded). Computed and verified with WebCrypto
   (`crypto.subtle`) only - runs identically in Node and edge runtimes.
   Verification uses `crypto.subtle.verify`, which compares in constant time;
   digest bytes are never compared manually.
@@ -33,10 +33,10 @@ base64url( canonicalJson( claims ∪ { purpose } ) ) "." base64url( HMAC-SHA256 
 
 Every token carries a `purpose` claim inside the signed payload:
 
-| Purpose | Token | Claims | Keys env | Task |
-|---|---|---|---|---|
-| `link` | Secure link | `{ formId, linkId, expiresAt, oneTime? }` | `QCMS_LINK_KEYS` | 010 |
-| `session` | Respondent session | `{ sessionId }` | `QCMS_SESSION_KEYS` | 018 |
+| Purpose   | Token              | Claims                                    | Keys env            | Task |
+| --------- | ------------------ | ----------------------------------------- | ------------------- | ---- |
+| `link`    | Secure link        | `{ formId, linkId, expiresAt, oneTime? }` | `QCMS_LINK_KEYS`    | 010  |
+| `session` | Respondent session | `{ sessionId }`                           | `QCMS_SESSION_KEYS` | 018  |
 
 Each purpose has its **own key list**; verification also demands an exact
 purpose match (`WRONG_PURPOSE` otherwise). The two controls hold independently:
@@ -45,9 +45,9 @@ pass link verification or vice versa.
 
 ### Standard claims
 
-- `purpose` *(required, machinery-written)* - one of the purposes above.
+- `purpose` _(required, machinery-written)_ - one of the purposes above.
   Callers never set it; `signCompactToken` throws if claims carry one.
-- `expiresAt` *(optional at the generic layer; required for links)* - ISO 8601
+- `expiresAt` _(optional at the generic layer; required for links)_ - ISO 8601
   UTC datetime. A token is valid strictly **before** `expiresAt`; at or after
   it, verification fails `EXPIRED`.
 
@@ -55,19 +55,19 @@ pass link verification or vice versa.
 
 Claims (Zod schema `LinkClaims` is the source of truth):
 
-| Claim | Type | Meaning |
-|---|---|---|
-| `formId` | `frm_…` branded ID | The single form this link opens |
-| `linkId` | `lnk_…` branded ID | The minted-link row, so storage can revoke and enforce one-time use (013/018) |
-| `expiresAt` | ISO 8601 UTC datetime | Hard expiry; valid strictly before this instant |
-| `oneTime` | boolean, optional | Single-use marker; carried for the verifier, *enforced* by the `secure_links` row |
+| Claim       | Type                  | Meaning                                                                           |
+| ----------- | --------------------- | --------------------------------------------------------------------------------- |
+| `formId`    | `frm_…` branded ID    | The single form this link opens                                                   |
+| `linkId`    | `lnk_…` branded ID    | The minted-link row, so storage can revoke and enforce one-time use (013/018)     |
+| `expiresAt` | ISO 8601 UTC datetime | Hard expiry; valid strictly before this instant                                   |
+| `oneTime`   | boolean, optional     | Single-use marker; carried for the verifier, _enforced_ by the `secure_links` row |
 
 API (`@qcms/core`):
 
 - `mintSecureLink(payload, key)` → token string. Key = the **first** entry of
   the deployment's link-key list.
 - `verifySecureLink(token, keys, now, expectedFormId?)` → `Result<LinkClaims,
-  LinkError>` with typed failures, checked in order: `MALFORMED` (not two
+LinkError>` with typed failures, checked in order: `MALFORMED` (not two
   base64url segments / not JSON / not valid claims) → `BAD_SIGNATURE` (no key
   verifies) → `WRONG_PURPOSE` (cross-purpose token) → `EXPIRED` →
   `WRONG_FORM` (only when `expectedFormId` is passed).
@@ -87,7 +87,7 @@ only consumes `CryptoKey`s, imported via `importCompactTokenKey` (raw bytes →
 non-extractable HMAC-SHA256 key; minimum **32 bytes**, generate with
 `openssl rand -base64 32`).
 
-Rotation model - *first entry signs, all entries verify, tried newest first*:
+Rotation model - _first entry signs, all entries verify, tried newest first_:
 
 1. Generate a new key and **prepend** it to the key list; restart/redeploy.
    New links are now signed with the new key; outstanding links still verify
@@ -107,11 +107,11 @@ the `links:mint` SEC-5 scope, inert at launch; guarded by the internal
 service-token gate and admin-auth - a public-only process has no admin group, so
 these paths 404, ADR-09):
 
-| Route | Body / effect |
-|---|---|
-| `POST /admin/forms/:id/links` | `{ expiresAt, oneTime?, count? }` → inserts `secure_links` rows and mints a token per row with the **current** signing key (`QCMS_LINK_KEYS[0]`); returns `[{ linkId, url, expiresAt }]`. |
-| `GET /admin/forms/:id/links` | Lists the form's links with derived `state` (`active` / `consumed` / `expired` / `revoked`) and the `consumedAt` / `revokedAt` / `createdAt` stamps. |
-| `POST /admin/forms/:id/links/:linkId/revoke` | Sets `revokedAt`; 018 rejects the link thereafter. A link that does not exist **in this form**, or is already revoked, → 404. |
+| Route                                        | Body / effect                                                                                                                                                                             |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /admin/forms/:id/links`                | `{ expiresAt, oneTime?, count? }` → inserts `secure_links` rows and mints a token per row with the **current** signing key (`QCMS_LINK_KEYS[0]`); returns `[{ linkId, url, expiresAt }]`. |
+| `GET /admin/forms/:id/links`                 | Lists the form's links with derived `state` (`active` / `consumed` / `expired` / `revoked`) and the `consumedAt` / `revokedAt` / `createdAt` stamps.                                      |
+| `POST /admin/forms/:id/links/:linkId/revoke` | Sets `revokedAt`; 018 rejects the link thereafter. A link that does not exist **in this form**, or is already revoked, → 404.                                                             |
 
 - **Every route is form-scoped** (#478). Revoke carries the form segment because
   the form is threaded into its `where` clause, so a link minted for another form
@@ -147,7 +147,7 @@ new mints, every entry verifies** (010). To rotate:
 
 - **No PII in tokens, ever** (SEC-2). Claims are opaque branded IDs and an
   expiry - never names, emails, answers, or anything derived from respondent
-  data. The payload segment is *encoded, not encrypted*: anyone holding a link
+  data. The payload segment is _encoded, not encrypted_: anyone holding a link
   can decode and read its claims.
 - **No revocation by signature.** Revocation, one-time consumption, and usage
   accounting live in storage (`secure_links`, tasks 013/018), not in the token.

@@ -15,12 +15,12 @@ The project is also a proof point: **a single developer with AI leverage can shi
 
 ## 2. Audiences
 
-| Audience | What they do | Surface |
-|---|---|---|
-| **Form authors** | Curate a governed question library; compose forms; define branching rules; publish and version; review responses; export | Admin app (VPN/internal) |
-| **Respondents** | Complete flows anonymously or via signed secure links; resume in-progress sessions; on any device, with assistive technology | SSR portal (public) |
-| **Downstream systems** | Receive submissions via signed webhook; pull via CSV/JSON export or the documented read-only reporting view in Postgres | Webhook · export · `reporting.*` views |
-| **Adopters / operators** | Scaffold, theme, extend, and self-host the system with a small-team operability budget | `create-qcms-app` scaffold · docker-compose · docs |
+| Audience                 | What they do                                                                                                                 | Surface                                            |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| **Form authors**         | Curate a governed question library; compose forms; define branching rules; publish and version; review responses; export     | Admin app (VPN/internal)                           |
+| **Respondents**          | Complete flows anonymously or via signed secure links; resume in-progress sessions; on any device, with assistive technology | SSR portal (public)                                |
+| **Downstream systems**   | Receive submissions via signed webhook; pull via CSV/JSON export or the documented read-only reporting view in Postgres      | Webhook · export · `reporting.*` views             |
+| **Adopters / operators** | Scaffold, theme, extend, and self-host the system with a small-team operability budget                                       | `create-qcms-app` scaffold · docker-compose · docs |
 
 ## 3. Non-negotiable properties
 
@@ -28,7 +28,7 @@ These three properties shape every architectural decision and are never traded a
 
 1. **Immutability.** Published form versions are frozen forever. Sessions pin the version they started on and never migrate. Referenced question versions never change.
 2. **Determinism.** The serving path contains no LLM and no nondeterministic component. Same form version + same answers = same flow and same UI, forever. Rule evaluation is a pure function whose semantics are versioned with each snapshot.
-3. **Auditability.** The system can always answer: *what was asked, what was shown, what was answered, and when it changed.* Immutable snapshots store both the domain definition and the compiled UI; answers are an append-only ledger.
+3. **Auditability.** The system can always answer: _what was asked, what was shown, what was answered, and when it changed._ Immutable snapshots store both the domain definition and the compiled UI; answers are an append-only ledger.
 
 Two further properties are first-class commitments rather than differentiators: **accessibility** (WCAG 2.2 AA, built during development, verified per release with automated and manual passes) and **internationalization** (ADR-27): **no user-facing string is ever hardcoded** - both the portal and the admin render every string through the app's i18n catalog or `LocalizedText` (authored content), and dates, numbers, and currency are formatted locale-aware via `Intl`. The system is multiple-language-capable; the initially shipped translation set may be small, but nothing is hardcoded. **Typography is held to the same bar (mandate):** every font QCMS offers - the default plus every built-in accessibility/visibility option - must be **open-licensed and self-hostable** (OFL / Apache-2.0 or equivalent permissive; no proprietary or paid fonts, no runtime font-CDN dependency), so any deployment can legally ship and self-host it. **Google Fonts is the canonical source** - its whole library qualifies, so prefer it. A font outside Google Fonts may be offered only if it meets the same bar and its license notice is documented alongside the self-hosted asset (e.g. OpenDyslexic, OFL-1.1). Offered fonts follow accessible-typography guidance: generous x-height, unambiguous letterforms (distinct `I`/`l`/`1`, non-mirrored `b`/`d`), adequate weight, plus broad script coverage for i18n; and the portal honors the WCAG 1.4.12 spacing floors (>= 16px body, >= 1.5 line-height, >= 0.12em letter-spacing, >= 0.16em word-spacing).
 
@@ -186,12 +186,12 @@ Decisions are surface-specific unless explicitly shared. The **admin** is an int
 
 **Decision.** The server remains the only rule evaluator. The portal commits controls at these moments:
 
-| Control | Commit moment |
-| --- | --- |
-| boolean, single choice | on change |
-| short text, long text, number | on blur |
-| date | when editing ends and the date is complete |
-| multi-choice | when focus leaves the group |
+| Control                       | Commit moment                              |
+| ----------------------------- | ------------------------------------------ |
+| boolean, single choice        | on change                                  |
+| short text, long text, number | on blur                                    |
+| date                          | when editing ends and the date is complete |
+| multi-choice                  | when focus leaves the group                |
 
 Clearing or partially editing a previously answered date commits a retraction. Same-step visibility updates only after the relevant commit.
 
@@ -240,4 +240,4 @@ Secure links keep their signed, expiring, optionally one-time invitation model. 
 
 ## 8. What this project is not
 
-Not a SaaS (though a multi-tenant derivative remains a documented recipe). Not a form-painting WYSIWYG competing on drag-and-drop. Not an analytics product - it hands clean data to tools that are. Not an LLM-at-runtime product - agents may assist *authoring* (launch, flag-gated, ADR-25); they never sit in the serving path.
+Not a SaaS (though a multi-tenant derivative remains a documented recipe). Not a form-painting WYSIWYG competing on drag-and-drop. Not an analytics product - it hands clean data to tools that are. Not an LLM-at-runtime product - agents may assist _authoring_ (launch, flag-gated, ADR-25); they never sit in the serving path.

@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const LEXEND_WOFF2_PATH = fileURLToPath(
-  new URL("../../packages/ui/src/fonts/lexend-variable.woff2", import.meta.url)
+  new URL("../../packages/ui/src/fonts/lexend-variable.woff2", import.meta.url),
 );
 
 /**

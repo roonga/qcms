@@ -28,16 +28,16 @@ open registration links, hydrating into the shared `@qcms/ui` renderer. Task 029
 
 ## Routes
 
-| Path | Purpose |
-|------|---------|
-| `/f/:formSlug` | Anonymous entry; Start POSTs to `/f/:formSlug/start` |
-| `/f/:formSlug/start` | BFF: start session, set cookie, redirect to flow |
-| `/l/:token` | BFF: verify secure link, redirect to flow or `/link-error` |
-| `/s/:sessionId` | SSR flow page (real step content), hydrates for answering |
-| `/s/:sessionId/answers` | BFF proxy: submit one answer, return re-evaluated step |
-| `/s/:sessionId/submit` | BFF proxy: submit session, store receipt, go to `/done` |
-| `/done` | Completion receipt (submittedAt + contentHash) |
-| `/link-error`, `/expired` | Friendly typed-error pages |
+| Path                      | Purpose                                                    |
+| ------------------------- | ---------------------------------------------------------- |
+| `/f/:formSlug`            | Anonymous entry; Start POSTs to `/f/:formSlug/start`       |
+| `/f/:formSlug/start`      | BFF: start session, set cookie, redirect to flow           |
+| `/l/:token`               | BFF: verify secure link, redirect to flow or `/link-error` |
+| `/s/:sessionId`           | SSR flow page (real step content), hydrates for answering  |
+| `/s/:sessionId/answers`   | BFF proxy: submit one answer, return re-evaluated step     |
+| `/s/:sessionId/submit`    | BFF proxy: submit session, store receipt, go to `/done`    |
+| `/done`                   | Completion receipt (submittedAt + contentHash)             |
+| `/link-error`, `/expired` | Friendly typed-error pages                                 |
 
 ## Theming (ADR-30): managed themes over a four-group token contract
 
@@ -45,13 +45,13 @@ Presentation is **configuration**, not a code change. A deployment picks one of
 the predefined themes and a corner preset from the environment, and the root
 layout stamps them onto `<html>` during SSR:
 
-| Variable | Values | Meaning |
-| --- | --- | --- |
-| `QCMS_PORTAL_THEME` | `slate` (default) `harbor` `sand` `plum` | which palette |
-| `QCMS_PORTAL_CORNERS` | `subtle` (default) `sharp` `rounded` `pill` | corner preset |
-| `QCMS_PORTAL_MODE` | `auto` (default) `light` `dark` `hc` | default colour mode |
-| `QCMS_PORTAL_FONT` | `system` (default) or any registry key | default font |
-| `QCMS_PORTAL_FONTS` | registry keys, comma/space separated | the offered subset |
+| Variable              | Values                                      | Meaning             |
+| --------------------- | ------------------------------------------- | ------------------- |
+| `QCMS_PORTAL_THEME`   | `slate` (default) `harbor` `sand` `plum`    | which palette       |
+| `QCMS_PORTAL_CORNERS` | `subtle` (default) `sharp` `rounded` `pill` | corner preset       |
+| `QCMS_PORTAL_MODE`    | `auto` (default) `light` `dark` `hc`        | default colour mode |
+| `QCMS_PORTAL_FONT`    | `system` (default) or any registry key      | default font        |
+| `QCMS_PORTAL_FONTS`   | registry keys, comma/space separated        | the offered subset  |
 
 Every theme is authored in Light and Dark and shares ONE High-contrast mode
 layer. `?mode=light|dark|hc` and the `qcms-theme` cookie override the configured

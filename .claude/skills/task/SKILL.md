@@ -20,6 +20,7 @@ Orchestrate one numbered task from `docs/features/NNN-*.md`. The conductor coord
    - no open PR uses this branch as its base, or each child has been safely retargeted and rebased.
 
    Any push or rebase makes the approval stale and requires a fresh review. Squash-merge through GitHub, preserving `Fixes #NN`, and delete the branch. Confirm the merge commit is green before landing more work.
+
 8. **Clean up.** Remove only this task's registered worktree, prune registrations, and remove an orphan directory only after proving it is not registered. A parked branch remains the durable claim; a truly abandoned branch is deleted so the claim releases.
 
 Never merge red, skip the independent reviewer, widen scope, push `main`, or perform a human sign-off.

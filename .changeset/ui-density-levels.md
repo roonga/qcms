@@ -8,13 +8,13 @@ task 053). `theme.css` now ships `:root.density-compact` and
 five `--space-*` values; the portal's respondent density control swaps one root
 class.
 
-| Token | Compact | Comfortable | Spacious |
-| --- | --- | --- | --- |
-| `--space-control-h` | 36px | 44px | 52px |
-| `--space-control-pad-x` | 0.7rem | 0.9rem | 1.1rem |
-| `--space-field-gap` | 1.25em | 2em | 2.75em |
-| `--space-section-pad` | 1.5rem | 2.25rem | 3rem |
-| `--space-stack` | 0.375rem | 0.5rem | 0.75rem |
+| Token                   | Compact  | Comfortable | Spacious |
+| ----------------------- | -------- | ----------- | -------- |
+| `--space-control-h`     | 36px     | 44px        | 52px     |
+| `--space-control-pad-x` | 0.7rem   | 0.9rem      | 1.1rem   |
+| `--space-field-gap`     | 1.25em   | 2em         | 2.75em   |
+| `--space-section-pad`   | 1.5rem   | 2.25rem     | 3rem     |
+| `--space-stack`         | 0.375rem | 0.5rem      | 0.75rem  |
 
 Additive and backward compatible: a consumer that sets no density class gets
 exactly the values it had before. Three invariants are enforced by

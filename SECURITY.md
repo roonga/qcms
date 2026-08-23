@@ -19,13 +19,13 @@ you believe it has. A working proof of concept helps but is not required.
 
 ### What to expect
 
-| Stage | Commitment |
-|---|---|
-| Acknowledgement | Within **3 business days** |
-| Initial assessment (severity and whether we can reproduce) | Within **10 business days** |
-| Fix or documented mitigation for a confirmed high or critical | Target **30 days** from confirmation |
-| Fix or documented mitigation for a confirmed medium or low | Target **90 days** from confirmation |
-| Public advisory | Published with the fix, crediting the reporter unless anonymity is requested |
+| Stage                                                         | Commitment                                                                   |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Acknowledgement                                               | Within **3 business days**                                                   |
+| Initial assessment (severity and whether we can reproduce)    | Within **10 business days**                                                  |
+| Fix or documented mitigation for a confirmed high or critical | Target **30 days** from confirmation                                         |
+| Fix or documented mitigation for a confirmed medium or low    | Target **90 days** from confirmation                                         |
+| Public advisory                                               | Published with the fix, crediting the reporter unless anonymity is requested |
 
 QCMS is maintained by a single developer. Those are honest targets rather than a
 contractual SLA, and a report that turns out to need an upstream fix will be
@@ -47,10 +47,10 @@ will not be pursued.
 
 ## Supported versions
 
-| Version | Supported |
-|---|---|
+| Version                  | Supported                                                                                                                                       |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | Pre-1.0 previews (`0.x`) | **No.** Every published package is a preview; APIs, schemas and storage shapes may change without notice, and security fixes are not backported |
-| 1.0 and later | The current minor line receives security patches, released as patch versions with a published advisory |
+| 1.0 and later            | The current minor line receives security patches, released as patch versions with a published advisory                                          |
 
 Once 1.0 ships, security patches are released as patch versions and announced in
 the release notes and in a GitHub advisory. Adopters run an owned scaffolded shell

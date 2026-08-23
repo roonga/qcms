@@ -6,15 +6,15 @@ The enterprise topology runs the **same three images** as the solo `docker-compo
 
 ## 1. The two API instances
 
-| | `api-public` | `api-internal` |
-|---|---|---|
-| Image | `qcms-api` (identical) | `qcms-api` (identical) |
-| `QCMS_MOUNT` | `public` | `internal,admin` |
-| Route groups mounted | `/` (start session, serve step, submit) | `/internal` (empty today), `/admin`, `/api/auth` |
-| Background schedulers | none | outbox deliverer + retention sweep |
-| Callers | portal BFF only | admin BFF only |
-| Network | internal side of the public zone | authoring zone, never routable from the internet |
-| Horizontal scaling | free (see §5) | scheduler singleton caveat (see §5) |
+|                       | `api-public`                            | `api-internal`                                   |
+| --------------------- | --------------------------------------- | ------------------------------------------------ |
+| Image                 | `qcms-api` (identical)                  | `qcms-api` (identical)                           |
+| `QCMS_MOUNT`          | `public`                                | `internal,admin`                                 |
+| Route groups mounted  | `/` (start session, serve step, submit) | `/internal` (empty today), `/admin`, `/api/auth` |
+| Background schedulers | none                                    | outbox deliverer + retention sweep               |
+| Callers               | portal BFF only                         | admin BFF only                                   |
+| Network               | internal side of the public zone        | authoring zone, never routable from the internet |
+| Horizontal scaling    | free (see §5)                           | scheduler singleton caveat (see §5)              |
 
 Solo, for contrast, is one process with `QCMS_MOUNT=all`, which `parseMount` expands to all three surfaces, so the single container serves every route **and** owns the schedulers. That is the only reason solo needs no split: the shortcut exists so a four-container deployment does not have to enumerate surfaces.
 
@@ -93,53 +93,53 @@ The images listen on 3000 inside the container and Compose never republishes tha
 
 Legend: **req** required (boot fails without it) · opt optional · cond required only under the stated condition · `-` not read by that process.
 
-| Variable | portal | admin | api-public | api-internal | postgres |
-|---|---|---|---|---|---|
-| `DATABASE_URL` | `-` | `-` | **req** | **req** | its own credential |
-| `QCMS_MOUNT` | `-` | `-` | **req** = `public` | **req** = `internal,admin` | `-` |
-| `QCMS_INTERNAL_TOKEN` | **req** | **req** | **req** | **req** | `-` |
-| `QCMS_LINK_KEYS` | `-` | `-` | **req** (verifies) | **req** (signs) | `-` |
-| `QCMS_SESSION_KEYS` | `-` | `-` | **req** | **req** | `-` |
-| `QCMS_APP_KEY` | `-` | `-` | **req** | **req** | `-` |
-| `QCMS_PORTAL_BASE_URL` | **req** | `-` | **req** | **req** | `-` |
-| `QCMS_API_BASE_URL` | **req** | **req** | `-` | `-` | `-` |
-| `QCMS_ADMIN_BASE_URL` | `-` | **req** | `-` | **req** | `-` |
-| `QCMS_ADMIN_AUTH_SECRET` | `-` | `-` | `-` | **req** | `-` |
-| `QCMS_SECURE_COOKIES` | opt | `-` | `-` | `-` | `-` |
-| `QCMS_ADMIN_SECURE_COOKIES` | `-` | opt | `-` | opt | `-` |
-| `QCMS_ADMIN_2FA` | `-` | opt | opt | opt | `-` |
-| `QCMS_ADMIN_SESSION_MAX_AGE_MS` | `-` | opt | opt | opt | `-` |
-| `QCMS_ADMIN_SESSION_IDLE_MS` | `-` | `-` | `-` | opt | `-` |
-| `QCMS_ADMIN_PASSWORD_BREACH_CHECK` | `-` | `-` | `-` | opt | `-` |
-| `QCMS_ADMIN_SIGNIN_THROTTLE` | `-` | `-` | `-` | opt | `-` |
-| `QCMS_FLAG_CHALLENGE_PROVIDER` | opt | `-` | opt | leave unset | `-` |
-| `QCMS_TURNSTILE_SITE_KEY` | cond | `-` | `-` | `-` | `-` |
-| `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY` | `-` | `-` | cond | `-` | `-` |
-| `QCMS_SESSION_TTL_MS` | `-` | `-` | opt | opt | `-` |
-| `QCMS_RL_*` (8 rate-limit knobs) | `-` | `-` | opt | opt | `-` |
-| `QCMS_ANTIABUSE_MIN_SUBMIT_MS` / `_HONEYPOT_FIELD` | `-` | `-` | opt | opt | `-` |
-| `QCMS_WEBHOOK_ALLOW_PRIVATE` / `_TIMEOUT_MS` / `_BATCH_SIZE` | `-` | `-` | opt | opt | `-` |
-| `QCMS_OUTBOX_INTERVAL_MS` / `_JITTER_MS` | `-` | `-` | opt | opt | `-` |
-| `QCMS_RETENTION_SWEEP_INTERVAL_MS` / `QCMS_DELIVERY_SNIPPET_TTL_MS` / `QCMS_OUTBOX_PAYLOAD_TTL_MS` | `-` | `-` | opt | opt | `-` |
-| `QCMS_BODY_LIMIT_BYTES` | `-` | `-` | opt | opt | `-` |
-| `QCMS_READY_DB_TIMEOUT_MS` | `-` | `-` | opt | opt | `-` |
-| `QCMS_PORTAL_THEME` / `_MODE` / `_CORNERS` / `_DENSITY` / `_FONT` / `_FONTS` / `_BRAND_NAME` / `_BRAND_LOGO` | opt | `-` | `-` | `-` | `-` |
-| `PORT` (alias `QCMS_PORT`) | `-` | `-` | opt | opt | `-` |
-| `NODE_ENV` | opt | opt | opt | opt | `-` |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` / `OTEL_SERVICE_NAME` | opt | `-` | opt | opt | `-` |
-| `QCMS_ADMIN_EMAIL` / `QCMS_ADMIN_PASSWORD` / `QCMS_ADMIN_NAME` | `-` | `-` | `-` | bootstrap only | `-` |
+| Variable                                                                                                     | portal  | admin   | api-public         | api-internal               | postgres           |
+| ------------------------------------------------------------------------------------------------------------ | ------- | ------- | ------------------ | -------------------------- | ------------------ |
+| `DATABASE_URL`                                                                                               | `-`     | `-`     | **req**            | **req**                    | its own credential |
+| `QCMS_MOUNT`                                                                                                 | `-`     | `-`     | **req** = `public` | **req** = `internal,admin` | `-`                |
+| `QCMS_INTERNAL_TOKEN`                                                                                        | **req** | **req** | **req**            | **req**                    | `-`                |
+| `QCMS_LINK_KEYS`                                                                                             | `-`     | `-`     | **req** (verifies) | **req** (signs)            | `-`                |
+| `QCMS_SESSION_KEYS`                                                                                          | `-`     | `-`     | **req**            | **req**                    | `-`                |
+| `QCMS_APP_KEY`                                                                                               | `-`     | `-`     | **req**            | **req**                    | `-`                |
+| `QCMS_PORTAL_BASE_URL`                                                                                       | **req** | `-`     | **req**            | **req**                    | `-`                |
+| `QCMS_API_BASE_URL`                                                                                          | **req** | **req** | `-`                | `-`                        | `-`                |
+| `QCMS_ADMIN_BASE_URL`                                                                                        | `-`     | **req** | `-`                | **req**                    | `-`                |
+| `QCMS_ADMIN_AUTH_SECRET`                                                                                     | `-`     | `-`     | `-`                | **req**                    | `-`                |
+| `QCMS_SECURE_COOKIES`                                                                                        | opt     | `-`     | `-`                | `-`                        | `-`                |
+| `QCMS_ADMIN_SECURE_COOKIES`                                                                                  | `-`     | opt     | `-`                | opt                        | `-`                |
+| `QCMS_ADMIN_2FA`                                                                                             | `-`     | opt     | opt                | opt                        | `-`                |
+| `QCMS_ADMIN_SESSION_MAX_AGE_MS`                                                                              | `-`     | opt     | opt                | opt                        | `-`                |
+| `QCMS_ADMIN_SESSION_IDLE_MS`                                                                                 | `-`     | `-`     | `-`                | opt                        | `-`                |
+| `QCMS_ADMIN_PASSWORD_BREACH_CHECK`                                                                           | `-`     | `-`     | `-`                | opt                        | `-`                |
+| `QCMS_ADMIN_SIGNIN_THROTTLE`                                                                                 | `-`     | `-`     | `-`                | opt                        | `-`                |
+| `QCMS_FLAG_CHALLENGE_PROVIDER`                                                                               | opt     | `-`     | opt                | leave unset                | `-`                |
+| `QCMS_TURNSTILE_SITE_KEY`                                                                                    | cond    | `-`     | `-`                | `-`                        | `-`                |
+| `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY`                                                                | `-`     | `-`     | cond               | `-`                        | `-`                |
+| `QCMS_SESSION_TTL_MS`                                                                                        | `-`     | `-`     | opt                | opt                        | `-`                |
+| `QCMS_RL_*` (8 rate-limit knobs)                                                                             | `-`     | `-`     | opt                | opt                        | `-`                |
+| `QCMS_ANTIABUSE_MIN_SUBMIT_MS` / `_HONEYPOT_FIELD`                                                           | `-`     | `-`     | opt                | opt                        | `-`                |
+| `QCMS_WEBHOOK_ALLOW_PRIVATE` / `_TIMEOUT_MS` / `_BATCH_SIZE`                                                 | `-`     | `-`     | opt                | opt                        | `-`                |
+| `QCMS_OUTBOX_INTERVAL_MS` / `_JITTER_MS`                                                                     | `-`     | `-`     | opt                | opt                        | `-`                |
+| `QCMS_RETENTION_SWEEP_INTERVAL_MS` / `QCMS_DELIVERY_SNIPPET_TTL_MS` / `QCMS_OUTBOX_PAYLOAD_TTL_MS`           | `-`     | `-`     | opt                | opt                        | `-`                |
+| `QCMS_BODY_LIMIT_BYTES`                                                                                      | `-`     | `-`     | opt                | opt                        | `-`                |
+| `QCMS_READY_DB_TIMEOUT_MS`                                                                                   | `-`     | `-`     | opt                | opt                        | `-`                |
+| `QCMS_PORTAL_THEME` / `_MODE` / `_CORNERS` / `_DENSITY` / `_FONT` / `_FONTS` / `_BRAND_NAME` / `_BRAND_LOGO` | opt     | `-`     | `-`                | `-`                        | `-`                |
+| `PORT` (alias `QCMS_PORT`)                                                                                   | `-`     | `-`     | opt                | opt                        | `-`                |
+| `NODE_ENV`                                                                                                   | opt     | opt     | opt                | opt                        | `-`                |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` / `OTEL_SERVICE_NAME`                                                          | opt     | `-`     | opt                | opt                        | `-`                |
+| `QCMS_ADMIN_EMAIL` / `QCMS_ADMIN_PASSWORD` / `QCMS_ADMIN_NAME`                                               | `-`     | `-`     | `-`                | bootstrap only             | `-`                |
 
 ### Reading the matrix
 
-**`loadConfig` validates the whole API surface in every API process**, so an optional knob is *parsed* on both instances even when only one of them acts on it. The rows above say where a value is **read**; the table below says where it has an **effect**. Setting an inert knob is harmless; forgetting one on the instance that acts on it is not.
+**`loadConfig` validates the whole API surface in every API process**, so an optional knob is _parsed_ on both instances even when only one of them acts on it. The rows above say where a value is **read**; the table below says where it has an **effect**. Setting an inert knob is harmless; forgetting one on the instance that acts on it is not.
 
-| Knob | Effective on | Why (verified) |
-|---|---|---|
-| `QCMS_OUTBOX_*`, `QCMS_RETENTION_SWEEP_INTERVAL_MS`, `QCMS_DELIVERY_SNIPPET_TTL_MS`, `QCMS_OUTBOX_PAYLOAD_TTL_MS` | `api-internal` only | the schedulers start under `if (config.mount.internal)`, `apps/api/src/main.ts:74` |
-| `QCMS_WEBHOOK_*` | `api-internal` only | read by the admin webhook-config handler and the delivery pass, both internal-side |
-| `QCMS_ADMIN_SESSION_MAX_AGE_MS`, `QCMS_ADMIN_2FA` | `api-internal` (and the admin app) | consumed by the admin-auth middleware, which exists only where `/admin` is mounted |
-| `QCMS_RL_*`, `QCMS_ANTIABUSE_*`, `QCMS_SESSION_TTL_MS` | `api-public` | the respondent loop (start session, answers, submit) is the public group |
-| `QCMS_LINK_KEYS` | both | `api-internal` signs with the first key, `api-public` verifies against all of them |
+| Knob                                                                                                              | Effective on                       | Why (verified)                                                                     |
+| ----------------------------------------------------------------------------------------------------------------- | ---------------------------------- | ---------------------------------------------------------------------------------- |
+| `QCMS_OUTBOX_*`, `QCMS_RETENTION_SWEEP_INTERVAL_MS`, `QCMS_DELIVERY_SNIPPET_TTL_MS`, `QCMS_OUTBOX_PAYLOAD_TTL_MS` | `api-internal` only                | the schedulers start under `if (config.mount.internal)`, `apps/api/src/main.ts:74` |
+| `QCMS_WEBHOOK_*`                                                                                                  | `api-internal` only                | read by the admin webhook-config handler and the delivery pass, both internal-side |
+| `QCMS_ADMIN_SESSION_MAX_AGE_MS`, `QCMS_ADMIN_2FA`                                                                 | `api-internal` (and the admin app) | consumed by the admin-auth middleware, which exists only where `/admin` is mounted |
+| `QCMS_RL_*`, `QCMS_ANTIABUSE_*`, `QCMS_SESSION_TTL_MS`                                                            | `api-public`                       | the respondent loop (start session, answers, submit) is the public group           |
+| `QCMS_LINK_KEYS`                                                                                                  | both                               | `api-internal` signs with the first key, `api-public` verifies against all of them |
 
 - **The challenge provider belongs to the public pair.** `parseChallenge` demands `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` whenever `QCMS_FLAG_CHALLENGE_PROVIDER=turnstile`, unconditionally on mount. Setting that flag in a shared environment file therefore makes `api-internal` refuse to boot until it is also handed challenge secrets it will never use. Set the flag on `api-public` and the portal; leave it unset on `api-internal`.
 - **An unknown `QCMS_FLAG_*` variable fails boot** (ADR-24), on every instance that sees it. A typo in a shared environment file is a full outage, not a silently ignored line.
@@ -186,13 +186,13 @@ Every claim above is checkable against a file in this repository, and two of the
 
 The suite composes with `MountFlags` **objects** from `apps/api/e2e/support/harness.ts:36-40`, not with `QCMS_MOUNT` strings, so it verifies the process shapes rather than the spelling. The spelling is verified separately, in `apps/api/src/config.test.ts:8` (`QCMS_MOUNT: "public,internal"` parses to the matching flag object) and `:17` (`all` sets every surface). Together those two tests are the evidence for the strings this recipe documents:
 
-| Recipe instance | Documented value | Flags it produces | Harness preset it matches |
-|---|---|---|---|
-| `api-public` | `QCMS_MOUNT=public` | `{public: true, internal: false, admin: false}` | `MOUNT.publicOnly` |
-| `api-internal` | `QCMS_MOUNT=internal,admin` | `{public: false, internal: true, admin: true}` | `MOUNT.adminOnly` |
-| solo | `QCMS_MOUNT=all` | `{public: true, internal: true, admin: true}` | `MOUNT.all` |
+| Recipe instance | Documented value            | Flags it produces                               | Harness preset it matches |
+| --------------- | --------------------------- | ----------------------------------------------- | ------------------------- |
+| `api-public`    | `QCMS_MOUNT=public`         | `{public: true, internal: false, admin: false}` | `MOUNT.publicOnly`        |
+| `api-internal`  | `QCMS_MOUNT=internal,admin` | `{public: false, internal: true, admin: true}`  | `MOUNT.adminOnly`         |
+| solo            | `QCMS_MOUNT=all`            | `{public: true, internal: true, admin: true}`   | `MOUNT.all`               |
 
-Note that the harness calls the second preset `adminOnly` while it sets `internal: true` as well. The name is about the *routes* it serves; the `internal` flag in it is what puts the schedulers there. This recipe names that instance `api-internal` for exactly that reason.
+Note that the harness calls the second preset `adminOnly` while it sets `internal: true` as well. The name is about the _routes_ it serves; the `internal` flag in it is what puts the schedulers there. This recipe names that instance `api-internal` for exactly that reason.
 
 **The unpublished-API property** is asserted against the merged Compose configuration by `scripts/compose-config.test.ts`, so "the API container publishes no host port" is a tested property of the shipped files rather than a convention.
 

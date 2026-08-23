@@ -9,7 +9,7 @@ The launch gate is a human test, not a CI job: someone who is not the author of 
 
 ## Deliverables
 
-- **Tester script** (`docs/launch-validation.md`): the checklist the tester follows - deliberately thin, because the *README* is what's being tested; the script only defines the goals and evidence to capture:
+- **Tester script** (`docs/launch-validation.md`): the checklist the tester follows - deliberately thin, because the _README_ is what's being tested; the script only defines the goals and evidence to capture:
   1. From a clean machine: scaffold via `create-qcms-app` (or the documented manual setup if the CLI lags - record which was used).
   2. Bring the stack up; create the admin account; enroll 2FA.
   3. Author: create ≥3 questions including a choice type; publish them; build a form with one branching rule; publish it.
@@ -18,7 +18,7 @@ The launch gate is a human test, not a CI job: someone who is not the author of 
   6. Operate: erase one response; verify the export excludes it; view the tombstone.
 - **Run log template:** per step, record success or failure, time taken, relevant command output, and friction notes verbatim. Every point where the tester left the README to search, guess, or ask becomes an issue.
 - **Pre-flight:** all CI suites green (kernel, corpus drift, conformance, e2e, **security matrix (040)**, compose smoke, restore drill, CLI e2e if in scope); axe/Lighthouse gates green; a11y manual pass (030) has no open blockers; **security review doc (040) dated and cited - `docs/security-review-2026-08-14.md` as of that pass (040 landed it; a later pass supersedes it by date) - with zero open high-severity findings**; version stamps in a published snapshot verified by hand once.
-- **Triage rule:** launch-blocking = the tester cannot complete a step from the README, or data-integrity/auth failures. Everything else → issues (label `post-launch-polish`). Fix blockers, re-run only the failed steps with a *fresh* environment.
+- **Triage rule:** launch-blocking = the tester cannot complete a step from the README, or data-integrity/auth failures. Everything else → issues (label `post-launch-polish`). Fix blockers, re-run only the failed steps with a _fresh_ environment.
 - Launch collateral check: README final pass, LICENSE, repo description, versioned package publish (Changesets release PR), tagged release.
 
 ## Exit criteria

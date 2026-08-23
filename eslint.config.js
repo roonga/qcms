@@ -4,6 +4,19 @@ import eslint from "@eslint/js";
 import sonarjs from "eslint-plugin-sonarjs";
 import tseslint from "typescript-eslint";
 
+const toolingFiles = [
+  "scripts/**/*.{ts,mts,cts,js,mjs,cjs}",
+  ".devcontainer/**/*.{ts,mts,cts,js,mjs,cjs}",
+  "plan/**/*.{ts,mts,cts,js,mjs,cjs}",
+  "eslint.config.js",
+  "vitest.config.ts",
+  "playwright.config.ts",
+  "playwright.compose.config.ts",
+  "packages/db/drizzle.config.ts",
+  "packages/ui/vitest.config.ts",
+  "packages/ui/vitest.setup.ts",
+];
+
 export default tseslint.config(
   {
     ignores: [
@@ -77,6 +90,32 @@ export default tseslint.config(
     ...tseslint.configs.disableTypeChecked,
   },
   {
+    // Root tools and package-level tool configuration do not belong to a shipped
+    // TypeScript project. They are still linted, using syntax-aware rules rather
+    // than being exempted from ESLint entirely.
+    files: toolingFiles,
+    ...tseslint.configs.disableTypeChecked,
+    rules: {
+      ...tseslint.configs.disableTypeChecked.rules,
+      // These are command-line tools, fixtures, and static generators. Looking up
+      // trusted developer tools on PATH, using synthetic secrets in tests, and
+      // keeping procedural validation code together are expected in this class.
+      "sonarjs/assertions-in-tests": "off",
+      "sonarjs/cognitive-complexity": "off",
+      "sonarjs/no-empty-collection": "off",
+      "sonarjs/no-hardcoded-passwords": "off",
+      "sonarjs/no-nested-conditional": "off",
+      "sonarjs/no-nested-template-literals": "off",
+      "sonarjs/no-os-command-from-path": "off",
+      "sonarjs/parameterized-tests": "off",
+      "sonarjs/publicly-writable-directories": "off",
+      "sonarjs/regex-complexity": "off",
+      "sonarjs/single-character-alternation": "off",
+      "sonarjs/super-linear-regex": "off",
+      "sonarjs/void-use": "off",
+    },
+  },
+  {
     // Node harness and tooling scripts (e2e server wrappers Playwright's
     // `webServer` spawns, build-time generators under a `scripts/` dir) are a
     // distinct file class from app source: plain ESM run by Node, not by a
@@ -85,10 +124,11 @@ export default tseslint.config(
     // these need the Node globals they legitimately use declared. Listed inline
     // rather than pulled from the `globals` package, which is not a workspace
     // dependency (adding one needs the CONTRIBUTING approval policy).
-    files: ["**/e2e/**/*.{js,mjs,cjs}", "**/scripts/**/*.{js,mjs,cjs}"],
+    files: ["**/e2e/**/*.{js,mjs,cjs}", "**/scripts/**/*.{js,mjs,cjs}", ...toolingFiles],
     languageOptions: {
       globals: {
         Buffer: "readonly",
+        crypto: "readonly",
         URL: "readonly",
         URLSearchParams: "readonly",
         clearInterval: "readonly",

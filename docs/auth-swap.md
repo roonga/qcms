@@ -7,7 +7,7 @@ the shape of the work before starting it, and so a future task does not have to
 rediscover it.
 
 Task 056 moved the better-auth instance from the admin app into the API (ADR-35 as amended
-2026-07-31). The three seams below are unchanged in *kind* - what changed is which
+2026-07-31). The three seams below are unchanged in _kind_ - what changed is which
 workspace holds seam 2, and the move made the swap slightly smaller: the library is now
 linked by exactly one process.
 
@@ -19,10 +19,10 @@ same library (SEC-1); this document is about replacing the library.
 Two decisions from before better-auth was chosen are what keep this small, and both are
 worth knowing before you touch anything:
 
-1. **The API's *verifier* never touches better-auth**, even now that the API hosts it. It
+1. **The API's _verifier_ never touches better-auth**, even now that the API hosts it. It
    authenticates an admin by resolving a session token to a row
    (`apps/api/src/middleware/admin-auth.ts` → `getAdminSessionByToken`). So the verifier
-   does not care *which* library issued the session, only that a row exists, is in policy,
+   does not care _which_ library issued the session, only that a row exists, is in policy,
    and belongs to an account with a second factor. Task 056 put the issuing side in the
    same process without joining the two: `middleware/admin-auth.ts` still imports nothing
    from `features/auth/`.

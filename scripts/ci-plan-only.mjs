@@ -1,16 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Classify a pull request's diff as "plan-only" for the CI fast lane (issue #496
- * rides along; the lane itself is the fix for the ~20-minute burn a prose-only
- * `plan/**` PR used to cost).
- *
- * A PR whose every changed path is under `plan/` cannot break build, typecheck,
- * lint, the unit suites or any of the three end-to-end suites: `plan/` is not a
- * workspace, nothing under `apps/` or `packages/` imports it, and Prettier
- * ignores it (`.prettierignore`). Three gates DO read `plan/**`, so the fast lane
- * still runs them - see `check:plan` in the root package.json for the list and
- * the reasoning.
+ * Classify a pull request diff as plan-only. Plan-only changes skip application
+ * build and test jobs, but `check:plan` still runs ESLint and Prettier over the plan
+ * tree along with its security and theme checks.
  *
  * ## The contract this script has to keep
  *
@@ -46,15 +39,9 @@
  * checkout is safe. Consequence to expect: any PR that touches this file gets a full
  * run, which is the point.
  *
- * **Paths are read NUL-separated and never trimmed.** `git diff --name-only` does
- * not quote a path whose only unusual character is a space, so a file committed at
- * `" plan/evil.ts"` (leading space) arrives as ` plan/evil.ts`. Trimming it would
- * make it `plan/evil.ts`, and a `.ts` file would land with build, typecheck, lint,
- * the unit suites, all three e2e suites and `check:lint-coverage` skipped - the last
- * of those being exactly the gate that exists to catch a tracked source file outside
- * every lint scope. `-z` plus a NUL split preserves the byte sequence git recorded,
- * which is what `check-no-em-dash.mjs`, `check-ports.mjs` and
- * `check-no-control-chars.mjs` all already do.
+ * **Paths are read NUL-separated and never trimmed.** This preserves unusual but
+ * valid names and prevents a leading space from changing an outside path into a
+ * `plan/` path.
  *
  * Usage:
  *   node scripts/ci-plan-only.mjs                  # reads GITHUB_* from the env

@@ -33,7 +33,7 @@ of this state.
   `cancelledAt` and `cancelledReason` so the delivery dashboard shows the state honestly
   rather than dropping the row.
 - The redeliver door's guard is now `redeliveryRefusalFor(exec, deliveryId):
-  Promise<RedeliveryRefusal | undefined>` (`"cancelled" | "payloadRedacted"`), replacing
+Promise<RedeliveryRefusal | undefined>` (`"cancelled" | "payloadRedacted"`), replacing
   `deliveryTargetsErasedSession`. Not a breaking change for anyone: that helper was
   added by task 035 in this same unreleased line, so no published release carried it.
   It reads the same two columns

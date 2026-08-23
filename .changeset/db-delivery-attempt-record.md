@@ -9,7 +9,7 @@ delivery listing the admin operations dashboard reads (task 035).
 `0012_delivery_attempt_record`): `last_attempt_at`, `last_status`,
 `last_latency_ms`, `last_request_headers` and `last_response_snippet`. None of
 that is derivable from the lifecycle timestamps, and an operator screen that
-described the request from the deliverer's *intent* rather than from what it sent
+described the request from the deliverer's _intent_ rather than from what it sent
 would be a fiction the moment either side changed.
 
 `markDeliveryDelivered` and `recordDeliveryFailure` take an optional

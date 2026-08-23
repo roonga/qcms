@@ -47,12 +47,12 @@ media features, not four values of one setting.
 
 Concretely, the root class becomes a combination:
 
-| Selection | Root class | Specificity of its token block |
-|---|---|---|
-| Light, normal | (none) or `light` | bare `:root` |
-| Dark, normal | `dark` | 0,2,0 |
-| Light, high | `hc` | 0,2,0 |
-| Dark, high | `dark hc` | 0,3,0 |
+| Selection     | Root class        | Specificity of its token block |
+| ------------- | ----------------- | ------------------------------ |
+| Light, normal | (none) or `light` | bare `:root`                   |
+| Dark, normal  | `dark`            | 0,2,0                          |
+| Light, high   | `hc`              | 0,2,0                          |
+| Dark, high    | `dark hc`         | 0,3,0                          |
 
 **Why this shape rather than a flat `hc-dark` mode:**
 
@@ -87,18 +87,21 @@ that argument and it should be written into the same comment, not a new one.
 Nothing here is speculative: each item is a file that exists today.
 
 **Token sheets**
+
 - `packages/ui/src/theme.css`: a shared `.dark.hc` block, plus per-theme dark accents only
   where the light HC accent fails at AAA on the dark field.
 - `apps/admin/app/theme.css`: the same, regenerated rather than hand-edited.
 - `plan/admin-theme/tokens.css`: regenerated.
 
 **Treatment sheet**
+
 - `packages/ui/src/theme-components.css`: audit every `[data-qcms-theme-scope].hc` rule
   for polarity assumptions. Heavy borders and suppressed shadows are probably
   polarity-neutral; anything assuming a light field is not. This is an audit with a
   small expected diff, not a rewrite.
 
 **Mode model, both apps**
+
 - `apps/admin/lib/appearance.ts` and `apps/portal/lib/appearance.ts`: `MODES` becomes two
   axes. **A legacy cookie holding `hc` must parse to light plus high**, so nobody's saved
   choice changes meaning on deploy. That migration is the one piece with a correctness
@@ -109,11 +112,13 @@ Nothing here is speculative: each item is a file that exists today.
   applies only when no mode class is present, and that behaviour must be preserved.
 
 **Controls**
+
 - Both switchers become two controls (polarity, contrast) rather than three buttons.
   This is the visible half of the change and it is an improvement independent of dark HC:
   "Light / Dark / High contrast" already presents two different questions as one list.
 
 **Gates**
+
 - `plan/admin-theme/build.mjs` verifies every critical pair with the WCAG relative
   luminance formula and asserts AAA (7.0) for text on background in HC. **The matrix
   doubles.** The build must fail on a dark-HC pair below floor exactly as it does today,
@@ -122,6 +127,7 @@ Nothing here is speculative: each item is a file that exists today.
   apps.
 
 **Artifacts**
+
 - The eleven POCs under `plan/admin-shell-poc/` each carry a three-button switcher. They
   are proposals, not shipped code, so they can follow rather than lead, but they should
   be updated in one pass so they do not teach the old model.

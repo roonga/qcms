@@ -1,6 +1,6 @@
 # QCMS - Developer Guide
 
-> **Methodology vs. runbook:** this is the *operator's runbook* - how to drive the build day-to-day. For the *why* (principles, task-design rules, the session protocol, the audit checklist) see [`AGENTIC_DEVELOPMENT.md`](AGENTIC_DEVELOPMENT.md).
+> **Methodology vs. runbook:** this is the _operator's runbook_ - how to drive the build day-to-day. For the _why_ (principles, task-design rules, the session protocol, the audit checklist) see [`AGENTIC_DEVELOPMENT.md`](AGENTIC_DEVELOPMENT.md).
 
 How to drive the QCMS single-seat agent workflow as the human in the loop. Agent instructions live in `CLAUDE.md` and `PROJECT_INSTRUCTIONS.md`.
 
@@ -37,7 +37,7 @@ Modes: the repo's `.claude/settings.json` sets **acceptEdits** (file edits and a
 
 **What the container gives the loop:** Node 24 + pnpm at the pinned version, Docker (the host daemon, mounted in) so Testcontainers works, the GitHub CLI, Playwright's Chromium with its OS libraries, zsh, and the Claude Code CLI. `CLAUDE_CONFIG_DIR` points at the mounted `~/.claude`, which puts `.claude.json` (the account/OAuth state) inside the mount too, so your host login carries straight into the container and survives rebuilds. Verified in task 046: `claude -p "..." --permission-mode bypassPermissions` runs headless inside the container, already authenticated, with zero prompts.
 
-**Trust the workspace once for interactive sessions.** A fresh container prints `Ignoring N permissions.allow entries from .claude/settings.json: this workspace has not been trusted`. Under `bypassPermissions` this is harmless (nothing is being gated), but an *interactive* session in the container will keep asking until you accept the trust dialog once, or set `projects["/workspaces/<folder>"].hasTrustDialogAccepted: true` in `~/.claude/.claude.json`.
+**Trust the workspace once for interactive sessions.** A fresh container prints `Ignoring N permissions.allow entries from .claude/settings.json: this workspace has not been trusted`. Under `bypassPermissions` this is harmless (nothing is being gated), but an _interactive_ session in the container will keep asking until you accept the trust dialog once, or set `projects["/workspaces/<folder>"].hasTrustDialogAccepted: true` in `~/.claude/.claude.json`.
 
 **Ports: the allocation lives in [`docs/PORTS.md`](PORTS.md).** That is the only table, and it is binding (R8, ADR-37): `7Sxx` for stable human-facing services, `17Sxx` for ephemeral test harnesses, seat `S` from `QCMS_PORT_SEAT` and defaulting to 0. The numbers below are seat 0, which is the default and what every existing setup already runs. Nothing here restates the table; go there to add or move anything.
 
@@ -45,14 +45,14 @@ Modes: the repo's `.claude/settings.json` sets **acceptEdits** (file edits and a
 
 **Design previews over HTTP (7030 at seat 0):** `pnpm artifacts` starts a read-only, dependency-free static server (`scripts/serve-artifacts.mjs`) for files under `plan/`. Open `http://localhost:7030/plan/`. The port leaves the container through `appPort` and `forwardPorts`; rebuild older containers if it is not published.
 
-**7020 belongs to the host.** The dev Postgres from `docker-compose.dev.yml` publishes 7020 on the host, so the container must *not* claim it - if it did, whichever of the two started second would fail to bind. The container reaches it over the host gateway instead:
+**7020 belongs to the host.** The dev Postgres from `docker-compose.dev.yml` publishes 7020 on the host, so the container must _not_ claim it - if it did, whichever of the two started second would fail to bind. The container reaches it over the host gateway instead:
 
 ```sh
 docker compose -f docker-compose.dev.yml up -d
 pnpm dev:portal   # finds the dev DB itself; see CONTRIBUTING for why not host.docker.internal
 ```
 
-**`QCMS_DOCKER_PUBLISH_HOST` overrides that detection**, and it is the one escape hatch on this path. `scripts/docker-host.mjs` answers "which host is a Docker-published port on, as seen from *this* process": `localhost` on a plain host checkout and on CI, and the container's default-route gateway inside the dev container, because publishing binds on the Docker host and inside the container that host is another machine. Set the variable and that answer is taken as given, before anything is probed:
+**`QCMS_DOCKER_PUBLISH_HOST` overrides that detection**, and it is the one escape hatch on this path. `scripts/docker-host.mjs` answers "which host is a Docker-published port on, as seen from _this_ process": `localhost` on a plain host checkout and on CI, and the container's default-route gateway inside the dev container, because publishing binds on the Docker host and inside the container that host is another machine. Set the variable and that answer is taken as given, before anything is probed:
 
 ```sh
 QCMS_DOCKER_PUBLISH_HOST=172.17.0.1 pnpm dev:portal
@@ -62,7 +62,7 @@ Reach for it when the detection is wrong for your setup - an unusual routing tab
 
 **Running the admin app: `pnpm dev:admin`.** It is `pnpm dev:portal`'s twin (same script,
 `scripts/dev-stack.mjs`): dev database up and migrated, kitchen-sink form seeded, API
-started, then the admin on seat 0's **7040**. Both children get the *same* freshly
+started, then the admin on seat 0's **7040**. Both children get the _same_ freshly
 generated SEC-4 internal token, which is why the admin cannot simply be pointed at an API
 someone else started: that token exists only in the launching process's memory and is
 written nowhere (issue #281). The cost is that `dev:admin` and `dev:portal` each start an
@@ -102,7 +102,7 @@ and it was added to that list later than the rest: a container created before th
 publishes it only after `pnpm devcontainer rebuild`.
 
 `QCMS_ADMIN_AUTH_SECRET` is required here because `loadConfig` validates it, but for
-*this command* it does **not** have to match the running API's: `create-admin` creates an
+_this command_ it does **not** have to match the running API's: `create-admin` creates an
 account (salted password hash, secret-independent) and enrols no second factor, and it
 revokes the one session it mints, so nothing it writes is ever decrypted by another
 process.
@@ -114,7 +114,7 @@ against the source of better-auth 1.6.26, the pinned version, rather than inferr
 `two-factor/enable` stores
 the secret with `symmetricEncrypt({ key: ctx.context.secretConfig, ... })`
 (`dist/plugins/two-factor/index.mjs:105`) and every verification decrypts with the
-*current* key (`dist/plugins/two-factor/totp/index.mjs:188`, and `:122` for the URI
+_current_ key (`dist/plugins/two-factor/totp/index.mjs:188`, and `:122` for the URI
 reveal). `pnpm dev:portal` and `pnpm dev:admin` generate a fresh secret when the variable
 is unset, so an unpinned restart leaves your authenticator's codes rejected for good.
 `pnpm dev:admin` says so on startup rather than leaving you to remember it.
@@ -125,7 +125,7 @@ plain JSON - that was wrong (issue #319). The plugin defaults `storeBackupCodes`
 `"encrypted"` (`dist/plugins/two-factor/index.mjs:25-27`; the decoder
 `getBackupCodes` at `.../backup-codes/index.mjs:44` takes its encrypted branch on `:45`
 and falls through to the plain-JSON `return safeJSONParse(backupCodes)` on `:50` only
-when a caller *overrides* the default), so
+when a caller _overrides_ the default), so
 the codes are ciphertext under the same key as the TOTP secret and die with it. There is
 no re-enrolment screen and no 2FA reset command (issue #432), so the fastest way out of a
 lost dev secret is a fresh database. Setting `QCMS_ADMIN_2FA=optional` afterwards does not
@@ -157,7 +157,7 @@ If a Testcontainers-backed suite cannot reach the container it just started (sib
 - The paired `.github/actions/assert-no-docker-hub-pulls` step prints, in each Docker-backed job's log, every image the test run pulled and fails the job if any came from Docker Hub. The steady-state line is `Images pulled during the test run: none.`
 - A failure of the reaper is now reported as a reaper failure, naming `TESTCONTAINERS_RYUK_DISABLED` and `RYUK_CONTAINER_IMAGE`, never as a Postgres-image pull failure. (The knob is `RYUK_CONTAINER_IMAGE`, not `TESTCONTAINERS_RYUK_CONTAINER_IMAGE`, in testcontainers-node.)
 
-**A Testcontainers env knob only works if `turbo.json` passes it through.** turbo 2.x runs tasks in **strict** env mode: a task sees only the variables declared in `turbo.json` plus turbo's own defaults. `pnpm test` is `turbo run test`, so `QCMS_TEST_POSTGRES_IMAGE`, `TESTCONTAINERS_RYUK_DISABLED`, `TESTCONTAINERS_HOST_OVERRIDE` and the `DOCKER_*` overrides reach the *job* and not the Vitest process unless they are listed in `globalPassThroughEnv`. That is how the #74 GHCR mirror was silently bypassed inside CI's `verify` job while the `api-e2e` and `portal-e2e` jobs (which invoke Vitest and Playwright directly, no turbo) used it correctly: the harness fell back to the default `postgres:16-alpine`, which was not the pre-pulled reference, and Docker went to Docker Hub for it. To prove a knob actually arrives, give it a value nothing can serve and watch the suite fail:
+**A Testcontainers env knob only works if `turbo.json` passes it through.** turbo 2.x runs tasks in **strict** env mode: a task sees only the variables declared in `turbo.json` plus turbo's own defaults. `pnpm test` is `turbo run test`, so `QCMS_TEST_POSTGRES_IMAGE`, `TESTCONTAINERS_RYUK_DISABLED`, `TESTCONTAINERS_HOST_OVERRIDE` and the `DOCKER_*` overrides reach the _job_ and not the Vitest process unless they are listed in `globalPassThroughEnv`. That is how the #74 GHCR mirror was silently bypassed inside CI's `verify` job while the `api-e2e` and `portal-e2e` jobs (which invoke Vitest and Playwright directly, no turbo) used it correctly: the harness fell back to the default `postgres:16-alpine`, which was not the pre-pulled reference, and Docker went to Docker Hub for it. To prove a knob actually arrives, give it a value nothing can serve and watch the suite fail:
 
 ```sh
 QCMS_TEST_POSTGRES_IMAGE=localhost:1/nope pnpm exec turbo run test --filter @qcms/db --force
@@ -198,12 +198,12 @@ The overlay carries Grafana's `otel-lgtm` (Grafana + Loki + Tempo + Prometheus +
 
 That gives you, at seat 0 (`docs/PORTS.md` for other seats, and all four are loopback-only):
 
-| Where | What |
-|---|---|
-| <http://localhost:7040> | The authoring admin. Sign in with the credential `dev:up` printed. |
-| <http://localhost:7000> | The respondent portal. |
+| Where                   | What                                                                                                                                                                                                                                                                                                               |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| <http://localhost:7040> | The authoring admin. Sign in with the credential `dev:up` printed.                                                                                                                                                                                                                                                 |
+| <http://localhost:7000> | The respondent portal.                                                                                                                                                                                                                                                                                             |
 | <http://localhost:7050> | Grafana. Log in `admin` / `admin` - the image's own default, on a port only your machine can reach. The provisioned **QCMS Observability** home dashboard shows traffic, errors and correlated application logs; **Explore -> Loki** remains available for ad-hoc queries. Trace-correlated records link to Tempo. |
-| <http://localhost:7060> | pgweb, connected read-only to the application database. No login screen: the connection comes from the environment. |
+| <http://localhost:7060> | pgweb, connected read-only to the application database. No login screen: the connection comes from the environment.                                                                                                                                                                                                |
 
 Bring it down with the matching command, which removes the containers, the network, the volumes and the overlay's containers (which are orphans of the base file and are otherwise left behind):
 
@@ -268,14 +268,14 @@ Those two containers are yours to start and stop; nothing in the repo wires them
 
 ## Running work
 
-| You type | What happens |
-|---|---|
-| `/task 002` | Claims one numbered task, delegates implementation, opens the PR, delegates exact-head review, and squash-merges the approved green head. |
-| `/next-task` | Selects the next executable numbered task using the ledger and its ordering table. |
-| `/next-issue` | Selects one actionable issue and uses the same executor, reviewer, and merge flow on `fix/NN-slug`. |
-| `/next-work` | Handles review findings and interrupted work first, then selects an eligible task or issue. |
-| `/loop /next-work` | Repeats single-seat work selection until nothing is executable or a real human or repository-wide blocker remains. |
-| `/loop /next-work 3` | Allows up to three pairwise-independent executors while keeping review and merge serialized. |
+| You type             | What happens                                                                                                                              |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `/task 002`          | Claims one numbered task, delegates implementation, opens the PR, delegates exact-head review, and squash-merges the approved green head. |
+| `/next-task`         | Selects the next executable numbered task using the ledger and its ordering table.                                                        |
+| `/next-issue`        | Selects one actionable issue and uses the same executor, reviewer, and merge flow on `fix/NN-slug`.                                       |
+| `/next-work`         | Handles review findings and interrupted work first, then selects an eligible task or issue.                                               |
+| `/loop /next-work`   | Repeats single-seat work selection until nothing is executable or a real human or repository-wide blocker remains.                        |
+| `/loop /next-work 3` | Allows up to three pairwise-independent executors while keeping review and merge serialized.                                              |
 
 Every task and issue PR requires an independent reviewer subagent. Its PR comment ends with `AGENT-REVIEW: APPROVE @<headRefOid>` or `AGENT-REVIEW: CHANGES-REQUESTED @<headRefOid>`. A push makes the verdict stale. The root conductor addresses findings, checks all comment surfaces and required CI, and performs serialized squash merges.
 

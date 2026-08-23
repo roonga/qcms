@@ -27,6 +27,7 @@ QCMS is adopter-hosted (shadcn-style). We therefore ship **instrumentation and c
 ## 4. Signals, scoped
 
 **Traces (the core of this plan).** Instrumentation is the official libraries throughout - nothing hand-rolled, so behaviour tracks the spec as the packages evolve.
+
 - The trace **starts at the portal server** (SSR/BFF route handlers). Browser-side telemetry is out of scope for launch (CSP surface, consent/privacy, payload cost - and R2 means the browser only ever talks to the portal anyway).
 - Portal: Next's documented OTel setup (`instrumentation.ts` + `registerOTel`). **No extra fetch instrumentation needed** - Next itself already emits the `fetch [method] [url]` span (`AppRender.fetch`) and `@vercel/otel` carries context propagation; adding `instrumentation-undici` here would double-instrument the BFF hop. One knob to verify at implementation: `@vercel/otel` only injects `traceparent` into fetches whose URL matches its propagation allowlist, so the API origin must be listed (`propagateContextUrls`). Portal and admin stay on the Node runtime (they do today; `NodeSDK` is not edge-compatible per the Next guide, and R2's BFF is server-side anyway).
 - API: the official Hono middleware (`@hono/otel`, v1.1.2 at writing) opens the server span and extracts inbound W3C context - verified in its source: `propagation.extract(otelContext.active(), c.req.header())` into a `SpanKind.SERVER` span with semconv method/route/status attributes. Its header-capture options (`captureRequestHeaders`/`captureResponseHeaders`) stay unset except for an explicit allowlist (P4). It sits beside `request-logger.ts` at the composition root. The middleware itself depends only on `@opentelemetry/api` + semantic conventions - exactly the P2 shape.
@@ -58,6 +59,7 @@ API: `@opentelemetry/api`, `@opentelemetry/sdk-node`, `@opentelemetry/exporter-t
 3. **Phase 4 (explicitly deferred):** custom metrics, OTel Logs pipeline, browser-side telemetry, admin-app observability dashboards, hashing of ids in telemetry.
 
 **Exit-criteria sketch for the task** (to be firmed in the task file):
+
 1. One respondent submit produces one connected trace (portal BFF span -> API server span -> pg spans) via `traceparent` over the BFF hop; e2e asserts propagation by matching `trace_id` in both apps' captured log lines - no viewer needed in CI.
 2. `x-request-id` behaviour unchanged; log lines carry `trace_id` when tracing is active; with no OTLP endpoint set, telemetry is a no-op and all existing gates run exactly as today.
 3. Redaction enforced by construction (allowlist wrapper), plus a test that a known submitted answer string never appears in the run's captured telemetry/log output (reuse the #102 forensics capture).

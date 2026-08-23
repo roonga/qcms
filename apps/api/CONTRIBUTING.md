@@ -48,7 +48,10 @@ export const getStepRoute = createRoute({
   path: "/sessions/{sessionId}/step",
   request: { params: SessionParams },
   responses: {
-    200: { description: "The current step", content: { "application/json": { schema: StepResponse } } },
+    200: {
+      description: "The current step",
+      content: { "application/json": { schema: StepResponse } },
+    },
     ...errorResponses(401, 404),
   },
   ...withScopes("responses:read"),

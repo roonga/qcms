@@ -154,7 +154,7 @@ const INTERRUPT_AFTER_MS = 3_000;
 function readBackgroundPid(pidFile: string): number {
   const raw = existsSync(pidFile) ? readFileSync(pidFile, "utf8").trim() : "";
   if (raw === "") throw new Error("the session stub never recorded a background pid");
-  if (!/^[1-9][0-9]*$/.test(raw)) {
+  if (!/^[1-9]\d*$/.test(raw)) {
     throw new Error(`the session stub recorded a background pid that is not a pid: '${raw}'`);
   }
   return Number(raw);

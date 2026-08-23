@@ -44,10 +44,12 @@ From `@/lib/forms/builder-state`: `CreateFormState`, `SaveDraftState`, `Validate
 These are the ONLY four the builder needs. All are `async`, all already authenticated.
 
 ```ts
-type SaveDraft     = (draft: DraftForm) => Promise<SaveDraftState>;
+type SaveDraft = (draft: DraftForm) => Promise<SaveDraftState>;
 type ValidateDraft = (draft: DraftForm) => Promise<ValidateDraftState>;
-type UpdateSettings= (patch: { challengeRequired?: boolean; minSubmitMs?: number | null })
-                       => Promise<SettingsState>;
+type UpdateSettings = (patch: {
+  challengeRequired?: boolean;
+  minSubmitMs?: number | null;
+}) => Promise<SettingsState>;
 type PreviewCondition = (input: {
   draft: DraftForm;
   ruleId: string;
@@ -64,7 +66,7 @@ settings panel tracks what the author actually changed for exactly this reason.
 ```ts
 // form-builder.tsx  -- "use client", the state owner
 interface FormBuilderProps {
-  readonly detail: FormDetail;            // includes settings + challengeProvider
+  readonly detail: FormDetail; // includes settings + challengeProvider
   readonly library: readonly PinnableQuestion[];
   readonly saveDraft: SaveDraft;
   readonly validateDraft: ValidateDraft;
@@ -75,12 +77,12 @@ interface FormBuilderProps {
 // steps-rail.tsx
 interface StepsRailProps {
   readonly draft: DraftForm;
-  readonly issueCounts: ReadonlyMap<string, number>;   // stepId -> count
+  readonly issueCounts: ReadonlyMap<string, number>; // stepId -> count
   readonly selectedStepId: string | undefined;
   readonly onSelect: (stepId: string) => void;
   readonly onAdd: (title: string) => void;
   readonly onRename: (stepId: string, title: string) => void;
-  readonly onMove: (stepId: string, delta: -1 | 1) => void;   // keyboard-operable, not drag-only
+  readonly onMove: (stepId: string, delta: -1 | 1) => void; // keyboard-operable, not drag-only
   readonly onRemove: (stepId: string) => void;
 }
 
@@ -91,7 +93,7 @@ interface StepEditorProps {
   readonly library: readonly PinnableQuestion[];
   readonly issues: readonly FormIssue[];
   readonly onAddPin: (questionId: string, version: number) => void;
-  readonly onMovePin: (questionId: string, version: number) => void;   // R7: one pin, one version
+  readonly onMovePin: (questionId: string, version: number) => void; // R7: one pin, one version
   readonly onRemovePin: (questionId: string) => void;
   readonly onReorderPin: (questionId: string, delta: -1 | 1) => void;
 }
@@ -101,7 +103,7 @@ interface ConditionEditorProps {
   readonly draft: DraftForm;
   readonly rule: DraftRule;
   readonly library: readonly PinnableQuestion[];
-  readonly issues: readonly FormIssue[];        // already filtered to this rule
+  readonly issues: readonly FormIssue[]; // already filtered to this rule
   readonly onChange: (next: DraftRule) => void;
   readonly onRemove: () => void;
 }
@@ -111,8 +113,8 @@ interface ConditionJsonPaneProps {
   readonly condition: DraftCondition;
   readonly draft: DraftForm;
   readonly library: readonly PinnableQuestion[];
-  readonly onChange: (next: DraftCondition) => void;   // called only when the text parses
-  readonly label: string;                              // accessible name, from i18n
+  readonly onChange: (next: DraftCondition) => void; // called only when the text parses
+  readonly label: string; // accessible name, from i18n
 }
 
 // validation-panel.tsx
@@ -134,7 +136,7 @@ interface RuleTestBenchProps {
 // form-settings-panel.tsx
 interface FormSettingsPanelProps {
   readonly settings: FormSettings;
-  readonly challengeProvider: string;      // "none" => render the unenforceable warning
+  readonly challengeProvider: string; // "none" => render the unenforceable warning
   readonly updateSettings: UpdateSettings;
 }
 ```

@@ -23,7 +23,7 @@ The agent proposes, the kernel validates, the human publishes (ADR-25). An autho
 
 **Admin UI (ordinary React on the a2ra kit - ADR-22):**
 
-- Chat panel in the form builder (033's screen), visible only when the deployment flag is on: describe the form → streamed proposal → **diff view** (steps/questions/rules added or changed vs the current draft) → *Accept into draft* (never auto-publish) → validation issues render inline exactly as 033's live validation does → iterate conversationally.
+- Chat panel in the form builder (033's screen), visible only when the deployment flag is on: describe the form → streamed proposal → **diff view** (steps/questions/rules added or changed vs the current draft) → _Accept into draft_ (never auto-publish) → validation issues render inline exactly as 033's live validation does → iterate conversationally.
 - Draft provenance marker ("draft includes agent-assisted changes") on the builder and the publish confirmation - the human publishing knows what they're signing.
 - Empty/error states: provider down, rate-limited, proposal rejected by validation.
 

@@ -2,10 +2,10 @@
 
 QCMS has **two surfaces with different design mandates**, and this pass treats them separately:
 
-- **Portal (external):** respondents see it, under the *adopter's* brand. It must be **adopter-themeable** (fonts, colors, radius swappable per deployment). We deliver a refined, brand-neutral baseline that any brand can sit on top of.
+- **Portal (external):** respondents see it, under the _adopter's_ brand. It must be **adopter-themeable** (fonts, colors, radius swappable per deployment). We deliver a refined, brand-neutral baseline that any brand can sit on top of.
 - **Admin (internal):** the adopter's own authors and operators use it; nobody re-brands it. So this pass **designs the actual admin components and screens** as a finished, opinionated tool with QCMS's own identity.
 
-The component layer underneath both is fixed (a2-react-aria: react-aria primitives, shadcn-convention CSS custom-property tokens, Tailwind). This pass decides *values, type, and the composed admin experience*, not a new widget library.
+The component layer underneath both is fixed (a2-react-aria: react-aria primitives, shadcn-convention CSS custom-property tokens, Tailwind). This pass decides _values, type, and the composed admin experience_, not a new widget library.
 
 ---
 
@@ -17,11 +17,12 @@ An MIT-licensed, self-hosted TypeScript engine for questionnaires with deeply co
 
 ## 2. Portal track (external, adopter-themeable)
 
-**Audience:** anonymous or secure-link respondents on the public internet, seeing the *adopter's* brand.
+**Audience:** anonymous or secure-link respondents on the public internet, seeing the _adopter's_ brand.
 
 **Mandate:** a **themeable respondent skin**. The deploying administrator customizes the look and feel at deploy time: fonts, colors, radius, spacing, all via tokens in one documented override point (shell globals). Theming is a product feature: `PROJECT_GOAL` already promises adopters theme via tokens, and each deployment brands the respondent experience as its own.
 
 **Deliverables:**
+
 1. A **refined, brand-neutral default theme** (light + dark, both AA) that reads as trustworthy and calm, and is neutral enough to wear any adopter's brand without redesign.
 2. **Adopter customization surface:** the full shadcn token set plus **swappable fonts** (a self-hostable default the adopter can replace), documented as the single override point.
 3. Applied preview of the portal flow (entry, step page, branch insert/remove, error/expired, completion) in both themes and with at least one alternate adopter brand, to prove the baseline flexes.
@@ -37,6 +38,7 @@ An MIT-licensed, self-hosted TypeScript engine for questionnaires with deeply co
 **Mandate:** because it is internal and fixed, this pass **designs the admin components and screens themselves** as a finished, opinionated tool carrying QCMS's own identity, built on the a2ra primitives. More latitude than the portal: this is our voice, not a neutral baseline.
 
 **Deliverables:**
+
 1. Designed **admin screens / component patterns** for: shell + 2FA, question library, form builder + condition editor, publish / preview / versions / links, responses + erasure + webhook ops, and the agent panel.
 2. Fixed **light + dark** QCMS admin theme, both AA. No adopter re-brand required.
 3. Applied previews on the three densest screens (form builder, responses browser, publish/preview) with real fixture content, both themes.
@@ -59,12 +61,12 @@ An MIT-licensed, self-hosted TypeScript engine for questionnaires with deeply co
 
 ## 5. Character summary
 
-| | Portal | Admin |
-|---|---|---|
-| Whose brand | The adopter's (themeable) | QCMS's own (fixed) |
-| Design output | Refined neutral baseline + theming system | Designed screens / component patterns |
-| Customization | Adopter-overridable fonts + tokens | Fixed by us, light + dark |
-| Feel | Calm, reassuring, spacious, brand-neutral | Precise, dense, data-forward, confident |
+|               | Portal                                    | Admin                                   |
+| ------------- | ----------------------------------------- | --------------------------------------- |
+| Whose brand   | The adopter's (themeable)                 | QCMS's own (fixed)                      |
+| Design output | Refined neutral baseline + theming system | Designed screens / component patterns   |
+| Customization | Adopter-overridable fonts + tokens        | Fixed by us, light + dark               |
+| Feel          | Calm, reassuring, spacious, brand-neutral | Precise, dense, data-forward, confident |
 
 ---
 

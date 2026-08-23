@@ -22,7 +22,7 @@ content, the same principle the tombstone applies one table over.
 
 The window is the **redelivery window**, because that is the only thing the stored
 payload is for. A row is eligible once the event has been consumed (or dead-lettered)
-*and* every `webhook_deliveries` row for it has been delivered, dead-lettered or
+_and_ every `webhook_deliveries` row for it has been delivered, dead-lettered or
 cancelled, all of it before the horizon. An unconsumed event is never touched, because
 redacting one would silently drop a submission that never left; a pending delivery
 blocks its parent, because the delivery claim joins this payload and skips redacted

@@ -31,19 +31,19 @@ Everything the portal renders resolves from a CSS custom property declared in
 `packages/ui/src/theme.css`. There are exactly four groups, and nothing outside
 them is a styling decision the portal is allowed to make.
 
-| Group | Tokens | Varies with |
-| --- | --- | --- |
-| 1. Colour | `--color-*` (36 tokens) | theme x mode |
-| 2. Typography | `--font-portal`, `--type-*` | font selection (the registry) |
-| 3. Spacing | `--space-control-h` `--space-control-pad-x` `--space-field-gap` `--space-section-pad` `--space-stack` | density (three levels) |
-| 4. Radius | `--radius-control` `--radius-card` `--radius-sm` | corner preset |
+| Group         | Tokens                                                                                                | Varies with                   |
+| ------------- | ----------------------------------------------------------------------------------------------------- | ----------------------------- |
+| 1. Colour     | `--color-*` (36 tokens)                                                                               | theme x mode                  |
+| 2. Typography | `--font-portal`, `--type-*`                                                                           | font selection (the registry) |
+| 3. Spacing    | `--space-control-h` `--space-control-pad-x` `--space-field-gap` `--space-section-pad` `--space-stack` | density (three levels)        |
+| 4. Radius     | `--radius-control` `--radius-card` `--radius-sm`                                                      | corner preset                 |
 
 ### Selector convention
 
 Every rule in `theme.css` and `fonts.css` is anchored on the **scope carrier**:
 
 ```css
-:is(:root, [data-qcms-theme-scope])
+:is(:root, [data-qcms-theme-scope]);
 ```
 
 The token set therefore applies to the document root **or** to any element carrying
@@ -59,7 +59,7 @@ Cobalt and the operator's own mode. Two facts a future subtree consumer needs, b
 learned there:
 
 - The token variables scope, but the **behaviour some of them describe does not**. The
-  WCAG 1.4.12 text-spacing floors are applied by the portal *app's* `body` rule
+  WCAG 1.4.12 text-spacing floors are applied by the portal _app's_ `body` rule
   (`apps/portal/app/globals.css`), not by the token sheet, so a host that is not the
   portal must restate them on its carrier - otherwise the subtree renders at the host's
   own spacing while every token assertion still passes.
@@ -73,14 +73,14 @@ learned there:
 The knobs then ride the anchor, on the anchor element rather than on the document
 root specifically:
 
-| Axis | Carrier | Values |
-| --- | --- | --- |
-| Anchor | `:is(:root, [data-qcms-theme-scope])` | the document root, or any scoped container |
-| Mode | anchor class | `.light` (the base), `.dark`, `.hc` |
-| Theme | anchor attribute | (absent) or `[data-theme="slate"]` = default, `harbor`, `sand`, `plum` |
-| Corners | anchor class | (none) = Subtle, `.radius-sharp`, `.radius-rounded`, `.radius-pill` |
-| Font | anchor class | `.font-system` (the shipped default) or `.font-<registry key>` |
-| Density | anchor class | (none) = Comfortable, `.density-compact`, `.density-spacious` |
+| Axis    | Carrier                               | Values                                                                 |
+| ------- | ------------------------------------- | ---------------------------------------------------------------------- |
+| Anchor  | `:is(:root, [data-qcms-theme-scope])` | the document root, or any scoped container                             |
+| Mode    | anchor class                          | `.light` (the base), `.dark`, `.hc`                                    |
+| Theme   | anchor attribute                      | (absent) or `[data-theme="slate"]` = default, `harbor`, `sand`, `plum` |
+| Corners | anchor class                          | (none) = Subtle, `.radius-sharp`, `.radius-rounded`, `.radius-pill`    |
+| Font    | anchor class                          | `.font-system` (the shipped default) or `.font-<registry key>`         |
+| Density | anchor class                          | (none) = Comfortable, `.density-compact`, `.density-spacious`          |
 
 Two of these are a positive class and two are an absence, and the difference is not
 arbitrary. **Font** is always emitted (the `.font-system` block restates the System
@@ -122,14 +122,14 @@ by construction, so a host that imports the sheet either takes the raised
 
 ### Group 2: the WCAG 1.4.12 floors are numeric requirements
 
-| Floor | Token | Value |
-| --- | --- | --- |
-| Body text >= 16px | `--type-body`, `--type-label` | `1rem` |
-| Hint text >= 14px | `--type-hint` | `0.875rem` |
-| Line-height >= 1.5 | `--type-line-height` | `1.5` |
-| Letter-spacing >= 0.12em | `--type-letter-spacing` | `0.12em` |
-| Word-spacing >= 0.16em | `--type-word-spacing` | `0.16em` |
-| Paragraph spacing >= 2em | `--type-paragraph-spacing` | `2em` |
+| Floor                    | Token                         | Value      |
+| ------------------------ | ----------------------------- | ---------- |
+| Body text >= 16px        | `--type-body`, `--type-label` | `1rem`     |
+| Hint text >= 14px        | `--type-hint`                 | `0.875rem` |
+| Line-height >= 1.5       | `--type-line-height`          | `1.5`      |
+| Letter-spacing >= 0.12em | `--type-letter-spacing`       | `0.12em`   |
+| Word-spacing >= 0.16em   | `--type-word-spacing`         | `0.16em`   |
+| Paragraph spacing >= 2em | `--type-paragraph-spacing`    | `2em`      |
 
 Plus `--type-step-title` (`clamp(1.55rem, 3.5vw, 1.85rem)`) and
 `--type-title-line-height` for the step title, and `--type-numeric` (`"tnum"`) for
@@ -144,13 +144,13 @@ Density is the respondent's control over the spacing group, and it is the only a
 that moves these five values. Comfortable is the base anchor block, so it carries
 no class.
 
-| Token | Compact | Comfortable (default) | Spacious | Applies to |
-| --- | --- | --- | --- | --- |
-| `--space-control-h` | 36px | 44px | 52px | input / textarea / date box / select trigger min-height |
-| `--space-control-pad-x` | 0.7rem | 0.9rem | 1.1rem | control and option-row inline padding |
-| `--space-field-gap` | 1.25em | 2em | 2.75em | question-to-question rhythm |
-| `--space-section-pad` | 1.5rem | 2.25rem | 3rem | step-card padding |
-| `--space-stack` | 0.375rem | 0.5rem | 0.75rem | label-to-control gap, option-row block padding |
+| Token                   | Compact  | Comfortable (default) | Spacious | Applies to                                              |
+| ----------------------- | -------- | --------------------- | -------- | ------------------------------------------------------- |
+| `--space-control-h`     | 36px     | 44px                  | 52px     | input / textarea / date box / select trigger min-height |
+| `--space-control-pad-x` | 0.7rem   | 0.9rem                | 1.1rem   | control and option-row inline padding                   |
+| `--space-field-gap`     | 1.25em   | 2em                   | 2.75em   | question-to-question rhythm                             |
+| `--space-section-pad`   | 1.5rem   | 2.25rem               | 3rem     | step-card padding                                       |
+| `--space-stack`         | 0.375rem | 0.5rem                | 0.75rem  | label-to-control gap, option-row block padding          |
 
 Three rules bound what a density level may do, and each is asserted by
 `packages/ui/src/theme-tokens.test.ts` over the shipped CSS:
@@ -179,11 +179,11 @@ own clamp rather than multiplying one.
 
 ### Group 4: the corner presets
 
-| Token | Sharp | Subtle (default) | Rounded | Pill | Applies to |
-| --- | --- | --- | --- | --- | --- |
-| `--radius-control` | 0 | 6px | 10px | 999px | inputs, textarea, date field, select trigger, buttons |
-| `--radius-card` | 0 | 10px | 16px | 20px | step card, panels, banners, select popover |
-| `--radius-sm` | 0 | 4px | 6px | 8px | checkbox indicator, date segments, options |
+| Token              | Sharp | Subtle (default) | Rounded | Pill  | Applies to                                            |
+| ------------------ | ----- | ---------------- | ------- | ----- | ----------------------------------------------------- |
+| `--radius-control` | 0     | 6px              | 10px    | 999px | inputs, textarea, date field, select trigger, buttons |
+| `--radius-card`    | 0     | 10px             | 16px    | 20px  | step card, panels, banners, select popover            |
+| `--radius-sm`      | 0     | 4px              | 6px     | 8px   | checkbox indicator, date segments, options            |
 
 Geometry only, so no contrast ratio depends on this group.
 
@@ -256,13 +256,13 @@ deployment whose fonts quietly stop rendering. Committed bytes cost repository s
 once and can never fail. The size is small because every file is the **Latin**
 subset:
 
-| | |
-| --- | --- |
-| Families | 22 self-hosted + System (which downloads nothing) |
-| Faces | 25 (the Accessibility group ships 400 and 700) |
-| Files | 24 (Lexend is a variable font: its two faces share one file) |
-| Total committed | 710,984 bytes (~694 KiB) |
-| Largest single family | OpenDyslexic, 235,636 bytes across two weights |
+|                       |                                                              |
+| --------------------- | ------------------------------------------------------------ |
+| Families              | 22 self-hosted + System (which downloads nothing)            |
+| Faces                 | 25 (the Accessibility group ships 400 and 700)               |
+| Files                 | 24 (Lexend is a variable font: its two faces share one file) |
+| Total committed       | 710,984 bytes (~694 KiB)                                     |
+| Largest single family | OpenDyslexic, 235,636 bytes across two weights               |
 
 A respondent downloads **one** family, so the per-visit cost is 8-60 KB, not the
 whole set. The full payload is only what the repository and the published package
@@ -270,14 +270,14 @@ carry.
 
 ### The groups
 
-| Group | Keys |
-| --- | --- |
-| System | `system` (always present, never removable) |
-| Accessibility | `atkinson` `lexend` `opendyslexic` |
-| Popular | `inter` `roboto` `opensans` `lato` `poppins` `montserrat` |
-| Playful & Kids | `andika` `fredoka` `baloo2` `comicneue` `patrickhand` |
+| Group                   | Keys                                                                           |
+| ----------------------- | ------------------------------------------------------------------------------ |
+| System                  | `system` (always present, never removable)                                     |
+| Accessibility           | `atkinson` `lexend` `opendyslexic`                                             |
+| Popular                 | `inter` `roboto` `opensans` `lato` `poppins` `montserrat`                      |
+| Playful & Kids          | `andika` `fredoka` `baloo2` `comicneue` `patrickhand`                          |
 | Traditional & Corporate | `merriweather` `lora` `ptserif` `librebaskerville` `ibmplexserif` `publicsans` |
-| Monospace | `jetbrainsmono` `geistmono` |
+| Monospace               | `jetbrainsmono` `geistmono`                                                    |
 
 Families, keys, weights, groups and licenses come from the font design deliverable
 (`plan/theme-palettes/fonts_config.py`). Two things are authored here because the
@@ -304,7 +304,7 @@ one-declaration shape, and `fonts.pw.ts` re-measures every floor on rendered tex
 under every entry (see the measured numbers below).
 
 Every stack ends in a CSS generic family (`sans-serif`, `serif`, `monospace`), so a
-browser that refuses the webfont still gets the right *kind* of face. The shipped
+browser that refuses the webfont still gets the right _kind_ of face. The shipped
 subsets are Latin, so text outside Latin falls back glyph-by-glyph through the
 stack: correct, but not a designed baseline. A deliberate multi-script fallback
 baseline is **issue #27** and is not owned here.
@@ -325,9 +325,9 @@ redistribution is covered whichever applies to the shipped bytes.
 
 ### Per-deployment font config
 
-| Variable | Values (default first) | Effect |
-| --- | --- | --- |
-| `QCMS_PORTAL_FONT` | `system`, or any registry key | the `font-<key>` root class |
+| Variable            | Values (default first)                      | Effect                            |
+| ------------------- | ------------------------------------------- | --------------------------------- |
+| `QCMS_PORTAL_FONT`  | `system`, or any registry key               | the `font-<key>` root class       |
 | `QCMS_PORTAL_FONTS` | registry keys, comma and/or space separated | the subset offered to respondents |
 
 `QCMS_PORTAL_FONTS` is the **curation** surface for launch (the admin UI over the
@@ -374,12 +374,12 @@ Colour values come from the theme-palette design deliverable
 (`plan/theme-palettes/`: `THEMES.md` documents every pair, `tokens.css` holds the
 authored values) and are copied into `theme.css` verbatim, never re-derived.
 
-| Key | Name | Character |
-| --- | --- | --- |
-| `slate` | Slate Teal | the shipped default: muted blue-green over cool slate neutrals |
-| `harbor` | Harbor | calm corporate blue; info shares the primary hue |
-| `sand` | Sand | warm neutral with a muted terracotta primary |
-| `plum` | Plum | deep violet; info stays blue to remain distinct |
+| Key      | Name       | Character                                                      |
+| -------- | ---------- | -------------------------------------------------------------- |
+| `slate`  | Slate Teal | the shipped default: muted blue-green over cool slate neutrals |
+| `harbor` | Harbor     | calm corporate blue; info shares the primary hue               |
+| `sand`   | Sand       | warm neutral with a muted terracotta primary                   |
+| `plum`   | Plum       | deep violet; info stays blue to remain distinct                |
 
 Each is authored in **Light and Dark**. Semantic colours stay in their
 conventional lanes (danger red, success green, warning amber) so meaning is never
@@ -392,20 +392,20 @@ WCAG 2.2 sRGB relative-luminance formula, so these numbers cannot drift from the
 shipped values. Targets: 4.5:1 body text and 3:1 UI in Light and Dark, **7:1 body
 text** in High-contrast. The worst pair in each combination:
 
-| Theme / mode | Worst text pair | Target | Worst UI pair | Target |
-| --- | --- | --- | --- | --- |
-| slate / light | 5.91:1 (danger-fg / danger) | 4.5 | 3.26:1 (border-strong / background) | 3 |
-| slate / dark | 6.78:1 (text-muted / surface) | 4.5 | 3.33:1 (border-strong / surface) | 3 |
-| slate / hc | 9.75:1 (danger-fg / danger) | 7 | 9.26:1 (focus-ring / background) | 3 |
-| harbor / light | 5.91:1 (danger-fg / danger) | 4.5 | 3.74:1 (border-strong / background) | 3 |
-| harbor / dark | 6.72:1 (text-muted / surface) | 4.5 | 3.25:1 (border-strong / surface) | 3 |
-| harbor / hc | 9.75:1 (danger-fg / danger) | 7 | 9.26:1 (focus-ring / background) | 3 |
-| sand / light | 5.73:1 (primary-fg / primary) | 4.5 | 3.55:1 (border-strong / background) | 3 |
-| sand / dark | 7.02:1 (primary-fg / primary) | 4.5 | 3.26:1 (border-strong / surface) | 3 |
-| sand / hc | 8.80:1 (primary-fg / primary) | 7 | 8.80:1 (primary / surface) | 3 |
-| plum / light | 5.91:1 (danger-fg / danger) | 4.5 | 3.88:1 (border-strong / background) | 3 |
-| plum / dark | 6.34:1 (text-muted / surface) | 4.5 | 3.33:1 (border-strong / surface) | 3 |
-| plum / hc | 9.75:1 (danger-fg / danger) | 7 | 9.26:1 (focus-ring / background) | 3 |
+| Theme / mode   | Worst text pair               | Target | Worst UI pair                       | Target |
+| -------------- | ----------------------------- | ------ | ----------------------------------- | ------ |
+| slate / light  | 5.91:1 (danger-fg / danger)   | 4.5    | 3.26:1 (border-strong / background) | 3      |
+| slate / dark   | 6.78:1 (text-muted / surface) | 4.5    | 3.33:1 (border-strong / surface)    | 3      |
+| slate / hc     | 9.75:1 (danger-fg / danger)   | 7      | 9.26:1 (focus-ring / background)    | 3      |
+| harbor / light | 5.91:1 (danger-fg / danger)   | 4.5    | 3.74:1 (border-strong / background) | 3      |
+| harbor / dark  | 6.72:1 (text-muted / surface) | 4.5    | 3.25:1 (border-strong / surface)    | 3      |
+| harbor / hc    | 9.75:1 (danger-fg / danger)   | 7      | 9.26:1 (focus-ring / background)    | 3      |
+| sand / light   | 5.73:1 (primary-fg / primary) | 4.5    | 3.55:1 (border-strong / background) | 3      |
+| sand / dark    | 7.02:1 (primary-fg / primary) | 4.5    | 3.26:1 (border-strong / surface)    | 3      |
+| sand / hc      | 8.80:1 (primary-fg / primary) | 7      | 8.80:1 (primary / surface)          | 3      |
+| plum / light   | 5.91:1 (danger-fg / danger)   | 4.5    | 3.88:1 (border-strong / background) | 3      |
+| plum / dark    | 6.34:1 (text-muted / surface) | 4.5    | 3.33:1 (border-strong / surface)    | 3      |
+| plum / hc      | 9.75:1 (danger-fg / danger)   | 7      | 9.26:1 (focus-ring / background)    | 3      |
 
 ## High-contrast is ONE mode layer, not a palette per theme
 
@@ -423,12 +423,12 @@ palette authored per theme. It is a single, theme-agnostic layer:
   foreground, via a four-token `[data-theme="x"].hc` block on the anchor. Links and primary
   UI pick it up, so each theme keeps a whisper of brand.
 
-| Theme | HC accent | primary-fg / primary |
-| --- | --- | --- |
-| slate | `#0b453d` (in the base `.hc` block) | 10.86:1 |
-| harbor | `#0a3a8a` | 10.57:1 |
-| sand | `#7a3717` | 8.80:1 |
-| plum | `#54148f` | 11.20:1 |
+| Theme  | HC accent                           | primary-fg / primary |
+| ------ | ----------------------------------- | -------------------- |
+| slate  | `#0b453d` (in the base `.hc` block) | 10.86:1              |
+| harbor | `#0a3a8a`                           | 10.57:1              |
+| sand   | `#7a3717`                           | 8.80:1               |
+| plum   | `#54148f`                           | 11.20:1              |
 
 **A new theme gets High-contrast for free** by adding one AAA-safe accent block.
 `theme-tokens.test.ts` enforces the shape: every theme must resolve to the
@@ -441,16 +441,16 @@ QCMS is single-tenant (ADR-20), so one deployment runs one theme. The portal rea
 it from the environment in `apps/portal/lib/server/theme.ts` and `app/layout.tsx`
 stamps it onto `<html>` during SSR.
 
-| Variable | Values (default first) | Effect |
-| --- | --- | --- |
-| `QCMS_PORTAL_THEME` | `slate` `harbor` `sand` `plum` | `data-theme` attribute |
-| `QCMS_PORTAL_CORNERS` | `subtle` `sharp` `rounded` `pill` | corners root class |
-| `QCMS_PORTAL_MODE` | `auto` `light` `dark` `hc` | default mode class |
-| `QCMS_PORTAL_DENSITY` | `comfortable` `compact` `spacious` | default density class |
-| `QCMS_PORTAL_FONT` | `system` or a registry key | default `font-<key>` root class |
-| `QCMS_PORTAL_FONTS` | registry keys, comma/space separated | the offered subset |
-| `QCMS_PORTAL_BRAND_NAME` | any text | header mark and document `<title>` |
-| `QCMS_PORTAL_BRAND_LOGO` | a `/path` or a `data:image/...` URI | optional logo beside the text |
+| Variable                 | Values (default first)               | Effect                             |
+| ------------------------ | ------------------------------------ | ---------------------------------- |
+| `QCMS_PORTAL_THEME`      | `slate` `harbor` `sand` `plum`       | `data-theme` attribute             |
+| `QCMS_PORTAL_CORNERS`    | `subtle` `sharp` `rounded` `pill`    | corners root class                 |
+| `QCMS_PORTAL_MODE`       | `auto` `light` `dark` `hc`           | default mode class                 |
+| `QCMS_PORTAL_DENSITY`    | `comfortable` `compact` `spacious`   | default density class              |
+| `QCMS_PORTAL_FONT`       | `system` or a registry key           | default `font-<key>` root class    |
+| `QCMS_PORTAL_FONTS`      | registry keys, comma/space separated | the offered subset                 |
+| `QCMS_PORTAL_BRAND_NAME` | any text                             | header mark and document `<title>` |
+| `QCMS_PORTAL_BRAND_LOGO` | a `/path` or a `data:image/...` URI  | optional logo beside the text      |
 
 An unrecognized value falls back to the default rather than throwing: a typo in
 presentation config must not take a deployment down, and the fallback is always
@@ -491,11 +491,11 @@ collapsed by default because at a phone width three chip groups plus a font sele
 would be most of the viewport above the first question, and a respondent who needs
 High-contrast or a legibility face opens it once: the choice persists.
 
-| Control | Shape | Writes |
-| --- | --- | --- |
-| Mode | radio group, chips: Light / Dark / High contrast | `qcms-theme` cookie + mode root class |
-| Font | native `<select>` with an `<optgroup>` per registry group | `qcms-font` cookie + `font-<key>` root class |
-| Density | radio group, chips with a density icon: Compact / Comfortable / Spacious | `qcms-density` cookie + density root class |
+| Control | Shape                                                                    | Writes                                       |
+| ------- | ------------------------------------------------------------------------ | -------------------------------------------- |
+| Mode    | radio group, chips: Light / Dark / High contrast                         | `qcms-theme` cookie + mode root class        |
+| Font    | native `<select>` with an `<optgroup>` per registry group                | `qcms-font` cookie + `font-<key>` root class |
+| Density | radio group, chips with a density icon: Compact / Comfortable / Spacious | `qcms-density` cookie + density root class   |
 
 Each control swaps the root class immediately (that is what the respondent sees)
 and writes the cookie (that is what makes the next server render already correct).
@@ -530,7 +530,7 @@ Mode precedence, highest first:
 4. The configured mode.
 
 **Every door is a fallback for the one above it.** A layer only wins when it yields
-a *known* mode, so an unrecognised value at any door falls through to the next
+a _known_ mode, so an unrecognised value at any door falls through to the next
 input rather than resolving to Light: `?mode=potato` lands on the respondent's
 `qcms-theme` cookie, and a hand-edited `qcms-theme=darkish` lands on the OS signals
 or the configured mode. Treating "present" as "decided" would make a malformed link
@@ -631,43 +631,43 @@ gate, so a deployment that changes colours checks its own pairs.
 
 ## Verification map
 
-| Claim | Test |
-| --- | --- |
-| Every pair meets its WCAG target, in every theme x mode | `packages/ui/src/theme-tokens.test.ts` (computed from `theme.css`) |
-| Each 1.4.12 floor is a token and no mode lowers it | same file |
-| HC is one layer plus a per-theme accent | same file |
-| Selection resolves from config, including the typo path | `apps/portal/lib/server/theme.test.ts` |
-| Config reaches `<html>` and the computed style | `apps/portal/e2e/theming.pw.ts` |
-| The corner presets change controls, card and banner | same spec |
-| The vendored controls really consume the spacing tokens | same spec (moves each token and re-measures) |
-| The floors hold on rendered text | same spec |
-| Every theme is axe-clean in Light, Dark and HC | same spec |
-| HC really is heavy borders, flat surfaces, heavy focus | same spec |
-| The rewrite moved no selector: each anchored form scores what its `:root` form scored | `packages/ui/src/theme-tokens.test.ts` |
-| The resolution is order-sensitive, so a mis-ordered sheet resolves wrong rather than being certified | same file |
-| A scoped container resolves the portal colour AND geometry inside a differently-themed document | `packages/ui/src/theme-scope.test.ts` |
-| The treatment layer reaches controls inside a carrier and no `[data-rac]` control outside one | same file |
-| A density level sets only spacing tokens, never a type or colour value | `packages/ui/src/theme-tokens.test.ts` |
-| `--space-control-h` clears 24px at every density, and the levels are monotonic | same file |
-| The class names, cookie attributes and parsers the SSR path and the browser share | `apps/portal/lib/appearance.test.ts` |
-| Density and brand resolve from config, including every typo path | `apps/portal/lib/server/theme.test.ts` |
-| A respondent cookie beats config, and a curated-away font cookie does not | same file |
-| A logo the CSP could not load is dropped rather than rendered broken | same file |
-| Each control switches its axis, and the choice survives a reload via SSR | `apps/portal/e2e/appearance.pw.ts` |
-| A first visit defaults from `prefers-color-scheme` and `prefers-contrast: more` | same spec |
-| The first PAINTED frame already carries the final appearance (no flash) | same spec |
-| The selected chip differs by glyph, weight and border, checked in HC | same spec |
-| Every control target clears WCAG 2.5.8's 24px minimum at Compact | same spec |
-| The 1.4.12 floors hold at every density x every font (69 combinations) | same spec |
-| The brand mark and `<title>` come from config, with no `QCMS` literal rendered | same spec |
-| The panel is axe-clean in every mode x density, with the panel open | same spec |
-| Without scripting the controls are hidden, and the config default still applies | same spec |
-| Every declared face is a real committed `woff2`, with no duplicate bytes | `packages/ui/src/font-registry.test.ts` |
-| `fonts.css` is exactly what the manifest renders (add/remove is one entry) | same file |
-| Every family is permissively licensed and its notice ships | same file |
-| A font entry sets `--font-portal` and nothing else | same file |
-| Font curation resolves from config, System included, typos tolerated | `apps/portal/lib/server/theme.test.ts` |
-| Every shipped font actually renders, and zero requests leave the origin | `apps/portal/e2e/fonts.pw.ts` |
-| The 1.4.12 floors hold on rendered text under EVERY shipped font | same spec |
-| The Accessibility bolds are real faces, not synthesised | same spec |
-| Numeric controls take tabular figures from `--type-numeric` | same spec |
+| Claim                                                                                                | Test                                                               |
+| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Every pair meets its WCAG target, in every theme x mode                                              | `packages/ui/src/theme-tokens.test.ts` (computed from `theme.css`) |
+| Each 1.4.12 floor is a token and no mode lowers it                                                   | same file                                                          |
+| HC is one layer plus a per-theme accent                                                              | same file                                                          |
+| Selection resolves from config, including the typo path                                              | `apps/portal/lib/server/theme.test.ts`                             |
+| Config reaches `<html>` and the computed style                                                       | `apps/portal/e2e/theming.pw.ts`                                    |
+| The corner presets change controls, card and banner                                                  | same spec                                                          |
+| The vendored controls really consume the spacing tokens                                              | same spec (moves each token and re-measures)                       |
+| The floors hold on rendered text                                                                     | same spec                                                          |
+| Every theme is axe-clean in Light, Dark and HC                                                       | same spec                                                          |
+| HC really is heavy borders, flat surfaces, heavy focus                                               | same spec                                                          |
+| The rewrite moved no selector: each anchored form scores what its `:root` form scored                | `packages/ui/src/theme-tokens.test.ts`                             |
+| The resolution is order-sensitive, so a mis-ordered sheet resolves wrong rather than being certified | same file                                                          |
+| A scoped container resolves the portal colour AND geometry inside a differently-themed document      | `packages/ui/src/theme-scope.test.ts`                              |
+| The treatment layer reaches controls inside a carrier and no `[data-rac]` control outside one        | same file                                                          |
+| A density level sets only spacing tokens, never a type or colour value                               | `packages/ui/src/theme-tokens.test.ts`                             |
+| `--space-control-h` clears 24px at every density, and the levels are monotonic                       | same file                                                          |
+| The class names, cookie attributes and parsers the SSR path and the browser share                    | `apps/portal/lib/appearance.test.ts`                               |
+| Density and brand resolve from config, including every typo path                                     | `apps/portal/lib/server/theme.test.ts`                             |
+| A respondent cookie beats config, and a curated-away font cookie does not                            | same file                                                          |
+| A logo the CSP could not load is dropped rather than rendered broken                                 | same file                                                          |
+| Each control switches its axis, and the choice survives a reload via SSR                             | `apps/portal/e2e/appearance.pw.ts`                                 |
+| A first visit defaults from `prefers-color-scheme` and `prefers-contrast: more`                      | same spec                                                          |
+| The first PAINTED frame already carries the final appearance (no flash)                              | same spec                                                          |
+| The selected chip differs by glyph, weight and border, checked in HC                                 | same spec                                                          |
+| Every control target clears WCAG 2.5.8's 24px minimum at Compact                                     | same spec                                                          |
+| The 1.4.12 floors hold at every density x every font (69 combinations)                               | same spec                                                          |
+| The brand mark and `<title>` come from config, with no `QCMS` literal rendered                       | same spec                                                          |
+| The panel is axe-clean in every mode x density, with the panel open                                  | same spec                                                          |
+| Without scripting the controls are hidden, and the config default still applies                      | same spec                                                          |
+| Every declared face is a real committed `woff2`, with no duplicate bytes                             | `packages/ui/src/font-registry.test.ts`                            |
+| `fonts.css` is exactly what the manifest renders (add/remove is one entry)                           | same file                                                          |
+| Every family is permissively licensed and its notice ships                                           | same file                                                          |
+| A font entry sets `--font-portal` and nothing else                                                   | same file                                                          |
+| Font curation resolves from config, System included, typos tolerated                                 | `apps/portal/lib/server/theme.test.ts`                             |
+| Every shipped font actually renders, and zero requests leave the origin                              | `apps/portal/e2e/fonts.pw.ts`                                      |
+| The 1.4.12 floors hold on rendered text under EVERY shipped font                                     | same spec                                                          |
+| The Accessibility bolds are real faces, not synthesised                                              | same spec                                                          |
+| Numeric controls take tabular figures from `--type-numeric`                                          | same spec                                                          |

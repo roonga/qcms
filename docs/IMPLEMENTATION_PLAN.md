@@ -85,7 +85,7 @@ Demand-ordered, never pre-built: OTP + social via better-auth; library cascade U
 
 **Versioning from Stage 5 onward:** publishable packages cut pre-1.0 releases via Changesets as soon as the API consumes them, so the adopter upgrade path is exercised from the start.
 
-**Agent execution protocol:** each `features/` file is self-contained instructions for one agent session. Before starting a task: read `PROJECT_INSTRUCTIONS.md`, the task file, and any files its *Depends on* header lists as contracts. After finishing: run the full test suite, update docs named in the task, and record any out-of-scope discovery as an issue - never expand the task.
+**Agent execution protocol:** each `features/` file is self-contained instructions for one agent session. Before starting a task: read `PROJECT_INSTRUCTIONS.md`, the task file, and any files its _Depends on_ header lists as contracts. After finishing: run the full test suite, update docs named in the task, and record any out-of-scope discovery as an issue - never expand the task.
 
 ## Risk register (standing)
 
