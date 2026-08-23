@@ -44,6 +44,15 @@ describe("databaseUrlFor", () => {
     );
   });
 
+  it("refuses to compose a URL with no password rather than one that cannot work", () => {
+    // `docker-compose.yml` requires `QCMS_DB_PASSWORD`, so an empty one matches no
+    // running stack: defaulting it would turn a missing credential into an
+    // authentication failure from inside a container, which is a much longer way round
+    // to the same sentence.
+    expect(() => databaseUrlFor({})).toThrow(/QCMS_DB_PASSWORD/u);
+    expect(() => databaseUrlFor({ QCMS_DB_PASSWORD: "" })).toThrow(/QCMS_DB_PASSWORD/u);
+  });
+
   it("escapes a password that would otherwise not survive a URL", () => {
     // `openssl rand -base64` output contains `/` and `+`, and a `/` in the userinfo
     // ends the authority: unescaped, the connection silently targets a different

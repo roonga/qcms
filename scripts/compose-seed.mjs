@@ -44,12 +44,20 @@ import { DOCKER, REPOSITORY_ROOT } from "./docker.mjs";
  *
  * `postgres:5432` is the service name on the Compose network, which is the whole
  * point of running the loader inside it: the host has no route to that database and
- * is not given one. The defaults match `docker-compose.yml`'s own, so a developer
- * who set none of these in `.env` gets the same answer Compose does.
+ * is not given one. The user and database defaults match `docker-compose.yml`'s own,
+ * so a developer who set neither in `.env` gets the same answer Compose does.
  *
  * Pure and exported so `compose-seed.test.ts` can pin the shape without spawning
  * anything, and so the one place that assembles a credential is a place a reader can
  * find.
+ *
+ * THE PASSWORD HAS NO DEFAULT, and that asymmetry with the other two is deliberate.
+ * `docker-compose.yml` requires `QCMS_DB_PASSWORD` and refuses to interpolate without
+ * it, so there is no running stack an empty one could ever match: defaulting it to `""`
+ * would compose a URL that cannot work and hand it to Postgres, turning a missing
+ * credential into an authentication failure from a container. `dev:seed` preflights
+ * before it gets here and would have caught it first, but this function is exported and
+ * a second caller should not have to know that.
  *
  * @param {NodeJS.ProcessEnv} environment
  * @returns {string}
@@ -58,6 +66,11 @@ export function databaseUrlFor(environment) {
   const user = environment.QCMS_DB_USER ?? "qcms";
   const password = environment.QCMS_DB_PASSWORD ?? "";
   const name = environment.QCMS_DB_NAME ?? "qcms";
+  if (password === "")
+    throw new Error(
+      "QCMS_DB_PASSWORD is empty or unset, so there is no database URL to compose. " +
+        "The composed stack requires it; set it in .env.",
+    );
   return `postgres://${encodeURIComponent(user)}:${encodeURIComponent(password)}@postgres:5432/${name}`;
 }
 
