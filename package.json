@@ -23,6 +23,7 @@
     "check:plan": "pnpm check:no-control-chars && pnpm check:security-hygiene && pnpm check:admin-theme && eslint plan && prettier --check plan",
     "dev:up": "node scripts/dev-compose.mjs up",
     "dev:down": "node scripts/dev-compose.mjs down",
+    "dev:seed": "node scripts/dev-compose.mjs seed",
     "dev:portal": "node scripts/dev-portal.mjs",
     "dev:admin": "node scripts/dev-admin.mjs",
     "artifacts": "node scripts/serve-artifacts.mjs",

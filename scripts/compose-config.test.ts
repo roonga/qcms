@@ -59,7 +59,18 @@ const DEV_TOOLS_ENV = {
 };
 
 /** The services `docker-compose.dev-tools.yml` adds, none of which ever ships. */
-const DEV_TOOLS_SERVICES = ["lgtm", "pgweb", "dev-tools-role"] as const;
+const DEV_TOOLS_SERVICES = ["lgtm", "pgweb", "dev-tools-role", "seed"] as const;
+
+/**
+ * The overlay services that are behind a profile, and so are absent even from the
+ * overlay's own default invocation.
+ *
+ * `seed` loads the sample question library (`pnpm dev:seed`). It is profiled rather
+ * than one-shot-on-every-up like `dev-tools-role`, because an empty library is a
+ * legitimate state to want: it is the state every screen's empty-state copy is
+ * reviewed against.
+ */
+const PROFILED_SERVICES = ["seed"] as const;
 
 let solo: unknown;
 let withProxy: unknown;
@@ -205,6 +216,16 @@ describe("developer-toolbox overlay", () => {
   it("still publishes no host port for api or postgres once layered on", () => {
     for (const name of UNPUBLISHED_SERVICES) {
       expect(publishedPorts(withDevTools, name), `${name} must stay unpublished`).toEqual([]);
+    }
+  });
+
+  it("keeps the profiled services out of its own default invocation", () => {
+    // A profile is what stops `pnpm dev:up` from building and running these. The
+    // assertion is that the overlay's plain config does not contain them at all,
+    // which is stronger than checking the `profiles` key: it is the behaviour.
+    const services = Object.keys((withDevTools as { services: Record<string, unknown> }).services);
+    for (const name of PROFILED_SERVICES) {
+      expect(services, `${name} must be reachable only with its profile`).not.toContain(name);
     }
   });
 
