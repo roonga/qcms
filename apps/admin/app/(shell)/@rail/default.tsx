@@ -1,16 +1,22 @@
 /**
- * The rail slot's answer for every route that has no rail (issue 559).
+ * The rail slot's fallback after a full-page load that matches no slot page.
  *
- * `plan/admin-ux-audit.md` §3 and §5.4 reject a rail on the six deployment-level and
- * library screens outright: a rail there would either be empty or would repeat the page's
- * own body, "and now there are two of them and they can disagree". So the slot's default
- * is nothing at all, and `app/globals.css` keys the two-track grid off a rail actually
- * being present, which is what keeps those screens rendering exactly as they did.
+ * ## What this file does, and the thing it does NOT do
  *
- * This file is also what stops the slot from going stale on a soft navigation. Without a
- * `default`, Next keeps whichever rail was last matched when the new URL has no match for
- * the slot, so walking from a form to `/questions` would leave that form's rail on screen
- * beside a screen it says nothing about.
+ * Next consults a `default.tsx` only when it cannot recover a slot's active state, which is
+ * to say after a HARD navigation. On a soft navigation it keeps whichever page the slot last
+ * matched, unchanged, even when the new URL matches nothing there. The file convention's
+ * reference is explicit about both halves.
+ *
+ * An earlier version of this comment claimed the opposite - that this file is "what stops
+ * the slot from going stale on a soft navigation" - and the app behaved the way Next
+ * documents rather than the way the comment asserted: walking from Settings to the question
+ * library left the Settings section in the rail. Staleness is fixed by every route having a
+ * page in the slot (`no-section.ts`), not here.
+ *
+ * So this is a genuine fallback and nothing more: a named slot with no `default.tsx` is an
+ * error rather than an empty slot, so the file has to exist, and rendering nothing is the
+ * right answer for an address that reached the shell without a section of its own.
  */
 export default function RailDefault(): null {
   return null;

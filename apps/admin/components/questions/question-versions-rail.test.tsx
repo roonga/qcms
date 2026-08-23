@@ -60,6 +60,7 @@ vi.mock("next/link", () => ({
   ),
 }));
 vi.mock("@/components/questions/status-tag", () => import("./status-tag.tsx"));
+vi.mock("@/components/rail-disclosure", () => import("../rail-disclosure.tsx"));
 vi.mock("@/lib/i18n/en", () => import("../../lib/i18n/en.ts"));
 vi.mock("@/lib/questions/version-rail", () => import("../../lib/questions/version-rail.ts"));
 

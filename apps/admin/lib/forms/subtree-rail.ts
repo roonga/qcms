@@ -133,18 +133,35 @@ export function formSubtreeRail({
 }
 
 /**
- * The summary line for the collapsed rail: the active item's name, and its issue count
- * when it has one.
+ * What the collapsed summary says, and it is the FORM (issue 693).
  *
- * The slug is the fallback and not a preference. Every screen that renders a rail is one
- * of the items in it, so the fallback is unreachable in practice; a summary is still the
- * one line an operator sees while the rail is shut, and leaving it empty because a caller
- * passed a `current` that matched nothing would be the worst of the available failures.
+ * Below `--bp-sidebar`, shut, that one line is the whole rail, so what it owes a reader is
+ * the scope the rail belongs to. It used to name the active ITEM instead - a step label, a
+ * section label, and the slug only as a fallback when neither was current - which made one
+ * line mean three different things and put it out of step with the other two rails, both of
+ * which name their scope. `plan/admin-shell-poc/admin-shell-poc.html` draws the form's name
+ * on every screen of this rail, so the fallback was the one branch that matched the drawing.
+ *
+ * It also read as a repeat once #692 gave the section screens an `<h1>` of
+ * `{section}: {slug}`: on `/versions` the summary said "Version history" directly above a
+ * heading beginning with the same two words.
+ *
+ * The count moves with it. An active item's issue count beside the form's name would be two
+ * unrelated facts on one line, so the badge is the FORM's total: what a shut rail can
+ * usefully say about a form is how much is wrong with it.
  */
 export function railSummary(groups: RailGroups, slug: string): RailSummary {
-  const active = [...groups.children, ...groups.siblings].find((item) => item.isCurrent);
-  if (active === undefined) return { text: slug, issueCount: 0 };
-  return { text: active.label, issueCount: active.issueCount };
+  return { text: slug, issueCount: railIssueTotal(groups) };
+}
+
+/**
+ * The form's issue total: every step's count added up.
+ *
+ * Read off the groups rather than off the raw map, so a step the rail does not carry cannot
+ * contribute to a badge that sits above the rows.
+ */
+export function railIssueTotal(groups: RailGroups): number {
+  return groups.children.reduce((total, item) => total + item.issueCount, 0);
 }
 
 /** One item's issue count, written the way the builder's step list writes the same number. */

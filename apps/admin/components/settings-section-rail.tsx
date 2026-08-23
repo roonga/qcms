@@ -1,6 +1,7 @@
 "use client";
 
 import { t } from "@/lib/i18n/en";
+import { RailDisclosure } from "@/components/rail-disclosure";
 import { selectSettingsPanel, useSettingsPanel } from "@/lib/settings-panel";
 import type { SettingsSectionId } from "@/lib/settings-sections";
 import { SETTINGS_SECTIONS } from "@/lib/settings-sections";
@@ -67,13 +68,15 @@ export function SettingsSectionRail({ initial }: { readonly initial: SettingsSec
       aria-label={t("settings.rail.label")}
       data-testid="qcms-settings-rail"
     >
-      {/* A native `<details open>` at every width, for the reasons `components/rail-frame.tsx`
+      {/* One native `<details>` at both widths, for the reasons `components/rail-frame.tsx`
           writes out at length: an element cannot be chosen by media query, a second copy of
           the navigation would be a second set of rows to walk, and the browser announces
           expanded and collapsed itself more reliably than any `aria-expanded` written by
-          hand. Above `--bp-sidebar` the chevron goes and the summary stops advertising
-          itself as a control; it remains one. */}
-      <details className="qcms-rail__disclosure" open>
+          hand. Shut below `--bp-sidebar` and open above it, which is the shared collapse
+          behaviour §7a names and the one part of the chrome that is NOT restated locally:
+          `components/rail-disclosure.tsx` owns it. Above the boundary the chevron goes and
+          the summary stops advertising itself as a control; it remains one. */}
+      <RailDisclosure>
         <summary className="qcms-rail__summary">
           {/* The screen's own name, which is `settings.title` rather than a second string
               saying the same word: the summary IS the screen's name here, and a catalog with
@@ -108,7 +111,7 @@ export function SettingsSectionRail({ initial }: { readonly initial: SettingsSec
             ))}
           </ul>
         </div>
-      </details>
+      </RailDisclosure>
     </nav>
   );
 }

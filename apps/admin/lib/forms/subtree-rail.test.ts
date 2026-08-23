@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { DraftStep } from "./types.ts";
-import { formSubtreeRail, railSummary, RAIL_SECTIONS } from "./subtree-rail.ts";
+import { formSubtreeRail, railIssueTotal, railSummary, RAIL_SECTIONS } from "./subtree-rail.ts";
 
 /**
  * What the rail carries, as a decision rather than as pixels (`plan/admin-design-
@@ -126,18 +126,36 @@ describe("the form-subtree rail's contents", () => {
 });
 
 describe("the collapsed summary", () => {
-  it("names the active section and carries no count, because a section has none", () => {
+  // Issue 693. It named the active ITEM until now - a step label, a section label, or the
+  // slug only when neither was current - so one line meant three things and disagreed with
+  // the other two rails, both of which name their scope. It names the FORM at every
+  // position now, which is also what `admin-shell-poc.html` draws on every screen.
+  it("names the form on a section screen, not the section", () => {
     const groups = rail({ kind: "section", section: "links" }, new Map([["stp_health", 2]]));
-    expect(railSummary(groups, "life")).toStrictEqual({ text: "Links", issueCount: 0 });
+    expect(railSummary(groups, "life")).toStrictEqual({ text: "life", issueCount: 2 });
   });
 
-  it("names the active step and its count, which is the case §7 spells out", () => {
+  it("names the form on a step screen, not the step", () => {
     const groups = rail({ kind: "step", stepId: "stp_health" }, new Map([["stp_health", 2]]));
-    expect(railSummary(groups, "life")).toStrictEqual({ text: "Health", issueCount: 2 });
+    expect(railSummary(groups, "life")).toStrictEqual({ text: "life", issueCount: 2 });
   });
 
-  it("falls back to the form's own name rather than saying nothing", () => {
+  it("names the form when nothing is current, which was the only branch that ever did", () => {
     const groups = rail({ kind: "step", stepId: "stp_gone" });
     expect(railSummary(groups, "life")).toStrictEqual({ text: "life", issueCount: 0 });
+  });
+
+  it("counts every step's issues, not the current row's", () => {
+    // The number a shut rail can usefully carry about a form is how much is wrong with it,
+    // and that is a different number from whichever row happens to be marked.
+    const groups = rail(
+      { kind: "section", section: "links" },
+      new Map([
+        ["stp_about", 1],
+        ["stp_health", 2],
+      ]),
+    );
+    expect(railIssueTotal(groups)).toBe(3);
+    expect(railSummary(groups, "life").issueCount).toBe(3);
   });
 });

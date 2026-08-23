@@ -2241,6 +2241,24 @@ button {
   padding-inline: 0.5rem;
   padding-block-end: 1rem;
 }
+
+/* THE FIRST FRAME ON A NARROW VIEWPORT, and the only reason this rule exists.
+   The rail is shut below `--bp-sidebar` and open above it (Code Owner decision,
+   2026-08-23), and `open` is an attribute no media query can set, so the browser
+   decides it in `components/rail-disclosure.tsx`. The server cannot know the
+   viewport, so the first HTML is `open` - the safe answer, and the one a reader
+   with no JavaScript keeps - which on a phone would paint an expanded rail for
+   the frame before hydration. This hides the body for exactly that frame: the
+   disclosure publishes `data-ready` once it has read the media query, and from
+   then on the element's own state is what shows or hides the rows.
+
+   Scoped below the boundary, so a wide viewport paints the sidebar open with no
+   dependence on script at all. */
+@media (width < 64rem) {
+  .qcms-rail__disclosure:not([data-ready]) .qcms-rail__body {
+    display: none;
+  }
+}
 .qcms-rail__group {
   display: flex;
   flex-direction: column;

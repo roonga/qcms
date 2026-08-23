@@ -104,14 +104,23 @@ test("650 shows which version is selected in the summary only while the rail is 
   await signInWithTotp(page, EMAIL, totpSecret);
   const indicator = page.locator(".qcms-question-rail__summary-version");
 
+  // SHUT ON ARRIVAL at this width since 2026-08-23, which is why this reads the other way
+  // round from the order the POC's own description implies: the indicator is the first
+  // thing on screen rather than something a reader has to collapse the rail to see. That
+  // makes it carry more weight than it used to, not less.
   await page.setViewportSize({ width: 390, height: 900 });
   await page.goto(detailPath(`?v=${String(fixture.publishedVersion)}`));
-  await expect(indicator, "open, the list below already says which row is current").toBeHidden();
-
-  await page.locator("summary.qcms-rail__summary").click();
-  await expect(page.locator("details.qcms-rail__disclosure")).not.toHaveAttribute("open", "");
+  const disclosure = page.locator("details.qcms-rail__disclosure");
+  await expect(disclosure, "a narrow viewport opens on the summary alone").not.toHaveAttribute(
+    "open",
+    "",
+  );
   await expect(indicator, "shut, this line is the whole rail").toBeVisible();
   await expect(indicator).toHaveText(`/Version ${String(fixture.publishedVersion)}`);
+
+  await page.locator("summary.qcms-rail__summary").click();
+  await expect(disclosure).toHaveAttribute("open", "");
+  await expect(indicator, "open, the list below already says which row is current").toBeHidden();
 
   // Above the boundary the rail is a permanent sidebar, so the same indicator would only
   // repeat the marked row that is already on screen.

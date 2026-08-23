@@ -246,8 +246,8 @@ test("648 puts the wordmark, the nav and the content column on one left edge, at
 
   const edges = await page.evaluate(() => {
     // THE EDGE IS THE CONTENT EDGE, NOT THE BORDER EDGE, and the distinction is the whole
-    // measurement. `<main>` and `<footer>` are full-width boxes whose padding holds their
-    // text in; the wordmark is a span sitting inside the bar's padding. Comparing
+    // measurement. `<main>` is a full-width box whose padding holds its text in; the
+    // wordmark is a span sitting inside the bar's padding. Comparing
     // `getBoundingClientRect().left` across the three compares 24 against 0 and says
     // nothing about alignment. What an operator sees line up is where the TEXT starts.
     const contentLeft = (selector: string) => {
@@ -262,7 +262,6 @@ test("648 puts the wordmark, the nav and the content column on one left edge, at
     return {
       wordmark: contentLeft(".qcms-wordmark"),
       main: contentLeft("main#main-content"),
-      footer: contentLeft("footer"),
       wordmarkRight:
         document.querySelector(".qcms-wordmark")?.getBoundingClientRect().right ?? Number.NaN,
       navLeft: nav?.left ?? Number.NaN,
@@ -288,7 +287,10 @@ test("648 puts the wordmark, the nav and the content column on one left edge, at
     edges.viewport,
   );
   expect(edges.wordmark, "the wordmark starts at the shared edge").toBe(edges.main);
-  expect(edges.footer, "and so does the footer").toBe(edges.main);
+  // The footer that used to share this edge is gone (Code Owner decision, 2026-08-23): it
+  // spanned both tracks below the rail and was what stopped a rail reaching the bottom of
+  // the screen. The email it carried is in the account menu, on every screen.
+  await expect(page.locator("footer"), "no page footer under the shell").toHaveCount(0);
   // The bar's own inline padding, read off the shared edge rather than hard-coded, so this
   // still holds if the shell's padding is ever retuned.
   expect(

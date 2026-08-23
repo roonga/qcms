@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { StatusTag } from "@/components/questions/status-tag";
+import { RailDisclosure } from "@/components/rail-disclosure";
 import { t, tPlural } from "@/lib/i18n/en";
 import type { QuestionVersion } from "@/lib/questions/types";
 import { isoDay, latestPublishedVersion, versionRailItems } from "@/lib/questions/version-rail";
@@ -82,13 +83,15 @@ export function QuestionVersionsRail({
 
   return (
     <div className="qcms-rail qcms-question-rail" data-testid="qcms-question-rail">
-      {/* A native `<details open>` at every width, for the reasons `components/rail-frame.tsx`
+      {/* One native `<details>` at both widths, for the reasons `components/rail-frame.tsx`
           writes out at length: an element cannot be chosen by media query, a second copy of
           the navigation would be a second set of rows to walk, and the browser announces
           expanded and collapsed itself more reliably than any `aria-expanded` written by
-          hand. Above `--bp-sidebar` the chevron goes and the summary stops advertising
-          itself as a control; it remains one. */}
-      <details className="qcms-rail__disclosure" open>
+          hand. Shut below `--bp-sidebar` and open above it, which is the shared collapse
+          behaviour §7a names and the one part of the chrome that is NOT restated locally:
+          `components/rail-disclosure.tsx` owns it. Above the boundary the chevron goes and
+          the summary stops advertising itself as a control; it remains one. */}
+      <RailDisclosure>
         <summary className="qcms-rail__summary">
           {/* The question's own id, in the id style, because that is what this rail belongs
               to and what an author pastes into a ticket. It is the one line that truncates. */}
@@ -152,7 +155,7 @@ export function QuestionVersionsRail({
             </ul>
           </nav>
         </div>
-      </details>
+      </RailDisclosure>
     </div>
   );
 }

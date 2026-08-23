@@ -88,6 +88,18 @@ breakpoints are renamed to:
 - **The rail collapses to a disclosure below the sidebar boundary**, and its collapsed
   summary names the active step and that step's issue count. Collapsing navigation
   hides the choices, never the current position.
+
+  **Amended 2026-08-23, on both halves.** The disclosure now opens **shut** below the
+  boundary rather than expanded, so a narrow viewport meets one line rather than a rail
+  pushing the screen's own content down. And the summary names the **form**, not the
+  active step, which is issue #693: the other two rails name their scope, the drawing
+  (`plan/admin-shell-poc/admin-shell-poc.html`) puts the form's name there on every
+  screen, and naming the active item made one line mean three different things. The
+  count beside it is the form's issue total for the same reason. The sentence this
+  amends still holds as a principle: the summary is the current position, and after
+  #692 gave those screens an `<h1>` of `{section}: {slug}`, the section is what the
+  heading beside the rail already says.
+
 - **The questions grid may drop Type and Issues at compact width, and must keep
   Version.** Changing a version pin is on the supported path above.
 - **Panes stack rather than shrink.** Dialog panes, and the rule card's editor and
