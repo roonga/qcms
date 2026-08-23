@@ -28,3 +28,13 @@ packages/db/migrations/meta/
 # are tool-generated.
 packages/ui/src/components/a2ui/
 **/__snapshots__/
+
+# Chromium profile directories a Lighthouse run drops in the repository root under
+# WSL (see `.gitignore` for why the name contains backslashes). Prettier walks the
+# working tree rather than the index, so ignoring them in git alone still leaves
+# `pnpm lint` failing on a few hundred `README` and `LOG` files after any browser
+# run on this platform.
+#
+# Written without the backslashes git needs: Prettier's matcher does not read them
+# as escapes the way gitignore does, and no path in this repository begins `C:`.
+C:*

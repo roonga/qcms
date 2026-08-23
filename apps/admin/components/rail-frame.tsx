@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { RailDisclosure } from "@/components/rail-disclosure";
 
 /**
  * The rail's chrome, and only its chrome (`plan/admin-design-contracts.md` §7 and §7a,
@@ -20,7 +21,7 @@ import type { ReactNode } from "react";
  * two components that use it stay separately named and separately reviewable.
  * `components/forms/form-subtree-rail.tsx` is §7's.
  *
- * ## Why a native `<details>`, open, at every width
+ * ## Why a native `<details>`, and where its open state is decided
  *
  * Below `--bp-sidebar` the contract asks for a disclosure; at and above it, for a 240px
  * column. An element cannot be chosen by media query, so the choice is between one
@@ -28,12 +29,18 @@ import type { ReactNode } from "react";
  * hidden - and a second copy of a navigation is a second set of links for a screen reader
  * to walk, which is exactly what "the markup is one shared component" exists to prevent.
  *
- * A native `<details>` also settles the accessibility of the collapsed state without a
- * line of script: the summary is keyboard-operable by construction and the browser
- * announces expanded and collapsed itself, which no `aria-expanded` we wrote by hand would
- * do more reliably. Above the boundary the chevron goes and the summary stops advertising
- * itself as a control (`app/globals.css`); it remains one, so an operator who wants the
- * width back can take it. Nothing here is a client component and nothing here hydrates.
+ * A native `<details>` also settles the accessibility of the collapsed state without a line
+ * of script: the summary is keyboard-operable by construction and the browser announces
+ * expanded and collapsed itself, which no `aria-expanded` we wrote by hand would do more
+ * reliably. Above the boundary the chevron goes and the summary stops advertising itself as
+ * a control (`app/globals.css`); it remains one, so an operator who wants the width back can
+ * take it.
+ *
+ * **It is shut by default below the boundary and open above it** (Code Owner decision,
+ * 2026-08-23), which is the one thing about the element that cannot be decided here:
+ * `open` is an attribute and no media query sets one. `components/rail-disclosure.tsx` owns
+ * that and writes out why it is a client component and what is true before it runs.
+ *
  */
 export function RailFrame({
   label,
@@ -51,7 +58,7 @@ export function RailFrame({
 }) {
   return (
     <nav className="qcms-rail" aria-label={label} data-testid="qcms-rail">
-      <details className="qcms-rail__disclosure" open>
+      <RailDisclosure>
         <summary className="qcms-rail__summary">
           <span className="qcms-rail__summary-text">{summaryText}</span>
           {summaryCount !== undefined && (
@@ -66,7 +73,7 @@ export function RailFrame({
           </span>
         </summary>
         <div className="qcms-rail__body">{children}</div>
-      </details>
+      </RailDisclosure>
     </nav>
   );
 }

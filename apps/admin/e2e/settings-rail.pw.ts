@@ -283,44 +283,46 @@ test("655 caps the column at 40rem and leaves it against the rail, not centred",
   ).toBeLessThan((measured.viewportWidth - PROSE_CAP) / 2);
 });
 
-test("655 leaves every other screen without a Settings rail", async ({ page }) => {
+test("655 leaves every other screen without a Settings rail, on a hard load and on a soft one", async ({
+  page,
+}) => {
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.setViewportSize({ width: 1280, height: 900 });
 
-  // Settings is the single named exception, not the first of a series. The slot's
-  // `default.tsx` is what enforces it, and a full load is the navigation it actually governs.
+  // Settings is the single named exception, not the first of a series.
   await page.goto("/settings");
   await expect(page.getByTestId("qcms-settings-rail")).toBeVisible();
   await page.goto("/questions");
   await expect(page.getByTestId("qcms-settings-rail")).toHaveCount(0);
   await expect(page.getByTestId("qcms-rail")).toHaveCount(0);
-});
 
-/**
- * The other half of the same clause, which does NOT hold today. Issue 633.
- *
- * Clicking Questions in the topbar leaves this rail standing beside the questions table. It
- * is not this rail's bug and not this rail's to fix: it is how a parallel-route slot behaves,
- * so the route rail on other screens has it too.
- *
- * Next's own reference says so in as many words (`next/dist/docs/01-app/03-api-reference/
- * 03-file-conventions/parallel-routes.md`): on a soft navigation it maintains "the other
- * slot's active subpages, even if they don't match the current URL", and consults
- * `default.js` only "after a full-page load".
- *
- * Kept as a skipped test rather than deleted, so the clause is in the suite as a known gap
- * instead of being silently unasserted: whoever closes issue 633 removes the `skip` and the
- * assertion is already written. It is not a flake and not a disabled test.
- */
-test.skip("655 drops the rail on a soft navigation too, once issue 633 lands", async ({ page }) => {
-  test.setTimeout(300_000);
-  await signInWithTotp(page, EMAIL, totpSecret);
-  await page.setViewportSize({ width: 1280, height: 900 });
-
-  await page.goto("/settings");
-  await expect(page.getByTestId("qcms-settings-rail")).toBeVisible();
-  await page.getByRole("link", { name: "Questions" }).first().click();
-  await expect(page).toHaveURL(/\/questions$/u);
-  await expect(page.getByTestId("qcms-settings-rail")).toHaveCount(0);
+  // THE SOFT NAVIGATION, which is the half that did not hold until now (issue 701, and
+  // issue 633 before it). Next keeps the previously active state of a slot the new URL does
+  // not match and consults `default.tsx` only after a full-page load, so clicking through
+  // left this rail standing beside a screen it says nothing about. It is fixed by every
+  // route having a page in the slot rather than by a fallback, and it has to be asserted by
+  // CLICKING: `page.goto` is a hard load and passes against the bug, which is why the four
+  // assertions above never caught it.
+  //
+  // All four destinations, because issue 701 predicted that only the two with a directory
+  // under `@rail` would go stale. Measured against the shipped build before this change,
+  // all four did: the mechanism is the documented soft-navigation rule and has nothing to
+  // do with which directories exist, so the per-directory `default.tsx` that issue
+  // suggested would not have fixed any of them.
+  for (const [name, path] of [
+    ["Questions", "/questions"],
+    ["Forms", "/forms"],
+    ["Responses", "/responses"],
+    ["Webhooks", "/webhooks"],
+  ] as const) {
+    await page.goto("/settings");
+    await expect(page.getByTestId("qcms-settings-rail")).toBeVisible();
+    await page.getByRole("navigation", { name: "Primary" }).getByRole("link", { name }).click();
+    await expect(page).toHaveURL(new RegExp(`${path}$`, "u"));
+    await expect
+      .soft(page.getByTestId("qcms-settings-rail"), `walking to ${path} leaves the rail behind`)
+      .toHaveCount(0);
+    await expect.soft(page.getByTestId("qcms-rail"), `${path} has no rail at all`).toHaveCount(0);
+  }
 });

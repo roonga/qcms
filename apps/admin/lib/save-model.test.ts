@@ -132,8 +132,8 @@ const SCREENS: readonly ScreenRow[] = [
     why: "Renders the draft for inspection; its own copy already says nothing here is saved.",
   },
   // The eight `@rail` entries below are parallel-route slots rather than screens (issue
-  // 559 wired the first, issue 561 the rest): each renders the §7 rail beside `<main>` on
-  // a route some form page already owns. They are listed rather than filtered out because
+  // 559 wired the first, issue 561 the rest): each renders one form's section of the rail
+  // beside `<main>` on a route some form page already owns. They are listed rather than filtered out because
   // the value of this inventory is that a new `page.tsx` forces someone to write down how
   // it saves, and a slot that grew a control would need that question asked of it exactly
   // as a screen would. All eight answer the same way, and that is the contract rather than
@@ -198,6 +198,47 @@ const SCREENS: readonly ScreenRow[] = [
     route: "app/(shell)/@rail/questions/[questionId]/page.tsx",
     model: "action",
     why: "Publish, deprecate and new version, each a discrete confirmed operation that reports its own outcome inside its dialog. The version rows beside them are navigation.",
+  },
+  // The seven `@rail` entries below are the routes that have a rail and contribute no
+  // section to it (Code Owner decision, 2026-08-23). They exist because a slot page that
+  // renders nothing is not the same as no slot page at all: Next keeps a slot's previously
+  // active state across a soft navigation the new URL does not match, so a route with no
+  // page here inherited the LAST screen's section rather than an empty rail. They are
+  // listed for the reason the ten above are: a new `page.tsx` should force the question.
+  {
+    route: "app/(shell)/@rail/forms/page.tsx",
+    model: "readonly",
+    why: "Returns null. The route has a rail, contributes no section of its own, and so has nothing on it to save.",
+  },
+  {
+    route: "app/(shell)/@rail/forms/new/page.tsx",
+    model: "readonly",
+    why: "Returns null. The route has a rail, contributes no section of its own, and so has nothing on it to save.",
+  },
+  {
+    route: "app/(shell)/@rail/questions/page.tsx",
+    model: "readonly",
+    why: "Returns null. The route has a rail, contributes no section of its own, and so has nothing on it to save.",
+  },
+  {
+    route: "app/(shell)/@rail/questions/new/page.tsx",
+    model: "readonly",
+    why: "Returns null. The route has a rail, contributes no section of its own, and so has nothing on it to save.",
+  },
+  {
+    route: "app/(shell)/@rail/responses/page.tsx",
+    model: "readonly",
+    why: "Returns null. The route has a rail, contributes no section of its own, and so has nothing on it to save.",
+  },
+  {
+    route: "app/(shell)/@rail/responses/erasures/page.tsx",
+    model: "readonly",
+    why: "Returns null. The route has a rail, contributes no section of its own, and so has nothing on it to save.",
+  },
+  {
+    route: "app/(shell)/@rail/webhooks/page.tsx",
+    model: "readonly",
+    why: "Returns null. The route has a rail, contributes no section of its own, and so has nothing on it to save.",
   },
   {
     route: "app/(shell)/forms/[formId]/links/page.tsx",

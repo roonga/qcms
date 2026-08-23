@@ -47,3 +47,11 @@ blob-report/
 # generated file's own text argues the reader into committing it.
 apps/*/AGENTS.md
 apps/*/CLAUDE.md
+
+# Chromium profile directories a Lighthouse run drops in the repository root under
+# WSL, where its Windows-style default user-data path becomes one directory whose
+# NAME contains backslashes. Each is a throwaway browser profile of a few hundred
+# files. Ignored because a `git add -A` otherwise sweeps the lot into a commit,
+# which is exactly what happened once. The backslashes are escaped rather than
+# quoted: gitignore has no quoting, and `\\` is how a literal one is written.
+C:\\Users\\*

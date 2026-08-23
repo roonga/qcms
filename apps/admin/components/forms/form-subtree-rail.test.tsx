@@ -49,6 +49,7 @@ vi.mock("next/link", () => ({
   ),
 }));
 vi.mock("@/components/rail-frame", () => import("../rail-frame.tsx"));
+vi.mock("@/components/rail-disclosure", () => import("../rail-disclosure.tsx"));
 vi.mock("@/lib/forms/subtree-rail", () => import("../../lib/forms/subtree-rail.ts"));
 vi.mock("@/lib/i18n/en", () => import("../../lib/i18n/en.ts"));
 
@@ -135,14 +136,24 @@ describe("the rail's markup", () => {
     expect(html).toContain('<summary class="qcms-rail__summary">');
   });
 
-  it("names the active item in the summary, with its count when it has one", async () => {
+  it("names the form in the summary, with the form's own issue total", async () => {
+    // Issue 693: the scope, not the active item, which is what the other two rails name and
+    // what `admin-shell-poc.html` draws. The badge moves with it - a step's count beside the
+    // form's name would be two unrelated facts on one line - so both renders below carry the
+    // same "2 issues" while the current row changes underneath them.
     const onASection = await render(LINKS);
-    expect(onASection).toMatch(/<span class="qcms-rail__summary-text">Links<\/span>/u);
-    expect(onASection).not.toContain("qcms-rail-summary-count");
+    expect(onASection).toMatch(/<span class="qcms-rail__summary-text">life<\/span>/u);
+    expect(onASection).toMatch(/data-testid="qcms-rail-summary-count">2 issues</u);
 
     const onAStep = await render({ kind: "step", stepId: "stp_health" });
-    expect(onAStep).toMatch(/<span class="qcms-rail__summary-text">Health<\/span>/u);
+    expect(onAStep).toMatch(/<span class="qcms-rail__summary-text">life<\/span>/u);
     expect(onAStep).toMatch(/data-testid="qcms-rail-summary-count">2 issues</u);
+  });
+
+  it("drops the summary badge when the form has no issues at all", async () => {
+    const html = await render(LINKS, STEPS, new Map());
+    expect(html).toMatch(/<span class="qcms-rail__summary-text">life<\/span>/u);
+    expect(html).not.toContain("qcms-rail-summary-count");
   });
 
   it("renders no heading, so it cannot break heading order on the screen it precedes", async () => {

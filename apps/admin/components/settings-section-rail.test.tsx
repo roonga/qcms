@@ -42,6 +42,7 @@ import type { SettingsSectionId } from "../lib/settings-sections.ts";
  * reaches the store's setter, and the value it reads is the prop.
  */
 
+vi.mock("@/components/rail-disclosure", () => import("./rail-disclosure.tsx"));
 vi.mock("@/lib/i18n/en", () => import("../lib/i18n/en.ts"));
 vi.mock("@/lib/settings-sections", () => import("../lib/settings-sections.ts"));
 vi.mock("@/lib/settings-panel", () => import("../lib/settings-panel.ts"));

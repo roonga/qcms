@@ -4,41 +4,50 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 /**
- * Which screens carry the §7 rail and what each one's carries, checked against the route
- * tree rather than claimed (issue 561).
+ * Which screens carry a rail, and what each one's section carries, checked against the route
+ * tree rather than claimed.
  *
- * Issue 559 built the rail and wired one screen; 561 rolls it across the rest. "All eight
- * form-subtree screens carry the rail" is the acceptance, and a sentence in a PR body is
- * not a mechanism: a ninth form-scoped screen added next quarter would inherit no rail and
- * nobody would be asked about it. So the pairing is read off the filesystem here, the same
- * way `measure.test.ts` reads the cap table against the route tree, and a screen without a
- * slot fails this file until someone wires it.
+ * ## The property this file pins gained a second half, and it is the load-bearing one
+ *
+ * Issue 561 asserted that the eight form-scoped screens have a slot page and that no fourth
+ * rail root appears. Ten screens have a rail and seven do not, and that has not changed.
+ * What changed is that all seventeen now have a PAGE under `app/(shell)/@rail`: the seven
+ * without a rail have one that returns `null`, which is a different thing from having no
+ * page at all.
+ *
+ * **That is a correctness requirement, not tidiness.** On a soft navigation Next keeps the
+ * previously active state of any slot the new URL does not match, and consults `default.tsx`
+ * only after a full-page load. So a route with no page in the slot did not render an empty
+ * rail: it rendered the PREVIOUS screen's section. Walking from Settings to the question
+ * library left the Settings rail standing beside a screen it says nothing about, which is
+ * the defect this coverage removes. A screen added without a slot page fails here rather
+ * than being found months later as a rail that will not go away.
  *
  * ## The builder carries the sibling group and no children, and that is §7
  *
- * It is asserted here rather than left as a shape someone might "fix", because it looks
- * like an inconsistency and is not one. A rail step item is
- * `/forms/{formId}#step-{stepId}`. On the other seven screens that is a cross-route link;
- * on the builder the route part is that same route, so the item is a bare same-page
- * fragment, and §7 says the rail "never carries same-page section switches". The children
- * group there is forbidden rather than merely redundant beside the builder's own step
- * editor, which is content rather than navigation and stays exactly as it is.
+ * Asserted here rather than left as a shape someone might "fix", because it looks like an
+ * inconsistency and is not one. A rail step item is `/forms/{formId}#step-{stepId}`. On the
+ * other seven screens that is a cross-route link; on the builder the route part is that same
+ * route, so the item is a bare same-page fragment, and §7 says the rail "never carries
+ * same-page section switches". The children group there is forbidden rather than merely
+ * redundant beside the builder's own step editor, which is content rather than navigation
+ * and stays exactly as it is.
  *
- * §7's "two groups, in that order, with one divider" describes the rail where both groups
- * exist. One group means no divider, which is what `form-subtree-rail.tsx` already does
- * when there is nothing to separate.
+ * §7's "two groups, in that order, with one divider" describes the section where both groups
+ * exist. One group means no divider, which is what `form-subtree-rail.tsx` already does when
+ * there is nothing to separate.
  */
 
 const SHELL = fileURLToPath(new URL("../app/(shell)", import.meta.url));
 
 /**
- * Which sibling row each slot marks as current, restated rather than derived.
+ * Which sibling row each form slot marks as current, restated rather than derived.
  *
- * A table read out of the files it is checking passes on any files, which is the same
- * reason `subtree-rail.test.ts` restates §7's section list instead of importing it. The
- * two detail routes are the rows worth reading twice: neither is a row of the rail, so
- * each marks the section it lives under, which is how the section strip this rail replaced
- * resolved those same two URLs from task 034 onward.
+ * A table read out of the files it is checking passes on any files, which is the same reason
+ * `subtree-rail.test.ts` restates §7's section list instead of importing it. The two detail
+ * routes are the rows worth reading twice: neither is a row of the rail, so each marks the
+ * section it lives under, which is how the section strip this rail replaced resolved those
+ * same two URLs from task 034 onward.
  */
 const CURRENT_SECTION: Readonly<Record<string, string>> = {
   "/forms/[formId]": "builder",
@@ -51,8 +60,28 @@ const CURRENT_SECTION: Readonly<Record<string, string>> = {
   "/forms/[formId]/webhooks": "webhooks",
 };
 
-/** The screens whose rail carries §7's sibling group alone. */
+/** The screens whose section carries §7's sibling group alone. */
 const SIBLINGS_ONLY = ["/forms/[formId]"];
+
+/**
+ * The routes that carry NO rail, restated rather than read off the tree.
+ *
+ * `plan/admin-ux-audit.md` §3 and §5.4 reject a rail on each of them and give the reason: a
+ * rail there would either be empty or would repeat the page's own body, "and now there are
+ * two of them and they can disagree". Each still has a page in the slot, returning `null`,
+ * because a route that matches nothing keeps the previous screen's rail on a soft
+ * navigation. Written down here, granting one a rail is a change to this list and therefore
+ * a change someone reviews.
+ */
+const NO_SECTION = [
+  "/forms",
+  "/forms/new",
+  "/questions",
+  "/questions/new",
+  "/responses",
+  "/responses/erasures",
+  "/webhooks",
+];
 
 /**
  * Every Next route pattern under one directory, read from the tree.
@@ -78,27 +107,51 @@ function sorted(values: readonly string[]): string[] {
   return [...values].sort((a, b) => a.localeCompare(b));
 }
 
-/** The screens under one form: everything below `/forms/[formId]`, and that route itself. */
-function formScopedScreens(): string[] {
-  return routePatternsUnder(`${SHELL}/forms`, "/forms").filter((pattern) =>
-    pattern.startsWith("/forms/[formId]"),
-  );
+/** Every authenticated screen: every route pattern with a page under `app/(shell)`. */
+function shellScreens(): string[] {
+  return routePatternsUnder(SHELL, "");
 }
 
-/** The routes the `@rail` slot answers for. */
+/** Every route the `@rail` slot answers for. */
 function railSlotRoutes(): string[] {
-  return routePatternsUnder(`${SHELL}/@rail/forms`, "/forms");
+  return routePatternsUnder(`${SHELL}/@rail`, "");
+}
+
+/** The screens under one form: everything below `/forms/[formId]`, and that route itself. */
+function formScopedScreens(): string[] {
+  return shellScreens().filter((pattern) => pattern.startsWith("/forms/[formId]"));
 }
 
 function slotSource(route: string): string {
   return readFileSync(`${SHELL}/@rail${route}/page.tsx`, "utf8");
 }
 
-describe("which screens carry the form-subtree rail", () => {
+describe("every screen has a page in the slot, whether or not it has a rail", () => {
+  it("gives the slot a page for every authenticated route, and none for a route that is not one", () => {
+    // Both directions in one assertion, and both matter. A screen with no slot page keeps
+    // the previous screen's section on a soft navigation; a slot page for a route that no
+    // longer exists is dead code that no screen can ever reach.
+    expect(sorted(railSlotRoutes())).toEqual(sorted(shellScreens()));
+  });
+
+  it("accounts for every route as either carrying a rail or deliberately not", () => {
+    const withRail = [...Object.keys(CURRENT_SECTION), "/questions/[questionId]", "/settings"];
+    expect(sorted([...withRail, ...NO_SECTION])).toEqual(sorted(shellScreens()));
+  });
+
+  it("returns null from every slot page that carries no section, and only those", () => {
+    // Read off the files rather than trusted: a page that quietly grew a section would
+    // still be listed in `NO_SECTION` and nobody would be asked about it.
+    const empty = railSlotRoutes().filter((route) => slotSource(route).includes("NoRailSection"));
+    expect(sorted(empty)).toEqual(sorted(NO_SECTION));
+  });
+});
+
+describe("which screens carry the form-subtree section", () => {
   it("counts the eight form-scoped screens the audit counts", () => {
     // `plan/admin-ux-audit.md` §1: "of the sixteen authenticated screens, eight are
     // form-scoped and would get a populated rail". A ninth appearing is the moment the
-    // rail question has to be asked again, so it fails here.
+    // question of what its section carries has to be asked, so it fails here.
     expect(sorted(formScopedScreens())).toEqual([
       "/forms/[formId]",
       "/forms/[formId]/links",
@@ -111,43 +164,31 @@ describe("which screens carry the form-subtree rail", () => {
     ]);
   });
 
-  it("gives every one of them a rail, with no screen left out", () => {
-    expect(sorted(railSlotRoutes())).toEqual(sorted(formScopedScreens()));
-  });
-
-  it("puts no rail outside the three screens that have been granted one", () => {
-    // The tripwire is that the slot root holds exactly these three roots, and it keeps its
-    // teeth where they matter: a FOURTH appearing fails here, which is the moment a rail on
-    // a new screen has to be argued rather than assumed. The other authenticated screens
-    // would still get an empty rail or one duplicating their own body
-    // (`plan/admin-ux-audit.md` §3 and §5.4), which is why the default is nothing.
+  it("keeps the three section-bearing roots to the three that were argued for", () => {
+    // Each was granted separately and the grants are not one rule:
     //
-    // Each of the three was granted separately and the grants are not one rule:
-    //
-    // - `forms/` is the form-subtree rail (issue 559, rolled out by 561).
+    // - `forms/` is the form-subtree section (issue 559, rolled out by 561).
     // - `settings/` was §7a's single named exception (issue 562, rebuilt to its POC by 655).
     // - `questions/` is issue 650, and its authority is the screen's own POC
     //   (`plan/admin-shell-poc/question-editor-poc.html`), which draws a rail carrying the
-    //   question's versions. `docs/admin-constraints.md` is what makes that the ruling: the
-    //   POCs are the design, one per screen, and the contracts document is description. §7a
-    //   asked for a ruling recorded in the contracts document because that document was the
-    //   authority when it was written; the drawing is now where a screen's answer lives.
+    //   question's versions.
     //
-    // None of the three is checked below by the rest of this file: every other assertion
-    // here walks `@rail/forms` alone, because the other two are different contracts that
-    // happen to share the column. Their own coverage is `lib/settings-sections.test.ts` and
-    // `components/settings-section-rail.test.tsx`, and `lib/questions/version-rail.test.ts`
-    // and `components/questions/question-versions-rail.test.tsx`.
-    const slotRoot = readdirSync(`${SHELL}/@rail`, { withFileTypes: true });
-    expect(
-      sorted(slotRoot.filter((entry) => entry.isDirectory()).map((entry) => entry.name)),
-    ).toEqual(["forms", "questions", "settings"]);
+    // A fourth is the moment a section on a new screen has to be argued rather than
+    // assumed, which is what the `NO_SECTION` list above keeps honest for the rest.
+    const roots = new Set(
+      railSlotRoutes()
+        .filter((route) => !slotSource(route).includes("NoRailSection"))
+        .map((route) => route.split("/")[1] ?? ""),
+    );
+    expect(sorted([...roots])).toEqual(["forms", "questions", "settings"]);
   });
 });
 
-describe("which of §7's groups each screen's rail carries", () => {
+describe("which of §7's groups each screen's section carries", () => {
   it("asks for the siblings alone on the builder, and nowhere else", () => {
-    const asked = railSlotRoutes().filter((route) => slotSource(route).includes('"none"'));
+    const asked = Object.keys(CURRENT_SECTION).filter((route) =>
+      slotSource(route).includes('"none"'),
+    );
     expect(sorted(asked)).toEqual(sorted(SIBLINGS_ONLY));
   });
 
@@ -156,7 +197,7 @@ describe("which of §7's groups each screen's rail carries", () => {
   });
 });
 
-describe("which row of the rail each screen marks", () => {
+describe("which row of the section each screen marks", () => {
   it("marks the section the screen is, and marks a detail route's parent section", () => {
     for (const [route, section] of Object.entries(CURRENT_SECTION)) {
       expect(slotSource(route), `${route} marks ${section} as the current rail row`).toContain(
@@ -165,17 +206,17 @@ describe("which row of the rail each screen marks", () => {
     }
   });
 
-  it("expects a current row for every wired slot, so a new one cannot arrive unstated", () => {
-    expect(sorted(Object.keys(CURRENT_SECTION))).toEqual(sorted(railSlotRoutes()));
+  it("expects a current row for every form-scoped slot, so a new one cannot arrive unstated", () => {
+    expect(sorted(Object.keys(CURRENT_SECTION))).toEqual(sorted(formScopedScreens()));
   });
 
   it("marks a step as current on no screen at all", () => {
     // `RailCurrent` also has a `step` shape, and nothing uses it: no step in this app is a
     // route (`lib/forms/subtree-rail.ts` explains why minting one was refused), so no
-    // screen IS a step. It is kept because the type is what makes the rail's own summary
+    // screen IS a step. It is kept because the type is what makes the section's own title
     // fall back honestly, and this pins that no screen has quietly started claiming to be
     // one.
-    for (const route of railSlotRoutes()) {
+    for (const route of Object.keys(CURRENT_SECTION)) {
       expect(slotSource(route)).not.toContain('kind: "step"');
     }
   });

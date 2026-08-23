@@ -498,10 +498,17 @@ it belongs with #518's implementation, not here.
   main column), never carries same-page section switches, and never carries a
   route the audit rejected (Validation stays on the builder page,
   `plan/admin-ux-audit.md` §5.5).
-- Collapsed (below `--bp-sidebar`), the summary names the active item and, when
-  the active item has an issue count, that count (`plan/admin-mobile-stance.md`).
-  The summary text truncates with an ellipsis; the markup is one shared
-  component, not per-screen copies.
+- Collapsed (below `--bp-sidebar`), the summary names the ~~active item~~ **form**
+  and the **form's** issue total (`plan/admin-mobile-stance.md`, amended
+  2026-08-23; issue #693). The summary text truncates with an ellipsis; the markup
+  is one shared component, not per-screen copies.
+
+  **Amended 2026-08-23.** "The active item" made one line mean three things - a
+  step label, a section label, or the slug only when neither was current - and put
+  this rail out of step with the other two, both of which name their scope. The
+  drawing puts the form's name there on every screen of this rail. The disclosure
+  also opens **shut** below the boundary now, rather than expanded.
+
 - Rail items are anchors, not buttons.
 
 **Amendment, 2026-08-22: the rail shows each screen's own name,

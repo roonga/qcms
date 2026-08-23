@@ -46,21 +46,30 @@ export default async function ShellLayout({
   /**
    * The §7 rail's slot (issue 559), filled by the parallel route tree under `@rail`.
    *
-   * WHY A SLOT RATHER THAN A COMPONENT THIS LAYOUT RENDERS. The rail is per-form data - a
-   * form's steps and its per-step issue counts - and a Next layout is never told which
-   * child route rendered, let alone which `[formId]` it carried. So the layout cannot
-   * fetch it. A parallel route can: `@rail/forms/[formId]/links/page.tsx` is matched
-   * against the same URL as the page it accompanies, gets the same params, and renders
-   * beside `<main>` instead of inside it. `@rail/default.tsx` returns nothing, so the
-   * fourteen screens with no rail render exactly as they did.
+   * WHY A SLOT RATHER THAN A COMPONENT THIS LAYOUT RENDERS. The rail is per-object data - a
+   * form's steps and its per-step issue counts, a question's versions - and a Next layout is
+   * never told which child route rendered, let alone which `[formId]` it carried. So the
+   * layout cannot fetch it. A parallel route can: `@rail/forms/[formId]/links/page.tsx` is
+   * matched against the same URL as the page it accompanies, gets the same params, and
+   * renders beside `<main>` instead of inside it.
    *
-   * WHY IT MATTERS THAT IT IS BESIDE `<main>` AND NOT INSIDE IT. `<main>`'s width is
-   * capped per route (issue 558), and §6 asks that width question about the CONTENT
-   * column: "roughly 976px of content after `p-6`". A rail nested inside that cap would
-   * make the cap govern rail-plus-content instead, quietly taking 240px off the measure
-   * nine screens were assigned and standing the rail on `<main>`'s padding rather than on
-   * the shell's edge. Outside it, the two systems compose the way both documents describe:
-   * the rail is a fixed track of the shell, and the cap keeps meaning what it measured.
+   * EVERY ROUTE HAS A PAGE IN THE SLOT, AND THAT IS A CORRECTNESS REQUIREMENT RATHER THAN
+   * TIDINESS (issue 701, and issue 633 before it). Only ten routes have a rail, but all
+   * seventeen have a page here, because on a soft navigation Next keeps the previously
+   * active state of a slot the new URL does not match and consults `default.tsx` only after
+   * a full-page load - the file convention's own reference says so. A screen with no match
+   * therefore did not get an empty rail: it got the PREVIOUS screen's, and walking from
+   * Settings to the question library left the Settings rail standing beside a table it says
+   * nothing about. The seven screens that carry no rail have a page that returns `null`,
+   * which is a different thing from having no page at all. `lib/rail-routes.test.ts` reads
+   * both trees off the filesystem and fails the moment one has a route the other does not.
+   *
+   * WHY IT MATTERS THAT IT IS BESIDE `<main>` AND NOT INSIDE IT. `<main>`'s width is capped
+   * per route (issue 558), and §6 asks that width question about the CONTENT column. A rail
+   * nested inside that cap would make the cap govern rail-plus-content instead, quietly
+   * taking 240px off the measure nine screens were assigned and standing the rail on
+   * `<main>`'s padding rather than on the shell's edge. Outside it, the two systems compose
+   * the way both documents describe.
    */
   readonly rail: ReactNode;
 }) {
@@ -122,12 +131,20 @@ export default async function ShellLayout({
           </div>
         </div>
       </header>
-      {/* The shell body: the rail's track and the content column, and the thing that
-          grows to fill whatever height the topbar and footer leave (issue 559, and N2 of
+      {/* The shell body: the rail's track and the content column, and the thing that grows
+          to fill whatever height the topbar leaves (issue 559, and N2 of
           `plan/admin-redesign-implementation-plan.md` §1). Without a rail it is a flex
           column and `<main>`'s own `flex-1` keeps stretching it exactly as before; with
           one, and at `--bp-sidebar` and above, it is the two-track grid §7 describes.
-          `app/globals.css` holds both, keyed off whether a rail is actually a child. */}
+          `app/globals.css` holds both, keyed off whether a rail is actually a child.
+
+          IT IS ALSO THE LAST THING ON THE PAGE NOW. A footer used to sit below both tracks
+          carrying "Signed in as ...", and that strip is what stopped a rail reaching the
+          bottom of the screen: the rail ended where this element ended and the footer sat
+          under it. The email is shell chrome rather than a credential and it was never only
+          here - the account menu carries it on every screen, including the seven with no
+          rail - so the line went rather than moving somewhere it would have been absent
+          half the time (Code Owner decision, 2026-08-23). */}
       <div className="qcms-shell-body">
         {rail}
         {/* The content column's cap is set by the ROUTE, not by one number here (issue
@@ -137,16 +154,6 @@ export default async function ShellLayout({
             `MeasuredMain` only applies the row that matches the pathname. */}
         <MeasuredMain>{children}</MeasuredMain>
       </div>
-      {/* The email is shell chrome, not a credential; it tells an operator which
-          account is acting when several people share a screen.
-
-          Uncapped and left-anchored for the same reason the bar above it is (issue 648),
-          with one honest difference: no POC draws a page footer at all, so this follows
-          the chrome it sits under rather than a drawing of its own. `px-6` puts its text
-          on the same left edge as the wordmark and the content column. */}
-      <footer className="w-full px-6 pb-6 text-xs text-(--color-text-muted)">
-        {t("settings.signedInAs", { email: session.email })}
-      </footer>
     </div>
   );
 }
