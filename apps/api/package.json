@@ -43,7 +43,7 @@
     "@qcms/core": "workspace:*",
     "@qcms/csv": "workspace:*",
     "@qcms/db": "workspace:*",
-    "better-auth": "^1.6.26",
+    "better-auth": "^1.7.1",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.13.3",
     "pg": "^8.23.0",
