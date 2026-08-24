@@ -39,6 +39,29 @@ import type { ReadState } from "@/lib/read-state";
  * is no `document` for it to attach to. Until it arrives the pane renders the same JSON as
  * plain text, so the condition is readable before hydration.
  *
+ * ## The six `@codemirror/*` packages move together, on ranges
+ *
+ * They arrived pinned to exact versions with task 033, with no reason recorded anywhere,
+ * and that spelling is a trap rather than a safeguard: the six depend on each other through
+ * `^6` ranges, so pinning them individually lets a bump of a SUBSET resolve two copies of
+ * `@codemirror/view`. Two copies means two separately-declared `KeyBinding` and
+ * `LintSource` types, and the error that produces names types rather than versions:
+ *
+ *     Argument of type '(KeyBinding | KeyBinding)[]' is not assignable to
+ *     parameter of type 'readonly KeyBinding[]'
+ *
+ * Reverting one pin re-splits it the other way, with `@codemirror/lint` as the odd one out.
+ * So all six carry `^` and the lockfile does the pinning, which is what it is for and what
+ * every other dependency in this app already does (issue 712).
+ *
+ * **`tsc` and `next build` disagree about this**, which is why it is written down here.
+ * `pnpm exec turbo run typecheck --filter=qcms-admin` passes with a split tree; the build
+ * does not. A contributor reaching for the package-scoped typecheck gets a false all-clear.
+ *
+ * If a bump ever splits it again, `pnpm update -r --depth Infinity @codemirror/view`
+ * converges the tree and `pnpm why -r @codemirror/view` must end in `Found 1 version` -
+ * the same remedy CONTRIBUTING's overrides section documents for the general case.
+ *
  * ## Accessibility, which is load-bearing for the axe gate
  *
  * CodeMirror's content DOM carries `role="textbox"` and `aria-multiline="true"` but
