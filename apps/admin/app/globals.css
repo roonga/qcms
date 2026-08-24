@@ -134,6 +134,14 @@
 :root {
   --bp-compact: var(--breakpoint-compact);
   --bp-sidebar: var(--breakpoint-sidebar);
+  /* The top bar's height, DERIVED rather than measured and written down. The bar is
+     a row of controls with `p-2` around them, so it is one control tall plus that
+     padding plus its own bottom border - written that way it moves with
+     `--admin-control-h` instead of going stale the next time the density changes.
+     The pinned rail's offset and its height are both this, so a drift between the
+     two would show as the rail sliding under the bar; `e2e/rail.pw.ts` measures the
+     bar against this value so the drift fails a test instead. */
+  --admin-topbar-h: calc(var(--admin-control-h) + 1rem + 1px);
 }
 
 /*
@@ -2154,6 +2162,29 @@ button {
    the thing that was too short. `min-height: 0` overrides flexbox's `auto`
    minimum, which would otherwise refuse the shrink half of that and defeat the
    grow on some browsers. ==================================================== */
+/* THE RAIL AND THE COLUMN SCROLL INDEPENDENTLY (Code Owner, 2026-08-24).
+
+   Above `--bp-sidebar` the rail is pinned: it takes the viewport's height below
+   the bar, scrolls its own rows when it has more than fit, and stays where it is
+   while the screen beside it is read to the bottom. The content column keeps
+   scrolling with the PAGE.
+
+   WHY THE COLUMN IS NOT ITS OWN SCROLLPORT, which was tried first and reverted.
+   `overflow` on `<main>` makes it a clipping box, and the row menu's popover is a
+   DOM descendant of it rather than a portal at the body - so "Remove option" was
+   clipped by the column exactly as it was once clipped by the grid, and a press at
+   its centre landed on nothing. `apps/admin/e2e/questions-lifecycle.pw.ts` exists
+   because of that earlier defect and caught this one. Escaping it would mean
+   changing where a shared overlay primitive renders, which is a larger change than
+   the scrolling it would be in service of, so the column stays in the page's scroll
+   and only the rail gets a scrollport of its own.
+
+   `overflow-y: auto` rather than `scroll`: a bar appears on the rail only when its
+   rows do not fit, and the page's own bar only when a screen is long.
+
+   Below the boundary none of this applies. The rail is a band stacked ABOVE the
+   content rather than beside it, so the two are one column in one scroll, which is
+   what a phone wants. ================================================== */
 .qcms-shell-body {
   display: flex;
   flex-direction: column;
@@ -2177,6 +2208,16 @@ button {
 }
 @variant sidebar {
   .qcms-rail {
+    /* `align-self: start` takes the rail off the grid row's stretch, which is what
+       gives `position: sticky` something to do: an item stretched to its row is
+       already as tall as its container and can never move within it. The explicit
+       height is then the viewport minus the bar, so the rail ends on the screen's
+       bottom edge on a short screen and a long one alike. */
+    position: sticky;
+    inset-block-start: var(--admin-topbar-h);
+    align-self: start;
+    block-size: calc(100dvh - var(--admin-topbar-h));
+    overflow-y: auto;
     border-block-end: none;
     border-inline-end: 1px solid var(--color-border);
   }

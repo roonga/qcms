@@ -271,7 +271,7 @@ test("559 lets a short screen's rail reach the bottom of the shell (N2)", async 
       throw new Error("the shell, the rail, its body and the column must all exist");
     }
     return {
-      documentHeight: document.documentElement.scrollHeight,
+      contentHeight: document.documentElement.scrollHeight,
       viewportHeight: window.innerHeight,
       shellBottom: shell.getBoundingClientRect().bottom,
       railBottom: rail.getBoundingClientRect().bottom,
@@ -281,7 +281,7 @@ test("559 lets a short screen's rail reach the bottom of the shell (N2)", async 
   });
 
   expect(
-    filled.documentHeight,
+    filled.contentHeight,
     "the fixture screen has to be shorter than the viewport for this to mean anything",
   ).toBeLessThanOrEqual(filled.viewportHeight);
   // The property issue 522 found untested, stated the way its own comment asks for.
@@ -363,4 +363,98 @@ test.describe("without JavaScript", () => {
     await page.locator("summary.qcms-rail__summary").click();
     await expect(disclosure).toHaveAttribute("open", "");
   });
+});
+
+const scrollState = async (
+  page: Page,
+): Promise<{
+  readonly pageOverflows: boolean;
+  readonly railOverflows: boolean;
+  readonly railScrollTop: number;
+  readonly railTop: number;
+  readonly railBottom: number;
+  readonly pageScrollY: number;
+  readonly barHeight: number;
+  readonly barToken: number;
+}> =>
+  page.evaluate(() => {
+    const rail = document.querySelector('[data-testid="qcms-rail"]');
+    const header = document.querySelector("header");
+    if (rail === null || header === null) throw new Error("the shell must be on screen");
+    const root = document.documentElement;
+    // The token resolved to pixels, by letting the browser resolve it: it is a `calc`
+    // over another custom property, so reading the string would prove nothing.
+    const probe = document.createElement("div");
+    probe.style.blockSize = getComputedStyle(root).getPropertyValue("--admin-topbar-h");
+    probe.style.position = "absolute";
+    root.append(probe);
+    const barToken = probe.getBoundingClientRect().height;
+    probe.remove();
+    return {
+      pageOverflows: root.scrollHeight > root.clientHeight,
+      railOverflows: rail.scrollHeight > rail.clientHeight,
+      railScrollTop: rail.scrollTop,
+      railTop: rail.getBoundingClientRect().top,
+      railBottom: rail.getBoundingClientRect().bottom,
+      pageScrollY: window.scrollY,
+      barHeight: header.getBoundingClientRect().height,
+      barToken,
+    };
+  });
+
+test("pins the rail to the viewport below the bar, at the height the token claims", async ({
+  page,
+}) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(linksPath());
+  await expect(page.getByTestId("qcms-rail")).toBeVisible();
+
+  const at = await scrollState(page);
+  // THE ONE NUMBER THIS DESIGN DEPENDS ON. The rail's sticky offset and its height are
+  // both `--admin-topbar-h`, which is derived from `--admin-control-h` rather than
+  // measured off the bar. If the two ever disagree the rail slides under the bar or
+  // leaves a gap below it, and neither is loud - so the drift fails here instead.
+  expect(at.barHeight, "the bar is exactly what the token derives").toBeCloseTo(at.barToken, 0);
+  expect(at.railTop, "the rail starts where the bar ends").toBeCloseTo(at.barHeight, 0);
+  expect(at.railBottom, "and ends on the bottom of the screen").toBeCloseTo(900, 0);
+});
+
+test("gives neither the rail nor the page a scrollbar when both fit", async ({ page }) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  // Tall enough that this screen and the rail both fit, which is the only viewport at
+  // which "only if required" says anything: `overflow-y: auto` offers nothing here,
+  // where `scroll` would reserve a gutter in the rail on every screen.
+  await page.setViewportSize({ width: 1280, height: 1600 });
+  await page.goto(linksPath());
+  await expect(page.getByTestId("qcms-rail")).toBeVisible();
+
+  const at = await scrollState(page);
+  expect(at.pageOverflows, "the screen fits, so the page offers no scrollbar").toBe(false);
+  expect(at.railOverflows, "and the rail's rows fit, so neither does it").toBe(false);
+});
+
+test("leaves the rail where it is while the screen beside it is scrolled", async ({ page }) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  // Short enough that this screen overflows the viewport. The rail may overflow here
+  // too - it has nine rows and this is 400px - and that is fine: what is asserted is
+  // that moving one does not move the other.
+  await page.setViewportSize({ width: 1280, height: 400 });
+  await page.goto(linksPath());
+  await expect(page.getByTestId("qcms-rail")).toBeVisible();
+
+  const at = await scrollState(page);
+  expect(at.pageOverflows, "this screen is taller than 400px, so the page scrolls").toBe(true);
+  expect(at.railScrollTop).toBe(0);
+
+  await page.mouse.wheel(0, 400);
+  await expect.poll(async () => (await scrollState(page)).pageScrollY).toBeGreaterThan(0);
+  const scrolled = await scrollState(page);
+  // PINNED, which is the property the old layout could not give: the rail's rows used
+  // to leave the screen as soon as the reader went down the page.
+  expect(scrolled.railTop, "the rail stayed under the bar").toBeCloseTo(at.railTop, 0);
+  expect(scrolled.railScrollTop, "and its own rows did not move with the page").toBe(0);
 });
