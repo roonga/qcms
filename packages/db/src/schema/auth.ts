@@ -1,4 +1,4 @@
-import { boolean, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, integer, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 
 /**
  * better-auth tables (`ARCHITECTURE.md` §7, admin identity with TOTP 2FA at
@@ -55,23 +55,49 @@ export const authSession = pgTable("session", {
     .references(() => authUser.id, { onDelete: "cascade" }),
 });
 
-export const authAccount = pgTable("account", {
-  id: text("id").primaryKey(),
-  accountId: text("accountId").notNull(),
-  providerId: text("providerId").notNull(),
-  userId: text("userId")
-    .notNull()
-    .references(() => authUser.id, { onDelete: "cascade" }),
-  accessToken: text("accessToken"),
-  refreshToken: text("refreshToken"),
-  idToken: text("idToken"),
-  accessTokenExpiresAt: timestamp("accessTokenExpiresAt"),
-  refreshTokenExpiresAt: timestamp("refreshTokenExpiresAt"),
-  scope: text("scope"),
-  password: text("password"),
-  createdAt: timestamp("createdAt").notNull().defaultNow(),
-  updatedAt: timestamp("updatedAt").notNull().defaultNow(),
-});
+export const authAccount = pgTable(
+  "account",
+  {
+    id: text("id").primaryKey(),
+    /**
+     * Which identity provider issued {@link accountId}, and the half that makes an account
+     * identifiable (better-auth 1.7).
+     *
+     * Until 1.7 an account was keyed on `accountId` alone. 1.7 keys it on the pair, so this
+     * column is required and the library refuses to start without it - the error names the
+     * field: "The field \"issuer\" does not exist in the \"account\" Drizzle schema".
+     *
+     * QCMS issues one kind: `local:credential`, the email-and-password account
+     * `createInitialAdmin` mints. There is no social provider and SEC-1's endpoint allowlist
+     * is what keeps it that way, so the values in this column are not open-ended.
+     */
+    issuer: text("issuer").notNull(),
+    accountId: text("accountId").notNull(),
+    providerId: text("providerId").notNull(),
+    userId: text("userId")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    accessToken: text("accessToken"),
+    refreshToken: text("refreshToken"),
+    idToken: text("idToken"),
+    accessTokenExpiresAt: timestamp("accessTokenExpiresAt"),
+    refreshTokenExpiresAt: timestamp("refreshTokenExpiresAt"),
+    scope: text("scope"),
+    password: text("password"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+  },
+  (table) => [
+    /**
+     * better-auth 1.7 declares this index itself (`getAuthTables(...).account.indexes`), so
+     * it is part of the mirror rather than a performance choice of ours. It is also the
+     * constraint that makes the new identity real: without it two rows could claim the same
+     * `(issuer, accountId)` and the lookup that replaced `findAccountById` would be
+     * ambiguous.
+     */
+    uniqueIndex("account_issuer_accountId_key").on(table.issuer, table.accountId),
+  ],
+);
 
 export const authVerification = pgTable("verification", {
   id: text("id").primaryKey(),
