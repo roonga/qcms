@@ -55,22 +55,22 @@
     "check:duplication": "jscpd packages apps --config .jscpd.json --threshold 3"
   },
   "devDependencies": {
-    "@axe-core/playwright": "^4.12.1",
-    "@changesets/cli": "^3.0.0",
+    "@axe-core/playwright": "^4.13.0",
+    "@changesets/cli": "^3.0.1",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.62.1",
-    "@vitest/coverage-v8": "4.1.10",
+    "@vitest/coverage-v8": "4.1.11",
     "chrome-launcher": "^1.2.1",
-    "eslint": "^10.8.0",
+    "eslint": "^10.9.0",
     "eslint-plugin-sonarjs": "^4.2.0",
-    "jscpd": "^5.0.14",
+    "jscpd": "^5.0.16",
     "lighthouse": "^13.4.1",
-    "otplib": "^13.4.1",
+    "otplib": "^13.5.0",
     "prettier": "^3.9.6",
-    "tsx": "^4.23.1",
-    "turbo": "^2.10.8",
+    "tsx": "^4.23.12",
+    "turbo": "^2.10.11",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.66.0",
-    "vitest": "^4.1.10"
+    "typescript-eslint": "^8.67.0",
+    "vitest": "^4.1.11"
   }
 }

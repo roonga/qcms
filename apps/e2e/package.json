@@ -13,6 +13,6 @@
     "@playwright/test": "^1.62.1",
     "@qcms/db": "workspace:*",
     "@types/node": "^24.13.3",
-    "otplib": "^13.4.1"
+    "otplib": "^13.5.0"
   }
 }
