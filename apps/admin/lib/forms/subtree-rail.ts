@@ -10,7 +10,7 @@ import type { DraftStep } from "./types.ts";
  *
  * The whole contract is two groups in one order with one divider: the form's **children**
  * (its steps, with per-step issue badges) and the form's **siblings** (Builder, Preview,
- * Versions, Links, Responses, Webhooks). It never carries an action, never carries a
+ * Versions, Links, Responses, Webhooks). It never carries a
  * same-page section switch, and never carries a route the audit rejected - Validation
  * stays on the builder page (`plan/admin-ux-audit.md` §5.5), so it is absent from
  * {@link RAIL_SECTIONS} and adding it here would break the anchored issue links the

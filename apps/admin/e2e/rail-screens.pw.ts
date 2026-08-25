@@ -76,7 +76,7 @@ interface Screen {
  */
 function screens(): readonly Screen[] {
   return [
-    { path: `/forms/${FORM_ID}`, current: "section:builder", children: false },
+    { path: `/forms/${FORM_ID}`, current: "section:builder", children: true },
     { path: `/forms/${FORM_ID}/preview`, current: "section:preview", children: true },
     { path: `/forms/${FORM_ID}/versions`, current: "section:versions", children: true },
     { path: `/forms/${FORM_ID}/versions/1`, current: "section:versions", children: true },
@@ -144,17 +144,25 @@ test("561 puts the rail on all eight form-scoped screens, marking the row the sc
       )
       .toHaveCount(0);
 
-    // The builder's children group is absent, and with one group there is no divider.
-    const expected = screen.children ? 1 : 0;
+    // EVERY form screen carries the steps now, the builder included (Code Owner,
+    // 2026-08-25), and they are nested inside the Form row rather than stacked above the
+    // sections. The builder used to be the exception here, on a §7 clause that is retired.
+    await expect
+      .soft(page.locator('[data-rail-group="steps"]'), `${screen.path} carries the form's steps`)
+      .toHaveCount(screen.children ? 1 : 0);
     await expect
       .soft(
-        page.locator('[data-rail-group="steps"]'),
-        `${screen.path} ${screen.children ? "carries" : "omits"} §7's children group`,
+        page.locator(
+          '[data-rail-item="section:builder"] ~ [data-rail-group="steps"], li:has(> [data-rail-item="section:builder"]) [data-rail-group="steps"]',
+        ),
+        `${screen.path} nests them inside the Form row`,
       )
-      .toHaveCount(expected);
+      .toHaveCount(1);
+    // One tree means no divider: §7's "one divider between two groups" described two
+    // groups, and the amendment of 2026-08-25 leaves one.
     await expect
-      .soft(page.locator("hr.qcms-rail__divider"), `${screen.path} divides only two groups`)
-      .toHaveCount(expected);
+      .soft(page.locator("hr.qcms-rail__divider"), `${screen.path} draws no divider`)
+      .toHaveCount(0);
   }
 });
 
@@ -184,13 +192,19 @@ test("561 gives every screen the form's steps as its children, never the list it
       .toEqual(screen.children ? expected : []);
   }
 
-  // The builder keeps its own step list, and that list is the editor rather than a second
-  // copy of the rail's group: its rows are buttons and they select a step in the page.
+  // THE BUILDER HAS ONE STEP LIST NOW, and it is in the rail (Code Owner, 2026-08-25).
+  // It used to have two: an editor of buttons inside the page, beside a rail that carried
+  // no steps at all. This asserts the merge from both directions - the rail's rows are the
+  // interactive ones, and nothing outside the rail is offering a second copy of them.
   await page.goto(`/forms/${FORM_ID}`);
+  const railStep = page
+    .getByTestId("qcms-rail")
+    .getByRole("button", { name: new RegExp(STEP_TITLE) });
+  await expect(railStep.first(), "the rail's step row is a button that selects").toBeVisible();
   await expect(
-    page.getByRole("button", { name: new RegExp(STEP_TITLE) }).first(),
-    "the builder's own step list is still an editor of buttons",
-  ).toBeVisible();
+    page.locator(`main#main-content [data-rail-step-select]`),
+    "and the page carries no second step list",
+  ).toHaveCount(0);
 });
 
 test("561 keeps the two respondent-facing screens on the narrower cap the rail sits beside", async ({

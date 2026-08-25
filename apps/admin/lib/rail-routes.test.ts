@@ -60,9 +60,6 @@ const CURRENT_SECTION: Readonly<Record<string, string>> = {
   "/forms/[formId]/webhooks": "webhooks",
 };
 
-/** The screens whose section carries §7's sibling group alone. */
-const SIBLINGS_ONLY = ["/forms/[formId]"];
-
 /**
  * The routes that carry NO rail, restated rather than read off the tree.
  *
@@ -184,16 +181,18 @@ describe("which screens carry the form-subtree section", () => {
   });
 });
 
-describe("which of §7's groups each screen's section carries", () => {
-  it("asks for the siblings alone on the builder, and nowhere else", () => {
+describe("which of the rail's rows each screen's section carries", () => {
+  it("gives every form-scoped screen the same tree, the builder included", () => {
+    // REVERSED 2026-08-25 (Code Owner). The builder used to ask for the sibling rows
+    // alone, on the reasoning that a step row there is a bare same-page fragment and §7
+    // barred those. That clause is retired and the drawing always showed otherwise, so
+    // the builder carries its steps like the other seven and `childrenGroup: "none"` is
+    // gone from the slot. A screen that reintroduced it would be reintroducing the split
+    // this closed: two step lists on one screen, neither owning them.
     const asked = Object.keys(CURRENT_SECTION).filter((route) =>
       slotSource(route).includes('"none"'),
     );
-    expect(sorted(asked)).toEqual(sorted(SIBLINGS_ONLY));
-  });
-
-  it("keeps the siblings-only list to the builder, whose step item would be a same-page fragment", () => {
-    expect(SIBLINGS_ONLY).toEqual(["/forms/[formId]"]);
+    expect(asked).toEqual([]);
   });
 });
 

@@ -122,6 +122,11 @@ vi.mock(
  */
 vi.mock("@/lib/page-headings", () => import("../../lib/page-headings"));
 vi.mock("@/lib/server/form-rail", () => import("../../lib/server/form-rail"));
+// Stubbed rather than bridged: this route is not the builder, so `interactiveSteps` is
+// false and the rail renders the plain step anchors instead of this component. The mock
+// exists only so the slot's import resolves without pulling react-aria into a test about
+// what a failed read renders.
+vi.mock("@/components/forms/rail-steps", () => ({ RailSteps: () => null }));
 
 /**
  * `t` answers with its own key, and with the parameters spliced in, so an assertion is

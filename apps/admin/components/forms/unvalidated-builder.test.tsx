@@ -116,22 +116,6 @@ async function renderStepEditor(issues: readonly FormIssue[] | undefined): Promi
   );
 }
 
-async function renderStepsRail(issueCounts: ReadonlyMap<string, number>): Promise<string> {
-  const { StepsRail } = await import("./steps-rail.tsx");
-  return renderToStaticMarkup(
-    <StepsRail
-      draft={DRAFT}
-      issueCounts={issueCounts}
-      selectedStepId={STEP.stepId}
-      onSelect={() => undefined}
-      onAdd={() => undefined}
-      onRename={() => undefined}
-      onMove={() => undefined}
-      onRemove={() => undefined}
-    />,
-  );
-}
-
 /**
  * Pay for the module graph once, before anything is timed against the 5s default.
  *
@@ -154,7 +138,6 @@ async function renderStepsRail(issueCounts: ReadonlyMap<string, number>): Promis
  */
 beforeAll(async () => {
   await renderStepEditor(undefined);
-  await renderStepsRail(new Map());
 }, 60_000);
 
 describe("no builder surface reports a count it has not been given (issue 625)", () => {
@@ -187,16 +170,5 @@ describe("no builder surface reports a count it has not been given (issue 625)",
 
     expect(html).toContain('data-issue-code="UNPUBLISHED_QUESTION_PIN"');
     expect(html, "a pin with an issue does not also say None").not.toContain(NONE);
-  });
-
-  it("leaves the step rail bare rather than badging a zero it was never given", async () => {
-    const withoutVerdict = await renderStepsRail(new Map());
-    const withVerdict = await renderStepsRail(new Map([[STEP.stepId, 2]]));
-
-    // Absence rather than a claim: the rail has no "0 issues" state to render, which is
-    // what lets the panel's "not checked yet" and this rail sit on one screen without
-    // contradicting each other.
-    expect(withoutVerdict, "no verdict, no badge").not.toContain("data-step-issues");
-    expect(withVerdict).toContain('data-step-issues="2"');
   });
 });

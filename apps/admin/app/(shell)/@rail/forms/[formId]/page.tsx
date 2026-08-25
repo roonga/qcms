@@ -1,38 +1,29 @@
 import { FormRailSlot } from "./rail-slot";
 
 /**
- * The §7 rail on the builder: the sibling group only (issue 561).
+ * The rail on the builder, which is the one screen where its steps can be worked on.
  *
- * ## Why this screen has one group and no divider, and why that is §7 rather than an
- * exception to it
+ * ## This screen used to be the exception, and is not any more
  *
- * Issue 559 wired its reference screen elsewhere and left the builder open, because the
- * builder already renders a step list that is an EDITOR (`components/forms/steps-rail.tsx`)
- * and two step lists on one screen would disagree about what a step row is. That framing
- * made it look like a layout preference. It is not: §7 settles it, through a clause it has
- * carried since it was confirmed.
+ * Issue 561 gave it the sibling rows alone, on a clause of §7 that barred a rail from
+ * carrying a same-page switch: a step row is `/forms/{formId}#step-{stepId}`, which is a
+ * cross-route link on the other seven screens and a bare fragment on this one. The clause
+ * was retired on 2026-08-25 (Code Owner) along with its companion against actions in a
+ * rail, and `plan/admin-design-contracts.md` §7 carries the reversal.
  *
- * A rail step item is `/forms/{formId}#step-{stepId}` - a route plus the anchor
- * `lib/forms/issues.ts` mints for issue focus. On the other seven screens that is a
- * cross-route link. On the builder the route part IS this route, so the item is a bare
- * same-page fragment, and §7 says the rail "never carries same-page section switches". The
- * children group here is therefore not redundant, it is forbidden.
+ * What that reasoning produced was a builder whose steps lived in a card inside the page
+ * while the rail beside it had none: one screen, two step lists, and no single place that
+ * owned them. `plan/admin-shell-poc/admin-shell-poc.html` had drawn the other arrangement
+ * all along - steps nested inside the Form row, each with a menu, an add control beneath -
+ * and that is what ships now.
  *
- * Three consequences, so a reviewer does not read them as defects:
+ * ## `interactiveSteps` is an upgrade, not a different list
  *
- * 1. **One group, and therefore no divider.** §7's "two groups, in that order, with one
- *    divider" describes the rail where both groups exist. `form-subtree-rail.tsx` already
- *    renders the divider only when there is a children group to separate.
- * 2. **The builder's step editor stays the single step list and keeps its buttons.** It is
- *    content rather than navigation, which is why §7 never reached it. Whether it should
- *    one day resemble the rail's step group, or move, is a builder-layout question that
- *    this rail does not answer and does not foreclose.
- * 3. **Still the one shared component.** Omitting a group is data passed to the rail
- *    (`childrenGroup`), not a per-screen copy of it.
- *
- * It also costs less than the other seven: with no step rows there is no badge, so
- * `lib/server/form-rail.ts` skips the dry-run validation rather than paying for a verdict
- * nothing renders.
+ * Every form screen renders the same nested steps. Here they additionally become buttons
+ * that select a step in the editor beside them, once the builder has published its draft
+ * through `lib/forms/builder-bridge.ts`. Until it does - and for a reader with no
+ * JavaScript - they are the same anchors the other seven screens show, pointing at the
+ * fragment `lib/forms/issues.ts` mints for issue focus.
  */
 export default function FormBuilderRail({
   params,
@@ -43,7 +34,7 @@ export default function FormBuilderRail({
     <FormRailSlot
       params={params}
       current={{ kind: "section", section: "builder" }}
-      childrenGroup="none"
+      interactiveSteps
     />
   );
 }

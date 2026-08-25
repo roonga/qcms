@@ -48,10 +48,12 @@ import { useEffect, useState, type ReactNode } from "react";
  * round: the toggle is about the width the reader is at.
  */
 export function RailDisclosure({ children }: { readonly children: ReactNode }) {
-  // `undefined` until the browser has answered, which is what `data-ready` publishes to the
-  // stylesheet. It is deliberately not `false`: a `false` here would make the server's HTML
-  // and the first client render disagree about `open`.
-  const [wide, setWide] = useState<boolean | undefined>(undefined);
+  // Open until the browser has answered, which is the server's answer and the one a reader
+  // with no JavaScript keeps. `ready` is the separate fact - whether the media query has
+  // been read yet - because the two stopped being the same thing once a reader could
+  // toggle `open` themselves.
+  const [open, setOpen] = useState(true);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     // 64rem is `--bp-sidebar`, in the unit §1 writes both breakpoints in so they move with
@@ -59,7 +61,11 @@ export function RailDisclosure({ children }: { readonly children: ReactNode }) {
     // font size the same way the stylesheet does, so the two boundaries cannot drift.
     const query = window.matchMedia("(min-width: 64rem)");
     const sync = (): void => {
-      setWide(query.matches);
+      // Only when the boundary itself moves. Re-deciding on every render is what
+      // overrode the reader's own toggle; re-deciding on a resize across the boundary is
+      // the behaviour this component is for.
+      setOpen(query.matches);
+      setReady(true);
     };
     sync();
     query.addEventListener("change", sync);
@@ -71,8 +77,19 @@ export function RailDisclosure({ children }: { readonly children: ReactNode }) {
   return (
     <details
       className="qcms-rail__disclosure"
-      open={wide ?? true}
-      {...(wide === undefined ? {} : { "data-ready": "" })}
+      open={open}
+      // THE READER'S TOGGLE HAS TO SURVIVE THE NEXT RENDER, and without this it did not.
+      // `open` is driven from state, so every re-render reasserted the width's answer and
+      // slammed a rail the reader had just opened. On most screens that is invisible
+      // because little re-renders; on the builder, where the draft, its autosave and its
+      // validation all re-render as an author types, a rail opened at 390 shut itself
+      // immediately and the steps inside it could not be reached at all. Reading the
+      // element's own state back is what makes this a disclosure the reader owns between
+      // breakpoint changes rather than one the component overrides.
+      onToggle={(event) => {
+        setOpen(event.currentTarget.open);
+      }}
+      {...(ready ? { "data-ready": "" } : {})}
     >
       {children}
     </details>

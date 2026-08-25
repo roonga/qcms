@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Alert, Button, TextField } from "@/components/kit";
 import { AmbientSaveStatus } from "@/components/save-model";
@@ -41,8 +41,8 @@ import type { ReadState } from "@/lib/read-state";
 import { ConditionEditor } from "./condition-editor";
 import { FormSettingsPanel } from "./form-settings-panel";
 import { RuleTestBench } from "./rule-test-bench";
+import { usePublishBuilderRail } from "@/lib/forms/builder-bridge";
 import { StepEditor } from "./step-editor";
-import { StepsRail } from "./steps-rail";
 import { ValidationPanel, type BuilderStatus } from "./validation-panel";
 
 /**
@@ -211,6 +211,37 @@ export function FormBuilder({
   // here is therefore safe, and it is the only place in this file where that is true.
   const counts = stepIssueCounts(issues ?? [], draft);
 
+  // Hand the rail this draft's steps and the handlers that change them. `useMemo` because
+  // the bridge republishes whenever the object identity changes, and a fresh object every
+  // render would wake every subscriber on every keystroke in the editor beside it.
+  usePublishBuilderRail(
+    useMemo(
+      () => ({
+        draft,
+        issueCounts: counts,
+        selectedStepId: selectedStep?.stepId,
+        choose: (stepId: string) => {
+          setSelectedStepId(stepId);
+        },
+        add: (title: string) => {
+          const next = addStep(draft, title);
+          mutate(next);
+          setSelectedStepId(next.steps[next.steps.length - 1]?.stepId);
+        },
+        rename: (stepId: string, title: string) => {
+          mutate(renameStep(draft, stepId, title));
+        },
+        move: (stepId: string, delta: -1 | 1) => {
+          mutate(moveStep(draft, stepId, delta));
+        },
+        remove: (stepId: string) => {
+          mutate(removeStep(draft, stepId));
+        },
+      }),
+      [draft, counts, selectedStep?.stepId, mutate],
+    ),
+  );
+
   return (
     <div className="flex flex-col gap-6">
       {/* Ambient save chrome: persistent, first thing on the screen, and the only place
@@ -277,28 +308,16 @@ export function FormBuilder({
           deliberate behaviour change here: between those widths they sit side by
           side where they used to stack. `minmax(0, 1fr)` is what keeps the narrower
           track from overflowing at the new low end. */}
-      <div className="grid gap-4 sidebar:grid-cols-[18rem_minmax(0,1fr)]">
-        <StepsRail
-          draft={draft}
-          issueCounts={counts}
-          selectedStepId={selectedStep?.stepId}
-          onSelect={setSelectedStepId}
-          onAdd={(title) => {
-            const next = addStep(draft, title);
-            mutate(next);
-            setSelectedStepId(next.steps[next.steps.length - 1]?.stepId);
-          }}
-          onRename={(stepId, title) => {
-            mutate(renameStep(draft, stepId, title));
-          }}
-          onMove={(stepId, delta) => {
-            mutate(moveStep(draft, stepId, delta));
-          }}
-          onRemove={(stepId) => {
-            mutate(removeStep(draft, stepId));
-          }}
-        />
+      {/* THE STEPS ARE IN THE RAIL, so this is the editor alone rather than a two-track
+          grid (Code Owner, 2026-08-25). It used to be an 18rem step list beside the editor,
+          which meant the builder carried a second step list while the rail beside it
+          carried none: one screen, two lists, and no single place that owned them. The
+          comment that used to stand here reasoned at length about which breakpoint that
+          grid should turn at; there is no grid to turn now.
 
+          `components/forms/rail-steps.tsx` is where the list went, and
+          `lib/forms/builder-bridge.ts` is how it reaches this component's draft. */}
+      <div>
         {/* Nothing rather than a second copy of the rail's own empty-state sentence: a
             step editor with no step is exactly the state the rail is already explaining,
             and saying it twice reads as two different facts. */}

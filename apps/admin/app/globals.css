@@ -2305,6 +2305,93 @@ button {
   flex-direction: column;
   gap: 0.125rem;
 }
+
+/* THE BUILDER'S STEP ROWS, which are the one place in a rail where a row both
+   goes somewhere and can be acted on (Code Owner, 2026-08-25; §7's clause against
+   actions in a rail was retired the same day). A row is two controls side by side:
+   the step itself, which fills the width, and a menu trigger that does not shrink.
+
+   The trigger is revealed on hover and on FOCUS, and the focus half is the half a
+   pointer-only implementation forgets: `:focus-within` on the row is what keeps the
+   menu reachable by keyboard, and `opacity` rather than `display` is what keeps it
+   in the tab order to be reached. It is always visible on the current step, because
+   that is the row an author is working on. */
+.qcms-rail-steps__row {
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+}
+.qcms-rail-steps__select {
+  flex: 1 1 auto;
+  min-width: 0;
+  /* A button wearing the shared row geometry, so the control chrome an anchor never
+     had comes off: the user-agent border on three sides (the inline-start edge is
+     kept, because that is what the active mark paints), the button background, the
+     centred text and the button font. */
+  border-block: 0;
+  border-inline-end: 0;
+  background-color: transparent;
+  font-family: inherit;
+  text-align: start;
+  cursor: pointer;
+  appearance: none;
+}
+.qcms-rail-steps__menu {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 1.75rem;
+  min-block-size: 1.75rem;
+  border: 0;
+  border-radius: var(--radius-control);
+  background-color: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  opacity: 0;
+}
+.qcms-rail-steps__row:hover .qcms-rail-steps__menu,
+.qcms-rail-steps__row:focus-within .qcms-rail-steps__menu,
+.qcms-rail-steps__row:has([aria-current="page"]) .qcms-rail-steps__menu {
+  opacity: 1;
+}
+.qcms-rail-steps__menu:hover {
+  background-color: var(--color-surface-hover);
+  color: var(--color-text);
+}
+/* A pointer-less reader never hovers, so the trigger has to be visible to be found
+   at all: `any-hover: none` is the query for that device rather than a width guess. */
+@media (any-hover: none) {
+  .qcms-rail-steps__menu {
+    opacity: 1;
+  }
+}
+
+/* The add control, under the list where the drawing puts it. Stacked rather than
+   inline because the track is 240px and a label, a field and a button do not sit on
+   one line inside it. */
+.qcms-rail-steps__add {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding-inline: calc(0.5rem + 3px);
+  padding-block: 0.5rem 0.25rem;
+}
+
+/* A NESTED GROUP, which is what the form's steps are inside the Form row (Code
+   Owner, 2026-08-25). The indent is on the group rather than on its rows, so the
+   active mark's 3px edge still lands on the row's own box and a marked step lines
+   up with a marked section rather than sitting 3px inside it. The rule down the
+   left is the tree's own line: it says these belong to the row above them, which
+   is the whole reason they moved out of a flat group. */
+.qcms-rail__group .qcms-rail__group {
+  margin-inline-start: calc(0.5rem + 3px);
+  padding-inline-start: 0.5rem;
+  border-inline-start: 1px solid var(--color-border);
+}
+:root.hc .qcms-rail__group .qcms-rail__group {
+  border-inline-start-color: var(--color-border-strong);
+}
 /* The one divider §7 asks for, between the two groups. */
 .qcms-rail__divider {
   margin-block: 0.5rem;
