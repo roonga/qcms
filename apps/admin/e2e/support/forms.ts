@@ -78,11 +78,34 @@ export async function openRail(page: Page): Promise<void> {
   await expect(disclosure).toHaveAttribute("open", "");
 }
 
-/** Add a step by title, and wait for its row to appear in the rail. */
+/**
+ * Show the form's own details: its title, settings, rules, test bench and validation.
+ *
+ * THE BUILDER IS TWO SCREENS behind one route since 2026-08-26, and the rail switches
+ * between them. It opens on this one, so most callers need it only after having opened a
+ * step - but calling it when it is already current is a press on a row that is already
+ * `aria-current`, which changes nothing. Helpers below that act on a form-level panel go
+ * through here rather than each spec remembering to.
+ */
+export async function openFormDetails(page: Page): Promise<void> {
+  await openRail(page);
+  await page.getByRole("button", { name: "Form details", exact: true }).click();
+  await expect(field(page, "Form title")).toBeVisible();
+}
+
+/**
+ * Add a step by title, and wait for its row to appear in the rail.
+ *
+ * The naming moved into a dialog on 2026-08-26, so this is now three gestures rather than
+ * two: open the dialog, name the step, commit. The trigger and the commit are deliberately
+ * NOT the same string - "Add step" opens, "Add" commits - because an exact-name lookup that
+ * matched both would be ambiguous the moment the dialog is on screen.
+ */
 export async function addStep(page: Page, title: string): Promise<void> {
   await openRail(page);
-  await fillStable(field(page, "New step title"), title);
   await page.getByRole("button", { name: "Add step", exact: true }).click();
+  await fillStable(field(page, "New step title"), title);
+  await page.getByRole("button", { name: "Add", exact: true }).click();
   await expect(page.getByRole("button", { name: `Open step ${title}` })).toBeVisible();
 }
 
@@ -200,6 +223,9 @@ export async function pinnedOrder(page: Page): Promise<string[]> {
 
 /** Add a rule and return the id the builder minted for it. */
 export async function addRule(page: Page): Promise<string> {
+  // Rules are the FORM's, so they live on the form screen. A spec that has just been
+  // working on a step is looking at the step screen, and would not find the button.
+  await openFormDetails(page);
   const before = await ruleIds(page);
   await page.getByRole("button", { name: "Add rule", exact: true }).click();
   await expect(page.locator("[data-rule-id]")).toHaveCount(before.length + 1);

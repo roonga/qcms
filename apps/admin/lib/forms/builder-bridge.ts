@@ -44,10 +44,28 @@ import type { DraftForm } from "./types.ts";
  * Choosing a step is not a query, but the tripwire cannot tell, and the right response to a
  * coarse security check is to stay clear of it rather than to carve an exemption into it.
  */
+/**
+ * WHAT THE BUILDER IS SHOWING, and the two are exclusive (Code Owner, 2026-08-26).
+ *
+ * The builder used to show one screen: the selected step's editor with the form's own
+ * title, settings, rules, test bench and validation stacked under it. Those five are
+ * properties of the FORM, so every step showed them again, and a reader moving between
+ * steps saw the same five panels follow them around as though each step had its own copy.
+ *
+ * `plan/admin-shell-poc/admin-shell-poc.html` draws two screens rather than one - its own
+ * card subtitle says "left rail navigating a form screen and a step screen" - and the rail
+ * is what switches between them. So the form's details are `kind: "form"`, reached from a
+ * row of the rail, and a step is `kind: "step"`, reached from that step's row.
+ */
+export type BuilderSelection =
+  { readonly kind: "form" } | { readonly kind: "step"; readonly stepId: string };
+
 export interface BuilderRailSnapshot {
   readonly draft: DraftForm;
   readonly issueCounts: ReadonlyMap<string, number>;
-  readonly selectedStepId: string | undefined;
+  readonly selection: BuilderSelection;
+  /** Show the form's own details rather than any step's. */
+  readonly chooseForm: () => void;
   readonly choose: (stepId: string) => void;
   readonly add: (title: string) => void;
   readonly rename: (stepId: string, title: string) => void;

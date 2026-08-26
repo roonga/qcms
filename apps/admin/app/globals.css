@@ -2367,13 +2367,10 @@ button {
   }
 }
 
-/* The add control, under the list where the drawing puts it. Stacked rather than
-   inline because the track is 240px and a label, a field and a button do not sit on
-   one line inside it. */
+/* The add control, under the list where the drawing puts it. One button since the
+   naming moved into a dialog, so there is no longer a field and a label to stack. */
 .qcms-rail-steps__add {
   display: flex;
-  flex-direction: column;
-  gap: 0.375rem;
   padding-inline: calc(0.5rem + 3px);
   padding-block: 0.5rem 0.25rem;
 }
@@ -2442,6 +2439,34 @@ button {
   color: var(--color-info-fg);
   font-weight: 700;
 }
+/* THE CURRENT STEP CARRIES NO EDGE (Code Owner, 2026-08-26). The rule above paints
+   an accent on the inline-start border of any current rail row, and on a step row it
+   read as a second, competing marker beside the ordinal already sitting there. It is
+   dropped for the step rows alone: the section rows above them keep it, because they
+   have no ordinal and the edge is the only shape their current state has.
+
+   This does not leave colour carrying the state on its own, which is what the rule
+   above is careful about. `aria-current="page"` is still what a screen reader is told,
+   and `font-weight: 700` is still a non-colour signal that survives high contrast. */
+.qcms-rail-steps__select[aria-current="page"] {
+  border-inline-start-color: transparent;
+}
+
+/* The form's own row, above the Steps group and outside it. A button wearing the
+   shared row geometry, the same way a step row does, so the tree reads as one list
+   of rows rather than as a control sitting on top of one. */
+.qcms-rail-steps__form {
+  display: flex;
+  inline-size: 100%;
+  border-block: 0;
+  border-inline-end: 0;
+  background-color: transparent;
+  font-family: inherit;
+  text-align: start;
+  cursor: pointer;
+  appearance: none;
+}
+
 /* The step's ordinal. Muted and unshrinkable, so the title beside it is what
    takes the width. */
 .qcms-rail__position {

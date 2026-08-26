@@ -7,6 +7,7 @@ import {
   createForm,
   field,
   issueSummary,
+  openFormDetails,
   pinQuestion,
   savedStamp,
   waitForSaveAfter,
@@ -81,6 +82,11 @@ test("the builder states one save model, in ambient chrome outside the validatio
   await addStep(page, "Only step");
   await pinQuestion(page, questionIdFor(PINNED_SLUG), 1);
   await waitForSaved(page);
+
+  // The validation panel and the form's title are the FORM's, and pinning left the screen
+  // on the step. The save strip is neither screen's - it is the builder's chrome, which is
+  // most of what this test is about - so it stays visible across the switch either way.
+  await openFormDetails(page);
 
   const strip = page.getByTestId("qcms-save-status");
   const panel = page.getByTestId("qcms-validation-status");

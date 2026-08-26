@@ -519,6 +519,7 @@ export const messages = {
   "forms.steps.title": "Steps",
   "forms.steps.add": "Add step",
   "forms.steps.newTitle": "New step title",
+  "forms.steps.addDone": "Add",
   "forms.steps.select": "Open step {title}",
   "forms.steps.menu": "Actions for step {title}",
   "forms.steps.rename": "Rename",
@@ -1411,6 +1412,7 @@ export const messages = {
   // distinct from the topbar's own landmark on the same page.
   "forms.rail.label": "{slug} steps and sections",
   "forms.rail.steps": "Steps",
+  "forms.rail.formDetails": "Form details",
   "forms.rail.sections": "Sections",
   // The ordinal beside a step title. A separate string rather than a template at the
   // call site because a locale that numbers differently changes it here (ADR-27).

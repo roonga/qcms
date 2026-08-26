@@ -41,7 +41,7 @@ import type { ReadState } from "@/lib/read-state";
 import { ConditionEditor } from "./condition-editor";
 import { FormSettingsPanel } from "./form-settings-panel";
 import { RuleTestBench } from "./rule-test-bench";
-import { usePublishBuilderRail } from "@/lib/forms/builder-bridge";
+import { usePublishBuilderRail, type BuilderSelection } from "@/lib/forms/builder-bridge";
 import { StepEditor } from "./step-editor";
 import { ValidationPanel, type BuilderStatus } from "./validation-panel";
 
@@ -139,9 +139,12 @@ export function FormBuilder({
   // can be low-churn while a test can still tell two saves apart. Issue 518.
   const [lastSavedAt, setLastSavedAt] = useState<string | undefined>(undefined);
   const [saveError, setSaveError] = useState<string | undefined>(undefined);
-  const [selectedStepId, setSelectedStepId] = useState<string | undefined>(
-    detail.draft?.steps[0]?.stepId,
-  );
+  // OPENS ON THE FORM, not on the first step, and that is the drawing rather than a
+  // preference: `plan/admin-shell-poc/admin-shell-poc.html` gives its Form row
+  // `aria-current="page"` in the markup it ships. It is also the honest landing for a
+  // screen whose rail now lists the steps - the reader picks the one they came for
+  // instead of being dropped into whichever one happens to be first.
+  const [selection, setSelection] = useState<BuilderSelection>({ kind: "form" });
 
   // Whether the author has touched anything this visit. Without it the first render would
   // post the draft straight back, which would store a `seeded` draft nobody edited.
@@ -203,7 +206,13 @@ export function FormBuilder({
     };
   }, [draft, paused]);
 
-  const selectedStep = draft.steps.find((step) => step.stepId === selectedStepId) ?? draft.steps[0];
+  // No fallback to the first step. A selection that names a step this draft no longer has
+  // is not "some other step", it is nothing, and the handlers below move the selection back
+  // to the form rather than letting the editor guess.
+  const selectedStep =
+    selection.kind === "step"
+      ? draft.steps.find((step) => step.stepId === selection.stepId)
+      : undefined;
   // The step rail badges a step only when its count is ABOVE zero, so it has no all-clear
   // to fabricate: with no verdict it renders no badges and asserts nothing, which is the
   // same silence §7's form-subtree rail keeps on the other seven screens when a dry run
@@ -219,14 +228,20 @@ export function FormBuilder({
       () => ({
         draft,
         issueCounts: counts,
-        selectedStepId: selectedStep?.stepId,
+        selection,
+        chooseForm: () => {
+          setSelection({ kind: "form" });
+        },
         choose: (stepId: string) => {
-          setSelectedStepId(stepId);
+          setSelection({ kind: "step", stepId });
         },
         add: (title: string) => {
           const next = addStep(draft, title);
           mutate(next);
-          setSelectedStepId(next.steps[next.steps.length - 1]?.stepId);
+          // Adding a step is a request to work on it, so the screen goes there. The guard
+          // is for the impossible case rather than a real one: `addStep` always appends.
+          const added = next.steps[next.steps.length - 1];
+          if (added !== undefined) setSelection({ kind: "step", stepId: added.stepId });
         },
         rename: (stepId: string, title: string) => {
           mutate(renameStep(draft, stepId, title));
@@ -236,9 +251,15 @@ export function FormBuilder({
         },
         remove: (stepId: string) => {
           mutate(removeStep(draft, stepId));
+          // The screen cannot stay on a step that no longer exists, and the form is the
+          // one destination that is always there. Falling to a neighbouring step would be
+          // choosing on the author's behalf which of the remaining ones they meant.
+          if (selection.kind === "step" && selection.stepId === stepId) {
+            setSelection({ kind: "form" });
+          }
         },
       }),
-      [draft, counts, selectedStep?.stepId, mutate],
+      [draft, counts, selection, mutate],
     ),
   );
 
@@ -266,68 +287,71 @@ export function FormBuilder({
           task 034's. It is, and it landed: the real control lives in `FormActions`
           above this component, where a refused publish can render its anchored work
           list beside the rules it points at. */}
-      <TextField
-        label={t("forms.builder.formTitle")}
-        description={t("forms.builder.formTitleHint")}
-        value={textOf(draft.title, draft.defaultLocale)}
-        onChange={(next) => {
-          mutate({ ...draft, title: { ...draft.title, [draft.defaultLocale]: next } });
-        }}
-      />
 
-      {/* The three grids below are the builder's only responsive behaviour, and they
-          do NOT all turn at the same width. `plan/admin-design-contracts.md` §1
-          fixes two boundaries and sorts side-by-side layouts between them, and these
-          three fall on both sides of that sort. Both tokens are defined in
-          `app/globals.css`; `compact:` and `sidebar:` are their utility prefixes.
+      {/* TWO SCREENS BEHIND ONE ROUTE, and the rail is the switch (Code Owner, 2026-08-26).
+          `plan/admin-shell-poc/admin-shell-poc.html` says so in its own card subtitle - "left
+          rail navigating a form screen and a step screen" - and draws the two: a Form screen
+          of Form title, Form settings, Rules, Rule test bench and Validation, and a Step
+          screen of that step's questions and nothing else.
 
-          THIS grid is the form's steps beside the step editor, and it keys to
-          `--bp-sidebar`. §7 defines the rail as carrying the form's children, its
-          steps with their per-step issue badges, so `StepsRail` is that rail, and
-          §1's "panes stack rather than shrink" clause carves out the case where the
-          panes are the rail itself. The render says the same thing the contract
-          does: the first track is a fixed 18rem, so splitting at the compact
-          boundary leaves the editor 288px, narrower than the 342px the same editor
-          gets stacked on a 390px phone, and its button labels wrap. Satisfying the
-          clause's letter while contradicting the reason it gives is the signal that
-          the wrong boundary was picked. (Ruled on PR 576 by applying §1 and §7, not
-          by deciding anything new. Issue 559 builds the real rail component and may
-          replace this grid outright; until it does, this is the boundary the
-          contract names for it.)
+          It used to be one screen carrying both, which meant the five FORM-level panels sat
+          under whichever step was selected and followed the reader from step to step. Nothing
+          was duplicated in the DOM, but the arrangement said the wrong thing: panels that
+          belong to the form read as though each step had its own copy of them, and the only
+          way to reach the form's settings was through a step that has nothing to do with them.
 
-          The two grids below it are page content and key to `--bp-compact`: rules
-          beside the validation panel, form settings beside the rule bench. §7 says
-          the rail never carries same-page section switches and that validation stays
-          on the builder page, so none of those four panes is rail content and the
-          carve-out does not reach them. They are ordinary side-by-side panes, which
-          §1 assigns to the compact boundary.
+          The three grids below are the builder's only responsive behaviour, and they do NOT
+          all turn at the same width. `plan/admin-design-contracts.md` §1 fixes two boundaries
+          and sorts side-by-side layouts between them. These are page content - rules beside
+          the validation panel, form settings beside the rule bench - so they key to
+          `--bp-compact`, which is what §1 assigns to ordinary side-by-side panes. The step
+          list is not one of them: it left this column for the rail on 2026-08-25, and
+          `components/forms/rail-steps.tsx` is where it went. */}
+      {selection.kind === "form" ? (
+        <>
+          <TextField
+            label={t("forms.builder.formTitle")}
+            description={t("forms.builder.formTitleHint")}
+            value={textOf(draft.title, draft.defaultLocale)}
+            onChange={(next) => {
+              mutate({ ...draft, title: { ...draft.title, [draft.defaultLocale]: next } });
+            }}
+          />
 
-          All three read `md:` until issue 557, so all three broke at Tailwind's
-          default 48rem, a third boundary the contract does not have. The two compact
-          grids therefore split at 640 now instead of 768, which is the one
-          deliberate behaviour change here: between those widths they sit side by
-          side where they used to stack. `minmax(0, 1fr)` is what keeps the narrower
-          track from overflowing at the new low end. */}
-      {/* THE STEPS ARE IN THE RAIL, so this is the editor alone rather than a two-track
-          grid (Code Owner, 2026-08-25). It used to be an 18rem step list beside the editor,
-          which meant the builder carried a second step list while the rail beside it
-          carried none: one screen, two lists, and no single place that owned them. The
-          comment that used to stand here reasoned at length about which breakpoint that
-          grid should turn at; there is no grid to turn now.
+          <div className="grid gap-4 compact:grid-cols-[minmax(0,1fr)_20rem]">
+            {/* Same reasoning as the step counts above: a rule renders its issue list only
+            when there is something in it, so an absent verdict and an empty one both come
+            out as no list rather than as an all-clear about the rule. */}
+            <RulesSection draft={draft} library={library} issues={issues ?? []} onChange={mutate} />
+            <ValidationPanel draft={draft} issues={issues} status={status} />
+          </div>
 
-          `components/forms/rail-steps.tsx` is where the list went, and
-          `lib/forms/builder-bridge.ts` is how it reaches this component's draft. */}
-      <div>
-        {/* Nothing rather than a second copy of the rail's own empty-state sentence: a
-            step editor with no step is exactly the state the rail is already explaining,
-            and saying it twice reads as two different facts. */}
-        {selectedStep === undefined ? null : (
-          <StepEditor
-            draft={draft}
-            step={selectedStep}
-            library={library}
-            issues={issues}
-            /* One `mutate` for the whole batch, folded left over the pins.
+          <div className="grid gap-4 compact:grid-cols-2">
+            <FormSettingsPanel
+              settings={detail.settings}
+              challengeProvider={detail.challengeProvider}
+              updateSettings={updateSettings}
+            />
+            <RuleTestBench
+              draft={draft}
+              rules={draft.rules}
+              library={library}
+              previewCondition={previewCondition}
+            />
+          </div>
+        </>
+      ) : (
+        <div>
+          {/* Nothing rather than a second copy of the rail's own empty-state sentence: a
+              step editor with no step is exactly the state the rail is already explaining,
+              and saying it twice reads as two different facts. */}
+          {selectedStep === undefined ? null : (
+            <StepEditor
+              draft={draft}
+              step={selectedStep}
+              library={library}
+              issues={issues}
+              /* One `mutate` for the whole batch, folded left over the pins.
                `addPinAt` is pure and returns the next draft, so the fold is what makes a
                multi-pin add correct: calling this handler once per pin would hand
                `addPinAt` the SAME closed-over `draft` every time and keep only the last
@@ -335,55 +359,34 @@ export function FormBuilder({
                is what it is to the author: one press of one button.
                The boundary advances with each pin so the batch lands in the order it was
                chosen, rather than every pin insetting at `index` and arriving reversed. */
-            onAddPins={(pins, index) => {
-              mutate(
-                pins.reduce(
-                  (next, pin, offset) =>
-                    addPinAt(
-                      next,
-                      selectedStep.stepId,
-                      pin.questionId,
-                      pin.version,
-                      index + offset,
-                    ),
-                  draft,
-                ),
-              );
-            }}
-            onMovePin={(questionId, version) => {
-              mutate(movePin(draft, questionId, version));
-            }}
-            onRemovePin={(questionId) => {
-              mutate(removePin(draft, questionId));
-            }}
-            onReorderPin={(questionId, delta) => {
-              mutate(movePinWithinStep(draft, selectedStep.stepId, questionId, delta));
-            }}
-          />
-        )}
-      </div>
-
-      <div className="grid gap-4 compact:grid-cols-[minmax(0,1fr)_20rem]">
-        {/* Same reasoning as the step counts above: a rule renders its issue list only
-            when there is something in it, so an absent verdict and an empty one both come
-            out as no list rather than as an all-clear about the rule. */}
-        <RulesSection draft={draft} library={library} issues={issues ?? []} onChange={mutate} />
-        <ValidationPanel draft={draft} issues={issues} status={status} />
-      </div>
-
-      <div className="grid gap-4 compact:grid-cols-2">
-        <FormSettingsPanel
-          settings={detail.settings}
-          challengeProvider={detail.challengeProvider}
-          updateSettings={updateSettings}
-        />
-        <RuleTestBench
-          draft={draft}
-          rules={draft.rules}
-          library={library}
-          previewCondition={previewCondition}
-        />
-      </div>
+              onAddPins={(pins, index) => {
+                mutate(
+                  pins.reduce(
+                    (next, pin, offset) =>
+                      addPinAt(
+                        next,
+                        selectedStep.stepId,
+                        pin.questionId,
+                        pin.version,
+                        index + offset,
+                      ),
+                    draft,
+                  ),
+                );
+              }}
+              onMovePin={(questionId, version) => {
+                mutate(movePin(draft, questionId, version));
+              }}
+              onRemovePin={(questionId) => {
+                mutate(removePin(draft, questionId));
+              }}
+              onReorderPin={(questionId, delta) => {
+                mutate(movePinWithinStep(draft, selectedStep.stepId, questionId, delta));
+              }}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }

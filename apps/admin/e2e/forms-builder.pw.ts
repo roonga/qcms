@@ -12,6 +12,7 @@ import {
   issue,
   issueSummary,
   movePin,
+  openFormDetails,
   openStep,
   pinLabel,
   pinQuestion,
@@ -126,6 +127,10 @@ test("builds the insurance form through the UI and saves it (exit criterion 1)",
   await addStep(page, "Claim details");
   await pinQuestion(page, questionIdFor(CLAIM_NOTES), 1);
 
+  // Rules belong to the FORM, so reaching them means leaving the step screen pinning left
+  // us on. The builder has been two screens behind one route since 2026-08-26.
+  await openFormDetails(page);
+
   // The section that lists rules is headed "Rules", which is the word its own button, its
   // entities and the bench beside it already use (issue 661). It used to read
   // "Conditions", so an author read one name in the heading and another in everything
@@ -148,6 +153,7 @@ test("builds the insurance form through the UI and saves it (exit criterion 1)",
   // The draft is on the server, not just on screen: a reload rebuilds it from the API.
   await page.reload();
   await expect(page.getByRole("button", { name: "Open step Driving history" })).toBeVisible();
+  // The reload opens on the form, which is where the rule list is, so no switch here.
   await expect(page.getByRole("button", { name: "Open step Claim details" })).toBeVisible();
   await expect(page.locator("[data-rule-id]")).toHaveCount(1);
   await expect(pinLabel(page, questionIdFor(AT_FAULT), 1)).toBeVisible();
@@ -244,6 +250,9 @@ test("moving a pin re-runs validation and surfaces the broken option ref (exit c
   // The version change is on screen, validation re-ran on its own, and the consequence is
   // reported at the rule that carries the now-dangling option id.
   await expect(pinLabel(page, questionIdFor(COVER_LEVEL), 2)).toBeVisible();
+  // The pin is the step's and the rule is the form's, so the consequence is read back on
+  // the form screen the rule lives on.
+  await openFormDetails(page);
   await expect(issue(scope, "DANGLING_OPTION_REF")).toBeVisible({ timeout: 30_000 });
   await expect(issueSummary(page)).toContainText("would block a publish");
 });

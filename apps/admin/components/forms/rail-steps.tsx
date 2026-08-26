@@ -55,6 +55,27 @@ export function RailSteps({ serverItems }: { readonly serverItems: readonly Rail
 
   return (
     <div className="qcms-rail-steps">
+      {/* THE FORM'S OWN ROW, above its steps and outside the Steps group, because it is not
+          one of them: it is the sibling of the whole list. The drawing has it
+          (`plan/admin-shell-poc/admin-shell-poc.html` ships a `Form` row with
+          `aria-current="page"`), and without it the form's title, settings, rules, test
+          bench and validation have no address of their own - they were stacked under
+          whichever step was selected, which is what made five form-level panels read as
+          though every step carried its own copy.
+
+          A button rather than a link for the reason the step rows are buttons: this route
+          is already the one the reader is standing on, so choosing it changes what the
+          column beside the rail shows rather than navigating anywhere
+          (`docs/admin-constraints.md`, an anchor navigates and a button acts). */}
+      <button
+        type="button"
+        className="qcms-rail__link qcms-rail-steps__form"
+        data-rail-item="form-details"
+        aria-current={builder.selection.kind === "form" ? "page" : undefined}
+        onClick={builder.chooseForm}
+      >
+        {t("forms.rail.formDetails")}
+      </button>
       <ol className="qcms-rail__group" aria-label={t("forms.rail.steps")} data-rail-group="steps">
         {builder.draft.steps.map((step, index) => (
           <li key={step.stepId}>
@@ -64,7 +85,9 @@ export function RailSteps({ serverItems }: { readonly serverItems: readonly Rail
               position={index + 1}
               total={builder.draft.steps.length}
               issueCount={builder.issueCounts.get(step.stepId) ?? 0}
-              isSelected={step.stepId === builder.selectedStepId}
+              isSelected={
+                builder.selection.kind === "step" && builder.selection.stepId === step.stepId
+              }
               onSelect={() => {
                 builder.choose(step.stepId);
               }}
@@ -326,23 +349,53 @@ function StepRow({
   );
 }
 
-/** The add control, under the list, where the drawing puts it. */
+/**
+ * The add control, under the list, where the drawing puts it.
+ *
+ * A BUTTON THAT OPENS A DIALOG rather than a field standing open in the rail (Code Owner,
+ * 2026-08-26). The field was on screen whether or not anyone was adding a step, which put a
+ * permanent empty text input under a navigation list and cost the rail a label, a control
+ * and their spacing on every screen of the builder. It is the same shape Rename already
+ * uses, and for the same reason given there: the rail track is 240px, and a field inside it
+ * is narrower than most step titles.
+ */
 function AddStep({ onAdd }: { readonly onAdd: (title: string) => void }) {
+  const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   return (
     <div className="qcms-rail-steps__add">
-      <TextField label={t("forms.steps.newTitle")} value={title} onChange={setTitle} />
       <Button
         variant="secondary"
         size="sm"
-        isDisabled={title.trim() === ""}
         onPress={() => {
-          onAdd(title.trim());
           setTitle("");
+          setOpen(true);
         }}
       >
         {t("forms.steps.add")}
       </Button>
+      {open && (
+        <Dialog
+          isOpen
+          title={t("forms.steps.add")}
+          onOpenChange={(isOpen: boolean) => {
+            if (!isOpen) setOpen(false);
+          }}
+        >
+          <TextField label={t("forms.steps.newTitle")} value={title} onChange={setTitle} />
+          <Button
+            variant="primary"
+            size="md"
+            isDisabled={title.trim() === ""}
+            onPress={() => {
+              onAdd(title.trim());
+              setOpen(false);
+            }}
+          >
+            {t("forms.steps.addDone")}
+          </Button>
+        </Dialog>
+      )}
     </div>
   );
 }
