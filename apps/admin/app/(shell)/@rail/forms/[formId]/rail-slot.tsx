@@ -1,6 +1,7 @@
 import { FormSubtreeRail } from "@/components/forms/form-subtree-rail";
+import { RailSteps } from "@/components/forms/rail-steps";
 import type { RailCurrent } from "@/lib/forms/subtree-rail";
-import { loadFormRail, type RailChildren } from "@/lib/server/form-rail";
+import { loadFormRail } from "@/lib/server/form-rail";
 import { requireAdminSession } from "@/lib/server/session";
 
 /**
@@ -27,13 +28,13 @@ import { requireAdminSession } from "@/lib/server/session";
  * navigation within the FORM's subtree; what a given screen happens to be listing in its
  * own column is the column's business.
  *
- * The builder asks for `childrenGroup: "none"`, and that is §7 applying to itself rather than
- * an exception to it. A step item is
- * `/forms/{id}#step-{stepId}`, which is a cross-route link on the other seven screens and
- * a bare same-page fragment on the builder, and §7 says the rail "never carries same-page
- * section switches". So the group is not merely redundant beside the builder's step
- * editor: it is forbidden. Omitting it is data passed to the shared component, never a
- * per-screen copy of it, which is why nothing forks here.
+ * ALL EIGHT SCREENS CARRY THE SAME TREE, the builder included, and that is a reversal
+ * (Code Owner, 2026-08-25). The builder used to ask for the siblings alone: a step item is
+ * `/forms/{id}#step-{stepId}`, a cross-route link on the other seven screens but a bare
+ * same-page fragment on the builder, and §7 barred those. That clause is retired, and the
+ * screen it was barring is the one screen where the steps are the reader's actual work. So
+ * the builder's rail carries them too, and there is no longer a knob for leaving them out:
+ * one shared component fed one shape of data, with nothing per-screen to keep in step.
  *
  * ## Why a detail route marks its section rather than itself
  *
@@ -50,17 +51,24 @@ import { requireAdminSession } from "@/lib/server/session";
 export async function FormRailSlot({
   params,
   current,
-  childrenGroup = "steps",
+  interactiveSteps = false,
 }: {
   readonly params: Promise<{ formId: string }>;
   /** Which row of the rail this screen is. */
   readonly current: RailCurrent;
-  /** Which of §7's two groups this screen's rail carries. The builder takes `"none"`. */
-  readonly childrenGroup?: RailChildren;
+  /**
+   * Whether the nested steps can be worked on rather than only walked to.
+   *
+   * True on the builder alone, which is the one screen with a draft to change. Everywhere
+   * else a step row is a link to the builder's own anchor for it, which is what it has
+   * always been. `RailSteps` renders the same anchors until the builder publishes, so this
+   * flag turns on an upgrade rather than a different list.
+   */
+  readonly interactiveSteps?: boolean;
 }) {
   const session = await requireAdminSession();
   const { formId } = await params;
-  const rail = await loadFormRail(session, formId, childrenGroup);
+  const rail = await loadFormRail(session, formId);
   // A form that cannot be read gets no rail, and the screen's own 404 or error alert
   // speaks instead. `lib/server/form-rail.ts` owns that policy; this is only its answer.
   if (rail === null) return null;
@@ -72,6 +80,7 @@ export async function FormRailSlot({
       steps={rail.steps}
       issueCounts={rail.issueCounts}
       current={current}
+      {...(interactiveSteps ? { renderSteps: (steps) => <RailSteps serverItems={steps} /> } : {})}
     />
   );
 }

@@ -228,18 +228,19 @@ test.describe("the form builder's grids turn at the token each one is assigned",
   const EMAIL = uniqueAdminEmail("breakpoints");
 
   /**
-   * The builder's three grids, and the boundary the contract assigns to each.
+   * The builder's page grids, and the boundary the contract assigns to them.
    *
-   * The steps rail is §7 rail content, so §1's carve-out ("panes stack rather than shrink
-   * unless the panes are the rail itself") applies and it turns at `--bp-sidebar`. The
-   * other two are page content, which §1 sends to `--bp-compact`. The whole point of
-   * pinning both here is that the two groups turn at DIFFERENT widths: a regression that
-   * put them back on one boundary would pass a test that only checked one of them.
+   * There were three. The third was the form's steps beside the step editor - an 18rem
+   * track that turned at `--bp-sidebar` under §1's carve-out for panes that ARE the rail -
+   * and on 2026-08-25 the steps moved into the rail itself, so that grid no longer exists.
+   * What is left is page content, which §1 sends to `--bp-compact`.
+   *
+   * The `--bp-sidebar` half of the pair has not stopped being covered: it is now the rail's
+   * own 240px track appearing, which `rail.pw.ts` pins on both sides of the boundary.
    *
    * Matched on the class attribute rather than a test id: the class IS the assignment, so
    * a selector that stops matching is itself the failure signal.
    */
-  const RAIL = '[class*="sidebar:grid-cols-[18rem"]';
   const PANES = [
     { selector: '[class*="compact:grid-cols-[minmax(0,1fr)_20rem"]', name: "rules and validation" },
     { selector: '[class*="compact:grid-cols-2"]', name: "settings and rule bench" },
@@ -255,7 +256,6 @@ test.describe("the form builder's grids turn at the token each one is assigned",
 
     // The seeded fixture form: this needs a builder to look at, not a particular form.
     await page.goto(`/forms/${FORM_ID}`);
-    await expect(page.locator(RAIL)).toBeVisible();
 
     const expectPanes = async (tracks: number, where: string): Promise<void> => {
       for (const pane of PANES) {
@@ -264,12 +264,10 @@ test.describe("the form builder's grids turn at the token each one is assigned",
     };
 
     await setMediaWidth(page, COMPACT_PX - 1);
-    expect(await trackCount(page, RAIL), "the rail stacks below --bp-compact too").toBe(1);
     await expectPanes(1, "one track at one pixel below --bp-compact");
 
     await setMediaWidth(page, COMPACT_PX);
     await expectPanes(2, "two tracks exactly at --bp-compact");
-    expect(await trackCount(page, RAIL), "the rail is still stacked at --bp-compact").toBe(1);
 
     // 700 is inside the band this migration moved: the panes read `md:` before issue 557
     // and so were still stacked here. Asserted so the change is recorded as intended
@@ -277,15 +275,8 @@ test.describe("the form builder's grids turn at the token each one is assigned",
     await setMediaWidth(page, 700);
     await expectPanes(2, "two tracks between the old 768 and the token");
 
-    await setMediaWidth(page, SIDEBAR_PX - 1);
-    expect(await trackCount(page, RAIL), "one track at one pixel below --bp-sidebar").toBe(1);
-
-    await setMediaWidth(page, SIDEBAR_PX);
-    expect(await trackCount(page, RAIL), "two tracks exactly at --bp-sidebar").toBe(2);
-
     // And the phone width every gate reviews, which must still stack throughout.
     await setMediaWidth(page, 390);
-    expect(await trackCount(page, RAIL), "one track at the 390px gate width").toBe(1);
     await expectPanes(1, "one track at the 390px gate width");
   });
 });

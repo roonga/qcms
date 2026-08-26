@@ -492,12 +492,35 @@ it belongs with #518's implementation, not here.
 - The rail carries **navigation within one form's subtree**: the form's children
   (its steps, with per-step issue badges) and the form's sibling screens
   (Builder, Preview, Versions, Links, Responses, Webhooks). A question's version
-  list counts as children on the question detail screen. That is the whole
-  contract: two groups, in that order, with one divider.
-- The rail never carries actions (no lifecycle buttons - those belong in the
-  main column), never carries same-page section switches, and never carries a
+  list counts as children on the question detail screen. ~~That is the whole
+  contract: two groups, in that order, with one divider.~~
+
+  **Amended 2026-08-25 (Code Owner): one tree, not two groups.** The steps are
+  nested inside the Form row rather than stacked above the sections, so there is
+  one list and no divider between them. A form's steps belong to the form's own
+  screen; a flat group above six sibling routes said they were a seventh peer of
+  them, and the drawing never did.
+
+- ~~The rail never carries actions (no lifecycle buttons - those belong in the
+  main column), never carries same-page section switches~~, and never carries a
   route the audit rejected (Validation stays on the builder page,
   `plan/admin-ux-audit.md` §5.5).
+
+  **Both struck clauses are retired, 2026-08-25 (Code Owner).** The actions half
+  had already been overruled during the POC work - this document says so in its
+  own preamble - and leaving it written here while citing the preamble against it
+  is what made it a source of confusion rather than a rule. It is deleted rather
+  than annotated again.
+
+  Two rails already carry actions and both are the approved design: the question
+  detail rail's lifecycle block (`question-editor-poc.html`), and the form
+  builder's step rows, which `admin-shell-poc.html` draws with a rename, move and
+  remove menu on each and an add-step control under them.
+
+  The same-page half goes with it, for the same reason and by the same authority:
+  the builder's step rows select a step on the screen the reader is already on.
+  That is what the drawing has always shown.
+
 - Collapsed (below `--bp-sidebar`), the summary names the ~~active item~~ **form**
   and the **form's** issue total (`plan/admin-mobile-stance.md`, amended
   2026-08-23; issue #693). The summary text truncates with an ellipsis; the markup
@@ -633,6 +656,17 @@ existing clause bars:
 
 So the children group is not merely redundant on the builder, it is **already forbidden**. No
 new rule is needed and none is invented here.
+
+> **REVERSED, 2026-08-25 (Code Owner).** The clause this rests on is retired above, so its
+> conclusion goes with it. **The builder carries its steps like every other screen in the
+> subtree**, and they are nested inside the Form row rather than stacked above the six
+> sections - which is what `admin-shell-poc.html` has drawn all along, complete with the
+> per-step menu and the add-step control.
+>
+> The reasoning below was sound from the clause it cited and is kept for the record, but
+> the outcome it produced was a builder with its steps in a second list inside the page,
+> beside a rail that had none: one screen with two step lists and no single place that
+> owned them.
 
 - **The builder's rail renders one group**: Builder / Preview / Versions / Links / Responses /
   Webhooks, with Builder marked active.

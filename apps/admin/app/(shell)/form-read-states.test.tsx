@@ -149,6 +149,8 @@ vi.mock(
 );
 vi.mock("@/components/forms/secure-links", () => import("../../components/forms/secure-links"));
 vi.mock("@/components/forms/form-builder", () => import("../../components/forms/form-builder"));
+// The seam the builder publishes its steps through, for the rail beside it.
+vi.mock("@/lib/forms/builder-bridge", () => import("../../lib/forms/builder-bridge"));
 vi.mock("@/components/empty-state", () => import("../../components/empty-state"));
 vi.mock("@/lib/read-state", () => import("../../lib/read-state"));
 vi.mock("@/lib/i18n/format", () => import("../../lib/i18n/format"));

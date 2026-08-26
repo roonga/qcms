@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 import { RailFrame } from "@/components/rail-frame";
 import {
@@ -21,15 +22,10 @@ import { t } from "@/lib/i18n/en";
  *
  * ## What it does not carry, and why each absence is load-bearing
  *
- * - **No actions.** There is not a `<button>` in this file, and the test beside it asserts
- *   that by counting them rather than by reading it. Add, rename, reorder and remove are
- *   the builder's, on the builder's own step list, where the draft they mutate lives; a
- *   lifecycle button belongs in the main column. The POCs draw a grip and an overflow menu
- *   on every rail step row (`plan/admin-shell-poc/admin-shell-poc.html`); §7 says the rail
- *   never carries an action, and where a POC and the contract disagree the contract wins.
- * - **No same-page section switches.** That is the whole line between this component and
- *   the Settings rail of §7a, which is a different component that happens to share the
- *   column. Every row here is a route.
+ * - **The steps are nested in the Form row**, not stacked above the six sections, which is
+ *   what `plan/admin-shell-poc/admin-shell-poc.html` draws and what the data model says: a
+ *   form's steps belong to the form's own screen rather than being a seventh peer of its
+ *   sibling routes (Code Owner, 2026-08-25).
  * - **No Validation route.** `plan/admin-ux-audit.md` §5.5: the builder's validation
  *   entries are links that move focus to the offending control, so splitting them onto a
  *   route of their own resolves every one of them to nothing, and takes the publish
@@ -56,6 +52,7 @@ export function FormSubtreeRail({
   steps,
   issueCounts,
   current,
+  renderSteps,
 }: {
   readonly formId: string;
   /** The form's own name, and the summary's fallback. */
@@ -65,6 +62,16 @@ export function FormSubtreeRail({
   readonly issueCounts: ReadonlyMap<string, number>;
   /** Which row this screen is. */
   readonly current: RailCurrent;
+  /**
+   * How to render the nested steps, when the screen wants more than anchors.
+   *
+   * A render prop rather than an import, so this file stays a server component that knows
+   * nothing about client state: the builder's slot hands in the interactive list and every
+   * other screen passes nothing and gets the anchors. Same seam
+   * `components/questions/question-versions-rail.tsx` uses for its lifecycle actions, and
+   * for the same reason.
+   */
+  readonly renderSteps?: (steps: readonly RailItem[]) => ReactNode;
 }) {
   const groups = formSubtreeRail({ formId, steps, issueCounts, current });
   const summary = railSummary(groups, slug);
@@ -78,17 +85,22 @@ export function FormSubtreeRail({
       // is what "this item has no count" means.
       {...(summary.issueCount > 0 ? { summaryCount: issueCountLabel(summary.issueCount) } : {})}
     >
-      {/* A form with no steps yet has no children, so it gets neither the group nor the
-          divider: §7's "one divider" separates two groups, and there is nothing to
-          separate a group from. The siblings are always there, because a form always has
-          six sections whether or not anyone has built it yet. */}
-      {groups.children.length > 0 && (
-        <>
-          <RailGroup label={t("forms.rail.steps")} items={groups.children} kind="steps" />
-          <hr className="qcms-rail__divider" />
-        </>
-      )}
-      <RailGroup label={t("forms.rail.sections")} items={groups.siblings} kind="sections" />
+      {/* One list, with the steps nested inside the Form row rather than stacked above
+          the whole thing (Code Owner, 2026-08-25, and `plan/admin-shell-poc/
+          admin-shell-poc.html`, which draws exactly this). A form's steps belong TO the
+          form's own screen, so a flat group above six sibling routes said they were a
+          seventh peer of them; nested, the tree says what the data model says.
+
+          The divider went with the flattening. §7's "one divider between two groups"
+          described two groups, and there is one list now. */}
+      <RailGroup
+        label={t("forms.rail.sections")}
+        items={groups.siblings}
+        kind="sections"
+        steps={groups.children}
+        stepsUnder="section:builder"
+        {...(renderSteps === undefined ? {} : { renderSteps })}
+      />
     </RailFrame>
   );
 }
@@ -113,36 +125,59 @@ function RailGroup({
   label,
   items,
   kind,
+  steps,
+  stepsUnder,
+  renderSteps,
 }: {
   readonly label: string;
   readonly items: readonly RailItem[];
   readonly kind: "steps" | "sections";
+  /** The form's steps, rendered nested inside the row named by {@link stepsUnder}. */
+  readonly steps?: readonly RailItem[];
+  readonly stepsUnder?: string;
+  readonly renderSteps?: (steps: readonly RailItem[]) => ReactNode;
 }) {
   const List = kind === "steps" ? "ol" : "ul";
   return (
     <List className="qcms-rail__group" aria-label={label} data-rail-group={kind}>
       {items.map((item) => (
         <li key={item.key}>
-          <Link
-            href={item.href}
-            className="qcms-rail__link"
-            data-rail-item={item.key}
-            {...(item.isCurrent ? { "aria-current": "page" as const } : {})}
-          >
-            {item.position !== undefined && (
-              <span className="qcms-rail__position" aria-hidden="true">
-                {t("forms.rail.stepPosition", { position: item.position })}
-              </span>
-            )}
-            <span>{item.label}</span>
-            {item.issueCount > 0 && (
-              <span className="qcms-tag qcms-tag--draft" data-rail-issues={item.issueCount}>
-                {issueCountLabel(item.issueCount)}
-              </span>
-            )}
-          </Link>
+          <RailRow item={item} />
+          {item.key === stepsUnder &&
+            steps !== undefined &&
+            (renderSteps === undefined
+              ? // A form with no steps yet nests nothing: an empty `<ol>` announced as a
+                // list of zero would be a promise the form has not made.
+                steps.length > 0 && (
+                  <RailGroup label={t("forms.rail.steps")} items={steps} kind="steps" />
+                )
+              : renderSteps(steps))}
         </li>
       ))}
     </List>
+  );
+}
+
+/** One row, shared by both levels of the tree so a nested step wears the same chrome. */
+function RailRow({ item }: { readonly item: RailItem }) {
+  return (
+    <Link
+      href={item.href}
+      className="qcms-rail__link"
+      data-rail-item={item.key}
+      {...(item.isCurrent ? { "aria-current": "page" as const } : {})}
+    >
+      {item.position !== undefined && (
+        <span className="qcms-rail__position" aria-hidden="true">
+          {t("forms.rail.stepPosition", { position: item.position })}
+        </span>
+      )}
+      <span>{item.label}</span>
+      {item.issueCount > 0 && (
+        <span className="qcms-tag qcms-tag--draft" data-rail-issues={item.issueCount}>
+          {issueCountLabel(item.issueCount)}
+        </span>
+      )}
+    </Link>
   );
 }

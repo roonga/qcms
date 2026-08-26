@@ -53,8 +53,34 @@ export async function createForm(page: Page, slug: string, title: string): Promi
   return formId;
 }
 
+/**
+ * Open the rail if it is shut, because below `--bp-sidebar` it opens that way.
+ *
+ * The steps live in the rail since 2026-08-25, and the rail is a disclosure that starts
+ * collapsed on a narrow viewport (issue 707's decision). So on a phone, working on a step
+ * begins by opening the rail - one press, and the summary above it names the form the whole
+ * time. Every helper below goes through here rather than each one learning the width.
+ *
+ * A no-op at desktop widths, where the disclosure is already open.
+ */
+export async function openRail(page: Page): Promise<void> {
+  const disclosure = page.locator("details.qcms-rail__disclosure");
+  if ((await disclosure.count()) === 0) return;
+  // WAIT FOR THE WIDTH TO HAVE BEEN DECIDED before reading `open`, or this races
+  // hydration and does nothing. The server ships the rail open - that is the safe answer,
+  // and the one a scriptless reader keeps - so an early read always sees `open` and returns,
+  // and the media query then shuts it a moment later. `data-ready` is the attribute
+  // `components/rail-disclosure.tsx` sets once it has read the query, which is exactly the
+  // moment this can trust what it sees.
+  await expect(disclosure).toHaveAttribute("data-ready", "");
+  if ((await disclosure.getAttribute("open")) !== null) return;
+  await page.locator("summary.qcms-rail__summary").click();
+  await expect(disclosure).toHaveAttribute("open", "");
+}
+
 /** Add a step by title, and wait for its row to appear in the rail. */
 export async function addStep(page: Page, title: string): Promise<void> {
+  await openRail(page);
   await fillStable(field(page, "New step title"), title);
   await page.getByRole("button", { name: "Add step", exact: true }).click();
   await expect(page.getByRole("button", { name: `Open step ${title}` })).toBeVisible();
@@ -62,6 +88,7 @@ export async function addStep(page: Page, title: string): Promise<void> {
 
 /** Select a step in the rail, which is what decides which step the editor is editing. */
 export async function openStep(page: Page, title: string): Promise<void> {
+  await openRail(page);
   await page.getByRole("button", { name: `Open step ${title}` }).click();
   await expect(page.getByRole("heading", { name: `Step: ${title}` })).toBeVisible();
 }

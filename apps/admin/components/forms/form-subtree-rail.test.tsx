@@ -83,30 +83,38 @@ describe("the rail's markup", () => {
     expect(html).toContain('<nav class="qcms-rail" aria-label="life steps and sections"');
   });
 
-  it("holds no button at all, which is both 'anchors not buttons' and 'no actions'", async () => {
+  it("orders the tree with each step nested inside the Form row", async () => {
     const html = await render(LINKS);
-    expect(html).not.toContain("<button");
-    // Every row, in both groups, is an anchor with an href that goes somewhere.
+    // The steps are inside the Form row rather than above the sections (Code Owner,
+    // 2026-08-25), so the anchor order is the tree read depth-first: Form, then its
+    // steps, then the five remaining sections. Before the nesting the two step anchors
+    // came first, which said they were peers of the six routes rather than children of
+    // one of them.
     const anchors = [...html.matchAll(/<a href="([^"]+)"/gu)].map((match) => match[1]);
     expect(anchors).toStrictEqual([
+      "/forms/frm_life",
       "/forms/frm_life#step-stp_about",
       "/forms/frm_life#step-stp_health",
-      "/forms/frm_life",
       "/forms/frm_life/preview",
       "/forms/frm_life/versions",
       "/forms/frm_life/links",
       "/forms/frm_life/responses",
       "/forms/frm_life/webhooks",
     ]);
+    // The nesting is real containment, not an indent: the steps list is INSIDE the
+    // Form row's `<li>`, which is what makes a screen reader announce them as belonging
+    // to it.
+    const formRow = html.slice(html.indexOf('data-rail-item="section:builder"'));
+    expect(formRow.slice(0, formRow.indexOf("</li>"))).toContain('data-rail-group="steps"');
   });
 
-  it("separates the two groups with exactly one divider", async () => {
+  it("draws one tree and no divider, because there are no longer two groups", async () => {
     const html = await render(LINKS);
-    expect([...html.matchAll(/<hr class="qcms-rail__divider"/gu)]).toHaveLength(1);
-    // Children first, siblings second: §7 states the order, so the order is asserted.
-    expect(html.indexOf('data-rail-group="steps"')).toBeLessThan(
-      html.indexOf('data-rail-group="sections"'),
-    );
+    // §7's "one divider between two groups" described two groups. There is one list now
+    // (contract amended 2026-08-25), so the divider it separated has nothing to separate.
+    expect(html).not.toContain("qcms-rail__divider");
+    expect([...html.matchAll(/data-rail-group="sections"/gu)]).toHaveLength(1);
+    expect([...html.matchAll(/data-rail-group="steps"/gu)]).toHaveLength(1);
   });
 
   it("drops the divider with the group, when a form has no steps to separate", async () => {
@@ -148,6 +156,19 @@ describe("the rail's markup", () => {
     const onAStep = await render({ kind: "step", stepId: "stp_health" });
     expect(onAStep).toMatch(/<span class="qcms-rail__summary-text">life<\/span>/u);
     expect(onAStep).toMatch(/data-testid="qcms-rail-summary-count">2 issues</u);
+  });
+
+  it("leaves every step bare rather than badging a zero it was never given", async () => {
+    // Absence rather than a claim: the rail has no "0 issues" state, which is what lets
+    // the validation panel's "not checked yet" and this list sit on one screen without
+    // contradicting each other (issue 625). This assertion moved here with the steps
+    // themselves, from `unvalidated-builder.test.tsx`, when the builder's own step list
+    // was retired.
+    const noVerdict = await render(LINKS, STEPS, new Map());
+    expect(noVerdict, "no verdict, no badge").not.toContain("data-rail-issues");
+
+    const withVerdict = await render(LINKS, STEPS, new Map([["stp_health", 2]]));
+    expect(withVerdict).toContain('data-rail-issues="2"');
   });
 
   it("drops the summary badge when the form has no issues at all", async () => {
