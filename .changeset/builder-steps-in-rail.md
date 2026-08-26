@@ -35,3 +35,14 @@ builder decides what it means.
 Before hydration, and for a reader with no JavaScript, the rail renders the same step
 anchors the other seven screens show. The list gains behaviour on hydration rather than
 appearing then.
+
+Two things carried across from the retired list rather than left behind with it. The step's
+anchor id moved with the steps: it is what `lib/forms/issues.ts` mints for the validation
+panel's "jump to the offending step" links and what the other seven screens' rail rows point
+at, so with nothing rendering it both sets of links landed nowhere. And Move up on the first
+step and Move down on the last are greyed again; `moveStep` ignores an out-of-range move, so
+leaving them live corrupted nothing but told a screen reader those commands were available.
+
+`loadFormRail` loses its "siblings only" mode with the screen that asked for it. All eight
+form screens now carry the same tree, so a switch for suppressing the steps could only
+reintroduce the split this closes.

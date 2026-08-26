@@ -205,6 +205,16 @@ test("561 gives every screen the form's steps as its children, never the list it
     page.locator(`main#main-content [data-rail-step-select]`),
     "and the page carries no second step list",
   ).toHaveCount(0);
+
+  // AND THE LIST IS STILL THE PLACE THOSE SEVEN HREFS LAND. Every step row above points at
+  // `#step-{stepId}`, and so does the validation panel's link to an offending step; the
+  // element answering to that id lived in the in-page list, so deleting that list took the
+  // destination with it and left both sets of links pointing at nothing. No assertion in
+  // this suite noticed, because a fragment that matches nothing fails silently.
+  await expect(
+    page.locator(`#step-${STEP_ID}`),
+    "the step the seven rails link to is present to be linked to",
+  ).toHaveCount(1);
 });
 
 test("561 keeps the two respondent-facing screens on the narrower cap the rail sits beside", async ({

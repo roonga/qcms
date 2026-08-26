@@ -85,6 +85,21 @@ describe("the form-subtree rail's contents", () => {
     ]);
   });
 
+  it("makes a step row the destination for the id it points at, and a sibling row no destination", () => {
+    // The other half of the href above, and the half that went missing when the step list
+    // moved into the rail: something has to CARRY `step-{stepId}` or every link naming it
+    // lands nowhere - the rail's own rows from seven screens, and the validation panel's
+    // "jump to the offending step" links, which is what `lib/forms/issues.ts` mints the id
+    // for. A sibling is a route rather than a fragment, so it is a destination for nothing.
+    const groups = rail({ kind: "section", section: "links" });
+    expect(groups.children.map((item) => item.anchorId)).toStrictEqual([
+      "step-stp_about",
+      "step-stp_health",
+      "step-stp_blank",
+    ]);
+    expect(groups.siblings.every((item) => item.anchorId === undefined)).toBe(true);
+  });
+
   it("numbers the steps in document order and leaves the sections unnumbered", () => {
     const groups = rail({ kind: "section", section: "links" });
     expect(groups.children.map((item) => item.position)).toStrictEqual([1, 2, 3]);

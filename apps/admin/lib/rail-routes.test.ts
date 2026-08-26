@@ -23,19 +23,18 @@ import { describe, expect, it } from "vitest";
  * the defect this coverage removes. A screen added without a slot page fails here rather
  * than being found months later as a rail that will not go away.
  *
- * ## The builder carries the sibling group and no children, and that is §7
+ * ## All eight form screens carry the same tree, and the builder's alone is interactive
  *
- * Asserted here rather than left as a shape someone might "fix", because it looks like an
- * inconsistency and is not one. A rail step item is `/forms/{formId}#step-{stepId}`. On the
- * other seven screens that is a cross-route link; on the builder the route part is that same
- * route, so the item is a bare same-page fragment, and §7 says the rail "never carries
- * same-page section switches". The children group there is forbidden rather than merely
- * redundant beside the builder's own step editor, which is content rather than navigation
- * and stays exactly as it is.
+ * REVERSED 2026-08-25 (Code Owner). The builder used to carry the sibling rows and no steps,
+ * because a rail step item is `/forms/{formId}#step-{stepId}` - a cross-route link on the
+ * other seven screens, a bare same-page fragment on the builder - and §7 barred those. That
+ * clause is retired and `loadFormRail` no longer has a mode for leaving the steps out, so
+ * the shape is now pinned by the type rather than by this file.
  *
- * §7's "two groups, in that order, with one divider" describes the section where both groups
- * exist. One group means no divider, which is what `form-subtree-rail.tsx` already does when
- * there is nothing to separate.
+ * What is still worth asserting is the split that replaced it: the builder is the ONE screen
+ * whose steps can be worked on rather than only walked to, because it is the one screen with
+ * a draft to change. A second screen turning that flag on would be claiming an editor it does
+ * not have.
  */
 
 const SHELL = fileURLToPath(new URL("../app/(shell)", import.meta.url));
@@ -182,17 +181,15 @@ describe("which screens carry the form-subtree section", () => {
 });
 
 describe("which of the rail's rows each screen's section carries", () => {
-  it("gives every form-scoped screen the same tree, the builder included", () => {
-    // REVERSED 2026-08-25 (Code Owner). The builder used to ask for the sibling rows
-    // alone, on the reasoning that a step row there is a bare same-page fragment and §7
-    // barred those. That clause is retired and the drawing always showed otherwise, so
-    // the builder carries its steps like the other seven and `childrenGroup: "none"` is
-    // gone from the slot. A screen that reintroduced it would be reintroducing the split
-    // this closed: two step lists on one screen, neither owning them.
-    const asked = Object.keys(CURRENT_SECTION).filter((route) =>
-      slotSource(route).includes('"none"'),
+  it("makes the steps workable on the builder and only there", () => {
+    // The builder is the one screen with a draft to change, so it is the one screen whose
+    // rail rows select, rename, reorder and remove. On the other seven a step row stays
+    // what it has always been: a link to the builder's anchor for that step. A screen that
+    // turned this on without an editor would offer commands with nothing to run them.
+    const interactive = Object.keys(CURRENT_SECTION).filter((route) =>
+      slotSource(route).includes("interactiveSteps"),
     );
-    expect(asked).toEqual([]);
+    expect(interactive).toEqual(["/forms/[formId]"]);
   });
 });
 

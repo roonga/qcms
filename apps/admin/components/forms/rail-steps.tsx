@@ -14,6 +14,7 @@ import {
   TextField,
 } from "@/components/kit";
 import { useBuilderRail } from "@/lib/forms/builder-bridge";
+import { stepAnchorId } from "@/lib/forms/issues";
 import { issueCountLabel, type RailItem } from "@/lib/forms/subtree-rail";
 import { t } from "@/lib/i18n/en";
 import { textOf } from "@/lib/questions/definition";
@@ -58,8 +59,10 @@ export function RailSteps({ serverItems }: { readonly serverItems: readonly Rail
         {builder.draft.steps.map((step, index) => (
           <li key={step.stepId}>
             <StepRow
+              stepId={step.stepId}
               title={textOf(step.title) === "" ? t("forms.steps.untitled") : textOf(step.title)}
               position={index + 1}
+              total={builder.draft.steps.length}
               issueCount={builder.issueCounts.get(step.stepId) ?? 0}
               isSelected={step.stepId === builder.selectedStepId}
               onSelect={() => {
@@ -98,7 +101,15 @@ function ServerSteps({ items }: { readonly items: readonly RailItem[] }) {
   return (
     <ol className="qcms-rail__group" aria-label={t("forms.rail.steps")} data-rail-group="steps">
       {items.map((item) => (
-        <li key={item.key}>
+        // `id` on the row rather than on a hidden span inside the link: the row IS the
+        // destination, and a span carrying the title inside a link that already reads the
+        // title would say it twice. `tabIndex={-1}` for the reason the interactive row's
+        // anchor has it - a destination, not a stop on the way past.
+        <li
+          key={item.key}
+          {...(item.anchorId === undefined ? {} : { id: item.anchorId })}
+          tabIndex={-1}
+        >
           <Link
             href={item.href}
             className="qcms-rail__link"
@@ -137,8 +148,10 @@ function ServerSteps({ items }: { readonly items: readonly RailItem[] }) {
  * path to keep in sync. Move up and move down are ordinary menu items.
  */
 function StepRow({
+  stepId,
   title,
   position,
+  total,
   issueCount,
   isSelected,
   onSelect,
@@ -146,8 +159,10 @@ function StepRow({
   onMove,
   onRemove,
 }: {
+  readonly stepId: string;
   readonly title: string;
   readonly position: number;
+  readonly total: number;
   readonly issueCount: number;
   readonly isSelected: boolean;
   readonly onSelect: () => void;
@@ -196,6 +211,12 @@ function StepRow({
           <MenuList
             className="qcms-menu__list"
             aria-label={t("forms.steps.menu", { title })}
+            // Greyed rather than silently inert. `moveStep` is a no-op out of range, so
+            // leaving them enabled corrupts nothing - but a menu that offers a command it
+            // will not perform tells an assistive technology the wrong thing about what is
+            // available, and tells everyone else nothing about why the list did not move.
+            // Same rule the retired in-page list applied at the same two positions.
+            disabledKeys={disabledCommands(position, total)}
             onAction={(key) => {
               if (key === "rename") {
                 setDraftTitle(title);
@@ -220,6 +241,19 @@ function StepRow({
           </MenuList>
         </MenuPopover>
       </MenuTrigger>
+
+      {/* THE FOCUS TARGET FOR A STEP-LEVEL ISSUE, and it has to live wherever the step
+          list does. `lib/forms/issues.ts` mints this id for the validation panel's "jump
+          to the offending step" links, and the rail's own step rows on the other seven
+          screens point at `/forms/{formId}#step-{stepId}`, which is this. It moved here
+          with the list; when the list was deleted from the page it went with it, and the
+          links pointed at nothing until this was restored.
+
+          Out of the tab order (`tabIndex={-1}`) because it is a destination rather than a
+          stop: reachable when something sends focus to it, never by tabbing past it. */}
+      <span id={stepAnchorId(stepId)} tabIndex={-1} className="qcms-visually-hidden">
+        {title}
+      </span>
 
       {/* Rename is a dialog rather than an inline field, because the row is 240px wide and
           an input inside it would be narrower than most step titles. Removing a step takes
@@ -311,4 +345,12 @@ function AddStep({ onAdd }: { readonly onAdd: (title: string) => void }) {
       </Button>
     </div>
   );
+}
+
+/** The commands that do not apply at this position, so the menu greys them out. */
+function disabledCommands(position: number, total: number): string[] {
+  const disabled: string[] = [];
+  if (position === 1) disabled.push("up");
+  if (position === total) disabled.push("down");
+  return disabled;
 }

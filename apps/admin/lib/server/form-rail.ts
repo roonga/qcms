@@ -38,26 +38,30 @@ import type { AdminSession } from "./session.ts";
 export interface FormRailData {
   readonly formId: string;
   readonly slug: string;
-  /** The form's steps, or empty when the caller asked for the siblings alone. */
+  /** The form's steps, or empty when the form has no draft to read them from. */
   readonly steps: readonly DraftStep[];
   /** Issues per step id. Empty when there is no verdict, never a stand-in for zero. */
   readonly issueCounts: ReadonlyMap<string, number>;
 }
 
-/** Which of §7's two groups a screen's rail is asking for. */
-export type RailChildren = "steps" | "none";
-
-/** The rail's data for one form, or `null` when the form itself could not be read. */
+/**
+ * The rail's data for one form, or `null` when the form itself could not be read.
+ *
+ * There is no "siblings only" mode, and its removal on 2026-08-25 is the point rather than
+ * a tidy-up. The builder was the one screen that asked for one, on §7's retired reading
+ * that a step row there would be a same-page fragment; now that every form screen carries
+ * the same tree, a parameter for suppressing the steps could only ever reintroduce the
+ * split it closed - one screen showing a different rail from its seven siblings.
+ */
 export async function loadFormRail(
   session: AdminSession,
   formId: string,
-  children: RailChildren = "steps",
 ): Promise<FormRailData | null> {
   const detail = await getForm(session, formId);
   if (!detail.ok) return null;
   const form = detail.data;
   const draft = form.draft;
-  if (children === "none" || draft === null) {
+  if (draft === null) {
     return { formId: form.formId, slug: form.slug, steps: [], issueCounts: new Map() };
   }
   const verdict = await validateDraft(session, form.formId, draft);

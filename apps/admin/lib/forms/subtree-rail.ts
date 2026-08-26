@@ -8,10 +8,15 @@ import type { DraftStep } from "./types.ts";
  * What the form-subtree rail carries, as data (`plan/admin-design-contracts.md` §7,
  * issue 559).
  *
- * The whole contract is two groups in one order with one divider: the form's **children**
- * (its steps, with per-step issue badges) and the form's **siblings** (Builder, Preview,
- * Versions, Links, Responses, Webhooks). It never carries a
- * same-page section switch, and never carries a route the audit rejected - Validation
+ * The contract is one tree: the form's **siblings** (Builder, Preview, Versions, Links,
+ * Responses, Webhooks), with the form's **children** - its steps, carrying per-step issue
+ * badges - nested under the Builder row rather than standing beside it as a second group.
+ *
+ * AMENDED 2026-08-25 (Code Owner) on both counts. §7 used to describe two sibling groups in
+ * one order with one divider, and used to say the rail "never carries a same-page section
+ * switch"; the steps are now nested, and that clause is retired - it was what kept the
+ * builder's own steps out of its rail, which is the screen where they are most wanted.
+ * What survives unchanged is that the rail never carries a route the audit rejected - Validation
  * stays on the builder page (`plan/admin-ux-audit.md` §5.5), so it is absent from
  * {@link RAIL_SECTIONS} and adding it here would break the anchored issue links the
  * validation panel and the publish rejection list are both built out of.
@@ -61,6 +66,16 @@ export interface RailItem {
   readonly label: string;
   /** A step's ordinal, or `undefined` for a sibling screen, which has no order to show. */
   readonly position?: number;
+  /**
+   * The DOM id this row is the DESTINATION for, on the one screen that renders the step
+   * itself. Set for a step row and never for a sibling.
+   *
+   * The same id {@link href} points at, which is not redundant: on the other seven screens
+   * the row is a cross-route link and the destination is elsewhere, so only the builder's
+   * own list carries it. Without it the builder's pre-hydration rail links at a fragment
+   * that matches nothing, and so do the validation panel's "jump to this step" links.
+   */
+  readonly anchorId?: string;
   /** Rendered as a count tag when it is above zero, and only then. */
   readonly issueCount: number;
   readonly isCurrent: boolean;
@@ -119,6 +134,7 @@ export function formSubtreeRail({
       href: `${base}#${stepAnchorId(step.stepId)}`,
       label: stepLabel(step),
       position: index + 1,
+      anchorId: stepAnchorId(step.stepId),
       issueCount: issueCounts.get(step.stepId) ?? 0,
       isCurrent: current.kind === "step" && current.stepId === step.stepId,
     })),
