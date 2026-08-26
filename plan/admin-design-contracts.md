@@ -501,6 +501,20 @@ it belongs with #518's implementation, not here.
   screen; a flat group above six sibling routes said they were a seventh peer of
   them, and the drawing never did.
 
+  **Amended 2026-08-26 (Code Owner): the builder's rail also carries a Form
+  details row.** It sits above the Steps group and outside it, because the form is
+  the sibling of the whole list rather than one of its members, and it selects the
+  form's own details - title, settings, rules, test bench and validation - as a
+  screen of their own. Those five are properties of the FORM and used to be stacked
+  under whichever step was selected, so they followed the reader from step to step
+  as though each step carried its own copy of them.
+
+  This is what `admin-shell-poc.html` has drawn since the shell work began; its own
+  card subtitle reads "left rail navigating a form screen and a step screen", and
+  its Form row ships carrying `aria-current="page"`. The row exists on the builder
+  alone: it is a same-page view switch, and on the other seven form screens the
+  Builder row is already the link that reaches those panels.
+
 - ~~The rail never carries actions (no lifecycle buttons - those belong in the
   main column), never carries same-page section switches~~, and never carries a
   route the audit rejected (Validation stays on the builder page,

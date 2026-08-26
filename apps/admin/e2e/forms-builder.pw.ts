@@ -156,6 +156,9 @@ test("builds the insurance form through the UI and saves it (exit criterion 1)",
   // The reload opens on the form, which is where the rule list is, so no switch here.
   await expect(page.getByRole("button", { name: "Open step Claim details" })).toBeVisible();
   await expect(page.locator("[data-rule-id]")).toHaveCount(1);
+  // The rule above is the form's and survived the reload on the screen the reload opens.
+  // The pin is the step's, so reading it back means going to the step that holds it.
+  await openStep(page, "Driving history");
   await expect(pinLabel(page, questionIdFor(AT_FAULT), 1)).toBeVisible();
 });
 
