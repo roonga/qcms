@@ -2439,22 +2439,28 @@ button {
   color: var(--color-info-fg);
   font-weight: 700;
 }
-/* THE CURRENT STEP CARRIES NO EDGE (Code Owner, 2026-08-26). The rule above paints
-   an accent on the inline-start border of any current rail row, and on a step row it
-   read as a second, competing marker beside the ordinal already sitting there. It is
-   dropped for the step rows alone: the section rows above them keep it, because they
-   have no ordinal and the edge is the only shape their current state has.
+/* THE FORM RAIL'S CURRENT ROW CARRIES NO ACCENT EDGE (Code Owner, 2026-08-26). The
+   rule above paints one on the inline-start border of any current rail row, and in
+   this tree it stacked up: the row for the screen, the row for what that screen is
+   showing, and a step's own ordinal all marking the same place at once.
 
-   This does not leave colour carrying the state on its own, which is what the rule
-   above is careful about. `aria-current="page"` is still what a screen reader is told,
-   and `font-weight: 700` is still a non-colour signal that survives high contrast. */
-.qcms-rail-steps__select[aria-current="page"] {
+   Colour is still not carrying the state alone, which is what the rule above is
+   careful about. `aria-current="page"` is what a screen reader is told either way,
+   and `font-weight: 700` is a non-colour signal that survives high contrast. The
+   settings and question rails keep their edge: they are flat lists of one kind of
+   row, where nothing else is competing to mark the same thing.
+
+   Scoped by `[data-rail-group]`, which only the form-subtree rail emits, so it holds
+   for every row of that tree - including ones added later - and reaches neither of the
+   other two rails. */
+[data-rail-group] .qcms-rail__link[aria-current="page"],
+.qcms-rail-steps .qcms-rail__link[aria-current="page"] {
   border-inline-start-color: transparent;
 }
 
-/* The form's own row, above the Steps group and outside it. A button wearing the
-   shared row geometry, the same way a step row does, so the tree reads as one list
-   of rows rather than as a control sitting on top of one. */
+/* The form's own row, which is the tree's first row and the parent of the steps. A
+   button wearing the shared row geometry, the same way a step row does, so the tree
+   reads as one list of rows rather than as a control sitting on top of one. */
 .qcms-rail-steps__form {
   display: flex;
   inline-size: 100%;

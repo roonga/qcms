@@ -62,6 +62,11 @@ import type { BuilderStatus } from "./validation-panel.tsx";
  * and erases, so it needs no entry.
  */
 vi.mock("@/lib/forms/issues", () => import("../../lib/forms/issues.ts"));
+// The bridge the panel reads to find out which step screen is showing, so an issue link
+// naming an unrendered pin can switch to it. Redirected to the real module rather than
+// stubbed: with no builder mounted it publishes nothing and `useBuilderRail` returns
+// `undefined`, which is exactly the state these assertions render in.
+vi.mock("@/lib/forms/builder-bridge", () => import("../../lib/forms/builder-bridge.ts"));
 vi.mock("@/lib/i18n/en", () => import("../../lib/i18n/en.ts"));
 
 const DRAFT = blankDraft("frm_validation_panel");

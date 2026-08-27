@@ -42,3 +42,37 @@ still what a screen reader is told, and the heavier weight still survives high c
 assertions now, and says why: a static render of the page reaches the form screen, and the
 switch that would leave it lives in the `@rail` slot, a different React tree that render
 does not include. The page half is still asserted through what the page itself emits.
+
+**The Builder row IS the Form details row** (Code Owner, 2026-08-26). The first cut added a
+second, nested row for the form's details, which put "Form details" directly beneath
+"Builder" with both marked current: two rows, one meaning, and no way to tell which was
+which. There is one row now. It is renamed from "Builder" to "Form details", because that
+is the screen it opens, and on the builder itself it is a button that selects that screen
+rather than a link to where the reader already is. The row still earns its place - it is
+how the other seven form screens get back here - and the builder route's own `<h1>` is the
+bare slug (issue 679), so nothing else on the screen moves with the name.
+
+**The current row no longer paints an accent edge** anywhere in this rail. Three things
+were marking the same place at once: the row for the screen, the row for what that screen
+is showing, and a step's own ordinal. Scoped by `[data-rail-group]`, which only this rail
+emits, so the settings and question rails keep theirs - they are flat lists of one kind of
+row, with nothing competing. Colour is still not carrying the state alone: `aria-current`
+is unchanged and the heavier weight survives high contrast.
+
+**Publish and close/reopen moved onto the form screen**, which is what they act on. They
+publish the form and close the form, and standing them above a column that is usually
+showing one step said they were about the step. `FormActions` stays a server component
+holding its own bound actions, handed to the builder as a node.
+
+That move had a catch worth naming. A refused publish renders an anchored work list whose
+links move focus to the rule, step or pin at fault - it is why those controls sat above the
+builder in the first place. A rule is on the form screen and a step's anchor is in the rail,
+but a PIN is rendered by one step's editor, so from the form screen that link pointed at an
+element that exists in the draft and not in the document, and the old handler returned
+silently. `IssueEntry` now selects the owning step first and then focuses.
+
+The node crossing that boundary is wrapped in an element rather than dropped straight into
+the fragment, and the wrapper is load-bearing: a server-rendered element loses the marking
+React uses to tell a statically-written child from a dynamic one, so as a bare member of a
+children array it reads as a keyless list item and logs a key warning on every visit. Twelve
+browser tests failed on that console error before it was wrapped, which is the gate working.

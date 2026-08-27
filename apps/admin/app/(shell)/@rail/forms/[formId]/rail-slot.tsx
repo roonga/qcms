@@ -1,6 +1,6 @@
 import { FormSubtreeRail } from "@/components/forms/form-subtree-rail";
 import { RailSteps } from "@/components/forms/rail-steps";
-import type { RailCurrent } from "@/lib/forms/subtree-rail";
+import type { RailCurrent, RailItem } from "@/lib/forms/subtree-rail";
 import { loadFormRail } from "@/lib/server/form-rail";
 import { requireAdminSession } from "@/lib/server/session";
 
@@ -80,7 +80,13 @@ export async function FormRailSlot({
       steps={rail.steps}
       issueCounts={rail.issueCounts}
       current={current}
-      {...(interactiveSteps ? { renderSteps: (steps) => <RailSteps serverItems={steps} /> } : {})}
+      {...(interactiveSteps
+        ? {
+            renderSteps: (item: RailItem, steps: readonly RailItem[]) => (
+              <RailSteps item={item} serverItems={steps} />
+            ),
+          }
+        : {})}
     />
   );
 }

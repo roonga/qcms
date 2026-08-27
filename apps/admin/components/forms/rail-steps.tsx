@@ -49,32 +49,54 @@ import { textOf } from "@/lib/questions/definition";
  * select a step in place and the menus appear. The list does not move or reorder as it
  * upgrades: it is the same steps in the same order, gaining behaviour.
  */
-export function RailSteps({ serverItems }: { readonly serverItems: readonly RailItem[] }) {
+export function RailSteps({
+  item,
+  serverItems,
+}: {
+  readonly item: RailItem;
+  readonly serverItems: readonly RailItem[];
+}) {
   const builder = useBuilderRail();
-  if (builder === undefined) return <ServerSteps items={serverItems} />;
+  if (builder === undefined) {
+    return (
+      <>
+        {/* The row the server rendered, restated rather than imported: this file is a
+            client component and `form-subtree-rail.tsx` is not, so taking its `RailRow`
+            would pull that module into the client bundle to reuse four lines of markup. */}
+        <Link
+          href={item.href}
+          className="qcms-rail__link"
+          data-rail-item={item.key}
+          {...(item.isCurrent ? { "aria-current": "page" as const } : {})}
+        >
+          <span>{item.label}</span>
+        </Link>
+        <ServerSteps items={serverItems} />
+      </>
+    );
+  }
 
   return (
     <div className="qcms-rail-steps">
-      {/* THE FORM'S OWN ROW, above its steps and outside the Steps group, because it is not
-          one of them: it is the sibling of the whole list. The drawing has it
-          (`plan/admin-shell-poc/admin-shell-poc.html` ships a `Form` row with
-          `aria-current="page"`), and without it the form's title, settings, rules, test
-          bench and validation have no address of their own - they were stacked under
-          whichever step was selected, which is what made five form-level panels read as
-          though every step carried its own copy.
+      {/* THE FORM'S OWN ROW IS THIS ROW, not a second one under it. It briefly was a
+          second one, which put "Form details" directly beneath "Builder" with both marked
+          current: two rows, one meaning, and no way to tell which was which. The row that
+          leads to this screen from the other seven IS the row that selects the form's own
+          details once you are here, so it carries `item.label` - renamed to "Form details",
+          because that is the screen it opens.
 
-          A button rather than a link for the reason the step rows are buttons: this route
-          is already the one the reader is standing on, so choosing it changes what the
-          column beside the rail shows rather than navigating anywhere
+          A button rather than a link, unlike the same row on the other seven screens: this
+          route is already the one the reader is standing on, so choosing it changes what
+          the column beside the rail shows rather than navigating anywhere
           (`docs/admin-constraints.md`, an anchor navigates and a button acts). */}
       <button
         type="button"
         className="qcms-rail__link qcms-rail-steps__form"
-        data-rail-item="form-details"
+        data-rail-item={item.key}
         aria-current={builder.selection.kind === "form" ? "page" : undefined}
         onClick={builder.chooseForm}
       >
-        {t("forms.rail.formDetails")}
+        {item.label}
       </button>
       <ol className="qcms-rail__group" aria-label={t("forms.rail.steps")} data-rail-group="steps">
         {builder.draft.steps.map((step, index) => (

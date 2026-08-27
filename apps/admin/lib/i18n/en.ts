@@ -801,7 +801,14 @@ export const messages = {
   // form's edit history or its responses. The rail follows the screen's name by the rule
   // `plan/admin-design-contracts.md` §7 records, which anticipates exactly this rename.
   "forms.section.heading": "{section}: {slug}",
-  "forms.tab.builder": "Builder",
+  // "Form details" rather than "Builder" since 2026-08-26 (Code Owner). The row leads to
+  // the screen carrying the form's own title, settings, rules, test bench and validation,
+  // and `admin-shell-poc.html` labels it for its subject rather than for the tool. It also
+  // stopped being the only row that meant that: the builder briefly carried a second,
+  // nested "Form details" row beside this one, which is two rows saying one thing. Naming
+  // this one correctly is what let the other go. The builder route's own `<h1>` is the
+  // bare slug (issue 679), so nothing else on the screen moves with this.
+  "forms.tab.builder": "Form details",
   "forms.tab.preview": "Preview",
   "forms.tab.versions": "Version history",
   "forms.tab.links": "Links",
@@ -1412,7 +1419,6 @@ export const messages = {
   // distinct from the topbar's own landmark on the same page.
   "forms.rail.label": "{slug} steps and sections",
   "forms.rail.steps": "Steps",
-  "forms.rail.formDetails": "Form details",
   "forms.rail.sections": "Sections",
   // The ordinal beside a step title. A separate string rather than a template at the
   // call site because a locale that numbers differently changes it here (ADR-27).

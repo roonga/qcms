@@ -120,29 +120,41 @@ export default async function FormBuilderPage({
         </p>
       </div>
 
-      {/* Publish and close/reopen sit above the builder rather than on a screen of their
-          own, because a refused publish renders an anchored work list whose links move
-          focus into the rules and steps below it. The builder has to be on the page for
-          that to mean anything. */}
-      <FormActions
-        formId={form.formId}
-        slug={form.slug}
-        status={form.status}
-        draft={form.draft}
-        latestVersion={form.versions[0]?.version}
-        publish={publishFormAction.bind(null, form.formId)}
-        setStatus={setFormStatusAction.bind(null, form.formId)}
-      />
-
       {!library.ok && (
         <Alert variant="warning">
           {t("forms.error.libraryFailed", { message: library.message })}
         </Alert>
       )}
 
+      {/* PUBLISH AND CLOSE/REOPEN RIDE INSIDE THE BUILDER NOW (Code Owner, 2026-08-26),
+          on the screen that carries the form's own details, because that is what they act
+          on: they publish the FORM and they close the FORM, and standing them above a
+          column that is usually showing one step said they were about the step.
+
+          Passed as a node rather than imported by the builder, which keeps `FormActions`
+          a server component holding its own bound actions - a client component cannot
+          bind a server action, and making the builder import it would drag the whole
+          publish surface into the client bundle for no reason.
+
+          The reason they used to sit above the builder still holds and is now handled
+          where it belongs: a refused publish renders an anchored work list whose links
+          move focus to the rule, step or pin at fault. A pin lives on a step screen this
+          one is not showing, so `IssueEntry` selects the owning step first and then
+          focuses - see `components/forms/validation-panel.tsx`. */}
       <FormBuilder
         detail={form}
         library={readState(library)}
+        formActions={
+          <FormActions
+            formId={form.formId}
+            slug={form.slug}
+            status={form.status}
+            draft={form.draft}
+            latestVersion={form.versions[0]?.version}
+            publish={publishFormAction.bind(null, form.formId)}
+            setStatus={setFormStatusAction.bind(null, form.formId)}
+          />
+        }
         saveDraft={saveDraftAction.bind(null, form.formId)}
         validateDraft={validateDraftAction.bind(null, form.formId)}
         updateSettings={updateSettingsAction.bind(null, form.formId)}

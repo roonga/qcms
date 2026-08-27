@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { Alert, Button, TextField } from "@/components/kit";
 import { AmbientSaveStatus } from "@/components/save-model";
@@ -103,6 +103,7 @@ const AUTOSAVE_DEBOUNCE_MS = 600;
 export function FormBuilder({
   detail,
   library,
+  formActions,
   saveDraft,
   validateDraft,
   updateSettings,
@@ -110,6 +111,15 @@ export function FormBuilder({
 }: {
   readonly detail: FormDetail;
   readonly library: ReadState<readonly PinnableQuestion[]>;
+  /**
+   * Publish and close/reopen, rendered on the form screen.
+   *
+   * A node rather than an import: `FormActions` is a server component carrying actions
+   * already bound to this form's id, and a client component can neither bind one nor
+   * render one it imported. Handing it down as a prop is how a client boundary carries
+   * server-rendered content, and it keeps the publish surface out of this bundle.
+   */
+  readonly formActions: ReactNode;
   readonly saveDraft: (draft: DraftForm) => Promise<SaveDraftState>;
   readonly validateDraft: (draft: DraftForm) => Promise<ValidateDraftState>;
   readonly updateSettings: (patch: {
@@ -283,11 +293,6 @@ export function FormBuilder({
       />
       <BuilderNotices detail={detail} paused={paused} saveError={saveError} />
 
-      {/* 033 stood a disabled Publish button here with a note saying publishing was
-          task 034's. It is, and it landed: the real control lives in `FormActions`
-          above this component, where a refused publish can render its anchored work
-          list beside the rules it points at. */}
-
       {/* TWO SCREENS BEHIND ONE ROUTE, and the rail is the switch (Code Owner, 2026-08-26).
           `plan/admin-shell-poc/admin-shell-poc.html` says so in its own card subtitle - "left
           rail navigating a form screen and a step screen" - and draws the two: a Form screen
@@ -309,6 +314,15 @@ export function FormBuilder({
           `components/forms/rail-steps.tsx` is where it went. */}
       {selection.kind === "form" ? (
         <>
+          {/* WRAPPED, and the wrapper is load-bearing rather than layout. `formActions` is
+              rendered by the SERVER and handed across the client boundary, which strips the
+              marking React uses to tell a statically-written child from a dynamic one. As a
+              bare member of this fragment's children array it therefore reads as a keyless
+              list item, and React logs "Each child in a list should have a unique key" on
+              every visit to the builder - which `e2e/support/gates.ts` fails the test for,
+              correctly: a console error on a screen is a defect whether or not anything
+              looks wrong. Being an only child, it is not in a list at all. */}
+          <div>{formActions}</div>
           <TextField
             label={t("forms.builder.formTitle")}
             description={t("forms.builder.formTitleHint")}

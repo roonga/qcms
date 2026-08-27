@@ -71,7 +71,7 @@ export function FormSubtreeRail({
    * `components/questions/question-versions-rail.tsx` uses for its lifecycle actions, and
    * for the same reason.
    */
-  readonly renderSteps?: (steps: readonly RailItem[]) => ReactNode;
+  readonly renderSteps?: (item: RailItem, steps: readonly RailItem[]) => ReactNode;
 }) {
   const groups = formSubtreeRail({ formId, steps, issueCounts, current });
   const summary = railSummary(groups, slug);
@@ -135,23 +135,31 @@ function RailGroup({
   /** The form's steps, rendered nested inside the row named by {@link stepsUnder}. */
   readonly steps?: readonly RailItem[];
   readonly stepsUnder?: string;
-  readonly renderSteps?: (steps: readonly RailItem[]) => ReactNode;
+  /**
+   * Replaces the row named by {@link stepsUnder} AND the steps under it, rather than
+   * adding to them. The builder needs that: on that one screen the row is a control
+   * rather than a link, so the interactive version owns the whole subtree or the screen
+   * ends up with two rows meaning one thing.
+   */
+  readonly renderSteps?: (item: RailItem, steps: readonly RailItem[]) => ReactNode;
 }) {
   const List = kind === "steps" ? "ol" : "ul";
   return (
     <List className="qcms-rail__group" aria-label={label} data-rail-group={kind}>
       {items.map((item) => (
         <li key={item.key}>
-          <RailRow item={item} />
-          {item.key === stepsUnder &&
-            steps !== undefined &&
-            (renderSteps === undefined
-              ? // A form with no steps yet nests nothing: an empty `<ol>` announced as a
+          {item.key === stepsUnder && steps !== undefined && renderSteps !== undefined ? (
+            renderSteps(item, steps)
+          ) : (
+            <>
+              <RailRow item={item} />
+              {item.key === stepsUnder && steps !== undefined && steps.length > 0 && (
+                // A form with no steps yet nests nothing: an empty `<ol>` announced as a
                 // list of zero would be a promise the form has not made.
-                steps.length > 0 && (
-                  <RailGroup label={t("forms.rail.steps")} items={steps} kind="steps" />
-                )
-              : renderSteps(steps))}
+                <RailGroup label={t("forms.rail.steps")} items={steps} kind="steps" />
+              )}
+            </>
+          )}
         </li>
       ))}
     </List>
