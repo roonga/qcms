@@ -2383,6 +2383,29 @@ button {
 .qcms-rail-steps__add > button {
   flex: 1 1 auto;
 }
+/* The same control on the seven screens with no builder, where it is an anchor because
+   it navigates rather than acts. The kit's `Button` renders a `<button>` and takes no
+   `className`, so its `ghost` treatment is restated here in tokens rather than reached
+   for: a transparent fill, the shared border, ordinary text. A reader moving between
+   form screens should not see the rail's last control change shape. */
+.qcms-rail-steps__add-link {
+  flex: 1 1 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-inline: 0.75rem;
+  padding-block: 0.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background-color: transparent;
+  color: var(--color-text);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+.qcms-rail-steps__add-link:hover {
+  background-color: var(--color-surface-hover);
+}
 
 /* A NESTED GROUP, which is what the form's steps are inside the Form row (Code
    Owner, 2026-08-25). The indent is on the group rather than on its rows, so the

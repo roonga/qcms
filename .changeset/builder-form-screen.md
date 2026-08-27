@@ -102,3 +102,23 @@ refused there, which covers the keyboard too, since Enter and Space on a summary
 click. `pointer-events: none` would have stopped the mouse and left the keyboard with the
 problem. Below the boundary it is a disclosure exactly as before: shut by default, opening
 on a press.
+
+**Add step is on all eight form screens, and it is quieter** (Code Owner, 2026-08-26). Off
+the builder it is an anchor rather than a button, because off the builder it navigates:
+there is no draft in that tree to add a step to, so it goes to the builder carrying
+`#new-step` and the builder opens the dialog on arrival. A fragment rather than a query
+parameter, because it asks the browser what to do on arrival rather than naming a different
+resource, and it never reaches the server. It is cleared once read, so a reload or a press
+of Back does not reopen a dialog the reader has dismissed.
+
+The button's variant moves from `secondary` to `ghost`, which is a naming trap rather than
+a change of mind: the kit's `secondary` is a solid slate fill with white text, so in a rail
+of quiet rows it read as the loudest thing on screen and as the primary action of the whole
+builder. `ghost` is the kit's outlined treatment, which is what a secondary action looks
+like here. The dialog keeps `primary` on its confirm, where adding the step really is the
+primary action.
+
+`interactiveSteps` is gone with this. Every form slot page now renders the same rail the
+same way, and interactivity comes from whether a builder has published to the bridge - only
+the builder mounts one, so what the flag asserted is true by construction instead of by
+agreement. `lib/rail-routes.test.ts` pins the replacement property.

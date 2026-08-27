@@ -181,15 +181,18 @@ describe("which screens carry the form-subtree section", () => {
 });
 
 describe("which of the rail's rows each screen's section carries", () => {
-  it("makes the steps workable on the builder and only there", () => {
-    // The builder is the one screen with a draft to change, so it is the one screen whose
-    // rail rows select, rename, reorder and remove. On the other seven a step row stays
-    // what it has always been: a link to the builder's anchor for that step. A screen that
-    // turned this on without an editor would offer commands with nothing to run them.
-    const interactive = Object.keys(CURRENT_SECTION).filter((route) =>
-      slotSource(route).includes("interactiveSteps"),
-    );
-    expect(interactive).toEqual(["/forms/[formId]"]);
+  it("asks for the same rail on every one of them, with nothing per-screen to keep in step", () => {
+    // There was a flag here, `interactiveSteps`, and this asserted that the builder was the
+    // only page passing it. It is gone: interactivity comes from whether a builder has
+    // published to `lib/forms/builder-bridge.ts`, and only the builder mounts one, so the
+    // property the flag asserted is now true by construction rather than by agreement.
+    //
+    // What is worth pinning is what replaced it: every form slot page renders the same
+    // component the same way, so a screen cannot quietly grow a rail of its own.
+    for (const route of Object.keys(CURRENT_SECTION)) {
+      expect(slotSource(route), `${route} renders the shared form rail`).toContain("FormRailSlot");
+      expect(slotSource(route)).not.toContain("interactiveSteps");
+    }
   });
 });
 

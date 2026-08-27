@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   Button,
@@ -49,6 +49,26 @@ import { textOf } from "@/lib/questions/definition";
  * select a step in place and the menus appear. The list does not move or reorder as it
  * upgrades: it is the same steps in the same order, gaining behaviour.
  */
+/**
+ * The fragment an Add step link carries to the builder, and the builder's cue to open the
+ * dialog on arrival.
+ *
+ * A fragment rather than a query parameter because it is a request to the BROWSER about
+ * what to do on arrival rather than a different resource: `/forms/{id}#new-step` and
+ * `/forms/{id}` are the same page, and a query string would say they were not - it would
+ * be cached separately, and it would sit in the URL bar afterwards. The rail's step links
+ * already address this page by fragment for exactly that reason.
+ *
+ * `new-step` rather than the obvious `add-step`, and the name is load-bearing:
+ * `scripts/check-admin-theme.mjs` reads every source file in this app for literal colours,
+ * and `#add` is three hex digits, so `"#add-step"` fails the gate as a hardcoded colour.
+ * It is not one, but the check cannot tell, and the right response to a coarse gate is to
+ * stay clear of it rather than to carve an exemption into it - the same call
+ * `lib/forms/builder-bridge.ts` records for naming its selector `choose` rather than
+ * `select`.
+ */
+const ADD_STEP_HASH = "#new-step";
+
 export function RailSteps({
   item,
   serverItems,
@@ -72,6 +92,12 @@ export function RailSteps({
           <span>{item.label}</span>
         </Link>
         <ServerSteps items={serverItems} />
+        {/* THE ADD CONTROL IS ON ALL EIGHT FORM SCREENS (Code Owner, 2026-08-26), and off
+            the builder it is an anchor rather than a button, because off the builder it
+            NAVIGATES - there is no draft in this tree to add a step to
+            (`docs/admin-constraints.md`: an anchor navigates, a button acts). It lands on
+            the builder with the fragment below, and the builder opens the dialog. */}
+        <AddStepLink href={`${item.href}${ADD_STEP_HASH}`} />
       </>
     );
   }
@@ -384,10 +410,32 @@ function StepRow({
 function AddStep({ onAdd }: { readonly onAdd: (title: string) => void }) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
+
+  // The other half of `AddStepLink`. Reading the fragment here rather than plumbing a
+  // prop down from the slot keeps the server out of it entirely: a fragment never reaches
+  // the server, so nothing about this page's cacheability changes.
+  //
+  // It is cleared once read, and that is not tidiness: left in place, a reload - or a
+  // press of Back onto this URL - would reopen a dialog the reader had already dismissed,
+  // with no way to get rid of it short of editing the address bar.
+  useEffect(() => {
+    if (window.location.hash !== ADD_STEP_HASH) return;
+    setTitle("");
+    setOpen(true);
+    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+  }, []);
+
   return (
     <div className="qcms-rail-steps__add">
+      {/* `ghost` rather than `secondary`, which is a naming trap rather than a preference:
+          the kit's `secondary` is a SOLID slate fill with white text, so in a rail of quiet
+          rows it read as the loudest thing on the screen and as the primary action of the
+          whole builder, which it is not. `ghost` is the kit's outlined treatment - a border
+          and ordinary text colour - which is what a secondary action looks like here. The
+          dialog it opens keeps `primary` on its confirm, because inside that dialog adding
+          the step IS the primary action. */}
       <Button
-        variant="secondary"
+        variant="ghost"
         size="sm"
         onPress={() => {
           setTitle("");
@@ -428,4 +476,23 @@ function disabledCommands(position: number, total: number): string[] {
   if (position === 1) disabled.push("up");
   if (position === total) disabled.push("down");
   return disabled;
+}
+
+/**
+ * The add control on the seven form screens that have no builder mounted.
+ *
+ * Wearing the same geometry and the same quiet outline as the button it stands in for, so
+ * the rail does not change shape between screens, but it is an `<a>`: pressing it goes to
+ * the builder, which is where a step can actually be added. The kit's `Button` renders a
+ * `<button>` and takes no `className`, so this is the shared row treatment written out in
+ * `app/globals.css` rather than a second kit variant.
+ */
+function AddStepLink({ href }: { readonly href: string }) {
+  return (
+    <div className="qcms-rail-steps__add">
+      <Link href={href} className="qcms-rail-steps__add-link">
+        {t("forms.steps.add")}
+      </Link>
+    </div>
+  );
 }
