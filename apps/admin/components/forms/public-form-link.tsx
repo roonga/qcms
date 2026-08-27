@@ -2,7 +2,6 @@
 
 import { useCallback, useState } from "react";
 
-import { Button } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
 
 /**
@@ -59,20 +58,56 @@ export function PublicFormLink({
         {t("forms.publicLink.heading")}
       </h2>
       <div className="flex flex-wrap items-center gap-2">
-        {/* A `<code>` because it is a literal string to be copied exactly, and selectable
-            because the Copy button is a convenience rather than the only way out: a
-            clipboard write can be refused, and a reader who cannot use it must still be
-            able to select the address by hand. */}
-        <code
-          className="qcms-link-url"
+        {/* AN ANCHOR, because following it is the point: this is the respondent's view of
+            the author's own form, and being able to open it is how an author checks that
+            what they published is what they meant. `docs/admin-constraints.md` - an anchor
+            navigates, a button acts - and this navigates.
+
+            A new tab, and `rel` with it. The author is mid-edit on a draft this screen
+            autosaves, so taking the tab away to show them the respondent's side would cost
+            them their place; `noopener` is not optional on a `_blank` link, because
+            without it the opened page gets a handle on this one through `window.opener`.
+
+            Still a `<code>` inside it: the string is a literal to be copied exactly, and
+            it stays selectable by hand, because a clipboard write can be refused (an
+            insecure origin, a denied permission) and the icon must not be the only way
+            out. */}
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="qcms-public-link__url"
           data-testid="qcms-public-form-link"
           data-form-closed={isClosed ? "" : undefined}
         >
-          {url}
-        </code>
-        <Button variant="ghost" size="sm" onPress={copy}>
-          {t("forms.publicLink.copy")}
-        </Button>
+          <code className="qcms-link-url">{url}</code>
+          <span className="qcms-visually-hidden">{t("forms.publicLink.opensNewTab")}</span>
+        </a>
+        {/* THE SAME CONTROL THE PIN GRID ALREADY HAS for copying an id
+            (`step-editor.tsx`'s `CopyQuestionId`), down to the class and the icon: one
+            gesture, one shape, one set of styles. A bare `<button>` rather than the kit's,
+            because the kit's takes no `aria-label` - a closed API - and an icon button
+            needs one. Its 24px box is deliberately under the app's 40px control minimum:
+            it sits inside a row that is already a target, and it is never the only way to
+            the value, which is the same argument written out at `CopyQuestionId`. */}
+        <button
+          type="button"
+          className="qcms-copyid"
+          data-readonly-action="copy"
+          aria-label={t("forms.publicLink.copy")}
+          onClick={copy}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            aria-hidden="true"
+          >
+            <rect x="9" y="9" width="11" height="11" rx="2" />
+            <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+          </svg>
+        </button>
       </div>
       <p className="text-sm text-(--color-text-muted)">
         {t(isClosed ? "forms.publicLink.hintClosed" : "forms.publicLink.hintOpen")}

@@ -34,3 +34,22 @@ mints every secure link, and `lib/forms/public-link.test.ts` writes the limitati
 rather than leaving the assertion looking like a bug: a portal under a sub-path would get a
 wrong address from both, and fixing one only would be worse - two surfaces handing out two
 different links for one form.
+
+The address is a link that opens in a new tab, not just a string to copy: following it is
+how an author checks that what they published is what they meant. A new tab because the
+author is mid-edit on a draft this screen autosaves, and taking the tab away would cost
+them their place; `rel="noopener noreferrer"` because a `_blank` link without it hands the
+opened page a handle on this one. A visually hidden "(opens in a new tab)" says so to a
+screen reader.
+
+Copy is the icon button the pin grid already uses for copying an id, down to the class and
+the two shapes: one gesture, one shape, one set of styles. A bare `<button>` rather than
+the kit's, because the kit's takes no `aria-label` and an icon button needs one.
+
+`scripts/dev-stack.mjs` now honours a pinned `QCMS_INTERNAL_TOKEN` instead of always
+minting one, which is the same shape `QCMS_ADMIN_AUTH_SECRET` already had there. Issue
+#281's note that "nothing outside this process can learn the token" described the default
+rather than a security boundary; this is a development launcher and the alternative was
+reading the token out of the running API's `/proc/<pid>/environ`. What it buys is a second
+frontend against the same API and database, so an author checking a published form's public
+link has a portal to open it in.

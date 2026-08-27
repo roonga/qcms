@@ -2379,6 +2379,19 @@ button {
   }
 }
 
+/* The public form link's address: an anchor that looks like the literal it is. The
+   `<code>` inside carries the monospace treatment `.qcms-link-url` already defines for
+   a secure link's URL; this wrapper only adds what makes it a link. Underlined on hover
+   rather than always, so a row of one address does not read as a paragraph of link. */
+.qcms-public-link__url {
+  min-inline-size: 0;
+  color: inherit;
+  text-decoration: none;
+}
+.qcms-public-link__url:hover code {
+  text-decoration: underline;
+}
+
 /* The add control, under the list where the drawing puts it. One button since the
    naming moved into a dialog, so there is no longer a field and a label to stack.
 
