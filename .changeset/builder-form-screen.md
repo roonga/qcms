@@ -76,3 +76,15 @@ the fragment, and the wrapper is load-bearing: a server-rendered element loses t
 React uses to tell a statically-written child from a dynamic one, so as a bare member of a
 children array it reads as a keyless list item and logs a key warning on every visit. Twelve
 browser tests failed on that console error before it was wrapped, which is the gate working.
+
+**The three standing notices say themselves once, on the form screen** (Code Owner,
+2026-08-26): the draft was seeded, the form is closed, another author may have it open.
+They used to stand above the whole builder, so every step screen repeated all three above
+that step's questions - none of them about the step, and none of them changing while the
+reader works.
+
+Autosave-paused and save-failed deliberately did NOT move with them. Those two are about
+the save happening right now, and the work at risk when they appear is usually the step
+being edited, so hiding "this draft is not being saved" behind a screen switch would hide
+it exactly when it matters. They stay above the split, on every screen, and cost the step
+screen nothing when quiet.

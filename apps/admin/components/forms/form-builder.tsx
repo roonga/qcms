@@ -291,7 +291,7 @@ export function FormBuilder({
         hasFailed={saveError !== undefined}
         savedAt={lastSavedAt}
       />
-      <BuilderNotices detail={detail} paused={paused} saveError={saveError} />
+      <SaveNotices paused={paused} saveError={saveError} />
 
       {/* TWO SCREENS BEHIND ONE ROUTE, and the rail is the switch (Code Owner, 2026-08-26).
           `plan/admin-shell-poc/admin-shell-poc.html` says so in its own card subtitle - "left
@@ -323,6 +323,7 @@ export function FormBuilder({
               correctly: a console error on a screen is a defect whether or not anything
               looks wrong. Being an only child, it is not in a list at all. */}
           <div>{formActions}</div>
+          <FormNotices detail={detail} />
           <TextField
             label={t("forms.builder.formTitle")}
             description={t("forms.builder.formTitleHint")}
@@ -419,20 +420,46 @@ const PAUSE_MESSAGES: Readonly<Record<UnsaveableReason, MessageKey>> = {
 };
 
 /** The standing notices: where this draft came from, and what autosave is doing. */
-function BuilderNotices({
-  detail,
-  paused,
-  saveError,
-}: {
-  readonly detail: FormDetail;
-  readonly paused: UnsaveableReason | undefined;
-  readonly saveError: string | undefined;
-}) {
+/**
+ * The three standing facts about the FORM: it was seeded, it is closed, someone else may
+ * be editing it. Said once, on the form's own screen (Code Owner, 2026-08-26).
+ *
+ * They used to stand above the whole builder, so every step screen repeated all three -
+ * three information alerts above a step's questions, none of which are about that step and
+ * none of which change while the reader works. Saying a standing fact once, where the
+ * subject of the fact lives, is the whole of it.
+ *
+ * The save notices below are deliberately NOT here: see the note on {@link SaveNotices}.
+ */
+function FormNotices({ detail }: { readonly detail: FormDetail }) {
   return (
     <div className="flex flex-col gap-2">
       {detail.draftSource === "seeded" && <Alert variant="info">{t("forms.builder.seeded")}</Alert>}
       {detail.status === "closed" && <Alert variant="info">{t("forms.builder.closed")}</Alert>}
       <Alert variant="info">{t("forms.builder.concurrent")}</Alert>
+    </div>
+  );
+}
+
+/**
+ * Autosave paused, and a save that failed. These stay above the screen split, on every
+ * screen, and that is the point rather than an oversight.
+ *
+ * The three above are standing facts about the form, and a reader who has read them once
+ * has read them. These two are about the save happening right now, and the work at risk
+ * when they appear is usually the step the reader is editing: hiding "this draft is not
+ * being saved" behind a screen switch would hide it exactly when it matters most. They
+ * appear rarely and clear themselves, so they cost the step screen nothing when quiet.
+ */
+function SaveNotices({
+  paused,
+  saveError,
+}: {
+  readonly paused: UnsaveableReason | undefined;
+  readonly saveError: string | undefined;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
       {paused !== undefined && (
         <div data-testid="qcms-autosave-paused" data-paused-reason={paused}>
           <Alert variant="warning">{t(PAUSE_MESSAGES[paused])}</Alert>
