@@ -2368,11 +2368,20 @@ button {
 }
 
 /* The add control, under the list where the drawing puts it. One button since the
-   naming moved into a dialog, so there is no longer a field and a label to stack. */
+   naming moved into a dialog, so there is no longer a field and a label to stack.
+
+   IT SPANS THE ROWS ABOVE IT (Code Owner, 2026-08-26). No inline padding, because the
+   group above has none either: a rail row is a full-width box that insets its own text
+   by `0.5rem` plus its 3px marker border, so a container that repeated that inset made
+   this button narrower than every row it sits under. The kit's `Button` takes no
+   `className` - a closed API on purpose - so the stretch is set here, on the one child
+   this container has. It centres its own label already. */
 .qcms-rail-steps__add {
   display: flex;
-  padding-inline: calc(0.5rem + 3px);
   padding-block: 0.5rem 0.25rem;
+}
+.qcms-rail-steps__add > button {
+  flex: 1 1 auto;
 }
 
 /* A NESTED GROUP, which is what the form's steps are inside the Form row (Code
