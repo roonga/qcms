@@ -54,6 +54,10 @@ export function RailDisclosure({ children }: { readonly children: ReactNode }) {
   // toggle `open` themselves.
   const [open, setOpen] = useState(true);
   const [ready, setReady] = useState(false);
+  // Whether the rail is a permanent sidebar rather than a disclosure. Above the boundary it
+  // is, so there is nothing to collapse and the summary stops being a control - see the
+  // click handler below.
+  const [pinned, setPinned] = useState(false);
 
   useEffect(() => {
     // 64rem is `--bp-sidebar`, in the unit §1 writes both breakpoints in so they move with
@@ -61,6 +65,7 @@ export function RailDisclosure({ children }: { readonly children: ReactNode }) {
     // font size the same way the stylesheet does, so the two boundaries cannot drift.
     const query = window.matchMedia("(min-width: 64rem)");
     const sync = (): void => {
+      setPinned(query.matches);
       // Only when the boundary itself moves. Re-deciding on every render is what
       // overrode the reader's own toggle; re-deciding on a resize across the boundary is
       // the behaviour this component is for.
@@ -88,6 +93,19 @@ export function RailDisclosure({ children }: { readonly children: ReactNode }) {
       // breakpoint changes rather than one the component overrides.
       onToggle={(event) => {
         setOpen(event.currentTarget.open);
+      }}
+      // ABOVE `--bp-sidebar` THE SUMMARY IS A LABEL, NOT A CONTROL (Code Owner,
+      // 2026-08-26). The rail is a permanent sidebar at that width - the stylesheet already
+      // hides the chevron and sets `cursor: default` there - but the `<summary>` stayed
+      // live, so clicking the form's name folded the whole rail away with no visible
+      // affordance to put it back. Refusing the default on the summary's own click stops
+      // it for the keyboard too, because Enter and Space on a summary dispatch a click.
+      //
+      // Not `pointer-events: none` in CSS: that stops the mouse and leaves Enter working,
+      // which is the half of the problem a keyboard reader would have kept.
+      onClickCapture={(event) => {
+        if (!pinned) return;
+        if ((event.target as HTMLElement).closest("summary") !== null) event.preventDefault();
       }}
       {...(ready ? { "data-ready": "" } : {})}
     >

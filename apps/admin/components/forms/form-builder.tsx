@@ -466,6 +466,11 @@ function SaveNotices({
   readonly paused: UnsaveableReason | undefined;
   readonly saveError: string | undefined;
 }) {
+  // NOTHING, not an empty box. The builder's column is a `gap-6` flex stack, so a wrapper
+  // that renders with zero height still consumes a whole gap slot: on the step screen that
+  // put 48px between the breadcrumb and the step's card where 24px was intended, and the
+  // empty div doing it was invisible in the picture and in the DOM inspector alike.
+  if (paused === undefined && saveError === undefined) return null;
   return (
     <div className="flex flex-col gap-2">
       {paused !== undefined && (

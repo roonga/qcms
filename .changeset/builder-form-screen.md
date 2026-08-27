@@ -88,3 +88,17 @@ the save happening right now, and the work at risk when they appear is usually t
 being edited, so hiding "this draft is not being saved" behind a screen switch would hide
 it exactly when it matters. They stay above the split, on every screen, and cost the step
 screen nothing when quiet.
+
+Two corrections found in use. **An empty notice block was holding a gap open**: the save
+notices render into the builder's `gap-6` column, and a wrapper with zero height still
+consumes a whole gap slot, so the step screen sat 48px below the breadcrumb where 24px was
+intended. It renders nothing at all now when it has nothing to say.
+
+**The rail no longer collapses above `--bp-sidebar`** (Code Owner, 2026-08-26). At that
+width the rail is a permanent sidebar and the stylesheet already hides the chevron and sets
+`cursor: default`, but the `<summary>` stayed live - so clicking the form's name folded the
+whole rail away with no visible affordance to bring it back. The summary's own click is
+refused there, which covers the keyboard too, since Enter and Space on a summary dispatch a
+click. `pointer-events: none` would have stopped the mouse and left the keyboard with the
+problem. Below the boundary it is a disclosure exactly as before: shut by default, opening
+on a press.
