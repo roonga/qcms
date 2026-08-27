@@ -73,11 +73,12 @@ export function FormSubtreeRail({
    */
   readonly renderSteps?: (item: RailItem, steps: readonly RailItem[]) => ReactNode;
 }) {
-  const groups = formSubtreeRail({ formId, steps, issueCounts, current });
+  const groups = formSubtreeRail({ formId, slug, steps, issueCounts, current });
   const summary = railSummary(groups, slug);
 
   return (
     <RailFrame
+      modifier="form"
       label={t("forms.rail.label", { slug })}
       summaryText={summary.text}
       // Spread rather than passed as `undefined`: `exactOptionalPropertyTypes` treats an

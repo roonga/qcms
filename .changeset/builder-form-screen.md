@@ -122,3 +122,19 @@ primary action.
 same way, and interactivity comes from whether a builder has published to the bridge - only
 the builder mounts one, so what the flag asserted is true by construction instead of by
 agreement. `lib/rail-routes.test.ts` pins the replacement property.
+
+**The rail says the form's name once** (Code Owner, 2026-08-26). It said it twice above its
+rows: the disclosure summary, and directly beneath it a row labelled "Form details" leading
+to the form's own screen. The row is the one that does something, so the row takes the name
+and the summary is hidden where the rail is a permanent sidebar.
+
+Only there. Below `--bp-sidebar` the rail collapses to that one line, and it being the whole
+of the rail is exactly what issue 693 put the form's name there for, so it stays. The
+element is hidden rather than dropped, so crossing the boundary needs no re-render. The
+settings and question rails keep theirs at every width: neither has a row repeating its
+scope, so for them the summary is the only place it is written. `RailFrame` gained a
+`modifier` for that, since a rule now has to reach one of the three rails and not the
+others.
+
+The name is the slug, which is the string the summary already carried and the one the rail
+has always shown.

@@ -118,11 +118,23 @@ function stepLabel(step: DraftStep): string {
  */
 export function formSubtreeRail({
   formId,
+  slug,
   steps,
   issueCounts,
   current,
 }: {
   readonly formId: string;
+  /**
+   * The form's name, which is what its own row in the rail is called.
+   *
+   * MERGED WITH THE SUMMARY LINE (Code Owner, 2026-08-26). The rail used to say the form's
+   * name twice above its rows - once in the disclosure summary and once as a row labelled
+   * "Form details" - which is two lines for one thing and no way to tell them apart. The
+   * row is the one that does something, so the row keeps the name and the summary is
+   * hidden where the rail is a permanent sidebar. It stays below `--bp-sidebar`, where the
+   * rail collapses and that line is the whole of it (issue 693).
+   */
+  readonly slug: string;
   readonly steps: readonly DraftStep[];
   readonly issueCounts: ReadonlyMap<string, number>;
   readonly current: RailCurrent;
@@ -141,7 +153,9 @@ export function formSubtreeRail({
     siblings: RAIL_SECTIONS.map((section) => ({
       key: `section:${section}`,
       href: sectionHref(base, section),
-      label: t(`forms.tab.${section}`),
+      // The builder's row is the form's own screen, so it is named for the form rather
+      // than for the tool. Every other row is named for the screen it opens.
+      label: section === "builder" ? slug : t(`forms.tab.${section}`),
       issueCount: 0,
       isCurrent: current.kind === "section" && current.section === section,
     })),

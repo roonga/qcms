@@ -2276,6 +2276,18 @@ button {
   .qcms-rail__chevron {
     display: none;
   }
+  /* THE FORM RAIL SAYS THE FORM'S NAME ONCE (Code Owner, 2026-08-26). Its first row is
+     the form's own screen and carries the form's name, so the summary line above it was
+     the same word twice with nothing to tell them apart. Hidden only where the rail is a
+     permanent sidebar: below this boundary the rail collapses to that one line and it is
+     the whole of the rail, which is what issue 693 put the form's name there for. The
+     element stays in the DOM so widening and narrowing the window needs no re-render.
+
+     The other two rails keep theirs at every width - neither has a row repeating its
+     scope, so for them the summary is the only place it is written. */
+  .qcms-rail--form > .qcms-rail__disclosure > .qcms-rail__summary {
+    display: none;
+  }
 }
 
 .qcms-rail__body {

@@ -26,9 +26,16 @@ const STEPS: readonly DraftStep[] = [
 ];
 
 const FORM_ID = "frm_life";
+const SLUG = "life-insurance";
 
 function rail(current: Parameters<typeof formSubtreeRail>[0]["current"], counts = new Map()) {
-  return formSubtreeRail({ formId: FORM_ID, steps: STEPS, issueCounts: counts, current });
+  return formSubtreeRail({
+    formId: FORM_ID,
+    slug: SLUG,
+    steps: STEPS,
+    issueCounts: counts,
+    current,
+  });
 }
 
 describe("the form-subtree rail's contents", () => {
@@ -53,7 +60,10 @@ describe("the form-subtree rail's contents", () => {
       "Untitled step",
     ]);
     expect(groups.siblings.map((item) => item.label)).toStrictEqual([
-      "Form details",
+      // The form's own name, not "Builder" and not "Form details": that row opens the
+      // form's own screen, and the rail's summary line above it stopped saying the same
+      // thing on 2026-08-26.
+      SLUG,
       "Preview",
       // "Version history" since issue 679, which named the version list's screen and so,
       // by §7's rule that the rail carries the screen's own name, named this row too.
@@ -132,6 +142,7 @@ describe("the form-subtree rail's contents", () => {
   it("escapes a form id on its way into an href", () => {
     const groups = formSubtreeRail({
       formId: "frm_a b",
+      slug: "a b",
       steps: [],
       issueCounts: new Map(),
       current: { kind: "section", section: "builder" },
