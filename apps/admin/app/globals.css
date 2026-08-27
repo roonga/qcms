@@ -2402,6 +2402,10 @@ button {
    form screens should not see the rail's last control change shape. */
 .qcms-rail-steps__add-link {
   flex: 1 1 auto;
+  /* The button it stands in for is a `button`, so the reset gives that one the control
+     height and this one has to ask for it, exactly as the rows above do. Without it the
+     control was 31px here and 40px on the builder. */
+  min-block-size: var(--admin-control-h);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2456,9 +2460,19 @@ button {
    hide the only thing that distinguishes them. `overflow-wrap: anywhere` is the
    half that matters for the pathological case: an id or a URL pasted in as a
    title has no space to break at and would otherwise overflow the track. */
+/* EVERY RAIL ROW IS THE SAME HEIGHT WHETHER IT IS A LINK OR A BUTTON (Code Owner,
+   2026-08-26). The reset above gives every `button` the control height; an anchor only
+   gets it by asking, which `.qcms-nav__link` already does for the top nav's links. The
+   rail did not, so its rows were 40px on the builder - where they are buttons - and 34px
+   on the other seven form screens, where they are anchors. Clicking Preview therefore
+   moved every row of the rail, which is the shift this closes rather than a taste.
+
+   It is also the rule on its own terms: a rail row is a target you press, so it gets the
+   same minimum as every other control in the app. */
 .qcms-rail__link {
   display: flex;
   align-items: baseline;
+  min-block-size: var(--admin-control-h);
   gap: 0.5rem;
   padding-inline: 0.5rem;
   padding-block: 0.4rem;
@@ -2515,6 +2529,20 @@ button {
   text-align: start;
   cursor: pointer;
   appearance: none;
+}
+
+/* THE SAME TEXT WIDTH ON ALL EIGHT SCREENS. On the builder a step row is two controls -
+   the row itself and a menu trigger that does not shrink - so the row's text gets 30px
+   less than the row. On the other seven there is no menu, so the text had the full width
+   and a title wrapped at a different point on each side of a navigation, moving every row
+   below it. The seven reserve the same 30px rather than the builder giving its trigger up:
+   the trigger appears on hover, and a control that reflowed the list when it appeared
+   would be worse than one that always has its place.
+
+   `1.75rem` is the trigger's own `inline-size` and `0.125rem` the row's gap, both written
+   just above, so this moves with them. */
+.qcms-rail-steps [data-rail-item^="step:"] {
+  padding-inline-end: calc(0.5rem + 1.75rem + 0.125rem);
 }
 
 /* The step's ordinal. Muted and unshrinkable, so the title beside it is what

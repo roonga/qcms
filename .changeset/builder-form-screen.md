@@ -138,3 +138,22 @@ others.
 
 The name is the slug, which is the string the summary already carried and the one the rail
 has always shown.
+
+**Clicking Preview no longer moves the rail** (Code Owner, 2026-08-26). The reset gives
+every `button` the control height and an anchor only gets it by asking, which
+`.qcms-nav__link` already does for the top nav. The rail never did, so its rows were 40px on
+the builder - where they are buttons - and 34px on the other seven form screens, where they
+are anchors. Every row of the rail therefore jumped on a navigation between them. Measured
+at 1280 before and after: the six sibling rows sat at y=275..418 on the builder and
+y=241..384 on Preview; they now sit at the same y on both, and every row is 40px on both.
+
+It is the right rule on its own terms rather than only a fix: a rail row is a target you
+press, so it takes the same minimum as every other control in the app. This makes the
+settings and question rails' rows the control height too.
+
+The step rows reserve the menu trigger's width on all eight screens rather than only where
+the trigger exists. Without that a long title wrapped at a different point on either side of
+a navigation, which moves every row below it. The seven reserve the space rather than the
+builder giving it up, because a trigger that reflowed the list when it appeared on hover
+would be worse than one that always has its place. Both sides now give a step's text the
+same 157px.
