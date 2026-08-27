@@ -253,9 +253,19 @@ export function StepEditor({
       aria-labelledby="qcms-step-heading"
       className="flex flex-col gap-4 rounded-md border border-(--color-border) bg-(--color-surface) p-4"
     >
-      <h2 id="qcms-step-heading" className="text-base font-semibold text-(--color-text)">
+      {/* AN `h1`, because on the step screen this IS the screen's subject (Code Owner,
+          2026-08-26). The form's name used to be the `<h1>` above both of the builder's
+          screens; it moved to the form's own screen with the rest of the form's identity,
+          which would have left a step screen whose highest heading was an `h2` - a
+          `heading-order` violation and a page with no level-one heading, both of which
+          `e2e/a11y-axe.pw.ts` sweeps for. `admin-shell-poc.html` draws it this way too:
+          its step screen is headed by the step.
+
+          The id and the string are unchanged, so the section it labels and every lookup
+          by accessible name still find it. */}
+      <h1 id="qcms-step-heading" className="text-base font-semibold text-(--color-text)">
         {t("forms.step.heading", { title })}
-      </h2>
+      </h1>
       <p className="text-sm text-(--color-text-muted)">{t("forms.step.pinNote")}</p>
 
       {rows.length === 0 ? (

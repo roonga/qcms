@@ -323,6 +323,30 @@ export async function movePin(page: Page, questionId: string, version: number): 
 }
 
 /**
+ * Run a read that needs the save strip, from whichever of the builder's two screens the
+ * caller is standing on, and put them back where they were.
+ *
+ * THE SAVE STRIP IS ON THE FORM SCREEN ONLY since 2026-08-26, so a spec that has just
+ * edited a step cannot see it. That is the product's behaviour rather than a test problem
+ * - a person editing a step has to look at the form screen too - and this is that trip,
+ * made once here instead of scattered through a dozen specs as a pair of screen switches
+ * that would then have to be kept in step with each other.
+ *
+ * The return leg reads the current step out of the rail rather than taking it as an
+ * argument, so a caller that was on the form screen already makes no trip at all.
+ */
+async function readingSaveState<T>(page: Page, read: () => Promise<T>): Promise<T> {
+  const current = page.locator('[data-rail-step-select][aria-current="page"]');
+  const step =
+    (await current.count()) > 0 ? await current.getAttribute("data-rail-step-select") : null;
+  if (step === null) return read();
+  await openFormDetails(page);
+  const value = await read();
+  await openStep(page, step);
+  return value;
+}
+
+/**
  * Wait for the debounced autosave and the validation round trip behind it to land.
  *
  * The save indicator is the product's own statement that the draft reached the API, so
@@ -334,7 +358,9 @@ export async function movePin(page: Page, questionId: string, version: number): 
  * the sentence is the same one.
  */
 export async function waitForSaved(page: Page): Promise<void> {
-  await expect(saveState(page)).toContainText(/^Saved /, { timeout: 30_000 });
+  await readingSaveState(page, async () => {
+    await expect(saveState(page)).toContainText(/^Saved /, { timeout: 30_000 });
+  });
 }
 
 /** The save indicator's current sentence. */
@@ -354,7 +380,10 @@ export function saveStatus(page: Page): Locator {
  * see `waitForSaveAfter`.
  */
 export async function savedStamp(page: Page): Promise<string> {
-  return (await saveStatus(page).getAttribute("data-saved-at")) ?? "";
+  return readingSaveState(
+    page,
+    async () => (await saveStatus(page).getAttribute("data-saved-at")) ?? "",
+  );
 }
 
 /**
@@ -377,10 +406,12 @@ export async function savedStamp(page: Page): Promise<string> {
  * the raw ISO instant, precise enough for a test and never announced to anyone.
  */
 export async function waitForSaveAfter(page: Page, previous: string): Promise<void> {
-  await expect(saveStatus(page)).not.toHaveAttribute("data-saved-at", previous, {
-    timeout: 30_000,
+  await readingSaveState(page, async () => {
+    await expect(saveStatus(page)).not.toHaveAttribute("data-saved-at", previous, {
+      timeout: 30_000,
+    });
+    await expect(saveState(page)).toContainText(/^Saved /, { timeout: 30_000 });
   });
-  await waitForSaved(page);
 }
 
 /** The issue summary the validation panel announces. */

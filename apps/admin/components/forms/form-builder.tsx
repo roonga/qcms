@@ -104,6 +104,7 @@ export function FormBuilder({
   detail,
   library,
   formActions,
+  formHeader,
   saveDraft,
   validateDraft,
   updateSettings,
@@ -120,6 +121,15 @@ export function FormBuilder({
    * server-rendered content, and it keeps the publish surface out of this bundle.
    */
   readonly formActions: ReactNode;
+  /**
+   * The form's name, identity line and draft origin, rendered on the form screen.
+   *
+   * A node for the same reason {@link formActions} is one: the page composes it from the
+   * server's own read of the form, and the builder only decides which of its two screens
+   * it belongs on. The `<h1>` travelling with it is why the step screen promotes its own
+   * heading to `h1` - see the step branch below.
+   */
+  readonly formHeader: ReactNode;
   readonly saveDraft: (draft: DraftForm) => Promise<SaveDraftState>;
   readonly validateDraft: (draft: DraftForm) => Promise<ValidateDraftState>;
   readonly updateSettings: (patch: {
@@ -275,22 +285,6 @@ export function FormBuilder({
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Ambient save chrome: persistent, first thing on the screen, and the only place
-          this screen states how it saves (design-language element 7; issue 518). It is
-          rendered here rather than in the app shell because exactly one screen in this app
-          autosaves, and a strip in the shell would have to be suppressed on the other
-          fifteen - `plan/admin-design-contracts.md` §6's "exactly one save statement per
-          screen" is easier to hold when the statement belongs to the screen that means it.
-          `hasFailed` reads `saveError` rather than `status`, because a failed VALIDATE
-          round trip also sets `status` to "error" and that is not a save failure: the
-          draft is stored before the validate call is made, so this strip goes on saying
-          "Saved" through one, truthfully. The failed check is stated by the validation
-          panel instead, which is where the count it could not refresh already lives. */}
-      <AmbientSaveStatus
-        isSaving={status === "saving"}
-        hasFailed={saveError !== undefined}
-        savedAt={lastSavedAt}
-      />
       <SaveNotices paused={paused} saveError={saveError} />
 
       {/* TWO SCREENS BEHIND ONE ROUTE, and the rail is the switch (Code Owner, 2026-08-26).
@@ -322,6 +316,20 @@ export function FormBuilder({
               every visit to the builder - which `e2e/support/gates.ts` fails the test for,
               correctly: a console error on a screen is a defect whether or not anything
               looks wrong. Being an only child, it is not in a list at all. */}
+          <div>{formHeader}</div>
+          {/* THE SAVE STRIP IS THE FORM'S, and it says so once (Code Owner, 2026-08-26).
+              It used to stand above both screens, so "This draft saves automatically as you
+              edit / No changes yet" sat above every step's questions. Noted rather than
+              hidden: while the reader is on a step there is now no standing statement that
+              the draft is saving, and `plan/admin-design-contracts.md` §6's "exactly one
+              save statement per screen" is satisfied by zero as well as by one. The two
+              notices that DO interrupt - autosave paused, and a save that failed - stay
+              above the split for exactly that reason (see `SaveNotices`). */}
+          <AmbientSaveStatus
+            isSaving={status === "saving"}
+            hasFailed={saveError !== undefined}
+            savedAt={lastSavedAt}
+          />
           <div>{formActions}</div>
           <FormNotices detail={detail} />
           <TextField

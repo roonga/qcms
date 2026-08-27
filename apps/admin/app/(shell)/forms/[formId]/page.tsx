@@ -106,19 +106,14 @@ export default async function FormBuilderPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <Breadcrumb items={crumbs} ariaLabel={t("forms.builder.crumbLabel")} />
-        <h1 className="text-xl font-semibold text-(--color-text)">
-          {t("forms.builder.heading", { slug: form.slug })}
-        </h1>
-        <p className="text-sm text-(--color-text-muted)">
-          {t("forms.builder.formId")}: {form.formId} · {t("forms.builder.locale")}:{" "}
-          {form.defaultLocale} · {t("forms.builder.status")}: {t(`forms.status.${form.status}`)}
-        </p>
-        <p className="text-sm text-(--color-text-muted)">
-          {t(`forms.builder.draftSource.${form.draftSource}`)}
-        </p>
-      </div>
+      {/* The breadcrumb stays on both of the builder's screens, because it is about the
+          ROUTE and the route does not change when the rail switches what the column is
+          showing. What follows it - the form's name, its identity line and where its draft
+          came from - is about the form, so it is handed to the builder and rendered on the
+          form's own screen (Code Owner, 2026-08-26). It used to stand above both, so a
+          reader working on a step read four lines of form metadata above that step's
+          questions every time. */}
+      <Breadcrumb items={crumbs} ariaLabel={t("forms.builder.crumbLabel")} />
 
       {!library.ok && (
         <Alert variant="warning">
@@ -144,6 +139,20 @@ export default async function FormBuilderPage({
       <FormBuilder
         detail={form}
         library={readState(library)}
+        formHeader={
+          <div className="flex flex-col gap-2">
+            <h1 className="text-xl font-semibold text-(--color-text)">
+              {t("forms.builder.heading", { slug: form.slug })}
+            </h1>
+            <p className="text-sm text-(--color-text-muted)">
+              {t("forms.builder.formId")}: {form.formId} · {t("forms.builder.locale")}:{" "}
+              {form.defaultLocale} · {t("forms.builder.status")}: {t(`forms.status.${form.status}`)}
+            </p>
+            <p className="text-sm text-(--color-text-muted)">
+              {t(`forms.builder.draftSource.${form.draftSource}`)}
+            </p>
+          </div>
+        }
         formActions={
           <FormActions
             formId={form.formId}
