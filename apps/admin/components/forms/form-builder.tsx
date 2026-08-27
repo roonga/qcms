@@ -105,6 +105,7 @@ export function FormBuilder({
   library,
   formActions,
   formHeader,
+  publicLink,
   saveDraft,
   validateDraft,
   updateSettings,
@@ -130,6 +131,13 @@ export function FormBuilder({
    * heading to `h1` - see the step branch below.
    */
   readonly formHeader: ReactNode;
+  /**
+   * The form's public address, on the form screen, or absent when it has none to show.
+   *
+   * Composed by the page rather than by this component because the URL is built from a
+   * server-only read (`QCMS_PORTAL_BASE_URL`), which a client component cannot make.
+   */
+  readonly publicLink?: ReactNode;
   readonly saveDraft: (draft: DraftForm) => Promise<SaveDraftState>;
   readonly validateDraft: (draft: DraftForm) => Promise<ValidateDraftState>;
   readonly updateSettings: (patch: {
@@ -331,6 +339,9 @@ export function FormBuilder({
             savedAt={lastSavedAt}
           />
           <div>{formActions}</div>
+          {/* Under the publish controls, because it is what publishing produced: the
+              control says "Published as v1" and this is the address that made true. */}
+          {publicLink !== undefined && <div>{publicLink}</div>}
           <FormNotices detail={detail} />
           <TextField
             label={t("forms.builder.formTitle")}

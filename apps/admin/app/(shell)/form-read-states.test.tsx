@@ -182,6 +182,20 @@ vi.mock("@/components/save-model", () => ({
 vi.mock("@/components/forms/form-actions", () => ({
   FormActions: () => <div data-testid="qcms-form-actions-stub" />,
 }));
+// Stubbed like the actions beside it: this file is about what the page hands the builder
+// when a read fails, and the public link is neither read nor affected by one. Its own
+// behaviour is asserted in `lib/forms/public-link.test.ts`, which is where the decision
+// about when a link exists at all actually lives.
+vi.mock("@/components/forms/public-form-link", () => ({
+  PublicFormLink: () => <div data-testid="qcms-public-link-stub" />,
+}));
+// The page reads the portal's origin to build a published form's public address. Absent
+// here, which is a real deployment state and the one that renders nothing: this file is
+// about what a FAILED READ does to the builder, and the link is neither read nor affected.
+vi.mock("@/lib/server/config", () => ({ portalBaseUrl: () => undefined }));
+// Redirected to the real module rather than stubbed: it is a pure function and this file
+// wants the page's real answer about whether a link exists, not a fixed one.
+vi.mock("@/lib/forms/public-link", () => import("../../lib/forms/public-link.ts"));
 vi.mock("@/lib/ops/unexpected", () => ({ unexpected: () => "ops.error.unexpected" }));
 
 vi.mock("next/navigation", () => ({

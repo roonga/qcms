@@ -949,6 +949,14 @@ export const messages = {
   "forms.links.mintedAnnounce.other":
     "{count} secure links minted. They are listed below and cannot be shown again.",
   "forms.links.copy": "Copy URL",
+  "forms.publicLink.heading": "Public form link",
+  "forms.publicLink.copy": "Copy",
+  // Both hints are the POC's sentence, split by the state the form is actually in rather
+  // than stating the condition and leaving the reader to work out which half applies.
+  "forms.publicLink.hintOpen":
+    "Anyone with this link can start a response while this form stays published and open. It never expires, and it is not the same as a minted secure link on the Links screen.",
+  "forms.publicLink.hintClosed":
+    "This form is closed, so anyone opening this link is told so rather than starting a response. The address stays the same and works again if the form is reopened.",
   "forms.links.copied": "Link copied to the clipboard.",
   "forms.links.copyFailed": "The link could not be copied. Select the text and copy it manually.",
   "forms.links.exportCsv": "Download as CSV",

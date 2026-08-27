@@ -2,6 +2,9 @@ import { notFound } from "next/navigation";
 
 import { Alert, Breadcrumb, type BreadcrumbItem } from "@/components/kit";
 import { FormActions } from "@/components/forms/form-actions";
+import { PublicFormLink } from "@/components/forms/public-form-link";
+import { publicFormLink } from "@/lib/forms/public-link";
+import { portalBaseUrl } from "@/lib/server/config";
 import { FormBuilder } from "@/components/forms/form-builder";
 import type { FormDetail } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
@@ -98,6 +101,9 @@ export default async function FormBuilderPage({
   }
 
   const form = seedTitle(detail.data, firstValue(query["title"]).trim());
+  // Built here rather than in the builder because it needs a server-only read, and passed
+  // down as a node for the same reason `formActions` is one.
+  const publicLink = publicFormLink(form, portalBaseUrl());
   const crumbs: BreadcrumbItem[] = [
     { id: "forms", label: t("forms.builder.crumbs"), href: "/forms" },
     { id: form.formId, label: form.slug, href: `/forms/${encodeURIComponent(form.formId)}` },
@@ -139,6 +145,14 @@ export default async function FormBuilderPage({
       <FormBuilder
         detail={form}
         library={readState(library)}
+        {...(publicLink === undefined
+          ? {}
+          : {
+              // Only when there is one to show. `publicFormLink` returns `undefined` for a
+              // form with no published version - nothing is behind that URL yet - and for
+              // a deployment that has not set `QCMS_PORTAL_BASE_URL` for this service.
+              publicLink: <PublicFormLink url={publicLink} isClosed={form.status === "closed"} />,
+            })}
         formHeader={
           <div className="flex flex-col gap-2">
             <h1 className="text-xl font-semibold text-(--color-text)">

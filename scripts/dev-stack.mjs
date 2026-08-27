@@ -521,6 +521,10 @@ export function frontendChildEnv(
       // belong to. That is the entire configuration of the admin since task 056: an
       // API address, the SEC-4 token, and this. No database URL, no auth secret.
       QCMS_ADMIN_BASE_URL: adminBaseUrl,
+      // ...and, since 2026-08-26, the respondent portal's origin, so the builder can show
+      // a published form's own public address. Read-only and optional: the admin makes no
+      // request to the portal, it only writes the URL down for an operator to hand out.
+      QCMS_PORTAL_BASE_URL: portalBaseUrl,
     };
   }
   return {
