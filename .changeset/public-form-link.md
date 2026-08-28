@@ -53,3 +53,12 @@ rather than a security boundary; this is a development launcher and the alternat
 reading the token out of the running API's `/proc/<pid>/environ`. What it buys is a second
 frontend against the same API and database, so an author checking a published form's public
 link has a portal to open it in.
+
+Copy turns into a tick when it succeeds, and back after two seconds. Feedback about a
+gesture rather than a state the control is in: a button that stayed ticked would say "this
+link is on the clipboard", which stops being true as soon as anything else copies anything.
+It does NOT tick on a refusal - a tick would say the address was copied when it was not -
+and the accessible name stays "Copy" throughout, because pressing it still copies and
+renaming a focused control under a screen reader mid-interaction is the worse trade. The
+live region beside it is what says the copy happened. Colour is the echo, not the message:
+the shape changes.

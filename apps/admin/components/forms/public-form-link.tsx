@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { t } from "@/lib/i18n/en";
 
@@ -27,6 +27,9 @@ import { t } from "@/lib/i18n/en";
  * `navigator.clipboard` is refused often enough (an insecure origin, a denied permission)
  * that a failure is a normal thing to say quietly.
  */
+/** How long the tick stands before the control goes back to offering the copy. */
+const COPIED_MS = 2000;
+
 export function PublicFormLink({
   url,
   isClosed,
@@ -36,14 +39,34 @@ export function PublicFormLink({
   readonly isClosed: boolean;
 }) {
   const [note, setNote] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  // Back to the copy icon after a moment, because the tick is feedback about a gesture
+  // rather than a state the control is in: a button that stays ticked says "this link is
+  // on the clipboard", which stops being true as soon as anything else copies anything.
+  // The cleanup matters as much as the timer - leaving this screen while it runs would
+  // otherwise set state on an unmounted component.
+  useEffect(() => {
+    if (!copied) return undefined;
+    const timer = setTimeout(() => {
+      setCopied(false);
+    }, COPIED_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [copied]);
 
   const copy = useCallback(() => {
     void navigator.clipboard
       .writeText(url)
       .then(() => {
+        setCopied(true);
         setNote(t("forms.links.copied"));
       })
       .catch(() => {
+        // The icon does NOT change on a refusal. A tick would say the address is on the
+        // clipboard when it is not, which is the one thing this control must never say.
+        setCopied(false);
         setNote(t("forms.links.copyFailed"));
       });
   }, [url]);
@@ -94,7 +117,13 @@ export function PublicFormLink({
           type="button"
           className="qcms-copyid"
           data-readonly-action="copy"
+          // THE NAME DOES NOT CHANGE WITH THE ICON. Pressing it still copies - that is
+          // what a second press does - and renaming a focused control under a screen
+          // reader mid-interaction is a worse trade than the redundancy. A screen reader
+          // gets the live region below instead, which says the copy happened; the tick is
+          // that same statement for everyone else.
           aria-label={t("forms.publicLink.copy")}
+          data-copied={copied ? "" : undefined}
           onClick={copy}
         >
           <svg
@@ -102,10 +131,18 @@ export function PublicFormLink({
             fill="none"
             stroke="currentColor"
             strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
             aria-hidden="true"
           >
-            <rect x="9" y="9" width="11" height="11" rx="2" />
-            <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+            {copied ? (
+              <path d="M20 6 9 17l-5-5" />
+            ) : (
+              <>
+                <rect x="9" y="9" width="11" height="11" rx="2" />
+                <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+              </>
+            )}
           </svg>
         </button>
       </div>

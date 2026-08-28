@@ -1553,6 +1553,12 @@ button {
   color: var(--color-text-muted);
   cursor: pointer;
 }
+/* The moment after a successful copy. Colour is the ECHO here, not the message: the
+   icon itself has already changed from two rectangles to a tick, which survives high
+   contrast and colour blindness on its own. */
+.qcms-copyid[data-copied] {
+  color: var(--color-success-fg);
+}
 .qcms-copyid:hover {
   background-color: var(--color-ghost-hover);
   color: var(--color-text);
