@@ -62,3 +62,15 @@ and the accessible name stays "Copy" throughout, because pressing it still copie
 renaming a focused control under a screen reader mid-interaction is the worse trade. The
 live region beside it is what says the copy happened. Colour is the echo, not the message:
 the shape changes.
+
+The paragraph explaining what this address is - and what it is not - sits behind a "?"
+beside the heading rather than under every published form. It never changes, so it was
+four permanent lines saying one standing thing.
+
+A disclosure, not a tooltip: what it holds is a paragraph, which is too long to hover over
+and is exactly what a keyboard or touch reader loses when it is a tooltip. `aria-expanded`
+and `aria-controls` say which it is, and the dot fills when open so the state is not
+carried by the attribute alone. It renders in flow rather than floated over the column,
+because an absolutely positioned panel inside a scrolling column is what produced the
+clipped row-menu popover this app has already fixed once, and nothing here needs to
+overlap anything. Measured: the block is 98px closed and 146px open.

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 
 import { t } from "@/lib/i18n/en";
 
@@ -40,6 +40,10 @@ export function PublicFormLink({
 }) {
   const [note, setNote] = useState("");
   const [copied, setCopied] = useState(false);
+  // Shut by default, which is the whole point: the paragraph is a standing explanation
+  // that never changes, and it was taking four lines under every published form to say so.
+  const [helpOpen, setHelpOpen] = useState(false);
+  const helpId = useId();
 
   // Back to the copy icon after a moment, because the tick is feedback about a gesture
   // rather than a state the control is in: a button that stays ticked says "this link is
@@ -77,9 +81,32 @@ export function PublicFormLink({
       className="flex flex-col gap-2 rounded-md border border-(--color-border) p-4"
       data-testid="qcms-public-form-link-block"
     >
-      <h2 id="qcms-public-link-heading" className="text-base font-semibold text-(--color-text)">
-        {t("forms.publicLink.heading")}
-      </h2>
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 id="qcms-public-link-heading" className="text-base font-semibold text-(--color-text)">
+          {t("forms.publicLink.heading")}
+        </h2>
+        {/* A DISCLOSURE, not a tooltip. What it holds is a paragraph explaining what this
+            address is and what it is not, which is too long to hover over and is exactly
+            the thing a keyboard or touch reader loses when it is a tooltip.
+            `aria-expanded` and `aria-controls` are what make the button say which it is.
+
+            Rendered in flow rather than floated over the screen on purpose: an absolutely
+            positioned panel inside a scrolling column is what produced the clipped
+            row-menu popover this app already fixed once, and there is nothing here that
+            needs to overlap anything. */}
+        <button
+          type="button"
+          className="qcms-help-dot"
+          aria-expanded={helpOpen}
+          aria-controls={helpId}
+          aria-label={t("forms.publicLink.helpLabel")}
+          onClick={() => {
+            setHelpOpen((open) => !open);
+          }}
+        >
+          <span aria-hidden="true">{"?"}</span>
+        </button>
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         {/* AN ANCHOR, because following it is the point: this is the respondent's view of
             the author's own form, and being able to open it is how an author checks that
@@ -146,9 +173,11 @@ export function PublicFormLink({
           </svg>
         </button>
       </div>
-      <p className="text-sm text-(--color-text-muted)">
-        {t(isClosed ? "forms.publicLink.hintClosed" : "forms.publicLink.hintOpen")}
-      </p>
+      {helpOpen && (
+        <p id={helpId} className="text-sm text-(--color-text-muted)">
+          {t(isClosed ? "forms.publicLink.hintClosed" : "forms.publicLink.hintOpen")}
+        </p>
+      )}
       <p aria-live="polite" className="text-sm text-(--color-text-muted)">
         {note}
       </p>

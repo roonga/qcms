@@ -953,6 +953,7 @@ export const messages = {
   "forms.publicLink.heading": "Public form link",
   "forms.publicLink.copy": "Copy",
   "forms.publicLink.opensNewTab": "(opens in a new tab)",
+  "forms.publicLink.helpLabel": "What is this link?",
   // Both hints are the POC's sentence, split by the state the form is actually in rather
   // than stating the condition and leaving the reader to work out which half applies.
   "forms.publicLink.hintOpen":
