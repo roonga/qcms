@@ -27,3 +27,16 @@ deleted rather than left unused.
 The description is one line of bare values - id, locale, status, draft origin - where it was
 three labelled ones. An id looks like an id and a status is a word; the labels were chrome
 around facts an author reads once.
+
+**The heading is no longer painted where it only repeats the breadcrumb.** "Form details"
+sat directly under "Forms / kitchen-sink / Form details", and "Links" under
+"Forms / kitchen-sink / Links". Every screen still HAS its level-one heading - it is what a
+screen reader navigates by, and a page without one fails the axe sweep this app runs in
+three modes - but the default one is clipped to a 1x1 box rather than drawn. Measured: the
+`<h1>` is 1x1 on both the builder and Links, and exactly one heading of level 1 still
+resolves in the accessibility tree on each.
+
+A route that passes its OWN heading keeps it visible: the version detail's "Version 3" and
+the response detail's heading name something the breadcrumb does not, and that is also the
+branch that takes focus programmatically - a focus destination nobody can see would be a
+worse thing to have than a repeated title.

@@ -87,10 +87,26 @@ export function FormPageHeader({
       <Breadcrumb items={crumbs} ariaLabel={t("forms.builder.crumbLabel")} />
       {/* `tabIndex` only with an override: it is a programmatic focus destination, and an
           untargeted heading has no reason to be one. */}
+      {/* HIDDEN WHEN IT ONLY REPEATS THE BREADCRUMB, kept for the reader who cannot see
+          the breadcrumb (Code Owner, 2026-08-26). Every screen needs a level-one heading:
+          it is what a screen reader navigates by, and a page without one fails the axe
+          sweep this app runs in three modes. But when it says "Links" directly beneath
+          "Forms / kitchen-sink / Links", it is telling a sighted reader something they
+          have already read.
+
+          Only the DEFAULT heading is hidden. A route that passes its own - the version
+          detail's "Version 3", the response detail's heading - is naming something the
+          breadcrumb does not, and stays visible. That is also the branch that takes focus
+          programmatically, and a focus destination nobody can see would be a worse thing
+          to have than a repeated title. */}
       <h1
         id={heading?.id}
         tabIndex={heading === undefined ? undefined : -1}
-        className="qcms-ops-title text-xl font-semibold text-(--color-text)"
+        className={
+          heading === undefined
+            ? "qcms-visually-hidden"
+            : "qcms-ops-title text-xl font-semibold text-(--color-text)"
+        }
       >
         {/* THE SECTION'S NAME, WITHOUT THE FORM'S (Code Owner, 2026-08-26). It read
             "Links: kitchen-sink", and the breadcrumb directly above it already says

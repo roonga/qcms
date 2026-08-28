@@ -156,7 +156,16 @@ export default async function FormBuilderPage({
           // the other is a step, which heads itself. The form's name is directly above in
           // the breadcrumb and again in the rail, so repeating it here was the same
           // duplication the five section screens just lost.
-          <h1 className="text-xl font-semibold text-(--color-text)">{t("forms.tab.builder")}</h1>
+          // Visually hidden for the reason the shared form header writes out at length
+          // (`components/forms/form-page-header.tsx`, whose name is deliberately not
+          // spelled here: `section-headings.test.tsx` reads this file's SOURCE for that
+          // identifier to prove this route does not render it, and cannot tell a mention
+          // in a comment from a use). The
+          // breadcrumb directly above already reads "Forms / {slug} / Form details", so a
+          // visible copy tells a sighted reader what they have just read. It stays in the
+          // accessibility tree, because a screen without a level-one heading is one a
+          // screen reader cannot navigate by.
+          <h1 className="qcms-visually-hidden">{t("forms.tab.builder")}</h1>
         }
         formMeta={
           // One muted line of bare values. They were three labelled lines - "Form ID:",

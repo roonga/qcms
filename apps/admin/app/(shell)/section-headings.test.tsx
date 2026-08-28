@@ -62,7 +62,7 @@ vi.mock("@/components/kit", () => import("../../components/kit.tsx"));
 vi.mock("@/lib/i18n/en", () => import("../../lib/i18n/en.ts"));
 
 const { FormPageHeader } = await import("../../components/forms/form-page-header.tsx");
-const { messages, t } = await import("../../lib/i18n/en.ts");
+const { messages } = await import("../../lib/i18n/en.ts");
 
 const SLUG = "Life insurance";
 
