@@ -2,8 +2,7 @@
 "qcms-admin": minor
 ---
 
-A published form shows its public address on the form details screen (Code Owner,
-2026-08-26).
+A published form shows its public address on its Links screen (Code Owner, 2026-08-26).
 
 `${QCMS_PORTAL_BASE_URL}/f/<slug>` is the portal's anonymous entry route
 (`apps/portal/app/f/[formSlug]/page.tsx`), and it is the form's own standing address for as
@@ -12,7 +11,15 @@ long as it stays published: it never expires and it is never consumed.
 Copy button and the hint are all from that drawing - and is emphatic that it is
 **deliberately separate from a minted secure link** on the Links screen, which is a one-time
 or expiring invitation the API cannot show a second time. The POC puts it on the Responses
-screen and says so "rather than only on the Form/Links tabs"; this is the Form one.
+screen and says so "rather than only on the Form/Links tabs"; this is the Links one - the
+screen an author comes to when they need a link to hand out, where the standing address
+belongs beside the minted ones rather than a navigation away from them.
+
+It sits ABOVE the mint control rather than below the table. The two kinds are easy to
+confuse and the standing address is the one an author usually wants, so seeing it first is
+what stops a minted, expiring invitation being sent where a permanent address was meant.
+The explanation behind the "?" names the difference in terms of what is actually beneath
+it - "the secure links below" - rather than pointing at the screen it is standing on.
 
 **No link is shown rather than a broken one.** A form with no published version gets
 nothing: the portal's start route answers `notfound` for it, and an address an operator

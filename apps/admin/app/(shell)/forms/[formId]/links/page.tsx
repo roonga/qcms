@@ -2,9 +2,12 @@ import { notFound } from "next/navigation";
 
 import { Alert } from "@/components/kit";
 import { FormPageHeader } from "@/components/forms/form-page-header";
+import { PublicFormLink } from "@/components/forms/public-form-link";
 import { SecureLinks } from "@/components/forms/secure-links";
+import { publicFormLink } from "@/lib/forms/public-link";
 import { t } from "@/lib/i18n/en";
 import { readState } from "@/lib/read-state";
+import { portalBaseUrl } from "@/lib/server/config";
 import { getForm } from "@/lib/server/forms";
 import { listLinks, MAX_LINK_BATCH } from "@/lib/server/links";
 import { requireAdminSession } from "@/lib/server/session";
@@ -44,10 +47,25 @@ export default async function FormLinksPage({
     return <Alert variant="error">{detail.message}</Alert>;
   }
   const form = detail.data;
+  const publicLink = publicFormLink(form, portalBaseUrl());
 
   return (
     <div className="flex flex-col gap-6">
       <FormPageHeader formId={form.formId} slug={form.slug} section="links" status={form.status} />
+      {/* THE FORM'S OWN ADDRESS, above the minted ones (Code Owner, 2026-08-26). It moved
+          here from the builder because this is the screen an author comes to when they
+          need a link to hand out, and it belongs beside the other kind rather than a
+          navigation away from it.
+
+          Above the mint control rather than below the table, because the two are easy to
+          confuse and the standing address is the one an author usually wants: seeing it
+          first is what stops a minted, expiring invitation being sent where a permanent
+          address was meant. `plan/admin-shell-poc/responses-poc.html` is emphatic about
+          that distinction and this screen is where it matters most, which is why the
+          explanation behind the "?" names the difference in the reader's own terms here. */}
+      {publicLink !== undefined && (
+        <PublicFormLink url={publicLink} isClosed={form.status === "closed"} />
+      )}
       {!links.ok && (
         <Alert variant="warning">{t("forms.links.listFailed", { message: links.message })}</Alert>
       )}

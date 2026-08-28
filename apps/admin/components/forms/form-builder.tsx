@@ -106,7 +106,6 @@ export function FormBuilder({
   library,
   formActions,
   formHeader,
-  publicLink,
   concurrentNoticeRead,
   saveDraft,
   validateDraft,
@@ -133,13 +132,6 @@ export function FormBuilder({
    * heading to `h1` - see the step branch below.
    */
   readonly formHeader: ReactNode;
-  /**
-   * The form's public address, on the form screen, or absent when it has none to show.
-   *
-   * Composed by the page rather than by this component because the URL is built from a
-   * server-only read (`QCMS_PORTAL_BASE_URL`), which a client component cannot make.
-   */
-  readonly publicLink?: ReactNode;
   /**
    * Whether this operator has already dismissed the concurrent-edit warning.
    *
@@ -357,9 +349,6 @@ export function FormBuilder({
             />
           </div>
           <div>{formActions}</div>
-          {/* Under the publish controls, because it is what publishing produced: the
-              control says "Published as v1" and this is the address that made true. */}
-          {publicLink !== undefined && <div>{publicLink}</div>}
           <FormNotices detail={detail} concurrentRead={concurrentNoticeRead} />
           <TextField
             label={t("forms.builder.formTitle")}

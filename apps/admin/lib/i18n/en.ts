@@ -957,10 +957,14 @@ export const messages = {
   "forms.publicLink.helpLabel": "What is this link?",
   // Both hints are the POC's sentence, split by the state the form is actually in rather
   // than stating the condition and leaving the reader to work out which half applies.
+  // "the links below" rather than "on the Links screen" since 2026-08-26: this block moved
+  // ONTO that screen, and a sentence pointing at the screen it is standing on would send a
+  // reader looking for somewhere else. The distinction it draws is the whole reason the two
+  // are allowed to sit together, so it names what is actually beneath it.
   "forms.publicLink.hintOpen":
-    "Anyone with this link can start a response while this form stays published and open. It never expires, and it is not the same as a minted secure link on the Links screen.",
+    "Anyone with this link can start a response while this form stays published and open. It never expires and it is never used up, which is what makes it different from the secure links below.",
   "forms.publicLink.hintClosed":
-    "This form is closed, so anyone opening this link is told so rather than starting a response. The address stays the same and works again if the form is reopened.",
+    "This form is closed, so anyone opening this link is told so rather than starting a response. The address never changes and works again if the form is reopened, which is what makes it different from the secure links below.",
   "forms.links.copied": "Link copied to the clipboard.",
   "forms.links.copyFailed": "The link could not be copied. Select the text and copy it manually.",
   "forms.links.exportCsv": "Download as CSV",
