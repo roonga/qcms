@@ -196,8 +196,19 @@ vi.mock("@/lib/server/config", () => ({ portalBaseUrl: () => undefined }));
 // Redirected to the real module rather than stubbed: it is a pure function and this file
 // wants the page's real answer about whether a link exists, not a fixed one.
 vi.mock("@/lib/forms/public-link", () => import("../../lib/forms/public-link.ts"));
+// Pure cookie helpers, redirected to the real module: this file wants the page's real
+// answer about whether the concurrent notice has been dismissed, which with no cookie on
+// the request is "no".
+vi.mock("@/lib/builder-notice", () => import("../../lib/builder-notice.ts"));
 vi.mock("@/lib/ops/unexpected", () => ({ unexpected: () => "ops.error.unexpected" }));
 
+// The page reads one cookie - whether the concurrent-edit notice has been dismissed - and
+// `cookies()` throws outside a request scope, which a direct render of the page is. An
+// empty jar is the honest stand-in: it is what a first visit sends, and it is the branch
+// that renders the notice, so nothing here is hidden by the stub.
+vi.mock("next/headers", () => ({
+  cookies: () => Promise.resolve({ get: () => undefined }),
+}));
 vi.mock("next/navigation", () => ({
   notFound: () => {
     throw new Error("NEXT_NOT_FOUND");

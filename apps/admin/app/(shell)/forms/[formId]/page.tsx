@@ -1,8 +1,10 @@
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 
 import { Alert, Breadcrumb, type BreadcrumbItem } from "@/components/kit";
 import { FormActions } from "@/components/forms/form-actions";
 import { PublicFormLink } from "@/components/forms/public-form-link";
+import { CONCURRENT_NOTICE_COOKIE, isConcurrentNoticeDismissed } from "@/lib/builder-notice";
 import { publicFormLink } from "@/lib/forms/public-link";
 import { portalBaseUrl } from "@/lib/server/config";
 import { FormBuilder } from "@/components/forms/form-builder";
@@ -145,6 +147,11 @@ export default async function FormBuilderPage({
       <FormBuilder
         detail={form}
         library={readState(library)}
+        // Read on the request rather than after mount, so a screen that will not show the
+        // notice never renders it and then takes it away.
+        concurrentNoticeRead={isConcurrentNoticeDismissed(
+          (await cookies()).get(CONCURRENT_NOTICE_COOKIE)?.value,
+        )}
         {...(publicLink === undefined
           ? {}
           : {

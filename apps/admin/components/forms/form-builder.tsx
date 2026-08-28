@@ -41,6 +41,7 @@ import type { ReadState } from "@/lib/read-state";
 import { ConditionEditor } from "./condition-editor";
 import { FormSettingsPanel } from "./form-settings-panel";
 import { RuleTestBench } from "./rule-test-bench";
+import { concurrentNoticeCookie } from "@/lib/builder-notice";
 import { usePublishBuilderRail, type BuilderSelection } from "@/lib/forms/builder-bridge";
 import { StepEditor } from "./step-editor";
 import { ValidationPanel, type BuilderStatus } from "./validation-panel";
@@ -106,6 +107,7 @@ export function FormBuilder({
   formActions,
   formHeader,
   publicLink,
+  concurrentNoticeRead,
   saveDraft,
   validateDraft,
   updateSettings,
@@ -138,6 +140,12 @@ export function FormBuilder({
    * server-only read (`QCMS_PORTAL_BASE_URL`), which a client component cannot make.
    */
   readonly publicLink?: ReactNode;
+  /**
+   * Whether this operator has already dismissed the concurrent-edit warning.
+   *
+   * Read from the request's cookie by the page, so the first render is already right.
+   */
+  readonly concurrentNoticeRead: boolean;
   readonly saveDraft: (draft: DraftForm) => Promise<SaveDraftState>;
   readonly validateDraft: (draft: DraftForm) => Promise<ValidateDraftState>;
   readonly updateSettings: (patch: {
@@ -342,7 +350,7 @@ export function FormBuilder({
           {/* Under the publish controls, because it is what publishing produced: the
               control says "Published as v1" and this is the address that made true. */}
           {publicLink !== undefined && <div>{publicLink}</div>}
-          <FormNotices detail={detail} />
+          <FormNotices detail={detail} concurrentRead={concurrentNoticeRead} />
           <TextField
             label={t("forms.builder.formTitle")}
             description={t("forms.builder.formTitleHint")}
@@ -450,13 +458,69 @@ const PAUSE_MESSAGES: Readonly<Record<UnsaveableReason, MessageKey>> = {
  *
  * The save notices below are deliberately NOT here: see the note on {@link SaveNotices}.
  */
-function FormNotices({ detail }: { readonly detail: FormDetail }) {
+function FormNotices({
+  detail,
+  concurrentRead,
+}: {
+  readonly detail: FormDetail;
+  readonly concurrentRead: boolean;
+}) {
   return (
     <div className="flex flex-col gap-2">
       {detail.draftSource === "seeded" && <Alert variant="info">{t("forms.builder.seeded")}</Alert>}
       {detail.status === "closed" && <Alert variant="info">{t("forms.builder.closed")}</Alert>}
-      <Alert variant="info">{t("forms.builder.concurrent")}</Alert>
+      <ConcurrentNotice alreadyRead={concurrentRead} />
     </div>
+  );
+}
+
+/**
+ * The concurrent-edit warning: said in full once, then dismissed for good (Code Owner,
+ * 2026-08-26).
+ *
+ * It is a standing fact about how this app saves - there is no locking, and the last save
+ * wins - so it never changes and it was permanently occupying four lines above every form.
+ * A warning nobody can stop reading is one everybody stops reading.
+ *
+ * WHAT THIS TRADE COSTS, stated rather than buried: an operator who dismisses it on their
+ * machine never sees it again, and a colleague joining the team later sees it on theirs
+ * only until they dismiss it too. The warning is about coordinating with other authors, so
+ * the person who most needs it is the one who has been here long enough to have dismissed
+ * it. `docs/operations.md` is where it stays permanently true; this is the prompt, not the
+ * documentation.
+ *
+ * The state arrives from the server on the request's own cookie rather than being read here
+ * after mount, which is what keeps the screen right in its first byte instead of pushing
+ * itself down a frame later - see `lib/builder-notice.ts`.
+ */
+function ConcurrentNotice({ alreadyRead }: { readonly alreadyRead: boolean }) {
+  const [dismissed, setDismissed] = useState(alreadyRead);
+  if (dismissed) return null;
+  return (
+    <Alert variant="info">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <span>{t("forms.builder.concurrent")}</span>
+        <Button
+          variant="ghost"
+          size="sm"
+          onPress={() => {
+            // Written from the browser rather than through a server action: it is a
+            // preference nothing depends on, and a round trip to record "this person has
+            // read a sentence" would be the heavier half of the feature. A refused write
+            // (a browser blocking cookies) still hides it for this visit, which is the
+            // behaviour the press asked for.
+            try {
+              document.cookie = concurrentNoticeCookie(window.location.protocol === "https:");
+            } catch {
+              // Ignored on purpose: see above.
+            }
+            setDismissed(true);
+          }}
+        >
+          {t("forms.builder.concurrentDismiss")}
+        </Button>
+      </div>
+    </Alert>
   );
 }
 
