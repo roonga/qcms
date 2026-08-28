@@ -60,3 +60,10 @@ positioning is safe here in a way it was not for the row menu this app once had 
 `<main>` is deliberately not a scrollport, so nothing between it and the viewport has
 `overflow` to clip against. Measured across a press: the "Form title" label held y=349 and
 the button held x=1236, y=150.
+
+**An empty notice block was holding a gap open, again.** With nothing to report - no seeded
+draft, no closed form, the concurrent-edit notice dismissed - `FormNotices` still rendered
+its wrapper, and in a `gap-6` column a zero-height child takes a whole gap slot: the form's
+first field sat 48px below the header where 24px was meant. The dismissal moved up into
+that component so it can know whether it has anything to say at all. Same defect as the save
+notices had, in the same column, found the same way - by measuring rather than by looking.

@@ -27,11 +27,15 @@ const STEPS: readonly DraftStep[] = [
 
 const FORM_ID = "frm_life";
 const SLUG = "life-insurance";
+// A form that HAS a title: the rail shows what an author called it, and falls back to the
+// slug only when there is nothing to show. Both branches are asserted below.
+const TITLE = "Life insurance";
 
 function rail(current: Parameters<typeof formSubtreeRail>[0]["current"], counts = new Map()) {
   return formSubtreeRail({
     formId: FORM_ID,
     slug: SLUG,
+    title: TITLE,
     steps: STEPS,
     issueCounts: counts,
     current,
@@ -62,8 +66,10 @@ describe("the form-subtree rail's contents", () => {
     expect(groups.siblings.map((item) => item.label)).toStrictEqual([
       // The form's own name, not "Builder" and not "Form details": that row opens the
       // form's own screen, and the rail's summary line above it stopped saying the same
-      // thing on 2026-08-26.
-      SLUG,
+      // thing on 2026-08-26. The TITLE where there is one - what an author called the
+      // form is what a reader recognises - with the slug as the fallback, which
+      // `formDisplayName` is tested for below.
+      TITLE,
       "Preview",
       // "Version history" since issue 679, which named the version list's screen and so,
       // by §7's rule that the rail carries the screen's own name, named this row too.
@@ -143,6 +149,7 @@ describe("the form-subtree rail's contents", () => {
     const groups = formSubtreeRail({
       formId: "frm_a b",
       slug: "a b",
+      title: "",
       steps: [],
       issueCounts: new Map(),
       current: { kind: "section", section: "builder" },
@@ -158,17 +165,30 @@ describe("the collapsed summary", () => {
   // position now, which is also what `admin-shell-poc.html` draws on every screen.
   it("names the form on a section screen, not the section", () => {
     const groups = rail({ kind: "section", section: "links" }, new Map([["stp_health", 2]]));
-    expect(railSummary(groups, "life")).toStrictEqual({ text: "life", issueCount: 2 });
+    expect(railSummary(groups, "life", "")).toStrictEqual({ text: "life", issueCount: 2 });
   });
 
   it("names the form on a step screen, not the step", () => {
     const groups = rail({ kind: "step", stepId: "stp_health" }, new Map([["stp_health", 2]]));
-    expect(railSummary(groups, "life")).toStrictEqual({ text: "life", issueCount: 2 });
+    expect(railSummary(groups, "life", "")).toStrictEqual({ text: "life", issueCount: 2 });
   });
 
   it("names the form when nothing is current, which was the only branch that ever did", () => {
     const groups = rail({ kind: "step", stepId: "stp_gone" });
-    expect(railSummary(groups, "life")).toStrictEqual({ text: "life", issueCount: 0 });
+    expect(railSummary(groups, "life", "")).toStrictEqual({ text: "life", issueCount: 0 });
+  });
+
+  it("prefers what the author called the form over how it is addressed", () => {
+    // The slug is in the URL and the breadcrumb; the title is the thing a person
+    // recognises, and until now the rail never showed it at all.
+    const groups = rail({ kind: "section", section: "links" });
+    expect(railSummary(groups, "life", "Life insurance").text).toBe("Life insurance");
+  });
+
+  it("falls back to the slug for a form nobody has named yet, rather than an empty row", () => {
+    const groups = rail({ kind: "section", section: "links" });
+    expect(railSummary(groups, "life", "").text).toBe("life");
+    expect(railSummary(groups, "life", "   ").text, "whitespace is not a name").toBe("life");
   });
 
   it("counts every step's issues, not the current row's", () => {
@@ -182,6 +202,6 @@ describe("the collapsed summary", () => {
       ]),
     );
     expect(railIssueTotal(groups)).toBe(3);
-    expect(railSummary(groups, "life").issueCount).toBe(3);
+    expect(railSummary(groups, "life", "").issueCount).toBe(3);
   });
 });

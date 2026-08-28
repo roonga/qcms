@@ -2294,6 +2294,13 @@ button {
   .qcms-rail--form > .qcms-rail__disclosure > .qcms-rail__summary {
     display: none;
   }
+  /* ...and the body takes over the space it left. Without this the form's own row began
+     flush against the top bar, with none of the breathing room the summary used to
+     provide above it. Only in this rail and only at this width, because it is the only
+     one whose summary is hidden. */
+  .qcms-rail--form .qcms-rail__body {
+    padding-block-start: 0.75rem;
+  }
 }
 
 .qcms-rail__body {
@@ -2590,6 +2597,23 @@ button {
   text-align: start;
   cursor: pointer;
   appearance: none;
+}
+
+/* THE FORM'S OWN ROW TRUNCATES; ITS STEPS DO NOT. A form's title is prose an author
+   chose and can be any length, and this row is the tree's root: wrapped to four lines it
+   would push every step out of sight before the reader had seen one. A step row wraps
+   instead, deliberately, and `e2e/rail.pw.ts` pins that - "559 wraps a long step title
+   inside the column rather than hiding its end" - because a step's title is what the
+   reader is choosing between, where the form's is what they already know they are in.
+
+   The full name is never lost: the element's text is complete, so it is what a screen
+   reader announces and what the accessible name of the row is. Only the paint is cut. */
+[data-rail-item="section:builder"],
+.qcms-rail-steps__form {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 /* THE SAME TEXT WIDTH ON ALL EIGHT SCREENS. On the builder a step row is two controls -

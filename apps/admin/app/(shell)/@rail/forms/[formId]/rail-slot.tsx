@@ -67,6 +67,7 @@ export async function FormRailSlot({
     <FormSubtreeRail
       formId={rail.formId}
       slug={rail.slug}
+      title={rail.title}
       steps={rail.steps}
       issueCounts={rail.issueCounts}
       current={current}

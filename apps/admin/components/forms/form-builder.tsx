@@ -472,11 +472,28 @@ function FormNotices({
   readonly detail: FormDetail;
   readonly concurrentRead: boolean;
 }) {
+  // The dismissal lives HERE rather than inside the notice it hides, so that this
+  // component can know whether it has anything at all to say. It did not, and rendered an
+  // empty box for a form with nothing to report: in a `gap-6` column a zero-height child
+  // still takes a whole gap slot, so the screen sat 48px below its header where 24px was
+  // meant. The same defect the save notices had, in the same column, found the same way -
+  // by measuring rather than by looking.
+  const [dismissed, setDismissed] = useState(concurrentRead);
+  const seeded = detail.draftSource === "seeded";
+  const closed = detail.status === "closed";
+  if (!seeded && !closed && dismissed) return null;
+
   return (
     <div className="flex flex-col gap-2">
-      {detail.draftSource === "seeded" && <Alert variant="info">{t("forms.builder.seeded")}</Alert>}
-      {detail.status === "closed" && <Alert variant="info">{t("forms.builder.closed")}</Alert>}
-      <ConcurrentNotice alreadyRead={concurrentRead} />
+      {seeded && <Alert variant="info">{t("forms.builder.seeded")}</Alert>}
+      {closed && <Alert variant="info">{t("forms.builder.closed")}</Alert>}
+      {!dismissed && (
+        <ConcurrentNotice
+          onDismiss={() => {
+            setDismissed(true);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -500,9 +517,7 @@ function FormNotices({
  * after mount, which is what keeps the screen right in its first byte instead of pushing
  * itself down a frame later - see `lib/builder-notice.ts`.
  */
-function ConcurrentNotice({ alreadyRead }: { readonly alreadyRead: boolean }) {
-  const [dismissed, setDismissed] = useState(alreadyRead);
-  if (dismissed) return null;
+function ConcurrentNotice({ onDismiss }: { readonly onDismiss: () => void }) {
   return (
     <Alert variant="info">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -521,7 +536,7 @@ function ConcurrentNotice({ alreadyRead }: { readonly alreadyRead: boolean }) {
             } catch {
               // Ignored on purpose: see above.
             }
-            setDismissed(true);
+            onDismiss();
           }}
         >
           {t("forms.builder.concurrentDismiss")}

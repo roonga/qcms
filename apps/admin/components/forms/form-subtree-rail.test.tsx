@@ -68,6 +68,7 @@ async function render(
     <FormSubtreeRail
       formId="frm_life"
       slug="life"
+      title=""
       steps={steps}
       issueCounts={issueCounts}
       current={current}

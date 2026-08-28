@@ -49,6 +49,7 @@ import { t } from "@/lib/i18n/en";
 export function FormSubtreeRail({
   formId,
   slug,
+  title,
   steps,
   issueCounts,
   current,
@@ -57,6 +58,8 @@ export function FormSubtreeRail({
   readonly formId: string;
   /** The form's own name, and the summary's fallback. */
   readonly slug: string;
+  /** The form's own title, or `""`. The rail shows it in place of the slug. */
+  readonly title: string;
   readonly steps: readonly DraftStep[];
   /** Per-step issue counts from the API's verdict, or empty when there is none (R2). */
   readonly issueCounts: ReadonlyMap<string, number>;
@@ -73,8 +76,8 @@ export function FormSubtreeRail({
    */
   readonly renderSteps?: (item: RailItem, steps: readonly RailItem[]) => ReactNode;
 }) {
-  const groups = formSubtreeRail({ formId, slug, steps, issueCounts, current });
-  const summary = railSummary(groups, slug);
+  const groups = formSubtreeRail({ formId, slug, title, steps, issueCounts, current });
+  const summary = railSummary(groups, slug, title);
 
   return (
     <RailFrame
