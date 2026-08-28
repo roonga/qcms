@@ -30,3 +30,9 @@ often is hostile to anyone listening. The announced statement is the strip's own
 region on the form screen, which changes at most once a minute. What a screen reader still
 gets on the step screen is every save that goes WRONG: autosave-paused and save-failed are
 alerts and they stay on both screens.
+
+The strip itself moved onto the form heading's row, so the screen's one persistent
+statement of how it saves costs no vertical space of its own. `items-baseline` puts it
+level with the form's name rather than with the top of a block that also carries the form's
+id line and where its draft came from. Measured at 1280: the heading occupies y=128..156
+and the strip sits at y=125 on its right, and no width from 1280 down to 390 overflows.

@@ -332,20 +332,30 @@ export function FormBuilder({
               every visit to the builder - which `e2e/support/gates.ts` fails the test for,
               correctly: a console error on a screen is a defect whether or not anything
               looks wrong. Being an only child, it is not in a list at all. */}
-          <div>{formHeader}</div>
-          {/* THE SAVE STRIP IS THE FORM'S, and it says so once (Code Owner, 2026-08-26).
-              It used to stand above both screens, so "This draft saves automatically as you
-              edit / No changes yet" sat above every step's questions. Noted rather than
-              hidden: while the reader is on a step there is now no standing statement that
-              the draft is saving, and `plan/admin-design-contracts.md` §6's "exactly one
-              save statement per screen" is satisfied by zero as well as by one. The two
-              notices that DO interrupt - autosave paused, and a save that failed - stay
-              above the split for exactly that reason (see `SaveNotices`). */}
-          <AmbientSaveStatus
-            isSaving={status === "saving"}
-            hasFailed={saveError !== undefined}
-            savedAt={lastSavedAt}
-          />
+          {/* THE SAVE STRIP RIDES ON THE HEADING'S ROW (Code Owner, 2026-08-26), so the
+              screen's one persistent statement of how it saves costs no vertical space of
+              its own. `items-baseline` is what puts it level with the form's name rather
+              than with the top of the block, which also carries the form's id line and
+              where its draft came from.
+
+              It is the FORM's statement and it stays on the form's screen. A step screen
+              gets `AutosaveFlash` instead: one save, confirmed, then gone.
+              `plan/admin-design-contracts.md` §6's "exactly one save statement per screen"
+              is why they are never both on one screen. The two notices that INTERRUPT -
+              autosave paused, and a save that failed - are on both, which is what makes
+              the quiet path safe to be quiet (see `SaveNotices`).
+
+              `formHeader` keeps its wrapper: it is rendered on the server and handed
+              across the client boundary, and a bare server node in a children array reads
+              to React as a keyless list item. */}
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+            <div>{formHeader}</div>
+            <AmbientSaveStatus
+              isSaving={status === "saving"}
+              hasFailed={saveError !== undefined}
+              savedAt={lastSavedAt}
+            />
+          </div>
           <div>{formActions}</div>
           {/* Under the publish controls, because it is what publishing produced: the
               control says "Published as v1" and this is the address that made true. */}
