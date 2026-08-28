@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { Alert, Button, TextField } from "@/components/kit";
-import { AmbientSaveStatus } from "@/components/save-model";
+import { AmbientSaveStatus, AutosaveFlash } from "@/components/save-model";
 import type {
   PreviewConditionState,
   SaveDraftState,
@@ -391,6 +391,7 @@ export function FormBuilder({
             <StepEditor
               draft={draft}
               step={selectedStep}
+              saveFlash={<AutosaveFlash savedAt={lastSavedAt} />}
               library={library}
               issues={issues}
               /* One `mutate` for the whole batch, folded left over the pins.

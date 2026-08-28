@@ -129,8 +129,16 @@ export function StepEditor({
   onMovePin,
   onRemovePin,
   onReorderPin,
+  saveFlash,
 }: {
   readonly draft: DraftForm;
+  /**
+   * A brief "Saved", shown beside this step's heading when an autosave lands.
+   *
+   * Passed in rather than rendered here because the save state belongs to the builder,
+   * which owns the draft and its autosave; this component only knows where it goes.
+   */
+  readonly saveFlash?: ReactNode;
   readonly step: DraftStep;
   readonly library: ReadState<readonly PinnableQuestion[]>;
   /**
@@ -263,9 +271,15 @@ export function StepEditor({
 
           The id and the string are unchanged, so the section it labels and every lookup
           by accessible name still find it. */}
-      <h1 id="qcms-step-heading" className="text-base font-semibold text-(--color-text)">
-        {t("forms.step.heading", { title })}
-      </h1>
+      {/* The heading and the save flash share one row, whose height the heading sets. A
+          transient element in the column's own flow would push the screen down as it
+          arrived and pull it back as it left: a layout shift twice per autosave. */}
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h1 id="qcms-step-heading" className="text-base font-semibold text-(--color-text)">
+          {t("forms.step.heading", { title })}
+        </h1>
+        {saveFlash}
+      </div>
       <p className="text-sm text-(--color-text-muted)">{t("forms.step.pinNote")}</p>
 
       {rows.length === 0 ? (

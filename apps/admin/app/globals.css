@@ -2385,6 +2385,16 @@ button {
   }
 }
 
+/* The autosave flash: a word, in the muted voice, beside the step it saved. Small and
+   quiet on purpose - it is a confirmation rather than chrome, and the persistent
+   statement of HOW this screen saves is the strip on the form's own screen. */
+.qcms-autosave-flash {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
 /* A "?" that opens an explanation. Round, muted and the size of the copy control beside
    it, so the two read as one row of small affordances rather than as a control and a
    decoration. The border is what makes it look pressable at this size: a bare glyph in

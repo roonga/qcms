@@ -74,3 +74,8 @@ carried by the attribute alone. It renders in flow rather than floated over the 
 because an absolutely positioned panel inside a scrolling column is what produced the
 clipped row-menu popover this app has already fixed once, and nothing here needs to
 overlap anything. Measured: the block is 98px closed and 146px open.
+
+The label, the address and the two controls that act on it are one row rather than three
+stacked ones: it is a single fact, and a label above its value made the block read as a
+section rather than as a field. `flex-wrap` keeps that honest at a narrow width, where the
+address takes the second line rather than being truncated.

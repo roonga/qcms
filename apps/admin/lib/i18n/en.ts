@@ -483,6 +483,7 @@ export const messages = {
     "This draft was started from the newest published version and has not been saved yet. Your first change stores it.",
   "forms.builder.concurrent":
     "Autosave replaces the stored draft outright: if another author has this form open, whichever of you saves last wins and the other's change is gone. There is no locking at launch, so coordinate before editing the same form.",
+  "forms.save.flash": "Saved",
   "forms.builder.concurrentDismiss": "Got it",
   "forms.builder.saveFailed": "This draft could not be saved. {message}",
   "forms.builder.closed":

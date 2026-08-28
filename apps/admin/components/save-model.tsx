@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
 import { t, type MessageKey } from "@/lib/i18n/en";
 import { formatDateTime } from "@/lib/i18n/format";
 
@@ -121,3 +124,65 @@ export function ManualSaveNote({ messageKey }: { readonly messageKey: MessageKey
     </p>
   );
 }
+
+/**
+ * A brief "Saved" beside the work it saved, for the screen that carries no strip.
+ *
+ * ## Why this exists at all
+ *
+ * The ambient strip is the FORM's, and it moved to the form's own screen when the builder
+ * became two screens (Code Owner, 2026-08-26). That left the step screen - where most
+ * editing actually happens - with no standing sign that anything was being stored. This is
+ * that sign, and it is deliberately the smaller of the two: the strip states the save
+ * MODEL persistently, which is what design-language element 7 is about, while this states
+ * one save and then gets out of the way.
+ *
+ * `plan/admin-design-contracts.md` §6's "exactly one save statement per screen" is kept
+ * rather than bent: the form screen has the strip and not this, the step screen has this
+ * and not the strip. Neither screen shows two.
+ *
+ * ## Why it does not announce
+ *
+ * `aria-hidden`, and that is a judgement rather than an oversight. This fires on every
+ * debounced autosave - which is to say every few keystrokes - and a live region saying
+ * "Saved" that often is hostile to anyone listening to it. The strip's own live region is
+ * the announced statement, and it is on the form screen where it changes at most once a
+ * minute. What a screen reader still gets on THIS screen is every save that goes wrong:
+ * autosave-paused and save-failed are alerts, and they stay on both screens.
+ *
+ * ## Why it takes no space when it is gone
+ *
+ * It sits in the step heading's own row, whose height is set by the heading beside it. A
+ * transient element in the flow of a column would push the screen down as it arrived and
+ * pull it back as it left, which is a layout shift twice per save.
+ */
+export function AutosaveFlash({ savedAt }: { readonly savedAt: string | undefined }) {
+  const [visible, setVisible] = useState(false);
+  // The instant this component has already accounted for, seeded with whatever was true
+  // when it mounted. Without it, arriving on a step after ANY earlier save this visit
+  // flashed "Saved" for a save that had happened minutes ago on another screen: the effect
+  // fires on mount, and a mount is not an event worth confirming.
+  const acknowledged = useRef(savedAt);
+
+  useEffect(() => {
+    if (savedAt === undefined || savedAt === acknowledged.current) return undefined;
+    acknowledged.current = savedAt;
+    setVisible(true);
+    const timer = setTimeout(() => {
+      setVisible(false);
+    }, FLASH_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [savedAt]);
+
+  if (!visible) return null;
+  return (
+    <span className="qcms-autosave-flash" data-testid="qcms-autosave-flash" aria-hidden="true">
+      {t("forms.save.flash")}
+    </span>
+  );
+}
+
+/** How long the flash stands. Long enough to notice, short enough not to be chrome. */
+const FLASH_MS = 1800;

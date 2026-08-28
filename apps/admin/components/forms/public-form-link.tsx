@@ -81,33 +81,18 @@ export function PublicFormLink({
       className="flex flex-col gap-2 rounded-md border border-(--color-border) p-4"
       data-testid="qcms-public-form-link-block"
     >
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 id="qcms-public-link-heading" className="text-base font-semibold text-(--color-text)">
+      {/* ONE ROW: the label, the address it labels, and the two small controls that act
+          on it. It was three stacked rows for what is a single fact, and the label above
+          the value made the block read as a section rather than as a field. `flex-wrap`
+          is what keeps that honest at a narrow width - the address is the long part, so
+          it takes the second line rather than being truncated. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <h2
+          id="qcms-public-link-heading"
+          className="flex-shrink-0 text-base font-semibold text-(--color-text)"
+        >
           {t("forms.publicLink.heading")}
         </h2>
-        {/* A DISCLOSURE, not a tooltip. What it holds is a paragraph explaining what this
-            address is and what it is not, which is too long to hover over and is exactly
-            the thing a keyboard or touch reader loses when it is a tooltip.
-            `aria-expanded` and `aria-controls` are what make the button say which it is.
-
-            Rendered in flow rather than floated over the screen on purpose: an absolutely
-            positioned panel inside a scrolling column is what produced the clipped
-            row-menu popover this app already fixed once, and there is nothing here that
-            needs to overlap anything. */}
-        <button
-          type="button"
-          className="qcms-help-dot"
-          aria-expanded={helpOpen}
-          aria-controls={helpId}
-          aria-label={t("forms.publicLink.helpLabel")}
-          onClick={() => {
-            setHelpOpen((open) => !open);
-          }}
-        >
-          <span aria-hidden="true">{"?"}</span>
-        </button>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
         {/* AN ANCHOR, because following it is the point: this is the respondent's view of
             the author's own form, and being able to open it is how an author checks that
             what they published is what they meant. `docs/admin-constraints.md` - an anchor
@@ -171,6 +156,27 @@ export function PublicFormLink({
               </>
             )}
           </svg>
+        </button>
+        {/* A DISCLOSURE, not a tooltip. What it holds is a paragraph explaining what this
+            address is and what it is not, which is too long to hover over and is exactly
+            the thing a keyboard or touch reader loses when it is a tooltip.
+            `aria-expanded` and `aria-controls` are what make the button say which it is.
+
+            Rendered in flow rather than floated over the screen on purpose: an absolutely
+            positioned panel inside a scrolling column is what produced the clipped
+            row-menu popover this app already fixed once, and there is nothing here that
+            needs to overlap anything. */}
+        <button
+          type="button"
+          className="qcms-help-dot"
+          aria-expanded={helpOpen}
+          aria-controls={helpId}
+          aria-label={t("forms.publicLink.helpLabel")}
+          onClick={() => {
+            setHelpOpen((open) => !open);
+          }}
+        >
+          <span aria-hidden="true">{"?"}</span>
         </button>
       </div>
       {helpOpen && (
