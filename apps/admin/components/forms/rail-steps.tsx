@@ -122,7 +122,9 @@ export function RailSteps({
         aria-current={builder.selection.kind === "form" ? "page" : undefined}
         onClick={builder.chooseForm}
       >
-        {item.label}
+        {/* A span rather than a bare text node, so the label is a flex ITEM the row can
+            clip. Bare, it is an anonymous flex item that `text-overflow` cannot reach. */}
+        <span>{item.label}</span>
       </button>
       <ol className="qcms-rail__group" aria-label={t("forms.rail.steps")} data-rail-group="steps">
         {builder.draft.steps.map((step, index) => (

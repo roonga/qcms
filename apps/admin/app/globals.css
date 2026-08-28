@@ -273,6 +273,21 @@
  */
 html {
   color-scheme: light dark;
+  /* THE PAGE'S SCROLLBAR GUTTER IS ALWAYS THERE, whether or not this page needs one
+     (Code Owner, 2026-08-26). The form's own screen is long enough to scroll and its
+     Preview is not, so moving between them made the scrollbar appear and vanish, and
+     every column on the screen jumped sideways by its width. Nothing on either screen
+     had moved: the viewport had.
+
+     The cost is the honest one and it is paid on every screen: a page that does not
+     scroll reserves the gutter anyway, so the content column is a scrollbar narrower
+     than the window. That is the trade `overflow-y: auto` on the rail deliberately did
+     NOT make - a permanent gutter inside a 240px rail is a tenth of it - but the page is
+     wide enough for it not to matter, and a layout that holds still is worth more here.
+
+     It does nothing on a platform that draws overlay scrollbars, which is also why this
+     is invisible in the headless browser the suite runs in and visible on a desktop. */
+  scrollbar-gutter: stable;
 }
 :root.dark {
   color-scheme: dark;
@@ -2494,16 +2509,23 @@ button {
 /* A NESTED GROUP, which is what the form's steps are inside the Form row (Code
    Owner, 2026-08-25). The indent is on the group rather than on its rows, so the
    active mark's 3px edge still lands on the row's own box and a marked step lines
-   up with a marked section rather than sitting 3px inside it. The rule down the
-   left is the tree's own line: it says these belong to the row above them, which
-   is the whole reason they moved out of a flat group. */
+   up with a marked section rather than sitting 3px inside it.
+
+   NO RULE AND NO INDENT (Code Owner, 2026-08-26). There was a line down the left
+   and a step was inset from it, on the reasoning that a tree needs to show what
+   belongs to what. Both are gone: the ordinal does that job - "1.", "2.", "3."
+   is not something a section row has, and it is at the start of every step row
+   where an indent would have been. Two more devices saying the same thing cost a
+   column 240px wide the width of a step's title, twice over.
+
+   Nesting is still carried where it counts, structurally: the steps are an `<ol>`
+   inside the row's own `<li>`, so a screen reader announces the level whatever the
+   paint does. This block stays rather than being deleted so that the decision has
+   somewhere to live, and so the next person to indent a nested group reads why it
+   is not indented now. */
 .qcms-rail__group .qcms-rail__group {
-  margin-inline-start: calc(0.5rem + 3px);
-  padding-inline-start: 0.5rem;
-  border-inline-start: 1px solid var(--color-border);
-}
-:root.hc .qcms-rail__group .qcms-rail__group {
-  border-inline-start-color: var(--color-border-strong);
+  margin-inline-start: 0;
+  padding-inline-start: 0;
 }
 /* The one divider §7 asks for, between the two groups. */
 .qcms-rail__divider {
@@ -2539,7 +2561,11 @@ button {
    same minimum as every other control in the app. */
 .qcms-rail__link {
   display: flex;
-  align-items: baseline;
+  /* CENTRED, because the row is taller than its text. `baseline` was right when a row was
+     only as tall as its content; since these rows took the control height (40px) it left
+     the label sitting high in its own tinted box, which is visible the moment a row is
+     the current one and gets a background to be off-centre inside. */
+  align-items: center;
   min-block-size: var(--admin-control-h);
   gap: 0.5rem;
   padding-inline: 0.5rem;
@@ -2608,9 +2634,14 @@ button {
 
    The full name is never lost: the element's text is complete, so it is what a screen
    reader announces and what the accessible name of the row is. Only the paint is cut. */
-[data-rail-item="section:builder"],
-.qcms-rail-steps__form {
-  display: block;
+[data-rail-item="section:builder"] > span,
+.qcms-rail-steps__form > span {
+  /* On the SPAN, not the row. `text-overflow` acts on a block container's inline content,
+     and these rows are flex containers - their children are flex items, so the property
+     would do nothing there. `min-inline-size: 0` is the other half: a flex item refuses to
+     shrink below its content's width by default, so without it the row grows instead of
+     the text clipping. */
+  min-inline-size: 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
