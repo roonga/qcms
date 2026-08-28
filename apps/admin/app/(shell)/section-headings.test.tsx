@@ -18,12 +18,25 @@ import { describe, expect, it, vi } from "vitest";
  *
  * ## The construction, and why it is one string rather than five
  *
- * `forms.section.heading` is `"{section}: {slug}"`, filled from the `forms.tab.*` name the
- * rail and the breadcrumb already use. ADR-27's reason, not a preference: a preposition
- * form ("Responses to X" but "Links for X") hand-writes English grammar into five separate
- * strings, and a locale that orders the parts differently rewrites all five rather than
- * one. The two POCs disagree on the connector, so this was ruled on the issue rather than
- * transcribed from a drawing.
+ * ## AMENDED 2026-08-26 (Code Owner): the section's name, and not the form's
+ *
+ * The heading was `"{section}: {slug}"` - "Links: kitchen-sink" - directly beneath a
+ * breadcrumb reading "Forms / kitchen-sink / Links". It was a mashup of two crumbs a line
+ * below them, and the form's identity is now on screen three times over: that breadcrumb,
+ * the rail beside it, and the form id line under the heading itself.
+ *
+ * **679's fix is kept, because its defect was a different one.** All five section screens
+ * used to render the SAME heading, the form's slug, so the one landmark heading a screen
+ * reader navigates by answered "which form" rather than "which page" on every one of them.
+ * Five DISTINCT headings is what that was for, and five section names are five distinct
+ * headings. The test below that asserts they differ is the one carrying that property, and
+ * it is unchanged.
+ *
+ * What this deviates from is the drawing: `preview-versions-poc.html` and
+ * `responses-poc.html` compose both parts. They were drawn before this rail carried the
+ * form's name on every one of these screens. Ruled on by the Code Owner rather than
+ * transcribed, the same way 679 itself was - the two POCs disagreed on the connector, and
+ * `forms.section.heading` was the string that resolved it. That string is now unused.
  *
  * ## The builder is the deliberate asymmetry, and this file pins it
  *
@@ -90,12 +103,18 @@ function headingText(markup: string): string {
 }
 
 describe("the section routes name their section in the h1 (issue 679)", () => {
-  it.each(SECTIONS)("the %s section reads '%s: <slug>'", (section, name) => {
+  it.each(SECTIONS)("the %s section is headed '%s', and not the form's name", (section, name) => {
     const markup = renderToStaticMarkup(
       <FormPageHeader formId="frm_alpha" slug={SLUG} section={section} status="open" />,
     );
 
-    expect(headingText(markup)).toBe(`${name}: ${SLUG}`);
+    // AMENDED 2026-08-26 (Code Owner): the section's name alone. It read
+    // "{section}: {slug}", and the breadcrumb directly above says
+    // "Forms / {slug} / {section}" - the heading was a mashup of two crumbs one line
+    // below them. What 679 was actually for survives untouched and is asserted by the
+    // next test: five screens, five DIFFERENT headings.
+    expect(headingText(markup)).toBe(name);
+    expect(headingText(markup), "the form's name is the breadcrumb's job").not.toContain(SLUG);
   });
 
   it("gives the five sections five different headings, which was the defect", () => {

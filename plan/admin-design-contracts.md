@@ -451,6 +451,33 @@ Every screen states its model exactly once:
 Issue #518 implements the two shipped screens; this contract is what stops the
 POCs' third and fourth variants returning.
 
+**Amendment, 2026-08-26 (Code Owner): the autosaving screen states its model
+on demand, not permanently.**
+
+"Persistent chrome" was the letter; the reason was that an author must not be
+able to assume the wrong save model. Both survive here, and neither is
+weakened by the change - what moved is how the sentence is said.
+
+The strip now shows the state alone (`Last saved <date time>`, or `Not saved
+yet` before the first save) with the model sentence one press away behind a
+`?` beside it. It is on the screen it describes and next to the state it
+explains; it is not a `title` attribute, a tooltip or a link to
+documentation, all of which put it out of reach of touch, keyboard or a
+screen reader. §6's "exactly one" is untouched: one statement, one screen.
+
+Two things drove it. The sentence never changes, so it occupied a row
+permanently to say something an author reads once; and the strip was
+composed of the model, the state, and a third span that appeared while a
+save was in flight, so it changed width three times per save and visibly
+moved. It is one slot now, anchored to the end of its row, so the control
+beside it holds still.
+
+The step screen is the other half of the same ruling: it carries
+`AutosaveFlash` - one save, confirmed, then gone - and never the strip, so
+neither of the builder's two screens shows two save statements. The notices
+that INTERRUPT, autosave paused and save failed, are on both, which is what
+makes the quiet path safe to be quiet.
+
 **Amendment, 2026-08-21 (escalated by PR #585): one model per scope,
 not per screen.**
 

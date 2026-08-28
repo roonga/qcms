@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { t, type MessageKey } from "@/lib/i18n/en";
 import { formatDateTime } from "@/lib/i18n/format";
 
@@ -78,19 +78,29 @@ export function AmbientSaveStatus({
       // React omits an attribute whose value is `undefined`, so this is absent until the
       // first save rather than present and empty.
       data-saved-at={savedAt}
-      className="flex flex-wrap items-baseline gap-x-2 gap-y-1 rounded-md border border-(--color-border) bg-(--color-background-muted) px-3 py-2 text-sm text-(--color-text-muted)"
+      className="flex items-baseline justify-end gap-x-2 text-sm text-(--color-text-muted)"
     >
-      <span data-testid="qcms-save-model" className="font-medium text-(--color-text)">
-        {t("forms.save.model")}
-      </span>
+      {/* ONE SLOT, not two side by side (Code Owner, 2026-08-26). The model sentence and
+          the state used to sit next to each other, and a third span appeared while a save
+          was in flight, so the whole strip changed width three times per save and visibly
+          moved. Now the state is the only thing here and it says one thing at a time.
+
+          The strip is anchored to the END of its row, so the control beside it does not
+          move as the text grows and shrinks to its left. */}
       <span aria-live="polite" data-testid="qcms-save-state">
-        {settledSaveState(hasFailed, savedAt)}
+        {isSaving ? t("forms.save.saving") : settledSaveState(hasFailed, savedAt)}
       </span>
-      {isSaving && (
-        <span aria-hidden="true" data-testid="qcms-save-progress">
-          {t("forms.save.saving")}
-        </span>
-      )}
+      {/* The model sentence, behind a "?" (Code Owner, 2026-08-26). Design-language
+          element 7 and `plan/admin-design-contracts.md` §6 ask each screen to STATE how it
+          saves, and the amendment is to how it is said rather than to whether: it is one
+          press away on the screen it describes, next to the state it explains, instead of
+          a sentence that never changes occupying the row forever. Recorded in the contract
+          rather than only here.
+
+          `SaveModelHelp` is a sibling rather than part of this element so that the live
+          region above stays exactly the settled sentence: an expandable paragraph inside a
+          `polite` region would be announced as a change when it opened. */}
+      <SaveModelHelp />
     </p>
   );
 }
@@ -186,3 +196,37 @@ export function AutosaveFlash({ savedAt }: { readonly savedAt: string | undefine
 
 /** How long the flash stands. Long enough to notice, short enough not to be chrome. */
 const FLASH_MS = 1800;
+
+/**
+ * "This draft saves automatically as you edit", one press away.
+ *
+ * A disclosure rather than a `title` attribute, for the reason {@link ManualSaveNote}
+ * gives about its own sentence: a `title` is unreachable by touch, unreliable by keyboard
+ * and unreadable by many screen readers, which is no way to carry the one statement that
+ * stops an author assuming the wrong save model.
+ */
+function SaveModelHelp() {
+  const [open, setOpen] = useState(false);
+  const id = useId();
+  return (
+    <>
+      <button
+        type="button"
+        className="qcms-help-dot"
+        aria-expanded={open}
+        aria-controls={id}
+        aria-label={t("forms.save.modelLabel")}
+        onClick={() => {
+          setOpen((wasOpen) => !wasOpen);
+        }}
+      >
+        <span aria-hidden="true">{"?"}</span>
+      </button>
+      {open && (
+        <span id={id} data-testid="qcms-save-model" className="text-(--color-text)">
+          {t("forms.save.model")}
+        </span>
+      )}
+    </>
+  );
+}

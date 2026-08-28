@@ -92,7 +92,24 @@ export function FormPageHeader({
         tabIndex={heading === undefined ? undefined : -1}
         className="qcms-ops-title text-xl font-semibold text-(--color-text)"
       >
-        {heading?.text ?? t("forms.section.heading", { section: t(`forms.tab.${section}`), slug })}
+        {/* THE SECTION'S NAME, WITHOUT THE FORM'S (Code Owner, 2026-08-26). It read
+            "Links: kitchen-sink", and the breadcrumb directly above it already says
+            "Forms / kitchen-sink / Links": the heading was a mashup of the two crumbs a
+            line below them.
+
+            Issue 679's fix is kept rather than reverted, because its defect was a
+            different one. All five section screens used to render the SAME heading - the
+            form's slug - so the one landmark heading a screen reader navigates by
+            answered "which form" instead of "which page" on every one of them. Five
+            distinct headings is what 679 was for, and "Links", "Preview", "Version
+            history", "Responses" and "Webhooks" are five distinct headings.
+
+            What this DOES deviate from is the drawing: `preview-versions-poc.html` and
+            `responses-poc.html` compose both parts. They were drawn before this rail
+            carried the form's name on every one of these screens, and the form's identity
+            is now on screen three times over - the breadcrumb, the rail, and the form id
+            line below. Ruled on by the Code Owner rather than transcribed. */}
+        {heading?.text ?? t(`forms.tab.${section}`)}
       </h1>
       {status !== undefined && (
         <p className="text-sm text-(--color-text-muted)">

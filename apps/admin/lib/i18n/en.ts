@@ -490,9 +490,10 @@ export const messages = {
     "This form is closed to new responses. Editing the draft is still allowed; publishing is what makes a change live.",
 
   "forms.save.model": "This draft saves automatically as you edit.",
-  "forms.save.idle": "No changes yet.",
+  "forms.save.modelLabel": "How does this screen save?",
+  "forms.save.idle": "Not saved yet",
   "forms.save.saving": "Saving...",
-  "forms.save.saved": "Saved {time}",
+  "forms.save.saved": "Last saved {time}",
   "forms.save.failed": "The last save failed.",
   "forms.save.pausedNoSteps":
     "Autosave is paused: a form needs at least one step before it can be stored.",
