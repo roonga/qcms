@@ -26,7 +26,7 @@ import {
   updateRule,
   type UnsaveableReason,
 } from "@/lib/forms/draft";
-import { issuesForRule, stepIssueCounts } from "@/lib/forms/issues";
+import { issuesForRule, stepAnchorId, stepIssueCounts } from "@/lib/forms/issues";
 import type {
   DraftForm,
   DraftRule,
@@ -236,6 +236,31 @@ export function FormBuilder({
       clearTimeout(timer);
     };
   }, [draft, paused]);
+
+  // THE STEP THE READER ASKED FOR, when they arrived asking for one.
+  //
+  // Every step row on the other seven form screens is a link to `/forms/{id}#step-{stepId}`,
+  // and so is the rail's own list here before this component has hydrated. Landing on this
+  // screen from one of them used to show the FORM: the fragment named an element, the
+  // browser scrolled to it, and the selection stayed on its default. Clicking a step and
+  // getting the form's settings is the bug that reported this, and it read as intermittent
+  // because after hydration the same rows are buttons that select properly - so it only
+  // happened on a first click, or from another screen.
+  //
+  // Mount only. A later hash change is the validation panel moving focus to a pin or a
+  // step, which `IssueEntry` already handles by selecting the owning step itself; re-running
+  // this on every hash change would fight it.
+  useEffect(() => {
+    const prefix = `#${stepAnchorId("")}`;
+    const hash = window.location.hash;
+    if (!hash.startsWith(prefix)) return;
+    const stepId = hash.slice(prefix.length);
+    // Only a step this draft actually has. A stale link to a removed step selects nothing
+    // rather than emptying the editor.
+    if (!draft.steps.some((step) => step.stepId === stepId)) return;
+    setSelection({ kind: "step", stepId });
+    // Deliberately empty: this is about the ARRIVAL, not about every later draft change.
+  }, []);
 
   // No fallback to the first step. A selection that names a step this draft no longer has
   // is not "some other step", it is nothing, and the handlers below move the selection back
