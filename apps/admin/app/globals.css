@@ -2615,7 +2615,8 @@ button {
    reads as one list of rows rather than as a control sitting on top of one. */
 .qcms-rail-steps__form {
   display: flex;
-  inline-size: 100%;
+  flex: 1 1 auto;
+  min-inline-size: 0;
   border-block: 0;
   border-inline-end: 0;
   background-color: transparent;
@@ -2657,7 +2658,8 @@ button {
 
    `1.75rem` is the trigger's own `inline-size` and `0.125rem` the row's gap, both written
    just above, so this moves with them. */
-.qcms-rail-steps [data-rail-item^="step:"] {
+.qcms-rail-steps [data-rail-item^="step:"],
+[data-rail-item="section:builder"]:not(.qcms-rail-steps__form) {
   padding-inline-end: calc(0.5rem + 1.75rem + 0.125rem);
 }
 

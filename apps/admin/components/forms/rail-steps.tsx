@@ -77,6 +77,34 @@ export function RailSteps({
   readonly serverItems: readonly RailItem[];
 }) {
   const builder = useBuilderRail();
+  // ONE dialog, opened from two places (Code Owner, 2026-08-26): the control under the
+  // list, and the form row's own menu at the top of it. The state lives here rather than
+  // in either control because two dialogs would be two drafts of a step title, and the one
+  // you had typed into would depend on which control you had reached for.
+  const [adding, setAdding] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const openAdd = () => {
+    setNewTitle("");
+    setAdding(true);
+  };
+
+  // The other half of `AddStepLink`: arriving from another form screen's Add step, which is
+  // an anchor to this one carrying the fragment below. Reading it here rather than plumbing
+  // a prop down from the slot keeps the server out of it entirely - a fragment never reaches
+  // the server, so nothing about this page's cacheability changes.
+  //
+  // Cleared once read, and that is not tidiness: left in place, a reload - or a press of
+  // Back onto this URL - would reopen a dialog the reader had already dismissed, with no way
+  // to be rid of it short of editing the address bar.
+  //
+  // Before the early return below, because a hook cannot be called conditionally. It costs
+  // nothing on the screens with no builder: the fragment is only ever on this one.
+  useEffect(() => {
+    if (window.location.hash !== ADD_STEP_HASH) return;
+    setNewTitle("");
+    setAdding(true);
+    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+  }, []);
   if (builder === undefined) {
     return (
       <>
@@ -115,17 +143,48 @@ export function RailSteps({
           route is already the one the reader is standing on, so choosing it changes what
           the column beside the rail shows rather than navigating anywhere
           (`docs/admin-constraints.md`, an anchor navigates and a button acts). */}
-      <button
-        type="button"
-        className="qcms-rail__link qcms-rail-steps__form"
-        data-rail-item={item.key}
-        aria-current={builder.selection.kind === "form" ? "page" : undefined}
-        onClick={builder.chooseForm}
-      >
-        {/* A span rather than a bare text node, so the label is a flex ITEM the row can
-            clip. Bare, it is an anonymous flex item that `text-overflow` cannot reach. */}
-        <span>{item.label}</span>
-      </button>
+      <div className="qcms-rail-steps__row">
+        <button
+          type="button"
+          className="qcms-rail__link qcms-rail-steps__form"
+          data-rail-item={item.key}
+          aria-current={builder.selection.kind === "form" ? "page" : undefined}
+          onClick={builder.chooseForm}
+        >
+          {/* A span rather than a bare text node, so the label is a flex ITEM the row can
+              clip. Bare, it is an anonymous flex item that `text-overflow` cannot reach. */}
+          <span>{item.label}</span>
+        </button>
+        {/* THE FORM'S OWN MENU, so adding a step is reachable from the top of the list as
+            well as the bottom (Code Owner, 2026-08-26). With enough steps the control under
+            them scrolls out of the rail, and this one never moves.
+
+            It does NOT replace the one below: Add step appends, so the control beside where
+            the new step appears is the one that matches what pressing it does. This is the
+            second way in, not the way in, and the menu is where the form's other row-level
+            commands will go when there are some. */}
+        <MenuTrigger>
+          <MenuTriggerButton
+            className="qcms-rail-steps__menu"
+            aria-label={t("forms.rail.formMenu", { title: item.label })}
+          >
+            <span aria-hidden="true">{"⋮"}</span>
+          </MenuTriggerButton>
+          <MenuPopover className="qcms-menu">
+            <MenuList
+              className="qcms-menu__list"
+              aria-label={t("forms.rail.formMenu", { title: item.label })}
+              onAction={(key) => {
+                if (key === "add") openAdd();
+              }}
+            >
+              <MenuItem id="add" className="qcms-menu__item">
+                {t("forms.steps.add")}
+              </MenuItem>
+            </MenuList>
+          </MenuPopover>
+        </MenuTrigger>
+      </div>
       <ol className="qcms-rail__group" aria-label={t("forms.rail.steps")} data-rail-group="steps">
         {builder.draft.steps.map((step, index) => (
           <li key={step.stepId}>
@@ -154,11 +213,20 @@ export function RailSteps({
           </li>
         ))}
       </ol>
-      <AddStep
-        onAdd={(title) => {
-          builder.add(title);
-        }}
-      />
+      <AddStep onOpen={openAdd} />
+      {adding && (
+        <AddStepDialog
+          title={newTitle}
+          onTitle={setNewTitle}
+          onCancel={() => {
+            setAdding(false);
+          }}
+          onAdd={() => {
+            builder.add(newTitle.trim());
+            setAdding(false);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -409,24 +477,7 @@ function StepRow({
  * uses, and for the same reason given there: the rail track is 240px, and a field inside it
  * is narrower than most step titles.
  */
-function AddStep({ onAdd }: { readonly onAdd: (title: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const [title, setTitle] = useState("");
-
-  // The other half of `AddStepLink`. Reading the fragment here rather than plumbing a
-  // prop down from the slot keeps the server out of it entirely: a fragment never reaches
-  // the server, so nothing about this page's cacheability changes.
-  //
-  // It is cleared once read, and that is not tidiness: left in place, a reload - or a
-  // press of Back onto this URL - would reopen a dialog the reader had already dismissed,
-  // with no way to get rid of it short of editing the address bar.
-  useEffect(() => {
-    if (window.location.hash !== ADD_STEP_HASH) return;
-    setTitle("");
-    setOpen(true);
-    window.history.replaceState(null, "", window.location.pathname + window.location.search);
-  }, []);
-
+function AddStep({ onOpen }: { readonly onOpen: () => void }) {
   return (
     <div className="qcms-rail-steps__add">
       {/* `ghost` rather than `secondary`, which is a naming trap rather than a preference:
@@ -436,48 +487,51 @@ function AddStep({ onAdd }: { readonly onAdd: (title: string) => void }) {
           and ordinary text colour - which is what a secondary action looks like here. The
           dialog it opens keeps `primary` on its confirm, because inside that dialog adding
           the step IS the primary action. */}
-      <Button
-        variant="ghost"
-        size="sm"
-        onPress={() => {
-          setTitle("");
-          setOpen(true);
-        }}
-      >
+      <Button variant="ghost" size="sm" onPress={onOpen}>
         {t("forms.steps.add")}
       </Button>
-      {open && (
-        <Dialog
-          isOpen
-          title={t("forms.steps.add")}
-          onOpenChange={(isOpen: boolean) => {
-            if (!isOpen) setOpen(false);
-          }}
-        >
-          <TextField label={t("forms.steps.newTitle")} value={title} onChange={setTitle} />
-          <Button
-            variant="primary"
-            size="md"
-            isDisabled={title.trim() === ""}
-            onPress={() => {
-              onAdd(title.trim());
-              setOpen(false);
-            }}
-          >
-            {t("forms.steps.addDone")}
-          </Button>
-        </Dialog>
-      )}
     </div>
   );
 }
 
-/** The commands that do not apply at this position, so the menu greys them out. */
-function disabledCommands(position: number, total: number): string[] {
-  const disabled: string[] = [];
-  if (position === 1) disabled.push("up");
-  if (position === total) disabled.push("down");
-  return disabled;
+/**
+ * Naming the new step, in a dialog, wherever the request came from.
+ *
+ * One component and one instance because there are two ways to ask for it now - the control
+ * under the list and the form row's menu above it - and two dialogs would be two drafts of
+ * a title, with the one you had typed into depending on which control you had reached for.
+ *
+ * A dialog rather than a field standing open in the rail (Code Owner, 2026-08-26): the field
+ * was on screen whether or not anyone was adding a step, which is a permanent empty text
+ * input inside a navigation control. It is the shape Rename already uses, for the reason
+ * given there - the rail track is 240px, and a field inside it is narrower than most step
+ * titles.
+ */
+function AddStepDialog({
+  title,
+  onTitle,
+  onCancel,
+  onAdd,
+}: {
+  readonly title: string;
+  readonly onTitle: (next: string) => void;
+  readonly onCancel: () => void;
+  readonly onAdd: () => void;
+}) {
+  return (
+    <Dialog
+      isOpen
+      title={t("forms.steps.add")}
+      onOpenChange={(isOpen: boolean) => {
+        if (!isOpen) onCancel();
+      }}
+    >
+      <TextField label={t("forms.steps.newTitle")} value={title} onChange={onTitle} />
+      <Button variant="primary" size="md" isDisabled={title.trim() === ""} onPress={onAdd}>
+        {t("forms.steps.addDone")}
+      </Button>
+    </Dialog>
+  );
 }
 
 /**
@@ -497,4 +551,12 @@ function AddStepLink({ href }: { readonly href: string }) {
       </Link>
     </div>
   );
+}
+
+/** The commands that do not apply at this position, so the menu greys them out. */
+function disabledCommands(position: number, total: number): string[] {
+  const disabled: string[] = [];
+  if (position === 1) disabled.push("up");
+  if (position === total) disabled.push("down");
+  return disabled;
 }
