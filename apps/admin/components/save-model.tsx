@@ -75,7 +75,7 @@ export function AmbientSaveStatus({
   const [modelOpen, setModelOpen] = useState(false);
   const modelId = useId();
   return (
-    <div className="flex flex-col items-end gap-1">
+    <div className="relative flex flex-col items-end">
       <p
         data-testid="qcms-save-status"
         // React omits an attribute whose value is `undefined`, so this is absent until
@@ -123,10 +123,20 @@ export function AmbientSaveStatus({
         </button>
       </p>
       {modelOpen && (
+        // OVER the screen rather than in it, which is the difference between a disclosure
+        // that answers a question and one that rearranges the page to do it. In flow it
+        // added a line to this column, and everything below the header moved down as the
+        // "?" was pressed and back up as it was pressed again - a layout shift caused by
+        // the reader asking what a control does.
+        //
+        // Absolute positioning is safe here in a way it was not for the row menu this app
+        // once had clipped: `<main>` is deliberately not a scrollport
+        // (`.changeset/admin-independent-scroll.md` records why), so nothing between here
+        // and the viewport has `overflow` to clip against.
         <p
           id={modelId}
           data-testid="qcms-save-model"
-          className="max-w-measure-narrow text-end text-sm text-(--color-text)"
+          className="absolute top-full right-0 z-10 mt-1 w-max max-w-measure-narrow rounded-md border border-(--color-border) bg-(--color-surface) px-3 py-2 text-end text-sm text-(--color-text) shadow-lg"
         >
           {t("forms.save.model")}
         </p>

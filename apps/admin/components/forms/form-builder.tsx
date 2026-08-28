@@ -327,33 +327,34 @@ export function FormBuilder({
               every visit to the builder - which `e2e/support/gates.ts` fails the test for,
               correctly: a console error on a screen is a defect whether or not anything
               looks wrong. Being an only child, it is not in a list at all. */}
-          {/* TWO ROWS FOR WHAT WAS FIVE (Code Owner, 2026-08-26). The heading, the two
-              things you can do to the form, and how it last saved shared no line at all:
-              a heading, three lines of description, a gap and then a button row, before
-              any of the form's own fields. It is the heading's row and one muted line
-              under it now, and nothing was hidden to get there.
+          {/* The heading, the two things you can do to the form, how it last saved, and
+              what it is - in two rows, where it was five.
 
-              `items-baseline` on the outer row is what levels the save state with the
-              heading rather than with the top of a block; the actions sit with the heading
-              because they act on what it names.
+              `display: contents` on the heading's wrapper is load-bearing. The wrapper
+              exists because a server-rendered node arriving across the client boundary
+              reads to React as a keyless list item when it sits bare in a multi-child
+              array, but the heading inside it is visually hidden and therefore out of
+              flow, so the wrapper was an empty flex ITEM: zero wide, followed by the
+              row's `gap-x-4`, indenting the buttons past the breadcrumb above them by
+              16px. `contents` keeps the element and removes its box.
 
-              Each server-rendered node keeps its own wrapper. They arrive across the
-              client boundary, and a bare one in a multi-child array reads to React as a
-              keyless list item - which cost twelve browser tests the last time it was
-              missed. */}
-          <div className="flex flex-col gap-2">
-            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
-              <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2">
-                <div>{formHeading}</div>
-                <div>{formActions}</div>
-              </div>
+              `items-start` rather than baseline: the right column is two stacked lines
+              now, and aligning its first baseline to a button's would hang it below the
+              row it belongs to. */}
+          <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+            <div className="contents">{formHeading}</div>
+            <div>{formActions}</div>
+            {/* What the form IS, above how it last saved: both are facts about the form
+                rather than actions on it, so they share the row's trailing edge and read
+                as one block rather than as chrome scattered across the header. */}
+            <div className="flex flex-col items-end gap-1">
+              <div>{formMeta}</div>
               <AmbientSaveStatus
                 isSaving={status === "saving"}
                 hasFailed={saveError !== undefined}
                 savedAt={lastSavedAt}
               />
             </div>
-            <div>{formMeta}</div>
           </div>
           <FormNotices detail={detail} concurrentRead={concurrentNoticeRead} />
           <TextField

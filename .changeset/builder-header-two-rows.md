@@ -40,3 +40,23 @@ A route that passes its OWN heading keeps it visible: the version detail's "Vers
 the response detail's heading name something the breadcrumb does not, and that is also the
 branch that takes focus programmatically - a focus destination nobody can see would be a
 worse thing to have than a repeated title.
+
+Three corrections found in use.
+
+**The buttons no longer sit indented past the breadcrumb.** The visually hidden heading is
+out of flow, but the wrapper it needs - a server-rendered node bare in a multi-child array
+reads to React as a keyless list item - was an empty flex ITEM, and the row's `gap-x-4`
+after it pushed the actions 16px right. `display: contents` keeps the element and removes
+its box. Measured: the breadcrumb and the Publish button both start at x=264.
+
+**What the form is now sits above how it last saved,** sharing the row's trailing edge:
+both are facts about the form rather than actions on it, so they read as one block instead
+of chrome scattered across the header.
+
+**Pressing the "?" no longer moves the page.** The sentence was in flow, so it added a line
+to that column and everything below the header moved down as the control was pressed - a
+layout shift caused by asking what a control does. It renders over the screen now. Absolute
+positioning is safe here in a way it was not for the row menu this app once had clipped:
+`<main>` is deliberately not a scrollport, so nothing between it and the viewport has
+`overflow` to clip against. Measured across a press: the "Form title" label held y=349 and
+the button held x=1236, y=150.
