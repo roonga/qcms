@@ -103,7 +103,10 @@ export default async function FormBuilderPage({
   const crumbs: BreadcrumbItem[] = [
     { id: "forms", label: t("forms.builder.crumbs"), href: "/forms" },
     { id: form.formId, label: form.slug, href: `/forms/${encodeURIComponent(form.formId)}` },
-    { id: "builder", label: t("forms.builder.crumbBuilder") },
+    // The same name the rail's row carries and the same one the `<h1>` below uses. It
+    // said "Builder" while the row beside it said "Form details", which is one screen
+    // answering to two names.
+    { id: "builder", label: t("forms.tab.builder") },
   ];
 
   return (
@@ -146,19 +149,24 @@ export default async function FormBuilderPage({
         concurrentNoticeRead={isConcurrentNoticeDismissed(
           (await cookies()).get(CONCURRENT_NOTICE_COOKIE)?.value,
         )}
-        formHeader={
-          <div className="flex flex-col gap-2">
-            <h1 className="text-xl font-semibold text-(--color-text)">
-              {t("forms.builder.heading", { slug: form.slug })}
-            </h1>
-            <p className="text-sm text-(--color-text-muted)">
-              {t("forms.builder.formId")}: {form.formId} · {t("forms.builder.locale")}:{" "}
-              {form.defaultLocale} · {t("forms.builder.status")}: {t(`forms.status.${form.status}`)}
-            </p>
-            <p className="text-sm text-(--color-text-muted)">
-              {t(`forms.builder.draftSource.${form.draftSource}`)}
-            </p>
-          </div>
+        formHeading={
+          // THE SCREEN'S NAME, not the form's (Code Owner, 2026-08-26). Issue 679 exempted
+          // this route on the reasoning that "on the builder the subject IS the form", and
+          // that was true of one screen. It is two now: this one is the form's details and
+          // the other is a step, which heads itself. The form's name is directly above in
+          // the breadcrumb and again in the rail, so repeating it here was the same
+          // duplication the five section screens just lost.
+          <h1 className="text-xl font-semibold text-(--color-text)">{t("forms.tab.builder")}</h1>
+        }
+        formMeta={
+          // One muted line of bare values. They were three labelled lines - "Form ID:",
+          // "Default locale:", "Status:" and then the draft's origin on its own - which is
+          // a lot of chrome for facts an author reads once and then never looks at again.
+          // The values say what they are: an id looks like an id, and a status is a word.
+          <p className="text-sm text-(--color-text-muted)">
+            {form.formId} · {form.defaultLocale} · {t(`forms.status.${form.status}`)} ·{" "}
+            {t(`forms.builder.draftSource.${form.draftSource}`)}
+          </p>
         }
         formActions={
           <FormActions

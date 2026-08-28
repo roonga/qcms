@@ -469,7 +469,6 @@ export const messages = {
   // sections compose `forms.section.heading` instead, because their subject is a collection
   // belonging to the form; on the builder the subject IS the form, so the bare slug is the
   // heading rather than a heading that has not been written yet.
-  "forms.builder.heading": "{slug}",
   "forms.builder.formId": "Form ID",
   "forms.builder.locale": "Default locale",
   "forms.builder.status": "Status",

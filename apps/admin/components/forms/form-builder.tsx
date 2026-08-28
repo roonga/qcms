@@ -105,7 +105,8 @@ export function FormBuilder({
   detail,
   library,
   formActions,
-  formHeader,
+  formHeading,
+  formMeta,
   concurrentNoticeRead,
   saveDraft,
   validateDraft,
@@ -131,7 +132,9 @@ export function FormBuilder({
    * it belongs on. The `<h1>` travelling with it is why the step screen promotes its own
    * heading to `h1` - see the step branch below.
    */
-  readonly formHeader: ReactNode;
+  readonly formHeading: ReactNode;
+  /** The form's id, locale, status and draft origin, as one muted line under the heading. */
+  readonly formMeta: ReactNode;
   /**
    * Whether this operator has already dismissed the concurrent-edit warning.
    *
@@ -324,31 +327,34 @@ export function FormBuilder({
               every visit to the builder - which `e2e/support/gates.ts` fails the test for,
               correctly: a console error on a screen is a defect whether or not anything
               looks wrong. Being an only child, it is not in a list at all. */}
-          {/* THE SAVE STRIP RIDES ON THE HEADING'S ROW (Code Owner, 2026-08-26), so the
-              screen's one persistent statement of how it saves costs no vertical space of
-              its own. `items-baseline` is what puts it level with the form's name rather
-              than with the top of the block, which also carries the form's id line and
-              where its draft came from.
+          {/* TWO ROWS FOR WHAT WAS FIVE (Code Owner, 2026-08-26). The heading, the two
+              things you can do to the form, and how it last saved shared no line at all:
+              a heading, three lines of description, a gap and then a button row, before
+              any of the form's own fields. It is the heading's row and one muted line
+              under it now, and nothing was hidden to get there.
 
-              It is the FORM's statement and it stays on the form's screen. A step screen
-              gets `AutosaveFlash` instead: one save, confirmed, then gone.
-              `plan/admin-design-contracts.md` §6's "exactly one save statement per screen"
-              is why they are never both on one screen. The two notices that INTERRUPT -
-              autosave paused, and a save that failed - are on both, which is what makes
-              the quiet path safe to be quiet (see `SaveNotices`).
+              `items-baseline` on the outer row is what levels the save state with the
+              heading rather than with the top of a block; the actions sit with the heading
+              because they act on what it names.
 
-              `formHeader` keeps its wrapper: it is rendered on the server and handed
-              across the client boundary, and a bare server node in a children array reads
-              to React as a keyless list item. */}
-          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
-            <div>{formHeader}</div>
-            <AmbientSaveStatus
-              isSaving={status === "saving"}
-              hasFailed={saveError !== undefined}
-              savedAt={lastSavedAt}
-            />
+              Each server-rendered node keeps its own wrapper. They arrive across the
+              client boundary, and a bare one in a multi-child array reads to React as a
+              keyless list item - which cost twelve browser tests the last time it was
+              missed. */}
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+              <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2">
+                <div>{formHeading}</div>
+                <div>{formActions}</div>
+              </div>
+              <AmbientSaveStatus
+                isSaving={status === "saving"}
+                hasFailed={saveError !== undefined}
+                savedAt={lastSavedAt}
+              />
+            </div>
+            <div>{formMeta}</div>
           </div>
-          <div>{formActions}</div>
           <FormNotices detail={detail} concurrentRead={concurrentNoticeRead} />
           <TextField
             label={t("forms.builder.formTitle")}

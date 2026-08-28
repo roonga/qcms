@@ -40,12 +40,11 @@ import { describe, expect, it, vi } from "vitest";
  *
  * ## The builder is the deliberate asymmetry, and this file pins it
  *
- * `/forms/[formId]` keeps the bare slug and must keep it: the `<h1>` names the page's
- * subject, and on the builder the subject IS the form. It is exempt by construction rather
- * than by omission, because it does not render `FormPageHeader` at all - it hand-rolls the
- * heading from `forms.builder.heading`. The last block below asserts that it still does, in
- * the shape issue #614 used to pin the branch it found correct: the risk being guarded
- * against is a later pass at consistency closing the gap without noticing it was chosen.
+ * `/forms/[formId]` was exempt from this, and is no longer - see the last block, which
+ * records the reversal and why the exemption's premise expired. What survives is that it
+ * does not render `FormPageHeader` at all: it composes its own two-row header, carrying the
+ * publish controls and the save state on the heading's row, and a later pass at consistency
+ * routing it through the shared header would quietly take those with it.
  *
  * ## Why this layer
  *
@@ -169,25 +168,39 @@ describe("the section routes name their section in the h1 (issue 679)", () => {
 });
 
 /**
- * The sixth sibling, pinned as correct rather than left to be discovered as inconsistent.
+ * The sixth sibling, and its exemption is spent.
  *
- * `/forms/[formId]` is the one route of the six whose subject is the form itself, so its
- * `<h1>` is the bare slug and stays the bare slug. Nothing above reaches it, because it
- * renders no `FormPageHeader`; that is the point, and it is what these assertions hold in
- * place. A change that made the builder read "Builder: Life insurance" would be a
- * regression dressed as consistency, and it fails here.
+ * REVERSED 2026-08-26 (Code Owner). Issue 679 exempted `/forms/[formId]` from naming its
+ * section, on the reasoning that "the `<h1>` names the page's subject, and on the builder
+ * the subject IS the form". That was true of one screen, and the builder is two now: this
+ * route's form screen is the form's DETAILS, and its step screen heads itself with the
+ * step. So the exemption's own premise no longer holds, and the slug it kept was being
+ * repeated from the breadcrumb directly above it and from the rail beside it.
+ *
+ * What has NOT changed is that this route hand-rolls its heading rather than rendering
+ * `FormPageHeader`: it composes its own two-row header, with the publish controls and the
+ * save state on the heading's row. The assertions below still hold that in place, because
+ * a later pass at consistency routing this screen through the shared header would quietly
+ * take those with it.
  */
-describe("the builder route keeps the bare slug on purpose (issue 679)", () => {
-  it("hand-rolls its heading from the builder key and renders no FormPageHeader", () => {
+describe("the builder route names its screen, not its form (reversal of issue 679)", () => {
+  it("heads itself with the section name and renders no FormPageHeader", () => {
     const source = routeSource("forms/[formId]/page.tsx");
 
-    expect(source).toContain('"forms.builder.heading"');
+    expect(source).toContain('t("forms.tab.builder")');
+    expect(source).not.toContain('"forms.builder.heading"');
     expect(source).not.toContain("FormPageHeader");
     expect(source).not.toContain("forms.section.heading");
   });
 
-  it("resolves that key to the slug and nothing else", () => {
-    expect(messages["forms.builder.heading"]).toBe("{slug}");
-    expect(t("forms.builder.heading", { slug: SLUG })).toBe(SLUG);
+  it("uses the one name the rail and the breadcrumb use for this screen", () => {
+    // One string, three places: the rail's row, the last crumb, and this heading. It read
+    // "Builder" in the breadcrumb while the rail said "Form details" until this was made
+    // one lookup.
+    expect(messages["forms.tab.builder"]).toBe("Form details");
+    const source = routeSource("forms/[formId]/page.tsx");
+    expect(source, "the last crumb comes from the same key").toContain(
+      'label: t("forms.tab.builder")',
+    );
   });
 });
