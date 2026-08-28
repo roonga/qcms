@@ -32,3 +32,9 @@ It also stops moving. The strip was the model sentence, the state, and a third s
 appeared while a save was in flight, so it changed width three times per save. One slot
 now, anchored to the end of its row: measured, the "?" held x=1236 before and after a save
 where the text went from "Not saved yet" to "Last saved Aug 28, 2026, 10:27 PM UTC".
+
+The "?" itself does not move when pressed. The sentence it reveals is a sibling of the
+state row rather than another item inside it: the row is anchored to its end, so anything
+added after the button pushed the button left - out from under the pointer that had just
+pressed it. Measured across opening, closing and a save landing while open: x=1236, y=132
+every time.
