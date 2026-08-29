@@ -514,6 +514,61 @@ they read as one screen contradicting itself about how many things just happened
 Separating them is a wording and placement job rather than a licence question, and
 it belongs with #518's implementation, not here.
 
+**Amendment, 2026-08-29 (Code Owner): the builder's settings autosave, so the
+builder has one save model again.**
+
+The 2026-08-21 amendment above stands as written: a nested scope that persists
+states its own model, and it was the right ruling on the question it was asked.
+This amends the fact it was ruling about rather than the rule. `FormSettingsPanel`
+no longer persists on its own, so there is no second model left for the rule to
+license, and the consequence that amendment accepted knowingly - "Saved <time>"
+and "Settings saved." on one screen - is resolved by removing the second model
+rather than by rewording it.
+
+What changed:
+
+- **The settings save on the builder's own debounce**, the same 600ms and the same
+  effect shape as the draft, with no "Save settings" button and no "Settings
+  saved."
+- **The builder holds them**, beside the draft, not the panel. The form screen is
+  unmounted whenever the reader selects a step, and a debounce owned by the panel
+  would be cancelled by that with an edit still waiting on it. This is the
+  correction that made autosave safe here rather than merely tidier.
+- **A settings save feeds the ambient strip** - its in-flight state, its failed
+  state, and its one timestamp. §6's "exactly one save statement per screen" is
+  kept by the strip covering everything the screen stores, which is what it says
+  it does.
+- **A refused settings write is still stated**, in the panel's own live region,
+  beside the two controls it is about. That sentence is not a save model and not a
+  second "Saved": it is an error in the vocabulary this app already uses for
+  errors, and it is the only thing left between an author and the belief that a
+  deployment switch took when it did not.
+
+Why the failure sentence stayed in the panel rather than joining the builder's
+standing notices, since that was the live question: `aria-live` announces a change
+inside a region that was **already** in the tree, and the standing notices render
+nothing at all when they are quiet, so a settings failure appearing there would
+usually announce nothing. The panel's region is mounted for as long as the
+controls are.
+
+**Costs to accept knowingly, both of them:**
+
+- **A failed settings save is not visible from the step screen.** The sentence is
+  beside the controls, and the controls are on the form's screen; a reader who
+  changes a setting and immediately opens a step sees no failure until they come
+  back. The edit itself is not lost - the builder still holds it, and the controls
+  still show what the author asked for - but for that interval the screen is quiet
+  about a write that did not land. This was judged the better half of the trade
+  against a notice that is on both screens and announces on neither.
+- **Two deployment-facing switches now change on a keystroke's own timing**, which
+  is exactly what the panel's original note refused: "an accidental keystroke in
+  the milliseconds field should not quietly change what a live form demands of a
+  respondent." Two things answer it. The settings apply at the next publish rather
+  than to a running form, so the window is an authoring one; and the number field
+  commits on blur rather than per keystroke, so a figure in the middle of being
+  typed is not saved on its way to being finished. The checkbox has no such
+  cushion, and that is the accepted part.
+
 ## 7. The rail
 
 - The rail carries **navigation within one form's subtree**: the form's children

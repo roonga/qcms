@@ -24,23 +24,24 @@ import { describe, expect, it } from "vitest";
  * What no test can assert in a browser is the absence of a fourth variant on a screen the
  * suite never opens, and that is this file's whole job.
  *
- * ## The one known exception, recorded rather than asserted away
+ * ## The exception that used to be here, and how it was closed
  *
- * The form builder screen renders `FormSettingsPanel` inside a `<details open>` - expanded
- * and visible on load, unchanged by issue 518 - and that panel has its own explicit Save
- * button and its own "Settings saved." live region (`components/forms/form-settings-panel.tsx`).
- * So the builder route is `autosave` for the draft and manual for two deployment switches
- * nested inside it, and after the panel's button is pressed the screen carries two
- * save-state sentences at once. Contract §6 addresses screens, not nested scopes, and it
- * does not say which wins - so issue 518 left the panel alone and escalated it rather than
- * deciding. The inventory below records the builder's model as `autosave` because that is
- * what the *screen* does and what the ambient strip claims; if the escalation resolves the
- * other way, this row and the strip move together.
+ * The form builder screen embeds `FormSettingsPanel`, and that panel used to persist
+ * itself: an explicit Save button and a "Settings saved." live region beside a screen that
+ * autosaves everything else. Contract §6 addressed screens rather than nested scopes, so
+ * issue 518 recorded the collision instead of deciding it, PR #585 escalated it, and the
+ * 2026-08-21 amendment ruled the second model legitimate while naming what it cost: press
+ * the button and the screen said "Saved <time>" and "Settings saved." at once.
  *
- * The exception is listed in `SAVE_STATE_KEYS` and in the carrier assertion rather than
- * left out of them. A test that cannot see the one violation it knows about is not
- * recording an exception, it is blind, and the difference matters the moment a third
- * vocabulary appears.
+ * The 2026-08-29 amendment closed it by removing the second model rather than rewording
+ * it. The settings autosave on the builder's own debounce and feed the builder's own
+ * ambient strip, so the builder route is `autosave` for everything it stores and the
+ * inventory row below needs no footnote.
+ *
+ * `forms.settings.failed` stays in `SAVE_STATE_KEYS` and the panel stays in the carrier
+ * list. That is not a leftover exception: a refused write still has to be stated, and
+ * keeping the sentence enumerated is what makes a future "Settings saved." coming back
+ * fail this file rather than pass it unseen.
  */
 
 /**
@@ -124,7 +125,7 @@ const SCREENS: readonly ScreenRow[] = [
   {
     route: "app/(shell)/forms/[formId]/page.tsx",
     model: "autosave",
-    why: "The one autosaving screen in the app: a 600ms debounce over the whole draft. Carries the ambient strip (design-language element 7). See the nested-scope note above.",
+    why: "The one autosaving screen in the app: a 600ms debounce over the whole draft, and since 2026-08-29 the same debounce over the form's settings. Carries the ambient strip (design-language element 7), which is now the only save statement on it.",
   },
   {
     route: "app/(shell)/forms/[formId]/preview/page.tsx",
@@ -353,13 +354,18 @@ function uiSources(): readonly string[] {
  * The message keys that state a save STATE (as opposed to the outcome of one action the
  * author just took). These are what a screen may carry at most one set of.
  *
- * Enumerated by hand rather than by prefix, and the last two are why. `forms.save.*` is a
+ * Enumerated by hand rather than by prefix, and the last one is why. `forms.save.*` is a
  * naming convention; "states a save state" is a rule about meaning, and a prefix filter
- * polices the first while claiming to police the second. `forms.settings.saved` and
- * `forms.settings.failed` are a second save-state vocabulary that this app already has,
- * minted under a different prefix, and a filter that could not see them would report the
- * property green on a screen that visibly breaks it. Anything added here that names when
- * work is or is not stored belongs on this list whatever it is called.
+ * polices the first while claiming to police the second. `forms.settings.failed` is a
+ * second save-state vocabulary minted under a different prefix, and a filter that could
+ * not see it would report the property green on a screen that visibly breaks it. Anything
+ * added here that names when work is or is not stored belongs on this list whatever it is
+ * called.
+ *
+ * `forms.settings.saved` was on this list until 2026-08-29 and is not merely off it: the
+ * key is gone from the catalog, because the settings stopped having a save model to
+ * confirm. A key that no longer exists cannot be enumerated, so what guards against it
+ * returning is the carrier assertion below plus the panel's own tests.
  */
 const SAVE_STATE_KEYS = [
   "forms.save.model",
@@ -367,7 +373,6 @@ const SAVE_STATE_KEYS = [
   "forms.save.saving",
   "forms.save.saved",
   "forms.save.failed",
-  "forms.settings.saved",
   "forms.settings.failed",
 ] as const;
 
@@ -405,19 +410,53 @@ describe("the admin's save models are inventoried", () => {
 });
 
 describe("no screen shows two different save-state statements", () => {
-  it("keeps every save-state sentence in the one module, plus the one recorded exception", () => {
+  it("keeps every save-state sentence in the one module, plus the settings' own refusal", () => {
     const carriers = uiSources().filter((file) =>
       SAVE_STATE_KEYS.some((key) => source(file).includes(`"${key}"`)),
     );
-    // Two entries, and the second is the escalation from the note at the top of this file
-    // rather than an endorsement: `FormSettingsPanel` states its own save outcome inside
-    // the builder screen. It is pinned here so a THIRD carrier fails this test, which is
-    // the property the file exists to hold. Whichever way contract §6 resolves the nested
-    // scope, this list is the place the resolution shows up.
+    // Two entries, and this list is where contract §6's resolution of the nested scope
+    // shows up (see the note at the top of this file). `FormSettingsPanel` is still one of
+    // them because a settings save that FAILED is still stated beside the controls that
+    // failed; what it no longer carries is a save model, a press or a "Saved". A THIRD
+    // carrier fails this test, which is the property the file exists to hold.
     expect(
       carriers,
       "a further module quoting these keys is a third save-status source",
     ).toStrictEqual(["components/forms/form-settings-panel.tsx", "components/save-model.tsx"]);
+  });
+
+  it("leaves the settings panel a failure sentence and no save model of its own", () => {
+    // `plan/admin-design-contracts.md` §6, amended 2026-08-29: the nested scope stopped
+    // persisting on its own, so it stopped stating its own model. Each of these was true
+    // of the panel before that amendment, which is why they are asserted rather than
+    // assumed - a reinstated button is exactly how the second model would come back.
+    const panel = source("components/forms/form-settings-panel.tsx");
+
+    expect(panel.includes("<Button"), "the settings save on a debounce, not on a press").toBe(
+      false,
+    );
+    expect(panel.includes("forms.settings.saved"), "no second confirmation").toBe(false);
+    expect(panel.includes("<AmbientSaveStatus"), "no rival strip").toBe(false);
+    expect(panel.includes("<ManualSaveNote"), "and no manual-model sentence").toBe(false);
+    // The one thing it still says about saving, in the region that announces it. A refused
+    // write has no press to report back to now, so this sentence is load-bearing.
+    expect(panel).toContain("forms.settings.failed");
+    expect(panel).toContain('aria-live="polite"');
+    expect(panel).toContain('data-testid="qcms-form-settings-status"');
+  });
+
+  it("saves the settings on the builder's own debounce rather than a second one", () => {
+    // One save model on the screen means one timing on the screen. A settings autosave
+    // with a debounce of its own would be a second model wearing the first one's clothes:
+    // the strip would report two loops settling at different moments as one save state.
+    const builder = source("components/forms/form-builder.tsx");
+
+    expect(builder.match(/const AUTOSAVE_DEBOUNCE_MS/g)?.length ?? 0).toBe(1);
+    expect(builder.match(/AUTOSAVE_DEBOUNCE_MS\)/g)?.length ?? 0).toBe(2);
+    // The settings action is bound to this route and revalidates it, so it is read
+    // through the same ref as the other two. Depending on the prop re-arms the effect on
+    // every revalidation, which is a save loop that never settles.
+    expect(builder).toContain("actions.current.updateSettings");
   });
 
   it("renders the ambient strip from exactly one component, the form builder", () => {

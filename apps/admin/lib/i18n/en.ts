@@ -718,8 +718,12 @@ export const messages = {
   "forms.settings.minSubmit": "Minimum time before a submit is accepted (milliseconds)",
   "forms.settings.minSubmitHint":
     "A submit that arrives faster than this is refused. It exists to make an instant automated post fail, so keep it well under the time a person needs.",
-  "forms.settings.save": "Save settings",
-  "forms.settings.saved": "Settings saved.",
+  // No "Save settings" and no "Settings saved." (Code Owner, 2026-08-29). The settings
+  // autosave on the builder's own debounce, so there is no press to label and no second
+  // confirmation to give: `plan/admin-design-contracts.md` §6 gives this screen exactly
+  // one statement of when work was stored and the ambient strip is it. A refusal still
+  // has to be said, because a switch that did not take is the one thing an author cannot
+  // see for themselves.
   "forms.settings.failed": "The settings could not be saved. {message}",
   // The settings summary digest (issue 519; `plan/admin-ux-audit.md` §3.7). It states
   // the two switches the panel holds and nothing else - in particular it makes no claim

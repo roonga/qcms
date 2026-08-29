@@ -76,13 +76,18 @@ function decodeEntities(html: string): string {
     );
 }
 
-function renderSettings(settings: FormSettings, challengeProvider = "none"): string {
+function renderSettings(
+  settings: FormSettings,
+  challengeProvider = "none",
+  saveError: string | undefined = undefined,
+): string {
   return decodeEntities(
     renderToStaticMarkup(
       <FormSettingsPanel
         settings={settings}
         challengeProvider={challengeProvider}
-        updateSettings={() => Promise.resolve({ status: "idle" as const })}
+        saveError={saveError}
+        onChange={() => undefined}
       />,
     ),
   );
@@ -119,8 +124,39 @@ describe("the form settings panel's summary (issue 519)", () => {
     expect(digest).toContain("800");
     // `plan/admin-design-contracts.md` §6: the builder states its save model exactly once,
     // in the ambient strip. A digest that said "saved" or "unsaved" would be a second.
-    expect(digest).not.toContain(t("forms.settings.saved"));
-    expect(digest).not.toContain(t("forms.settings.save"));
+    //
+    // Asserted over the whole panel rather than the digest alone since the 2026-08-29
+    // amendment, because the sentences this is guarding against no longer exist as catalog
+    // keys to name: the settings autosave, so "Save settings" and "Settings saved." were
+    // deleted rather than merely kept out of the summary. Matching the words is what
+    // notices either of them being written back in, under any key.
+    const wholePanel = stripTags(
+      renderSettings({ challengeRequired: true, minSubmitMs: 800 }),
+    ).toLowerCase();
+    expect(wholePanel, "no save control").not.toContain("save settings");
+    expect(wholePanel, "and no save confirmation").not.toContain("saved");
+  });
+
+  it("says a settings save that was refused, in a live region that was already there", () => {
+    // The settings autosave since 2026-08-29, so there is no press to report a refusal
+    // back to. This sentence is the whole of what stands between an author and the belief
+    // that a deployment switch is set when the API declined to set it.
+    const html = renderSettings(
+      { challengeRequired: true, minSubmitMs: null },
+      "none",
+      "The minimum time may not exceed one hour.",
+    );
+
+    expect(textOfTestId(html, "qcms-settings-state")).toContain(
+      "The minimum time may not exceed one hour.",
+    );
+    // MOUNTED EITHER WAY, which is the part a rendered tree hides. `aria-live` announces a
+    // change inside a region that was already in the tree; a region that arrives with its
+    // first sentence usually announces nothing, and axe cannot see the difference.
+    const quiet = renderSettings({ challengeRequired: true, minSubmitMs: null });
+    expect(quiet).toContain('data-testid="qcms-form-settings-status"');
+    expect(quiet).toContain('aria-live="polite"');
+    expect(countTestId(quiet, "qcms-settings-state"), "and it is silent until it is not").toBe(0);
   });
 
   it("keeps every digested fact inside the panel as well (§3.7)", () => {
