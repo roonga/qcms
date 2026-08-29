@@ -24,11 +24,12 @@ import {
   pinQuestion,
   rule,
   ruleIds,
+  savedStamp,
   saveState,
   targetFilter,
   toggleCheckbox,
   toggleTarget,
-  waitForSaved,
+  waitForSaveAfter,
 } from "./support/forms.js";
 import {
   addOption,
@@ -153,6 +154,13 @@ test("builds the insurance form through the UI and saves it (exit criterion 1)",
   // The at-fault-accident rule: when the driver says yes, ask for the notes in the next
   // step. A new rule starts as `answered` against the first pinned question, which is
   // already the one this rule reads.
+  // A STAMP BEFORE THE EDITOR OPENS, and `waitForSaveAfter` after it closes. This is the
+  // hazard `waitForSaveAfter`'s own docblock names, and buffering is what made it bite here:
+  // the whole rule now reaches the draft in ONE mutation when Save is pressed, where it used
+  // to arrive keystroke by keystroke and be long saved by the time anything reloaded. So
+  // "Saved" is already on screen from the pins, `waitForSaved` returns instantly, and the
+  // reload below races the only round trip the rule ever gets.
+  const beforeRule = await savedStamp(page);
   const ruleId = await addRule(page);
   const scope = rule(page, ruleId);
   await chooseOption(scope, "Operator", "equals (the whole answer)");
@@ -160,7 +168,7 @@ test("builds the insurance form through the UI and saves it (exit criterion 1)",
   await toggleTarget(page, ruleId, questionIdFor(CLAIM_NOTES), true);
   await closeRuleEditor(page);
 
-  await waitForSaved(page);
+  await waitForSaveAfter(page, beforeRule);
   // The verdict is the FORM's and the rule is not, so the panel is read on the form's own
   // screen. Three screens, three homes: this is the one that counts issues.
   await openFormDetails(page);
@@ -187,6 +195,9 @@ test("a backward target is flagged instantly and refused by the engine (exit cri
   await openRules(page);
   const ruleId = (await ruleIds(page))[0] ?? "";
   expect(ruleId, "the saved draft should still carry its rule").toMatch(/^rul_/u);
+  // One save for the whole edit now, so the stamp is taken before the dialog opens and
+  // waited on after it closes. See exit criterion 1 for why buffering made that necessary.
+  const beforeBreak = await savedStamp(page);
   // The table is the read view; the condition tree lives in the row's editor, which is a
   // three-phase wizard since 2026-08-30. The targets are its second phase.
   await openRuleEditor(page, ruleId);
@@ -209,12 +220,14 @@ test("a backward target is flagged instantly and refused by the engine (exit cri
   // Save is what puts the backward target into the draft and therefore into the validate
   // call. The editor is modal, so leaving it is part of the journey rather than cleanup.
   await closeRuleEditor(page);
+  await waitForSaveAfter(page, beforeBreak);
   await openFormDetails(page);
-  await expect(issueSummary(page)).toContainText("would block a publish");
+  await expect(issueSummary(page)).toContainText("would block a publish", { timeout: 30_000 });
 
   // And the engine's own finding, from `analyzeRuleGraph` inside the validate call, lands
   // on this rule rather than in a general list. Two mechanisms, two assertions: a test that
   // only checked this one would pass with the instant feedback deleted.
+  const beforeFix = await savedStamp(page);
   await openRuleEditor(page, ruleId);
   await expect(issue(scope, "RULE_BACKWARD_TARGET")).toBeVisible({ timeout: 30_000 });
 
@@ -223,6 +236,7 @@ test("a backward target is flagged instantly and refused by the engine (exit cri
   await toggleTarget(page, ruleId, questionIdFor(AT_FAULT), false);
   await expect(page.getByTestId("qcms-backward-flag")).toHaveCount(0);
   await closeRuleEditor(page);
+  await waitForSaveAfter(page, beforeFix);
   await openFormDetails(page);
   await expect(issueSummary(page)).toHaveText("No issues. Everything here would pass a publish.", {
     timeout: 30_000,
@@ -268,13 +282,14 @@ test("moving a pin re-runs validation and surfaces the broken option ref (exit c
   await addStep(page, "Details");
   await pinQuestion(page, questionIdFor(CLAIM_NOTES), 1);
 
+  const beforeRule = await savedStamp(page);
   const ruleId = await addRule(page);
   const scope = rule(page, ruleId);
   await chooseOption(scope, "Operator", "equals (the whole answer)");
   await chooseOption(scope, "Value", coverV1Option);
   await toggleTarget(page, ruleId, questionIdFor(CLAIM_NOTES), true);
   await closeRuleEditor(page);
-  await waitForSaved(page);
+  await waitForSaveAfter(page, beforeRule);
   await openFormDetails(page);
   await expect(issueSummary(page)).toHaveText("No issues. Everything here would pass a publish.");
 
@@ -456,41 +471,60 @@ test("the rule wizard buffers: Cancel discards, Save commits (Code Owner, 2026-0
 
   await openRules(page);
   const ruleId = (await ruleIds(page))[0] ?? "";
-  const row = page.locator(`tr[data-rule-id="${ruleId}"]`);
-  const before = (await row.innerText()).trim();
+  // The row's SENTENCE, which is a read of the draft rather than of the dialog: if an edit
+  // reached the draft as it was typed - which is what the editor did until this change -
+  // the sentence would already carry the cancelled target.
+  const sentence = page.locator(`tr[data-rule-id="${ruleId}"] p.qcms-rule-sentence`);
+  const before = (await sentence.innerText()).trim();
   expect(before, "the saved rule already reads as a sentence").not.toBe("");
 
   // CANCEL. A target ticked, then thrown away.
   await openRuleEditor(page, ruleId);
   await toggleTarget(page, ruleId, questionIdFor(ACCIDENT_COUNT), true);
   await cancelRuleEditor(page);
-  await expect(row, "Cancel leaves the rule exactly as it was").toHaveText(before);
+  expect((await sentence.innerText()).trim(), "Cancel leaves the rule as it was").toBe(before);
 
   // And it did not merely fail to REDRAW: reloading rebuilds the draft from the API, so
   // this is the server's copy agreeing that nothing was stored.
   await page.reload();
   await openRules(page);
-  await expect(page.locator(`tr[data-rule-id="${ruleId}"]`)).toHaveText(before);
+  expect((await sentence.innerText()).trim()).toBe(before);
+  await openRuleEditor(page, ruleId);
+  await openRulePhase(page, "then");
+  await expect(
+    rule(page, ruleId).getByRole("checkbox", { name: questionIdFor(ACCIDENT_COUNT), exact: true }),
+    "the cancelled target is not in the stored rule",
+  ).not.toBeChecked();
+  // The stamp is read through the save strip on the form's screen, which is behind the
+  // overlay while a dialog is open, so the dialog is closed before it is taken.
+  await cancelRuleEditor(page);
 
   // SAVE. The same edit, kept.
+  const beforeSave = await savedStamp(page);
   await openRuleEditor(page, ruleId);
   await toggleTarget(page, ruleId, questionIdFor(ACCIDENT_COUNT), true);
   await closeRuleEditor(page);
-  await expect(row).toContainText(questionIdFor(ACCIDENT_COUNT));
-  await waitForSaved(page);
+  expect((await sentence.innerText()).trim(), "Save changes what the rule says").not.toBe(before);
+  await waitForSaveAfter(page, beforeSave);
 
   await page.reload();
   await openRules(page);
-  await expect(page.locator(`tr[data-rule-id="${ruleId}"]`)).toContainText(
-    questionIdFor(ACCIDENT_COUNT),
-  );
+  await openRuleEditor(page, ruleId);
+  await openRulePhase(page, "then");
+  await expect(
+    rule(page, ruleId).getByRole("checkbox", { name: questionIdFor(ACCIDENT_COUNT), exact: true }),
+    "the saved target survives a round trip through the API",
+  ).toBeChecked();
+  await cancelRuleEditor(page);
 
   // Put the form back the way the earlier tests left it, because this file is serial and
   // the later ones read the same draft.
+  const beforeRestore = await savedStamp(page);
   await openRuleEditor(page, ruleId);
   await toggleTarget(page, ruleId, questionIdFor(ACCIDENT_COUNT), false);
   await closeRuleEditor(page);
-  await waitForSaved(page);
+  await waitForSaveAfter(page, beforeRestore);
+  expect((await sentence.innerText()).trim()).toBe(before);
 });
 
 test("Add rule leaves nothing behind when it is cancelled", async ({ page }) => {
@@ -532,13 +566,29 @@ test("the targets are grouped by step, keep the ineligible ones, and can be filt
   await openRules(page);
   const ruleId = (await ruleIds(page))[0] ?? "";
   await openRuleEditor(page, ruleId);
-  await openRulePhase(page, "then");
   const scope = rule(page, ruleId);
 
-  // GROUPED BY STEP: one group per step of the form, addressed by the step's own id.
-  await expect(scope.locator("[data-target-step]")).toHaveCount(2);
-  await expect(scope.locator('[data-target-step="stp_driving_history"]')).toBeVisible();
-  await expect(scope.locator('[data-target-step="stp_claim_details"]')).toBeVisible();
+  // FULL WIDTH, asserted as a number rather than trusted to a stylesheet. The kit's
+  // `Dialog` writes `max-w-md` (28rem, 448px) onto its modal and takes no width prop, so
+  // the wide treatment is a rule in `app/globals.css` keyed on a marker attribute this
+  // component renders - a coupling that breaks silently if either half is renamed. At this
+  // project's 1280px viewport a dialog still wearing the kit's default measures 448px.
+  const dialogBox = await page.getByRole("dialog").boundingBox();
+  expect(dialogBox?.width ?? 0, "the rule wizard is wider than the kit's default").toBeGreaterThan(
+    900,
+  );
+
+  await openRulePhase(page, "then");
+
+  // GROUPED BY STEP, addressed by the step's own id. Three groups for two steps, and the
+  // extra one is the design rather than a duplicate: this rule reads the at-fault question,
+  // so the step holding it STRADDLES the cut ADR-16 makes. Its own whole-step target is
+  // illegal (the kernel expands a step target to every question in it, and one of them
+  // comes before the condition) while its later question is legal, so it is named under
+  // both headings. `lib/forms/rule-targets.test.ts` proves only one step can ever straddle.
+  await expect(scope.locator("[data-target-step]")).toHaveCount(3);
+  await expect(scope.locator('[data-target-step="stp_driving_history"]')).toHaveCount(2);
+  await expect(scope.locator('[data-target-step="stp_claim_details"]')).toHaveCount(1);
 
   // THE INELIGIBLE GROUP IS STILL LISTED AND STILL LABELLED. The rule reads the at-fault
   // question, so that question and its step come before the condition and cannot be

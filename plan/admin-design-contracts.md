@@ -592,7 +592,7 @@ a Cancel to that shape would have offered a discard the screen could not perform
 condition, the targets and the JSON pane had all already been stored, several debounces
 ago. The choice is between the button and the model, and the Code Owner chose the button.
 
-**Two costs, both accepted knowingly:**
+**Three costs, all accepted knowingly:**
 
 - **While the dialog is open the screen's autosave has nothing to save**, so a long edit
   is unsaved work. A rule is a small document and the dialog is a deliberate stop rather
@@ -604,6 +604,17 @@ ago. The choice is between the button and the model, and the Code Owner chose th
   be worse for the strip to say something about the dialog: two save statements on one
   screen is exactly what §6 exists to prevent, and the dialog's own sentence is already on
   screen beside the button it is about.
+- **The engine's verdict on the rule goes stale while the dialog is open**, and this one
+  was not anticipated when the button was asked for. Validation runs on the draft, the
+  draft is what the dialog is withholding, so `RULE_BACKWARD_TARGET` and its siblings are
+  the verdict on the last SAVED rule until Save is pressed. What covers the gap is the
+  feedback the dialog can compute for itself: `eligibleTargets` is pure draft geometry, so
+  the ordering rule is taught at the moment of authoring exactly as it was before, and the
+  kernel's own finding lands on the same rule a debounce after Save. Everything else - a
+  dangling option id typed into the JSON pane, for instance - now surfaces one press later
+  than it did. Closing that would mean validating from inside the dialog, which is a
+  server round trip per keystroke against a draft nobody asked to store, and it was judged
+  the worse trade. Worth revisiting if a second surface ever needs the same thing.
 
 **A consequence that removed a bug rather than adding one.** "Add rule" used to put a
 rule into the draft immediately, and a new rule has no target, which `unsaveableReason`

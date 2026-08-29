@@ -19,7 +19,6 @@ import {
   toggleCheckbox,
   toggleTarget,
   waitForSaveAfter,
-  waitForSaved,
   closeRuleEditor,
   openFormDetails,
   openRuleEditor,
@@ -129,6 +128,11 @@ test("publishes a draft and reports what it froze (exit criterion 1)", async ({ 
   await addStep(page, "Claim details");
   await pinQuestion(page, questionIdFor(CLAIM_NOTES), 1);
 
+  // A STAMP BEFORE THE EDITOR OPENS. The wizard buffers since 2026-08-30, so the whole rule
+  // reaches the draft in ONE mutation when Save is pressed rather than keystroke by
+  // keystroke: "Saved" is already on screen from the pins, so `waitForSaved` would return
+  // instantly and the reload below would race the only round trip the rule ever gets.
+  const beforeRule = await savedStamp(page);
   const ruleId = await addRule(page);
   const scope = rule(page, ruleId);
   await chooseOption(scope, "Operator", "equals (the whole answer)");
@@ -137,7 +141,7 @@ test("publishes a draft and reports what it froze (exit criterion 1)", async ({ 
   // `addRule` leaves you in the editor, and the editor is modal, so the save state behind
   // it is unreachable until it closes.
   await closeRuleEditor(page);
-  await waitForSaved(page);
+  await waitForSaveAfter(page, beforeRule);
 
   // Publish freezes the draft the SERVER holds, and the confirmation's counts are read
   // from that same stored draft. Reloading first is not a workaround for that, it is the

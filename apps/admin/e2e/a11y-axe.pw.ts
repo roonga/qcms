@@ -29,7 +29,9 @@ import {
   pinQuestion,
   rule,
   toggleCheckbox,
+  savedStamp,
   toggleTarget,
+  waitForSaveAfter,
   waitForSaved,
 } from "./support/forms.js";
 import { openDeliverer, submitResponse, TestConsumer } from "./support/ops.js";
@@ -587,7 +589,9 @@ test("the form builder and the condition editor have zero violations", async ({ 
   await closeRuleEditor(page);
 
   // The engine's finding, now that the rule is in the draft, rendered at the rule. It sits
-  // outside the phase panels, so it is on screen whichever phase is selected.
+  // outside the phase panels, so it is on screen whichever phase is selected. No explicit
+  // wait for the save: the assertion below carries the debounce, the round trip and the
+  // validate call in its own 30s budget, and nothing here reloads.
   await openRuleEditor(page, ruleId);
   await expect(scope.locator('[data-issue-code="RULE_BACKWARD_TARGET"]')).toBeVisible({
     timeout: 30_000,
@@ -645,16 +649,21 @@ test("publish, preview, history and secure links have zero violations", async ({
   await addStep(page, "Cover");
   await pinQuestion(page, choiceId, 1);
   await pinQuestion(page, countId, 1);
+  // A STAMP BEFORE THE EDITOR OPENS. The wizard buffers since 2026-08-30, so the whole rule
+  // reaches the draft in ONE mutation on Save: "Saved" is already on screen from the pins,
+  // so `waitForSaved` would return instantly and the reload below would race the only round
+  // trip the rule ever gets. Publish then freezes a draft without the rule in it.
+  const beforeRule = await savedStamp(page);
   const ruleId = await addRule(page);
   const scope = rule(page, ruleId);
   await chooseOption(scope, "Operator", "equals (the whole answer)");
   await chooseOption(scope, "Value", choiceOption);
   await toggleTarget(page, ruleId, countId, true);
-  // The editor is modal, and `waitForSaved` reads the save strip through the rail, which is
-  // behind the overlay until it closes. The sibling sweep above got this when the rules
-  // moved into a dialog; this one is on the same route and needs the same gesture.
+  // The editor is modal, and the save strip is read through the rail, which is behind the
+  // overlay until it closes. The sibling sweep above got this when the rules moved into a
+  // dialog; this one is on the same route and needs the same gesture.
   await closeRuleEditor(page);
-  await waitForSaved(page);
+  await waitForSaveAfter(page, beforeRule);
   await page.reload();
 
   await page.getByRole("button", { name: "Publish", exact: true }).click();
