@@ -204,6 +204,7 @@ const MODES = [
 
 async function expectNoViolations(page: Page, state: string): Promise<void> {
   const original = await page.evaluate(() => document.documentElement.className);
+  const originalScroll = await page.evaluate(() => window.scrollY);
   try {
     for (const mode of MODES) {
       await page.evaluate((rootClass) => {
@@ -213,6 +214,29 @@ async function expectNoViolations(page: Page, state: string): Promise<void> {
         if (rootClass !== "") document.documentElement.classList.add(rootClass);
       }, mode.rootClass);
       await settleTransitions(page);
+      // ANALYSED FROM THE TOP OF THE PAGE, because a scroll offset is not part of the
+      // state being swept and axe measures at whichever one it finds.
+      //
+      // `.qcms-topbar` is `position: sticky`, so anything a spec has scrolled past sits
+      // underneath it, and `target-size` hit-tests the current offset: a control halfway
+      // above the fold is reported as partially obscured by whichever nav link is painted
+      // over it, sized by the strip that is left. Measured on the form's own screen, where
+      // toggling the settings checkbox leaves the page at `scrollY` 127 of a possible 183:
+      // the Publish and Close form buttons are 90x40 and 118x40 at rest and came back as
+      // 90x10 and 118x10, with the two nav links above them named as the obscurers.
+      //
+      // That is a reading position rather than a defect in the screen. Both buttons are a
+      // full control tall and clear of the bar at the top of the page, and scrolling back
+      // to them is what a sticky bar is for. Left unnormalised the gate is also unstable
+      // in a way that says nothing about accessibility: any edit that makes a screen tall
+      // enough to scroll can turn an unrelated state red, which is how this arrived.
+      //
+      // What survives the normalisation is the case worth catching. A control that a
+      // sticky or fixed element covers at EVERY offset is still covered at the top, so a
+      // genuinely unreachable target still fails here; only the transient overlap goes.
+      await page.evaluate(() => {
+        window.scrollTo(0, 0);
+      });
 
       const results = await new AxeBuilder({ page })
         .options({ runOnly: { type: "tag", values: TAGS }, rules: EXTRA_RULES })
@@ -258,10 +282,15 @@ async function expectNoViolations(page: Page, state: string): Promise<void> {
     }
   } finally {
     // Leave the page as it was found, so a caller that keeps interacting with it is not
-    // silently driving a screen in a mode it never selected.
-    await page.evaluate((className) => {
-      document.documentElement.className = className;
-    }, original);
+    // silently driving a screen in a mode it never selected, or reading it from a
+    // different place on the page than the one it scrolled to.
+    await page.evaluate(
+      ({ className, scrollY }) => {
+        document.documentElement.className = className;
+        window.scrollTo(0, scrollY);
+      },
+      { className: original, scrollY: originalScroll },
+    );
   }
 }
 
@@ -602,6 +631,10 @@ test("publish, preview, history and secure links have zero violations", async ({
   await chooseOption(scope, "Operator", "equals (the whole answer)");
   await chooseOption(scope, "Value", choiceOption);
   await toggleTarget(page, ruleId, countId, true);
+  // The editor is modal, and `waitForSaved` reads the save strip through the rail, which is
+  // behind the overlay until it closes. The sibling sweep above got this when the rules
+  // moved into a dialog; this one is on the same route and needs the same gesture.
+  await closeRuleEditor(page);
   await waitForSaved(page);
   await page.reload();
 
