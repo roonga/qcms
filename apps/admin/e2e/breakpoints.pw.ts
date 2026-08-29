@@ -241,8 +241,13 @@ test.describe("the form builder's grids turn at the token each one is assigned",
    * Matched on the class attribute rather than a test id: the class IS the assignment, so
    * a selector that stops matching is itself the failure signal.
    */
+  // ONE PANE, where there were two. The rules and the validation panel shared a grid until
+  // the rules moved to a screen of their own on 2026-08-26; validation is alone on the
+  // form's screen now, so there is no second track for it to split into and nothing here
+  // to measure. The settings and the rule bench still share theirs, and the claim this
+  // test makes - that the builder's grids turn at the token each is assigned, to the pixel
+  // - is unchanged for the grid that is left.
   const PANES = [
-    { selector: '[class*="compact:grid-cols-[minmax(0,1fr)_20rem"]', name: "rules and validation" },
     { selector: '[class*="compact:grid-cols-2"]', name: "settings and rule bench" },
   ] as const;
 

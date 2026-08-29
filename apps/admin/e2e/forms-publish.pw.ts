@@ -20,6 +20,7 @@ import {
   toggleTarget,
   waitForSaveAfter,
   waitForSaved,
+  openFormDetails,
   openRules,
 } from "./support/forms.js";
 import { confirmLifecycle, createDraft, fillDate, optionIds } from "./support/questions.js";
@@ -300,6 +301,9 @@ test("a refused publish lists every issue and each one moves focus (exit criteri
   // about the validation panel agreeing (`waitForSaveAfter` records why).
   await waitForSaveAfter(page, beforeBreak);
 
+  // The rule was broken on the rules screen; Publish is on the form's. Three screens now,
+  // and the publish controls belong to the form rather than to any of its parts.
+  await openFormDetails(page);
   await page.getByRole("button", { name: "Publish", exact: true }).click();
   await page
     .getByRole("alertdialog")
