@@ -50,6 +50,19 @@ const { RuleTestBench } = await import("./rule-test-bench.tsx");
 const SUMMARY_HEADING = /<summary[^>]*><h2[^>]*>/;
 
 /**
+ * The settings panel is no longer a disclosure (Code Owner, 2026-08-26): it shared the
+ * form's screen with four other panels and something had to give way, and that screen
+ * carries the settings and little else now. Its heading is a plain `h2` labelling a
+ * `section` rather than one inside a `summary`.
+ *
+ * The claim issue 519 made survives the change and is what is still asserted: the panel has
+ * an entry in the heading outline. It was a `<summary>` with no heading in it that 519
+ * fixed, and a section with a heading is no more at risk of that than a details was.
+ */
+const SETTINGS_HEADING =
+  /<section[^>]*aria-labelledby="qcms-settings-heading"[\s\S]*?<h2[^>]*id="qcms-settings-heading"/;
+
+/**
  * React escapes text nodes, so a catalog sentence carrying an apostrophe reaches the
  * markup as a numeric character reference and a plain `toContain` misses it. Decoding is
  * the honest direction: the assertions are about the sentence a reader gets, not about
@@ -88,11 +101,12 @@ function countTestId(html: string, testId: string): number {
 }
 
 describe("the form settings panel's summary (issue 519)", () => {
-  it("puts an h2 inside the summary, so the panel has an entry in the heading outline", () => {
+  it("heads the panel with an h2, so it has an entry in the heading outline", () => {
     const html = renderSettings({ challengeRequired: false, minSubmitMs: null });
 
-    expect(html).toMatch(SUMMARY_HEADING);
+    expect(html).toMatch(SETTINGS_HEADING);
     expect(html).toContain(t("forms.settings.title"));
+    expect(html, "and it is not a disclosure any more").not.toContain("<summary");
   });
 
   it("states the two switches as facts, with no judgement and no save claim", () => {
@@ -112,7 +126,11 @@ describe("the form settings panel's summary (issue 519)", () => {
   it("keeps every digested fact inside the panel as well (§3.7)", () => {
     const html = renderSettings({ challengeRequired: true, minSubmitMs: 800 });
     const digest = textOfTestId(html, "qcms-settings-digest");
-    const body = html.slice(html.indexOf("</summary>"));
+    // Everything after the digest is the panel's body. It used to be everything after
+    // `</summary>`; the panel stopped being a disclosure on 2026-08-26, and §3.7's claim -
+    // that a digested fact also exists as a control inside the panel - is about the two
+    // being consistent rather than about one of them being hidden.
+    const body = html.slice(html.indexOf("qcms-settings-digest"));
 
     // The millisecond figure the summary states is the number field's own value, so
     // opening the panel finds it again rather than losing it.
@@ -127,7 +145,11 @@ describe("the form settings panel's summary (issue 519)", () => {
   it("says the deployment default is in force when no override is set, and shows no field", () => {
     const html = renderSettings({ challengeRequired: false, minSubmitMs: null });
     const digest = textOfTestId(html, "qcms-settings-digest");
-    const body = html.slice(html.indexOf("</summary>"));
+    // Everything after the digest is the panel's body. It used to be everything after
+    // `</summary>`; the panel stopped being a disclosure on 2026-08-26, and §3.7's claim -
+    // that a digested fact also exists as a control inside the panel - is about the two
+    // being consistent rather than about one of them being hidden.
+    const body = html.slice(html.indexOf("qcms-settings-digest"));
 
     expect(digest).toContain(t("forms.settings.digest.minSubmitDefault"));
     expect(digest).toContain(t("forms.settings.digest.challengeOff"));

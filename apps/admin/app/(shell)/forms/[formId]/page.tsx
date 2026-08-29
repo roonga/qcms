@@ -1,7 +1,8 @@
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 
-import { Alert, Breadcrumb, type BreadcrumbItem } from "@/components/kit";
+import { Alert } from "@/components/kit";
+import { BuilderBreadcrumb } from "@/components/forms/builder-breadcrumb";
 import { FormActions } from "@/components/forms/form-actions";
 import { CONCURRENT_NOTICE_COOKIE, isConcurrentNoticeDismissed } from "@/lib/builder-notice";
 import { FormBuilder } from "@/components/forms/form-builder";
@@ -100,14 +101,6 @@ export default async function FormBuilderPage({
   }
 
   const form = seedTitle(detail.data, firstValue(query["title"]).trim());
-  const crumbs: BreadcrumbItem[] = [
-    { id: "forms", label: t("forms.builder.crumbs"), href: "/forms" },
-    { id: form.formId, label: form.slug, href: `/forms/${encodeURIComponent(form.formId)}` },
-    // The same name the rail's row carries and the same one the `<h1>` below uses. It
-    // said "Builder" while the row beside it said "Form details", which is one screen
-    // answering to two names.
-    { id: "builder", label: t("forms.tab.builder") },
-  ];
 
   return (
     <div className="flex flex-col gap-6">
@@ -118,7 +111,7 @@ export default async function FormBuilderPage({
           form's own screen (Code Owner, 2026-08-26). It used to stand above both, so a
           reader working on a step read four lines of form metadata above that step's
           questions every time. */}
-      <Breadcrumb items={crumbs} ariaLabel={t("forms.builder.crumbLabel")} />
+      <BuilderBreadcrumb formId={form.formId} slug={form.slug} />
 
       {!library.ok && (
         <Alert variant="warning">
@@ -149,24 +142,6 @@ export default async function FormBuilderPage({
         concurrentNoticeRead={isConcurrentNoticeDismissed(
           (await cookies()).get(CONCURRENT_NOTICE_COOKIE)?.value,
         )}
-        formHeading={
-          // THE SCREEN'S NAME, not the form's (Code Owner, 2026-08-26). Issue 679 exempted
-          // this route on the reasoning that "on the builder the subject IS the form", and
-          // that was true of one screen. It is two now: this one is the form's details and
-          // the other is a step, which heads itself. The form's name is directly above in
-          // the breadcrumb and again in the rail, so repeating it here was the same
-          // duplication the five section screens just lost.
-          // Visually hidden for the reason the shared form header writes out at length
-          // (`components/forms/form-page-header.tsx`, whose name is deliberately not
-          // spelled here: `section-headings.test.tsx` reads this file's SOURCE for that
-          // identifier to prove this route does not render it, and cannot tell a mention
-          // in a comment from a use). The
-          // breadcrumb directly above already reads "Forms / {slug} / Form details", so a
-          // visible copy tells a sighted reader what they have just read. It stays in the
-          // accessibility tree, because a screen without a level-one heading is one a
-          // screen reader cannot navigate by.
-          <h1 className="qcms-visually-hidden">{t("forms.tab.builder")}</h1>
-        }
         formMeta={
           // One muted line of bare values. They were three labelled lines - "Form ID:",
           // "Default locale:", "Status:" and then the draft's origin on its own - which is

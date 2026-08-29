@@ -78,14 +78,25 @@ export function FormSettingsPanel({
   const changed = patchOf(stored, draft);
   const hasChange = Object.keys(changed).length > 0;
 
+  // NOT A DISCLOSURE ANY MORE (Code Owner, 2026-08-26). It was a `<details>` because it
+  // shared a screen with four other panels and something had to give way; the form's
+  // details screen carries the settings and little else now, so collapsing them buys a
+  // row of nothing and costs a press.
+  //
+  // The digest stays beside the heading. It was there to say what the panel held while
+  // it was shut, and it still earns its place open: it is the settings as one sentence,
+  // which is faster to check than reading three controls. `plan/admin-ux-audit.md` §3.7
+  // wants the digest and the controls to agree, and open they plainly do.
   return (
-    <details className="rounded-md border border-(--color-border) bg-(--color-surface) p-4" open>
-      {/* `<summary>` takes phrasing content intermixed with ONE heading element, so the
-          `h2` and the digest span beside it are both valid children. The heading is
-          `inline` so the disclosure marker, the title and the digest sit on one line and
-          wrap together at a narrow width. */}
-      <summary className="cursor-pointer">
-        <h2 className="inline text-base font-semibold text-(--color-text)">
+    <section
+      aria-labelledby="qcms-settings-heading"
+      className="rounded-md border border-(--color-border) bg-(--color-surface) p-4"
+    >
+      <div>
+        <h2
+          id="qcms-settings-heading"
+          className="inline text-base font-semibold text-(--color-text)"
+        >
           {t("forms.settings.title")}
         </h2>
         <span
@@ -94,7 +105,7 @@ export function FormSettingsPanel({
         >
           {settingsDigest(draft)}
         </span>
-      </summary>
+      </div>
 
       <div className="mt-3 flex flex-col gap-4">
         <p className="text-sm text-(--color-text-muted)">{t("forms.settings.note")}</p>
@@ -173,7 +184,7 @@ export function FormSettingsPanel({
           </p>
         </div>
       </div>
-    </details>
+    </section>
   );
 }
 

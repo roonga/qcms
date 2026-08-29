@@ -184,23 +184,27 @@ describe("the section routes name their section in the h1 (issue 679)", () => {
  * take those with it.
  */
 describe("the builder route names its screen, not its form (reversal of issue 679)", () => {
-  it("heads itself with the section name and renders no FormPageHeader", () => {
+  it("renders no FormPageHeader, and heads itself from the client", () => {
     const source = routeSource("forms/[formId]/page.tsx");
 
-    expect(source).toContain('t("forms.tab.builder")');
+    // The heading and the breadcrumb moved into `builder-breadcrumb.tsx` on 2026-08-26,
+    // because this route is three screens and only the browser knows which one is showing:
+    // the crumb said "Form details" while the reader was looking at a step's questions.
+    // What is asserted here is what still belongs to the route file - that it composes its
+    // own header rather than routing through the shared one, which would take the publish
+    // controls and the save state with it.
+    expect(source).toContain("BuilderBreadcrumb");
     expect(source).not.toContain('"forms.builder.heading"');
     expect(source).not.toContain("FormPageHeader");
     expect(source).not.toContain("forms.section.heading");
   });
 
-  it("uses the one name the rail and the breadcrumb use for this screen", () => {
-    // One string, three places: the rail's row, the last crumb, and this heading. It read
-    // "Builder" in the breadcrumb while the rail said "Form details" until this was made
-    // one lookup.
+  it("names every one of its screens from one lookup, so none can answer to two names", () => {
+    // The crumb and the heading both call `currentScreenName`, and the rail's row for the
+    // form calls the same key it returns for the form screen. Asserted as the strings,
+    // because the defect this replaced was two lookups disagreeing: the rail read "Form
+    // details" while the last crumb read "Builder".
     expect(messages["forms.tab.builder"]).toBe("Form details");
-    const source = routeSource("forms/[formId]/page.tsx");
-    expect(source, "the last crumb comes from the same key").toContain(
-      'label: t("forms.tab.builder")',
-    );
+    expect(messages["forms.rail.rules"]).toBe("Rules");
   });
 });

@@ -42,6 +42,7 @@ import { ConditionEditor } from "./condition-editor";
 import { FormSettingsPanel } from "./form-settings-panel";
 import { RuleTestBench } from "./rule-test-bench";
 import { concurrentNoticeCookie } from "@/lib/builder-notice";
+import { currentScreenName } from "./builder-breadcrumb";
 import { usePublishBuilderRail, type BuilderSelection } from "@/lib/forms/builder-bridge";
 import { StepEditor } from "./step-editor";
 import { ValidationPanel, type BuilderStatus } from "./validation-panel";
@@ -105,7 +106,6 @@ export function FormBuilder({
   detail,
   library,
   formActions,
-  formHeading,
   formMeta,
   concurrentNoticeRead,
   saveDraft,
@@ -132,7 +132,6 @@ export function FormBuilder({
    * it belongs on. The `<h1>` travelling with it is why the step screen promotes its own
    * heading to `h1` - see the step branch below.
    */
-  readonly formHeading: ReactNode;
   /** The form's id, locale, status and draft origin, as one muted line under the heading. */
   readonly formMeta: ReactNode;
   /**
@@ -195,6 +194,10 @@ export function FormBuilder({
   actions.current = { saveDraft, validateDraft };
 
   const paused = unsaveableReason(draft);
+  // The one name for the screen being shown, shared with the breadcrumb so the two cannot
+  // drift. `currentScreenName` takes the published snapshot rather than the selection,
+  // because that is what the crumb outside this tree can also read.
+  const screenName = currentScreenName(selection, draft.steps);
 
   useEffect(() => {
     if (!isDirty.current || paused !== undefined) return undefined;
@@ -388,7 +391,16 @@ export function FormBuilder({
               now, and aligning its first baseline to a button's would hang it below the
               row it belongs to. */}
           <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-            <div className="contents">{formHeading}</div>
+            {/* THE SCREEN'S NAME, and the same string the breadcrumb's last crumb uses -
+                one lookup, so a screen cannot answer to two names. Visually hidden because
+                the crumb directly above already says it; kept in the tree because a page
+                without a level-one heading is one a screen reader cannot navigate by.
+                `display: contents` on the wrapper: the heading is out of flow, and a
+                wrapper that generated a box would be an empty flex item indenting the
+                buttons past the breadcrumb. */}
+            <div className="contents">
+              <h1 className="qcms-visually-hidden">{screenName}</h1>
+            </div>
             <div>{formActions}</div>
             {/* What the form IS, above how it last saved: both are facts about the form
                 rather than actions on it, so they share the row's trailing edge and read
@@ -421,19 +433,15 @@ export function FormBuilder({
               focuses, not the panel sitting beside any one of them. */}
           <ValidationPanel draft={draft} issues={issues} status={status} />
 
-          <div className="grid gap-4 compact:grid-cols-2">
-            <FormSettingsPanel
-              settings={detail.settings}
-              challengeProvider={detail.challengeProvider}
-              updateSettings={updateSettings}
-            />
-            <RuleTestBench
-              draft={draft}
-              rules={draft.rules}
-              library={library}
-              previewCondition={previewCondition}
-            />
-          </div>
+          {/* ONE COLUMN (Code Owner, 2026-08-26). The settings shared a two-track grid with
+              the rule test bench, and the bench has gone to the rules it tests, so there is
+              nothing to sit beside. A lone panel in a two-column grid is a column of
+              whitespace. */}
+          <FormSettingsPanel
+            settings={detail.settings}
+            challengeProvider={detail.challengeProvider}
+            updateSettings={updateSettings}
+          />
         </>
       )}
       {selection.kind === "rules" && (
@@ -447,7 +455,19 @@ export function FormBuilder({
            `plan/admin-ux-audit.md` §5.5 says as much - and moving them was not asked for.
            One screen at a time is also how the anchor switching gets proven before more of
            the builder depends on it. */
-        <RulesSection draft={draft} library={library} issues={issues ?? []} onChange={mutate} />
+        <>
+          <RulesSection draft={draft} library={library} issues={issues ?? []} onChange={mutate} />
+          {/* THE BENCH IS ABOUT THE RULES, so it is on their screen (Code Owner,
+              2026-08-26). It sat on the form's, beside the settings, because everything
+              form-level was on one screen; it reads `draft.rules` and answers "what would
+              this rule do", which is a question you ask while looking at the rule. */}
+          <RuleTestBench
+            draft={draft}
+            rules={draft.rules}
+            library={library}
+            previewCondition={previewCondition}
+          />
+        </>
       )}
       {selection.kind === "step" && (
         <div>
@@ -665,9 +685,18 @@ function RulesSection({
       className="flex flex-col gap-3 rounded-md border border-(--color-border) p-4"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="qcms-rules-heading" className="text-base font-semibold text-(--color-text)">
+        {/* AN `h1`, because on the rules screen this IS the screen's subject - the same
+            call the step screen's heading makes, and for the same reason: the form's own
+            heading is on the form's screen, so without this the rules screen would have no
+            level-one heading at all. `e2e/a11y-axe.pw.ts` sweeps for exactly that.
+
+            Not painted: the breadcrumb directly above ends in "Rules", so a visible copy
+            tells a sighted reader what they have just read. It stays in the tree because
+            the section is `aria-labelledby` it, and a region announced as "Rules" is how a
+            screen reader knows which of the three screens it is in. */}
+        <h1 id="qcms-rules-heading" className="qcms-visually-hidden">
           {t("forms.rules.title")}
-        </h2>
+        </h1>
         <Button
           variant="secondary"
           size="md"
