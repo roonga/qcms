@@ -660,6 +660,59 @@ export const messages = {
   "forms.op.or": "any of",
   "forms.op.not": "not",
 
+  // --- the rules table's read-only sentence (`lib/forms/rule-sentence.ts`) ---
+  //
+  // Every entry here is a SENTENCE FRAME with placeholders, not a word to be glued to
+  // its neighbours at the call site. That is ADR-27 taken seriously rather than
+  // nominally: word order is part of a translation, and a module that concatenated
+  // `"When "` + condition + `", show "` + targets would have hard-coded English clause
+  // order in TypeScript while pretending the strings were localized. A locale that
+  // fronts the consequent rewrites `forms.sentence.frame` here and nothing else.
+  //
+  // The frames are also why the module can hand the table SEGMENTS rather than prose:
+  // it splits each frame on its own placeholders, so the emphasised names arrive already
+  // separated from the punctuation and connectives around them.
+  "forms.sentence.frame": "When {condition}, show {targets}",
+  // A rule whose targets have not been chosen yet is a state the editor lets an author
+  // sit in (`forms.rule.targetsNone`), so the table has to say what it does rather than
+  // trail off after "show".
+  "forms.sentence.frameNoTargets": "When {condition}, show nothing",
+  // Grouping is a separate frame so a locale can bracket differently; see the module's
+  // note on why a nested `and`/`or` is always bracketed.
+  "forms.sentence.group": "({condition})",
+  "forms.sentence.not": "not ({condition})",
+  "forms.sentence.listComma": "{left}, {right}",
+  "forms.sentence.listAnd": "{left} and {right}",
+  "forms.sentence.listOr": "{left} or {right}",
+  // Both defensive: the kernel's `and`/`or` are `.min(1)` and its `in`/`containsAny`
+  // values are too, so neither empty shape is publishable. They are still reachable in a
+  // draft the API handed back, and a sentence that silently omitted the branch would
+  // read as a complete condition that is missing a clause.
+  "forms.sentence.noBranches": "a group with no branches",
+  // Reached by an ordinary edit rather than only by a malformed draft: a freshly created
+  // `equals` against a text question carries `""` (`condition.ts`, `startingOperand`),
+  // and "is exactly" followed by nothing reads as a truncated sentence.
+  "forms.sentence.emptyValue": "an empty value",
+
+  // One frame per leaf operator. These are prose, so they are worded to be read in a
+  // sentence rather than picked from a list: `forms.op.*` is the operator picker's
+  // vocabulary and says "is greater than or equal to", which is exact but stops a reader
+  // mid-scan. The comparison each pair states is identical.
+  "forms.sentence.op.answered": "{question} is answered",
+  "forms.sentence.op.equals": "{question} is exactly {value}",
+  "forms.sentence.op.notEquals": "{question} is not exactly {value}",
+  "forms.sentence.op.in": "{question} is one of {value}",
+  "forms.sentence.op.contains": "{question} includes {value}",
+  "forms.sentence.op.containsAny": "{question} includes any of {value}",
+  "forms.sentence.op.gt": "{question} is greater than {value}",
+  "forms.sentence.op.gte": "{question} is at least {value}",
+  "forms.sentence.op.lt": "{question} is less than {value}",
+  "forms.sentence.op.lte": "{question} is at most {value}",
+  // The same promise `forms.issue.unknown` makes for a publish code this build has never
+  // heard of: an operator with no frame here still renders, and it renders as an
+  // admission rather than as its own token dressed up as English.
+  "forms.sentence.op.unknown": "a condition this build cannot describe ({op})",
+
   "forms.operand.true": "Yes",
   "forms.operand.false": "No",
   "forms.operand.item": "Value {position}",
