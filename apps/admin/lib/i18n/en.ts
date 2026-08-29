@@ -1436,6 +1436,7 @@ export const messages = {
   "forms.rail.label": "{slug} steps and sections",
   "forms.rail.steps": "Steps",
   "forms.rail.formMenu": "Actions for {title}",
+  "forms.rail.rules": "Rules",
   "forms.rail.sections": "Sections",
   // The ordinal beside a step title. A separate string rather than a template at the
   // call site because a locale that numbers differently changes it here (ADR-27).

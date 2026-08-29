@@ -28,6 +28,7 @@ import {
   toggleCheckbox,
   toggleTarget,
   waitForSaved,
+  openRules,
 } from "./support/forms.js";
 import { openDeliverer, submitResponse, TestConsumer } from "./support/ops.js";
 import {

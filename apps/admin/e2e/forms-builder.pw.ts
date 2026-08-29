@@ -13,6 +13,7 @@ import {
   issueSummary,
   movePin,
   openFormDetails,
+  openRules,
   openStep,
   pinLabel,
   pinQuestion,
@@ -128,8 +129,9 @@ test("builds the insurance form through the UI and saves it (exit criterion 1)",
   await pinQuestion(page, questionIdFor(CLAIM_NOTES), 1);
 
   // Rules belong to the FORM, so reaching them means leaving the step screen pinning left
-  // us on. The builder has been two screens behind one route since 2026-08-26.
-  await openFormDetails(page);
+  // us on. The builder has been three screens behind one route since 2026-08-26, and the
+  // rules are one of them.
+  await openRules(page);
 
   // The section that lists rules is headed "Rules", which is the word its own button, its
   // entities and the bench beside it already use (issue 661). It used to read
@@ -148,16 +150,18 @@ test("builds the insurance form through the UI and saves it (exit criterion 1)",
   await toggleTarget(page, ruleId, questionIdFor(CLAIM_NOTES), true);
 
   await waitForSaved(page);
+  // The verdict is the FORM's and the rule is not, so the panel is read on the form's own
+  // screen. Three screens, three homes: this is the one that counts issues.
+  await openFormDetails(page);
   await expect(issueSummary(page)).toHaveText("No issues. Everything here would pass a publish.");
 
-  // The draft is on the server, not just on screen: a reload rebuilds it from the API.
+  // The draft is on the server, not just on screen: a reload rebuilds it from the API. Each
+  // of the three screens is asked for its own half of it.
   await page.reload();
   await expect(page.getByRole("button", { name: "Open step Driving history" })).toBeVisible();
-  // The reload opens on the form, which is where the rule list is, so no switch here.
   await expect(page.getByRole("button", { name: "Open step Claim details" })).toBeVisible();
+  await openRules(page);
   await expect(page.locator("[data-rule-id]")).toHaveCount(1);
-  // The rule above is the form's and survived the reload on the screen the reload opens.
-  // The pin is the step's, so reading it back means going to the step that holds it.
   await openStep(page, "Driving history");
   await expect(pinLabel(page, questionIdFor(AT_FAULT), 1)).toBeVisible();
 });
@@ -169,6 +173,7 @@ test("a backward target is flagged instantly and refused by the engine (exit cri
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/forms/${insuranceFormId}`);
 
+  await openRules(page);
   const ruleId = (await ruleIds(page))[0] ?? "";
   expect(ruleId, "the saved draft should still carry its rule").toMatch(/^rul_/u);
   const scope = rule(page, ruleId);
@@ -187,12 +192,16 @@ test("a backward target is flagged instantly and refused by the engine (exit cri
   // And the engine's own finding, from `analyzeRuleGraph` inside the validate call, lands
   // on this rule rather than in a general list.
   await expect(issue(scope, "RULE_BACKWARD_TARGET")).toBeVisible({ timeout: 30_000 });
+  // The finding is on the rule, on the rules screen; the COUNT is the form's, on the form's.
+  await openFormDetails(page);
   await expect(issueSummary(page)).toContainText("would block a publish");
 
   // Untick it and the form is publishable again: the flag is a statement about the draft,
   // not a latch.
+  await openRules(page);
   await toggleTarget(page, ruleId, questionIdFor(AT_FAULT), false);
   await expect(page.getByTestId("qcms-backward-flag")).toHaveCount(0);
+  await openFormDetails(page);
   await expect(issueSummary(page)).toHaveText("No issues. Everything here would pass a publish.", {
     timeout: 30_000,
   });
@@ -243,6 +252,7 @@ test("moving a pin re-runs validation and surfaces the broken option ref (exit c
   await chooseOption(scope, "Value", coverV1Option);
   await toggleTarget(page, ruleId, questionIdFor(CLAIM_NOTES), true);
   await waitForSaved(page);
+  await openFormDetails(page);
   await expect(issueSummary(page)).toHaveText("No issues. Everything here would pass a publish.");
 
   // The move itself: one pin, one version, chosen from the menu that lists published
@@ -253,10 +263,11 @@ test("moving a pin re-runs validation and surfaces the broken option ref (exit c
   // The version change is on screen, validation re-ran on its own, and the consequence is
   // reported at the rule that carries the now-dangling option id.
   await expect(pinLabel(page, questionIdFor(COVER_LEVEL), 2)).toBeVisible();
-  // The pin is the step's and the rule is the form's, so the consequence is read back on
-  // the form screen the rule lives on.
-  await openFormDetails(page);
+  // Three screens, three readings of one consequence: the pin is the step's, the finding is
+  // on the rule and therefore on the rules screen, and the count is the form's.
+  await openRules(page);
   await expect(issue(scope, "DANGLING_OPTION_REF")).toBeVisible({ timeout: 30_000 });
+  await openFormDetails(page);
   await expect(issueSummary(page)).toContainText("would block a publish");
 });
 

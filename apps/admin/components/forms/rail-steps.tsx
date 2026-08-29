@@ -214,6 +214,22 @@ export function RailSteps({
         ))}
       </ol>
       <AddStep onOpen={openAdd} />
+      {/* AFTER the steps and their add control, not inside them: the rules are the form's,
+          not a step's, and the `<ol>` above is announced as a list of steps. A sibling row
+          here says "another thing this screen can show", which is what it is.
+
+          On the builder only. The other seven form screens render `ServerSteps` and no row
+          for this, because a rule is not a route and there is nothing to select over there;
+          `RulesSection` lives in the builder's own tree. */}
+      <button
+        type="button"
+        className="qcms-rail__link qcms-rail-steps__form"
+        data-rail-item="rules"
+        aria-current={builder.selection.kind === "rules" ? "page" : undefined}
+        onClick={builder.chooseRules}
+      >
+        <span>{t("forms.rail.rules")}</span>
+      </button>
       {adding && (
         <AddStepDialog
           title={newTitle}

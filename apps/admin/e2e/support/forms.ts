@@ -226,11 +226,24 @@ export async function pinnedOrder(page: Page): Promise<string[]> {
     .evaluateAll((rows) => rows.map((row) => row.getAttribute("data-pin-question") ?? ""));
 }
 
+/**
+ * Show the form's rules, which are a screen of their own since 2026-08-26.
+ *
+ * They were on the form's details screen, and every helper below that touches a rule goes
+ * through here rather than each spec remembering which of the builder's three screens a
+ * rule is on.
+ */
+export async function openRules(page: Page): Promise<void> {
+  await openRail(page);
+  await page.locator('[data-rail-item="rules"]').click();
+  await expect(page.locator("#qcms-rules-heading")).toBeVisible();
+}
+
 /** Add a rule and return the id the builder minted for it. */
 export async function addRule(page: Page): Promise<string> {
-  // Rules are the FORM's, so they live on the form screen. A spec that has just been
-  // working on a step is looking at the step screen, and would not find the button.
-  await openFormDetails(page);
+  // Rules have their own screen now. A spec that has just been working on a step, or on the
+  // form's details, is looking at neither of the places this button is.
+  await openRules(page);
   const before = await ruleIds(page);
   await page.getByRole("button", { name: "Add rule", exact: true }).click();
   await expect(page.locator("[data-rule-id]")).toHaveCount(before.length + 1);
@@ -240,7 +253,13 @@ export async function addRule(page: Page): Promise<string> {
   return added ?? "";
 }
 
-/** Every rule region currently on screen, by id, in document order. */
+/**
+ * Every rule region currently on screen, by id, in document order.
+ *
+ * "On screen" is load-bearing: the rules are one of the builder's three screens, so a
+ * caller that has not opened it gets an empty list rather than a failure. Callers that mean
+ * "this form's rules" open the screen first, which `addRule` does for them.
+ */
 export async function ruleIds(page: Page): Promise<string[]> {
   const ids = await page
     .locator("[data-rule-id]")
@@ -341,13 +360,22 @@ export async function movePin(page: Page, questionId: string, version: number): 
  * argument, so a caller that was on the form screen already makes no trip at all.
  */
 async function readingSaveState<T>(page: Page, read: () => Promise<T>): Promise<T> {
-  const current = page.locator('[data-rail-step-select][aria-current="page"]');
+  // Which of the builder's three screens the caller is standing on, read from the rail
+  // rather than tracked, so a spec that navigated by any route still comes back to where
+  // it was. The rules screen joined the step screens on 2026-08-26; both lack the strip,
+  // and only the form's own screen has it.
+  const currentStep = page.locator('[data-rail-step-select][aria-current="page"]');
   const step =
-    (await current.count()) > 0 ? await current.getAttribute("data-rail-step-select") : null;
-  if (step === null) return read();
+    (await currentStep.count()) > 0
+      ? await currentStep.getAttribute("data-rail-step-select")
+      : null;
+  const onRules = (await page.locator('[data-rail-item="rules"][aria-current="page"]').count()) > 0;
+  if (step === null && !onRules) return read();
+
   await openFormDetails(page);
   const value = await read();
-  await openStep(page, step);
+  if (step !== null) await openStep(page, step);
+  else await openRules(page);
   return value;
 }
 

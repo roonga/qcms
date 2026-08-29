@@ -26,7 +26,7 @@ import {
   updateRule,
   type UnsaveableReason,
 } from "@/lib/forms/draft";
-import { issuesForRule, stepAnchorId, stepIssueCounts } from "@/lib/forms/issues";
+import { issuesForRule, ruleAnchorId, stepAnchorId, stepIssueCounts } from "@/lib/forms/issues";
 import type {
   DraftForm,
   DraftRule,
@@ -251,6 +251,17 @@ export function FormBuilder({
   // step, which `IssueEntry` already handles by selecting the owning step itself; re-running
   // this on every hash change would fight it.
   useEffect(() => {
+    // A rule's anchor, for the same reason: `/forms/{id}#rule-{ruleId}` is what a publish
+    // rejection's work list links to, and landing on it used to show the form's details.
+    const rulePrefix = `#${ruleAnchorId("")}`;
+    if (window.location.hash.startsWith(rulePrefix)) {
+      const ruleId = window.location.hash.slice(rulePrefix.length);
+      if (draft.rules.some((rule) => rule.ruleId === ruleId)) {
+        setSelection({ kind: "rules" });
+        return;
+      }
+    }
+
     const prefix = `#${stepAnchorId("")}`;
     const hash = window.location.hash;
     if (!hash.startsWith(prefix)) return;
@@ -287,6 +298,9 @@ export function FormBuilder({
         selection,
         chooseForm: () => {
           setSelection({ kind: "form" });
+        },
+        chooseRules: () => {
+          setSelection({ kind: "rules" });
         },
         choose: (stepId: string) => {
           setSelection({ kind: "step", stepId });
@@ -391,13 +405,14 @@ export function FormBuilder({
             }}
           />
 
-          <div className="grid gap-4 compact:grid-cols-[minmax(0,1fr)_20rem]">
-            {/* Same reasoning as the step counts above: a rule renders its issue list only
-            when there is something in it, so an absent verdict and an empty one both come
-            out as no list rather than as an all-clear about the rule. */}
-            <RulesSection draft={draft} library={library} issues={issues ?? []} onChange={mutate} />
-            <ValidationPanel draft={draft} issues={issues} status={status} />
-          </div>
+          {/* VALIDATION STAYS HERE while the rules move to a screen of their own (Code
+              Owner, 2026-08-26). `plan/admin-ux-audit.md` §5.5 is emphatic that it should:
+              "Validation is not a destination. It is a companion to editing and it has to be
+              on the page whose controls it points at." Its entries are links that move focus
+              to the offending rule, step or pin, and those now live on three different
+              screens - so what makes them work is `IssueEntry` switching screens before it
+              focuses, not the panel sitting beside any one of them. */}
+          <ValidationPanel draft={draft} issues={issues} status={status} />
 
           <div className="grid gap-4 compact:grid-cols-2">
             <FormSettingsPanel
@@ -413,6 +428,18 @@ export function FormBuilder({
             />
           </div>
         </>
+      ) : selection.kind === "rules" ? (
+        /* THE RULES, ON A SCREEN OF THEIR OWN (Code Owner, 2026-08-26), which
+           `plan/admin-shell-poc/rules-screen-poc.html` draws as a full-width editor and
+           heads "Rules". Full width here too: it shared the row with the validation panel
+           only because both were crowded onto one screen, and a rule's condition editor is
+           the widest thing this app builds.
+
+           The test bench and the settings stay on the form's screen. They could move -
+           `plan/admin-ux-audit.md` §5.5 says as much - and moving them was not asked for.
+           One screen at a time is also how the anchor switching gets proven before more of
+           the builder depends on it. */
+        <RulesSection draft={draft} library={library} issues={issues ?? []} onChange={mutate} />
       ) : (
         <div>
           {/* Nothing rather than a second copy of the rail's own empty-state sentence: a

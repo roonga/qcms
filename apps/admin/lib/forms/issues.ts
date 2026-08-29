@@ -135,6 +135,23 @@ export function stepOwningAnchor(issue: FormIssue, draft: DraftForm): string | u
     ?.stepId;
 }
 
+/**
+ * Whether the element {@link anchorFor} names is rendered by the RULES screen.
+ *
+ * The companion to {@link stepOwningAnchor}, and the reason the rules could move at all.
+ * `plan/admin-ux-audit.md` §5.5 refused the POC's rules screen because it was drawn as a
+ * ROUTE: "move Validation to its own route and every one of those anchors resolves to
+ * nothing", and the same list is reused verbatim for a refused publish. Rules is a
+ * selection instead, so the link switches to it and then focuses - the audit's "two-hop
+ * path... a real degradation" was the cost of a route split, and there is no route split.
+ */
+export function anchorIsOnRulesScreen(issue: FormIssue, draft: DraftForm): boolean {
+  const path = issue.path;
+  if (path === undefined) return false;
+  const rule = ruleOf(path);
+  return rule !== undefined && draft.rules.some((candidate) => candidate.ruleId === rule);
+}
+
 function isPinnedAnywhere(draft: DraftForm, questionId: string): boolean {
   return draft.steps.some((step) => step.items.some((item) => item.questionId === questionId));
 }

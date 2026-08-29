@@ -20,6 +20,7 @@ import {
   toggleTarget,
   waitForSaveAfter,
   waitForSaved,
+  openRules,
 } from "./support/forms.js";
 import { confirmLifecycle, createDraft, fillDate, optionIds } from "./support/questions.js";
 
@@ -290,6 +291,7 @@ test("a refused publish lists every issue and each one moves focus (exit criteri
 
   // Break the draft the way an author breaks it: point the rule at the question its own
   // condition reads, which the forward pass cannot honour (ADR-16).
+  await openRules(page);
   const ruleId = (await ruleIds(page))[0] ?? "";
   expect(ruleId).toMatch(/^rul_/u);
   const beforeBreak = await savedStamp(page);
@@ -349,6 +351,7 @@ test("a refused publish lists every issue and each one moves focus (exit criteri
 
   // Leave the draft publishable again for whatever runs next.
   await page.goto(`/forms/${formId}`);
+  await openRules(page);
   const restored = (await ruleIds(page))[0] ?? "";
   const beforeFix = await savedStamp(page);
   await toggleTarget(page, restored, questionIdFor(AT_FAULT), false);
