@@ -182,13 +182,15 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     // twice at two levels.
     await expect(page.getByRole("heading", { name: `Response ${revised}` })).toHaveCount(1);
 
-    // The builder is untouched, here and by issue 679, which prefixed the section name onto
-    // the other five sections' headings and deliberately left this one alone: there the
-    // page's subject IS the form, so the bare slug is the heading rather than a heading
-    // waiting to be written. Asserted rather than assumed, because the risk to this route
-    // is a later pass at consistency, not a bug.
+    // The builder names its SCREEN, which reverses 679's exemption for that one route
+    // (Code Owner, 2026-08-26). 679 kept the bare slug there because "the page's subject IS
+    // the form"; the builder is two screens now and its step screen heads itself with the
+    // step, so the premise expired and the slug was being repeated from the breadcrumb
+    // above it. Still asserted rather than assumed, because the property worth protecting
+    // is unchanged: this route's heading is its own, not the slug every section once shared.
     await page.goto(`/forms/${FORM_ID}`);
-    await expect(page.locator("h1").first()).toHaveText(SLUG);
+    await expect(page.locator("h1").first()).toHaveText("Form details");
+    await expect(page.locator("h1").first(), "and not the form's name").not.toHaveText(SLUG);
   });
 
   test("a CSV export downloads with the version in its name", async ({ page }) => {

@@ -89,7 +89,12 @@ export async function openRail(page: Page): Promise<void> {
  */
 export async function openFormDetails(page: Page): Promise<void> {
   await openRail(page);
-  await page.getByRole("button", { name: "Form details", exact: true }).click();
+  // BY ITS PLACE IN THE RAIL, not by its name. That row is named after the FORM now - it
+  // reads "Kitchen sink", not "Form details" - so a lookup by label had to know the
+  // fixture's title, and the one that used to be here silently waited five minutes for a
+  // control that no longer existed. `data-rail-item` is the row's identity and does not
+  // move with its copy.
+  await page.locator('[data-rail-item="section:builder"]').click();
   await expect(field(page, "Form title")).toBeVisible();
 }
 

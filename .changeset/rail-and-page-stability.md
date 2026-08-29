@@ -4,14 +4,16 @@
 
 Four things that were moving or misaligned (Code Owner, 2026-08-26).
 
-**The page reserves its scrollbar gutter.** The form's own screen is long enough to scroll
-and its Preview is not, so moving between them made the scrollbar appear and vanish and
-every column jumped sideways by its width. Nothing on either screen had moved: the viewport
-had. `scrollbar-gutter: stable` on `html`. The cost is paid on every screen - a page that
-does not scroll reserves the gutter anyway - which is the trade `overflow-y: auto` on the
-rail deliberately did NOT make, a permanent gutter inside a 240px rail being a tenth of it.
-It does nothing where scrollbars are overlays, which is why the headless browser the suite
-runs in cannot see this and a desktop can.
+**The page's scrollbar gutter is NOT reserved, and that was tried.** The form's own screen
+scrolls and its Preview does not, so moving between them makes the scrollbar appear and
+vanish and every column jumps sideways by its width. `scrollbar-gutter: stable` is the
+standard fix and it is refused here: reserving the gutter takes the width out of the LAYOUT
+viewport, so every breakpoint fires that much later than the window suggests. §1 fixes its
+two boundaries in rem against the viewport and `e2e/rail.pw.ts` measures them to the pixel -
+it wanted 1023 one pixel below the boundary and got 1008, and `measure.pw.ts` wanted a
+1040px column and got 1025. Moving every boundary by a scrollbar to stop a jump between two
+screens is the larger change, made silently. The reasoning is left in `globals.css` where
+the next person to reach for it will find it.
 
 **Rail rows centre their label.** `align-items: baseline` was right while a row was as tall
 as its text; since these rows took the control height it left the label sitting high in its

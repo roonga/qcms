@@ -273,21 +273,23 @@
  */
 html {
   color-scheme: light dark;
-  /* THE PAGE'S SCROLLBAR GUTTER IS ALWAYS THERE, whether or not this page needs one
-     (Code Owner, 2026-08-26). The form's own screen is long enough to scroll and its
-     Preview is not, so moving between them made the scrollbar appear and vanish, and
-     every column on the screen jumped sideways by its width. Nothing on either screen
-     had moved: the viewport had.
+  /* NO `scrollbar-gutter: stable`, and it was tried (Code Owner, 2026-08-26). The form's
+     own screen scrolls and its Preview does not, so moving between them makes the page
+     scrollbar appear and vanish and every column jumps sideways by its width - a real
+     complaint, and this is the standard fix for it.
 
-     The cost is the honest one and it is paid on every screen: a page that does not
-     scroll reserves the gutter anyway, so the content column is a scrollbar narrower
-     than the window. That is the trade `overflow-y: auto` on the rail deliberately did
-     NOT make - a permanent gutter inside a 240px rail is a tenth of it - but the page is
-     wide enough for it not to matter, and a layout that holds still is worth more here.
+     It is refused because of what it costs: reserving the gutter takes the width out of
+     the LAYOUT viewport, so every breakpoint fires that much later than the window
+     suggests. `plan/admin-design-contracts.md` §1 fixes its two boundaries in rem against
+     the viewport, and `e2e/rail.pw.ts` measures them to the pixel - at a 1024px window it
+     wants 1023 one pixel below the boundary and got 1008, and `measure.pw.ts` wanted a
+     1040px column and got 1025. Moving every boundary by a scrollbar to stop a jump
+     between two screens is the larger change of the two, made silently.
 
-     It does nothing on a platform that draws overlay scrollbars, which is also why this
-     is invisible in the headless browser the suite runs in and visible on a desktop. */
-  scrollbar-gutter: stable;
+     What remains is the browser's own behaviour on a platform with classic scrollbars,
+     and it is invisible where they are overlays. If it is worth removing later, the way to
+     do it is to make the boundaries account for the gutter deliberately, not to reserve it
+     and let them drift. */
 }
 :root.dark {
   color-scheme: dark;
