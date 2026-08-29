@@ -399,14 +399,55 @@ test("the rule test bench answers with the engine's own verdict", async ({ page 
   const ruleId = (await ruleIds(page))[0] ?? "";
   await openRuleEditor(page, ruleId);
   await openRulePhase(page, "test");
-  const bench = page.getByTestId("qcms-bench-outcome");
+  // SCOPED TO THE WIZARD'S BENCH. There are two on this screen since 2026-08-30 - the
+  // screen's, under the rules table, and this one - and they deliberately share their
+  // testids because they are the same panel about different rules. `qcms-bench` is the
+  // dialog's section; `qcms-bench-screen` is the other.
+  const wizardBench = page.getByTestId("qcms-bench");
+  const bench = wizardBench.getByTestId("qcms-bench-outcome");
   // The bench labels each answer control with the pin it is answering for, not "Value":
   // the author is entering an ANSWER to a pinned question, not an operand of a condition.
   await chooseOption(rule(page, ruleId), `${questionIdFor(AT_FAULT)}@1`, atFaultYesOption);
-  await page.getByRole("button", { name: "Run preview", exact: true }).click();
+  await wizardBench.getByRole("button", { name: "Run preview", exact: true }).click();
   await expect(bench).toHaveAttribute("data-outcome", "match", { timeout: 30_000 });
   await expect(bench).toContainText("Matches.");
   await cancelRuleEditor(page);
+});
+
+test("the screen's own bench is expanded under the table, with a picker (Code Owner, 2026-08-30)", async ({
+  page,
+}) => {
+  // TWO BENCHES, and this is the other one. The wizard's is about the rule being EDITED,
+  // against the draft the dialog is buffering; this one is about the rules as they are
+  // STORED, and it is on screen the moment the rules screen is: no disclosure to open and
+  // no dialog to be inside. Both halves of that are asserted here, because "expanded all
+  // the time" is exactly the property a later refactor takes away without noticing.
+  test.setTimeout(180_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.goto(`/forms/${insuranceFormId}`);
+  await openRules(page);
+
+  const screenBench = page.getByTestId("qcms-bench-screen");
+  await expect(screenBench).toBeVisible();
+  // An `h2` here and an `h3` in the dialog, and the level is the whole difference: this
+  // one sits under the screen's `h1`, and the dialog's under the dialog's own title.
+  await expect(page.getByRole("heading", { level: 2, name: "Rule test bench" })).toBeVisible();
+  // Nothing was opened to reach it. `qcms-bench` is the wizard's section, and it is absent.
+  await expect(page.getByTestId("qcms-bench")).toHaveCount(0);
+
+  // The picker is what chooses the rule here, so the digest names the rule it is showing.
+  const ruleId = (await ruleIds(page))[0] ?? "";
+  expect(ruleId).not.toBe("");
+  await expect(screenBench.getByTestId("qcms-bench-digest")).toContainText(ruleId);
+
+  // And it runs against the engine, from the screen, with no rule editor involved.
+  await chooseOption(screenBench, `${questionIdFor(AT_FAULT)}@1`, atFaultYesOption);
+  await screenBench.getByRole("button", { name: "Run preview", exact: true }).click();
+  await expect(screenBench.getByTestId("qcms-bench-outcome")).toHaveAttribute(
+    "data-outcome",
+    "match",
+    { timeout: 30_000 },
+  );
 });
 
 test("both panels are in the heading outline, with a digest the panel repeats", async ({
@@ -450,10 +491,11 @@ test("both panels are in the heading outline, with a digest the panel repeats", 
   await openRulePhase(page, "test");
   const benchHeading = page.getByRole("heading", { level: 3, name: "Rule test bench" });
   await expect(benchHeading).toBeVisible();
-  const benchDigest = page.getByTestId("qcms-bench-digest");
+  const wizardBench = page.getByTestId("qcms-bench");
+  const benchDigest = wizardBench.getByTestId("qcms-bench-digest");
   await expect(benchDigest).toContainText(/reads \d+ question/);
   const reads = Number(/reads (\d+) question/.exec(await benchDigest.innerText())?.[1] ?? "-1");
-  await expect(page.getByTestId("qcms-bench-reference")).toHaveCount(reads);
+  await expect(wizardBench.getByTestId("qcms-bench-reference")).toHaveCount(reads);
   await cancelRuleEditor(page);
 });
 

@@ -19,5 +19,6 @@ then abandoned rule no longer leaves a targetless rule pausing the whole screen'
 The targets are grouped by step with a filter over question ids, step ids and step names,
 for the ten-step, several-hundred-question form the Code Owner named as the scale to design
 for. The ineligible group is still listed and still labelled, which is what keeps a backward
-target reachable. The test bench moved inside the wizard and is about the one rule being
-edited, against the rule as it currently stands rather than as it was last saved.
+target reachable. The test bench is also a phase of the wizard now, about the one rule being
+edited, against the rule as it currently stands rather than as it was last saved. The rules
+screen keeps its own bench as well; see the separate changeset for why both earn their place.

@@ -578,7 +578,9 @@ test("the form builder and the condition editor have zero violations", async ({ 
 
   // The third phase: the bench, for this rule, with its own live region.
   await openRulePhase(page, "test");
-  const benchStatus = page.getByTestId("qcms-bench-status");
+  // The wizard's bench, not the screen's: both are in the DOM, and they share testids
+  // because they are the same panel about two different rules.
+  const benchStatus = page.getByTestId("qcms-bench").getByTestId("qcms-bench-status");
   await expect(benchStatus).toBeAttached();
   await expect(benchStatus).toHaveAttribute("aria-live", "polite");
   await expectNoViolations(page, "rule wizard, the Test phase");

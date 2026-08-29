@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 
-import { Button } from "@/components/kit";
+import { Button, Select } from "@/components/kit";
 import { IDLE_PREVIEW, type PreviewConditionState } from "@/lib/forms/builder-state";
 import {
   conditionReferences,
@@ -16,6 +16,13 @@ import { t, tPlural } from "@/lib/i18n/en";
 import type { ReadState } from "@/lib/read-state";
 
 import { answerKindForType, OperandControl, type OperandValue } from "./operand-control";
+
+/** What the API is asked, from either bench. */
+type PreviewCondition = (input: {
+  draft: DraftForm;
+  ruleId: string;
+  answers: Record<string, unknown>;
+}) => Promise<PreviewConditionState>;
 
 /**
  * The rule test bench (task 033; screen contract "test bench").
@@ -43,19 +50,23 @@ import { answerKindForType, OperandControl, type OperandValue } from "./operand-
  * logged, and not echoed back in any message. The action forwards them, a verdict comes
  * back, and the verdict is all that is rendered.
  *
- * ## One rule, the one being edited (Code Owner, 2026-08-30)
+ * ## TWO BENCHES, ABOUT TWO DIFFERENT RULES (Code Owner, 2026-08-30)
  *
- * The bench used to sit under the rules table and take the whole draft's rules, with a
- * `Select` to pick between them. It is the third phase of the rule wizard now, so the rule
- * is decided before the bench is reached and the picker had nothing left to pick: an
- * author who wants to try a different rule opens that rule.
+ * This module exports both, over one shared {@link BenchBody}:
  *
- * The `draft` it is handed is the one the WIZARD is holding, which carries the rule as it
- * is currently being edited rather than as it was last saved. That is the whole value of
- * testing from inside a buffering dialog: the question "what would this rule do" is being
- * asked about the edit in progress, and the answer would be about the wrong rule if this
- * posted the stored draft. `plan/admin-design-contracts.md` §6's 2026-08-30 amendment is
- * where the buffering is recorded; `form-builder.tsx` is where the substitution is made.
+ * - {@link RuleTestBenchPanel} is the screen's, expanded under the rules table on the
+ *   rules screen, with a `Select` to pick between the form's rules. It is about a rule as
+ *   it was **stored**, which is the question an author asks while reading the table: "the
+ *   form has these rules - what does that one do?"
+ * - {@link RuleTestBench} is the wizard's third phase, about the ONE rule being edited and
+ *   against the draft the WIZARD is holding, so it answers about the edit in progress
+ *   rather than about the last save. The dialog buffers, so those are different rules
+ *   until Save is pressed, and that difference is the whole value of testing from inside
+ *   it. `plan/admin-design-contracts.md` §6's 2026-08-30 amendment records the buffering.
+ *
+ * Neither is redundant: one tests what the form currently does, the other tests what an
+ * unsaved edit would do. The picker belongs to the screen alone, because in the wizard the
+ * rule is decided before the bench is reached and there is nothing left to pick.
  *
  * A consequence to expect rather than to be surprised by: while a rule is half-built the
  * draft carrying it is often unparseable (a rule with no target fails `show.min(1)`), and
@@ -63,19 +74,18 @@ import { answerKindForType, OperandControl, type OperandValue } from "./operand-
  * than an error. That is the endpoint's own deliberate behaviour, and the bench already
  * has a sentence for it.
  *
- * ## The summary carries a heading and a digest (issue 519)
+ * ## The heading carries a digest (issue 519)
  *
- * Same change, same reasons, as the settings panel beside it: an `h2` inside the
- * `<summary>` so the bench has an entry in the builder's heading outline at the level
- * every other section uses (`plan/admin-ux-audit.md` §4.3), and a §3.7 digest whose every
- * fact also exists inside the panel - the rule is the Select's value, and the question
- * count is the number of entries the "Hypothetical answers" fieldset renders.
+ * Same change, same reasons, as the settings panel: a heading so the bench has an entry in
+ * the outline at the level its frame uses (`plan/admin-ux-audit.md` §4.3), and a §3.7
+ * digest whose every fact also exists inside the panel - the rule, and the number of
+ * entries the "Hypothetical answers" fieldset renders.
  *
  * Two things the digest deliberately does not say. It states no **issue** count: the
- * validation panel on the same screen owns the one authoritative count, and a second
- * count of an overlapping set is §5.6's named mistake. And it states no **outcome**: the
- * verdict only exists after a run, so before the first press "not run yet" would be a
- * fact living in the summary alone, which is exactly what §3.7 forbids.
+ * validation panel owns the one authoritative count, and a second count of an overlapping
+ * set is §5.6's named mistake. And it states no **outcome**: the verdict only exists after
+ * a run, so before the first press "not run yet" would be a fact living in the summary
+ * alone, which is exactly what §3.7 forbids.
  */
 export function RuleTestBench({
   draft,
@@ -87,24 +97,16 @@ export function RuleTestBench({
   readonly draft: DraftForm;
   readonly rule: DraftRule;
   readonly library: ReadState<readonly PinnableQuestion[]>;
-  readonly previewCondition: (input: {
-    draft: DraftForm;
-    ruleId: string;
-    answers: Record<string, unknown>;
-  }) => Promise<PreviewConditionState>;
+  readonly previewCondition: PreviewCondition;
 }) {
-  const [answers, setAnswers] = useState<Record<string, OperandValue>>({});
-  const [state, setState] = useState<PreviewConditionState>(IDLE_PREVIEW);
-  const [isPending, startTransition] = useTransition();
-
-  const references = conditionReferences(rule.when);
-
   return (
-    <section aria-labelledby="qcms-bench-heading" className="flex flex-col gap-3">
-      {/* NOT A DISCLOSURE (Code Owner, 2026-08-29), and no longer a bordered panel either:
-          it is a phase of a dialog now, and the dialog is the frame. The digest stays
-          beside the heading - it was there to say what the panel held while it was shut,
-          and open it is still the bench as one sentence.
+    <section
+      aria-labelledby="qcms-bench-heading"
+      data-testid="qcms-bench"
+      className="flex flex-col gap-3"
+    >
+      {/* NOT A DISCLOSURE (Code Owner, 2026-08-29), and no bordered panel either: it is a
+          phase of a dialog, and the dialog is the frame.
 
           AN `h3`, matching the dialog's own title level. Inside a modal the rest of the
           document is `aria-hidden`, so the outline a reader navigates here starts at the
@@ -119,90 +121,199 @@ export function RuleTestBench({
           className="ms-2 text-sm font-normal text-(--color-text-muted)"
           data-testid="qcms-bench-digest"
         >
-          {benchDigest(rule.ruleId, references.length)}
+          {benchDigest(rule.ruleId, conditionReferences(rule.when).length)}
         </span>
       </div>
 
       <div className="mt-1 flex flex-col gap-4">
         <p className="text-sm text-(--color-text-muted)">{t("forms.bench.note")}</p>
-
-        <fieldset className="qcms-fieldset qcms-fieldset--flat">
-          <legend className="qcms-fieldset__legend">{t("forms.bench.answers")}</legend>
-          {references.length === 0 ? (
-            <p className="text-sm text-(--color-text-muted)">{t("forms.bench.noReferences")}</p>
-          ) : (
-            <div className="flex flex-col gap-3">
-              {references.map((questionId) => (
-                // One marked entry per question the condition reads, whether it
-                // resolves to a control or to the unpinned sentence. The digest's
-                // "reads N questions" is a count of exactly these, so the §3.7
-                // property - the fact in the summary also exists inside the panel -
-                // is a countable claim rather than an argued one (issue 519).
-                <div key={questionId} data-testid="qcms-bench-reference">
-                  <AnswerControl
-                    draft={draft}
-                    library={library}
-                    questionId={questionId}
-                    value={answers[questionId]}
-                    onChange={(value) => {
-                      // Functional form on purpose: the handler outlives the render
-                      // it was created in, so spreading the `answers` it closed over
-                      // drops any sibling answer set since. Issue #224 is that exact
-                      // loss in the question editor, two controls changed in one tick.
-                      setAnswers((previous) => ({ ...previous, [questionId]: value }));
-                    }}
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-        </fieldset>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <Button
-            variant="secondary"
-            size="md"
-            isDisabled={isPending}
-            onPress={() => {
-              startTransition(async () => {
-                setState(
-                  await previewCondition({
-                    draft,
-                    ruleId: rule.ruleId,
-                    answers: answersToSend(draft, library, references, answers),
-                  }),
-                );
-              });
-            }}
-          >
-            {t("forms.bench.run")}
-          </Button>
-          {/* Testid on the region as well as on its sentence, so the `aria-live` can
-                  be asserted directly (#368). */}
-          <p
-            aria-live="polite"
-            className="text-sm text-(--color-text)"
-            data-testid="qcms-bench-status"
-          >
-            <span data-testid="qcms-bench-outcome" data-outcome={state.outcome ?? state.status}>
-              {outcomeSentence(state)}
-            </span>
-          </p>
-        </div>
+        <BenchBody
+          draft={draft}
+          rule={rule}
+          library={library}
+          previewCondition={previewCondition}
+        />
       </div>
     </section>
   );
 }
 
 /**
- * What the bench is loaded with, in the summary's own words (issue 519).
+ * The screen's bench: the form's rules, one picked at a time (Code Owner, 2026-08-30).
  *
- * Two facts, both of them inside the panel: the rule id, which is also the dialog's own
- * title, and the question count, which is the number of `qcms-bench-reference` entries the
- * fieldset renders. "No rules to try" went with the rule picker on 2026-08-30 - the bench
- * is reached through a rule now, so there is no state in which it has none.
+ * EXPANDED, NOT A DISCLOSURE, for the reason the settings panel stopped being one: it
+ * shipped shut because it shared a screen with four other panels, and it now sits under
+ * the rules it tests on a screen of their own.
+ *
+ * The `key` on the body is the picked rule id, so changing the pick REMOUNTS it and the
+ * hypothetical answers and the verdict start empty. Carrying them across would show a
+ * verdict computed for one rule beside the id of another, which is the one wrong thing a
+ * bench must never do.
  */
-function benchDigest(ruleId: string, references: number): string {
+export function RuleTestBenchPanel({
+  draft,
+  rules,
+  library,
+  previewCondition,
+}: {
+  readonly draft: DraftForm;
+  readonly rules: readonly DraftRule[];
+  readonly library: ReadState<readonly PinnableQuestion[]>;
+  readonly previewCondition: PreviewCondition;
+}) {
+  const [ruleId, setRuleId] = useState(rules[0]?.ruleId ?? "");
+  const rule = rules.find((candidate) => candidate.ruleId === ruleId) ?? rules[0];
+
+  return (
+    <section
+      aria-labelledby="qcms-screen-bench-heading"
+      data-testid="qcms-bench-screen"
+      className="rounded-md border border-(--color-border) bg-(--color-surface) p-4"
+    >
+      <div>
+        <h2
+          id="qcms-screen-bench-heading"
+          className="inline text-base font-semibold text-(--color-text)"
+        >
+          {t("forms.bench.title")}
+        </h2>
+        <span
+          className="ms-2 text-sm font-normal text-(--color-text-muted)"
+          data-testid="qcms-bench-digest"
+        >
+          {benchDigest(
+            rule?.ruleId,
+            rule === undefined ? 0 : conditionReferences(rule.when).length,
+          )}
+        </span>
+      </div>
+
+      <div className="mt-3 flex flex-col gap-4">
+        <p className="text-sm text-(--color-text-muted)">{t("forms.bench.note")}</p>
+
+        {rule === undefined ? (
+          <p className="text-sm text-(--color-text-muted)">{t("forms.bench.noRules")}</p>
+        ) : (
+          <>
+            <Select
+              label={t("forms.bench.rule")}
+              value={rule.ruleId}
+              items={rules.map((candidate) => ({
+                label: candidate.ruleId,
+                value: candidate.ruleId,
+              }))}
+              onChange={setRuleId}
+            />
+            <BenchBody
+              key={rule.ruleId}
+              draft={draft}
+              rule={rule}
+              library={library}
+              previewCondition={previewCondition}
+            />
+          </>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/** The answers, the run and the verdict: everything both benches share. */
+function BenchBody({
+  draft,
+  rule,
+  library,
+  previewCondition,
+}: {
+  readonly draft: DraftForm;
+  readonly rule: DraftRule;
+  readonly library: ReadState<readonly PinnableQuestion[]>;
+  readonly previewCondition: PreviewCondition;
+}) {
+  const [answers, setAnswers] = useState<Record<string, OperandValue>>({});
+  const [state, setState] = useState<PreviewConditionState>(IDLE_PREVIEW);
+  const [isPending, startTransition] = useTransition();
+
+  const references = conditionReferences(rule.when);
+
+  return (
+    <>
+      <fieldset className="qcms-fieldset qcms-fieldset--flat">
+        <legend className="qcms-fieldset__legend">{t("forms.bench.answers")}</legend>
+        {references.length === 0 ? (
+          <p className="text-sm text-(--color-text-muted)">{t("forms.bench.noReferences")}</p>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {references.map((questionId) => (
+              // One marked entry per question the condition reads, whether it
+              // resolves to a control or to the unpinned sentence. The digest's
+              // "reads N questions" is a count of exactly these, so the §3.7
+              // property - the fact in the summary also exists inside the panel -
+              // is a countable claim rather than an argued one (issue 519).
+              <div key={questionId} data-testid="qcms-bench-reference">
+                <AnswerControl
+                  draft={draft}
+                  library={library}
+                  questionId={questionId}
+                  value={answers[questionId]}
+                  onChange={(value) => {
+                    // Functional form on purpose: the handler outlives the render
+                    // it was created in, so spreading the `answers` it closed over
+                    // drops any sibling answer set since. Issue #224 is that exact
+                    // loss in the question editor, two controls changed in one tick.
+                    setAnswers((previous) => ({ ...previous, [questionId]: value }));
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </fieldset>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          variant="secondary"
+          size="md"
+          isDisabled={isPending}
+          onPress={() => {
+            startTransition(async () => {
+              setState(
+                await previewCondition({
+                  draft,
+                  ruleId: rule.ruleId,
+                  answers: answersToSend(draft, library, references, answers),
+                }),
+              );
+            });
+          }}
+        >
+          {t("forms.bench.run")}
+        </Button>
+        {/* Testid on the region as well as on its sentence, so the `aria-live` can
+            be asserted directly (#368). */}
+        <p
+          aria-live="polite"
+          className="text-sm text-(--color-text)"
+          data-testid="qcms-bench-status"
+        >
+          <span data-testid="qcms-bench-outcome" data-outcome={state.outcome ?? state.status}>
+            {outcomeSentence(state)}
+          </span>
+        </p>
+      </div>
+    </>
+  );
+}
+
+/**
+ * What the bench is loaded with, in the heading's own words (issue 519).
+ *
+ * Two facts, both of them inside the panel: the rule id, and the question count, which is
+ * the number of `qcms-bench-reference` entries the fieldset renders. `undefined` is only
+ * reachable from the screen's bench, which can be looking at a form that has no rules yet.
+ */
+function benchDigest(ruleId: string | undefined, references: number): string {
+  if (ruleId === undefined) return t("forms.bench.digest.noRules");
   return t("forms.bench.digest", {
     rule: ruleId,
     questions: tPlural(

@@ -784,6 +784,8 @@ export const messages = {
   "forms.json.shapeError": "Valid JSON, but not a condition this editor can render.",
 
   "forms.bench.title": "Rule test bench",
+  "forms.bench.rule": "Rule",
+  "forms.bench.noRules": "Add a rule to try it here.",
   "forms.bench.note":
     "A read-only preview. Answers typed here are evaluated against the draft on your screen and are never saved, never logged, and never seen by a respondent.",
   "forms.bench.answers": "Hypothetical answers",
@@ -808,8 +810,9 @@ export const messages = {
   // renders. Nothing here counts issues - the validation panel owns the screen's one
   // authoritative issue count (§5.6).
   //
-  // "No rules to try" went when the bench became a phase of the rule wizard (2026-08-30):
-  // the bench is reached through a rule, so there is no state in which it has none.
+  // "No rules to try" is reachable from the SCREEN's bench only (2026-08-30): the wizard's
+  // is reached through a rule, so there is no state in which that one has none.
+  "forms.bench.digest.noRules": "No rules to try",
   "forms.bench.digest": "{rule}, reads {questions}",
   "forms.bench.digest.questionOne": "1 question",
   "forms.bench.digest.questionOther": "{count} questions",

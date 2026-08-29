@@ -41,6 +41,7 @@ import { textOf } from "@/lib/questions/definition";
 import type { ReadState } from "@/lib/read-state";
 
 import { FormSettingsPanel } from "./form-settings-panel";
+import { RuleTestBenchPanel } from "./rule-test-bench";
 import { RuleWizard } from "./rule-wizard";
 import { RulesTable } from "./rules-table";
 import { concurrentNoticeCookie } from "@/lib/builder-notice";
@@ -534,12 +535,13 @@ export function FormBuilder({
            only because both were crowded onto one screen, and a rule's condition editor is
            the widest thing this app builds.
 
-           THE BENCH WENT INSIDE THE RULE (Code Owner, 2026-08-30). It sat under this table
-           and took the whole draft's rules, with a Select to choose between them; it is the
-           third phase of the rule wizard now, so the rule is chosen before the bench is
-           reached. That is also what lets it answer about the rule as it is BEING EDITED
-           rather than as it was last saved, which is the question an author is actually
-           asking while a rule is half-built.
+           TWO BENCHES, AND NEITHER IS THE OTHER (Code Owner, 2026-08-30). The screen's
+           stays under this table, expanded, with its Select over the form's rules: it
+           answers "the form has these rules - what does that one do", which is a question
+           asked while READING the table, about rules as they are stored. The wizard's
+           third phase is the other one, about the single rule being edited and against the
+           draft the dialog is buffering, so it answers about an edit that has not been
+           saved yet. One tests the form; the other tests the change.
 
            The settings stay on the form's screen. */
         <RulesSection
@@ -848,6 +850,17 @@ function RulesSection({
           buffer is seeded afresh. Without it React would keep the state of the previous
           rule's dialog, and the second rule an author opened would be shown the first
           one's edits. */}
+      {/* THE SCREEN'S BENCH, EXPANDED (Code Owner, 2026-08-29, restored 2026-08-30). Under
+          the rules it tests, because it reads `draft.rules` and answers "what would this
+          rule do", which is a question you ask while looking at the rule. It takes the
+          STORED rules: the wizard's copy is the one that sees an edit in progress. */}
+      <RuleTestBenchPanel
+        draft={draft}
+        rules={draft.rules}
+        library={library}
+        previewCondition={previewCondition}
+      />
+
       {edited !== undefined && (
         <RuleWizard
           key={edited.ruleId}
