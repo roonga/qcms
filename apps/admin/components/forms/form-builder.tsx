@@ -27,11 +27,13 @@ import {
   type UnsaveableReason,
 } from "@/lib/forms/draft";
 import { issuesForRule, ruleAnchorId, stepAnchorId, stepIssueCounts } from "@/lib/forms/issues";
+import { hasSettingsChange, settingsPatch } from "@/lib/forms/settings";
 import type {
   DraftForm,
   DraftRule,
   FormDetail,
   FormIssue,
+  FormSettings,
   PinnableQuestion,
 } from "@/lib/forms/types";
 import { t, type MessageKey } from "@/lib/i18n/en";
@@ -59,6 +61,11 @@ import { ValidationPanel, type BuilderStatus } from "./validation-panel";
  * value rather than a set of copies that have to be kept in step, and it is why the JSON
  * pane and the condition pickers cannot disagree: they edit the same node through the same
  * callback.
+ *
+ * Since 2026-08-29 it holds the form's SETTINGS too, which are not part of the draft and
+ * go to a route of their own. They are here for the reason everything else is: the panel
+ * that renders them is unmounted whenever the reader is looking at a step, and state that
+ * can be unmounted mid-debounce is state that can be lost without saying so.
  *
  * ## Autosave is advisory (022)
  *
@@ -170,6 +177,26 @@ export function FormBuilder({
   // can be low-churn while a test can still tell two saves apart. Issue 518.
   const [lastSavedAt, setLastSavedAt] = useState<string | undefined>(undefined);
   const [saveError, setSaveError] = useState<string | undefined>(undefined);
+  // THE FORM'S SETTINGS, held here beside the draft (Code Owner, 2026-08-29).
+  //
+  // They are not part of the draft and they never will be: a draft is a document under
+  // construction and these are two deployment switches with their own route. What changed
+  // is who holds them while they are being edited. `FormSettingsPanel` used to, along with
+  // its own Save button, and `plan/admin-design-contracts.md` §6 now gives this screen one
+  // save model instead of two.
+  //
+  // The state could not stay in the panel once the press went away. The form screen
+  // unmounts the moment the reader selects a step in the rail, which would cancel a
+  // debounce the panel owned and lose the edit waiting on it - silently, with no press
+  // left unpressed to explain it. Up here nothing unmounts until the route does.
+  //
+  // `stored` is what the API last confirmed and `settings` is what the controls show. Both
+  // are needed: the patch is the difference between them, and the route refuses a body
+  // carrying neither key.
+  const [storedSettings, setStoredSettings] = useState<FormSettings>(detail.settings);
+  const [settings, setSettings] = useState<FormSettings>(detail.settings);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsError, setSettingsError] = useState<string | undefined>(undefined);
   // OPENS ON THE FORM, not on the first step, and that is the drawing rather than a
   // preference: `plan/admin-shell-poc/admin-shell-poc.html` gives its Form row
   // `aria-current="page"` in the markup it ships. It is also the honest landing for a
@@ -185,14 +212,18 @@ export function FormBuilder({
     setDraft(next);
   };
 
-  // The two actions live in a ref, and that is not a style choice. They arrive already
+  // The three actions live in a ref, and that is not a style choice. They arrive already
   // bound to this route's form id, so the page hands down a NEW function identity on every
   // server render - and a successful save calls `revalidatePath`, which causes one. An
   // effect that depended on them would therefore re-arm its debounce because it had just
   // saved, save again, revalidate again, and never stop. Reading them through a ref keeps
   // the effect's inputs what they actually are: the draft, and whether it can be stored.
-  const actions = useRef({ saveDraft, validateDraft });
-  actions.current = { saveDraft, validateDraft };
+  //
+  // `updateSettings` joined them on 2026-08-29 and it is the same trap, not a similar one:
+  // `updateSettingsAction` revalidates this exact path too, so a settings autosave that
+  // depended on the prop would be the same loop with a different action in it.
+  const actions = useRef({ saveDraft, validateDraft, updateSettings });
+  actions.current = { saveDraft, validateDraft, updateSettings };
 
   const paused = unsaveableReason(draft);
   // The one name for the screen being shown, shared with the breadcrumb so the two cannot
@@ -240,6 +271,51 @@ export function FormBuilder({
       clearTimeout(timer);
     };
   }, [draft, paused]);
+
+  // The settings, on the same debounce and deliberately the same shape as the effect above
+  // (Code Owner, 2026-08-29). One save model on this screen means one way of saving, so
+  // this is the draft's loop with the second round trip removed: settings have no issues
+  // to validate and no `paused` state, because there is no such thing as a settings pair
+  // that cannot be stored.
+  //
+  // `settingsPatch` is what arms it. Once a save lands, `stored` catches up with what the
+  // controls show, the patch is empty, and this returns without arming anything - which is
+  // what stops a save from causing the next one. It is also why the effect can depend on
+  // both values rather than on a dirty flag: "nothing to send" is a computed fact here
+  // rather than a remembered one.
+  useEffect(() => {
+    const patch = settingsPatch(storedSettings, settings);
+    if (!hasSettingsChange(patch)) return undefined;
+    setSettingsSaving(true);
+    const timer = setTimeout(() => {
+      void (async () => {
+        const result = await actions.current.updateSettings(patch);
+        setSettingsSaving(false);
+        if (result.status === "error") {
+          // `stored` is left alone on purpose, so the patch survives and the controls keep
+          // showing what the author asked for rather than snapping back to a value the API
+          // never accepted. Nothing retries: a refusal here is a refusal of this exact
+          // patch (the route caps the override at an hour), so retrying it on a timer
+          // would fail forever and say so forever.
+          setSettingsError(result.message);
+          return;
+        }
+        setSettingsError(undefined);
+        // The API's echo when there is one, and the patch applied when there is not.
+        // Falling back to `settings` would be wrong: the author may have moved a switch
+        // while this was in flight, and taking their newer value as confirmed would drop
+        // the save it still needs.
+        setStoredSettings(result.settings ?? { ...storedSettings, ...patch });
+        // THE SAME TIMESTAMP the draft's save writes, not one of this scope's own. §6
+        // gives the screen exactly one statement of when work was stored, the ambient
+        // strip is it, and the settings now feed it rather than growing a rival to it.
+        setLastSavedAt(new Date().toISOString());
+      })();
+    }, AUTOSAVE_DEBOUNCE_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [settings, storedSettings]);
 
   // THE STEP THE READER ASKED FOR, when they arrived asking for one.
   //
@@ -408,9 +484,15 @@ export function FormBuilder({
                 as one block rather than as chrome scattered across the header. */}
             <div className="flex flex-col items-end gap-1">
               <div>{formMeta}</div>
+              {/* ONE STRIP FOR BOTH SAVES (Code Owner, 2026-08-29). The settings stopped
+                  having a save model of their own, so they stopped having a save statement
+                  of their own: a settings save is in flight here, and a settings save that
+                  failed is a failed save here. §6's "exactly one save statement per screen"
+                  is kept by the strip covering everything the screen stores, not by the
+                  strip covering only some of it and a second sentence covering the rest. */}
               <AmbientSaveStatus
-                isSaving={status === "saving"}
-                hasFailed={saveError !== undefined}
+                isSaving={status === "saving" || settingsSaving}
+                hasFailed={saveError !== undefined || settingsError !== undefined}
                 savedAt={lastSavedAt}
               />
             </div>
@@ -439,9 +521,10 @@ export function FormBuilder({
               nothing to sit beside. A lone panel in a two-column grid is a column of
               whitespace. */}
           <FormSettingsPanel
-            settings={detail.settings}
+            settings={settings}
             challengeProvider={detail.challengeProvider}
-            updateSettings={updateSettings}
+            saveError={settingsError}
+            onChange={setSettings}
           />
         </>
       )}

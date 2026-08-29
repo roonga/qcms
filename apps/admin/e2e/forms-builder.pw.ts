@@ -9,6 +9,7 @@ import {
   addStep,
   chooseOption,
   createForm,
+  field,
   issue,
   issueSummary,
   movePin,
@@ -19,6 +20,7 @@ import {
   pinQuestion,
   rule,
   ruleIds,
+  saveState,
   toggleCheckbox,
   toggleTarget,
   waitForSaved,
@@ -271,27 +273,77 @@ test("moving a pin re-runs validation and surfaces the broken option ref (exit c
   await expect(issueSummary(page)).toContainText("would block a publish");
 });
 
-test("the settings panel says a required challenge is unenforceable here", async ({ page }) => {
+test("the settings panel says a required challenge is unenforceable, and stores it unpressed", async ({
+  page,
+}) => {
+  // Two claims in one visit, because the second is what the first now depends on.
+  //
   // Task file line 26: a challenge is a deployment capability, and the harness configures
   // no provider, so the switch enforces nothing until an operator sets one up. A panel
   // that stayed silent would let an author believe a form was protected.
+  //
+  // And since 2026-08-29 (`plan/admin-design-contracts.md` §6) there is no "Save settings"
+  // to press. The switch reaches the API on the builder's own debounce, which makes the
+  // reload below the assertion that matters: nothing on this screen was pressed, and the
+  // setting is still there.
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/forms/${insuranceFormId}`);
 
   await toggleCheckbox(page, "Require a challenge before answering", true);
   await expect(page.getByTestId("qcms-challenge-unenforceable")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Save settings", exact: true }),
+    "the settings panel has no save control of its own any more",
+  ).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Save settings", exact: true }).click();
-  await expect(page.getByTestId("qcms-settings-state")).toHaveText("Settings saved.", {
-    timeout: 30_000,
-  });
+  // The screen's ONE save statement reports it. The strip opens on "Not saved yet" every
+  // visit, so a timestamp here can only have come from the settings write - the draft has
+  // not been touched.
+  await expect(saveState(page)).toContainText(/^Last saved /, { timeout: 30_000 });
 
   // It survives a reload, which is what makes it a setting rather than a checkbox.
   await page.reload();
   await expect(
     page.getByRole("checkbox", { name: "Require a challenge before answering" }),
   ).toBeChecked();
+});
+
+test("a settings write the API refuses is said, with no press to have reported it", async ({
+  page,
+}) => {
+  // The failure an explicit Save button used to make obvious. Autosave has no press to
+  // report back to, so a refused write would otherwise leave an author believing a
+  // deployment switch is set when it is not - which is the whole risk the 2026-08-29
+  // amendment to §6 had to answer for before the button could go.
+  //
+  // The refusal is the real route's: `UpdateFormSettingsBody` caps the override at one
+  // hour, and the field offers no upper bound, so a larger number is a 400 from the API
+  // rather than anything mocked here.
+  test.setTimeout(120_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.goto(`/forms/${insuranceFormId}`);
+
+  await toggleCheckbox(page, "Use the deployment's minimum time", false);
+  const minSubmit = field(page, "Minimum time before a submit is accepted (milliseconds)");
+  await minSubmit.click();
+  await minSubmit.fill("7200000");
+  // The number field commits on blur rather than per keystroke, which is also what keeps a
+  // typed figure from being saved digit by digit on its way to being finished.
+  await minSubmit.blur();
+
+  await expect(page.getByTestId("qcms-settings-state")).toContainText("could not be saved", {
+    timeout: 30_000,
+  });
+  // And the screen's one save statement agrees with it rather than still claiming a clean
+  // save. Two scopes, one sentence about how the last write went.
+  await expect(saveState(page)).toHaveText("The last save failed.");
+
+  // The refused value is still on screen: snapping the control back to what the API kept
+  // would hide the very edit the sentence is about.
+  // A pattern rather than the digits: the number field formats what it shows, so the
+  // assertion is that the figure is still the author's, not that it is unformatted.
+  await expect(minSubmit).toHaveValue(/7[\s,.]?200[\s,.]?000/);
 });
 
 test("the rule test bench answers with the engine's own verdict", async ({ page }) => {

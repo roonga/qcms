@@ -56,8 +56,6 @@ export interface SettingsState {
   readonly message?: string;
 }
 
-export const IDLE_SETTINGS: SettingsState = { status: "idle" };
-
 /**
  * The rule test bench's verdict.
  *
