@@ -625,6 +625,15 @@ export const messages = {
   "forms.rules.add": "Add rule",
   "forms.rules.empty": "No rules yet. A rule shows questions or steps when its condition matches.",
   "forms.rules.needPin": "Pin a question first: a condition has to read one.",
+  "forms.rules.column.rule": "Rule",
+  "forms.rules.column.issues": "Issues",
+  "forms.rules.column.actions": "Actions",
+  "forms.rules.edit": "Edit",
+  "forms.rules.remove": "Remove",
+  // The dialog's own title names the rule being changed rather than saying "Edit rule",
+  // because a form can have several and the reader has just chosen one of them.
+  "forms.rules.editTitle": "Edit rule",
+  "forms.rules.editDone": "Done",
 
   "forms.rule.heading": "Rule {ruleId}",
   "forms.rule.remove": "Remove rule {ruleId}",

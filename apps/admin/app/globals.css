@@ -1513,6 +1513,39 @@ button {
   overflow: visible;
 }
 
+/* ===========================================================================
+   THE RULES TABLE - the read view of a form's rules (Code Owner, 2026-08-26).
+
+   Deliberately the pin grid's shape: two lists of a form's parts, on two screens of
+   one builder, should not be two different kinds of object. What differs is what a
+   row IS - a pin is a thing with columns of facts, a rule is a sentence - so the
+   sentence takes the width and everything else is as narrow as it can be.
+   =========================================================================== */
+.qcms-rule-sentence {
+  margin: 0;
+  /* Wraps, and every cell in this table must: `reflow.pw.ts` sweeps every route at
+     390 and at 320, and a rule's sentence is the longest string this app renders
+     outside a question's own label. */
+  overflow-wrap: anywhere;
+}
+
+/* The names inside the sentence - a question's label, a step's title. Weight rather
+   than colour, so the scan still works in high contrast and for a reader who cannot
+   separate the two hues. */
+.qcms-rule-sentence__name {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* The row's controls, side by side and unshrinkable: the sentence beside them is
+   what gives way when the table is narrow. */
+.qcms-rule-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  justify-content: flex-end;
+}
+
 /* The grip cell: the containing block the row menu positions against, and narrow,
    because a 28px control does not need a 44px column. */
 .qcms-pincell--grip {

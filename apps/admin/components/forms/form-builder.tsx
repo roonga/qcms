@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
-import { Alert, Button, TextField } from "@/components/kit";
+import { Alert, Button, Dialog, TextField } from "@/components/kit";
 import { AmbientSaveStatus, AutosaveFlash } from "@/components/save-model";
 import type {
   PreviewConditionState,
@@ -41,6 +41,7 @@ import type { ReadState } from "@/lib/read-state";
 import { ConditionEditor } from "./condition-editor";
 import { FormSettingsPanel } from "./form-settings-panel";
 import { RuleTestBench } from "./rule-test-bench";
+import { RulesTable } from "./rules-table";
 import { concurrentNoticeCookie } from "@/lib/builder-notice";
 import { currentScreenName } from "./builder-breadcrumb";
 import { usePublishBuilderRail, type BuilderSelection } from "@/lib/forms/builder-bridge";
@@ -678,6 +679,12 @@ function RulesSection({
   // A condition has to read a question, so there is nothing to add a rule against until
   // the form pins one. The button says why rather than being silently inert.
   const firstPinned = draft.steps.flatMap((step) => step.items)[0]?.questionId;
+  // The rule being edited is held by ID rather than by value, and looked up on every
+  // render: the draft is replaced on every keystroke inside the dialog, so a held object
+  // would be the rule as it was when the dialog opened and every edit would be made
+  // against a stale copy.
+  const [editingId, setEditing] = useState<string | undefined>(undefined);
+  const edited = draft.rules.find((rule) => rule.ruleId === editingId);
 
   return (
     <section
@@ -716,23 +723,58 @@ function RulesSection({
       {draft.rules.length === 0 ? (
         <p className="text-sm text-(--color-text-muted)">{t("forms.rules.empty")}</p>
       ) : (
-        <div className="flex flex-col gap-4">
-          {draft.rules.map((rule) => (
-            <ConditionEditor
-              key={rule.ruleId}
-              draft={draft}
-              rule={rule}
-              library={library}
-              issues={issuesForRule(issues, rule.ruleId)}
-              onChange={(next: DraftRule) => {
-                onChange(updateRule(draft, rule.ruleId, next));
-              }}
-              onRemove={() => {
-                onChange(removeRule(draft, rule.ruleId));
-              }}
-            />
-          ))}
-        </div>
+        <RulesTable
+          draft={draft}
+          library={library}
+          issues={issues}
+          onEdit={setEditing}
+          onRemove={(ruleId) => {
+            onChange(removeRule(draft, ruleId));
+          }}
+        />
+      )}
+
+      {/* THE EDITOR IS A DIALOG NOW, and the table above is the read view (Code Owner,
+          2026-08-26). Every rule used to render its whole condition tree inline, so four
+          rules were four expanded editors and reading the form meant reading all of them.
+
+          NO CANCEL, and that is the save model rather than an omission. This screen
+          autosaves - `plan/admin-design-contracts.md` §6 - so a dialog offering to discard
+          would be a second save model on a screen that has one, and the discard would be a
+          promise it could not keep: the change reaches the draft as it is typed, the way it
+          did when the editor was inline. "Done" closes a workspace; it does not commit
+          anything, because there is nothing uncommitted. */}
+      {edited !== undefined && (
+        <Dialog
+          isOpen
+          title={t("forms.rules.editTitle")}
+          onOpenChange={(isOpen: boolean) => {
+            if (!isOpen) setEditing(undefined);
+          }}
+        >
+          <ConditionEditor
+            draft={draft}
+            rule={edited}
+            library={library}
+            issues={issuesForRule(issues, edited.ruleId)}
+            onChange={(next: DraftRule) => {
+              onChange(updateRule(draft, edited.ruleId, next));
+            }}
+            onRemove={() => {
+              onChange(removeRule(draft, edited.ruleId));
+              setEditing(undefined);
+            }}
+          />
+          <Button
+            variant="primary"
+            size="md"
+            onPress={() => {
+              setEditing(undefined);
+            }}
+          >
+            {t("forms.rules.editDone")}
+          </Button>
+        </Dialog>
       )}
     </section>
   );
