@@ -2,9 +2,6 @@ import type { Page } from "@playwright/test";
 
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
-import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
-import { enrollNewAdmin } from "./support/flow.js";
-
 /**
  * The app has two breakpoints and no others (issue 557).
  *
@@ -50,7 +47,6 @@ const COMPACT_PX = 640;
 const SIDEBAR_PX = 1024;
 
 /** The seeded insurance fixture, the same form every operations spec drives. */
-const FORM_ID = "frm_auto_quote";
 
 /** One media condition from the parsed sheet, with the selectors sitting under it. */
 type MediaCondition = { condition: string; selectors: string[] };
@@ -130,41 +126,6 @@ async function rootFontSizePx(page: Page): Promise<number> {
   return Number.parseFloat(size);
 }
 
-/**
- * Resize until the MEDIA width is exactly `target`, and prove it.
- *
- * `page.setViewportSize` sets the outer width; a media query is evaluated against the
- * viewport minus whatever the runner's scrollbar takes, which on this Chromium is 15px
- * and on another machine is not. `responses-preview.pw.ts` handles that by bracketing
- * the boundary at plus and minus 40px, which is the right call for a spec about a
- * column. This spec is about the boundary itself, so it compensates instead: set,
- * measure `documentElement.clientWidth`, correct by the difference, and assert the
- * correction landed. That makes a one-pixel drift in the boundary a failure, which is
- * exactly the failure a token migration is capable of introducing silently.
- */
-async function setMediaWidth(page: Page, target: number): Promise<void> {
-  const height = 900;
-  await page.setViewportSize({ width: target, height });
-  const measured = await page.evaluate(() => document.documentElement.clientWidth);
-  if (measured !== target) {
-    await page.setViewportSize({ width: target + (target - measured), height });
-  }
-  await expect
-    .poll(() => page.evaluate(() => document.documentElement.clientWidth), {
-      message: `the media width settles at exactly ${String(target)}px`,
-    })
-    .toBe(target);
-}
-
-/** The number of tracks a computed `grid-template-columns` resolves to. */
-async function trackCount(page: Page, selector: string): Promise<number> {
-  return page.evaluate((needle) => {
-    const element = document.querySelector(needle);
-    if (element === null) return 0;
-    return getComputedStyle(element).gridTemplateColumns.split(" ").filter(Boolean).length;
-  }, selector);
-}
-
 test.describe("the sheet declares two width boundaries and no others", () => {
   test("every width media query in the built sheet is one of the two tokens", async ({ page }) => {
     await page.goto("/");
@@ -221,67 +182,23 @@ test.describe("the sheet declares two width boundaries and no others", () => {
   });
 });
 
-test.describe("the form builder's grids turn at the token each one is assigned", () => {
-  // The builder is behind sign-in, so this arc enrolls its own account.
-  test.describe.configure({ mode: "serial" });
-
-  const EMAIL = uniqueAdminEmail("breakpoints");
-
-  /**
-   * The builder's page grids, and the boundary the contract assigns to them.
-   *
-   * There were three. The third was the form's steps beside the step editor - an 18rem
-   * track that turned at `--bp-sidebar` under §1's carve-out for panes that ARE the rail -
-   * and on 2026-08-25 the steps moved into the rail itself, so that grid no longer exists.
-   * What is left is page content, which §1 sends to `--bp-compact`.
-   *
-   * The `--bp-sidebar` half of the pair has not stopped being covered: it is now the rail's
-   * own 240px track appearing, which `rail.pw.ts` pins on both sides of the boundary.
-   *
-   * Matched on the class attribute rather than a test id: the class IS the assignment, so
-   * a selector that stops matching is itself the failure signal.
-   */
-  // ONE PANE, where there were two. The rules and the validation panel shared a grid until
-  // the rules moved to a screen of their own on 2026-08-26; validation is alone on the
-  // form's screen now, so there is no second track for it to split into and nothing here
-  // to measure. The settings and the rule bench still share theirs, and the claim this
-  // test makes - that the builder's grids turn at the token each is assigned, to the pixel
-  // - is unchanged for the grid that is left.
-  const PANES = [
-    { selector: '[class*="compact:grid-cols-2"]', name: "settings and rule bench" },
-  ] as const;
-
-  test.beforeAll(async () => {
-    await createTestAdmin(EMAIL);
-  });
-
-  test("stacks below each boundary and splits at it, to the pixel", async ({ page }) => {
-    test.setTimeout(180_000);
-    await enrollNewAdmin(page, EMAIL);
-
-    // The seeded fixture form: this needs a builder to look at, not a particular form.
-    await page.goto(`/forms/${FORM_ID}`);
-
-    const expectPanes = async (tracks: number, where: string): Promise<void> => {
-      for (const pane of PANES) {
-        expect(await trackCount(page, pane.selector), `${pane.name}: ${where}`).toBe(tracks);
-      }
-    };
-
-    await setMediaWidth(page, COMPACT_PX - 1);
-    await expectPanes(1, "one track at one pixel below --bp-compact");
-
-    await setMediaWidth(page, COMPACT_PX);
-    await expectPanes(2, "two tracks exactly at --bp-compact");
-
-    // 700 is inside the band this migration moved: the panes read `md:` before issue 557
-    // and so were still stacked here. Asserted so the change is recorded as intended
-    // behaviour rather than left as a screenshot someone has to remember.
-    await setMediaWidth(page, 700);
-    await expectPanes(2, "two tracks between the old 768 and the token");
-
-    // And the phone width every gate reviews, which must still stack throughout.
-    await setMediaWidth(page, 390);
-    await expectPanes(1, "one track at the 390px gate width");
-  });
-});
+/*
+ * THE BUILDER HAS NO PAGE GRIDS LEFT, so the arc that measured them is gone (Code Owner,
+ * 2026-08-26). It is deleted rather than left passing vacuously against a selector that
+ * matches nothing, which is the shape a test takes when its subject leaves and nobody
+ * notices.
+ *
+ * There were three, and each left for a reason recorded where it happened:
+ *
+ *   - the steps beside the step editor, an 18rem track at `--bp-sidebar`, when the steps
+ *     moved into the rail (2026-08-25);
+ *   - the rules beside the validation panel, when the rules took a screen of their own;
+ *   - the settings beside the rule test bench, when the bench followed the rules and left
+ *     the settings with nothing to sit next to.
+ *
+ * The claim itself is not lost. `--bp-sidebar` is the rail's own 240px track appearing,
+ * which `rail.pw.ts` pins to the pixel on both sides of the boundary, and the sheet's
+ * two-boundary declaration is asserted by the describe above this one. What has gone is a
+ * measurement of grids that no longer exist; if the builder grows one again, it arrives
+ * with its own coverage rather than inheriting a test written for a different pane.
+ */

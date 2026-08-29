@@ -363,7 +363,14 @@ test.describe("without JavaScript", () => {
     const hrefs = await page
       .locator(".qcms-rail__link")
       .evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? ""));
-    expect(hrefs).toHaveLength(8);
+    // NINE since 2026-08-26: the form's own row, its steps, the Rules row and the six
+    // sibling screens. The Rules row is an anchor here for the same reason every other row
+    // is - without JavaScript there is no builder to select anything in, so it navigates.
+    expect(hrefs).toHaveLength(9);
+    expect(
+      hrefs.filter((href) => href.endsWith("#rules")),
+      "the rules row is one of them",
+    ).toHaveLength(1);
     expect(hrefs.every((href) => href.startsWith("/forms/"))).toBe(true);
 
     // And the disclosure is the browser's own, so it opens and closes with nothing loaded.

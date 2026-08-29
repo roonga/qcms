@@ -64,6 +64,16 @@ export async function createForm(page: Page, slug: string, title: string): Promi
  * A no-op at desktop widths, where the disclosure is already open.
  */
 export async function openRail(page: Page): Promise<void> {
+  // A MODAL DIALOG MAKES THE RAIL UNREACHABLE, and silently: every helper below that
+  // navigates goes through here, so with a rule's editor open they wait for a control the
+  // overlay is covering until the test times out five minutes later. Twice now that has
+  // cost a full suite run to diagnose, so it fails here instead, named.
+  const dialog = page.getByRole("dialog");
+  if ((await dialog.count()) > 0) {
+    throw new Error(
+      "the rail cannot be reached while a dialog is open - close it first (closeRuleEditor)",
+    );
+  }
   const disclosure = page.locator("details.qcms-rail__disclosure");
   if ((await disclosure.count()) === 0) return;
   // WAIT FOR THE WIDTH TO HAVE BEEN DECIDED before reading `open`, or this races
@@ -246,10 +256,13 @@ export async function addRule(page: Page): Promise<string> {
   await openRules(page);
   const before = await ruleIds(page);
   await page.getByRole("button", { name: "Add rule", exact: true }).click();
-  await expect(page.locator("[data-rule-id]")).toHaveCount(before.length + 1);
+  await expect(page.locator("tr[data-rule-id]")).toHaveCount(before.length + 1);
   const after = await ruleIds(page);
   const added = after.find((id) => !before.includes(id));
   expect(added, "adding a rule should mint exactly one new id").toBeDefined();
+  // Straight into its editor. A rule arrives with a starting condition that says nothing
+  // useful, so every caller's next act is to change it, and the editor is a dialog now.
+  await openRuleEditor(page, added ?? "");
   return added ?? "";
 }
 
@@ -262,7 +275,7 @@ export async function addRule(page: Page): Promise<string> {
  */
 export async function ruleIds(page: Page): Promise<string[]> {
   const ids = await page
-    .locator("[data-rule-id]")
+    .locator("tr[data-rule-id]")
     .evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-rule-id") ?? ""));
   return ids.filter((id) => id !== "");
 }
@@ -270,6 +283,29 @@ export async function ruleIds(page: Page): Promise<string[]> {
 /** One rule's region, which every rule-scoped control is found inside. */
 export function rule(page: Page, ruleId: string): Locator {
   return page.locator(`section[data-rule-id="${ruleId}"]`);
+}
+
+/**
+ * Open one rule's editor, which is a dialog since 2026-08-26.
+ *
+ * The rules screen is a table of sentences now - a rule is small to state and large to
+ * change - so the condition tree that `rule()` scopes to only exists while its dialog is
+ * open. A spec that reached straight for a control inside it used to find it inline and now
+ * waits for something that is not there, which is what five minutes of timeout looks like.
+ *
+ * Idempotent by intent rather than by check: pressing Edit on a row whose dialog is already
+ * open is not a thing the screen allows, because the dialog is modal.
+ */
+export async function openRuleEditor(page: Page, ruleId: string): Promise<void> {
+  await openRules(page);
+  await page.locator(`tr[data-rule-id="${ruleId}"]`).getByRole("button", { name: "Edit" }).click();
+  await expect(rule(page, ruleId)).toBeVisible();
+}
+
+/** Close a rule's editor, leaving the table. */
+export async function closeRuleEditor(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  await expect(page.locator("section[data-rule-id]")).toHaveCount(0);
 }
 
 /**

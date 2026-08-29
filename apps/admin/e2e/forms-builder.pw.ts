@@ -8,12 +8,14 @@ import {
   addRule,
   addStep,
   chooseOption,
+  closeRuleEditor,
   createForm,
   field,
   issue,
   issueSummary,
   movePin,
   openFormDetails,
+  openRuleEditor,
   openRules,
   openStep,
   pinLabel,
@@ -140,7 +142,10 @@ test("builds the insurance form through the UI and saves it (exit criterion 1)",
   // "Conditions", so an author read one name in the heading and another in everything
   // under it. The condition inside a rule keeps the word "condition": that is the `when`
   // half of a rule, not another name for the whole thing.
-  await expect(page.getByRole("heading", { level: 2, name: "Rules", exact: true })).toBeVisible();
+  // An `h1`, and unpainted. It is the rules SCREEN's heading since the rules moved onto
+  // one of their own, so it is the level a screen reader navigates by; the breadcrumb above
+  // says "Rules" for everyone else, which is why it is not drawn twice.
+  await expect(page.getByRole("heading", { level: 1, name: "Rules", exact: true })).toBeAttached();
 
   // The at-fault-accident rule: when the driver says yes, ask for the notes in the next
   // step. A new rule starts as `answered` against the first pinned question, which is
@@ -150,6 +155,7 @@ test("builds the insurance form through the UI and saves it (exit criterion 1)",
   await chooseOption(scope, "Operator", "equals (the whole answer)");
   await chooseOption(scope, "Value", atFaultYesOption);
   await toggleTarget(page, ruleId, questionIdFor(CLAIM_NOTES), true);
+  await closeRuleEditor(page);
 
   await waitForSaved(page);
   // The verdict is the FORM's and the rule is not, so the panel is read on the form's own
@@ -163,7 +169,7 @@ test("builds the insurance form through the UI and saves it (exit criterion 1)",
   await expect(page.getByRole("button", { name: "Open step Driving history" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Open step Claim details" })).toBeVisible();
   await openRules(page);
-  await expect(page.locator("[data-rule-id]")).toHaveCount(1);
+  await expect(page.locator("tr[data-rule-id]")).toHaveCount(1);
   await openStep(page, "Driving history");
   await expect(pinLabel(page, questionIdFor(AT_FAULT), 1)).toBeVisible();
 });
@@ -178,6 +184,8 @@ test("a backward target is flagged instantly and refused by the engine (exit cri
   await openRules(page);
   const ruleId = (await ruleIds(page))[0] ?? "";
   expect(ruleId, "the saved draft should still carry its rule").toMatch(/^rul_/u);
+  // The table is the read view; the condition tree lives in the row's editor.
+  await openRuleEditor(page, ruleId);
   const scope = rule(page, ruleId);
 
   // The rule's condition reads the at-fault question, so the at-fault question itself is
@@ -194,15 +202,18 @@ test("a backward target is flagged instantly and refused by the engine (exit cri
   // And the engine's own finding, from `analyzeRuleGraph` inside the validate call, lands
   // on this rule rather than in a general list.
   await expect(issue(scope, "RULE_BACKWARD_TARGET")).toBeVisible({ timeout: 30_000 });
-  // The finding is on the rule, on the rules screen; the COUNT is the form's, on the form's.
+  // The finding is on the rule, inside its editor; the COUNT is the form's, on the form's
+  // screen. The editor is modal, so leaving it is part of the journey rather than cleanup.
+  await closeRuleEditor(page);
   await openFormDetails(page);
   await expect(issueSummary(page)).toContainText("would block a publish");
 
   // Untick it and the form is publishable again: the flag is a statement about the draft,
   // not a latch.
-  await openRules(page);
+  await openRuleEditor(page, ruleId);
   await toggleTarget(page, ruleId, questionIdFor(AT_FAULT), false);
   await expect(page.getByTestId("qcms-backward-flag")).toHaveCount(0);
+  await closeRuleEditor(page);
   await openFormDetails(page);
   await expect(issueSummary(page)).toHaveText("No issues. Everything here would pass a publish.", {
     timeout: 30_000,
@@ -253,6 +264,7 @@ test("moving a pin re-runs validation and surfaces the broken option ref (exit c
   await chooseOption(scope, "Operator", "equals (the whole answer)");
   await chooseOption(scope, "Value", coverV1Option);
   await toggleTarget(page, ruleId, questionIdFor(CLAIM_NOTES), true);
+  await closeRuleEditor(page);
   await waitForSaved(page);
   await openFormDetails(page);
   await expect(issueSummary(page)).toHaveText("No issues. Everything here would pass a publish.");
@@ -267,8 +279,9 @@ test("moving a pin re-runs validation and surfaces the broken option ref (exit c
   await expect(pinLabel(page, questionIdFor(COVER_LEVEL), 2)).toBeVisible();
   // Three screens, three readings of one consequence: the pin is the step's, the finding is
   // on the rule and therefore on the rules screen, and the count is the form's.
-  await openRules(page);
+  await openRuleEditor(page, ruleId);
   await expect(issue(scope, "DANGLING_OPTION_REF")).toBeVisible({ timeout: 30_000 });
+  await closeRuleEditor(page);
   await openFormDetails(page);
   await expect(issueSummary(page)).toContainText("would block a publish");
 });
@@ -353,6 +366,9 @@ test("the rule test bench answers with the engine's own verdict", async ({ page 
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/forms/${insuranceFormId}`);
 
+  // The bench went with the rules it tests (Code Owner, 2026-08-26): it answers "what would
+  // this rule do", which is asked while looking at the rule.
+  await openRules(page);
   await page.getByText("Rule test bench").click();
   const bench = page.getByTestId("qcms-bench-outcome");
   // The bench labels each answer control with the pin it is answering for, not "Value":
@@ -363,22 +379,26 @@ test("the rule test bench answers with the engine's own verdict", async ({ page 
   await expect(bench).toContainText("Matches.");
 });
 
-test("both collapsible panels are in the heading outline, with a digest the panel repeats", async ({
+test("both panels are in the heading outline, with a digest the panel repeats", async ({
   page,
 }) => {
   // Issue 519. Two claims, and neither is visible to the axe sweep beside this file:
   // `heading-order` cannot see that a section has NO heading (only that levels skip), and
   // nothing in a rendered tree notices that a digest has become the only copy of a fact.
+  //
+  // TWO SCREENS since 2026-08-26, and one of the two is no longer a disclosure: the
+  // settings stayed on the form's screen and stopped collapsing when they were left there
+  // alone, and the bench went to the rules. Both of 519's claims survive the move and are
+  // what is still asserted - a heading in the outline, and a digest whose facts exist as
+  // controls inside the panel. Only "collapsible" was ever incidental to them.
   test.setTimeout(180_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/forms/${insuranceFormId}`);
 
-  // `plan/admin-ux-audit.md` §4.3: both panels now have an entry in the outline, at the
-  // level every other section of this page uses.
+  // `plan/admin-ux-audit.md` §4.3: both panels have an entry in the outline, at the level
+  // every other section of their screen uses.
   const settingsHeading = page.getByRole("heading", { level: 2, name: "Form settings" });
-  const benchHeading = page.getByRole("heading", { level: 2, name: "Rule test bench" });
   await expect(settingsHeading).toBeVisible();
-  await expect(benchHeading).toBeVisible();
 
   // §3.7 on the settings panel: whichever of the two challenge phrases the digest chose,
   // the panel's own checkbox is the fact behind it, so opening the panel finds it again.
@@ -392,6 +412,9 @@ test("both collapsible panels are in the heading outline, with a digest the pane
   // The bench ships shut, so its digest is what a reader has before opening it - and the
   // count it states is a count of entries that exist inside the panel, which is the shape
   // the audit blesses ("the count in the summary plus the entries inside is fine").
+  await openRules(page);
+  const benchHeading = page.getByRole("heading", { level: 2, name: "Rule test bench" });
+  await expect(benchHeading).toBeVisible();
   const benchDigest = page.getByTestId("qcms-bench-digest");
   await expect(benchDigest).toContainText(/reads \d+ question/);
   const reads = Number(/reads (\d+) question/.exec(await benchDigest.innerText())?.[1] ?? "-1");
