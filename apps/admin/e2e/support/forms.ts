@@ -364,7 +364,9 @@ async function readingSaveState<T>(page: Page, read: () => Promise<T>): Promise<
  */
 export async function waitForSaved(page: Page): Promise<void> {
   await readingSaveState(page, async () => {
-    await expect(saveState(page)).toContainText(/^Saved /, { timeout: 30_000 });
+    // "Last saved ...", not "Saved ...": the strip shows the state alone now, with the
+    // model sentence behind a "?" beside it, so the state says which of the two it is.
+    await expect(saveState(page)).toContainText(/^Last saved /, { timeout: 30_000 });
   });
 }
 
@@ -415,7 +417,7 @@ export async function waitForSaveAfter(page: Page, previous: string): Promise<vo
     await expect(saveStatus(page)).not.toHaveAttribute("data-saved-at", previous, {
       timeout: 30_000,
     });
-    await expect(saveState(page)).toContainText(/^Saved /, { timeout: 30_000 });
+    await expect(saveState(page)).toContainText(/^Last saved /, { timeout: 30_000 });
   });
 }
 

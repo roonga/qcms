@@ -94,9 +94,18 @@ test("the builder states one save model, in ambient chrome outside the validatio
   // 1. The statement exists, is persistent chrome, and there is exactly one of it.
   await expect(strip).toHaveCount(1);
   await expect(strip).toBeVisible();
+  // BEHIND A "?" SINCE 2026-08-26, which §6 is amended for in
+  // `plan/admin-design-contracts.md`: "persistent chrome" was the letter, and the reason -
+  // an author must not be able to assume the wrong save model - survives, because the
+  // sentence is one press away on the screen it describes and beside the state it explains.
+  // Asserted through that press rather than dropped: it still has to be reachable and it
+  // still has to say what it always said.
+  await expect(page.getByTestId("qcms-save-model")).toHaveCount(0);
+  await page.getByRole("button", { name: "How does this screen save?" }).click();
   await expect(page.getByTestId("qcms-save-model")).toHaveText(
     "This draft saves automatically as you edit.",
   );
+  await page.getByRole("button", { name: "How does this screen save?" }).click();
 
   // 2. It is OUTSIDE the validation panel, which is the whole of element 7's objection.
   //    Asserted as containment rather than as position, because "not in the panel" is the
@@ -108,7 +117,7 @@ test("the builder states one save model, in ambient chrome outside the validatio
   //    is static and the in-flight sentence is aria-hidden, both on purpose (churn), so
   //    this is the one live thing in the strip.
   await expect(strip.getByTestId("qcms-save-state")).toHaveAttribute("aria-live", "polite");
-  await expect(strip.getByTestId("qcms-save-state")).toContainText(/^Saved /);
+  await expect(strip.getByTestId("qcms-save-state")).toContainText(/^Last saved /);
 
   // 4. The timestamp is governed: date, HH:MM and the zone, no seconds
   //    (`plan/admin-design-contracts.md` §2, amended 2026-08-20).
