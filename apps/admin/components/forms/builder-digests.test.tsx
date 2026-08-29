@@ -47,7 +47,14 @@ const { FormSettingsPanel } = await import("./form-settings-panel.tsx");
 const { RuleTestBench } = await import("./rule-test-bench.tsx");
 
 /** The heading level every other section of the builder page uses (steps, rules, validation). */
-const SUMMARY_HEADING = /<summary[^>]*><h2[^>]*>/;
+/*
+ * There was a `SUMMARY_HEADING` here, matching an `h2` inside a `<summary>`. Neither of the
+ * two panels this file covers is a disclosure any more - the settings stopped being one on
+ * 2026-08-26 and the bench on 2026-08-29, each when it was left alone on a screen of its
+ * own - so nothing in this app has that shape and the pattern matched nothing. Issue 519's
+ * claim survives both moves and is asserted through the two heading patterns below: a panel
+ * has an entry in the heading outline.
+ */
 
 /**
  * The settings panel is no longer a disclosure (Code Owner, 2026-08-26): it shared the
@@ -59,6 +66,9 @@ const SUMMARY_HEADING = /<summary[^>]*><h2[^>]*>/;
  * an entry in the heading outline. It was a `<summary>` with no heading in it that 519
  * fixed, and a section with a heading is no more at risk of that than a details was.
  */
+const BENCH_HEADING =
+  /<section[^>]*aria-labelledby="qcms-bench-heading"[\s\S]*?<h2[^>]*id="qcms-bench-heading"/;
+
 const SETTINGS_HEADING =
   /<section[^>]*aria-labelledby="qcms-settings-heading"[\s\S]*?<h2[^>]*id="qcms-settings-heading"/;
 
@@ -275,8 +285,13 @@ function renderBench(draft: DraftForm): string {
 }
 
 describe("the rule test bench's summary (issue 519)", () => {
-  it("puts an h2 inside the summary, at the same level as the panel beside it", () => {
-    expect(renderBench(DRAFT)).toMatch(SUMMARY_HEADING);
+  it("heads the panel with an h2, at the same level as the panel beside it", () => {
+    // The bench stopped being a disclosure on 2026-08-29, for the reason the settings
+    // panel did: it shipped shut because it shared a screen with four other panels, and it
+    // sits under the rules it tests on a screen of their own now. 519's claim is unchanged
+    // and is what is asserted - the panel has an entry in the heading outline.
+    expect(renderBench(DRAFT)).toMatch(BENCH_HEADING);
+    expect(renderBench(DRAFT), "and it is not a disclosure any more").not.toContain("<summary");
     expect(renderBench(DRAFT)).toContain(t("forms.bench.title"));
   });
 
@@ -315,6 +330,9 @@ describe("the rule test bench's summary (issue 519)", () => {
     const html = renderBench({ ...DRAFT, rules: [] });
 
     expect(textOfTestId(html, "qcms-bench-digest")).toBe(t("forms.bench.digest.noRules"));
-    expect(html.slice(html.indexOf("</summary>"))).toContain(t("forms.bench.noRules"));
+    // Everything after the digest is the panel's body: the bench stopped being a
+    // disclosure, and 519's claim was that a digested fact also exists inside the panel,
+    // which is about the two agreeing rather than about one of them being hidden.
+    expect(html.slice(html.indexOf("qcms-bench-digest"))).toContain(t("forms.bench.noRules"));
   });
 });

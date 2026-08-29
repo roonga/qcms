@@ -81,11 +81,20 @@ export function RuleTestBench({
   const references = rule === undefined ? [] : conditionReferences(rule.when);
 
   return (
-    <details className="rounded-md border border-(--color-border) bg-(--color-surface) p-4">
-      {/* One heading element plus phrasing content is what `<summary>` accepts; the
+    <section
+      aria-labelledby="qcms-bench-heading"
+      className="rounded-md border border-(--color-border) bg-(--color-surface) p-4"
+    >
+      {/* NOT A DISCLOSURE (Code Owner, 2026-08-29), for the reason the settings panel
+          stopped being one: it shipped shut because it shared a screen with four other
+          panels, and it now sits under the rules it tests on a screen of their own. The
+          digest stays beside the heading - it was there to say what the panel held while
+          it was shut, and open it is still the bench as one sentence.
+
+          One heading element plus phrasing content is what `<summary>` accepts; the
           heading is `inline` so the marker, the title and the digest share a line. */}
-      <summary className="cursor-pointer">
-        <h2 className="inline text-base font-semibold text-(--color-text)">
+      <div>
+        <h2 id="qcms-bench-heading" className="inline text-base font-semibold text-(--color-text)">
           {t("forms.bench.title")}
         </h2>
         <span
@@ -94,7 +103,7 @@ export function RuleTestBench({
         >
           {benchDigest(rule?.ruleId, references.length)}
         </span>
-      </summary>
+      </div>
 
       <div className="mt-3 flex flex-col gap-4">
         <p className="text-sm text-(--color-text-muted)">{t("forms.bench.note")}</p>
@@ -183,7 +192,7 @@ export function RuleTestBench({
           </>
         )}
       </div>
-    </details>
+    </section>
   );
 }
 

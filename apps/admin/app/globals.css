@@ -1523,18 +1523,73 @@ button {
    =========================================================================== */
 .qcms-rule-sentence {
   margin: 0;
+  /* Prose, not a cell's worth of text: a rule wraps to two or three lines on a narrow
+     table and needs the leading to stay readable when it does. */
+  line-height: 1.5;
+  padding-block: 0.15rem;
   /* Wraps, and every cell in this table must: `reflow.pw.ts` sweeps every route at
      390 and at 320, and a rule's sentence is the longest string this app renders
      outside a question's own label. */
   overflow-wrap: anywhere;
 }
 
-/* The names inside the sentence - a question's label, a step's title. Weight rather
-   than colour, so the scan still works in high contrast and for a reader who cannot
-   separate the two hues. */
-.qcms-rule-sentence__name {
+/* THE THREE KINDS OF NAME IN A SENTENCE, styled apart (Code Owner, 2026-08-29). A rule is
+   scanned for two things - which question it reads, and what it compares against - and one
+   weight for both made the reader parse the prose to tell them apart.
+
+   A question and a step are what the form HAS: weight, which survives high contrast and
+   tells them from the connectives around them. A value is what the answer is compared
+   TO: a quiet boxed literal, because it is a datum rather than a part of the form, and
+   because a box says "this exact text" in a way another weight cannot.
+
+   Never colour alone on any of them - the shape or the weight carries it, so the reading
+   holds for a reader who cannot separate two hues. */
+.qcms-rule-sentence__question,
+.qcms-rule-sentence__step {
   font-weight: 600;
   color: var(--color-text);
+}
+.qcms-rule-sentence__value {
+  padding-inline: 0.3em;
+  padding-block: 0.05em;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-background-muted);
+  color: var(--color-text);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.9em;
+}
+
+/* A row's own control: the row's scale rather than the app's control height, which is
+   sized for a control a screen is about and reads as a slab at the end of every line of a
+   list. 28px keeps it past the 24px `target-size` floor with room to spare, and the gap
+   below keeps neighbours from failing the same rule on spacing. */
+.qcms-rule-action {
+  min-block-size: 28px;
+  padding-inline: 0.5rem;
+  padding-block: 0.15rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background-color: transparent;
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+.qcms-rule-action:hover {
+  background-color: var(--color-surface-hover);
+}
+
+/* The two cells that do NOT take width. `1%` is the pin grid's own trick and it is not a
+   fudge: a table distributes surplus across columns in proportion to their declared
+   widths, so a tiny declared width means "give this one only what its content needs" and
+   the sentence column absorbs the rest. Without it three columns split the table evenly
+   and a one-line rule sat in a third of the row while its buttons had a third to
+   themselves, which is what "big buttons on the right" looked like. */
+.qcms-rulecell--issues,
+.qcms-rulecell--actions {
+  inline-size: 1%;
+  white-space: nowrap;
 }
 
 /* The row's controls, side by side and unshrinkable: the sentence beside them is
@@ -1542,7 +1597,7 @@ button {
 .qcms-rule-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem;
+  gap: 0.5rem;
   justify-content: flex-end;
 }
 

@@ -22,12 +22,14 @@ import {
   addStep,
   chooseOption,
   createForm,
+  closeRuleEditor,
   openFormDetails,
   pinQuestion,
   rule,
   toggleCheckbox,
   toggleTarget,
   waitForSaved,
+  openRules,
 } from "./support/forms.js";
 import { openDeliverer, submitResponse, TestConsumer } from "./support/ops.js";
 import {
@@ -530,21 +532,30 @@ test("the form builder and the condition editor have zero violations", async ({ 
   });
   await expectNoViolations(page, "condition editor with a backward target flagged");
 
+  // The editor is modal, so leaving it comes before going anywhere: the rail is behind the
+  // overlay until it closes.
+  await closeRuleEditor(page);
+
   // Back to the form's own screen: the settings and the test bench stayed there when the
   // rules moved out, so the two panels below are not on the screen the rule work happened
   // on. Three screens, and each axe sweep says which one it swept.
   await openFormDetails(page);
 
-  // The two collapsible panels, open: a settings switch with its unenforceable warning, and
-  // the read-only test bench with its own live region.
-  await page.getByText("Rule test bench").click();
+  // The settings, on the form's screen: no longer a disclosure, and no longer pressed to
+  // save - they autosave with the draft now.
   await toggleCheckbox(page, "Require a challenge before answering", true);
-  // Both panels announce their outcome through a live region, and neither was pinned
-  // (issue #368). Same reasoning as the validation panel above: attached, populated and
-  // axe-clean are all true of a paragraph that has stopped being a live region.
   const settingsStatus = page.getByTestId("qcms-form-settings-status");
   await expect(settingsStatus).toBeAttached();
   await expect(settingsStatus).toHaveAttribute("aria-live", "polite");
+  await expectNoViolations(page, "form settings on the form's own screen");
+
+  // And the test bench, which went to the rules it tests. Still a disclosure, still with a
+  // live region of its own, and swept on the screen it is actually on.
+  await openRules(page);
+  await page.getByText("Rule test bench").click();
+  // The bench announces its outcome through a live region, and it was not pinned
+  // (issue #368): attached, populated and axe-clean are all true of a paragraph that has
+  // stopped being a live region.
   const benchStatus = page.getByTestId("qcms-bench-status");
   await expect(benchStatus).toBeAttached();
   await expect(benchStatus).toHaveAttribute("aria-live", "polite");

@@ -171,7 +171,7 @@ function read(
 
 /** Only the runs the table emphasises. */
 function names(segments: readonly RuleSentenceSegment[]): readonly string[] {
-  return segments.filter((segment) => segment.isName === true).map((segment) => segment.text);
+  return segments.filter((segment) => segment.kind !== undefined).map((segment) => segment.text);
 }
 
 const ANSWERED: DraftCondition = { op: "answered", questionId: "q_at_fault" };
@@ -188,9 +188,9 @@ describe("ruleSentence", () => {
 
     expect(segments).toStrictEqual([
       { text: "When " },
-      { text: "Were you at fault?", isName: true },
+      { text: "Were you at fault?", kind: "question" },
       { text: " is answered, show the step " },
-      { text: "Driving history", isName: true },
+      { text: "Driving history", kind: "step" },
     ]);
   });
 
@@ -211,7 +211,7 @@ describe("ruleSentence", () => {
     );
 
     for (const segment of segments) {
-      if (segment.isName !== true) continue;
+      if (segment.kind === undefined) continue;
       expect(segment.text).not.toMatch(/[(),]|\band\b|\bor\b/);
     }
     // "Untitled step" stands where a name could not be read, so it is not emphasised.
@@ -234,7 +234,7 @@ describe("ruleSentence", () => {
     for (const [index, segment] of segments.entries()) {
       const next = segments[index + 1];
       if (next === undefined) break;
-      expect(segment.isName === true || next.isName === true).toBe(true);
+      expect(segment.kind !== undefined || next.kind !== undefined).toBe(true);
     }
   });
 });

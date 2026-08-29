@@ -20,7 +20,9 @@ import {
   toggleTarget,
   waitForSaveAfter,
   waitForSaved,
+  closeRuleEditor,
   openFormDetails,
+  openRuleEditor,
   openRules,
 } from "./support/forms.js";
 import { confirmLifecycle, createDraft, fillDate, optionIds } from "./support/questions.js";
@@ -132,6 +134,9 @@ test("publishes a draft and reports what it froze (exit criterion 1)", async ({ 
   await chooseOption(scope, "Operator", "equals (the whole answer)");
   await chooseOption(scope, "Value", atFaultYesOption);
   await toggleTarget(page, ruleId, questionIdFor(ACCIDENT_COUNT), true);
+  // `addRule` leaves you in the editor, and the editor is modal, so the save state behind
+  // it is unreachable until it closes.
+  await closeRuleEditor(page);
   await waitForSaved(page);
 
   // Publish freezes the draft the SERVER holds, and the confirmation's counts are read
@@ -296,7 +301,10 @@ test("a refused publish lists every issue and each one moves focus (exit criteri
   const ruleId = (await ruleIds(page))[0] ?? "";
   expect(ruleId).toMatch(/^rul_/u);
   const beforeBreak = await savedStamp(page);
+  // The targets are in the rule's own editor; the table beside it is the read view.
+  await openRuleEditor(page, ruleId);
   await toggleTarget(page, ruleId, questionIdFor(AT_FAULT), true);
+  await closeRuleEditor(page);
   // Publish reads the STORED draft, so the wait is about the save landing rather than
   // about the validation panel agreeing (`waitForSaveAfter` records why).
   await waitForSaveAfter(page, beforeBreak);
@@ -358,7 +366,9 @@ test("a refused publish lists every issue and each one moves focus (exit criteri
   await openRules(page);
   const restored = (await ruleIds(page))[0] ?? "";
   const beforeFix = await savedStamp(page);
+  await openRuleEditor(page, restored);
   await toggleTarget(page, restored, questionIdFor(AT_FAULT), false);
+  await closeRuleEditor(page);
   await waitForSaveAfter(page, beforeFix);
 });
 

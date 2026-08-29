@@ -26,10 +26,10 @@ import type {
  * scans for, and the table emphasises them. Returning prose would force the table to find
  * them again by matching substrings, which fails the moment a label contains a comma, the
  * word "and", or the same text as a connective. So the sentence leaves here already
- * split: a name is its own segment carrying `isName`, and every connective, comma and
+ * split: a name is its own segment carrying its `kind`, and every connective, comma and
  * bracket stays in a segment that has none. The table styles on the flag and never parses.
  *
- * `isName` marks **a name somebody chose**: a question label, a step title, a choice
+ * `kind` marks **a name somebody chose**: a question label, a step title, a choice
  * option's label. It deliberately does NOT mark a value an author typed as data (a number,
  * a date, free text) - that is a comparison operand, not the identity of a thing in the
  * form - and it does not mark a stand-in that stands where a name could not be resolved,
@@ -102,7 +102,16 @@ import type {
 export interface RuleSentenceSegment {
   readonly text: string;
   /** A name the reader chose (a question, a step). The table emphasises these. */
-  readonly isName?: boolean;
+  /**
+   * What KIND of thing this segment names, when it names one.
+   *
+   * Not a boolean, because the read view styles a question and a value differently: a
+   * sentence is scanned for "which question does this read, and what does it compare
+   * against", and one weight for both makes the reader parse the prose to tell them apart.
+   * Absent on connectives, punctuation and every stand-in - a stand-in is the absence of a
+   * name, so emphasising it would assert one.
+   */
+  readonly kind?: "question" | "step" | "value";
 }
 
 /**
@@ -176,7 +185,9 @@ function questionName(
   if (!context.library.ok) return [{ text: t("forms.step.labelUnknown") }];
   const question = context.library.data.find((entry) => entry.questionId === questionId);
   const label = textOf(question?.label ?? undefined);
-  return label === "" ? [{ text: t("forms.step.labelMissing") }] : [{ text: label, isName: true }];
+  return label === ""
+    ? [{ text: t("forms.step.labelMissing") }]
+    : [{ text: label, kind: "question" }];
 }
 
 /**
@@ -203,7 +214,7 @@ function renderTarget(id: string, context: SentenceContext): readonly RuleSenten
   // readable and wrong - the one combination this table must not produce.
   const title = textOf(step.title);
   const name: RuleSentenceSegment =
-    title === "" ? { text: t("forms.steps.untitled") } : { text: title, isName: true };
+    title === "" ? { text: t("forms.steps.untitled") } : { text: title, kind: "step" };
   return merge(fill("forms.sentence.stepTarget", { name: [name] }));
 }
 
@@ -354,7 +365,7 @@ function choiceOrLiteral(
 ): RuleSentenceSegment {
   if (text === "") return { text: t("forms.sentence.emptyValue") };
   const label = optionLabel(text, questionId, context);
-  return label === undefined ? { text } : { text: label, isName: true };
+  return label === undefined ? { text } : { text: label, kind: "value" };
 }
 
 /** The label the pinned version gives an option id, when the library answered with one. */
@@ -442,7 +453,7 @@ function merge(segments: readonly RuleSentenceSegment[]): readonly RuleSentenceS
   for (const segment of segments) {
     if (segment.text === "") continue;
     const previous = out[out.length - 1];
-    if (previous !== undefined && previous.isName !== true && segment.isName !== true) {
+    if (previous !== undefined && previous.kind === undefined && segment.kind === undefined) {
       out[out.length - 1] = { text: previous.text + segment.text };
       continue;
     }

@@ -1,6 +1,5 @@
 "use client";
 
-import { Button } from "@/components/kit";
 import { issueCountLabel } from "@/lib/forms/subtree-rail";
 import { ruleAnchorId } from "@/lib/forms/issues";
 import { ruleSentence } from "@/lib/forms/rule-sentence";
@@ -72,10 +71,10 @@ export function RulesTable({
             <th scope="col">{t("forms.rules.column.rule")}</th>
             {/* Issues DESCRIBES a rule rather than identifying it, so it is the column that
                 may go at compact width - the same call the pin grid makes about Type. */}
-            <th scope="col" className="qcms-cell--drop">
+            <th scope="col" className="qcms-cell--drop qcms-rulecell--issues">
               {t("forms.rules.column.issues")}
             </th>
-            <th scope="col">
+            <th scope="col" className="qcms-rulecell--actions">
               <span className="qcms-visually-hidden">{t("forms.rules.column.actions")}</span>
             </th>
           </tr>
@@ -134,14 +133,16 @@ function RuleRow({
               // segments are not reordered, inserted or removed, they are replaced together
               // when the rule changes.
               key={index}
-              className={segment.isName === true ? "qcms-rule-sentence__name" : undefined}
+              className={
+                segment.kind === undefined ? undefined : `qcms-rule-sentence__${segment.kind}`
+              }
             >
               {segment.text}
             </span>
           ))}
         </p>
       </td>
-      <td className="qcms-cell--drop">
+      <td className="qcms-cell--drop qcms-rulecell--issues">
         {/* Silence rather than a zero. An empty verdict and an absent one both arrive here
             as no issues, and this app does not let either claim a rule is clean - the same
             rule the rail's step badges follow. */}
@@ -151,17 +152,23 @@ function RuleRow({
           </span>
         )}
       </td>
-      <td>
+      <td className="qcms-rulecell--actions">
         <div className="qcms-rule-actions">
           {/* VISIBLE, not in the menu beside it. A step's row hides its commands because
               pressing the row already does something; a rule's row does nothing, so its
-              primary action has to be on the surface rather than one press further away. */}
-          <Button variant="ghost" size="sm" onPress={onEdit}>
+              primary action has to be on the surface rather than one press further away.
+
+              Bare buttons rather than the kit's: the kit's carry the app's 40px control
+              height, which is right for a control a screen is about and far too heavy for
+              two of them at the end of every row in a list. `.qcms-rule-action` gives them
+              the row's own scale and keeps them past the 24px `target-size` floor, which
+              is the number the axe sweep enforces. */}
+          <button type="button" className="qcms-rule-action" onClick={onEdit}>
             {t("forms.rules.edit")}
-          </Button>
-          <Button variant="ghost" size="sm" onPress={onRemove}>
+          </button>
+          <button type="button" className="qcms-rule-action" onClick={onRemove}>
             {t("forms.rules.remove")}
-          </Button>
+          </button>
         </div>
       </td>
     </tr>

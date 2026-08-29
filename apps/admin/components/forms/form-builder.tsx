@@ -772,7 +772,11 @@ function RulesSection({
   return (
     <section
       aria-labelledby="qcms-rules-heading"
-      className="flex flex-col gap-3 rounded-md border border-(--color-border) p-4"
+      // NO BOX (Code Owner, 2026-08-29). The border and padding made sense when the rules
+      // were one panel among five on the form's screen and something had to say where they
+      // began. They are the whole of their own screen now, so the frame was a box drawn
+      // around everything - and the table inside it already has its own edges.
+      className="flex flex-col gap-3"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         {/* AN `h1`, because on the rules screen this IS the screen's subject - the same
