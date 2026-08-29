@@ -210,6 +210,7 @@ vi.mock("@/lib/forms/public-link", () => import("../../lib/forms/public-link.ts"
 // pluralisation and this file wants the real words.
 vi.mock("@/lib/forms/subtree-rail", () => import("../../lib/forms/subtree-rail.ts"));
 vi.mock("@/lib/forms/rule-sentence", () => import("../../lib/forms/rule-sentence.ts"));
+vi.mock("@/lib/forms/rule-targets", () => import("../../lib/forms/rule-targets.ts"));
 // Pure cookie helpers, redirected to the real module: this file wants the page's real
 // answer about whether the concurrent notice has been dismissed, which with no cookie on
 // the request is "no".

@@ -24,12 +24,13 @@ import {
   createForm,
   closeRuleEditor,
   openFormDetails,
+  openRuleEditor,
+  openRulePhase,
   pinQuestion,
   rule,
   toggleCheckbox,
   toggleTarget,
   waitForSaved,
-  openRules,
 } from "./support/forms.js";
 import { openDeliverer, submitResponse, TestConsumer } from "./support/ops.js";
 import {
@@ -545,29 +546,59 @@ test("the form builder and the condition editor have zero violations", async ({ 
   await expect(validationStatus).toHaveAttribute("aria-live", "polite");
   await expectNoViolations(page, "form builder showing the form's own details");
 
+  // THE RULE WIZARD, one sweep per phase (Code Owner, 2026-08-30). The editor is three
+  // tab panels in one wide modal now, and react-aria mounts one panel at a time, so a
+  // single sweep of "the editor" would leave two thirds of it unmeasured. Each phase is a
+  // state this gate has to see, and the phase control itself - a `tablist` whose selected
+  // tab is marked by a painted edge as well as by `aria-selected` - is only in the tree
+  // while the dialog is open.
   const ruleId = await addRule(page);
   const scope = rule(page, ruleId);
   await chooseOption(scope, "Operator", "equals (the whole answer)");
   await chooseOption(scope, "Value", choiceOption);
-  await toggleTarget(page, ruleId, textId, true);
-  await expectNoViolations(page, "condition editor with a complete rule");
+  await expectNoViolations(page, "rule wizard, the When phase");
 
-  // The flagged state: an inline warning alert beside the picker that raised it, plus the
-  // engine's issue rendered at the rule and linked from the panel.
+  await toggleTarget(page, ruleId, textId, true);
+  await expectNoViolations(page, "rule wizard, the Then show phase");
+
+  // The `?` beside the ineligible heading, open: a disclosure rendered in flow, whose
+  // button carries `aria-expanded` and `aria-controls`. Shut it is a 20px control with an
+  // `aria-label` and no text, which is the shape most easily left unnamed.
+  await page.getByRole("button", { name: "Why some targets come before this condition" }).click();
+  await expectNoViolations(page, "rule wizard, the target ordering help open");
+
+  // The flagged state: an inline warning alert beside the picker that raised it. The
+  // engine's own issue is NOT here, and that is the buffering rather than an omission -
+  // nothing typed in this dialog reaches the draft until Save, so nothing revalidates.
   await toggleTarget(page, ruleId, choiceId, true);
   await expect(page.getByTestId("qcms-backward-flag")).toBeVisible();
+  await expectNoViolations(page, "rule wizard with a backward target flagged");
+
+  // The third phase: the bench, for this rule, with its own live region.
+  await openRulePhase(page, "test");
+  const benchStatus = page.getByTestId("qcms-bench-status");
+  await expect(benchStatus).toBeAttached();
+  await expect(benchStatus).toHaveAttribute("aria-live", "polite");
+  await expectNoViolations(page, "rule wizard, the Test phase");
+
+  // The editor is modal, so leaving it comes before going anywhere: the rail is behind the
+  // overlay until it closes. Save, because the backward target is what the next assertion
+  // is about and Cancel would discard it.
+  await closeRuleEditor(page);
+
+  // The engine's finding, now that the rule is in the draft, rendered at the rule. It sits
+  // outside the phase panels, so it is on screen whichever phase is selected.
+  await openRuleEditor(page, ruleId);
   await expect(scope.locator('[data-issue-code="RULE_BACKWARD_TARGET"]')).toBeVisible({
     timeout: 30_000,
   });
-  await expectNoViolations(page, "condition editor with a backward target flagged");
-
-  // The editor is modal, so leaving it comes before going anywhere: the rail is behind the
-  // overlay until it closes.
+  await expectNoViolations(page, "rule wizard showing the engine's verdict on the rule");
+  await toggleTarget(page, ruleId, choiceId, false);
   await closeRuleEditor(page);
 
-  // Back to the form's own screen: the settings and the test bench stayed there when the
-  // rules moved out, so the two panels below are not on the screen the rule work happened
-  // on. Three screens, and each axe sweep says which one it swept.
+  // Back to the form's own screen: the settings stayed there when the rules moved out, so
+  // the panel below is not on the screen the rule work happened on. Three screens, and
+  // each axe sweep says which one it swept.
   await openFormDetails(page);
 
   // The settings, on the form's screen: no longer a disclosure, and no longer pressed to
@@ -577,18 +608,6 @@ test("the form builder and the condition editor have zero violations", async ({ 
   await expect(settingsStatus).toBeAttached();
   await expect(settingsStatus).toHaveAttribute("aria-live", "polite");
   await expectNoViolations(page, "form settings on the form's own screen");
-
-  // And the test bench, which went to the rules it tests. Still a disclosure, still with a
-  // live region of its own, and swept on the screen it is actually on.
-  await openRules(page);
-  await page.getByText("Rule test bench").click();
-  // The bench announces its outcome through a live region, and it was not pinned
-  // (issue #368): attached, populated and axe-clean are all true of a paragraph that has
-  // stopped being a live region.
-  const benchStatus = page.getByTestId("qcms-bench-status");
-  await expect(benchStatus).toBeAttached();
-  await expect(benchStatus).toHaveAttribute("aria-live", "polite");
-  await expectNoViolations(page, "settings panel and rule test bench open");
 });
 
 test("publish, preview, history and secure links have zero violations", async ({

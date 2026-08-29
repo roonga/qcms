@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { addRule, addStep, blankDraft, removeStep, updateRule } from "./draft.ts";
+import {
+  addRule,
+  addStep,
+  blankDraft,
+  newRule,
+  removeStep,
+  updateRule,
+  upsertRule,
+} from "./draft.ts";
 import type { DraftForm } from "./types.ts";
 
 /**
@@ -75,5 +83,50 @@ describe("addStep id minting", () => {
     // not depend on which of the two lists happens to hold the name.
     const next = addStep(draft, "Cover");
     expect(next.steps.map((step) => step.stepId)).toStrictEqual([coverStepId, "stp_cover_2"]);
+  });
+});
+
+/**
+ * Minting a rule and adding it are two acts now (Code Owner, 2026-08-30).
+ *
+ * The rule editor buffers - `plan/admin-design-contracts.md` §6 - so a rule an author is
+ * building has to be able to exist without being in the draft, and Save is what puts it
+ * there. These pin the two halves and the property that makes the split safe.
+ */
+describe("newRule and upsertRule", () => {
+  it("mints a rule without adding it, so a cancelled add leaves nothing behind", () => {
+    const draft = addStep(blankDraft("frm_claims"), "Cover");
+    const minted = newRule(draft, "q_cover_level");
+
+    expect(minted.ruleId).toBe("rul_cover_level");
+    expect(minted.show, "a new rule shows nothing until the author says what").toEqual([]);
+    expect(draft.rules, "minting does not touch the draft").toEqual([]);
+  });
+
+  it("hands out the same id again when the previous one was never added", () => {
+    // The difference from a STEP id, which stays reserved once a rule names it: nothing can
+    // be left pointing at a rule that was never added, so there is nothing to protect.
+    const draft = addStep(blankDraft("frm_claims"), "Cover");
+
+    expect(newRule(draft, "q_cover_level").ruleId).toBe(newRule(draft, "q_cover_level").ruleId);
+  });
+
+  it("mints around a rule the draft already has, so Save cannot collide", () => {
+    const draft = addRule(addStep(blankDraft("frm_claims"), "Cover"), "q_cover_level");
+
+    expect(newRule(draft, "q_cover_level").ruleId).toBe("rul_cover_level_2");
+  });
+
+  it("appends an unknown rule and replaces a known one, which is the one commit Save makes", () => {
+    let draft = addStep(blankDraft("frm_claims"), "Cover");
+    const minted = newRule(draft, "q_cover_level");
+
+    draft = upsertRule(draft, { ...minted, show: ["q_notes"] });
+    expect(draft.rules).toHaveLength(1);
+    expect(draft.rules[0]?.show).toEqual(["q_notes"]);
+
+    draft = upsertRule(draft, { ...minted, show: ["q_other"] });
+    expect(draft.rules, "the same id is one rule, not two").toHaveLength(1);
+    expect(draft.rules[0]?.show).toEqual(["q_other"]);
   });
 });

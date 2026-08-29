@@ -631,12 +631,35 @@ export const messages = {
   "forms.rules.edit": "Edit",
   "forms.rules.remove": "Remove",
   // The dialog's own title names the rule being changed rather than saying "Edit rule",
-  // because a form can have several and the reader has just chosen one of them.
-  "forms.rules.editTitle": "Edit rule",
-  "forms.rules.editDone": "Done",
+  // because a form can have several and the reader has just chosen one of them. Since the
+  // editor became a wizard (2026-08-30) it is also the dialog's only heading, so the rule
+  // id has to be in it: the condition panel used to repeat it and no longer does.
+  "forms.rules.editTitle": "Edit rule {ruleId}",
+
+  // --- the rule wizard's three phases (Code Owner, 2026-08-30) ---
+  //
+  // TABS, so this string is what a screen reader announces before "tab 1 of 3". It names
+  // what the three choices are ABOUT rather than repeating the dialog's own title, which
+  // is already announced when the dialog opens.
+  "forms.rules.phases": "Rule editing phases",
+  // Numbered because the phases have a natural order and stating it costs nothing. The
+  // numbers describe; nothing here enforces them, and an author may work in any order.
+  "forms.rules.phaseWhen": "1. When",
+  "forms.rules.phaseThen": "2. Then show",
+  "forms.rules.phaseTest": "3. Test",
+  "forms.rules.save": "Save",
+  "forms.rules.cancel": "Cancel",
+  // THE DIALOG'S OWN SAVE MODEL, stated beside its own control. §6's 2026-08-21 amendment:
+  // a nested scope that persists says so where its control is, and this one commits on a
+  // press while the screen around it autosaves. The short sentence is the model; the long
+  // one is behind the `?` beside it, because a standing paragraph that never changes is
+  // exactly what a disclosure is for.
+  "forms.rules.saveModel": "This rule is saved when you press Save.",
+  "forms.rules.saveModelHelpLabel": "About saving this rule",
+  "forms.rules.saveModelDetail":
+    "The rest of this screen saves as you work. This dialog does not: nothing you change here reaches the form until you press Save, which is what lets Cancel discard it. While the dialog is open the form has nothing to save, so a long edit here is unsaved work until you press Save.",
 
   "forms.rule.heading": "Rule {ruleId}",
-  "forms.rule.remove": "Remove rule {ruleId}",
   "forms.rule.when": "When",
   "forms.rule.show": "Show",
   "forms.rule.op": "Operator",
@@ -651,6 +674,24 @@ export const messages = {
   "forms.rule.targetsNone":
     "Nothing in this form comes after the questions this condition reads, so the rule has nowhere to point yet.",
   "forms.rule.targetStep": "Step {stepId}",
+
+  // --- the target list at scale (Code Owner, 2026-08-30) ---
+  //
+  // The stated case is ten or more steps and hundreds of questions, where a flat wrap of
+  // checkboxes is a wall rather than a control. These are the strings the grouping and the
+  // filter need; `lib/forms/rule-targets.ts` owns what they describe.
+  "forms.rule.targetsFilter": "Filter targets",
+  "forms.rule.targetsFilterHint": "Matches a question id, a step id, or a step's name.",
+  "forms.rule.targetsShowing": "Showing {shown} of {total} targets.",
+  "forms.rule.targetsNoMatch": "No target matches that filter.",
+  // Stated ABOVE the filter and never narrowed by it, because a filter that hides a target
+  // an author has already ticked must not make the choice invisible. Same answer the
+  // library picker's chosen pane gives to the same problem.
+  "forms.rule.targetsSelected": "Selected: {targets}",
+  "forms.rule.targetsSelectedNone": "Nothing selected yet. This rule would show nothing.",
+  "forms.rule.targetsHelpLabel": "Why some targets come before this condition",
+  "forms.rule.targetsHelpDetail":
+    "Answers are evaluated in one forward pass, so a rule can only show something a respondent has not reached yet (ADR-16). Anything at or before the last question this condition reads is listed here rather than hidden, so you can see what you cannot point at and why. A whole step is listed here when any of its questions is, because showing a step shows every question in it. Publishing refuses a rule that points backwards.",
   "forms.rule.backwardWarning":
     "{targets} comes before a question this condition reads. Answers are evaluated in one forward pass, so a rule can only show something that comes later (ADR-16). Publishing will refuse this.",
   "forms.rule.issues": "Issues with this rule",
@@ -745,10 +786,8 @@ export const messages = {
   "forms.bench.title": "Rule test bench",
   "forms.bench.note":
     "A read-only preview. Answers typed here are evaluated against the draft on your screen and are never saved, never logged, and never seen by a respondent.",
-  "forms.bench.rule": "Rule",
   "forms.bench.answers": "Hypothetical answers",
   "forms.bench.run": "Run preview",
-  "forms.bench.noRules": "Add a rule to try it here.",
   "forms.bench.noReferences": "This condition reads no question yet.",
   "forms.bench.unpinned":
     "{questionId} is not pinned in this form, so there is no version to answer it against and it counts as unanswered.",
@@ -764,12 +803,14 @@ export const messages = {
   "forms.bench.failed": "The preview could not be run. {message}",
 
   // The bench's summary digest (issue 519; `plan/admin-ux-audit.md` §3.7). Facts only,
-  // and every one of them is also inside the panel: the rule is the Select's value and
-  // the question count is the number of entries the "Hypothetical answers" fieldset
+  // and every one of them is also inside the panel: the rule is the dialog's own title
+  // and the question count is the number of entries the "Hypothetical answers" fieldset
   // renders. Nothing here counts issues - the validation panel owns the screen's one
   // authoritative issue count (§5.6).
+  //
+  // "No rules to try" went when the bench became a phase of the rule wizard (2026-08-30):
+  // the bench is reached through a rule, so there is no state in which it has none.
   "forms.bench.digest": "{rule}, reads {questions}",
-  "forms.bench.digest.noRules": "No rules to try",
   "forms.bench.digest.questionOne": "1 question",
   "forms.bench.digest.questionOther": "{count} questions",
 

@@ -66,8 +66,16 @@ const { RuleTestBench } = await import("./rule-test-bench.tsx");
  * an entry in the heading outline. It was a `<summary>` with no heading in it that 519
  * fixed, and a section with a heading is no more at risk of that than a details was.
  */
+/*
+ * AN `h3` SINCE 2026-08-30, and the level is the claim rather than an incidental. The bench
+ * is the third phase of the rule wizard now, and a modal `aria-hidden`s the rest of the
+ * document: the outline a reader navigates inside the dialog starts at the dialog's own
+ * `<h3>` title, so an `h2` under it would be a level this dialog does not have.
+ * `e2e/a11y-axe.pw.ts` runs `heading-order` over the open dialog, which is what makes that
+ * a checked claim. Issue 519's claim - the panel has an entry in the outline - is unchanged.
+ */
 const BENCH_HEADING =
-  /<section[^>]*aria-labelledby="qcms-bench-heading"[\s\S]*?<h2[^>]*id="qcms-bench-heading"/;
+  /<section[^>]*aria-labelledby="qcms-bench-heading"[\s\S]*?<h3[^>]*id="qcms-bench-heading"/;
 
 const SETTINGS_HEADING =
   /<section[^>]*aria-labelledby="qcms-settings-heading"[\s\S]*?<h2[^>]*id="qcms-settings-heading"/;
@@ -271,12 +279,15 @@ const DRAFT: DraftForm = {
   ],
 };
 
+/** The bench takes the one rule the wizard is editing, so the fixture hands it that one. */
 function renderBench(draft: DraftForm): string {
+  const rule = draft.rules[0];
+  if (rule === undefined) throw new Error("the bench fixture needs a rule to be about");
   return decodeEntities(
     renderToStaticMarkup(
       <RuleTestBench
         draft={draft}
-        rules={draft.rules}
+        rule={rule}
         library={{ ok: true, data: [CHOICE, COUNT] }}
         previewCondition={() => Promise.resolve({ status: "idle" as const })}
       />,
@@ -285,11 +296,10 @@ function renderBench(draft: DraftForm): string {
 }
 
 describe("the rule test bench's summary (issue 519)", () => {
-  it("heads the panel with an h2, at the same level as the panel beside it", () => {
-    // The bench stopped being a disclosure on 2026-08-29, for the reason the settings
-    // panel did: it shipped shut because it shared a screen with four other panels, and it
-    // sits under the rules it tests on a screen of their own now. 519's claim is unchanged
-    // and is what is asserted - the panel has an entry in the heading outline.
+  it("heads the panel with a heading, one level under the dialog that holds it", () => {
+    // The bench stopped being a disclosure on 2026-08-29 and became a phase of the rule
+    // wizard on 2026-08-30. 519's claim survives both and is what is asserted: the panel
+    // has an entry in the heading outline.
     expect(renderBench(DRAFT)).toMatch(BENCH_HEADING);
     expect(renderBench(DRAFT), "and it is not a disclosure any more").not.toContain("<summary");
     expect(renderBench(DRAFT)).toContain(t("forms.bench.title"));
@@ -326,13 +336,17 @@ describe("the rule test bench's summary (issue 519)", () => {
     expect(digest).not.toContain(t("forms.bench.unavailable"));
   });
 
-  it("says there is nothing to try when the draft has no rules, and the panel agrees", () => {
-    const html = renderBench({ ...DRAFT, rules: [] });
+  it("is about one rule, never the draft's others (Code Owner, 2026-08-30)", () => {
+    // The bench used to take every rule in the draft and offer a `Select` to choose
+    // between them. It is the Test phase of the rule wizard now, so the rule is already
+    // decided by whichever row's Edit was pressed, and a second rule in the same draft
+    // must leave no trace here - not in the digest, and not in a picker.
+    const sibling = { ruleId: "rul_unrelated", when: DRAFT.rules[0]!.when, show: ["q_colour"] };
+    const html = renderBench({ ...DRAFT, rules: [DRAFT.rules[0]!, sibling] });
 
-    expect(textOfTestId(html, "qcms-bench-digest")).toBe(t("forms.bench.digest.noRules"));
-    // Everything after the digest is the panel's body: the bench stopped being a
-    // disclosure, and 519's claim was that a digested fact also exists inside the panel,
-    // which is about the two agreeing rather than about one of them being hidden.
-    expect(html.slice(html.indexOf("qcms-bench-digest"))).toContain(t("forms.bench.noRules"));
+    expect(textOfTestId(html, "qcms-bench-digest")).toContain("rul_two_reads");
+    expect(html, "no other rule of the draft is reachable from the bench").not.toContain(
+      "rul_unrelated",
+    );
   });
 });

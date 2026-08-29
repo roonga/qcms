@@ -1613,6 +1613,155 @@ button {
   justify-content: flex-end;
 }
 
+/* ===========================================================================
+   THE RULE WIZARD: a three-phase editor in a WIDE dialog (Code Owner, 2026-08-30).
+   =========================================================================== */
+
+/* THE WIDTH, AND WHY IT IS SET FROM HERE.
+
+   The vendored `Dialog` has no width prop. `packages/ui/src/components/a2ui/dialog/
+   dialog.styles.ts` writes `w-full max-w-md` onto its `Modal`, ADR-22 forbids editing a
+   vendored file to reach past that, and the kit exports the component rather than a
+   wrapper on purpose ("a QCMS-flavoured wrapper layer would be a second design language
+   by accretion"). So the caller cannot pass a width and must not grow one upstream for a
+   single screen. What is left is the route `.qcms-picker__body` already took for the same
+   dialog's height: the host app states the shape it needs, in its own sheet, against a
+   marker the caller renders inside the dialog.
+
+   THE SELECTOR. `div:has(> [role="dialog"] ...)` matches exactly one element in that tree.
+   The overlay's direct child is the `Modal` div, which carries no role; the Modal's direct
+   child is the dialog. So the `>` combinator picks the Modal and nothing else, and the
+   descendant half requires the marker our own component renders. No other dialog in the
+   app is touched.
+
+   THE NUMBER IS THE SCREEN'S OWN. `--container-measure-wide` is 100rem, the cap
+   `lib/measure.ts` assigns `/forms/[formId]` from `admin-shell-poc.html`. A dialog that
+   replaces the content of a screen has no business being wider than that screen's column,
+   and taking the same token means the two move together if the drawing ever changes.
+   `100vw - 2rem` is the floor beneath it, so on a narrow viewport the dialog is the
+   viewport less a margin rather than 1600px of horizontal scroll.
+
+   The unlayered win is the same one this sheet's header describes: Tailwind's `max-w-md`
+   is inside `@layer utilities`, and unlayered CSS beats layered CSS regardless of
+   specificity. */
+div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
+  max-inline-size: min(var(--container-measure-wide), calc(100vw - 2rem));
+}
+
+/* THE PHASE CONTROL AND THE FOOTER HOLD STILL; ONLY THE PANEL SCROLLS.
+
+   Same shape and the same reason as `.qcms-picker__body`, which is written out at length
+   beside it: the vendored `Dialog` is one scrolling column, so without a height budget a
+   target list of two hundred questions pushes Save and Cancel below the dialog's own fold.
+   The control whose whole job is to commit the work must not be reachable only by
+   scrolling past the work.
+
+   `min-block-size: 0` on the panel is the part that is not optional: a flex item's default
+   `min-height: auto` refuses to shrink below its content, so without it the panel would
+   still push the footer down and `overflow` would never engage. The budget is a proportion
+   so it holds at any viewport. */
+.qcms-rule-wizard {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-block-size: 68vh;
+}
+.qcms-rule-wizard__tabs {
+  display: flex;
+  min-block-size: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.qcms-rule-wizard__panel {
+  min-block-size: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  /* The focus ring of a panel react-aria has made focusable (it does that only when the
+     panel holds nothing focusable) would otherwise be clipped by the scroll container. */
+  outline-offset: -2px;
+}
+.qcms-rule-wizard__footer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border-block-start: 1px solid var(--color-border);
+  padding-block-start: 0.75rem;
+}
+
+/* The three phase tabs. A row of underlined labels rather than pills: the panel below is
+   the subject and the tabs are its index, so the selected one is marked by the edge it
+   shares with its panel. `--admin-control-h` keeps them on the app's control height, which
+   is what puts them past the 24px `target-size` floor the axe sweep enforces. */
+.qcms-phasetabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  border-block-end: 1px solid var(--color-border);
+}
+.qcms-phasetab {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--admin-control-h);
+  padding-inline: 0.75rem;
+  border: 0;
+  border-block-end: 2px solid transparent;
+  margin-block-end: -1px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.qcms-phasetab:hover {
+  color: var(--color-text);
+  background-color: var(--color-ghost-hover);
+}
+/* Selected is said twice, as the help dot's open state is: `aria-selected` for a screen
+   reader, and a painted edge for everyone else. Colour is never the only carrier - the
+   underline is a shape. */
+.qcms-phasetab[aria-selected="true"] {
+  color: var(--color-text);
+  border-block-end-color: var(--color-primary);
+}
+.qcms-phasetab[data-focus-visible] {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+/* One step's targets. A bordered group rather than a bare label, because at ten steps the
+   reader needs to see where one step's questions stop and the next step's start without
+   counting indentation. */
+.qcms-targets__step {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: 0.5rem 0.75rem 0.75rem;
+}
+.qcms-targets__step-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding-inline: 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+/* The step's id beside its title, in the identity treatment the pin grid gives an id:
+   the title is what a person calls the step and the id is what a rule stores. */
+.qcms-targets__step-id {
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+/* The filter and its count on one row where there is room, so the count reads as a
+   property of the field rather than as a sentence about the page. */
+.qcms-targets__filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem;
+}
+
 /* The grip cell: the containing block the row menu positions against, and narrow,
    because a 28px control does not need a 44px column. */
 .qcms-pincell--grip {

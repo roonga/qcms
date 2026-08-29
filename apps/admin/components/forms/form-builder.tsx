@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
-import { Alert, Button, Dialog, TextField } from "@/components/kit";
+import { Alert, Button, TextField } from "@/components/kit";
 import { AmbientSaveStatus, AutosaveFlash } from "@/components/save-model";
 import type {
   PreviewConditionState,
@@ -12,7 +12,6 @@ import type {
 } from "@/lib/forms/builder-state";
 import {
   addPinAt,
-  addRule,
   addStep,
   blankDraft,
   movePin,
@@ -20,13 +19,14 @@ import {
   moveStep,
   removePin,
   removeRule,
+  newRule,
   removeStep,
   renameStep,
   unsaveableReason,
-  updateRule,
+  upsertRule,
   type UnsaveableReason,
 } from "@/lib/forms/draft";
-import { issuesForRule, ruleAnchorId, stepAnchorId, stepIssueCounts } from "@/lib/forms/issues";
+import { ruleAnchorId, stepAnchorId, stepIssueCounts } from "@/lib/forms/issues";
 import { hasSettingsChange, settingsPatch } from "@/lib/forms/settings";
 import type {
   DraftForm,
@@ -40,9 +40,8 @@ import { t, type MessageKey } from "@/lib/i18n/en";
 import { textOf } from "@/lib/questions/definition";
 import type { ReadState } from "@/lib/read-state";
 
-import { ConditionEditor } from "./condition-editor";
 import { FormSettingsPanel } from "./form-settings-panel";
-import { RuleTestBench } from "./rule-test-bench";
+import { RuleWizard } from "./rule-wizard";
 import { RulesTable } from "./rules-table";
 import { concurrentNoticeCookie } from "@/lib/builder-notice";
 import { currentScreenName } from "./builder-breadcrumb";
@@ -535,23 +534,21 @@ export function FormBuilder({
            only because both were crowded onto one screen, and a rule's condition editor is
            the widest thing this app builds.
 
-           The test bench and the settings stay on the form's screen. They could move -
-           `plan/admin-ux-audit.md` §5.5 says as much - and moving them was not asked for.
-           One screen at a time is also how the anchor switching gets proven before more of
-           the builder depends on it. */
-        <>
-          <RulesSection draft={draft} library={library} issues={issues ?? []} onChange={mutate} />
-          {/* THE BENCH IS ABOUT THE RULES, so it is on their screen (Code Owner,
-              2026-08-26). It sat on the form's, beside the settings, because everything
-              form-level was on one screen; it reads `draft.rules` and answers "what would
-              this rule do", which is a question you ask while looking at the rule. */}
-          <RuleTestBench
-            draft={draft}
-            rules={draft.rules}
-            library={library}
-            previewCondition={previewCondition}
-          />
-        </>
+           THE BENCH WENT INSIDE THE RULE (Code Owner, 2026-08-30). It sat under this table
+           and took the whole draft's rules, with a Select to choose between them; it is the
+           third phase of the rule wizard now, so the rule is chosen before the bench is
+           reached. That is also what lets it answer about the rule as it is BEING EDITED
+           rather than as it was last saved, which is the question an author is actually
+           asking while a rule is half-built.
+
+           The settings stay on the form's screen. */
+        <RulesSection
+          draft={draft}
+          library={library}
+          issues={issues ?? []}
+          previewCondition={previewCondition}
+          onChange={mutate}
+        />
       )}
       {selection.kind === "step" && (
         <div>
@@ -747,27 +744,39 @@ function SaveNotices({
   );
 }
 
-/** Every rule of the draft, plus the control that adds one. */
+/**
+ * Every rule of the draft, plus the control that adds one and the wizard that edits one.
+ *
+ * THE RULE BEING EDITED IS HELD BY VALUE HERE, which is the reverse of what this held
+ * before 2026-08-30 and is the buffering directly. It used to hold an ID and look the rule
+ * up on every render, because the draft was replaced on every keystroke inside the dialog
+ * and a held object would have gone stale immediately. The dialog no longer writes to the
+ * draft at all, so the object is now the only copy there is, and looking one up by id
+ * could not work for an ADD - a rule being added is not in the draft to be found.
+ *
+ * `RuleWizard` seeds its own buffer from this and hands it back on Save.
+ */
 function RulesSection({
   draft,
   library,
   issues,
+  previewCondition,
   onChange,
 }: {
   readonly draft: DraftForm;
   readonly library: ReadState<readonly PinnableQuestion[]>;
   readonly issues: readonly FormIssue[];
+  readonly previewCondition: (input: {
+    draft: DraftForm;
+    ruleId: string;
+    answers: Record<string, unknown>;
+  }) => Promise<PreviewConditionState>;
   readonly onChange: (next: DraftForm) => void;
 }) {
   // A condition has to read a question, so there is nothing to add a rule against until
   // the form pins one. The button says why rather than being silently inert.
   const firstPinned = draft.steps.flatMap((step) => step.items)[0]?.questionId;
-  // The rule being edited is held by ID rather than by value, and looked up on every
-  // render: the draft is replaced on every keystroke inside the dialog, so a held object
-  // would be the rule as it was when the dialog opened and every edit would be made
-  // against a stale copy.
-  const [editingId, setEditing] = useState<string | undefined>(undefined);
-  const edited = draft.rules.find((rule) => rule.ruleId === editingId);
+  const [edited, setEdited] = useState<DraftRule | undefined>(undefined);
 
   return (
     <section
@@ -796,7 +805,11 @@ function RulesSection({
           size="md"
           isDisabled={firstPinned === undefined}
           onPress={() => {
-            if (firstPinned !== undefined) onChange(addRule(draft, firstPinned));
+            // MINTED, NOT ADDED. The rule reaches the draft when Save is pressed and not
+            // before, so cancelling out of a rule you have just started leaves nothing
+            // behind - and no targetless rule is left to pause the screen's autosave
+            // (`unsaveableReason`'s third case).
+            if (firstPinned !== undefined) setEdited(newRule(draft, firstPinned));
           }}
         >
           {t("forms.rules.add")}
@@ -814,54 +827,43 @@ function RulesSection({
           draft={draft}
           library={library}
           issues={issues}
-          onEdit={setEditing}
+          onEdit={(ruleId) => {
+            setEdited(draft.rules.find((rule) => rule.ruleId === ruleId));
+          }}
           onRemove={(ruleId) => {
             onChange(removeRule(draft, ruleId));
           }}
         />
       )}
 
-      {/* THE EDITOR IS A DIALOG NOW, and the table above is the read view (Code Owner,
-          2026-08-26). Every rule used to render its whole condition tree inline, so four
-          rules were four expanded editors and reading the form meant reading all of them.
+      {/* THE EDITOR IS A THREE-PHASE WIZARD IN A WIDE DIALOG (Code Owner, 2026-08-30), and
+          the table above is still the read view (Code Owner, 2026-08-26).
 
-          NO CANCEL, and that is the save model rather than an omission. This screen
-          autosaves - `plan/admin-design-contracts.md` §6 - so a dialog offering to discard
-          would be a second save model on a screen that has one, and the discard would be a
-          promise it could not keep: the change reaches the draft as it is typed, the way it
-          did when the editor was inline. "Done" closes a workspace; it does not commit
-          anything, because there is nothing uncommitted. */}
+          CANCEL AND SAVE, which means this buffers: `RuleWizard` holds the rule and only
+          what comes back through `onSave` reaches the draft. `plan/admin-design-contracts.md`
+          §6's 2026-08-30 amendment is the ruling and states the cost - while the dialog is
+          open the screen's autosave has nothing to save, so a long edit is unsaved work.
+
+          `key` is the rule id, so opening a different rule REMOUNTS the wizard and its
+          buffer is seeded afresh. Without it React would keep the state of the previous
+          rule's dialog, and the second rule an author opened would be shown the first
+          one's edits. */}
       {edited !== undefined && (
-        <Dialog
-          isOpen
-          title={t("forms.rules.editTitle")}
-          onOpenChange={(isOpen: boolean) => {
-            if (!isOpen) setEditing(undefined);
+        <RuleWizard
+          key={edited.ruleId}
+          draft={draft}
+          rule={edited}
+          library={library}
+          issues={issues}
+          previewCondition={previewCondition}
+          onSave={(next) => {
+            onChange(upsertRule(draft, next));
+            setEdited(undefined);
           }}
-        >
-          <ConditionEditor
-            draft={draft}
-            rule={edited}
-            library={library}
-            issues={issuesForRule(issues, edited.ruleId)}
-            onChange={(next: DraftRule) => {
-              onChange(updateRule(draft, edited.ruleId, next));
-            }}
-            onRemove={() => {
-              onChange(removeRule(draft, edited.ruleId));
-              setEditing(undefined);
-            }}
-          />
-          <Button
-            variant="primary"
-            size="md"
-            onPress={() => {
-              setEditing(undefined);
-            }}
-          >
-            {t("forms.rules.editDone")}
-          </Button>
-        </Dialog>
+          onCancel={() => {
+            setEdited(undefined);
+          }}
+        />
       )}
     </section>
   );

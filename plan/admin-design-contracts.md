@@ -569,6 +569,49 @@ controls are.
   typed is not saved on its way to being finished. The checkbox has no such
   cushion, and that is the accepted part.
 
+**Amendment, 2026-08-30 (Code Owner): the rule editor BUFFERS, and that is a stated
+exception to this screen's autosave.**
+
+The rule editor is a three-phase wizard in a wide dialog now, and the Code Owner asked
+for explicit Cancel and Save. Those two words are a save model, not two buttons: a Cancel
+that discards nothing is a lie, so the dialog holds the rule it is editing and only Save
+puts it into the draft. The screen around it still autosaves; the dialog does not.
+
+This is the exception the 2026-08-21 amendment above already has a rule for, applied the
+other way round. That amendment licensed a nested scope that PERSISTS to state its own
+model where its control is, and the settings then stopped persisting on their own
+(2026-08-29), which left the builder with one model again. The rule dialog is a nested
+scope that persists, by the same test, so it states its own model beside its own control:
+"This rule is saved when you press Save.", with the longer explanation behind a `?`. The
+screen-level clause is untouched, because the ambient strip is still the only
+screen-scope save statement.
+
+**Why it could not simply keep autosaving.** The previous dialog wrote every keystroke
+into the draft and its one button said "Done", which was honest about what it did. Adding
+a Cancel to that shape would have offered a discard the screen could not perform: the
+condition, the targets and the JSON pane had all already been stored, several debounces
+ago. The choice is between the button and the model, and the Code Owner chose the button.
+
+**Two costs, both accepted knowingly:**
+
+- **While the dialog is open the screen's autosave has nothing to save**, so a long edit
+  is unsaved work. A rule is a small document and the dialog is a deliberate stop rather
+  than somewhere an author lives, but the window is real: an author who builds a
+  four-branch condition, walks away, and loses the tab loses that condition. Nothing on
+  the screen behind the dialog is at risk, because nothing there changed.
+- **The ambient strip is quiet about it, and correctly so.** The strip states when the
+  FORM was last stored, and while the dialog is open that fact has not changed. It would
+  be worse for the strip to say something about the dialog: two save statements on one
+  screen is exactly what §6 exists to prevent, and the dialog's own sentence is already on
+  screen beside the button it is about.
+
+**A consequence that removed a bug rather than adding one.** "Add rule" used to put a
+rule into the draft immediately, and a new rule has no target, which `unsaveableReason`
+reads as an unsaveable draft: adding a rule and closing the editor left the whole screen's
+autosave paused until somebody picked a target. The rule is now MINTED on Add and ADDED on
+Save, so cancelling out of a rule just started leaves nothing behind and the pause window
+closes with it.
+
 ## 7. The rail
 
 - The rail carries **navigation within one form's subtree**: the form's children

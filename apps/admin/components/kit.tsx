@@ -38,7 +38,11 @@ export {
   MenuTriggerButton,
   NumberField,
   Select,
+  Tab,
   Table,
+  TabList,
+  TabPanel,
+  Tabs,
   Text,
   TextField,
 } from "@qcms/ui/kit";

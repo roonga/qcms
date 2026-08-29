@@ -249,21 +249,28 @@ export async function openRules(page: Page): Promise<void> {
   await expect(page.locator("#qcms-rules-heading")).toBeVisible();
 }
 
-/** Add a rule and return the id the builder minted for it. */
+/**
+ * Add a rule, leaving the browser in its open wizard, and return the id it was minted as.
+ *
+ * THE ROW DOES NOT EXIST YET when this returns, and that is the buffering rather than a
+ * race. Since 2026-08-30 (`plan/admin-design-contracts.md` §6) "Add rule" mints a rule and
+ * opens the wizard on it; the rule reaches the draft when Save is pressed, which is what
+ * `closeRuleEditor` does. So the id is read off the open dialog, not off the table - a
+ * spec that expected a new row here would be waiting for something Save has not yet made.
+ *
+ * Every caller's next act is to change the condition anyway: a rule arrives as `answered`
+ * against the first pinned question, which says nothing useful.
+ */
 export async function addRule(page: Page): Promise<string> {
   // Rules have their own screen now. A spec that has just been working on a step, or on the
   // form's details, is looking at neither of the places this button is.
   await openRules(page);
-  const before = await ruleIds(page);
   await page.getByRole("button", { name: "Add rule", exact: true }).click();
-  await expect(page.locator("tr[data-rule-id]")).toHaveCount(before.length + 1);
-  const after = await ruleIds(page);
-  const added = after.find((id) => !before.includes(id));
-  expect(added, "adding a rule should mint exactly one new id").toBeDefined();
-  // Straight into its editor. A rule arrives with a starting condition that says nothing
-  // useful, so every caller's next act is to change it, and the editor is a dialog now.
-  await openRuleEditor(page, added ?? "");
-  return added ?? "";
+  const editing = page.locator("section[data-rule-id]");
+  await expect(editing, "Add rule opens the wizard on the rule it minted").toBeVisible();
+  const added = (await editing.getAttribute("data-rule-id")) ?? "";
+  expect(added, "adding a rule should mint one id").toMatch(/^rul_/u);
+  return added;
 }
 
 /**
@@ -286,12 +293,16 @@ export function rule(page: Page, ruleId: string): Locator {
 }
 
 /**
- * Open one rule's editor, which is a dialog since 2026-08-26.
+ * Open one rule's editor, which is a dialog since 2026-08-26 and a three-phase wizard in a
+ * wide dialog since 2026-08-30.
  *
- * The rules screen is a table of sentences now - a rule is small to state and large to
- * change - so the condition tree that `rule()` scopes to only exists while its dialog is
- * open. A spec that reached straight for a control inside it used to find it inline and now
- * waits for something that is not there, which is what five minutes of timeout looks like.
+ * The rules screen is a table of sentences - a rule is small to state and large to change -
+ * so the condition tree that `rule()` scopes to only exists while its dialog is open. A
+ * spec that reached straight for a control inside it used to find it inline and now waits
+ * for something that is not there, which is what five minutes of timeout looks like.
+ *
+ * It lands on the "When" phase, which is where the wizard opens. `openRulePhase` is how a
+ * caller reaches the other two.
  *
  * Idempotent by intent rather than by check: pressing Edit on a row whose dialog is already
  * open is not a thing the screen allows, because the dialog is modal.
@@ -302,9 +313,49 @@ export async function openRuleEditor(page: Page, ruleId: string): Promise<void> 
   await expect(rule(page, ruleId)).toBeVisible();
 }
 
-/** Close a rule's editor, leaving the table. */
+/**
+ * The wizard's three phases, by the labels their tabs carry.
+ *
+ * Numbered in the product, so numbered here: the strings are what a screen reader
+ * announces, and a helper that matched on "When" alone would keep passing after the phase
+ * control lost its ordering.
+ */
+export const RULE_PHASES = {
+  when: "1. When",
+  then: "2. Then show",
+  test: "3. Test",
+} as const;
+
+/**
+ * Move to one phase of the open rule wizard.
+ *
+ * `role="tab"` rather than a button, deliberately: the phase control is the APG tabs
+ * pattern (`components/forms/rule-wizard.tsx` writes down why it is not a stepper), and
+ * locating by the role is what makes this assert the pattern rather than merely find the
+ * label. A stepper built out of plain buttons would fail here rather than pass quietly.
+ */
+export async function openRulePhase(page: Page, phase: keyof typeof RULE_PHASES): Promise<void> {
+  const tab = page.getByRole("tab", { name: RULE_PHASES[phase], exact: true });
+  await tab.click();
+  await expect(tab).toHaveAttribute("aria-selected", "true");
+}
+
+/**
+ * Commit the open rule wizard, which is what puts the rule into the draft.
+ *
+ * SAVE, not "Done", since 2026-08-30. The dialog buffers - nothing typed in it reaches the
+ * draft until this press - so a spec that closed the editor any other way used to keep its
+ * edits and now discards them. That is the point of the change rather than a hazard to work
+ * around, and it is why `cancelRuleEditor` is a separate helper with its own name.
+ */
 export async function closeRuleEditor(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "Done", exact: true }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.locator("section[data-rule-id]")).toHaveCount(0);
+}
+
+/** Discard the open rule wizard. Every edit made inside it is thrown away. */
+export async function cancelRuleEditor(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(page.locator("section[data-rule-id]")).toHaveCount(0);
 }
 
@@ -334,11 +385,19 @@ function escapeForName(label: string): string {
 /**
  * Tick or untick one `show` target of a rule.
  *
+ * IT MOVES TO THE "THEN SHOW" PHASE FIRST, because since 2026-08-30 that is the only phase
+ * the targets are on and react-aria mounts one panel at a time. A caller left on "When"
+ * would otherwise wait five minutes for a checkbox that is not in the document. Switching
+ * here rather than in each spec is the same call `openRules` makes about the screen.
+ *
  * Clicked by its visible label rather than by the checkbox itself, which is the convention
  * `questions-lifecycle.pw.ts` and `apps/portal/e2e/support/kitchen-sink.ts` both encode for
  * the same vendored control: react-aria puts a decorative indicator over the real input, so
  * a click aimed at the input is intercepted. The assertion still reads the input, because
  * checked-ness is what is being asserted.
+ *
+ * A filter narrows the list, so the target may be behind one. Callers that filter clear it
+ * themselves; this helper assumes the unfiltered list, which is how the dialog opens.
  */
 export async function toggleTarget(
   page: Page,
@@ -346,12 +405,18 @@ export async function toggleTarget(
   target: string,
   shouldBeSelected: boolean,
 ): Promise<void> {
+  await openRulePhase(page, "then");
   const scope = rule(page, ruleId);
   const box = scope.getByRole("checkbox", { name: target, exact: true });
   if ((await box.isChecked()) !== shouldBeSelected) {
     await scope.getByText(target, { exact: true }).click();
   }
   await expect(box).toBeChecked({ checked: shouldBeSelected });
+}
+
+/** The target filter of the open wizard's "Then show" phase. */
+export function targetFilter(page: Page): Locator {
+  return field(page, "Filter targets");
 }
 
 /** Tick or untick a checkbox anywhere on the page, by its visible label. */

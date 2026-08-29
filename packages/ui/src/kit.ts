@@ -101,3 +101,19 @@ export {
   Popover as MenuPopover,
   Separator as MenuSeparator,
 } from "react-aria-components";
+
+/**
+ * The tab primitives, for the same reason and by the same route as the menu ones above.
+ *
+ * The pinned registry has no `Tabs` to vendor, and ADR-22's lint fence names the
+ * alternative explicitly: "use the vendored components (src/components/a2ui) **or**
+ * react-aria-components". So a host that needs the APG tabs pattern - a roving tabindex,
+ * arrow-key movement between tabs, `aria-controls` wired to the panel, and the "tab 2 of
+ * 3, selected" announcement that comes with the roles - composes it from the stack's own
+ * foundation here rather than hand-rolling that keyboard contract per screen.
+ *
+ * Unstyled on purpose, exactly as the menu primitives are: the host supplies class names,
+ * so no variant layer accumulates in this package for a component the registry may later
+ * ship its own opinion about. Closing the gap upstream is the ADR-22 route if one arrives.
+ */
+export { Tab, TabList, TabPanel, Tabs } from "react-aria-components";
