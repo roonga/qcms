@@ -414,6 +414,52 @@ test("the rule test bench answers with the engine's own verdict", async ({ page 
   await cancelRuleEditor(page);
 });
 
+test("Back and Next walk the wizard's phases without gating them (Code Owner, 2026-08-30)", async ({
+  page,
+}) => {
+  // The buttons are a second way to set one piece of state, not a stepper: the tabs stay
+  // live throughout, which is what keeps an author who knows where they are going from
+  // having to walk. Both halves are asserted, because a stepper is exactly what this
+  // would become if a later change disabled the tabs while the buttons were pressed.
+  test.setTimeout(180_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.goto(`/forms/${insuranceFormId}`);
+
+  const ruleId = (await ruleIds(page))[0] ?? "";
+  await openRuleEditor(page, ruleId);
+
+  const back = page.getByRole("button", { name: /^Back/ });
+  const next = page.getByRole("button", { name: /^Next/ });
+  const tab = (name: string) => page.getByRole("tab", { name, exact: true });
+
+  // At the first phase there is nowhere back to, and the control says so by being
+  // disabled rather than by disappearing, which would reflow the row under the pointer.
+  await expect(tab("1. When")).toHaveAttribute("aria-selected", "true");
+  await expect(back).toBeDisabled();
+  await expect(next).toBeEnabled();
+
+  await next.click();
+  await expect(tab("2. Then show")).toHaveAttribute("aria-selected", "true");
+  await expect(back).toBeEnabled();
+
+  await next.click();
+  await expect(tab("3. Test")).toHaveAttribute("aria-selected", "true");
+  // ...and at the last phase there is nowhere on to.
+  await expect(next).toBeDisabled();
+
+  await back.click();
+  await expect(tab("2. Then show")).toHaveAttribute("aria-selected", "true");
+
+  // NOT GATED. The tab list is still the primary control: jumping straight back to the
+  // first phase from the last has to work, or the buttons have quietly become a stepper.
+  await openRulePhase(page, "test");
+  await openRulePhase(page, "when");
+  await expect(tab("1. When")).toHaveAttribute("aria-selected", "true");
+  await expect(back).toBeDisabled();
+
+  await cancelRuleEditor(page);
+});
+
 test("the screen's own bench is expanded under the table, with a picker (Code Owner, 2026-08-30)", async ({
   page,
 }) => {

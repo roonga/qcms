@@ -647,18 +647,16 @@ export const messages = {
   "forms.rules.phaseWhen": "1. When",
   "forms.rules.phaseThen": "2. Then show",
   "forms.rules.phaseTest": "3. Test",
+  // Phase navigation (Code Owner, 2026-08-30). The visible words are "Back" and "Next";
+  // the accessible name names the phase each one goes to, so a reader who cannot see which
+  // tab is selected is told where the press leads rather than only that it leads onward.
+  // Both accessible names contain the visible word, which is what SC 2.5.3 asks for.
+  "forms.rules.phaseBack": "Back",
+  "forms.rules.phaseNext": "Next",
+  "forms.rules.phaseBackTo": "Back to {phase}",
+  "forms.rules.phaseNextTo": "Next, {phase}",
   "forms.rules.save": "Save",
   "forms.rules.cancel": "Cancel",
-  // THE DIALOG'S OWN SAVE MODEL, stated beside its own control. §6's 2026-08-21 amendment:
-  // a nested scope that persists says so where its control is, and this one commits on a
-  // press while the screen around it autosaves. The short sentence is the model; the long
-  // one is behind the `?` beside it, because a standing paragraph that never changes is
-  // exactly what a disclosure is for.
-  "forms.rules.saveModel": "This rule is saved when you press Save.",
-  "forms.rules.saveModelHelpLabel": "About saving this rule",
-  "forms.rules.saveModelDetail":
-    "The rest of this screen saves as you work. This dialog does not: nothing you change here reaches the form until you press Save, which is what lets Cancel discard it. While the dialog is open the form has nothing to save, so a long edit here is unsaved work until you press Save.",
-
   "forms.rule.heading": "Rule {ruleId}",
   "forms.rule.when": "When",
   "forms.rule.show": "Show",

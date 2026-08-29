@@ -4,6 +4,7 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
+import { openRail } from "./support/forms.js";
 import { submitResponse } from "./support/ops.js";
 
 /**
@@ -242,5 +243,108 @@ test("561 keeps the two respondent-facing screens on the narrower cap the rail s
     }));
     expect.soft(measured.cap, `${path} caps at the narrow measure`).toBe(720);
     expect.soft(measured.width, `${path} is not widened by having a rail`).toBe(720);
+  }
+});
+
+test("561 puts every shared rail row in the same box on all three builder-family screens", async ({
+  page,
+}) => {
+  // THE SHIFT THIS EXISTS FOR (Code Owner, 2026-08-30). The rail is rendered twice - a
+  // server-rendered version for the six routes and a client-rendered one for the builder's
+  // two screens - and the two disagreed in ways that only showed as movement when you
+  // walked between them:
+  //
+  //   - a row with a `⋮` trigger gave up 30px to it, so the form row and every step row
+  //     was a 193px box on the builder and a 223px box everywhere else;
+  //   - the 8px under Rules came from a wrapper that only the builder renders, so all six
+  //     route rows below it sat 8px lower there than on the other screens.
+  //
+  // Neither was visible from inside one screen, which is why nothing caught them. What
+  // catches them is comparing the SAME row across a navigation, so that is what this does:
+  // every row's box, keyed by row, on each of the three screens, compared as a whole.
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.setViewportSize({ width: 1280, height: 900 });
+
+  const boxes = async (): Promise<Record<string, string>> =>
+    page.locator("[data-rail-item]").evaluateAll((nodes) =>
+      Object.fromEntries(
+        nodes.map((node) => {
+          const box = node.getBoundingClientRect();
+          return [
+            node.getAttribute("data-rail-item") ?? "",
+            // Rounded, because a fractional layout difference is not what this is about
+            // and sub-pixel noise would make it flake.
+            `left=${String(Math.round(box.left))} width=${String(Math.round(box.width))} top=${String(Math.round(box.top))} height=${String(Math.round(box.height))}`,
+          ];
+        }),
+      ),
+    );
+
+  await page.goto(`/forms/${FORM_ID}`);
+  await expect(page.getByTestId("qcms-rail")).toBeVisible();
+  await openRail(page);
+  const onBuilder = await boxes();
+
+  await page.locator('[data-rail-item="rules"]').click();
+  await expect(page.locator("#qcms-rules-heading")).toBeAttached();
+  const onRules = await boxes();
+
+  await page.goto(`/forms/${FORM_ID}/preview`);
+  await expect(page.getByTestId("qcms-rail")).toBeVisible();
+  await openRail(page);
+  const onPreview = await boxes();
+
+  // Only the rows all three screens have. The builder's step rows are chosen rather than
+  // navigated to, so they carry `data-rail-step-select` instead and are not in this set;
+  // `rail.pw.ts` is where the step rows themselves are measured.
+  const shared = Object.keys(onBuilder).filter((key) => key in onRules && key in onPreview);
+  expect(shared.length, "the three screens share rows to compare").toBeGreaterThan(4);
+
+  for (const key of shared) {
+    expect
+      .soft(onRules[key], `${key} does not move between the builder and the rules screen`)
+      .toBe(onBuilder[key]);
+    expect
+      .soft(onPreview[key], `${key} does not move between the builder and preview`)
+      .toBe(onBuilder[key]);
+  }
+
+  // ONE RHYTHM (Code Owner, 2026-08-30). Every gap in the column is either the 2px between
+  // rows of one group or the 8px between groups, and nothing in between: the rail carried
+  // 0px, 2px, 8px and 10px gaps at once, which reads as a column that cannot decide.
+  //
+  // Measured on the rendered boxes rather than read off the sheet, because the values that
+  // produced the irregularity were each individually reasonable - a padding here, a margin
+  // there - and only the sum on screen showed it.
+  for (const [screen, path] of [
+    ["builder", `/forms/${FORM_ID}`],
+    ["preview", `/forms/${FORM_ID}/preview`],
+  ] as const) {
+    await page.goto(path);
+    await expect(page.getByTestId("qcms-rail")).toBeVisible();
+    await openRail(page);
+    const measured = await page
+      .locator("[data-rail-item], [data-rail-step-select], .qcms-rail-steps__add")
+      .evaluateAll((nodes) =>
+        nodes.map((node, index) => {
+          const box = node.getBoundingClientRect();
+          const previous = index === 0 ? undefined : nodes[index - 1]?.getBoundingClientRect();
+          return {
+            gap: previous === undefined ? null : Math.round(box.top - previous.bottom),
+            height: Math.round(box.height),
+          };
+        }),
+      );
+    expect(measured.length, `${screen} renders rail rows to measure`).toBeGreaterThan(6);
+    for (const [index, row] of measured.entries()) {
+      if (row.gap !== null) {
+        expect
+          .soft([2, 8], `${screen} row ${String(index)} sits on the rail's rhythm`)
+          .toContain(row.gap);
+      }
+      // The add control was a 52px box among 40px rows, from padding it carried itself.
+      expect.soft(row.height, `${screen} row ${String(index)} is one row tall`).toBe(40);
+    }
   }
 });

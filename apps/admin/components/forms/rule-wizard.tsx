@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useState } from "react";
 
 import { Button, Dialog, Tab, TabList, TabPanel, Tabs } from "@/components/kit";
 import { conditionReferences } from "@/lib/forms/condition";
@@ -76,12 +76,17 @@ import { RuleTestBench } from "./rule-test-bench";
  * targetless rule that `unsaveableReason` reads as an unsaveable draft, and the pressed
  * Cancel would then pause the whole screen's autosave instead of discarding anything.
  *
- * ## The dialog's own save model is stated beside its own control
+ * ## The dialog's save model is its two buttons, and nothing else says it
  *
- * §6's 2026-08-21 amendment: a nested scope that persists states its own model where its
- * control is. This is one - it has its own commit, and the screen's ambient strip cannot
- * speak for it - so the footer carries the sentence, with the longer explanation behind a
- * `?` rather than as a standing paragraph. `public-form-link.tsx` is the pattern.
+ * §6's 2026-08-21 amendment licensed a nested scope that persists to STATE its own model
+ * beside its control, and this footer carried that sentence with a `?` behind it until the
+ * Code Owner removed all three on 2026-08-30: "it is obvious". The amendment is a licence
+ * rather than an obligation, and what it exists to prevent is a nested scope whose saving
+ * is a SURPRISE. A modal with Save and Cancel side by side is the one shape where the
+ * model is legible from the controls themselves, so the sentence was restating them.
+ *
+ * The screen-level clause is untouched. The ambient strip is still the only screen-scope
+ * save statement, and it still says nothing about this dialog.
  *
  * ## Removal is not here
  *
@@ -118,8 +123,6 @@ export function RuleWizard({
   // the autosave model wearing a Save button.
   const [edited, setEdited] = useState<DraftRule>(rule);
   const [phase, setPhase] = useState<Phase>("when");
-  const helpId = useId();
-  const [helpOpen, setHelpOpen] = useState(false);
 
   // Computed once and shared by the three phases, so the target grouping, the backward
   // flag and the bench cannot disagree about what this condition reads.
@@ -161,16 +164,15 @@ export function RuleWizard({
           }}
           className="qcms-rule-wizard__tabs"
         >
+          {/* Mapped over `PHASES` rather than written out, so the order the tabs show and
+              the order Back/Next walk are one list. Written twice they would drift, and
+              the drift would look like a bug in the buttons. */}
           <TabList aria-label={t("forms.rules.phases")} className="qcms-phasetabs">
-            <Tab id="when" className="qcms-phasetab">
-              {t("forms.rules.phaseWhen")}
-            </Tab>
-            <Tab id="then" className="qcms-phasetab">
-              {t("forms.rules.phaseThen")}
-            </Tab>
-            <Tab id="test" className="qcms-phasetab">
-              {t("forms.rules.phaseTest")}
-            </Tab>
+            {PHASES.map((candidate) => (
+              <Tab key={candidate} id={candidate} className="qcms-phasetab">
+                {phaseLabel(candidate)}
+              </Tab>
+            ))}
           </TabList>
 
           <TabPanel id="when" className="qcms-rule-wizard__panel">
@@ -235,38 +237,74 @@ export function RuleWizard({
             row moves the control out from under the pointer. The paragraph renders under
             the row, not in it. */}
         <div className="qcms-rule-wizard__footer">
-          <div className="flex flex-wrap items-center gap-3">
-            <Button
-              variant="primary"
-              size="md"
-              onPress={() => {
-                onSave(edited);
-              }}
-            >
-              {t("forms.rules.save")}
-            </Button>
-            <Button variant="secondary" size="md" onPress={onCancel}>
-              {t("forms.rules.cancel")}
-            </Button>
-            <span className="text-sm text-(--color-text-muted)">{t("forms.rules.saveModel")}</span>
-            <button
-              type="button"
-              className="qcms-help-dot"
-              aria-expanded={helpOpen}
-              aria-controls={helpId}
-              aria-label={t("forms.rules.saveModelHelpLabel")}
-              onClick={() => {
-                setHelpOpen((open) => !open);
-              }}
-            >
-              <span aria-hidden="true">{"?"}</span>
-            </button>
+          <div className="qcms-rule-wizard__actions">
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                variant="primary"
+                size="md"
+                onPress={() => {
+                  onSave(edited);
+                }}
+              >
+                {t("forms.rules.save")}
+              </Button>
+              <Button variant="secondary" size="md" onPress={onCancel}>
+                {t("forms.rules.cancel")}
+              </Button>
+            </div>
+
+            {/* PHASE NAVIGATION (Code Owner, 2026-08-30), in its own group at the end of
+                the row, because these two are not commands about the RULE. §5 orders the
+                rule's own actions - primary first, Cancel last, anchored to the start -
+                and putting a Next between Save and Cancel would read as a third thing to
+                do to the rule rather than as a way of moving around inside the dialog.
+
+                THEY DO NOT GATE, and that is why they can sit beside a tablist rather
+                than replace it. `phase` is one piece of state with two ways to set it:
+                the tabs, for an author who knows which phase they want, and these, for
+                one walking the rule through in order. Neither withholds a phase from the
+                other, so nothing here reintroduces the stepper the tabs were chosen over.
+
+                DISABLED AT THE ENDS RATHER THAN HIDDEN. A control that vanishes at the
+                first and last phase would reflow the row under the pointer each time the
+                phase changed, which is the same trap `components/save-model.tsx` records
+                for a disclosure inside an end-anchored row.
+
+                FOCUS STAYS ON THE BUTTON, so a second press walks on. What a reader is
+                told is carried by the accessible name instead: it names the phase the
+                press goes to, since "Next" alone announces movement without a
+                destination. */}
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="secondary"
+                size="md"
+                isDisabled={previousPhase(phase) === undefined}
+                aria-label={t("forms.rules.phaseBackTo", {
+                  phase: phaseLabel(previousPhase(phase) ?? phase),
+                })}
+                onPress={() => {
+                  const target = previousPhase(phase);
+                  if (target !== undefined) setPhase(target);
+                }}
+              >
+                {t("forms.rules.phaseBack")}
+              </Button>
+              <Button
+                variant="secondary"
+                size="md"
+                isDisabled={nextPhase(phase) === undefined}
+                aria-label={t("forms.rules.phaseNextTo", {
+                  phase: phaseLabel(nextPhase(phase) ?? phase),
+                })}
+                onPress={() => {
+                  const target = nextPhase(phase);
+                  if (target !== undefined) setPhase(target);
+                }}
+              >
+                {t("forms.rules.phaseNext")}
+              </Button>
+            </div>
           </div>
-          {helpOpen && (
-            <p id={helpId} className="text-sm text-(--color-text-muted)">
-              {t("forms.rules.saveModelDetail")}
-            </p>
-          )}
         </div>
       </section>
     </Dialog>
@@ -275,3 +313,28 @@ export function RuleWizard({
 
 /** The three phases, in the order the labels number them. */
 type Phase = "when" | "then" | "test";
+
+/**
+ * The phase order, written once.
+ *
+ * The tabs render it and Back/Next walk it, so a fourth phase added to this array is a
+ * fourth tab and a fourth stop for the buttons without either half being told separately.
+ */
+const PHASES: readonly Phase[] = ["when", "then", "test"];
+
+/** The phase before this one, or `undefined` at the first. */
+function previousPhase(phase: Phase): Phase | undefined {
+  return PHASES[PHASES.indexOf(phase) - 1];
+}
+
+/** The phase after this one, or `undefined` at the last. */
+function nextPhase(phase: Phase): Phase | undefined {
+  return PHASES[PHASES.indexOf(phase) + 1];
+}
+
+/** One phase's label, which is the tab's own, so the two can never drift apart. */
+function phaseLabel(phase: Phase): string {
+  if (phase === "when") return t("forms.rules.phaseWhen");
+  if (phase === "then") return t("forms.rules.phaseThen");
+  return t("forms.rules.phaseTest");
+}

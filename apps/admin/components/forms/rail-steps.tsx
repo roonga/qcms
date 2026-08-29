@@ -116,7 +116,19 @@ export function RailSteps({
   }, []);
   if (builder === undefined) {
     return (
-      <>
+      // THE SAME WRAPPER THE BUILDER'S BRANCH USES (Code Owner, 2026-08-30), and it is the
+      // fix for a whole class of defect rather than a tidy-up. These two branches render
+      // the same rail and they used to be shaped differently: a fragment here, a `div` with
+      // its own spacing there. Every rule written for one silently did not apply to the
+      // other, and each divergence showed only as MOVEMENT when a reader walked between the
+      // builder and one of the six routes - which is invisible from inside either screen.
+      //
+      // Two were live when this wrapper went in: the 8px under Rules came from this div's
+      // margin, so it existed on the builder's two screens and not on the other six; and
+      // `.qcms-rail-steps [data-rail-item^="step:"]`'s 30px reserve never reached the
+      // server-rendered step rows at all, so a long step title wrapped at a different point
+      // on each side of a navigation - the exact defect that reserve was written to prevent.
+      <div className="qcms-rail-steps">
         {/* The row the server rendered, restated rather than imported: this file is a
             client component and `form-subtree-rail.tsx` is not, so taking its `RailRow`
             would pull that module into the client bundle to reuse four lines of markup. */}
@@ -149,7 +161,7 @@ export function RailSteps({
         >
           <span>{t("forms.rail.rules")}</span>
         </Link>
-      </>
+      </div>
     );
   }
 

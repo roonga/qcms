@@ -581,10 +581,23 @@ This is the exception the 2026-08-21 amendment above already has a rule for, app
 other way round. That amendment licensed a nested scope that PERSISTS to state its own
 model where its control is, and the settings then stopped persisting on their own
 (2026-08-29), which left the builder with one model again. The rule dialog is a nested
-scope that persists, by the same test, so it states its own model beside its own control:
-"This rule is saved when you press Save.", with the longer explanation behind a `?`. The
-screen-level clause is untouched, because the ambient strip is still the only
-screen-scope save statement.
+scope that persists, by the same test.
+
+**It states nothing, and that is a Code Owner ruling (2026-08-30).** The footer carried
+"This rule is saved when you press Save." with the longer explanation behind a `?`, and
+all three were removed: "it is obvious". They are right about this shape. The 2026-08-21
+amendment is a LICENCE rather than an obligation, and what it exists to prevent is a
+nested scope whose saving would be a surprise - a control that persists on its own while
+the screen around it says something different. A modal whose footer is Save beside Cancel
+is the one case where the model is legible from the controls themselves, so the sentence
+was restating the two buttons underneath it.
+
+The clause this does NOT weaken: a nested scope with no such pair of buttons still owes a
+statement. What made the sentence redundant here was the explicit Cancel, not the fact of
+being a dialog.
+
+The screen-level clause is untouched either way, because the ambient strip is still the
+only screen-scope save statement.
 
 **Why it could not simply keep autosaving.** The previous dialog wrote every keystroke
 into the draft and its one button said "Done", which was honest about what it did. Adding

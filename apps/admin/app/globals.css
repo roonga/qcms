@@ -2591,10 +2591,14 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
     display: none;
   }
 }
+/* The rail's one row rhythm, written once and used by every group in the column. */
+:root {
+  --admin-rail-row-gap: 0.125rem;
+}
 .qcms-rail__group {
   display: flex;
   flex-direction: column;
-  gap: 0.125rem;
+  gap: var(--admin-rail-row-gap);
 }
 
 /* THE BUILDER'S STEP ROWS, which are the one place in a rail where a row both
@@ -2608,6 +2612,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
    in the tab order to be reached. It is always visible on the current step, because
    that is the row an author is working on. */
 .qcms-rail-steps__row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.125rem;
@@ -2627,8 +2632,23 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   cursor: pointer;
   appearance: none;
 }
+/* ABSOLUTE, OVER THE GUTTER THE ROW ALREADY RESERVES (Code Owner, 2026-08-30).
+
+   As a flex ITEM it took 30px out of the row, so the button beside it was 193px wide
+   where the same row on the other seven screens is 223px. The text lined up - that is
+   what the `padding-inline-end` below is for - but the row's BOX did not, so the tint on
+   a selected or hovered row stopped 30px short here and ran the full width there, and
+   walking between the builder and Preview moved that edge on every row that has a
+   trigger. Reserving the space in padding and painting the trigger on top of it gives
+   both branches one 223px box with its text in one place.
+
+   The trigger is still in the tab order and still `opacity`-toggled: it is taken out of
+   the FLOW, not out of the row. */
 .qcms-rail-steps__menu {
-  flex-shrink: 0;
+  position: absolute;
+  inset-inline-end: 0.125rem;
+  inset-block-start: 50%;
+  translate: 0 -50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2722,9 +2742,12 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
    this button narrower than every row it sits under. The kit's `Button` takes no
    `className` - a closed API on purpose - so the stretch is set here, on the one child
    this container has. It centres its own label already. */
+/* NO PADDING OF ITS OWN. It used to carry `0.5rem 0.25rem`, which made the add control a
+   52px box among 40px rows and put an 8px space above it and 4px below - a third spacing
+   in a column that has one. The cluster's gap places it now, like every other row. */
 .qcms-rail-steps__add {
   display: flex;
-  padding-block: 0.5rem 0.25rem;
+  padding-block: 0;
 }
 .qcms-rail-steps__add > button {
   flex: 1 1 auto;
@@ -2760,8 +2783,22 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 /* The builder's own screens, as a block: everything the Form row contains is one thing,
    and the six sibling ROUTES below it are another. Without this the tree was one flat run
    of rows at 2px each, with nothing to say which of them stay on this page. */
+/* THE STEP CLUSTER, on all eight screens (Code Owner, 2026-08-30).
+
+   ONE RHYTHM. `--admin-rail-row-gap` is the 2px every rail group already puts between its
+   rows, and this cluster now uses the same value between the form's row, the steps, the
+   add control and Rules - so a rail row sits the same distance from its neighbour wherever
+   it is. Before this the cluster had no gap of its own and the spacing came from whatever
+   padding each part happened to carry: 0px under the form row, 2px between steps, 0px
+   before the add control, which read as three different rhythms in one column.
+
+   NO MARGIN ON THE WRAPPER. It carried `margin-block-end: 0.5rem`, which is a GROUP
+   separation and belongs to the row it separates - written here it applied only where this
+   wrapper existed, which until 2026-08-30 was the builder's two screens alone. */
 .qcms-rail-steps {
-  margin-block-end: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--admin-rail-row-gap);
 }
 
 /* A NESTED GROUP, which is what the form's steps are inside the Form row (Code
@@ -2881,7 +2918,13 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
    thing altogether. Space rather than a rule or an indent, because both of those were tried
    and removed for saying it twice. */
 .qcms-rail-steps__rules {
-  margin-block-start: 0.5rem;
+  /* 8px of GROUP separation above and below, stated as the part the row itself owes on top
+     of the 2px its container already puts between rows. Written as `0.5rem` flat, the two
+     sides came out 8px and 10px, because above this row the gap comes from the cluster and
+     below it from the outer group - and the eye reads that 2px difference as the rail
+     being crooked rather than as two containers meeting. */
+  margin-block-start: calc(0.5rem - var(--admin-rail-row-gap));
+  margin-block-end: calc(0.5rem - var(--admin-rail-row-gap));
   display: flex;
   inline-size: 100%;
   border-block: 0;
@@ -2942,7 +2985,9 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
    `1.75rem` is the trigger's own `inline-size` and `0.125rem` the row's gap, both written
    just above, so this moves with them. */
 .qcms-rail-steps [data-rail-item^="step:"],
-[data-rail-item="section:builder"]:not(.qcms-rail-steps__form) {
+[data-rail-item="section:builder"],
+.qcms-rail-steps__form,
+.qcms-rail-steps__select {
   padding-inline-end: calc(0.5rem + 1.75rem + 0.125rem);
 }
 
@@ -3324,4 +3369,19 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* The rule wizard's footer row: the rule's own actions at the start, phase navigation at
+   the end (Code Owner, 2026-08-30). Two groups rather than one flow, because they are two
+   kinds of control - one commits the rule, the other moves around inside the dialog - and
+   §5's button order applies to the first group alone.
+
+   `space-between` only once both groups fit: below that they stack, and the actions stay
+   first because that is the order they are written in. */
+.qcms-rule-wizard__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
