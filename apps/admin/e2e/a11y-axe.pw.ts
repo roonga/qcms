@@ -28,7 +28,6 @@ import {
   toggleCheckbox,
   toggleTarget,
   waitForSaved,
-  openRules,
 } from "./support/forms.js";
 import { openDeliverer, submitResponse, TestConsumer } from "./support/ops.js";
 import {
@@ -530,6 +529,11 @@ test("the form builder and the condition editor have zero violations", async ({ 
     timeout: 30_000,
   });
   await expectNoViolations(page, "condition editor with a backward target flagged");
+
+  // Back to the form's own screen: the settings and the test bench stayed there when the
+  // rules moved out, so the two panels below are not on the screen the rule work happened
+  // on. Three screens, and each axe sweep says which one it swept.
+  await openFormDetails(page);
 
   // The two collapsible panels, open: a settings switch with its unenforceable warning, and
   // the read-only test bench with its own live region.

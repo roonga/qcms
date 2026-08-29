@@ -356,7 +356,7 @@ export function FormBuilder({
           `--bp-compact`, which is what §1 assigns to ordinary side-by-side panes. The step
           list is not one of them: it left this column for the rail on 2026-08-25, and
           `components/forms/rail-steps.tsx` is where it went. */}
-      {selection.kind === "form" ? (
+      {selection.kind === "form" && (
         <>
           {/* WRAPPED, and the wrapper is load-bearing rather than layout. `formActions` is
               rendered by the SERVER and handed across the client boundary, which strips the
@@ -428,7 +428,8 @@ export function FormBuilder({
             />
           </div>
         </>
-      ) : selection.kind === "rules" ? (
+      )}
+      {selection.kind === "rules" && (
         /* THE RULES, ON A SCREEN OF THEIR OWN (Code Owner, 2026-08-26), which
            `plan/admin-shell-poc/rules-screen-poc.html` draws as a full-width editor and
            heads "Rules". Full width here too: it shared the row with the validation panel
@@ -440,7 +441,8 @@ export function FormBuilder({
            One screen at a time is also how the anchor switching gets proven before more of
            the builder depends on it. */
         <RulesSection draft={draft} library={library} issues={issues ?? []} onChange={mutate} />
-      ) : (
+      )}
+      {selection.kind === "step" && (
         <div>
           {/* Nothing rather than a second copy of the rail's own empty-state sentence: a
               step editor with no step is exactly the state the rail is already explaining,
