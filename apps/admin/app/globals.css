@@ -273,6 +273,18 @@
  */
 html {
   color-scheme: light dark;
+  /* THE STICKY BAR IS NOT ALLOWED TO SWALLOW WHAT YOU JUST MOVED TO. `.qcms-topbar` is
+     `position: sticky` and one control tall, so anything the browser scrolls INTO view -
+     a fragment target, a control reached by Tab, a field an error jumped to - lands at
+     the viewport's top edge and therefore underneath it. WCAG 2.2 SC 2.4.11 Focus Not
+     Obscured is exactly that, and it is invisible to an axe sweep, which measures a
+     rendered page rather than what scrolling does to it.
+
+     `--admin-topbar-h` is the same derived token the rail's own sticky offset uses
+     (`calc(var(--admin-control-h) + 1rem + 1px)`), so this moves with the density rather
+     than going stale beside it. Found while diagnosing a `target-size` violation that
+     turned out to be the publish controls sitting under this bar at a scroll offset. */
+  scroll-padding-block-start: var(--admin-topbar-h);
   /* NO `scrollbar-gutter: stable`, and it was tried (Code Owner, 2026-08-26). The form's
      own screen scrolls and its Preview does not, so moving between them makes the page
      scrollbar appear and vanish and every column jumps sideways by its width - a real
