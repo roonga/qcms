@@ -194,8 +194,17 @@ function questionName(
 function renderTarget(id: string, context: SentenceContext): readonly RuleSentenceSegment[] {
   const step = context.draft.steps.find((candidate) => candidate.stepId === id);
   if (step === undefined) return questionName(id, context);
+
+  // A STEP TARGET SAYS SO. `show` mixes question ids and step ids, and the two are not the
+  // same act: `packages/core/src/evaluate-rules.ts` keeps step-level and question-level
+  // visibility as separate layers that AND together, so showing a step is not shorthand for
+  // showing the questions in it. Rendered as a bare name, "show Driving history and Extra
+  // cover" gives a reader no way to tell which of those is which, and the sentence would be
+  // readable and wrong - the one combination this table must not produce.
   const title = textOf(step.title);
-  return title === "" ? [{ text: t("forms.steps.untitled") }] : [{ text: title, isName: true }];
+  const name: RuleSentenceSegment =
+    title === "" ? { text: t("forms.steps.untitled") } : { text: title, isName: true };
+  return merge(fill("forms.sentence.stepTarget", { name: [name] }));
 }
 
 // --- the condition tree ------------------------------------------------------

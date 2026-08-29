@@ -662,9 +662,9 @@ export const messages = {
   "forms.op.contains": "includes the option",
   "forms.op.containsAny": "includes any of",
   "forms.op.gt": "is greater than",
-  "forms.op.gte": "is greater than or equal to",
+  "forms.op.gte": "is at least",
   "forms.op.lt": "is less than",
-  "forms.op.lte": "is less than or equal to",
+  "forms.op.lte": "is at most",
   "forms.op.and": "all of",
   "forms.op.or": "any of",
   "forms.op.not": "not",
@@ -707,6 +707,10 @@ export const messages = {
   // sentence rather than picked from a list: `forms.op.*` is the operator picker's
   // vocabulary and says "is greater than or equal to", which is exact but stops a reader
   // mid-scan. The comparison each pair states is identical.
+  // A step target names itself as one: `show` mixes question ids and step ids, and showing
+  // a step is a different act from showing a question (they are separate visibility layers
+  // that AND together). Without this a reader cannot tell the two apart in the sentence.
+  "forms.sentence.stepTarget": "the step {name}",
   "forms.sentence.op.answered": "{question} is answered",
   "forms.sentence.op.equals": "{question} is exactly {value}",
   "forms.sentence.op.notEquals": "{question} is not exactly {value}",

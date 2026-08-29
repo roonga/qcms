@@ -179,7 +179,7 @@ const ANSWERED: DraftCondition = { op: "answered", questionId: "q_at_fault" };
 describe("ruleSentence", () => {
   it("writes the Code Owner's example", () => {
     expect(read(ANSWERED, ["stp_history"])).toBe(
-      "When Were you at fault? is answered, show Driving history",
+      "When Were you at fault? is answered, show the step Driving history",
     );
   });
 
@@ -189,7 +189,7 @@ describe("ruleSentence", () => {
     expect(segments).toStrictEqual([
       { text: "When " },
       { text: "Were you at fault?", isName: true },
-      { text: " is answered, show " },
+      { text: " is answered, show the step " },
       { text: "Driving history", isName: true },
     ]);
   });
@@ -241,22 +241,25 @@ describe("ruleSentence", () => {
 
 describe("targets", () => {
   it("reads two targets as a pair and three as a list", () => {
+    // "the step" on each of them, because `show` mixes step ids and question ids and a
+    // reader cannot otherwise tell which is which. The third target here is a QUESTION,
+    // and reads as a bare name - which is the distinction this wording exists to make.
     expect(read(ANSWERED, ["stp_history", "stp_extra"])).toContain(
-      "show Driving history and Extra cover",
+      "show the step Driving history and the step Extra cover",
     );
     expect(read(ANSWERED, ["stp_history", "stp_extra", "q_age"])).toContain(
-      "show Driving history, Extra cover and Age",
+      "show the step Driving history, the step Extra cover and Age",
     );
   });
 
   it("names a step by its title and a question by its label, from the one mixed list", () => {
     expect(read(ANSWERED, ["q_smoking", "stp_extra"])).toContain(
-      "show How often do you smoke? and Extra cover",
+      "show How often do you smoke? and the step Extra cover",
     );
   });
 
   it("uses the builder's own stand-in for an untitled step", () => {
-    expect(read(ANSWERED, ["stp_review"])).toContain("show Untitled step");
+    expect(read(ANSWERED, ["stp_review"])).toContain("show the step Untitled step");
   });
 
   it("says what a rule with no targets does rather than trailing off", () => {
@@ -274,7 +277,7 @@ describe("a library that did not answer", () => {
 
   it("still names every step, because a step is form-owned", () => {
     expect(read(ANSWERED, ["stp_history"], FAILED)).toBe(
-      "When Label not known is answered, show Driving history",
+      "When Label not known is answered, show the step Driving history",
     );
   });
 
@@ -380,7 +383,7 @@ describe("combinators", () => {
 
   it("says so when a group carries no branch at all", () => {
     expect(read({ op: "and", conditions: [] })).toBe(
-      "When a group with no branches, show Extra cover",
+      "When a group with no branches, show the step Extra cover",
     );
   });
 });
@@ -450,7 +453,7 @@ describe("leaf operators", () => {
     } as unknown as DraftCondition);
 
     expect(sentence).toBe(
-      "When a condition this build cannot describe (startsWith), show Extra cover",
+      "When a condition this build cannot describe (startsWith), show the step Extra cover",
     );
   });
 });
@@ -508,7 +511,7 @@ describe("operands", () => {
     // The state a freshly created `equals` against a text question is in
     // (`condition.ts`, `startingOperand`), so an author meets it by ordinary editing.
     expect(read({ op: "equals", questionId: "q_city", value: "" })).toBe(
-      "When Which city? is exactly an empty value, show Extra cover",
+      "When Which city? is exactly an empty value, show the step Extra cover",
     );
     expect(read({ op: "in", questionId: "q_age", values: [] })).toContain(
       "Age is one of an empty value",

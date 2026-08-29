@@ -204,6 +204,11 @@ vi.mock("@/lib/server/config", () => ({ portalBaseUrl: () => undefined }));
 // Redirected to the real module rather than stubbed: it is a pure function and this file
 // wants the page's real answer about whether a link exists, not a fixed one.
 vi.mock("@/lib/forms/public-link", () => import("../../lib/forms/public-link.ts"));
+// The rules table writes an issue count the way the rail's step rows write theirs, which
+// is why it reaches for the rail's helper. Redirected to the real module: it is a pure
+// pluralisation and this file wants the real words.
+vi.mock("@/lib/forms/subtree-rail", () => import("../../lib/forms/subtree-rail.ts"));
+vi.mock("@/lib/forms/rule-sentence", () => import("../../lib/forms/rule-sentence.ts"));
 // Pure cookie helpers, redirected to the real module: this file wants the page's real
 // answer about whether the concurrent notice has been dismissed, which with no cookie on
 // the request is "no".
