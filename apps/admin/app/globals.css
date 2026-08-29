@@ -2608,6 +2608,13 @@ button {
   background-color: var(--color-surface-hover);
 }
 
+/* The builder's own screens, as a block: everything the Form row contains is one thing,
+   and the six sibling ROUTES below it are another. Without this the tree was one flat run
+   of rows at 2px each, with nothing to say which of them stay on this page. */
+.qcms-rail-steps {
+  margin-block-end: 0.5rem;
+}
+
 /* A NESTED GROUP, which is what the form's steps are inside the Form row (Code
    Owner, 2026-08-25). The indent is on the group rather than on its rows, so the
    active mark's 3px edge still lands on the row's own box and a marked step lines
@@ -2716,7 +2723,16 @@ button {
    be reused for it: that one is a flex ITEM sized by the row it shares, so on its own it
    shrank to the width of its text and took its tint with it - 57px of highlight on a
    223px row. This one owns the full width instead. */
+/* WHERE THE GROUPING IS, now that the indent and the tree line have gone. The rail's rows
+   sit 2px apart, so with the Rules row butted against the Add step button above it and the
+   Preview row below it, it read as part of the step controls rather than as another screen.
+
+   The two margins say what the tree means: the steps and their add control are one cluster,
+   Rules is a screen beside them, and the six routes underneath are a different kind of
+   thing altogether. Space rather than a rule or an indent, because both of those were tried
+   and removed for saying it twice. */
 .qcms-rail-steps__rules {
+  margin-block-start: 0.5rem;
   display: flex;
   inline-size: 100%;
   border-block: 0;
