@@ -61,8 +61,25 @@ export function PublicFormLink({
   }, [copied]);
 
   const copy = useCallback(() => {
-    void navigator.clipboard
-      .writeText(url)
+    // THE CALL IS INSIDE THE CHAIN ON PURPOSE, and that is the whole guard.
+    // `navigator.clipboard` is ABSENT in an insecure context and on older engines - `lib.dom`
+    // says otherwise, which is why nothing here is typed for it - so reading `.writeText`
+    // off it throws a `TypeError` synchronously. Called bare, that throw happens before any
+    // promise exists, a `.catch` never runs, and the click handler itself blows up.
+    //
+    // Inside a `.then`, a synchronous throw BECOMES a rejection. So an absent clipboard, an
+    // engine that refuses the call, and a write the browser rejects all arrive at the one
+    // `.catch` below, and no presence check is needed to get them there.
+    //
+    // Not a `try` around the call, which is the obvious shape: `sonarjs/no-try-promise`
+    // refuses it and is right to - a `try` catches the synchronous half and silently lets
+    // the asynchronous half past, which is half a fix wearing the look of a whole one.
+    //
+    // Every failure is the same outcome: the note says the copy failed, and the icon does
+    // NOT tick. A tick would claim the address was on the clipboard when it is not, which
+    // is the one thing this control must never say.
+    void Promise.resolve()
+      .then(() => navigator.clipboard.writeText(url))
       .then(() => {
         setCopied(true);
         setNote(t("forms.links.copied"));

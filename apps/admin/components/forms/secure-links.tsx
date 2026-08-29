@@ -150,8 +150,13 @@ export function SecureLinks({
   );
 
   const copy = useCallback((url: string) => {
-    void navigator.clipboard
-      .writeText(url)
+    // The same shape and the same reason as `public-form-link.tsx`, which writes it out:
+    // `navigator.clipboard` is absent in an insecure context, so calling `.writeText` off it
+    // throws synchronously and a bare `.catch` never sees it. Inside a `.then`, that throw
+    // becomes a rejection and lands with every other failure. Found by review on the new
+    // control and fixed here too rather than left as the same defect one file away.
+    void Promise.resolve()
+      .then(() => navigator.clipboard.writeText(url))
       .then(() => {
         setCopyNote(t("forms.links.copied"));
       })
