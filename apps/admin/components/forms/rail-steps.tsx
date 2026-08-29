@@ -69,6 +69,15 @@ import { textOf } from "@/lib/questions/definition";
  */
 const ADD_STEP_HASH = "#new-step";
 
+/**
+ * The fragment a Rules link carries to the builder, and the builder's cue to open them.
+ *
+ * The same shape as {@link ADD_STEP_HASH} and for the same reason: off the builder there is
+ * no draft in this tree to select rules in, so that row NAVIGATES and the builder makes the
+ * selection on arrival.
+ */
+const RULES_HASH = "#rules";
+
 export function RailSteps({
   item,
   serverItems,
@@ -126,6 +135,20 @@ export function RailSteps({
             (`docs/admin-constraints.md`: an anchor navigates, a button acts). It lands on
             the builder with the fragment below, and the builder opens the dialog. */}
         <AddStepLink href={`${item.href}${ADD_STEP_HASH}`} />
+        {/* THE RULES ROW IS ON ALL EIGHT SCREENS, and it has to be. Rendered only on the
+            builder, it made every section row below it sit 40px higher on the other seven,
+            so walking between Preview and the form moved the whole lower half of the rail -
+            the same defect the step rows were fixed for, reintroduced by a new row.
+
+            An anchor here rather than a button, because off the builder this navigates:
+            there is no draft in this tree to select rules in. */}
+        <Link
+          href={`${item.href}${RULES_HASH}`}
+          className="qcms-rail__link qcms-rail-steps__rules"
+          data-rail-item="rules"
+        >
+          <span>{t("forms.rail.rules")}</span>
+        </Link>
       </>
     );
   }
@@ -223,7 +246,7 @@ export function RailSteps({
           `RulesSection` lives in the builder's own tree. */}
       <button
         type="button"
-        className="qcms-rail__link qcms-rail-steps__form"
+        className="qcms-rail__link qcms-rail-steps__rules"
         data-rail-item="rules"
         aria-current={builder.selection.kind === "rules" ? "page" : undefined}
         onClick={builder.chooseRules}

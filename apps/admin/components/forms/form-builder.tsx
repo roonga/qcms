@@ -251,6 +251,13 @@ export function FormBuilder({
   // step, which `IssueEntry` already handles by selecting the owning step itself; re-running
   // this on every hash change would fight it.
   useEffect(() => {
+    // The rules row on the other seven screens is a LINK to this one carrying `#rules`,
+    // because there is no draft in that tree to select in. This is the other half of it.
+    if (window.location.hash === "#rules") {
+      setSelection({ kind: "rules" });
+      return;
+    }
+
     // A rule's anchor, for the same reason: `/forms/{id}#rule-{ruleId}` is what a publish
     // rejection's work list links to, and landing on it used to show the form's details.
     const rulePrefix = `#${ruleAnchorId("")}`;

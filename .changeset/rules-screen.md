@@ -32,3 +32,19 @@ not asked for.
 
 Landing on `/forms/{id}#rule-{ruleId}` selects the rules screen, the same way a step
 fragment already selects its step.
+
+Two corrections found in use.
+
+**The Rules row is on all eight form screens.** Rendered only on the builder, it made every
+section row below it sit 40px higher on the other seven, so walking between Preview and the
+form moved the whole lower half of the rail - the same defect the step rows were fixed for,
+reintroduced by a new row. Off the builder it is an anchor carrying `#rules`, because there
+is no draft in that tree to select in, and the builder selects the rules on arrival. Measured:
+every row of a builder rail and a Preview rail now at matching y and heights, sections at
+327, 369, 411, 453 and 495 on both.
+
+**It spans the row it sits in.** It borrowed `qcms-rail-steps__form`, which is a flex ITEM
+sized by the row it shares with a menu trigger, so standing alone it shrank to the width of
+its own text - 57px of highlight on a 223px row, visible the moment it was the current one.
+It has its own class and owns the full width: measured at x=8, w=223, the same box as the
+section rows above it.

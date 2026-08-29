@@ -2612,6 +2612,22 @@ button {
   border-inline-start-color: transparent;
 }
 
+/* The rules row, which stands alone rather than beside a menu trigger. `__form` cannot
+   be reused for it: that one is a flex ITEM sized by the row it shares, so on its own it
+   shrank to the width of its text and took its tint with it - 57px of highlight on a
+   223px row. This one owns the full width instead. */
+.qcms-rail-steps__rules {
+  display: flex;
+  inline-size: 100%;
+  border-block: 0;
+  border-inline-end: 0;
+  background-color: transparent;
+  font-family: inherit;
+  text-align: start;
+  cursor: pointer;
+  appearance: none;
+}
+
 /* The form's own row, which is the tree's first row and the parent of the steps. A
    button wearing the shared row geometry, the same way a step row does, so the tree
    reads as one list of rows rather than as a control sitting on top of one. */
