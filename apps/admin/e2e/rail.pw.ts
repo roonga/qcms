@@ -4,7 +4,12 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
-import { createRailFixture, RAIL_LONG_STEP_TITLE, RAIL_SHORT_STEP_TITLE } from "./support/rail.js";
+import {
+  createRailFixture,
+  RAIL_FORM_TITLE,
+  RAIL_LONG_STEP_TITLE,
+  RAIL_SHORT_STEP_TITLE,
+} from "./support/rail.js";
 
 /**
  * The form-subtree rail in a browser (`plan/admin-design-contracts.md` §7, issue 559).
@@ -180,7 +185,12 @@ test("559 names the form in the summary and keeps it on one line at 390", async 
   // line is the whole rail, and what it owes a reader is the scope the rail belongs to: the
   // section is named by the row inside the rail and by the screen's own `<h1>`, which since
   // issue 692 reads "Links: <slug>" and would otherwise have the summary as its first half.
-  await expect(page.locator(".qcms-rail__summary-text")).toHaveText(railSlug);
+  // WHAT THE AUTHOR CALLED IT, not how it is addressed (Code Owner, 2026-08-26). The
+  // summary named the slug; it names the form's title now, falling back to the slug only
+  // for a form nobody has titled. `createRailFixture` gives this one "Household cover",
+  // and the slug is asserted absent so the fallback cannot pass this by accident.
+  await expect(page.locator(".qcms-rail__summary-text")).toHaveText(RAIL_FORM_TITLE);
+  await expect(page.locator(".qcms-rail__summary-text")).not.toHaveText(railSlug);
 
   const summary = await page.locator(".qcms-rail__summary-text").evaluate((element) => {
     const style = getComputedStyle(element);

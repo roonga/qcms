@@ -1,4 +1,5 @@
 import { stepIssueCounts } from "../forms/issues.ts";
+import { textOf } from "../questions/definition.ts";
 import type { DraftStep } from "../forms/types.ts";
 
 import { getForm, validateDraft } from "./forms.ts";
@@ -38,6 +39,15 @@ import type { AdminSession } from "./session.ts";
 export interface FormRailData {
   readonly formId: string;
   readonly slug: string;
+  /**
+   * The form's own title, or `""` when it has none yet.
+   *
+   * Separate from {@link slug} because they answer different questions: the slug is how
+   * the form is ADDRESSED and appears in every URL, the title is what an author called it.
+   * The rail shows the title where there is one, and the empty string is a real state -
+   * a form created and not yet named - which is why this is not optional-and-absent.
+   */
+  readonly title: string;
   /** The form's steps, or empty when the form has no draft to read them from. */
   readonly steps: readonly DraftStep[];
   /** Issues per step id. Empty when there is no verdict, never a stand-in for zero. */
@@ -62,12 +72,13 @@ export async function loadFormRail(
   const form = detail.data;
   const draft = form.draft;
   if (draft === null) {
-    return { formId: form.formId, slug: form.slug, steps: [], issueCounts: new Map() };
+    return { formId: form.formId, slug: form.slug, title: "", steps: [], issueCounts: new Map() };
   }
   const verdict = await validateDraft(session, form.formId, draft);
   return {
     formId: form.formId,
     slug: form.slug,
+    title: textOf(draft.title, form.defaultLocale),
     steps: draft.steps,
     issueCounts: verdict.ok ? stepIssueCounts(verdict.data.issues, draft) : new Map(),
   };

@@ -71,11 +71,20 @@ describe("the admin child gets no database handle", () => {
     const admin = frontendChildEnv("admin", frontendInputs);
     expect(admin.DATABASE_URL).toBeUndefined();
     expect(admin.QCMS_ADMIN_AUTH_SECRET).toBeUndefined();
+    // The whole list, not just the two absences above, because the claim is that this
+    // service's configuration is small enough to read: an API address, the SEC-4 token,
+    // its own origin, and the portal's. A fifth key arriving is a question to answer
+    // rather than a line to update.
+    //
+    // `QCMS_PORTAL_BASE_URL` joined on 2026-08-26 so the builder can show a published
+    // form's public address. It is read-only in the strongest sense: the admin makes no
+    // request to the portal with it, it writes the URL down for an operator to hand out.
     expect(Object.keys(admin).toSorted()).toEqual([
       "NODE_ENV",
       "QCMS_ADMIN_BASE_URL",
       "QCMS_API_BASE_URL",
       "QCMS_INTERNAL_TOKEN",
+      "QCMS_PORTAL_BASE_URL",
     ]);
   });
 

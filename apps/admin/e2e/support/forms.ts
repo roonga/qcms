@@ -78,11 +78,39 @@ export async function openRail(page: Page): Promise<void> {
   await expect(disclosure).toHaveAttribute("open", "");
 }
 
-/** Add a step by title, and wait for its row to appear in the rail. */
+/**
+ * Show the form's own details: its title, settings, rules, test bench and validation.
+ *
+ * THE BUILDER IS TWO SCREENS behind one route since 2026-08-26, and the rail switches
+ * between them. It opens on this one, so most callers need it only after having opened a
+ * step - but calling it when it is already current is a press on a row that is already
+ * `aria-current`, which changes nothing. Helpers below that act on a form-level panel go
+ * through here rather than each spec remembering to.
+ */
+export async function openFormDetails(page: Page): Promise<void> {
+  await openRail(page);
+  // BY ITS PLACE IN THE RAIL, not by its name. That row is named after the FORM now - it
+  // reads "Kitchen sink", not "Form details" - so a lookup by label had to know the
+  // fixture's title, and the one that used to be here silently waited five minutes for a
+  // control that no longer existed. `data-rail-item` is the row's identity and does not
+  // move with its copy.
+  await page.locator('[data-rail-item="section:builder"]').click();
+  await expect(field(page, "Form title")).toBeVisible();
+}
+
+/**
+ * Add a step by title, and wait for its row to appear in the rail.
+ *
+ * The naming moved into a dialog on 2026-08-26, so this is now three gestures rather than
+ * two: open the dialog, name the step, commit. The trigger and the commit are deliberately
+ * NOT the same string - "Add step" opens, "Add" commits - because an exact-name lookup that
+ * matched both would be ambiguous the moment the dialog is on screen.
+ */
 export async function addStep(page: Page, title: string): Promise<void> {
   await openRail(page);
-  await fillStable(field(page, "New step title"), title);
   await page.getByRole("button", { name: "Add step", exact: true }).click();
+  await fillStable(field(page, "New step title"), title);
+  await page.getByRole("button", { name: "Add", exact: true }).click();
   await expect(page.getByRole("button", { name: `Open step ${title}` })).toBeVisible();
 }
 
@@ -200,6 +228,9 @@ export async function pinnedOrder(page: Page): Promise<string[]> {
 
 /** Add a rule and return the id the builder minted for it. */
 export async function addRule(page: Page): Promise<string> {
+  // Rules are the FORM's, so they live on the form screen. A spec that has just been
+  // working on a step is looking at the step screen, and would not find the button.
+  await openFormDetails(page);
   const before = await ruleIds(page);
   await page.getByRole("button", { name: "Add rule", exact: true }).click();
   await expect(page.locator("[data-rule-id]")).toHaveCount(before.length + 1);
@@ -297,6 +328,30 @@ export async function movePin(page: Page, questionId: string, version: number): 
 }
 
 /**
+ * Run a read that needs the save strip, from whichever of the builder's two screens the
+ * caller is standing on, and put them back where they were.
+ *
+ * THE SAVE STRIP IS ON THE FORM SCREEN ONLY since 2026-08-26, so a spec that has just
+ * edited a step cannot see it. That is the product's behaviour rather than a test problem
+ * - a person editing a step has to look at the form screen too - and this is that trip,
+ * made once here instead of scattered through a dozen specs as a pair of screen switches
+ * that would then have to be kept in step with each other.
+ *
+ * The return leg reads the current step out of the rail rather than taking it as an
+ * argument, so a caller that was on the form screen already makes no trip at all.
+ */
+async function readingSaveState<T>(page: Page, read: () => Promise<T>): Promise<T> {
+  const current = page.locator('[data-rail-step-select][aria-current="page"]');
+  const step =
+    (await current.count()) > 0 ? await current.getAttribute("data-rail-step-select") : null;
+  if (step === null) return read();
+  await openFormDetails(page);
+  const value = await read();
+  await openStep(page, step);
+  return value;
+}
+
+/**
  * Wait for the debounced autosave and the validation round trip behind it to land.
  *
  * The save indicator is the product's own statement that the draft reached the API, so
@@ -308,7 +363,11 @@ export async function movePin(page: Page, questionId: string, version: number): 
  * the sentence is the same one.
  */
 export async function waitForSaved(page: Page): Promise<void> {
-  await expect(saveState(page)).toContainText(/^Saved /, { timeout: 30_000 });
+  await readingSaveState(page, async () => {
+    // "Last saved ...", not "Saved ...": the strip shows the state alone now, with the
+    // model sentence behind a "?" beside it, so the state says which of the two it is.
+    await expect(saveState(page)).toContainText(/^Last saved /, { timeout: 30_000 });
+  });
 }
 
 /** The save indicator's current sentence. */
@@ -328,7 +387,10 @@ export function saveStatus(page: Page): Locator {
  * see `waitForSaveAfter`.
  */
 export async function savedStamp(page: Page): Promise<string> {
-  return (await saveStatus(page).getAttribute("data-saved-at")) ?? "";
+  return readingSaveState(
+    page,
+    async () => (await saveStatus(page).getAttribute("data-saved-at")) ?? "",
+  );
 }
 
 /**
@@ -351,10 +413,12 @@ export async function savedStamp(page: Page): Promise<string> {
  * the raw ISO instant, precise enough for a test and never announced to anyone.
  */
 export async function waitForSaveAfter(page: Page, previous: string): Promise<void> {
-  await expect(saveStatus(page)).not.toHaveAttribute("data-saved-at", previous, {
-    timeout: 30_000,
+  await readingSaveState(page, async () => {
+    await expect(saveStatus(page)).not.toHaveAttribute("data-saved-at", previous, {
+      timeout: 30_000,
+    });
+    await expect(saveState(page)).toContainText(/^Last saved /, { timeout: 30_000 });
   });
-  await waitForSaved(page);
 }
 
 /** The issue summary the validation panel announces. */

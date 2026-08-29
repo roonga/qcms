@@ -215,6 +215,24 @@ export function isLoopbackHost(host: string): boolean {
  * `config.test.ts` on both sides assert the same cases so a change made to one and not
  * the other shows up as a red test. **Change one, change the other.**
  */
+/**
+ * The respondent portal's public origin (`QCMS_PORTAL_BASE_URL`), or `undefined`.
+ *
+ * Read here so the builder can show a published form's own address
+ * (`lib/forms/public-link.ts`). The API already requires this variable - it mints secure
+ * links with it - and the portal requires it for its start redirect; this app is the third
+ * reader and the only one for which it is optional, because a deployment that has not set
+ * it loses one block on one screen rather than a working request.
+ *
+ * NOT the same read as {@link adminBaseUrl}: that is this app's own origin, used for the
+ * SEC-9 origin check, and the two are different hosts in every deployment that separates
+ * the authoring surface from the respondent surface.
+ */
+export function portalBaseUrl(): string | undefined {
+  const raw = process.env.QCMS_PORTAL_BASE_URL?.trim();
+  return raw === undefined || raw === "" ? undefined : raw;
+}
+
 export function assertSecureCookiesConfigured(): void {
   if (secureCookies()) return;
 

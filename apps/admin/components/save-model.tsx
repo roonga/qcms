@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useId, useRef, useState } from "react";
 import { t, type MessageKey } from "@/lib/i18n/en";
 import { formatDateTime } from "@/lib/i18n/format";
 
@@ -69,26 +72,76 @@ export function AmbientSaveStatus({
   /** ISO instant of the last successful save, or `undefined` before the first this visit. */
   readonly savedAt: string | undefined;
 }) {
+  const [modelOpen, setModelOpen] = useState(false);
+  const modelId = useId();
   return (
-    <p
-      data-testid="qcms-save-status"
-      // React omits an attribute whose value is `undefined`, so this is absent until the
-      // first save rather than present and empty.
-      data-saved-at={savedAt}
-      className="flex flex-wrap items-baseline gap-x-2 gap-y-1 rounded-md border border-(--color-border) bg-(--color-background-muted) px-3 py-2 text-sm text-(--color-text-muted)"
-    >
-      <span data-testid="qcms-save-model" className="font-medium text-(--color-text)">
-        {t("forms.save.model")}
-      </span>
-      <span aria-live="polite" data-testid="qcms-save-state">
-        {settledSaveState(hasFailed, savedAt)}
-      </span>
-      {isSaving && (
-        <span aria-hidden="true" data-testid="qcms-save-progress">
-          {t("forms.save.saving")}
+    <div className="relative flex flex-col items-end">
+      <p
+        data-testid="qcms-save-status"
+        // React omits an attribute whose value is `undefined`, so this is absent until
+        // the first save rather than present and empty.
+        data-saved-at={savedAt}
+        className="flex items-baseline justify-end gap-x-2 text-sm text-(--color-text-muted)"
+      >
+        {/* ONE SLOT, not two side by side (Code Owner, 2026-08-26). The model sentence and
+          the state used to sit next to each other, and a third span appeared while a save
+          was in flight, so the whole strip changed width three times per save and visibly
+          moved. Now the state is the only thing here and it says one thing at a time.
+
+          The strip is anchored to the END of its row, so the control beside it does not
+          move as the text grows and shrinks to its left. */}
+        <span aria-live="polite" data-testid="qcms-save-state">
+          {isSaving ? t("forms.save.saving") : settledSaveState(hasFailed, savedAt)}
         </span>
+        {/* The model sentence, behind a "?" (Code Owner, 2026-08-26). Design-language
+          element 7 and `plan/admin-design-contracts.md` §6 ask each screen to STATE how it
+          saves, and the amendment is to how it is said rather than to whether: it is one
+          press away on the screen it describes, next to the state it explains, instead of
+          a sentence that never changes occupying the row forever. Recorded in the contract
+          rather than only here.
+
+          `SaveModelHelp` is a sibling rather than part of this element so that the live
+          region above stays exactly the settled sentence: an expandable paragraph inside a
+          `polite` region would be announced as a change when it opened. */}
+        {/* LAST IN THE ROW, and the row is anchored to its end, so this button does not
+            move when anything beside it changes - not when the state grows from "Not
+            saved yet" to a full timestamp, and not when the sentence below appears. A
+            control that moves out from under the pointer as it is pressed is the defect
+            this shape exists to avoid, and it is why the sentence is a sibling of this
+            row rather than another item inside it. */}
+        <button
+          type="button"
+          className="qcms-help-dot"
+          aria-expanded={modelOpen}
+          aria-controls={modelId}
+          aria-label={t("forms.save.modelLabel")}
+          onClick={() => {
+            setModelOpen((wasOpen) => !wasOpen);
+          }}
+        >
+          <span aria-hidden="true">{"?"}</span>
+        </button>
+      </p>
+      {modelOpen && (
+        // OVER the screen rather than in it, which is the difference between a disclosure
+        // that answers a question and one that rearranges the page to do it. In flow it
+        // added a line to this column, and everything below the header moved down as the
+        // "?" was pressed and back up as it was pressed again - a layout shift caused by
+        // the reader asking what a control does.
+        //
+        // Absolute positioning is safe here in a way it was not for the row menu this app
+        // once had clipped: `<main>` is deliberately not a scrollport
+        // (`.changeset/admin-independent-scroll.md` records why), so nothing between here
+        // and the viewport has `overflow` to clip against.
+        <p
+          id={modelId}
+          data-testid="qcms-save-model"
+          className="absolute top-full right-0 z-10 mt-1 w-max max-w-measure-narrow rounded-md border border-(--color-border) bg-(--color-surface) px-3 py-2 text-end text-sm text-(--color-text) shadow-lg"
+        >
+          {t("forms.save.model")}
+        </p>
       )}
-    </p>
+    </div>
   );
 }
 
@@ -121,3 +174,65 @@ export function ManualSaveNote({ messageKey }: { readonly messageKey: MessageKey
     </p>
   );
 }
+
+/**
+ * A brief "Saved" beside the work it saved, for the screen that carries no strip.
+ *
+ * ## Why this exists at all
+ *
+ * The ambient strip is the FORM's, and it moved to the form's own screen when the builder
+ * became two screens (Code Owner, 2026-08-26). That left the step screen - where most
+ * editing actually happens - with no standing sign that anything was being stored. This is
+ * that sign, and it is deliberately the smaller of the two: the strip states the save
+ * MODEL persistently, which is what design-language element 7 is about, while this states
+ * one save and then gets out of the way.
+ *
+ * `plan/admin-design-contracts.md` §6's "exactly one save statement per screen" is kept
+ * rather than bent: the form screen has the strip and not this, the step screen has this
+ * and not the strip. Neither screen shows two.
+ *
+ * ## Why it does not announce
+ *
+ * `aria-hidden`, and that is a judgement rather than an oversight. This fires on every
+ * debounced autosave - which is to say every few keystrokes - and a live region saying
+ * "Saved" that often is hostile to anyone listening to it. The strip's own live region is
+ * the announced statement, and it is on the form screen where it changes at most once a
+ * minute. What a screen reader still gets on THIS screen is every save that goes wrong:
+ * autosave-paused and save-failed are alerts, and they stay on both screens.
+ *
+ * ## Why it takes no space when it is gone
+ *
+ * It sits in the step heading's own row, whose height is set by the heading beside it. A
+ * transient element in the flow of a column would push the screen down as it arrived and
+ * pull it back as it left, which is a layout shift twice per save.
+ */
+export function AutosaveFlash({ savedAt }: { readonly savedAt: string | undefined }) {
+  const [visible, setVisible] = useState(false);
+  // The instant this component has already accounted for, seeded with whatever was true
+  // when it mounted. Without it, arriving on a step after ANY earlier save this visit
+  // flashed "Saved" for a save that had happened minutes ago on another screen: the effect
+  // fires on mount, and a mount is not an event worth confirming.
+  const acknowledged = useRef(savedAt);
+
+  useEffect(() => {
+    if (savedAt === undefined || savedAt === acknowledged.current) return undefined;
+    acknowledged.current = savedAt;
+    setVisible(true);
+    const timer = setTimeout(() => {
+      setVisible(false);
+    }, FLASH_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [savedAt]);
+
+  if (!visible) return null;
+  return (
+    <span className="qcms-autosave-flash" data-testid="qcms-autosave-flash" aria-hidden="true">
+      {t("forms.save.flash")}
+    </span>
+  );
+}
+
+/** How long the flash stands. Long enough to notice, short enough not to be chrome. */
+const FLASH_MS = 1800;

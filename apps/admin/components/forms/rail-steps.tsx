@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   Button,
@@ -49,12 +49,142 @@ import { textOf } from "@/lib/questions/definition";
  * select a step in place and the menus appear. The list does not move or reorder as it
  * upgrades: it is the same steps in the same order, gaining behaviour.
  */
-export function RailSteps({ serverItems }: { readonly serverItems: readonly RailItem[] }) {
+/**
+ * The fragment an Add step link carries to the builder, and the builder's cue to open the
+ * dialog on arrival.
+ *
+ * A fragment rather than a query parameter because it is a request to the BROWSER about
+ * what to do on arrival rather than a different resource: `/forms/{id}#new-step` and
+ * `/forms/{id}` are the same page, and a query string would say they were not - it would
+ * be cached separately, and it would sit in the URL bar afterwards. The rail's step links
+ * already address this page by fragment for exactly that reason.
+ *
+ * `new-step` rather than the obvious `add-step`, and the name is load-bearing:
+ * `scripts/check-admin-theme.mjs` reads every source file in this app for literal colours,
+ * and `#add` is three hex digits, so `"#add-step"` fails the gate as a hardcoded colour.
+ * It is not one, but the check cannot tell, and the right response to a coarse gate is to
+ * stay clear of it rather than to carve an exemption into it - the same call
+ * `lib/forms/builder-bridge.ts` records for naming its selector `choose` rather than
+ * `select`.
+ */
+const ADD_STEP_HASH = "#new-step";
+
+export function RailSteps({
+  item,
+  serverItems,
+}: {
+  readonly item: RailItem;
+  readonly serverItems: readonly RailItem[];
+}) {
   const builder = useBuilderRail();
-  if (builder === undefined) return <ServerSteps items={serverItems} />;
+  // ONE dialog, opened from two places (Code Owner, 2026-08-26): the control under the
+  // list, and the form row's own menu at the top of it. The state lives here rather than
+  // in either control because two dialogs would be two drafts of a step title, and the one
+  // you had typed into would depend on which control you had reached for.
+  const [adding, setAdding] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const openAdd = () => {
+    setNewTitle("");
+    setAdding(true);
+  };
+
+  // The other half of `AddStepLink`: arriving from another form screen's Add step, which is
+  // an anchor to this one carrying the fragment below. Reading it here rather than plumbing
+  // a prop down from the slot keeps the server out of it entirely - a fragment never reaches
+  // the server, so nothing about this page's cacheability changes.
+  //
+  // Cleared once read, and that is not tidiness: left in place, a reload - or a press of
+  // Back onto this URL - would reopen a dialog the reader had already dismissed, with no way
+  // to be rid of it short of editing the address bar.
+  //
+  // Before the early return below, because a hook cannot be called conditionally. It costs
+  // nothing on the screens with no builder: the fragment is only ever on this one.
+  useEffect(() => {
+    if (window.location.hash !== ADD_STEP_HASH) return;
+    setNewTitle("");
+    setAdding(true);
+    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+  }, []);
+  if (builder === undefined) {
+    return (
+      <>
+        {/* The row the server rendered, restated rather than imported: this file is a
+            client component and `form-subtree-rail.tsx` is not, so taking its `RailRow`
+            would pull that module into the client bundle to reuse four lines of markup. */}
+        <Link
+          href={item.href}
+          className="qcms-rail__link"
+          data-rail-item={item.key}
+          {...(item.isCurrent ? { "aria-current": "page" as const } : {})}
+        >
+          <span>{item.label}</span>
+        </Link>
+        <ServerSteps items={serverItems} />
+        {/* THE ADD CONTROL IS ON ALL EIGHT FORM SCREENS (Code Owner, 2026-08-26), and off
+            the builder it is an anchor rather than a button, because off the builder it
+            NAVIGATES - there is no draft in this tree to add a step to
+            (`docs/admin-constraints.md`: an anchor navigates, a button acts). It lands on
+            the builder with the fragment below, and the builder opens the dialog. */}
+        <AddStepLink href={`${item.href}${ADD_STEP_HASH}`} />
+      </>
+    );
+  }
 
   return (
     <div className="qcms-rail-steps">
+      {/* THE FORM'S OWN ROW IS THIS ROW, not a second one under it. It briefly was a
+          second one, which put "Form details" directly beneath "Builder" with both marked
+          current: two rows, one meaning, and no way to tell which was which. The row that
+          leads to this screen from the other seven IS the row that selects the form's own
+          details once you are here, so it carries `item.label` - renamed to "Form details",
+          because that is the screen it opens.
+
+          A button rather than a link, unlike the same row on the other seven screens: this
+          route is already the one the reader is standing on, so choosing it changes what
+          the column beside the rail shows rather than navigating anywhere
+          (`docs/admin-constraints.md`, an anchor navigates and a button acts). */}
+      <div className="qcms-rail-steps__row">
+        <button
+          type="button"
+          className="qcms-rail__link qcms-rail-steps__form"
+          data-rail-item={item.key}
+          aria-current={builder.selection.kind === "form" ? "page" : undefined}
+          onClick={builder.chooseForm}
+        >
+          {/* A span rather than a bare text node, so the label is a flex ITEM the row can
+              clip. Bare, it is an anonymous flex item that `text-overflow` cannot reach. */}
+          <span>{item.label}</span>
+        </button>
+        {/* THE FORM'S OWN MENU, so adding a step is reachable from the top of the list as
+            well as the bottom (Code Owner, 2026-08-26). With enough steps the control under
+            them scrolls out of the rail, and this one never moves.
+
+            It does NOT replace the one below: Add step appends, so the control beside where
+            the new step appears is the one that matches what pressing it does. This is the
+            second way in, not the way in, and the menu is where the form's other row-level
+            commands will go when there are some. */}
+        <MenuTrigger>
+          <MenuTriggerButton
+            className="qcms-rail-steps__menu"
+            aria-label={t("forms.rail.formMenu", { title: item.label })}
+          >
+            <span aria-hidden="true">{"⋮"}</span>
+          </MenuTriggerButton>
+          <MenuPopover className="qcms-menu">
+            <MenuList
+              className="qcms-menu__list"
+              aria-label={t("forms.rail.formMenu", { title: item.label })}
+              onAction={(key) => {
+                if (key === "add") openAdd();
+              }}
+            >
+              <MenuItem id="add" className="qcms-menu__item">
+                {t("forms.steps.add")}
+              </MenuItem>
+            </MenuList>
+          </MenuPopover>
+        </MenuTrigger>
+      </div>
       <ol className="qcms-rail__group" aria-label={t("forms.rail.steps")} data-rail-group="steps">
         {builder.draft.steps.map((step, index) => (
           <li key={step.stepId}>
@@ -64,7 +194,9 @@ export function RailSteps({ serverItems }: { readonly serverItems: readonly Rail
               position={index + 1}
               total={builder.draft.steps.length}
               issueCount={builder.issueCounts.get(step.stepId) ?? 0}
-              isSelected={step.stepId === builder.selectedStepId}
+              isSelected={
+                builder.selection.kind === "step" && builder.selection.stepId === step.stepId
+              }
               onSelect={() => {
                 builder.choose(step.stepId);
               }}
@@ -81,11 +213,20 @@ export function RailSteps({ serverItems }: { readonly serverItems: readonly Rail
           </li>
         ))}
       </ol>
-      <AddStep
-        onAdd={(title) => {
-          builder.add(title);
-        }}
-      />
+      <AddStep onOpen={openAdd} />
+      {adding && (
+        <AddStepDialog
+          title={newTitle}
+          onTitle={setNewTitle}
+          onCancel={() => {
+            setAdding(false);
+          }}
+          onAdd={() => {
+            builder.add(newTitle.trim());
+            setAdding(false);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -326,23 +467,88 @@ function StepRow({
   );
 }
 
-/** The add control, under the list, where the drawing puts it. */
-function AddStep({ onAdd }: { readonly onAdd: (title: string) => void }) {
-  const [title, setTitle] = useState("");
+/**
+ * The add control, under the list, where the drawing puts it.
+ *
+ * A BUTTON THAT OPENS A DIALOG rather than a field standing open in the rail (Code Owner,
+ * 2026-08-26). The field was on screen whether or not anyone was adding a step, which put a
+ * permanent empty text input under a navigation list and cost the rail a label, a control
+ * and their spacing on every screen of the builder. It is the same shape Rename already
+ * uses, and for the same reason given there: the rail track is 240px, and a field inside it
+ * is narrower than most step titles.
+ */
+function AddStep({ onOpen }: { readonly onOpen: () => void }) {
   return (
     <div className="qcms-rail-steps__add">
-      <TextField label={t("forms.steps.newTitle")} value={title} onChange={setTitle} />
-      <Button
-        variant="secondary"
-        size="sm"
-        isDisabled={title.trim() === ""}
-        onPress={() => {
-          onAdd(title.trim());
-          setTitle("");
-        }}
-      >
+      {/* `ghost` rather than `secondary`, which is a naming trap rather than a preference:
+          the kit's `secondary` is a SOLID slate fill with white text, so in a rail of quiet
+          rows it read as the loudest thing on the screen and as the primary action of the
+          whole builder, which it is not. `ghost` is the kit's outlined treatment - a border
+          and ordinary text colour - which is what a secondary action looks like here. The
+          dialog it opens keeps `primary` on its confirm, because inside that dialog adding
+          the step IS the primary action. */}
+      <Button variant="ghost" size="sm" onPress={onOpen}>
         {t("forms.steps.add")}
       </Button>
+    </div>
+  );
+}
+
+/**
+ * Naming the new step, in a dialog, wherever the request came from.
+ *
+ * One component and one instance because there are two ways to ask for it now - the control
+ * under the list and the form row's menu above it - and two dialogs would be two drafts of
+ * a title, with the one you had typed into depending on which control you had reached for.
+ *
+ * A dialog rather than a field standing open in the rail (Code Owner, 2026-08-26): the field
+ * was on screen whether or not anyone was adding a step, which is a permanent empty text
+ * input inside a navigation control. It is the shape Rename already uses, for the reason
+ * given there - the rail track is 240px, and a field inside it is narrower than most step
+ * titles.
+ */
+function AddStepDialog({
+  title,
+  onTitle,
+  onCancel,
+  onAdd,
+}: {
+  readonly title: string;
+  readonly onTitle: (next: string) => void;
+  readonly onCancel: () => void;
+  readonly onAdd: () => void;
+}) {
+  return (
+    <Dialog
+      isOpen
+      title={t("forms.steps.add")}
+      onOpenChange={(isOpen: boolean) => {
+        if (!isOpen) onCancel();
+      }}
+    >
+      <TextField label={t("forms.steps.newTitle")} value={title} onChange={onTitle} />
+      <Button variant="primary" size="md" isDisabled={title.trim() === ""} onPress={onAdd}>
+        {t("forms.steps.addDone")}
+      </Button>
+    </Dialog>
+  );
+}
+
+/**
+ * The add control on the seven form screens that have no builder mounted.
+ *
+ * Wearing the same geometry and the same quiet outline as the button it stands in for, so
+ * the rail does not change shape between screens, but it is an `<a>`: pressing it goes to
+ * the builder, which is where a step can actually be added. The kit's `Button` renders a
+ * `<button>` and takes no `className`, so this is the shared row treatment written out in
+ * `app/globals.css` rather than a second kit variant.
+ */
+function AddStepLink({ href }: { readonly href: string }) {
+  return (
+    <div className="qcms-rail-steps__add">
+      <Link href={href} className="qcms-rail-steps__add-link">
+        {t("forms.steps.add")}
+      </Link>
     </div>
   );
 }

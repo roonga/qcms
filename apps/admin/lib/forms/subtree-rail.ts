@@ -118,11 +118,26 @@ function stepLabel(step: DraftStep): string {
  */
 export function formSubtreeRail({
   formId,
+  slug,
+  title,
   steps,
   issueCounts,
   current,
 }: {
   readonly formId: string;
+  /**
+   * The form's name, which is what its own row in the rail is called.
+   *
+   * MERGED WITH THE SUMMARY LINE (Code Owner, 2026-08-26). The rail used to say the form's
+   * name twice above its rows - once in the disclosure summary and once as a row labelled
+   * "Form details" - which is two lines for one thing and no way to tell them apart. The
+   * row is the one that does something, so the row keeps the name and the summary is
+   * hidden where the rail is a permanent sidebar. It stays below `--bp-sidebar`, where the
+   * rail collapses and that line is the whole of it (issue 693).
+   */
+  readonly slug: string;
+  /** The form's own title, or `""` when it has none. See {@link formDisplayName}. */
+  readonly title: string;
   readonly steps: readonly DraftStep[];
   readonly issueCounts: ReadonlyMap<string, number>;
   readonly current: RailCurrent;
@@ -141,7 +156,9 @@ export function formSubtreeRail({
     siblings: RAIL_SECTIONS.map((section) => ({
       key: `section:${section}`,
       href: sectionHref(base, section),
-      label: t(`forms.tab.${section}`),
+      // The builder's row is the form's own screen, so it is named for the form rather
+      // than for the tool. Every other row is named for the screen it opens.
+      label: section === "builder" ? formDisplayName(title, slug) : t(`forms.tab.${section}`),
       issueCount: 0,
       isCurrent: current.kind === "section" && current.section === section,
     })),
@@ -166,8 +183,24 @@ export function formSubtreeRail({
  * unrelated facts on one line, so the badge is the FORM's total: what a shut rail can
  * usefully say about a form is how much is wrong with it.
  */
-export function railSummary(groups: RailGroups, slug: string): RailSummary {
-  return { text: slug, issueCount: railIssueTotal(groups) };
+export function railSummary(groups: RailGroups, slug: string, title: string): RailSummary {
+  return { text: formDisplayName(title, slug), issueCount: railIssueTotal(groups) };
+}
+
+/**
+ * What to CALL a form on screen: its title, or its slug when it has no title yet.
+ *
+ * The title is what an author named the thing and the slug is how it is addressed, so the
+ * title is what a person recognises. It is not guaranteed to exist - a form can be created
+ * before it is named, and until 2026-08-26 nothing in this app showed the title at all -
+ * so the slug is the fallback rather than an empty row.
+ *
+ * One function because the rail says this name in two places, the row and the collapsed
+ * summary, and two of them would eventually disagree about which name a form has.
+ */
+export function formDisplayName(title: string, slug: string): string {
+  const named = title.trim();
+  return named === "" ? slug : named;
 }
 
 /**

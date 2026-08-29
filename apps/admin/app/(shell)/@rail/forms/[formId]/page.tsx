@@ -17,24 +17,23 @@ import { FormRailSlot } from "./rail-slot";
  * all along - steps nested inside the Form row, each with a menu, an add control beneath -
  * and that is what ships now.
  *
- * ## `interactiveSteps` is an upgrade, not a different list
+ * ## Interactivity is an upgrade, not a different list, and no flag turns it on
  *
- * Every form screen renders the same nested steps. Here they additionally become buttons
- * that select a step in the editor beside them, once the builder has published its draft
- * through `lib/forms/builder-bridge.ts`. Until it does - and for a reader with no
- * JavaScript - they are the same anchors the other seven screens show, pointing at the
- * fragment `lib/forms/issues.ts` mints for issue focus.
+ * All eight form screens render the same component with the same data. Here the rows
+ * additionally become buttons that select a step in the editor beside them, once the
+ * builder has published its draft through `lib/forms/builder-bridge.ts`. Nothing tells the
+ * rail which screen it is on: only the builder mounts a builder, so only here does
+ * anything publish, which is why the flag that used to say so was removed rather than
+ * kept in step with the truth by hand.
+ *
+ * Until the builder publishes - and for a reader with no JavaScript - the rows are the same
+ * anchors the other seven screens show, pointing at the fragment `lib/forms/issues.ts`
+ * mints for issue focus.
  */
 export default function FormBuilderRail({
   params,
 }: {
   readonly params: Promise<{ formId: string }>;
 }) {
-  return (
-    <FormRailSlot
-      params={params}
-      current={{ kind: "section", section: "builder" }}
-      interactiveSteps
-    />
-  );
+  return <FormRailSlot params={params} current={{ kind: "section", section: "builder" }} />;
 }

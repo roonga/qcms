@@ -7,6 +7,8 @@ import {
   createForm,
   field,
   issueSummary,
+  openFormDetails,
+  openStep,
   pinQuestion,
   savedStamp,
   waitForSaveAfter,
@@ -76,13 +78,17 @@ test("a draft with issues does not read as publish-ready before anything has che
   test.setTimeout(180_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/forms/${SEEDED_FORM}`);
-  await expect(page.getByRole("heading", { name: "Step: Driving history" })).toBeVisible();
 
+  // THE BUILDER OPENS ON THE FORM, not on a step, since the two became separate screens on
+  // 2026-08-26. The panel and the grid are on opposite sides of that split now, so this
+  // reads each where it lives rather than expecting both at once.
+  //
   // The panel, which `plan/admin-ux-audit.md` §5.6 makes the single authoritative count.
   await expect(issueSummary(page)).toContainText(NOT_CHECKED);
   await expect(issueSummary(page)).not.toContainText("would pass a publish");
 
   // The pin grid, which said the same thing one row at a time.
+  await openStep(page, "Driving history");
   await expect(page.locator('[data-pin-issues="unchecked"]')).toHaveCount(2);
   await expect(page.locator('[data-pin-issues="none"]')).toHaveCount(0);
 
@@ -120,22 +126,27 @@ test("a stored, checked, clean draft still says it has not been checked after a 
   await pinQuestion(page, `q_${questionSlug.replaceAll("-", "_")}`, 1);
   await waitForSaved(page);
 
-  // A real verdict of zero, which is the sentence this fix had to leave reachable.
-  await expect(issueSummary(page)).toHaveText(ALL_CLEAR, { timeout: 30_000 });
+  // A real verdict of zero, which is the sentence this fix had to leave reachable. The
+  // grid belongs to the step and the panel to the form, so each is read on its own screen.
   await expect(page.locator('[data-pin-issues="none"]')).toHaveCount(1);
+  await openFormDetails(page);
+  await expect(issueSummary(page)).toHaveText(ALL_CLEAR, { timeout: 30_000 });
 
   // The same draft, stored and clean, one reload later. The state is about whether a check
   // has run this visit, not about whether the draft reached the server: a fresh page has
   // asked nobody anything, so it says so rather than repeating the last visit's verdict.
   await page.reload();
   await expect(issueSummary(page)).toContainText(NOT_CHECKED);
+  await openStep(page, "Only step");
   await expect(page.locator('[data-pin-issues="unchecked"]')).toHaveCount(1);
 
   // And the first change puts a real count back, so the absence is a state rather than a
   // latch. One edit, and the panel and the grid both speak again.
   const before = await savedStamp(page);
+  await openFormDetails(page);
   await fillStable(field(page, "Form title"), "Untouched draft, renamed");
   await waitForSaveAfter(page, before);
   await expect(issueSummary(page)).toHaveText(ALL_CLEAR, { timeout: 30_000 });
+  await openStep(page, "Only step");
   await expect(page.locator('[data-pin-issues="none"]')).toHaveCount(1);
 });

@@ -1,6 +1,7 @@
 "use client";
 
-import { anchorFor, locationOf, messageForIssue } from "@/lib/forms/issues";
+import { useBuilderRail } from "@/lib/forms/builder-bridge";
+import { anchorFor, locationOf, messageForIssue, stepOwningAnchor } from "@/lib/forms/issues";
 import type { DraftForm, FormIssue } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
 
@@ -156,6 +157,7 @@ export function IssueEntry({
   readonly draft: DraftForm;
 }) {
   const anchor = anchorFor(issue, draft);
+  const builder = useBuilderRail();
   const where = locationOf(issue);
   const body = (
     <>
@@ -175,13 +177,53 @@ export function IssueEntry({
       className="qcms-text-link block"
       onClick={(event) => {
         const target = document.getElementById(anchor);
-        if (target === null) return;
+        if (target !== null) {
+          event.preventDefault();
+          focusAnchor(target);
+          return;
+        }
+
+        // NOT ON SCREEN IS NOT THE SAME AS NOT THERE. A pin is rendered by one step's
+        // editor, and the builder shows one screen at a time, so a link to a pin fires
+        // from the form screen - or from another step - with its target unrendered. The
+        // old code returned here and let the browser follow `#anchor` to nothing at all,
+        // which is a link that silently does nothing.
+        const stepId = stepOwningAnchor(issue, draft);
+        if (stepId === undefined || builder === undefined) return;
         event.preventDefault();
-        target.scrollIntoView({ block: "nearest" });
-        target.focus();
+        builder.choose(stepId);
+        focusWhenRendered(anchor);
       }}
     >
       {body}
     </a>
   );
+}
+
+/** Scroll a destination into view and put focus on it, which is the whole point of a jump. */
+function focusAnchor(target: HTMLElement): void {
+  target.scrollIntoView({ block: "nearest" });
+  target.focus();
+}
+
+/**
+ * Focus an element that does not exist yet because a screen switch is still rendering.
+ *
+ * `builder.choose` is a state update, so the step's editor is not in the document when the
+ * click handler returns. Waiting a bounded number of animation frames is deliberately
+ * dumber than it could be: the alternative is threading a "focus this after you render"
+ * value through the bridge, which would give the rail a second kind of state to own for one
+ * caller. Three frames is enough for a re-render and gives up rather than looping if the
+ * element never arrives, which is the honest outcome when an issue names something the
+ * draft no longer has.
+ */
+function focusWhenRendered(anchor: string, attemptsLeft = 3): void {
+  requestAnimationFrame(() => {
+    const target = document.getElementById(anchor);
+    if (target !== null) {
+      focusAnchor(target);
+      return;
+    }
+    if (attemptsLeft > 0) focusWhenRendered(anchor, attemptsLeft - 1);
+  });
 }

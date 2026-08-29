@@ -22,6 +22,7 @@ import {
   addStep,
   chooseOption,
   createForm,
+  openFormDetails,
   pinQuestion,
   rule,
   toggleCheckbox,
@@ -498,6 +499,12 @@ test("the form builder and the condition editor have zero violations", async ({ 
   await addStep(page, "Details");
   await pinQuestion(page, textId, 1);
   await waitForSaved(page);
+  // Scanned on the STEP screen, which is where pinning left us and where the pin grid is.
+  // The builder is two screens behind one route since 2026-08-26, so each gets its own
+  // scan rather than one scan that silently covers whichever happened to be showing.
+  await expectNoViolations(page, "form builder with steps and pins");
+
+  await openFormDetails(page);
   // The issue count and the save state are announced only because the paragraph holding
   // them is a live region, and nothing else in the suite says so (issue #368). The two
   // spans inside it are attached and carry their text either way, so no content assertion
@@ -505,7 +512,7 @@ test("the form builder and the condition editor have zero violations", async ({ 
   const validationStatus = page.getByTestId("qcms-validation-status");
   await expect(validationStatus).toBeAttached();
   await expect(validationStatus).toHaveAttribute("aria-live", "polite");
-  await expectNoViolations(page, "form builder with steps and pins");
+  await expectNoViolations(page, "form builder showing the form's own details");
 
   const ruleId = await addRule(page);
   const scope = rule(page, ruleId);

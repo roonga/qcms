@@ -521,6 +521,10 @@ export function frontendChildEnv(
       // belong to. That is the entire configuration of the admin since task 056: an
       // API address, the SEC-4 token, and this. No database URL, no auth secret.
       QCMS_ADMIN_BASE_URL: adminBaseUrl,
+      // ...and, since 2026-08-26, the respondent portal's origin, so the builder can show
+      // a published form's own public address. Read-only and optional: the admin makes no
+      // request to the portal, it only writes the URL down for an operator to hand out.
+      QCMS_PORTAL_BASE_URL: portalBaseUrl,
     };
   }
   return {
@@ -867,12 +871,25 @@ export async function runDevStack({ frontend, name }) {
     const toolkit = await loadDbToolkit();
     await migrateAndSeed(toolkit);
 
-    // One value, both children. It exists only in this process's memory and in the two
-    // environments it hands out, which is why the API cannot be started separately and
-    // then joined: nothing outside this process can learn the token (issue #281).
-    // Built in one call so there is no seam for a second token to enter; the starters
-    // take a finished environment and cannot reach the token at all.
-    const envs = stackChildEnvs({ frontend, internalToken: randomSecret() });
+    // One value, both children. Built in one call so there is no seam for a second token
+    // to enter; the starters take a finished environment and cannot reach the token at
+    // all.
+    //
+    // Generated per run unless the operator pins one, which is the same shape
+    // `adminAuthSecret` above already has and is there for the same kind of reason. Issue
+    // #281's note that "nothing outside this process can learn the token" described the
+    // default, not a security boundary: this is a development launcher, the token is a
+    // dev secret, and the alternative to pinning it was reading it out of the running
+    // API's `/proc/<pid>/environ` - which is worse in every way, including as a habit.
+    //
+    // What it buys: a SECOND frontend against this same API and database. `dev:admin`
+    // starts one API and one frontend, so an author checking a published form's public
+    // link had no portal to open it in. Pin the token, start the other frontend's
+    // `next dev` with the same value, and both talk to one stack.
+    const envs = stackChildEnvs({
+      frontend,
+      internalToken: process.env.QCMS_INTERNAL_TOKEN ?? randomSecret(),
+    });
     await startApi(envs.api);
     await startFrontend(frontend, envs.frontend);
 

@@ -699,6 +699,14 @@ export const ENV_REFERENCE = [
     description: "Must match the API's value; used for the app's own session bookkeeping.",
   },
   {
+    name: "QCMS_PORTAL_BASE_URL",
+    process: "admin",
+    requirement: "optional",
+    fallback: "",
+    description:
+      "The **portal's** variable, read here too: it is the origin a published form's public link is built against, so the builder can show the address respondents use (`${QCMS_PORTAL_BASE_URL}/f/<slug>`). Set the same value the API and the portal get. Unset, the builder shows no link rather than a broken one, which is why it is optional here and required of those two. This app never makes a request to the portal; it writes the address down for an operator to hand out.",
+  },
+  {
     name: "QCMS_PORTAL_THEME",
     process: "admin",
     requirement: "optional",

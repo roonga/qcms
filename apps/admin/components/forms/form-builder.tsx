@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { Alert, Button, TextField } from "@/components/kit";
-import { AmbientSaveStatus } from "@/components/save-model";
+import { AmbientSaveStatus, AutosaveFlash } from "@/components/save-model";
 import type {
   PreviewConditionState,
   SaveDraftState,
@@ -26,7 +26,7 @@ import {
   updateRule,
   type UnsaveableReason,
 } from "@/lib/forms/draft";
-import { issuesForRule, stepIssueCounts } from "@/lib/forms/issues";
+import { issuesForRule, stepAnchorId, stepIssueCounts } from "@/lib/forms/issues";
 import type {
   DraftForm,
   DraftRule,
@@ -41,7 +41,8 @@ import type { ReadState } from "@/lib/read-state";
 import { ConditionEditor } from "./condition-editor";
 import { FormSettingsPanel } from "./form-settings-panel";
 import { RuleTestBench } from "./rule-test-bench";
-import { usePublishBuilderRail } from "@/lib/forms/builder-bridge";
+import { concurrentNoticeCookie } from "@/lib/builder-notice";
+import { usePublishBuilderRail, type BuilderSelection } from "@/lib/forms/builder-bridge";
 import { StepEditor } from "./step-editor";
 import { ValidationPanel, type BuilderStatus } from "./validation-panel";
 
@@ -103,6 +104,10 @@ const AUTOSAVE_DEBOUNCE_MS = 600;
 export function FormBuilder({
   detail,
   library,
+  formActions,
+  formHeading,
+  formMeta,
+  concurrentNoticeRead,
   saveDraft,
   validateDraft,
   updateSettings,
@@ -110,6 +115,32 @@ export function FormBuilder({
 }: {
   readonly detail: FormDetail;
   readonly library: ReadState<readonly PinnableQuestion[]>;
+  /**
+   * Publish and close/reopen, rendered on the form screen.
+   *
+   * A node rather than an import: `FormActions` is a server component carrying actions
+   * already bound to this form's id, and a client component can neither bind one nor
+   * render one it imported. Handing it down as a prop is how a client boundary carries
+   * server-rendered content, and it keeps the publish surface out of this bundle.
+   */
+  readonly formActions: ReactNode;
+  /**
+   * The form's name, identity line and draft origin, rendered on the form screen.
+   *
+   * A node for the same reason {@link formActions} is one: the page composes it from the
+   * server's own read of the form, and the builder only decides which of its two screens
+   * it belongs on. The `<h1>` travelling with it is why the step screen promotes its own
+   * heading to `h1` - see the step branch below.
+   */
+  readonly formHeading: ReactNode;
+  /** The form's id, locale, status and draft origin, as one muted line under the heading. */
+  readonly formMeta: ReactNode;
+  /**
+   * Whether this operator has already dismissed the concurrent-edit warning.
+   *
+   * Read from the request's cookie by the page, so the first render is already right.
+   */
+  readonly concurrentNoticeRead: boolean;
   readonly saveDraft: (draft: DraftForm) => Promise<SaveDraftState>;
   readonly validateDraft: (draft: DraftForm) => Promise<ValidateDraftState>;
   readonly updateSettings: (patch: {
@@ -139,9 +170,12 @@ export function FormBuilder({
   // can be low-churn while a test can still tell two saves apart. Issue 518.
   const [lastSavedAt, setLastSavedAt] = useState<string | undefined>(undefined);
   const [saveError, setSaveError] = useState<string | undefined>(undefined);
-  const [selectedStepId, setSelectedStepId] = useState<string | undefined>(
-    detail.draft?.steps[0]?.stepId,
-  );
+  // OPENS ON THE FORM, not on the first step, and that is the drawing rather than a
+  // preference: `plan/admin-shell-poc/admin-shell-poc.html` gives its Form row
+  // `aria-current="page"` in the markup it ships. It is also the honest landing for a
+  // screen whose rail now lists the steps - the reader picks the one they came for
+  // instead of being dropped into whichever one happens to be first.
+  const [selection, setSelection] = useState<BuilderSelection>({ kind: "form" });
 
   // Whether the author has touched anything this visit. Without it the first render would
   // post the draft straight back, which would store a `seeded` draft nobody edited.
@@ -203,7 +237,38 @@ export function FormBuilder({
     };
   }, [draft, paused]);
 
-  const selectedStep = draft.steps.find((step) => step.stepId === selectedStepId) ?? draft.steps[0];
+  // THE STEP THE READER ASKED FOR, when they arrived asking for one.
+  //
+  // Every step row on the other seven form screens is a link to `/forms/{id}#step-{stepId}`,
+  // and so is the rail's own list here before this component has hydrated. Landing on this
+  // screen from one of them used to show the FORM: the fragment named an element, the
+  // browser scrolled to it, and the selection stayed on its default. Clicking a step and
+  // getting the form's settings is the bug that reported this, and it read as intermittent
+  // because after hydration the same rows are buttons that select properly - so it only
+  // happened on a first click, or from another screen.
+  //
+  // Mount only. A later hash change is the validation panel moving focus to a pin or a
+  // step, which `IssueEntry` already handles by selecting the owning step itself; re-running
+  // this on every hash change would fight it.
+  useEffect(() => {
+    const prefix = `#${stepAnchorId("")}`;
+    const hash = window.location.hash;
+    if (!hash.startsWith(prefix)) return;
+    const stepId = hash.slice(prefix.length);
+    // Only a step this draft actually has. A stale link to a removed step selects nothing
+    // rather than emptying the editor.
+    if (!draft.steps.some((step) => step.stepId === stepId)) return;
+    setSelection({ kind: "step", stepId });
+    // Deliberately empty: this is about the ARRIVAL, not about every later draft change.
+  }, []);
+
+  // No fallback to the first step. A selection that names a step this draft no longer has
+  // is not "some other step", it is nothing, and the handlers below move the selection back
+  // to the form rather than letting the editor guess.
+  const selectedStep =
+    selection.kind === "step"
+      ? draft.steps.find((step) => step.stepId === selection.stepId)
+      : undefined;
   // The step rail badges a step only when its count is ABOVE zero, so it has no all-clear
   // to fabricate: with no verdict it renders no badges and asserts nothing, which is the
   // same silence §7's form-subtree rail keeps on the other seven screens when a dry run
@@ -219,14 +284,20 @@ export function FormBuilder({
       () => ({
         draft,
         issueCounts: counts,
-        selectedStepId: selectedStep?.stepId,
+        selection,
+        chooseForm: () => {
+          setSelection({ kind: "form" });
+        },
         choose: (stepId: string) => {
-          setSelectedStepId(stepId);
+          setSelection({ kind: "step", stepId });
         },
         add: (title: string) => {
           const next = addStep(draft, title);
           mutate(next);
-          setSelectedStepId(next.steps[next.steps.length - 1]?.stepId);
+          // Adding a step is a request to work on it, so the screen goes there. The guard
+          // is for the impossible case rather than a real one: `addStep` always appends.
+          const added = next.steps[next.steps.length - 1];
+          if (added !== undefined) setSelection({ kind: "step", stepId: added.stepId });
         },
         rename: (stepId: string, title: string) => {
           mutate(renameStep(draft, stepId, title));
@@ -236,98 +307,125 @@ export function FormBuilder({
         },
         remove: (stepId: string) => {
           mutate(removeStep(draft, stepId));
+          // The screen cannot stay on a step that no longer exists, and the form is the
+          // one destination that is always there. Falling to a neighbouring step would be
+          // choosing on the author's behalf which of the remaining ones they meant.
+          if (selection.kind === "step" && selection.stepId === stepId) {
+            setSelection({ kind: "form" });
+          }
         },
       }),
-      [draft, counts, selectedStep?.stepId, mutate],
+      [draft, counts, selection, mutate],
     ),
   );
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Ambient save chrome: persistent, first thing on the screen, and the only place
-          this screen states how it saves (design-language element 7; issue 518). It is
-          rendered here rather than in the app shell because exactly one screen in this app
-          autosaves, and a strip in the shell would have to be suppressed on the other
-          fifteen - `plan/admin-design-contracts.md` §6's "exactly one save statement per
-          screen" is easier to hold when the statement belongs to the screen that means it.
-          `hasFailed` reads `saveError` rather than `status`, because a failed VALIDATE
-          round trip also sets `status` to "error" and that is not a save failure: the
-          draft is stored before the validate call is made, so this strip goes on saying
-          "Saved" through one, truthfully. The failed check is stated by the validation
-          panel instead, which is where the count it could not refresh already lives. */}
-      <AmbientSaveStatus
-        isSaving={status === "saving"}
-        hasFailed={saveError !== undefined}
-        savedAt={lastSavedAt}
-      />
-      <BuilderNotices detail={detail} paused={paused} saveError={saveError} />
+      <SaveNotices paused={paused} saveError={saveError} />
 
-      {/* 033 stood a disabled Publish button here with a note saying publishing was
-          task 034's. It is, and it landed: the real control lives in `FormActions`
-          above this component, where a refused publish can render its anchored work
-          list beside the rules it points at. */}
-      <TextField
-        label={t("forms.builder.formTitle")}
-        description={t("forms.builder.formTitleHint")}
-        value={textOf(draft.title, draft.defaultLocale)}
-        onChange={(next) => {
-          mutate({ ...draft, title: { ...draft.title, [draft.defaultLocale]: next } });
-        }}
-      />
+      {/* TWO SCREENS BEHIND ONE ROUTE, and the rail is the switch (Code Owner, 2026-08-26).
+          `plan/admin-shell-poc/admin-shell-poc.html` says so in its own card subtitle - "left
+          rail navigating a form screen and a step screen" - and draws the two: a Form screen
+          of Form title, Form settings, Rules, Rule test bench and Validation, and a Step
+          screen of that step's questions and nothing else.
 
-      {/* The three grids below are the builder's only responsive behaviour, and they
-          do NOT all turn at the same width. `plan/admin-design-contracts.md` §1
-          fixes two boundaries and sorts side-by-side layouts between them, and these
-          three fall on both sides of that sort. Both tokens are defined in
-          `app/globals.css`; `compact:` and `sidebar:` are their utility prefixes.
+          It used to be one screen carrying both, which meant the five FORM-level panels sat
+          under whichever step was selected and followed the reader from step to step. Nothing
+          was duplicated in the DOM, but the arrangement said the wrong thing: panels that
+          belong to the form read as though each step had its own copy of them, and the only
+          way to reach the form's settings was through a step that has nothing to do with them.
 
-          THIS grid is the form's steps beside the step editor, and it keys to
-          `--bp-sidebar`. §7 defines the rail as carrying the form's children, its
-          steps with their per-step issue badges, so `StepsRail` is that rail, and
-          §1's "panes stack rather than shrink" clause carves out the case where the
-          panes are the rail itself. The render says the same thing the contract
-          does: the first track is a fixed 18rem, so splitting at the compact
-          boundary leaves the editor 288px, narrower than the 342px the same editor
-          gets stacked on a 390px phone, and its button labels wrap. Satisfying the
-          clause's letter while contradicting the reason it gives is the signal that
-          the wrong boundary was picked. (Ruled on PR 576 by applying §1 and §7, not
-          by deciding anything new. Issue 559 builds the real rail component and may
-          replace this grid outright; until it does, this is the boundary the
-          contract names for it.)
+          The three grids below are the builder's only responsive behaviour, and they do NOT
+          all turn at the same width. `plan/admin-design-contracts.md` §1 fixes two boundaries
+          and sorts side-by-side layouts between them. These are page content - rules beside
+          the validation panel, form settings beside the rule bench - so they key to
+          `--bp-compact`, which is what §1 assigns to ordinary side-by-side panes. The step
+          list is not one of them: it left this column for the rail on 2026-08-25, and
+          `components/forms/rail-steps.tsx` is where it went. */}
+      {selection.kind === "form" ? (
+        <>
+          {/* WRAPPED, and the wrapper is load-bearing rather than layout. `formActions` is
+              rendered by the SERVER and handed across the client boundary, which strips the
+              marking React uses to tell a statically-written child from a dynamic one. As a
+              bare member of this fragment's children array it therefore reads as a keyless
+              list item, and React logs "Each child in a list should have a unique key" on
+              every visit to the builder - which `e2e/support/gates.ts` fails the test for,
+              correctly: a console error on a screen is a defect whether or not anything
+              looks wrong. Being an only child, it is not in a list at all. */}
+          {/* The heading, the two things you can do to the form, how it last saved, and
+              what it is - in two rows, where it was five.
 
-          The two grids below it are page content and key to `--bp-compact`: rules
-          beside the validation panel, form settings beside the rule bench. §7 says
-          the rail never carries same-page section switches and that validation stays
-          on the builder page, so none of those four panes is rail content and the
-          carve-out does not reach them. They are ordinary side-by-side panes, which
-          §1 assigns to the compact boundary.
+              `display: contents` on the heading's wrapper is load-bearing. The wrapper
+              exists because a server-rendered node arriving across the client boundary
+              reads to React as a keyless list item when it sits bare in a multi-child
+              array, but the heading inside it is visually hidden and therefore out of
+              flow, so the wrapper was an empty flex ITEM: zero wide, followed by the
+              row's `gap-x-4`, indenting the buttons past the breadcrumb above them by
+              16px. `contents` keeps the element and removes its box.
 
-          All three read `md:` until issue 557, so all three broke at Tailwind's
-          default 48rem, a third boundary the contract does not have. The two compact
-          grids therefore split at 640 now instead of 768, which is the one
-          deliberate behaviour change here: between those widths they sit side by
-          side where they used to stack. `minmax(0, 1fr)` is what keeps the narrower
-          track from overflowing at the new low end. */}
-      {/* THE STEPS ARE IN THE RAIL, so this is the editor alone rather than a two-track
-          grid (Code Owner, 2026-08-25). It used to be an 18rem step list beside the editor,
-          which meant the builder carried a second step list while the rail beside it
-          carried none: one screen, two lists, and no single place that owned them. The
-          comment that used to stand here reasoned at length about which breakpoint that
-          grid should turn at; there is no grid to turn now.
+              `items-start` rather than baseline: the right column is two stacked lines
+              now, and aligning its first baseline to a button's would hang it below the
+              row it belongs to. */}
+          <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+            <div className="contents">{formHeading}</div>
+            <div>{formActions}</div>
+            {/* What the form IS, above how it last saved: both are facts about the form
+                rather than actions on it, so they share the row's trailing edge and read
+                as one block rather than as chrome scattered across the header. */}
+            <div className="flex flex-col items-end gap-1">
+              <div>{formMeta}</div>
+              <AmbientSaveStatus
+                isSaving={status === "saving"}
+                hasFailed={saveError !== undefined}
+                savedAt={lastSavedAt}
+              />
+            </div>
+          </div>
+          <FormNotices detail={detail} concurrentRead={concurrentNoticeRead} />
+          <TextField
+            label={t("forms.builder.formTitle")}
+            description={t("forms.builder.formTitleHint")}
+            value={textOf(draft.title, draft.defaultLocale)}
+            onChange={(next) => {
+              mutate({ ...draft, title: { ...draft.title, [draft.defaultLocale]: next } });
+            }}
+          />
 
-          `components/forms/rail-steps.tsx` is where the list went, and
-          `lib/forms/builder-bridge.ts` is how it reaches this component's draft. */}
-      <div>
-        {/* Nothing rather than a second copy of the rail's own empty-state sentence: a
-            step editor with no step is exactly the state the rail is already explaining,
-            and saying it twice reads as two different facts. */}
-        {selectedStep === undefined ? null : (
-          <StepEditor
-            draft={draft}
-            step={selectedStep}
-            library={library}
-            issues={issues}
-            /* One `mutate` for the whole batch, folded left over the pins.
+          <div className="grid gap-4 compact:grid-cols-[minmax(0,1fr)_20rem]">
+            {/* Same reasoning as the step counts above: a rule renders its issue list only
+            when there is something in it, so an absent verdict and an empty one both come
+            out as no list rather than as an all-clear about the rule. */}
+            <RulesSection draft={draft} library={library} issues={issues ?? []} onChange={mutate} />
+            <ValidationPanel draft={draft} issues={issues} status={status} />
+          </div>
+
+          <div className="grid gap-4 compact:grid-cols-2">
+            <FormSettingsPanel
+              settings={detail.settings}
+              challengeProvider={detail.challengeProvider}
+              updateSettings={updateSettings}
+            />
+            <RuleTestBench
+              draft={draft}
+              rules={draft.rules}
+              library={library}
+              previewCondition={previewCondition}
+            />
+          </div>
+        </>
+      ) : (
+        <div>
+          {/* Nothing rather than a second copy of the rail's own empty-state sentence: a
+              step editor with no step is exactly the state the rail is already explaining,
+              and saying it twice reads as two different facts. */}
+          {selectedStep === undefined ? null : (
+            <StepEditor
+              draft={draft}
+              step={selectedStep}
+              saveFlash={<AutosaveFlash savedAt={lastSavedAt} />}
+              library={library}
+              issues={issues}
+              /* One `mutate` for the whole batch, folded left over the pins.
                `addPinAt` is pure and returns the next draft, so the fold is what makes a
                multi-pin add correct: calling this handler once per pin would hand
                `addPinAt` the SAME closed-over `draft` every time and keep only the last
@@ -335,55 +433,34 @@ export function FormBuilder({
                is what it is to the author: one press of one button.
                The boundary advances with each pin so the batch lands in the order it was
                chosen, rather than every pin insetting at `index` and arriving reversed. */
-            onAddPins={(pins, index) => {
-              mutate(
-                pins.reduce(
-                  (next, pin, offset) =>
-                    addPinAt(
-                      next,
-                      selectedStep.stepId,
-                      pin.questionId,
-                      pin.version,
-                      index + offset,
-                    ),
-                  draft,
-                ),
-              );
-            }}
-            onMovePin={(questionId, version) => {
-              mutate(movePin(draft, questionId, version));
-            }}
-            onRemovePin={(questionId) => {
-              mutate(removePin(draft, questionId));
-            }}
-            onReorderPin={(questionId, delta) => {
-              mutate(movePinWithinStep(draft, selectedStep.stepId, questionId, delta));
-            }}
-          />
-        )}
-      </div>
-
-      <div className="grid gap-4 compact:grid-cols-[minmax(0,1fr)_20rem]">
-        {/* Same reasoning as the step counts above: a rule renders its issue list only
-            when there is something in it, so an absent verdict and an empty one both come
-            out as no list rather than as an all-clear about the rule. */}
-        <RulesSection draft={draft} library={library} issues={issues ?? []} onChange={mutate} />
-        <ValidationPanel draft={draft} issues={issues} status={status} />
-      </div>
-
-      <div className="grid gap-4 compact:grid-cols-2">
-        <FormSettingsPanel
-          settings={detail.settings}
-          challengeProvider={detail.challengeProvider}
-          updateSettings={updateSettings}
-        />
-        <RuleTestBench
-          draft={draft}
-          rules={draft.rules}
-          library={library}
-          previewCondition={previewCondition}
-        />
-      </div>
+              onAddPins={(pins, index) => {
+                mutate(
+                  pins.reduce(
+                    (next, pin, offset) =>
+                      addPinAt(
+                        next,
+                        selectedStep.stepId,
+                        pin.questionId,
+                        pin.version,
+                        index + offset,
+                      ),
+                    draft,
+                  ),
+                );
+              }}
+              onMovePin={(questionId, version) => {
+                mutate(movePin(draft, questionId, version));
+              }}
+              onRemovePin={(questionId) => {
+                mutate(removePin(draft, questionId));
+              }}
+              onReorderPin={(questionId, delta) => {
+                mutate(movePinWithinStep(draft, selectedStep.stepId, questionId, delta));
+              }}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -402,20 +479,122 @@ const PAUSE_MESSAGES: Readonly<Record<UnsaveableReason, MessageKey>> = {
 };
 
 /** The standing notices: where this draft came from, and what autosave is doing. */
-function BuilderNotices({
+/**
+ * The three standing facts about the FORM: it was seeded, it is closed, someone else may
+ * be editing it. Said once, on the form's own screen (Code Owner, 2026-08-26).
+ *
+ * They used to stand above the whole builder, so every step screen repeated all three -
+ * three information alerts above a step's questions, none of which are about that step and
+ * none of which change while the reader works. Saying a standing fact once, where the
+ * subject of the fact lives, is the whole of it.
+ *
+ * The save notices below are deliberately NOT here: see the note on {@link SaveNotices}.
+ */
+function FormNotices({
   detail,
+  concurrentRead,
+}: {
+  readonly detail: FormDetail;
+  readonly concurrentRead: boolean;
+}) {
+  // The dismissal lives HERE rather than inside the notice it hides, so that this
+  // component can know whether it has anything at all to say. It did not, and rendered an
+  // empty box for a form with nothing to report: in a `gap-6` column a zero-height child
+  // still takes a whole gap slot, so the screen sat 48px below its header where 24px was
+  // meant. The same defect the save notices had, in the same column, found the same way -
+  // by measuring rather than by looking.
+  const [dismissed, setDismissed] = useState(concurrentRead);
+  const seeded = detail.draftSource === "seeded";
+  const closed = detail.status === "closed";
+  if (!seeded && !closed && dismissed) return null;
+
+  return (
+    <div className="flex flex-col gap-2">
+      {seeded && <Alert variant="info">{t("forms.builder.seeded")}</Alert>}
+      {closed && <Alert variant="info">{t("forms.builder.closed")}</Alert>}
+      {!dismissed && (
+        <ConcurrentNotice
+          onDismiss={() => {
+            setDismissed(true);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * The concurrent-edit warning: said in full once, then dismissed for good (Code Owner,
+ * 2026-08-26).
+ *
+ * It is a standing fact about how this app saves - there is no locking, and the last save
+ * wins - so it never changes and it was permanently occupying four lines above every form.
+ * A warning nobody can stop reading is one everybody stops reading.
+ *
+ * WHAT THIS TRADE COSTS, stated rather than buried: an operator who dismisses it on their
+ * machine never sees it again, and a colleague joining the team later sees it on theirs
+ * only until they dismiss it too. The warning is about coordinating with other authors, so
+ * the person who most needs it is the one who has been here long enough to have dismissed
+ * it. `docs/operations.md` is where it stays permanently true; this is the prompt, not the
+ * documentation.
+ *
+ * The state arrives from the server on the request's own cookie rather than being read here
+ * after mount, which is what keeps the screen right in its first byte instead of pushing
+ * itself down a frame later - see `lib/builder-notice.ts`.
+ */
+function ConcurrentNotice({ onDismiss }: { readonly onDismiss: () => void }) {
+  return (
+    <Alert variant="info">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <span>{t("forms.builder.concurrent")}</span>
+        <Button
+          variant="ghost"
+          size="sm"
+          onPress={() => {
+            // Written from the browser rather than through a server action: it is a
+            // preference nothing depends on, and a round trip to record "this person has
+            // read a sentence" would be the heavier half of the feature. A refused write
+            // (a browser blocking cookies) still hides it for this visit, which is the
+            // behaviour the press asked for.
+            try {
+              document.cookie = concurrentNoticeCookie(window.location.protocol === "https:");
+            } catch {
+              // Ignored on purpose: see above.
+            }
+            onDismiss();
+          }}
+        >
+          {t("forms.builder.concurrentDismiss")}
+        </Button>
+      </div>
+    </Alert>
+  );
+}
+
+/**
+ * Autosave paused, and a save that failed. These stay above the screen split, on every
+ * screen, and that is the point rather than an oversight.
+ *
+ * The three above are standing facts about the form, and a reader who has read them once
+ * has read them. These two are about the save happening right now, and the work at risk
+ * when they appear is usually the step the reader is editing: hiding "this draft is not
+ * being saved" behind a screen switch would hide it exactly when it matters most. They
+ * appear rarely and clear themselves, so they cost the step screen nothing when quiet.
+ */
+function SaveNotices({
   paused,
   saveError,
 }: {
-  readonly detail: FormDetail;
   readonly paused: UnsaveableReason | undefined;
   readonly saveError: string | undefined;
 }) {
+  // NOTHING, not an empty box. The builder's column is a `gap-6` flex stack, so a wrapper
+  // that renders with zero height still consumes a whole gap slot: on the step screen that
+  // put 48px between the breadcrumb and the step's card where 24px was intended, and the
+  // empty div doing it was invisible in the picture and in the DOM inspector alike.
+  if (paused === undefined && saveError === undefined) return null;
   return (
     <div className="flex flex-col gap-2">
-      {detail.draftSource === "seeded" && <Alert variant="info">{t("forms.builder.seeded")}</Alert>}
-      {detail.status === "closed" && <Alert variant="info">{t("forms.builder.closed")}</Alert>}
-      <Alert variant="info">{t("forms.builder.concurrent")}</Alert>
       {paused !== undefined && (
         <div data-testid="qcms-autosave-paused" data-paused-reason={paused}>
           <Alert variant="warning">{t(PAUSE_MESSAGES[paused])}</Alert>

@@ -43,6 +43,7 @@ import { RailDisclosure } from "@/components/rail-disclosure";
  *
  */
 export function RailFrame({
+  modifier,
   label,
   summaryText,
   summaryCount,
@@ -54,10 +55,23 @@ export function RailFrame({
   readonly summaryText: string;
   /** The active item's issue count, already written out, or `undefined` when it has none. */
   readonly summaryCount?: string;
+  /**
+   * A name for THIS rail, when a rule has to reach one of the three and not the others.
+   *
+   * The form rail is the only caller so far: its summary line is hidden where the rail is
+   * a permanent sidebar, because its first ROW carries the form's name there. The settings
+   * and question rails have no such row, so their summary is the only place their scope is
+   * written and it stays at every width.
+   */
+  readonly modifier?: string;
   readonly children: ReactNode;
 }) {
   return (
-    <nav className="qcms-rail" aria-label={label} data-testid="qcms-rail">
+    <nav
+      className={modifier === undefined ? "qcms-rail" : `qcms-rail qcms-rail--${modifier}`}
+      aria-label={label}
+      data-testid="qcms-rail"
+    >
       <RailDisclosure>
         <summary className="qcms-rail__summary">
           <span className="qcms-rail__summary-text">{summaryText}</span>

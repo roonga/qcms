@@ -182,8 +182,33 @@ vi.mock("@/components/save-model", () => ({
 vi.mock("@/components/forms/form-actions", () => ({
   FormActions: () => <div data-testid="qcms-form-actions-stub" />,
 }));
+// Stubbed like the actions beside it: this file is about what the page hands the builder
+// when a read fails, and the public link is neither read nor affected by one. Its own
+// behaviour is asserted in `lib/forms/public-link.test.ts`, which is where the decision
+// about when a link exists at all actually lives.
+vi.mock("@/components/forms/public-form-link", () => ({
+  PublicFormLink: () => <div data-testid="qcms-public-link-stub" />,
+}));
+// The page reads the portal's origin to build a published form's public address. Absent
+// here, which is a real deployment state and the one that renders nothing: this file is
+// about what a FAILED READ does to the builder, and the link is neither read nor affected.
+vi.mock("@/lib/server/config", () => ({ portalBaseUrl: () => undefined }));
+// Redirected to the real module rather than stubbed: it is a pure function and this file
+// wants the page's real answer about whether a link exists, not a fixed one.
+vi.mock("@/lib/forms/public-link", () => import("../../lib/forms/public-link.ts"));
+// Pure cookie helpers, redirected to the real module: this file wants the page's real
+// answer about whether the concurrent notice has been dismissed, which with no cookie on
+// the request is "no".
+vi.mock("@/lib/builder-notice", () => import("../../lib/builder-notice.ts"));
 vi.mock("@/lib/ops/unexpected", () => ({ unexpected: () => "ops.error.unexpected" }));
 
+// The page reads one cookie - whether the concurrent-edit notice has been dismissed - and
+// `cookies()` throws outside a request scope, which a direct render of the page is. An
+// empty jar is the honest stand-in: it is what a first visit sends, and it is the branch
+// that renders the notice, so nothing here is hidden by the stub.
+vi.mock("next/headers", () => ({
+  cookies: () => Promise.resolve({ get: () => undefined }),
+}));
 vi.mock("next/navigation", () => ({
   notFound: () => {
     throw new Error("NEXT_NOT_FOUND");
@@ -486,15 +511,49 @@ describe("the secure-link list's read states (issues 572, 544)", () => {
  * `lib/forms/pin-grid.test.ts` (issue 517 moved the grid's view model into a pure
  * helper). What is asserted HERE is the wiring the page owns: that the page hands the
  * builder a failed `ReadState` at all, and that the whole builder survives it.
+ *
+ * ## Why the pin assertions render the step editor rather than the page
+ *
+ * The builder became two screens on 2026-08-26 - the form's own details, and one step -
+ * and the rail switches between them. It opens on the form, which the drawing has current,
+ * so a static render of the page reaches the form screen and never the pin grid. Nor can a
+ * gesture take it there: the switch lives in the `@rail` slot, a different React tree that
+ * this render does not include, so there is no control inside this markup to press.
+ *
+ * The same answer the move-pin block below already gives, for the same reason it gives it:
+ * render `StepEditor` with the `ReadState` the page resolved. What that costs is stated
+ * rather than hidden - the page-to-builder-to-editor chain is no longer covered end to end
+ * at this layer, so the page half is asserted through what the page itself renders (the
+ * warning, and the absence of any library claim on the form screen) and the editor half
+ * through the value the page computes. `e2e/questions-lifecycle.pw.ts` crosses the whole
+ * chain in a browser, where the rail exists and can be clicked.
  */
 describe("the form builder's library read states (issues 572, 544)", () => {
+  async function renderPinGrid(): Promise<string> {
+    const { StepEditor } = await import("../../components/forms/step-editor");
+    const { readState } = await import("../../lib/read-state");
+    return renderToStaticMarkup(
+      <StepEditor
+        draft={FORM_DETAIL.draft}
+        step={FORM_DETAIL.draft.steps[0] as never}
+        library={readState(libraryResult as never) as never}
+        issues={[]}
+        onAddPins={() => undefined}
+        onMovePin={() => undefined}
+        onRemovePin={() => undefined}
+        onReorderPin={() => undefined}
+      />,
+    );
+  }
+
   it("makes no claim about the pinned versions when the library read fails", async () => {
     libraryResult = { ok: false, message: "upstream said 503" };
 
-    const html = await renderBuilder();
+    const page = await renderBuilder();
+    const grid = await renderPinGrid();
 
-    expect(html).toContain('data-testid="qcms-alert"');
-    expect(html).toContain("forms.error.libraryFailed");
+    expect(page).toContain('data-testid="qcms-alert"');
+    expect(page).toContain("forms.error.libraryFailed");
     // TWO VOCABULARIES IN ONE ASSERTION SET, and it is not an oversight. The grid's
     // library-owned cells are resolved inside `lib/forms/pin-grid.ts`, which is redirected
     // to the REAL module here (it is the subject) and therefore imports the REAL catalog
@@ -502,16 +561,20 @@ describe("the form builder's library read states (issues 572, 544)", () => {
     // renders through the mocked `@/lib/i18n/en` carries its key.
     //
     // Both tags below say the library was asked and answered. It was not asked.
-    expect(html).not.toContain("Version not found");
-    expect(html).not.toContain('data-pin-state="missing"');
-    expect(html).not.toContain("No label in the library");
-    expect(html).toContain('data-fallback="Label not known"');
+    expect(grid).not.toContain("Version not found");
+    expect(grid).not.toContain('data-pin-state="missing"');
+    expect(grid).not.toContain("No label in the library");
+    expect(grid).toContain('data-fallback="Label not known"');
+    // And the form screen the page actually opens on says nothing about the library
+    // either, which is the claim the warning above it would otherwise contradict.
+    expect(page).not.toContain("Version not found");
+    expect(page).not.toContain('data-pin-state="missing"');
   });
 
   it("keeps the builder and its draft edits when the library read fails", async () => {
     libraryResult = { ok: false, message: "upstream said 503" };
 
-    const html = await renderBuilder();
+    const html = await renderPinGrid();
 
     // The pin is still listed, as a row of the ownership grid, and its form-owned cells
     // still carry the facts the draft read supplied.
@@ -527,12 +590,12 @@ describe("the form builder's library read states (issues 572, 544)", () => {
   it("still tags a pin the library really has lost when the read succeeds", async () => {
     // The control. A library that WAS read and does not hold `q_one` is the case the tag
     // exists for, so gating it on the read must not delete it.
-    const html = await renderBuilder();
+    const grid = await renderPinGrid();
 
-    expect(html).toContain("Version not found");
-    expect(html).toContain('data-pin-state="missing"');
-    expect(html).toContain('data-fallback="No label in the library"');
-    expect(html).not.toContain("forms.error.libraryFailed");
+    expect(grid).toContain("Version not found");
+    expect(grid).toContain('data-pin-state="missing"');
+    expect(grid).toContain('data-fallback="No label in the library"');
+    expect(await renderBuilder()).not.toContain("forms.error.libraryFailed");
   });
 });
 

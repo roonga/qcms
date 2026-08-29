@@ -1,7 +1,9 @@
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 
 import { Alert, Breadcrumb, type BreadcrumbItem } from "@/components/kit";
 import { FormActions } from "@/components/forms/form-actions";
+import { CONCURRENT_NOTICE_COOKIE, isConcurrentNoticeDismissed } from "@/lib/builder-notice";
 import { FormBuilder } from "@/components/forms/form-builder";
 import type { FormDetail } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
@@ -101,38 +103,22 @@ export default async function FormBuilderPage({
   const crumbs: BreadcrumbItem[] = [
     { id: "forms", label: t("forms.builder.crumbs"), href: "/forms" },
     { id: form.formId, label: form.slug, href: `/forms/${encodeURIComponent(form.formId)}` },
-    { id: "builder", label: t("forms.builder.crumbBuilder") },
+    // The same name the rail's row carries and the same one the `<h1>` below uses. It
+    // said "Builder" while the row beside it said "Form details", which is one screen
+    // answering to two names.
+    { id: "builder", label: t("forms.tab.builder") },
   ];
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <Breadcrumb items={crumbs} ariaLabel={t("forms.builder.crumbLabel")} />
-        <h1 className="text-xl font-semibold text-(--color-text)">
-          {t("forms.builder.heading", { slug: form.slug })}
-        </h1>
-        <p className="text-sm text-(--color-text-muted)">
-          {t("forms.builder.formId")}: {form.formId} · {t("forms.builder.locale")}:{" "}
-          {form.defaultLocale} · {t("forms.builder.status")}: {t(`forms.status.${form.status}`)}
-        </p>
-        <p className="text-sm text-(--color-text-muted)">
-          {t(`forms.builder.draftSource.${form.draftSource}`)}
-        </p>
-      </div>
-
-      {/* Publish and close/reopen sit above the builder rather than on a screen of their
-          own, because a refused publish renders an anchored work list whose links move
-          focus into the rules and steps below it. The builder has to be on the page for
-          that to mean anything. */}
-      <FormActions
-        formId={form.formId}
-        slug={form.slug}
-        status={form.status}
-        draft={form.draft}
-        latestVersion={form.versions[0]?.version}
-        publish={publishFormAction.bind(null, form.formId)}
-        setStatus={setFormStatusAction.bind(null, form.formId)}
-      />
+      {/* The breadcrumb stays on both of the builder's screens, because it is about the
+          ROUTE and the route does not change when the rail switches what the column is
+          showing. What follows it - the form's name, its identity line and where its draft
+          came from - is about the form, so it is handed to the builder and rendered on the
+          form's own screen (Code Owner, 2026-08-26). It used to stand above both, so a
+          reader working on a step read four lines of form metadata above that step's
+          questions every time. */}
+      <Breadcrumb items={crumbs} ariaLabel={t("forms.builder.crumbLabel")} />
 
       {!library.ok && (
         <Alert variant="warning">
@@ -140,9 +126,68 @@ export default async function FormBuilderPage({
         </Alert>
       )}
 
+      {/* PUBLISH AND CLOSE/REOPEN RIDE INSIDE THE BUILDER NOW (Code Owner, 2026-08-26),
+          on the screen that carries the form's own details, because that is what they act
+          on: they publish the FORM and they close the FORM, and standing them above a
+          column that is usually showing one step said they were about the step.
+
+          Passed as a node rather than imported by the builder, which keeps `FormActions`
+          a server component holding its own bound actions - a client component cannot
+          bind a server action, and making the builder import it would drag the whole
+          publish surface into the client bundle for no reason.
+
+          The reason they used to sit above the builder still holds and is now handled
+          where it belongs: a refused publish renders an anchored work list whose links
+          move focus to the rule, step or pin at fault. A pin lives on a step screen this
+          one is not showing, so `IssueEntry` selects the owning step first and then
+          focuses - see `components/forms/validation-panel.tsx`. */}
       <FormBuilder
         detail={form}
         library={readState(library)}
+        // Read on the request rather than after mount, so a screen that will not show the
+        // notice never renders it and then takes it away.
+        concurrentNoticeRead={isConcurrentNoticeDismissed(
+          (await cookies()).get(CONCURRENT_NOTICE_COOKIE)?.value,
+        )}
+        formHeading={
+          // THE SCREEN'S NAME, not the form's (Code Owner, 2026-08-26). Issue 679 exempted
+          // this route on the reasoning that "on the builder the subject IS the form", and
+          // that was true of one screen. It is two now: this one is the form's details and
+          // the other is a step, which heads itself. The form's name is directly above in
+          // the breadcrumb and again in the rail, so repeating it here was the same
+          // duplication the five section screens just lost.
+          // Visually hidden for the reason the shared form header writes out at length
+          // (`components/forms/form-page-header.tsx`, whose name is deliberately not
+          // spelled here: `section-headings.test.tsx` reads this file's SOURCE for that
+          // identifier to prove this route does not render it, and cannot tell a mention
+          // in a comment from a use). The
+          // breadcrumb directly above already reads "Forms / {slug} / Form details", so a
+          // visible copy tells a sighted reader what they have just read. It stays in the
+          // accessibility tree, because a screen without a level-one heading is one a
+          // screen reader cannot navigate by.
+          <h1 className="qcms-visually-hidden">{t("forms.tab.builder")}</h1>
+        }
+        formMeta={
+          // One muted line of bare values. They were three labelled lines - "Form ID:",
+          // "Default locale:", "Status:" and then the draft's origin on its own - which is
+          // a lot of chrome for facts an author reads once and then never looks at again.
+          // The values say what they are: an id looks like an id, and a status is a word.
+          <p className="text-sm text-(--color-text-muted)">
+            {form.formId} · {form.defaultLocale} · {t(`forms.status.${form.status}`)} ·{" "}
+            {t(`forms.builder.draftSource.${form.draftSource}`)}
+          </p>
+        }
+        formActions={
+          <FormActions
+            formId={form.formId}
+            slug={form.slug}
+            status={form.status}
+            draft={form.draft}
+            latestVersion={form.versions[0]?.version}
+            publish={publishFormAction.bind(null, form.formId)}
+            setStatus={setFormStatusAction.bind(null, form.formId)}
+          />
+        }
         saveDraft={saveDraftAction.bind(null, form.formId)}
         validateDraft={validateDraftAction.bind(null, form.formId)}
         updateSettings={updateSettingsAction.bind(null, form.formId)}

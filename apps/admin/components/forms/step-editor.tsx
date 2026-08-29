@@ -129,8 +129,16 @@ export function StepEditor({
   onMovePin,
   onRemovePin,
   onReorderPin,
+  saveFlash,
 }: {
   readonly draft: DraftForm;
+  /**
+   * A brief "Saved", shown beside this step's heading when an autosave lands.
+   *
+   * Passed in rather than rendered here because the save state belongs to the builder,
+   * which owns the draft and its autosave; this component only knows where it goes.
+   */
+  readonly saveFlash?: ReactNode;
   readonly step: DraftStep;
   readonly library: ReadState<readonly PinnableQuestion[]>;
   /**
@@ -253,9 +261,25 @@ export function StepEditor({
       aria-labelledby="qcms-step-heading"
       className="flex flex-col gap-4 rounded-md border border-(--color-border) bg-(--color-surface) p-4"
     >
-      <h2 id="qcms-step-heading" className="text-base font-semibold text-(--color-text)">
-        {t("forms.step.heading", { title })}
-      </h2>
+      {/* AN `h1`, because on the step screen this IS the screen's subject (Code Owner,
+          2026-08-26). The form's name used to be the `<h1>` above both of the builder's
+          screens; it moved to the form's own screen with the rest of the form's identity,
+          which would have left a step screen whose highest heading was an `h2` - a
+          `heading-order` violation and a page with no level-one heading, both of which
+          `e2e/a11y-axe.pw.ts` sweeps for. `admin-shell-poc.html` draws it this way too:
+          its step screen is headed by the step.
+
+          The id and the string are unchanged, so the section it labels and every lookup
+          by accessible name still find it. */}
+      {/* The heading and the save flash share one row, whose height the heading sets. A
+          transient element in the column's own flow would push the screen down as it
+          arrived and pull it back as it left: a layout shift twice per autosave. */}
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h1 id="qcms-step-heading" className="text-base font-semibold text-(--color-text)">
+          {t("forms.step.heading", { title })}
+        </h1>
+        {saveFlash}
+      </div>
       <p className="text-sm text-(--color-text-muted)">{t("forms.step.pinNote")}</p>
 
       {rows.length === 0 ? (

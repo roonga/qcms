@@ -469,7 +469,6 @@ export const messages = {
   // sections compose `forms.section.heading` instead, because their subject is a collection
   // belonging to the form; on the builder the subject IS the form, so the bare slug is the
   // heading rather than a heading that has not been written yet.
-  "forms.builder.heading": "{slug}",
   "forms.builder.formId": "Form ID",
   "forms.builder.locale": "Default locale",
   "forms.builder.status": "Status",
@@ -483,14 +482,17 @@ export const messages = {
     "This draft was started from the newest published version and has not been saved yet. Your first change stores it.",
   "forms.builder.concurrent":
     "Autosave replaces the stored draft outright: if another author has this form open, whichever of you saves last wins and the other's change is gone. There is no locking at launch, so coordinate before editing the same form.",
+  "forms.save.flash": "Saved",
+  "forms.builder.concurrentDismiss": "Got it",
   "forms.builder.saveFailed": "This draft could not be saved. {message}",
   "forms.builder.closed":
     "This form is closed to new responses. Editing the draft is still allowed; publishing is what makes a change live.",
 
   "forms.save.model": "This draft saves automatically as you edit.",
-  "forms.save.idle": "No changes yet.",
+  "forms.save.modelLabel": "How does this screen save?",
+  "forms.save.idle": "Not saved yet",
   "forms.save.saving": "Saving...",
-  "forms.save.saved": "Saved {time}",
+  "forms.save.saved": "Last saved {time}",
   "forms.save.failed": "The last save failed.",
   "forms.save.pausedNoSteps":
     "Autosave is paused: a form needs at least one step before it can be stored.",
@@ -519,6 +521,7 @@ export const messages = {
   "forms.steps.title": "Steps",
   "forms.steps.add": "Add step",
   "forms.steps.newTitle": "New step title",
+  "forms.steps.addDone": "Add",
   "forms.steps.select": "Open step {title}",
   "forms.steps.menu": "Actions for step {title}",
   "forms.steps.rename": "Rename",
@@ -800,7 +803,14 @@ export const messages = {
   // form's edit history or its responses. The rail follows the screen's name by the rule
   // `plan/admin-design-contracts.md` §7 records, which anticipates exactly this rename.
   "forms.section.heading": "{section}: {slug}",
-  "forms.tab.builder": "Builder",
+  // "Form details" rather than "Builder" since 2026-08-26 (Code Owner). The row leads to
+  // the screen carrying the form's own title, settings, rules, test bench and validation,
+  // and `admin-shell-poc.html` labels it for its subject rather than for the tool. It also
+  // stopped being the only row that meant that: the builder briefly carried a second,
+  // nested "Form details" row beside this one, which is two rows saying one thing. Naming
+  // this one correctly is what let the other go. The builder route's own `<h1>` is the
+  // bare slug (issue 679), so nothing else on the screen moves with this.
+  "forms.tab.builder": "Form details",
   "forms.tab.preview": "Preview",
   "forms.tab.versions": "Version history",
   "forms.tab.links": "Links",
@@ -941,6 +951,20 @@ export const messages = {
   "forms.links.mintedAnnounce.other":
     "{count} secure links minted. They are listed below and cannot be shown again.",
   "forms.links.copy": "Copy URL",
+  "forms.publicLink.heading": "Public form link",
+  "forms.publicLink.copy": "Copy",
+  "forms.publicLink.opensNewTab": "(opens in a new tab)",
+  "forms.publicLink.helpLabel": "What is this link?",
+  // Both hints are the POC's sentence, split by the state the form is actually in rather
+  // than stating the condition and leaving the reader to work out which half applies.
+  // "the links below" rather than "on the Links screen" since 2026-08-26: this block moved
+  // ONTO that screen, and a sentence pointing at the screen it is standing on would send a
+  // reader looking for somewhere else. The distinction it draws is the whole reason the two
+  // are allowed to sit together, so it names what is actually beneath it.
+  "forms.publicLink.hintOpen":
+    "Anyone with this link can start a response while this form stays published and open. It never expires and it is never used up, which is what makes it different from the secure links below.",
+  "forms.publicLink.hintClosed":
+    "This form is closed, so anyone opening this link is told so rather than starting a response. The address never changes and works again if the form is reopened, which is what makes it different from the secure links below.",
   "forms.links.copied": "Link copied to the clipboard.",
   "forms.links.copyFailed": "The link could not be copied. Select the text and copy it manually.",
   "forms.links.exportCsv": "Download as CSV",
@@ -1411,6 +1435,7 @@ export const messages = {
   // distinct from the topbar's own landmark on the same page.
   "forms.rail.label": "{slug} steps and sections",
   "forms.rail.steps": "Steps",
+  "forms.rail.formMenu": "Actions for {title}",
   "forms.rail.sections": "Sections",
   // The ordinal beside a step title. A separate string rather than a template at the
   // call site because a locale that numbers differently changes it here (ADR-27).

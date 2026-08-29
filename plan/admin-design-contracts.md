@@ -451,6 +451,33 @@ Every screen states its model exactly once:
 Issue #518 implements the two shipped screens; this contract is what stops the
 POCs' third and fourth variants returning.
 
+**Amendment, 2026-08-26 (Code Owner): the autosaving screen states its model
+on demand, not permanently.**
+
+"Persistent chrome" was the letter; the reason was that an author must not be
+able to assume the wrong save model. Both survive here, and neither is
+weakened by the change - what moved is how the sentence is said.
+
+The strip now shows the state alone (`Last saved <date time>`, or `Not saved
+yet` before the first save) with the model sentence one press away behind a
+`?` beside it. It is on the screen it describes and next to the state it
+explains; it is not a `title` attribute, a tooltip or a link to
+documentation, all of which put it out of reach of touch, keyboard or a
+screen reader. §6's "exactly one" is untouched: one statement, one screen.
+
+Two things drove it. The sentence never changes, so it occupied a row
+permanently to say something an author reads once; and the strip was
+composed of the model, the state, and a third span that appeared while a
+save was in flight, so it changed width three times per save and visibly
+moved. It is one slot now, anchored to the end of its row, so the control
+beside it holds still.
+
+The step screen is the other half of the same ruling: it carries
+`AutosaveFlash` - one save, confirmed, then gone - and never the strip, so
+neither of the builder's two screens shows two save statements. The notices
+that INTERRUPT, autosave paused and save failed, are on both, which is what
+makes the quiet path safe to be quiet.
+
 **Amendment, 2026-08-21 (escalated by PR #585): one model per scope,
 not per screen.**
 
@@ -500,6 +527,20 @@ it belongs with #518's implementation, not here.
   one list and no divider between them. A form's steps belong to the form's own
   screen; a flat group above six sibling routes said they were a seventh peer of
   them, and the drawing never did.
+
+  **Amended 2026-08-26 (Code Owner): the builder's rail also carries a Form
+  details row.** It sits above the Steps group and outside it, because the form is
+  the sibling of the whole list rather than one of its members, and it selects the
+  form's own details - title, settings, rules, test bench and validation - as a
+  screen of their own. Those five are properties of the FORM and used to be stacked
+  under whichever step was selected, so they followed the reader from step to step
+  as though each step carried its own copy of them.
+
+  This is what `admin-shell-poc.html` has drawn since the shell work began; its own
+  card subtitle reads "left rail navigating a form screen and a step screen", and
+  its Form row ships carrying `aria-current="page"`. The row exists on the builder
+  alone: it is a same-page view switch, and on the other seven form screens the
+  Builder row is already the link that reaches those panels.
 
 - ~~The rail never carries actions (no lifecycle buttons - those belong in the
   main column), never carries same-page section switches~~, and never carries a

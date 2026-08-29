@@ -1,6 +1,6 @@
 import { FormSubtreeRail } from "@/components/forms/form-subtree-rail";
 import { RailSteps } from "@/components/forms/rail-steps";
-import type { RailCurrent } from "@/lib/forms/subtree-rail";
+import type { RailCurrent, RailItem } from "@/lib/forms/subtree-rail";
 import { loadFormRail } from "@/lib/server/form-rail";
 import { requireAdminSession } from "@/lib/server/session";
 
@@ -51,20 +51,10 @@ import { requireAdminSession } from "@/lib/server/session";
 export async function FormRailSlot({
   params,
   current,
-  interactiveSteps = false,
 }: {
   readonly params: Promise<{ formId: string }>;
   /** Which row of the rail this screen is. */
   readonly current: RailCurrent;
-  /**
-   * Whether the nested steps can be worked on rather than only walked to.
-   *
-   * True on the builder alone, which is the one screen with a draft to change. Everywhere
-   * else a step row is a link to the builder's own anchor for it, which is what it has
-   * always been. `RailSteps` renders the same anchors until the builder publishes, so this
-   * flag turns on an upgrade rather than a different list.
-   */
-  readonly interactiveSteps?: boolean;
 }) {
   const session = await requireAdminSession();
   const { formId } = await params;
@@ -77,10 +67,13 @@ export async function FormRailSlot({
     <FormSubtreeRail
       formId={rail.formId}
       slug={rail.slug}
+      title={rail.title}
       steps={rail.steps}
       issueCounts={rail.issueCounts}
       current={current}
-      {...(interactiveSteps ? { renderSteps: (steps) => <RailSteps serverItems={steps} /> } : {})}
+      renderSteps={(item: RailItem, steps: readonly RailItem[]) => (
+        <RailSteps item={item} serverItems={steps} />
+      )}
     />
   );
 }

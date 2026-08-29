@@ -187,6 +187,11 @@ services:
       # an operator may put a CDN in front of one only. Both shipped ingress recipes
       # front this app the way they front the portal, so 1 is right for both by default.
       QCMS_ADMIN_TRUSTED_PROXY_HOPS: ${QCMS_ADMIN_TRUSTED_PROXY_HOPS:-1}
+      # The respondent portal's public origin, so the builder can show a published form's
+      # own address. This service makes no request to the portal; it writes the URL down.
+      # Optional here and required of `api` and `portal`, which is why it takes the same
+      # variable without the `:?` guard those two carry.
+      QCMS_PORTAL_BASE_URL: ${QCMS_PORTAL_BASE_URL:-}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       # The api service's twin, and it must hold the same value: that service decides
       # whether an unenrolled session is accepted, this one decides whether the

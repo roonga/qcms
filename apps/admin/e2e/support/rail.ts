@@ -32,6 +32,14 @@ import { confirmLifecycle, createDraft } from "./questions.js";
  * A step title long enough to overflow the 240px column, so a frame of the expanded rail
  * shows what a long author-supplied title actually does there (issues 582, 595, 596).
  */
+/**
+ * What this fixture's form is CALLED, as opposed to how it is addressed.
+ *
+ * Exported because the rail shows the title rather than the slug since 2026-08-26, so the
+ * specs asserting what the rail says need the same string the fixture was built with.
+ */
+export const RAIL_FORM_TITLE = "Household cover";
+
 export const RAIL_LONG_STEP_TITLE =
   "Household members, their vehicles and the drivers who use them";
 
@@ -70,7 +78,7 @@ export async function createRailFixture(page: Page, run: string): Promise<RailFi
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
 
   const slug = `rail-${run}`;
-  const formId = await createForm(page, slug, "Household cover");
+  const formId = await createForm(page, slug, RAIL_FORM_TITLE);
 
   // Each step is pinned before the next is added: a step with no question in it is not a
   // parseable definition, so a draft saved in that state is refused by the API rather than

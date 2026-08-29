@@ -68,6 +68,7 @@ async function render(
     <FormSubtreeRail
       formId="frm_life"
       slug="life"
+      title=""
       steps={steps}
       issueCounts={issueCounts}
       current={current}
@@ -80,7 +81,9 @@ const LINKS: RailCurrent = { kind: "section", section: "links" };
 describe("the rail's markup", () => {
   it("is a navigation landmark named after the form it belongs to", async () => {
     const html = await render(LINKS);
-    expect(html).toContain('<nav class="qcms-rail" aria-label="life steps and sections"');
+    expect(html).toContain(
+      '<nav class="qcms-rail qcms-rail--form" aria-label="life steps and sections"',
+    );
   });
 
   it("orders the tree with each step nested inside the Form row", async () => {
