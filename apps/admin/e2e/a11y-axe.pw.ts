@@ -303,8 +303,15 @@ test("the signed-out and failure states have zero violations", async ({ page }) 
 
   // The failure state carries a focused alert, which is where an accessible-name, duplicate
   // live region, or focus-order regression would land.
+  //
+  // SCOPED TO `main`, because Next mounts `__next-route-announcer__` - a second
+  // `role="alert"` - as the app hydrates, OUTSIDE `main`. An unscoped `getByRole("alert")`
+  // is therefore a race against hydration rather than an assertion: it resolved to one
+  // element often enough to pass for months and to two on 2026-08-30, on the first test of
+  // a cold suite. The alert this test is about is the page's own, and saying so is both
+  // the fix and the more accurate claim.
   await page.goto("/sign-in?error=1");
-  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(page.getByRole("main").getByRole("alert")).toBeVisible();
   await expectNoViolations(page, "sign-in error");
 
   await page.goto("/sign-in?throttled=1");
