@@ -56,9 +56,18 @@ import type { DraftForm } from "./types.ts";
  * card subtitle says "left rail navigating a form screen and a step screen" - and the rail
  * is what switches between them. So the form's details are `kind: "form"`, reached from a
  * row of the rail, and a step is `kind: "step"`, reached from that step's row.
+ *
+ * THREE SINCE 2026-08-26 (Code Owner): the rules got a screen of their own, `kind: "rules"`,
+ * drawn by `plan/admin-shell-poc/rules-screen-poc.html` as a full-width editor with its own
+ * rail row. It is a SELECTION rather than a route, and that distinction is the whole reason
+ * it was safe to make: `plan/admin-ux-audit.md` §5.5 refused a rules ROUTE because every
+ * rule-scoped validation anchor would resolve to nothing, and a selection lets an issue
+ * entry switch screens and then focus - see `anchorIsOnRulesScreen` in `lib/forms/issues.ts`.
  */
 export type BuilderSelection =
-  { readonly kind: "form" } | { readonly kind: "step"; readonly stepId: string };
+  | { readonly kind: "form" }
+  | { readonly kind: "rules" }
+  | { readonly kind: "step"; readonly stepId: string };
 
 export interface BuilderRailSnapshot {
   readonly draft: DraftForm;
@@ -66,6 +75,21 @@ export interface BuilderRailSnapshot {
   readonly selection: BuilderSelection;
   /** Show the form's own details rather than any step's. */
   readonly chooseForm: () => void;
+  /**
+   * Show the form's rules.
+   *
+   * A screen of their own since 2026-08-26, which `plan/admin-shell-poc/rules-screen-poc.html`
+   * has drawn all along. `plan/admin-ux-audit.md` §5.5 objected to that drawing, and to the
+   * right thing: it made Rules a sibling ROUTE, and "move Validation to its own route and
+   * every one of those anchors resolves to nothing" - the same hazard reaching rule anchors,
+   * which the publish rejection list reuses verbatim.
+   *
+   * A selection is not a route. The rules are one press away in the same tree, and
+   * `IssueEntry` switches to them before focusing, exactly as it already does to reach a pin
+   * inside a step. So the audit's "two-hop path... a real degradation to accept knowingly"
+   * does not have to be accepted: it was the cost of a route split, and this is not one.
+   */
+  readonly chooseRules: () => void;
   readonly choose: (stepId: string) => void;
   readonly add: (title: string) => void;
   readonly rename: (stepId: string, title: string) => void;

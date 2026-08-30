@@ -12,7 +12,6 @@ import type {
 } from "@/lib/forms/builder-state";
 import {
   addPinAt,
-  addRule,
   addStep,
   blankDraft,
   movePin,
@@ -20,28 +19,33 @@ import {
   moveStep,
   removePin,
   removeRule,
+  newRule,
   removeStep,
   renameStep,
   unsaveableReason,
-  updateRule,
+  upsertRule,
   type UnsaveableReason,
 } from "@/lib/forms/draft";
-import { issuesForRule, stepAnchorId, stepIssueCounts } from "@/lib/forms/issues";
+import { ruleAnchorId, stepAnchorId, stepIssueCounts } from "@/lib/forms/issues";
+import { hasSettingsChange, settingsPatch } from "@/lib/forms/settings";
 import type {
   DraftForm,
   DraftRule,
   FormDetail,
   FormIssue,
+  FormSettings,
   PinnableQuestion,
 } from "@/lib/forms/types";
 import { t, type MessageKey } from "@/lib/i18n/en";
 import { textOf } from "@/lib/questions/definition";
 import type { ReadState } from "@/lib/read-state";
 
-import { ConditionEditor } from "./condition-editor";
 import { FormSettingsPanel } from "./form-settings-panel";
-import { RuleTestBench } from "./rule-test-bench";
+import { RuleTestBenchPanel } from "./rule-test-bench";
+import { RuleWizard } from "./rule-wizard";
+import { RulesTable } from "./rules-table";
 import { concurrentNoticeCookie } from "@/lib/builder-notice";
+import { currentScreenName } from "./builder-breadcrumb";
 import { usePublishBuilderRail, type BuilderSelection } from "@/lib/forms/builder-bridge";
 import { StepEditor } from "./step-editor";
 import { ValidationPanel, type BuilderStatus } from "./validation-panel";
@@ -57,6 +61,11 @@ import { ValidationPanel, type BuilderStatus } from "./validation-panel";
  * value rather than a set of copies that have to be kept in step, and it is why the JSON
  * pane and the condition pickers cannot disagree: they edit the same node through the same
  * callback.
+ *
+ * Since 2026-08-29 it holds the form's SETTINGS too, which are not part of the draft and
+ * go to a route of their own. They are here for the reason everything else is: the panel
+ * that renders them is unmounted whenever the reader is looking at a step, and state that
+ * can be unmounted mid-debounce is state that can be lost without saying so.
  *
  * ## Autosave is advisory (022)
  *
@@ -105,7 +114,6 @@ export function FormBuilder({
   detail,
   library,
   formActions,
-  formHeading,
   formMeta,
   concurrentNoticeRead,
   saveDraft,
@@ -128,11 +136,11 @@ export function FormBuilder({
    * The form's name, identity line and draft origin, rendered on the form screen.
    *
    * A node for the same reason {@link formActions} is one: the page composes it from the
-   * server's own read of the form, and the builder only decides which of its two screens
-   * it belongs on. The `<h1>` travelling with it is why the step screen promotes its own
-   * heading to `h1` - see the step branch below.
+   * server's own read of the form, and the builder only decides which of its three screens
+   * it belongs on - the form's own details, the rules, or one step. The `<h1>` travelling
+   * with it is why the other two promote their own headings to `h1` - see those branches
+   * below.
    */
-  readonly formHeading: ReactNode;
   /** The form's id, locale, status and draft origin, as one muted line under the heading. */
   readonly formMeta: ReactNode;
   /**
@@ -170,6 +178,26 @@ export function FormBuilder({
   // can be low-churn while a test can still tell two saves apart. Issue 518.
   const [lastSavedAt, setLastSavedAt] = useState<string | undefined>(undefined);
   const [saveError, setSaveError] = useState<string | undefined>(undefined);
+  // THE FORM'S SETTINGS, held here beside the draft (Code Owner, 2026-08-29).
+  //
+  // They are not part of the draft and they never will be: a draft is a document under
+  // construction and these are two deployment switches with their own route. What changed
+  // is who holds them while they are being edited. `FormSettingsPanel` used to, along with
+  // its own Save button, and `plan/admin-design-contracts.md` §6 now gives this screen one
+  // save model instead of two.
+  //
+  // The state could not stay in the panel once the press went away. The form screen
+  // unmounts the moment the reader selects a step in the rail, which would cancel a
+  // debounce the panel owned and lose the edit waiting on it - silently, with no press
+  // left unpressed to explain it. Up here nothing unmounts until the route does.
+  //
+  // `stored` is what the API last confirmed and `settings` is what the controls show. Both
+  // are needed: the patch is the difference between them, and the route refuses a body
+  // carrying neither key.
+  const [storedSettings, setStoredSettings] = useState<FormSettings>(detail.settings);
+  const [settings, setSettings] = useState<FormSettings>(detail.settings);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsError, setSettingsError] = useState<string | undefined>(undefined);
   // OPENS ON THE FORM, not on the first step, and that is the drawing rather than a
   // preference: `plan/admin-shell-poc/admin-shell-poc.html` gives its Form row
   // `aria-current="page"` in the markup it ships. It is also the honest landing for a
@@ -185,16 +213,24 @@ export function FormBuilder({
     setDraft(next);
   };
 
-  // The two actions live in a ref, and that is not a style choice. They arrive already
+  // The three actions live in a ref, and that is not a style choice. They arrive already
   // bound to this route's form id, so the page hands down a NEW function identity on every
   // server render - and a successful save calls `revalidatePath`, which causes one. An
   // effect that depended on them would therefore re-arm its debounce because it had just
   // saved, save again, revalidate again, and never stop. Reading them through a ref keeps
   // the effect's inputs what they actually are: the draft, and whether it can be stored.
-  const actions = useRef({ saveDraft, validateDraft });
-  actions.current = { saveDraft, validateDraft };
+  //
+  // `updateSettings` joined them on 2026-08-29 and it is the same trap, not a similar one:
+  // `updateSettingsAction` revalidates this exact path too, so a settings autosave that
+  // depended on the prop would be the same loop with a different action in it.
+  const actions = useRef({ saveDraft, validateDraft, updateSettings });
+  actions.current = { saveDraft, validateDraft, updateSettings };
 
   const paused = unsaveableReason(draft);
+  // The one name for the screen being shown, shared with the breadcrumb so the two cannot
+  // drift. `currentScreenName` takes the published snapshot rather than the selection,
+  // because that is what the crumb outside this tree can also read.
+  const screenName = currentScreenName(selection, draft.steps);
 
   useEffect(() => {
     if (!isDirty.current || paused !== undefined) return undefined;
@@ -237,6 +273,51 @@ export function FormBuilder({
     };
   }, [draft, paused]);
 
+  // The settings, on the same debounce and deliberately the same shape as the effect above
+  // (Code Owner, 2026-08-29). One save model on this screen means one way of saving, so
+  // this is the draft's loop with the second round trip removed: settings have no issues
+  // to validate and no `paused` state, because there is no such thing as a settings pair
+  // that cannot be stored.
+  //
+  // `settingsPatch` is what arms it. Once a save lands, `stored` catches up with what the
+  // controls show, the patch is empty, and this returns without arming anything - which is
+  // what stops a save from causing the next one. It is also why the effect can depend on
+  // both values rather than on a dirty flag: "nothing to send" is a computed fact here
+  // rather than a remembered one.
+  useEffect(() => {
+    const patch = settingsPatch(storedSettings, settings);
+    if (!hasSettingsChange(patch)) return undefined;
+    setSettingsSaving(true);
+    const timer = setTimeout(() => {
+      void (async () => {
+        const result = await actions.current.updateSettings(patch);
+        setSettingsSaving(false);
+        if (result.status === "error") {
+          // `stored` is left alone on purpose, so the patch survives and the controls keep
+          // showing what the author asked for rather than snapping back to a value the API
+          // never accepted. Nothing retries: a refusal here is a refusal of this exact
+          // patch (the route caps the override at an hour), so retrying it on a timer
+          // would fail forever and say so forever.
+          setSettingsError(result.message);
+          return;
+        }
+        setSettingsError(undefined);
+        // The API's echo when there is one, and the patch applied when there is not.
+        // Falling back to `settings` would be wrong: the author may have moved a switch
+        // while this was in flight, and taking their newer value as confirmed would drop
+        // the save it still needs.
+        setStoredSettings(result.settings ?? { ...storedSettings, ...patch });
+        // THE SAME TIMESTAMP the draft's save writes, not one of this scope's own. §6
+        // gives the screen exactly one statement of when work was stored, the ambient
+        // strip is it, and the settings now feed it rather than growing a rival to it.
+        setLastSavedAt(new Date().toISOString());
+      })();
+    }, AUTOSAVE_DEBOUNCE_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [settings, storedSettings]);
+
   // THE STEP THE READER ASKED FOR, when they arrived asking for one.
   //
   // Every step row on the other seven form screens is a link to `/forms/{id}#step-{stepId}`,
@@ -251,6 +332,24 @@ export function FormBuilder({
   // step, which `IssueEntry` already handles by selecting the owning step itself; re-running
   // this on every hash change would fight it.
   useEffect(() => {
+    // The rules row on the other seven screens is a LINK to this one carrying `#rules`,
+    // because there is no draft in that tree to select in. This is the other half of it.
+    if (window.location.hash === "#rules") {
+      setSelection({ kind: "rules" });
+      return;
+    }
+
+    // A rule's anchor, for the same reason: `/forms/{id}#rule-{ruleId}` is what a publish
+    // rejection's work list links to, and landing on it used to show the form's details.
+    const rulePrefix = `#${ruleAnchorId("")}`;
+    if (window.location.hash.startsWith(rulePrefix)) {
+      const ruleId = window.location.hash.slice(rulePrefix.length);
+      if (draft.rules.some((rule) => rule.ruleId === ruleId)) {
+        setSelection({ kind: "rules" });
+        return;
+      }
+    }
+
     const prefix = `#${stepAnchorId("")}`;
     const hash = window.location.hash;
     if (!hash.startsWith(prefix)) return;
@@ -288,6 +387,9 @@ export function FormBuilder({
         chooseForm: () => {
           setSelection({ kind: "form" });
         },
+        chooseRules: () => {
+          setSelection({ kind: "rules" });
+        },
         choose: (stepId: string) => {
           setSelection({ kind: "step", stepId });
         },
@@ -323,26 +425,36 @@ export function FormBuilder({
     <div className="flex flex-col gap-6">
       <SaveNotices paused={paused} saveError={saveError} />
 
-      {/* TWO SCREENS BEHIND ONE ROUTE, and the rail is the switch (Code Owner, 2026-08-26).
-          `plan/admin-shell-poc/admin-shell-poc.html` says so in its own card subtitle - "left
-          rail navigating a form screen and a step screen" - and draws the two: a Form screen
-          of Form title, Form settings, Rules, Rule test bench and Validation, and a Step
-          screen of that step's questions and nothing else.
+      {/* THREE SCREENS BEHIND ONE ROUTE, and the rail is the switch (Code Owner, 2026-08-26).
+          It was two: `plan/admin-shell-poc/admin-shell-poc.html` says so in its own card
+          subtitle - "left rail navigating a form screen and a step screen" - and draws them,
+          a Form screen of Form title, Form settings, Rules, Rule test bench and Validation,
+          and a Step screen of that step's questions and nothing else. The RULES then took a
+          screen of their own, drawn by `rules-screen-poc.html` as a full-width editor: a
+          condition editor is the widest thing this app builds, and it shared a row with the
+          validation panel only because everything form-level was crowded onto one screen.
 
-          It used to be one screen carrying both, which meant the five FORM-level panels sat
-          under whichever step was selected and followed the reader from step to step. Nothing
-          was duplicated in the DOM, but the arrangement said the wrong thing: panels that
-          belong to the form read as though each step had its own copy of them, and the only
-          way to reach the form's settings was through a step that has nothing to do with them.
+          A SELECTION, not a route, and `lib/forms/builder-bridge.ts` records why that
+          distinction is what made the third screen safe: `plan/admin-ux-audit.md` §5.5
+          refused a rules ROUTE because every rule-scoped validation anchor would resolve to
+          nothing, and a selection lets an issue entry switch screens and then focus.
 
-          The three grids below are the builder's only responsive behaviour, and they do NOT
-          all turn at the same width. `plan/admin-design-contracts.md` §1 fixes two boundaries
-          and sorts side-by-side layouts between them. These are page content - rules beside
-          the validation panel, form settings beside the rule bench - so they key to
-          `--bp-compact`, which is what §1 assigns to ordinary side-by-side panes. The step
-          list is not one of them: it left this column for the rail on 2026-08-25, and
+          It used to be ONE screen carrying everything, which meant the five FORM-level panels
+          sat under whichever step was selected and followed the reader from step to step.
+          Nothing was duplicated in the DOM, but the arrangement said the wrong thing: panels
+          that belong to the form read as though each step had its own copy of them, and the
+          only way to reach the form's settings was through a step that has nothing to do with
+          them.
+
+          The grid below is the builder's only responsive behaviour. `plan/admin-design-
+          contracts.md` §1 fixes two boundaries and sorts side-by-side layouts between them;
+          this is page content, so it keys to `--bp-compact`, which is what §1 assigns to
+          ordinary side-by-side panes. Two of the three grids this comment used to describe
+          are gone with the screens they laid out: rules no longer sit beside the validation
+          panel, and the settings no longer sit beside the rule bench. The step list is not
+          one of them either - it left this column for the rail on 2026-08-25, and
           `components/forms/rail-steps.tsx` is where it went. */}
-      {selection.kind === "form" ? (
+      {selection.kind === "form" && (
         <>
           {/* WRAPPED, and the wrapper is load-bearing rather than layout. `formActions` is
               rendered by the SERVER and handed across the client boundary, which strips the
@@ -367,16 +479,31 @@ export function FormBuilder({
               now, and aligning its first baseline to a button's would hang it below the
               row it belongs to. */}
           <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-            <div className="contents">{formHeading}</div>
+            {/* THE SCREEN'S NAME, and the same string the breadcrumb's last crumb uses -
+                one lookup, so a screen cannot answer to two names. Visually hidden because
+                the crumb directly above already says it; kept in the tree because a page
+                without a level-one heading is one a screen reader cannot navigate by.
+                `display: contents` on the wrapper: the heading is out of flow, and a
+                wrapper that generated a box would be an empty flex item indenting the
+                buttons past the breadcrumb. */}
+            <div className="contents">
+              <h1 className="qcms-visually-hidden">{screenName}</h1>
+            </div>
             <div>{formActions}</div>
             {/* What the form IS, above how it last saved: both are facts about the form
                 rather than actions on it, so they share the row's trailing edge and read
                 as one block rather than as chrome scattered across the header. */}
             <div className="flex flex-col items-end gap-1">
               <div>{formMeta}</div>
+              {/* ONE STRIP FOR BOTH SAVES (Code Owner, 2026-08-29). The settings stopped
+                  having a save model of their own, so they stopped having a save statement
+                  of their own: a settings save is in flight here, and a settings save that
+                  failed is a failed save here. §6's "exactly one save statement per screen"
+                  is kept by the strip covering everything the screen stores, not by the
+                  strip covering only some of it and a second sentence covering the rest. */}
               <AmbientSaveStatus
-                isSaving={status === "saving"}
-                hasFailed={saveError !== undefined}
+                isSaving={status === "saving" || settingsSaving}
+                hasFailed={saveError !== undefined || settingsError !== undefined}
                 savedAt={lastSavedAt}
               />
             </div>
@@ -391,29 +518,52 @@ export function FormBuilder({
             }}
           />
 
-          <div className="grid gap-4 compact:grid-cols-[minmax(0,1fr)_20rem]">
-            {/* Same reasoning as the step counts above: a rule renders its issue list only
-            when there is something in it, so an absent verdict and an empty one both come
-            out as no list rather than as an all-clear about the rule. */}
-            <RulesSection draft={draft} library={library} issues={issues ?? []} onChange={mutate} />
-            <ValidationPanel draft={draft} issues={issues} status={status} />
-          </div>
+          {/* VALIDATION STAYS HERE while the rules move to a screen of their own (Code
+              Owner, 2026-08-26). `plan/admin-ux-audit.md` §5.5 is emphatic that it should:
+              "Validation is not a destination. It is a companion to editing and it has to be
+              on the page whose controls it points at." Its entries are links that move focus
+              to the offending rule, step or pin, and those now live on three different
+              screens - so what makes them work is `IssueEntry` switching screens before it
+              focuses, not the panel sitting beside any one of them. */}
+          <ValidationPanel draft={draft} issues={issues} status={status} />
 
-          <div className="grid gap-4 compact:grid-cols-2">
-            <FormSettingsPanel
-              settings={detail.settings}
-              challengeProvider={detail.challengeProvider}
-              updateSettings={updateSettings}
-            />
-            <RuleTestBench
-              draft={draft}
-              rules={draft.rules}
-              library={library}
-              previewCondition={previewCondition}
-            />
-          </div>
+          {/* ONE COLUMN (Code Owner, 2026-08-26). The settings shared a two-track grid with
+              the rule test bench, and the bench has gone to the rules it tests, so there is
+              nothing to sit beside. A lone panel in a two-column grid is a column of
+              whitespace. */}
+          <FormSettingsPanel
+            settings={settings}
+            challengeProvider={detail.challengeProvider}
+            saveError={settingsError}
+            onChange={setSettings}
+          />
         </>
-      ) : (
+      )}
+      {selection.kind === "rules" && (
+        /* THE RULES, ON A SCREEN OF THEIR OWN (Code Owner, 2026-08-26), which
+           `plan/admin-shell-poc/rules-screen-poc.html` draws as a full-width editor and
+           heads "Rules". Full width here too: it shared the row with the validation panel
+           only because both were crowded onto one screen, and a rule's condition editor is
+           the widest thing this app builds.
+
+           TWO BENCHES, AND NEITHER IS THE OTHER (Code Owner, 2026-08-30). The screen's
+           stays under this table, expanded, with its Select over the form's rules: it
+           answers "the form has these rules - what does that one do", which is a question
+           asked while READING the table, about rules as they are stored. The wizard's
+           third phase is the other one, about the single rule being edited and against the
+           draft the dialog is buffering, so it answers about an edit that has not been
+           saved yet. One tests the form; the other tests the change.
+
+           The settings stay on the form's screen. */
+        <RulesSection
+          draft={draft}
+          library={library}
+          issues={issues ?? []}
+          previewCondition={previewCondition}
+          onChange={mutate}
+        />
+      )}
+      {selection.kind === "step" && (
         <div>
           {/* Nothing rather than a second copy of the rail's own empty-state sentence: a
               step editor with no step is exactly the state the rail is already explaining,
@@ -607,37 +757,72 @@ function SaveNotices({
   );
 }
 
-/** Every rule of the draft, plus the control that adds one. */
+/**
+ * Every rule of the draft, plus the control that adds one and the wizard that edits one.
+ *
+ * THE RULE BEING EDITED IS HELD BY VALUE HERE, which is the reverse of what this held
+ * before 2026-08-30 and is the buffering directly. It used to hold an ID and look the rule
+ * up on every render, because the draft was replaced on every keystroke inside the dialog
+ * and a held object would have gone stale immediately. The dialog no longer writes to the
+ * draft at all, so the object is now the only copy there is, and looking one up by id
+ * could not work for an ADD - a rule being added is not in the draft to be found.
+ *
+ * `RuleWizard` seeds its own buffer from this and hands it back on Save.
+ */
 function RulesSection({
   draft,
   library,
   issues,
+  previewCondition,
   onChange,
 }: {
   readonly draft: DraftForm;
   readonly library: ReadState<readonly PinnableQuestion[]>;
   readonly issues: readonly FormIssue[];
+  readonly previewCondition: (input: {
+    draft: DraftForm;
+    ruleId: string;
+    answers: Record<string, unknown>;
+  }) => Promise<PreviewConditionState>;
   readonly onChange: (next: DraftForm) => void;
 }) {
   // A condition has to read a question, so there is nothing to add a rule against until
   // the form pins one. The button says why rather than being silently inert.
   const firstPinned = draft.steps.flatMap((step) => step.items)[0]?.questionId;
+  const [edited, setEdited] = useState<DraftRule | undefined>(undefined);
 
   return (
     <section
       aria-labelledby="qcms-rules-heading"
-      className="flex flex-col gap-3 rounded-md border border-(--color-border) p-4"
+      // NO BOX (Code Owner, 2026-08-29). The border and padding made sense when the rules
+      // were one panel among five on the form's screen and something had to say where they
+      // began. They are the whole of their own screen now, so the frame was a box drawn
+      // around everything - and the table inside it already has its own edges.
+      className="flex flex-col gap-3"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="qcms-rules-heading" className="text-base font-semibold text-(--color-text)">
+        {/* AN `h1`, because on the rules screen this IS the screen's subject - the same
+            call the step screen's heading makes, and for the same reason: the form's own
+            heading is on the form's screen, so without this the rules screen would have no
+            level-one heading at all. `e2e/a11y-axe.pw.ts` sweeps for exactly that.
+
+            Not painted: the breadcrumb directly above ends in "Rules", so a visible copy
+            tells a sighted reader what they have just read. It stays in the tree because
+            the section is `aria-labelledby` it, and a region announced as "Rules" is how a
+            screen reader knows which of the three screens it is in. */}
+        <h1 id="qcms-rules-heading" className="qcms-visually-hidden">
           {t("forms.rules.title")}
-        </h2>
+        </h1>
         <Button
           variant="secondary"
           size="md"
           isDisabled={firstPinned === undefined}
           onPress={() => {
-            if (firstPinned !== undefined) onChange(addRule(draft, firstPinned));
+            // MINTED, NOT ADDED. The rule reaches the draft when Save is pressed and not
+            // before, so cancelling out of a rule you have just started leaves nothing
+            // behind - and no targetless rule is left to pause the screen's autosave
+            // (`unsaveableReason`'s third case).
+            if (firstPinned !== undefined) setEdited(newRule(draft, firstPinned));
           }}
         >
           {t("forms.rules.add")}
@@ -651,23 +836,58 @@ function RulesSection({
       {draft.rules.length === 0 ? (
         <p className="text-sm text-(--color-text-muted)">{t("forms.rules.empty")}</p>
       ) : (
-        <div className="flex flex-col gap-4">
-          {draft.rules.map((rule) => (
-            <ConditionEditor
-              key={rule.ruleId}
-              draft={draft}
-              rule={rule}
-              library={library}
-              issues={issuesForRule(issues, rule.ruleId)}
-              onChange={(next: DraftRule) => {
-                onChange(updateRule(draft, rule.ruleId, next));
-              }}
-              onRemove={() => {
-                onChange(removeRule(draft, rule.ruleId));
-              }}
-            />
-          ))}
-        </div>
+        <RulesTable
+          draft={draft}
+          library={library}
+          issues={issues}
+          onEdit={(ruleId) => {
+            setEdited(draft.rules.find((rule) => rule.ruleId === ruleId));
+          }}
+          onRemove={(ruleId) => {
+            onChange(removeRule(draft, ruleId));
+          }}
+        />
+      )}
+
+      {/* THE EDITOR IS A THREE-PHASE WIZARD IN A WIDE DIALOG (Code Owner, 2026-08-30), and
+          the table above is still the read view (Code Owner, 2026-08-26).
+
+          CANCEL AND SAVE, which means this buffers: `RuleWizard` holds the rule and only
+          what comes back through `onSave` reaches the draft. `plan/admin-design-contracts.md`
+          §6's 2026-08-30 amendment is the ruling and states the cost - while the dialog is
+          open the screen's autosave has nothing to save, so a long edit is unsaved work.
+
+          `key` is the rule id, so opening a different rule REMOUNTS the wizard and its
+          buffer is seeded afresh. Without it React would keep the state of the previous
+          rule's dialog, and the second rule an author opened would be shown the first
+          one's edits. */}
+      {/* THE SCREEN'S BENCH, EXPANDED (Code Owner, 2026-08-29, restored 2026-08-30). Under
+          the rules it tests, because it reads `draft.rules` and answers "what would this
+          rule do", which is a question you ask while looking at the rule. It takes the
+          STORED rules: the wizard's copy is the one that sees an edit in progress. */}
+      <RuleTestBenchPanel
+        draft={draft}
+        rules={draft.rules}
+        library={library}
+        previewCondition={previewCondition}
+      />
+
+      {edited !== undefined && (
+        <RuleWizard
+          key={edited.ruleId}
+          draft={draft}
+          rule={edited}
+          library={library}
+          issues={issues}
+          previewCondition={previewCondition}
+          onSave={(next) => {
+            onChange(upsertRule(draft, next));
+            setEdited(undefined);
+          }}
+          onCancel={() => {
+            setEdited(undefined);
+          }}
+        />
       )}
     </section>
   );

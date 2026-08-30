@@ -12,14 +12,19 @@ import {
   chooseOption,
   createForm,
   issue,
+  issueSummary,
+  openStep,
   pinQuestion,
+  usePinRowMenu,
   rule,
   ruleIds,
   savedStamp,
   toggleCheckbox,
   toggleTarget,
   waitForSaveAfter,
-  waitForSaved,
+  closeRuleEditor,
+  openFormDetails,
+  openRules,
 } from "./support/forms.js";
 import { confirmLifecycle, createDraft, fillDate, optionIds } from "./support/questions.js";
 
@@ -125,12 +130,20 @@ test("publishes a draft and reports what it froze (exit criterion 1)", async ({ 
   await addStep(page, "Claim details");
   await pinQuestion(page, questionIdFor(CLAIM_NOTES), 1);
 
+  // A STAMP BEFORE THE EDITOR OPENS. The wizard buffers since 2026-08-30, so the whole rule
+  // reaches the draft in ONE mutation when Save is pressed rather than keystroke by
+  // keystroke: "Saved" is already on screen from the pins, so `waitForSaved` would return
+  // instantly and the reload below would race the only round trip the rule ever gets.
+  const beforeRule = await savedStamp(page);
   const ruleId = await addRule(page);
   const scope = rule(page, ruleId);
   await chooseOption(scope, "Operator", "equals (the whole answer)");
   await chooseOption(scope, "Value", atFaultYesOption);
   await toggleTarget(page, ruleId, questionIdFor(ACCIDENT_COUNT), true);
-  await waitForSaved(page);
+  // `addRule` leaves you in the editor, and the editor is modal, so the save state behind
+  // it is unreachable until it closes.
+  await closeRuleEditor(page);
+  await waitForSaveAfter(page, beforeRule);
 
   // Publish freezes the draft the SERVER holds, and the confirmation's counts are read
   // from that same stored draft. Reloading first is not a workaround for that, it is the
@@ -288,16 +301,29 @@ test("a refused publish lists every issue and each one moves focus (exit criteri
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/forms/${formId}`);
 
-  // Break the draft the way an author breaks it: point the rule at the question its own
-  // condition reads, which the forward pass cannot honour (ADR-16).
+  // Break the draft the way an author breaks it. This used to point the rule at the
+  // question its own condition reads, chosen from the picker's ineligible group - which
+  // cannot be chosen from since 2026-08-30 (Code Owner), because an editable list of
+  // things a rule cannot show read as a list of things it could.
+  //
+  // So it breaks the other way, which is also the way this happens to people: the rule
+  // already shows the accident-count question, sitting directly after the at-fault
+  // question its condition reads. Moving that pin ABOVE the one the condition reads puts
+  // the target before the condition, and a rule that was legal when it was written is not
+  // any more. Nothing about the rule changes.
+  await openRules(page);
   const ruleId = (await ruleIds(page))[0] ?? "";
   expect(ruleId).toMatch(/^rul_/u);
+  await openStep(page, "Driving history");
   const beforeBreak = await savedStamp(page);
-  await toggleTarget(page, ruleId, questionIdFor(AT_FAULT), true);
+  await usePinRowMenu(page, questionIdFor(ACCIDENT_COUNT), "moveUp");
   // Publish reads the STORED draft, so the wait is about the save landing rather than
   // about the validation panel agreeing (`waitForSaveAfter` records why).
   await waitForSaveAfter(page, beforeBreak);
 
+  // The rule was broken on the rules screen; Publish is on the form's. Three screens now,
+  // and the publish controls belong to the form rather than to any of its parts.
+  await openFormDetails(page);
   await page.getByRole("button", { name: "Publish", exact: true }).click();
   await page
     .getByRole("alertdialog")
@@ -347,12 +373,17 @@ test("a refused publish lists every issue and each one moves focus (exit criteri
   await expect(previewStatus).toContainText("Preview unavailable");
   await expect(previewStatus.getByTestId("qcms-preview-rejected")).toHaveCount(0);
 
-  // Leave the draft publishable again for whatever runs next.
+  // Leave the draft publishable again for whatever runs next: the pin goes back where it
+  // was, which puts the target after the condition again.
   await page.goto(`/forms/${formId}`);
-  const restored = (await ruleIds(page))[0] ?? "";
+  await openStep(page, "Driving history");
   const beforeFix = await savedStamp(page);
-  await toggleTarget(page, restored, questionIdFor(AT_FAULT), false);
+  await usePinRowMenu(page, questionIdFor(AT_FAULT), "moveUp");
   await waitForSaveAfter(page, beforeFix);
+  await openFormDetails(page);
+  await expect(issueSummary(page)).toHaveText("No issues. Everything here would pass a publish.", {
+    timeout: 30_000,
+  });
 });
 
 test("mints, copies, exports and revokes a secure link (exit criterion 1)", async ({

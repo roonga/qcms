@@ -1,6 +1,7 @@
 "use client";
 
-import { Alert, Button, Checkbox, Select } from "@/components/kit";
+import { Button, Select } from "@/components/kit";
+import { SearchableSelect } from "@/components/searchable-select";
 import {
   addBranch,
   conditionDepth,
@@ -17,8 +18,7 @@ import {
   typeOfPinnedVersion,
   type ConditionPath,
 } from "@/lib/forms/condition";
-import { draftDocumentOrder, eligibleTargets } from "@/lib/forms/draft";
-import { messageForIssue, ruleAnchorId } from "@/lib/forms/issues";
+import { draftDocumentOrder } from "@/lib/forms/draft";
 import {
   CONDITION_OPS,
   type ConditionOp,
@@ -26,7 +26,6 @@ import {
   type DraftCondition,
   type DraftForm,
   type DraftRule,
-  type FormIssue,
   type PinnableQuestion,
 } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
@@ -37,7 +36,7 @@ import { ConditionJsonPane } from "./condition-json-pane";
 import { OperandControl, type OperandValue } from "./operand-control";
 
 /**
- * One rule's `{ when, show }`, edited structurally (task 033; ADR-19).
+ * One rule's `when` - the condition half - edited structurally (task 033; ADR-19).
  *
  * ## The pickers are the surface, the JSON is the mirror
  *
@@ -50,60 +49,43 @@ import { OperandControl, type OperandValue } from "./operand-control";
  * what makes exit criterion 4 structural: there is no edit path here that can leave a
  * half-built node behind.
  *
- * ## Why an ineligible target is still selectable
+ * ## The targets are no longer here, and that is a re-housing rather than a rewrite
  *
- * ADR-16 evaluates in one forward pass, so a rule may only show something that comes
- * after every question its condition reads. `eligibleTargets` is pure draft geometry, so
- * the answer is instant and the picker can group the legal targets first. The illegal ones
- * are **still listed and still selectable**, under their own heading, because an author who
- * picks one deserves to be told the rule rather than to find the option missing and wonder
- * why. Picking one raises the inline flag immediately; the authority is still the validate
- * endpoint, whose `RULE_BACKWARD_TARGET` (from the kernel's own `analyzeRuleGraph`) lands
- * on this same rule a debounce later.
+ * The `show` list left this file for `rule-targets.tsx` when the editor became a
+ * three-phase wizard (Code Owner, 2026-08-30): "When" is this component and "Then show"
+ * is that one, so a condition tree gets the room a nested boolean editor beside a JSON
+ * pane actually needs. Nothing about the tree changed in the move. The reasoning about
+ * why an ineligible target stays listed moved with the control it is about, to
+ * `lib/forms/rule-targets.ts`, because that is now where the grouping is decided.
+ *
+ * This component is a PHASE PANEL now, not a card: the wizard supplies the frame, the
+ * rule's identity and the footer, so what is left here is the fieldset, the tree and the
+ * JSON mirror.
  */
 export function ConditionEditor({
   draft,
   rule,
   library,
-  issues,
   onChange,
-  onRemove,
 }: {
   readonly draft: DraftForm;
   readonly rule: DraftRule;
   readonly library: ReadState<readonly PinnableQuestion[]>;
-  readonly issues: readonly FormIssue[];
   readonly onChange: (next: DraftRule) => void;
-  readonly onRemove: () => void;
 }) {
-  const references = conditionReferences(rule.when);
-  const eligible = eligibleTargets(draft, references);
-
-  // `qcms-scroll-x` on the card: a condition tree is a nested boolean editor beside a
+  // `qcms-scroll-x` on the panel: a condition tree is a nested boolean editor beside a
   // JSON pane, and `plan/admin-mobile-stance.md` explicitly declines to ask that it be
   // usable on a phone - only that it not be broken there. Its controls carry real
   // minimum widths that no amount of wrapping reduces (measured at 281px of
   // irreducible minimum against the 238px a rule card is given in a 320px viewport),
-  // so the card scrolls inside itself rather than handing that minimum to the page.
+  // so the panel scrolls inside itself rather than handing that minimum to the page.
   // That is the stance document's own rule: wide content scrolls in its own
   // container, and the page body never scrolls horizontally at any width (issue 616).
+  //
+  // The wide dialog the wizard opens in is what this was always short of, and it does not
+  // retire the rule: a 320px viewport still gets a dialog narrower than the tree's floor.
   return (
-    <section
-      id={ruleAnchorId(rule.ruleId)}
-      tabIndex={-1}
-      data-rule-id={rule.ruleId}
-      aria-label={t("forms.rule.heading", { ruleId: rule.ruleId })}
-      className="qcms-scroll-x flex flex-col gap-4 rounded-md border border-(--color-border) bg-(--color-surface) p-4"
-    >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="qcms-question-id text-sm">
-          {t("forms.rule.heading", { ruleId: rule.ruleId })}
-        </h3>
-        <Button variant="ghost" size="sm" onPress={onRemove}>
-          {t("forms.rule.remove", { ruleId: rule.ruleId })}
-        </Button>
-      </div>
-
+    <div className="qcms-scroll-x flex flex-col gap-4">
       <fieldset className="qcms-fieldset qcms-fieldset--flat">
         <legend className="qcms-fieldset__legend">{t("forms.rule.when")}</legend>
         <ConditionNode
@@ -117,15 +99,6 @@ export function ConditionEditor({
         />
       </fieldset>
 
-      <TargetPicker
-        draft={draft}
-        rule={rule}
-        eligible={eligible}
-        onChange={(show) => {
-          onChange({ ...rule, show });
-        }}
-      />
-
       <ConditionJsonPane
         condition={rule.when}
         draft={draft}
@@ -135,140 +108,6 @@ export function ConditionEditor({
           onChange({ ...rule, when });
         }}
       />
-
-      {issues.length > 0 && (
-        <ul aria-label={t("forms.rule.issues")} className="flex flex-col gap-1">
-          {issues.map((issue, index) => (
-            <li
-              key={`${issue.code}:${String(index)}`}
-              className="text-sm text-(--color-danger-fg)"
-              data-issue-code={issue.code}
-            >
-              {messageForIssue(issue)}
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
-
-// --- targets ----------------------------------------------------------------
-
-interface TargetGroups {
-  readonly questions: readonly string[];
-  readonly steps: readonly string[];
-}
-
-/**
- * The `show` list: every question and step in the form, eligible ones first.
- *
- * Checkboxes rather than a multi-select, for the reason the operand's option set uses
- * them: `show` is a set, the kit has no multi-select (ADR-22 forbids adding one here), and
- * a group whose every member shows its own state is what a keyboard user can work through
- * without a popup.
- */
-function TargetPicker({
-  draft,
-  rule,
-  eligible,
-  onChange,
-}: {
-  readonly draft: DraftForm;
-  readonly rule: DraftRule;
-  readonly eligible: TargetGroups;
-  readonly onChange: (show: readonly string[]) => void;
-}) {
-  const all = allTargets(draft);
-  const eligibleIds = new Set([...eligible.questions, ...eligible.steps]);
-  const backward = rule.show.filter((target) => !eligibleIds.has(target));
-
-  const toggle = (target: string, isSelected: boolean) => {
-    onChange(
-      isSelected ? [...rule.show, target] : rule.show.filter((candidate) => candidate !== target),
-    );
-  };
-
-  return (
-    <div className="flex flex-col gap-2">
-      <fieldset className="qcms-fieldset qcms-fieldset--flat">
-        <legend className="qcms-fieldset__legend">{t("forms.rule.show")}</legend>
-        {all.length === 0 ? (
-          <p className="text-sm text-(--color-text-muted)">{t("forms.rule.targetsNone")}</p>
-        ) : (
-          <div className="flex flex-col gap-3">
-            <TargetGroup
-              legend={t("forms.rule.targetsEligible")}
-              targets={all.filter((target) => eligibleIds.has(target.id))}
-              selected={rule.show}
-              onToggle={toggle}
-            />
-            <TargetGroup
-              legend={t("forms.rule.targetsIneligible")}
-              targets={all.filter((target) => !eligibleIds.has(target.id))}
-              selected={rule.show}
-              onToggle={toggle}
-            />
-          </div>
-        )}
-      </fieldset>
-
-      {backward.length > 0 && (
-        <div data-testid="qcms-backward-flag" data-rule-id={rule.ruleId}>
-          <Alert variant="warning">
-            {t("forms.rule.backwardWarning", { targets: backward.join(", ") })}
-          </Alert>
-        </div>
-      )}
-    </div>
-  );
-}
-
-interface TargetOption {
-  readonly id: string;
-  readonly label: string;
-}
-
-/** Every addressable target: pinned questions in document order, then the steps. */
-function allTargets(draft: DraftForm): readonly TargetOption[] {
-  const questions = draftDocumentOrder(draft).map((entry) => ({
-    id: entry.questionId,
-    label: entry.questionId,
-  }));
-  const steps = draft.steps.map((step) => ({
-    id: step.stepId,
-    label: t("forms.rule.targetStep", { stepId: step.stepId }),
-  }));
-  return [...questions, ...steps];
-}
-
-function TargetGroup({
-  legend,
-  targets,
-  selected,
-  onToggle,
-}: {
-  readonly legend: string;
-  readonly targets: readonly TargetOption[];
-  readonly selected: readonly string[];
-  readonly onToggle: (target: string, isSelected: boolean) => void;
-}) {
-  if (targets.length === 0) return null;
-  return (
-    <div className="flex flex-col gap-1">
-      <p className="text-xs font-semibold text-(--color-text-muted)">{legend}</p>
-      <div className="flex flex-wrap gap-3">
-        {targets.map((target) => (
-          <Checkbox
-            key={target.id}
-            label={target.label}
-            isSelected={selected.includes(target.id)}
-            onChange={(isSelected) => {
-              onToggle(target.id, isSelected);
-            }}
-          />
-        ))}
-      </div>
     </div>
   );
 }
@@ -332,7 +171,12 @@ function OperatorSelect({
   );
 
   return (
-    <Select
+    // SEARCHABLE (Code Owner, 2026-08-30). Thirteen operators whose names are phrases, in
+    // a popover you scan: typing "at least" is faster than reading down a list, and the
+    // list only grows. `disabledKeys` still marks the ones this question's type does not
+    // accept rather than hiding them, which is what keeps "that exists but not here"
+    // readable - the same call the `Select` made.
+    <SearchableSelect
       label={t("forms.rule.op")}
       value={node.op}
       items={CONDITION_OPS.map((op) => ({ label: t(`forms.op.${op}`), value: op }))}

@@ -64,6 +64,16 @@ export async function createForm(page: Page, slug: string, title: string): Promi
  * A no-op at desktop widths, where the disclosure is already open.
  */
 export async function openRail(page: Page): Promise<void> {
+  // A MODAL DIALOG MAKES THE RAIL UNREACHABLE, and silently: every helper below that
+  // navigates goes through here, so with a rule's editor open they wait for a control the
+  // overlay is covering until the test times out five minutes later. Twice now that has
+  // cost a full suite run to diagnose, so it fails here instead, named.
+  const dialog = page.getByRole("dialog");
+  if ((await dialog.count()) > 0) {
+    throw new Error(
+      "the rail cannot be reached while a dialog is open - close it first (closeRuleEditor)",
+    );
+  }
   const disclosure = page.locator("details.qcms-rail__disclosure");
   if ((await disclosure.count()) === 0) return;
   // WAIT FOR THE WIDTH TO HAVE BEEN DECIDED before reading `open`, or this races
@@ -226,24 +236,53 @@ export async function pinnedOrder(page: Page): Promise<string[]> {
     .evaluateAll((rows) => rows.map((row) => row.getAttribute("data-pin-question") ?? ""));
 }
 
-/** Add a rule and return the id the builder minted for it. */
-export async function addRule(page: Page): Promise<string> {
-  // Rules are the FORM's, so they live on the form screen. A spec that has just been
-  // working on a step is looking at the step screen, and would not find the button.
-  await openFormDetails(page);
-  const before = await ruleIds(page);
-  await page.getByRole("button", { name: "Add rule", exact: true }).click();
-  await expect(page.locator("[data-rule-id]")).toHaveCount(before.length + 1);
-  const after = await ruleIds(page);
-  const added = after.find((id) => !before.includes(id));
-  expect(added, "adding a rule should mint exactly one new id").toBeDefined();
-  return added ?? "";
+/**
+ * Show the form's rules, which are a screen of their own since 2026-08-26.
+ *
+ * They were on the form's details screen, and every helper below that touches a rule goes
+ * through here rather than each spec remembering which of the builder's three screens a
+ * rule is on.
+ */
+export async function openRules(page: Page): Promise<void> {
+  await openRail(page);
+  await page.locator('[data-rail-item="rules"]').click();
+  await expect(page.locator("#qcms-rules-heading")).toBeVisible();
 }
 
-/** Every rule region currently on screen, by id, in document order. */
+/**
+ * Add a rule, leaving the browser in its open wizard, and return the id it was minted as.
+ *
+ * THE ROW DOES NOT EXIST YET when this returns, and that is the buffering rather than a
+ * race. Since 2026-08-30 (`plan/admin-design-contracts.md` §6) "Add rule" mints a rule and
+ * opens the wizard on it; the rule reaches the draft when Save is pressed, which is what
+ * `closeRuleEditor` does. So the id is read off the open dialog, not off the table - a
+ * spec that expected a new row here would be waiting for something Save has not yet made.
+ *
+ * Every caller's next act is to change the condition anyway: a rule arrives as `answered`
+ * against the first pinned question, which says nothing useful.
+ */
+export async function addRule(page: Page): Promise<string> {
+  // Rules have their own screen now. A spec that has just been working on a step, or on the
+  // form's details, is looking at neither of the places this button is.
+  await openRules(page);
+  await page.getByRole("button", { name: "Add rule", exact: true }).click();
+  const editing = page.locator("section[data-rule-id]");
+  await expect(editing, "Add rule opens the wizard on the rule it minted").toBeVisible();
+  const added = (await editing.getAttribute("data-rule-id")) ?? "";
+  expect(added, "adding a rule should mint one id").toMatch(/^rul_/u);
+  return added;
+}
+
+/**
+ * Every rule region currently on screen, by id, in document order.
+ *
+ * "On screen" is load-bearing: the rules are one of the builder's three screens, so a
+ * caller that has not opened it gets an empty list rather than a failure. Callers that mean
+ * "this form's rules" open the screen first, which `addRule` does for them.
+ */
 export async function ruleIds(page: Page): Promise<string[]> {
   const ids = await page
-    .locator("[data-rule-id]")
+    .locator("tr[data-rule-id]")
     .evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-rule-id") ?? ""));
   return ids.filter((id) => id !== "");
 }
@@ -254,15 +293,103 @@ export function rule(page: Page, ruleId: string): Locator {
 }
 
 /**
- * Choose a value in one of the vendored `Select` controls.
+ * Open one rule's editor, which is a dialog since 2026-08-26 and a three-phase wizard in a
+ * wide dialog since 2026-08-30.
  *
- * The trigger's accessible name is its **current value followed by its label** - react-aria
- * labels the button with the value element and then the label element, in that order - so
- * the match is a suffix. Getting this backwards costs a five-minute timeout with a call log
- * that only says the locator never resolved, which is what `chooseType` in `questions.ts`
- * encodes as `/Type$/` without saying why.
+ * The rules screen is a table of sentences - a rule is small to state and large to change -
+ * so the condition tree that `rule()` scopes to only exists while its dialog is open. A
+ * spec that reached straight for a control inside it used to find it inline and now waits
+ * for something that is not there, which is what five minutes of timeout looks like.
+ *
+ * It lands on the "When" phase, which is where the wizard opens. `openRulePhase` is how a
+ * caller reaches the other two.
+ *
+ * Idempotent by intent rather than by check: pressing Edit on a row whose dialog is already
+ * open is not a thing the screen allows, because the dialog is modal.
+ */
+export async function openRuleEditor(page: Page, ruleId: string): Promise<void> {
+  await openRules(page);
+  await page.locator(`tr[data-rule-id="${ruleId}"]`).getByRole("button", { name: "Edit" }).click();
+  await expect(rule(page, ruleId)).toBeVisible();
+}
+
+/**
+ * The wizard's three phases, by the labels their tabs carry.
+ *
+ * Numbered in the product, so numbered here: the strings are what a screen reader
+ * announces, and a helper that matched on "When" alone would keep passing after the phase
+ * control lost its ordering.
+ */
+export const RULE_PHASES = {
+  when: "1. When",
+  then: "2. Then show",
+  test: "3. Test",
+} as const;
+
+/**
+ * Move to one phase of the open rule wizard.
+ *
+ * `role="tab"` rather than a button, deliberately: the phase control is the APG tabs
+ * pattern (`components/forms/rule-wizard.tsx` writes down why it is not a stepper), and
+ * locating by the role is what makes this assert the pattern rather than merely find the
+ * label. A stepper built out of plain buttons would fail here rather than pass quietly.
+ */
+export async function openRulePhase(page: Page, phase: keyof typeof RULE_PHASES): Promise<void> {
+  const tab = page.getByRole("tab", { name: RULE_PHASES[phase], exact: true });
+  await tab.click();
+  await expect(tab).toHaveAttribute("aria-selected", "true");
+}
+
+/**
+ * Commit the open rule wizard, which is what puts the rule into the draft.
+ *
+ * SAVE, not "Done", since 2026-08-30. The dialog buffers - nothing typed in it reaches the
+ * draft until this press - so a spec that closed the editor any other way used to keep its
+ * edits and now discards them. That is the point of the change rather than a hazard to work
+ * around, and it is why `cancelRuleEditor` is a separate helper with its own name.
+ */
+export async function closeRuleEditor(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.locator("section[data-rule-id]")).toHaveCount(0);
+}
+
+/** Discard the open rule wizard. Every edit made inside it is thrown away. */
+export async function cancelRuleEditor(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(page.locator("section[data-rule-id]")).toHaveCount(0);
+}
+
+/**
+ * Choose a value in a labelled picker, whichever of the two kinds it is.
+ *
+ * TWO SHAPES BEHIND ONE HELPER (Code Owner, 2026-08-30). Most pickers are the vendored
+ * `Select`; the rule editor's Operator is a `ComboBox` you can type into. A caller does not
+ * care - it wants the field named `label` set to `option` - and the alternative was
+ * rewriting every call site the day a field changed shape, which is exactly what this
+ * change would otherwise have cost: three specs failed on the combobox's toggle matching
+ * the `Select` trigger's locator and reporting its chevron as the field's value.
+ *
+ * The combobox is tried FIRST and by exact role, because its toggle button also matches the
+ * `Select` trigger's name pattern: the toggle is labelled "Show all options for {label}",
+ * which ends with the label like every `Select` trigger does.
+ *
+ * For a `Select`, the trigger's accessible name is its **current value followed by its
+ * label** - react-aria labels the button with the value element and then the label element,
+ * in that order - so the match is a suffix. Getting this backwards costs a five-minute
+ * timeout with a call log that only says the locator never resolved, which is what
+ * `chooseType` in `questions.ts` encodes as `/Type$/` without saying why.
  */
 export async function chooseOption(scope: Locator, label: string, option: string): Promise<void> {
+  const combobox = scope.getByRole("combobox", { name: label, exact: true });
+  if ((await combobox.count()) > 0) {
+    const field = combobox.first();
+    await field.click();
+    await scope.page().getByRole("option", { name: option, exact: true }).click();
+    // The input's own text, not a trigger's label: a combobox displays the chosen item.
+    await expect(field).toHaveValue(option);
+    return;
+  }
+
   const trigger = scope
     .getByRole("button", { name: new RegExp(`${escapeForName(label)}$`) })
     .first();
@@ -279,11 +406,19 @@ function escapeForName(label: string): string {
 /**
  * Tick or untick one `show` target of a rule.
  *
+ * IT MOVES TO THE "THEN SHOW" PHASE FIRST, because since 2026-08-30 that is the only phase
+ * the targets are on and react-aria mounts one panel at a time. A caller left on "When"
+ * would otherwise wait five minutes for a checkbox that is not in the document. Switching
+ * here rather than in each spec is the same call `openRules` makes about the screen.
+ *
  * Clicked by its visible label rather than by the checkbox itself, which is the convention
  * `questions-lifecycle.pw.ts` and `apps/portal/e2e/support/kitchen-sink.ts` both encode for
  * the same vendored control: react-aria puts a decorative indicator over the real input, so
  * a click aimed at the input is intercepted. The assertion still reads the input, because
  * checked-ness is what is being asserted.
+ *
+ * A filter narrows the list, so the target may be behind one. Callers that filter clear it
+ * themselves; this helper assumes the unfiltered list, which is how the dialog opens.
  */
 export async function toggleTarget(
   page: Page,
@@ -291,12 +426,18 @@ export async function toggleTarget(
   target: string,
   shouldBeSelected: boolean,
 ): Promise<void> {
+  await openRulePhase(page, "then");
   const scope = rule(page, ruleId);
   const box = scope.getByRole("checkbox", { name: target, exact: true });
   if ((await box.isChecked()) !== shouldBeSelected) {
     await scope.getByText(target, { exact: true }).click();
   }
   await expect(box).toBeChecked({ checked: shouldBeSelected });
+}
+
+/** The target filter of the open wizard's "Then show" phase. */
+export function targetFilter(page: Page): Locator {
+  return field(page, "Filter targets");
 }
 
 /** Tick or untick a checkbox anywhere on the page, by its visible label. */
@@ -328,11 +469,11 @@ export async function movePin(page: Page, questionId: string, version: number): 
 }
 
 /**
- * Run a read that needs the save strip, from whichever of the builder's two screens the
+ * Run a read that needs the save strip, from whichever of the builder's three screens the
  * caller is standing on, and put them back where they were.
  *
- * THE SAVE STRIP IS ON THE FORM SCREEN ONLY since 2026-08-26, so a spec that has just
- * edited a step cannot see it. That is the product's behaviour rather than a test problem
+ * THE SAVE STRIP IS ON THE FORM SCREEN ONLY since 2026-08-26, so a spec standing on a step
+ * or on the rules screen cannot see it. That is the product's behaviour rather than a test problem
  * - a person editing a step has to look at the form screen too - and this is that trip,
  * made once here instead of scattered through a dozen specs as a pair of screen switches
  * that would then have to be kept in step with each other.
@@ -341,13 +482,22 @@ export async function movePin(page: Page, questionId: string, version: number): 
  * argument, so a caller that was on the form screen already makes no trip at all.
  */
 async function readingSaveState<T>(page: Page, read: () => Promise<T>): Promise<T> {
-  const current = page.locator('[data-rail-step-select][aria-current="page"]');
+  // Which of the builder's three screens the caller is standing on, read from the rail
+  // rather than tracked, so a spec that navigated by any route still comes back to where
+  // it was. The rules screen joined the step screens on 2026-08-26; both lack the strip,
+  // and only the form's own screen has it.
+  const currentStep = page.locator('[data-rail-step-select][aria-current="page"]');
   const step =
-    (await current.count()) > 0 ? await current.getAttribute("data-rail-step-select") : null;
-  if (step === null) return read();
+    (await currentStep.count()) > 0
+      ? await currentStep.getAttribute("data-rail-step-select")
+      : null;
+  const onRules = (await page.locator('[data-rail-item="rules"][aria-current="page"]').count()) > 0;
+  if (step === null && !onRules) return read();
+
   await openFormDetails(page);
   const value = await read();
-  await openStep(page, step);
+  if (step !== null) await openStep(page, step);
+  else await openRules(page);
   return value;
 }
 
@@ -429,4 +579,23 @@ export function issueSummary(page: Page): Locator {
 /** One issue code, wherever it is rendered (the panel, a rule, or a pin row). */
 export function issue(scope: Page | Locator, code: string): Locator {
   return scope.locator(`[data-issue-code="${code}"]`);
+}
+
+/**
+ * Move one step within the form, from the rail's own row menu.
+ *
+ * The rail is where a step is reordered (`components/forms/rail-steps.tsx`), which is also
+ * the only place it can be: the step screen shows one step and knows nothing about the
+ * order of its siblings.
+ *
+ * Written for exit criterion 2, which needs a target to BECOME backward without anyone
+ * choosing an ineligible one (Code Owner, 2026-08-30) - moving the step that holds it in
+ * front of the question its rule reads is the way an author actually trips that.
+ */
+export async function moveStep(page: Page, title: string, action: "up" | "down"): Promise<void> {
+  await openRail(page);
+  await page.getByRole("button", { name: `Actions for step ${title}`, exact: true }).click();
+  await page
+    .getByRole("menuitem", { name: action === "up" ? "Move up" : "Move down", exact: true })
+    .click();
 }

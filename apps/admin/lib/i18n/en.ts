@@ -625,11 +625,44 @@ export const messages = {
   "forms.rules.add": "Add rule",
   "forms.rules.empty": "No rules yet. A rule shows questions or steps when its condition matches.",
   "forms.rules.needPin": "Pin a question first: a condition has to read one.",
+  "forms.rules.column.rule": "Rule",
+  "forms.rules.column.issues": "Issues",
+  "forms.rules.edit": "Edit",
+  "forms.rules.remove": "Remove",
+  // The dialog's own title names the rule being changed rather than saying "Edit rule",
+  // because a form can have several and the reader has just chosen one of them. Since the
+  // editor became a wizard (2026-08-30) it is also the dialog's only heading, so the rule
+  // id has to be in it: the condition panel used to repeat it and no longer does.
+  "forms.rules.editTitle": "Edit rule {ruleId}",
 
+  // --- the rule wizard's three phases (Code Owner, 2026-08-30) ---
+  //
+  // TABS, so this string is what a screen reader announces before "tab 1 of 3". It names
+  // what the three choices are ABOUT rather than repeating the dialog's own title, which
+  // is already announced when the dialog opens.
+  "forms.rules.phases": "Rule editing phases",
+  // Numbered because the phases have a natural order and stating it costs nothing. The
+  // numbers describe; nothing here enforces them, and an author may work in any order.
+  "forms.rules.phaseWhen": "1. When",
+  "forms.rules.phaseThen": "2. Then show",
+  "forms.rules.phaseTest": "3. Test",
+  // Phase navigation (Code Owner, 2026-08-30). The visible words are "Back" and "Next";
+  // the accessible name names the phase each one goes to, so a reader who cannot see which
+  // tab is selected is told where the press leads rather than only that it leads onward.
+  // Both accessible names contain the visible word, which is what SC 2.5.3 asks for.
+  "forms.rules.phaseBack": "Back",
+  "forms.rules.phaseNext": "Next",
+  "forms.rules.phaseBackTo": "Back to {phase}",
+  "forms.rules.phaseNextTo": "Next, {phase}",
+  "forms.rules.save": "Save",
+  "forms.rules.cancel": "Cancel",
   "forms.rule.heading": "Rule {ruleId}",
-  "forms.rule.remove": "Remove rule {ruleId}",
   "forms.rule.when": "When",
   "forms.rule.show": "Show",
+  // The combobox's own two strings. The toggle is named by the field it belongs to,
+  // because a condition with five leaves renders five of them.
+  "forms.combobox.toggle": "Show all options for {label}",
+  "forms.combobox.noMatch": "No match.",
   "forms.rule.op": "Operator",
   "forms.rule.question": "Question",
   "forms.rule.value": "Value",
@@ -642,8 +675,35 @@ export const messages = {
   "forms.rule.targetsNone":
     "Nothing in this form comes after the questions this condition reads, so the rule has nowhere to point yet.",
   "forms.rule.targetStep": "Step {stepId}",
+
+  // --- the target list at scale (Code Owner, 2026-08-30) ---
+  //
+  // The stated case is ten or more steps and hundreds of questions, where a flat wrap of
+  // checkboxes is a wall rather than a control. These are the strings the grouping and the
+  // filter need; `lib/forms/rule-targets.ts` owns what they describe.
+  "forms.rule.targetsFilter": "Filter targets",
+  "forms.rule.targetsFilterHint": "Matches a question id, a step id, or a step's name.",
+  "forms.rule.targetsShowing": "Showing {shown} of {total} targets.",
+  "forms.rule.targetsNoMatch": "No target matches that filter.",
+  // Stated ABOVE the filter and never narrowed by it, because a filter that hides a target
+  // an author has already ticked must not make the choice invisible. Same answer the
+  // library picker's chosen pane gives to the same problem.
+  "forms.rule.targetsSelected": "Selected: {targets}",
+  "forms.rule.targetsSelectedNone": "Nothing selected yet. This rule would show nothing.",
+  // USER-FACING, so it says the thing rather than citing where the thing is decided (Code
+  // Owner, 2026-08-30). It carried "one forward pass" and "(ADR-16)", which name an
+  // internal record and a piece of engine vocabulary to somebody who is trying to build a
+  // form. The rule itself is simple enough to state in a sentence, and stating it is the
+  // whole reason this list is on screen instead of hidden.
+  //
+  // PLAIN, in the same pass: no second-guessing what the reader might be feeling ("rather
+  // than wondering where a question went") and no describing the rendering back to them
+  // ("greyed out"). Each sentence is one fact about the rule or about this list.
+  "forms.rule.targetsHelpLabel": "Why these cannot be shown",
+  "forms.rule.targetsHelpDetail":
+    "A rule can only show something the respondent has not reached yet, so it cannot point at anything at or before the last question its condition reads. Those targets are listed here rather than hidden, and cannot be selected. A whole step appears here when any one of its questions does, because showing a step shows every question in it. A rule that points backwards cannot be published.",
   "forms.rule.backwardWarning":
-    "{targets} comes before a question this condition reads. Answers are evaluated in one forward pass, so a rule can only show something that comes later (ADR-16). Publishing will refuse this.",
+    "{targets} comes before a question this condition reads. A rule can only show something the respondent has not reached yet, so this rule cannot be published until that target is cleared.",
   "forms.rule.issues": "Issues with this rule",
 
   "forms.op.answered": "has been answered",
@@ -653,12 +713,69 @@ export const messages = {
   "forms.op.contains": "includes the option",
   "forms.op.containsAny": "includes any of",
   "forms.op.gt": "is greater than",
-  "forms.op.gte": "is greater than or equal to",
+  "forms.op.gte": "is at least",
   "forms.op.lt": "is less than",
-  "forms.op.lte": "is less than or equal to",
+  "forms.op.lte": "is at most",
   "forms.op.and": "all of",
   "forms.op.or": "any of",
   "forms.op.not": "not",
+
+  // --- the rules table's read-only sentence (`lib/forms/rule-sentence.ts`) ---
+  //
+  // Every entry here is a SENTENCE FRAME with placeholders, not a word to be glued to
+  // its neighbours at the call site. That is ADR-27 taken seriously rather than
+  // nominally: word order is part of a translation, and a module that concatenated
+  // `"When "` + condition + `", show "` + targets would have hard-coded English clause
+  // order in TypeScript while pretending the strings were localized. A locale that
+  // fronts the consequent rewrites `forms.sentence.frame` here and nothing else.
+  //
+  // The frames are also why the module can hand the table SEGMENTS rather than prose:
+  // it splits each frame on its own placeholders, so the emphasised names arrive already
+  // separated from the punctuation and connectives around them.
+  "forms.sentence.frame": "When {condition}, show {targets}",
+  // A rule whose targets have not been chosen yet is a state the editor lets an author
+  // sit in (`forms.rule.targetsNone`), so the table has to say what it does rather than
+  // trail off after "show".
+  "forms.sentence.frameNoTargets": "When {condition}, show nothing",
+  // Grouping is a separate frame so a locale can bracket differently; see the module's
+  // note on why a nested `and`/`or` is always bracketed.
+  "forms.sentence.group": "({condition})",
+  "forms.sentence.not": "not ({condition})",
+  "forms.sentence.listComma": "{left}, {right}",
+  "forms.sentence.listAnd": "{left} and {right}",
+  "forms.sentence.listOr": "{left} or {right}",
+  // Both defensive: the kernel's `and`/`or` are `.min(1)` and its `in`/`containsAny`
+  // values are too, so neither empty shape is publishable. They are still reachable in a
+  // draft the API handed back, and a sentence that silently omitted the branch would
+  // read as a complete condition that is missing a clause.
+  "forms.sentence.noBranches": "a group with no branches",
+  // Reached by an ordinary edit rather than only by a malformed draft: a freshly created
+  // `equals` against a text question carries `""` (`condition.ts`, `startingOperand`),
+  // and "is exactly" followed by nothing reads as a truncated sentence.
+  "forms.sentence.emptyValue": "an empty value",
+
+  // One frame per leaf operator. These are prose, so they are worded to be read in a
+  // sentence rather than picked from a list: `forms.op.*` is the operator picker's
+  // vocabulary and says "is greater than or equal to", which is exact but stops a reader
+  // mid-scan. The comparison each pair states is identical.
+  // A step target names itself as one: `show` mixes question ids and step ids, and showing
+  // a step is a different act from showing a question (they are separate visibility layers
+  // that AND together). Without this a reader cannot tell the two apart in the sentence.
+  "forms.sentence.stepTarget": "the step {name}",
+  "forms.sentence.op.answered": "{question} is answered",
+  "forms.sentence.op.equals": "{question} is exactly {value}",
+  "forms.sentence.op.notEquals": "{question} is not exactly {value}",
+  "forms.sentence.op.in": "{question} is one of {value}",
+  "forms.sentence.op.contains": "{question} includes {value}",
+  "forms.sentence.op.containsAny": "{question} includes any of {value}",
+  "forms.sentence.op.gt": "{question} is greater than {value}",
+  "forms.sentence.op.gte": "{question} is at least {value}",
+  "forms.sentence.op.lt": "{question} is less than {value}",
+  "forms.sentence.op.lte": "{question} is at most {value}",
+  // The same promise `forms.issue.unknown` makes for a publish code this build has never
+  // heard of: an operator with no frame here still renders, and it renders as an
+  // admission rather than as its own token dressed up as English.
+  "forms.sentence.op.unknown": "a condition this build cannot describe ({op})",
 
   "forms.operand.true": "Yes",
   "forms.operand.false": "No",
@@ -677,12 +794,12 @@ export const messages = {
   "forms.json.shapeError": "Valid JSON, but not a condition this editor can render.",
 
   "forms.bench.title": "Rule test bench",
+  "forms.bench.rule": "Rule",
+  "forms.bench.noRules": "Add a rule to try it here.",
   "forms.bench.note":
     "A read-only preview. Answers typed here are evaluated against the draft on your screen and are never saved, never logged, and never seen by a respondent.",
-  "forms.bench.rule": "Rule",
   "forms.bench.answers": "Hypothetical answers",
   "forms.bench.run": "Run preview",
-  "forms.bench.noRules": "Add a rule to try it here.",
   "forms.bench.noReferences": "This condition reads no question yet.",
   "forms.bench.unpinned":
     "{questionId} is not pinned in this form, so there is no version to answer it against and it counts as unanswered.",
@@ -698,12 +815,15 @@ export const messages = {
   "forms.bench.failed": "The preview could not be run. {message}",
 
   // The bench's summary digest (issue 519; `plan/admin-ux-audit.md` §3.7). Facts only,
-  // and every one of them is also inside the panel: the rule is the Select's value and
-  // the question count is the number of entries the "Hypothetical answers" fieldset
+  // and every one of them is also inside the panel: the rule is the dialog's own title
+  // and the question count is the number of entries the "Hypothetical answers" fieldset
   // renders. Nothing here counts issues - the validation panel owns the screen's one
   // authoritative issue count (§5.6).
-  "forms.bench.digest": "{rule}, reads {questions}",
+  //
+  // "No rules to try" is reachable from the SCREEN's bench only (2026-08-30): the wizard's
+  // is reached through a rule, so there is no state in which that one has none.
   "forms.bench.digest.noRules": "No rules to try",
+  "forms.bench.digest": "{rule}, reads {questions}",
   "forms.bench.digest.questionOne": "1 question",
   "forms.bench.digest.questionOther": "{count} questions",
 
@@ -718,8 +838,12 @@ export const messages = {
   "forms.settings.minSubmit": "Minimum time before a submit is accepted (milliseconds)",
   "forms.settings.minSubmitHint":
     "A submit that arrives faster than this is refused. It exists to make an instant automated post fail, so keep it well under the time a person needs.",
-  "forms.settings.save": "Save settings",
-  "forms.settings.saved": "Settings saved.",
+  // No "Save settings" and no "Settings saved." (Code Owner, 2026-08-29). The settings
+  // autosave on the builder's own debounce, so there is no press to label and no second
+  // confirmation to give: `plan/admin-design-contracts.md` §6 gives this screen exactly
+  // one statement of when work was stored and the ambient strip is it. A refusal still
+  // has to be said, because a switch that did not take is the one thing an author cannot
+  // see for themselves.
   "forms.settings.failed": "The settings could not be saved. {message}",
   // The settings summary digest (issue 519; `plan/admin-ux-audit.md` §3.7). It states
   // the two switches the panel holds and nothing else - in particular it makes no claim
@@ -741,8 +865,10 @@ export const messages = {
   "forms.issue.unpublishedPin":
     "A form can only pin a published version. Publish that version, or pin one that already is.",
   "forms.issue.localeIncomplete": "This has no text for the form's default locale.",
+  // Also user-facing, and cleaned with the picker's help text on 2026-08-30 for the same
+  // reason: an author reading a refused publish needs the rule, not its citation.
   "forms.issue.backwardTarget":
-    "A rule can only show something that comes after every question its condition reads. Answers are evaluated in one forward pass (ADR-16), so a backward target could never fire.",
+    "A rule can only show something that comes after every question its condition reads, so a target earlier in the form could never fire.",
   "forms.issue.cycle":
     "These rules depend on each other in a loop, so no order of evaluation resolves them.",
   "forms.issue.depthExceeded": "This condition is nested deeper than the engine evaluates.",
@@ -1436,6 +1562,7 @@ export const messages = {
   "forms.rail.label": "{slug} steps and sections",
   "forms.rail.steps": "Steps",
   "forms.rail.formMenu": "Actions for {title}",
+  "forms.rail.rules": "Rules",
   "forms.rail.sections": "Sections",
   // The ordinal beside a step title. A separate string rather than a template at the
   // call site because a locale that numbers differently changes it here (ADR-27).

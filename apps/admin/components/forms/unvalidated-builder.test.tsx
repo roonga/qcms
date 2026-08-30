@@ -60,6 +60,7 @@ vi.mock("@/lib/announce", () => import("../../lib/announce.ts"));
 vi.mock("@/lib/forms/draft", () => import("../../lib/forms/draft.ts"));
 vi.mock("@/lib/forms/picker-selection", () => import("../../lib/forms/picker-selection.ts"));
 vi.mock("@/lib/forms/issues", () => import("../../lib/forms/issues.ts"));
+vi.mock("@/lib/forms/rule-targets", () => import("../../lib/forms/rule-targets.ts"));
 vi.mock("@/lib/forms/pin-grid", () => import("../../lib/forms/pin-grid.ts"));
 vi.mock("@/lib/i18n/en", () => import("../../lib/i18n/en.ts"));
 vi.mock("@/lib/questions/definition", () => import("../../lib/questions/definition.ts"));

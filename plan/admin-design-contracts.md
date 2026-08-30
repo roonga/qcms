@@ -514,6 +514,128 @@ they read as one screen contradicting itself about how many things just happened
 Separating them is a wording and placement job rather than a licence question, and
 it belongs with #518's implementation, not here.
 
+**Amendment, 2026-08-29 (Code Owner): the builder's settings autosave, so the
+builder has one save model again.**
+
+The 2026-08-21 amendment above stands as written: a nested scope that persists
+states its own model, and it was the right ruling on the question it was asked.
+This amends the fact it was ruling about rather than the rule. `FormSettingsPanel`
+no longer persists on its own, so there is no second model left for the rule to
+license, and the consequence that amendment accepted knowingly - "Saved <time>"
+and "Settings saved." on one screen - is resolved by removing the second model
+rather than by rewording it.
+
+What changed:
+
+- **The settings save on the builder's own debounce**, the same 600ms and the same
+  effect shape as the draft, with no "Save settings" button and no "Settings
+  saved."
+- **The builder holds them**, beside the draft, not the panel. The form screen is
+  unmounted whenever the reader selects a step, and a debounce owned by the panel
+  would be cancelled by that with an edit still waiting on it. This is the
+  correction that made autosave safe here rather than merely tidier.
+- **A settings save feeds the ambient strip** - its in-flight state, its failed
+  state, and its one timestamp. §6's "exactly one save statement per screen" is
+  kept by the strip covering everything the screen stores, which is what it says
+  it does.
+- **A refused settings write is still stated**, in the panel's own live region,
+  beside the two controls it is about. That sentence is not a save model and not a
+  second "Saved": it is an error in the vocabulary this app already uses for
+  errors, and it is the only thing left between an author and the belief that a
+  deployment switch took when it did not.
+
+Why the failure sentence stayed in the panel rather than joining the builder's
+standing notices, since that was the live question: `aria-live` announces a change
+inside a region that was **already** in the tree, and the standing notices render
+nothing at all when they are quiet, so a settings failure appearing there would
+usually announce nothing. The panel's region is mounted for as long as the
+controls are.
+
+**Costs to accept knowingly, both of them:**
+
+- **A failed settings save is not visible from the step screen.** The sentence is
+  beside the controls, and the controls are on the form's screen; a reader who
+  changes a setting and immediately opens a step sees no failure until they come
+  back. The edit itself is not lost - the builder still holds it, and the controls
+  still show what the author asked for - but for that interval the screen is quiet
+  about a write that did not land. This was judged the better half of the trade
+  against a notice that is on both screens and announces on neither.
+- **Two deployment-facing switches now change on a keystroke's own timing**, which
+  is exactly what the panel's original note refused: "an accidental keystroke in
+  the milliseconds field should not quietly change what a live form demands of a
+  respondent." Two things answer it. The settings apply at the next publish rather
+  than to a running form, so the window is an authoring one; and the number field
+  commits on blur rather than per keystroke, so a figure in the middle of being
+  typed is not saved on its way to being finished. The checkbox has no such
+  cushion, and that is the accepted part.
+
+**Amendment, 2026-08-30 (Code Owner): the rule editor BUFFERS, and that is a stated
+exception to this screen's autosave.**
+
+The rule editor is a three-phase wizard in a wide dialog now, and the Code Owner asked
+for explicit Cancel and Save. Those two words are a save model, not two buttons: a Cancel
+that discards nothing is a lie, so the dialog holds the rule it is editing and only Save
+puts it into the draft. The screen around it still autosaves; the dialog does not.
+
+This is the exception the 2026-08-21 amendment above already has a rule for, applied the
+other way round. That amendment licensed a nested scope that PERSISTS to state its own
+model where its control is, and the settings then stopped persisting on their own
+(2026-08-29), which left the builder with one model again. The rule dialog is a nested
+scope that persists, by the same test.
+
+**It states nothing, and that is a Code Owner ruling (2026-08-30).** The footer carried
+"This rule is saved when you press Save." with the longer explanation behind a `?`, and
+all three were removed: "it is obvious". They are right about this shape. The 2026-08-21
+amendment is a LICENCE rather than an obligation, and what it exists to prevent is a
+nested scope whose saving would be a surprise - a control that persists on its own while
+the screen around it says something different. A modal whose footer is Save beside Cancel
+is the one case where the model is legible from the controls themselves, so the sentence
+was restating the two buttons underneath it.
+
+The clause this does NOT weaken: a nested scope with no such pair of buttons still owes a
+statement. What made the sentence redundant here was the explicit Cancel, not the fact of
+being a dialog.
+
+The screen-level clause is untouched either way, because the ambient strip is still the
+only screen-scope save statement.
+
+**Why it could not simply keep autosaving.** The previous dialog wrote every keystroke
+into the draft and its one button said "Done", which was honest about what it did. Adding
+a Cancel to that shape would have offered a discard the screen could not perform: the
+condition, the targets and the JSON pane had all already been stored, several debounces
+ago. The choice is between the button and the model, and the Code Owner chose the button.
+
+**Three costs, all accepted knowingly:**
+
+- **While the dialog is open the screen's autosave has nothing to save**, so a long edit
+  is unsaved work. A rule is a small document and the dialog is a deliberate stop rather
+  than somewhere an author lives, but the window is real: an author who builds a
+  four-branch condition, walks away, and loses the tab loses that condition. Nothing on
+  the screen behind the dialog is at risk, because nothing there changed.
+- **The ambient strip is quiet about it, and correctly so.** The strip states when the
+  FORM was last stored, and while the dialog is open that fact has not changed. It would
+  be worse for the strip to say something about the dialog: two save statements on one
+  screen is exactly what §6 exists to prevent, and the dialog's own sentence is already on
+  screen beside the button it is about.
+- **The engine's verdict on the rule goes stale while the dialog is open**, and this one
+  was not anticipated when the button was asked for. Validation runs on the draft, the
+  draft is what the dialog is withholding, so `RULE_BACKWARD_TARGET` and its siblings are
+  the verdict on the last SAVED rule until Save is pressed. What covers the gap is the
+  feedback the dialog can compute for itself: `eligibleTargets` is pure draft geometry, so
+  the ordering rule is taught at the moment of authoring exactly as it was before, and the
+  kernel's own finding lands on the same rule a debounce after Save. Everything else - a
+  dangling option id typed into the JSON pane, for instance - now surfaces one press later
+  than it did. Closing that would mean validating from inside the dialog, which is a
+  server round trip per keystroke against a draft nobody asked to store, and it was judged
+  the worse trade. Worth revisiting if a second surface ever needs the same thing.
+
+**A consequence that removed a bug rather than adding one.** "Add rule" used to put a
+rule into the draft immediately, and a new rule has no target, which `unsaveableReason`
+reads as an unsaveable draft: adding a rule and closing the editor left the whole screen's
+autosave paused until somebody picked a target. The rule is now MINTED on Add and ADDED on
+Save, so cancelling out of a rule just started leaves nothing behind and the pause window
+closes with it.
+
 ## 7. The rail
 
 - The rail carries **navigation within one form's subtree**: the form's children

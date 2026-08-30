@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { stepIssueCounts } from "./issues.ts";
+import { stepIssueCounts, anchorIsOnRulesScreen, stepOwningAnchor } from "./issues.ts";
 import type { DraftForm, FormIssue } from "./types.ts";
 
 /**
@@ -117,5 +117,54 @@ describe("attributing issues to steps for the rail's badge", () => {
     // A step with no issues carries no badge at all; a zero rendered as a tag would be
     // decoration where the contract asks for a count.
     expect(stepIssueCounts([], DRAFT).size).toBe(0);
+  });
+});
+
+/**
+ * Which of the builder's three screens renders the element an issue points at.
+ *
+ * This is what let the rules move to a screen of their own. `plan/admin-ux-audit.md` §5.5
+ * refused the POC's rules screen because it was drawn as a ROUTE - "move Validation to its
+ * own route and every one of those anchors resolves to nothing", and the same list is
+ * reused verbatim for a refused publish. A selection is not a route: the link switches
+ * screens and then focuses, so the audit's "two-hop path... a real degradation to accept
+ * knowingly" was the cost of the route split and is not paid here.
+ *
+ * The two functions are deliberately complementary rather than one function returning a
+ * screen: each answers the question its own caller asks, and neither can quietly start
+ * claiming the other's issues.
+ */
+describe("which screen an issue's anchor is on", () => {
+  it("puts a rule's issue on the rules screen", () => {
+    const issue = { code: "RULE_BACKWARD_TARGET", message: "x", path: { rule: "rul_one" } };
+    expect(anchorIsOnRulesScreen(issue, DRAFT)).toBe(true);
+    expect(stepOwningAnchor(issue, DRAFT), "and not on a step's").toBeUndefined();
+  });
+
+  it("puts a cycle on the rules screen too, which names its rules as a list", () => {
+    // `RULE_CYCLE` carries `rules: [...]` rather than `rule`, and `anchorFor` resolves it
+    // to the first of them, so the screen test has to agree with that choice or the link
+    // would switch to a screen the focus target is not on.
+    const cycle = { code: "RULE_CYCLE", message: "x", path: { rules: ["rul_one"] } };
+    expect(anchorIsOnRulesScreen(cycle, DRAFT)).toBe(true);
+  });
+
+  it("puts a pin's issue on the step that holds it, not on the rules screen", () => {
+    const issue = { code: "DEPRECATED_PIN", message: "x", path: { question: "q_smoker" } };
+    expect(anchorIsOnRulesScreen(issue, DRAFT)).toBe(false);
+    expect(stepOwningAnchor(issue, DRAFT)).toBe("stp_health");
+  });
+
+  it("claims nothing for a rule the draft no longer has", () => {
+    // A stale verdict outlives the edit that invalidated it, so an issue can name a rule
+    // that has been deleted. Switching to the rules screen to focus something that is not
+    // there would leave the reader somewhere they did not ask to be, having lost their
+    // place, for nothing.
+    const gone = { code: "RULE_CYCLE", message: "x", path: { rule: "rul_gone" } };
+    expect(anchorIsOnRulesScreen(gone, DRAFT)).toBe(false);
+  });
+
+  it("claims nothing for an issue with no path at all", () => {
+    expect(anchorIsOnRulesScreen({ code: "X", message: "x" }, DRAFT)).toBe(false);
   });
 });

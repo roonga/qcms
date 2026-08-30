@@ -1,7 +1,13 @@
 "use client";
 
 import { useBuilderRail } from "@/lib/forms/builder-bridge";
-import { anchorFor, locationOf, messageForIssue, stepOwningAnchor } from "@/lib/forms/issues";
+import {
+  anchorFor,
+  anchorIsOnRulesScreen,
+  locationOf,
+  messageForIssue,
+  stepOwningAnchor,
+} from "@/lib/forms/issues";
 import type { DraftForm, FormIssue } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
 
@@ -183,13 +189,24 @@ export function IssueEntry({
           return;
         }
 
-        // NOT ON SCREEN IS NOT THE SAME AS NOT THERE. A pin is rendered by one step's
-        // editor, and the builder shows one screen at a time, so a link to a pin fires
-        // from the form screen - or from another step - with its target unrendered. The
-        // old code returned here and let the browser follow `#anchor` to nothing at all,
-        // which is a link that silently does nothing.
+        // NOT ON SCREEN IS NOT THE SAME AS NOT THERE. The builder shows one screen at a
+        // time, so a link fires with its target unrendered whenever the target belongs to
+        // another one: a pin lives in one step's editor, and since 2026-08-26 a rule lives
+        // on the rules screen. The old code returned here and let the browser follow
+        // `#anchor` to nothing at all, which is a link that silently does nothing.
+        //
+        // This is what let the rules move without the degradation `plan/admin-ux-audit.md`
+        // §5.5 warned a rules SCREEN would cost. It only works because the screens are
+        // selections in one tree; against a route this could not be written.
+        if (builder === undefined) return;
+        if (anchorIsOnRulesScreen(issue, draft)) {
+          event.preventDefault();
+          builder.chooseRules();
+          focusWhenRendered(anchor);
+          return;
+        }
         const stepId = stepOwningAnchor(issue, draft);
-        if (stepId === undefined || builder === undefined) return;
+        if (stepId === undefined) return;
         event.preventDefault();
         builder.choose(stepId);
         focusWhenRendered(anchor);

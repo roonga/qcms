@@ -273,6 +273,18 @@
  */
 html {
   color-scheme: light dark;
+  /* THE STICKY BAR IS NOT ALLOWED TO SWALLOW WHAT YOU JUST MOVED TO. `.qcms-topbar` is
+     `position: sticky` and one control tall, so anything the browser scrolls INTO view -
+     a fragment target, a control reached by Tab, a field an error jumped to - lands at
+     the viewport's top edge and therefore underneath it. WCAG 2.2 SC 2.4.11 Focus Not
+     Obscured is exactly that, and it is invisible to an axe sweep, which measures a
+     rendered page rather than what scrolling does to it.
+
+     `--admin-topbar-h` is the same derived token the rail's own sticky offset uses
+     (`calc(var(--admin-control-h) + 1rem + 1px)`), so this moves with the density rather
+     than going stale beside it. Found while diagnosing a `target-size` violation that
+     turned out to be the publish controls sitting under this bar at a scroll offset. */
+  scroll-padding-block-start: var(--admin-topbar-h);
   /* NO `scrollbar-gutter: stable`, and it was tried (Code Owner, 2026-08-26). The form's
      own screen scrolls and its Preview does not, so moving between them makes the page
      scrollbar appear and vanish and every column jumps sideways by its width - a real
@@ -1513,6 +1525,270 @@ button {
   overflow: visible;
 }
 
+/* ===========================================================================
+   THE RULES TABLE - the read view of a form's rules (Code Owner, 2026-08-26).
+
+   Deliberately the pin grid's shape: two lists of a form's parts, on two screens of
+   one builder, should not be two different kinds of object. What differs is what a
+   row IS - a pin is a thing with columns of facts, a rule is a sentence - so the
+   sentence takes the width and everything else is as narrow as it can be.
+   =========================================================================== */
+.qcms-rule-sentence {
+  margin: 0;
+  /* Prose, not a cell's worth of text: a rule wraps to two or three lines on a narrow
+     table and needs the leading to stay readable when it does. */
+  line-height: 1.5;
+  padding-block: 0.15rem;
+  /* Wraps, and every cell in this table must: `reflow.pw.ts` sweeps every route at
+     390 and at 320, and a rule's sentence is the longest string this app renders
+     outside a question's own label. */
+  overflow-wrap: anywhere;
+}
+
+/* THE THREE KINDS OF NAME IN A SENTENCE, styled apart (Code Owner, 2026-08-29). A rule is
+   scanned for two things - which question it reads, and what it compares against - and one
+   weight for both made the reader parse the prose to tell them apart.
+
+   A question and a step are what the form HAS: weight, which survives high contrast and
+   tells them from the connectives around them. A value is what the answer is compared
+   TO: a quiet boxed literal, because it is a datum rather than a part of the form, and
+   because a box says "this exact text" in a way another weight cannot.
+
+   500 RATHER THAN 600 (Code Owner, 2026-08-30): "too bold". A list is read down its rows
+   before any single row is read across, and at 600 the names carried more emphasis than
+   the table's own headings - a page of rules read as a page of headlines. 500 is still a
+   step off the connectives around it, which is the whole job.
+
+   Never colour alone on any of them - the shape or the weight carries it, so the reading
+   holds for a reader who cannot separate two hues. */
+.qcms-rule-sentence__question,
+.qcms-rule-sentence__step {
+  font-weight: 500;
+  color: var(--color-text);
+}
+.qcms-rule-sentence__value {
+  padding-inline: 0.3em;
+  padding-block: 0.05em;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-background-muted);
+  color: var(--color-text);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.9em;
+}
+
+/* A row's own control: the row's scale rather than the app's control height, which is
+   sized for a control a screen is about and reads as a slab at the end of every line of a
+   list. 28px keeps it past the 24px `target-size` floor with room to spare, and the gap
+   below keeps neighbours from failing the same rule on spacing. */
+.qcms-rule-action {
+  min-block-size: 28px;
+  padding-inline: 0.5rem;
+  padding-block: 0.15rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background-color: transparent;
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+.qcms-rule-action:hover {
+  background-color: var(--color-surface-hover);
+}
+
+/* The cell that does NOT take width. `1%` is the pin grid's own trick and it is not a
+   fudge: a table distributes surplus across columns in proportion to their declared
+   widths, so a tiny declared width means "give this one only what its content needs" and
+   the sentence column absorbs the rest. Without it the columns split the table evenly and
+   a one-line rule sat in a fraction of the row.
+
+   `--actions` is kept as a selector with no column of its own since 2026-08-30: the
+   controls moved under the sentence, so there is no third column to hold off. */
+.qcms-rulecell--issues {
+  inline-size: 1%;
+  white-space: nowrap;
+}
+
+/* A RULE'S ROW BREATHES (Code Owner, 2026-08-30). The shared table padding is written for
+   a row that is one line of one value; a rule's row is a sentence that wraps plus the two
+   controls under it, so at 0.4rem the controls of one rule sat as close to the next rule's
+   sentence as to their own. `vertical-align: top` for the same reason - a two-line rule
+   beside a one-line rule should start level with it, not float in the middle of it. */
+.qcms-table--rules td {
+  padding-block: 0.9rem;
+  vertical-align: top;
+}
+
+/* The row's controls, under the sentence they act on and aligned to its start (Code Owner,
+   2026-08-30). They were `flex-end` in a trailing column, which put them a variable
+   distance from the rule depending on how long it was. */
+.qcms-rule-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-block-start: 0.5rem;
+}
+
+/* ===========================================================================
+   THE RULE WIZARD: a three-phase editor in a WIDE dialog (Code Owner, 2026-08-30).
+   =========================================================================== */
+
+/* THE WIDTH, AND WHY IT IS SET FROM HERE.
+
+   The vendored `Dialog` has no width prop. `packages/ui/src/components/a2ui/dialog/
+   dialog.styles.ts` writes `w-full max-w-md` onto its `Modal`, ADR-22 forbids editing a
+   vendored file to reach past that, and the kit exports the component rather than a
+   wrapper on purpose ("a QCMS-flavoured wrapper layer would be a second design language
+   by accretion"). So the caller cannot pass a width and must not grow one upstream for a
+   single screen. What is left is the route `.qcms-picker__body` already took for the same
+   dialog's height: the host app states the shape it needs, in its own sheet, against a
+   marker the caller renders inside the dialog.
+
+   THE SELECTOR. `div:has(> [role="dialog"] ...)` matches exactly one element in that tree.
+   The overlay's direct child is the `Modal` div, which carries no role; the Modal's direct
+   child is the dialog. So the `>` combinator picks the Modal and nothing else, and the
+   descendant half requires the marker our own component renders. No other dialog in the
+   app is touched.
+
+   THE NUMBER IS THE SCREEN'S OWN. `--container-measure-wide` is 100rem, the cap
+   `lib/measure.ts` assigns `/forms/[formId]` from `admin-shell-poc.html`. A dialog that
+   replaces the content of a screen has no business being wider than that screen's column,
+   and taking the same token means the two move together if the drawing ever changes.
+   `100vw - 2rem` is the floor beneath it, so on a narrow viewport the dialog is the
+   viewport less a margin rather than 1600px of horizontal scroll.
+
+   The unlayered win is the same one this sheet's header describes: Tailwind's `max-w-md`
+   is inside `@layer utilities`, and unlayered CSS beats layered CSS regardless of
+   specificity. */
+div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
+  max-inline-size: min(var(--container-measure-wide), calc(100vw - 2rem));
+}
+
+/* THE PHASE CONTROL AND THE FOOTER HOLD STILL; ONLY THE PANEL SCROLLS.
+
+   Same shape and the same reason as `.qcms-picker__body`, which is written out at length
+   beside it: the vendored `Dialog` is one scrolling column, so without a height budget a
+   target list of two hundred questions pushes Save and Cancel below the dialog's own fold.
+   The control whose whole job is to commit the work must not be reachable only by
+   scrolling past the work.
+
+   `min-block-size: 0` on the panel is the part that is not optional: a flex item's default
+   `min-height: auto` refuses to shrink below its content, so without it the panel would
+   still push the footer down and `overflow` would never engage. The budget is a proportion
+   so it holds at any viewport. */
+/* A FIXED HEIGHT, NOT A CAP (Code Owner, 2026-08-30).
+
+   As `max-block-size` the column shrank to whatever phase was selected, and the dialog is
+   centred in the viewport: switching tabs took it from 560px to 750px to 440px and moved
+   its top edge by up to 95px, so the tab an author had just pressed slid out from under
+   the pointer and the Save button moved with it.
+
+   Every phase gets the same box now and the panel below the tabs scrolls, which is what
+   the `min-block-size: 0` / `overflow-y` pair beneath was already for. The tabs, the rule's
+   issues and the footer keep their places whatever is selected. */
+.qcms-rule-wizard {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  block-size: 68vh;
+}
+.qcms-rule-wizard__tabs {
+  display: flex;
+  min-block-size: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.qcms-rule-wizard__panel {
+  min-block-size: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  /* The focus ring of a panel react-aria has made focusable (it does that only when the
+     panel holds nothing focusable) would otherwise be clipped by the scroll container. */
+  outline-offset: -2px;
+}
+.qcms-rule-wizard__footer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border-block-start: 1px solid var(--color-border);
+  padding-block-start: 0.75rem;
+}
+
+/* The three phase tabs. A row of underlined labels rather than pills: the panel below is
+   the subject and the tabs are its index, so the selected one is marked by the edge it
+   shares with its panel. `--admin-control-h` keeps them on the app's control height, which
+   is what puts them past the 24px `target-size` floor the axe sweep enforces. */
+.qcms-phasetabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  border-block-end: 1px solid var(--color-border);
+}
+.qcms-phasetab {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--admin-control-h);
+  padding-inline: 0.75rem;
+  border: 0;
+  border-block-end: 2px solid transparent;
+  margin-block-end: -1px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.qcms-phasetab:hover {
+  color: var(--color-text);
+  background-color: var(--color-ghost-hover);
+}
+/* Selected is said twice, as the help dot's open state is: `aria-selected` for a screen
+   reader, and a painted edge for everyone else. Colour is never the only carrier - the
+   underline is a shape. */
+.qcms-phasetab[aria-selected="true"] {
+  color: var(--color-text);
+  border-block-end-color: var(--color-primary);
+}
+.qcms-phasetab[data-focus-visible] {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+/* One step's targets. A bordered group rather than a bare label, because at ten steps the
+   reader needs to see where one step's questions stop and the next step's start without
+   counting indentation. */
+.qcms-targets__step {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: 0.5rem 0.75rem 0.75rem;
+}
+.qcms-targets__step-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding-inline: 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+/* The step's id beside its title, in the identity treatment the pin grid gives an id:
+   the title is what a person calls the step and the id is what a rule stores. */
+.qcms-targets__step-id {
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+/* The filter and its count on one row where there is room, so the count reads as a
+   property of the field rather than as a sentence about the page. */
+.qcms-targets__filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem;
+}
+
 /* The grip cell: the containing block the row menu positions against, and narrow,
    because a 28px control does not need a 44px column. */
 .qcms-pincell--grip {
@@ -2342,10 +2618,14 @@ button {
     display: none;
   }
 }
+/* The rail's one row rhythm, written once and used by every group in the column. */
+:root {
+  --admin-rail-row-gap: 0.125rem;
+}
 .qcms-rail__group {
   display: flex;
   flex-direction: column;
-  gap: 0.125rem;
+  gap: var(--admin-rail-row-gap);
 }
 
 /* THE BUILDER'S STEP ROWS, which are the one place in a rail where a row both
@@ -2359,6 +2639,7 @@ button {
    in the tab order to be reached. It is always visible on the current step, because
    that is the row an author is working on. */
 .qcms-rail-steps__row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.125rem;
@@ -2378,8 +2659,23 @@ button {
   cursor: pointer;
   appearance: none;
 }
+/* ABSOLUTE, OVER THE GUTTER THE ROW ALREADY RESERVES (Code Owner, 2026-08-30).
+
+   As a flex ITEM it took 30px out of the row, so the button beside it was 193px wide
+   where the same row on the other seven screens is 223px. The text lined up - that is
+   what the `padding-inline-end` below is for - but the row's BOX did not, so the tint on
+   a selected or hovered row stopped 30px short here and ran the full width there, and
+   walking between the builder and Preview moved that edge on every row that has a
+   trigger. Reserving the space in padding and painting the trigger on top of it gives
+   both branches one 223px box with its text in one place.
+
+   The trigger is still in the tab order and still `opacity`-toggled: it is taken out of
+   the FLOW, not out of the row. */
 .qcms-rail-steps__menu {
-  flex-shrink: 0;
+  position: absolute;
+  inset-inline-end: 0.125rem;
+  inset-block-start: 50%;
+  translate: 0 -50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2473,9 +2769,12 @@ button {
    this button narrower than every row it sits under. The kit's `Button` takes no
    `className` - a closed API on purpose - so the stretch is set here, on the one child
    this container has. It centres its own label already. */
+/* NO PADDING OF ITS OWN. It used to carry `0.5rem 0.25rem`, which made the add control a
+   52px box among 40px rows and put an 8px space above it and 4px below - a third spacing
+   in a column that has one. The cluster's gap places it now, like every other row. */
 .qcms-rail-steps__add {
   display: flex;
-  padding-block: 0.5rem 0.25rem;
+  padding-block: 0;
 }
 .qcms-rail-steps__add > button {
   flex: 1 1 auto;
@@ -2506,6 +2805,27 @@ button {
 }
 .qcms-rail-steps__add-link:hover {
   background-color: var(--color-surface-hover);
+}
+
+/* The builder's own screens, as a block: everything the Form row contains is one thing,
+   and the six sibling ROUTES below it are another. Without this the tree was one flat run
+   of rows at 2px each, with nothing to say which of them stay on this page. */
+/* THE STEP CLUSTER, on all eight screens (Code Owner, 2026-08-30).
+
+   ONE RHYTHM. `--admin-rail-row-gap` is the 2px every rail group already puts between its
+   rows, and this cluster now uses the same value between the form's row, the steps, the
+   add control and Rules - so a rail row sits the same distance from its neighbour wherever
+   it is. Before this the cluster had no gap of its own and the spacing came from whatever
+   padding each part happened to carry: 0px under the form row, 2px between steps, 0px
+   before the add control, which read as three different rhythms in one column.
+
+   NO MARGIN ON THE WRAPPER. It carried `margin-block-end: 0.5rem`, which is a GROUP
+   separation and belongs to the row it separates - written here it applied only where this
+   wrapper existed, which until 2026-08-30 was the builder's two screens alone. */
+.qcms-rail-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--admin-rail-row-gap);
 }
 
 /* A NESTED GROUP, which is what the form's steps are inside the Form row (Code
@@ -2612,6 +2932,37 @@ button {
   border-inline-start-color: transparent;
 }
 
+/* The rules row, which stands alone rather than beside a menu trigger. `__form` cannot
+   be reused for it: that one is a flex ITEM sized by the row it shares, so on its own it
+   shrank to the width of its text and took its tint with it - 57px of highlight on a
+   223px row. This one owns the full width instead. */
+/* WHERE THE GROUPING IS, now that the indent and the tree line have gone. The rail's rows
+   sit 2px apart, so with the Rules row butted against the Add step button above it and the
+   Preview row below it, it read as part of the step controls rather than as another screen.
+
+   The two margins say what the tree means: the steps and their add control are one cluster,
+   Rules is a screen beside them, and the six routes underneath are a different kind of
+   thing altogether. Space rather than a rule or an indent, because both of those were tried
+   and removed for saying it twice. */
+.qcms-rail-steps__rules {
+  /* 8px of GROUP separation above and below, stated as the part the row itself owes on top
+     of the 2px its container already puts between rows. Written as `0.5rem` flat, the two
+     sides came out 8px and 10px, because above this row the gap comes from the cluster and
+     below it from the outer group - and the eye reads that 2px difference as the rail
+     being crooked rather than as two containers meeting. */
+  margin-block-start: calc(0.5rem - var(--admin-rail-row-gap));
+  margin-block-end: calc(0.5rem - var(--admin-rail-row-gap));
+  display: flex;
+  inline-size: 100%;
+  border-block: 0;
+  border-inline-end: 0;
+  background-color: transparent;
+  font-family: inherit;
+  text-align: start;
+  cursor: pointer;
+  appearance: none;
+}
+
 /* The form's own row, which is the tree's first row and the parent of the steps. A
    button wearing the shared row geometry, the same way a step row does, so the tree
    reads as one list of rows rather than as a control sitting on top of one. */
@@ -2661,7 +3012,9 @@ button {
    `1.75rem` is the trigger's own `inline-size` and `0.125rem` the row's gap, both written
    just above, so this moves with them. */
 .qcms-rail-steps [data-rail-item^="step:"],
-[data-rail-item="section:builder"]:not(.qcms-rail-steps__form) {
+[data-rail-item="section:builder"],
+.qcms-rail-steps__form,
+.qcms-rail-steps__select {
   padding-inline-end: calc(0.5rem + 1.75rem + 0.125rem);
 }
 
@@ -3043,4 +3396,149 @@ button {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* The rule wizard's footer row: the rule's own actions at the start, phase navigation at
+   the end (Code Owner, 2026-08-30). Two groups rather than one flow, because they are two
+   kinds of control - one commits the rule, the other moves around inside the dialog - and
+   §5's button order applies to the first group alone.
+
+   `space-between` only once both groups fit: below that they stack, and the actions stay
+   first because that is the order they are written in. */
+.qcms-rule-wizard__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+/* ===========================================================================
+   THE SEARCHABLE PICKER (Code Owner, 2026-08-30). `components/searchable-select.tsx`
+   composes react-aria-components' ComboBox; the kit exports it unstyled, exactly as it
+   exports the menu and tab primitives, so the treatment lives here with the app that uses
+   it. Written to match the vendored Select it replaces: the same control height, the same
+   border and the same popover, so a condition row does not read as two kinds of field.
+   =========================================================================== */
+.qcms-combobox {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  /* Capped, because the dialog is 100rem wide and a field that fills it is a 1400px input
+     holding a five-word phrase. The vendored `Select` beside it is sized by its own
+     content; this is the same intent stated as a maximum. */
+  max-inline-size: 24rem;
+}
+.qcms-combobox__label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+/* The input and its toggle share one box, so the pair reads as the single control it is
+   rather than as a field with a button next to it. The focus ring is on the box for the
+   same reason: focus is inside the input, and a ring drawn around the input alone would
+   leave the toggle looking detached from the thing that has focus. */
+.qcms-combobox__control {
+  display: flex;
+  align-items: center;
+  min-inline-size: 10rem;
+  min-block-size: var(--admin-control-h);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background-color: var(--color-background);
+}
+.qcms-combobox__control:has(.qcms-combobox__input:focus-visible) {
+  outline: 2px solid var(--color-focus, var(--color-primary));
+  outline-offset: 1px;
+}
+.qcms-combobox__control:hover {
+  border-color: var(--color-primary);
+}
+.qcms-combobox__input {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  padding-inline: 0.75rem;
+  padding-block: 0.5rem;
+  border: 0;
+  background-color: transparent;
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.875rem;
+}
+/* The ring is on the wrapper above, so the input drops its own rather than drawing two. */
+.qcms-combobox__input:focus-visible {
+  outline: none;
+}
+.qcms-combobox__toggle {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* Past the 24px `target-size` floor the axe sweep enforces, and inside the field's own
+     height so the control does not grow to hold it. */
+  inline-size: 1.75rem;
+  min-block-size: 1.75rem;
+  margin-inline-end: 0.25rem;
+  border: 0;
+  border-radius: var(--radius-control);
+  background-color: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.qcms-combobox__toggle:hover {
+  background-color: var(--color-surface-hover);
+  color: var(--color-text);
+}
+.qcms-combobox__popover {
+  z-index: 50;
+  min-inline-size: var(--trigger-width);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background-color: var(--color-background);
+  /* The card's own elevation, from `--shadow-color`, so the popover sits at the same
+     height as every other floating surface in the app and follows the theme. */
+  box-shadow:
+    0 1px 2px hsl(var(--shadow-color) / 0.06),
+    0 12px 40px -12px hsl(var(--shadow-color) / 0.18);
+  padding: 0.25rem;
+}
+:root.hc .qcms-combobox__popover {
+  box-shadow: none;
+}
+.qcms-combobox__listbox {
+  max-block-size: 16rem;
+  overflow: auto;
+  outline: none;
+}
+.qcms-combobox__option {
+  display: flex;
+  align-items: center;
+  padding-inline: 0.75rem;
+  padding-block: 0.375rem;
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-size: 0.875rem;
+  cursor: pointer;
+  outline: none;
+}
+.qcms-combobox__option[data-focused] {
+  background-color: var(--color-background-muted);
+}
+.qcms-combobox__option[data-selected] {
+  font-weight: 500;
+  color: var(--color-primary);
+}
+/* Unavailable, not absent: the operator list keeps the operators this question's type
+   does not accept so an author can see that they exist. */
+.qcms-combobox__option[data-disabled] {
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.qcms-combobox__empty {
+  margin: 0;
+  padding-inline: 0.75rem;
+  padding-block: 0.5rem;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
 }

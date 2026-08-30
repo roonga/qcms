@@ -160,7 +160,9 @@ vi.mock("@/lib/forms/draft", () => import("../../lib/forms/draft"));
 vi.mock("@/lib/forms/picker-selection", () => import("../../lib/forms/picker-selection"));
 vi.mock("@/lib/forms/issues", () => import("../../lib/forms/issues"));
 vi.mock("@/lib/forms/condition", () => import("../../lib/forms/condition"));
+vi.mock("@/components/searchable-select", () => import("../../components/searchable-select"));
 vi.mock("@/lib/forms/pin-grid", () => import("../../lib/forms/pin-grid"));
+vi.mock("@/lib/forms/settings", () => import("../../lib/forms/settings"));
 vi.mock("@/components/row-menu", () => import("../../components/row-menu"));
 vi.mock("@/lib/announce", () => ({ announce: () => undefined }));
 vi.mock("@/lib/forms/types", () => import("../../lib/forms/types"));
@@ -189,6 +191,14 @@ vi.mock("@/components/forms/form-actions", () => ({
 vi.mock("@/components/forms/public-form-link", () => ({
   PublicFormLink: () => <div data-testid="qcms-public-link-stub" />,
 }));
+// The breadcrumb reads the builder bridge to name the screen the reader is on, which a
+// static render of the page has no builder to publish to. Stubbed like the actions beside
+// it: this file is about what a failed READ does, and the crumb is neither read nor
+// affected by one.
+vi.mock("@/components/forms/builder-breadcrumb", () => ({
+  BuilderBreadcrumb: () => <nav data-testid="qcms-breadcrumb-stub" />,
+  currentScreenName: () => "Form details",
+}));
 // The page reads the portal's origin to build a published form's public address. Absent
 // here, which is a real deployment state and the one that renders nothing: this file is
 // about what a FAILED READ does to the builder, and the link is neither read nor affected.
@@ -196,6 +206,12 @@ vi.mock("@/lib/server/config", () => ({ portalBaseUrl: () => undefined }));
 // Redirected to the real module rather than stubbed: it is a pure function and this file
 // wants the page's real answer about whether a link exists, not a fixed one.
 vi.mock("@/lib/forms/public-link", () => import("../../lib/forms/public-link.ts"));
+// The rules table writes an issue count the way the rail's step rows write theirs, which
+// is why it reaches for the rail's helper. Redirected to the real module: it is a pure
+// pluralisation and this file wants the real words.
+vi.mock("@/lib/forms/subtree-rail", () => import("../../lib/forms/subtree-rail.ts"));
+vi.mock("@/lib/forms/rule-sentence", () => import("../../lib/forms/rule-sentence.ts"));
+vi.mock("@/lib/forms/rule-targets", () => import("../../lib/forms/rule-targets.ts"));
 // Pure cookie helpers, redirected to the real module: this file wants the page's real
 // answer about whether the concurrent notice has been dismissed, which with no cookie on
 // the request is "no".

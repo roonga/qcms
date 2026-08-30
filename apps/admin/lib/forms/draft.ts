@@ -247,16 +247,54 @@ export function movePinWithinStep(
 
 // --- rules ------------------------------------------------------------------
 
-/** Append a rule. A new rule starts as `answered`, the one op that needs no operand. */
-export function addRule(draft: DraftForm, questionId: string): DraftForm {
+/**
+ * A rule this draft does not have yet, with an id minted against the ones it does.
+ *
+ * MINTED WITHOUT BEING ADDED, and that separation is what the rule editor's Cancel is
+ * built on. `plan/admin-design-contracts.md` §6 (amendment of 2026-08-30) gives that
+ * dialog an explicit Save, which means the rule an author is building must be able to
+ * exist without being in the draft: it is held by the dialog, and {@link upsertRule} puts
+ * it in when Save is pressed. A rule that reached the draft on "Add rule" would leave a
+ * targetless rule behind on Cancel - and `unsaveableReason` treats that as an unsaveable
+ * draft, so the pressed Cancel would pause the whole screen's autosave instead of
+ * discarding anything.
+ *
+ * An id minted here and then discarded is simply never taken, so the next add mints the
+ * same one. That is different from a STEP id, which stays reserved once a rule names it
+ * (see {@link reservedStepIds}), because nothing can be left pointing at a rule that was
+ * never added.
+ *
+ * A new rule starts as `answered`, the one op that needs no operand.
+ */
+export function newRule(draft: DraftForm, questionId: string): DraftRule {
   const ruleId = mintId(
     "rul_",
     questionId.replace(/^q_/, ""),
     draft.rules.map((rule) => rule.ruleId),
     "rule",
   );
-  const rule: DraftRule = { ruleId, when: { op: "answered", questionId }, show: [] };
-  return { ...draft, rules: [...draft.rules, rule] };
+  return { ruleId, when: { op: "answered", questionId }, show: [] };
+}
+
+/**
+ * Put a rule into the draft: replacing the one with its id, or appending it if there is
+ * none. The one commit the rule editor makes, whether the author was adding or editing.
+ *
+ * One function rather than two call sites choosing between {@link updateRule} and an
+ * append, because the dialog genuinely does not care which it is doing - it holds a rule
+ * and is asked to store it - and a caller that had to know would be a caller that could
+ * get it wrong.
+ */
+export function upsertRule(draft: DraftForm, rule: DraftRule): DraftForm {
+  const exists = draft.rules.some((candidate) => candidate.ruleId === rule.ruleId);
+  return exists
+    ? updateRule(draft, rule.ruleId, rule)
+    : { ...draft, rules: [...draft.rules, rule] };
+}
+
+/** Mint a rule and append it in one gesture, which is what the draft's own tests build with. */
+export function addRule(draft: DraftForm, questionId: string): DraftForm {
+  return upsertRule(draft, newRule(draft, questionId));
 }
 
 /** Replace one rule wholesale, which is how every condition and target edit lands. */

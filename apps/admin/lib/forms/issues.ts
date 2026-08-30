@@ -116,14 +116,15 @@ export function anchorFor(issue: FormIssue, draft: DraftForm): string | undefine
  * The step whose screen renders the element {@link anchorFor} names, or `undefined` when
  * the anchor is not on a step screen at all.
  *
- * The builder is two screens behind one route since 2026-08-26, so an anchored issue link
+ * The builder is THREE screens behind one route since 2026-08-26, so an anchored issue link
  * can name an element that is real but not currently rendered: a pin lives inside one
- * step's editor, and the reader may be looking at the form or at another step. This is
- * what lets the link switch screens first rather than resolving to nothing.
+ * step's editor, and the reader may be looking at the form, at the rules, or at another
+ * step. This is what lets the link switch screens first rather than resolving to nothing.
  *
- * A rule anchor and a step anchor both return `undefined`, and for opposite reasons: a
- * rule is on the form screen, and a step's own anchor is in the RAIL, which every screen
- * of this route shows. Neither needs a switch.
+ * A rule anchor and a step anchor both return `undefined`, and for opposite reasons: a rule
+ * is on the rules screen, which {@link anchorIsOnRulesScreen} answers for separately, and a
+ * step's own anchor is in the RAIL, which every screen of this route shows. Neither needs a
+ * step to be selected.
  */
 export function stepOwningAnchor(issue: FormIssue, draft: DraftForm): string | undefined {
   const path = issue.path;
@@ -133,6 +134,23 @@ export function stepOwningAnchor(issue: FormIssue, draft: DraftForm): string | u
   if (question === undefined) return undefined;
   return draft.steps.find((step) => step.items.some((item) => item.questionId === question))
     ?.stepId;
+}
+
+/**
+ * Whether the element {@link anchorFor} names is rendered by the RULES screen.
+ *
+ * The companion to {@link stepOwningAnchor}, and the reason the rules could move at all.
+ * `plan/admin-ux-audit.md` §5.5 refused the POC's rules screen because it was drawn as a
+ * ROUTE: "move Validation to its own route and every one of those anchors resolves to
+ * nothing", and the same list is reused verbatim for a refused publish. Rules is a
+ * selection instead, so the link switches to it and then focuses - the audit's "two-hop
+ * path... a real degradation" was the cost of a route split, and there is no route split.
+ */
+export function anchorIsOnRulesScreen(issue: FormIssue, draft: DraftForm): boolean {
+  const path = issue.path;
+  if (path === undefined) return false;
+  const rule = ruleOf(path);
+  return rule !== undefined && draft.rules.some((candidate) => candidate.ruleId === rule);
 }
 
 function isPinnedAnywhere(draft: DraftForm, questionId: string): boolean {

@@ -22,11 +22,17 @@ import {
   addStep,
   chooseOption,
   createForm,
+  closeRuleEditor,
+  moveStep,
   openFormDetails,
+  openRuleEditor,
+  openRulePhase,
   pinQuestion,
   rule,
   toggleCheckbox,
+  savedStamp,
   toggleTarget,
+  waitForSaveAfter,
   waitForSaved,
 } from "./support/forms.js";
 import { openDeliverer, submitResponse, TestConsumer } from "./support/ops.js";
@@ -202,6 +208,7 @@ const MODES = [
 
 async function expectNoViolations(page: Page, state: string): Promise<void> {
   const original = await page.evaluate(() => document.documentElement.className);
+  const originalScroll = await page.evaluate(() => window.scrollY);
   try {
     for (const mode of MODES) {
       await page.evaluate((rootClass) => {
@@ -211,6 +218,29 @@ async function expectNoViolations(page: Page, state: string): Promise<void> {
         if (rootClass !== "") document.documentElement.classList.add(rootClass);
       }, mode.rootClass);
       await settleTransitions(page);
+      // ANALYSED FROM THE TOP OF THE PAGE, because a scroll offset is not part of the
+      // state being swept and axe measures at whichever one it finds.
+      //
+      // `.qcms-topbar` is `position: sticky`, so anything a spec has scrolled past sits
+      // underneath it, and `target-size` hit-tests the current offset: a control halfway
+      // above the fold is reported as partially obscured by whichever nav link is painted
+      // over it, sized by the strip that is left. Measured on the form's own screen, where
+      // toggling the settings checkbox leaves the page at `scrollY` 127 of a possible 183:
+      // the Publish and Close form buttons are 90x40 and 118x40 at rest and came back as
+      // 90x10 and 118x10, with the two nav links above them named as the obscurers.
+      //
+      // That is a reading position rather than a defect in the screen. Both buttons are a
+      // full control tall and clear of the bar at the top of the page, and scrolling back
+      // to them is what a sticky bar is for. Left unnormalised the gate is also unstable
+      // in a way that says nothing about accessibility: any edit that makes a screen tall
+      // enough to scroll can turn an unrelated state red, which is how this arrived.
+      //
+      // What survives the normalisation is the case worth catching. A control that a
+      // sticky or fixed element covers at EVERY offset is still covered at the top, so a
+      // genuinely unreachable target still fails here; only the transient overlap goes.
+      await page.evaluate(() => {
+        window.scrollTo(0, 0);
+      });
 
       const results = await new AxeBuilder({ page })
         .options({ runOnly: { type: "tag", values: TAGS }, rules: EXTRA_RULES })
@@ -256,10 +286,15 @@ async function expectNoViolations(page: Page, state: string): Promise<void> {
     }
   } finally {
     // Leave the page as it was found, so a caller that keeps interacting with it is not
-    // silently driving a screen in a mode it never selected.
-    await page.evaluate((className) => {
-      document.documentElement.className = className;
-    }, original);
+    // silently driving a screen in a mode it never selected, or reading it from a
+    // different place on the page than the one it scrolled to.
+    await page.evaluate(
+      ({ className, scrollY }) => {
+        document.documentElement.className = className;
+        window.scrollTo(0, scrollY);
+      },
+      { className: original, scrollY: originalScroll },
+    );
   }
 }
 
@@ -269,8 +304,15 @@ test("the signed-out and failure states have zero violations", async ({ page }) 
 
   // The failure state carries a focused alert, which is where an accessible-name, duplicate
   // live region, or focus-order regression would land.
+  //
+  // SCOPED TO `main`, because Next mounts `__next-route-announcer__` - a second
+  // `role="alert"` - as the app hydrates, OUTSIDE `main`. An unscoped `getByRole("alert")`
+  // is therefore a race against hydration rather than an assertion: it resolved to one
+  // element often enough to pass for months and to two on 2026-08-30, on the first test of
+  // a cold suite. The alert this test is about is the page's own, and saying so is both
+  // the fix and the more accurate claim.
   await page.goto("/sign-in?error=1");
-  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(page.getByRole("main").getByRole("alert")).toBeVisible();
   await expectNoViolations(page, "sign-in error");
 
   await page.goto("/sign-in?throttled=1");
@@ -514,36 +556,83 @@ test("the form builder and the condition editor have zero violations", async ({ 
   await expect(validationStatus).toHaveAttribute("aria-live", "polite");
   await expectNoViolations(page, "form builder showing the form's own details");
 
+  // THE RULE WIZARD, one sweep per phase (Code Owner, 2026-08-30). The editor is three
+  // tab panels in one wide modal now, and react-aria mounts one panel at a time, so a
+  // single sweep of "the editor" would leave two thirds of it unmeasured. Each phase is a
+  // state this gate has to see, and the phase control itself - a `tablist` whose selected
+  // tab is marked by a painted edge as well as by `aria-selected` - is only in the tree
+  // while the dialog is open.
   const ruleId = await addRule(page);
   const scope = rule(page, ruleId);
   await chooseOption(scope, "Operator", "equals (the whole answer)");
   await chooseOption(scope, "Value", choiceOption);
-  await toggleTarget(page, ruleId, textId, true);
-  await expectNoViolations(page, "condition editor with a complete rule");
+  await expectNoViolations(page, "rule wizard, the When phase");
 
-  // The flagged state: an inline warning alert beside the picker that raised it, plus the
-  // engine's issue rendered at the rule and linked from the panel.
-  await toggleTarget(page, ruleId, choiceId, true);
+  await toggleTarget(page, ruleId, textId, true);
+  await expectNoViolations(page, "rule wizard, the Then show phase");
+
+  // The `?` beside the ineligible heading, open: a disclosure rendered in flow, whose
+  // button carries `aria-expanded` and `aria-controls`. Shut it is a 20px control with an
+  // `aria-label` and no text, which is the shape most easily left unnamed.
+  await page.getByRole("button", { name: "Why these cannot be shown" }).click();
+  await expectNoViolations(page, "rule wizard, the target ordering help open");
+
+  // The flagged state: an inline warning alert beside the picker that raised it. The
+  // engine's own issue is NOT here, and that is the buffering rather than an omission -
+  // nothing typed in this dialog reaches the draft until Save, so nothing revalidates.
+  //
+  // Reached by MOVING A STEP rather than by ticking a backward target, because since
+  // 2026-08-30 (Code Owner) the ineligible group cannot be chosen from. The rule shows the
+  // text question, which sits in the second step; putting that step in front of the one
+  // holding the question the condition reads makes the target backward without the rule
+  // changing. The rail is behind the modal, so the dialog closes for the move and reopens.
+  await closeRuleEditor(page);
+  await moveStep(page, "Details", "up");
+  await openRuleEditor(page, ruleId);
+  await openRulePhase(page, "then");
   await expect(page.getByTestId("qcms-backward-flag")).toBeVisible();
+  await expectNoViolations(page, "rule wizard with a backward target flagged");
+
+  // The third phase: the bench, for this rule, with its own live region.
+  await openRulePhase(page, "test");
+  // The wizard's bench, not the screen's: both are in the DOM, and they share testids
+  // because they are the same panel about two different rules.
+  const benchStatus = page.getByTestId("qcms-bench").getByTestId("qcms-bench-status");
+  await expect(benchStatus).toBeAttached();
+  await expect(benchStatus).toHaveAttribute("aria-live", "polite");
+  await expectNoViolations(page, "rule wizard, the Test phase");
+
+  // The editor is modal, so leaving it comes before going anywhere: the rail is behind the
+  // overlay until it closes. Save, because the backward target is what the next assertion
+  // is about and Cancel would discard it.
+  await closeRuleEditor(page);
+
+  // The engine's finding, now that the rule is in the draft, rendered at the rule. It sits
+  // outside the phase panels, so it is on screen whichever phase is selected. No explicit
+  // wait for the save: the assertion below carries the debounce, the round trip and the
+  // validate call in its own 30s budget, and nothing here reloads.
+  await openRuleEditor(page, ruleId);
   await expect(scope.locator('[data-issue-code="RULE_BACKWARD_TARGET"]')).toBeVisible({
     timeout: 30_000,
   });
-  await expectNoViolations(page, "condition editor with a backward target flagged");
+  await expectNoViolations(page, "rule wizard showing the engine's verdict on the rule");
+  // Put the step back rather than unticking a target: the rule has one, and a rule that
+  // shows nothing is an unsaveable draft rather than a repaired one.
+  await closeRuleEditor(page);
+  await moveStep(page, "Details", "down");
 
-  // The two collapsible panels, open: a settings switch with its unenforceable warning, and
-  // the read-only test bench with its own live region.
-  await page.getByText("Rule test bench").click();
+  // Back to the form's own screen: the settings stayed there when the rules moved out, so
+  // the panel below is not on the screen the rule work happened on. Three screens, and
+  // each axe sweep says which one it swept.
+  await openFormDetails(page);
+
+  // The settings, on the form's screen: no longer a disclosure, and no longer pressed to
+  // save - they autosave with the draft now.
   await toggleCheckbox(page, "Require a challenge before answering", true);
-  // Both panels announce their outcome through a live region, and neither was pinned
-  // (issue #368). Same reasoning as the validation panel above: attached, populated and
-  // axe-clean are all true of a paragraph that has stopped being a live region.
   const settingsStatus = page.getByTestId("qcms-form-settings-status");
   await expect(settingsStatus).toBeAttached();
   await expect(settingsStatus).toHaveAttribute("aria-live", "polite");
-  const benchStatus = page.getByTestId("qcms-bench-status");
-  await expect(benchStatus).toBeAttached();
-  await expect(benchStatus).toHaveAttribute("aria-live", "polite");
-  await expectNoViolations(page, "settings panel and rule test bench open");
+  await expectNoViolations(page, "form settings on the form's own screen");
 });
 
 test("publish, preview, history and secure links have zero violations", async ({
@@ -581,12 +670,21 @@ test("publish, preview, history and secure links have zero violations", async ({
   await addStep(page, "Cover");
   await pinQuestion(page, choiceId, 1);
   await pinQuestion(page, countId, 1);
+  // A STAMP BEFORE THE EDITOR OPENS. The wizard buffers since 2026-08-30, so the whole rule
+  // reaches the draft in ONE mutation on Save: "Saved" is already on screen from the pins,
+  // so `waitForSaved` would return instantly and the reload below would race the only round
+  // trip the rule ever gets. Publish then freezes a draft without the rule in it.
+  const beforeRule = await savedStamp(page);
   const ruleId = await addRule(page);
   const scope = rule(page, ruleId);
   await chooseOption(scope, "Operator", "equals (the whole answer)");
   await chooseOption(scope, "Value", choiceOption);
   await toggleTarget(page, ruleId, countId, true);
-  await waitForSaved(page);
+  // The editor is modal, and the save strip is read through the rail, which is behind the
+  // overlay until it closes. The sibling sweep above got this when the rules moved into a
+  // dialog; this one is on the same route and needs the same gesture.
+  await closeRuleEditor(page);
+  await waitForSaveAfter(page, beforeRule);
   await page.reload();
 
   await page.getByRole("button", { name: "Publish", exact: true }).click();
