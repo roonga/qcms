@@ -58,7 +58,7 @@
 
 **Status:** implemented; see note.
 
-**Decision.** Rules evaluate in one forward pass, in document order. A rule may show only targets that appear after every question it reads. Publish rejects backward targets and cycles. A semantic change requires a new snapshot `semanticsVersion`, and old snapshots evaluate under their recorded semantics.
+**Decision.** Rules evaluate once, in document order. A rule may show only targets that appear after every question it reads. Publish rejects backward targets and cycles. A semantic change requires a new snapshot `semanticsVersion`.
 
 **Note (flagged - code gap).** The `semanticsVersion` gate runs only at submit. The serve and answer paths evaluate a bare definition without checking the stored stamp (`apps/api/src/features/responses/serve-step/handler.ts`), so a snapshot recorded under superseded semantics would be served and branched by the new evaluator and fail only at submit. The stamp is also stored as text and numerically coerced at submit.
 
@@ -88,7 +88,7 @@
 
 **Status:** implemented.
 
-**Decision.** Boolean questions may provide localized `yesLabel` and `noLabel` values with a default fallback. Stored answers remain booleans and rule, reporting, and export semantics do not change.
+**Decision.** Boolean questions may provide localized `yesLabel` and `noLabel` values with catalog fallback. Stored answers remain booleans and rule, reporting, and export semantics do not change.
 
 **Note.** The fallback source is a compiler lexicon constant frozen by `compilerVersion`, not an app catalog in the ADR-11 sense.
 
@@ -168,9 +168,9 @@
 
 **Status:** implemented.
 
-**Decision.** Admin authentication uses better-auth, hosted in the API (ADR-35 as amended), with email, password, TOTP, recovery codes, and no self-registration. Respondents use anonymous sessions or secure links at launch. Secure-link token functions stay pure; key storage stays in the shell.
+**Decision.** Admin authentication uses better-auth with email, password, TOTP, recovery codes, and no self-registration. Respondents use anonymous sessions or secure links at launch. Secure-link token functions stay pure; key storage stays in the shell.
 
-**Note.** The shipped instance also enforces a breach-corpus password check (#178) and a sign-in throttle (#374, #390); `docs/SECURITY_DESIGN.md` is authoritative for those controls.
+**Note.** The instance is hosted in the API since ADR-35's 2026-07-31 amendment. The shipped instance also enforces a breach-corpus password check (#178) and a sign-in throttle (#374, #390); `docs/SECURITY_DESIGN.md` is authoritative for those controls.
 
 ## Deployment and operations
 
@@ -186,7 +186,7 @@
 
 **Status:** implemented.
 
-**Decision.** API, admin, and portal wire OpenTelemetry at their composition roots for W3C trace propagation, OTLP traces, and allowlisted trace-correlated logs. With no OTLP endpoint, telemetry is a hard no-op. Browser telemetry, custom metrics, and identifier hashing are Phase 4. No collector ships in the base topology.
+**Decision.** API, admin, and portal use official OpenTelemetry instrumentation at composition roots for W3C trace propagation, OTLP traces, and allowlisted trace-correlated application logs. With no OTLP endpoint, telemetry is a hard no-op. Browser telemetry, custom metrics, and identifier hashing are Phase 4. No collector ships in the base topology.
 
 **Note.** The Next apps use `@vercel/otel` and the API uses `@hono/otel` - the documented compositions for those frameworks, not OpenTelemetry-org packages. SEC-13 span redaction is part of the baseline in all three roots, alongside the log allowlist.
 
@@ -235,6 +235,14 @@
 **Decision.** User-facing chrome comes from app catalogs; authored content comes from `LocalizedText`. Dates, numbers, and currency use `Intl`. Additional translations and a runtime locale switcher are Phase 4, but the localization machinery is launch scope.
 
 **Note.** The admin has a locale constant and format module; the portal does not - its one formatted value inlines `en-US` while the admin uses `en`, so a second portal locale currently means editing a component. No currency value exists in the domain yet; that clause is forward-looking.
+
+### ADR-38 - Theme scope carrier
+
+**Status:** implemented.
+
+**Decision.** Theme and font token sheets target `:is(:root, [data-qcms-theme-scope])`. Component treatments target descendants of the bare carrier attribute. This lets admin previews render portal tokens and treatments without restyling admin chrome, while preserving existing root-based adopter overrides.
+
+**Note.** Two known containment limits: the Tailwind `@theme` block raising the WCAG 1.4.12 floors is global by construction, and the admin neutralizes it manually; portalled overlays (select, calendar, menu popovers) attach to `document.body` outside the carrier, so previews show admin tokens for transient overlays.
 
 ## Process and delivery
 
