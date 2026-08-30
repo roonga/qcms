@@ -158,10 +158,20 @@ function requireFormId(id: string): FormId {
   return parsed.value;
 }
 
-/** Parse a `:v` path param to a positive integer, or 404 (no such version). */
+/**
+ * The largest value a version number can take: `form_versions.version` is an
+ * `int4` column, so nothing above this can name a stored row (issue #645).
+ * Without the bound the guard passed the segment straight to Postgres, which
+ * refused the parameter with "value out of range for type integer" - an
+ * unexpected throw, so a caller who typed too many digits got a 500 instead of
+ * the 404 the same URL earns one digit shorter.
+ */
+const MAX_VERSION = 2_147_483_647;
+
+/** Parse a `:v` path param to an in-range positive integer, or 404 (no such version). */
 function requireVersion(v: string): number {
   const n = Number(v);
-  if (!Number.isInteger(n) || n < 1) throw fail.versionNotFound();
+  if (!Number.isInteger(n) || n < 1 || n > MAX_VERSION) throw fail.versionNotFound();
   return n;
 }
 

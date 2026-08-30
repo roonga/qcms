@@ -521,6 +521,13 @@ describe("GET /admin/questions/:id/versions/:v/preview (032)", () => {
     const notANumber = await get("/questions/q_preview_draft/versions/abc/preview");
     expect(notANumber.status).toBe(404);
     expect(((await notANumber.json()) as ErrBody).error.code).toBe("VERSION_NOT_FOUND");
+
+    // And so is a whole number past the `question_versions.version` int4 ceiling
+    // (issue #645). It used to reach Postgres, which refused the parameter as out
+    // of range, so the same URL 500ed with one more digit than it 404s with.
+    const overRange = await get("/questions/q_preview_draft/versions/2147483648/preview");
+    expect(overRange.status).toBe(404);
+    expect(((await overRange.json()) as ErrBody).error.code).toBe("VERSION_NOT_FOUND");
   });
 
   it("a malformed question id → 400 INVALID_QUESTION_ID", async () => {
