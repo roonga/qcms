@@ -2,7 +2,7 @@
 
 **Status:** authoritative. This is the **only** place the allocation table is written down. Every other document points here; none restates it. (The repo has been bitten by duplicated tables before: the ordering-exception table once had five divergent copies.)
 
-**Binding as R8** (`PROJECT_INSTRUCTIONS.md`), decided in **ADR-37** (`docs/PROJECT_GOAL.md` §6), enforced by **`pnpm check:ports`** (`scripts/check-ports.mjs`, part of `check:all`, so `pnpm verify` and CI both run it). Motivated by **issue #255**.
+**Binding as R8** (`PROJECT_INSTRUCTIONS.md`), decided in **ADR-37** (`docs/adr/core.md`), enforced by **`pnpm check:ports`** (`scripts/check-ports.mjs`, part of `check:all`, so `pnpm verify` and CI both run it). Motivated by **issue #255**.
 
 ## The rule
 

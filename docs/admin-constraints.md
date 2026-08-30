@@ -1,6 +1,7 @@
 # What binds the admin
 
-**Status:** authoritative. Check this document before citing an admin rule.
+**Status:** authoritative. Check this document before citing an admin rule. The decisions it
+cites live in `docs/adr/admin.md` and `docs/adr/core.md`.
 
 **Audience:** authenticated staff, on machines they chose, in a session they signed into.
 

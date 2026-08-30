@@ -127,7 +127,8 @@ steps and uploads the Playwright HTML and JUnit report as `full-stack-e2e-report
 
 ## Documentation
 
-- [`docs/PROJECT_GOAL.md`](docs/PROJECT_GOAL.md) - vision, scope, and the architectural decision records (ADR-01…35)
+- [`docs/PROJECT_GOAL.md`](docs/PROJECT_GOAL.md) - vision and scope
+- [`docs/adr/`](docs/adr/) - the architectural decision records (ADR-01…39), split by surface
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) - system design and repository structure
 - [`docs/DOMAIN_SCHEMA.md`](docs/DOMAIN_SCHEMA.md) - the domain model, rules DSL, and invariants
 - [`docs/SECURITY_DESIGN.md`](docs/SECURITY_DESIGN.md) - threat model and security controls (SEC-1…13)

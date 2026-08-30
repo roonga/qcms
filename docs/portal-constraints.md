@@ -1,6 +1,7 @@
 # What binds the portal
 
-**Status:** authoritative. Check this document before citing a portal rule.
+**Status:** authoritative. Check this document before citing a portal rule. The decisions it
+cites live in `docs/adr/portal.md` and `docs/adr/core.md`.
 
 **Audience:** respondents, on browsers nobody chose, often reached by a link they were sent.
 
@@ -21,7 +22,7 @@ renders projections the API computed. This is a correctness boundary.
 
 **ADR-28.** Explicit Continue, Back and Submit. No collapse-on-answer and no derived cursor.
 
-**ADR-31.** Answer commitment semantics: when a control's value is committed, and that an
+**ADR-31.** Answer commitment semantics: each control commits at its decided moment, and an
 emptied control reports **absence** rather than an empty string or an empty array.
 
 ## Appearance
