@@ -136,9 +136,10 @@ export function FormBuilder({
    * The form's name, identity line and draft origin, rendered on the form screen.
    *
    * A node for the same reason {@link formActions} is one: the page composes it from the
-   * server's own read of the form, and the builder only decides which of its two screens
-   * it belongs on. The `<h1>` travelling with it is why the step screen promotes its own
-   * heading to `h1` - see the step branch below.
+   * server's own read of the form, and the builder only decides which of its three screens
+   * it belongs on - the form's own details, the rules, or one step. The `<h1>` travelling
+   * with it is why the other two promote their own headings to `h1` - see those branches
+   * below.
    */
   /** The form's id, locale, status and draft origin, as one muted line under the heading. */
   readonly formMeta: ReactNode;
@@ -424,24 +425,34 @@ export function FormBuilder({
     <div className="flex flex-col gap-6">
       <SaveNotices paused={paused} saveError={saveError} />
 
-      {/* TWO SCREENS BEHIND ONE ROUTE, and the rail is the switch (Code Owner, 2026-08-26).
-          `plan/admin-shell-poc/admin-shell-poc.html` says so in its own card subtitle - "left
-          rail navigating a form screen and a step screen" - and draws the two: a Form screen
-          of Form title, Form settings, Rules, Rule test bench and Validation, and a Step
-          screen of that step's questions and nothing else.
+      {/* THREE SCREENS BEHIND ONE ROUTE, and the rail is the switch (Code Owner, 2026-08-26).
+          It was two: `plan/admin-shell-poc/admin-shell-poc.html` says so in its own card
+          subtitle - "left rail navigating a form screen and a step screen" - and draws them,
+          a Form screen of Form title, Form settings, Rules, Rule test bench and Validation,
+          and a Step screen of that step's questions and nothing else. The RULES then took a
+          screen of their own, drawn by `rules-screen-poc.html` as a full-width editor: a
+          condition editor is the widest thing this app builds, and it shared a row with the
+          validation panel only because everything form-level was crowded onto one screen.
 
-          It used to be one screen carrying both, which meant the five FORM-level panels sat
-          under whichever step was selected and followed the reader from step to step. Nothing
-          was duplicated in the DOM, but the arrangement said the wrong thing: panels that
-          belong to the form read as though each step had its own copy of them, and the only
-          way to reach the form's settings was through a step that has nothing to do with them.
+          A SELECTION, not a route, and `lib/forms/builder-bridge.ts` records why that
+          distinction is what made the third screen safe: `plan/admin-ux-audit.md` §5.5
+          refused a rules ROUTE because every rule-scoped validation anchor would resolve to
+          nothing, and a selection lets an issue entry switch screens and then focus.
 
-          The three grids below are the builder's only responsive behaviour, and they do NOT
-          all turn at the same width. `plan/admin-design-contracts.md` §1 fixes two boundaries
-          and sorts side-by-side layouts between them. These are page content - rules beside
-          the validation panel, form settings beside the rule bench - so they key to
-          `--bp-compact`, which is what §1 assigns to ordinary side-by-side panes. The step
-          list is not one of them: it left this column for the rail on 2026-08-25, and
+          It used to be ONE screen carrying everything, which meant the five FORM-level panels
+          sat under whichever step was selected and followed the reader from step to step.
+          Nothing was duplicated in the DOM, but the arrangement said the wrong thing: panels
+          that belong to the form read as though each step had its own copy of them, and the
+          only way to reach the form's settings was through a step that has nothing to do with
+          them.
+
+          The grid below is the builder's only responsive behaviour. `plan/admin-design-
+          contracts.md` §1 fixes two boundaries and sorts side-by-side layouts between them;
+          this is page content, so it keys to `--bp-compact`, which is what §1 assigns to
+          ordinary side-by-side panes. Two of the three grids this comment used to describe
+          are gone with the screens they laid out: rules no longer sit beside the validation
+          panel, and the settings no longer sit beside the rule bench. The step list is not
+          one of them either - it left this column for the rail on 2026-08-25, and
           `components/forms/rail-steps.tsx` is where it went. */}
       {selection.kind === "form" && (
         <>

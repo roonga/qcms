@@ -469,11 +469,11 @@ export async function movePin(page: Page, questionId: string, version: number): 
 }
 
 /**
- * Run a read that needs the save strip, from whichever of the builder's two screens the
+ * Run a read that needs the save strip, from whichever of the builder's three screens the
  * caller is standing on, and put them back where they were.
  *
- * THE SAVE STRIP IS ON THE FORM SCREEN ONLY since 2026-08-26, so a spec that has just
- * edited a step cannot see it. That is the product's behaviour rather than a test problem
+ * THE SAVE STRIP IS ON THE FORM SCREEN ONLY since 2026-08-26, so a spec standing on a step
+ * or on the rules screen cannot see it. That is the product's behaviour rather than a test problem
  * - a person editing a step has to look at the form screen too - and this is that trip,
  * made once here instead of scattered through a dozen specs as a pair of screen switches
  * that would then have to be kept in step with each other.

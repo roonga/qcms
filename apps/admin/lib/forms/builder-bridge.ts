@@ -56,6 +56,13 @@ import type { DraftForm } from "./types.ts";
  * card subtitle says "left rail navigating a form screen and a step screen" - and the rail
  * is what switches between them. So the form's details are `kind: "form"`, reached from a
  * row of the rail, and a step is `kind: "step"`, reached from that step's row.
+ *
+ * THREE SINCE 2026-08-26 (Code Owner): the rules got a screen of their own, `kind: "rules"`,
+ * drawn by `plan/admin-shell-poc/rules-screen-poc.html` as a full-width editor with its own
+ * rail row. It is a SELECTION rather than a route, and that distinction is the whole reason
+ * it was safe to make: `plan/admin-ux-audit.md` §5.5 refused a rules ROUTE because every
+ * rule-scoped validation anchor would resolve to nothing, and a selection lets an issue
+ * entry switch screens and then focus - see `anchorIsOnRulesScreen` in `lib/forms/issues.ts`.
  */
 export type BuilderSelection =
   | { readonly kind: "form" }
