@@ -627,7 +627,6 @@ export const messages = {
   "forms.rules.needPin": "Pin a question first: a condition has to read one.",
   "forms.rules.column.rule": "Rule",
   "forms.rules.column.issues": "Issues",
-  "forms.rules.column.actions": "Actions",
   "forms.rules.edit": "Edit",
   "forms.rules.remove": "Remove",
   // The dialog's own title names the rule being changed rather than saying "Edit rule",
@@ -660,6 +659,10 @@ export const messages = {
   "forms.rule.heading": "Rule {ruleId}",
   "forms.rule.when": "When",
   "forms.rule.show": "Show",
+  // The combobox's own two strings. The toggle is named by the field it belongs to,
+  // because a condition with five leaves renders five of them.
+  "forms.combobox.toggle": "Show all options for {label}",
+  "forms.combobox.noMatch": "No match.",
   "forms.rule.op": "Operator",
   "forms.rule.question": "Question",
   "forms.rule.value": "Value",
@@ -687,11 +690,20 @@ export const messages = {
   // library picker's chosen pane gives to the same problem.
   "forms.rule.targetsSelected": "Selected: {targets}",
   "forms.rule.targetsSelectedNone": "Nothing selected yet. This rule would show nothing.",
-  "forms.rule.targetsHelpLabel": "Why some targets come before this condition",
+  // USER-FACING, so it says the thing rather than citing where the thing is decided (Code
+  // Owner, 2026-08-30). It carried "one forward pass" and "(ADR-16)", which name an
+  // internal record and a piece of engine vocabulary to somebody who is trying to build a
+  // form. The rule itself is simple enough to state in a sentence, and stating it is the
+  // whole reason this list is on screen instead of hidden.
+  //
+  // PLAIN, in the same pass: no second-guessing what the reader might be feeling ("rather
+  // than wondering where a question went") and no describing the rendering back to them
+  // ("greyed out"). Each sentence is one fact about the rule or about this list.
+  "forms.rule.targetsHelpLabel": "Why these cannot be shown",
   "forms.rule.targetsHelpDetail":
-    "Answers are evaluated in one forward pass, so a rule can only show something a respondent has not reached yet (ADR-16). Anything at or before the last question this condition reads is listed here rather than hidden, so you can see what you cannot point at and why. A whole step is listed here when any of its questions is, because showing a step shows every question in it. Publishing refuses a rule that points backwards.",
+    "A rule can only show something the respondent has not reached yet, so it cannot point at anything at or before the last question its condition reads. Those targets are listed here rather than hidden, and cannot be selected. A whole step appears here when any one of its questions does, because showing a step shows every question in it. A rule that points backwards cannot be published.",
   "forms.rule.backwardWarning":
-    "{targets} comes before a question this condition reads. Answers are evaluated in one forward pass, so a rule can only show something that comes later (ADR-16). Publishing will refuse this.",
+    "{targets} comes before a question this condition reads. A rule can only show something the respondent has not reached yet, so this rule cannot be published until that target is cleared.",
   "forms.rule.issues": "Issues with this rule",
 
   "forms.op.answered": "has been answered",
@@ -853,8 +865,10 @@ export const messages = {
   "forms.issue.unpublishedPin":
     "A form can only pin a published version. Publish that version, or pin one that already is.",
   "forms.issue.localeIncomplete": "This has no text for the form's default locale.",
+  // Also user-facing, and cleaned with the picker's help text on 2026-08-30 for the same
+  // reason: an author reading a refused publish needs the rule, not its citation.
   "forms.issue.backwardTarget":
-    "A rule can only show something that comes after every question its condition reads. Answers are evaluated in one forward pass (ADR-16), so a backward target could never fire.",
+    "A rule can only show something that comes after every question its condition reads, so a target earlier in the form could never fire.",
   "forms.issue.cycle":
     "These rules depend on each other in a loop, so no order of evaluation resolves them.",
   "forms.issue.depthExceeded": "This condition is nested deeper than the engine evaluates.",

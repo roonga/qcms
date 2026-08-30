@@ -39,6 +39,7 @@ import { stripTags } from "../test-support/markup.ts";
 vi.mock("@/components/kit", () => import("../kit.tsx"));
 vi.mock("@/lib/forms/builder-state", () => import("../../lib/forms/builder-state.ts"));
 vi.mock("@/lib/forms/condition", () => import("../../lib/forms/condition.ts"));
+vi.mock("@/components/searchable-select", () => import("../searchable-select.tsx"));
 vi.mock("@/lib/forms/draft", () => import("../../lib/forms/draft.ts"));
 vi.mock("@/lib/i18n/en", () => import("../../lib/i18n/en.ts"));
 

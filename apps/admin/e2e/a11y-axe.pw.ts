@@ -23,6 +23,7 @@ import {
   chooseOption,
   createForm,
   closeRuleEditor,
+  moveStep,
   openFormDetails,
   openRuleEditor,
   openRulePhase,
@@ -573,13 +574,22 @@ test("the form builder and the condition editor have zero violations", async ({ 
   // The `?` beside the ineligible heading, open: a disclosure rendered in flow, whose
   // button carries `aria-expanded` and `aria-controls`. Shut it is a 20px control with an
   // `aria-label` and no text, which is the shape most easily left unnamed.
-  await page.getByRole("button", { name: "Why some targets come before this condition" }).click();
+  await page.getByRole("button", { name: "Why these cannot be shown" }).click();
   await expectNoViolations(page, "rule wizard, the target ordering help open");
 
   // The flagged state: an inline warning alert beside the picker that raised it. The
   // engine's own issue is NOT here, and that is the buffering rather than an omission -
   // nothing typed in this dialog reaches the draft until Save, so nothing revalidates.
-  await toggleTarget(page, ruleId, choiceId, true);
+  //
+  // Reached by MOVING A STEP rather than by ticking a backward target, because since
+  // 2026-08-30 (Code Owner) the ineligible group cannot be chosen from. The rule shows the
+  // text question, which sits in the second step; putting that step in front of the one
+  // holding the question the condition reads makes the target backward without the rule
+  // changing. The rail is behind the modal, so the dialog closes for the move and reopens.
+  await closeRuleEditor(page);
+  await moveStep(page, "Details", "up");
+  await openRuleEditor(page, ruleId);
+  await openRulePhase(page, "then");
   await expect(page.getByTestId("qcms-backward-flag")).toBeVisible();
   await expectNoViolations(page, "rule wizard with a backward target flagged");
 
@@ -606,8 +616,10 @@ test("the form builder and the condition editor have zero violations", async ({ 
     timeout: 30_000,
   });
   await expectNoViolations(page, "rule wizard showing the engine's verdict on the rule");
-  await toggleTarget(page, ruleId, choiceId, false);
+  // Put the step back rather than unticking a target: the rule has one, and a rule that
+  // shows nothing is an unsaveable draft rather than a repaired one.
   await closeRuleEditor(page);
+  await moveStep(page, "Details", "down");
 
   // Back to the form's own screen: the settings stayed there when the rules moved out, so
   // the panel below is not on the screen the rule work happened on. Three screens, and

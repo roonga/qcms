@@ -117,3 +117,34 @@ export {
  * ship its own opinion about. Closing the gap upstream is the ADR-22 route if one arrives.
  */
 export { Tab, TabList, TabPanel, Tabs } from "react-aria-components";
+
+/**
+ * The combobox primitives: a text input that FILTERS a list, by the same route and for the
+ * same reason as the menu and tab primitives above.
+ *
+ * The pinned a2-react-aria registry ships a `select` and no combobox (checked against the
+ * `a2ra.json` pin), so there is nothing to vendor and ADR-22's own wording names the
+ * alternative: "use the vendored components (src/components/a2ui) **or**
+ * react-aria-components". A picker over a list too long to scan is not a Select with extra
+ * steps - it is the APG combobox pattern, which carries a roving `aria-activedescendant`,
+ * the "N results available" announcement and the input-to-listbox relationship that a
+ * hand-rolled filter over a `Select` would have to reinvent and would get subtly wrong.
+ *
+ * Aliased, because the bare names collide with the vendored components and with the menu
+ * block above: `Input`, `ListBox`, `Popover` and `Button` are generic in
+ * react-aria-components and specific here.
+ *
+ * Unstyled on purpose, exactly as the menu and tab primitives are: the host supplies class
+ * names, so no variant layer accumulates in this package for a component the registry may
+ * later ship its own opinion about. Closing the gap upstream is the ADR-22 route if one
+ * arrives.
+ */
+export {
+  Button as ComboBoxButton,
+  ComboBox,
+  Input as ComboBoxInput,
+  Label as ComboBoxLabel,
+  ListBox as ComboBoxListBox,
+  ListBoxItem as ComboBoxOption,
+  Popover as ComboBoxPopover,
+} from "react-aria-components";

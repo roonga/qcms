@@ -74,9 +74,6 @@ export function RulesTable({
             <th scope="col" className="qcms-cell--drop qcms-rulecell--issues">
               {t("forms.rules.column.issues")}
             </th>
-            <th scope="col" className="qcms-rulecell--actions">
-              <span className="qcms-visually-hidden">{t("forms.rules.column.actions")}</span>
-            </th>
           </tr>
         </thead>
         <tbody>
@@ -126,6 +123,15 @@ function RuleRow({
     // stop, reachable when something sends focus here and never by tabbing past it.
     <tr id={ruleAnchorId(rule.ruleId)} tabIndex={-1} data-rule-id={rule.ruleId}>
       <td>
+        {/* THE CONTROLS SIT UNDER THE SENTENCE (Code Owner, 2026-08-30), inside the cell
+            the sentence is in rather than in a column of their own at the end of the row.
+
+            A trailing column put them a variable distance from the rule they act on: the
+            sentence column absorbs the surplus width, so on a wide screen the buttons for
+            a short rule ended up half a table away from it, and the pairing was carried by
+            the row's own edges rather than by anything visible. Under the text they are
+            the same distance from every rule at every width, which is also what the
+            questions list does with its own row controls. */}
         <p className="qcms-rule-sentence">
           {sentence.map((segment, index) => (
             <span
@@ -141,6 +147,23 @@ function RuleRow({
             </span>
           ))}
         </p>
+        <div className="qcms-rule-actions">
+          {/* VISIBLE, not in a menu. A step's row hides its commands because pressing the
+              row already does something; a rule's row does nothing, so its primary action
+              has to be on the surface rather than one press further away.
+
+              Bare buttons rather than the kit's: the kit's carry the app's 40px control
+              height, which is right for a control a screen is about and far too heavy for
+              two of them on every row of a list. `.qcms-rule-action` gives them the row's
+              own scale and keeps them past the 24px `target-size` floor the axe sweep
+              enforces. */}
+          <button type="button" className="qcms-rule-action" onClick={onEdit}>
+            {t("forms.rules.edit")}
+          </button>
+          <button type="button" className="qcms-rule-action" onClick={onRemove}>
+            {t("forms.rules.remove")}
+          </button>
+        </div>
       </td>
       <td className="qcms-cell--drop qcms-rulecell--issues">
         {/* Silence rather than a zero. An empty verdict and an absent one both arrive here
@@ -151,25 +174,6 @@ function RuleRow({
             {issueCountLabel(mine.length)}
           </span>
         )}
-      </td>
-      <td className="qcms-rulecell--actions">
-        <div className="qcms-rule-actions">
-          {/* VISIBLE, not in the menu beside it. A step's row hides its commands because
-              pressing the row already does something; a rule's row does nothing, so its
-              primary action has to be on the surface rather than one press further away.
-
-              Bare buttons rather than the kit's: the kit's carry the app's 40px control
-              height, which is right for a control a screen is about and far too heavy for
-              two of them at the end of every row in a list. `.qcms-rule-action` gives them
-              the row's own scale and keeps them past the 24px `target-size` floor, which
-              is the number the axe sweep enforces. */}
-          <button type="button" className="qcms-rule-action" onClick={onEdit}>
-            {t("forms.rules.edit")}
-          </button>
-          <button type="button" className="qcms-rule-action" onClick={onRemove}>
-            {t("forms.rules.remove")}
-          </button>
-        </div>
       </td>
     </tr>
   );

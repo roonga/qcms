@@ -1,6 +1,7 @@
 "use client";
 
 import { Button, Select } from "@/components/kit";
+import { SearchableSelect } from "@/components/searchable-select";
 import {
   addBranch,
   conditionDepth,
@@ -170,7 +171,12 @@ function OperatorSelect({
   );
 
   return (
-    <Select
+    // SEARCHABLE (Code Owner, 2026-08-30). Thirteen operators whose names are phrases, in
+    // a popover you scan: typing "at least" is faster than reading down a list, and the
+    // list only grows. `disabledKeys` still marks the ones this question's type does not
+    // accept rather than hiding them, which is what keeps "that exists but not here"
+    // readable - the same call the `Select` made.
+    <SearchableSelect
       label={t("forms.rule.op")}
       value={node.op}
       items={CONDITION_OPS.map((op) => ({ label: t(`forms.op.${op}`), value: op }))}

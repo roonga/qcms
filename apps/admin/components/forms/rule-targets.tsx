@@ -140,6 +140,7 @@ export function RuleTargets({
                   groups={shown.ineligible}
                   selected={rule.show}
                   onToggle={toggle}
+                  isIneligible
                   help={
                     <button
                       type="button"
@@ -187,6 +188,7 @@ function TargetEligibilityGroup({
   onToggle,
   help,
   helpPanel,
+  isIneligible = false,
 }: {
   readonly legend: string;
   readonly groups: readonly TargetStepGroup[];
@@ -194,6 +196,7 @@ function TargetEligibilityGroup({
   readonly onToggle: (target: string, isSelected: boolean) => void;
   readonly help?: ReactNode;
   readonly helpPanel?: ReactNode;
+  readonly isIneligible?: boolean;
 }) {
   if (groups.length === 0) return null;
   return (
@@ -207,7 +210,13 @@ function TargetEligibilityGroup({
       </div>
       {helpPanel}
       {groups.map((group) => (
-        <TargetStep key={group.stepId} group={group} selected={selected} onToggle={onToggle} />
+        <TargetStep
+          key={group.stepId}
+          group={group}
+          selected={selected}
+          onToggle={onToggle}
+          isIneligible={isIneligible}
+        />
       ))}
     </div>
   );
@@ -225,10 +234,13 @@ function TargetStep({
   group,
   selected,
   onToggle,
+  isIneligible = false,
 }: {
   readonly group: TargetStepGroup;
   readonly selected: readonly string[];
   readonly onToggle: (target: string, isSelected: boolean) => void;
+  /** Whether this group is the one nothing new may be chosen from. */
+  readonly isIneligible?: boolean;
 }) {
   return (
     <fieldset className="qcms-targets__step" data-target-step={group.stepId}>
@@ -237,20 +249,37 @@ function TargetStep({
         <span className="qcms-question-id qcms-targets__step-id">{group.stepId}</span>
       </legend>
       <div className="flex flex-wrap gap-3">
-        {group.options.map((option) => (
-          <Checkbox
-            key={option.id}
-            label={
-              option.kind === "step"
-                ? t("forms.rule.targetStep", { stepId: option.id })
-                : option.label
-            }
-            isSelected={selected.includes(option.id)}
-            onChange={(isSelected) => {
-              onToggle(option.id, isSelected);
-            }}
-          />
-        ))}
+        {group.options.map((option) => {
+          const isSelected = selected.includes(option.id);
+          return (
+            <Checkbox
+              key={option.id}
+              label={
+                option.kind === "step"
+                  ? t("forms.rule.targetStep", { stepId: option.id })
+                  : option.label
+              }
+              isSelected={isSelected}
+              // NOT CHOOSABLE, BUT ALWAYS CLEARABLE (Code Owner, 2026-08-30).
+              //
+              // The group used to render exactly like the eligible one, so a list of
+              // things this rule CANNOT show looked like a list of things it could, and
+              // the only correction came after the press. It is disabled now.
+              //
+              // The exception is the whole of the correctness here: a target that is
+              // already selected stays live. An ineligible target is not only reached by
+              // choosing one - the far more common route is that the CONDITION moved
+              // under a target that was legal when it was picked, by coming to read a
+              // question further down the form. Disabling that checkbox would leave the
+              // author looking at the reason their form will not publish with no control
+              // to act on it, and the only way out would be to delete the rule.
+              isDisabled={isIneligible && !isSelected}
+              onChange={(next) => {
+                onToggle(option.id, next);
+              }}
+            />
+          );
+        })}
       </div>
     </fieldset>
   );

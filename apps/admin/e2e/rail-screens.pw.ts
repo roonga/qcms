@@ -266,34 +266,59 @@ test("561 puts every shared rail row in the same box on all three builder-family
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.setViewportSize({ width: 1280, height: 900 });
 
+  // Each shared row's shape, plus the gap from the row above it in the same list. Rounded,
+  // because a fractional layout difference is not what this is about and sub-pixel noise
+  // would make it flake.
   const boxes = async (): Promise<Record<string, string>> =>
     page.locator("[data-rail-item]").evaluateAll((nodes) =>
       Object.fromEntries(
-        nodes.map((node) => {
+        nodes.map((node, index) => {
           const box = node.getBoundingClientRect();
+          const previous = index === 0 ? undefined : nodes[index - 1]?.getBoundingClientRect();
+          const gap =
+            previous === undefined ? "first" : String(Math.round(box.top - previous.bottom));
           return [
             node.getAttribute("data-rail-item") ?? "",
-            // Rounded, because a fractional layout difference is not what this is about
-            // and sub-pixel noise would make it flake.
-            `left=${String(Math.round(box.left))} width=${String(Math.round(box.width))} top=${String(Math.round(box.top))} height=${String(Math.round(box.height))}`,
+            `left=${String(Math.round(box.left))} width=${String(Math.round(box.width))} height=${String(Math.round(box.height))} gapAbove=${gap}`,
           ];
         }),
       ),
     );
 
-  await page.goto(`/forms/${FORM_ID}`);
-  await expect(page.getByTestId("qcms-rail")).toBeVisible();
-  await openRail(page);
-  const onBuilder = await boxes();
-
-  await page.locator('[data-rail-item="rules"]').click();
-  await expect(page.locator("#qcms-rules-heading")).toBeAttached();
-  const onRules = await boxes();
-
+  // PREVIEW FIRST, because its rail is server-rendered and therefore already settled: it
+  // is the reference the other two are compared against, and it is the one that can be
+  // measured the moment it is visible.
   await page.goto(`/forms/${FORM_ID}/preview`);
   await expect(page.getByTestId("qcms-rail")).toBeVisible();
   await openRail(page);
   const onPreview = await boxes();
+  // WHY THE COMPARISON IS BY GAP AND NOT BY ABSOLUTE POSITION. The six route screens badge
+  // a step from the API's stored verdict; the builder's two claim nothing until the client
+  // has run its own validate, which `validation-idle.pw.ts` pins as deliberate - a draft
+  // does not read as judged before anything has judged it. So a step row can legitimately
+  // carry a badge on one screen and not on the other, a badge is what makes a title wrap,
+  // and a wrapped row above pushes every row below it down. That is a difference in what
+  // the two screens KNOW, not in how they lay out.
+  //
+  // Comparing the gaps between the shared rows takes the steps out of it: the first gap is
+  // skipped because it spans the step cluster, and every gap after it is between two rows
+  // both screens render. The two defects this test exists for both survive that - a 193px
+  // box against a 223px one is a width, and the 8px under Rules is the gap from Rules to
+  // the row below it.
+
+  await page.goto(`/forms/${FORM_ID}`);
+  await expect(page.getByTestId("qcms-rail")).toBeVisible();
+  await openRail(page);
+  // WAIT FOR THE STEPS. On the builder's two screens the rail's step rows are rendered by
+  // the client from the loaded draft, so they arrive after the six route rows do. Measuring
+  // before they land compares a rail that has steps against one that does not.
+  await expect(page.locator("[data-rail-step-select]").first()).toBeVisible();
+  const onBuilder = await boxes();
+
+  await page.locator('[data-rail-item="rules"]').click();
+  await expect(page.locator("#qcms-rules-heading")).toBeAttached();
+  await expect(page.locator("[data-rail-step-select]").first()).toBeVisible();
+  const onRules = await boxes();
 
   // Only the rows all three screens have. The builder's step rows are chosen rather than
   // navigated to, so they carry `data-rail-step-select` instead and are not in this set;
@@ -302,12 +327,20 @@ test("561 puts every shared rail row in the same box on all three builder-family
   expect(shared.length, "the three screens share rows to compare").toBeGreaterThan(4);
 
   for (const key of shared) {
+    // The rules screen renders the same rail as the builder, so it is compared whole.
     expect
-      .soft(onRules[key], `${key} does not move between the builder and the rules screen`)
+      .soft(onRules[key], `${key} is the same row on the builder and the rules screen`)
       .toBe(onBuilder[key]);
+    // Preview's step rows can differ in NUMBER (it lists them as `data-rail-item`, the
+    // builder as `data-rail-step-select`) and in height (its badges arrive earlier), so the
+    // row whose gap spans the step cluster is compared without that gap. Every other row's
+    // gap is between two rows both screens have, and is compared.
+    const spansTheSteps = key === "rules";
+    const strip = (value: string): string =>
+      spansTheSteps ? value.replace(/ gapAbove=\S+$/u, "") : value;
     expect
-      .soft(onPreview[key], `${key} does not move between the builder and preview`)
-      .toBe(onBuilder[key]);
+      .soft(strip(onPreview[key] ?? ""), `${key} is the same row on the builder and preview`)
+      .toBe(strip(onBuilder[key] ?? ""));
   }
 
   // ONE RHYTHM (Code Owner, 2026-08-30). Every gap in the column is either the 2px between
@@ -324,6 +357,9 @@ test("561 puts every shared rail row in the same box on all three builder-family
     await page.goto(path);
     await expect(page.getByTestId("qcms-rail")).toBeVisible();
     await openRail(page);
+    await expect(
+      page.locator("[data-rail-item^='step:'], [data-rail-step-select]").first(),
+    ).toBeVisible();
     const measured = await page
       .locator("[data-rail-item], [data-rail-step-select], .qcms-rail-steps__add")
       .evaluateAll((nodes) =>
@@ -333,6 +369,7 @@ test("561 puts every shared rail row in the same box on all three builder-family
           return {
             gap: previous === undefined ? null : Math.round(box.top - previous.bottom),
             height: Math.round(box.height),
+            isAdd: node.classList.contains("qcms-rail-steps__add"),
           };
         }),
       );
@@ -343,8 +380,14 @@ test("561 puts every shared rail row in the same box on all three builder-family
           .soft([2, 8], `${screen} row ${String(index)} sits on the rail's rhythm`)
           .toContain(row.gap);
       }
-      // The add control was a 52px box among 40px rows, from padding it carried itself.
-      expect.soft(row.height, `${screen} row ${String(index)} is one row tall`).toBe(40);
+      // ONLY THE ADD CONTROL'S HEIGHT IS PINNED. A step row is a title that WRAPS when it
+      // is long, which `rail.pw.ts` requires outright, so a row taller than one line is
+      // correct here and asserting 40 would forbid the behaviour the rail is meant to have.
+      // The add control carries no title, so a 52px box could only ever be padding it gave
+      // itself - which is exactly what it used to do.
+      if (row.isAdd) {
+        expect.soft(row.height, `${screen}'s add control is one row tall`).toBe(40);
+      }
     }
   }
 });

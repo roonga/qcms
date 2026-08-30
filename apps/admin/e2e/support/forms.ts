@@ -360,15 +360,36 @@ export async function cancelRuleEditor(page: Page): Promise<void> {
 }
 
 /**
- * Choose a value in one of the vendored `Select` controls.
+ * Choose a value in a labelled picker, whichever of the two kinds it is.
  *
- * The trigger's accessible name is its **current value followed by its label** - react-aria
- * labels the button with the value element and then the label element, in that order - so
- * the match is a suffix. Getting this backwards costs a five-minute timeout with a call log
- * that only says the locator never resolved, which is what `chooseType` in `questions.ts`
- * encodes as `/Type$/` without saying why.
+ * TWO SHAPES BEHIND ONE HELPER (Code Owner, 2026-08-30). Most pickers are the vendored
+ * `Select`; the rule editor's Operator is a `ComboBox` you can type into. A caller does not
+ * care - it wants the field named `label` set to `option` - and the alternative was
+ * rewriting every call site the day a field changed shape, which is exactly what this
+ * change would otherwise have cost: three specs failed on the combobox's toggle matching
+ * the `Select` trigger's locator and reporting its chevron as the field's value.
+ *
+ * The combobox is tried FIRST and by exact role, because its toggle button also matches the
+ * `Select` trigger's name pattern: the toggle is labelled "Show all options for {label}",
+ * which ends with the label like every `Select` trigger does.
+ *
+ * For a `Select`, the trigger's accessible name is its **current value followed by its
+ * label** - react-aria labels the button with the value element and then the label element,
+ * in that order - so the match is a suffix. Getting this backwards costs a five-minute
+ * timeout with a call log that only says the locator never resolved, which is what
+ * `chooseType` in `questions.ts` encodes as `/Type$/` without saying why.
  */
 export async function chooseOption(scope: Locator, label: string, option: string): Promise<void> {
+  const combobox = scope.getByRole("combobox", { name: label, exact: true });
+  if ((await combobox.count()) > 0) {
+    const field = combobox.first();
+    await field.click();
+    await scope.page().getByRole("option", { name: option, exact: true }).click();
+    // The input's own text, not a trigger's label: a combobox displays the chosen item.
+    await expect(field).toHaveValue(option);
+    return;
+  }
+
   const trigger = scope
     .getByRole("button", { name: new RegExp(`${escapeForName(label)}$`) })
     .first();
@@ -558,4 +579,23 @@ export function issueSummary(page: Page): Locator {
 /** One issue code, wherever it is rendered (the panel, a rule, or a pin row). */
 export function issue(scope: Page | Locator, code: string): Locator {
   return scope.locator(`[data-issue-code="${code}"]`);
+}
+
+/**
+ * Move one step within the form, from the rail's own row menu.
+ *
+ * The rail is where a step is reordered (`components/forms/rail-steps.tsx`), which is also
+ * the only place it can be: the step screen shows one step and knows nothing about the
+ * order of its siblings.
+ *
+ * Written for exit criterion 2, which needs a target to BECOME backward without anyone
+ * choosing an ineligible one (Code Owner, 2026-08-30) - moving the step that holds it in
+ * front of the question its rule reads is the way an author actually trips that.
+ */
+export async function moveStep(page: Page, title: string, action: "up" | "down"): Promise<void> {
+  await openRail(page);
+  await page.getByRole("button", { name: `Actions for step ${title}`, exact: true }).click();
+  await page
+    .getByRole("menuitem", { name: action === "up" ? "Move up" : "Move down", exact: true })
+    .click();
 }

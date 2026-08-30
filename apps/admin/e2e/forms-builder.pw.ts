@@ -15,6 +15,7 @@ import {
   issue,
   issueSummary,
   movePin,
+  moveStep,
   openFormDetails,
   openRuleEditor,
   openRulePhase,
@@ -195,9 +196,6 @@ test("a backward target is flagged instantly and refused by the engine (exit cri
   await openRules(page);
   const ruleId = (await ruleIds(page))[0] ?? "";
   expect(ruleId, "the saved draft should still carry its rule").toMatch(/^rul_/u);
-  // One save for the whole edit now, so the stamp is taken before the dialog opens and
-  // waited on after it closes. See exit criterion 1 for why buffering made that necessary.
-  const beforeBreak = await savedStamp(page);
   // The table is the read view; the condition tree lives in the row's editor, which is a
   // three-phase wizard since 2026-08-30. The targets are its second phase.
   await openRuleEditor(page, ruleId);
@@ -205,38 +203,78 @@ test("a backward target is flagged instantly and refused by the engine (exit cri
   await openRulePhase(page, "then");
 
   // The rule's condition reads the at-fault question, so the at-fault question itself is
-  // strictly before it in document order and cannot be a target (ADR-16). The picker lists
-  // it under its own heading rather than hiding it, so the attempt is reachable.
+  // strictly before it in document order and cannot be a target. The picker LISTS it under
+  // its own heading rather than hiding it, so an author is told the rule instead of finding
+  // an option missing - but since 2026-08-30 (Code Owner) it cannot be chosen from: an
+  // editable list of things this rule cannot show read as a list of things it could.
   await expect(scope.getByText("Comes before this condition")).toBeVisible();
-  await toggleTarget(page, ruleId, questionIdFor(AT_FAULT), true);
+  await expect(
+    scope.getByRole("checkbox", { name: questionIdFor(AT_FAULT), exact: true }),
+  ).toBeDisabled();
+
+  // So a backward target is reached the way one is actually reached: the target stops
+  // being legal underneath a rule that was fine when it was written. This rule shows the
+  // claim-notes question, which sits in a LATER step; moving that step in front of the one
+  // holding the question the condition reads puts the target before the condition without
+  // anything about the rule changing.
+  await cancelRuleEditor(page);
+  await moveStep(page, "Claim details", "up");
+  // The move landed, asserted before the save is waited on: a wait that times out because
+  // the thing it is waiting for never happened is the least informative failure there is.
+  await expect(page.locator("[data-rail-step-select]").first()).toHaveAttribute(
+    "data-rail-step-select",
+    "Claim details",
+  );
+  await openRuleEditor(page, ruleId);
+  await openRulePhase(page, "then");
 
   // Instant, and asserted with a short timeout on purpose: this comes from draft geometry
   // in the browser, so it cannot be the debounced round trip arriving early. It is also
   // the ONLY half of exit criterion 2 available before Save now, because the dialog buffers
   // and nothing revalidates until the rule reaches the draft.
   await expect(page.getByTestId("qcms-backward-flag")).toBeVisible({ timeout: 2000 });
-  await expect(page.getByTestId("qcms-backward-flag")).toContainText(questionIdFor(AT_FAULT));
+  await expect(page.getByTestId("qcms-backward-flag")).toContainText(questionIdFor(CLAIM_NOTES));
 
-  // Save is what puts the backward target into the draft and therefore into the validate
-  // call. The editor is modal, so leaving it is part of the journey rather than cleanup.
+  // AND THE TARGET IS STILL CLEARABLE, which is the half that makes disabling the group
+  // safe. A checkbox is disabled only when it is NOT selected: an author looking at the
+  // reason their form will not publish must have the control that fixes it, and this one
+  // has just moved from the eligible group into the ineligible one underneath them.
+  await expect(
+    scope.getByRole("checkbox", { name: questionIdFor(CLAIM_NOTES), exact: true }),
+  ).toBeEnabled();
+
+  // The editor is modal, so leaving it is part of the journey rather than cleanup.
+  //
+  // NO SAVE STAMP IS WAITED ON, here or after either step move, and that is deliberate
+  // rather than a gap. The stamp is a statement about the SCREEN; what this test is about
+  // is the ENGINE's verdict, which only exists once the draft the move produced has been
+  // stored and validated. So the verdict is the wait: `issueSummary` is a strictly stronger
+  // assertion than the stamp, because a stamp that changed for some other reason would
+  // satisfy the stamp and not this. Its 30s budget carries the debounce, the round trip and
+  // the validate call, exactly as the panel assertions elsewhere in this file do.
   await closeRuleEditor(page);
-  await waitForSaveAfter(page, beforeBreak);
   await openFormDetails(page);
   await expect(issueSummary(page)).toContainText("would block a publish", { timeout: 30_000 });
 
   // And the engine's own finding, from `analyzeRuleGraph` inside the validate call, lands
   // on this rule rather than in a general list. Two mechanisms, two assertions: a test that
   // only checked this one would pass with the instant feedback deleted.
-  const beforeFix = await savedStamp(page);
   await openRuleEditor(page, ruleId);
   await expect(issue(scope, "RULE_BACKWARD_TARGET")).toBeVisible({ timeout: 30_000 });
 
-  // Untick it and the form is publishable again: the flag is a statement about the draft,
-  // not a latch.
-  await toggleTarget(page, ruleId, questionIdFor(AT_FAULT), false);
+  // PUT THE STEP BACK, and the form is publishable again: the flag is a statement about the
+  // draft, not a latch. Undoing the move rather than unticking the target, which is what
+  // this used to do - the rule has ONE target, so unticking it leaves a rule that shows
+  // nothing, which is its own issue (`unsaveableReason`'s `ruleWithoutTarget`) and would
+  // leave the draft refused for a different reason while appearing to prove this one.
+  //
+  // It also restores the form for the rest of this file, which expects the order criterion
+  // 1 built.
+  await closeRuleEditor(page);
+  await moveStep(page, "Claim details", "down");
+  await openRuleEditor(page, ruleId);
   await expect(page.getByTestId("qcms-backward-flag")).toHaveCount(0);
   await closeRuleEditor(page);
-  await waitForSaveAfter(page, beforeFix);
   await openFormDetails(page);
   await expect(issueSummary(page)).toHaveText("No issues. Everything here would pass a publish.", {
     timeout: 30_000,
@@ -414,6 +452,48 @@ test("the rule test bench answers with the engine's own verdict", async ({ page 
   await cancelRuleEditor(page);
 });
 
+test("the operator picker filters as you type, and keeps the ones that do not apply", async ({
+  page,
+}) => {
+  // A `Select` is a list you scan; this one is thirteen phrases and only grows, so it is a
+  // combobox (Code Owner, 2026-08-30). Both halves are asserted, because the second is the
+  // one a filter tends to eat: an operator this question's type does not accept stays in
+  // the list, disabled, so "that exists but not here" is still readable.
+  test.setTimeout(180_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.goto(`/forms/${insuranceFormId}`);
+
+  // The rules are on their own screen, so the table this reads is not on the one the form
+  // opens to.
+  await openRules(page);
+  const ruleId = (await ruleIds(page))[0] ?? "";
+  await openRuleEditor(page, ruleId);
+  await openRulePhase(page, "when");
+
+  const operator = page.getByRole("combobox", { name: "Operator" });
+  await operator.click();
+  // The rule reads a single-choice question, so the numeric operators are listed and
+  // unavailable rather than absent.
+  await expect(page.getByRole("option", { name: "is at least", exact: true })).toBeDisabled();
+  await expect(page.getByRole("option", { name: "equals (the whole answer)" })).toBeEnabled();
+
+  // Typing narrows it to what was typed, which is the whole point of the control.
+  await operator.fill("at le");
+  await expect(page.getByRole("option")).toHaveCount(1);
+  await expect(page.getByRole("option", { name: "is at least", exact: true })).toBeVisible();
+
+  // A filter that matches nothing says so rather than closing the list, which would be
+  // indistinguishable from the control having failed.
+  await operator.fill("zzzz");
+  await expect(page.getByText("No match.")).toBeVisible();
+
+  // Escape first: the popover stays open over an empty collection now, and it covers the
+  // dialog's footer, so Cancel is behind it until the list is dismissed.
+  await operator.press("Escape");
+  await expect(page.getByText("No match.")).toBeHidden();
+  await cancelRuleEditor(page);
+});
+
 test("Back and Next walk the wizard's phases without gating them (Code Owner, 2026-08-30)", async ({
   page,
 }) => {
@@ -425,9 +505,11 @@ test("Back and Next walk the wizard's phases without gating them (Code Owner, 20
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/forms/${insuranceFormId}`);
 
+  await openRules(page);
   const ruleId = (await ruleIds(page))[0] ?? "";
   await openRuleEditor(page, ruleId);
 
+  const scope = rule(page, ruleId);
   const back = page.getByRole("button", { name: /^Back/ });
   const next = page.getByRole("button", { name: /^Next/ });
   const tab = (name: string) => page.getByRole("tab", { name, exact: true });
@@ -456,6 +538,28 @@ test("Back and Next walk the wizard's phases without gating them (Code Owner, 20
   await openRulePhase(page, "when");
   await expect(tab("1. When")).toHaveAttribute("aria-selected", "true");
   await expect(back).toBeDisabled();
+
+  // AND NOTHING MOVES WHILE WALKING (Code Owner, 2026-08-30). The wizard's column capped
+  // its height rather than fixing it, so it shrank to whichever phase was selected - and
+  // the dialog is centred, so a shorter phase pulled the whole thing down the screen: 560,
+  // 750 and 440 pixels tall on the three tabs, with the top edge moving up to 95px. The
+  // control an author had just pressed slid out from under the pointer.
+  //
+  // Measured on the dialog's own box, once per phase, reached through the tabs AND through
+  // Next, because those are two different ways to change `phase` and a fix that held for
+  // one would be worth nothing if it did not hold for the other.
+  const dialogBox = async (): Promise<string> => {
+    const box = await scope.boundingBox();
+    return `top=${String(Math.round(box?.y ?? -1))} height=${String(Math.round(box?.height ?? -1))}`;
+  };
+  const atWhen = await dialogBox();
+  for (const phase of ["then", "test"] as const) {
+    await openRulePhase(page, phase);
+    expect.soft(await dialogBox(), `the dialog does not move onto the ${phase} phase`).toBe(atWhen);
+  }
+  await openRulePhase(page, "when");
+  await next.click();
+  expect.soft(await dialogBox(), "the dialog does not move when Next is pressed").toBe(atWhen);
 
   await cancelRuleEditor(page);
 });

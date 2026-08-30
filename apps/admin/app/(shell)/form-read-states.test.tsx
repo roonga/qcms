@@ -160,6 +160,7 @@ vi.mock("@/lib/forms/draft", () => import("../../lib/forms/draft"));
 vi.mock("@/lib/forms/picker-selection", () => import("../../lib/forms/picker-selection"));
 vi.mock("@/lib/forms/issues", () => import("../../lib/forms/issues"));
 vi.mock("@/lib/forms/condition", () => import("../../lib/forms/condition"));
+vi.mock("@/components/searchable-select", () => import("../../components/searchable-select"));
 vi.mock("@/lib/forms/pin-grid", () => import("../../lib/forms/pin-grid"));
 vi.mock("@/lib/forms/settings", () => import("../../lib/forms/settings"));
 vi.mock("@/components/row-menu", () => import("../../components/row-menu"));
