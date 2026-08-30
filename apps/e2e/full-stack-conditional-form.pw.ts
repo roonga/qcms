@@ -9,6 +9,7 @@ import {
   addRule,
   addStep,
   chooseOption,
+  closeRuleEditor,
   createForm,
   pinQuestion,
   rule,
@@ -185,6 +186,11 @@ test.describe.serial("conditional form journey", () => {
         await chooseOption(scope, "Operator", "equals (the whole answer)");
         await chooseOption(scope, "Value", "Yes");
         await toggleTarget(page, ruleId, target, true);
+        // SAVE EACH RULE BEFORE STARTING THE NEXT. The editor is a buffering modal since
+        // 2026-08-30: nothing typed in it reaches the draft until Save, so a loop that
+        // moved straight on to `addRule` both left the rail behind an open dialog and
+        // built rules the form never received.
+        await closeRuleEditor(page);
       }
       await waitForSaved(page);
     });
@@ -198,6 +204,7 @@ test.describe.serial("conditional form journey", () => {
         await chooseOption(scope, "Operator", "equals (the whole answer)");
         await chooseOption(scope, "Value", "No");
         await toggleTarget(page, ruleId, target, true);
+        await closeRuleEditor(page);
       }
       await waitForSaved(page);
     });
