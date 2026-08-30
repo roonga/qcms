@@ -269,9 +269,9 @@ export interface Config {
     /**
      * better-auth signing secret (`QCMS_ADMIN_AUTH_SECRET`, >= 32 chars, SEC-7).
      *
-     * Passed to better-auth as `secret`, which in the pinned 1.6.26 means **the legacy
-     * fallback**: the key used to read ciphertext written before the versioned
-     * envelope existed. It is also the value {@link secrets} defaults to, so a
+     * Passed to better-auth as `secret`, which in the pinned better-auth 1.7.1 means
+     * **the legacy fallback**: the key used to read ciphertext written before the
+     * versioned envelope existed. It is also the value {@link secrets} defaults to, so a
      * deployment that never rotates sees exactly the behaviour it always had.
      */
     readonly secret: string;
@@ -329,7 +329,7 @@ export interface Config {
      * (`QCMS_ADMIN_SIGNIN_THROTTLE`, default **true**, SEC-1, issue #390).
      *
      * The limiter is better-auth's, and until this knob existed nothing here stated
-     * whether it ran: better-auth 1.6.26 resolves `enabled` as
+     * whether it ran: better-auth 1.7.1 resolves `enabled` as
      * `options.rateLimit?.enabled ?? isProduction`
      * (`dist/context/create-context.mjs:171`) over an `isProduction` captured once at
      * module load from `NODE_ENV` (`@better-auth/core/dist/env/env-impl.mjs:30-32`).

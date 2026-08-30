@@ -46,6 +46,27 @@ updates:
     groups:
       minor-and-patch:
         update-types: ["minor", "patch"]
+        # better-auth arrives ALONE, never inside the group (issue #606). It is a
+        # minor by semver, so without this it lands as one line of an 18-package
+        # table - which is exactly how 1.6.26 -> 1.7.1 arrived in PR #716, taking
+        # sixteen files' worth of version-specific prose stale with it (issue #483).
+        #
+        # It is not an ordinary dependency here because three parts of the tree make
+        # version-specific claims about its compiled source: `docs/SECURITY_DESIGN.md`
+        # documents the admin key-rotation path down to internal file:line offsets,
+        # `docs/DEVELOPER_GUIDE.md` names the pinned version as checked-not-inferred,
+        # and the auth slice's comments cite the rate limiter and cookie internals.
+        # So the cost of an unnoticed bump is not a broken build; it is a security
+        # document describing a version the repo no longer ships.
+        #
+        # This excludes it from the GROUP, it does not ignore it: updates still
+        # arrive, they just arrive on their own, where CONTRIBUTING's dependency
+        # policy can be applied and the reviewer is looking at one thing.
+        # `pnpm check:vendor-pin` is the downstream half, catching the prose drift
+        # if a solo bump still lands without the sweep.
+        exclude-patterns:
+          - "better-auth"
+          - "@better-auth/*"
     ignore:
       # Types track the RUNTIME major: the engine floor is Node 24 and the
       # node-26 CI leg is an early warning, not the target. Re-enable (or bump

@@ -93,9 +93,9 @@ better-auth instance:
   so nothing it writes is later decrypted elsewhere.
 - **But the API's own secret must then stay stable, or enrolment dies.** better-auth stores
   the TOTP secret encrypted under it and decrypts with whatever the current value is -
-  checked against the source of better-auth 1.6.26, the pinned version, not inferred:
+  checked against the source of better-auth 1.7.1, the pinned version, not inferred:
   `symmetricEncrypt({ key: ctx.context.secretConfig, ... })` at
-  `dist/plugins/two-factor/index.mjs:105`, decrypt at
+  `dist/plugins/two-factor/index.mjs:134`, decrypt at
   `dist/plugins/two-factor/totp/index.mjs:188` (and `:122` for the URI reveal). Change the
   secret and the authenticator's codes are rejected for good - **and so are the recovery
   codes**, which this file used to claim survive because better-auth stores them as plain

@@ -259,6 +259,17 @@ jobs:
       - run: pnpm check:security-hygiene
         if: env.PLAN_ONLY != 'true'
 
+      # A better-auth version asserted in prose matches what pnpm-lock.yaml resolves
+      # (issue #483). This repo justifies security properties by citing better-auth's
+      # compiled source at a file:line, so a bump that moves the lockfile and leaves
+      # the prose behind produces a security document describing a version the repo no
+      # longer ships, with nothing red to say so. Enumerated here as its own step for
+      # the reason the step above spells out: `check:all` is not what CI runs
+      # (issue #463). The gate's self-tests run under the `tooling` vitest project;
+      # this step is what scans the repository.
+      - run: pnpm check:vendor-pin
+        if: env.PLAN_ONLY != 'true'
+
       # The QCMS app theme (task 055): the token sheet is the only source of colour in
       # apps/admin, it has not drifted from the design copy it is generated into, and no
       # user-facing string names the app "admin".
