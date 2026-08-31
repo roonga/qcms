@@ -4,7 +4,8 @@ QCMS is an MIT-licensed TypeScript engine for questionnaires, surveys, and regis
 
 ## Authoritative documents
 
-- `docs/PROJECT_GOAL.md`: vision, launch scope, and ADRs
+- `docs/PROJECT_GOAL.md`: vision and launch scope
+- `docs/adr/`: the decision record (ADRs), split by surface
 - `docs/PORTS.md`: port allocation and seat usage
 - `docs/ARCHITECTURE.md`: system and repository design
 - `docs/DOMAIN_SCHEMA.md`: domain model, rule semantics, and invariants

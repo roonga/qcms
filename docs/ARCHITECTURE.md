@@ -268,6 +268,7 @@ qcms/
 ├── docs/
 │   ├── PROJECT_GOAL.md · ARCHITECTURE.md · IMPLEMENTATION_PLAN.md
 │   ├── DOMAIN_SCHEMA.md · SECURITY_DESIGN.md
+│   ├── adr/                      # the decision record, split by surface
 │   ├── features/                 # the numbered task files (this plan)
 │   ├── a2ui-mapping.md (011) · agent-seam.md (011) · secure-links.md (010, 024)
 │   ├── reporting-view.md (015) · erasure.md (016) · a11y.md (030)
@@ -366,4 +367,4 @@ Layout rules: golden/fixture directories live with the package that owns their m
 
 ---
 
-_Companion documents: `PROJECT_GOAL.md` (vision, ADR-01…39) · `SECURITY_DESIGN.md` (SEC-1…13) · `IMPLEMENTATION_PLAN.md` (staged delivery) · `DOMAIN_SCHEMA.md` (domain model and rule semantics)._
+_Companion documents: `PROJECT_GOAL.md` (vision and scope) · `adr/` (ADR-01…39) · `SECURITY_DESIGN.md` (SEC-1…13) · `IMPLEMENTATION_PLAN.md` (staged delivery) · `DOMAIN_SCHEMA.md` (domain model and rule semantics)._

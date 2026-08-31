@@ -1,7 +1,7 @@
 # Ingress and TLS
 
 **Status:** authoritative for the two ingress recipes QCMS ships. Decided in **ADR-20**
-(`docs/PROJECT_GOAL.md` §6), constrained by **SEC-9** (`docs/SECURITY_DESIGN.md` §5), and the
+(`docs/adr/core.md`), constrained by **SEC-9** (`docs/SECURITY_DESIGN.md` §5), and the
 routing property is asserted by `scripts/compose-config.test.ts` rather than trusted to this
 document.
 
@@ -365,7 +365,7 @@ more than its removal buys.
 
 ## Related
 
-- **ADR-20** and the operability budget: `docs/PROJECT_GOAL.md` §6.
+- **ADR-20** and the operability budget: `docs/adr/core.md` and `docs/PROJECT_GOAL.md` §7.
 - **SEC-9** (transport and browser security), plus the body-limit and header controls the edge
   mirrors: `docs/SECURITY_DESIGN.md` §5.
 - The multi-instance deployment, where the API is split by mount and the admin sits behind a VPN:
