@@ -1,11 +1,23 @@
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 
 import { Alert } from "@/components/kit";
 import { FormPageHeader } from "@/components/forms/form-page-header";
 import { VersionHistory } from "@/components/forms/version-history";
 import { t } from "@/lib/i18n/en";
+import { formSectionName, pageMetadata } from "@/lib/page-title";
 import { getForm, getFormVersion } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
+
+/** The browser-tab title for this route (issue #536): the section, and the form it belongs to. */
+export async function generateMetadata({
+  params,
+}: {
+  readonly params: Promise<{ formId: string }>;
+}): Promise<Metadata> {
+  const { formId } = await params;
+  return pageMetadata(formSectionName("versions", formId));
+}
 
 /**
  * The version history (task 034; screen contract "version history", ADR-18).

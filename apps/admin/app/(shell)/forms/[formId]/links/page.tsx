@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 
 import { Alert } from "@/components/kit";
 import { FormPageHeader } from "@/components/forms/form-page-header";
@@ -6,6 +7,7 @@ import { PublicFormLink } from "@/components/forms/public-form-link";
 import { SecureLinks } from "@/components/forms/secure-links";
 import { publicFormLink } from "@/lib/forms/public-link";
 import { t } from "@/lib/i18n/en";
+import { formSectionName, pageMetadata } from "@/lib/page-title";
 import { readState } from "@/lib/read-state";
 import { portalBaseUrl } from "@/lib/server/config";
 import { getForm } from "@/lib/server/forms";
@@ -13,6 +15,16 @@ import { listLinks, MAX_LINK_BATCH } from "@/lib/server/links";
 import { requireAdminSession } from "@/lib/server/session";
 
 import { mintLinksAction, revokeLinkAction } from "../../actions";
+
+/** The browser-tab title for this route (issue #536): the section, and the form it belongs to. */
+export async function generateMetadata({
+  params,
+}: {
+  readonly params: Promise<{ formId: string }>;
+}): Promise<Metadata> {
+  const { formId } = await params;
+  return pageMetadata(formSectionName("links", formId));
+}
 
 /**
  * The secure-link screen (task 034; screen contract "secure links").

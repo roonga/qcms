@@ -1,14 +1,21 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 
 import { Alert } from "@/components/kit";
 import { DeadLetters } from "@/components/ops/dead-letters";
 import { t } from "@/lib/i18n/en";
+import { pageMetadata } from "@/lib/page-title";
 import { readState } from "@/lib/read-state";
 import { listForms } from "@/lib/server/forms";
 import { listDeadLetters } from "@/lib/server/webhook-ops";
 import { requireAdminSession } from "@/lib/server/session";
 
 import { redeliverAction, redeliverAllAction } from "./actions";
+
+/** The browser-tab title for this route (issue #536). */
+export function generateMetadata(): Metadata {
+  return pageMetadata(t("ops.area.webhooks.title"));
+}
 
 /**
  * Webhook operations: the dead-letter queue, and a way into each form's endpoints
@@ -76,7 +83,7 @@ export default async function WebhooksPage() {
                     className="qcms-text-link"
                     href={`/forms/${encodeURIComponent(form.formId)}/webhooks`}
                   >
-                    {t("ops.area.webhooks.pickForm", { title: form.slug })}
+                    {t("ops.area.webhooks.pickForm", { slug: form.slug })}
                   </Link>
                 </li>
               ))}

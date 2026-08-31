@@ -1,11 +1,18 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import type { Metadata } from "next";
 
 import { AuthScreen } from "@/components/auth-screen";
 import { Button, TextField } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
+import { pageMetadata } from "@/lib/page-title";
 import { readAuthCookie, TWO_FACTOR_COOKIE } from "@/lib/server/auth-api";
 import { SIGN_IN_PATH } from "@/lib/server/session";
+
+/** The browser-tab title for this route (issue #536). */
+export function generateMetadata(): Metadata {
+  return pageMetadata(t("challenge.title"));
+}
 
 /**
  * The 2FA challenge (task 031; screen contract state `2FA-challenge`).

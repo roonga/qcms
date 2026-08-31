@@ -1,12 +1,19 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 
 import { EmptyState } from "@/components/empty-state";
 import { Alert } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
+import { pageMetadata } from "@/lib/page-title";
 import { listForms } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
 
 import { FormsTable } from "./forms-table";
+
+/** The browser-tab title for this route (issue #536). */
+export function generateMetadata(): Metadata {
+  return pageMetadata(t("forms.title"));
+}
 
 /**
  * The form library (task 033; screen contract `admin-form-builder.md`, the screen its breadcrumb

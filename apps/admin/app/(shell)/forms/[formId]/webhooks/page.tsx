@@ -1,10 +1,12 @@
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 
 import { Alert } from "@/components/kit";
 import { FormPageHeader } from "@/components/forms/form-page-header";
 import { DeliveryDashboard } from "@/components/ops/delivery-dashboard";
 import { WebhookConfig } from "@/components/ops/webhook-config";
 import { t } from "@/lib/i18n/en";
+import { formSectionName, pageMetadata } from "@/lib/page-title";
 import { readState } from "@/lib/read-state";
 import { getForm } from "@/lib/server/forms";
 import { listDeliveries, listWebhooks } from "@/lib/server/webhook-ops";
@@ -17,6 +19,16 @@ import {
   retargetWebhookAction,
   rotateSecretAction,
 } from "../../../webhooks/actions";
+
+/** The browser-tab title for this route (issue #536): the section, and the form it belongs to. */
+export async function generateMetadata({
+  params,
+}: {
+  readonly params: Promise<{ formId: string }>;
+}): Promise<Metadata> {
+  const { formId } = await params;
+  return pageMetadata(formSectionName("webhooks", formId));
+}
 
 /**
  * One form's webhook endpoints and their delivery history (task 035; screen contract

@@ -134,6 +134,11 @@ vi.mock("@/components/forms/rail-steps", () => ({ RailSteps: () => null }));
  * the catalog holds today. The version number in the `h1` is the load-bearing parameter:
  * it is the one the failed read did not supply.
  */
+// The real title helper: `generateMetadata` is not what these tests render, so the module
+// only has to resolve. Pointed at the real one rather than stubbed, so a change to the
+// helper cannot be absorbed by a stand-in nobody maintains (issue #536).
+vi.mock("@/lib/page-title", () => import("../../lib/page-title.ts"));
+
 vi.mock("@/lib/i18n/en", () => ({
   t: (key: string, params?: Readonly<Record<string, string | number>>) =>
     params === undefined ? key : `${key}(${Object.values(params).join(",")})`,

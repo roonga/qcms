@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
+import type { Metadata } from "next";
 
 import { AuthScreen } from "@/components/auth-screen";
 import { Button, TextField } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
+import { pageMetadata } from "@/lib/page-title";
 import { currentAdminSession, SHELL_HOME_PATH } from "@/lib/server/session";
 
 /**
@@ -32,6 +34,11 @@ function signInMessage(
   if (params.expired !== undefined) return t("signIn.expired");
   if (params.error !== undefined) return t("signIn.error");
   return undefined;
+}
+
+/** The browser-tab title for this route (issue #536). */
+export function generateMetadata(): Metadata {
+  return pageMetadata(t("action.signIn"));
 }
 
 export default async function SignInPage({

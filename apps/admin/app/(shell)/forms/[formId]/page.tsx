@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { Alert } from "@/components/kit";
@@ -8,6 +9,7 @@ import { CONCURRENT_NOTICE_COOKIE, isConcurrentNoticeDismissed } from "@/lib/bui
 import { FormBuilder } from "@/components/forms/form-builder";
 import type { FormDetail } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
+import { formSectionName, pageMetadata } from "@/lib/page-title";
 import { readState } from "@/lib/read-state";
 import { getForm, loadPinnableQuestions } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
@@ -77,6 +79,16 @@ function seedTitle(detail: FormDetail, title: string): FormDetail {
 function firstValue(raw: string | string[] | undefined): string {
   const value = Array.isArray(raw) ? raw[0] : raw;
   return value ?? "";
+}
+
+/** The browser-tab title for this route (issue #536): the section, and the form it belongs to. */
+export async function generateMetadata({
+  params,
+}: {
+  readonly params: Promise<{ formId: string }>;
+}): Promise<Metadata> {
+  const { formId } = await params;
+  return pageMetadata(formSectionName("builder", formId));
 }
 
 export default async function FormBuilderPage({

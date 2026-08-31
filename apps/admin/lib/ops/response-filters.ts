@@ -123,8 +123,8 @@ export function parseResponseQuery(query: SearchParams): ResponseQuery {
     applied,
     request: {
       ...(parsed.version === undefined ? {} : { version: parsed.version }),
-      ...(parsed.from === undefined ? {} : { from: `${parsed.from}T00:00:00.000Z` }),
-      ...(parsed.to === undefined ? {} : { to: `${parsed.to}T23:59:59.999Z` }),
+      ...(parsed.from === undefined ? {} : { from: dayStart(parsed.from) }),
+      ...(parsed.to === undefined ? {} : { to: dayEnd(parsed.to) }),
       ...(parsed.flagged === undefined ? {} : { flagged: parsed.flagged }),
     },
     // Read off `applied`, which holds only values that parsed. This is the whole fix:
@@ -169,10 +169,40 @@ export function versionFilter(value: string): string | undefined {
  * does not exist would otherwise become a filter for a different day.
  */
 export function dayFilter(value: string): string | undefined {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
+  if (!DAY_ONLY.test(value)) return undefined;
   const parsed = new Date(`${value}T00:00:00.000Z`);
   if (Number.isNaN(parsed.getTime())) return undefined;
   return parsed.toISOString().startsWith(value) ? value : undefined;
+}
+
+/** The shape a day picker emits, and the only shape the widening below applies to. */
+const DAY_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Widen a chosen calendar day to the instant it begins / ends, in UTC (issue #312).
+ *
+ * ONE definition of the day boundary, in the module that already owns what counts as a
+ * day. It was two: `parseResponseQuery` above concatenated the suffixes inline while
+ * `lib/ops/export.ts` had a `dayStart`/`dayEnd` pair, so the browser and the export could
+ * have drifted about where a day ends - and the export module's own docstring argued
+ * against exactly that duplication while carrying half of it.
+ *
+ * The reasoning the export module recorded is the reasoning here, and none of it is
+ * specific to exporting. The controls ask for a day because that is the question an
+ * operator has, the API wants an instant, and widening in the operator's local zone would
+ * make the filtered set depend on the machine that asked for it. UTC is what every
+ * timestamp on these screens is rendered in (`lib/i18n/format.ts`), so the filter and the
+ * column agree. It is the same decision `endOfDay` records for link expiry.
+ *
+ * A value that already carries a time passes through untouched, which is what lets the
+ * export route hand a raw querystring parameter straight in.
+ */
+export function dayStart(value: string): string {
+  return DAY_ONLY.test(value) ? `${value}T00:00:00.000Z` : value;
+}
+
+export function dayEnd(value: string): string {
+  return DAY_ONLY.test(value) ? `${value}T23:59:59.999Z` : value;
 }
 
 /** The flag filter: the API's enum, and nothing that merely looks like it. */
