@@ -352,6 +352,52 @@ describe("OTLP export plumbing (ADR-34)", () => {
   });
 });
 
+describe("managed portal theme plumbing (ADR-30, issue #499)", () => {
+  it("names the variable on both apps, so Compose forwards it at all", () => {
+    // The same failure shape as the two blocks around it, and silent in the
+    // direction that matters: an operator sets QCMS_PORTAL_THEME, both apps fall
+    // back to the base theme, and the deployment serves the wrong brand with no
+    // error and a documentation page saying the variable works.
+    //
+    // Both apps or neither. docs/operations.md tells the operator to set the same
+    // value in both services: the portal renders respondents in it and the admin
+    // opens its question preview island in it, so forwarding it to one alone makes
+    // an author's preview disagree with what the deployment actually serves.
+    for (const name of ["portal", "admin"]) {
+      expect(
+        service(solo, name).environment,
+        `${name} must forward the managed portal theme`,
+      ).toHaveProperty("QCMS_PORTAL_THEME");
+    }
+  });
+
+  it("leaves it empty by default, so each app applies its own documented fallback", () => {
+    // Reachability, not a new default. Empty reads as unset, which is `slate` on the
+    // portal and the admin's own preview default; picking a value here would make
+    // Compose the one composition that overrides the app's default.
+    //
+    // Resolved with the variable forced empty rather than reusing `solo`, because
+    // `composeConfig` inherits `process.env` and the browser harness exports this
+    // variable (playwright.config.ts). A developer with it exported would otherwise
+    // fail this test having changed nothing in the repo.
+    const unset = composeConfig({
+      files: ["docker-compose.yml"],
+      env: { QCMS_PORTAL_THEME: "" },
+    });
+    for (const name of ["portal", "admin"]) {
+      expect(service(unset, name).environment?.QCMS_PORTAL_THEME).toBe("");
+    }
+  });
+
+  it("keeps the theme off the API and the one-shot migration", () => {
+    // Neither renders anything, so it is on the two app services rather than on the
+    // `api-env` anchor those two share.
+    for (const name of ["api", "migrate"]) {
+      expect(service(solo, name).environment).not.toHaveProperty("QCMS_PORTAL_THEME");
+    }
+  });
+});
+
 describe("admin TOTP policy plumbing (SEC-1)", () => {
   it("names the variable on both sides, so the documented escape hatch is reachable", () => {
     // Same failure shape as the OTLP block above, and found the same way: the

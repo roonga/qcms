@@ -27,10 +27,10 @@ import {
  * respondent path works and these responses are real submissions written by the real
  * submit slice (020) - locked answers, a content hash, an append-only ledger and an
  * outbox event. 034's suite authored its own questions through the UI because it
- * needed `compileDraft`, which the seed cannot satisfy (issue #275: the seed's
- * question versions are never published, whatever its doc comment says). Nothing here
- * compiles a draft, so that trap does not apply and the cheaper fixture is the right
- * one.
+ * needed `compileDraft`, which the seed could not then satisfy: its question versions
+ * were never published, whatever its doc comment said. That was issue #275 and it is
+ * fixed - the seed publishes them now, so a seeded fixture compiles - but nothing here
+ * compiles a draft anyway, and the cheaper fixture is still the right one.
  *
  * ## Serial, with one enrollment
  *

@@ -4,7 +4,8 @@
  * our own packages (CONTRIBUTING). Requires Docker.
  *
  * Covers every exit criterion: the anonymous happy path, each typed failure,
- * the one-time link race (exactly one of two concurrent starts wins), version
+ * the one-time link race (exactly one of two concurrent starts wins, and the
+ * winner leaves the link spent rather than replayable - issue #70), version
  * pinning across a later publish (I4), newest-version selection, and the
  * session-token gate (missing / tampered / cross-purpose → 401).
  *
@@ -340,6 +341,14 @@ describe("one-time link race (exit criterion 1)", () => {
     expect(row?.linkId, "winner session row committed but is not bound to the link").toBe(
       "lnk_race",
     );
+
+    // The state the 201/409 split does not observe (issue #70). The pre-#59
+    // reproduction had a winner return 201 with `consumed_at` still NULL: a
+    // one-time link that had been spent and was replayable anyway. Every
+    // assertion above passes in that state, because the loser's 409 came from
+    // the same connection the winner was on rather than from the row.
+    const link = await getSecureLink(testDb.db, LinkId.parse("lnk_race"));
+    expect(link?.consumedAt, "the winning start left the one-time link replayable").toEqual(NOW);
   });
 });
 

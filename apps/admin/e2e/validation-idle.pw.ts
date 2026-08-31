@@ -1,3 +1,4 @@
+import { readFixtures } from "../../portal/e2e/support/fixtures.js";
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
@@ -38,15 +39,22 @@ import { confirmLifecycle, createDraft } from "./support/questions.js";
  * state matrix, which is cheaper to enumerate there and includes a state (a check that
  * FAILED) no gesture can produce.
  *
- * ## The fixture is the seeded one, on purpose, and it is read here and not written
+ * ## The fixture is a seeded one, on purpose, and it is read here and not written
  *
- * The seeded insurance form pins two question versions the seed never publishes, so the
- * API's dry run reports two `UNPUBLISHED_QUESTION_PIN` issues against `stp_history`. That
- * is the exact contradiction this issue was filed on: the §7 rail badges `2 issues` for
- * that step on the other seven form screens while the builder's own panel said there were
- * none. Both halves are asserted below so the two cannot drift apart again, and the first
- * test touches nothing - the seeded draft is not stored until a first change, and storing
- * it here would change what every other spec and gate capture finds on that form.
+ * `frm_unpublished_pins` is a form the harness seeds for this spec and nothing else: its
+ * draft pins two question versions that were never published, so the API's dry run reports
+ * two `UNPUBLISHED_QUESTION_PIN` issues against `stp_history`. That is the exact
+ * contradiction this issue was filed on: the §7 rail badges `2 issues` for that step on
+ * the other seven form screens while the builder's own panel said there were none. Both
+ * halves are asserted below so the two cannot drift apart again.
+ *
+ * This spec used to read the shared insurance form, which carried the same two issues
+ * **by accident**: the seed created its question versions and never published them, while
+ * its own comment said it did (issue #275). Correcting that removed the fixture from under
+ * this spec, which is how the borrowing came to light. The fixture is now deliberate, and
+ * it is a fixture nothing else writes to: what is asserted here is a COUNT, so a second
+ * writer would change it. Nothing below stores anything on it either - the first two tests
+ * only read.
  */
 
 test.describe.configure({ mode: "serial" });
@@ -54,8 +62,18 @@ test.describe.configure({ mode: "serial" });
 const EMAIL = uniqueAdminEmail("validation625");
 const RUN = Date.now().toString(36);
 
-/** The seeded insurance fixture, whose two pins name versions that were never published. */
-const SEEDED_FORM = "frm_auto_quote";
+/**
+ * This spec's own fixture, whose two pins name versions that were never published.
+ *
+ * Read from the harness rather than written down here, so the id cannot drift from the
+ * seed that creates it (`apps/api/e2e/support/seed.ts`, `seedUnpublishedPinForm`). Read
+ * inside a test rather than at module scope, as every other spec does: the fixtures file
+ * is written by globalSetup, which runs after the test files are collected.
+ */
+function seededForm(): string {
+  return readFixtures().unpublishedPinFormId;
+}
+/** The step those two pins live on. A constant of the seeded definition, not of the seed. */
 const SEEDED_STEP = "stp_history";
 
 const NOT_CHECKED = "This draft has not been checked yet.";
@@ -77,7 +95,7 @@ test("a draft with issues does not read as publish-ready before anything has che
 }) => {
   test.setTimeout(180_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-  await page.goto(`/forms/${SEEDED_FORM}`);
+  await page.goto(`/forms/${seededForm()}`);
 
   // THE BUILDER OPENS ON THE FORM, not on a step, since the two became separate screens on
   // 2026-08-26. The panel and the grid are on opposite sides of that split now, so this
@@ -105,7 +123,7 @@ test("the §7 rail's count and the builder's silence are about the same draft", 
   // The other half of the contradiction. This screen validates server-side, so it has a
   // verdict and badges it; the builder has none and says so. Neither of them claims zero,
   // which is the property that makes the pair readable.
-  await page.goto(`/forms/${SEEDED_FORM}/versions`);
+  await page.goto(`/forms/${seededForm()}/versions`);
   const badge = page.locator(`[data-rail-item="step:${SEEDED_STEP}"] [data-rail-issues]`);
   await expect(badge).toHaveAttribute("data-rail-issues", "2");
 });

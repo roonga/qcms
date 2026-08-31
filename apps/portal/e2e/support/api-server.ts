@@ -29,6 +29,7 @@ import {
   seedAuthorMessagesForm,
   seedInsuranceForm,
   seedKitchenSinkForm,
+  seedUnpublishedPinForm,
   startTestDb,
   MOUNT,
   NOW,
@@ -97,6 +98,17 @@ export interface PortalFixtures {
    * closed explanation rather than a link failure.
    */
   readonly closedFormToken: string;
+  /**
+   * A form whose draft pins two question versions that were never published, so an
+   * admin dry run reports exactly two issues against its `stp_history` step (issue
+   * #625, given a fixture of its own by issue #275).
+   *
+   * `apps/admin/e2e/validation-idle.pw.ts` is its only reader, and the id travels
+   * through this file rather than being written down there so the two cannot drift.
+   * Nothing else may seed answers, links or versions against it: what the spec
+   * asserts is a COUNT, and a second writer would change it.
+   */
+  readonly unpublishedPinFormId: string;
 }
 
 interface RunningApi {
@@ -245,6 +257,15 @@ export async function startApiServer(): Promise<void> {
     expiresAt: new Date(nowMs + oneHour),
   });
 
+  // The admin builder's "nothing has checked this draft yet" spec needs a draft with
+  // a known non-zero issue count, and it used to borrow one from the insurance form,
+  // which carried two only because the seed forgot to publish its question versions
+  // (issue #275). This is that fixture made deliberate: a form of its own whose draft
+  // pins two unpublished versions, so the count the spec asserts is a property of the
+  // seed rather than of a bug. It brings two library questions of its own, so the shared
+  // library every other spec reads is exactly as it was.
+  const { formId: unpublishedPinFormId } = await seedUnpublishedPinForm(testDb.db);
+
   const fixtures: PortalFixtures = {
     slug,
     kitchenSinkSlug,
@@ -256,6 +277,7 @@ export async function startApiServer(): Promise<void> {
     revokedToken,
     invalidToken: "not-a-real-link-token",
     closedFormToken,
+    unpublishedPinFormId,
   };
   mkdirSync(dirname(FIXTURES_PATH), { recursive: true });
   writeFileSync(FIXTURES_PATH, JSON.stringify(fixtures, null, 2), "utf8");
