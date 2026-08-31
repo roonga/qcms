@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { DEFAULT_RESPONSE_SNIPPET_RETENTION_MS } from "@qcms/db";
 
-import { ConfigError, loadConfig, MIN_SECRET_LENGTH } from "./config.js";
+import { challengeEnforceable, ConfigError, loadConfig, MIN_SECRET_LENGTH } from "./config.js";
 import { synthSecret, validEnv } from "./test-support.js";
 
 describe("loadConfig - presence and shape (SEC-7, SEC-8)", () => {
@@ -365,6 +365,25 @@ describe("feature-flag registry (ADR-24)", () => {
       provider: "turnstile",
       turnstile: { siteKey: "site-key", secretKey: "secret-key" },
     });
+  });
+
+  // ADR-24 as amended (issue #725): the admin surface is told whether a
+  // challenge can be verified, never which provider is configured. The
+  // derivation lives beside the flag so exactly one place knows that `none`
+  // means "the null verifier passes everything".
+  it("derives challengeEnforceable from the provider, without exposing it", () => {
+    expect(challengeEnforceable(loadConfig(validEnv()).flags)).toBe(false);
+    expect(
+      challengeEnforceable(
+        loadConfig(
+          validEnv({
+            QCMS_FLAG_CHALLENGE_PROVIDER: "turnstile",
+            TURNSTILE_SITE_KEY: "site-key",
+            TURNSTILE_SECRET_KEY: "secret-key",
+          }),
+        ).flags,
+      ),
+    ).toBe(true);
   });
 
   it("QCMS_ADMIN_2FA folds into the registry (not QCMS_FLAG_ prefixed)", () => {

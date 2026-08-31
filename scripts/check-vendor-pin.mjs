@@ -35,22 +35,19 @@
  * *true*; forcing it forward to the current pin would make it false. So the
  * dated-record areas are exempt: see {@link EXEMPT}.
  *
- * `docs/PROJECT_GOAL.md` is the uncomfortable one, and the exemption there is an
- * accepted gap rather than a tidy fit (issue #483, caveat 2). It was named in #483
- * because that file then mixed append-only ADR history with live decision text, and a
- * superseded ADR-35 paragraph in it named an old version. **That specific paragraph is
- * gone**: PR #720 split the decision record into `docs/adr/`, and no better-auth
- * version assertion survives in either file today. The exemption is kept because the
- * mixed-file shape is what earned it and the file still carries live decision text, so
- * exempting it by path means a genuinely live version claim added there tomorrow gets
- * no coverage. The alternative was an inline marker convention
- * (`<!-- pin-check: record -->`), a new convention to teach and the kind of thing that
- * rots. The path exemption was chosen deliberately; the gap is real.
+ * `docs/PROJECT_GOAL.md` **used to be exempt and is not any more** (Code Owner,
+ * 2026-08-31, issue #725). It was named in #483 because that file then mixed
+ * append-only ADR history with live decision text, and a superseded ADR-35 paragraph
+ * in it named an old version. PR #720 moved the decision record to `docs/adr/`, so
+ * what is left there is live decision text and nothing else - which is precisely what
+ * this gate exists to check. The exemption was a hole with nothing behind it, and #483
+ * caveat 2 always described it as an accepted gap rather than a fit. If a genuinely
+ * dated claim ever needs to live in that file, it belongs in a record area instead.
  *
- * **`docs/adr/` is deliberately NOT exempt.** It is where the decision record lives
- * now, and an exemption is a hole, so a new area gets one only when a real record in
- * it fails the gate. Fail closed by default: the cost of being wrong that way is a
- * build that asks a question, not a document that quietly rots.
+ * **`docs/adr/` is deliberately NOT exempt** either, for the same reason. An exemption
+ * is a hole, so a new area gets one only when a real record in it fails the gate. Fail
+ * closed by default: the cost of being wrong that way is a build that asks a question,
+ * not a document that quietly rots.
  *
  * ## What it cannot see
  *
@@ -127,8 +124,10 @@ export const TRACKED_PREFIXES = ["better-auth", "@better-auth/"];
  * written for a single file, and an exemption that leaks is invisible - the run
  * prints OK and nobody looks again. `isExempt` enforces it and the tests pin it.
  *
- * Each entry is a deliberate choice, not an oversight; the header explains the
- * `docs/PROJECT_GOAL.md` one, which is the only entry that is a real gap.
+ * Each entry is a deliberate choice, not an oversight, and each one names a place
+ * whose version mentions are dated records. `docs/PROJECT_GOAL.md` was on this list
+ * and was removed (issue #725): it holds no ADR history since PR #720, so it is live
+ * text and is scanned like any other.
  */
 export const EXEMPT = [
   // Work orders record what was checked, and when, per the plan-against-official-docs
@@ -141,9 +140,6 @@ export const EXEMPT = [
   // Scratch and planning history, excluded by every other gate here for the same
   // reason (see check-no-em-dash.mjs, check-ports.mjs).
   "plan/",
-  // Append-only ADR history mixed with live decision text. See the header: the
-  // exemption is an accepted gap, chosen over an inline marker convention.
-  "docs/PROJECT_GOAL.md",
   // The lockfile is the source of truth this gate reads, not a claim about it.
   "pnpm-lock.yaml",
 ];
@@ -294,7 +290,8 @@ function main() {
       "",
       "If a mention is a dated record of what was true at the time, it belongs in one of",
       "the record areas in EXEMPT (docs/features/, .changeset/, docs/RETRO.md, plan/),",
-      "not in a live file with the number changed. See scripts/check-vendor-pin.mjs.",
+      "not in a live file with the number changed. docs/PROJECT_GOAL.md and docs/adr/ are",
+      "live text and are scanned. See scripts/check-vendor-pin.mjs.",
     ].join("\n"),
   );
   return 1;

@@ -14,14 +14,14 @@
 
 ### ADR-28 - Explicit portal navigation
 
-**Status:** implemented; see notes.
+**Status:** implemented; amended 2026-08-31 (issue #725).
 
 **Decision.** Continue advances only after current-step validation, Back returns to the previous visible step and is hidden on the first step, and Submit appears only on the last visible step. Answering never changes the rendered step by itself.
 
-**Note (flagged).** Two open edges:
+**Amendment - the contract binds the hydrated path, and the slot is gone (Code Owner, 2026-08-31, issue #725).** The two edges the earlier note left open are settled:
 
-1. The no-JS fallback renders a single button whose label follows overall submit-readiness, and no Back control; this record does not say whether the contract binds the no-JS path (task 044 shipped it this way).
-2. `FormDefinition` reserves an unhonored `advanceOnComplete` slot - a per-form escape from "answering never changes the rendered step". The record and the schema disagree until the Code Owner blesses or removes the slot.
+1. The navigation contract above binds the **hydrated** path. The no-JS fallback's single readiness-labelled button, with no Back control, is the accepted shape by design (task 044) rather than a shortfall against the contract. Without script there is no per-step validation round trip to gate a Continue on, so one button whose label follows overall submit-readiness is the honest control to render.
+2. The `advanceOnComplete` slot is **removed**. `FormDefinition` no longer reserves it, so "answering never changes the rendered step by itself" has no per-form escape and the schema and this record agree. Auto-advance is demand-gated: it returns as a decision with a behavior behind it, not as a reserved key nothing honors. Nothing carried the field - no fixture, golden document, seed, or admin or portal source - and `FormDefinition` strips unknown keys rather than rejecting them, so stored content that somehow held it still parses.
 
 ### ADR-30 - Portal theming
 
@@ -46,7 +46,7 @@
 
 Clearing or partially editing a previously answered date commits a retraction. Same-step visibility updates only after the relevant commit.
 
-**Note.** Stale comments in `apps/portal/lib/visible.ts` and `apps/portal/e2e/commit-moments.pw.ts` still describe the short-text and date rows as open questions; the amendment above resolved them, and the comments should be cleaned up separately.
+**Note.** The comments in `apps/portal/lib/visible.ts` and `apps/portal/e2e/commit-moments.pw.ts` used to describe the short-text and date rows as open questions after the amendment above had already settled them. They now state the settled rule (issue #725): short text commits on blur, like the other free-entry rows, and a date commits when editing ends and the date is complete, so a partial date never posts and a complete one posts exactly once.
 
 ### ADR-39 - Link version targeting
 
@@ -58,4 +58,4 @@ Clearing or partially editing a previously answered date commits a retraction. S
 
 Secure links keep their signed, expiring, optionally one-time model. The server-side row stores the target (Always latest or an exact version); the token format does not carry it. Public address state never governs a secure invitation. Revocation, expiry, one-time consumption, challenge checks, and abuse controls are unchanged.
 
-**Note (flagged - live gap).** The whole-form closed state does not block secure-link entry today: the secure path in `apps/api/src/features/responses/start-session/handler.ts` never checks `form.status`, while the anonymous path does and the portal already maps `FORM_CLOSED` for `/l/{token}`. This is task 063 exit criterion 3, but it contradicts this record for a control that exists now. Also, "pinned version" already means question-version pinning (ADR-02); task 063 should choose distinct wording for link targets.
+**Note.** The live gap this note recorded is closed (issue #724, PR #742): the secure path in `apps/api/src/features/responses/start-session/handler.ts` now checks `form.status` after the link's own state and before anything is spent, so a closed form refuses secure-link entry without consuming a one-time link or charging a challenge, exactly as this record says. What remains is wording, not behavior: "pinned version" already means question-version pinning (ADR-02), so task 063 should choose distinct wording for link targets.

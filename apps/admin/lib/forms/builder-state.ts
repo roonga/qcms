@@ -51,8 +51,8 @@ export interface ValidateDraftState {
 export interface SettingsState {
   readonly status: "idle" | "saved" | "error";
   readonly settings?: FormSettings;
-  /** The deployment's challenge provider as the API reports it after the write. */
-  readonly challengeProvider?: string;
+  /** Whether a challenge is enforceable here, as the API reports it after the write. */
+  readonly challengeEnforceable?: boolean;
   readonly message?: string;
 }
 

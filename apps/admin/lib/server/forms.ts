@@ -63,10 +63,10 @@ export async function createForm(
 // --- the working draft ------------------------------------------------------
 
 /**
- * `GET /admin/forms/{id}` - identity, draft, versions, settings, challenge provider.
+ * `GET /admin/forms/{id}` - identity, draft, versions, settings, challenge enforceability.
  *
- * `challengeProvider` is defaulted to `"none"` when the payload does not carry it, and the
- * direction of that default is deliberate: `"none"` is the state in which the settings
+ * `challengeEnforceable` is defaulted to `false` when the payload does not carry it, and
+ * the direction of that default is deliberate: `false` is the state in which the settings
  * panel *warns* that `challengeRequired` is unenforceable, so a build talking to an API
  * that has not started sending the field errs towards telling the author more rather than
  * towards a switch that silently promises protection it may not have (ADR-24).
@@ -92,7 +92,7 @@ export async function getForm(
       draftSource: parseDraftSource(raw["draftSource"]),
       versions: parseVersions(raw["versions"]),
       settings: parseSettings(raw["settings"]),
-      challengeProvider: asString(raw["challengeProvider"], "none"),
+      challengeEnforceable: raw["challengeEnforceable"] === true,
     },
   };
 }
@@ -144,7 +144,7 @@ export async function updateSettings(
   session: AdminSession,
   formId: string,
   patch: { readonly challengeRequired?: boolean; readonly minSubmitMs?: number | null },
-): Promise<ApiResult<{ readonly settings: FormSettings; readonly challengeProvider: string }>> {
+): Promise<ApiResult<{ readonly settings: FormSettings; readonly challengeEnforceable: boolean }>> {
   const result = await read<Record<string, unknown>>(
     await adminApiFetch(session, `/forms/${encodeURIComponent(formId)}/settings`, {
       method: "PATCH",
@@ -156,7 +156,7 @@ export async function updateSettings(
     ok: true,
     data: {
       settings: parseSettings(result.data["settings"]),
-      challengeProvider: asString(result.data["challengeProvider"], "none"),
+      challengeEnforceable: result.data["challengeEnforceable"] === true,
     },
   };
 }

@@ -71,6 +71,7 @@ import {
   upsertDraft,
 } from "@qcms/db";
 
+import { challengeEnforceable } from "../../config.js";
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
@@ -446,10 +447,11 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
           challengeRequired: form.challengeRequired,
           minSubmitMs: form.minSubmitMs,
         },
-        // The deployment-level provider rides along so the panel can warn on load
-        // that `challengeRequired` is unenforceable while the provider is "none"
+        // A derived boolean, never the provider name: ADR-24 says clients
+        // receive behavior, not flag values. It rides along on the read so the
+        // panel can warn on load that `challengeRequired` is unenforceable
         // (033), rather than only discovering it after a write.
-        challengeProvider: deps.config.flags.challengeProvider,
+        challengeEnforceable: challengeEnforceable(deps.config.flags),
       },
       200,
     );
@@ -902,9 +904,10 @@ export function makePreviewDraftHandler(
  * `undefined` can only mean the form does not exist. That is the same single-read
  * 404 shape `closeForm`/`reopenForm` use, and it keeps the sentinel unambiguous.
  *
- * The response carries the deployment's `challengeProvider` alongside the saved
- * settings so the panel can re-render its "unenforceable while the provider is
- * none" warning from the write's own answer, with no follow-up read.
+ * The response carries the derived `challengeEnforceable` alongside the saved
+ * settings so the panel can re-render its "unenforceable" warning from the
+ * write's own answer, with no follow-up read. It is a behavior statement and not
+ * the provider flag's value (ADR-24).
  */
 export function makeUpdateFormSettingsHandler(
   deps: Deps,
@@ -928,7 +931,7 @@ export function makeUpdateFormSettingsHandler(
           challengeRequired: updated.challengeRequired,
           minSubmitMs: updated.minSubmitMs,
         },
-        challengeProvider: deps.config.flags.challengeProvider,
+        challengeEnforceable: challengeEnforceable(deps.config.flags),
       },
       200,
     );

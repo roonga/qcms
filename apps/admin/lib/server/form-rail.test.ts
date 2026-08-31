@@ -55,7 +55,7 @@ const DETAIL: FormDetail = {
   draftSource: "open",
   versions: [],
   settings: { challengeRequired: false, minSubmitMs: null },
-  challengeProvider: "none",
+  challengeEnforceable: false,
 };
 
 /** A session object the mocked client never looks at. */

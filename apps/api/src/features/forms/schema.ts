@@ -154,22 +154,24 @@ export const FormSettings = z
   .openapi("FormSettings");
 
 /**
- * The deployment's configured challenge provider (`deps.config.flags`).
+ * Whether a challenge this deployment can actually verify stands behind a form's
+ * `challengeRequired` (ADR-24, amended 2026-08-31, issue #725).
  *
- * Typed as a plain string rather than the config union on purpose: the admin
- * panel only needs to compare it against `"none"` to warn that a form's
- * `challengeRequired` is unenforceable (033's settings panel, task line 18).
- * Pinning the wire type to today's provider names would make adding a provider a
- * breaking API change for a field nobody switches on exhaustively.
+ * A boolean derived from `deps.config.flags`, never the flag value itself. The
+ * response used to echo the raw provider name so the panel could compare it
+ * against `"none"`; that was a standing exception to "clients receive behavior,
+ * not flag values", and the Code Owner removed it. The panel needs exactly one
+ * fact - is ticking the box going to protect anything - and adding or renaming a
+ * provider now changes nothing on the wire or in the admin.
  */
-const ChallengeProvider = z.string().openapi({ example: "none" });
+const ChallengeEnforceable = z.boolean().openapi({ example: false });
 
 /** `PATCH /admin/forms/:id/settings` result: the settings as they now stand. */
 export const FormSettingsResponse = z
   .object({
     formId: z.string().openapi({ example: "frm_signup" }),
     settings: FormSettings,
-    challengeProvider: ChallengeProvider,
+    challengeEnforceable: ChallengeEnforceable,
   })
   .openapi("FormSettingsResponse");
 
@@ -267,11 +269,11 @@ export const FormDetailResponse = z
     /** The per-form abuse-control settings (026), which the builder panel edits (033). */
     settings: FormSettings,
     /**
-     * The deployment's challenge provider. Carried on the detail read, not only
-     * on a settings write, because the panel has to warn that `challengeRequired`
-     * is unenforceable while the provider is `"none"` the moment the form opens.
+     * Whether a challenge can be verified here. Carried on the detail read, not
+     * only on a settings write, because the panel has to warn that
+     * `challengeRequired` is unenforceable the moment the form opens.
      */
-    challengeProvider: ChallengeProvider,
+    challengeEnforceable: ChallengeEnforceable,
   })
   .openapi("FormDetailResponse");
 

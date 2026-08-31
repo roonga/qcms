@@ -831,9 +831,11 @@ export const messages = {
   "forms.settings.note": "Abuse controls for this form. They apply the next time it is published.",
   "forms.settings.challengeRequired": "Require a challenge before answering",
   "forms.settings.challengeHint":
-    "Starting a session has to pass the deployment's challenge provider first.",
+    "Starting a session has to pass this deployment's challenge check first.",
+  // Says what is true of the deployment, not which provider flag it is running.
+  // The admin is told behaviour, never a flag value (ADR-24, issue #725).
   "forms.settings.challengeUnenforceable":
-    "This deployment's challenge provider is set to none, so requiring a challenge here enforces nothing until an operator configures one.",
+    "This deployment cannot check a challenge, so requiring one here enforces nothing until an operator configures a challenge provider.",
   "forms.settings.minSubmitDefault": "Use the deployment's minimum time",
   "forms.settings.minSubmit": "Minimum time before a submit is accepted (milliseconds)",
   "forms.settings.minSubmitHint":

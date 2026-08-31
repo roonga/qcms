@@ -533,7 +533,7 @@ export function FormBuilder({
               whitespace. */}
           <FormSettingsPanel
             settings={settings}
-            challengeProvider={detail.challengeProvider}
+            challengeEnforceable={detail.challengeEnforceable}
             saveError={settingsError}
             onChange={setSettings}
           />

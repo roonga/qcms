@@ -99,12 +99,13 @@ otherwise make the helper's `undefined` return ambiguous: it would mean either
 sentinel. Refusing the empty patch keeps `undefined` meaning exactly not-found,
 so the handler needs no pre-read and matches `closeForm`/`reopenForm`'s shape.
 
-Both the detail read and the patch response carry **`challengeProvider`**, the
-deployment's configured provider from `config.flags.challengeProvider`. The panel
-needs it to warn that `challengeRequired` is unenforceable while the provider is
-`"none"` (033), on load rather than only after a write. It is typed on the wire as
-a plain string, not the config union, so adding a provider is not a breaking API
-change for a field the admin only compares against `"none"`.
+Both the detail read and the patch response carry **`challengeEnforceable`**, a
+boolean derived from `config.flags` by `challengeEnforceable` in `src/config.ts`:
+true exactly when a provider that can verify a solution is configured. The panel
+needs it to warn that `challengeRequired` protects nothing (033), on load rather
+than only after a write. It replaced a raw echo of the provider name on
+2026-08-31 (ADR-24, issue #725): clients receive behavior, not flag values, and a
+boolean means adding or renaming a provider changes nothing on the wire.
 
 ## Publish (the aggregate)
 

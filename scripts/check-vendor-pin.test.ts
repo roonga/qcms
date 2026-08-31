@@ -171,7 +171,7 @@ describe("record exemptions", () => {
     for (const impostor of [
       "docs/RETRO.md.bak",
       "docs/RETRO.md.orig",
-      "docs/PROJECT_GOAL.md.bak",
+      "docs/RETRO.mdx",
       "pnpm-lock.yaml.old",
       "docs/RETRO.md-notes.md",
     ]) {
@@ -200,6 +200,14 @@ describe("record exemptions", () => {
     // new one is earned by a real record failing the gate, not granted pre-emptively.
     expect(isExempt("docs/adr/core.md")).toBe(false);
     expect(isExempt("docs/adr/README.md")).toBe(false);
+  });
+
+  it("scans docs/PROJECT_GOAL.md, which is no longer exempt", () => {
+    // The exemption existed because that file mixed append-only ADR history with live
+    // decision text (#483 caveat 2). PR #720 took the history to `docs/adr/`, so what
+    // is left is live text and the hole had nothing behind it (Code Owner, issue #725).
+    expect(isExempt("docs/PROJECT_GOAL.md")).toBe(false);
+    expect(EXEMPT).not.toContain("docs/PROJECT_GOAL.md");
   });
 
   it("does not exempt the live documents this gate exists for", () => {
