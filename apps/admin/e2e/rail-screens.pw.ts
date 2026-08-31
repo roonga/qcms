@@ -65,6 +65,17 @@ interface Screen {
   readonly current: string;
   /** Whether §7's children group is present. False only on the builder. */
   readonly children: boolean;
+  /**
+   * The browser-tab title (issue #536).
+   *
+   * These eight screens are the sharp end of that issue: six sections and two detail
+   * routes of ONE form, which all produced the tab text "QCMS" until every route gained a
+   * `generateMetadata`. `lib/page-title.test.ts` pins that each route has one and builds
+   * it through the one helper, which is a fact about the source; that the browser then
+   * puts it in the document is the fact only a browser can report, and eight identical
+   * titles here is exactly the defect.
+   */
+  readonly title: string;
 }
 
 /**
@@ -77,18 +88,56 @@ interface Screen {
  */
 function screens(): readonly Screen[] {
   return [
-    { path: `/forms/${FORM_ID}`, current: "section:builder", children: true },
-    { path: `/forms/${FORM_ID}/preview`, current: "section:preview", children: true },
-    { path: `/forms/${FORM_ID}/versions`, current: "section:versions", children: true },
-    { path: `/forms/${FORM_ID}/versions/1`, current: "section:versions", children: true },
-    { path: `/forms/${FORM_ID}/links`, current: "section:links", children: true },
-    { path: `/forms/${FORM_ID}/responses`, current: "section:responses", children: true },
+    {
+      path: `/forms/${FORM_ID}`,
+      current: "section:builder",
+      children: true,
+      title: `Form details: ${FORM_ID} - QCMS`,
+    },
+    {
+      path: `/forms/${FORM_ID}/preview`,
+      current: "section:preview",
+      children: true,
+      title: `Preview: ${FORM_ID} - QCMS`,
+    },
+    {
+      path: `/forms/${FORM_ID}/versions`,
+      current: "section:versions",
+      children: true,
+      title: `Version history: ${FORM_ID} - QCMS`,
+    },
+    {
+      path: `/forms/${FORM_ID}/versions/1`,
+      current: "section:versions",
+      children: true,
+      title: `Version 1: ${FORM_ID} - QCMS`,
+    },
+    {
+      path: `/forms/${FORM_ID}/links`,
+      current: "section:links",
+      children: true,
+      title: `Links: ${FORM_ID} - QCMS`,
+    },
+    {
+      path: `/forms/${FORM_ID}/responses`,
+      current: "section:responses",
+      children: true,
+      title: `Responses: ${FORM_ID} - QCMS`,
+    },
     {
       path: `/forms/${FORM_ID}/responses/${sessionId}`,
       current: "section:responses",
       children: true,
+      // The session id alone: it identifies one response across the deployment, which is
+      // the literal complaint issue #510 was filed for and #536 finished.
+      title: `Response ${sessionId} - QCMS`,
     },
-    { path: `/forms/${FORM_ID}/webhooks`, current: "section:webhooks", children: true },
+    {
+      path: `/forms/${FORM_ID}/webhooks`,
+      current: "section:webhooks",
+      children: true,
+      title: `Webhooks: ${FORM_ID} - QCMS`,
+    },
   ];
 }
 
@@ -120,6 +169,10 @@ test("561 puts the rail on all eight form-scoped screens, marking the row the sc
     await expect
       .soft(page.getByTestId("qcms-rail"), `${screen.path} carries the rail`)
       .toBeVisible();
+    // Eight sibling screens of one form, eight different tabs (issue #536). Asserted as
+    // the whole string rather than "not QCMS": the pattern is the decision, and a title
+    // that lost its page name or its app name would still pass a difference test.
+    await expect.soft(page, `${screen.path} names its own browser tab`).toHaveTitle(screen.title);
     await expect
       .soft(
         page.locator(`.qcms-rail__link[data-rail-item="${screen.current}"]`),
