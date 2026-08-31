@@ -4,9 +4,10 @@
  * Every guard surfaces a *typed* code through the shared error envelope, end to
  * end over HTTP: a publish with a backward rule (422 PUBLISH_REJECTED), an
  * out-of-range answer (422 INVALID_ANSWER), an expired link (403 LINK_EXPIRED), a
- * consumed one-time link (409 LINK_CONSUMED), and an answer to an
- * already-submitted session (409 SESSION_SUBMITTED). The suite proves the API
- * fails in the contracted, machine-readable way - not just that it fails.
+ * valid link into a closed form (409 FORM_CLOSED), a consumed one-time link (409
+ * LINK_CONSUMED), and an answer to an already-submitted session (409
+ * SESSION_SUBMITTED). The suite proves the API fails in the contracted,
+ * machine-readable way - not just that it fails.
  */
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -115,6 +116,26 @@ describe("scenario 5: failure tour (typed codes through the envelope)", () => {
     const res = await respondent.start<ErrBody>({ token });
     expect(res.status).toBe(403);
     expect(res.body.error.code).toBe("LINK_EXPIRED");
+  });
+
+  it("a valid link into a closed form → 409 FORM_CLOSED", async () => {
+    // The whole-form closed state overrides every link, secure ones included
+    // (ADR-39, issue #724). A second form so the tour's own form stays open;
+    // its questions are already seeded.
+    const closed = await seedInsuranceForm(testDb.db, {
+      formId: "frm_closed_e2e",
+      slug: "closed-e2e",
+      sharedQuestionsSeeded: true,
+      closed: true,
+    });
+    const token = await mintInsuranceLink(testDb.db, composed.deps.config, closed.formId, {
+      linkId: "lnk_closed_e2e",
+      expiresAt: new Date(NOW.getTime() + 60 * 60 * 1000),
+    });
+
+    const res = await respondent.start<ErrBody>({ token });
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe("FORM_CLOSED");
   });
 
   it("a consumed one-time link → 409 LINK_CONSUMED", async () => {

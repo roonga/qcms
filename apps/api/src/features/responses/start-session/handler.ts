@@ -14,8 +14,9 @@
  *   version, TTL from config.
  * - **Secure link** (`{ token }`): the token verifies under `QCMS_LINK_KEYS`,
  *   the `secure_links` row must agree (not revoked; one-time links are consumed
- *   atomically - a signature alone is never sufficient) → a session pinned to
- *   the *link's* form's newest published version, expiring at
+ *   atomically - a signature alone is never sufficient), and the form must be
+ *   `open` (the whole-form closed state overrides every link, ADR-39) → a
+ *   session pinned to the *link's* form's newest published version, expiring at
  *   `min(link expiry, session TTL)` so it never outlives the token (SEC-2).
  *
  * Every pinning insert goes through `createSession`, whose `(formId,
@@ -190,9 +191,15 @@ async function startFromSecureLink(
   if (row === undefined) throw fail.linkInvalid();
   assertLinkUsable(row, now);
 
-  // A form may require a challenge even for invited (secure-link) entry; the
-  // setting is per-form (task 026). Read the identity row for its flag.
+  // The whole-form closed state overrides every link, secure ones included
+  // (ADR-39, issue #724). It is checked here, after the link's own state and
+  // before anything is spent: a closed form must not consume a one-time link,
+  // charge a challenge, or create a session.
+  //
+  // A form may also require a challenge even for invited (secure-link) entry;
+  // the setting is per-form (task 026). One read of the identity row serves both.
   const form = await getForm(deps.db, formId);
+  if (form?.status === "closed") throw fail.formClosed();
   await enforceChallenge(deps, form?.challengeRequired ?? false, challenge);
 
   // Session expiry never outlives the link, nor the anonymous TTL ceiling
@@ -228,6 +235,11 @@ async function startFromSecureLink(
  * Reject a secure link whose server-side state forbids use: revoked, already
  * consumed (one-time replay), or past its stored expiry. Signature validity is
  * never enough on its own (SEC-2).
+ *
+ * These run before the form's own state (issue #724). The credential is settled
+ * first, so a dead link never reads form state, and the refusal a recipient sees
+ * stays the one that describes their link: revocation and consumption are
+ * permanent for that link, while a closed form reopens.
  */
 function assertLinkUsable(row: SecureLinkRow, now: Date): void {
   if (row.revokedAt !== null) throw fail.linkRevoked();
