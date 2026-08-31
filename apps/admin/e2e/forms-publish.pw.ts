@@ -130,10 +130,17 @@ test("publishes a draft and reports what it froze (exit criterion 1)", async ({ 
   await addStep(page, "Claim details");
   await pinQuestion(page, questionIdFor(CLAIM_NOTES), 1);
 
-  // A STAMP BEFORE THE EDITOR OPENS. The wizard buffers since 2026-08-30, so the whole rule
-  // reaches the draft in ONE mutation when Save is pressed rather than keystroke by
-  // keystroke: "Saved" is already on screen from the pins, so `waitForSaved` would return
+  // A SETTLED STAMP BEFORE THE EDITOR OPENS. The wizard buffers since 2026-08-30, so the
+  // whole rule reaches the draft in ONE mutation when Save is pressed rather than keystroke
+  // by keystroke: "Saved" is already on screen from the pins, so `waitForSaved` would return
   // instantly and the reload below would race the only round trip the rule ever gets.
+  //
+  // Settled is the word issue 750 added. The pin directly above this line arms a 600ms
+  // debounce, so a stamp read straight after it is the stamp of the PREVIOUS save, and
+  // `waitForSaveAfter` below was then satisfied by the pin's own save landing rather than
+  // by the rule's - the reload took a draft with no rule in it, and the freeze summary
+  // said "0 rules." `savedStamp` now waits for the strip to stop saying "Saving..." before
+  // it reads, which is what makes this baseline final rather than merely recent.
   const beforeRule = await savedStamp(page);
   const ruleId = await addRule(page);
   const scope = rule(page, ruleId);

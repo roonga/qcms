@@ -13,8 +13,9 @@ import {
   createForm,
   pinQuestion,
   rule,
+  savedStamp,
   toggleTarget,
-  waitForSaved,
+  waitForSaveAfter,
 } from "../admin/e2e/support/forms.js";
 import { confirmLifecycle, createDraft } from "../admin/e2e/support/questions.js";
 import { FULL_STACK_ADMIN_URL, FULL_STACK_PORTAL_URL } from "./support/full-stack-config.js";
@@ -171,15 +172,30 @@ test.describe.serial("conditional form journey", () => {
         await pinQuestion(page, QUESTION_IDS[slug], 1);
       }
       await addStep(page, "Your route");
-      for (const slug of ["number", "multi-choice", "single-choice", "long-text"] as const) {
+      for (const slug of ["number", "multi-choice", "single-choice"] as const) {
         await pinQuestion(page, QUESTION_IDS[slug], 1);
       }
-      await waitForSaved(page);
+      // THE LAST PIN IS ANCHORED, and it stands for all seven (issue 748). A save stores
+      // the WHOLE draft, so waiting for the one the last pin arms is waiting for every pin
+      // above it. `waitForSaved` could not say that: "Last saved" is already on screen from
+      // an earlier pin, so it returned while the rest were still on the debounce, and this
+      // test ends by closing its page - an autosave still armed at that moment is an edit
+      // the form never receives.
+      const beforeLastPin = await savedStamp(page);
+      await pinQuestion(page, QUESTION_IDS["long-text"], 1);
+      await waitForSaveAfter(page, beforeLastPin);
     });
 
     test("adds the affirmative conditional route", async ({ page }) => {
       await openFormBuilder(page);
       for (const target of [QUESTION_IDS.number, QUESTION_IDS["long-text"]]) {
+        // ONE RULE, ONE SAVE, WAITED ON (issue 748). The stamp is read while the strip is
+        // settled, so nothing already in flight can move it, and the wizard buffers, so the
+        // only thing that moves it next is this rule's own Save. What this loop used to
+        // assert was that the EDITOR reached a state, which says nothing about the draft
+        // reaching the server: the second rule was still on the debounce when the page
+        // closed, and the publish two tests later froze a form without it.
+        const beforeRule = await savedStamp(page);
         const ruleId = await addRule(page);
         const scope = rule(page, ruleId);
         await chooseOption(scope, "Question", `${QUESTION_IDS.boolean}@1`);
@@ -191,13 +207,15 @@ test.describe.serial("conditional form journey", () => {
         // moved straight on to `addRule` both left the rail behind an open dialog and
         // built rules the form never received.
         await closeRuleEditor(page);
+        await waitForSaveAfter(page, beforeRule);
       }
-      await waitForSaved(page);
     });
 
     test("adds the negative conditional route", async ({ page }) => {
       await openFormBuilder(page);
       for (const target of [QUESTION_IDS["multi-choice"], QUESTION_IDS["single-choice"]]) {
+        // Same anchor as the affirmative route above, and for the same reason.
+        const beforeRule = await savedStamp(page);
         const ruleId = await addRule(page);
         const scope = rule(page, ruleId);
         await chooseOption(scope, "Question", `${QUESTION_IDS.boolean}@1`);
@@ -205,8 +223,8 @@ test.describe.serial("conditional form journey", () => {
         await chooseOption(scope, "Value", "No");
         await toggleTarget(page, ruleId, target, true);
         await closeRuleEditor(page);
+        await waitForSaveAfter(page, beforeRule);
       }
-      await waitForSaved(page);
     });
 
     test("publishes the conditional form", async ({ page }) => {
@@ -214,6 +232,14 @@ test.describe.serial("conditional form journey", () => {
       await page.getByRole("button", { name: "Publish", exact: true }).click();
       const publish = page.getByRole("alertdialog");
       await expect(publish).toBeVisible();
+      // A SERVER READ-BACK BEFORE THE FREEZE (issue 748). This page loaded the draft the
+      // API holds and the summary counts what publish is about to freeze out of it, so an
+      // authored rule that never reached the server fails HERE, naming the count it found,
+      // rather than two tests later as a respondent question that should have been hidden
+      // and was not. Three CI reds read as portal bugs before that distinction was drawn.
+      await expect(page.getByTestId("qcms-freeze-summary")).toHaveText(
+        "Freezes 2 steps, 7 pinned questions, 4 rules.",
+      );
       await publish.getByRole("button", { name: "Publish v1" }).click();
       await expect(page.getByText("Published as v1.")).toBeVisible({ timeout: 30_000 });
     });

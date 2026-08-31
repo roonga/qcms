@@ -511,6 +511,10 @@ async function readingSaveState<T>(page: Page, read: () => Promise<T>): Promise<
  * Since issue 518 the indicator is the builder's ambient save strip rather than a sentence
  * inside the validation panel. The testid did not move with it: it names the sentence, and
  * the sentence is the same one.
+ *
+ * ONLY HONEST FOR THE FIRST SAVE OF A VISIT. "Last saved" left over from an earlier save
+ * satisfies this immediately, so after any second edit it says nothing at all: pair
+ * `savedStamp` with `waitForSaveAfter` instead, which is what issues 748 and 750 cost.
  */
 export async function waitForSaved(page: Page): Promise<void> {
   await readingSaveState(page, async () => {
@@ -531,16 +535,47 @@ export function saveStatus(page: Page): Locator {
 }
 
 /**
+ * The sentence the strip shows while a save is armed or in flight.
+ *
+ * Hardcoded rather than imported from the app's catalogue, the same way every other name in
+ * this file is: it is what a reader sees and what a screen reader would announce, so a
+ * helper that read it from the same constant the component does would keep passing after
+ * the string went missing.
+ */
+const SAVING = "Saving...";
+
+/**
  * The instant of the last successful autosave, or `""` before the first one this visit.
  *
  * The attribute rather than the sentence, and that is the whole point of the attribute:
  * see `waitForSaveAfter`.
+ *
+ * ## It waits for the strip to settle first, and that is the fix for issues 748 and 750
+ *
+ * What this returns is a BASELINE: `waitForSaveAfter` proves an edit was stored by watching
+ * the instant move off it. So a baseline read while an EARLIER save is still armed or in
+ * flight is moved by that earlier save rather than by the edit under test, and the wait
+ * that follows passes without the edit ever reaching the server. Both flakes are that one
+ * sentence: `forms-publish.pw.ts` pinned a question (600ms of debounce), read the stamp
+ * immediately, authored a rule, and waited for a change the pin's own save had already
+ * made - then reloaded into a draft the rule had never reached, and published `0 rules.`.
+ *
+ * Waiting for the strip to stop saying "Saving..." is what makes the baseline final, and it
+ * is exact rather than approximate: `components/forms/form-builder.tsx` sets the status to
+ * `saving` in the effect that ARMS the debounce, not in the callback that fires it, so that
+ * one sentence covers the armed window and the in-flight window together. Anything else on
+ * the strip means no save is outstanding, and the next change to `data-saved-at` can only
+ * be the caller's own edit.
+ *
+ * "Not saved yet" and "The last save failed." are settled states too, and are read rather
+ * than waited out: a fresh visit has stored nothing, and a failed save is the caller's wait
+ * to report rather than this helper's to hang on.
  */
 export async function savedStamp(page: Page): Promise<string> {
-  return readingSaveState(
-    page,
-    async () => (await saveStatus(page).getAttribute("data-saved-at")) ?? "",
-  );
+  return readingSaveState(page, async () => {
+    await expect(saveState(page)).not.toHaveText(SAVING, { timeout: 30_000 });
+    return (await saveStatus(page).getAttribute("data-saved-at")) ?? "";
+  });
 }
 
 /**
@@ -561,6 +596,10 @@ export async function savedStamp(page: Page): Promise<string> {
  * and a per-minute string is what keeps the live region quiet during sustained typing), so
  * two saves in the same minute now render identically. `data-saved-at` is the replacement:
  * the raw ISO instant, precise enough for a test and never announced to anyone.
+ *
+ * `previous` has to come from `savedStamp`, which settles before it reads. A baseline taken
+ * any other way can be moved by a save the caller did not make, and then this returns
+ * before the caller's own edit is stored - which is exactly what issues 748 and 750 were.
  */
 export async function waitForSaveAfter(page: Page, previous: string): Promise<void> {
   await readingSaveState(page, async () => {
