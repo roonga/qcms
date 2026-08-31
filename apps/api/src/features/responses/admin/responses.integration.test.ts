@@ -375,6 +375,29 @@ describe("CSV golden export + JSON round-trip (exit criterion 2)", () => {
     expect((await get("/forms/frm_csv_guard/export?format=csv&version=9")).status).toBe(404);
   });
 
+  it("400s a version filter above int4 rather than 500ing on the driver (#645)", async () => {
+    // 2_147_483_648: one past the `form_versions.version` column's ceiling. The
+    // filter used to reach Postgres, which refused the parameter as out of range,
+    // so the request 500ed where every other unusable `version` value 400s. It is
+    // now the same INVALID_QUERY refusal, on both routes that take the filter.
+    await seedForm("frm_version_range", [["stp_a", ["q_name"]]]);
+
+    const exported = await get("/forms/frm_version_range/export?format=csv&version=2147483648");
+    expect(exported.status).toBe(400);
+    expect(((await exported.json()) as { error: { code: string } }).error.code).toBe(
+      "INVALID_QUERY",
+    );
+
+    const listed = await get("/forms/frm_version_range/responses?version=2147483648");
+    expect(listed.status).toBe(400);
+    expect(((await listed.json()) as { error: { code: string } }).error.code).toBe("INVALID_QUERY");
+
+    // The in-range ceiling still reads as a real (absent) version, not a refusal.
+    expect(
+      (await get("/forms/frm_version_range/export?format=csv&version=2147483647")).status,
+    ).toBe(404);
+  });
+
   it("JSON export round-trips canonical values as reporting rows", async () => {
     const formId = await seedForm("frm_json_api", [["stp_a", ["q_name", "q_pick"]]]);
     await seedSubmitted({
