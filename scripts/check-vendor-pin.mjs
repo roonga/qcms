@@ -36,12 +36,21 @@
  * dated-record areas are exempt: see {@link EXEMPT}.
  *
  * `docs/PROJECT_GOAL.md` is the uncomfortable one, and the exemption there is an
- * accepted gap rather than a tidy fit (issue #483, caveat 2). That file is mixed:
- * append-only ADR history, including a superseded ADR-35 paragraph naming 1.6.25, and
- * live decision text. Exempting it by path means a genuinely live version claim added
- * there tomorrow gets no coverage. The alternative was an inline marker convention
- * (`<!-- pin-check: record -->`), which is a new convention to teach and the kind of
- * thing that rots. The path exemption was chosen deliberately; the gap is real.
+ * accepted gap rather than a tidy fit (issue #483, caveat 2). It was named in #483
+ * because that file then mixed append-only ADR history with live decision text, and a
+ * superseded ADR-35 paragraph in it named an old version. **That specific paragraph is
+ * gone**: PR #720 split the decision record into `docs/adr/`, and no better-auth
+ * version assertion survives in either file today. The exemption is kept because the
+ * mixed-file shape is what earned it and the file still carries live decision text, so
+ * exempting it by path means a genuinely live version claim added there tomorrow gets
+ * no coverage. The alternative was an inline marker convention
+ * (`<!-- pin-check: record -->`), a new convention to teach and the kind of thing that
+ * rots. The path exemption was chosen deliberately; the gap is real.
+ *
+ * **`docs/adr/` is deliberately NOT exempt.** It is where the decision record lives
+ * now, and an exemption is a hole, so a new area gets one only when a real record in
+ * it fails the gate. Fail closed by default: the cost of being wrong that way is a
+ * build that asks a question, not a document that quietly rots.
  *
  * ## What it cannot see
  *
@@ -110,7 +119,13 @@ export const TRACKED_PREFIXES = ["better-auth", "@better-auth/"];
 
 /**
  * Paths whose version mentions are records, not assertions about the current pin.
- * A prefix match, so a directory entry covers everything beneath it.
+ *
+ * **An entry ending in `/` is a directory and covers everything beneath it; every
+ * other entry is one exact file.** The distinction is load-bearing rather than
+ * cosmetic: a plain `startsWith` over the whole list would let `docs/RETRO.md.bak`,
+ * `docs/RETRO.md.orig` or a generated `pnpm-lock.yaml.old` inherit an exemption
+ * written for a single file, and an exemption that leaks is invisible - the run
+ * prints OK and nobody looks again. `isExempt` enforces it and the tests pin it.
  *
  * Each entry is a deliberate choice, not an oversight; the header explains the
  * `docs/PROJECT_GOAL.md` one, which is the only entry that is a real gap.
@@ -150,11 +165,14 @@ const GLOBS = [
 /**
  * Whether a repo-relative path is one whose version mentions are records.
  *
+ * A directory entry (trailing `/`) matches by prefix; a file entry matches only
+ * itself, so a neighbouring `.bak`, `.orig` or generated copy stays in scope.
+ *
  * @param {string} file repo-relative path
  * @returns {boolean}
  */
 export function isExempt(file) {
-  return EXEMPT.some((prefix) => file === prefix || file.startsWith(prefix));
+  return EXEMPT.some((entry) => (entry.endsWith("/") ? file.startsWith(entry) : file === entry));
 }
 
 /**

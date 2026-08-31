@@ -160,6 +160,46 @@ describe("record exemptions", () => {
 
   it("exempts a record named as an exact file", () => {
     expect(isExempt("docs/RETRO.md")).toBe(true);
+    expect(isExempt("pnpm-lock.yaml")).toBe(true);
+  });
+
+  it("does not let a file entry exempt a path that merely starts with it", () => {
+    // The review finding. With a plain `startsWith` over the whole list, every one of
+    // these is silently waved through and the gate still reports no findings, which is
+    // the failure a gate exists to prevent. A backup, a generated copy or an
+    // unrelated file sharing the prefix is not the record that earned the exemption.
+    for (const impostor of [
+      "docs/RETRO.md.bak",
+      "docs/RETRO.md.orig",
+      "docs/PROJECT_GOAL.md.bak",
+      "pnpm-lock.yaml.old",
+      "docs/RETRO.md-notes.md",
+    ]) {
+      expect(isExempt(impostor)).toBe(false);
+    }
+  });
+
+  it("does not let a file entry exempt a directory of the same name", () => {
+    // `docs/RETRO.md/inner.md` cannot exist today, but the entry means one file and
+    // should not quietly become a directory rule if the tree ever changes shape.
+    expect(isExempt("docs/RETRO.md/inner.md")).toBe(false);
+  });
+
+  it("exempts a directory entry only at a path boundary", () => {
+    // `plan/` covers what is under it, and nothing that merely shares the stem: a
+    // sibling `plans/` or `plan-archive/` is ordinary tracked prose.
+    expect(isExempt("plan/040-security-triage-input.md")).toBe(true);
+    expect(isExempt("plans/040.md")).toBe(false);
+    expect(isExempt("plan-archive/040.md")).toBe(false);
+    expect(isExempt("docs/features-old/061.md")).toBe(false);
+  });
+
+  it("keeps docs/adr NOT exempt, so the decision record is scanned", () => {
+    // PR #720 moved the decision record out of `docs/PROJECT_GOAL.md` and into
+    // `docs/adr/`. That area is deliberately in scope: an exemption is a hole, and a
+    // new one is earned by a real record failing the gate, not granted pre-emptively.
+    expect(isExempt("docs/adr/core.md")).toBe(false);
+    expect(isExempt("docs/adr/README.md")).toBe(false);
   });
 
   it("does not exempt the live documents this gate exists for", () => {
@@ -180,6 +220,15 @@ describe("record exemptions", () => {
     for (const entry of EXEMPT) {
       expect(entry.startsWith("/")).toBe(false);
       expect(entry.startsWith("./")).toBe(false);
+    }
+  });
+
+  it("matches every exemption entry against itself, whichever kind it is", () => {
+    // Guards the directory-vs-file split from the other side: an entry that matches
+    // nothing at all is an exemption that looks present and does nothing, which is
+    // how a record area silently rejoins the scan and starts failing the build.
+    for (const entry of EXEMPT) {
+      expect(isExempt(entry.endsWith("/") ? `${entry}some-record.md` : entry)).toBe(true);
     }
   });
 
