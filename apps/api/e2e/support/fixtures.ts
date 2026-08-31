@@ -5,11 +5,21 @@
  * the slice integration tests use - so the scenarios exercise the real branching
  * shape (one step `stp_history`; `q_accident_count` shown only when `q_at_fault_accident = true`)
  * rather than a bespoke fixture. The compiled A2UI is the committed golden
- * document (ADR-18): the seed path stores it verbatim, and scenario 1 proves the
- * *server* produces the same bytes when it compiles the draft at publish time.
+ * document (ADR-18): the seed path stores it verbatim, exactly as the serve path
+ * later replays it.
+ *
+ * Storing bytes verbatim is only sound while they are the bytes the compiler
+ * still emits, and nothing checked that until issue #321: scenario 1 republishes
+ * the insurance form over HTTP but asserts only the A2UI spec stamp, not the
+ * document. `fixture-drift.test.ts` is the anchor now - it recompiles every entry
+ * in {@link COMPILED_FIXTURES} through the real publish path and fails on any
+ * divergence from the committed file.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
+import { COMPILER_VERSION } from "@qcms/a2ui-compiler";
 
 const REPO_ROOT = new URL("../../../../", import.meta.url);
 
@@ -38,9 +48,53 @@ export interface CompiledForm {
   readonly compilerVersion: string;
   readonly a2uiSpecVersion: string;
 }
-export const INSURANCE_GOLDEN = readFixture(
-  "packages/a2ui-compiler/golden/v1/insurance.a2ui.json",
-) as CompiledForm;
+
+const GOLDEN_ROOT = new URL("packages/a2ui-compiler/golden/", REPO_ROOT);
+
+/**
+ * Which A2UI corpus generation the LIVE compiler produces (issue #321).
+ *
+ * The corpus is append-only (ADR-18): a compiler change that alters existing
+ * output bumps `COMPILER_VERSION` and seeds a NEW `golden/vN/` directory beside
+ * the old ones, which stay committed forever as the record of what each earlier
+ * compiler emitted (`packages/a2ui-compiler/golden/README.md`). This suite wants
+ * the current one, and a hardcoded path segment cannot express that: this read
+ * named `golden/v1/` (compiler `0.0.0`) while the live compiler was already on
+ * `0.1.0` and emitting into `golden/v2/`, so the whole e2e suite anchored on a
+ * shape the compiler had stopped producing, with nothing failing to say so.
+ *
+ * So the segment is derived from the compiler rather than written down: newest
+ * generation first, take the one whose committed `insurance.a2ui.json` carries
+ * this compiler's own `COMPILER_VERSION` stamp. A future `v3/` is picked up with
+ * no edit here, and a `COMPILER_VERSION` bump landed WITHOUT its generation
+ * throws at load rather than quietly reverting to the previous generation's
+ * bytes. `fixture-drift.test.ts` then proves the selected document is what this
+ * compiler emits today, byte for byte.
+ */
+function currentGoldenGeneration(): string {
+  const generations = readdirSync(fileURLToPath(GOLDEN_ROOT), { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && /^v\d+$/.test(entry.name))
+    .map((entry) => entry.name)
+    .sort((left, right) => Number(right.slice(1)) - Number(left.slice(1)));
+  for (const generation of generations) {
+    const candidate = new URL(`${generation}/insurance.a2ui.json`, GOLDEN_ROOT);
+    if (!existsSync(fileURLToPath(candidate))) continue;
+    // Cast: a committed corpus document, already asserted spec-valid by the
+    // compiler's own golden tests; only its version stamp is read here.
+    const document = JSON.parse(readFileSync(candidate, "utf8")) as CompiledForm;
+    if (document.compilerVersion === COMPILER_VERSION) return generation;
+  }
+  throw new Error(
+    `no generation under packages/a2ui-compiler/golden/ has an insurance.a2ui.json stamped ` +
+      `compilerVersion ${COMPILER_VERSION}. A compiler version bump seeds its own generation ` +
+      `directory first (packages/a2ui-compiler/golden/README.md, spec-bump procedure).`,
+  );
+}
+
+/** Repo-relative path of the insurance golden this compiler generation owns. */
+export const INSURANCE_GOLDEN_PATH = `packages/a2ui-compiler/golden/${currentGoldenGeneration()}/insurance.a2ui.json`;
+
+export const INSURANCE_GOLDEN = readFixture(INSURANCE_GOLDEN_PATH) as CompiledForm;
 
 // --- kitchen-sink: all seven question types across three steps (task 045) ----
 
@@ -76,10 +130,11 @@ export const Q_COVERAGE_DEF = readFixture(
   "packages/core/fixtures/questions/valid/single-choice.json",
 );
 
+/** Repo-relative path of the kitchen-sink compiled document (regenerable, see below). */
+export const KITCHEN_SINK_COMPILED_PATH = "apps/api/e2e/support/fixtures/kitchen-sink.a2ui.json";
+
 /** The committed golden compiled A2UI document for the kitchen-sink form. */
-export const KITCHEN_SINK_GOLDEN = readFixture(
-  "apps/api/e2e/support/fixtures/kitchen-sink.a2ui.json",
-) as CompiledForm;
+export const KITCHEN_SINK_GOLDEN = readFixture(KITCHEN_SINK_COMPILED_PATH) as CompiledForm;
 
 // --- author-messages: ADR-32 messages + ADR-36 boolean labels (task 048) -----
 
@@ -142,7 +197,72 @@ export const AUTHOR_MESSAGES_QUESTIONS: readonly {
   },
 ];
 
+/** Repo-relative path of the `author-messages` compiled document (regenerable, see below). */
+export const AUTHOR_MESSAGES_COMPILED_PATH =
+  "apps/api/e2e/support/fixtures/author-messages.a2ui.json";
+
 /** The committed golden compiled A2UI document for the `author-messages` form. */
-export const AUTHOR_MESSAGES_GOLDEN = readFixture(
-  "apps/api/e2e/support/fixtures/author-messages.a2ui.json",
-) as CompiledForm;
+export const AUTHOR_MESSAGES_GOLDEN = readFixture(AUTHOR_MESSAGES_COMPILED_PATH) as CompiledForm;
+
+// --- the drift-guard registry (issue #321) ----------------------------------
+
+/**
+ * One committed compiled A2UI document, with the definitions it was compiled
+ * from - everything `fixture-drift.test.ts` needs to recompile it with the live
+ * compiler and fail on divergence.
+ *
+ * A compiled document seeded verbatim into `form_versions` and then asserted
+ * against by browser specs is only worth anything while it is what the compiler
+ * still emits. Nothing recompiled these, so a `@qcms/a2ui-compiler` change
+ * desynced them silently: every spec kept passing against a document the
+ * compiler no longer produces (issue #321). Adding a compiled fixture means
+ * adding a row here.
+ */
+export interface CompiledFixture {
+  /** Human name, used in test titles and in the regeneration report. */
+  readonly name: string;
+  /** Repo-relative path of the committed compiled document. */
+  readonly path: string;
+  /**
+   * False for a document under `packages/a2ui-compiler/golden/`: that corpus is
+   * append-only (ADR-18) and is never rewritten to fit new output. A divergence
+   * there is a spec-bump question, not a regeneration.
+   */
+  readonly regenerable: boolean;
+  /** The plain-JSON `FormDefinition` this document was compiled from. */
+  readonly form: unknown;
+  /** Every plain-JSON `QuestionDefinition` the form pins. */
+  readonly questions: readonly unknown[];
+}
+
+export const COMPILED_FIXTURES: readonly CompiledFixture[] = [
+  {
+    name: "insurance",
+    path: INSURANCE_GOLDEN_PATH,
+    regenerable: false,
+    form: INSURANCE_DEF,
+    questions: [Q_ACCIDENT_DEF, Q_ACCIDENT_COUNT_DEF],
+  },
+  {
+    name: "kitchen-sink",
+    path: KITCHEN_SINK_COMPILED_PATH,
+    regenerable: true,
+    form: KITCHEN_SINK_DEF,
+    questions: [
+      Q_FULL_NAME_DEF,
+      Q_DOB_DEF,
+      Q_ACCIDENT_DEF,
+      Q_ACCIDENT_COUNT_DEF,
+      Q_OPTIONAL_COVER_DEF,
+      Q_EXTRA_DETAIL_DEF,
+      Q_COVERAGE_DEF,
+    ],
+  },
+  {
+    name: "author-messages",
+    path: AUTHOR_MESSAGES_COMPILED_PATH,
+    regenerable: true,
+    form: AUTHOR_MESSAGES_DEF,
+    questions: AUTHOR_MESSAGES_QUESTIONS.map((question) => question.definition),
+  },
+];
