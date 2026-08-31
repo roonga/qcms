@@ -78,18 +78,23 @@ function isStringArray(value: A2UIAnswerValue | undefined): value is readonly st
  *   box and an all-unchecked group ARE the pristine rendering, so the respondent
  *   cannot mean the empty value as a value. Only an authored option ("None of the
  *   above") can say that, and that is a real OptionId, not an empty selection.
- * - `""` and `[]` are legal `AnswerValue`s, so they *satisfy* `required` (presence
- *   is the whole test: `evaluate-rules` counts a question answered iff the answer
- *   map has an entry). A required question emptied by the respondent would look
- *   answered while holding nothing, which is precisely what ADR-33 forbids.
- * - Where a constraint rejects the empty value (a `minLength`/`pattern` shortText,
- *   a `minSelected: 1` multiChoice - the common shapes for a required question),
- *   the empty post 422s, so the respondent saw "not valid" while the server
- *   quietly kept the OLD answer and Continue advanced on it: the issue-#95 defect
- *   class, reproduced for text and multiChoice.
+ * - An empty post is not a way to say "cleared". Where a constraint rejects the
+ *   empty value (a `minLength`/`pattern` shortText, a `minSelected: 1`
+ *   multiChoice - the common shapes for a required question) the post 422s, so
+ *   the respondent saw "not valid" while the server quietly kept the OLD answer
+ *   and Continue advanced on it: the issue-#95 defect class, reproduced for text
+ *   and multiChoice.
  * - The no-JS submit path (task 044) already decodes a blank text field and an
  *   empty checkbox set to *absent* (`lib/server/step-form.ts`), so absence is
  *   already this seam's answer on the other side of it.
+ *
+ * The kernel now backs this seam rather than depending on it: `validateAnswer`
+ * refuses `""` and `[]` outright (`EMPTY_ANSWER_NOT_ALLOWED`, ADR-33 closed in
+ * issue #128's batch), so an adapter that forgot to convert would fail loudly at
+ * the API instead of storing an "answer of nothing" that *satisfied* `required`.
+ * Converting here is still the adapters' job - it is what makes the gesture a
+ * retraction rather than an error - and this is now belt and braces, not the
+ * only belt.
  *
  * `undefined` for a question with no stored answer is a server-side no-op (ADR-33),
  * so this never manufactures a tombstone for a field nobody answered.

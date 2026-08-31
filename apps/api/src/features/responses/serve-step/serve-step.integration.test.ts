@@ -88,6 +88,25 @@ interface Compiled {
   readonly compilerVersion: string;
   readonly a2uiSpecVersion: string;
 }
+
+/** The kitchen-sink fixture and its golden: the one fixture form carrying a text
+ * and a multiChoice question, which the ADR-33 empty-value block needs. */
+const KITCHEN_SINK_DEF = readFixture(
+  "packages",
+  "core",
+  "fixtures",
+  "forms",
+  "valid",
+  "kitchen-sink.json",
+) as VersionInput["definition"];
+const KITCHEN_SINK_GOLDEN = readFixture(
+  "packages",
+  "a2ui-compiler",
+  "golden",
+  "v1",
+  "kitchen-sink.a2ui.json",
+) as Compiled;
+
 const GOLDEN = readFixture(
   "packages",
   "a2ui-compiler",
@@ -413,6 +432,130 @@ describe("answer retraction (ADR-33)", () => {
       body: JSON.stringify({ questionId: "q_at_fault_accident", value: null }),
     });
     expect(unauthed.status).toBe(401);
+  });
+});
+
+// --- ADR-33: an empty value is not an answer (issue #128 batch) -------------
+
+// The insurance fixture holds only a boolean and a number, neither of which has
+// an "empty" spelling, so this block seeds the kitchen-sink form for its
+// required shortText and required multiChoice. ONE session for the whole block,
+// deliberately: the fixed clock puts every session create in this file into a
+// single rate-limit window (20/hour), and the file already sits at its edge.
+describe("an empty value is refused, never stored and never a retraction (ADR-33)", () => {
+  beforeAll(async () => {
+    for (const [questionId, slug, file] of [
+      ["q_full_name", "full-name", "short-text.json"],
+      ["q_dob", "dob", "date.json"],
+      ["q_preexisting_conditions", "conditions", "multi-choice.json"],
+      ["q_medical_history", "history", "long-text.json"],
+      ["q_coverage_level", "coverage", "single-choice.json"],
+    ] as const) {
+      await createQuestion(testDb.db, { questionId: QuestionId.parse(questionId), slug });
+      await createQuestionVersion(testDb.db, {
+        questionId: QuestionId.parse(questionId),
+        definition: readFixture(
+          "packages",
+          "core",
+          "fixtures",
+          "questions",
+          "valid",
+          file,
+        ) as Parameters<typeof createQuestionVersion>[1]["definition"],
+      });
+    }
+    const formId = FormId.parse("frm_kitchen_sink");
+    await createForm(testDb.db, { formId, slug: "kitchen", defaultLocale: "en" });
+    await insertFormVersion(testDb.db, {
+      formId,
+      definition: KITCHEN_SINK_DEF,
+      compiled: KITCHEN_SINK_GOLDEN as unknown as VersionInput["compiled"],
+      compilerVersion: KITCHEN_SINK_GOLDEN.compilerVersion,
+      a2uiSpecVersion: KITCHEN_SINK_GOLDEN.a2uiSpecVersion,
+      semanticsVersion: "1",
+    });
+  }, BOOT_TIMEOUT);
+
+  /** The one error an empty post must produce, whatever else the question asks. */
+  const EMPTY_ERROR = {
+    code: "EMPTY_ANSWER_NOT_ALLOWED",
+    constraint: "encoding",
+    message: "An empty value is not an answer; send null to clear the answer",
+  };
+
+  it('rejects "" and [] with nothing appended; whitespace-only text is stored but absent', async () => {
+    const { sessionId, sessionToken } = await startSession("kitchen");
+    const sid = SessionId.parse(sessionId);
+
+    // 1. A required shortText. Before this batch, "" was stored and SATISFIED
+    //    required - the ADR-33 hole. Now it is refused, value-free.
+    const emptyText = await postAnswer(sessionId, sessionToken, "q_full_name", "");
+    expect(emptyText.status).toBe(422);
+    const textBody = (await emptyText.json()) as ErrBody;
+    expect(textBody.error.code).toBe("INVALID_ANSWER");
+    expect(textBody.error.details).toEqual({
+      questionId: "q_full_name",
+      errors: [EMPTY_ERROR],
+    });
+
+    // Nothing appended, and no tombstone either: a refusal is not a retraction.
+    expect((await answerLedger(testDb.db, sid)) as unknown[]).toEqual([]);
+    const afterEmpty = (await (await getStep(sessionId, sessionToken)).json()) as StepBody;
+    expect(afterEmpty.flowState.missingRequired).toContain("q_full_name");
+
+    // The empty rule fires ahead of the question's OWN constraints: q_full_name
+    // carries minLength 1 and a pattern, either of which would also have
+    // rejected "", and neither appears. The respondent is told the one true
+    // thing (that was not an answer), not asked to type more.
+
+    // 2. Answer it for real, then walk to the multiChoice on the next step.
+    const real = await postAnswer(sessionId, sessionToken, "q_full_name", "Ada Lovelace");
+    expect(real.status).toBe(200);
+    expect(((await real.json()) as StepBody).flowState.missingRequired).not.toContain(
+      "q_full_name",
+    );
+    await postAnswer(sessionId, sessionToken, "q_dob", "1990-05-04");
+
+    // 3. The multiChoice counterpart. `[]` reports the empty error ALONE - not
+    //    the question's own minSelected:1, which would read as "select more"
+    //    when the truth is "that was never a selection".
+    const emptySelection = await postAnswer(
+      sessionId,
+      sessionToken,
+      "q_preexisting_conditions",
+      [],
+    );
+    expect(emptySelection.status).toBe(422);
+    expect(((await emptySelection.json()) as ErrBody).error.details).toEqual({
+      questionId: "q_preexisting_conditions",
+      errors: [EMPTY_ERROR],
+    });
+
+    // 4. Whitespace-only text is the OTHER rule (issue #128) and behaves the
+    //    opposite way at this boundary: a legal value, appended, and echoed back
+    //    exactly as typed - the ledger is an audit record, not a cleaned copy.
+    //    That it confers no presence is pinned where presence lives (the kernel
+    //    tests and the golden corpus); the optional longText is used here
+    //    because the only required text question in the fixture set carries a
+    //    pattern that rejects whitespace before presence is ever consulted.
+    await postAnswer(sessionId, sessionToken, "q_preexisting_conditions", ["opt_asthma"]);
+    const blank = await postAnswer(sessionId, sessionToken, "q_medical_history", "   ");
+    expect(blank.status).toBe(200);
+    expect(((await blank.json()) as StepBody).values.q_medical_history).toBe("   ");
+
+    // Only the real answers are on the ledger; both refusals wrote nothing, and
+    // neither left a tombstone - a refusal is not a retraction.
+    const ledger = (await answerLedger(testDb.db, sid)) as {
+      questionId: string;
+      value: unknown;
+      retracted: boolean;
+    }[];
+    expect(ledger.map((row) => [row.questionId, row.value, row.retracted])).toEqual([
+      ["q_full_name", "Ada Lovelace", false],
+      ["q_dob", "1990-05-04", false],
+      ["q_preexisting_conditions", ["opt_asthma"], false],
+      ["q_medical_history", "   ", false],
+    ]);
   });
 });
 

@@ -62,6 +62,10 @@
 
 **Note (flagged - code gap).** The `semanticsVersion` gate runs only at submit. The serve and answer paths evaluate a bare definition without checking the stored stamp (`apps/api/src/features/responses/serve-step/handler.ts`), so a snapshot recorded under superseded semantics would be served and branched by the new evaluator and fail only at submit. The stamp is also stored as text and numerically coerced at submit.
 
+**Amendment - required means non-blank (Code Owner, 2026-08-31, issue #128).** A question is answered when it holds a **non-blank** value: an empty or whitespace-only text value is absence, for the `answered` operator, for every value operator, and for the required accounting alike. The stored value is never rewritten - trimming decides the presence test only, so a respondent's `" "` stays verbatim in the ledger and in exports.
+
+This was corrected **within `semanticsVersion` 1** rather than under a bump, and the reasoning is part of the decision. A bump cannot deliver what this ADR's rule protects: the evaluator implements one version at a time and refuses any other stamp, so `2` would not preserve old snapshots' behavior, it would make every published snapshot fail at submit. Multi-version evaluation is the missing prerequisite, and it is the code gap noted above. Against that, no answer the product can produce changes meaning: both control boundaries have reported an emptied field as absence since issue #98, and the same batch made `""` and `[]` unstorable at the API (ADR-33). One golden scenario that had pinned `""` as answered was amended in place; `packages/core/golden/evaluator/CORPUS.md` records that as a defect-correction precedent and not as licence to edit a golden that disagrees with an intended semantics change.
+
 ### ADR-21 - Multi-choice comparison
 
 **Status:** implemented.
@@ -82,7 +86,7 @@
 
 **Decision.** Clearing an answer appends a retraction record; it never mutates an answer row. Latest-answer reads resolve a retraction to unanswered for rules, validation, reporting, and export. Empty text and empty selections are absence, not answers. Whole-session deletion remains governed by ADR-17.
 
-**Note.** "Empty is absence" is enforced at the control boundary (the renderer and the no-JS decoder), not in the kernel or the API: a direct API post of `""` or `[]` is stored as an answer and satisfies `required`. A retraction of a never-answered question is a no-op and appends nothing.
+**Note.** "Empty is absence" is enforced at the control boundary (the renderer and the no-JS decoder) _and_, since issue #128's batch, in the kernel: `validateAnswer` refuses `""` and `[]` with `EMPTY_ANSWER_NOT_ALLOWED`, so a direct API post of either is a 422 that stores nothing and whose message names the `null` retraction as the way to clear an answer. The refusal is never a silent conversion into a retraction - clearing keeps exactly one spelling on the wire. Whitespace-only text is a separate rule: it is stored as typed and denied _presence_ instead (issue #128, ADR-16 note). A retraction of a never-answered question is a no-op and appends nothing.
 
 ### ADR-36 - Authored boolean labels
 
