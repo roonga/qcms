@@ -60,7 +60,7 @@ const SCAN_EXTENSIONS = [".css", ".ts", ".tsx"];
  *    Scoped to those two lengths deliberately: `#123456` stays a colour, because nothing
  *    here writes a six-digit issue number and someone does write that grey.
  */
-const HEX = /(?<![\w#&])#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8}|(?![0-9]{3,4}\b)[0-9a-fA-F]{3,4})\b/g;
+const HEX = /(?<![\w#&])#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8}|(?!\d{3,4}\b)[0-9a-fA-F]{3,4})\b/g;
 
 /**
  * The colour functions. A call is allowed when its argument list reaches a token,

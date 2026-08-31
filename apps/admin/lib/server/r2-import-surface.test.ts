@@ -194,8 +194,9 @@ function importedLocals(line: string): string[] {
   if (bound !== undefined && bound !== "*" && bound !== "as") names.push(bound);
 
   if (open === -1) return names;
-  const close = clause.indexOf("}");
-  for (const raw of clause.slice(open + 1, close === -1 ? undefined : close).split(",")) {
+  const closed = clause.indexOf("}");
+  const close = closed === -1 ? clause.length : closed;
+  for (const raw of clause.slice(open + 1, close).split(",")) {
     const specifier = raw.trim().replace(/^type\s+/, "");
     if (specifier === "") continue;
     const aliasAt = specifier.indexOf(" as ");
