@@ -54,12 +54,16 @@ import {
  *
  * ## Why the questions are authored rather than taken from the seed
  *
- * The harness seed creates question versions and leaves them as DRAFTS (`seed.ts` publishes
- * the FORM version, not the library rows). A form can only pin published versions (022,
- * R7), so a spec that pinned a seeded question would find an empty picker. The library is
- * therefore authored through the UI the way an author builds one, which also gives the
- * version test what it needs: one question with v1 and v2 both published, so "move this
- * pin to another version" has somewhere to go.
+ * The library is authored through the UI the way an author builds one, because the version
+ * test needs a shape the seed does not carry: one question with v1 and v2 BOTH published,
+ * so "move this pin to another version" has somewhere to go. Authoring it here also keeps
+ * every row this spec touches inside its own run (`RUN`-suffixed slugs), so a serial suite
+ * mutating one form cannot disturb anything else.
+ *
+ * This used to say the seeded questions were unpinnable because the seed left every
+ * version a DRAFT. That was true and was a bug (issue #275): the seed's own comment said
+ * it published them. It publishes them now, so a seeded question is pinnable; the reason
+ * above is the one that survives.
  *
  * ## One form, mutated in order
  *

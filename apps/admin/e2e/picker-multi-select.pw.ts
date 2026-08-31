@@ -32,10 +32,14 @@ import { confirmLifecycle, createDraft } from "./support/questions.js";
  *
  * ## The library is authored rather than seeded
  *
- * The harness seed leaves question versions as DRAFTS, and a form can only pin published
- * versions (022, R7), so a spec that pinned a seeded question would find an empty picker.
- * One question is published TWICE, which is what the sibling-version test needs: a
- * question with v1 and v2 both pinnable, so choosing one can be seen to withdraw the other.
+ * One question is published TWICE, which is what the sibling-version test needs: a question
+ * with v1 and v2 both pinnable, so choosing one can be seen to withdraw the other. The seed
+ * carries no question in that shape, and every assertion below names its own run's ids, so
+ * what else the library holds never enters into it.
+ *
+ * This used to say the seeded questions were unpinnable because the seed left every version
+ * a DRAFT. That was true and was a bug (issue #275): the seed's own comment said it
+ * published them. It publishes them now, so the reason above is the one that survives.
  *
  * ## One form, and the tests read as one author's session
  *

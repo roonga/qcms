@@ -6,7 +6,7 @@ import {
   context,
   trace,
 } from "@opentelemetry/api";
-import { afterAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { createJsonLogger } from "./logger.js";
 
@@ -59,10 +59,6 @@ const syncContextManager: ContextManager = {
   },
 };
 
-afterAll(() => {
-  context.disable();
-});
-
 function capture(base?: Record<string, unknown>) {
   const lines: string[] = [];
   const logger = createJsonLogger({
@@ -109,16 +105,24 @@ describe("emitted line shape", () => {
     // Documented in the module comment as part of the same shape, and the only part
     // of it that appears conditionally, so it gets its own line rather than riding
     // on the first test's ordering.
-    context.setGlobalContextManager(syncContextManager);
     const span = trace.wrapSpanContext({
       traceId: "0af7651916cd43dd8448eb211c80319c",
       spanId: "b7ad6b7169203331",
       traceFlags: TraceFlags.SAMPLED,
     });
     const { logger, lines } = capture({ service: "qcms-api" });
-    context.with(trace.setSpan(context.active(), span), () => {
-      logger.info("traced", { path: "/health" });
-    });
+    // The global context manager is process-wide state, so it is installed and
+    // removed inside this one test rather than left for a hook to tidy up. An
+    // assertion below that threw would otherwise leave it installed for whatever
+    // ran next in this worker.
+    context.setGlobalContextManager(syncContextManager);
+    try {
+      context.with(trace.setSpan(context.active(), span), () => {
+        logger.info("traced", { path: "/health" });
+      });
+    } finally {
+      context.disable();
+    }
     expect(keysOf(lines[0]!)).toEqual([
       "level",
       "time",
