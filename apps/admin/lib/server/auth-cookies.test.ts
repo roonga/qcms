@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
  *
  * better-auth renames its own cookies when it issues secure ones: the name is
  * `${secureCookiePrefix}${prefix}.${cookieName}` and `secureCookiePrefix` is `__Secure-`
- * whenever `advanced.useSecureCookies` is true (better-auth 1.7.1, the pinned version:
+ * whenever `advanced.useSecureCookies` is true (better-auth 1.7.2, the pinned version:
  * `dist/cookies/index.mjs:23` decides the prefix, `:28-32` composes the name). The
  * library reads both spellings for
  * itself (`:266`); this app has to do the same, and before #317 it read only the bare

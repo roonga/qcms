@@ -110,7 +110,7 @@ process.
 **Pin `QCMS_ADMIN_AUTH_SECRET` in your environment before you enrol, though.** It is the
 key better-auth encrypts the stored TOTP secret under, so changing it does not just
 invalidate cookies - it makes an existing enrolment permanently unverifiable. Checked
-against the source of better-auth 1.7.1, the pinned version, rather than inferred:
+against the source of better-auth 1.7.2, the pinned version, rather than inferred:
 `two-factor/enable` stores
 the secret with `symmetricEncrypt({ key: ctx.context.secretConfig, ... })`
 (`dist/plugins/two-factor/index.mjs:134`) and every verification decrypts with the

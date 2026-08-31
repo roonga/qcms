@@ -22,8 +22,8 @@
  *   1. Reads the resolved version of `better-auth` and each `@better-auth/*` package
  *      from `pnpm-lock.yaml` (the `packages:` and `snapshots:` keys).
  *   2. Scans tracked prose and source for a version asserted **immediately** after a
- *      better-auth package name: `better-auth 1.7.1`, `better-auth@1.7.1`,
- *      `@better-auth/core 1.7.1`, `@better-auth/core@1.7.1`.
+ *      better-auth package name: `better-auth 1.7.2`, `better-auth@1.7.2`,
+ *      `@better-auth/core 1.7.2`, `@better-auth/core@1.7.2`.
  *   3. Fails on any assertion whose version is not one the lockfile resolves, naming
  *      the file, the line, and both versions.
  *
@@ -57,8 +57,8 @@
  *     `secret`, which in the pinned 1.6.26 means ..." asserts the pin, and this gate
  *     does not match it: the digits are forty characters from the name. Adjacency is
  *     what keeps the false-positive rate at zero, and a gate people disable is worth
- *     less than a gate with a documented gap. Write "better-auth 1.7.1" rather than
- *     "the pinned 1.7.1" and the claim is covered.
+ *     less than a gate with a documented gap. Write "better-auth 1.7.2" rather than
+ *     "the pinned 1.7.2" and the claim is covered.
  *   - **Whether the cited line is still the right line.** This gate checks the digit.
  *     It cannot check that `dist/cookies/index.mjs:23` still points at the branch the
  *     prose says it does, and that is the more common failure: of the twenty-one
@@ -69,7 +69,7 @@
  *     victims of vendor churn. Either way a human reading the vendor is the only thing
  *     that catches it. A bump means re-reading the source, not running `sed`.
  *   - **A package resolved at two versions.** An assertion passes if it matches *any*
- *     resolution, so a tree carrying both 1.7.1 and an older copy would accept prose
+ *     resolution, so a tree carrying both 1.7.2 and an older copy would accept prose
  *     naming either. `better-auth` itself resolves once today; the error message
  *     prints the whole set so an ambiguous tree is visible when the gate does fire.
  *
@@ -202,8 +202,8 @@ export function assertionsIn(text) {
  * The versions `pnpm-lock.yaml` resolves for each tracked package.
  *
  * Reads the two-space-indented keys that head an entry in `packages:` and in
- * `snapshots:`. A scoped name is quoted there (`'@better-auth/core@1.7.1':`), a bare
- * one is not (`better-auth@1.7.1:`), and a snapshot key carries a peer suffix in
+ * `snapshots:`. A scoped name is quoted there (`'@better-auth/core@1.7.2':`), a bare
+ * one is not (`better-auth@1.7.2:`), and a snapshot key carries a peer suffix in
  * parentheses; all three shapes are covered.
  *
  * @param {string} lock contents of pnpm-lock.yaml
