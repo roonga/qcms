@@ -154,11 +154,13 @@ export interface FormDetail {
   readonly versions: readonly FormVersionSummary[];
   readonly settings: FormSettings;
   /**
-   * The deployment's configured challenge provider (ADR-24). `"none"` is the default and
-   * makes `challengeRequired` unenforceable, which the settings panel says out loud
-   * rather than letting an author believe a switch is protecting them.
+   * Whether a challenge this deployment can actually verify stands behind a form's
+   * `challengeRequired` (ADR-24). The API sends this derived boolean and never the
+   * provider name: clients receive behavior, not flag values. `false` is the default
+   * and the state the settings panel warns about out loud, rather than letting an
+   * author believe a switch is protecting them.
    */
-  readonly challengeProvider: string;
+  readonly challengeEnforceable: boolean;
 }
 
 /**

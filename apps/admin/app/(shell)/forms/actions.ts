@@ -259,7 +259,7 @@ export async function updateSettingsAction(
   return {
     status: "saved",
     settings: result.data.settings,
-    challengeProvider: result.data.challengeProvider,
+    challengeEnforceable: result.data.challengeEnforceable,
   };
 }
 

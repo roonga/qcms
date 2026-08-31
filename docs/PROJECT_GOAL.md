@@ -67,7 +67,7 @@ Decisions are surface-specific unless explicitly shared (ADR-26). The **admin** 
 ## 7. Constraints
 
 - **Team:** one developer, part-time to full-time, using agentic AI workflows for leverage. Every stage must land a meaningful, testable increment; exit criteria gate stages, not dates.
-- **Stack (fixed by ADRs):** Node LTS · pnpm + Turborepo · Zod as the single schema language · Hono (vertical slices, fetch-pure handlers) · Next.js portal (SSR + strict BFF) · Next.js admin (separate app) · Postgres + Drizzle · better-auth · a2-react-aria as the only UI component stack (`@a2ra/core` pinned + vendored components + Tailwind for their token-based styles, ADR-22) · TanStack Query (admin server-state, ADR-26) · Vitest · Docker. All components open source, vendor-agnostic, multi-cloud.
+- **Stack (fixed by ADRs):** Node LTS · pnpm + Turborepo · Zod as the single schema language · Hono (vertical slices, fetch-pure handlers) · Next.js portal (SSR + strict BFF) · Next.js admin (separate app) · Postgres + Drizzle · better-auth · a2-react-aria as the only UI component stack (`@a2ra/core` pinned + vendored components + Tailwind for their token-based styles, ADR-22) · Vitest · Docker. All components open source, vendor-agnostic, multi-cloud.
 - **Operability budget:** the solo deployment is four containers including the database (portal, admin, API, Postgres - ADR-20; TLS/ingress is operator infrastructure). If a feature demands a fifth standing service, it is probably out of scope.
 - **Discipline rules R1-R8** (defined in `PROJECT_INSTRUCTIONS.md`) are never violated and never relitigated. R3's append-only clause is amended by ADR-17 as noted.
 

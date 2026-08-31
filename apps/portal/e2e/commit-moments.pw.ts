@@ -6,10 +6,10 @@
  * | --- | --- |
  * | boolean (RadioGroup) | change |
  * | singleChoice (RadioGroup / Select) | change |
- * | date (DatePicker) | completion - see the open question in the date test |
+ * | date (DatePicker) | completion - when editing ends and the date is complete |
  * | number (NumberField) | blur |
  * | longText (TextArea) | blur |
- * | shortText (TextField) | blur - not in ADR-31's table, read as unchanged |
+ * | shortText (TextField) | blur - with the other free-entry rows |
  * | multiChoice (CheckboxGroup) | group exit, focus leaves the whole group |
  *
  * The flow used to decide when to post from the answer VALUE: booleans and
@@ -107,9 +107,9 @@ test("shortText commits on blur, and a date commits once, only when complete", a
   await startKitchenSink(page, kitchenSinkSlug);
 
   // --- shortText: typing posts nothing; blur posts once -----------------------
-  // ADR-31 does not list shortText. It is read as UNCHANGED (blur), the only
-  // reading consistent with the other free-entry rows - a TextField emits a
-  // change per keystroke, so any earlier moment is a request per character.
+  // ADR-31 as amended lists shortText with the other free-entry rows: blur. A
+  // TextField emits a change per keystroke, so any earlier moment is a request
+  // per character.
   const name = page.getByRole("textbox", { name: KS.fullName });
   await name.click();
   await name.pressSequentially("Ada");
@@ -122,14 +122,12 @@ test("shortText commits on blur, and a date commits once, only when complete", a
   expect(postsFor(log, "q_full_name")).toMatchObject([{ value: "Ada", status: 200 }]);
 
   // --- date: only a COMPLETE date is ever posted, and only once ---------------
-  // ADR-31's date row says "on completion (all segments filled)". The vendored
-  // react-aria DatePicker cannot signal that moment: its only completeness signal
-  // is a non-empty value, which it raises on every digit typed into the year,
-  // because a year segment holding "1" is a filled segment. This test pins what
-  // the portal does instead - all segments filled is the PRECONDITION, and the
-  // commit happens when editing ends - and, most importantly, pins the two things
-  // that must be true under any resolution of that open question: no partial date
-  // is ever posted, and a complete date is posted exactly once.
+  // ADR-31 as amended: a date commits WHEN EDITING ENDS AND THE DATE IS
+  // COMPLETE. All segments filled is the precondition, not the trigger, because
+  // the vendored react-aria DatePicker's only completeness signal is a non-empty
+  // value, which it raises on every digit typed into the year - a year segment
+  // holding "1" is a filled segment. This test pins the rule from both ends: no
+  // partial date is ever posted, and a complete date is posted exactly once.
   const dob = page.getByRole("group", { name: KS.dob });
   const month = dob.getByRole("spinbutton", { name: /month/i });
   await month.click();

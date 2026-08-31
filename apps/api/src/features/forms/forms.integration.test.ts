@@ -662,7 +662,11 @@ describe("preview-condition: the rule test bench (033)", () => {
 interface SettingsBody {
   formId: string;
   settings: { challengeRequired: boolean; minSubmitMs: number | null };
-  challengeProvider: string;
+  challengeEnforceable: boolean;
+  // Read back as `unknown` on purpose: the raw provider name must not be on the
+  // wire at all any more (ADR-24, issue #725), and a typed absence is easier to
+  // assert than a missing key on a narrowed interface.
+  challengeProvider?: unknown;
 }
 
 async function patchSettings(formId: string, body: unknown): Promise<Response> {
@@ -684,9 +688,11 @@ describe("per-form settings (033 settings panel)", () => {
     const res = await get(`/forms/${formId}`);
     const body = (await res.json()) as SettingsBody;
     expect(body).toMatchObject({ settings: { challengeRequired: false, minSubmitMs: null } });
-    // The provider rides the detail read so the panel can warn on load that
-    // `challengeRequired` is unenforceable while it is "none" (033).
-    expect(body.challengeProvider).toBe(deps.config.flags.challengeProvider);
+    // The derived boolean rides the detail read so the panel can warn on load
+    // that `challengeRequired` is unenforceable (033). The raw provider name is
+    // not on the wire: ADR-24 gives clients behavior, not flag values (#725).
+    expect(body.challengeEnforceable).toBe(deps.config.flags.challengeProvider !== "none");
+    expect(body.challengeProvider).toBeUndefined();
   });
 
   it("patches one field at a time and leaves the other alone", async () => {
@@ -697,9 +703,10 @@ describe("per-form settings (033 settings panel)", () => {
       formId,
       settings: { challengeRequired: true, minSubmitMs: null },
     });
-    // The write answers with the provider too, so the warning re-renders without
-    // a follow-up read.
-    expect(first.challengeProvider).toBe(deps.config.flags.challengeProvider);
+    // The write answers with the derived boolean too, so the warning re-renders
+    // without a follow-up read, and again without naming the provider.
+    expect(first.challengeEnforceable).toBe(deps.config.flags.challengeProvider !== "none");
+    expect(first.challengeProvider).toBeUndefined();
 
     const two = await patchSettings(formId, { minSubmitMs: 3000 });
     expect((await two.json()) as SettingsBody).toMatchObject({

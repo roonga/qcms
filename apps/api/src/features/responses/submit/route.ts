@@ -38,8 +38,9 @@ export const submitRoute = createRoute({
       description: "The submission receipt (also returned idempotently on re-submit)",
       content: { "application/json": { schema: SubmitResponse } },
     },
-    // 422: at least one visible-required answer is missing or invalid.
-    ...errorResponses(401, 404, 409, 422),
+    // 400: the route schema refuses a malformed session id or body shape before the
+    // handler runs. 422: at least one visible-required answer is missing or invalid.
+    ...errorResponses(400, 401, 404, 409, 422),
   },
   // A respondent *write* endpoint (locks the answer set): SEC-5
   // `responses:write`, not the `responses:read` it borrowed before the scope

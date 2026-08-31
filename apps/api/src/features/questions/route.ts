@@ -150,7 +150,9 @@ export const listQuestionsRoute = createRoute({
       description: "The question library",
       content: { "application/json": { schema: ListQuestionsResponse } },
     },
-    ...errorResponses(401),
+    // 400: the query schema refuses a malformed filter, page or search term
+    // before the handler runs (#722, issue #725).
+    ...errorResponses(400, 401),
   },
   ...withScopes("questions:read"),
 });

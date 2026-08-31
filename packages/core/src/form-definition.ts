@@ -76,6 +76,14 @@ export type Step = z.infer<typeof Step>;
  * `stepId`s and a `questionId` pinned at most once across all steps -
  * duplicates make rule targeting and answer keying ambiguous, so they are
  * malformed input, not merely unpublishable.
+ *
+ * There is no per-form navigation escape here. Task 045 reserved an unhonored
+ * `advanceOnComplete` boolean and the Code Owner removed it on 2026-08-31
+ * (ADR-28, issue #725): "answering never changes the rendered step by itself"
+ * is the contract, and auto-advance returns as a decision with a behaviour
+ * behind it rather than as a key nothing reads. Nothing carried the field, and
+ * this object strips unknown keys rather than rejecting them, so a document
+ * that somehow holds the old key still parses.
  */
 export const FormDefinition = z
   .object({
@@ -84,16 +92,6 @@ export const FormDefinition = z
     title: LocalizedText,
     steps: z.array(Step).min(1),
     rules: z.array(VisibilityRule),
-    /**
-     * Reserved per-form navigation setting (ADR-28, finding H). When `true`, the
-     * portal MAY auto-advance to the next step as the last required answer of a
-     * step lands; the default (absent, treated as `false`) means explicit
-     * Continue navigation. Task 045 reserves the schema slot ONLY - it is not yet
-     * honored anywhere, and the builder-UI toggle plus the auto-advance behaviour
-     * are a later admin task. Optional so every existing published snapshot
-     * parses unchanged (the field is simply absent).
-     */
-    advanceOnComplete: z.boolean().optional(),
   })
   .superRefine((form, ctx) => {
     const seenSteps = new Set<string>();

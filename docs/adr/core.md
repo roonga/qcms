@@ -62,11 +62,11 @@
 
 **Decision.** Rules evaluate once, in document order. A rule may show only targets that appear after every question it reads. Publish rejects backward targets and cycles. A semantic change requires a new snapshot `semanticsVersion`.
 
-**Note (flagged - code gap).** The `semanticsVersion` gate runs only at submit. The serve and answer paths evaluate a bare definition without checking the stored stamp (`apps/api/src/features/responses/serve-step/handler.ts`), so a snapshot recorded under superseded semantics would be served and branched by the new evaluator and fail only at submit. The stamp is also stored as text and numerically coerced at submit.
+**Note.** The `semanticsVersion` gate runs on the serve and answer paths as well as at submit (issue #723, PR #742): `apps/api/src/features/responses/serve-step/handler.ts` reads the stored stamp through `parseSemanticsVersion` and refuses a snapshot recorded under superseded semantics before the evaluator sees it, so such a snapshot fails at entry rather than only at submit. The stamp is stored as text and parsed on every path that reads it. The evaluator still implements exactly one version at a time, so multi-version evaluation remains unbuilt.
 
 **Amendment - required means non-blank (Code Owner, 2026-08-31, issue #128).** A question is answered when it holds a **non-blank** value: an empty or whitespace-only text value is absence, for the `answered` operator, for every value operator, and for the required accounting alike. The stored value is never rewritten - trimming decides the presence test only, so a respondent's `" "` stays verbatim in the ledger and in exports.
 
-This was corrected **within `semanticsVersion` 1** rather than under a bump, and the reasoning is part of the decision. A bump cannot deliver what this ADR's rule protects: the evaluator implements one version at a time and refuses any other stamp, so `2` would not preserve old snapshots' behavior, it would make every published snapshot fail at submit. Multi-version evaluation is the missing prerequisite, and it is the code gap noted above. Against that, no answer the product can produce changes meaning: both control boundaries have reported an emptied field as absence since issue #98, and the same batch made `""` and `[]` unstorable at the API (ADR-33). One golden scenario that had pinned `""` as answered was amended in place; `packages/core/golden/evaluator/CORPUS.md` records that as a defect-correction precedent and not as licence to edit a golden that disagrees with an intended semantics change.
+This was corrected **within `semanticsVersion` 1** rather than under a bump, and the reasoning is part of the decision. A bump cannot deliver what this ADR's rule protects: the evaluator implements one version at a time and refuses any other stamp, so `2` would not preserve old snapshots' behavior, it would make every published snapshot fail at submit. Multi-version evaluation is the missing prerequisite, and it is the limitation noted above. Against that, no answer the product can produce changes meaning: both control boundaries have reported an emptied field as absence since issue #98, and the same batch made `""` and `[]` unstorable at the API (ADR-33). One golden scenario that had pinned `""` as answered was amended in place; `packages/core/golden/evaluator/CORPUS.md` records that as a defect-correction precedent and not as licence to edit a golden that disagrees with an intended semantics change.
 
 ### ADR-21 - Multi-choice comparison
 
@@ -160,7 +160,7 @@ This was corrected **within `semanticsVersion` 1** rather than under a bump, and
 
 **Decision.** Deployment flags are declared in a typed environment registry and parsed at boot. Unknown or malformed flags fail fast. Clients receive behavior, not flag values. Per-form settings are domain configuration, not feature flags.
 
-**Note (flagged).** The admin settings response deliberately echoes the raw `challengeProvider` flag value so the settings panel can warn when `challengeRequired` is unenforceable - a standing exception to "behavior, not flag values" this record should either bless or remove. The registry covers feature flags only; the rest of the environment is typed and fail-fast but hand-parsed, and unknown-key rejection fires only on the `QCMS_FLAG_` prefix.
+**Note.** "Clients receive behavior, not flag values" is absolute; the Code Owner removed the one standing exception on 2026-08-31 (issue #725). The admin form-settings response used to echo the raw `challengeProvider` flag value. It now carries a derived boolean, `challengeEnforceable`, true exactly when a real provider is configured, and the settings panel warns when a form sets `challengeRequired` while `challengeEnforceable` is false. The panel therefore reads a behavior statement and never a provider name, so adding or renaming a provider changes nothing the admin sees. The registry covers feature flags only; the rest of the environment is typed and fail-fast but hand-parsed, and unknown-key rejection fires only on the `QCMS_FLAG_` prefix.
 
 ### ADR-35 - API-only database access
 
@@ -224,15 +224,15 @@ This was corrected **within `semanticsVersion` 1** rather than under a bump, and
 
 ### ADR-26 - Different frontend decisions by surface
 
-**Status:** implemented; see note.
+**Status:** implemented; the admin bullet amended 2026-08-31 (issue #725).
 
 **Decision.**
 
-- **Admin:** internal, desktop-primary, QCMS-branded, client-heavy, and allowed to use TanStack Query plus scoped editor state.
+- **Admin:** internal, desktop-primary, QCMS-branded, and client-heavy where editing demands it. Server components read and Server Actions mutate through the BFF, with scoped client editor state. No client-side server-state library.
 - **Portal:** public, mobile-first, adopter-themed, SSR-first, and fetch-only with minimal client state.
 - **Shared:** the a2ra component stack, WCAG 2.2 AA, semantic tokens, and the renderer used for form content and previews.
 
-**Note (flagged).** TanStack Query has never been adopted; the admin's server-state mechanism is Next server components plus Server Actions, which this record does not mention. The admin bullet needs a Code Owner amendment to name the shipped mechanism.
+**Note.** The admin bullet named TanStack Query until the Code Owner amended it on 2026-08-31 (issue #725). The library was never adopted; server components plus Server Actions are the shipped mechanism, and the bullet now names it and rules a client-side server-state library out rather than permitting one.
 
 ### ADR-27 - Internationalization in both apps
 

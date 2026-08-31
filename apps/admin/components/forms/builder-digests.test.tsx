@@ -97,14 +97,14 @@ function decodeEntities(html: string): string {
 
 function renderSettings(
   settings: FormSettings,
-  challengeProvider = "none",
+  challengeEnforceable = false,
   saveError: string | undefined = undefined,
 ): string {
   return decodeEntities(
     renderToStaticMarkup(
       <FormSettingsPanel
         settings={settings}
-        challengeProvider={challengeProvider}
+        challengeEnforceable={challengeEnforceable}
         saveError={saveError}
         onChange={() => undefined}
       />,
@@ -156,13 +156,36 @@ describe("the form settings panel's summary (issue 519)", () => {
     expect(wholePanel, "and no save confirmation").not.toContain("saved");
   });
 
+  // ADR-24 as amended (issue #725): the panel is handed a behaviour,
+  // `challengeEnforceable`, and no longer a provider name it compares against
+  // `"none"`. The warning is a function of that boolean and the checkbox, in all
+  // four combinations, and no provider string reaches the render at all.
+  it("warns only when a required challenge cannot be enforced here", () => {
+    const required = { challengeRequired: true, minSubmitMs: null };
+    const off = { challengeRequired: false, minSubmitMs: null };
+
+    const warned = renderSettings(required, false);
+    expect(countTestId(warned, "qcms-challenge-unenforceable")).toBe(1);
+    expect(warned).toContain(t("forms.settings.challengeUnenforceable"));
+
+    // A deployment that can check a challenge has nothing to warn about.
+    expect(countTestId(renderSettings(required, true), "qcms-challenge-unenforceable")).toBe(0);
+    // Nor has a form that is not asking for one, enforceable or not.
+    expect(countTestId(renderSettings(off, false), "qcms-challenge-unenforceable")).toBe(0);
+    expect(countTestId(renderSettings(off, true), "qcms-challenge-unenforceable")).toBe(0);
+
+    // And the sentence states the deployment's behaviour rather than the flag's
+    // value: "none" is a provider name and has no business on this screen.
+    expect(stripTags(warned).toLowerCase()).not.toContain("set to none");
+  });
+
   it("says a settings save that was refused, in a live region that was already there", () => {
     // The settings autosave since 2026-08-29, so there is no press to report a refusal
     // back to. This sentence is the whole of what stands between an author and the belief
     // that a deployment switch is set when the API declined to set it.
     const html = renderSettings(
       { challengeRequired: true, minSubmitMs: null },
-      "none",
+      false,
       "The minimum time may not exceed one hour.",
     );
 

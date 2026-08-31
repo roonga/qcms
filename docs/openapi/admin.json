@@ -480,9 +480,9 @@
           "settings": {
             "$ref": "#/components/schemas/FormSettings"
           },
-          "challengeProvider": {
-            "type": "string",
-            "example": "none"
+          "challengeEnforceable": {
+            "type": "boolean",
+            "example": false
           }
         },
         "required": [
@@ -493,7 +493,7 @@
           "draftSource",
           "versions",
           "settings",
-          "challengeProvider"
+          "challengeEnforceable"
         ]
       },
       "FormVersionSummary": {
@@ -756,15 +756,15 @@
           "settings": {
             "$ref": "#/components/schemas/FormSettings"
           },
-          "challengeProvider": {
-            "type": "string",
-            "example": "none"
+          "challengeEnforceable": {
+            "type": "boolean",
+            "example": false
           }
         },
         "required": [
           "formId",
           "settings",
-          "challengeProvider"
+          "challengeEnforceable"
         ]
       },
       "UpdateFormSettingsBody": {
@@ -1890,6 +1890,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ListQuestionsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
                 }
               }
             }
@@ -4546,6 +4556,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RedeliverResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
                 }
               }
             }

@@ -434,6 +434,21 @@ export const FLAG_REGISTRY: readonly FlagDef[] = [
   },
 ] as const;
 
+/**
+ * Whether a challenge a form asks for can actually be verified (ADR-24).
+ *
+ * This is the derived **behavior** an admin surface is allowed to see; the
+ * provider name is a flag value and never leaves the process. `none` ships the
+ * null verifier, which passes every solution including a missing one, so a
+ * form's `challengeRequired` protects nothing while it is selected - which is
+ * the single fact the settings panel needs in order to warn. Deriving it here,
+ * beside the flag, means adding or renaming a provider changes one line rather
+ * than every comparison against a provider string on the far side of the wire.
+ */
+export function challengeEnforceable(flags: Flags): boolean {
+  return flags.challengeProvider !== "none";
+}
+
 const FLAG_PREFIX = "QCMS_FLAG_";
 
 // --- small parsing helpers (each records issues; none echoes a value) -------

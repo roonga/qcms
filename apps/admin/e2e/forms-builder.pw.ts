@@ -358,7 +358,10 @@ test("the settings panel says a required challenge is unenforceable, and stores 
   //
   // Task file line 26: a challenge is a deployment capability, and the harness configures
   // no provider, so the switch enforces nothing until an operator sets one up. A panel
-  // that stayed silent would let an author believe a form was protected.
+  // that stayed silent would let an author believe a form was protected. Since issue #725
+  // the panel learns that from the API's derived `challengeEnforceable` boolean rather
+  // than from the provider flag's value (ADR-24), so this is also the end-to-end proof
+  // that the derivation survives the whole round trip.
   //
   // And since 2026-08-29 (`plan/admin-design-contracts.md` §6) there is no "Save settings"
   // to press. The switch reaches the API on the builder's own debounce, which makes the

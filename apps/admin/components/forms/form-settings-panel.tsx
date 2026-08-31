@@ -11,11 +11,17 @@ import { t } from "@/lib/i18n/en";
  *
  * ## Why the unenforceable warning is not optional
  *
- * A challenge is a **deployment** capability. Ticking `challengeRequired` on a form whose
- * deployment has `challengeProvider: "none"` configures nothing: the session start has no
- * provider to call, so the setting is stored and then ignored. A switch that silently
- * promises protection it cannot deliver is worse than no switch, so the panel says so
- * inline, next to the control, whenever the provider is `none` (task file line 26).
+ * A challenge is a **deployment** capability. Ticking `challengeRequired` on a deployment
+ * that cannot verify a challenge configures nothing: the session start has nothing to call,
+ * so the setting is stored and then ignored. A switch that silently promises protection it
+ * cannot deliver is worse than no switch, so the panel says so inline, next to the control,
+ * whenever the deployment reports the challenge unenforceable (task file line 26).
+ *
+ * The panel reads a **behavior**, `challengeEnforceable`, and not a provider name. It used
+ * to compare a raw `challengeProvider` against `"none"`, which meant a deployment flag's
+ * value crossed the wire into the admin; ADR-24 says clients receive behavior, not flag
+ * values, and the Code Owner removed that exception on 2026-08-31 (issue #725). The API
+ * derives the boolean beside the flag, so a new provider never needs a matching edit here.
  *
  * ## Why `minSubmitMs: null` is a value rather than an omission
  *
@@ -66,13 +72,14 @@ import { t } from "@/lib/i18n/en";
  */
 export function FormSettingsPanel({
   settings,
-  challengeProvider,
+  challengeEnforceable,
   saveError,
   onChange,
 }: {
   /** What the controls show: the builder's working copy, not the last confirmed one. */
   readonly settings: FormSettings;
-  readonly challengeProvider: string;
+  /** Whether this deployment can actually verify a challenge (ADR-24). */
+  readonly challengeEnforceable: boolean;
   /** Why the last settings save was refused, or `undefined` while none has been. */
   readonly saveError: string | undefined;
   readonly onChange: (next: FormSettings) => void;
@@ -126,7 +133,7 @@ export function FormSettingsPanel({
             }}
           />
           <p className="text-sm text-(--color-text-muted)">{t("forms.settings.challengeHint")}</p>
-          {challengeProvider === "none" && settings.challengeRequired && (
+          {!challengeEnforceable && settings.challengeRequired && (
             <div data-testid="qcms-challenge-unenforceable">
               <Alert variant="warning">{t("forms.settings.challengeUnenforceable")}</Alert>
             </div>

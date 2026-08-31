@@ -6,9 +6,10 @@ open registration links, hydrating into the shared `@qcms/ui` renderer. Task 029
 ## Architecture (ADR-26, R2)
 
 - **SSR-first, fetch-only.** Pages fetch the current step + flow projection
-  server-side, so the first paint is real content. No client data library
-  (TanStack Query is admin-only). Minimal client state: the flow page hydrates to
-  post answers per question and re-render branching.
+  server-side, so the first paint is real content. No client data library at all
+  (ADR-26 rules one out on both surfaces: the admin reads through server
+  components and mutates through Server Actions). Minimal client state: the flow
+  page hydrates to post answers per question and re-render branching.
 - **Strict BFF (R2).** Route handlers under `app/**/route.ts` and the modules in
   `lib/server/` do proxy + session + credential duty ONLY: they attach the SEC-4
   internal token and the session bearer, forward to the internal API, and shape
