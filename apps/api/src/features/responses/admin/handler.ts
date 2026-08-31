@@ -97,10 +97,22 @@ function requireSessionId(id: string): SessionId {
   return parsed.value;
 }
 
-/** Parse a `version` query value to a positive integer, or 400. */
+/**
+ * The largest value a version filter can take: `form_versions.version` is an
+ * `int4` column, so nothing above this can name a stored row (issue #645, the
+ * query-filter sibling of the path-segment guards in the forms and questions
+ * slices). Without the bound the value went to Postgres, which refused the
+ * parameter with "value out of range for type integer" - an unexpected throw,
+ * so the request 500ed where every other unusable `version` value 400s.
+ */
+const MAX_VERSION = 2_147_483_647;
+
+/** Parse a `version` query value to an in-range positive integer, or 400. */
 function parseVersion(v: string): number {
   const n = Number(v);
-  if (!Number.isInteger(n) || n < 1) throw fail.invalidQuery("version must be a positive integer");
+  if (!Number.isInteger(n) || n < 1 || n > MAX_VERSION) {
+    throw fail.invalidQuery("version must be a positive integer");
+  }
   return n;
 }
 

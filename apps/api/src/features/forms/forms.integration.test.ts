@@ -898,3 +898,52 @@ describe("draft preview: the dry-run compile the admin renders (034)", () => {
     expect(((await foreign.json()) as ErrBody).error.code).toBe("FORM_ID_MISMATCH");
   });
 });
+
+// --- refusals that never reach a handler (issues #182, #645) -----------------
+
+describe("admin schema refusals and out-of-range versions", () => {
+  const formId = "frm_envelope";
+
+  beforeAll(async () => {
+    await post("/forms", { formId, slug: "envelope", defaultLocale: "en" });
+  });
+
+  it("renders a route-schema refusal as the documented ErrorEnvelope (#182)", async () => {
+    // `slug` is required and `formId` must be a string: the validator refuses
+    // this before `makeCreateFormHandler` runs. Before the defaultHook landed the
+    // body was a serialized ZodError with no `error.code` at all.
+    const res = await post("/forms", { formId: 42 });
+
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as ErrBody;
+    expect(Object.keys(body)).toEqual(["error"]);
+    expect(body.error.code).toBe("INVALID_REQUEST");
+    expect(body.error.details).toMatchObject({ target: "json" });
+  });
+
+  it("keeps a refused admin request's own values out of the response (SEC-8)", async () => {
+    const res = await post("/forms", {
+      formId: "SENTINEL-form-id-value",
+      slug: "SENTINEL-slug-value",
+      defaultLocale: 7,
+    });
+
+    expect(res.status).toBe(400);
+    expect(await res.text()).not.toContain("SENTINEL");
+  });
+
+  it("404s a version segment above int4 rather than 500ing on the driver (#645)", async () => {
+    // 2_147_483_648: one past the `form_versions.version` column's ceiling. The
+    // guard used to admit it and let Postgres refuse the parameter, which surfaced
+    // as an opaque 500 for a URL that 404s one digit shorter.
+    const over = await get(`/forms/${formId}/versions/2147483648`);
+    expect(over.status).toBe(404);
+    expect(((await over.json()) as ErrBody).error.code).toBe("VERSION_NOT_FOUND");
+
+    // The composed behaviour of the two fixes: the refusal is an envelope, and
+    // an in-range unknown version answers identically.
+    const inRange = await get(`/forms/${formId}/versions/2147483647`);
+    expect(inRange.status).toBe(404);
+    expect(((await inRange.json()) as ErrBody).error.code).toBe("VERSION_NOT_FOUND");
+  });
+});

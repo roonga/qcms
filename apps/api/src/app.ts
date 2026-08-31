@@ -29,6 +29,7 @@ import { errorEnvelope } from "./middleware/error-envelope.js";
 import { internalToken } from "./middleware/internal-token.js";
 import { requestLogger } from "./middleware/request-logger.js";
 import { securityHeaders } from "./middleware/security-headers.js";
+import { validationErrorHook } from "./middleware/validation-hook.js";
 import type { ApiEnv } from "./openapi.js";
 import { registerHealthRoutes } from "./routes/health.js";
 
@@ -81,7 +82,12 @@ export function createApp(
   flags: MountFlags,
   options: CreateAppOptions = {},
 ): OpenAPIHono<ApiEnv> {
-  const app = new OpenAPIHono<ApiEnv>();
+  // `defaultHook` is what makes a request-schema refusal go through `onError`
+  // rather than around it (issue #182). It is set on every `OpenAPIHono` this
+  // module builds - explicitly, at each construction site, rather than relying
+  // on the library's parent-app lookup, which is a private field of the class
+  // and only linked once a group is mounted.
+  const app = new OpenAPIHono<ApiEnv>({ defaultHook: validationErrorHook });
 
   // Uniform error rendering for everything below.
   app.onError(errorEnvelope(deps));
@@ -124,7 +130,7 @@ export function createApp(
     registrars: readonly SliceRegistrar[] | undefined,
   ): void => {
     if (!enabled) return;
-    const group = new OpenAPIHono<ApiEnv>();
+    const group = new OpenAPIHono<ApiEnv>({ defaultHook: validationErrorHook });
     group.use("*", internalToken(deps));
     for (const register of registrars ?? []) {
       register(group, deps);
