@@ -6,9 +6,14 @@
  * scope: API handlers stay fetch-pure (R4), so they call this `Logger` interface and the
  * composition root supplies the concrete sink. `createJsonLogger` takes a plain
  * `write(line)` function - the servers pass one that writes JSON lines to stdout, tests
- * pass a capturing sink. The emitted shape is `{ level, time, msg, ...fields }`, level as
- * a word, time as an ISO instant, one line per call, and no trailing newline handed to
- * `write`.
+ * pass a capturing sink. The emitted shape is
+ * `{ level, time, ...bindings, ...correlation, ...fields, msg }`: level as a word, time as
+ * an ISO instant, `msg` **last**, one line per call, and no trailing newline handed to
+ * `write`. The key order is part of the shape an operator's aggregator and every example
+ * in `docs/operations.md` are written against, so `./logger-line-shape.test.ts` asserts it
+ * rather than only describing it here (issue #502: this said `msg` was third for as long
+ * as anyone can tell, twelve lines above the literal that appends it last, and the error
+ * propagated into the operator documentation twice).
  *
  * **Redaction (SEC-8):** every field whose key looks like a secret or like respondent
  * content is replaced with `"[REDACTED]"` before serialization, so a careless

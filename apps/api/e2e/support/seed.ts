@@ -27,6 +27,7 @@ import {
   createQuestion,
   insertFormVersion,
   insertSecureLink,
+  publishQuestionVersion,
 } from "@qcms/db";
 import type { TestDb } from "@qcms/db/testing";
 
@@ -56,29 +57,32 @@ const COMPILED = INSURANCE_GOLDEN as unknown as FormVersionInput["compiled"];
 const ACCIDENT_DEF = Q_ACCIDENT_DEF as QuestionVersionInput["definition"];
 const ACCIDENT_COUNT_DEF = Q_ACCIDENT_COUNT_DEF as QuestionVersionInput["definition"];
 
+/**
+ * Append one question version and publish it. A form version may only pin a
+ * *published* question version, so a seeded pin that stayed draft is a fixture
+ * an admin-side compile rejects with `UNPUBLISHED_QUESTION_PIN` (issue #275).
+ * The version number comes back from the insert, so this is correct for the
+ * first version and for every version appended after it.
+ */
+async function appendPublishedVersion(
+  db: Db,
+  questionId: QuestionId,
+  definition: QuestionVersionInput["definition"],
+): Promise<void> {
+  const row = await createQuestionVersion(db, { questionId, definition });
+  await publishQuestionVersion(db, { questionId, version: row.version });
+}
+
 /** The library questions the insurance form pins: q_at_fault_accident@2, q_accident_count@1. */
 export async function seedInsuranceQuestions(db: Db): Promise<void> {
-  await createQuestion(db, {
-    questionId: QuestionId.parse("q_at_fault_accident"),
-    slug: "accident",
-  });
+  const accident = QuestionId.parse("q_at_fault_accident");
+  await createQuestion(db, { questionId: accident, slug: "accident" });
   // The form pins q_at_fault_accident@2, so create v1 then v2 (identical definitions).
-  await createQuestionVersion(db, {
-    questionId: QuestionId.parse("q_at_fault_accident"),
-    definition: ACCIDENT_DEF,
-  });
-  await createQuestionVersion(db, {
-    questionId: QuestionId.parse("q_at_fault_accident"),
-    definition: ACCIDENT_DEF,
-  });
-  await createQuestion(db, {
-    questionId: QuestionId.parse("q_accident_count"),
-    slug: "accident-count",
-  });
-  await createQuestionVersion(db, {
-    questionId: QuestionId.parse("q_accident_count"),
-    definition: ACCIDENT_COUNT_DEF,
-  });
+  await appendPublishedVersion(db, accident, ACCIDENT_DEF);
+  await appendPublishedVersion(db, accident, ACCIDENT_DEF);
+  const accidentCount = QuestionId.parse("q_accident_count");
+  await createQuestion(db, { questionId: accidentCount, slug: "accident-count" });
+  await appendPublishedVersion(db, accidentCount, ACCIDENT_COUNT_DEF);
 }
 
 /** A seeded insurance form's identifiers (plain strings for consumer ergonomics). */
@@ -141,8 +145,9 @@ async function seedQuestionVersion(
   slug: string,
   definition: QuestionVersionInput["definition"],
 ): Promise<void> {
-  await createQuestion(db, { questionId: QuestionId.parse(questionId), slug });
-  await createQuestionVersion(db, { questionId: QuestionId.parse(questionId), definition });
+  const parsed = QuestionId.parse(questionId);
+  await createQuestion(db, { questionId: parsed, slug });
+  await appendPublishedVersion(db, parsed, definition);
 }
 
 /**
@@ -183,18 +188,10 @@ export async function seedKitchenSinkUniqueQuestions(db: Db): Promise<void> {
 /** The two questions the kitchen-sink form shares with the insurance form. */
 export async function seedKitchenSinkSharedQuestions(db: Db): Promise<void> {
   // q_at_fault_accident is pinned @2: create v1 then v2 (identical definitions).
-  await createQuestion(db, {
-    questionId: QuestionId.parse("q_at_fault_accident"),
-    slug: "accident",
-  });
-  await createQuestionVersion(db, {
-    questionId: QuestionId.parse("q_at_fault_accident"),
-    definition: ACCIDENT_DEF,
-  });
-  await createQuestionVersion(db, {
-    questionId: QuestionId.parse("q_at_fault_accident"),
-    definition: ACCIDENT_DEF,
-  });
+  const accident = QuestionId.parse("q_at_fault_accident");
+  await createQuestion(db, { questionId: accident, slug: "accident" });
+  await appendPublishedVersion(db, accident, ACCIDENT_DEF);
+  await appendPublishedVersion(db, accident, ACCIDENT_DEF);
   await seedQuestionVersion(db, "q_accident_count", "accident-count", ACCIDENT_COUNT_DEF);
 }
 

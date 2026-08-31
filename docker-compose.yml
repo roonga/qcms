@@ -54,7 +54,12 @@ services:
       # `dev`, which is honest about what it is.
       args: &image-build-args
         VERSION: ${QCMS_IMAGE_VERSION:-dev}
-    command: ["node", "node_modules/@qcms/db/dist/migrate.js"]
+    # The package's own bin, not a path into its `dist/` (issue #294). A deep
+    # filesystem path resolves nothing: it worked only by bypassing the `exports`
+    # map @qcms/db publishes, which pinned a build layout that package is otherwise
+    # free to change. `qcms-db-migrate` is on PATH because docker/api.Dockerfile
+    # puts this image's `node_modules/.bin` there.
+    command: ["qcms-db-migrate"]
     environment: &api-env
       DATABASE_URL: postgres://${QCMS_DB_USER:-qcms}:${QCMS_DB_PASSWORD:?set QCMS_DB_PASSWORD in .env}@postgres:5432/${QCMS_DB_NAME:-qcms}
       QCMS_LINK_KEYS: ${QCMS_LINK_KEYS:?set QCMS_LINK_KEYS in .env}
@@ -152,6 +157,18 @@ services:
       QCMS_SECURE_COOKIES: ${QCMS_SECURE_COOKIES:-}
       QCMS_PORTAL_BASE_URL: ${QCMS_PORTAL_BASE_URL:?set QCMS_PORTAL_BASE_URL in .env}
       QCMS_PORTAL_TRUSTED_PROXY_HOPS: ${QCMS_PORTAL_TRUSTED_PROXY_HOPS:-1}
+      # The deployment's managed portal theme (ADR-30). Compose forwards only what a
+      # service names, so before issue #499 setting this in .env reached neither app
+      # and an operator got the base theme with nothing reporting why: a deployment
+      # that boots successfully into the wrong brand. Empty means unset, so the
+      # portal's own default (`slate`) applies and an unrecognised value falls back
+      # silently exactly as it does outside Compose.
+      #
+      # The admin service takes the SAME value, and docs/operations.md says so: it is
+      # the appearance the builder's preview island opens in, so an author sees a
+      # question as this deployment serves it. It is not on the `api-env` anchor
+      # because neither the API nor the one-shot migration renders anything.
+      QCMS_PORTAL_THEME: ${QCMS_PORTAL_THEME:-}
       # The api service's twin; the reasoning is written out there. Both apps read the
       # same variable name and each defaults its own service name, so one endpoint
       # here traces the whole BFF hop.
@@ -192,6 +209,11 @@ services:
       # Optional here and required of `api` and `portal`, which is why it takes the same
       # variable without the `:?` guard those two carry.
       QCMS_PORTAL_BASE_URL: ${QCMS_PORTAL_BASE_URL:-}
+      # The portal's twin, and it takes the same value: this app reads it to open the
+      # question preview island in the appearance the deployment serves respondents
+      # (task 058). It changes nothing about this app's own chrome, which is never
+      # adopter-themeable (ADR-26). See the portal service for the rest of the reasoning.
+      QCMS_PORTAL_THEME: ${QCMS_PORTAL_THEME:-}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       # The api service's twin, and it must hold the same value: that service decides
       # whether an unenrolled session is accepted, this one decides whether the
