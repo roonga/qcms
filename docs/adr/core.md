@@ -28,7 +28,9 @@
 
 **Decision.** Branching uses a closed, typed JSON DSL. New operators are versioned core changes. The format must remain machine-emittable and publish-time validatable.
 
-**Note (flagged).** No artifact enforces "versioned": there is no operator-set or DSL version constant, and `@qcms/core` has never been published. A new operator also lands in two places, because the admin keeps a parallel copy of the operator set (`apps/admin/lib/forms/condition.ts`) that R2 prevents importing from core.
+**Note.** Two artifacts now enforce the closed set, one per side. `packages/core/src/visibility-rule.test.ts` pins the thirteen operators as a hand-edited list checked against the `Condition` union, so adding one is a deliberate edit rather than a diff nobody reads. `apps/admin/lib/forms/condition.ts` ties the admin's parallel copy of the set to the same union through a **type-only** import of `Condition`, which R2 permits because it is erased at compile time and carries no kernel code into the app; a new operator in core therefore fails the admin's typecheck. Neither side can move alone.
+
+**Note (flagged).** There is still no DSL **version** constant, and `@qcms/core` has never been published, so "versioned core change" remains a review convention rather than a released number.
 
 ### ADR-07 - Pinned sessions and submission lock
 

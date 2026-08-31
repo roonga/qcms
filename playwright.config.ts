@@ -283,8 +283,16 @@ export default defineConfig({
         // is covered in `apps/admin/lib/preview-theme.test.ts`, which is the only place
         // it can be: a webServer cannot be booted twice with two environments.
         QCMS_PORTAL_THEME: HARNESS_THEME,
-        // Left at the default (`required`) deliberately: enforced-by-default 2FA is
-        // the behaviour under test, so the escape hatch must not be set here.
+        // Pinned rather than left to the default (issue #209). `required` IS the default,
+        // so this line changes nothing about what the suite runs - it changes who decides.
+        // `admin-server.mjs` hands `process.env` to `next dev`, and Next loads
+        // `apps/admin/.env.local` for any variable that arrives undefined. A developer
+        // with `QCMS_ADMIN_2FA=optional` in that file (the documented development escape
+        // hatch) therefore used to run the whole browser suite against a weaker policy
+        // than the one it asserts, and the suite would pass. Naming the value here puts
+        // it in `process.env` before Next looks, and `@next/env` does not overwrite what
+        // is already set. `auth-2fa.pw.ts` carries the canary that proves it took.
+        QCMS_ADMIN_2FA: "required",
       },
     },
   ],

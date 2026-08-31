@@ -50,12 +50,12 @@ import { logOriginBeltRefusal } from "./origin-belt-log";
  * (`docs/RETRO.md`, the 031 entry: better-auth answered 403 to 100% of legitimate
  * sign-ins for exactly this reason).
  *
- * The `Origin` branch is still live for the **hydrated** path, because Fetch API
+ * The `Origin` branch is still live for the **hydrated** path, because `fetch()`
  * requests are mode `cors`, which the referrer-policy rewrite above does not touch,
- * so those carry the real origin. (Spelled without the parentheses to match the admin
- * twin, where the same sentence with them fails `r2-import-surface.test.ts`: that rule
- * regexes raw text for a call to the global, comments included. The portal's own R2
- * test does not carry that rule at all, which is its own asymmetry and its own issue.)
+ * so those carry the real origin. (Written without the parentheses until issue #663
+ * taught the admin twin's `r2-import-surface.test.ts` to blank comments before scanning
+ * for a call to the global. The portal's own R2 test still does not carry that rule at
+ * all, which is its own asymmetry and its own issue.)
  *
  * ## What this refuses that a respondent might not expect
  *

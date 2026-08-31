@@ -2,7 +2,7 @@
  * The question library's **wire shapes** (task 032).
  *
  * These mirror the payloads the API's `/admin/questions` routes send and accept, and
- * they are deliberately hand-written rather than imported from `@qcms/core`.
+ * they are deliberately hand-written rather than imported as values from `@qcms/core`.
  *
  * That is not duplication for its own sake, it is R2. The kernel's `QuestionDefinition`
  * is a Zod schema carrying branded ids, cross-field refinements and the validation

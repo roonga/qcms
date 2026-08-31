@@ -11,6 +11,7 @@ import {
   isVisibilityRule,
   parseCondition,
   parseVisibilityRule,
+  type Condition,
 } from "./index.js";
 
 const FIXTURES_DIR = fileURLToPath(new URL("../fixtures/", import.meta.url));
@@ -40,6 +41,79 @@ function expectRejects(condition: unknown, code?: string): void {
     expect(result.error.map((error) => error.code)).toContain(code);
   }
 }
+
+/**
+ * **ADR-03: the operator set is closed, and changing it is a deliberate edit.**
+ *
+ * ADR-03 makes branching a closed, typed DSL whose new operators are versioned core
+ * changes. Its own note flagged that nothing enforced the "versioned" half: no operator
+ * set was written down anywhere, so an operator could be added to
+ * {@link Condition} in one diff and nobody would be asked about it. A closed set that
+ * nothing pins is a convention, not a decision.
+ *
+ * This is the pin, in the spirit of `packages/a2ui-compiler/src/version.test.ts`: a
+ * constant that has to be edited by hand, checked against the thing it mirrors.
+ *
+ * `satisfies Record<Condition["op"], ...>` makes the table exhaustive in **both**
+ * directions at compile time - a new operator in the union is a missing key here, and a
+ * key the union does not carry is an excess property - and the assertions below add the
+ * runtime half: the schema accepts each of these and refuses anything else. So an
+ * operator change costs a typecheck failure, a test edit, and a changeset conversation,
+ * which is what "versioned core change" was supposed to mean.
+ *
+ * The admin keeps a parallel copy of this set (R2 stops it importing the kernel as a
+ * value), and `apps/admin/lib/forms/condition.ts` pins that copy to the same union with
+ * a type-only import. The two halves together are what close the ADR's note: neither
+ * side can move without the other going red.
+ */
+const OPERATOR_SAMPLES = {
+  equals: { op: "equals", questionId: "q_a", value: true },
+  notEquals: { op: "notEquals", questionId: "q_a", value: 3 },
+  in: { op: "in", questionId: "q_a", values: [1, 2] },
+  gt: { op: "gt", questionId: "q_a", value: 10 },
+  gte: { op: "gte", questionId: "q_a", value: "2001-02-28" },
+  lt: { op: "lt", questionId: "q_a", value: 0.5 },
+  lte: { op: "lte", questionId: "q_a", value: "1999-12-31" },
+  answered: { op: "answered", questionId: "q_a" },
+  contains: { op: "contains", questionId: "q_multi", value: "opt_a" },
+  containsAny: { op: "containsAny", questionId: "q_multi", values: ["opt_a"] },
+  and: { op: "and", conditions: [{ op: "answered", questionId: "q_a" }] },
+  or: { op: "or", conditions: [{ op: "answered", questionId: "q_a" }] },
+  not: { op: "not", condition: { op: "answered", questionId: "q_a" } },
+} satisfies Record<Condition["op"], { op: string }>;
+
+describe("ADR-03: the closed operator set", () => {
+  it("is exactly these thirteen operators", () => {
+    // Spelled out rather than derived, on purpose: this line is the tripwire. A diff that
+    // changes it is a diff someone has to explain, which is the whole point of a closed
+    // DSL whose operators are versioned core changes.
+    expect(Object.keys(OPERATOR_SAMPLES)).toEqual([
+      "equals",
+      "notEquals",
+      "in",
+      "gt",
+      "gte",
+      "lt",
+      "lte",
+      "answered",
+      "contains",
+      "containsAny",
+      "and",
+      "or",
+      "not",
+    ]);
+  });
+
+  it.each(Object.entries(OPERATOR_SAMPLES))("the schema accepts `%s`", (_op, sample) => {
+    expectParses(sample);
+  });
+
+  it("refuses an operator that is not in the set, however plausible it reads", () => {
+    for (const op of ["startsWith", "matches", "between", "isEmpty"]) {
+      expectRejects({ op, questionId: "q_a", value: "x" }, "INVALID_CONDITION");
+    }
+  });
+});
 
 describe("Condition parses every operator", () => {
   it.each([

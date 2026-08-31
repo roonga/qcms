@@ -188,8 +188,8 @@ It is a **development** tool. It writes the database directly, which is why it l
 - **`lib/server/`** is server-only and never reaches the client bundle: the better-auth
   instance, the database handle (auth only), the session reader, the CSP builder, and the
   one API client. `lib/server/r2-import-surface.test.ts` enforces that boundary, plus R2
-  itself: no `@qcms/core` import, no domain-table access, and API calls only through
-  `lib/server/api.ts`.
+  itself: no `@qcms/core` value import, no domain-table access, and API calls only
+  through `lib/server/api.ts`.
 - **Auth flows are native form POSTs** to route handlers, not client fetches or server
   actions. The whole sign-in and 2FA loop therefore works before hydration and with
   JavaScript off, and no credential passes through client JavaScript.

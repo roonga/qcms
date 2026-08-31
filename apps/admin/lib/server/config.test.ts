@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { assertSecureCookiesConfigured, secureCookies } from "./config.ts";
+import { adminBaseUrl, assertSecureCookiesConfigured, secureCookies } from "./config.ts";
 
 /**
  * The admin's cookie-security configuration (task 056, guarded for issue #292).
@@ -11,6 +11,56 @@ import { assertSecureCookiesConfigured, secureCookies } from "./config.ts";
 
 afterEach(() => {
   vi.unstubAllEnvs();
+});
+
+/**
+ * The trailing-slash normalization admin authentication depends on (issue #328).
+ *
+ * **Paired with `apps/api/src/config.test.ts`.** The API parses the same variable into
+ * better-auth's `baseURL` and `trustedOrigins`, and better-auth compares a trusted origin
+ * by exact string equality against `new URL(url).origin`, which never carries a trailing
+ * slash. This app compares the same value against the `Origin` header on every
+ * state-changing POST (SEC-9). So a `QCMS_ADMIN_BASE_URL` with one extra character does
+ * not degrade admin authentication, it ends it: sign-in, TOTP verification,
+ * recovery-code use and sign-out are all refused, with a CSRF rejection as the only clue.
+ *
+ * Nothing asserted this on either side until now, which is what the issue is about: the
+ * normalizer is one line in each app and a regression in either is invisible.
+ */
+describe("adminBaseUrl", () => {
+  it.each([
+    ["https://admin.example.test/", "https://admin.example.test"],
+    ["https://admin.example.test///", "https://admin.example.test"],
+    ["http://localhost:7040/", "http://localhost:7040"],
+  ])("strips the trailing slash from %s", (raw, expected) => {
+    vi.stubEnv("QCMS_ADMIN_BASE_URL", raw);
+    expect(adminBaseUrl()).toBe(expected);
+  });
+
+  it("returns a value equal to its own origin, which is what better-auth compares", () => {
+    // The property the consumer depends on, not "a slash was removed": an origin is what
+    // `new URL(...).origin` yields, and equality with it is the comparison being relied on.
+    for (const raw of ["https://admin.example.test", "https://admin.example.test/"]) {
+      vi.stubEnv("QCMS_ADMIN_BASE_URL", raw);
+      const base = adminBaseUrl();
+      expect(base).toBe(new URL(base).origin);
+    }
+  });
+
+  it("agrees with the API's normalizer on the shipped Compose value", () => {
+    // `.env.compose.example` documents `http://localhost:7040`. Both services read this
+    // one variable, and a disagreement between the two normalizers is unobservable until
+    // an operator's sign-in POST is rejected.
+    vi.stubEnv("QCMS_ADMIN_BASE_URL", "http://localhost:7040/");
+    expect(adminBaseUrl()).toBe("http://localhost:7040");
+  });
+
+  it("refuses to answer when the variable is absent, rather than inventing an origin", () => {
+    vi.stubEnv("QCMS_ADMIN_BASE_URL", undefined);
+    expect(() => adminBaseUrl()).toThrow(/QCMS_ADMIN_BASE_URL/);
+    vi.stubEnv("QCMS_ADMIN_BASE_URL", "");
+    expect(() => adminBaseUrl()).toThrow(/QCMS_ADMIN_BASE_URL/);
+  });
 });
 
 describe("secureCookies", () => {

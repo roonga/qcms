@@ -23,8 +23,8 @@ import type {
  * The ids are plain strings for the second half of the same reason: a half-built draft
  * holds ids the kernel has not blessed yet, and branding them here would put a second
  * validator in the BFF (R2). The kernel is still the only thing that decides whether a
- * draft is legal, and it decides it in the API: the import-surface test bans `@qcms/core`
- * in this app outright, so nothing here crosses back. The fuzz test in `condition.test.ts`
+ * draft is legal, and it decides it in the API: the import-surface test refuses every
+ * `@qcms/core` VALUE import in this app, so nothing here crosses back. The fuzz test in `condition.test.ts`
  * is what proves the editor only ever emits shapes the kernel accepts, and it can import
  * the kernel because a `.test.ts` is outside that scan.
  */

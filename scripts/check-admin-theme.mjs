@@ -43,10 +43,24 @@ const SCAN_DIRS = ["apps/admin/app", "apps/admin/components"];
 const SCAN_EXTENSIONS = [".css", ".ts", ".tsx"];
 
 /**
- * A hex colour. Bounded at the end so an element id (`#main-content`) never matches:
- * after the run of hex digits the next character has to be a non-word one.
+ * A hex colour, bounded on **both** sides (issue #545).
+ *
+ * The trailing `\b` was always there, so an element id (`#main-content`) never matched.
+ * The leading side was open, and with it the digits-only shorthand: a test named after
+ * the issue it covers (`it("covers #513", ...)`) read as a three-digit colour and failed
+ * a gate about styling. Every issue number in the 500s is a three-hex-digit lookalike,
+ * and naming a test after its issue is a convention this repository uses, so the
+ * collision was certain to recur.
+ *
+ * Two changes close it:
+ *
+ * 1. A left boundary. A `#` that follows a word character, another `#`, or an entity's
+ *    `&` is an id, a fragment or `&#8212;`, never the start of a colour.
+ * 2. A digits-only run of three or four characters is an issue reference, not a colour.
+ *    Scoped to those two lengths deliberately: `#123456` stays a colour, because nothing
+ *    here writes a six-digit issue number and someone does write that grey.
  */
-const HEX = /#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b/g;
+const HEX = /(?<![\w#&])#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8}|(?![0-9]{3,4}\b)[0-9a-fA-F]{3,4})\b/g;
 
 /**
  * The colour functions. A call is allowed when its argument list reaches a token,

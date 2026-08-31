@@ -11,7 +11,9 @@ import { describe, expect, it } from "vitest";
  * it holds credentials the portal never sees:
  *
  * 1. Nothing imports `@qcms/core` as a value - rule evaluation, validation and publish
- *    aggregation live in the API, and the admin has no authority over any of them.
+ *    aggregation live in the API, and the admin has no authority over any of them. A
+ *    type-only import is allowed and is erased at compile time; `lib/forms/condition.ts`
+ *    uses one to pin the admin's parallel operator set to the kernel's (ADR-03).
  * 2. No client component pulls a server-only module in as a value, so the internal
  *    service token and the admin's session token cannot reach the browser bundle.
  * 3. **No database client exists.** The allowlist of `@qcms/db` value bindings is now
@@ -26,6 +28,12 @@ import { describe, expect, it } from "vitest";
  * 6. The **runtime dependency list** carries none of those packages, which is what makes
  *    the shipped image genuinely incapable of reaching Postgres rather than merely
  *    disinclined to.
+ *
+ * Every text scan below reads the source with **comments blanked** and, where a call is
+ * the thing being looked for, resolves the receiver rather than trusting the method's
+ * name (issues #367, #663). A guard on a security boundary is worth only as much as it
+ * is believed, and one that fires on `Map.delete` or on its own explanatory prose teaches
+ * every lane that meets it to reword rather than to look.
  *
  * Rules 1-5 scan the app's own source (`app`, `components`, `lib`, `proxy.ts`) and not
  * `e2e/`, deliberately: the Playwright support modules run in the runner process, drive
@@ -155,6 +163,143 @@ function namedBindings(line: string): string[] {
   );
 }
 
+/**
+ * Blank out comments, keeping every newline so nothing downstream shifts.
+ *
+ * A comment cannot construct a query and cannot call `fetch`. Scanning raw text meant
+ * that prose explaining what a module does **not** do failed the check that exists to
+ * catch the module doing it (issues #367, #663), and the visible cost was not the lost
+ * cycle: it was two files in the tree written around a regex, one of which spells
+ * `fetch()` without its parentheses so this file's own scan would leave it alone.
+ *
+ * The `[^:]` guard keeps `https://` out of the line-comment case.
+ */
+function withoutComments(text: string): string {
+  const blank = (match: string): string => "\n".repeat((match.match(/\n/g) ?? []).length);
+  return text.replaceAll(/\/\*[\s\S]*?\*\//g, blank).replaceAll(/(^|[^:])\/\/[^\n]*/g, "$1");
+}
+
+/** The local names one import line binds, aliases resolved to the local side. */
+function importedLocals(line: string): string[] {
+  const fromAt = line.indexOf(" from ");
+  if (fromAt === -1) return [];
+  const clause = line.slice("import ".length, fromAt);
+  const open = clause.indexOf("{");
+  const names: string[] = [];
+
+  // The default or namespace binding, if there is one: `db`, or the `db` of `* as db`.
+  const head = (open === -1 ? clause : clause.slice(0, open)).replaceAll(",", " ").trim();
+  const headTokens = head.split(/\s+/).filter((token) => token !== "" && token !== "type");
+  const bound = headTokens.at(-1);
+  if (bound !== undefined && bound !== "*" && bound !== "as") names.push(bound);
+
+  if (open === -1) return names;
+  const close = clause.indexOf("}");
+  for (const raw of clause.slice(open + 1, close === -1 ? undefined : close).split(",")) {
+    const specifier = raw.trim().replace(/^type\s+/, "");
+    if (specifier === "") continue;
+    const aliasAt = specifier.indexOf(" as ");
+    names.push(aliasAt === -1 ? specifier : specifier.slice(aliasAt + 4).trim());
+  }
+  return names;
+}
+
+/** `const db = drizzle(pool)` and `const pool = new Pool(...)`: a handle by construction. */
+const CLIENT_ASSIGNMENT =
+  /^(?:const|let|var)\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*(?:await\s+)?(?:new\s+Pool|drizzle)\s*\(/;
+
+/**
+ * Every identifier in this file that IS a database handle: bound by an import from one
+ * of the forbidden packages, or assigned from a client constructor.
+ *
+ * This is the receiver resolution issue #663 asked for. A query is a call **on one of
+ * these**; `subscribers.delete(fn)` is a `Set`, and no amount of naming makes it one.
+ */
+function databaseRoots(code: string): Set<string> {
+  const roots = new Set<string>();
+  for (const line of code.split("\n").map((raw) => raw.trimStart())) {
+    if (line.startsWith("import ")) {
+      const spec = SPEC_RE.exec(line)?.[1];
+      if (spec === undefined) continue;
+      if (!FORBIDDEN_PACKAGES.some((pkg) => spec === pkg || spec.startsWith(`${pkg}/`))) continue;
+      for (const name of importedLocals(line)) roots.add(name);
+      continue;
+    }
+    const constructed = CLIENT_ASSIGNMENT.exec(line)?.[1];
+    if (constructed !== undefined) roots.add(constructed);
+  }
+  return roots;
+}
+
+/**
+ * The query entry points. Named alone they prove nothing; the receiver decides.
+ *
+ * `query` is in the list only because the receiver now is: `pool.query(sql)` is the raw
+ * escape hatch under the builder, and the old name-only rule could not carry it without
+ * failing on every unrelated `query` in the app.
+ */
+const QUERY_CALL = /\.\s*(select|insert|update|delete|transaction|query)\s*\(/g;
+
+/**
+ * The methods that can only FOLLOW a query-builder entry point.
+ *
+ * This is the second discriminator, and it needs no imports to work: `Set.delete` and
+ * `Headers.delete` are never followed by `.where(`, and `.select(...).from(...)` is
+ * Drizzle's grammar rather than a name anyone reaches by accident.
+ */
+const QUERY_CHAIN =
+  /^\s*\.\s*(from|values|set|where|returning|onConflictDoNothing|onConflictDoUpdate|execute|prepare)\s*\(/;
+
+/** The index of the `)` closing the call whose `(` is at `openParen`, or -1. */
+function endOfCall(code: string, openParen: number): number {
+  let depth = 0;
+  for (let index = openParen; index < code.length; index += 1) {
+    const char = code[index];
+    if (char === "(") depth += 1;
+    else if (char === ")") {
+      depth -= 1;
+      if (depth === 0) return index;
+    }
+  }
+  return -1;
+}
+
+/** The root identifier of the property chain ending at `dotIndex`. */
+function receiverRoot(code: string, dotIndex: number): string {
+  let start = dotIndex;
+  while (start > 0 && /[A-Za-z0-9_$.]/.test(code[start - 1] ?? "")) start -= 1;
+  return code.slice(start, dotIndex).split(".")[0] ?? "";
+}
+
+/**
+ * Every database query one module issues, each described by the text that made it one.
+ *
+ * Exported to the self-test below rather than inlined, because a guard on a security
+ * boundary that is only ever run against a clean tree is indistinguishable from a guard
+ * that always passes - which is the failure mode #663 was really about.
+ */
+function queryFindings(text: string): string[] {
+  const code = withoutComments(text);
+  const roots = databaseRoots(code);
+  const findings: string[] = [];
+  if (/\bdrizzle\s*\(/.test(code)) findings.push("`drizzle(` constructs a database client");
+  for (const match of code.matchAll(QUERY_CALL)) {
+    const method = match[1] ?? "";
+    const root = receiverRoot(code, match.index);
+    if (root !== "" && roots.has(root)) {
+      findings.push(`\`${root}.${method}(\` is a call on a database handle`);
+      continue;
+    }
+    const close = endOfCall(code, match.index + match[0].length - 1);
+    if (close === -1) continue;
+    const next = QUERY_CHAIN.exec(code.slice(close + 1, close + 80))?.[1];
+    if (next !== undefined) {
+      findings.push(`\`.${method}( ... ).${next}(\` is a query-builder chain`);
+    }
+  }
+  return findings;
+}
+
 function isClientModule(text: string): boolean {
   const first =
     text
@@ -171,14 +316,59 @@ describe("R2 import surface (strict BFF)", () => {
     expect(files.length).toBeGreaterThan(10);
   });
 
-  it("imports nothing from @qcms/core (evaluation and validation stay in the API)", () => {
+  /**
+   * Rule 1, stated as the module header has always stated it: **no VALUE import.**
+   *
+   * The line used to refuse `@qcms/core` in any form, which was stricter than the rule it
+   * implemented and stricter than the same file's treatment of everything else: the four
+   * {@link FORBIDDEN_PACKAGES} are refused as types too, and the reason is written down
+   * beside them (a type from `pg` means someone is holding a pool's shape, which is the
+   * step before holding a pool). `@qcms/core` is a different case and is not in that
+   * list. It is the kernel's own vocabulary, it declares no client and opens no socket,
+   * and an `import type` from it is erased by the compiler: nothing reaches the bundle,
+   * the runtime dependency list is unchanged (rule 6 still holds), and the shipped image
+   * does not resolve the package at all.
+   *
+   * What R2 is actually about is **authority**: rule evaluation, validation and publish
+   * aggregation happen in the API, and the admin must not be able to run them. A type
+   * cannot run. So the boundary is unchanged and the checks around it are unchanged;
+   * this one now says what it meant.
+   *
+   * The immediate reason it matters is ADR-03. The admin keeps a parallel copy of the
+   * operator set, and the ADR's own note flags that nothing stopped the two from
+   * drifting - precisely because the copy could not refer to its original.
+   * `lib/forms/condition.ts` now pins the two together with a type-only import, so a new
+   * operator in `@qcms/core` fails the admin's typecheck instead of passing unnoticed
+   * (Code Owner, 2026-08-31).
+   */
+  it("takes no VALUE import from @qcms/core (evaluation and validation stay in the API)", () => {
     const offenders: string[] = [];
     for (const { path, text } of files) {
-      for (const { spec } of importsOf(text)) {
-        if (spec.startsWith("@qcms/core")) offenders.push(`${path} -> ${spec}`);
+      for (const { spec, isType } of importsOf(text)) {
+        if (!spec.startsWith("@qcms/core")) continue;
+        if (isType) continue;
+        offenders.push(`${path} -> ${spec} - rule: the admin runs no kernel code`);
       }
     }
     expect(offenders).toEqual([]);
+  });
+
+  /**
+   * The discriminator that rule rests on, asserted rather than assumed.
+   *
+   * `importsOf` flags only the fully type-only form. An inline `import { type X }` is
+   * reported as a value import, which is the conservative side to be wrong on: the line
+   * still carries a runtime import statement.
+   */
+  it("tells a type-only kernel import apart from a value one", () => {
+    const parsed = importsOf(
+      [
+        'import type { Condition } from "@qcms/core";',
+        'import { parseVisibilityRule } from "@qcms/core";',
+        'import { type Condition } from "@qcms/core";',
+      ].join("\n"),
+    );
+    expect(parsed.map((entry) => entry.isType)).toEqual([true, false, false]);
   });
 
   it("keeps server-only modules out of client components (value imports)", () => {
@@ -223,15 +413,25 @@ describe("R2 import surface (strict BFF)", () => {
     expect(offenders).toEqual([]);
   });
 
+  /**
+   * Before task 056 exactly one module was allowed to do this. Now none is, so the check
+   * has no exemption to carry: a query anywhere in the admin's source is a regression by
+   * definition.
+   *
+   * **What changed with issue #663.** The rule used to read any call *named*
+   * `select`/`insert`/`update`/`delete`/`transaction` as a query, over raw text. So it
+   * fired on `Map.delete`, on `Headers.delete`, and on comments that merely explained
+   * the boundary - and the check's whole value is in being believed. A guard that says
+   * "adjust your phrasing" to every lane that meets it ends as an exemption list, or as
+   * a lane silencing it and being right to. It now matches on what the code **does**:
+   * a call on a resolved database handle, or Drizzle's own builder grammar. Bluntness is
+   * still the feature; the bluntness is just about behaviour now rather than spelling.
+   */
   it("constructs no Drizzle client and issues no query anywhere (R2, ADR-35)", () => {
-    // Before task 056 exactly one module was allowed to do this. Now none is, so the
-    // check has no exemption to carry: a query builder call anywhere in the admin's
-    // source is a regression by definition.
     const offenders: string[] = [];
     for (const { path, text } of files) {
-      if (/\bdrizzle\s*\(/.test(text)) offenders.push(`${path} (drizzle client)`);
-      if (/\.(select|insert|update|delete|transaction)\s*\(/.test(text)) {
-        offenders.push(`${path} (query)`);
+      for (const finding of queryFindings(text)) {
+        offenders.push(`${path}: ${finding} - rule: the admin holds no database client`);
       }
     }
     expect(offenders).toEqual([]);
@@ -258,11 +458,19 @@ describe("R2 import surface (strict BFF)", () => {
     expect(example).not.toContain("QCMS_ADMIN_AUTH_SECRET");
   });
 
+  /**
+   * Comments are excluded here for the reason they are excluded from the query scan: a
+   * comment cannot call the global, and scanning raw text made both twins of
+   * `route-helpers.ts` spell `fetch()` without its parentheses to get past this line.
+   */
   it("issues API requests only through lib/server/api.ts", () => {
     const offenders: string[] = [];
     for (const { path, text } of files) {
       if (path.endsWith(API_CLIENT_SUFFIX)) continue;
-      if (/\bfetch\s*\(/.test(text)) offenders.push(path);
+      const matched = /\bfetch\s*\(/.exec(withoutComments(text))?.[0];
+      if (matched !== undefined) {
+        offenders.push(`${path}: matched \`${matched}\` - rule: one API client, one place`);
+      }
     }
     expect(offenders).toEqual([]);
   });
@@ -274,5 +482,67 @@ describe("R2 import surface (strict BFF)", () => {
     // that sent only the first would let a compromised service token act as an admin.
     expect(client!.text).toContain("INTERNAL_TOKEN_HEADER");
     expect(client!.text).toContain("ADMIN_SESSION_HEADER");
+  });
+});
+
+/**
+ * The query scan's own discriminator, fed the shapes it exists to separate (issue #663).
+ *
+ * The rule above only ever runs against a clean tree, so on its own it cannot tell a
+ * working guard from one that always passes - and it spent two years as a guard that
+ * fired on the wrong things while looking authoritative. These are the positive and
+ * negative controls that make the next change to it observable.
+ */
+describe("the query scan's discriminator", () => {
+  it("reads a collection call as a collection call", () => {
+    expect(queryFindings("subscribers.delete(listener);")).toEqual([]);
+    expect(queryFindings("const seen = new Map();\nseen.delete(id);\n")).toEqual([]);
+    expect(queryFindings("headers.delete('cookie');")).toEqual([]);
+    expect(queryFindings("params.delete('cursor');\nparams.set('page', '2');")).toEqual([]);
+    expect(queryFindings("element.select();")).toEqual([]);
+    expect(queryFindings("queue.transaction(() => run());")).toEqual([]);
+  });
+
+  it("reads prose about a query as prose", () => {
+    expect(queryFindings("// this module never calls .select( or .delete(\n")).toEqual([]);
+    expect(queryFindings("/**\n * It does not `.update(` anything.\n */\n")).toEqual([]);
+    expect(
+      queryFindings("/* db.select().from(forms) is what the API does, not this. */\n"),
+    ).toEqual([]);
+  });
+
+  it("still catches a query on an imported handle, whatever the handle is called", () => {
+    expect(queryFindings('import { db } from "@qcms/db";\ndb.select().from(forms);\n')).toEqual([
+      "`db.select(` is a call on a database handle",
+    ]);
+    expect(
+      queryFindings(
+        'import handle from "@qcms/db";\nawait handle.transaction(async (tx) => {});\n',
+      ),
+    ).toEqual(["`handle.transaction(` is a call on a database handle"]);
+    expect(
+      queryFindings('import * as schema from "drizzle-orm";\nschema.delete(forms);\n'),
+    ).toEqual(["`schema.delete(` is a call on a database handle"]);
+    expect(queryFindings('import { forms as f } from "@qcms/db";\nf.insert({});\n')).toEqual([
+      "`f.insert(` is a call on a database handle",
+    ]);
+  });
+
+  it("still catches a builder chain and a constructed client with no import at all", () => {
+    expect(queryFindings("await anything.select({ id: forms.id }).from(forms);")).toEqual([
+      "`.select( ... ).from(` is a query-builder chain",
+    ]);
+    expect(
+      queryFindings("await x.update(forms)\n  .set({ title })\n  .where(eq(forms.id, id));"),
+    ).toEqual(["`.update( ... ).set(` is a query-builder chain"]);
+    expect(queryFindings("const client = drizzle(pool);")).toEqual([
+      "`drizzle(` constructs a database client",
+    ]);
+    // The raw escape hatch under the builder, caught because the handle is resolved.
+    expect(queryFindings('const pool = new Pool({ url });\npool.query("select 1");')).toEqual([
+      "`pool.query(` is a call on a database handle",
+    ]);
+    // The same method name on anything else is just a method name.
+    expect(queryFindings('cache.query("forms");')).toEqual([]);
   });
 });
