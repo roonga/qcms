@@ -287,7 +287,7 @@
           },
           "value": {
             "nullable": true,
-            "description": "The answer value; validated against the pinned question. Literal null retracts the answer (the question becomes unanswered; the ledger records the retraction)."
+            "description": "The answer value; validated against the pinned question. Literal null retracts the answer (the question becomes unanswered; the ledger records the retraction). An empty value (\"\" or []) is not an answer and is rejected with EMPTY_ANSWER_NOT_ALLOWED; send null to clear an answer."
           }
         },
         "required": [

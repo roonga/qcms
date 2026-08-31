@@ -1,0 +1,57 @@
+{
+  "description": "Only whitespace-ONLY text is absent (issue #128): text that merely carries leading and trailing whitespace has content, so it is answered, satisfies the required shortText, and shows its answered gate. Trimming happens for the presence test alone; nothing here rewrites the value.",
+  "form": "golden/evaluator/forms/ops-answered.json",
+  "answers": [
+    {
+      "questionId": "q_full_name",
+      "value": "  Ada  "
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_src",
+        "questionId": "q_full_name"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_medical_history"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_accident_count"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_dob"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_at_fault_accident"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_coverage_level"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_preexisting_conditions"
+      },
+      {
+        "stepId": "stp_gates",
+        "questionId": "q_gate_a"
+      }
+    ],
+    "visibleSteps": ["stp_src", "stp_gates"],
+    "currentStep": "stp_src",
+    "answeredRequired": ["q_full_name"],
+    "missingRequired": [
+      "q_accident_count",
+      "q_dob",
+      "q_at_fault_accident",
+      "q_coverage_level",
+      "q_preexisting_conditions"
+    ],
+    "complete": false
+  }
+}

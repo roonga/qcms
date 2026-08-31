@@ -24,6 +24,9 @@ import { optionIdsOf, type QuestionDefinition } from "./question-definition.js";
  *
  * `required` is deliberately *not* checked here: presence is a flow/submission
  * concern (`prepareSubmission`, invariant I9), not a property of a value.
+ * `EMPTY_ANSWER_NOT_ALLOWED` is not an exception to that - it does not ask
+ * whether the question was answered, it refuses `""` and `[]` as *encodings*
+ * of an answer for every question, required or not (ADR-33, below).
  *
  * Error contract: `{ code, constraint, message }`. `code` is the stable
  * localization key (the portal's shell catalog maps it later - codes are the
@@ -53,9 +56,13 @@ export type ValidationConstraint = z.infer<typeof ValidationConstraint>;
  * Closed union of validation error codes - the UI localization contract.
  * The `INVALID_*_ANSWER` members are the task-002 parse codes (the encoding
  * stage reuses them so a value that fails the same schema fails with the same
- * code everywhere); the rest map one-to-one onto the §2.2 constraints.
+ * code everywhere); most of the rest map one-to-one onto the §2.2 constraints.
+ * `EMPTY_ANSWER_NOT_ALLOWED` is the one code with no constraint behind it: it
+ * carries ADR-33's "empty text and empty selections are absence, not answers"
+ * (see {@link emptyAnswerError}).
  */
 export const ValidationErrorCode = z.enum([
+  "EMPTY_ANSWER_NOT_ALLOWED",
   "INVALID_TEXT_ANSWER",
   "INVALID_NUMBER_ANSWER",
   "INVALID_DATE_ANSWER",
@@ -119,6 +126,45 @@ function encodingError(question: QuestionDefinition): ValidationError {
         "Answer must be an array of option ids",
       );
   }
+}
+
+/**
+ * ADR-33's rule at the ingest boundary: **empty text and empty selections are
+ * absence, not answers**, so `""` and `[]` are refused rather than stored.
+ *
+ * Until this check existed the rule was enforced only at the control boundary
+ * (the renderer's `absentIfEmptyText` / `absentIfNoSelection` and the no-JS
+ * decoder), which left a hole one layer down: a direct API post of `""` or `[]`
+ * was accepted, stored, and then *satisfied* `required` while holding nothing.
+ * The rule belongs here because it is a single-value rule (R5), which puts it in
+ * front of every caller of the kernel rather than in front of the two clients
+ * that already got it right.
+ *
+ * It **rejects**; it never quietly rewrites the post into a retraction. Clearing
+ * an answer has one spelling on the wire - a literal `null` body value (ADR-33,
+ * `POST /sessions/{id}/answers`) - and a client that meant to clear should say
+ * so, not have an empty value reinterpreted for it. The message names that
+ * spelling so the fix is in the response; it quotes no value (SECURITY_DESIGN:
+ * answer values are never echoed, and there is nothing to echo here anyway).
+ *
+ * Reported as an `"encoding"` constraint: like the parse codes, it says the
+ * value is not a legal answer of this question's type at all, which is also why
+ * it is not authorable (ADR-32 - no author wrote a constraint to produce it) and
+ * why it is returned alone rather than joined to the constraint sweep. A
+ * `minSelected: 1` question would otherwise report "select at least 1" beside
+ * it, which reads as "select more" when the answer is "that was never a
+ * selection".
+ *
+ * Whitespace-only text is deliberately NOT refused here. Issue #128's ruling
+ * keeps stored values faithful: `" "` is stored as typed and is denied
+ * *presence* instead (`isBlankAnswerValue`), so it cannot satisfy `required`.
+ */
+function emptyAnswerError(): ValidationError {
+  return failure(
+    "EMPTY_ANSWER_NOT_ALLOWED",
+    "encoding",
+    "An empty value is not an answer; send null to clear the answer",
+  );
 }
 
 /**
@@ -217,6 +263,9 @@ export function validateAnswer(
       if (!parsed.success) {
         return err([encodingError(question)]);
       }
+      if (parsed.data === "") {
+        return err([emptyAnswerError()]);
+      }
       const errors = checkTextConstraints(parsed.data, question.constraints);
       return errors.length > 0 ? err(errors) : ok(parsed.data);
     }
@@ -265,6 +314,9 @@ export function validateAnswer(
       const parsed = MultiChoiceAnswerValue.safeParse(value);
       if (!parsed.success) {
         return err([encodingError(question)]);
+      }
+      if (parsed.data.length === 0) {
+        return err([emptyAnswerError()]);
       }
       const errors: ValidationError[] = [];
       const known = new Set(optionIdsOf(question));

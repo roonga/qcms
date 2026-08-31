@@ -1,0 +1,58 @@
+{
+  "description": "Whitespace-only text is not an answer (issue #128): a space and a tab-newline leave both text questions unanswered, so neither answered gate shows, the required shortText is missing, and the gates step drops out of visibleSteps entirely. The stored values are untouched - only presence is withheld.",
+  "form": "golden/evaluator/forms/ops-answered.json",
+  "answers": [
+    {
+      "questionId": "q_full_name",
+      "value": " "
+    },
+    {
+      "questionId": "q_medical_history",
+      "value": "\t\n"
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_src",
+        "questionId": "q_full_name"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_medical_history"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_accident_count"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_dob"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_at_fault_accident"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_coverage_level"
+      },
+      {
+        "stepId": "stp_src",
+        "questionId": "q_preexisting_conditions"
+      }
+    ],
+    "visibleSteps": ["stp_src"],
+    "currentStep": "stp_src",
+    "answeredRequired": [],
+    "missingRequired": [
+      "q_full_name",
+      "q_accident_count",
+      "q_dob",
+      "q_at_fault_accident",
+      "q_coverage_level",
+      "q_preexisting_conditions"
+    ],
+    "complete": false
+  }
+}

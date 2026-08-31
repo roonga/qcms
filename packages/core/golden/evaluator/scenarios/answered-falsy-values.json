@@ -1,5 +1,5 @@
 {
-  "description": "answered is the existence test: falsy answers (false, empty string, 0, empty multiChoice selection) still count as answered for every type. Constraints (e.g. minLength) are validation, not evaluation.",
+  "description": "answered is the existence test, and a falsy value is still a value: false, 0 and an empty multiChoice selection all count as answered. Blank text does not - an empty or whitespace-only string is absence (issue #128), so the two text gates stay hidden and the required shortText is missing. Constraints (e.g. minLength) remain validation, not evaluation.",
   "form": "golden/evaluator/forms/ops-answered.json",
   "answers": [
     {
@@ -63,14 +63,6 @@
       },
       {
         "stepId": "stp_gates",
-        "questionId": "q_gate_a"
-      },
-      {
-        "stepId": "stp_gates",
-        "questionId": "q_gate_b"
-      },
-      {
-        "stepId": "stp_gates",
         "questionId": "q_gate_c"
       },
       {
@@ -91,16 +83,15 @@
       }
     ],
     "visibleSteps": ["stp_src", "stp_gates"],
-    "currentStep": "stp_gates",
+    "currentStep": "stp_src",
     "answeredRequired": [
-      "q_full_name",
       "q_accident_count",
       "q_dob",
       "q_at_fault_accident",
       "q_coverage_level",
       "q_preexisting_conditions"
     ],
-    "missingRequired": [],
-    "complete": true
+    "missingRequired": ["q_full_name"],
+    "complete": false
   }
 }

@@ -79,7 +79,15 @@ describe("validateAnswer - shortText", () => {
   });
 
   it("accepts anything string-shaped when unconstrained (required is not checked here)", () => {
-    expect(valueOf(question("shortText"), "")).toBe("");
+    expect(valueOf(question("shortText"), "x")).toBe("x");
+  });
+
+  it("keeps whitespace-only text verbatim: blankness is presence, not validity (#128)", () => {
+    // Issue #128 chose faithful storage, so `" "` validates and is stored as
+    // typed. It is denied *presence* elsewhere (isBlankAnswerValue), which is
+    // what stops it satisfying a required question.
+    expect(valueOf(question("shortText"), " ")).toBe(" ");
+    expect(valueOf(question("longText"), "\t\n")).toBe("\t\n");
   });
 
   it("returns the NFC-normalized canonical value", () => {
@@ -279,7 +287,8 @@ describe("validateAnswer - multiChoice", () => {
   });
 
   it("minSelected violated alone → exactly TOO_FEW_SELECTED", () => {
-    expectErrors(errorsOf(choice, []), [["TOO_FEW_SELECTED", "minSelected"]]);
+    const two = question("multiChoice", { minSelected: 2, maxSelected: 3 }, OPTIONS);
+    expectErrors(errorsOf(two, ["opt_a"]), [["TOO_FEW_SELECTED", "minSelected"]]);
   });
 
   it("maxSelected violated alone → exactly TOO_MANY_SELECTED", () => {
@@ -299,5 +308,53 @@ describe("validateAnswer - multiChoice", () => {
       ["UNKNOWN_OPTION", "options"],
       ["TOO_FEW_SELECTED", "minSelected"],
     ]);
+  });
+});
+
+// --- ADR-33: an empty value is not an answer --------------------------------
+
+describe("validateAnswer - empty text and empty selections (ADR-33)", () => {
+  const EMPTY: readonly [ValidationErrorCode, ValidationConstraint][] = [
+    ["EMPTY_ANSWER_NOT_ALLOWED", "encoding"],
+  ];
+
+  it("refuses an empty string for shortText and longText", () => {
+    expectErrors(errorsOf(question("shortText"), ""), EMPTY);
+    expectErrors(errorsOf(question("longText"), ""), EMPTY);
+  });
+
+  it("refuses an empty selection for multiChoice", () => {
+    expectErrors(errorsOf(question("multiChoice", undefined, OPTIONS), []), EMPTY);
+  });
+
+  it("refuses regardless of the question's own constraints, and alone", () => {
+    // The point of returning alone: a minSelected:1 question would otherwise
+    // also report "select at least 1", which reads as "select more" when the
+    // real answer is "that was never a selection".
+    expectErrors(errorsOf(question("multiChoice", { minSelected: 1 }, OPTIONS), []), EMPTY);
+    expectErrors(errorsOf(question("shortText", { minLength: 3 }), ""), EMPTY);
+    // ...and where nothing constrains the value either, so the refusal is the
+    // rule itself and not a constraint reached by accident.
+    expectErrors(errorsOf(question("longText"), ""), EMPTY);
+  });
+
+  it("names the retraction spelling and quotes no value (SEC-8)", () => {
+    const [error] = errorsOf(question("shortText"), "");
+    expect(error?.message).toBe("An empty value is not an answer; send null to clear the answer");
+  });
+
+  it("refuses the empty value, never converts it to a retraction", () => {
+    // The kernel has no way to express "cleared"; it returns err. Only the API's
+    // explicit `null` body value takes the tombstone branch (ADR-33), so an
+    // empty post can never become a silent retraction.
+    expect(validateAnswer(question("shortText"), "").ok).toBe(false);
+  });
+
+  it("leaves every other empty-adjacent value alone", () => {
+    // Only text and multiChoice have an "empty" spelling. `0`, `false` and a
+    // whitespace string are real values and stay valid.
+    expect(valueOf(question("number"), 0)).toBe(0);
+    expect(valueOf(question("boolean"), false)).toBe(false);
+    expect(valueOf(question("shortText"), " ")).toBe(" ");
   });
 });

@@ -15,6 +15,32 @@ either revert it, or treat it as a new semantics version - never "fix the
 golden" to match new behavior. Adding _new_ scenarios (or new corpus forms and
 questions for them) is always welcome and is how the corpus grows.
 
+### The one recorded exception (issue #128, 2026-08-31)
+
+`answered-falsy-values` was amended without a version bump, on the Code Owner's
+ruling that **required means non-blank**: an empty or whitespace-only text value
+is absence, so it no longer satisfies `required` and no longer answers
+`answered`. The scenario had pinned the opposite. The reasoning for correcting
+it in place rather than under a `SEMANTICS_VERSION = 2`:
+
+- **A bump could not deliver what the rule protects.** The evaluator implements
+  exactly one version at a time and refuses any other stamp
+  (`UNSUPPORTED_SEMANTICS_VERSION`), so `2` would not make old snapshots keep
+  their old behavior - it would make every already-published snapshot fail. The
+  mechanism guards a migration path that does not exist yet.
+- **No product-produced answer changes meaning.** Both control boundaries have
+  reported an emptied field as absence since issue #98 (the renderer and the
+  no-JS decoder), and the same change that made this amendment necessary also
+  refuses `""` and `[]` at the API (ADR-33). The corrected behavior is reachable
+  only by a value the product does not create and can no longer accept.
+- **The pinned behavior was the defect.** A required question satisfied by the
+  space bar is what issue #128 reported; the golden had frozen the bug.
+
+This is a precedent for a **defect correction**, not for editing a golden that
+disagrees with an intended semantics change. Anything that alters the outcome
+for an answer a respondent can actually produce still needs the bump, and still
+needs the evaluator to be able to honor both versions before it is taken.
+
 CI enforces drift two ways with the same runner
 (`packages/core/src/golden-corpus.test.ts`):
 
@@ -69,23 +95,24 @@ forked. Every referenced form must be publish-shaped - the runner asserts
 
 ## Coverage matrix
 
-| Matrix cell                                                               | Form(s)                        | Scenario file(s)                                                                                                                                        |
-| ------------------------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `equals` on all 7 types; multiChoice set equality vs superset (ADR-21)    | `ops-equals`                   | `equals-all-types-match`, `equals-unanswered-all-hidden`, `equals-answered-mismatch`                                                                    |
-| `notEquals` on all 7 types; **false on unanswered** (ADR-16 semantic 2)   | `ops-not-equals`               | `not-equals-all-differ`, `not-equals-unanswered-hidden`, `not-equals-equal-hidden`                                                                      |
-| `in` on all 7 types (element-wise `valuesEqual`)                          | `ops-in`                       | `in-match-all-types`, `in-no-match`, `in-unanswered`                                                                                                    |
-| `gt`/`gte`/`lt`/`lte` on number and date, incl. boundary                  | `ops-ordered`                  | `ordered-at-boundary`, `ordered-above`, `ordered-below`, `ordered-unanswered`                                                                           |
-| `answered` on all 7 types, incl. falsy answers (`false`, `""`, `0`, `[]`) | `ops-answered`                 | `answered-falsy-values`, `answered-none`, `answered-partial`                                                                                            |
-| `contains`/`containsAny` membership vs `equals` set equality (ADR-21)     | `ops-contains`                 | `contains-membership-vs-equality`, `contains-single-exact`, `contains-miss`, `contains-empty-answer`, `contains-unanswered`                             |
-| `and`/`or`/`not` combinations, incl. `not` over unanswered ⇒ true         | `combinators`                  | `combo-and-or-mixed-true`, `combo-all-false`, `combo-not-unanswered-true`, `combo-not-false-answer`                                                     |
-| Nesting at depth 8 (the cap)                                              | `depth-8`                      | `depth-8-true`, `depth-8-false`                                                                                                                         |
-| Step-level target show/hide; step ∧ question layers                       | `step-gate`                    | `step-gate-shown-both-layers`, `step-gate-question-layer-hidden`, `step-gate-hidden`, `step-gate-stale-answer-excluded`                                 |
-| `visibleSteps` derivation (all-questions-hidden step drops out)           | `step-empty`                   | `step-empty-drops-from-visible-steps`                                                                                                                   |
-| Multiple rules targeting the same question (OR)                           | `multi-rule-target`            | `multi-rule-first-only`, `multi-rule-second-only`, `multi-rule-none`                                                                                    |
-| Hidden-answer exclusion chain (A controls B; B's answer feeds C)          | `exclusion-chain`, `step-gate` | `chain-propagates`, `chain-hidden-answer-excluded`, `chain-middle-unanswered`, `step-gate-stale-answer-excluded`                                        |
-| Empty answers / all answered / partial with required missing              | many                           | `*-unanswered`, `*-none`, `answered-partial`, `kitchen-sink-partial-missing-required`, `minimal-*`                                                      |
-| Insurance flow as a sequence (answers appended step by step)              | fixture `insurance`            | `insurance-seq-1-empty`, `insurance-seq-2-accident-yes`, `insurance-seq-2b-accident-no`, `insurance-seq-3-complete`                                     |
-| Kitchen-sink end to end (both branches on, off, optional unanswered)      | fixture `kitchen-sink`         | `kitchen-sink-empty`, `kitchen-sink-partial-missing-required`, `kitchen-sink-complete`, `kitchen-sink-optional-unanswered`, `kitchen-sink-branches-off` |
+| Matrix cell                                                             | Form(s)                        | Scenario file(s)                                                                                                                                        |
+| ----------------------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `equals` on all 7 types; multiChoice set equality vs superset (ADR-21)  | `ops-equals`                   | `equals-all-types-match`, `equals-unanswered-all-hidden`, `equals-answered-mismatch`                                                                    |
+| `notEquals` on all 7 types; **false on unanswered** (ADR-16 semantic 2) | `ops-not-equals`               | `not-equals-all-differ`, `not-equals-unanswered-hidden`, `not-equals-equal-hidden`                                                                      |
+| `in` on all 7 types (element-wise `valuesEqual`)                        | `ops-in`                       | `in-match-all-types`, `in-no-match`, `in-unanswered`                                                                                                    |
+| `gt`/`gte`/`lt`/`lte` on number and date, incl. boundary                | `ops-ordered`                  | `ordered-at-boundary`, `ordered-above`, `ordered-below`, `ordered-unanswered`                                                                           |
+| `answered` on all 7 types, incl. falsy answers (`false`, `0`, `[]`)     | `ops-answered`                 | `answered-falsy-values`, `answered-none`, `answered-partial`                                                                                            |
+| Blank text is absence: `""`, whitespace-only, vs merely padded (#128)   | `ops-answered`                 | `answered-falsy-values`, `answered-blank-text-unanswered`, `answered-padded-text-is-answered`                                                           |
+| `contains`/`containsAny` membership vs `equals` set equality (ADR-21)   | `ops-contains`                 | `contains-membership-vs-equality`, `contains-single-exact`, `contains-miss`, `contains-empty-answer`, `contains-unanswered`                             |
+| `and`/`or`/`not` combinations, incl. `not` over unanswered ⇒ true       | `combinators`                  | `combo-and-or-mixed-true`, `combo-all-false`, `combo-not-unanswered-true`, `combo-not-false-answer`                                                     |
+| Nesting at depth 8 (the cap)                                            | `depth-8`                      | `depth-8-true`, `depth-8-false`                                                                                                                         |
+| Step-level target show/hide; step ∧ question layers                     | `step-gate`                    | `step-gate-shown-both-layers`, `step-gate-question-layer-hidden`, `step-gate-hidden`, `step-gate-stale-answer-excluded`                                 |
+| `visibleSteps` derivation (all-questions-hidden step drops out)         | `step-empty`                   | `step-empty-drops-from-visible-steps`                                                                                                                   |
+| Multiple rules targeting the same question (OR)                         | `multi-rule-target`            | `multi-rule-first-only`, `multi-rule-second-only`, `multi-rule-none`                                                                                    |
+| Hidden-answer exclusion chain (A controls B; B's answer feeds C)        | `exclusion-chain`, `step-gate` | `chain-propagates`, `chain-hidden-answer-excluded`, `chain-middle-unanswered`, `step-gate-stale-answer-excluded`                                        |
+| Empty answers / all answered / partial with required missing            | many                           | `*-unanswered`, `*-none`, `answered-partial`, `kitchen-sink-partial-missing-required`, `minimal-*`                                                      |
+| Insurance flow as a sequence (answers appended step by step)            | fixture `insurance`            | `insurance-seq-1-empty`, `insurance-seq-2-accident-yes`, `insurance-seq-2b-accident-no`, `insurance-seq-3-complete`                                     |
+| Kitchen-sink end to end (both branches on, off, optional unanswered)    | fixture `kitchen-sink`         | `kitchen-sink-empty`, `kitchen-sink-partial-missing-required`, `kitchen-sink-complete`, `kitchen-sink-optional-unanswered`, `kitchen-sink-branches-off` |
 
 ## Adding a scenario
 

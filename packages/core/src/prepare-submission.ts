@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { AnswerValue } from "./answer-value.js";
+import { AnswerValue, isBlankAnswerValue } from "./answer-value.js";
 import { err, ok, type Result } from "./errors.js";
 import { EvalError, evaluateRules, FlowState, type AnswerMap } from "./evaluate-rules.js";
 import { QuestionId } from "./ids.js";
@@ -140,7 +140,10 @@ export async function computeContentHash(content: unknown): Promise<string> {
  * 2. Evaluate the flow (task 006) over the answers.
  * 3. Every visible required question must have an answer
  *    (`MISSING_REQUIRED`); every present answer for a *visible* question is
- *    re-validated with `validateAnswer` (`INVALID_ANSWER`).
+ *    re-validated with `validateAnswer` (`INVALID_ANSWER`). "Has an answer"
+ *    means a non-blank one: an empty or whitespace-only text value is absence
+ *    (issue #128), so it fails a required question and is left out of the
+ *    locked set rather than sealed into the content hash as an answer.
  * 4. Hidden questions' answers are excluded from the locked set (I6) -
  *    they are not validated either; an orphaned answer never blocks submit.
  *
@@ -185,7 +188,12 @@ export async function prepareSubmission(
     if (definition === undefined) {
       continue;
     }
-    if (!answers.has(questionId)) {
+    // Presence, not mere map membership: a blank text answer holds nothing, so
+    // it neither satisfies `required` nor enters the locked set (issue #128).
+    // The sweep reads the same predicate the evaluator dropped the entry with,
+    // so `flowState.missingRequired` and MISSING_REQUIRED cannot disagree.
+    const answer = answers.get(questionId);
+    if (answer === undefined || isBlankAnswerValue(answer)) {
       if (definition.required) {
         errors.push({
           code: "MISSING_REQUIRED",
@@ -195,7 +203,7 @@ export async function prepareSubmission(
       }
       continue;
     }
-    const validated = validateAnswer(definition, answers.get(questionId));
+    const validated = validateAnswer(definition, answer);
     if (validated.ok) {
       locked.push({ questionId, value: validated.value });
     } else {

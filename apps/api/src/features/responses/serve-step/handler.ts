@@ -367,6 +367,14 @@ export function makeGetStepHandler(deps: Deps): RouteHandler<typeof getStepRoute
  * taken before validation, never a validation outcome, so no real answer can
  * reach the ledger through it.
  *
+ * `null` is the only clear. An **empty** value (`""` or `[]`) is not a second
+ * spelling of it: the kernel refuses it (`EMPTY_ANSWER_NOT_ALLOWED`) and this
+ * handler returns the same 422 it returns for any other invalid value, before
+ * the append - so an empty post stores nothing and is never silently converted
+ * into a tombstone (ADR-33 closed in issue #128's batch). A whitespace-only text
+ * value is a legal answer and IS appended; it just confers no presence, so the
+ * re-evaluated projection still reports the question in `missingRequired`.
+ *
  * The visibility check, append, mark, and re-evaluation run inside one
  * transaction holding a per-session advisory lock, so concurrent submits are
  * serialized and the ledger's order is deterministic (I6: only legitimately

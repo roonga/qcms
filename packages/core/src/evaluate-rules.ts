@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { AnswerValue, compareValues, valuesEqual } from "./answer-value.js";
+import { AnswerValue, compareValues, isBlankAnswerValue, valuesEqual } from "./answer-value.js";
 import { QcmsError, err, ok, type Result } from "./errors.js";
 import { FormDefinition } from "./form-definition.js";
 import { isStepId, QuestionId, StepId } from "./ids.js";
@@ -22,7 +22,11 @@ import type { Condition, VisibilityRule } from "./visibility-rule.js";
  *    (the explicit existence test - including `notEquals`, which is `false`
  *    on unanswered). A referenced question currently *hidden* is treated as
  *    unanswered - well-defined because a referenced question's visibility was
- *    settled earlier in the walk (forward-only, publish-enforced).
+ *    settled earlier in the walk (forward-only, publish-enforced). A **blank**
+ *    text answer (empty or whitespace-only, {@link isBlankAnswerValue}) is
+ *    unanswered here too: required means non-blank (issue #128), so one
+ *    definition of presence serves the `answered` operator, every other
+ *    operator, and the required accounting alike.
  * 3. `equals`/`notEquals`/`in` compare via `valuesEqual` (set equality for
  *    multiChoice, ADR-21); `contains`/`containsAny` test optionId membership
  *    in the multiChoice answer; `gt/gte/lt/lte` order via `compareValues`.
@@ -210,6 +214,13 @@ export function evaluateRules(
   // Canonicalize answers for pinned questions (NFC text, deduplicated
   // multiChoice); unknown keys are ignored. Malformed values are reported
   // all-at-once, in document order - again independent of map order.
+  //
+  // A BLANK text answer is dropped here rather than special-cased downstream
+  // (issue #128): `canonical` is the evaluator's single definition of "this
+  // question has an answer", so dropping the entry gives `answered`, every
+  // value operator, and the required accounting the same answer without three
+  // chances to disagree. The value is not rewritten - it stays untouched in the
+  // ledger the caller read it from; it simply does not confer presence.
   const canonical = new Map<QuestionId, AnswerValue>();
   const malformed: QuestionId[] = [];
   for (const { questionId } of order) {
@@ -217,10 +228,12 @@ export function evaluateRules(
       continue;
     }
     const parsed = AnswerValue.safeParse(answers.get(questionId));
-    if (parsed.success) {
-      canonical.set(questionId, parsed.data);
-    } else {
+    if (!parsed.success) {
       malformed.push(questionId);
+      continue;
+    }
+    if (!isBlankAnswerValue(parsed.data)) {
+      canonical.set(questionId, parsed.data);
     }
   }
   if (malformed.length > 0) {

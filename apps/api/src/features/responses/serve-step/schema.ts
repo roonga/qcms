@@ -157,13 +157,20 @@ export type StepResponse = z.infer<typeof StepResponse>;
  * is why it can be spelled on this route without ambiguity - `null` is not a
  * legal `AnswerValue` for any question type, so it can never collide with real
  * content. The handler routes it to a tombstone append instead of validation.
+ *
+ * It is also the *only* spelling of a clear. `""` and `[]` are refused by the
+ * kernel (`EMPTY_ANSWER_NOT_ALLOWED`, 422) rather than stored as answers or
+ * quietly reinterpreted as retractions: nothing is appended, and the error names
+ * `null` as what to send instead. Whitespace-only text is a different case - it
+ * is a legal value, stored as typed, that simply confers no presence, so it
+ * cannot satisfy a required question (issue #128).
  */
 export const SubmitAnswerBody = z
   .object({
     questionId: z.string().min(1).openapi({ example: "q_at_fault_accident" }),
     value: z.unknown().openapi({
       description:
-        "The answer value; validated against the pinned question. Literal null retracts the answer (the question becomes unanswered; the ledger records the retraction).",
+        'The answer value; validated against the pinned question. Literal null retracts the answer (the question becomes unanswered; the ledger records the retraction). An empty value ("" or []) is not an answer and is rejected with EMPTY_ANSWER_NOT_ALLOWED; send null to clear an answer.',
     }),
   })
   .openapi("SubmitAnswerBody");
