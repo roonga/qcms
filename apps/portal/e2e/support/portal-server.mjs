@@ -293,6 +293,26 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
   });
 }
 
+/**
+ * Highest status code that counts as "this server is serving".
+ *
+ * Any HTTP response used to settle this probe true, which disarmed the startup
+ * watch for a server that was answering nothing but errors (issue #381). The case
+ * that found it: `@qcms/ui`'s `fonts` subpath resolves to `dist`, so in a tree
+ * where it had not been built the portal 500'd on every request, including `/`.
+ * The wrapper called that ready, cleared `startupOutput`, and never looked at the
+ * fatal output again - so the whole failure reduced to Playwright's own poll
+ * running out after 180s with a bare "Timed out waiting" and the cause visible
+ * only inside the captured log, which is precisely what issue #58's machinery
+ * exists to prevent.
+ *
+ * 400 rather than 500 as the line: a dev server that answers 4xx on `/` is not
+ * serving this app either, and Playwright's own `webServer` readiness check draws
+ * it in the same place. The portal's `/` is a real page (`app/page.tsx`), so a 200
+ * is what a working dev server returns here.
+ */
+const READY_STATUS_CEILING = 400;
+
 /** Resolves true when the dev server answers on its port, false otherwise. */
 function probeReady() {
   return new Promise((resolve) => {
@@ -306,7 +326,10 @@ function probeReady() {
     try {
       request = get({ host: "localhost", port: Number(port), path: "/" }, (response) => {
         response.resume();
-        settle(true);
+        // An absent status is treated as not ready: the probe's job is to be sure,
+        // and the poll simply asks again a quarter of a second later.
+        const status = response.statusCode;
+        settle(status !== undefined && status < READY_STATUS_CEILING);
       });
     } catch {
       // An unusable port is simply never ready: the startup watch and the exit

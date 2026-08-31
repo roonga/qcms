@@ -273,6 +273,30 @@ async function waitForTeedOutput(
   );
 }
 
+/**
+ * The #381 shape: the port is open and every request is answered, but answered
+ * with a 500. The stub arms the fatal line off its first request, so the line
+ * always lands after the wrapper's first probe has been answered - which is the
+ * window the old "any response is ready" rule closed the startup watch in.
+ */
+const SERVES_ONLY_ERRORS = `
+import { createServer } from "node:http";
+let armed = false;
+createServer((_req, res) => {
+  res.writeHead(500, { "content-type": "text/plain" });
+  res.end("Internal Server Error");
+  if (armed) return;
+  armed = true;
+  setTimeout(
+    () => process.stdout.write(
+      "Unhandled Rejection: Error: Cannot find module '@qcms/ui/fonts'\\n",
+    ),
+    500,
+  );
+}).listen(Number(process.env.PORTAL_PORT));
+setInterval(() => {}, 1000);
+`;
+
 /** The #58 shape: a fatal error is reported, but the process keeps running. */
 const FATAL_THEN_HANGS = `
 process.stdout.write("> qcms-portal@0.0.0 dev\\n> next dev --port 99999\\n");
@@ -356,6 +380,36 @@ describe("portal-server wrapper startup fail-fast (issue #58)", () => {
     // Trimmed off the front rather than dumping the whole log.
     expect(stderr).not.toContain("line-01");
   }, 30_000);
+
+  it(
+    "does not call a server that answers 500 to everything ready (issue #381)",
+    async () => {
+      // The failure this pins: readiness used to mean "an HTTP response arrived",
+      // so a dev server that 500s every request disarmed the startup watch. The
+      // reproduction was a tree where `@qcms/ui` had not been built, which makes
+      // the portal's `@qcms/ui/fonts` import fail on every render. Everything the
+      // #58 machinery adds was then switched off, and the run degraded back to
+      // Playwright's own 180-second poll ending in a bare "Timed out waiting",
+      // with the cause only inside the captured log.
+      //
+      // Asserting the fail-fast happened is what proves the watch stayed armed:
+      // the fatal marker is written after the first request has been answered, so
+      // under the old rule `ready` was already true and this stub would have run
+      // until the test timed out.
+      const wrapper = startWrapper(SERVES_ONLY_ERRORS, await freePort());
+      const { code, elapsedMs } = await wrapper.ended;
+
+      expect(code).not.toBe(0);
+      expect(
+        elapsedMs,
+        `fail-fast took ${String(elapsedMs)}ms, which is no longer "seconds not minutes"`,
+      ).toBeLessThan(FAST_FAILURE_BUDGET_MS);
+      const stderr = wrapper.stderr();
+      expect(stderr).toContain("portal dev server failed during startup");
+      expect(stderr).toContain("Cannot find module '@qcms/ui/fonts'");
+    },
+    BUDGET_TEST_TIMEOUT_MS,
+  );
 
   it(
     "leaves a healthy slow start alone and shuts down cleanly on SIGTERM",
