@@ -170,7 +170,7 @@ export const SubmitAnswerBody = z
     questionId: z.string().min(1).openapi({ example: "q_at_fault_accident" }),
     value: z.unknown().openapi({
       description:
-        "The answer value; validated against the pinned question. Literal null retracts the answer (the question becomes unanswered; the ledger records the retraction). An empty value (\"\" or []) is not an answer and is rejected with EMPTY_ANSWER_NOT_ALLOWED; send null to clear an answer.",
+        'The answer value; validated against the pinned question. Literal null retracts the answer (the question becomes unanswered; the ledger records the retraction). An empty value ("" or []) is not an answer and is rejected with EMPTY_ANSWER_NOT_ALLOWED; send null to clear an answer.',
     }),
   })
   .openapi("SubmitAnswerBody");
