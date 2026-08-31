@@ -91,6 +91,12 @@ export interface PortalFixtures {
   readonly consumedToken: string;
   readonly revokedToken: string;
   readonly invalidToken: string;
+  /**
+   * A perfectly good link into a form that has since been closed (ADR-39, issue
+   * #724): the whole-form closed state overrides every link, so this is the
+   * closed explanation rather than a link failure.
+   */
+  readonly closedFormToken: string;
 }
 
 interface RunningApi {
@@ -224,6 +230,21 @@ export async function startApiServer(): Promise<void> {
     throw new Error(`expected 200 revoking link, got ${revokeRes.status}`);
   }
 
+  // A valid, unspent link into a CLOSED form: the questionnaire stopped
+  // accepting responses after the invitation went out (ADR-39, issue #724). A
+  // second form so the open one every other spec drives stays open; its library
+  // questions are already seeded by the insurance seed above.
+  const { formId: closedFormId } = await seedInsuranceForm(testDb.db, {
+    formId: "frm_closed_link",
+    slug: "closed-link",
+    sharedQuestionsSeeded: true,
+    closed: true,
+  });
+  const closedFormToken = await mintInsuranceLink(testDb.db, config, closedFormId, {
+    linkId: "lnk_closed_form",
+    expiresAt: new Date(nowMs + oneHour),
+  });
+
   const fixtures: PortalFixtures = {
     slug,
     kitchenSinkSlug,
@@ -234,6 +255,7 @@ export async function startApiServer(): Promise<void> {
     consumedToken,
     revokedToken,
     invalidToken: "not-a-real-link-token",
+    closedFormToken,
   };
   mkdirSync(dirname(FIXTURES_PATH), { recursive: true });
   writeFileSync(FIXTURES_PATH, JSON.stringify(fixtures, null, 2), "utf8");

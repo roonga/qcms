@@ -27,11 +27,14 @@ import { HONEYPOT_FIELD_NAME } from "@qcms/a2ui-compiler";
 import { FormId, type LockedSubmission, QuestionId, SessionId } from "@qcms/core";
 import {
   answerLedger,
+  appendAnswer,
   createForm,
   createQuestion,
   createQuestionVersion,
+  createSession,
   getSubmission,
   insertFormVersion,
+  markInProgress,
 } from "@qcms/db";
 import { startTestDb, type TestDb } from "@qcms/db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -41,6 +44,7 @@ import type { Config } from "../../../config.js";
 import type { Deps } from "../../../deps.js";
 import { fixedClock, internalTokenFor, makeDeps, validEnv } from "../../../test-support.js";
 import { registerServeStep } from "../serve-step/route.js";
+import { importSessionKeys, mintSessionToken } from "../session-token.js";
 import { registerStartSession } from "../start-session/route.js";
 import { registerSubmit } from "./route.js";
 
@@ -144,10 +148,16 @@ async function seedQuestions(): Promise<void> {
   });
 }
 
+/**
+ * Seed the insurance form with one published version. `semanticsVersion` is the
+ * stored stamp (text, ADR-16); it defaults to the one this evaluator implements
+ * and is overridden to exercise the gate.
+ */
 async function seedForm(
   id: string,
   slug: string,
   compiled: VersionInput["compiled"],
+  semanticsVersion = "1",
 ): Promise<FormId> {
   const formId = FormId.parse(id);
   await createForm(testDb.db, { formId, slug, defaultLocale: "en" });
@@ -157,7 +167,7 @@ async function seedForm(
     compiled,
     compilerVersion: GOLDEN.compilerVersion,
     a2uiSpecVersion: GOLDEN.a2uiSpecVersion,
-    semanticsVersion: "1",
+    semanticsVersion,
   });
   return formId;
 }
@@ -594,5 +604,83 @@ describe("session-state rejects and post-submit guards", () => {
     const answer = await postAnswer(sessionId, sessionToken, "q_at_fault_accident", true);
     expect(answer.status).toBe(409);
     expect(((await answer.json()) as ErrBody).error.code).toBe("SESSION_SUBMITTED");
+  });
+});
+
+// --- the stored semantics stamp at the submit boundary (ADR-16, issue #723) -
+
+describe("the stored semanticsVersion at submit (ADR-16)", () => {
+  /**
+   * A session on `formId`, already carrying the one answer that completes the
+   * flow, built without the entry or serving endpoints.
+   *
+   * Neither endpoint can do this job here. The answer route is behind the same
+   * semantics gate as `/step`, so a form whose stamp is under test cannot be
+   * answered through the API; and the suite runs on a frozen clock, so every
+   * `POST /sessions` counts against one per-IP rate-limit window (026). The
+   * session and the ledger row are written directly instead - exactly what the
+   * loop would have committed.
+   */
+  async function submittableSessionOn(formId: string, id: string): Promise<StartBody> {
+    const sessionId = SessionId.parse(id);
+    const expiresAt = new Date(NOW.getTime() + 24 * 60 * 60 * 1000);
+    await createSession(testDb.db, {
+      sessionId,
+      formId: FormId.parse(formId),
+      formVersion: 1,
+      accessMode: "anonymous",
+      expiresAt,
+    });
+    await appendAnswer(testDb.db, {
+      sessionId,
+      questionId: QuestionId.parse("q_at_fault_accident"),
+      value: false,
+    });
+    await markInProgress(testDb.db, sessionId);
+
+    const [signingKey] = await importSessionKeys(deps.config);
+    if (signingKey === undefined) throw new Error("no session signing key in test config");
+    return { sessionId, sessionToken: await mintSessionToken(sessionId, expiresAt, signingKey) };
+  }
+
+  it("a corrupt stamp is refused rather than coerced to NaN (UNSUPPORTED_SEMANTICS_VERSION)", async () => {
+    await seedForm(
+      "frm_submit_bad_semantics",
+      "submit-bad-semantics",
+      GOLDEN as unknown as VersionInput["compiled"],
+      "not-a-number",
+    );
+    const { sessionId, sessionToken } = await submittableSessionOn(
+      "frm_submit_bad_semantics",
+      "ses_submit_bad_stamp",
+    );
+
+    const res = await submit(sessionId, sessionToken);
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as ErrBody).error.code).toBe("UNSUPPORTED_SEMANTICS_VERSION");
+    expect(await loadSubmission(sessionId)).toBeUndefined();
+  });
+
+  it("a readable but unsupported stamp still reports through the kernel sweep (unchanged)", async () => {
+    await seedForm(
+      "frm_submit_alien_semantics",
+      "submit-alien-semantics",
+      GOLDEN as unknown as VersionInput["compiled"],
+      "999",
+    );
+    const { sessionId, sessionToken } = await submittableSessionOn(
+      "frm_submit_alien_semantics",
+      "ses_submit_alien_stamp",
+    );
+
+    // Unchanged by issue #723: the number reaches the evaluator, which refuses
+    // it, and `prepareSubmission` reports it as a failed sweep.
+    const res = await submit(sessionId, sessionToken);
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as ErrBody;
+    expect(body.error.code).toBe("SUBMISSION_INVALID");
+    const details = body.error.details as { errors: { code: string }[] };
+    expect(details.errors.map((error) => error.code)).toContain("FLOW_EVALUATION_FAILED");
+    expect(await loadSubmission(sessionId)).toBeUndefined();
   });
 });

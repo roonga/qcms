@@ -7,6 +7,10 @@
  * the one-time link race (exactly one of two concurrent starts wins), version
  * pinning across a later publish (I4), newest-version selection, and the
  * session-token gate (missing / tampered / cross-purpose → 401).
+ *
+ * Also pins the whole-form closed state over secure links (ADR-39, issue #724):
+ * a valid link into a closed form is refused, nothing is consumed or created,
+ * and the link's own state still answers first when both are bad.
  */
 
 import {
@@ -21,6 +25,7 @@ import {
   closeForm,
   consumeSecureLink,
   createForm,
+  getSecureLink,
   getSession,
   insertFormVersion,
   insertSecureLink,
@@ -121,6 +126,15 @@ async function seedForm(
   }
   if (opts.closed) await closeForm(testDb.db, formId);
   return formId;
+}
+
+/** How many sessions exist for a form - 0 proves a refusal created nothing. */
+async function sessionCount(formId: FormId): Promise<number> {
+  const res = await testDb.client.query<{ n: string }>(
+    `select count(*) as n from sessions where form_id = $1`,
+    [formId],
+  );
+  return Number(res.rows[0]?.n ?? "0");
 }
 
 /** Insert a secure_links row and mint the matching signed token. */
@@ -247,6 +261,53 @@ describe("secure-link start", () => {
     expect(res.status).toBe(201);
     const body = (await res.json()) as StartBody;
     expect(body.expiresAt).toBe(new Date(NOW.getTime() + TTL_MS).toISOString()); // TTL ceiling
+  });
+});
+
+// --- whole-form closed overrides secure links (ADR-39, issue #724) ----------
+
+describe("whole-form closed state binds secure links (ADR-39)", () => {
+  it("FORM_CLOSED for a valid link into a closed form (409), and no session is created", async () => {
+    const formId = await seedForm("frm_link_closed", "link-closed", {
+      versions: 1,
+      closed: true,
+    });
+    const token = await seedLink(formId, "lnk_closed");
+
+    const res = await post({ token });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as ErrBody).error.code).toBe("FORM_CLOSED");
+    expect(await sessionCount(formId)).toBe(0);
+  });
+
+  it("a one-time link into a closed form is refused without being consumed", async () => {
+    const formId = await seedForm("frm_link_closed_once", "link-closed-once", {
+      versions: 1,
+      closed: true,
+    });
+    const token = await seedLink(formId, "lnk_closed_once", { oneTime: true });
+
+    const res = await post({ token });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as ErrBody).error.code).toBe("FORM_CLOSED");
+    // Nothing is spent on a closed form: the invitation survives the refusal and
+    // works again if the form reopens.
+    const link = await getSecureLink(testDb.db, LinkId.parse("lnk_closed_once"));
+    expect(link?.consumedAt).toBeNull();
+    expect(await sessionCount(formId)).toBe(0);
+  });
+
+  it("the link's own state is settled first: a revoked link into a closed form reports LINK_REVOKED", async () => {
+    const formId = await seedForm("frm_link_closed_rev", "link-closed-rev", {
+      versions: 1,
+      closed: true,
+    });
+    const token = await seedLink(formId, "lnk_closed_rev");
+    await revokeSecureLink(testDb.db, LinkId.parse("lnk_closed_rev"), formId, NOW);
+
+    const res = await post({ token });
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as ErrBody).error.code).toBe("LINK_REVOKED");
   });
 });
 

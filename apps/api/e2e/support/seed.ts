@@ -21,6 +21,7 @@ import {
   mintSecureLink,
 } from "@qcms/core";
 import {
+  closeForm,
   createForm,
   createQuestionVersion,
   createQuestion,
@@ -89,16 +90,27 @@ export interface SeededForm {
 /**
  * Seed the insurance questions plus a form with one published version storing the
  * golden compiled A2UI. Returns the form id and slug the respondent path uses.
+ *
+ * `sharedQuestionsSeeded` skips the library questions for a second form that
+ * pins the same ones (the kitchen-sink seed takes the same option).
+ * `closed` publishes the version and then closes the form, which is the state a
+ * respondent meets when a link outlives the questionnaire (ADR-39).
  */
 export async function seedInsuranceForm(
   db: Db,
-  opts: { formId?: string; slug?: string } = {},
+  opts: {
+    formId?: string;
+    slug?: string;
+    sharedQuestionsSeeded?: boolean;
+    closed?: boolean;
+  } = {},
 ): Promise<SeededForm> {
   const formId = opts.formId ?? "frm_auto_quote";
   const slug = opts.slug ?? "auto";
-  await seedInsuranceQuestions(db);
+  if (opts.sharedQuestionsSeeded !== true) await seedInsuranceQuestions(db);
   await createForm(db, { formId: FormId.parse(formId), slug, defaultLocale: "en" });
   await publishInsuranceVersion(db, formId);
+  if (opts.closed === true) await closeForm(db, FormId.parse(formId));
   return { formId, slug };
 }
 

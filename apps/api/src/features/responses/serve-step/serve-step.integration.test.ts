@@ -14,6 +14,10 @@
  * equals the stored compiled document (2), the typed rejects - invalid value,
  * hidden question, unknown question, submitted/expired session (3), and
  * concurrent answers serialized by the advisory lock (4).
+ *
+ * It also pins the ADR-16 semantics gate on this loop (issue #723): a stored
+ * stamp the evaluator does not implement, or one that is not a number at all,
+ * refuses both endpoints instead of being branched under current semantics.
  */
 
 import { readFileSync } from "node:fs";
@@ -141,11 +145,16 @@ async function seedQuestions(): Promise<void> {
   });
 }
 
-/** Seed the insurance form with one published version storing `compiled`. */
+/**
+ * Seed the insurance form with one published version storing `compiled`.
+ * `semanticsVersion` is the stored stamp (text, ADR-16); it defaults to the one
+ * this evaluator implements and is overridden to exercise the gate.
+ */
 async function seedForm(
   id: string,
   slug: string,
   compiled: VersionInput["compiled"],
+  semanticsVersion = "1",
 ): Promise<FormId> {
   const formId = FormId.parse(id);
   await createForm(testDb.db, { formId, slug, defaultLocale: "en" });
@@ -155,7 +164,7 @@ async function seedForm(
     compiled,
     compilerVersion: GOLDEN.compilerVersion,
     a2uiSpecVersion: GOLDEN.a2uiSpecVersion,
-    semanticsVersion: "1",
+    semanticsVersion,
   });
   return formId;
 }
@@ -637,6 +646,91 @@ describe("typed rejects (exit criterion 3)", () => {
     const { sessionId } = await startSession("auto");
     const res = await getStep(sessionId);
     expect(res.status).toBe(401);
+  });
+});
+
+// --- the stored semantics stamp gates the serving loop (ADR-16, issue #723) -
+
+describe("the stored semanticsVersion gates serving and answering (ADR-16)", () => {
+  beforeAll(async () => {
+    // The pinned library questions are already seeded by the first suite.
+    // Same definition and same compiled document as the happy-path form; only
+    // the stored stamp differs, so the stamp is the only thing under test.
+    await seedForm(
+      "frm_alien_semantics",
+      "alien-semantics",
+      GOLDEN as unknown as VersionInput["compiled"],
+      "999", // a semantics version this evaluator does not implement
+    );
+    await seedForm(
+      "frm_bad_semantics",
+      "bad-semantics",
+      GOLDEN as unknown as VersionInput["compiled"],
+      "not-a-number", // a corrupt stamp: `Number()` would have made it NaN
+    );
+  });
+
+  /**
+   * A pinned session on `formId`, created and signed directly rather than
+   * through `POST /sessions`. The suite runs on a frozen clock, so every
+   * start-session call in the file counts against one per-IP rate-limit window
+   * (026); these cases are about the serving loop, not about entry, so they
+   * spend no budget on it.
+   */
+  async function sessionOn(
+    formId: string,
+    id: string,
+  ): Promise<{ sessionId: string; sessionToken: string }> {
+    const sessionId = SessionId.parse(id);
+    const expiresAt = new Date(NOW.getTime() + TTL_MS);
+    await createSession(testDb.db, {
+      sessionId,
+      formId: FormId.parse(formId),
+      formVersion: 1,
+      accessMode: "anonymous",
+      expiresAt,
+    });
+    const [signingKey] = await importSessionKeys(deps.config);
+    if (signingKey === undefined) throw new Error("no session signing key in test config");
+    return { sessionId, sessionToken: await mintSessionToken(sessionId, expiresAt, signingKey) };
+  }
+
+  it("get-step refuses a snapshot recorded under superseded semantics (UNSUPPORTED_SEMANTICS_VERSION)", async () => {
+    const { sessionId, sessionToken } = await sessionOn("frm_alien_semantics", "ses_alien_step");
+    const res = await getStep(sessionId, sessionToken);
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as ErrBody).error.code).toBe("UNSUPPORTED_SEMANTICS_VERSION");
+  });
+
+  it("post-answer refuses it too, so no answer is branched under the wrong semantics", async () => {
+    const { sessionId, sessionToken } = await sessionOn("frm_alien_semantics", "ses_alien_answer");
+    const res = await postAnswer(sessionId, sessionToken, "q_at_fault_accident", true);
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as ErrBody).error.code).toBe("UNSUPPORTED_SEMANTICS_VERSION");
+
+    // The refusal happens before the append: the ledger stays empty.
+    const ledger = await answerLedger(testDb.db, SessionId.parse(sessionId));
+    expect(ledger).toHaveLength(0);
+  });
+
+  it("a stamp that is not a number is refused, never coerced to NaN and mismatched silently", async () => {
+    const { sessionId, sessionToken } = await sessionOn("frm_bad_semantics", "ses_bad_stamp");
+
+    const stepRes = await getStep(sessionId, sessionToken);
+    expect(stepRes.status).toBe(409);
+    expect(((await stepRes.json()) as ErrBody).error.code).toBe("UNSUPPORTED_SEMANTICS_VERSION");
+
+    const answerRes = await postAnswer(sessionId, sessionToken, "q_at_fault_accident", true);
+    expect(answerRes.status).toBe(409);
+    expect(((await answerRes.json()) as ErrBody).error.code).toBe("UNSUPPORTED_SEMANTICS_VERSION");
+  });
+
+  it("the matching stamp still serves: the gate does not touch the happy path", async () => {
+    const { sessionId, sessionToken } = await sessionOn("frm_auto_quote", "ses_good_stamp");
+    const res = await getStep(sessionId, sessionToken);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as StepBody;
+    expect(body.flowState.visibleQuestions).toEqual(["q_at_fault_accident"]);
   });
 });
 
