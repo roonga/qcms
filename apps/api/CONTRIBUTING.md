@@ -105,6 +105,47 @@ Every internal-surface request carries the internal service token
 (`x-qcms-internal-token`, SEC-4) - tests attach `internalTokenFor(config)`.
 `/health` and `/ready` never require it.
 
+### Compiled A2UI fixtures (issue #321)
+
+`e2e/support/fixtures/*.a2ui.json` are compiled A2UI documents. `seed.ts` stores
+them in `form_versions` verbatim, exactly as the serve path later replays them
+(ADR-18), and several API and browser specs assert against what comes back out.
+That makes them a claim about the compiler, and the claim has to be checked:
+before issue #321 nothing recompiled them, so a `@qcms/a2ui-compiler` change
+desynced them **silently** - every spec kept passing against a document the
+compiler no longer produced. The insurance read had drifted a whole corpus
+generation behind before anyone noticed.
+
+Two rules follow, and both are mechanical:
+
+- **Every committed compiled document gets a row in `COMPILED_FIXTURES`**
+  (`e2e/support/fixtures.ts`): the file path plus the form and question
+  definitions it was compiled from. `e2e/support/fixture-drift.test.ts` rebuilds
+  each one through the real publish path (`compileDraft` then `compileForm`, the
+  same pair `makePublishFormHandler` calls) and asserts byte equality with the
+  file. Byte, not deep: key order and formatting are part of the determinism
+  contract, and the bytes are what a respondent is served. Adding a compiled
+  fixture without its row leaves it unguarded.
+- **Never write a corpus generation into a path here.** The insurance document
+  belongs to the append-only corpus, and its generation directory is derived from
+  the live `COMPILER_VERSION` (`currentGoldenGeneration()`), so a future `v3/` is
+  followed with no edit and a version bump landed without its generation throws
+  instead of silently reverting to older bytes.
+
+When a compiler change legitimately alters the output, regenerate the `apps/api`
+fixtures (never the corpus, which is frozen):
+
+```sh
+UPDATE_API_FIXTURES=1 pnpm exec vitest run --root . --project qcms-api fixture-drift
+```
+
+Review the diff by eye before committing, as `UPDATE_GOLDEN=1` demands of the
+corpus. `pnpm lint` re-runs `check:fixture-domain` over the directory, so
+regenerated content that leaves the neutral vehicle domain (task 043) fails
+there. The flag never writes a `regenerable: false` row: a divergence under
+`packages/a2ui-compiler/golden/` is a spec-bump question for that corpus
+(`packages/a2ui-compiler/golden/README.md`), not a regeneration.
+
 ## Mount flags and isolation (ADR-09)
 
 A route group that is not mounted has **no routes registered** - a request to an
