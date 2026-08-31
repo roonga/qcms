@@ -31,7 +31,12 @@ import {
 import { missingRequiredEntries } from "@/lib/error-summary";
 import { t } from "@/lib/i18n/en";
 import { buttonClass } from "@/lib/ui";
-import { authorMessageFor, errorDetailsOf, firstAnswerRejection } from "@/lib/validation-message";
+import {
+  authorMessageFor,
+  defaultAnswerMessage,
+  errorDetailsOf,
+  firstAnswerRejection,
+} from "@/lib/validation-message";
 import {
   commitMoments,
   documentForVisible,
@@ -273,14 +278,20 @@ export function StepFlow({
           // The API named which constraint failed; the author may have supplied
           // their own wording for exactly that constraint (task 048, ADR-32).
           // Anything else - no message for this constraint, an unauthorable one
-          // like `encoding`, an unreadable body - keeps the default catalog
-          // wording, so the fallback is per constraint and never a blank slot.
+          // like `encoding`, an unreadable body - falls through to the default,
+          // so the fallback is per constraint and never a blank slot.
+          //
+          // That default is `defaultAnswerMessage`, the SAME resolution the no-JS
+          // route uses (issue #322): the kernel's own wording for the constraint
+          // that failed, and only then the generic catalog entry. Reaching for
+          // `t("answer.invalid")` here directly is what made a hydrated
+          // respondent's message strictly vaguer than a JavaScript-disabled one.
           const rejection = firstAnswerRejection(errorDetailsOf(await readJsonSafely(res)));
           const authored = authorMessageFor(
             messagesOf(snapshotRef.current.step as unknown as A2UIStepDocument | null).get(name),
             rejection?.constraint,
           );
-          const message = authored ?? t("answer.invalid");
+          const message = authored ?? defaultAnswerMessage(rejection, t("answer.invalid"));
           setRejected((prev) => withRejection(prev, name, value, message));
           return false;
         }

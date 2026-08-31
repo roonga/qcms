@@ -8,6 +8,13 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc tsconfig.base.json .
 COPY apps ./apps
 COPY packages ./packages
 COPY scripts ./scripts
+# `tooling/*` is a workspace glob too, so every manifest under it has to be here or
+# `pnpm install --frozen-lockfile` refuses the workspace outright: a package that
+# declares a `workspace:*` dependency on something the image never copied is not a
+# missing file, it is an unresolvable graph. Nothing from here reaches the runtime
+# stage - `pnpm deploy --prod` prunes it - so this is the build stage paying for a
+# complete workspace, exactly as `scripts` above does.
+COPY tooling ./tooling
 
 RUN pnpm install --frozen-lockfile
 # The `pnpm --filter @qcms/db... build` prefix that used to lead this line is gone.

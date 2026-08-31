@@ -2,7 +2,13 @@ import type { A2UIStepDocument } from "@qcms/ui";
 import { describe, expect, it } from "vitest";
 
 import { missingRequiredEntries } from "./error-summary";
-import { authorMessageFor, errorDetailsOf, firstAnswerRejection } from "./validation-message";
+import {
+  authorMessageFor,
+  defaultAnswerMessage,
+  errorDetailsOf,
+  firstAnswerRejection,
+  type AnswerRejection,
+} from "./validation-message";
 import { messagesOf, questionMessages } from "./visible";
 
 /**
@@ -185,6 +191,95 @@ describe("authorMessageFor", () => {
       const result = authorMessageFor(messages.get("q_plate"), key);
       expect(typeof result, key).toBe("undefined");
     }
+  });
+});
+
+/**
+ * The two portal paths agree on the wording of a refused answer (issue #322).
+ *
+ * This is the property that was violated, and it is asserted here rather than in
+ * the browser suite because the browser cannot reach it. The constraints whose
+ * default wording differs are `minLength` and `pattern`, and the compiler forwards
+ * both to the control as native `minlength` / `pattern` attributes: with JavaScript
+ * off, the browser's own constraint validation blocks the whole-step submit, so the
+ * API is never asked to refuse the value and the no-JS message never renders. (The
+ * same trap `e2e/author-messages.pw.ts` already records for `maxLength`.) So the
+ * one layer where both resolutions are observable at once is this one.
+ *
+ * Each path is modelled by the expression its own source composes, not by a shared
+ * helper standing in for both, so a change to either composition shows up here as a
+ * disagreement rather than being absorbed:
+ *
+ * - hydrated (`components/step-flow.tsx`): authored, else the shared default.
+ * - no-JS: `app/s/[sessionId]/step/route.ts` resolves the shared default and
+ *   `components/native-step.tsx` lets the authored wording override it.
+ */
+describe("the hydrated and no-JS paths resolve one message", () => {
+  const CATALOG = "That answer is not valid.";
+
+  /** `components/step-flow.tsx`: both halves in one place, after the 422 is read. */
+  function hydrated(authored: string | undefined, rejection: AnswerRejection | undefined): string {
+    return authored ?? defaultAnswerMessage(rejection, CATALOG);
+  }
+
+  /** The BFF route's default, then `native-step`'s per-constraint override. */
+  function noJs(authored: string | undefined, rejection: AnswerRejection | undefined): string {
+    const routeDefault = defaultAnswerMessage(rejection, CATALOG);
+    return authored ?? routeDefault;
+  }
+
+  const KERNEL = "Answer must be at least 3 characters";
+  const AUTHORED = "A plate is at least 3 characters";
+
+  const cases: readonly {
+    readonly name: string;
+    readonly authored: string | undefined;
+    readonly rejection: AnswerRejection | undefined;
+    readonly expected: string;
+  }[] = [
+    {
+      name: "the author decorated this constraint",
+      authored: AUTHORED,
+      rejection: { constraint: "minLength", message: KERNEL },
+      expected: AUTHORED,
+    },
+    {
+      name: "the author left this constraint alone",
+      authored: undefined,
+      rejection: { constraint: "minLength", message: KERNEL },
+      expected: KERNEL,
+    },
+    {
+      name: "an unauthorable constraint the kernel still worded",
+      authored: undefined,
+      rejection: { constraint: "encoding", message: "Answer must be a finite number" },
+      expected: "Answer must be a finite number",
+    },
+    {
+      name: "a 422 with no readable rejection at all",
+      authored: undefined,
+      rejection: undefined,
+      expected: CATALOG,
+    },
+    {
+      name: "a rejection naming a constraint but carrying no message",
+      authored: undefined,
+      rejection: { constraint: "pattern", message: undefined },
+      expected: CATALOG,
+    },
+  ];
+
+  it.each(cases)("agree when $name", ({ authored, rejection, expected }) => {
+    expect(hydrated(authored, rejection)).toBe(noJs(authored, rejection));
+    expect(hydrated(authored, rejection)).toBe(expected);
+  });
+
+  it("prefers the kernel's specific wording over the generic catalog entry", () => {
+    // The regression itself, stated as one line: before #322 the hydrated path
+    // returned CATALOG here, so turning JavaScript ON made the message vaguer.
+    expect(defaultAnswerMessage({ constraint: "minLength", message: KERNEL }, CATALOG)).toBe(
+      KERNEL,
+    );
   });
 });
 

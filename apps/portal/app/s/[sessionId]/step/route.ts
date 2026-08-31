@@ -18,7 +18,7 @@ import {
 } from "@/lib/server/route-helpers";
 import { clearSessionToken, readSessionToken } from "@/lib/server/session-cookie";
 import { decodeStepForm } from "@/lib/server/step-form";
-import { firstAnswerRejection } from "@/lib/validation-message";
+import { defaultAnswerMessage, firstAnswerRejection } from "@/lib/validation-message";
 
 /**
  * BFF proxy: the no-JS whole-step form POST (task 044). A JavaScript-disabled
@@ -89,7 +89,7 @@ export async function GET(
  * (`native-step`), which is where the compiled document is in hand (task 048).
  */
 function answerErrorMessage(error: ApiError): string {
-  return firstAnswerRejection(error.details)?.message ?? t("answer.invalid");
+  return defaultAnswerMessage(firstAnswerRejection(error.details), t("answer.invalid"));
 }
 
 /** The outcome of forwarding a step's decoded answers to the API. */

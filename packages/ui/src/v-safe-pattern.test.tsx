@@ -1,5 +1,5 @@
 import { render } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import { type A2UIStepDocument, A2UIStepRenderer } from "./A2UIStepRenderer.tsx";
 import { loadGoldenSteps } from "./test-support/golden.ts";
@@ -21,6 +21,20 @@ import { toVSafePattern } from "./v-safe-pattern.ts";
 
 /** The corpus pattern from issue #29: valid under `u`, a SyntaxError under `v`. */
 const CORPUS_PATTERN = "^[A-Za-z][A-Za-z .,'-]{0,99}$";
+
+/**
+ * The per-step allowance behind `CORPUS_TIMEOUT_MS`.
+ *
+ * Roughly sixteen times the measured idle cost of rendering one golden step (about
+ * 90ms), which is the headroom a loaded machine needs and no more: the whole point
+ * is a budget nobody has to revisit when a step is appended, not a number large
+ * enough to hide a real performance regression. A corpus render that genuinely got
+ * an order of magnitude slower per step should still go red here.
+ */
+const MS_PER_GOLDEN_STEP = 1_500;
+
+/** Scaled to the corpus, so appending a golden step raises the budget with it. */
+const CORPUS_TIMEOUT_MS = loadGoldenSteps().length * MS_PER_GOLDEN_STEP;
 
 function compilesUnderV(value: string): boolean {
   try {
@@ -50,6 +64,21 @@ function renderedPattern(pattern: string): string | null {
   if (!input) throw new Error("no input rendered");
   return input.getAttribute("pattern");
 }
+
+/**
+ * Pay for the first render once, before anything is timed against a budget.
+ *
+ * The first `render` in this file loads and initialises jsdom's document, React's
+ * test renderer and the react-aria control tree behind `A2UIStepRenderer` - a cost
+ * the file pays exactly once, and which lands on whichever test happens to render
+ * first. Doing it here with room means no individual test carries a cost that is
+ * not its own, and the corpus budget below is a claim about the corpus rather than
+ * about test declaration order. Same shape and same reason as
+ * `apps/admin/components/forms/pin-grid-ownership.test.tsx` (issue #603).
+ */
+beforeAll(() => {
+  renderedPattern("^[0-9]{4}$");
+}, 60_000);
 
 describe("toVSafePattern (issue #29)", () => {
   it("the issue's corpus pattern really is v-hostile (the premise of this fix)", () => {
@@ -188,23 +217,38 @@ describe("rendered pattern attribute (issue #29)", () => {
   // contract, and it is what the portal actually serves. Every `pattern` it puts
   // on the DOM must satisfy the invariant, which is what keeps the task 045
   // browser-console gate green without an allowlist entry.
-  it("emits only v-compilable patterns across the entire golden corpus", () => {
-    const offenders: string[] = [];
-    let seen = 0;
-    for (const step of loadGoldenSteps()) {
-      const { container } = render(
-        <A2UIStepRenderer document={step.document} specVersion={step.specVersion} />,
-      );
-      for (const input of container.querySelectorAll("input[pattern]")) {
-        const value = input.getAttribute("pattern")!;
-        seen += 1;
-        if (!compilesUnderV(value)) {
-          offenders.push(`${step.version}/${step.form}/${step.stepId}: ${value}`);
+  //
+  // The budget below is CORPUS_TIMEOUT_MS rather than Vitest's 5s default, and
+  // what it covers is the corpus: this test renders every golden step through the
+  // real renderer, so its cost is a function of how many steps the corpus holds
+  // and grows every time one is appended. Measured at about 1.8s for the 19
+  // documents on an idle machine, which sat close enough to the 5s default to
+  // fail in two forced runs out of five with three or four executor lanes in
+  // flight (issue #603). Scaling the budget per step, rather than picking a
+  // number that happens to pass today, is what keeps it honest as the corpus
+  // grows: the next appended step raises the allowance with it. Do not shave it
+  // back to a flat number.
+  it(
+    "emits only v-compilable patterns across the entire golden corpus",
+    () => {
+      const offenders: string[] = [];
+      let seen = 0;
+      for (const step of loadGoldenSteps()) {
+        const { container } = render(
+          <A2UIStepRenderer document={step.document} specVersion={step.specVersion} />,
+        );
+        for (const input of container.querySelectorAll("input[pattern]")) {
+          const value = input.getAttribute("pattern")!;
+          seen += 1;
+          if (!compilesUnderV(value)) {
+            offenders.push(`${step.version}/${step.form}/${step.stepId}: ${value}`);
+          }
         }
       }
-    }
-    expect(offenders).toEqual([]);
-    // Guard against the assertion passing because nothing carried a pattern.
-    expect(seen).toBeGreaterThan(0);
-  });
+      expect(offenders).toEqual([]);
+      // Guard against the assertion passing because nothing carried a pattern.
+      expect(seen).toBeGreaterThan(0);
+    },
+    CORPUS_TIMEOUT_MS,
+  );
 });

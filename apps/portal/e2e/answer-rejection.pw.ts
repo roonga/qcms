@@ -41,8 +41,18 @@ const REFUSED = "Ada1";
 /** A value it accepts, and the one the server ends up holding. */
 const HELD = "Ada Lovelace";
 
-/** The message the flow shows under a refused field (`answer.invalid`). */
-const INVALID = "That answer is not valid.";
+/**
+ * The message the flow shows under the refused field.
+ *
+ * The kernel's own wording for `pattern`, verbatim from
+ * `packages/core/src/validate-answer.ts`, and not the generic `answer.invalid`
+ * catalog entry it used to be: since issue #322 the hydrated path resolves the
+ * default the same way the no-JS path always has (author's message, then the
+ * kernel's, then the catalog). Nothing about what this spec asserts changed - the
+ * message is still derived from the refusal and still lives as long as the value
+ * it describes - only which string that derivation lands on.
+ */
+const INVALID = "Answer does not match the required format";
 
 /** Wait for one `POST /answers` the API refuses (status 422). */
 function answerRefused(page: Page): Promise<unknown> {

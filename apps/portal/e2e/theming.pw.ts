@@ -26,6 +26,7 @@
 
 import AxeBuilder from "@axe-core/playwright";
 import type { Locator, Page } from "@playwright/test";
+import { settleTransitions } from "@qcms/e2e-support/animations";
 
 import { MODE_COOKIE } from "../lib/appearance.js";
 import { readFixtures } from "./support/fixtures.js";
@@ -47,26 +48,6 @@ const MODES = ["light", "dark", "hc"] as const;
 
 /** The origin the harness serves, for cookies seeded before a navigation. */
 const ORIGIN = `http://localhost:${PORTAL_PORT}`;
-
-/**
- * Wait for every running CSS transition to finish, which is load-bearing rather
- * than tidy. The controls and the shell buttons carry `transition-colors`, so
- * switching mode starts a 150ms colour animation, and a contrast check sampled
- * MID-TRANSITION reads blended colours that belong to no palette at all (axe
- * flagged `#909196 on #439084` at 1.2:1, neither of which is a token value, from
- * exactly this race). Settling the animations - rather than emulating reduced
- * motion - keeps the measurement on the real rendering path.
- */
-async function settleTransitions(page: Page): Promise<void> {
-  await page.evaluate(async () => {
-    await new Promise((resolve) => {
-      requestAnimationFrame(() => resolve(undefined));
-    });
-    await Promise.all(
-      document.getAnimations().map((animation) => animation.finished.catch(() => undefined)),
-    );
-  });
-}
 
 /** Read one computed property off a locator. */
 function computed(target: Locator, property: string): Promise<string> {

@@ -20,17 +20,21 @@ import { proxy } from "./proxy";
  * `e2e/csp-nonce.pw.ts` proves the same chain end to end through a real browser.
  */
 
+function responseFor(headers?: HeadersInit): Response {
+  const request = new NextRequest(
+    "https://portal.example/f/demo",
+    headers === undefined ? undefined : { headers },
+  );
+  return proxy(request);
+}
+
 function runProxy(headers?: HeadersInit): {
   requestNonce: string | null;
   csp: string;
   requestId: string | null;
   echoedRequestId: string | null;
 } {
-  const request = new NextRequest(
-    "https://portal.example/f/demo",
-    headers === undefined ? undefined : { headers },
-  );
-  const response = proxy(request);
+  const response = responseFor(headers);
   return {
     // `NextResponse.next({ request: { headers } })` encodes the forwarded request
     // headers as an override header; read the nonce back through the same public
@@ -92,6 +96,35 @@ describe("portal security-header proxy", () => {
 
     expect(requestId).not.toBe("x".repeat(201));
     expect(requestId).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  /**
+   * `Referrer-Policy: no-referrer`, which on THIS surface is a security control and
+   * not only a privacy header (issue #555).
+   *
+   * Per Fetch, a form-navigation POST made under `no-referrer` serializes its
+   * `Origin` as the literal string `null`. That is the entire reason the portal's
+   * CSRF belt cannot tell an honest old browser apart from a forged request on the
+   * no-JS form path, and therefore the reason it fails closed: see the reasoning in
+   * `lib/server/route-helpers.ts` (`isSameOriginPost`), `docs/SECURITY_DESIGN.md` §5,
+   * and the operator runbook in `docs/operations.md`.
+   *
+   * So a reader who changes this value for privacy reasons is changing what a
+   * security control observes, and two things would follow with nothing going red:
+   * the privacy property is lost quietly, and the documented premise that `Origin`
+   * arrives as `null` becomes false. The admin and the API both pin the same value
+   * (`apps/admin/proxy.test.ts`, `apps/api/e2e/security/02-transport-and-limits.e2e.ts`);
+   * the portal was the one surface asserting nothing, and the one where the value is
+   * load-bearing.
+   */
+  it("sets Referrer-Policy: no-referrer, which the no-JS CSRF belt reads", () => {
+    const response = responseFor();
+
+    expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+    // The other two hardening headers alongside it, so the whole set is pinned in
+    // one place rather than one header having its own private test.
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(response.headers.get("x-frame-options")).toBe("DENY");
   });
 
   it("leaves the nonce as the only authorization for inline script", () => {
