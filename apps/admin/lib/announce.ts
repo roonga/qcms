@@ -59,13 +59,15 @@ let current: Announcement = NOTHING;
 /**
  * The subscribers, as a copy-on-write array rather than a `Set`.
  *
- * Two reasons, and the second is the blunt one. Copy-on-write means a listener that
- * unsubscribes while `announce` is iterating cannot corrupt the walk. And the R2 import
- * surface tripwire (`lib/server/r2-import-surface.test.ts`) reads a member call named
- * select, insert, update, delete or transaction, anywhere in the admin's source, as a
- * database query - so a `Set` of listeners fails it on the removal call. The tripwire is
- * right to be blunt about a rule that matters more than this module does; a subscriber
- * list of this size loses nothing by being an array.
+ * Copy-on-write means a listener that unsubscribes while `announce` is iterating cannot
+ * corrupt the walk, which is reason enough on its own.
+ *
+ * It had a second reason that no longer holds, recorded because the shape it produced is
+ * still here: the R2 import-surface tripwire used to read any member call named select,
+ * insert, update, delete or transaction as a database query, so a `Set` of listeners
+ * failed it on `listeners.delete(listener)`. That was a data-structure choice made to
+ * satisfy a regex (issue #367). The tripwire resolves the receiver now and a `Set` would
+ * pass it (issue #663), so the array stays on its own merits rather than on the gate's.
  */
 let listeners: readonly (() => void)[] = [];
 

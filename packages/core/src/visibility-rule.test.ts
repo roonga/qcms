@@ -80,7 +80,9 @@ const OPERATOR_SAMPLES = {
   and: { op: "and", conditions: [{ op: "answered", questionId: "q_a" }] },
   or: { op: "or", conditions: [{ op: "answered", questionId: "q_a" }] },
   not: { op: "not", condition: { op: "answered", questionId: "q_a" } },
-} satisfies Record<Condition["op"], { op: string }>;
+  // `unknown` rather than a sample shape: the point of the table is its KEY set, and a
+  // per-operator value type would make each sample fight the union it is testing.
+} satisfies Record<Condition["op"], unknown>;
 
 describe("ADR-03: the closed operator set", () => {
   it("is exactly these thirteen operators", () => {
