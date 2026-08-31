@@ -200,7 +200,7 @@ export async function saveDraftAction(formId: string, draft: DraftForm): Promise
  * `analyzeRuleGraph` runs inside the same compile the publish path uses, so
  * `RULE_BACKWARD_TARGET` and `RULE_CYCLE` arrive here with no extra endpoint and no
  * second implementation of the analysis in this app (there could not be one - the admin
- * has no `@qcms/core` import at all).
+ * takes no `@qcms/core` value import at all).
  */
 export async function validateDraftAction(
   formId: string,

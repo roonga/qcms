@@ -90,6 +90,57 @@ describe("loadConfig - portal base URL and webhook targets (task 024)", () => {
     );
   });
 
+  /**
+   * Trailing-slash normalization, which nothing tested until issue #328.
+   *
+   * This is not a config nit. `adminAuth.baseUrl` reaches better-auth as its `baseURL`
+   * and its `trustedOrigins`, and better-auth compares a trusted origin by exact string
+   * equality against `new URL(url).origin` - which never carries a trailing slash. So
+   * `QCMS_ADMIN_BASE_URL=https://admin.example/` would make `trustedOrigins` match
+   * nothing and the origin check would reject every state-changing better-auth POST:
+   * sign-in, TOTP verification, recovery-code use, sign-out. Admin authentication would
+   * be dead on arrival for an operator who typed one extra character, with a CSRF
+   * rejection as the only clue.
+   *
+   * Asserted as **the property the consumer depends on** (`value === new URL(value).origin`)
+   * rather than as "one slash gets stripped", because equality with the origin is what
+   * better-auth actually computes.
+   */
+  it.each([
+    ["https://forms.example.test/", "https://forms.example.test"],
+    ["https://forms.example.test///", "https://forms.example.test"],
+    ["  https://forms.example.test/  ", "https://forms.example.test"],
+  ])("normalizes the portal base URL %s away from its trailing slash", (raw, expected) => {
+    const parsed = loadConfig(validEnv({ QCMS_PORTAL_BASE_URL: raw })).portalBaseUrl;
+    expect(parsed).toBe(expected);
+    expect(parsed).toBe(new URL(parsed).origin);
+  });
+
+  it.each([
+    ["https://admin.example.test/", "https://admin.example.test"],
+    ["https://admin.example.test///", "https://admin.example.test"],
+    ["  https://admin.example.test/  ", "https://admin.example.test"],
+  ])(
+    "normalizes the admin base URL %s, which better-auth compares by equality",
+    (raw, expected) => {
+      const parsed = loadConfig(validEnv({ QCMS_ADMIN_BASE_URL: raw })).adminAuth.baseUrl;
+      expect(parsed).toBe(expected);
+      expect(parsed).toBe(new URL(parsed).origin);
+    },
+  );
+
+  it("leaves a base URL that carries a path alone, slash or no slash", () => {
+    // Only the trailing slash is normalized: a deployment mounted under a path prefix is
+    // a different shape, and silently rewriting it would be a worse defect than the one
+    // being guarded. `origin` is deliberately NOT asserted here.
+    expect(
+      loadConfig(validEnv({ QCMS_PORTAL_BASE_URL: "https://x.example/forms" })).portalBaseUrl,
+    ).toBe("https://x.example/forms");
+    expect(
+      loadConfig(validEnv({ QCMS_PORTAL_BASE_URL: "https://x.example/forms/" })).portalBaseUrl,
+    ).toBe("https://x.example/forms");
+  });
+
   it("reads the webhook SSRF override flag", () => {
     expect(
       loadConfig(validEnv({ QCMS_WEBHOOK_ALLOW_PRIVATE: "true" })).webhooks.allowPrivateTargets,

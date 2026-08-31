@@ -19,8 +19,8 @@ import type { AdminSession } from "./session.ts";
  * Every one of these is a proxy: build a path, hand it to the one credentialed client
  * (`api.ts`), read the response. There is no rule here, no validation, no derived
  * decision about what a question means - the API owns all of that, and the R2
- * import-surface test is what keeps this file honest (it forbids `@qcms/core` outright
- * and allows a request to be built in exactly one module).
+ * import-surface test is what keeps this file honest (it forbids every `@qcms/core` value
+ * import and allows a request to be built in exactly one module).
  *
  * The one thing this file does add is a shape: `ApiResult`. A screen has to render an
  * error, and "the caller decides how to read a non-2xx" (see `api.ts`) means every screen

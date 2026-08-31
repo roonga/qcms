@@ -100,9 +100,7 @@ export function cookiesFrom(response: Response): string[] {
  * Reading them the other way round answers 403 to 100% of legitimate sign-ins, which
  * is what happened in 031 (`docs/RETRO.md`) and cost a browser run plus a debug run
  * to diagnose, because this comment did not say so. The `Origin` branch stays live
- * for Fetch API calls, which are mode `cors` and so keep their real origin.
- * (Spelled without the parentheses on purpose: `r2-import-surface.test.ts` regexes
- * this file's raw text for a call to the global, comments included.)
+ * for `fetch()` calls, which are mode `cors` and so keep their real origin.
  *
  * ## Twin
  *

@@ -83,7 +83,7 @@ import { ValidationPanel, type BuilderStatus } from "./validation-panel";
  * different questions and the second is the one exit criterion 2 turns on: the kernel's
  * `analyzeRuleGraph` runs inside that compile, so `RULE_BACKWARD_TARGET` arrives from the
  * engine itself rather than from a second implementation of the analysis in this app (there
- * could not be one - the admin has no `@qcms/core` import at all). The *instant* flag an
+ * could not be one - the admin takes no `@qcms/core` value import). The *instant* flag an
  * author sees the moment they pick a backward target is a different mechanism entirely:
  * `eligibleTargets`, pure draft geometry, inside the condition editor.
  *

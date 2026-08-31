@@ -1,3 +1,5 @@
+import type { Condition } from "@qcms/core";
+
 import type { QuestionType } from "../questions/types.ts";
 
 import type {
@@ -38,17 +40,57 @@ import type {
  */
 
 /**
- * The kernel's `CONDITION_MAX_DEPTH` (`visibility-rule.ts`), restated rather than imported:
- * `@qcms/core` is not importable from this app. `condition.test.ts` pins the two together,
- * and it may import the kernel because a `.test.ts` is outside the import-surface scan.
+ * The kernel's `CONDITION_MAX_DEPTH` (`visibility-rule.ts`), restated rather than
+ * imported: it is a **value**, and this app takes no value from `@qcms/core` (R2).
+ * `condition.test.ts` pins the two together, and it may import the kernel outright
+ * because a `.test.ts` is outside the import-surface scan.
  */
 export const MAX_CONDITION_DEPTH = 8;
 
-/** The three combinators, which read no question of their own. */
-const COMBINATORS = ["and", "or", "not"] as const;
+/**
+ * **The ADR-03 gate: a new operator in `@qcms/core` cannot land unnoticed here.**
+ *
+ * ADR-03 makes the rules DSL a closed, typed set whose operators are versioned core
+ * changes. The ADR's own note flagged what was missing: a new operator lands in two
+ * places, because this app keeps a parallel operator set (`./types.ts`) and R2 stops it
+ * importing the original. Nothing tied the copy to what it copies, so the second place
+ * was a thing to remember.
+ *
+ * This table is that tie. `satisfies Record<Condition["op"], ...>` is exhaustive in both
+ * directions against the kernel's union: a **new** kernel operator is a missing key here
+ * and fails typecheck, and a key the kernel does not have is an excess property and fails
+ * too. {@link isCombinator} then indexes it with this app's own {@link ConditionOp}, so
+ * the app's set is pinned to the same union rather than merely resembling it. Three
+ * separate edits are needed to move any of it, and none of them is silent.
+ *
+ * The import is `import type`, which is the whole reason this is allowed to exist:
+ * TypeScript erases it, so no kernel code reaches the bundle, `@qcms/core` stays a
+ * devDependency, and the shipped image still cannot resolve the package. R2 is about the
+ * admin having no authority to evaluate rules, and a type evaluates nothing.
+ * `lib/server/r2-import-surface.test.ts` states the value/type distinction and asserts
+ * it. The kernel-side half of the same gate is `visibility-rule.test.ts`, which pins the
+ * operator list itself so a core change is a deliberate edit rather than a diff nobody
+ * reads.
+ */
+const OP_ARITY = {
+  answered: "leaf",
+  equals: "leaf",
+  notEquals: "leaf",
+  in: "leaf",
+  gt: "leaf",
+  gte: "leaf",
+  lt: "leaf",
+  lte: "leaf",
+  contains: "leaf",
+  containsAny: "leaf",
+  and: "combinator",
+  or: "combinator",
+  not: "combinator",
+} satisfies Record<Condition["op"], "leaf" | "combinator">;
 
+/** The three combinators, which read no question of their own. */
 export function isCombinator(op: ConditionOp): op is "and" | "or" | "not" {
-  return (COMBINATORS as readonly string[]).includes(op);
+  return OP_ARITY[op] === "combinator";
 }
 
 /**

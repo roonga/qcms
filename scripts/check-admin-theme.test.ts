@@ -42,6 +42,27 @@ describe("literal colour detection", () => {
   it("reports the line the colour is on", () => {
     expect(findLiteralColours("a {\n  color: #fff;\n}")).toEqual([{ line: 2, hit: "#fff" }]);
   });
+
+  /**
+   * Issue #545. Naming a test after the issue it covers is a convention this repository
+   * uses, and a three-digit issue number is a three-hex-digit lookalike, so the check
+   * has to tell the two apart rather than the author rewording the test.
+   */
+  it("does not read an issue reference in a string literal as a colour (#545)", () => {
+    for (const line of [
+      'it("covers #513", () => {});',
+      'const note = "see #545 and #1234 for the rest";',
+      'const short = "#42";',
+    ]) {
+      expect(findLiteralColours(line), line).toEqual([]);
+    }
+  });
+
+  it("still reads the colours that happen to be written in digits", () => {
+    expect(findLiteralColours("a { color: #123456; }").map((h) => h.hit)).toEqual(["#123456"]);
+    expect(findLiteralColours("a { color: #5a3; }").map((h) => h.hit)).toEqual(["#5a3"]);
+    expect(findLiteralColours("a { color: #12345678; }").map((h) => h.hit)).toEqual(["#12345678"]);
+  });
 });
 
 describe("comment stripping", () => {

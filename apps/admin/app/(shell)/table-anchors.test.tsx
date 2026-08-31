@@ -421,12 +421,49 @@ describe("the marker class and the retired handler", () => {
    * could not tell the two apart would price that history at a failing gate. A prop can
    * only be passed, declared or called, so the discriminator is the character after the
    * name rather than the name itself.
+   *
+   * **Bounded on the left as well (issue #690).** Without it the pattern matched inside
+   * an identifier: `OptionRowAction` is `Opti` + `onRowAction`, so the parallel name for
+   * an option row's menu action tripped a guard about whole-row click navigation. That
+   * cost a lane a forced test cycle and left a type in the tree named around this regex.
+   * A source-text guard needs word boundaries on both sides, or it reports on identifiers
+   * that merely contain its target.
+   *
+   * `_` and `$` are deliberately left OUT of the boundary class: they can start an
+   * identifier, so `_onRowAction = ...` is the handler under a private-field spelling and
+   * has to keep matching. Only a letter or a digit before the name means the match landed
+   * inside a longer word.
    */
-  const USE = /onRowAction\s*[=(:]/;
+  const USE = /(?<![A-Za-z0-9])onRowAction\s*[=(:]/;
+
+  /** What a lane meeting this guard needs to read: the rule, then the characters. */
+  const RULE =
+    "the retired whole-row click handler must not be passed, declared or called (issue 570)";
 
   it("finds no `onRowAction` passed, declared or called anywhere in the admin app", () => {
-    const offenders = files.filter((path) => USE.test(readFileSync(path, "utf8")));
-    expect(offenders.map((path) => path.slice(adminRoot.length + 1))).toEqual([]);
+    const offenders = files.flatMap((path) => {
+      const matched = USE.exec(readFileSync(path, "utf8"))?.[0];
+      if (matched === undefined) return [];
+      return [`${path.slice(adminRoot.length + 1)}: matched ${JSON.stringify(matched)} - ${RULE}`];
+    });
+    expect(offenders).toEqual([]);
+  });
+
+  /**
+   * The guard's own discriminators, asserted rather than assumed. A scan derived from a
+   * name is only as good as its boundaries, and both sides of that were wrong here at
+   * some point: the right-hand one is what tells prose from a prop, the left-hand one is
+   * what tells an unrelated identifier from the handler (issues 570 and 690).
+   */
+  it("tells the handler apart from prose and from an identifier that contains it", () => {
+    expect(USE.test("onRowAction={handleRow}")).toBe(true);
+    expect(USE.test("  onRowAction: (row) => void;")).toBe(true);
+    expect(USE.test("onRowAction (row);")).toBe(true);
+    // A private-field spelling is still the handler, which is why `_` is not a boundary.
+    expect(USE.test("this._onRowAction = handler;")).toBe(true);
+    expect(USE.test("// `onRowAction` retired with the whole-row click target")).toBe(false);
+    expect(USE.test("export type OptionRowAction = 'moveUp';")).toBe(false);
+    expect(USE.test("handleOptionRowAction(row);")).toBe(false);
   });
 
   it("finds the marker class deleted, stylesheet included", () => {

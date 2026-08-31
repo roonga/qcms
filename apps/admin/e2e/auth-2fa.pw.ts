@@ -56,6 +56,38 @@ test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
 });
 
+/**
+ * The harness canary (issue #209). **Read this before reading anything below it.**
+ *
+ * Every enforcement assertion in this file is conditional on one server-side fact:
+ * `QCMS_ADMIN_2FA` is `required`. That fact used to be assumed rather than established.
+ * `admin-server.mjs` hands `process.env` to `next dev`, Next fills any undefined variable
+ * from `apps/admin/.env.local`, and `QCMS_ADMIN_2FA=optional` is the documented
+ * development escape hatch a developer plausibly has sitting in that file. The suite would
+ * then run against a policy where enrollment can be skipped and report green, because a
+ * weaker server answers most of these assertions the same way. `playwright.config.ts` now
+ * pins the value in the webServer env; this test is what proves the pin took.
+ *
+ * It observes the **server**, not the configuration: a brand-new account that has not
+ * enrolled is refused the shell. Under `optional` the same sign-in lands in `/questions`,
+ * so a false green here fails loudly and names the reason instead of quietly weakening
+ * everything after it.
+ *
+ * Its own throwaway account: EMAIL's 2FA state advances through this serial file and a
+ * canary must disturb nothing it is watching over.
+ */
+test("CANARY: the server under test enforces 2FA (QCMS_ADMIN_2FA=required)", async ({ page }) => {
+  const canary = uniqueAdminEmail("canary2fa");
+  await createTestAdmin(canary);
+  await submitSignIn(page, canary);
+  await expect(
+    page,
+    "an un-enrolled sign-in reached the shell, so this server is running QCMS_ADMIN_2FA=optional " +
+      "and every enforced-2FA assertion in this file is vacuous. Check the admin webServer env " +
+      "in playwright.config.ts and apps/admin/.env.local (issue #209).",
+  ).toHaveURL(/\/two-factor\/enroll$/);
+});
+
 test("the sign-in screen offers no way to register (SEC-1)", async ({ page }) => {
   await page.goto("/sign-in");
   await expect(page.getByRole("heading", { name: "Sign in to QCMS" })).toBeVisible();
