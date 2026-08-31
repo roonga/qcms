@@ -47,8 +47,18 @@ if (port === undefined || port === "") {
   writeSync(2, "[admin-server] ADMIN_PORT is not set. See docs/PORTS.md.\n");
   process.exit(1);
 }
-const logPath = fileURLToPath(new URL("../../.playwright/server-logs/admin.log", import.meta.url));
+const defaultLogPath = fileURLToPath(
+  new URL("../../.playwright/server-logs/admin.log", import.meta.url),
+);
 const repoRoot = fileURLToPath(new URL("../../../../", import.meta.url));
+
+// Two test-only seams, the same pair the portal wrapper carries: the command to run
+// and where to tee it. Both default to the real thing, so nothing about a normal
+// Playwright run changes, and `admin-server.test.ts` drives the shipped code with a
+// stub child instead of a real Next server.
+const devCommand =
+  process.env.QCMS_ADMIN_SERVER_COMMAND ?? `pnpm --filter qcms-admin dev --port ${port}`;
+const logPath = process.env.QCMS_ADMIN_SERVER_LOG ?? defaultLogPath;
 
 /** How many lines of the captured log to surface when startup fails. */
 const LOG_TAIL_LINES = 30;
@@ -194,6 +204,28 @@ function handleChildEnd(code, signal) {
   failFast(reason, code === null || code === 0 ? 1 : code);
 }
 
+/**
+ * Highest status code that counts as "this server is serving", and the path the
+ * probe asks for. Both changed with issue #381.
+ *
+ * The status gate is the portal wrapper's, for the reason recorded there: any HTTP
+ * response used to settle the probe true, so a dev server answering nothing but
+ * 500s disarmed the startup watch and reduced the failure to Playwright's bare
+ * 180-second "Timed out waiting".
+ *
+ * The path is `/healthz` rather than `/` because on this app they are not the same
+ * question. `/` runs `currentAdminSession()`, which calls the API, and Playwright
+ * starts every webServer alongside `globalSetup` rather than after it, so the API
+ * this probe would need does not exist yet. Under the old "any response is ready"
+ * rule that did not matter; under a status gate it would mean the wrapper never
+ * reached readiness at all and stayed armed for the whole run. `/healthz` is
+ * credential-free and database-free by design and is already what
+ * `playwright.config.ts` gives this entry as its `webServer.url`, so the wrapper
+ * now asks the same question Playwright does.
+ */
+const READY_STATUS_CEILING = 400;
+const READY_PATH = "/healthz";
+
 /** Resolves true when the dev server answers on its port, false otherwise. */
 function probeReady() {
   return new Promise((resolve) => {
@@ -205,9 +237,12 @@ function probeReady() {
     };
     let request;
     try {
-      request = get({ host: "localhost", port: Number(port), path: "/" }, (response) => {
+      request = get({ host: "localhost", port: Number(port), path: READY_PATH }, (response) => {
         response.resume();
-        settle(true);
+        // An absent status is treated as not ready: the probe's job is to be sure,
+        // and the poll simply asks again a quarter of a second later.
+        const status = response.statusCode;
+        settle(status !== undefined && status < READY_STATUS_CEILING);
       });
     } catch {
       settle(false);
@@ -224,7 +259,7 @@ const pollSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms).unref
 
 // A single command string (not argv + shell:true) avoids Node's DEP0190 warning, which
 // would otherwise land in the captured log.
-child = spawn(`pnpm --filter qcms-admin dev --port ${port}`, {
+child = spawn(devCommand, {
   shell: true,
   cwd: repoRoot,
   env: process.env,

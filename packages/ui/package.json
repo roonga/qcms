@@ -37,7 +37,7 @@
     "!src/test-support/**"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "node ../../scripts/clean-dist.mjs && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --root ../.. --project @qcms/ui",
     "fonts:generate": "node tools/generate-fonts.ts && prettier --write src/fonts.css src/fonts/NOTICE.md",

@@ -102,6 +102,42 @@
     "typecheck": {
       "dependsOn": ["^build"]
     },
-    "lint": {}
+    // Lint depends on build for the same reason typecheck does, and it was the one
+    // task that never said so (issue #560). ESLint runs with typed rules here
+    // (`parserOptions.projectService` in `eslint.config.js`), so
+    // `@typescript-eslint/no-unsafe-*` reads the same declaration files `tsc` does.
+    // With no `dependsOn` at all, `turbo run lint --filter=<pkg>` in a tree whose
+    // `dist/` directories are not present resolved every workspace import to `error`
+    // and reported unsafe-assignment violations that say nothing about the code. It
+    // only ever passed because `pnpm verify` runs `pnpm build` first and because a
+    // shared turbo cache replayed a green from a machine that had built.
+    "lint": {
+      "dependsOn": ["^build"]
+    },
+    // The admin's two program-shaped tasks need TWO packages the admin itself does
+    // not depend on, so `^build` cannot reach them (issue #560, root cause of #632
+    // and of item 1 in #387).
+    //
+    // `apps/admin/tsconfig.json` includes `**/*.ts`, which takes in the Playwright
+    // harness under `apps/admin/e2e/`. Two of those files import apps/api SOURCE by
+    // relative path (`e2e/support/ops.ts` and `e2e/support/admin-account.ts` reach
+    // `../../../api/e2e/support/*` and `../../../api/src/*`), so the admin's tsc
+    // program transitively contains the API's source tree, which imports `@qcms/db`
+    // and `@qcms/a2ui-compiler`. Both resolve through `apps/api/node_modules`, and
+    // both publish their types from `dist`, so an unbuilt tree gives 30-odd
+    // "Cannot find module '@qcms/db'" errors and the implicit-`any` cascade behind
+    // them - in a package whose own manifest names neither.
+    //
+    // Declared here rather than by adding the two to `apps/admin/package.json`: the
+    // admin imports neither, and task 056 deliberately left it with no database
+    // client of its own (see the note in `apps/admin/e2e/support/admin-account.ts`),
+    // which a manifest dependency would quietly undo. This is a build-order fact
+    // about the admin's typecheck program, and this is where build order lives.
+    "qcms-admin#typecheck": {
+      "dependsOn": ["^build", "@qcms/db#build", "@qcms/a2ui-compiler#build"]
+    },
+    "qcms-admin#lint": {
+      "dependsOn": ["^build", "@qcms/db#build", "@qcms/a2ui-compiler#build"]
+    }
   }
 }

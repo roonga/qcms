@@ -130,6 +130,14 @@ jobs:
     # stuck on a required check that will never report.
     name: verify (node-${{ matrix.node-version }})
     runs-on: ubuntu-latest
+    # Measured across the 15 successful runs between 2026-08-24 and 2026-08-30:
+    # node-24 p50 6.3, p95 6.9, max 6.9; node-26 runs marginally slower (p50 6.8,
+    # p95 7.1, max 7.2). Budgeted at roughly 2x p95, which is also 2x the worst run
+    # observed. Without it the job inherits GitHub's 360-minute default, so a hung
+    # install or a wedged Testcontainers boot holds a REQUIRED context open for six
+    # hours; the `changes` job above has carried a budget since it was written, and
+    # `e2e.yml` uses 20.
+    timeout-minutes: 15
     needs: changes
     # Runs even if `changes` failed. A job skipped by an unmet `needs` still publishes
     # its context, and a `skipped` conclusion counts as satisfying a required check -
@@ -287,6 +295,14 @@ jobs:
       - run: pnpm check:lint-coverage
         if: env.PLAN_ONLY != 'true'
 
+      # The gate on the two lists above (issue #463). `check:all` in package.json and
+      # the steps in this file are the same set, maintained by hand in two places, and
+      # they have drifted three times. This step names any check that is in one list
+      # and not the other. It is itself in both lists, which is the only way it could
+      # be trusted: a parity gate that CI never ran would be the bug it exists to find.
+      - run: pnpm check:ci-parity
+        if: env.PLAN_ONLY != 'true'
+
       - run: pnpm build
         if: env.PLAN_ONLY != 'true'
 
@@ -309,6 +325,13 @@ jobs:
   # context that reports nothing leaves the PR unmergeable with no way forward.
   api-e2e:
     runs-on: ubuntu-latest
+    # Measured over the same 15 runs: p50 1.9, p95 2.1, max 2.1. Twice p95 would be
+    # under 5 minutes, which is too tight to be honest here: every scenario file boots
+    # its own Testcontainers Postgres, so the tail this budget has to survive is a slow
+    # image resolution on a cold runner rather than the suite's own work. 10 leaves
+    # nearly five times the worst observed run and still fails a hang in minutes, not
+    # hours.
+    timeout-minutes: 10
     needs: changes
     # See the identical note on `verify`: this keeps the job (and so its required
     # context) honest when the classifier itself fails.
@@ -363,6 +386,13 @@ jobs:
   # still reported.
   portal-e2e:
     runs-on: ubuntu-latest
+    # Measured over the same 15 runs: p50 27.1, p95 28.0, max 28.3. This is by far the
+    # longest job in the repository (Playwright plus two Lighthouse runs, on top of a
+    # Testcontainers Postgres and the composed API), and it has been growing as the
+    # admin project's specs land, so the budget is set off the MAX rather than the
+    # percentile: 60 is about 2x both. If a normal run ever approaches this number the
+    # answer is to split the suite, not to raise the line again.
+    timeout-minutes: 60
     needs: changes
     if: ${{ !cancelled() }}
     env:
