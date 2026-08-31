@@ -51,6 +51,32 @@ export function firstAnswerRejection(details: unknown): AnswerRejection | undefi
 }
 
 /**
+ * The DEFAULT wording for a refused answer: the kernel's own message for the
+ * constraint that failed, else the portal's generic catalog entry.
+ *
+ * One function because both portal paths must answer this question identically
+ * (issue #322). They did not: the no-JS BFF route resolved the kernel's specific
+ * wording ("Answer must be at least 3 characters") while the hydrated flow went
+ * straight to `answer.invalid` ("That answer is not valid."), so switching
+ * JavaScript ON made the message strictly less informative. Neither path's own
+ * tests could see it, because each was individually green about its own string.
+ *
+ * The author's message still wins over whatever this returns, on both paths and
+ * per constraint (`authorMessageFor`, ADR-32). That ordering is the whole
+ * precedence: authored, then the kernel's, then the catalog's. The hydrated path
+ * applies both halves in one place (`components/step-flow.tsx`); the no-JS path
+ * splits them across the seam it is made of, the route resolving this default and
+ * `components/native-step.tsx` overriding it at render time, which is where the
+ * compiled document with the author's messages in it is finally in hand.
+ */
+export function defaultAnswerMessage(
+  rejection: AnswerRejection | undefined,
+  fallback: string,
+): string {
+  return rejection?.message ?? fallback;
+}
+
+/**
  * The `details` payload out of a BFF error body (`{ error: { code, details } }`),
  * or `undefined` for anything else. The BFF forwards the API's typed detail
  * verbatim (R2: it adds no meaning of its own), so this is the one place that

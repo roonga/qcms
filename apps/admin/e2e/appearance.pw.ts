@@ -1,4 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
+import { settleTransitions } from "@qcms/e2e-support/animations";
 
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
@@ -7,7 +8,6 @@ import {
   appearanceTrigger,
   openMenu,
   readSetupKey,
-  settleTransitions,
   signInWithTotp,
   submitSignIn,
   submitTotp,

@@ -36,6 +36,7 @@
   },
   "devDependencies": {
     "@qcms/core": "workspace:*",
+    "@qcms/e2e-support": "workspace:*",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^24.13.3",
     "@types/qrcode": "^1.5.5",

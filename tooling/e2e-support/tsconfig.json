@@ -1,0 +1,34 @@
+// The shared browser-suite helpers' own project (issues 187 and 236).
+//
+// A directory without a manifest and a project is not a workspace package, so
+// `turbo run lint` and `turbo run typecheck` would skip it and the only gate that
+// ever saw these files would be `prettier --check` - the same trap `apps/e2e`
+// documents one level up.
+//
+// The options mirror `apps/admin/tsconfig.json` and `apps/portal/tsconfig.json`
+// deliberately (minus the Next plugin, the JSX settings and the `@/*` paths, none
+// of which apply to a Playwright helper): both apps' e2e suites import this code,
+// so it should be checked under the options they are checked under, or a shape
+// that passes here could fail in the packages that consume it.
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "allowImportingTsExtensions": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "incremental": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["**/*.ts"],
+  "exclude": ["node_modules"]
+}

@@ -37,8 +37,27 @@ const AUTHORED = {
   pattern: "Use capitals, digits and hyphens only, like ABC-123",
 } as const;
 
-/** The portal's default per-field message (`answer.invalid`), unchanged by 048. */
-const DEFAULT_INVALID = "That answer is not valid.";
+/**
+ * The default wording for a constraint the author left alone.
+ *
+ * Since issue #322 that is the KERNEL's own message for the constraint that
+ * failed, not the generic `answer.invalid` catalog entry, and it is the same
+ * message the no-JS path has always shown. The generic entry is still the last
+ * resort (a 422 with no readable rejection), which is `answer.invalid` below.
+ *
+ * Verbatim from `packages/core/src/validate-answer.ts`, for `q_am_vin`'s
+ * un-decorated `minLength` of 5.
+ */
+const DEFAULT_INVALID = "Answer must be at least 5 characters";
+
+/** The generic catalog entry, which no longer answers for a named constraint. */
+const CATALOG_INVALID = "That answer is not valid.";
+
+/** The kernel's own wording, verbatim from `packages/core/src/validate-answer.ts`. */
+const KERNEL = {
+  /** `q_am_plate`'s `minLength` of 3, which the author DID decorate. */
+  plateMinLength: "Answer must be at least 3 characters",
+} as const;
 
 const ANSWERS_URL = /\/answers$/;
 
@@ -73,7 +92,12 @@ test("a refused answer shows the author's wording for the constraint that failed
   // reports, and the author decorated it.
   await commitRefused(page, AM.plate, "AB");
   await expect(page.getByText(AUTHORED.minLength)).toBeVisible();
-  await expect(page.getByText(DEFAULT_INVALID)).toBeHidden();
+  // Neither default: not the kernel's wording for the very constraint that
+  // failed, and not the generic catalog entry either. The first is what would
+  // appear if the author's message were dropped (issue #322 made it the default),
+  // so asserting it is absent is what proves the override actually took.
+  await expect(page.getByText(KERNEL.plateMinLength)).toBeHidden();
+  await expect(page.getByText(CATALOG_INVALID)).toBeHidden();
 
   // "abcdef" clears minLength and fails `pattern`, which the author also
   // decorated: a DIFFERENT constraint on the SAME question shows a different
@@ -100,9 +124,20 @@ test("a constraint the author left alone still shows the portal default", async 
   // unreachable from a browser: the compiler forwards it as the input's advisory
   // `maxlength` attribute, so the control truncates the value and the API is never
   // asked to refuse it.
+  //
+  // The default IS the kernel's wording since issue #322, and that is the half of
+  // this assertion worth reading twice. The no-JS path has always resolved it
+  // (`app/s/[sessionId]/step/route.ts`); the hydrated path went straight to the
+  // generic catalog entry, so enabling JavaScript made the message strictly less
+  // informative. Both paths now compose one resolution, and the agreement itself
+  // is pinned in `lib/validation-message.test.ts` - the browser cannot show it,
+  // because a native `minlength` attribute stops the no-JS submit before the API
+  // ever sees the value, exactly as the `maxLength` note above describes.
   await commitRefused(page, AM.vin, "AB");
   await expect(page.getByText(DEFAULT_INVALID)).toBeVisible();
   await expect(page.getByText(AUTHORED.required)).toBeHidden();
+  // The generic entry is the LAST resort, not the answer for a named constraint.
+  await expect(page.getByText(CATALOG_INVALID)).toBeHidden();
 
   // Not "everything falls back": the same failing constraint on the neighbouring
   // question is decorated, so it shows the author's wording instead.

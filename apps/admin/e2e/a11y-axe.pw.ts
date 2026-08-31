@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 import { generate } from "otplib";
+import { settleTransitions } from "@qcms/e2e-support/animations";
 
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
@@ -12,7 +13,6 @@ import {
   fillStable,
   openMenu,
   readSetupKey,
-  settleTransitions,
   signInWithTotp,
   submitSignIn,
   submitTotp,
@@ -141,6 +141,43 @@ const TALL_RESPONSE_BODY = `{\n${Array.from(
   (_, index) => `  "line_${String(index)}": "x"`,
 ).join(",\n")}\n}`;
 
+/**
+ * A form title long enough that the version diff overflows `.qcms-diff` sideways.
+ *
+ * The overflow is the point, not decoration, and it is the same argument
+ * `TALL_RESPONSE_BODY` makes one axis over: `scrollable-region-focusable` reports a
+ * scroll container no keyboard can reach (WCAG 2.1.1, issue #354), and axe only
+ * reports it on an element that really scrolls. Two short definitions render the same
+ * markup and prove nothing.
+ *
+ * The title is what carries it because it is the cheapest field in the definition to
+ * edit - one autosaved control on the builder - and because the diff is a text diff of
+ * canonical JSON, so one long value is one long line, printed on both sides. Ordinary
+ * words rather than a run of `x`, since `.qcms-diff-side` is `overflow-wrap: anywhere`
+ * and the title is also on screen elsewhere on this form's screens; a realistic long
+ * title is a case the app should survive anyway.
+ */
+const OVERFLOWING_FORM_TITLE =
+  "Publish sweep form with a deliberately long title, so the canonical JSON " +
+  "definition prints a line no version column can contain without scrolling";
+
+/**
+ * Pick a published version in one of the version screen's two compare selects.
+ *
+ * Not `chooseOption` from `support/forms.js`: its trigger fallback anchors the label at
+ * the END of the accessible name, and a react-aria `Select` names its trigger from the
+ * label AND the value it is currently showing, so the label sits at the front with the
+ * placeholder or the chosen version after it. Matching the label anywhere in the name is
+ * what survives both orderings, and it is unambiguous here - "Older version" and "Newer
+ * version" name one control each on this screen.
+ */
+async function chooseVersion(page: Page, label: string, version: string): Promise<void> {
+  const trigger = page.getByRole("button", { name: new RegExp(label) });
+  await trigger.click();
+  await page.getByRole("option", { name: version, exact: true }).click();
+  await expect(trigger).toContainText(version);
+}
+
 /** WCAG 2.2 AA, the same rule set the portal gate uses. */
 const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
@@ -197,6 +234,13 @@ const EXTRA_RULES = { "heading-order": { enabled: true } };
  */
 const KNOWN_HEADING_ORDER_GAPS: Readonly<Record<string, readonly string[]>> = {
   "version history": ["#qcms-diff-heading"],
+  // The same node, the same defect (#540), one state further on: issue #354 sweeps
+  // the version screen a second time with a diff rendered, and the compare panel's
+  // `<h3>` is on the page either way. Registered per state because the register is
+  // keyed that way on purpose - a mute granted for one state must not silently cover
+  // another. Fixing #540 deletes both entries in one go, and the staleness assertion
+  // below is what forces that rather than leaving either armed.
+  "version diff, overflowing": ["#qcms-diff-heading"],
 };
 
 /** The sheet's three mode layers. Light is the bare root, so it has no class. */
@@ -646,9 +690,10 @@ test("publish, preview, history and secure links have zero violations", async ({
   // the shared renderer inside an admin page, so this is also the only place the two
   // stylesheets meet - exactly the pair a contrast rule should be run against.
   //
-  // `expectNoViolations` analyses each state in light, dark and high contrast, so twelve
-  // states is thirty-six axe runs on top of authoring two questions, building a form and
-  // publishing it. Measured at ~50s; the budget is the usual generous multiple of that.
+  // `expectNoViolations` analyses each state in light, dark and high contrast, so thirteen
+  // states is thirty-nine axe runs on top of authoring two questions, building a form and
+  // publishing it TWICE (issue #354 needs a second version to have a diff to draw).
+  // Measured at ~50s before that; the budget is the usual generous multiple of it.
   test.setTimeout(300_000);
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await signInWithTotp(page, EMAIL, totpSecret);
@@ -701,6 +746,22 @@ test("publish, preview, history and secure links have zero violations", async ({
   await expect(publishStatus).toHaveAttribute("aria-live", "polite");
   await expectNoViolations(page, "publish success");
 
+  // A SECOND VERSION, so the version screen has a diff to draw at all (issue #354).
+  // Comparing needs two published definitions, and one edit is enough: the form title
+  // is the cheapest thing in the definition to move, and moving it to something long
+  // is what makes the diff WIDE, which is the half that matters here. See
+  // OVERFLOWING_FORM_TITLE.
+  await page.goto(`/forms/${formId}`);
+  await openFormDetails(page);
+  const beforeTitle = await savedStamp(page);
+  await fillStable(field(page, "Form title"), OVERFLOWING_FORM_TITLE);
+  await waitForSaveAfter(page, beforeTitle);
+  await page.reload();
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await expect(page.getByRole("alertdialog")).toBeVisible();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Publish v2" }).click();
+  await expect(page.getByText("Published as v2.")).toBeVisible({ timeout: 30_000 });
+
   // Published, so respondents can submit to it and its submissions can fan out to a
   // webhook. That is what the operations sweep below needs, and this is the only place
   // in this file that pays for authoring a form (see `pubForm`).
@@ -734,6 +795,33 @@ test("publish, preview, history and secure links have zero violations", async ({
   await page.goto(`/forms/${formId}/versions`);
   await expect(page.getByRole("table", { name: "Published versions" })).toBeVisible();
   await expectNoViolations(page, "version history");
+
+  // THE DIFF, AND THE CONDITION IT NEEDS TO BE JUDGED ON (issue #354).
+  //
+  // `.qcms-diff` is `overflow-x: auto`, and a scroll container nothing can focus is a
+  // keyboard trap: WCAG 2.1.1, the same defect issue #309 fixed on `.qcms-snippet`.
+  // Axe's `scrollable-region-focusable` reports it, but only on an element that
+  // ACTUALLY SCROLLS, so until this the sweep was silent for a reason that had nothing
+  // to do with the markup being right: it never rendered a diff at all, and a diff of
+  // two short definitions would not have overflowed if it had. That is the same shape
+  // as issue #306 one turn further in - the sweep visits the state and the fixture
+  // never triggers the condition - and it is the harder one to notice, because the
+  // state IS being swept.
+  //
+  // So the overflow is asserted directly, before axe is asked anything. Without that
+  // assertion a later change that narrows the fixture (a shorter title, a wider
+  // column) would take the condition away again and this sweep would go back to
+  // certifying nothing, silently and in green.
+  await chooseVersion(page, "Older version", "v1");
+  await chooseVersion(page, "Newer version", "v2");
+  const diffRegion = page.locator(".qcms-diff");
+  await expect(page.getByTestId("qcms-version-diff")).toBeVisible();
+  const overflows = await diffRegion.evaluate((el) => el.scrollWidth > el.clientWidth);
+  expect(
+    overflows,
+    "the fixture diff must overflow horizontally, or scrollable-region-focusable has nothing to fire on and this sweep proves nothing (issue #354)",
+  ).toBe(true);
+  await expectNoViolations(page, "version diff, overflowing");
 
   await page.getByRole("link", { name: "View v1" }).click();
   await expect(page.getByTestId("qcms-version-view")).toBeVisible({ timeout: 60_000 });

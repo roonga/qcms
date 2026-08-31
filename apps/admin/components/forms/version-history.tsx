@@ -219,8 +219,22 @@ function DiffView({
       <p className="text-sm text-(--color-text-muted)" data-testid="qcms-diff-summary">
         {summary}
       </p>
+      {/* THE SCROLL BOX BELOW IS FOCUSABLE, and that is WCAG 2.1.1 rather than taste
+          (issue #354). `.qcms-diff` is `overflow-x: auto` and JSON lines are long, so a
+          wide diff scrolls sideways - and a scroll container nothing can focus is one a
+          keyboard user cannot scroll at all. It is the same defect issue #309 fixed on
+          `.qcms-snippet`, one component over.
+
+          The `role` is load-bearing rather than decoration, and it predates this:
+          `aria-label` on a bare `div` is a prohibited attribute, so without a role the
+          accessible name is simply dropped and axe reports `aria-prohibited-attr`.
+
+          The axe sweep could not see any of it until the same issue gave it a fixture
+          diff that actually overflows (`e2e/a11y-axe.pw.ts`). `scrollable-region-focusable`
+          fires only on an element that really scrolls, so a fixture whose diff fits
+          reports a green that means nothing. */}
       {rows.length > 0 && (
-        <div className="qcms-diff" role="group" aria-label={summary}>
+        <div className="qcms-diff" role="group" aria-label={summary} tabIndex={0}>
           <ol className="qcms-diff-rows">
             {rows.map((row, index) => (
               <li key={index} className={`qcms-diff-row qcms-diff-row--${row.kind}`}>

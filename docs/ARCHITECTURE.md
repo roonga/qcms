@@ -352,7 +352,9 @@ qcms/
 │                     responses/ · webhooks/ · erasures/            (035)
 │
 ├── tooling/
-│   └── create-qcms-app/          # scaffolding CLI (publishable)    (037)
+│   ├── create-qcms-app/          # scaffolding CLI (publishable)    (037)
+│   └── e2e-support/              # browser-suite helpers both apps
+│                                 # import (private)            (#187, #236)
 │
 ├── docker/
 │   ├── api.Dockerfile · portal.Dockerfile · admin.Dockerfile       (036)

@@ -27,6 +27,7 @@ import { writeFileSync } from "node:fs";
 
 import AxeBuilder from "@axe-core/playwright";
 import type { Locator, Page } from "@playwright/test";
+import { settleTransitions } from "@qcms/e2e-support/animations";
 import { FONT_REGISTRY, fontClass } from "@qcms/ui/fonts";
 
 import { DENSITY_LEVELS, densityClass } from "../lib/appearance.js";
@@ -50,23 +51,6 @@ const TARGET_SIZE_MINIMUM = 24;
 
 /** The origin the harness serves, for cookies seeded before the first navigation. */
 const ORIGIN = `http://localhost:${PORTAL_PORT}`;
-
-/**
- * Wait for every running CSS transition to finish (issue #187, inherited from
- * `theming.pw.ts`). The chips carry a colour transition, so a value sampled
- * mid-transition is a blend belonging to no palette. Settling the animations, rather
- * than emulating reduced motion, keeps the measurement on the real rendering path.
- */
-async function settleTransitions(page: Page): Promise<void> {
-  await page.evaluate(async () => {
-    await new Promise((resolve) => {
-      requestAnimationFrame(() => resolve(undefined));
-    });
-    await Promise.all(
-      document.getAnimations().map((animation) => animation.finished.catch(() => undefined)),
-    );
-  });
-}
 
 function computed(target: Locator, property: string): Promise<string> {
   return target.evaluate(
