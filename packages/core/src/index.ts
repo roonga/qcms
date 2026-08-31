@@ -66,6 +66,7 @@ export {
   parseComparable,
   isDateAnswerValue,
   isAnswerValue,
+  isBlankAnswerValue,
   isComparable,
   compareValues,
   valuesEqual,

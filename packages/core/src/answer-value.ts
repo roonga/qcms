@@ -24,6 +24,12 @@ import { parseWithCode } from "./internal/parse.js";
 /**
  * shortText / longText: NFC-normalized string. Non-NFC input is normalized on
  * parse, never rejected - equality and storage always see one byte form.
+ *
+ * The encoding is not trimmed and has no `.min(1)`: what a respondent typed is
+ * what is stored. The two rules that make an empty or whitespace-only string
+ * not an *answer* live one layer up, so that storage stays faithful -
+ * `validateAnswer` refuses `""` at the ingest boundary (ADR-33) and
+ * {@link isBlankAnswerValue} withholds presence from a blank value (issue #128).
  */
 export const TextAnswerValue = z.string().transform((value) => value.normalize("NFC"));
 export type TextAnswerValue = z.infer<typeof TextAnswerValue>;
@@ -205,6 +211,32 @@ export function compareValues(a: AnswerValue, b: AnswerValue): Result<Ordering> 
       "Both operands must be finite numbers or canonical YYYY-MM-DD dates",
     ),
   );
+}
+
+/**
+ * A **blank** answer is a text value that is empty or whitespace-only (issue
+ * #128; Code Owner ruling "required means non-blank", 2026-08-31).
+ *
+ * Blankness is a *presence* question, not an encoding one. The stored value is
+ * never rewritten - the ruling's option 2 keeps a respondent's `" "` verbatim in
+ * the ledger and in exports - but a blank value does not count as an answer for
+ * the tests that ask "has this question been answered?": `evaluateRules` (the
+ * `answered` operator and the required accounting) and `prepareSubmission`'s I9
+ * sweep. A required question is therefore not satisfiable with the space bar.
+ *
+ * Only text can be blank. `date` and `singleChoice` values are strings too, but
+ * their canonical encodings (`YYYY-MM-DD`, a non-empty `OptionId`) have no
+ * whitespace-only spelling, so this predicate is exact without being told the
+ * question type - which is what lets the evaluator apply it over a bare
+ * `AnswerMap`. `[]` is deliberately not blank here: the ruling names text, and
+ * the empty selection is refused at the boundary instead (`validateAnswer`).
+ *
+ * `String.prototype.trim` is the whitespace definition - the ECMAScript
+ * WhiteSpace plus LineTerminator set - so a non-breaking space and an
+ * ideographic space are blank exactly as a plain space is.
+ */
+export function isBlankAnswerValue(value: AnswerValue): boolean {
+  return typeof value === "string" && value.trim() === "";
 }
 
 /**

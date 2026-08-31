@@ -633,6 +633,136 @@ describe("semantic 5 - currentStep, required accounting, completeness", () => {
   });
 });
 
+describe("semantic 2 - blank text is absence (issue #128)", () => {
+  /** A required shortText source gating an optional shortText on a later step. */
+  const blankSetup = (): TestSetup =>
+    build(
+      [
+        ["stp_one", [{ id: "q_a", type: "shortText", required: true }]],
+        ["stp_two", [{ id: "q_b", type: "shortText" }]],
+      ],
+      [
+        {
+          ruleId: "rul_gate",
+          when: { op: "answered", questionId: "q_a" },
+          show: ["q_b"],
+        },
+      ],
+    );
+
+  it.each([
+    ["an empty string", ""],
+    ["a single space", " "],
+    ["a tab and a newline", "\t\n"],
+    ["a non-breaking space", " "],
+    ["an ideographic space", "　"],
+  ])("%s does not satisfy a required question", (_label, value) => {
+    const state = evalOk(blankSetup(), answersOf([["q_a", value]]));
+    expect(state.missingRequired).toEqual(["q_a"]);
+    expect(state.answeredRequired).toEqual([]);
+    expect(state.complete).toBe(false);
+    expect(state.currentStep).toBe("stp_one");
+  });
+
+  it("blank text evaluates as unanswered for the `answered` operator", () => {
+    const setup = blankSetup();
+    // The gated question stays hidden, so a blank answer is not merely
+    // uncounted - it does not exist as far as any rule is concerned.
+    expect(visibleIds(evalOk(setup, answersOf([["q_a", "   "]])))).toEqual(["q_a"]);
+    expect(visibleIds(evalOk(setup, answersOf([["q_a", "Ada"]])))).toEqual(["q_a", "q_b"]);
+  });
+
+  it("blank text is absent for the value operators too, not only `answered`", () => {
+    // One definition of presence for every operator: `equals ""` is not
+    // satisfied by the value that no longer counts as an answer, and
+    // `notEquals` stays false on absence (semantic 2) rather than flipping true.
+    const withRule = (rule: unknown): TestSetup =>
+      build(
+        [
+          ["stp_one", [{ id: "q_a", type: "shortText" }]],
+          ["stp_two", [{ id: "q_b", type: "shortText" }]],
+        ],
+        [rule],
+      );
+
+    const equalsBlank = withRule({
+      ruleId: "rul_equals",
+      when: { op: "equals", questionId: "q_a", value: "" },
+      show: ["q_b"],
+    });
+    expect(visibleIds(evalOk(equalsBlank, answersOf([["q_a", ""]])))).toEqual(["q_a"]);
+
+    const notEqualsBlank = withRule({
+      ruleId: "rul_not_equals",
+      when: { op: "notEquals", questionId: "q_a", value: "Ada" },
+      show: ["q_b"],
+    });
+    expect(visibleIds(evalOk(notEqualsBlank, answersOf([["q_a", " "]])))).toEqual(["q_a"]);
+  });
+
+  it("only whitespace-ONLY text is blank; padding around content is an answer", () => {
+    const state = evalOk(blankSetup(), answersOf([["q_a", "  Ada  "]]));
+    expect(state.answeredRequired).toEqual(["q_a"]);
+    expect(state.complete).toBe(true);
+    expect(visibleIds(state)).toEqual(["q_a", "q_b"]);
+  });
+
+  it("blankness is a text rule: the other canonical encodings are untouched", () => {
+    // `0`, `false` and an empty multiChoice selection are values, not blanks.
+    // `[]` is refused at the ingest boundary by validateAnswer instead; making
+    // it absent here as well would be a second, undecided semantics change.
+    const others = build(
+      [
+        [
+          "stp_one",
+          [
+            { id: "q_a", type: "number", required: true },
+            { id: "q_b", type: "boolean", required: true },
+            { id: "q_c", type: "multiChoice", required: true, options: ["opt_a", "opt_b"] },
+          ],
+        ],
+      ],
+      [],
+    );
+    const state = evalOk(
+      others,
+      answersOf([
+        ["q_a", 0],
+        ["q_b", false],
+        ["q_c", opts()],
+      ]),
+    );
+    expect(state.missingRequired).toEqual([]);
+    expect(state.complete).toBe(true);
+  });
+
+  it("a date and a singleChoice answer can never be blank by construction", () => {
+    // The predicate needs no question type because no other canonical string
+    // encoding has a whitespace-only spelling - this pins that reasoning.
+    const typed = build(
+      [
+        [
+          "stp_one",
+          [
+            { id: "q_a", type: "date", required: true },
+            { id: "q_b", type: "singleChoice", required: true, options: ["opt_a"] },
+          ],
+        ],
+      ],
+      [],
+    );
+    const state = evalOk(
+      typed,
+      answersOf([
+        ["q_a", "2026-08-31"],
+        ["q_b", asOptionId("opt_a")],
+      ]),
+    );
+    expect(state.answeredRequired).toEqual(["q_a", "q_b"]);
+    expect(state.complete).toBe(true);
+  });
+});
+
 describe("totality - typed errors on malformed input", () => {
   const wellFormed = (): TestSetup => gate([showWhenAccidentTrue]);
 

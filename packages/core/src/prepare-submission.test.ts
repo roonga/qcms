@@ -262,6 +262,71 @@ describe("prepareSubmission - kitchen-sink (all seven types lock canonically)", 
   });
 });
 
+describe("prepareSubmission - blank text does not satisfy required (issue #128)", () => {
+  const kitchenSink = () => fixtureSnapshot("kitchen-sink.json");
+
+  /** Every kitchen-sink required answer, with q_full_name (shortText) overridden. */
+  const withFullName = (value: AnswerValue): AnswerMap =>
+    answersOf([
+      ["q_full_name", value],
+      ["q_dob", "1990-05-04"],
+      ["q_at_fault_accident", true],
+      ["q_accident_count", 5],
+      ["q_preexisting_conditions", opts("opt_asthma")],
+      ["q_coverage_level", "opt_standard"],
+    ]);
+
+  it.each([
+    ["an empty string", ""],
+    ["a single space", " "],
+    ["a tab and a newline", "\t\n"],
+  ])("%s fails the sweep as MISSING_REQUIRED, not as an invalid answer", async (_label, value) => {
+    const errors = await errorsOf(kitchenSink(), withFullName(value));
+    expect(errors.map((error) => [error.code, idOf(error)])).toEqual([
+      ["MISSING_REQUIRED", "q_full_name"],
+    ]);
+  });
+
+  it("the sweep agrees with the flow state it was evaluated under", async () => {
+    // Both presence tests read the same predicate, so a respondent can never be
+    // told "ready to submit" by the flow and "required missing" by the lock.
+    const blank = await prepareSubmission(kitchenSink(), withFullName(" "));
+    expect(blank.ok).toBe(false);
+    const answered = await lockedOf(kitchenSink(), withFullName("Ada Lovelace"));
+    expect(answered.flowState.missingRequired).toEqual([]);
+    expect(answered.flowState.complete).toBe(true);
+  });
+
+  it("a blank OPTIONAL answer is left out of the locked set, never sealed as an answer", async () => {
+    // q_medical_history is the optional longText: a blank value is absence, so
+    // it must not reach the content hash as an answer of nothing.
+    const withBlankOptional = new Map(withFullName("Ada Lovelace"));
+    withBlankOptional.set(asQuestionId("q_medical_history"), "   ");
+    const locked = await lockedOf(kitchenSink(), withBlankOptional);
+    expect(locked.answers.map((answer) => answer.questionId)).not.toContain("q_medical_history");
+    // ...and it hashes exactly as the submission that simply omitted it.
+    const omitted = await lockedOf(kitchenSink(), withFullName("Ada Lovelace"));
+    expect(locked.contentHash).toBe(omitted.contentHash);
+  });
+
+  it("text padded around content still answers, and locks verbatim (no trim on the value)", async () => {
+    // Trailing padding on both text questions: the presence test trims, the
+    // stored and locked value does not (issue #128 option 2). The shortText
+    // fixture's pattern requires a leading letter, so the padding is on the end.
+    const padded = new Map(withFullName("Ada Lovelace "));
+    padded.set(asQuestionId("q_medical_history"), "  Asthma  ");
+    const locked = await lockedOf(kitchenSink(), padded);
+    expect(locked.answers).toContainEqual({
+      questionId: "q_full_name",
+      value: "Ada Lovelace ",
+    });
+    expect(locked.answers).toContainEqual({
+      questionId: "q_medical_history",
+      value: "  Asthma  ",
+    });
+  });
+});
+
 describe("canonicalJson", () => {
   it("sorts object keys lexicographically at every depth", () => {
     expect(canonicalJson({ b: 1, a: { d: 2, c: 3 } })).toBe('{"a":{"c":3,"d":2},"b":1}');
