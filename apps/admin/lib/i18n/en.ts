@@ -481,10 +481,12 @@ export const messages = {
 
   "forms.builder.crumbs": "Forms",
   "forms.builder.crumbLabel": "Breadcrumb",
-  // The builder's own `<h1>`, and since issue 679 the builder's alone. Its five sibling
-  // sections compose `forms.section.heading` instead, because their subject is a collection
-  // belonging to the form; on the builder the subject IS the form, so the bare slug is the
-  // heading rather than a heading that has not been written yet.
+  // The identity line under the heading on every form screen. This paragraph used to say
+  // the builder's five sibling sections composed `forms.section.heading` while the builder
+  // headed itself with the bare slug; neither half survived. The Code Owner's 2026-08-26
+  // amendment heads all six with the section's name alone, that key is gone with issue
+  // #538's sweep, and `app/(shell)/section-headings.test.tsx` is where the reasoning for
+  // both now lives.
   "forms.builder.formId": "Form ID",
   "forms.builder.status": "Status",
   "forms.builder.draftSource.open": "Editing the saved draft.",
