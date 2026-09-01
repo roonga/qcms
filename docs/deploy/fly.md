@@ -127,34 +127,55 @@ The portal keeps a normal `[http_service]`:
   min_machines_running = 1        # set 0 to save ~$2/mo at the cost of first-hit latency
 ```
 
-## Postgres: two paths, one honest tradeoff
+## Postgres: three paths, one honest tradeoff
 
-QCMS's only stateful component is Postgres. You are choosing where it lives, and the cost gap is the
-whole decision.
+QCMS's only stateful component is Postgres. You are choosing where it lives, and the cost gap is most
+of the decision - with one durability caveat that rules a cheap option out for the long term.
 
-| Path                         | What it is                                              | Reached over                       | Rough cost (confirm at signup) |
-| ---------------------------- | ------------------------------------------------------- | ---------------------------------- | ------------------------------ |
-| **A - Fly Managed Postgres** | Fly's managed MPG, Basic plan (Shared-2x, 1 GB)         | 6PN, `http`/`postgres://` internal | **~$50/mo** all-in             |
-| **B - external free-tier**   | Neon (or similar) serverless Postgres, reached over TLS | public endpoint, TLS               | **~$10-15/mo** all-in          |
+| Path                          | What it is                                              | Reached over                | Rough cost (confirm at signup) |
+| ----------------------------- | ------------------------------------------------------- | --------------------------- | ------------------------------ |
+| **A - Fly Managed Postgres**  | Fly's managed MPG, Basic plan (Shared-2x, 1 GB)         | 6PN, `postgres://` internal | **~$55-65/mo** all-in          |
+| **B - self-run on a Machine** | a Postgres you run yourself on a Fly Machine + a volume | 6PN, `postgres://` internal | **~$30-35/mo** all-in          |
+| **C - external free-tier**    | Neon (or similar) serverless Postgres, reached over TLS | public endpoint, TLS        | **~$10-15/mo** all-in          |
 
-The gap (about $50 versus about $10) is three always-on machines (about $6 total) plus either MPG's
-~$38/mo floor (plus storage at ~$0.28/provisioned GB) or an external database at or near $0.
+**The durability caveat, before you pick on price alone.** Fly has signalled that it will not support
+the **self-run** Postgres shape (Path B) long-term: its own docs call unmanaged Fly Postgres "not a
+managed database", it is explicitly unsupported by Fly Support (you own operations, backups, and
+disaster recovery), and Fly is steering everyone to Managed Postgres. So treat Path B as transitional
+at best. **Managed (A) or external (C) is the durable choice**; do not build a long-lived deployment
+on B.
+
+One genuine plus across all three: Fly's Sydney region (`syd`) is a real, first-class region, so an
+AU deployment keeps both the apps and an internal-network database in-country.
 
 ### Path A - Fly Managed Postgres (MPG)
 
-The low-friction path: MPG lives on the same 6PN mesh, so the API reaches it by internal name with
-no public database endpoint. Provision it, then attach its connection string as a secret:
+The low-friction, durable path: MPG lives on the same 6PN mesh, so the API reaches it by internal
+name with no public database endpoint, and Fly runs the backups. Provision it, then attach its
+connection string as a secret:
 
 ```sh
 fly mpg create --name qcms-db --plan basic --region syd
 # then set DATABASE_URL on the API app (see Secrets below)
 ```
 
-MPG Basic is a ~$38/mo floor plus storage. It is the right choice when you would rather not run a
-`pg_dump` cron and want backups handled by the platform. Confirm the current plan shape and price at
-signup: MPG pricing has moved more than once.
+MPG Basic is a ~$38/mo floor plus storage (at ~$0.28/provisioned GB), which lands the all-in figure
+around ~$55-65/mo once the three app machines and storage are counted. It is the right choice when
+you would rather not run a `pg_dump` cron and want backups handled by the platform. Confirm the
+current plan shape and price at signup: MPG pricing has moved more than once.
 
-### Path B - external free-tier Postgres (Neon), over TLS
+### Path B - self-run Postgres on a Fly Machine (transitional)
+
+You can run a Postgres container on a Fly Machine with a persistent volume, on the same 6PN mesh, for
+roughly ~$30-35/mo all-in (a larger Machine for the database plus volume storage, beside the three
+app machines). It is cheaper than MPG and keeps the database internal.
+
+**Read the durability caveat above before choosing this.** It is unsupported by Fly, you own its
+backups and recovery entirely (run the `pg_dump` drill below as if it were an external database), and
+Fly is retiring the shape. Use it only for a short-lived or throwaway deployment where you will
+migrate to MPG or an external provider before it matters. For anything long-lived, pick A or C.
+
+### Path C - external free-tier Postgres (Neon), over TLS
 
 Point `DATABASE_URL` at a Neon database over its public TLS endpoint. The API's egress reaches it
 fine (Fly apps have outbound internet by default). This trims the database line to ~$0, but read the
@@ -165,7 +186,7 @@ two caveats honestly:
   API is deliberately always-warm and its schedulers poll, so the database rarely idles - an
   always-on instance can exhaust a monthly compute-hour cap and be suspended until the next cycle.
   For anything past a pilot, budget for the provider's smallest paid always-on tier (a few dollars a
-  month), which is why Path B is priced at ~$10-15 all-in, not ~$6.
+  month), which is why Path C is priced at ~$10-15 all-in, not ~$6.
 - **Backups are now yours.** Run the documented drill from `docs/backup-restore.md` on a schedule.
   A minimal `pg_dump` cron, pushed to object storage, is the whole obligation:
 
@@ -287,16 +308,18 @@ Cloudflare's edge certificate.
 Smallest viable, all three machines always-on, one region. **Confirm every figure at signup (as of
 2026-09-01); there is no free tier for a new org.**
 
-| Line item                              | Path A (MPG)                | Path B (external DB)              |
-| -------------------------------------- | --------------------------- | --------------------------------- |
-| `qcms-portal` shared-cpu-1x, always-on | ~$2/mo                      | ~$2/mo                            |
-| `qcms-admin` shared-cpu-1x, always-on  | ~$2/mo                      | ~$2/mo                            |
-| `qcms-api` shared-cpu-1x, always-on    | ~$2/mo                      | ~$2/mo                            |
-| Postgres                               | MPG Basic ~$38/mo + storage | external free/entry tier ~$0-6/mo |
-| **Rough total**                        | **~$50/mo**                 | **~$10-15/mo**                    |
+| Line item                              | A (MPG)                     | B (self-run, transitional)       | C (external DB)                   |
+| -------------------------------------- | --------------------------- | -------------------------------- | --------------------------------- |
+| `qcms-portal` shared-cpu-1x, always-on | ~$2/mo                      | ~$2/mo                           | ~$2/mo                            |
+| `qcms-admin` shared-cpu-1x, always-on  | ~$2/mo                      | ~$2/mo                           | ~$2/mo                            |
+| `qcms-api` shared-cpu-1x, always-on    | ~$2/mo                      | ~$2/mo                           | ~$2/mo                            |
+| Postgres                               | MPG Basic ~$38/mo + storage | a DB Machine + volume ~$25-30/mo | external free/entry tier ~$0-6/mo |
+| **Rough total**                        | **~$55-65/mo**              | **~$30-35/mo**                   | **~$10-15/mo**                    |
 
-Trimming portal and admin to `min_machines_running = 0` saves ~$4/mo at the cost of a cold start on
-the first hit. The API line is not negotiable: it is always-on by design.
+Path B is the cheapest internal-network option but the one Fly is retiring (see the durability
+caveat under "Postgres"); for a long-lived deployment choose A or C. Trimming portal and admin to
+`min_machines_running = 0` saves ~$4/mo at the cost of a cold start on the first hit. The API line is
+not negotiable: it is always-on by design.
 
 ## CI: build, push, deploy
 
@@ -411,6 +434,11 @@ Retrieved 2026-09-01. Confirm prices and free-tier rules at signup; they change.
   https://fly.io/docs/flyctl/wireguard-create/ and https://fly.io/docs/reference/wireguard/
 - Fly.io Managed Postgres and pricing (Basic ~$38/mo, Shared-2x/1 GB; storage ~$0.28/provisioned
   GB): https://fly.io/docs/mpg/ and https://fly.io/docs/about/pricing/
+- Fly.io unmanaged/self-run Postgres is unsupported and being superseded by MPG ("This Is Not Managed
+  Postgres"; own operations, backups, and recovery): https://fly.io/docs/postgres/ and
+  https://fly.io/docs/postgres/getting-started/what-you-should-know/
+- Fly.io regions, including Sydney (`syd`) as a first-class AU region:
+  https://fly.io/docs/reference/regions/
 - Fly.io resource pricing and the end of the free tier for new orgs (shared-cpu-1x/256 MB ~$2/mo
   always-on; trial credit only): https://fly.io/docs/about/pricing/ and
   https://fly.io/docs/about/billing/
