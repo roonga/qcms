@@ -15,9 +15,9 @@ There are two reference forms in this repository that exercise every question
 type. They are different forms with **different question ids**, and until issue
 #129 they shared a file name.
 
-| File                                                   | Domain  | Questions unique to it                        | Loaded by                                                                       |
-| ------------------------------------------------------ | ------- | --------------------------------------------- | ------------------------------------------------------------------------------- |
-| `vehicle-kitchen-sink-form.json` (compiled: `vehicle-kitchen-sink.a2ui.json`) | vehicle | `q_optional_cover`, `q_extra_detail`          | the API e2e scenario suite, the portal Playwright suite, and `pnpm dev:portal`   |
+| File                                                                                                                         | Domain  | Questions unique to it                          | Loaded by                                                                                                      |
+| ---------------------------------------------------------------------------------------------------------------------------- | ------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `vehicle-kitchen-sink-form.json` (compiled: `vehicle-kitchen-sink.a2ui.json`)                                                | vehicle | `q_optional_cover`, `q_extra_detail`            | the API e2e scenario suite, the portal Playwright suite, and `pnpm dev:portal`                                 |
 | `packages/core/fixtures/forms/valid/kitchen-sink.json` (compiled: `packages/a2ui-compiler/golden/v*/kitchen-sink.a2ui.json`) | health  | `q_preexisting_conditions`, `q_medical_history` | the `@qcms/core` and `@qcms/a2ui-compiler` suites, and the `@qcms/ui` renderer conformance and keyboard suites |
 
 The failure this naming prevents is quiet rather than loud. A selector written

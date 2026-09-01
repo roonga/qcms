@@ -172,10 +172,9 @@ describe("a multiChoice selection through the record (issue #167)", () => {
     // The response echoes the ledger's stored order, which need not be the order
     // the control renders; a navigation must not leave the record disagreeing
     // with the screen.
-    const merged = withServerHeld(
-      withIssued({}, "q_cover", ["opt_a", "opt_b"]),
-      { q_cover: ["opt_b", "opt_a"] },
-    );
+    const merged = withServerHeld(withIssued({}, "q_cover", ["opt_a", "opt_b"]), {
+      q_cover: ["opt_b", "opt_a"],
+    });
     expect(isRecorded(merged, "q_cover", ["opt_a", "opt_b"])).toBe(true);
   });
 });

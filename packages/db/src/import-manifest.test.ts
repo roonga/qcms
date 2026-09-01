@@ -22,13 +22,12 @@
  *
  * 1. The entry points come from the manifest, not from a list here, so a fourth
  *    export cannot be published without being walked.
- * 2. The reachability test asserts the walk covers EVERY tracked non-test source
+ * 2. The reachability test asserts the walk covers EVERY non-test source file
  *    under `src/`. A walk that quietly stops covering a file reports green
  *    otherwise, and that is exactly how a walk that covers zero files looks.
  */
 
-import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -172,25 +171,29 @@ function entryPointSources(): string[] {
 }
 
 /**
- * Every tracked, non-test TypeScript source under `src/`.
+ * Every non-test TypeScript source under `src/`.
  *
- * Enumerated from Git rather than by walking the directory (CONTRIBUTING, issue
- * #629): `.gitignore` is the repository's one maintained catalogue of what is
- * generated rather than authored, and a filesystem walk reads whatever a previous
- * gate left behind as though it were source. `--others --exclude-standard`
- * includes a file added but not yet staged, so a new source is covered by the
- * reachability test in the same run that introduces it.
+ * A `readdirSync` walk rather than `git ls-files`, following the same trade
+ * `packages/observability/src/otlp-log-allowlist.coverage.test.ts` documents: this
+ * package's lint forbids resolving a command off `PATH`
+ * (`sonarjs/no-os-command-from-path`), and an `eslint-disable` to spawn Git for a
+ * list one recursive read produces is the wrong trade. The usual objection to a
+ * walk is that it also reads build output an earlier gate left behind (issue
+ * #629), and confining it to `src` is what answers it: `dist` is a SIBLING of
+ * `src`, never inside it. The cost is that an untracked scratch file under `src`
+ * is counted as if it shipped, which fails loudly and in the safe direction.
  */
-function trackedSources(): string[] {
-  const out = execFileSync(
-    "git",
-    ["ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", "src"],
-    { cwd: PACKAGE_DIR, encoding: "utf8" },
-  );
-  return out
-    .split("\0")
-    .filter((file) => file.endsWith(".ts") && !file.endsWith(".test.ts"))
-    .map((file) => path.join(PACKAGE_DIR, file));
+function packageSources(dir = SRC_DIR): string[] {
+  const found: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      found.push(...packageSources(full));
+    } else if (entry.name.endsWith(".ts") && !entry.name.endsWith(".test.ts")) {
+      found.push(full);
+    }
+  }
+  return found;
 }
 
 describe("@qcms/db's imports against its own manifest (issue #386)", () => {
@@ -216,7 +219,7 @@ describe("@qcms/db's imports against its own manifest (issue #386)", () => {
     expect(walk.unresolved).toEqual([]);
   });
 
-  it("reaches every tracked non-test source under src/", () => {
+  it("reaches every non-test source under src/", () => {
     // The completeness assertion. Without it the walk is only as good as its
     // reach: a source that stops being imported (or one the resolver quietly
     // fails to find) leaves its own imports unchecked, and the suite stays green.
@@ -224,7 +227,7 @@ describe("@qcms/db's imports against its own manifest (issue #386)", () => {
     // A file failing here is one of two things, and both want a human. Either it
     // is unreachable from every published entry point, which makes it dead code
     // rather than something this test should learn to skip, or the walk broke.
-    const unreached = trackedSources()
+    const unreached = packageSources()
       .filter((file) => !walk.files.has(file))
       .map((file) => path.relative(PACKAGE_DIR, file))
       .sort();

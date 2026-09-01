@@ -73,8 +73,19 @@ export type RejectedAnswers = Readonly<Record<string, RejectedAnswer | undefined
  */
 export function answerKey(value: A2UIAnswerValue | undefined): string {
   // Sorted into a COPY: `value` is the value currently rendered in the control.
-  if (Array.isArray(value)) return JSON.stringify([...value].sort());
+  if (isSelection(value)) return JSON.stringify([...value].sort());
   return JSON.stringify(value ?? null);
+}
+
+/**
+ * A typed `Array.isArray`: the only array shape an `A2UIAnswerValue` has is a
+ * multiChoice selection. Written as a predicate because bare `Array.isArray`
+ * narrows a `readonly string[]` member to `any[]`, and spreading that is an
+ * unchecked `any` the lint rules refuse (the same reason `@qcms/ui`'s registry
+ * carries `isStringArray`).
+ */
+function isSelection(value: A2UIAnswerValue | undefined): value is readonly string[] {
+  return Array.isArray(value);
 }
 
 /**

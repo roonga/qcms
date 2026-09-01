@@ -114,7 +114,7 @@ export const INSURANCE_GOLDEN = readFixture(INSURANCE_GOLDEN_PATH) as CompiledFo
  * **`vehicle-` is load-bearing, not decoration (issue #129).** A different form
  * with the same coverage and a DIFFERENT question set - the health-domain
  * `kitchen-sink` in `packages/core/fixtures/forms/valid/`, compiled into
- * `packages/a2ui-compiler/golden/v*/kitchen-sink.a2ui.json` - used to share this
+ * `packages/a2ui-compiler/golden/vN/kitchen-sink.a2ui.json` - used to share this
  * one's file name. Element lookups written against one form's question ids and
  * run against the other do not error; they simply find nothing, which reads as a
  * broken assertion rather than a wrong fixture, and cost a full test-authoring
