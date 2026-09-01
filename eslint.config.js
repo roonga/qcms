@@ -4,6 +4,52 @@ import eslint from "@eslint/js";
 import sonarjs from "eslint-plugin-sonarjs";
 import tseslint from "typescript-eslint";
 
+/**
+ * Node built-ins, in both spellings a bundler-free TypeScript import can take. Shared
+ * by the three fetch-purity fences below (`@qcms/core`, `@qcms/a2ui-compiler`, and the
+ * API's shipped source) so the ban is one list rather than three that drift.
+ */
+const nodeBuiltinPatterns = [
+  "node:*",
+  "crypto",
+  "fs",
+  "path",
+  "os",
+  "util",
+  "stream",
+  "buffer",
+  "child_process",
+  "worker_threads",
+  "events",
+  "url",
+];
+
+/**
+ * Component libraries that would compete with the a2-react-aria stack (ADR-22). One
+ * list, applied to every surface that renders: the renderer package AND both apps.
+ * Scoping it to `packages/ui` alone left the apps holding the decision by convention,
+ * which is what ADR-22 says it is not (issue #728).
+ */
+const competingComponentLibraries = [
+  "@mui/*",
+  "@material-ui/*",
+  "antd",
+  "antd/*",
+  "@chakra-ui/*",
+  "@mantine/*",
+  "@radix-ui/*",
+  "react-bootstrap",
+  "bootstrap",
+  "@headlessui/*",
+  "@fluentui/*",
+  "flowbite",
+  "flowbite-react",
+  "@nextui-org/*",
+  "@ariakit/*",
+  "@base-ui-components/*",
+  "@shadcn/*",
+];
+
 const toolingFiles = [
   "scripts/**/*.{ts,mts,cts,js,mjs,cjs}",
   ".devcontainer/**/*.{ts,mts,cts,js,mjs,cjs}",
@@ -154,20 +200,7 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: [
-                "node:*",
-                "crypto",
-                "fs",
-                "path",
-                "os",
-                "util",
-                "stream",
-                "buffer",
-                "child_process",
-                "worker_threads",
-                "events",
-                "url",
-              ],
+              group: nodeBuiltinPatterns,
               message:
                 "@qcms/core is fetch-pure (R4): use Web APIs (crypto.subtle, TextEncoder), never Node built-ins.",
             },
@@ -191,20 +224,7 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: [
-                "node:*",
-                "crypto",
-                "fs",
-                "path",
-                "os",
-                "util",
-                "stream",
-                "buffer",
-                "child_process",
-                "worker_threads",
-                "events",
-                "url",
-              ],
+              group: nodeBuiltinPatterns,
               message:
                 "@qcms/a2ui-compiler runtime is I/O-free: no Node built-ins in shipped source.",
             },
@@ -229,6 +249,47 @@ export default tseslint.config(
     },
   },
   {
+    // API slices are fetch-pure (R4, ADR-13): a handler takes a Request and returns a
+    // Response, using Web APIs, so the same code runs on any Fetch-compatible runtime
+    // and a slice stays testable with `app.request()` and no process. The kernel and
+    // the compiler have had a lint fence saying so since they were written; the API
+    // held the rule by convention and review only (issue #726).
+    //
+    // The fence carries NO per-file exemption, and that is a measurement rather than a
+    // policy choice: no file under `apps/api/src` imports a Node built-in today. The
+    // process boundary reaches Node through *packages* instead - `@hono/node-server`,
+    // `pg`, `drizzle-orm/node-postgres` in `main.ts` - which are not built-ins and are
+    // not matched here. Adding an exemption for a file that does not need one would
+    // assert coverage the fence does not have, which is the failure mode
+    // `scripts/check-ports.mjs` documents for its own ALLOWED list. If a boundary file
+    // (`serve.ts`, `main.ts`, `create-admin.ts`) later needs a genuine built-in, add it
+    // to `ignores` here with the reason, in the diff where a reviewer sees it.
+    //
+    // Tests are exempt: they load fixtures from disk, sign fixture payloads with
+    // `node:crypto` to check the WebCrypto implementation against it, and stand up a
+    // `node:http` receiver for the webhook scheduler.
+    files: ["apps/api/src/**/*.ts"],
+    ignores: [
+      "apps/api/src/**/*.test.ts",
+      "apps/api/src/**/*.integration.test.ts",
+      "apps/api/src/test-support.ts",
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: nodeBuiltinPatterns,
+              message:
+                "API slices are Fetch-pure (R4, ADR-13): use Web APIs (crypto.subtle, TextEncoder, fetch), never Node built-ins. The process boundary composes Node adapters as dependencies instead.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // @qcms/ui import-surface rule (ADR-22): the renderer imports ONLY the a2ra
     // stack - @a2ra/core, react-aria-components (+ its @internationalized/date
     // and zod), React, and its own vendored sources. No other component library,
@@ -243,27 +304,36 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: [
-                "@mui/*",
-                "@material-ui/*",
-                "antd",
-                "antd/*",
-                "@chakra-ui/*",
-                "@mantine/*",
-                "@radix-ui/*",
-                "react-bootstrap",
-                "bootstrap",
-                "@headlessui/*",
-                "@fluentui/*",
-                "flowbite",
-                "flowbite-react",
-                "@nextui-org/*",
-                "@ariakit/*",
-                "@base-ui-components/*",
-                "@shadcn/*",
-              ],
+              group: competingComponentLibraries,
               message:
                 "@qcms/ui builds only on the a2-react-aria stack (ADR-22): use the vendored components (src/components/a2ui) or react-aria-components - never a second component library.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // The same ADR-22 fence over both frontends (issue #728). ADR-22 binds the portal
+    // and the admin, not just the renderer package, and the apps hold it today only by
+    // consuming `@qcms/ui/kit`: nothing stopped a screen adding a widget library as a
+    // direct dependency and importing it. This is the fast fence; the exhaustive
+    // allow-list assertion stays in @qcms/ui's import-surface test, which is where the
+    // renderer's full permitted surface is pinned.
+    //
+    // Scoped to every app file rather than a `src/**` subtree because Next.js source
+    // lives in `app/`, `components/` and `lib/`, and to tests too: a spec that imports
+    // a second library is a spec asserting the wrong stack.
+    files: ["apps/portal/**/*.{ts,tsx}", "apps/admin/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: competingComponentLibraries,
+              message:
+                "Both frontends build only on the a2-react-aria stack (ADR-22): render through @qcms/ui/kit or react-aria-components - never a second component library.",
             },
           ],
         },

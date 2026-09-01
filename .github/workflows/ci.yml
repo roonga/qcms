@@ -242,6 +242,29 @@ jobs:
       - run: pnpm check:no-control-chars
         if: env.PLAN_ONLY != 'true'
 
+      # AI tool-call tag literals must never reach committed text (issue #767). PRs
+      # #758 and #762 landed a closing pair at the end of four deploy documents, where
+      # they render as junk on GitHub and read as a generation artifact in a public
+      # repo, and every other gate passed them. Enumerated here as its own step for the
+      # reason the security-hygiene step spells out: `check:all` is not what CI runs
+      # (issue #463).
+      - run: pnpm check:harness-tags
+        if: env.PLAN_ONLY != 'true'
+
+      # Every cited ADR-NN resolves to a record in the docs/adr/ index (issue #734).
+      # ADR numbers are the densest cross-reference in the repository and nothing
+      # checked that a citation named a decision that exists.
+      - run: pnpm check:adr-citations
+        if: env.PLAN_ONLY != 'true'
+
+      # Every workflow job is classified, and a Testcontainers job wires both the
+      # mirrored-image action and the no-Docker-Hub assertion (issue #155). The two
+      # composite actions only guard the jobs that remember to use them; the
+      # classification is total, so adding a job means deciding in writing which guards
+      # it needs.
+      - run: pnpm check:docker-job-guards
+        if: env.PLAN_ONLY != 'true'
+
       # Runtime dependency licenses must be permissive/MIT-compatible (deny-by-default).
       - run: pnpm check:licenses
         if: env.PLAN_ONLY != 'true'

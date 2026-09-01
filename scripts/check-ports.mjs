@@ -31,8 +31,9 @@
  *   6. a Compose-style `${VAR:-NNNN}` default
  *   7. the prose form `port NNNN`, so a stale number in a doc is caught too
  *
- * Coverage is tracked text: `.ts .tsx .js .jsx .mjs .cjs .md .yml .yaml .sh`, plus
- * the named JSON/env files where ports genuinely get declared
+ * Coverage is tracked text: `.ts .tsx .js .jsx .mjs .cjs .md .yml .yaml .sh`, container
+ * image definitions (`*.Dockerfile`, `Dockerfile`), plus the named JSON/env files where
+ * ports genuinely get declared
  * (`.devcontainer/devcontainer.json`, every `.env.example`). Vendored components and
  * `plan/**` (a scratch/history area, like the other gates) are excluded. Broad
  * `.json` is excluded on purpose: the append-only golden corpus (ADR-18) must never
@@ -77,6 +78,7 @@ import { argv } from "node:process";
 import { pathToFileURL } from "node:url";
 
 import {
+  HARNESS_SERVICES,
   MAX_PORT_SEAT,
   MIN_PORT_SEAT,
   STABLE_SERVICES,
@@ -98,6 +100,12 @@ const GLOBS = [
   "*.yml",
   "*.yaml",
   "*.sh",
+  // Container image definitions (issue #730). A HEALTHCHECK dials a URL authority and
+  // a CMD can carry a `--port` flag, both shapes the scanner already recognises, in
+  // files it did not read: the api image's healthcheck port was unscanned rather than
+  // exempted. Both spellings, so a bare `Dockerfile` added later is covered too.
+  "*.Dockerfile",
+  "Dockerfile",
   ".devcontainer/devcontainer.json",
   "*.env.example",
   ".env.example",
@@ -176,6 +184,21 @@ export const ALLOWED = [
     why: "the app containers' own listening port, in the Fly.io fly.toml examples (the `internal_port` value). A container-internal port is the image's business and never a QCMS host allocation (same reason as apps/api/src/main.ts, the shipped default). Fly reaches it on 6PN by that internal port.",
   },
   {
+    file: "docker/api.Dockerfile",
+    value: 3000,
+    why: "the container's OWN listening port, dialled by its HEALTHCHECK from inside the container. A container-internal port is the image's business and never a QCMS host allocation (same reason as apps/api/src/main.ts, the shipped default). ADR-20: the API container is never published.",
+  },
+  {
+    file: "docker/admin.Dockerfile",
+    value: 3000,
+    why: "same: the Next.js server's own in-container port, dialled by the HEALTHCHECK. Compose maps 7S40 onto it.",
+  },
+  {
+    file: "docker/portal.Dockerfile",
+    value: 3000,
+    why: "same: the Next.js server's own in-container port, dialled by the HEALTHCHECK. Compose maps 7S00 onto it.",
+  },
+  {
     file: "apps/api/src/openapi-document.ts",
     value: 5432,
     why: "Postgres's own well-known port, in an adopter-facing example connection string.",
@@ -239,6 +262,26 @@ export function sanctionedPorts() {
     for (const entry of harnessPorts(seat)) allowed.add(entry.port);
   }
   return allowed;
+}
+
+/**
+ * One block's slots, rendered from the record that defines them.
+ *
+ * The failure message used to name four stable slots and four harness slots as a
+ * hand-written line, which is a third copy of a table ADR-37 says lives in
+ * `docs/PORTS.md` alone. It drifted: the admin, the observability receiver and the
+ * database viewer were allocated and the hint kept advertising the older, shorter
+ * allocation to whoever was reading it precisely because they had got a port wrong
+ * (issue #730). Rendering it removes the copy rather than refreshing it.
+ *
+ * @param {string} prefix the block's seat-shaped prefix, e.g. `7S`.
+ * @param {Record<string, number>} services offsets by service name.
+ * @returns {string}
+ */
+export function slotList(prefix, services) {
+  return Object.entries(services)
+    .map(([service, offset]) => `${prefix}${String(offset).padStart(2, "0")} ${service}`)
+    .join("  ");
 }
 
 /**
@@ -348,8 +391,8 @@ export function main() {
     [
       "",
       "QCMS uses two blocks and nothing else, for machine seat S (QCMS_PORT_SEAT):",
-      "  7Sxx   stable, human-facing   7S00 portal  7S10 api  7S20 postgres  7S30 artifacts  7S40 admin",
-      "  17Sxx  ephemeral harness      17S00 portal 17S10 api 17S30 otlp     17S40 admin",
+      `  7Sxx   stable, human-facing  ${slotList("7S", STABLE_SERVICES)}`,
+      `  17Sxx  ephemeral harness     ${slotList("17S", HARNESS_SERVICES)}`,
       "",
       "Derive the port from `scripts/ports.mjs` (stablePort / harnessPort) instead of",
       "writing a literal. If the number genuinely is not ours (a third-party image's",
